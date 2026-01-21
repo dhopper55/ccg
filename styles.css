@@ -81,7 +81,7 @@ body {
 }
 
 .home-header {
-  margin-bottom: 60px;
+  margin-bottom: 20px;
 }
 
 .home-logo {
@@ -139,6 +139,21 @@ body {
   width: 32px;
   height: 32px;
   color: var(--bg-dark);
+}
+
+.tool-image {
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.tool-image img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
 }
 
 .tool-title {
@@ -777,7 +792,7 @@ button:active {
   }
 
   .home-header {
-    margin-bottom: 40px;
+    margin-bottom: 16px;
   }
 
   .site-nav {
