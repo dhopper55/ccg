@@ -1,0 +1,6 @@
+{
+  "server": {
+    "baseDir": [".", "dist"]
+  },
+  "files": ["dist/**/*.js", "*.html", "*.css"]
+}

@@ -1,0 +1,20 @@
+{
+  "name": "guitar-serial-decoder",
+  "version": "1.0.0",
+  "description": "A tool to decode guitar serial numbers from major brands",
+  "main": "dist/main.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "start": "lite-server",
+    "dev": "tsc && lite-server"
+  },
+  "keywords": ["guitar", "serial-number", "decoder"],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "lite-server": "^2.6.1",
+    "typescript": "^5.9.3"
+  }
+}

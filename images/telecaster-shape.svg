@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 500" fill="#f5a623">
+  <!-- Fender Telecaster Silhouette -->
+
+  <!-- Headstock (Fender style - inline tuners) -->
+  <path d="M92 0 L92 120 L108 120 L108 10 L125 8 Q135 10 138 25 L138 50 L145 50 L145 72 L138 72 L138 95 L145 95 L145 117 L138 117 L138 125 L108 125 L108 120"/>
+
+  <!-- Tuning pegs (inline) -->
+  <circle cx="148" cy="35" r="7"/>
+  <circle cx="148" cy="60" r="7"/>
+  <circle cx="148" cy="85" r="7"/>
+  <circle cx="148" cy="108" r="7"/>
+  <circle cx="135" cy="118" r="7"/>
+  <circle cx="122" cy="122" r="7"/>
+
+  <!-- Neck -->
+  <rect x="92" y="120" width="16" height="115" rx="2"/>
+
+  <!-- Frets -->
+  <g fill="#1a1a2e" opacity="0.3">
+    <rect x="92" y="135" width="16" height="1"/>
+    <rect x="92" y="150" width="16" height="1"/>
+    <rect x="92" y="165" width="16" height="1"/>
+    <rect x="92" y="180" width="16" height="1"/>
+    <rect x="92" y="195" width="16" height="1"/>
+    <rect x="92" y="210" width="16" height="1"/>
+    <rect x="92" y="220" width="16" height="1"/>
+  </g>
+
+  <!-- Body - Tele single cutaway slab body -->
+  <path d="M100 235
+           Q50 240 35 280 Q22 320 25 370 Q28 420 45 460 Q65 492 100 500 Q140 490 158 455 Q175 415 175 365 Q175 315 160 275 Q145 240 100 235 Z"/>
+
+  <!-- Single cutaway (sharper than LP) -->
+  <path d="M50 270 Q70 285 75 315 Q75 340 65 355 Q50 340 45 310 Q42 285 50 270 Z" fill="#1a1a2e"/>
+
+  <!-- Pickguard (partial) -->
+  <path d="M45 290 Q40 340 45 400 L55 440 Q70 455 100 458 L120 455 Q130 450 130 430 L130 380 Q130 320 120 290 Q115 280 100 278 L60 285 Z" fill="#1a1a2e" opacity="0.15"/>
+
+  <!-- Neck pickup -->
+  <rect x="70" y="325" width="55" height="12" rx="2" fill="#1a1a2e" opacity="0.6"/>
+
+  <!-- Bridge plate with pickup (Tele style) -->
+  <rect x="65" y="410" width="70" height="50" rx="4" fill="#1a1a2e" opacity="0.4"/>
+  <rect x="75" y="420" width="50" height="10" rx="2" fill="#1a1a2e" opacity="0.6"/>
+
+  <!-- Control plate -->
+  <path d="M130 360 L155 355 Q165 360 165 380 L162 430 Q160 445 150 448 L130 450 Q125 445 125 430 L128 375 Q128 362 130 360 Z" fill="#1a1a2e" opacity="0.3"/>
+
+  <!-- Control knobs -->
+  <circle cx="145" cy="385" r="10" fill="#1a1a2e" opacity="0.5"/>
+  <circle cx="145" cy="420" r="10" fill="#1a1a2e" opacity="0.5"/>
+
+  <!-- 3-way switch -->
+  <ellipse cx="145" cy="365" rx="5" ry="8" fill="#1a1a2e" opacity="0.5"/>
+
+  <!-- Output jack -->
+  <circle cx="145" cy="440" r="5" fill="#1a1a2e" opacity="0.5"/>
+</svg>

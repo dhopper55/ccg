@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 220" fill="#f5a623">
+  <!-- Precision Bass body shape - offset like a Strat but bigger, bass proportions -->
+  <path d="M50 70
+           Q28 74 20 95 Q15 115 16 140 Q18 165 26 185 Q36 202 50 208 Q64 202 74 185 Q82 165 84 140 Q85 115 80 95 Q72 74 50 70 Z" />
+  <!-- Upper horn left -->
+  <path d="M24 92 Q14 80 12 65 Q12 55 20 54 Q28 56 30 68 Q30 80 24 92 Z"/>
+  <!-- Upper horn right -->
+  <path d="M78 88 Q85 78 84 68 Q82 60 76 62 Q72 68 74 80 L78 88 Z"/>
+  <!-- Long bass neck -->
+  <rect x="45" y="5" width="10" height="70" rx="1"/>
+  <!-- Headstock (large for bass) -->
+  <path d="M44 5 L44 -20 Q44 -28 50 -32 L60 -28 Q64 -22 62 -10 L58 5 Z"/>
+  <!-- Split P pickup -->
+  <rect x="38" y="125" width="10" height="10" rx="1" fill="#1a1a2e" opacity="0.5" transform="rotate(-10 43 130)"/>
+  <rect x="52" y="130" width="10" height="10" rx="1" fill="#1a1a2e" opacity="0.5" transform="rotate(-10 57 135)"/>
+  <!-- Bridge -->
+  <rect x="40" y="175" width="20" height="8" rx="1" fill="#1a1a2e" opacity="0.5"/>
+</svg>

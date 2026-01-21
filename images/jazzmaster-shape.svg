@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" fill="#f5a623">
+  <!-- Jazzmaster body shape - offset waist, wider body, rounded curves -->
+  <path d="M50 50
+           Q25 55 18 78 Q12 100 15 125 Q18 150 30 168 Q42 182 55 185
+           Q72 182 82 165 Q92 145 92 118 Q92 90 85 70 Q75 52 50 50 Z" />
+  <!-- Upper horn left -->
+  <path d="M22 75 Q12 62 12 48 Q14 38 22 38 Q30 42 30 55 Q28 65 22 75 Z"/>
+  <!-- Upper horn right (shorter) -->
+  <path d="M82 68 Q88 58 86 48 Q84 42 78 44 Q74 50 76 60 L82 68 Z"/>
+  <!-- Neck -->
+  <rect x="46" y="10" width="8" height="45" rx="1"/>
+  <!-- Headstock -->
+  <path d="M46 10 L46 -15 Q46 -22 50 -25 L58 -20 Q60 -15 58 -5 L56 10 Z"/>
+  <!-- Pickups (wide single coils / soapbar style) -->
+  <rect x="35" y="100" width="30" height="8" rx="2" fill="#1a1a2e" opacity="0.5"/>
+  <rect x="35" y="135" width="30" height="8" rx="2" fill="#1a1a2e" opacity="0.5"/>
+  <!-- Floating tremolo -->
+  <rect x="42" y="160" width="16" height="6" rx="1" fill="#1a1a2e" opacity="0.5"/>
+</svg>

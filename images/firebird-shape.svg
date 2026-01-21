@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" fill="#f5a623">
+  <!-- Firebird body shape - reverse body, offset waist -->
+  <path d="M50 50
+           Q30 55 25 75 Q20 95 22 115 Q25 140 35 160 Q45 175 55 178
+           Q70 175 78 155 Q85 135 85 110 Q85 85 78 68 Q70 52 50 50 Z" />
+  <!-- Upper horn (reverse style - extends to left) -->
+  <path d="M28 68 Q15 60 10 50 Q8 42 15 40 Q22 40 28 50 Q32 58 30 65 L28 68 Z"/>
+  <!-- Neck -->
+  <rect x="46" y="10" width="8" height="45" rx="1"/>
+  <!-- Headstock (Firebird style - reverse) -->
+  <path d="M42 10 L38 -15 Q36 -22 42 -25 L58 -25 Q64 -22 62 -15 L58 10 Z"/>
+  <!-- Mini humbuckers suggestion -->
+  <rect x="40" y="95" width="20" height="6" rx="2" fill="#1a1a2e" opacity="0.5"/>
+  <rect x="40" y="120" width="20" height="6" rx="2" fill="#1a1a2e" opacity="0.5"/>
+  <!-- Bridge -->
+  <rect x="42" y="145" width="16" height="4" rx="1" fill="#1a1a2e" opacity="0.5"/>
+</svg>

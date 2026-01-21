@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" fill="#f5a623">
+  <!-- Mustang body shape - small, offset, student guitar -->
+  <path d="M50 55
+           Q32 58 25 75 Q20 92 22 115 Q25 138 34 155 Q44 170 54 174 Q68 170 76 152 Q84 132 84 108 Q84 85 78 70 Q70 56 50 55 Z" />
+  <!-- Upper horn left -->
+  <path d="M28 72 Q20 62 20 50 Q22 42 30 44 Q36 50 34 62 L28 72 Z"/>
+  <!-- Upper horn right -->
+  <path d="M74 68 Q80 58 78 50 Q76 44 70 46 Q66 52 68 62 L74 68 Z"/>
+  <!-- Short scale neck -->
+  <rect x="46" y="15" width="8" height="45" rx="1"/>
+  <!-- Headstock -->
+  <path d="M46 15 L46 -5 Q46 -12 50 -15 L58 -10 Q60 -5 58 5 L56 15 Z"/>
+  <!-- Pickups (Mustang style) -->
+  <rect x="40" y="95" width="18" height="6" rx="2" fill="#1a1a2e" opacity="0.5"/>
+  <rect x="40" y="125" width="18" height="6" rx="2" fill="#1a1a2e" opacity="0.5"/>
+  <!-- Dynamic vibrato -->
+  <rect x="42" y="148" width="16" height="10" rx="1" fill="#1a1a2e" opacity="0.5"/>
+</svg>

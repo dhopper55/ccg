@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 500" fill="#f5a623">
+  <!-- SG Guitar Silhouette - accurate proportions like clip art -->
+
+  <!-- Headstock -->
+  <path d="M85 0 L85 15 Q75 18 72 30 L72 60 Q72 65 78 68 L78 75 Q70 78 68 85 L68 95 Q68 100 75 102 L75 108 Q68 110 66 118 L66 128 Q66 135 80 138 L80 145
+           L120 145 L120 138 Q134 135 134 128 L134 118 Q132 110 125 108 L125 102 Q132 100 132 95 L132 85 Q130 78 122 75 L122 68 Q128 65 128 60 L128 30 Q125 18 115 15 L115 0 Z"/>
+
+  <!-- Tuning pegs left -->
+  <circle cx="62" cy="45" r="8"/>
+  <circle cx="62" cy="75" r="8"/>
+  <circle cx="62" cy="105" r="8"/>
+
+  <!-- Tuning pegs right -->
+  <circle cx="138" cy="45" r="8"/>
+  <circle cx="138" cy="75" r="8"/>
+  <circle cx="138" cy="105" r="8"/>
+
+  <!-- Neck -->
+  <rect x="88" y="145" width="24" height="120" rx="2"/>
+
+  <!-- Frets (subtle lines) -->
+  <g fill="#1a1a2e" opacity="0.3">
+    <rect x="88" y="160" width="24" height="1"/>
+    <rect x="88" y="175" width="24" height="1"/>
+    <rect x="88" y="190" width="24" height="1"/>
+    <rect x="88" y="205" width="24" height="1"/>
+    <rect x="88" y="220" width="24" height="1"/>
+    <rect x="88" y="235" width="24" height="1"/>
+    <rect x="88" y="250" width="24" height="1"/>
+  </g>
+
+  <!-- Body - SG double cutaway with devil horns -->
+  <path d="M100 265
+           Q60 270 45 295 Q35 320 38 360 Q42 400 55 435 Q70 465 100 480 Q130 465 145 435 Q158 400 162 360 Q165 320 155 295 Q140 270 100 265 Z"/>
+
+  <!-- Upper horn left (devil horn) -->
+  <path d="M52 295 Q30 270 25 240 Q22 220 35 215 Q50 218 55 240 Q58 260 55 280 L52 295 Z"/>
+
+  <!-- Upper horn right (devil horn) -->
+  <path d="M148 295 Q170 270 175 240 Q178 220 165 215 Q150 218 145 240 Q142 260 145 280 L148 295 Z"/>
+
+  <!-- Pickups -->
+  <rect x="75" y="330" width="50" height="22" rx="3" fill="#1a1a2e" opacity="0.6"/>
+  <rect x="75" y="370" width="50" height="22" rx="3" fill="#1a1a2e" opacity="0.6"/>
+
+  <!-- Pickup selector area -->
+  <rect x="70" y="410" width="20" height="35" rx="2" fill="#1a1a2e" opacity="0.4"/>
+
+  <!-- Bridge/tailpiece -->
+  <rect x="80" y="420" width="40" height="12" rx="2" fill="#1a1a2e" opacity="0.5"/>
+
+  <!-- Control knobs -->
+  <circle cx="140" cy="430" r="10" fill="#1a1a2e" opacity="0.5"/>
+  <circle cx="155" cy="450" r="10" fill="#1a1a2e" opacity="0.5"/>
+  <circle cx="140" cy="460" r="10" fill="#1a1a2e" opacity="0.5"/>
+  <circle cx="155" cy="420" r="10" fill="#1a1a2e" opacity="0.5"/>
+
+  <!-- Toggle switch -->
+  <ellipse cx="60" cy="310" rx="6" ry="10" fill="#1a1a2e" opacity="0.5"/>
+</svg>
