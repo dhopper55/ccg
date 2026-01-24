@@ -60,6 +60,13 @@ export function decodeFender(serial: string): DecodeResult {
   }
 
   // Japanese formats
+  // JFF prefix (2019+ Japan "Superstrats" and modern production)
+  // Format: JFF + letter (month/factory) + 2-digit year + sequence
+  const jffMatch = normalized.match(/^JFF([A-Z])(\d{2})(\d+)$/);
+  if (jffMatch) {
+    return decodeJFFPrefix(jffMatch[1], jffMatch[2], jffMatch[3], normalized);
+  }
+
   // JV prefix (early 1980s Japan)
   const jvMatch = normalized.match(/^JV(\d+)$/);
   if (jvMatch) {
@@ -243,6 +250,21 @@ function decodeMNPrefix(yearDigit: string, sequence: string, serial: string): De
     factory: 'Ensenada',
     country: 'Mexico',
     notes: `MN prefix indicates Mexican production (1990s). Mexico production began in 1990. Sequence: ${sequence}.`
+  };
+
+  return { success: true, info };
+}
+
+function decodeJFFPrefix(letter: string, year: string, sequence: string, serial: string): DecodeResult {
+  const fullYear = '20' + year;
+
+  const info: GuitarInfo = {
+    brand: 'Fender',
+    serialNumber: serial,
+    year: fullYear,
+    factory: 'Japan',
+    country: 'Japan',
+    notes: `JFF prefix was adopted by Fender Japan starting in 2019 for specific modern production lines, often referred to as "Superstrats". The fourth letter "${letter}" may indicate the month of production or specific factory within the Japanese manufacturing network. Production sequence: ${sequence}.`
   };
 
   return { success: true, info };

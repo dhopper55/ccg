@@ -75,6 +75,8 @@ function isFenderPattern(serial) {
     if (/^MN\d+$/.test(serial))
         return true;
     // Japanese prefixes
+    if (/^JFF[A-Z]\d+$/.test(serial))
+        return true;
     if (/^JV\d+$/.test(serial))
         return true;
     if (/^J\d+$/.test(serial))
