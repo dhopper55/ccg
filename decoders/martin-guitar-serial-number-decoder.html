@@ -5,52 +5,44 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Martin Guitar Serial Number Decoder | Coal Creek Guitars</title>
   <meta name="description" content="Free Martin guitar serial number decoder. Find the year and production details of your Martin acoustic guitar. Works with D-28, D-18, OM, 000, and all Martin models.">
-  <link rel="canonical" href="https://www.coalcreekguitars.com/martin-guitar-serial-number-decoder.html">
+  <link rel="canonical" href="https://www.coalcreekguitars.com/decoders/martin-guitar-serial-number-decoder.html">
 
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://www.coalcreekguitars.com/martin-guitar-serial-number-decoder.html">
+  <meta property="og:url" content="https://www.coalcreekguitars.com/decoders/martin-guitar-serial-number-decoder.html">
   <meta property="og:title" content="Martin Guitar Serial Number Decoder | Coal Creek Guitars">
   <meta property="og:description" content="Free Martin serial number decoder. Find the year and production details of your Martin acoustic guitar.">
   <meta property="og:image" content="https://www.coalcreekguitars.com/images/coal-creek-logo.png">
 
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:url" content="https://www.coalcreekguitars.com/martin-guitar-serial-number-decoder.html">
+  <meta name="twitter:url" content="https://www.coalcreekguitars.com/decoders/martin-guitar-serial-number-decoder.html">
   <meta name="twitter:title" content="Martin Guitar Serial Number Decoder | Coal Creek Guitars">
   <meta name="twitter:description" content="Free Martin serial number decoder. Find the year and production details of your Martin acoustic guitar.">
   <meta name="twitter:image" content="https://www.coalcreekguitars.com/images/coal-creek-logo.png">
 
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="../styles.css">
 </head>
 <body data-preselect-brand="martin">
   <nav class="site-nav">
-    <a href="index.html" class="nav-logo">
-      <img src="images/coal-creek-logo.png" alt="Coal Creek Guitars">
+    <a href="../index.html" class="nav-logo">
+      <img src="../images/coal-creek-logo.png" alt="Coal Creek Guitars">
     </a>
-    <a href="index.html" class="nav-home">Home</a>
+    <a href="../index.html" class="nav-home">Home</a>
   </nav>
 
   <div class="container">
     <h1>Martin Guitar Serial Number Decoder</h1>
-    <p class="subtitle">Decode serial numbers from Martin guitars</p>
+
+    <div class="brand-header">
+      <img src="../images/brand-logos/Martin_guitar_logo.png" alt="Martin" class="brand-logo brand-logo-invert">
+      <p class="brand-description">Founded in 1833 by Christian Frederick Martin in NYC and later moved to Nazareth, Pennsylvania, in 1839, C.F. Martin & Co. is a premier, family-owned manufacturer of acoustic guitars. Renowned for pioneering the Dreadnought body shape and X-bracing, the company has shaped American music for nearly two centuries, serving artists like Johnny Cash and Eric Clapton.</p>
+    </div>
 
     <div class="input-section">
       <div class="form-group">
-        <label for="brand">Select Brand: <span class="optional">(optional - we'll try to detect it)</span></label>
-        <select id="brand">
-          <option value="">-- Auto-detect --</option>
-          <option value="gibson">Gibson</option>
-          <option value="epiphone">Epiphone</option>
-          <option value="fender">Fender</option>
-          <option value="taylor">Taylor</option>
-          <option value="martin">Martin</option>
-        </select>
-      </div>
-
-      <div class="form-group">
         <label for="serial">Serial Number:</label>
-        <input type="text" id="serial" placeholder="Enter serial number" autocomplete="off">
+        <input type="text" id="serial" placeholder="Enter Martin serial number" autocomplete="off">
       </div>
 
       <button id="decode-btn">Decode Serial Number</button>
@@ -62,15 +54,23 @@
     </div>
 
     <div id="error" class="error-section hidden"></div>
+
+    <div class="decoder-note">
+      <p>Note: If you try a serial number and the decoder is not able to decode it, please <a href="../contact-us.html">contact us</a> and let us know so we can check the number and fix the decoder. Thank you!</p>
+    </div>
+
+    <div class="back-link">
+      <a href="guitar-serial-decoder-lookup.html">&larr; Back to brand selection</a>
+    </div>
   </div>
 
   <footer class="site-footer">
     <div class="footer-content">
-      <p class="footer-contact">Questions? Reach out: <a href="mailto:david@coalcreekguitars.com">david@coalcreekguitars.com</a></p>
+      <p class="footer-contact">Questions? <a href="../contact-us.html">Contact Us</a></p>
       <p class="footer-copyright">&copy; 2025 Coal Creek Guitars. All rights reserved.</p>
     </div>
   </footer>
 
-  <script type="module" src="dist/main.js"></script>
+  <script type="module" src="../dist/main.js"></script>
 </body>
 </html>

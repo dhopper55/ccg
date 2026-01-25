@@ -5,52 +5,44 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Fender Guitar Serial Number Decoder | Coal Creek Guitars</title>
   <meta name="description" content="Free Fender guitar serial number decoder. Find the year, factory location, and production details of your Fender guitar. Works with Stratocaster, Telecaster, Jazz Bass, and all Fender models.">
-  <link rel="canonical" href="https://www.coalcreekguitars.com/fender-guitar-serial-number-decoder.html">
+  <link rel="canonical" href="https://www.coalcreekguitars.com/decoders/fender-guitar-serial-number-decoder.html">
 
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://www.coalcreekguitars.com/fender-guitar-serial-number-decoder.html">
+  <meta property="og:url" content="https://www.coalcreekguitars.com/decoders/fender-guitar-serial-number-decoder.html">
   <meta property="og:title" content="Fender Guitar Serial Number Decoder | Coal Creek Guitars">
   <meta property="og:description" content="Free Fender serial number decoder. Find the year, factory location, and production details of your Fender guitar.">
   <meta property="og:image" content="https://www.coalcreekguitars.com/images/coal-creek-logo.png">
 
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:url" content="https://www.coalcreekguitars.com/fender-guitar-serial-number-decoder.html">
+  <meta name="twitter:url" content="https://www.coalcreekguitars.com/decoders/fender-guitar-serial-number-decoder.html">
   <meta name="twitter:title" content="Fender Guitar Serial Number Decoder | Coal Creek Guitars">
   <meta name="twitter:description" content="Free Fender serial number decoder. Find the year, factory location, and production details of your Fender guitar.">
   <meta name="twitter:image" content="https://www.coalcreekguitars.com/images/coal-creek-logo.png">
 
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="../styles.css">
 </head>
 <body data-preselect-brand="fender">
   <nav class="site-nav">
-    <a href="index.html" class="nav-logo">
-      <img src="images/coal-creek-logo.png" alt="Coal Creek Guitars">
+    <a href="../index.html" class="nav-logo">
+      <img src="../images/coal-creek-logo.png" alt="Coal Creek Guitars">
     </a>
-    <a href="index.html" class="nav-home">Home</a>
+    <a href="../index.html" class="nav-home">Home</a>
   </nav>
 
   <div class="container">
     <h1>Fender Guitar Serial Number Decoder</h1>
-    <p class="subtitle">Decode serial numbers from Fender guitars</p>
+
+    <div class="brand-header">
+      <img src="../images/brand-logos/Fender-logo.jpg" alt="Fender" class="brand-logo brand-logo-invert">
+      <p class="brand-description">Founded in 1946 by Leo Fender in Fullerton, California, Fender Musical Instruments Corporation (FMIC) is the world's leading manufacturer of stringed instruments, amplifiers, and accessories. Renowned for creating the first mass-produced solid-body electric guitars—the Telecaster (1951) and Stratocaster (1954)—and the Precision Bass, Fender is a cornerstone of modern music. Headquartered in Scottsdale, AZ, with a Custom Shop in Corona, CA, the brand has defined iconic sounds for over 70 years.</p>
+    </div>
 
     <div class="input-section">
       <div class="form-group">
-        <label for="brand">Select Brand: <span class="optional">(optional - we'll try to detect it)</span></label>
-        <select id="brand">
-          <option value="">-- Auto-detect --</option>
-          <option value="gibson">Gibson</option>
-          <option value="epiphone">Epiphone</option>
-          <option value="fender">Fender</option>
-          <option value="taylor">Taylor</option>
-          <option value="martin">Martin</option>
-        </select>
-      </div>
-
-      <div class="form-group">
         <label for="serial">Serial Number:</label>
-        <input type="text" id="serial" placeholder="Enter serial number" autocomplete="off">
+        <input type="text" id="serial" placeholder="Enter Fender serial number" autocomplete="off">
       </div>
 
       <button id="decode-btn">Decode Serial Number</button>
@@ -62,15 +54,23 @@
     </div>
 
     <div id="error" class="error-section hidden"></div>
+
+    <div class="decoder-note">
+      <p>Note: If you try a serial number and the decoder is not able to decode it, please <a href="../contact-us.html">contact us</a> and let us know so we can check the number and fix the decoder. Thank you!</p>
+    </div>
+
+    <div class="back-link">
+      <a href="guitar-serial-decoder-lookup.html">&larr; Back to brand selection</a>
+    </div>
   </div>
 
   <footer class="site-footer">
     <div class="footer-content">
-      <p class="footer-contact">Questions? Reach out: <a href="mailto:david@coalcreekguitars.com">david@coalcreekguitars.com</a></p>
+      <p class="footer-contact">Questions? <a href="../contact-us.html">Contact Us</a></p>
       <p class="footer-copyright">&copy; 2025 Coal Creek Guitars. All rights reserved.</p>
     </div>
   </footer>
 
-  <script type="module" src="dist/main.js"></script>
+  <script type="module" src="../dist/main.js"></script>
 </body>
 </html>

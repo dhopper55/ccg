@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Coal Creek Video Content</title>
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <nav class="site-nav">
+    <a href="index.html" class="nav-logo">
+      <img src="images/coal-creek-logo.png" alt="Coal Creek Guitars">
+    </a>
+    <a href="index.html" class="nav-home">Home</a>
+  </nav>
+
+  <div class="container listings-container">
+    <h1>Coal Creek Video Content</h1>
+
+    <div id="videos-loading" class="listings-loading">
+      <div class="loading-spinner"></div>
+      <p>Loading videos...</p>
+    </div>
+
+    <div id="videos-error" class="listings-error hidden"></div>
+
+    <div id="videos-grid" class="listings-grid"></div>
+
+    <div id="videos-empty" class="listings-empty hidden">
+      <p>No videos available. Check back soon!</p>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <div class="footer-content">
+      <p class="footer-contact">Questions? <a href="contact-us.html">Contact Us</a></p>
+      <p class="footer-copyright">&copy; 2025 Coal Creek Guitars. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script type="module" src="dist/videos.js"></script>
+</body>
+</html>

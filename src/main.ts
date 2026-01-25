@@ -4,7 +4,52 @@ import { decodeEpiphone } from './decoders/epiphone.js';
 import { decodeFender } from './decoders/fender.js';
 import { decodeTaylor } from './decoders/taylor.js';
 import { decodeMartin } from './decoders/martin.js';
+import { decodeIbanez } from './decoders/ibanez.js';
 import { detectBrand } from './decoders/brandDetector.js';
+
+// Google Forms tracking configuration
+const GOOGLE_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLScjlmEiQzVNnyGJIfbHZa3clFz97UqR6VwOAzwgBID7k04f5w/formResponse';
+const FORM_FIELDS = {
+  brand: 'entry.1337294788',
+  serial: 'entry.1296168262',
+  success: 'entry.1111959987',
+  year: 'entry.1354356712',
+  factory: 'entry.1430981141',
+  country: 'entry.193038505',
+  error: 'entry.429448273',
+  timestamp: 'entry.844467292',
+};
+
+// Track decode attempts to Google Forms (fire and forget)
+function trackDecode(data: {
+  brand: string;
+  serial: string;
+  success: boolean;
+  year?: string;
+  factory?: string;
+  country?: string;
+  error?: string;
+}): void {
+  const timestamp = new Date().toLocaleDateString('en-US');
+  const params = new URLSearchParams();
+
+  params.append(FORM_FIELDS.brand, data.brand || '');
+  params.append(FORM_FIELDS.serial, data.serial || '');
+  params.append(FORM_FIELDS.success, data.success ? 'true' : 'false');
+  params.append(FORM_FIELDS.year, data.year || '');
+  params.append(FORM_FIELDS.factory, data.factory || '');
+  params.append(FORM_FIELDS.country, data.country || '');
+  params.append(FORM_FIELDS.error, data.error || '');
+  params.append(FORM_FIELDS.timestamp, timestamp);
+
+  // Send as fire-and-forget using fetch with no-cors mode
+  fetch(`${GOOGLE_FORM_URL}?${params.toString()}`, {
+    method: 'GET',
+    mode: 'no-cors',
+  }).catch(() => {
+    // Silently ignore errors - tracking should not affect user experience
+  });
+}
 
 // Decoder mapping
 const decoders: Record<Brand, (serial: string) => DecodeResult> = {
@@ -13,18 +58,21 @@ const decoders: Record<Brand, (serial: string) => DecodeResult> = {
   fender: decodeFender,
   taylor: decodeTaylor,
   martin: decodeMartin,
+  ibanez: decodeIbanez,
 };
 
 // DOM elements
-const brandSelect = document.getElementById('brand') as HTMLSelectElement;
+const brandSelect = document.getElementById('brand') as HTMLSelectElement | null;
 const serialInput = document.getElementById('serial') as HTMLInputElement;
 const decodeButton = document.getElementById('decode-btn') as HTMLButtonElement;
 const resultSection = document.getElementById('result') as HTMLDivElement;
 const resultContent = document.getElementById('result-content') as HTMLDivElement;
 const errorSection = document.getElementById('error') as HTMLDivElement;
 
-// Check for pre-selected brand from data attribute
-const preselectedBrand = document.body.dataset.preselectBrand;
+// Check for pre-selected brand from data attribute (used on brand-specific pages without dropdown)
+const preselectedBrand = document.body.dataset.preselectBrand as Brand | undefined;
+
+// If there's a dropdown and a preselected brand, set it
 if (preselectedBrand && brandSelect) {
   brandSelect.value = preselectedBrand;
 }
@@ -38,7 +86,8 @@ serialInput.addEventListener('keypress', (e) => {
 });
 
 function handleDecode(): void {
-  let brand = brandSelect.value as Brand | '';
+  // Use preselected brand if no dropdown exists, otherwise get from dropdown
+  let brand: Brand | '' = preselectedBrand || (brandSelect ? brandSelect.value as Brand | '' : '');
   const serial = serialInput.value.trim();
 
   // Clear previous results
@@ -50,7 +99,7 @@ function handleDecode(): void {
     return;
   }
 
-  // If no brand selected, try to auto-detect
+  // If no brand selected/preselected, try to auto-detect
   if (!brand) {
     const detection = detectBrand(serial);
 
@@ -80,16 +129,39 @@ function handleDecode(): void {
 
   if (result.success && result.info) {
     displayResult(result.info);
+    // Track successful decode
+    trackDecode({
+      brand: result.info.brand || brand,
+      serial,
+      success: true,
+      year: result.info.year,
+      factory: result.info.factory,
+      country: result.info.country,
+    });
   } else {
-    showError(result.error || 'Unable to decode serial number.');
+    const errorMsg = result.error || 'Unable to decode serial number.';
+    showError(errorMsg);
+    // Track failed decode
+    trackDecode({
+      brand,
+      serial,
+      success: false,
+      error: errorMsg,
+    });
   }
 }
 
 function displayResult(info: GuitarInfo): void {
   resultContent.innerHTML = '';
 
+  // Update the result heading to include brand name
+  const resultHeading = resultSection.querySelector('h2');
+  if (resultHeading && info.brand) {
+    resultHeading.textContent = `${info.brand} Guitar Info`;
+  }
+
+  // Fields to display (excluding Brand since it's in the heading now)
   const fields: { label: string; value: string | undefined }[] = [
-    { label: 'Brand', value: info.brand },
     { label: 'Serial Number', value: info.serialNumber },
     { label: 'Year', value: info.year },
     { label: 'Month', value: info.month },
@@ -170,7 +242,9 @@ function showAmbiguousResult(possibleBrands: Brand[], serial: string): void {
       button.style.background = 'rgba(245, 166, 35, 0.2)';
     });
     button.addEventListener('click', () => {
-      brandSelect.value = brand;
+      if (brandSelect) {
+        brandSelect.value = brand;
+      }
       handleDecode();
     });
     buttonContainer.appendChild(button);

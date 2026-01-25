@@ -41,6 +41,11 @@ export function detectBrand(serial: string): BrandDetectionResult {
     possibleBrands.push('martin');
   }
 
+  // Check Ibanez patterns (various factory prefixes)
+  if (isIbanezPattern(normalized)) {
+    possibleBrands.push('ibanez');
+  }
+
   // Determine confidence
   if (possibleBrands.length === 1) {
     return {
@@ -200,6 +205,73 @@ function isMartinPattern(serial: string): boolean {
       return true;
     }
   }
+
+  return false;
+}
+
+function isIbanezPattern(serial: string): boolean {
+  // Japan FujiGen modern: F + 7 digits (1997-present)
+  if (/^F\d{7}$/.test(serial)) return true;
+
+  // Japan 1987-1996: F/H/I + 6 digits
+  if (/^[FHI]\d{6}$/.test(serial)) return true;
+
+  // Japan 1975-1988: Month letter (A-L) + 6 digits
+  if (/^[A-L]\d{6}$/.test(serial)) return true;
+
+  // Japan Sugi/J-Custom: Letter + 5 digits
+  if (/^[A-L]\d{5}$/.test(serial)) return true;
+
+  // Japan IGDC: IG + 6 digits
+  if (/^IG\d{6}$/.test(serial)) return true;
+
+  // Japan/Korea hybrid: FC + 7 digits
+  if (/^FC\d{7}$/.test(serial)) return true;
+
+  // Korea various factories: C/S/A/Y/P + 6-9 digits
+  if (/^[CSAYP]\d{6,9}$/.test(serial)) return true;
+
+  // Korea Sung-Eum: E + 7 digits
+  if (/^E\d{7}$/.test(serial)) return true;
+
+  // Korea World: W + 6 digits
+  if (/^W\d{6}$/.test(serial)) return true;
+
+  // Korea Saehan: SQ + digits
+  if (/^SQ\d+$/.test(serial)) return true;
+
+  // Korea KR format: KR + 9 digits
+  if (/^KR\d{9}$/.test(serial)) return true;
+
+  // Korea CP format: CP + digits
+  if (/^CP\d+$/.test(serial)) return true;
+
+  // Indonesia: I/K/J + 7-9 digits
+  if (/^[IKJ]\d{7,9}$/.test(serial)) return true;
+
+  // Indonesia PR format: PR + 9 digits
+  if (/^PR\d{9}$/.test(serial)) return true;
+
+  // Indonesia PW format: PW + 8 digits
+  if (/^PW\d{8}$/.test(serial)) return true;
+
+  // Indonesia Premium: Letter + 4 digits + Letter
+  if (/^[A-L]\d{4}[A-F]$/.test(serial)) return true;
+
+  // China J format: J + 9 digits
+  if (/^J\d{9}$/.test(serial)) return true;
+
+  // China GS format: GS + 9 digits
+  if (/^GS\d{9}$/.test(serial)) return true;
+
+  // China Yeou Chern: Z + letter/digit + 5 digits
+  if (/^Z[0-9XYZ]\d{5}$/.test(serial)) return true;
+
+  // China A format: A + 8 digits
+  if (/^A\d{8}$/.test(serial)) return true;
+
+  // China 4L format: 4L + 9 digits
+  if (/^4L\d{9}$/.test(serial)) return true;
 
   return false;
 }

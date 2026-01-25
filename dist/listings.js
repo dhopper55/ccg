@@ -1,5 +1,3 @@
-"use strict";
-// Reverb API integration for Coal Creek Guitars listings
 const REVERB_API_TOKEN = '91712608fefe08e6915c2d781519411af3bdd750818a8edc94d94e14a3d7c491';
 const REVERB_API_URL = 'https://api.reverb.com/api/my/listings';
 async function fetchListings() {
@@ -102,3 +100,4 @@ if (document.readyState === 'loading') {
 else {
     init();
 }
+export {};

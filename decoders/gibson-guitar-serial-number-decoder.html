@@ -5,52 +5,44 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Gibson Guitar Serial Number Decoder | Coal Creek Guitars</title>
   <meta name="description" content="Free Gibson guitar serial number decoder. Find the year, factory location, and production details of your Gibson guitar. Works with Les Paul, SG, ES-335, and all Gibson models.">
-  <link rel="canonical" href="https://www.coalcreekguitars.com/gibson-guitar-serial-number-decoder.html">
+  <link rel="canonical" href="https://www.coalcreekguitars.com/decoders/gibson-guitar-serial-number-decoder.html">
 
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://www.coalcreekguitars.com/gibson-guitar-serial-number-decoder.html">
+  <meta property="og:url" content="https://www.coalcreekguitars.com/decoders/gibson-guitar-serial-number-decoder.html">
   <meta property="og:title" content="Gibson Guitar Serial Number Decoder | Coal Creek Guitars">
   <meta property="og:description" content="Free Gibson serial number decoder. Find the year, factory location, and production details of your Gibson guitar.">
   <meta property="og:image" content="https://www.coalcreekguitars.com/images/coal-creek-logo.png">
 
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:url" content="https://www.coalcreekguitars.com/gibson-guitar-serial-number-decoder.html">
+  <meta name="twitter:url" content="https://www.coalcreekguitars.com/decoders/gibson-guitar-serial-number-decoder.html">
   <meta name="twitter:title" content="Gibson Guitar Serial Number Decoder | Coal Creek Guitars">
   <meta name="twitter:description" content="Free Gibson serial number decoder. Find the year, factory location, and production details of your Gibson guitar.">
   <meta name="twitter:image" content="https://www.coalcreekguitars.com/images/coal-creek-logo.png">
 
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="../styles.css">
 </head>
 <body data-preselect-brand="gibson">
   <nav class="site-nav">
-    <a href="index.html" class="nav-logo">
-      <img src="images/coal-creek-logo.png" alt="Coal Creek Guitars">
+    <a href="../index.html" class="nav-logo">
+      <img src="../images/coal-creek-logo.png" alt="Coal Creek Guitars">
     </a>
-    <a href="index.html" class="nav-home">Home</a>
+    <a href="../index.html" class="nav-home">Home</a>
   </nav>
 
   <div class="container">
     <h1>Gibson Guitar Serial Number Decoder</h1>
-    <p class="subtitle">Decode serial numbers from Gibson guitars</p>
+
+    <div class="brand-header">
+      <img src="../images/brand-logos/Gibson-logo.png" alt="Gibson" class="brand-logo brand-logo-invert">
+      <p class="brand-description">The Gibson Guitar Corporation (now known as Gibson Brands, Inc.) is an iconic American manufacturer of musical instruments, best known for its influential electric and acoustic guitars like the Les Paul model. Founded in 1894 and headquartered in Nashville, Tennessee, the company has a long history of craftsmanship and musical innovation.</p>
+    </div>
 
     <div class="input-section">
       <div class="form-group">
-        <label for="brand">Select Brand: <span class="optional">(optional - we'll try to detect it)</span></label>
-        <select id="brand">
-          <option value="">-- Auto-detect --</option>
-          <option value="gibson">Gibson</option>
-          <option value="epiphone">Epiphone</option>
-          <option value="fender">Fender</option>
-          <option value="taylor">Taylor</option>
-          <option value="martin">Martin</option>
-        </select>
-      </div>
-
-      <div class="form-group">
         <label for="serial">Serial Number:</label>
-        <input type="text" id="serial" placeholder="Enter serial number" autocomplete="off">
+        <input type="text" id="serial" placeholder="Enter Gibson serial number" autocomplete="off">
       </div>
 
       <button id="decode-btn">Decode Serial Number</button>
@@ -62,15 +54,23 @@
     </div>
 
     <div id="error" class="error-section hidden"></div>
+
+    <div class="decoder-note">
+      <p>Note: If you try a serial number and the decoder is not able to decode it, please <a href="../contact-us.html">contact us</a> and let us know so we can check the number and fix the decoder. Thank you!</p>
+    </div>
+
+    <div class="back-link">
+      <a href="guitar-serial-decoder-lookup.html">&larr; Back to brand selection</a>
+    </div>
   </div>
 
   <footer class="site-footer">
     <div class="footer-content">
-      <p class="footer-contact">Questions? Reach out: <a href="mailto:david@coalcreekguitars.com">david@coalcreekguitars.com</a></p>
+      <p class="footer-contact">Questions? <a href="../contact-us.html">Contact Us</a></p>
       <p class="footer-copyright">&copy; 2025 Coal Creek Guitars. All rights reserved.</p>
     </div>
   </footer>
 
-  <script type="module" src="dist/main.js"></script>
+  <script type="module" src="../dist/main.js"></script>
 </body>
 </html>

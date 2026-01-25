@@ -1,4 +1,5 @@
 // Reverb API integration for Coal Creek Guitars listings
+export {};
 
 interface ReverbListing {
   id: number;
