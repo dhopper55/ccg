@@ -1,6 +1,28 @@
 export function decodeIbanez(serial) {
     const cleaned = serial.trim().toUpperCase();
     const normalized = cleaned.replace(/[\s-]/g, '');
+    // Check for compound serial numbers with model prefix + actual serial
+    // Format: Model code (e.g., 2Y03, 5B01) followed by standard serial (GS..., PW..., etc.)
+    const compoundMatch = normalized.match(/^([A-Z0-9]{4})(GS\d{9})$/);
+    if (compoundMatch) {
+        const modelCode = compoundMatch[1];
+        const actualSerial = compoundMatch[2];
+        const result = decodeChinaGS(actualSerial);
+        if (result.success && result.info) {
+            result.info.notes = `Model code: ${modelCode}. ${result.info.notes}`;
+        }
+        return result;
+    }
+    const compoundMatchPW = normalized.match(/^([A-Z0-9]{4})(PW\d{8,9})$/);
+    if (compoundMatchPW) {
+        const modelCode = compoundMatchPW[1];
+        const actualSerial = compoundMatchPW[2];
+        const result = decodePW(actualSerial);
+        if (result.success && result.info) {
+            result.info.notes = `Model code: ${modelCode}. ${result.info.notes}`;
+        }
+        return result;
+    }
     // Try each format in order of specificity
     // Japan: F + 7 digits (1997-present, FujiGen)
     if (/^F\d{7}$/.test(normalized)) {
@@ -78,8 +100,8 @@ export function decodeIbanez(serial) {
     if (/^PR\d{9}$/.test(normalized)) {
         return decodePR(normalized);
     }
-    // Indonesia: PW + 8 digits (2019-present, PT Woonan)
-    if (/^PW\d{8}$/.test(normalized)) {
+    // Indonesia: PW + 8-9 digits (2019-present, PT Woonan)
+    if (/^PW\d{8,9}$/.test(normalized)) {
         return decodePW(normalized);
     }
     // Indonesia Premium: 6 chars with letter at end (2010-2015)
@@ -525,7 +547,7 @@ function decodePR(serial) {
     };
     return { success: true, info };
 }
-// Indonesia PW format: PW + 8 digits (2019-present)
+// Indonesia PW format: PW + 8-9 digits (2019-present)
 function decodePW(serial) {
     const year = parseInt(serial.substring(2, 4), 10) + 2000;
     const month = parseInt(serial.substring(4, 6), 10);

@@ -4,7 +4,13 @@ import { decodeFender } from './decoders/fender.js';
 import { decodeTaylor } from './decoders/taylor.js';
 import { decodeMartin } from './decoders/martin.js';
 import { decodeIbanez } from './decoders/ibanez.js';
-import { detectBrand } from './decoders/brandDetector.js';
+import { decodeYamaha } from './decoders/yamaha.js';
+import { decodePRS } from './decoders/prs.js';
+import { decodeESP } from './decoders/esp.js';
+import { decodeSchecter } from './decoders/schecter.js';
+import { decodeGretsch } from './decoders/gretsch.js';
+import { decodeJackson } from './decoders/jackson.js';
+import { decodeSquier } from './decoders/squier.js';
 // Google Forms tracking configuration
 const GOOGLE_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLScjlmEiQzVNnyGJIfbHZa3clFz97UqR6VwOAzwgBID7k04f5w/formResponse';
 const FORM_FIELDS = {
@@ -45,6 +51,13 @@ const decoders = {
     taylor: decodeTaylor,
     martin: decodeMartin,
     ibanez: decodeIbanez,
+    yamaha: decodeYamaha,
+    prs: decodePRS,
+    esp: decodeESP,
+    schecter: decodeSchecter,
+    gretsch: decodeGretsch,
+    jackson: decodeJackson,
+    squier: decodeSquier,
 };
 // DOM elements
 const brandSelect = document.getElementById('brand');
@@ -68,7 +81,7 @@ serialInput.addEventListener('keypress', (e) => {
 });
 function handleDecode() {
     // Use preselected brand if no dropdown exists, otherwise get from dropdown
-    let brand = preselectedBrand || (brandSelect ? brandSelect.value : '');
+    const brand = preselectedBrand || (brandSelect ? brandSelect.value : '');
     const serial = serialInput.value.trim();
     // Clear previous results
     hideResults();
@@ -77,25 +90,12 @@ function handleDecode() {
         showError('Please enter a serial number.');
         return;
     }
-    // If no brand selected/preselected, try to auto-detect
+    // Validate brand is selected
     if (!brand) {
-        const detection = detectBrand(serial);
-        if (detection.confident && detection.possibleBrands.length === 1) {
-            // We're confident in the brand, use it
-            brand = detection.possibleBrands[0];
-        }
-        else if (detection.possibleBrands.length === 0) {
-            // Couldn't identify any brand
-            showError(detection.message || 'Unable to identify the brand from this serial number. Please select a brand manually.');
-            return;
-        }
-        else {
-            // Multiple possible brands - show ambiguity message
-            showAmbiguousResult(detection.possibleBrands, serial);
-            return;
-        }
+        showError('Please select a brand.');
+        return;
     }
-    // Get the decoder for the selected/detected brand
+    // Get the decoder for the selected brand
     const decoder = decoders[brand];
     if (!decoder) {
         showError('Unknown brand selected.');
@@ -162,60 +162,6 @@ function displayResult(info) {
         notesDiv.innerHTML = `<strong>Notes:</strong> ${escapeHtml(info.notes)}`;
         resultContent.appendChild(notesDiv);
     }
-    resultSection.classList.remove('hidden');
-    errorSection.classList.add('hidden');
-}
-function showAmbiguousResult(possibleBrands, serial) {
-    resultContent.innerHTML = '';
-    // Create heading
-    const heading = document.createElement('div');
-    heading.className = 'result-item';
-    heading.innerHTML = `
-    <span class="result-label">Serial Number</span>
-    <span class="result-value">${escapeHtml(serial)}</span>
-  `;
-    resultContent.appendChild(heading);
-    // Create message about ambiguity
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'notes';
-    messageDiv.innerHTML = `
-    <strong>Multiple brands possible:</strong> This serial number format could belong to multiple brands.
-    Please select the correct brand from the dropdown to get accurate results.
-  `;
-    resultContent.appendChild(messageDiv);
-    // Create buttons for each possible brand
-    const buttonContainer = document.createElement('div');
-    buttonContainer.className = 'brand-buttons';
-    buttonContainer.style.cssText = 'display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap;';
-    for (const brand of possibleBrands) {
-        const button = document.createElement('button');
-        button.className = 'brand-option-btn';
-        button.textContent = brand.charAt(0).toUpperCase() + brand.slice(1);
-        button.style.cssText = `
-      padding: 10px 20px;
-      background: rgba(245, 166, 35, 0.2);
-      border: 1px solid #f5a623;
-      border-radius: 6px;
-      color: #f5a623;
-      cursor: pointer;
-      font-size: 0.95rem;
-      transition: background 0.2s;
-    `;
-        button.addEventListener('mouseenter', () => {
-            button.style.background = 'rgba(245, 166, 35, 0.4)';
-        });
-        button.addEventListener('mouseleave', () => {
-            button.style.background = 'rgba(245, 166, 35, 0.2)';
-        });
-        button.addEventListener('click', () => {
-            if (brandSelect) {
-                brandSelect.value = brand;
-            }
-            handleDecode();
-        });
-        buttonContainer.appendChild(button);
-    }
-    resultContent.appendChild(buttonContainer);
     resultSection.classList.remove('hidden');
     errorSection.classList.add('hidden');
 }

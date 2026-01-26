@@ -30,6 +30,10 @@ export function detectBrand(serial) {
     if (isIbanezPattern(normalized)) {
         possibleBrands.push('ibanez');
     }
+    // Check Yamaha patterns
+    if (isYamahaPattern(normalized)) {
+        possibleBrands.push('yamaha');
+    }
     // Determine confidence
     if (possibleBrands.length === 1) {
         return {
@@ -227,8 +231,8 @@ function isIbanezPattern(serial) {
     // Indonesia PR format: PR + 9 digits
     if (/^PR\d{9}$/.test(serial))
         return true;
-    // Indonesia PW format: PW + 8 digits
-    if (/^PW\d{8}$/.test(serial))
+    // Indonesia PW format: PW + 8-9 digits
+    if (/^PW\d{8,9}$/.test(serial))
         return true;
     // Indonesia Premium: Letter + 4 digits + Letter
     if (/^[A-L]\d{4}[A-F]$/.test(serial))
@@ -247,6 +251,48 @@ function isIbanezPattern(serial) {
         return true;
     // China 4L format: 4L + 9 digits
     if (/^4L\d{9}$/.test(serial))
+        return true;
+    // Compound formats: Model code (4 chars) + GS/PW serial
+    if (/^[A-Z0-9]{4}GS\d{9}$/.test(serial))
+        return true;
+    if (/^[A-Z0-9]{4}PW\d{8,9}$/.test(serial))
+        return true;
+    return false;
+}
+function isYamahaPattern(serial) {
+    // Standard format: 2 letters (year+month) + 5 digits (day + unit)
+    // Letters H-Q for year (0-9), H-P + X,Y,Z for month
+    if (/^[H-Q][H-PX-Z]\d{5}$/.test(serial))
+        return true;
+    // Japan Custom Shop 2004+: 3 letters + 3 digits + 1 letter
+    if (/^[H-Q]{2}[H-PX-Z]\d{3}[A-Z]$/.test(serial))
+        return true;
+    // Japan Custom Shop 1997-2003: 2 letters + 3 digits
+    if (/^[H-Q][H-PX-Z]\d{3}$/.test(serial))
+        return true;
+    // Japan Custom Shop 1991-1996: 2 letters + 3 digits + 1 letter
+    if (/^[H-Q][H-PX-Z]\d{3}[A-Z]$/.test(serial))
+        return true;
+    // Japan Electric 1997+: digit + 2 letters + 4 digits
+    if (/^\d[A-Z]{2}\d{4}$/.test(serial))
+        return true;
+    // Japan Electric 1994-1997: digit + 2 letters + 3 digits
+    if (/^\d[A-Z]{2}\d{3}$/.test(serial))
+        return true;
+    // Japan Electric 1989-2002: 4 letters + 3 digits
+    if (/^[A-Z]{4}\d{3}$/.test(serial))
+        return true;
+    // Japan Electric 1986-1989: digit + letter + 5 digits
+    if (/^\d[A-Z]\d{5}$/.test(serial))
+        return true;
+    // Japan Electric 1984-1996: 2 letters + 4 digits
+    if (/^[H-Q][H-PX-Z]\d{4}$/.test(serial))
+        return true;
+    // Taiwan/Indonesia 2001+: 3 letters + 6 digits
+    if (/^[H-Q]{2}[H-PX-Z]\d{6}$/.test(serial))
+        return true;
+    // Korea/China 2003+: 3 letters + 4 digits + 1 letter
+    if (/^[H-Q]{2}[H-PX-Z]\d{4}[A-Z]$/.test(serial))
         return true;
     return false;
 }
