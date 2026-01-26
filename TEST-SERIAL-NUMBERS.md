@@ -205,6 +205,7 @@ Sample serial numbers for testing the guitar serial decoder.
 | G15031234 | China, 2015, March |
 | C97061234 | Cort Korea, 1997, June |
 | Y10091234 | Yako China, 2010, September |
+| Z210601649 | Zaozhuang Saehan China, 2021, June |
 | N02040258 | Asia (N prefix), 2002, April |
 | OC04049724 | Asia (OC prefix), 2004, April |
 | 94031234 | 1994, March (8-digit numeric) |

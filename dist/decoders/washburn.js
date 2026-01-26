@@ -41,6 +41,10 @@ export function decodeWashburn(serial) {
     if (/^Y\d{7,9}$/.test(normalized)) {
         return decodeYako(normalized);
     }
+    // Zaozhuang Saehan: Z prefix (China)
+    if (/^Z\d{7,9}$/.test(normalized)) {
+        return decodeZaozhuang(normalized);
+    }
     // Two-letter prefix format (e.g., OC, SC, N + digits)
     if (/^[A-Z]{1,2}\d{8,10}$/.test(normalized)) {
         return decodeLetterPrefix(normalized);
@@ -153,6 +157,21 @@ function decodeYako(serial) {
         factory: 'Yako',
         country: 'China',
         notes: `Y prefix indicates Yako factory production in China. Sequence: ${sequence}.`,
+    };
+    return { success: true, info };
+}
+// Zaozhuang Saehan: Z prefix (China)
+function decodeZaozhuang(serial) {
+    const digits = serial.substring(1);
+    const { year, month, sequence } = parseYearMonthSequence(digits);
+    const info = {
+        brand: 'Washburn',
+        serialNumber: serial,
+        year: year,
+        month: month,
+        factory: 'Zaozhuang Saehan',
+        country: 'China',
+        notes: `Z prefix indicates Zaozhuang Saehan factory production in China (Shandong province). Sequence: ${sequence}.`,
     };
     return { success: true, info };
 }
