@@ -11,6 +11,17 @@ import { decodeSchecter } from './decoders/schecter.js';
 import { decodeGretsch } from './decoders/gretsch.js';
 import { decodeJackson } from './decoders/jackson.js';
 import { decodeSquier } from './decoders/squier.js';
+import { decodeCort } from './decoders/cort.js';
+import { decodeTakamine } from './decoders/takamine.js';
+import { decodeWashburn } from './decoders/washburn.js';
+import { decodeDean } from './decoders/dean.js';
+import { decodeErnieBall } from './decoders/ernieball.js';
+import { decodeGuild } from './decoders/guild.js';
+import { decodeAlvarez } from './decoders/alvarez.js';
+import { decodeGodin } from './decoders/godin.js';
+import { decodeOvation } from './decoders/ovation.js';
+import { decodeCharvel } from './decoders/charvel.js';
+import { decodeRickenbacker } from './decoders/rickenbacker.js';
 // Google Forms tracking configuration
 const GOOGLE_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLScjlmEiQzVNnyGJIfbHZa3clFz97UqR6VwOAzwgBID7k04f5w/formResponse';
 const FORM_FIELDS = {
@@ -58,6 +69,17 @@ const decoders = {
     gretsch: decodeGretsch,
     jackson: decodeJackson,
     squier: decodeSquier,
+    cort: decodeCort,
+    takamine: decodeTakamine,
+    washburn: decodeWashburn,
+    dean: decodeDean,
+    ernieball: decodeErnieBall,
+    guild: decodeGuild,
+    alvarez: decodeAlvarez,
+    godin: decodeGodin,
+    ovation: decodeOvation,
+    charvel: decodeCharvel,
+    rickenbacker: decodeRickenbacker,
 };
 // DOM elements
 const brandSelect = document.getElementById('brand');
