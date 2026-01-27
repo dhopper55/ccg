@@ -786,6 +786,38 @@ button:active {
   margin-top: 18px;
 }
 
+.kramer-model-list {
+  margin-top: 48px;
+  padding: 36px 0 42px;
+  background: rgba(255, 255, 255, 0.02);
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.kramer-model-intro {
+  margin: 10px 0 0;
+  color: var(--text-muted);
+}
+
+.kramer-model-grid {
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px 18px;
+}
+
+.kramer-model-grid li {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(212, 197, 169, 0.08);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-light);
+  font-weight: 600;
+  text-align: center;
+}
+
 .notes {
   margin-top: 16px;
   padding: 12px 16px;
