@@ -120,6 +120,8 @@ serialInput.addEventListener('keypress', (e) => {
   }
 });
 
+initModals();
+
 function handleDecode(): void {
   // Use preselected brand if no dropdown exists, otherwise get from dropdown
   const brand: Brand | '' = preselectedBrand || (brandSelect ? brandSelect.value as Brand | '' : '');
@@ -216,6 +218,76 @@ function displayResult(info: GuitarInfo): void {
 
   resultSection.classList.remove('hidden');
   errorSection.classList.add('hidden');
+}
+
+function initModals(): void {
+  const triggers = document.querySelectorAll<HTMLElement>('[data-modal-target]');
+  if (!triggers.length) {
+    return;
+  }
+
+  const openModal = (modal: HTMLElement, trigger?: HTMLElement) => {
+    modal.classList.remove('hidden');
+    document.body.classList.add('modal-open');
+    const focusTarget = modal.querySelector<HTMLElement>(
+      'button, a, input, textarea, select, [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusTarget) {
+      focusTarget.focus();
+    }
+    if (trigger) {
+      modal.dataset.modalTriggerId = trigger.id || '';
+    }
+  };
+
+  const closeModal = (modal: HTMLElement) => {
+    modal.classList.add('hidden');
+    document.body.classList.remove('modal-open');
+    const triggerId = modal.dataset.modalTriggerId;
+    if (triggerId) {
+      const trigger = document.getElementById(triggerId);
+      if (trigger) {
+        trigger.focus();
+      }
+    }
+    modal.dataset.modalTriggerId = '';
+  };
+
+  triggers.forEach((trigger, index) => {
+    const targetId = trigger.getAttribute('data-modal-target');
+    if (!targetId) {
+      return;
+    }
+
+    const modal = document.getElementById(targetId) as HTMLElement | null;
+    if (!modal) {
+      return;
+    }
+
+    if (!trigger.id) {
+      trigger.id = `modal-trigger-${index}`;
+    }
+
+    trigger.addEventListener('click', (event) => {
+      event.preventDefault();
+      openModal(modal, trigger);
+    });
+
+    const closeTargets = modal.querySelectorAll<HTMLElement>('[data-modal-close]');
+    closeTargets.forEach((el) => {
+      el.addEventListener('click', () => closeModal(modal));
+    });
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') {
+      return;
+    }
+    const openModalEl = document.querySelector<HTMLElement>('.decoder-modal:not(.hidden)');
+    if (openModalEl) {
+      closeModal(openModalEl);
+    }
+  });
 }
 
 function showError(message: string): void {

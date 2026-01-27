@@ -55,7 +55,7 @@
     <a href="../index.html" class="nav-logo">
       <img src="../images/coal-creek-logo.png" alt="Coal Creek Guitars">
     </a>
-    <a href="../index.html" class="nav-home">Home</a>
+    <a href="guitar-serial-decoder-lookup.html" class="nav-home">Back</a>
   </nav>
 
   <div class="container">
@@ -63,7 +63,7 @@
 
     <div class="brand-header">
       <img src="../images/brand-logos/Rickenbacker-logo.png" alt="Rickenbacker" class="brand-logo brand-logo-invert">
-      <p class="brand-description">Founded in 1931 by Adolph Rickenbacker and George Beauchamp in Los Angeles, Rickenbacker is the pioneer of the electric guitar industry, producing the first commercially successful electric guitars (the "Frying Pan" lap steel). Known for their jangly tone and distinctive cresting wave body shape, Rickenbacker guitars became iconic through artists like The Beatles, The Byrds, and Tom Petty. All Rickenbacker instruments are still handcrafted in Santa Ana, California, USA.</p>
+      <p class="brand-description">Founded in 1931 by Adolph Rickenbacker and George Beauchamp in Los Angeles, Rickenbacker is the pioneer of the electric guitar industry, producing the first commercially successful electric guitars (the "Frying Pan" lap steel). Known for their jangly tone and distinctive cresting wave body shape, Rickenbacker guitars became iconic through artists like The Beatles, The Byrds, and Tom Petty. All Rickenbacker instruments are still handcrafted in Santa Ana, California, USA.<br><a href="#" class="decoder-howto-link" data-modal-target="howto-rickenbacker">(How to decode a Rickenbacker serial #)</a></p>
     </div>
 
     <div class="input-section">
@@ -88,6 +88,49 @@
 
     <div class="back-link">
       <a href="guitar-serial-decoder-lookup.html">&larr; Back to brand selection</a>
+    </div>
+  </div>
+
+  
+  <div id="howto-rickenbacker" class="decoder-modal hidden" role="dialog" aria-modal="true" aria-labelledby="howto-rickenbacker-title">
+    <div class="decoder-modal-backdrop" data-modal-close></div>
+    <div class="decoder-modal-content" role="document">
+      <button type="button" class="decoder-modal-close" aria-label="Close dialog" data-modal-close>&times;</button>
+      <div class="decoder-modal-header">
+        <h2 id="howto-rickenbacker-title">How to decode a Rickenbacker serial number</h2>
+        <p class="decoder-modal-subtitle">A quick manual method when you don't want to use a decoder.</p>
+      </div>
+      <div class="decoder-modal-body">
+        <p>Rickenbacker guitar serial numbers, typically stamped on the metal jackplate, are decoded based on production era. Post‑1999 models use a 7‑digit code (YYWWPPL: Year, Week, Production Number). From 1987–1998, two letters indicate month/year, while 1961–1986 used a letter for year and another for month.</p>
+
+        <h3>Modern System (1999–Present)</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>Format:</strong> 7 digits (e.g., 2135123)</li>
+          <li><strong>Digits 1–2:</strong> Last two digits of the year (e.g., “21” = 2021).</li>
+          <li><strong>Digits 3–4:</strong> Week of the year (01–52).</li>
+          <li><strong>Digits 5–7:</strong> Production unit number.</li>
+        </ul>
+
+        <h3>1987–1998 System</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>Format:</strong> Letter (Month) + Letter (Year) + 3 or 4 digits.</li>
+          <li><strong>Month Letter:</strong> A=Jan, B=Feb, C=Mar, D=Apr, E=May, F=Jun, G=Jul, H=Aug, I=Sep, J=Oct, K=Nov, L=Dec.</li>
+          <li><strong>Year Letter:</strong> Starts with A=1987, B=1988, etc.</li>
+        </ul>
+
+        <h3>1961–1986 System</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>Format:</strong> Letter (Year) + Letter (Month) + 3 or 4 digits.</li>
+          <li><strong>Year Letter:</strong> A=1961, B=1962, …, Z=1986 (Note: J can be 1960 or 1970).</li>
+          <li><strong>Month Letter:</strong> A=Jan, B=Feb, …, L=Dec.</li>
+        </ul>
+
+        <h3>Key Tips</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>Location:</strong> Always on the metal output jack plate.</li>
+          <li><strong>Exceptions:</strong> Some reissues (V‑series) or specialized models may follow different, older, or sequential numbering schemes.</li>
+        </ul>
+      </div>
     </div>
   </div>
 
