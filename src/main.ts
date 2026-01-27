@@ -23,6 +23,7 @@ import { decodeGodin } from './decoders/godin.js';
 import { decodeOvation } from './decoders/ovation.js';
 import { decodeCharvel } from './decoders/charvel.js';
 import { decodeRickenbacker } from './decoders/rickenbacker.js';
+import { decodeKramer } from './decoders/kramer.js';
 
 // Google Forms tracking configuration
 const GOOGLE_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLScjlmEiQzVNnyGJIfbHZa3clFz97UqR6VwOAzwgBID7k04f5w/formResponse';
@@ -94,6 +95,7 @@ const decoders: Record<Brand, (serial: string) => DecodeResult> = {
   ovation: decodeOvation,
   charvel: decodeCharvel,
   rickenbacker: decodeRickenbacker,
+  kramer: decodeKramer,
 };
 
 // DOM elements
