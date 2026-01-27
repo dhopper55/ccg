@@ -146,6 +146,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://www.coalcreekguitars.com/how-to-list-a-guitar-for-sale.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://www.coalcreekguitars.com/contact-us.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>

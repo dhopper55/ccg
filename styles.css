@@ -312,6 +312,117 @@ body {
   }
 }
 
+/* ============================================
+   LISTING GUIDE PAGE
+   ============================================ */
+.container.listing-guide {
+  max-width: 1200px;
+  width: 100%;
+}
+
+.listing-hero {
+  margin-bottom: 28px;
+  text-align: center;
+}
+
+.listing-hero h1 {
+  color: var(--text-cream);
+  font-size: 2.1rem;
+  margin-bottom: 8px;
+}
+
+.listing-hero .subtitle {
+  margin-bottom: 2px;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.listing-section {
+  margin-bottom: 32px;
+  padding: 24px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+}
+
+.listing-section h2 {
+  color: var(--text-cream);
+  font-size: 1.4rem;
+  margin-bottom: 12px;
+}
+
+.listing-section p {
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+
+.listing-section ul {
+  margin: 8px 0 0 18px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.listing-callout {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(201, 162, 39, 0.08);
+  border: 1px solid var(--border-accent);
+}
+
+.listing-link {
+  display: inline-block;
+  margin-top: 10px;
+  color: var(--accent-gold);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.listing-link:hover {
+  color: var(--accent-gold-light);
+}
+
+.listing-note {
+  margin-top: 12px;
+  font-style: italic;
+}
+
+.listing-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.listing-photo-grid figure {
+  margin: 0;
+}
+
+.listing-photo-grid img {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(0, 0, 0, 0.25);
+  object-fit: cover;
+  aspect-ratio: 4 / 3;
+}
+
+.listing-final {
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .listing-photo-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .listing-photo-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .home-brand-link {
   display: flex;
   flex-direction: column;
@@ -1382,7 +1493,19 @@ button:active {
   color: var(--accent-gold);
   font-size: 1.1rem;
   font-weight: 700;
+}
+
+.listing-price-group {
   margin-top: auto;
+}
+
+.listing-shipping {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #7ddc88;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
 }
 
 /* Loading state */
