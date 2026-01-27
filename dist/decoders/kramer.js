@@ -1,10 +1,16 @@
+/**
+ * Kramer Guitar Serial Number Decoder
+ *
+ * Kramer serials are inconsistent across eras, so this decoder focuses on
+ * broad ranges and common prefix patterns.
+ */
 export function decodeKramer(serial) {
     const cleaned = serial.trim().toUpperCase();
     const normalized = cleaned.replace(/[\s-]/g, '');
     if (!normalized) {
         return {
             success: false,
-            error: 'Please enter a serial number.'
+            error: 'Please enter a serial number.',
         };
     }
     // Letter prefix A-F (early USA era)
@@ -15,7 +21,7 @@ export function decodeKramer(serial) {
             brand: 'Kramer',
             serialNumber: cleaned,
             year: yearRange,
-            notes: `${prefix}-prefix serial. These generally indicate early Kramer production periods and should be cross-referenced with headstock and neck-plate details for accuracy.`
+            notes: `${prefix}-prefix serial. These generally indicate early Kramer production periods and should be cross-referenced with headstock and neck-plate details for accuracy.`,
         };
         return { success: true, info };
     }
@@ -27,7 +33,7 @@ export function decodeKramer(serial) {
             brand: 'Kramer',
             serialNumber: cleaned,
             year: yearRange,
-            notes: `Overseas model prefix ${prefix}. The second letter often indicates the production year range, but verification with features is recommended.`
+            notes: `Overseas model prefix ${prefix}. The second letter often indicates the production year range, but verification with features is recommended.`,
         };
         return { success: true, info };
     }
@@ -40,20 +46,20 @@ export function decodeKramer(serial) {
                 brand: 'Kramer',
                 serialNumber: cleaned,
                 year: `20${yearPrefix}`,
-                notes: 'Numeric serials with a two-digit year prefix often indicate Musicyo-era reissues (early 2000s). Confirm with model features and hardware details.'
+                notes: 'Numeric serials with a two-digit year prefix often indicate Musicyo-era reissues (early 2000s). Confirm with model features and hardware details.',
             };
             return { success: true, info };
         }
         const info = {
             brand: 'Kramer',
             serialNumber: cleaned,
-            notes: 'Numeric-only serials are common on some USA-era instruments and do not always encode the date. Use the Vintage Kramer registry and feature checks for accurate dating.'
+            notes: 'Numeric-only serials are common on some USA-era instruments and do not always encode the date. Use the Vintage Kramer registry and feature checks for accurate dating.',
         };
         return { success: true, info };
     }
     return {
         success: false,
-        error: 'Unable to decode this Kramer serial number. Kramer serials vary by era, and many vintage records were lost. Try the Vintage Kramer registry or HTPG serial search for additional context.'
+        error: 'Unable to decode this Kramer serial number. Kramer serials vary by era, and many vintage records were lost. Try the Vintage Kramer registry or HTPG serial search for additional context.',
     };
 }
 function getPrefixYearRange(prefix) {
