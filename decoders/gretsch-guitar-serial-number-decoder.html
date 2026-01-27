@@ -55,7 +55,7 @@
     <a href="../index.html" class="nav-logo">
       <img src="../images/coal-creek-logo.png" alt="Coal Creek Guitars">
     </a>
-    <a href="../index.html" class="nav-home">Home</a>
+    <a href="guitar-serial-decoder-lookup.html" class="nav-home">Back</a>
   </nav>
 
   <div class="container">
@@ -63,7 +63,7 @@
 
     <div class="brand-header">
       <img src="../images/brand-logos/gretsch-guitars-logo.png" alt="Gretsch" class="brand-logo brand-logo-invert">
-      <p class="brand-description">Founded in 1883 by Friedrich Gretsch in Brooklyn, New York, the Gretsch Company is an iconic American manufacturer renowned for high-quality musical instruments, particularly hollow-body electric guitars that defined the "Great Gretsch Sound" of the 1950s rockabilly and country eras. Now owned by Fender Musical Instruments Corporation, Gretsch remains a premier brand favored by artists like Chet Atkins and George Harrison.</p>
+      <p class="brand-description">Founded in 1883 by Friedrich Gretsch in Brooklyn, New York, the Gretsch Company is an iconic American manufacturer renowned for high-quality musical instruments, particularly hollow-body electric guitars that defined the "Great Gretsch Sound" of the 1950s rockabilly and country eras. Now owned by Fender Musical Instruments Corporation, Gretsch remains a premier brand favored by artists like Chet Atkins and George Harrison.<br><a href="#" class="decoder-howto-link" data-modal-target="howto-gretsch">(How to decode a Gretsch serial #)</a></p>
     </div>
 
     <div class="input-section">
@@ -78,6 +78,12 @@
     <div id="result" class="result-section hidden">
       <h2>Guitar Information</h2>
       <div id="result-content"></div>
+
+      <div class="decoder-guide-links">
+        <a href="../how-to-value-a-used-guitar.html">How to Value a Used Guitar</a>
+        <span class="decoder-guide-separator">•</span>
+        <a href="../how-to-list-a-guitar-for-sale.html">How to List a Guitar for Sale</a>
+      </div>
     </div>
 
     <div id="error" class="error-section hidden"></div>
@@ -90,6 +96,51 @@
       <a href="guitar-serial-decoder-lookup.html">&larr; Back to brand selection</a>
     </div>
   </div>
+
+  
+  <div id="howto-gretsch" class="decoder-modal hidden" role="dialog" aria-modal="true" aria-labelledby="howto-gretsch-title">
+    <div class="decoder-modal-backdrop" data-modal-close></div>
+    <div class="decoder-modal-content" role="document">
+      <button type="button" class="decoder-modal-close" aria-label="Close dialog" data-modal-close>&times;</button>
+      <div class="decoder-modal-header">
+        <h2 id="howto-gretsch-title">How to decode a Gretsch serial number</h2>
+        <p class="decoder-modal-subtitle">A quick manual method when you don't want to use a decoder.</p>
+      </div>
+      <div class="decoder-modal-body">
+        <p>Modern Gretsch guitars (post‑2002/Fender era) use a straightforward 10‑character serial number found on the back of the headstock. The format is FFYYMMXXXX, where “FF” is the factory code (e.g., JT for Japan‑Terada), “YY” is the year, “MM” is the month, and “XXXX” is the production number. For example, JT04021010 means Japan‑Terada, 2004, February, 1010th unit.</p>
+
+        <h3>Decoding by Era</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>Modern (2002–Present):</strong> Letters (1–2) = factory code (e.g., JT = Japan Terada, CY = China Yako, KP = Korea Peerless, JD = Japan Dyna). Digits 1–2 = year (e.g., 04 = 2004, 15 = 2015). Digits 3–4 = month (e.g., 01 = Jan, 12 = Dec). Digits 5–8 = production number (e.g., 0101–9999 for standard models).</li>
+          <li><strong>Baldwin Era (Aug 1966–1972):</strong> Uses a 5–6 digit code stamped on the top or back of the headstock. First 1–2 digits = month (1–12). Next digit = last digit of the year (e.g., 6 = 1966, 0 = 1970). Remaining digits = production number. Note: “Made in USA” was added to stamps starting in June 1967.</li>
+          <li><strong>Pre‑1966/Vintage (1950s–1966):</strong> Numbers were generally sequential (e.g., 1000–99999), often stamped on the top of the headstock. Rough dating: &lt;1000 (pre‑WWII), 10xx–20xx (1945–47), 260xx–300xx (1958), 630xx–770xx (1964).</li>
+        </ul>
+
+        <h3>Key Factory Codes (Modern)</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>JT:</strong> Japan, Terada Factory</li>
+          <li><strong>JD:</strong> Japan, Dyna Gakki</li>
+          <li><strong>JF:</strong> Japan, Fuji‑Gen Gakki</li>
+          <li><strong>CY:</strong> China, Yako</li>
+          <li><strong>KP/KS:</strong> Korea, Peerless/Samick</li>
+          <li><strong>CS:</strong> U.S. Custom Shop</li>
+        </ul>
+
+        <p class="decoder-modal-note">For vintage guitars, features (bridges, pickups, logos) are often more reliable than the serial number due to inconsistent recording practices.</p>
+      </div>
+    </div>
+  </div>
+
+
+  <section class="home-brand-decoders related-brand-decoders">
+    <h2 class="home-intro-title">Related Brand Decoders</h2>
+    <div class="home-brand-grid">
+      <a href="fender-guitar-serial-number-decoder.html" class="home-brand-link">
+        <img src="../images/brand-logos/Fender-logo.jpg" alt="Fender" class="home-brand-logo brand-logo-invert">
+        <span>Fender Decoder</span>
+      </a>
+    </div>
+  </section>
 
   <footer class="site-footer">
     <div class="footer-content">

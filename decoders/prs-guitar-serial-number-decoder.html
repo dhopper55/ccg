@@ -55,7 +55,7 @@
     <a href="../index.html" class="nav-logo">
       <img src="../images/coal-creek-logo.png" alt="Coal Creek Guitars">
     </a>
-    <a href="../index.html" class="nav-home">Home</a>
+    <a href="guitar-serial-decoder-lookup.html" class="nav-home">Back</a>
   </nav>
 
   <div class="container">
@@ -63,7 +63,7 @@
 
     <div class="brand-header">
       <img src="../images/brand-logos/Prs_guitars_logo.png" alt="PRS" class="brand-logo brand-logo-invert">
-      <p class="brand-description">Founded in 1985 by luthier Paul Reed Smith in Maryland, PRS Guitars is a premier American manufacturer known for blending high-end craftsmanship, innovative design, and artistic flair to produce electric and acoustic guitars, amplifiers, and accessories. Positioned as a top-tier manufacturer often cited alongside Fender and Gibson, PRS is renowned for its premium quality, iconic bird inlays, and versatile, modern instruments used by artists like Carlos Santana and Mark Tremonti.</p>
+      <p class="brand-description">Founded in 1985 by luthier Paul Reed Smith in Maryland, PRS Guitars is a premier American manufacturer known for blending high-end craftsmanship, innovative design, and artistic flair to produce electric and acoustic guitars, amplifiers, and accessories. Positioned as a top-tier manufacturer often cited alongside Fender and Gibson, PRS is renowned for its premium quality, iconic bird inlays, and versatile, modern instruments used by artists like Carlos Santana and Mark Tremonti.<br><a href="#" class="decoder-howto-link" data-modal-target="howto-prs">(How to decode a PRS serial #)</a></p>
     </div>
 
     <div class="input-section">
@@ -78,6 +78,12 @@
     <div id="result" class="result-section hidden">
       <h2>Guitar Information</h2>
       <div id="result-content"></div>
+
+      <div class="decoder-guide-links">
+        <a href="../how-to-value-a-used-guitar.html">How to Value a Used Guitar</a>
+        <span class="decoder-guide-separator">•</span>
+        <a href="../how-to-list-a-guitar-for-sale.html">How to List a Guitar for Sale</a>
+      </div>
     </div>
 
     <div id="error" class="error-section hidden"></div>
@@ -88,6 +94,44 @@
 
     <div class="back-link">
       <a href="guitar-serial-decoder-lookup.html">&larr; Back to brand selection</a>
+    </div>
+  </div>
+
+  
+  <div id="howto-prs" class="decoder-modal hidden" role="dialog" aria-modal="true" aria-labelledby="howto-prs-title">
+    <div class="decoder-modal-backdrop" data-modal-close></div>
+    <div class="decoder-modal-content" role="document">
+      <button type="button" class="decoder-modal-close" aria-label="Close dialog" data-modal-close>&times;</button>
+      <div class="decoder-modal-header">
+        <h2 id="howto-prs-title">How to decode a PRS serial number</h2>
+        <p class="decoder-modal-subtitle">A quick manual method when you don't want to use a decoder.</p>
+      </div>
+      <div class="decoder-modal-body">
+        <p>PRS guitar serial numbers generally use the first one or two digits to indicate the production year, located on the back of the headstock. Modern US Core models (post‑1994) typically use the last two digits of the year (e.g., “09” = 2009). Earlier models used a single digit (e.g., “8” = 1988) or sequential numbers (e.g., 0001–0400 for 1985).</p>
+
+        <h3>Decoding by Series &amp; Age</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>US Core Models (Post‑1994):</strong> The first two digits indicate the year (e.g., 05XXXXX is 2005, 10XXXXX is 2010).</li>
+          <li><strong>US Core Models (Pre‑1994):</strong> These often used a single digit for the year, or strict sequential numbering, such as 1985 (0001–0400), 1986 (0401–1700), or 1990 (7601–10100).</li>
+          <li><strong>PRS SE (Student Edition):</strong> These utilize a letter prefix indicating the year, starting with “A” for 2000, “B” for 2001, through “N” for 2013, followed by a sequence of numbers.</li>
+          <li><strong>Acoustic Models:</strong> Serial numbers start with “A” followed by the two‑digit year (e.g., A09XXXX = 2009).</li>
+        </ul>
+
+        <h3>Key Identification Details</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>“10” Top:</strong> A small “10” written in the top right corner of the headstock indicates a “10 top” wood grade.</li>
+          <li><strong>MODCAT Code:</strong> For detailed specifications (pickup type, color, neck shape), check the MODCAT code, often found on the original case, or sometimes on a sticker in the pickup cavity.</li>
+          <li><strong>Year Code Table (US/Core):</strong> 0 = 1990 or 2000, 1 = 1991 or 2001, 5 = 1985, 1995, or 2005, 08 = 2008, 15 = 2015, 20 = 2020, 24 = 2024.</li>
+        </ul>
+
+        <p class="decoder-modal-note">For definitive verification, especially on older instruments, PRS Guitars' support website provides the most accurate, up‑to‑date, and comprehensive database.</p>
+        <div class="decoder-modal-gallery">
+          <figure>
+            <img src="../images/serial-number-examples/prs_serial.jpg" alt="PRS headstock back with serial number" loading="lazy">
+            <figcaption>Example: headstock serial number.</figcaption>
+          </figure>
+        </div>
+      </div>
     </div>
   </div>
 

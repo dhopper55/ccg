@@ -48,6 +48,57 @@ async function fetchListings(): Promise<ReverbListing[]> {
   return data.listings || [];
 }
 
+function formatPrice(price: ReverbListing['price']): string {
+  const amount = parseFloat(price.amount);
+  if (!Number.isFinite(amount)) {
+    return price.symbol ? `${price.symbol}${price.amount}` : `$${price.amount}`;
+  }
+
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: price.currency || 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount);
+  } catch {
+    const formattedAmount = amount.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+    return price.symbol ? `${price.symbol}${formattedAmount}` : `$${formattedAmount}`;
+  }
+}
+
+function getShippingAmount(listing: ReverbListing): number | null {
+  const shipping = (listing as { shipping?: any }).shipping;
+  if (!shipping) return null;
+
+  if (shipping.rate?.amount) {
+    return parseFloat(shipping.rate.amount);
+  }
+
+  if (shipping.cost?.amount) {
+    return parseFloat(shipping.cost.amount);
+  }
+
+  if (shipping.price?.amount) {
+    return parseFloat(shipping.price.amount);
+  }
+
+  if (Array.isArray(shipping.rates)) {
+    const preferredRate =
+      shipping.rates.find((rate: any) => rate.region_code === 'US_CON' || rate.region_code === 'US') ||
+      shipping.rates[0];
+
+    if (preferredRate?.rate?.amount) {
+      return parseFloat(preferredRate.rate.amount);
+    }
+  }
+
+  return null;
+}
+
 function createListingCard(listing: ReverbListing): HTMLElement {
   const card = document.createElement('a');
   card.className = 'listing-card';
@@ -65,9 +116,9 @@ function createListingCard(listing: ReverbListing): HTMLElement {
   }
 
   // Format price
-  const priceDisplay = listing.price.symbol
-    ? `${listing.price.symbol}${listing.price.amount}`
-    : `$${listing.price.amount}`;
+  const priceDisplay = formatPrice(listing.price);
+  const shippingAmount = getShippingAmount(listing);
+  const shippingDisplay = shippingAmount === 0 ? '<p class="listing-shipping">Free Shipping</p>' : '';
 
   card.innerHTML = `
     <div class="listing-image">
@@ -78,7 +129,10 @@ function createListingCard(listing: ReverbListing): HTMLElement {
     </div>
     <div class="listing-info">
       <h3 class="listing-title">${listing.title}</h3>
-      <p class="listing-price">${priceDisplay}</p>
+      <div class="listing-price-group">
+        <p class="listing-price">${priceDisplay}</p>
+        ${shippingDisplay}
+      </div>
     </div>
   `;
 
@@ -124,11 +178,20 @@ function renderListings(listings: ReverbListing[]): void {
   });
 }
 
+function sortListingsByPrice(listings: ReverbListing[]): ReverbListing[] {
+  return [...listings].sort((a, b) => {
+    const aPrice = parseFloat(a.price.amount);
+    const bPrice = parseFloat(b.price.amount);
+    return bPrice - aPrice;
+  });
+}
+
 // Initialize on page load
 async function init(): Promise<void> {
   try {
     const listings = await fetchListings();
-    renderListings(listings);
+    const sortedListings = sortListingsByPrice(listings);
+    renderListings(sortedListings);
   } catch (error) {
     console.error('Error fetching Reverb listings:', error);
     showError('Unable to load listings. Please try again later.');

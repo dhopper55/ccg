@@ -55,7 +55,7 @@
     <a href="../index.html" class="nav-logo">
       <img src="../images/coal-creek-logo.png" alt="Coal Creek Guitars">
     </a>
-    <a href="../index.html" class="nav-home">Home</a>
+    <a href="guitar-serial-decoder-lookup.html" class="nav-home">Back</a>
   </nav>
 
   <div class="container">
@@ -63,7 +63,7 @@
 
     <div class="brand-header">
       <img src="../images/brand-logos/Squier_guitars_logo.png" alt="Squier" class="brand-logo brand-logo-invert">
-      <p class="brand-description">Squier, a subsidiary of Fender Musical Instruments Corporation, is a renowned manufacturer of budget-friendly, officially licensed electric guitars and basses. Originally a high-quality string manufacturer founded in 1890 and acquired by Fender in 1965, the brand was reactivated in 1982 to produce accessible, entry-level versions of iconic Fender models like the Stratocaster and Telecaster.</p>
+      <p class="brand-description">Squier, a subsidiary of Fender Musical Instruments Corporation, is a renowned manufacturer of budget-friendly, officially licensed electric guitars and basses. Originally a high-quality string manufacturer founded in 1890 and acquired by Fender in 1965, the brand was reactivated in 1982 to produce accessible, entry-level versions of iconic Fender models like the Stratocaster and Telecaster.<br><a href="#" class="decoder-howto-link" data-modal-target="howto-squier">(How to decode a Squier serial #)</a></p>
     </div>
 
     <div class="input-section">
@@ -78,6 +78,12 @@
     <div id="result" class="result-section hidden">
       <h2>Guitar Information</h2>
       <div id="result-content"></div>
+
+      <div class="decoder-guide-links">
+        <a href="../how-to-value-a-used-guitar.html">How to Value a Used Guitar</a>
+        <span class="decoder-guide-separator">•</span>
+        <a href="../how-to-list-a-guitar-for-sale.html">How to List a Guitar for Sale</a>
+      </div>
     </div>
 
     <div id="error" class="error-section hidden"></div>
@@ -90,6 +96,66 @@
       <a href="guitar-serial-decoder-lookup.html">&larr; Back to brand selection</a>
     </div>
   </div>
+
+  
+  <div id="howto-squier" class="decoder-modal hidden" role="dialog" aria-modal="true" aria-labelledby="howto-squier-title">
+    <div class="decoder-modal-backdrop" data-modal-close></div>
+    <div class="decoder-modal-content" role="document">
+      <button type="button" class="decoder-modal-close" aria-label="Close dialog" data-modal-close>&times;</button>
+      <div class="decoder-modal-header">
+        <h2 id="howto-squier-title">How to decode a Squier serial number</h2>
+        <p class="decoder-modal-subtitle">A quick manual method when you don't want to use a decoder.</p>
+      </div>
+      <div class="decoder-modal-body">
+        <p>Squier guitar serial numbers are typically found on the back of the headstock or neck plate, with the first one or two letters indicating the country/factory (e.g., “CY” = China Yako, “IC” = Indonesia Cor‑Tek) and the following numbers indicating the year (e.g., “20” = 2020). Newer models (post‑2020) may use a four‑letter prefix for factory/country, followed by a month letter (A–L) and two‑digit year.</p>
+
+        <h3>Decoding Key Prefixes &amp; Decades</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>E (Eighties):</strong> 1980s (e.g., E9 = 1989).</li>
+          <li><strong>N (Nineties):</strong> 1990s (e.g., N0 = 1990).</li>
+          <li><strong>M (Millennium):</strong> 2000s (e.g., MZ = 2000s, CY = 2000s China).</li>
+          <li><strong>No Prefix:</strong> Often indicates 1980s Japanese or early Squier.</li>
+        </ul>
+
+        <h3>Common Factory &amp; Country Codes</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>IC/ICS/ISS:</strong> Indonesia (Cort/Samick).</li>
+          <li><strong>CY:</strong> China (Yako).</li>
+          <li><strong>YN/YN:</strong> China (Yako).</li>
+          <li><strong>MN/MZ:</strong> Mexico (Ensenada).</li>
+          <li><strong>JV/SQ/E/A/O/P/Q/S/T/U/N:</strong> Japan.</li>
+          <li><strong>KC/KI:</strong> Korea (Cor‑Tek/Intex).</li>
+        </ul>
+
+        <h3>Tips for Specific Years</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>2020s:</strong> 4‑letter prefix (e.g., CYGA) + A–L (Month) + 2 numbers (Year).</li>
+          <li><strong>2009–2010:</strong> Some Indonesia models use ICS09XXXXX or ICS10XXXXX.</li>
+          <li><strong>Exception:</strong> Reissue or artist models may not follow standard dating conventions.</li>
+        </ul>
+
+        <p class="decoder-modal-note">For the most accurate information, it is recommended to use the Fender Serial Number Lookup tool.</p>
+
+        <div class="decoder-modal-gallery">
+          <figure>
+            <img src="../images/serial-number-examples/squier-serial.jpeg" alt="Squier headstock with serial number" loading="lazy">
+            <figcaption>Example: headstock serial number.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <section class="home-brand-decoders related-brand-decoders">
+    <h2 class="home-intro-title">Related Brand Decoders</h2>
+    <div class="home-brand-grid">
+      <a href="fender-guitar-serial-number-decoder.html" class="home-brand-link">
+        <img src="../images/brand-logos/Fender-logo.jpg" alt="Fender" class="home-brand-logo brand-logo-invert">
+        <span>Fender Decoder</span>
+      </a>
+    </div>
+  </section>
 
   <footer class="site-footer">
     <div class="footer-content">

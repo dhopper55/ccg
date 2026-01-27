@@ -55,7 +55,7 @@
     <a href="../index.html" class="nav-logo">
       <img src="../images/coal-creek-logo.png" alt="Coal Creek Guitars">
     </a>
-    <a href="../index.html" class="nav-home">Home</a>
+    <a href="guitar-serial-decoder-lookup.html" class="nav-home">Back</a>
   </nav>
 
   <div class="container">
@@ -63,7 +63,7 @@
 
     <div class="brand-header">
       <img src="../images/brand-logos/yamaha-logo.jpg" alt="Yamaha" class="brand-logo brand-logo-invert">
-      <p class="brand-description">Yamaha Corporation, founded in 1887 and producing guitars since the 1940s (commercial, 1966), is the world's largest musical instrument manufacturer. Known for high-quality acoustic (FG series), electric (Pacifica, Revstar), and innovative models like the Silent Guitar, Yamaha combines traditional craftsmanship with modern technology, making them a dominant, versatile force in the music industry.</p>
+      <p class="brand-description">Yamaha Corporation, founded in 1887 and producing guitars since the 1940s (commercial, 1966), is the world's largest musical instrument manufacturer. Known for high-quality acoustic (FG series), electric (Pacifica, Revstar), and innovative models like the Silent Guitar, Yamaha combines traditional craftsmanship with modern technology, making them a dominant, versatile force in the music industry.<br><a href="#" class="decoder-howto-link" data-modal-target="howto-yamaha">(How to decode a Yamaha serial #)</a></p>
     </div>
 
     <div class="input-section">
@@ -78,6 +78,12 @@
     <div id="result" class="result-section hidden">
       <h2>Guitar Information</h2>
       <div id="result-content"></div>
+
+      <div class="decoder-guide-links">
+        <a href="../how-to-value-a-used-guitar.html">How to Value a Used Guitar</a>
+        <span class="decoder-guide-separator">•</span>
+        <a href="../how-to-list-a-guitar-for-sale.html">How to List a Guitar for Sale</a>
+      </div>
     </div>
 
     <div id="error" class="error-section hidden"></div>
@@ -90,6 +96,51 @@
       <a href="guitar-serial-decoder-lookup.html">&larr; Back to brand selection</a>
     </div>
   </div>
+
+  
+  <div id="howto-yamaha" class="decoder-modal hidden" role="dialog" aria-modal="true" aria-labelledby="howto-yamaha-title">
+    <div class="decoder-modal-backdrop" data-modal-close></div>
+    <div class="decoder-modal-content" role="document">
+      <button type="button" class="decoder-modal-close" aria-label="Close dialog" data-modal-close>&times;</button>
+      <div class="decoder-modal-header">
+        <h2 id="howto-yamaha-title">How to decode a Yamaha serial number</h2>
+        <p class="decoder-modal-subtitle">A quick manual method when you don't want to use a decoder.</p>
+      </div>
+      <div class="decoder-modal-body">
+        <p>Yamaha guitar serial numbers can generally be decoded by identifying the production year and month from the first few characters, often using a “YMMDDUUU” format (Year–Month–Day–Unit) or a letter-based code for older models. Most modern guitars (post‑2000s) use 3 letters followed by 6 numbers, where the first two letters indicate the year and the third indicates the month.</p>
+
+        <h3>Decoding Steps &amp; Formats</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>Locate Serial Number:</strong> Usually stamped on the back of the headstock or on a label inside the soundhole.</li>
+          <li><strong>Modern (Post‑2000s, 3 letters + 6 numbers):</strong> Year = first two letters/numbers (e.g., QJ = 03 for 2003, HHI = 2011). Month = third letter (H=Jan, I=Feb, J=Mar, K=Apr, L=May, M=Jun, N=Jul, O=Aug, P=Sep, Q=Oct, R=Nov, S=Dec). Day = next two numbers.</li>
+          <li><strong>Taiwan (1984–2002, Letter‑Letter‑#####):</strong> First letter = Year (P=1999, Q=2000). Second letter = Month (H=Jan, J=Mar, etc.). Next two numbers = Day.</li>
+          <li><strong>Vintage (1971–1980s, 8 digits):</strong> First digit is the year (e.g., 1 = 1971 or 1981), next two are the month, next two are the day.</li>
+          <li><strong>Older Vintage (Pre‑1971, 6–7 digits):</strong> These are often sequential and not directly date‑coded. Check for an ink‑stamped code inside (e.g., “45.12.28” indicates 1970).</li>
+        </ul>
+
+        <h3>Key Tips</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>Country of Origin:</strong> Knowing if it was made in Japan, Taiwan, or Indonesia helps select the correct decoding chart.</li>
+          <li><strong>Repeat Cycles:</strong> Serial numbers may repeat every 10 years, requiring context to confirm the decade.</li>
+          <li><strong>Example:</strong> A serial number starting with HHI (e.g., HHI93032) indicates a production date of Feb 9, 2011.</li>
+        </ul>
+
+        <p class="decoder-modal-note">For specific vintage models, consult Yamaha's official documentation.</p>
+        <p class="decoder-modal-link"><a href="https://www.yamaha.com/yamahaguitars/electricandbassguitarserialnumbersystems.pdf" target="_blank" rel="noopener noreferrer">Yamaha Serial Number Systems (PDF)</a></p>
+      </div>
+    </div>
+  </div>
+
+
+  <section class="home-brand-decoders related-brand-decoders">
+    <h2 class="home-intro-title">Related Brand Decoders</h2>
+    <div class="home-brand-grid">
+      <a href="guild-guitar-serial-number-decoder.html" class="home-brand-link">
+        <img src="../images/brand-logos/Guild-logo.png" alt="Guild" class="home-brand-logo brand-logo-invert">
+        <span>Guild Decoder</span>
+      </a>
+    </div>
+  </section>
 
   <footer class="site-footer">
     <div class="footer-content">

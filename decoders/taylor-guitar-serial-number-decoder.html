@@ -55,7 +55,7 @@
     <a href="../index.html" class="nav-logo">
       <img src="../images/coal-creek-logo.png" alt="Coal Creek Guitars">
     </a>
-    <a href="../index.html" class="nav-home">Home</a>
+    <a href="guitar-serial-decoder-lookup.html" class="nav-home">Back</a>
   </nav>
 
   <div class="container">
@@ -63,7 +63,7 @@
 
     <div class="brand-header">
       <img src="../images/brand-logos/Taylor_guitar_logo.png" alt="Taylor" class="brand-logo brand-logo-invert">
-      <p class="brand-description">Founded in 1974 by Bob Taylor and Kurt Listug, Taylor Guitars has grown from a small San Diego shop into a premier global manufacturer of acoustic and electric guitars. Known for utilizing modern, innovative manufacturing techniques and high-end craftsmanship, Taylor is recognized for its playability and, like the V-Class bracing, distinctive, bright sound. The company is 100% employee-owned, operates factories in California and Mexico, and is a leading brand in the musical instrument industry.</p>
+      <p class="brand-description">Founded in 1974 by Bob Taylor and Kurt Listug, Taylor Guitars has grown from a small San Diego shop into a premier global manufacturer of acoustic and electric guitars. Known for utilizing modern, innovative manufacturing techniques and high-end craftsmanship, Taylor is recognized for its playability and, like the V-Class bracing, distinctive, bright sound. The company is 100% employee-owned, operates factories in California and Mexico, and is a leading brand in the musical instrument industry.<br><a href="#" class="decoder-howto-link" data-modal-target="howto-taylor">(How to decode a Taylor serial #)</a></p>
     </div>
 
     <div class="input-section">
@@ -78,6 +78,12 @@
     <div id="result" class="result-section hidden">
       <h2>Guitar Information</h2>
       <div id="result-content"></div>
+
+      <div class="decoder-guide-links">
+        <a href="../how-to-value-a-used-guitar.html">How to Value a Used Guitar</a>
+        <span class="decoder-guide-separator">•</span>
+        <a href="../how-to-list-a-guitar-for-sale.html">How to List a Guitar for Sale</a>
+      </div>
     </div>
 
     <div id="error" class="error-section hidden"></div>
@@ -88,6 +94,67 @@
 
     <div class="back-link">
       <a href="guitar-serial-decoder-lookup.html">&larr; Back to brand selection</a>
+    </div>
+  </div>
+
+  
+  <div id="howto-taylor" class="decoder-modal hidden" role="dialog" aria-modal="true" aria-labelledby="howto-taylor-title">
+    <div class="decoder-modal-backdrop" data-modal-close></div>
+    <div class="decoder-modal-content" role="document">
+      <button type="button" class="decoder-modal-close" aria-label="Close dialog" data-modal-close>&times;</button>
+      <div class="decoder-modal-header">
+        <h2 id="howto-taylor-title">How to decode a Taylor serial number</h2>
+        <p class="decoder-modal-subtitle">A quick manual method when you don't want to use a decoder.</p>
+      </div>
+      <div class="decoder-modal-body">
+        <p>Taylor guitar serial numbers are found on the back of the headstock or on a label inside the soundhole, with formats changing over time. Generally, for modern guitars (post‑2000), the 11‑digit code reveals the year, month, day, and production sequence, while pre‑2000 models use 9 digits.</p>
+
+        <h3>11‑Digit Serial Numbers (2000–2009)</h3>
+        <p><strong>Example:</strong> 20070311301</p>
+        <ul class="decoder-howto-steps">
+          <li><strong>Digits 1–4:</strong> Year (e.g., 2007)</li>
+          <li><strong>Digits 5–6:</strong> Month (e.g., 03 = March)</li>
+          <li><strong>Digits 7–8:</strong> Day (e.g., 11 = 11th)</li>
+          <li><strong>Digit 9:</strong> Series code (0 = 300/400, 1 = 500+ Series, 2 = 200, 8 = 100)</li>
+          <li><strong>Digits 10–11:</strong> Production sequence</li>
+        </ul>
+
+        <h3>9‑Digit Serial Numbers (1993–1999)</h3>
+        <p><strong>Example:</strong> 980103004</p>
+        <ul class="decoder-howto-steps">
+          <li><strong>Digits 1–2:</strong> Year (e.g., 98 = 1998)</li>
+          <li><strong>Digits 3–4:</strong> Month (e.g., 01 = January)</li>
+          <li><strong>Digits 5–6:</strong> Day (e.g., 03 = 3rd)</li>
+          <li><strong>Digit 7:</strong> Series code (0 = 300/400, 1 = higher)</li>
+          <li><strong>Digits 8–9:</strong> Sequence</li>
+        </ul>
+
+        <h3>Post‑November 2009 &amp; Current System</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>10 Digits:</strong> The format changed to 10 digits. The first digit represents the factory (1 = El Cajon, 2 = Tecate, Mexico).</li>
+          <li><strong>Digits 2–5:</strong> Year of production.</li>
+          <li><strong>Digits 6–9:</strong> Date of production (MM/DD).</li>
+          <li><strong>Digit 10:</strong> Daily production sequence.</li>
+        </ul>
+
+        <h3>Taylor Model Number Key</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>1st Digit:</strong> Series (e.g., 3xx = 300 Series).</li>
+          <li><strong>2nd Digit:</strong> String count/top wood (1 = 6‑string/softwood, 2 = 6‑string/hardwood, 5 = 12‑string/softwood, 6 = 12‑string/hardwood).</li>
+          <li><strong>3rd Digit:</strong> Body Shape (e.g., 0 = Dreadnought, 2 = Grand Concert, 4 = Grand Auditorium, 6 = Grand Symphony).</li>
+          <li><strong>Suffix:</strong> “c” = cutaway, “e” = electronics.</li>
+          <li><strong>Wood Variant:</strong> “-R” = Rosewood, “-K” = Koa.</li>
+        </ul>
+
+        <p class="decoder-modal-link"><a href="https://www.taylorguitars.com/support/general/decoding-taylor-guitars-serial" target="_blank" rel="noopener noreferrer">Taylor Serial Number Decoding</a></p>
+
+        <div class="decoder-modal-gallery">
+          <figure>
+            <img src="../images/serial-number-examples/taylor-serial.jpeg" alt="Taylor guitar serial number example" loading="lazy">
+            <figcaption>Example: Taylor serial number label.</figcaption>
+          </figure>
+        </div>
+      </div>
     </div>
   </div>
 

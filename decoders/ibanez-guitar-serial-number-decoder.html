@@ -55,7 +55,7 @@
     <a href="../index.html" class="nav-logo">
       <img src="../images/coal-creek-logo.png" alt="Coal Creek Guitars">
     </a>
-    <a href="../index.html" class="nav-home">Home</a>
+    <a href="guitar-serial-decoder-lookup.html" class="nav-home">Back</a>
   </nav>
 
   <div class="container">
@@ -63,7 +63,7 @@
 
     <div class="brand-header">
       <img src="../images/brand-logos/Ibanez_guitars_logo.webp" alt="Ibanez" class="brand-logo brand-logo-invert">
-      <p class="brand-description">Founded in 1908 as Hoshino Gakki, a Japanese bookstore chain that began importing Spanish guitars, Ibanez has evolved into a premier manufacturer of guitars, basses, and amplifiers. Known for high-performance instruments favored by rock and metal artists, the company is renowned for its "lawsuit era" copies in the 1970s, which led to iconic original designs like the JEM, RG, and S series.</p>
+      <p class="brand-description">Founded in 1908 as Hoshino Gakki, a Japanese bookstore chain that began importing Spanish guitars, Ibanez has evolved into a premier manufacturer of guitars, basses, and amplifiers. Known for high-performance instruments favored by rock and metal artists, the company is renowned for its "lawsuit era" copies in the 1970s, which led to iconic original designs like the JEM, RG, and S series.<br><a href="#" class="decoder-howto-link" data-modal-target="howto-ibanez">(How to decode an Ibanez serial #)</a></p>
     </div>
 
     <div class="input-section">
@@ -78,6 +78,12 @@
     <div id="result" class="result-section hidden">
       <h2>Guitar Information</h2>
       <div id="result-content"></div>
+
+      <div class="decoder-guide-links">
+        <a href="../how-to-value-a-used-guitar.html">How to Value a Used Guitar</a>
+        <span class="decoder-guide-separator">•</span>
+        <a href="../how-to-list-a-guitar-for-sale.html">How to List a Guitar for Sale</a>
+      </div>
     </div>
 
     <div id="error" class="error-section hidden"></div>
@@ -88,6 +94,45 @@
 
     <div class="back-link">
       <a href="guitar-serial-decoder-lookup.html">&larr; Back to brand selection</a>
+    </div>
+  </div>
+
+  
+  <div id="howto-ibanez" class="decoder-modal hidden" role="dialog" aria-modal="true" aria-labelledby="howto-ibanez-title">
+    <div class="decoder-modal-backdrop" data-modal-close></div>
+    <div class="decoder-modal-content" role="document">
+      <button type="button" class="decoder-modal-close" aria-label="Close dialog" data-modal-close>&times;</button>
+      <div class="decoder-modal-header">
+        <h2 id="howto-ibanez-title">How to decode an Ibanez serial number</h2>
+        <p class="decoder-modal-subtitle">A quick manual method when you don't want to use a decoder.</p>
+      </div>
+      <div class="decoder-modal-body">
+        <p>Ibanez serial numbers are generally found on the back of the headstock and can be decoded by looking for a letter representing the factory (e.g., F = FujiGen, I = Indonesia, C = China) followed by two numbers for the year (e.g., F05 = 2005). Subsequent digits usually indicate the month and production number, with 2000+ models often using this format.</p>
+
+        <h3>Decoding by Location &amp; Year</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>Japan (FujiGen, 1987–Present):</strong> Starts with a letter, followed by 6–7 digits. The first two digits after the letter are the year (e.g., F97XXXX = 1997).</li>
+          <li><strong>Japan (Post-2004 Monthly Codes):</strong> Uses a specific monthly breakdown, where the production number dictates the month (e.g., 00001–02999 = Nov, 03000–05999 = Dec).</li>
+          <li><strong>Korea/Indonesia/China:</strong> Often use letters for the factory (e.g., C = China, I = Indonesia) followed by digits representing the year (2 digits) and month.</li>
+          <li><strong>Older Models (Pre-1976):</strong> Often have no serial number.</li>
+          <li><strong>Pedals:</strong> The first digit of a 4-digit serial number typically represents the last digit of the year (e.g., “3” = 1983).</li>
+        </ul>
+
+        <h3>Key Identification Clues</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>Letter Prefix:</strong> Identifies factory/origin (e.g., F/J = Japan, I = Indonesia, C = China, K = Korea).</li>
+          <li><strong>First 2 Digits (Modern):</strong> Represent the year (e.g., 05 = 2005).</li>
+          <li><strong>Online Tools:</strong> Check the Ibanez Wiki for the most comprehensive database.</li>
+        </ul>
+
+        <p class="decoder-modal-note">If the serial number is missing or the guitar is from the mid‑70s, it may be necessary to check potentiometer codes or neck pocket stamps, as Ibanez did not consistently use serial numbers until 1976.</p>
+        <div class="decoder-modal-gallery">
+          <figure>
+            <img src="../images/serial-number-examples/ibanez-serial-example.jpg" alt="Ibanez headstock back with serial number" loading="lazy">
+            <figcaption>Example: headstock serial number.</figcaption>
+          </figure>
+        </div>
+      </div>
     </div>
   </div>
 

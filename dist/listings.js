@@ -16,6 +16,49 @@ async function fetchListings() {
     const data = await response.json();
     return data.listings || [];
 }
+function formatPrice(price) {
+    const amount = parseFloat(price.amount);
+    if (!Number.isFinite(amount)) {
+        return price.symbol ? `${price.symbol}${price.amount}` : `$${price.amount}`;
+    }
+    try {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: price.currency || 'USD',
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(amount);
+    }
+    catch {
+        const formattedAmount = amount.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+        return price.symbol ? `${price.symbol}${formattedAmount}` : `$${formattedAmount}`;
+    }
+}
+function getShippingAmount(listing) {
+    const shipping = listing.shipping;
+    if (!shipping)
+        return null;
+    if (shipping.rate?.amount) {
+        return parseFloat(shipping.rate.amount);
+    }
+    if (shipping.cost?.amount) {
+        return parseFloat(shipping.cost.amount);
+    }
+    if (shipping.price?.amount) {
+        return parseFloat(shipping.price.amount);
+    }
+    if (Array.isArray(shipping.rates)) {
+        const preferredRate = shipping.rates.find((rate) => rate.region_code === 'US_CON' || rate.region_code === 'US') ||
+            shipping.rates[0];
+        if (preferredRate?.rate?.amount) {
+            return parseFloat(preferredRate.rate.amount);
+        }
+    }
+    return null;
+}
 function createListingCard(listing) {
     const card = document.createElement('a');
     card.className = 'listing-card';
@@ -31,9 +74,9 @@ function createListingCard(listing) {
             photo._links.full?.href || '';
     }
     // Format price
-    const priceDisplay = listing.price.symbol
-        ? `${listing.price.symbol}${listing.price.amount}`
-        : `$${listing.price.amount}`;
+    const priceDisplay = formatPrice(listing.price);
+    const shippingAmount = getShippingAmount(listing);
+    const shippingDisplay = shippingAmount === 0 ? '<p class="listing-shipping">Free Shipping</p>' : '';
     card.innerHTML = `
     <div class="listing-image">
       ${imageUrl
@@ -42,7 +85,10 @@ function createListingCard(listing) {
     </div>
     <div class="listing-info">
       <h3 class="listing-title">${listing.title}</h3>
-      <p class="listing-price">${priceDisplay}</p>
+      <div class="listing-price-group">
+        <p class="listing-price">${priceDisplay}</p>
+        ${shippingDisplay}
+      </div>
     </div>
   `;
     return card;
@@ -82,11 +128,19 @@ function renderListings(listings) {
         gridEl.appendChild(card);
     });
 }
+function sortListingsByPrice(listings) {
+    return [...listings].sort((a, b) => {
+        const aPrice = parseFloat(a.price.amount);
+        const bPrice = parseFloat(b.price.amount);
+        return bPrice - aPrice;
+    });
+}
 // Initialize on page load
 async function init() {
     try {
         const listings = await fetchListings();
-        renderListings(listings);
+        const sortedListings = sortListingsByPrice(listings);
+        renderListings(sortedListings);
     }
     catch (error) {
         console.error('Error fetching Reverb listings:', error);
