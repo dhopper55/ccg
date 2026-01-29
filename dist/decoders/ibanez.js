@@ -28,13 +28,20 @@ export function decodeIbanez(serial) {
     if (/^F\d{7}$/.test(normalized)) {
         return decodeFujiGenModern(normalized);
     }
+    // Japan: Letter (A-L) + 6 digits (1975-1988, month-year format)
+    // Disambiguate from 1987-1996 F/H/I factory code format.
+    const monthYearMatch = normalized.match(/^([A-L])(\d{2})\d{4}$/);
+    if (monthYearMatch) {
+        const monthLetter = monthYearMatch[1];
+        const yearDigits = parseInt(monthYearMatch[2], 10);
+        const isFactoryCode = monthLetter === 'F' || monthLetter === 'H' || monthLetter === 'I';
+        if (!isFactoryCode || yearDigits <= 86) {
+            return decodeJapan1975to1988(normalized);
+        }
+    }
     // Japan: F/H/I + 6 digits (1987-1996)
     if (/^[FHI]\d{6}$/.test(normalized)) {
         return decodeJapan1987to1996(normalized);
-    }
-    // Japan: Letter (A-L) + 6 digits (1975-1988, month-year format)
-    if (/^[A-L]\d{6}$/.test(normalized)) {
-        return decodeJapan1975to1988(normalized);
     }
     // Japan: Sugi/J-Custom - Letter + 5 digits (2005-present)
     if (/^[A-L]\d{5}$/.test(normalized)) {

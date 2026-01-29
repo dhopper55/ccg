@@ -127,13 +127,29 @@ function handleDecode() {
         return;
     }
     // Decode the serial number
-    const result = decoder(serial);
+    let result = decoder(serial);
+    let correctedSerial = null;
+    // If Ibanez decode fails and the first character is a "1", retry as "I"
+    if (!result.success && brand === 'ibanez' && serial.length >= 2 && serial[0] === '1') {
+        const retrySerial = `I${serial.slice(1)}`.toUpperCase();
+        const retryResult = decoder(retrySerial);
+        if (retryResult.success && retryResult.info) {
+            correctedSerial = retrySerial;
+            retryResult.info.serialNumber = retrySerial;
+            const correctionNote = `Serial number corrected from ${serial} to ${retrySerial} (leading "1" interpreted as "I").`;
+            retryResult.info.notes = retryResult.info.notes
+                ? `${retryResult.info.notes} ${correctionNote}`
+                : correctionNote;
+            result = retryResult;
+            serialInput.value = retrySerial;
+        }
+    }
     if (result.success && result.info) {
         displayResult(result.info);
         // Track successful decode
         trackDecode({
             brand: result.info.brand || brand,
-            serial,
+            serial: correctedSerial || serial,
             success: true,
             year: result.info.year,
             factory: result.info.factory,
