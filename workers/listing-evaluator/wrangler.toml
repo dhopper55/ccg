@@ -1,0 +1,18 @@
+name = "ccg-listing-evaluator"
+main = "src/index.ts"
+compatibility_date = "2026-01-29"
+
+# Fill these before deploying.
+# account_id = "YOUR_CLOUDFLARE_ACCOUNT_ID"
+# route = "https://www.coalcreekguitars.com/api/listings/*"
+
+[vars]
+APIFY_FACEBOOK_ACTOR = "apify/facebook-marketplace-scraper"
+APIFY_CRAIGSLIST_ACTOR = "ivanvs/craigslist-scraper"
+SITE_BASE_URL = "https://www.coalcreekguitars.com"
+GOOGLE_SHEET_RANGE = "Listings!A1"
+MAX_IMAGES = "3"
+
+[[kv_namespaces]]
+binding = "LISTING_JOBS"
+# id = "YOUR_KV_NAMESPACE_ID"
