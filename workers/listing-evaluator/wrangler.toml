@@ -3,16 +3,16 @@ main = "src/index.ts"
 compatibility_date = "2026-01-29"
 
 # Fill these before deploying.
-# account_id = "YOUR_CLOUDFLARE_ACCOUNT_ID"
-# route = "https://www.coalcreekguitars.com/api/listings/*"
+account_id = "29c0b8377a7d6c5259e8b5cc977e2aaf"
+route = "https://www.coalcreekguitars.com/api/listings/*"
 
 [vars]
 APIFY_FACEBOOK_ACTOR = "apify/facebook-marketplace-scraper"
 APIFY_CRAIGSLIST_ACTOR = "ivanvs/craigslist-scraper"
 SITE_BASE_URL = "https://www.coalcreekguitars.com"
-GOOGLE_SHEET_RANGE = "Listings!A1"
-MAX_IMAGES = "3"
+MAX_IMAGES = "10"
 
 [[kv_namespaces]]
 binding = "LISTING_JOBS"
-# id = "YOUR_KV_NAMESPACE_ID"
+id = "b5bb36e9ff1248fd92dd79026b5e784c"
+preview_id = "14042ee35da9481fbf659608d39b079e"

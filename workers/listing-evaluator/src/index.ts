@@ -3,12 +3,12 @@ interface Env {
   APIFY_TOKEN: string;
   APIFY_FACEBOOK_ACTOR: string;
   APIFY_CRAIGSLIST_ACTOR: string;
-  GOOGLE_SERVICE_ACCOUNT_JSON: string;
-  GOOGLE_SHEET_ID: string;
-  GOOGLE_SHEET_RANGE: string;
   SITE_BASE_URL: string;
   MAX_IMAGES: string;
   WEBHOOK_SECRET?: string;
+  AIRTABLE_API_KEY: string;
+  AIRTABLE_BASE_ID: string;
+  AIRTABLE_TABLE: string;
   LISTING_JOBS: KVNamespace;
 }
 
@@ -117,13 +117,9 @@ async function handleSubmit(request: Request, env: Env, ctx: ExecutionContext): 
       continue;
     }
 
-    const row = await appendQueuedRow(item.url, item.source as ListingSource, runId, env);
+    await insertQueuedRow(item.url, item.source as ListingSource, runId, env);
 
-    if (row) {
-      await env.LISTING_JOBS.put(runId, JSON.stringify({ row, url: item.url, source: item.source }));
-    }
-
-    results.push({ ...item, runId, row });
+    results.push({ ...item, runId });
   }
 
   return jsonResponse({
@@ -164,13 +160,8 @@ async function handleWebhook(request: Request, env: Env, ctx: ExecutionContext):
 }
 
 async function processRun(runId: string, resource: any, eventType: string | undefined, env: Env): Promise<void> {
-  const mapping = await env.LISTING_JOBS.get(runId, { type: 'json' }) as { row?: number; url?: string; source?: string } | null;
-  if (!mapping?.row) {
-    return;
-  }
-
   if (eventType && eventType.includes('FAILED')) {
-    await updateRow(mapping.row, {
+    await updateRowByRunId(runId, {
       runId,
       status: 'failed',
       notes: 'Apify run failed.',
@@ -182,7 +173,7 @@ async function processRun(runId: string, resource: any, eventType: string | unde
   const datasetId = resource?.defaultDatasetId || runDetails?.defaultDatasetId;
 
   if (!datasetId) {
-    await updateRow(mapping.row, {
+    await updateRowByRunId(runId, {
       runId,
       status: 'failed',
       notes: 'No dataset returned from scraper.',
@@ -192,7 +183,7 @@ async function processRun(runId: string, resource: any, eventType: string | unde
 
   const items = await fetchApifyDataset(datasetId, env);
   if (!items || items.length === 0) {
-    await updateRow(mapping.row, {
+    await updateRowByRunId(runId, {
       runId,
       status: 'failed',
       notes: 'Scraper returned no listing data.',
@@ -203,7 +194,7 @@ async function processRun(runId: string, resource: any, eventType: string | unde
   const listing = normalizeListing(items[0]);
   const aiResponse = await runOpenAI(listing, env);
 
-  await updateRow(mapping.row, {
+  await updateRowByRunId(runId, {
     runId,
     status: 'complete',
     title: listing.title,
@@ -232,7 +223,16 @@ type ListingData = {
 
 function normalizeListing(item: any): ListingData {
   const title = pickString(item.title, item.name, item.heading);
-  const description = pickString(item.description, item.details, item.body, item.text);
+  const description = pickString(
+    item.description,
+    item.details,
+    item.body,
+    item.text,
+    item.postingBody,
+    item.posting_body,
+    item.desc,
+    item.summary
+  );
   const price = pickString(item.price, item.priceFormatted, item.priceText, item.priceAmount, item.priceRange);
   const location = pickString(item.location, item.locationText, item.where, item.city, item.region);
   const condition = pickString(item.condition, item.itemCondition, item.conditionText);
@@ -338,11 +338,16 @@ async function startApifyRun(url: string, source: ListingSource, env: Env): Prom
         includeListingDetails: true,
       }
     : {
-        urls: [url],
-        maxAge: 365,
+        urls: [{ url }],
+        maxAge: 15,
+        maxConcurrency: 4,
+        proxyConfiguration: {
+          useApifyProxy: true,
+        },
       };
 
-  const response = await fetch(`https://api.apify.com/v2/acts/${actorId}/runs?token=${env.APIFY_TOKEN}&webhooks=${encodeURIComponent(webhooksParam)}`, {
+  const actorPath = actorId.includes('/') ? actorId.replace('/', '~') : actorId;
+  const response = await fetch(`https://api.apify.com/v2/acts/${actorPath}/runs?token=${env.APIFY_TOKEN}&webhooks=${encodeURIComponent(webhooksParam)}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -351,6 +356,12 @@ async function startApifyRun(url: string, source: ListingSource, env: Env): Prom
   });
 
   if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Apify run start failed', {
+      status: response.status,
+      statusText: response.statusText,
+      body: errorText,
+    });
     return null;
   }
 
@@ -371,32 +382,26 @@ async function fetchApifyDataset(datasetId: string, env: Env): Promise<any[]> {
   return await response.json();
 }
 
-async function appendQueuedRow(url: string, source: ListingSource, runId: string, env: Env): Promise<number | null> {
+async function insertQueuedRow(url: string, source: ListingSource, runId: string, env: Env): Promise<void> {
   const timestamp = new Date().toISOString();
-  const values = [
-    timestamp,
+  const fields = {
+    submitted_at: timestamp,
     source,
     url,
-    'queued',
-    runId,
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-    '',
-  ];
+    status: 'queued',
+  };
 
-  const sheetRange = env.GOOGLE_SHEET_RANGE || 'Listings!A1';
-  const response = await sheetsAppend(values, sheetRange, env);
-  if (!response?.updates?.updatedRange) return null;
-  return extractRowNumber(response.updates.updatedRange);
+  try {
+    const recordId = await airtableCreate(fields, env);
+    if (recordId) {
+      await env.LISTING_JOBS.put(runId, recordId);
+    }
+  } catch (error) {
+    console.error('Airtable create failed', { error });
+  }
 }
 
-async function updateRow(row: number, updates: {
+async function updateRowByRunId(runId: string, updates: {
   runId?: string;
   status?: string;
   title?: string;
@@ -410,175 +415,107 @@ async function updateRow(row: number, updates: {
 }, env: Env): Promise<void> {
   const timestamp = new Date().toISOString();
 
-  const values = [
-    updates.status || '',
-    updates.runId || '',
-    updates.title || '',
-    updates.price || '',
-    updates.location || '',
-    updates.condition || '',
-    updates.description || '',
-    updates.photos || '',
-    updates.aiSummary || '',
-    updates.notes || '',
-    timestamp,
-  ];
-
-  const sheetRange = env.GOOGLE_SHEET_RANGE || 'Listings!A1';
-  const sheetName = sheetRange.split('!')[0];
-  const targetRange = `${sheetName}!D${row}:N${row}`;
-
-  await sheetsUpdate(values, targetRange, env);
-}
-
-async function sheetsAppend(values: string[], range: string, env: Env): Promise<any | null> {
-  const token = await getGoogleAccessToken(env);
-  if (!token) return null;
-
-  const response = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${env.GOOGLE_SHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ values: [values] }),
-    }
-  );
-
-  if (!response.ok) {
-    return null;
-  }
-
-  return await response.json();
-}
-
-async function sheetsUpdate(values: string[], range: string, env: Env): Promise<void> {
-  const token = await getGoogleAccessToken(env);
-  if (!token) return;
-
-  await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${env.GOOGLE_SHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`,
-    {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ values: [values] }),
-    }
-  );
-}
-
-function extractRowNumber(range: string): number | null {
-  const match = range.match(/!A(\d+):/);
-  if (!match) return null;
-  return Number.parseInt(match[1], 10);
-}
-
-async function getGoogleAccessToken(env: Env): Promise<string | null> {
-  if (!env.GOOGLE_SERVICE_ACCOUNT_JSON) return null;
-
-  let creds: any;
   try {
-    creds = JSON.parse(env.GOOGLE_SERVICE_ACCOUNT_JSON);
-  } catch {
-    return null;
+    const recordId = await env.LISTING_JOBS.get(runId);
+    if (!recordId) {
+      console.error('Airtable update failed: record not found for run_id', { runId });
+      return;
+    }
+
+    const score = updates.aiSummary ? extractScore(updates.aiSummary) : null;
+    const fields: Record<string, unknown> = {
+      status: updates.status ?? null,
+      title: updates.title ?? null,
+      price: updates.price ?? null,
+      location: updates.location ?? null,
+      description: updates.description ?? null,
+      ai_summary: updates.aiSummary ?? null,
+    };
+    if (score !== null) {
+      fields.score = score;
+    }
+
+    await airtableUpdate(recordId, fields, env);
+  } catch (error) {
+    console.error('Airtable update failed', { error });
   }
+}
 
-  const now = Math.floor(Date.now() / 1000);
-  const header = { alg: 'RS256', typ: 'JWT' };
-  const claimSet = {
-    iss: creds.client_email,
-    scope: 'https://www.googleapis.com/auth/spreadsheets',
-    aud: 'https://oauth2.googleapis.com/token',
-    iat: now,
-    exp: now + 3600,
-  };
-
-  const jwt = await signJwt(header, claimSet, creds.private_key);
-
-  const formData = new URLSearchParams({
-    grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-    assertion: jwt,
-  });
-
-  const response = await fetch('https://oauth2.googleapis.com/token', {
+async function airtableCreate(fields: Record<string, unknown>, env: Env): Promise<string | null> {
+  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_TABLE)}`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
+      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
+      'Content-Type': 'application/json',
     },
-    body: formData.toString(),
+    body: JSON.stringify({ records: [{ fields }] }),
   });
 
   if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Airtable create failed', {
+      status: response.status,
+      statusText: response.statusText,
+      body: errorText,
+    });
     return null;
   }
 
   const data = await response.json();
-  return data.access_token || null;
+  return data?.records?.[0]?.id || null;
 }
 
-async function signJwt(header: any, payload: any, privateKeyPem: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const headerBase64 = base64UrlEncode(JSON.stringify(header));
-  const payloadBase64 = base64UrlEncode(JSON.stringify(payload));
-  const data = `${headerBase64}.${payloadBase64}`;
-
-  const key = await importPrivateKey(privateKeyPem);
-  const signature = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, encoder.encode(data));
-  const signatureBase64 = base64UrlEncode(signature);
-
-  return `${data}.${signatureBase64}`;
-}
-
-async function importPrivateKey(pem: string): Promise<CryptoKey> {
-  const pemContents = pem
-    .replace('-----BEGIN PRIVATE KEY-----', '')
-    .replace('-----END PRIVATE KEY-----', '')
-    .replace(/\s+/g, '');
-
-  const binaryDer = Uint8Array.from(atob(pemContents), (char) => char.charCodeAt(0));
-
-  return crypto.subtle.importKey(
-    'pkcs8',
-    binaryDer.buffer,
-    {
-      name: 'RSASSA-PKCS1-v1_5',
-      hash: 'SHA-256',
+async function airtableUpdate(recordId: string, fields: Record<string, unknown>, env: Env): Promise<void> {
+  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_TABLE)}/${recordId}`, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
+      'Content-Type': 'application/json',
     },
-    false,
-    ['sign']
-  );
+    body: JSON.stringify({ fields }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Airtable update failed', {
+      status: response.status,
+      statusText: response.statusText,
+      body: errorText,
+    });
+  }
 }
 
-function base64UrlEncode(input: string | ArrayBuffer): string {
-  let bytes: Uint8Array;
-  if (typeof input === 'string') {
-    bytes = new TextEncoder().encode(input);
-  } else {
-    bytes = new Uint8Array(input);
-  }
-
-  let binary = '';
-  bytes.forEach((b) => (binary += String.fromCharCode(b)));
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+function extractScore(aiSummary: string): number | null {
+  const match = aiSummary.match(/score\s*[:\-]?\s*(\d{1,2})(?:\s*\/\s*10)?/i);
+  if (!match) return null;
+  const value = Number.parseInt(match[1], 10);
+  if (!Number.isFinite(value)) return null;
+  return Math.max(1, Math.min(10, value));
 }
 
 async function runOpenAI(listing: ListingData, env: Env): Promise<string> {
   const maxImages = Number.parseInt(env.MAX_IMAGES || '3', 10);
   const images = listing.images.slice(0, Number.isFinite(maxImages) ? maxImages : 3);
 
-  const systemPrompt = `You are an expert used-guitar buyer and appraiser. Produce a concise valuation with the exact format below. If details are missing, be clear about uncertainty and suggest the specific photo or detail needed. Avoid hype.`;
+  const systemPrompt = `You are an expert used gear buyer and appraiser focused on music gear. Produce a concise valuation with the exact format below. If details are missing, be clear about uncertainty and suggest the specific photo or detail needed. Avoid hype. When listings include multiple items, identify each item and provide a price breakdown per item.`;
 
-  const userPrompt = `Listing title: ${listing.title || 'Unknown'}\nListing description: ${listing.description || 'Not provided'}\nAsking price: ${listing.price || 'Unknown'}\nLocation: ${listing.location || 'Unknown'}\n\nProvide the response in this format:\n\nWhat it appears to be\n- bullet points\n\nReal-world value (used market)\n- Typical private-party value: $X–$Y\n- Music store pricing: $X–$Y\n- Quick verdict on the asking price\n\nWhat affects the price\nAdds value\n- bullets\nHurts value\n- bullets\n\nComparison (for context)\n- bullets\n\nBottom line\n- Realistic value range\n- Buy/skip note\n- Any missing info to tighten valuation\n`;
+  const userPrompt = `Listing title: ${listing.title || 'Unknown'}\nListing description: ${listing.description || 'Not provided'}\nAsking price: ${listing.price || 'Unknown'}\nLocation: ${listing.location || 'Unknown'}\n\nProvide the response in this format:\n\nWhat it appears to be\n- bullet points\n\nReal-world value (used market)\n- Typical private-party value: $X–$Y\n- Music store pricing: $X–$Y\n- Quick verdict on the asking price\n\nWhat affects the price\nAdds value\n- bullets\nHurts value\n- bullets\n\nComparison (for context)\n- bullets\n\nScore\n- Score: X/10 (resell potential based on ask vs realistic value, condition, and included extras)\n\nBottom line\n- Realistic value range\n- Buy/skip note\n- Any missing info to tighten valuation\n`;
+
+  if (!env.OPENAI_API_KEY) {
+    console.error('OpenAI API key missing');
+    return 'AI analysis failed.';
+  }
 
   const content: any[] = [{ type: 'input_text', text: userPrompt }];
 
   for (const imageUrl of images) {
     content.push({ type: 'input_image', image_url: imageUrl });
   }
+
+  console.info('OpenAI request', {
+    images: images.length,
+    title: listing.title?.slice(0, 80) || 'unknown',
+  });
 
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
@@ -604,6 +541,12 @@ async function runOpenAI(listing: ListingData, env: Env): Promise<string> {
   });
 
   if (!response.ok) {
+    const errorText = await response.text();
+    console.error('OpenAI response failed', {
+      status: response.status,
+      statusText: response.statusText,
+      body: errorText,
+    });
     return 'AI analysis failed.';
   }
 
