@@ -646,10 +646,10 @@ async function fetchApifyDataset(datasetId: string, env: Env): Promise<any[]> {
 }
 
 async function insertQueuedRow(url: string, source: ListingSource, runId: string, env: Env): Promise<void> {
-  const timestamp = new Date().toISOString();
+  const timestamp = formatMountainTimestamp(new Date());
   const fields = {
     submitted_at: timestamp,
-    source,
+    source: formatSourceLabel(source),
     url,
     status: 'queued',
   };
@@ -863,6 +863,32 @@ function computeScore(asking: number, low: number, high: number): number {
 function clampScore(value: number): number {
   const rounded = Math.round(value);
   return Math.max(1, Math.min(10, rounded));
+}
+
+function formatMountainTimestamp(date: Date): string {
+  const dateFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Denver',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  });
+  const timeFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Denver',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  const datePart = dateFormatter.format(date);
+  const timeParts = timeFormatter.formatToParts(date);
+  const hour = timeParts.find((part) => part.type === 'hour')?.value ?? '';
+  const minute = timeParts.find((part) => part.type === 'minute')?.value ?? '';
+  const dayPeriod = timeParts.find((part) => part.type === 'dayPeriod')?.value ?? '';
+  const timePart = hour && minute && dayPeriod ? `${hour}:${minute}${dayPeriod}` : timeFormatter.format(date).replace(' ', '');
+  return `${datePart} ${timePart} MST`;
+}
+
+function formatSourceLabel(source: ListingSource): string {
+  return source === 'facebook' ? 'FBM' : 'CG';
 }
 
 async function runOpenAI(listing: ListingData, env: Env): Promise<string> {

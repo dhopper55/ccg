@@ -28,6 +28,14 @@ let nextOffset: string | null = null;
 let pageIndex = 1;
 const offsetHistory: Array<string | null> = [];
 
+function formatSourceLabel(value: string | undefined): string {
+  if (!value) return '—';
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'facebook' || normalized === 'fbm' || normalized.includes('facebook')) return 'FBM';
+  if (normalized === 'craigslist' || normalized === 'cg' || normalized.includes('craigslist')) return 'CG';
+  return value;
+}
+
 function setLoading(isLoading: boolean): void {
   if (prevButton) prevButton.disabled = isLoading || offsetHistory.length === 0;
   if (nextButton) nextButton.disabled = isLoading || !nextOffset;
@@ -64,7 +72,7 @@ function renderRows(records: ListingListItem[]): void {
     titleCell.appendChild(titleLink);
 
     const sourceCell = document.createElement('td');
-    sourceCell.textContent = record.source || '—';
+    sourceCell.textContent = formatSourceLabel(record.source);
 
     const statusCell = document.createElement('td');
     statusCell.textContent = record.status || '—';

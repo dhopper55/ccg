@@ -14,6 +14,83 @@ const aiTitleEl = document.getElementById('listing-item-ai-title') as HTMLHeadin
 const openLink = document.getElementById('listing-item-open') as HTMLAnchorElement | null;
 const errorSection = document.getElementById('listing-item-error') as HTMLDivElement | null;
 
+function formatMountainTimestamp(date: Date): string {
+  const dateFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Denver',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  });
+  const timeFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Denver',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  const datePart = dateFormatter.format(date);
+  const timeParts = timeFormatter.formatToParts(date);
+  const hour = timeParts.find((part) => part.type === 'hour')?.value ?? '';
+  const minute = timeParts.find((part) => part.type === 'minute')?.value ?? '';
+  const dayPeriod = timeParts.find((part) => part.type === 'dayPeriod')?.value ?? '';
+  const timePart = hour && minute && dayPeriod ? `${hour}:${minute}${dayPeriod}` : timeFormatter.format(date).replace(' ', '');
+  return `${datePart} ${timePart} MST`;
+}
+
+function formatSubmittedAt(value: unknown): string {
+  if (value == null) return '—';
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return '—';
+    if (!trimmed.includes('T') && /\\b(MST|MDT|MT)\\b/i.test(trimmed)) return trimmed;
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime())) return formatMountainTimestamp(parsed);
+    return trimmed;
+  }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return formatMountainTimestamp(value);
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return formatMountainTimestamp(new Date(value));
+  }
+  return String(value);
+}
+
+function formatSourceLabel(value: unknown): string {
+  const raw = normalizeValue(value);
+  if (raw === '—') return raw;
+  const normalized = raw.trim().toLowerCase();
+  if (normalized === 'facebook' || normalized === 'fbm' || normalized.includes('facebook')) return 'FBM';
+  if (normalized === 'craigslist' || normalized === 'cg' || normalized.includes('craigslist')) return 'CG';
+  return raw;
+}
+
+function formatCurrencyValue(value: unknown): string {
+  if (value == null) return '—';
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return '—';
+    if (trimmed.includes('$')) return trimmed;
+    const numeric = Number.parseFloat(trimmed.replace(/[^0-9.]/g, ''));
+    if (Number.isFinite(numeric)) {
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(numeric);
+    }
+    return trimmed;
+  }
+  return String(value);
+}
+
+function formatScoreValue(value: unknown): string {
+  const raw = normalizeValue(value);
+  if (raw === '—') return raw;
+  if (raw.includes('/10')) return raw;
+  const numeric = Number.parseInt(raw, 10);
+  if (Number.isFinite(numeric)) return `${numeric}/10`;
+  return raw;
+}
+
 function getRecordId(): string | null {
   const parts = window.location.pathname.split('/').filter(Boolean);
   const itemIndex = parts.indexOf('listing-evaluator-item');
@@ -108,7 +185,7 @@ function addMetaRow(label: string, value: unknown): void {
 function renderRecord(record: ListingRecordResponse): void {
   const fields = record.fields || {};
   const title = normalizeValue(fields.title);
-  const askingPrice = normalizeValue(fields.price_asking);
+  const askingPrice = formatCurrencyValue(fields.price_asking);
 
   if (titleEl) titleEl.textContent = title === '—' ? 'Listing Details' : title;
   if (aiTitleEl) {
@@ -118,13 +195,13 @@ function renderRecord(record: ListingRecordResponse): void {
 
   if (metaEl) metaEl.innerHTML = '';
   addMetaRow('Status', fields.status);
-  addMetaRow('Source', fields.source);
-  addMetaRow('Submitted', fields.submitted_at);
+  addMetaRow('Source', formatSourceLabel(fields.source));
+  addMetaRow('Submitted', formatSubmittedAt(fields.submitted_at));
   addMetaRow('Listing URL', fields.url);
-  addMetaRow('Asking Price', fields.price_asking);
+  addMetaRow('Asking Price', formatCurrencyValue(fields.price_asking));
   addMetaRow('Private Party Range', fields.price_private_party);
-  addMetaRow('Ideal Price', fields.price_ideal);
-  addMetaRow('Score', fields.score);
+  addMetaRow('Ideal Price', formatCurrencyValue(fields.price_ideal));
+  addMetaRow('Score', formatScoreValue(fields.score));
   addMetaRow('Location', fields.location);
 
   const url = typeof fields.url === 'string' ? fields.url : '';
