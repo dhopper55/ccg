@@ -21,6 +21,7 @@ interface QueueResult {
   source?: string;
   runId?: string;
   row?: number;
+  unarchived?: boolean;
 }
 
 interface RejectResult {
@@ -132,6 +133,14 @@ async function handleSubmit(request: Request, env: Env, ctx: ExecutionContext): 
   for (const item of accepted) {
     const existing = await airtableFindByUrl(item.url, env);
     if (existing) {
+      const archived = isArchivedValue(existing.fields?.archived);
+      if (archived) {
+        const restored = await airtableSetArchivedState(existing.id, false, env);
+        if (restored) {
+          results.push({ ...item, unarchived: true });
+          continue;
+        }
+      }
       rejected.push({ url: item.url, reason: 'Already queued.' });
       continue;
     }
@@ -240,7 +249,7 @@ async function handleArchiveListing(env: Env, path: string): Promise<Response> {
     return jsonResponse({ message: 'Missing listing ID.' }, 400);
   }
 
-  const updated = await airtableSetArchived(recordId, env);
+  const updated = await airtableSetArchivedState(recordId, true, env);
   if (!updated) {
     return jsonResponse({ message: 'Unable to archive listing.' }, 500);
   }
@@ -781,6 +790,7 @@ async function airtableFindByUrl(url: string, env: Env): Promise<{ id: string; f
   params.append('filterByFormula', `{url} = "${escapeAirtableValue(url)}"`);
   params.append('maxRecords', '1');
   params.append('fields[]', 'url');
+  params.append('fields[]', 'archived');
 
   const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_TABLE)}?${params.toString()}`, {
     headers: {
@@ -814,14 +824,14 @@ async function airtableUpdate(recordId: string, fields: Record<string, unknown>,
   }
 }
 
-async function airtableSetArchived(recordId: string, env: Env): Promise<boolean> {
+async function airtableSetArchivedState(recordId: string, archived: boolean, env: Env): Promise<boolean> {
   const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_TABLE)}/${recordId}`, {
     method: 'PATCH',
     headers: {
       'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ fields: { archived: true } }),
+    body: JSON.stringify({ fields: { archived } }),
   });
 
   if (!response.ok) {
@@ -835,6 +845,16 @@ async function airtableSetArchived(recordId: string, env: Env): Promise<boolean>
   }
 
   return true;
+}
+
+function isArchivedValue(value: unknown): boolean {
+  if (value === true) return true;
+  if (typeof value === 'number') return value === 1;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return normalized === 'true' || normalized === 'yes' || normalized === '1';
+  }
+  return false;
 }
 
 function extractPrivatePartyRange(aiSummary: string): { low: number; high: number } | null {

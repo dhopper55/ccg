@@ -15,6 +15,8 @@ const openLink = document.getElementById('listing-item-open') as HTMLAnchorEleme
 const errorSection = document.getElementById('listing-item-error') as HTMLDivElement | null;
 const archiveButton = document.getElementById('listing-item-archive') as HTMLButtonElement | null;
 const archiveLabel = archiveButton?.querySelector('.archive-label') as HTMLSpanElement | null;
+const mediaEl = document.getElementById('listing-item-media') as HTMLDivElement | null;
+const thumbnailEl = document.getElementById('listing-item-thumbnail') as HTMLImageElement | null;
 
 let currentRecordId: string | null = null;
 let isArchiving = false;
@@ -211,6 +213,21 @@ function addMetaRow(label: string, value: unknown): void {
   metaEl.appendChild(detail);
 }
 
+function extractFirstPhoto(value: unknown): string | null {
+  if (!value) return null;
+  if (Array.isArray(value)) {
+    const first = value.find((entry) => typeof entry === 'string' && entry.trim().length > 0);
+    return first ? String(first).trim() : null;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const firstLine = trimmed.split(/\r?\n/).find((line) => line.trim().length > 0);
+    return firstLine ? firstLine.trim() : null;
+  }
+  return null;
+}
+
 function renderRecord(record: ListingRecordResponse): void {
   const fields = record.fields || {};
   const title = normalizeValue(fields.title);
@@ -234,6 +251,19 @@ function renderRecord(record: ListingRecordResponse): void {
   addMetaRow('Ideal Price', formatCurrencyValue(fields.price_ideal));
   addMetaRow('Score', formatScoreValue(fields.score));
   addMetaRow('Location', fields.location);
+
+  if (thumbnailEl && mediaEl) {
+    const photoUrl = extractFirstPhoto(fields.photos);
+    if (photoUrl) {
+      thumbnailEl.src = photoUrl;
+      thumbnailEl.alt = title === '—' ? 'Listing photo' : `${title} photo`;
+      mediaEl.classList.remove('hidden');
+    } else {
+      thumbnailEl.removeAttribute('src');
+      thumbnailEl.alt = '';
+      mediaEl.classList.add('hidden');
+    }
+  }
 
   const url = typeof fields.url === 'string' ? fields.url : '';
   if (openLink) {

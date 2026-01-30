@@ -2379,6 +2379,19 @@ button:active {
   margin-bottom: 28px;
 }
 
+.listing-item-media {
+  margin-bottom: 20px;
+}
+
+.listing-item-thumbnail {
+  width: min(360px, 100%);
+  max-width: 360px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+  display: block;
+}
+
 .listing-item-meta dt {
   font-weight: 600;
   color: var(--text-muted);
