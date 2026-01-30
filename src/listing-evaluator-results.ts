@@ -4,6 +4,8 @@ type ListingListItem = {
   source?: string;
   status?: string;
   title?: string;
+  askingPrice?: number | string;
+  score?: number | string;
 };
 
 export {};
@@ -36,9 +38,41 @@ function formatSourceLabel(value: string | undefined): string {
   return value;
 }
 
+function formatCurrencyValue(value: number | string | undefined): string {
+  if (value == null) return '';
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
+  }
+  const trimmed = String(value).trim();
+  if (!trimmed) return '';
+  if (trimmed.includes('$')) return trimmed;
+  const numeric = Number.parseFloat(trimmed.replace(/[^0-9.]/g, ''));
+  if (Number.isFinite(numeric)) {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(numeric);
+  }
+  return trimmed;
+}
+
+function formatScoreValue(value: number | string | undefined): string {
+  if (value == null) return '—';
+  if (typeof value === 'number' && Number.isFinite(value)) return `${value}/10`;
+  const trimmed = String(value).trim();
+  if (!trimmed) return '—';
+  if (trimmed.includes('/10')) return trimmed;
+  const numeric = Number.parseInt(trimmed, 10);
+  if (Number.isFinite(numeric)) return `${numeric}/10`;
+  return trimmed;
+}
+
 function setLoading(isLoading: boolean): void {
-  if (prevButton) prevButton.disabled = isLoading || offsetHistory.length === 0;
-  if (nextButton) nextButton.disabled = isLoading || !nextOffset;
+  if (prevButton) {
+    prevButton.disabled = isLoading || offsetHistory.length === 0;
+    prevButton.classList.toggle('hidden', offsetHistory.length === 0);
+  }
+  if (nextButton) {
+    nextButton.disabled = isLoading || !nextOffset;
+    nextButton.classList.toggle('hidden', !nextOffset);
+  }
   if (pageLabel) pageLabel.textContent = isLoading ? 'Loading…' : `Page ${pageIndex}`;
 }
 
@@ -67,9 +101,14 @@ function renderRows(records: ListingListItem[]): void {
     const titleCell = document.createElement('td');
     const titleLink = document.createElement('a');
     titleLink.href = `/listing-evaluator-item.html?id=${encodeURIComponent(record.id)}`;
-    titleLink.textContent = record.title?.trim() || 'Untitled listing';
+    const titleText = record.title?.trim() || 'Untitled listing';
+    const asking = formatCurrencyValue(record.askingPrice);
+    titleLink.textContent = asking ? `${titleText} (${asking})` : titleText;
     titleLink.className = 'listing-item-link';
     titleCell.appendChild(titleLink);
+
+    const scoreCell = document.createElement('td');
+    scoreCell.textContent = `(${formatScoreValue(record.score)})`;
 
     const sourceCell = document.createElement('td');
     sourceCell.textContent = formatSourceLabel(record.source);
@@ -90,6 +129,7 @@ function renderRows(records: ListingListItem[]): void {
     }
 
     row.appendChild(titleCell);
+    row.appendChild(scoreCell);
     row.appendChild(sourceCell);
     row.appendChild(statusCell);
     row.appendChild(urlCell);

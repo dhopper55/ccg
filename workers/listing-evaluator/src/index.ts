@@ -185,6 +185,8 @@ type ListingListItem = {
   source?: string;
   status?: string;
   title?: string;
+  askingPrice?: number | string;
+  score?: number | string;
 };
 
 async function handleList(request: Request, env: Env): Promise<Response> {
@@ -284,6 +286,8 @@ async function airtableList(
   params.append('fields[]', 'source');
   params.append('fields[]', 'status');
   params.append('fields[]', 'title');
+  params.append('fields[]', 'price_asking');
+  params.append('fields[]', 'score');
   params.append('sort[0][field]', 'submitted_at');
   params.append('sort[0][direction]', 'desc');
   if (offset) params.set('offset', offset);
@@ -314,6 +318,8 @@ async function airtableList(
     source: record.fields?.source ?? '',
     status: record.fields?.status ?? '',
     title: record.fields?.title ?? '',
+    askingPrice: record.fields?.price_asking ?? null,
+    score: record.fields?.score ?? null,
   }));
 
   return {
