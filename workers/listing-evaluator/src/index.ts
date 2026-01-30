@@ -485,8 +485,7 @@ function detectSource(url: string): ListingSource | null {
   try {
     const parsed = new URL(url);
     if (parsed.hostname.endsWith('craigslist.org')) return 'craigslist';
-    if (parsed.hostname.includes('facebook.com') && parsed.pathname.includes('/marketplace')) return 'facebook';
-    if (parsed.hostname.includes('facebook.com') && parsed.pathname.startsWith('/share/')) return 'facebook';
+    if (parsed.hostname.includes('facebook.com')) return 'facebook';
     return null;
   } catch {
     return null;
