@@ -112,13 +112,14 @@ async function handleSubmit(request: Request, env: Env, ctx: ExecutionContext): 
   const rejected: RejectResult[] = [];
 
   for (const url of uniqueUrls) {
-    const source = detectSource(url);
+    const resolvedUrl = await resolveFacebookShareUrl(url);
+    const source = detectSource(resolvedUrl);
     if (!source) {
       rejected.push({ url, reason: 'Unsupported URL. Use Craigslist or Facebook Marketplace.' });
       continue;
     }
 
-    accepted.push({ url, source });
+    accepted.push({ url: resolvedUrl, source });
   }
 
   const results: QueueResult[] = [];
@@ -489,6 +490,31 @@ function detectSource(url: string): ListingSource | null {
   } catch {
     return null;
   }
+}
+
+function isFacebookShareUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (!parsed.hostname.includes('facebook.com')) return false;
+    return parsed.pathname.startsWith('/share/');
+  } catch {
+    return false;
+  }
+}
+
+async function resolveFacebookShareUrl(url: string): Promise<string> {
+  if (!isFacebookShareUrl(url)) return url;
+
+  try {
+    const response = await fetch(url, { redirect: 'follow' });
+    if (response.url) {
+      return response.url;
+    }
+  } catch (error) {
+    console.warn('Unable to resolve Facebook share URL', { url, error });
+  }
+
+  return url;
 }
 
 async function startApifyRun(url: string, source: ListingSource, env: Env): Promise<string | null> {
