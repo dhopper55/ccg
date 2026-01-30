@@ -125,6 +125,12 @@ async function handleSubmit(request: Request, env: Env, ctx: ExecutionContext): 
   const results: QueueResult[] = [];
 
   for (const item of accepted) {
+    const existing = await airtableFindByUrl(item.url, env);
+    if (existing) {
+      rejected.push({ url: item.url, reason: 'Already queued.' });
+      continue;
+    }
+
     const runId = await startApifyRun(item.url, item.source as ListingSource, env);
     if (!runId) {
       rejected.push({ url: item.url, reason: 'Unable to start scraper run.' });
@@ -735,6 +741,28 @@ async function airtableCreate(fields: Record<string, unknown>, env: Env): Promis
 
   const data = await response.json();
   return data?.records?.[0]?.id || null;
+}
+
+function escapeAirtableValue(value: string): string {
+  return value.replace(/"/g, '\\"');
+}
+
+async function airtableFindByUrl(url: string, env: Env): Promise<{ id: string; fields: Record<string, unknown> } | null> {
+  const params = new URLSearchParams();
+  params.append('filterByFormula', `{url} = "${escapeAirtableValue(url)}"`);
+  params.append('maxRecords', '1');
+  params.append('fields[]', 'url');
+
+  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_TABLE)}?${params.toString()}`, {
+    headers: {
+      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
+    },
+  });
+
+  if (!response.ok) return null;
+  const data = await response.json();
+  const record = data?.records?.[0];
+  return record ? { id: record.id, fields: record.fields || {} } : null;
 }
 
 async function airtableUpdate(recordId: string, fields: Record<string, unknown>, env: Env): Promise<void> {

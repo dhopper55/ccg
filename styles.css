@@ -336,8 +336,25 @@ body {
   text-align: center;
 }
 
+.listing-evaluator .listing-hero {
+  text-align: left;
+}
+
+.listing-hero .listing-hero-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
 .listing-hero .listing-results-link {
   margin: 12px 0 16px;
+}
+
+.listing-evaluator .listing-results-link {
+  margin: 0;
+  padding: 8px 14px;
+  font-size: 0.85rem;
 }
 
 .listing-hero h1 {
@@ -350,6 +367,13 @@ body {
   margin-bottom: 2px;
   font-size: 0.9rem;
   color: var(--text-muted);
+}
+
+@media (max-width: 720px) {
+  .listing-hero .listing-hero-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 .listing-section {
