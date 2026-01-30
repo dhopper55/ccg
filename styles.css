@@ -332,6 +332,7 @@ body {
 }
 
 .listing-hero {
+  position: relative;
   margin-bottom: 28px;
   text-align: center;
 }
@@ -361,6 +362,24 @@ body {
   color: var(--text-cream);
   font-size: 2.1rem;
   margin-bottom: 8px;
+}
+
+.listing-results-back {
+  position: absolute;
+  left: 0;
+  top: 6px;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 6px;
+  border-radius: 999px;
+  transition: color 0.2s, background-color 0.2s;
+}
+
+.listing-results-back:hover {
+  color: var(--text-cream);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .listing-hero .subtitle {
