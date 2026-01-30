@@ -486,6 +486,7 @@ function detectSource(url: string): ListingSource | null {
     const parsed = new URL(url);
     if (parsed.hostname.endsWith('craigslist.org')) return 'craigslist';
     if (parsed.hostname.includes('facebook.com') && parsed.pathname.includes('/marketplace')) return 'facebook';
+    if (parsed.hostname.includes('facebook.com') && parsed.pathname.startsWith('/share/')) return 'facebook';
     return null;
   } catch {
     return null;
@@ -509,6 +510,11 @@ async function resolveFacebookShareUrl(url: string): Promise<string> {
     const response = await fetch(url, { redirect: 'follow' });
     if (response.url) {
       return response.url;
+    }
+    const html = await response.text();
+    const ogUrlMatch = html.match(/property=\"og:url\" content=\"([^\"]+)\"/i);
+    if (ogUrlMatch?.[1]) {
+      return ogUrlMatch[1];
     }
   } catch (error) {
     console.warn('Unable to resolve Facebook share URL', { url, error });
