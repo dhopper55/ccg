@@ -10,6 +10,7 @@ const titleEl = document.getElementById('listing-item-title') as HTMLHeadingElem
 const metaEl = document.getElementById('listing-item-meta') as HTMLDListElement | null;
 const descriptionEl = document.getElementById('listing-item-description') as HTMLDivElement | null;
 const aiEl = document.getElementById('listing-item-ai') as HTMLDivElement | null;
+const aiTitleEl = document.getElementById('listing-item-ai-title') as HTMLHeadingElement | null;
 const openLink = document.getElementById('listing-item-open') as HTMLAnchorElement | null;
 const errorSection = document.getElementById('listing-item-error') as HTMLDivElement | null;
 
@@ -61,6 +62,9 @@ function formatAiSummary(text: string): DocumentFragment {
     }
   };
 
+  const bulletPattern = /^[-•*–]\s+/;
+  const bulletStripper = /^([-•*–]\s+)+/;
+
   for (const rawLine of lines) {
     const line = rawLine.trim();
     if (!line) {
@@ -68,12 +72,12 @@ function formatAiSummary(text: string): DocumentFragment {
       continue;
     }
 
-    if (line.startsWith('- ')) {
+    if (bulletPattern.test(line)) {
       if (!currentList) {
         currentList = document.createElement('ul');
       }
       const item = document.createElement('li');
-      item.textContent = line.replace(/^-\\s+/, '');
+      item.textContent = line.replace(bulletStripper, '');
       currentList.appendChild(item);
       continue;
     }
@@ -104,8 +108,13 @@ function addMetaRow(label: string, value: unknown): void {
 function renderRecord(record: ListingRecordResponse): void {
   const fields = record.fields || {};
   const title = normalizeValue(fields.title);
+  const askingPrice = normalizeValue(fields.price_asking);
 
   if (titleEl) titleEl.textContent = title === '—' ? 'Listing Details' : title;
+  if (aiTitleEl) {
+    const baseTitle = title === '—' ? 'Listing Summary' : title;
+    aiTitleEl.textContent = askingPrice === '—' ? baseTitle : `${baseTitle} (${askingPrice})`;
+  }
 
   if (metaEl) metaEl.innerHTML = '';
   addMetaRow('Status', fields.status);
