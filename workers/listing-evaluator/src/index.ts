@@ -45,24 +45,25 @@ export default {
     }
 
     const url = new URL(request.url);
+    const path = url.pathname.replace(/\/+$/, '') || '/';
 
-    if (url.pathname === '/api/listings/submit' && request.method === 'POST') {
+    if (path === '/api/listings/submit' && request.method === 'POST') {
       const response = await handleSubmit(request, env, ctx);
       return withCors(response, request, env);
     }
 
-    if (url.pathname === '/api/listings/webhook' && request.method === 'POST') {
+    if (path === '/api/listings/webhook' && request.method === 'POST') {
       const response = await handleWebhook(request, env, ctx);
       return withCors(response, request, env);
     }
 
-    if (url.pathname === '/api/listings' && request.method === 'GET') {
+    if (path === '/api/listings' && request.method === 'GET') {
       const response = await handleList(request, env);
       return withCors(response, request, env);
     }
 
-    if (url.pathname.startsWith('/api/listings/') && request.method === 'GET') {
-      const response = await handleGetListing(request, env);
+    if (path.startsWith('/api/listings/') && request.method === 'GET') {
+      const response = await handleGetListing(request, env, path);
       return withCors(response, request, env);
     }
 
@@ -200,9 +201,8 @@ async function handleList(request: Request, env: Env): Promise<Response> {
   return jsonResponse(data);
 }
 
-async function handleGetListing(request: Request, env: Env): Promise<Response> {
-  const url = new URL(request.url);
-  const parts = url.pathname.split('/').filter(Boolean);
+async function handleGetListing(request: Request, env: Env, path: string): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
   const id = parts[parts.length - 1];
 
   if (!id || id === 'listings') {

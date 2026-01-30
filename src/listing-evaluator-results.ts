@@ -99,7 +99,9 @@ async function loadListings(): Promise<void> {
     params.set('limit', String(PAGE_SIZE));
     if (currentOffset) params.set('offset', currentOffset);
 
-    const response = await fetch(`/api/listings?${params.toString()}`);
+    const url = new URL('/api/listings/', window.location.origin);
+    url.search = params.toString();
+    const response = await fetch(url.toString());
     const data = (await response.json()) as ListingsResponse;
 
     if (!response.ok) {
