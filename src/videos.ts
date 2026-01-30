@@ -48,7 +48,7 @@ const YOUTUBE_CONFIG = {
   // YouTube Data API key - get one from Google Cloud Console
   apiKey: 'AIzaSyAiKvOfTNfOZVZi7dYDf9ppa_uz-O_14ZU',
   // Channel username or custom URL (e.g., 'pauldavids' from youtube.com/pauldavids)
-  channelUsername: 'pauldavids',
+  channelUsername: 'CoalCreekGuitars',
   // Number of videos per page
   videosPerPage: 12
 };
