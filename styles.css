@@ -336,6 +336,10 @@ body {
   text-align: center;
 }
 
+.listing-hero .listing-results-link {
+  margin: 12px 0 16px;
+}
+
 .listing-hero h1 {
   color: var(--text-cream);
   font-size: 2.1rem;

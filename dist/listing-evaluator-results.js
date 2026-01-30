@@ -9,6 +9,16 @@ let currentOffset = null;
 let nextOffset = null;
 let pageIndex = 1;
 const offsetHistory = [];
+function formatSourceLabel(value) {
+    if (!value)
+        return '—';
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'facebook' || normalized === 'fbm' || normalized.includes('facebook'))
+        return 'FBM';
+    if (normalized === 'craigslist' || normalized === 'cg' || normalized.includes('craigslist'))
+        return 'CG';
+    return value;
+}
 function setLoading(isLoading) {
     if (prevButton)
         prevButton.disabled = isLoading || offsetHistory.length === 0;
@@ -44,7 +54,7 @@ function renderRows(records) {
         titleLink.className = 'listing-item-link';
         titleCell.appendChild(titleLink);
         const sourceCell = document.createElement('td');
-        sourceCell.textContent = record.source || '—';
+        sourceCell.textContent = formatSourceLabel(record.source);
         const statusCell = document.createElement('td');
         statusCell.textContent = record.status || '—';
         const urlCell = document.createElement('td');

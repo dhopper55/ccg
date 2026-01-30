@@ -1,4 +1,5 @@
 const MAX_URLS = 20;
+const BATCH_SIZE = 5;
 const form = document.getElementById('listing-form');
 const urlsInput = document.getElementById('listing-urls');
 const submitButton = document.getElementById('listing-submit');
@@ -86,32 +87,52 @@ async function handleSubmit() {
         return;
     }
     setLoading(true);
+    const rejected = [];
+    let acceptedTotal = 0;
+    let anyBatchSucceeded = false;
     try {
-        const response = await fetch('/api/listings/submit', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ urls }),
-        });
-        const data = (await response.json());
-        if (!response.ok) {
-            throw new Error(data.message || 'Unable to queue listings. Please try again.');
+        for (let start = 0; start < urls.length; start += BATCH_SIZE) {
+            const batch = urls.slice(start, start + BATCH_SIZE);
+            try {
+                const response = await fetch('/api/listings/submit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ urls: batch }),
+                });
+                const data = (await response.json());
+                if (!response.ok) {
+                    throw new Error(data.message || 'Unable to queue listings. Please try again.');
+                }
+                anyBatchSucceeded = true;
+                acceptedTotal += data.accepted ?? 0;
+                if (data.rejected && data.rejected.length > 0) {
+                    rejected.push(...data.rejected);
+                }
+            }
+            catch (error) {
+                const message = error instanceof Error
+                    ? error.message
+                    : 'Unable to queue this batch. Please try again.';
+                rejected.push(...batch.map((url) => ({ url, reason: message })));
+            }
         }
-        const accepted = data.accepted ?? 0;
-        successMessage.textContent = `Queued ${accepted} listing${accepted === 1 ? '' : 's'}. Check your Google Sheet in a few minutes.`;
-        successSection.classList.remove('hidden');
-        if (data.rejected && data.rejected.length > 0) {
-            renderRejected(data.rejected);
+        if (anyBatchSucceeded) {
+            successMessage.textContent = `Queued ${acceptedTotal} listing${acceptedTotal === 1 ? '' : 's'}. Check your Google Sheet in a few minutes.`;
+            successSection.classList.remove('hidden');
         }
-    }
-    catch (error) {
-        const message = error instanceof Error ? error.message : 'Something went wrong. Please try again.';
-        errorSection.textContent = message;
-        errorSection.classList.remove('hidden');
+        else {
+            errorSection.textContent = 'Unable to queue listings. Please try again.';
+            errorSection.classList.remove('hidden');
+        }
+        if (rejected.length > 0) {
+            renderRejected(rejected);
+        }
     }
     finally {
         setLoading(false);
+        urlsInput.value = '';
     }
 }
 export {};
