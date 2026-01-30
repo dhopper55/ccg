@@ -503,14 +503,32 @@ function isFacebookShareUrl(url: string): boolean {
   }
 }
 
+function extractFacebookRedirectTarget(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    if (!parsed.hostname.includes('facebook.com')) return null;
+    if (!parsed.pathname.startsWith('/l.php')) return null;
+    const target = parsed.searchParams.get('u');
+    if (!target) return null;
+    return decodeURIComponent(target);
+  } catch {
+    return null;
+  }
+}
+
 async function resolveFacebookShareUrl(url: string): Promise<string> {
   if (!isFacebookShareUrl(url)) return url;
 
   try {
     const response = await fetch(url, { redirect: 'follow' });
-    if (response.url) {
-      return response.url;
+    const resolvedUrl = response.url || url;
+    const redirectTarget = extractFacebookRedirectTarget(resolvedUrl);
+    if (redirectTarget) return redirectTarget;
+
+    if (!isFacebookShareUrl(resolvedUrl)) {
+      return resolvedUrl;
     }
+
     const html = await response.text();
     const ogUrlMatch = html.match(/property=\"og:url\" content=\"([^\"]+)\"/i);
     if (ogUrlMatch?.[1]) {
