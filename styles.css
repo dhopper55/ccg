@@ -2351,6 +2351,27 @@ button:active {
   box-shadow: 0 4px 18px rgba(201, 162, 39, 0.25);
 }
 
+.button-link.danger {
+  background: linear-gradient(135deg, #d9534f 0%, #b63d3a 100%);
+  color: #fff;
+}
+
+.button-link.danger:hover {
+  box-shadow: 0 4px 20px rgba(217, 83, 79, 0.4);
+}
+
+.button-link .icon {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  margin-right: 8px;
+}
+
+.button-link .icon svg {
+  width: 100%;
+  height: 100%;
+}
+
 .listing-item-meta {
   display: grid;
   grid-template-columns: 180px 1fr;

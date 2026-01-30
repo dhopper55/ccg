@@ -62,6 +62,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path.endsWith('/archive') && path.startsWith('/api/listings/') && request.method === 'POST') {
+      const response = await handleArchiveListing(env, path);
+      return withCors(response, request, env);
+    }
+
     if (path.startsWith('/api/listings/') && request.method === 'GET') {
       const response = await handleGetListing(request, env, path);
       return withCors(response, request, env);
@@ -226,6 +231,23 @@ async function handleGetListing(request: Request, env: Env, path: string): Promi
   return jsonResponse(record);
 }
 
+async function handleArchiveListing(env: Env, path: string): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const archiveIndex = parts.indexOf('archive');
+  const recordId = archiveIndex > 0 ? parts[archiveIndex - 1] : '';
+
+  if (!recordId || recordId === 'listings') {
+    return jsonResponse({ message: 'Missing listing ID.' }, 400);
+  }
+
+  const updated = await airtableSetArchived(recordId, env);
+  if (!updated) {
+    return jsonResponse({ message: 'Unable to archive listing.' }, 500);
+  }
+
+  return jsonResponse({ ok: true });
+}
+
 async function processRun(runId: string, resource: any, eventType: string | undefined, env: Env): Promise<void> {
   if (eventType && eventType.includes('FAILED')) {
     await updateRowByRunId(runId, {
@@ -288,6 +310,7 @@ async function airtableList(
   params.append('fields[]', 'title');
   params.append('fields[]', 'price_asking');
   params.append('fields[]', 'score');
+  params.append('filterByFormula', 'NOT({archived})');
   params.append('sort[0][field]', 'submitted_at');
   params.append('sort[0][direction]', 'desc');
   if (offset) params.set('offset', offset);
@@ -789,6 +812,29 @@ async function airtableUpdate(recordId: string, fields: Record<string, unknown>,
       body: errorText,
     });
   }
+}
+
+async function airtableSetArchived(recordId: string, env: Env): Promise<boolean> {
+  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_TABLE)}/${recordId}`, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ fields: { archived: true } }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Airtable archive failed', {
+      status: response.status,
+      statusText: response.statusText,
+      body: errorText,
+    });
+    return false;
+  }
+
+  return true;
 }
 
 function extractPrivatePartyRange(aiSummary: string): { low: number; high: number } | null {

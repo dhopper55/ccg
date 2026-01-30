@@ -5,6 +5,10 @@ const aiEl = document.getElementById('listing-item-ai');
 const aiTitleEl = document.getElementById('listing-item-ai-title');
 const openLink = document.getElementById('listing-item-open');
 const errorSection = document.getElementById('listing-item-error');
+const archiveButton = document.getElementById('listing-item-archive');
+const archiveLabel = archiveButton?.querySelector('.archive-label');
+let currentRecordId = null;
+let isArchiving = false;
 function formatMountainTimestamp(date) {
     const dateFormatter = new Intl.DateTimeFormat('en-US', {
         timeZone: 'America/Denver',
@@ -120,6 +124,33 @@ function normalizeValue(value) {
         return value.toString();
     return String(value);
 }
+function isArchivedValue(value) {
+    if (value === true)
+        return true;
+    if (typeof value === 'number')
+        return value === 1;
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        return normalized === 'true' || normalized === 'yes' || normalized === '1';
+    }
+    return false;
+}
+function updateArchiveButton(archived) {
+    if (!archiveButton)
+        return;
+    archiveButton.disabled = archived || isArchiving;
+    if (archiveLabel) {
+        if (archived) {
+            archiveLabel.textContent = 'Archived';
+        }
+        else if (isArchiving) {
+            archiveLabel.textContent = 'Archiving...';
+        }
+        else {
+            archiveLabel.textContent = 'Archive';
+        }
+    }
+}
 function buildTextBlock(tag, text) {
     const el = document.createElement(tag);
     el.textContent = text;
@@ -178,6 +209,8 @@ function renderRecord(record) {
     const fields = record.fields || {};
     const title = normalizeValue(fields.title);
     const askingPrice = formatCurrencyValue(fields.price_asking);
+    const archived = isArchivedValue(fields.archived);
+    updateArchiveButton(archived);
     if (titleEl)
         titleEl.textContent = title === '—' ? 'Listing Details' : title;
     if (aiTitleEl) {
@@ -220,6 +253,33 @@ function renderRecord(record) {
         }
     }
 }
+async function archiveListing() {
+    if (!currentRecordId || !archiveButton)
+        return;
+    if (archiveButton.disabled)
+        return;
+    clearError();
+    isArchiving = true;
+    updateArchiveButton(false);
+    try {
+        const response = await fetch(`/api/listings/${encodeURIComponent(currentRecordId)}/archive`, {
+            method: 'POST',
+        });
+        const data = (await response.json());
+        if (!response.ok) {
+            throw new Error(data.message || 'Unable to archive listing.');
+        }
+        updateArchiveButton(true);
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : 'Unable to archive listing.';
+        showError(message);
+        updateArchiveButton(false);
+    }
+    finally {
+        isArchiving = false;
+    }
+}
 async function loadRecord() {
     clearError();
     const recordId = getRecordId();
@@ -233,12 +293,19 @@ async function loadRecord() {
         if (!response.ok) {
             throw new Error(data.message || 'Unable to load listing.');
         }
+        currentRecordId = recordId;
         renderRecord(data);
     }
     catch (error) {
         const message = error instanceof Error ? error.message : 'Unable to load listing.';
         showError(message);
     }
+}
+if (archiveButton) {
+    archiveButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        void archiveListing();
+    });
 }
 void loadRecord();
 export {};

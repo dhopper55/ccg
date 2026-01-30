@@ -5,10 +5,11 @@
   "main": "dist/main.js",
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node scripts/update-cache-busters.mjs",
+    "cachebust": "node scripts/update-cache-busters.mjs",
     "watch": "tsc --watch",
     "start": "lite-server",
-    "dev": "tsc && lite-server"
+    "dev": "tsc && node scripts/update-cache-busters.mjs && lite-server"
   },
   "keywords": ["guitar", "serial-number", "decoder"],
   "author": "",
