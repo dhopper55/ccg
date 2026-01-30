@@ -29,6 +29,8 @@ interface RejectResult {
 }
 
 const MAX_URLS = 20;
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 50;
 
 const SUPPORTED_ORIGINS = [
   'https://www.coalcreekguitars.com',
@@ -54,6 +56,16 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (url.pathname === '/api/listings' && request.method === 'GET') {
+      const response = await handleList(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (url.pathname.startsWith('/api/listings/') && request.method === 'GET') {
+      const response = await handleGetListing(request, env);
+      return withCors(response, request, env);
+    }
+
     return withCors(new Response('Not found', { status: 404 }), request, env);
   },
 };
@@ -68,7 +80,7 @@ function withCors(response: Response, request: Request, env: Env): Response {
     headers.set('Access-Control-Allow-Origin', env.SITE_BASE_URL || SUPPORTED_ORIGINS[0]);
   }
 
-  headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   headers.set('Access-Control-Allow-Headers', 'Content-Type');
   headers.set('Access-Control-Max-Age', '86400');
 
@@ -159,6 +171,52 @@ async function handleWebhook(request: Request, env: Env, ctx: ExecutionContext):
   return jsonResponse({ ok: true });
 }
 
+type ListingListItem = {
+  id: string;
+  url?: string;
+  source?: string;
+  status?: string;
+  title?: string;
+};
+
+async function handleList(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const limitParam = url.searchParams.get('limit');
+  const offset = url.searchParams.get('offset') || undefined;
+
+  let limit = DEFAULT_PAGE_SIZE;
+  if (limitParam) {
+    const parsed = Number.parseInt(limitParam, 10);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      limit = Math.min(parsed, MAX_PAGE_SIZE);
+    }
+  }
+
+  const data = await airtableList(limit, offset, env);
+  if (!data) {
+    return jsonResponse({ message: 'Unable to fetch listings.' }, 500);
+  }
+
+  return jsonResponse(data);
+}
+
+async function handleGetListing(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const parts = url.pathname.split('/').filter(Boolean);
+  const id = parts[parts.length - 1];
+
+  if (!id || id === 'listings') {
+    return jsonResponse({ message: 'Missing listing ID.' }, 400);
+  }
+
+  const record = await airtableGet(id, env);
+  if (!record) {
+    return jsonResponse({ message: 'Listing not found.' }, 404);
+  }
+
+  return jsonResponse(record);
+}
+
 async function processRun(runId: string, resource: any, eventType: string | undefined, env: Env): Promise<void> {
   if (eventType && eventType.includes('FAILED')) {
     await updateRowByRunId(runId, {
@@ -208,6 +266,80 @@ async function processRun(runId: string, resource: any, eventType: string | unde
   }, env);
 }
 
+async function airtableList(
+  limit: number,
+  offset: string | undefined,
+  env: Env
+): Promise<{ records: ListingListItem[]; nextOffset?: string | null } | null> {
+  const params = new URLSearchParams();
+  params.set('pageSize', String(limit));
+  params.append('fields[]', 'url');
+  params.append('fields[]', 'source');
+  params.append('fields[]', 'status');
+  params.append('fields[]', 'title');
+  params.append('sort[0][field]', 'submitted_at');
+  params.append('sort[0][direction]', 'desc');
+  if (offset) params.set('offset', offset);
+
+  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_TABLE)}?${params.toString()}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Airtable list failed', {
+      status: response.status,
+      statusText: response.statusText,
+      body: errorText,
+    });
+    return null;
+  }
+
+  const data = await response.json();
+  const records = Array.isArray(data?.records) ? data.records : [];
+  const mapped: ListingListItem[] = records.map((record: any) => ({
+    id: record.id,
+    url: record.fields?.url ?? '',
+    source: record.fields?.source ?? '',
+    status: record.fields?.status ?? '',
+    title: record.fields?.title ?? '',
+  }));
+
+  return {
+    records: mapped,
+    nextOffset: data?.offset ?? null,
+  };
+}
+
+async function airtableGet(recordId: string, env: Env): Promise<{ id: string; fields: Record<string, unknown> } | null> {
+  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_TABLE)}/${recordId}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    if (response.status === 404) return null;
+    const errorText = await response.text();
+    console.error('Airtable get failed', {
+      status: response.status,
+      statusText: response.statusText,
+      body: errorText,
+    });
+    return null;
+  }
+
+  const data = await response.json();
+  if (!data?.id) return null;
+  return { id: data.id, fields: data.fields ?? {} };
+}
+
 type ListingSource = 'facebook' | 'craigslist';
 
 type ListingData = {
@@ -222,8 +354,10 @@ type ListingData = {
 };
 
 function normalizeListing(item: any): ListingData {
-  const title = pickString(item.title, item.name, item.heading);
+  const title = pickString(item.listingTitle, item.title, item.name, item.heading);
   const description = pickString(
+    item.description?.text,
+    item.post,
     item.description,
     item.details,
     item.body,
@@ -233,8 +367,25 @@ function normalizeListing(item: any): ListingData {
     item.desc,
     item.summary
   );
-  const price = pickString(item.price, item.priceFormatted, item.priceText, item.priceAmount, item.priceRange);
-  const location = pickString(item.location, item.locationText, item.where, item.city, item.region);
+  const price = pickString(
+    item.listingPrice?.formatted_amount_zeros_stripped,
+    item.listingPrice?.amount,
+    item.price,
+    item.priceFormatted,
+    item.priceText,
+    item.priceAmount,
+    item.priceRange
+  );
+  const location = pickLocation(
+    item.locationText?.text,
+    item.location,
+    item.locationText,
+    item.where,
+    item.city,
+    item.region,
+    item.address?.city,
+    item.address?.region
+  );
   const condition = pickString(item.condition, item.itemCondition, item.conditionText);
 
   const images = pickImages(item);
@@ -260,6 +411,9 @@ function pickImages(item: any): string[] {
     item.photosSmall,
     item.imageUrl,
     item.image,
+    item.pics,
+    item.picUrls,
+    item.listingPhotos,
   ];
 
   for (const candidate of candidates) {
@@ -268,6 +422,7 @@ function pickImages(item: any): string[] {
         if (typeof entry === 'string') images.push(entry);
         if (entry?.url) images.push(entry.url);
         if (entry?.imageUrl) images.push(entry.imageUrl);
+        if (entry?.image?.uri) images.push(entry.image.uri);
       });
     } else if (typeof candidate === 'string') {
       images.push(candidate);
@@ -288,6 +443,26 @@ function pickString(...values: any[]): string {
     }
   }
   return '';
+}
+
+function pickLocation(...values: any[]): string {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim().length > 0) {
+      const trimmed = value.trim();
+      if (isPriceLike(trimmed)) continue;
+      return trimmed;
+    }
+  }
+  return '';
+}
+
+function isPriceLike(input: string): boolean {
+  if (!input) return false;
+  const normalized = input.replace(/\s+/g, '');
+  if (/^\$?[\d,]+(?:\.\d{1,2})?$/.test(normalized)) {
+    return true;
+  }
+  return false;
 }
 
 function normalizeUrl(raw: string): string | null {
@@ -422,14 +597,21 @@ async function updateRowByRunId(runId: string, updates: {
       return;
     }
 
-    const score = updates.aiSummary ? extractScore(updates.aiSummary) : null;
-    const fields: Record<string, unknown> = {
-      status: updates.status ?? null,
-      title: updates.title ?? null,
-      price: updates.price ?? null,
-      location: updates.location ?? null,
-      description: updates.description ?? null,
-      ai_summary: updates.aiSummary ?? null,
+  const privateParty = updates.aiSummary ? extractPrivatePartyRange(updates.aiSummary) : null;
+  const listedPrice = updates.price ? parseMoney(updates.price) : null;
+  const aiAsking = updates.aiSummary ? extractAskingFromSummary(updates.aiSummary) : null;
+  const asking = chooseAskingPrice(listedPrice, aiAsking, updates.description ?? '', updates.aiSummary ?? '');
+  const ideal = privateParty?.low != null ? Math.round(privateParty.low * 0.8) : null;
+  const score = privateParty && asking != null ? computeScore(asking, privateParty.low, privateParty.high) : null;
+  const fields: Record<string, unknown> = {
+    status: updates.status ?? null,
+    title: updates.title ?? null,
+    price_asking: asking ?? null,
+    location: updates.location ?? null,
+    description: updates.description ?? null,
+    ai_summary: updates.aiSummary ?? null,
+    price_private_party: privateParty ? formatRange(privateParty.low, privateParty.high) : null,
+    price_ideal: ideal ?? null,
     };
     if (score !== null) {
       fields.score = score;
@@ -485,21 +667,113 @@ async function airtableUpdate(recordId: string, fields: Record<string, unknown>,
   }
 }
 
-function extractScore(aiSummary: string): number | null {
-  const match = aiSummary.match(/score\s*[:\-]?\s*(\d{1,2})(?:\s*\/\s*10)?/i);
+function extractPrivatePartyRange(aiSummary: string): { low: number; high: number } | null {
+  const rangeMatch = aiSummary.match(/Typical private[-\s]party value:\s*\$?([\d,]+)\s*(?:–|-|to)\s*\$?([\d,]+)/i);
+  if (rangeMatch) {
+    const low = parseMoney(rangeMatch[1]);
+    const high = parseMoney(rangeMatch[2]);
+    if (low != null && high != null) {
+      return { low, high };
+    }
+  }
+
+  const singleMatch = aiSummary.match(/Typical private[-\s]party value:\s*\$?([\d,]+)/i);
+  if (singleMatch) {
+    const value = parseMoney(singleMatch[1]);
+    if (value != null) {
+      return { low: value, high: value };
+    }
+  }
+
+  return null;
+}
+
+function extractAskingFromSummary(aiSummary: string): number | null {
+  const match = aiSummary.match(/Asking price \(from listing text\):\s*\$?([\d,]+)/i);
   if (!match) return null;
-  const value = Number.parseInt(match[1], 10);
-  if (!Number.isFinite(value)) return null;
-  return Math.max(1, Math.min(10, value));
+  return parseMoney(match[1]);
+}
+
+function chooseAskingPrice(
+  listed: number | null,
+  aiAsking: number | null,
+  description: string,
+  aiSummary: string
+): number | null {
+  if (listed == null && aiAsking == null) return null;
+  if (listed == null) return aiAsking;
+
+  const hasMultiplePrices = countMoneyTokens(description) >= 2;
+  const summaryMentionsMultiple = /multiple items|bundle|lot|each pedal|per item/i.test(aiSummary);
+  const suspicious = isSuspiciousListedPrice(listed, hasMultiplePrices);
+
+  if (aiAsking != null && (suspicious || summaryMentionsMultiple)) {
+    return aiAsking;
+  }
+
+  return listed;
+}
+
+function isSuspiciousListedPrice(listed: number, hasMultiplePrices: boolean): boolean {
+  if (listed <= 5) return true;
+  if (listed === 1234) return true;
+  if (listed >= 1000 && hasMultiplePrices) return true;
+  return false;
+}
+
+function countMoneyTokens(text: string): number {
+  if (!text) return 0;
+  const matches = text.match(/\$\\s*[\\d,]+/g);
+  return matches ? matches.length : 0;
+}
+
+function parseMoney(input: string): number | null {
+  if (!input) return null;
+  const cleaned = input.replace(/[^0-9.]/g, '');
+  if (!cleaned) return null;
+  const value = Number.parseFloat(cleaned);
+  return Number.isFinite(value) ? value : null;
+}
+
+function formatRange(low: number, high: number): string {
+  if (low === high) return formatCurrency(low);
+  return `${formatCurrency(low)} - ${formatCurrency(high)}`;
+}
+
+function formatCurrency(value: number): string {
+  return `$${Math.round(value).toLocaleString('en-US')}`;
+}
+
+function computeScore(asking: number, low: number, high: number): number {
+  if (asking <= low) {
+    const margin = (low - asking) / low;
+    const score = 8 + Math.min(2, margin * 4);
+    return clampScore(score);
+  }
+
+  if (asking <= high) {
+    const position = (asking - low) / Math.max(1, high - low);
+    const score = 7 - position * 2;
+    return clampScore(score);
+  }
+
+  const over = (asking - high) / high;
+  const score = 5 - Math.min(4, over * 6);
+  return clampScore(score);
+}
+
+function clampScore(value: number): number {
+  const rounded = Math.round(value);
+  return Math.max(1, Math.min(10, rounded));
 }
 
 async function runOpenAI(listing: ListingData, env: Env): Promise<string> {
   const maxImages = Number.parseInt(env.MAX_IMAGES || '3', 10);
   const images = listing.images.slice(0, Number.isFinite(maxImages) ? maxImages : 3);
 
-  const systemPrompt = `You are an expert used gear buyer and appraiser focused on music gear. Produce a concise valuation with the exact format below. If details are missing, be clear about uncertainty and suggest the specific photo or detail needed. Avoid hype. When listings include multiple items, identify each item and provide a price breakdown per item.`;
+  const systemPrompt = `You are an expert used gear buyer and appraiser focused on music gear. Produce a concise valuation with the exact format below. If details are missing, be clear about uncertainty and suggest the specific photo or detail needed. Avoid hype. When listings include multiple items, identify each item and provide a price breakdown per item. Always state the asking price you infer from the listing text.`;
 
-  const userPrompt = `Listing title: ${listing.title || 'Unknown'}\nListing description: ${listing.description || 'Not provided'}\nAsking price: ${listing.price || 'Unknown'}\nLocation: ${listing.location || 'Unknown'}\n\nProvide the response in this format:\n\nWhat it appears to be\n- bullet points\n\nReal-world value (used market)\n- Typical private-party value: $X–$Y\n- Music store pricing: $X–$Y\n- Quick verdict on the asking price\n\nWhat affects the price\nAdds value\n- bullets\nHurts value\n- bullets\n\nComparison (for context)\n- bullets\n\nScore\n- Score: X/10 (resell potential based on ask vs realistic value, condition, and included extras)\n\nBottom line\n- Realistic value range\n- Buy/skip note\n- Any missing info to tighten valuation\n`;
+  const userPrompt = `Listing title: ${listing.title || 'Unknown'}\nListing description: ${listing.description || 'Not provided'}\nAsking price: ${listing.price || 'Unknown'}\nLocation: ${listing.location || 'Unknown'}\n\nProvide the response in this format:\n\nWhat it appears to be\n- bullet points\n\nReal-world value (used market)\n- Typical private-party value: $X–$Y\n- Music store pricing: $X–$Y\n- Quick verdict on the asking price\n\nAsking price (from listing text): $X (or \"Unknown\")\n\nWhat affects the price\nAdds value\n- bullets\nHurts value\n- bullets\n\nComparison (for context)\n- bullets\n\nScore\n- Score: X/10 (resell potential based on ask vs realistic value, condition, and included extras)\n\nBottom line\n- Realistic value range\n- Buy/skip note\n- Any missing info to tighten valuation\n`;
 
   if (!env.OPENAI_API_KEY) {
     console.error('OpenAI API key missing');

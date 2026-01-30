@@ -5,6 +5,8 @@ type SubmitResponse = {
   message?: string;
 };
 
+export {};
+
 const MAX_URLS = 20;
 
 const form = document.getElementById('listing-form') as HTMLFormElement | null;
