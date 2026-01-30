@@ -515,24 +515,63 @@ function extractFacebookRedirectTarget(url: string): string | null {
   }
 }
 
+async function fetchFacebookShare(
+  url: string,
+  redirect: RequestRedirect
+): Promise<Response> {
+  return fetch(url, {
+    redirect,
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+      'Accept-Language': 'en-US,en;q=0.9',
+    },
+  });
+}
+
+async function resolveFromResponse(response: Response, fallbackUrl: string): Promise<string> {
+  const resolvedUrl = response.url || fallbackUrl;
+  const redirectTarget = extractFacebookRedirectTarget(resolvedUrl);
+  if (redirectTarget) return redirectTarget;
+
+  if (!isFacebookShareUrl(resolvedUrl)) {
+    return resolvedUrl;
+  }
+
+  const html = await response.text();
+  const ogUrlMatch = html.match(/property=\"og:url\" content=\"([^\"]+)\"/i);
+  if (ogUrlMatch?.[1]) {
+    return ogUrlMatch[1];
+  }
+
+  return resolvedUrl;
+}
+
 async function resolveFacebookShareUrl(url: string): Promise<string> {
   if (!isFacebookShareUrl(url)) return url;
 
   try {
-    const response = await fetch(url, { redirect: 'follow' });
-    const resolvedUrl = response.url || url;
-    const redirectTarget = extractFacebookRedirectTarget(resolvedUrl);
-    if (redirectTarget) return redirectTarget;
-
-    if (!isFacebookShareUrl(resolvedUrl)) {
-      return resolvedUrl;
+    const manualResponse = await fetchFacebookShare(url, 'manual');
+    if (manualResponse.status >= 300 && manualResponse.status < 400) {
+      const location = manualResponse.headers.get('Location');
+      if (location) {
+        const resolvedLocation = new URL(location, url).toString();
+        const redirectTarget = extractFacebookRedirectTarget(resolvedLocation);
+        if (redirectTarget) return redirectTarget;
+        if (!isFacebookShareUrl(resolvedLocation)) {
+          return resolvedLocation;
+        }
+      }
     }
 
-    const html = await response.text();
-    const ogUrlMatch = html.match(/property=\"og:url\" content=\"([^\"]+)\"/i);
-    if (ogUrlMatch?.[1]) {
-      return ogUrlMatch[1];
+    const response = await fetchFacebookShare(url, 'follow');
+    const resolved = await resolveFromResponse(response, url);
+    if (!resolved.includes('unsupportedbrowser')) {
+      return resolved;
     }
+
+    const mobileUrl = url.replace('www.facebook.com', 'm.facebook.com');
+    const mobileResponse = await fetchFacebookShare(mobileUrl, 'follow');
+    return await resolveFromResponse(mobileResponse, mobileUrl);
   } catch (error) {
     console.warn('Unable to resolve Facebook share URL', { url, error });
   }
