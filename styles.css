@@ -2336,6 +2336,25 @@ button:active {
   line-height: 1.6;
 }
 
+.listing-item-text h3 {
+  margin: 16px 0 8px;
+  color: var(--accent-gold);
+  font-size: 1rem;
+}
+
+.listing-item-text p {
+  margin: 0 0 10px;
+}
+
+.listing-item-text ul {
+  margin: 0 0 12px 18px;
+  padding: 0;
+}
+
+.listing-item-text li {
+  margin-bottom: 6px;
+}
+
 @media (max-width: 720px) {
   .listing-evaluator {
     margin: 24px auto 60px;

@@ -688,9 +688,11 @@ async function updateRowByRunId(runId: string, updates: {
   const privateParty = updates.aiSummary ? extractPrivatePartyRange(updates.aiSummary) : null;
   const listedPrice = updates.price ? parseMoney(updates.price) : null;
   const aiAsking = updates.aiSummary ? extractAskingFromSummary(updates.aiSummary) : null;
+  const aiScore = updates.aiSummary ? extractScoreFromSummary(updates.aiSummary) : null;
   const asking = chooseAskingPrice(listedPrice, aiAsking, updates.description ?? '', updates.aiSummary ?? '');
   const ideal = privateParty?.low != null ? Math.round(privateParty.low * 0.8) : null;
-  const score = privateParty && asking != null ? computeScore(asking, privateParty.low, privateParty.high) : null;
+  const computedScore = privateParty && asking != null ? computeScore(asking, privateParty.low, privateParty.high) : null;
+  const score = aiScore ?? computedScore;
   const fields: Record<string, unknown> = {
     status: updates.status ?? null,
     title: updates.title ?? null,
@@ -780,6 +782,14 @@ function extractAskingFromSummary(aiSummary: string): number | null {
   const match = aiSummary.match(/Asking price \(from listing text\):\s*\$?([\d,]+)/i);
   if (!match) return null;
   return parseMoney(match[1]);
+}
+
+function extractScoreFromSummary(aiSummary: string): number | null {
+  const match = aiSummary.match(/Score:\s*([0-9]+)\s*\/\s*10/i);
+  if (!match) return null;
+  const score = Number.parseInt(match[1], 10);
+  if (!Number.isFinite(score)) return null;
+  return Math.max(1, Math.min(10, score));
 }
 
 function chooseAskingPrice(

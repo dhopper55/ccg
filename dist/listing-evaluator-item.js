@@ -34,6 +34,48 @@ function normalizeValue(value) {
         return value.toString();
     return String(value);
 }
+function buildTextBlock(tag, text) {
+    const el = document.createElement(tag);
+    el.textContent = text;
+    return el;
+}
+function formatAiSummary(text) {
+    const fragment = document.createDocumentFragment();
+    const lines = text.split(/\r?\n/).map((line) => line.trimEnd());
+    let currentList = null;
+    const flushList = () => {
+        if (currentList) {
+            fragment.appendChild(currentList);
+            currentList = null;
+        }
+    };
+    for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line) {
+            flushList();
+            continue;
+        }
+        if (line.startsWith('- ')) {
+            if (!currentList) {
+                currentList = document.createElement('ul');
+            }
+            const item = document.createElement('li');
+            item.textContent = line.replace(/^-\\s+/, '');
+            currentList.appendChild(item);
+            continue;
+        }
+        flushList();
+        const headingMatch = line.match(/^[A-Za-z].+$/);
+        if (headingMatch && line.length < 80) {
+            fragment.appendChild(buildTextBlock('h3', line));
+        }
+        else {
+            fragment.appendChild(buildTextBlock('p', line));
+        }
+    }
+    flushList();
+    return fragment;
+}
 function addMetaRow(label, value) {
     if (!metaEl)
         return;
@@ -76,7 +118,13 @@ function renderRecord(record) {
     }
     if (aiEl) {
         const summary = normalizeValue(fields.ai_summary);
-        aiEl.textContent = summary === '—' ? 'No AI summary available yet.' : summary;
+        aiEl.innerHTML = '';
+        if (summary === '—') {
+            aiEl.textContent = 'No AI summary available yet.';
+        }
+        else {
+            aiEl.appendChild(formatAiSummary(summary));
+        }
     }
 }
 async function loadRecord() {

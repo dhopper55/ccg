@@ -58,7 +58,7 @@ function renderRows(records: ListingListItem[]): void {
 
     const titleCell = document.createElement('td');
     const titleLink = document.createElement('a');
-    titleLink.href = `/listing-evaluator-item/${encodeURIComponent(record.id)}`;
+    titleLink.href = `/listing-evaluator-item.html?id=${encodeURIComponent(record.id)}`;
     titleLink.textContent = record.title?.trim() || 'Untitled listing';
     titleLink.className = 'listing-item-link';
     titleCell.appendChild(titleLink);
