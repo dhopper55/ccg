@@ -267,6 +267,7 @@ async function archiveListing(): Promise<void> {
 
   clearError();
   isArchiving = true;
+  archiveButton.disabled = true;
   updateArchiveButton(false);
 
   try {
@@ -279,9 +280,11 @@ async function archiveListing(): Promise<void> {
     }
 
     updateArchiveButton(true);
+    window.location.href = 'listing-evaluator-results.html';
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to archive listing.';
     showError(message);
+    archiveButton.disabled = false;
     updateArchiveButton(false);
   } finally {
     isArchiving = false;

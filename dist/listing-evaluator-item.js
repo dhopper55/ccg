@@ -260,6 +260,7 @@ async function archiveListing() {
         return;
     clearError();
     isArchiving = true;
+    archiveButton.disabled = true;
     updateArchiveButton(false);
     try {
         const response = await fetch(`/api/listings/${encodeURIComponent(currentRecordId)}/archive`, {
@@ -270,10 +271,12 @@ async function archiveListing() {
             throw new Error(data.message || 'Unable to archive listing.');
         }
         updateArchiveButton(true);
+        window.location.href = 'listing-evaluator-results.html';
     }
     catch (error) {
         const message = error instanceof Error ? error.message : 'Unable to archive listing.';
         showError(message);
+        archiveButton.disabled = false;
         updateArchiveButton(false);
     }
     finally {
