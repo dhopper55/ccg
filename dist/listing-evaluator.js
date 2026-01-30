@@ -1,4 +1,3 @@
-"use strict";
 const MAX_URLS = 20;
 const form = document.getElementById('listing-form');
 const urlsInput = document.getElementById('listing-urls');
@@ -115,3 +114,4 @@ async function handleSubmit() {
         setLoading(false);
     }
 }
+export {};
