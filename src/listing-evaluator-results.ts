@@ -90,12 +90,14 @@ function renderRows(records: ListingListItem[]): void {
   if (!tableBody) return;
   tableBody.innerHTML = '';
 
-  if (records.length === 0) {
+  const visibleRecords = records.filter((record) => record.status?.toLowerCase() !== 'queued');
+
+  if (visibleRecords.length === 0) {
     if (emptySection) emptySection.classList.remove('hidden');
     return;
   }
 
-  records.forEach((record) => {
+  visibleRecords.forEach((record) => {
     const row = document.createElement('tr');
 
     const titleCell = document.createElement('td');
@@ -113,9 +115,6 @@ function renderRows(records: ListingListItem[]): void {
     const sourceCell = document.createElement('td');
     sourceCell.textContent = formatSourceLabel(record.source);
 
-    const statusCell = document.createElement('td');
-    statusCell.textContent = record.status || '—';
-
     const urlCell = document.createElement('td');
     if (record.url) {
       const openLink = document.createElement('a');
@@ -131,7 +130,6 @@ function renderRows(records: ListingListItem[]): void {
     row.appendChild(titleCell);
     row.appendChild(scoreCell);
     row.appendChild(sourceCell);
-    row.appendChild(statusCell);
     row.appendChild(urlCell);
 
     tableBody.appendChild(row);

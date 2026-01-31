@@ -319,7 +319,7 @@ async function airtableList(
   params.append('fields[]', 'title');
   params.append('fields[]', 'price_asking');
   params.append('fields[]', 'score');
-  params.append('filterByFormula', 'NOT({archived})');
+  params.append('filterByFormula', "AND(NOT({archived}), {status} != 'queued')");
   params.append('sort[0][field]', 'submitted_at');
   params.append('sort[0][direction]', 'desc');
   if (offset) params.set('offset', offset);
