@@ -743,6 +743,7 @@ async function updateRowByRunId(runId: string, updates: {
     price_asking: asking ?? null,
     location: updates.location ?? null,
     description: updates.description ?? null,
+    photos: updates.photos ?? null,
     ai_summary: updates.aiSummary ?? null,
     price_private_party: privateParty ? formatRange(privateParty.low, privateParty.high) : null,
     price_ideal: ideal ?? null,
