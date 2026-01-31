@@ -1,5 +1,5 @@
 const REVERB_API_TOKEN = '91712608fefe08e6915c2d781519411af3bdd750818a8edc94d94e14a3d7c491';
-const REVERB_API_URL = 'https://api.reverb.com/api/my/listings';
+const REVERB_API_URL = 'https://api.reverb.com/api/my/listings?per_page=100';
 async function fetchListings() {
     const response = await fetch(REVERB_API_URL, {
         method: 'GET',
