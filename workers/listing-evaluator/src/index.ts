@@ -16,6 +16,7 @@ interface Env {
   TELNYX_API_KEY?: string;
   TELNYX_FROM_NUMBER?: string;
   TELNYX_TO_NUMBER?: string;
+  RADAR_AI_ENABLED?: string;
   LISTING_JOBS: KVNamespace;
 }
 
@@ -45,6 +46,11 @@ const RADAR_LAST_SUMMARY_KEY = 'radar_last_summary';
 const RADAR_MIN_JITTER_MINUTES = 25;
 const RADAR_MAX_JITTER_MINUTES = 35;
 const RADAR_CONSECUTIVE_SEEN_LIMIT = 5;
+const RADAR_MAX_NEW_PER_SOURCE = 5;
+const RADAR_CL_TIMEBOX_MS = 30000;
+const RADAR_MAX_AI_CHECKS_PER_RUN = 0;
+const RADAR_CLASSIFY_BATCH = 3;
+const RADAR_NEXT_SOURCE_KEY = 'radar_next_source';
 const MST_OFFSET_MINUTES = -7 * 60;
 const RADAR_QUIET_START_HOUR = 23;
 const RADAR_QUIET_END_HOUR = 6;
@@ -102,6 +108,16 @@ export default {
 
     if (path.endsWith('/queue') && path.startsWith('/api/search-results/') && request.method === 'POST') {
       const response = await handleQueueSearchResult(env, path, ctx);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/radar/run' && request.method === 'POST') {
+      const response = await handleRadarRun(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/radar/classify' && request.method === 'POST') {
+      const response = await handleRadarClassify(request, env);
       return withCors(response, request, env);
     }
 
@@ -215,8 +231,12 @@ async function runRadarIfDue(env: Env): Promise<void> {
 
   let summary = 'Radar run skipped.';
   try {
-    const result = await runRadarScan(env);
+    const nextSource = (await env.LISTING_JOBS.get(RADAR_NEXT_SOURCE_KEY)) as ListingSource | null;
+    const source = nextSource === 'facebook' ? 'facebook' : 'craigslist';
+    const result = await runRadarScan(env, source);
     summary = result.summary;
+    const next = source === 'facebook' ? 'craigslist' : 'facebook';
+    await env.LISTING_JOBS.put(RADAR_NEXT_SOURCE_KEY, next);
   } catch (error) {
     console.error('Radar run failed', { error });
     summary = 'Radar run failed.';
@@ -235,7 +255,7 @@ type RadarResult = {
   summary: string;
 };
 
-async function runRadarScan(env: Env): Promise<RadarResult> {
+async function runRadarScan(env: Env, sourceOverride?: ListingSource): Promise<RadarResult> {
   const keywords = parseRadarKeywords(env.RADAR_KEYWORDS);
   const fbUrl = env.RADAR_FB_SEARCH_URL;
   const clUrl = env.RADAR_CL_SEARCH_URL;
@@ -245,55 +265,30 @@ async function runRadarScan(env: Env): Promise<RadarResult> {
   }
 
   const runId = generateRunId();
-  const runStartedAt = formatMountainTimestamp(new Date());
-  const allListings: ListingCandidate[] = [];
-  let consecutiveSeen = 0;
+  const runStartedAt = new Date().toISOString();
+  const scored: ScoredListing[] = [];
+  const newBySource: Record<ListingSource, number> = { facebook: 0, craigslist: 0 };
+  const aiEnabled = env.RADAR_AI_ENABLED !== 'false';
+  const aiBudget = { remaining: aiEnabled ? RADAR_MAX_AI_CHECKS_PER_RUN : 0 };
 
   for (const keyword of keywords) {
-    const fbInput = buildFacebookSearchInput(fbUrl, keyword);
-    const clInput = buildCraigslistSearchInput(clUrl, keyword);
-
-    const [fbItems, clItems] = await Promise.all([
-      runApifySearch(env.APIFY_FACEBOOK_ACTOR, fbInput, env),
-      runApifySearch(env.APIFY_CRAIGSLIST_ACTOR, clInput, env),
-    ]);
-
-    allListings.push(...normalizeSearchItems(fbItems, 'facebook', keyword));
-    allListings.push(...normalizeSearchItems(clItems, 'craigslist', keyword));
-  }
-
-  const unique = dedupeCandidates(allListings);
-  const scored: ScoredListing[] = [];
-
-  for (const candidate of unique) {
-    if (candidate.isSponsored) {
-      continue;
+    if (!sourceOverride || sourceOverride === 'craigslist') {
+      const clInput = buildCraigslistSearchInput(clUrl, keyword);
+      const clStats = await runCraigslistWithAbort(clInput, keyword, runId, runStartedAt, newBySource, scored, env, aiBudget);
+      console.info('Radar CL stats', { keyword, ...clStats });
     }
 
-    if (!candidate.url) continue;
-    const existing = await airtableSearchFindByUrl(candidate.url, env);
-    if (existing) {
-      consecutiveSeen += 1;
-      if (consecutiveSeen >= RADAR_CONSECUTIVE_SEEN_LIMIT) {
-        break;
-      }
-      continue;
-    }
-
-    consecutiveSeen = 0;
-
-    const isGuitarResult = await runIsGuitar(candidate, env);
-    if (!isGuitarResult) continue;
-
-    const created = await airtableSearchCreate(candidate, isGuitarResult, runId, runStartedAt, env);
-    if (created) {
-      scored.push({ ...candidate, isGuitar: isGuitarResult.isGuitar, reason: isGuitarResult.reason });
+    if (!sourceOverride || sourceOverride === 'facebook') {
+      const fbInput = buildFacebookSearchInput(fbUrl, keyword);
+      const fbRun = await runApifySearch(env.APIFY_FACEBOOK_ACTOR, fbInput, env);
+      const fbStats = await processSourceResults('facebook', fbRun.items, keyword, runId, runStartedAt, newBySource, scored, env, fbRun.runId, aiBudget);
+      console.info('Radar FB stats', { keyword, ...fbStats });
     }
   }
 
   const guitarListings = scored.filter((listing) => listing.isGuitar);
   const smsSent = await sendRadarSms(runId, guitarListings.length, env);
-  const summary = `Radar run ${runId}: ${unique.length} candidates, ${scored.length} new, ${guitarListings.length} guitars, ${smsSent} SMS.`;
+  const summary = `Radar run ${runId}: ${scored.length} new, ${guitarListings.length} guitars, ${smsSent} SMS.`;
 
   return {
     matched: scored.length,
@@ -330,7 +325,7 @@ function buildFacebookSearchInput(baseUrl: string, keyword: string): Record<stri
   const withSort = replaceQueryParam(withQuery, 'sortBy', 'creation_time_descend');
   return {
     includeListingDetails: true,
-    resultsLimit: 20,
+    resultsLimit: 15,
     startUrls: [{ url: withSort }],
   };
 }
@@ -358,7 +353,37 @@ function replaceQueryParam(rawUrl: string, key: string, value: string): string {
   }
 }
 
-async function runApifySearch(actorId: string, input: Record<string, unknown>, env: Env): Promise<any[]> {
+type ApifyRunResult = {
+  runId?: string;
+  items: any[];
+};
+
+async function startApifySearchRun(actorId: string, input: Record<string, unknown>, env: Env): Promise<string | null> {
+  const actorPath = actorId.includes('/') ? actorId.replace('/', '~') : actorId;
+  const response = await fetch(`https://api.apify.com/v2/acts/${actorPath}/runs?token=${env.APIFY_TOKEN}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Apify search run start failed', {
+      status: response.status,
+      statusText: response.statusText,
+      body: errorText,
+    });
+    return null;
+  }
+
+  const data = await response.json();
+  const run = data?.data || data;
+  return run?.id || null;
+}
+
+async function runApifySearch(actorId: string, input: Record<string, unknown>, env: Env): Promise<ApifyRunResult> {
   const actorPath = actorId.includes('/') ? actorId.replace('/', '~') : actorId;
   const response = await fetch(`https://api.apify.com/v2/acts/${actorPath}/runs?token=${env.APIFY_TOKEN}&waitForFinish=120`, {
     method: 'POST',
@@ -375,24 +400,43 @@ async function runApifySearch(actorId: string, input: Record<string, unknown>, e
       statusText: response.statusText,
       body: errorText,
     });
-    return [];
+    return { items: [] };
   }
 
   const data = await response.json();
   const run = data?.data || data;
-  if (!run?.id) return [];
+  if (!run?.id) return { items: [] };
   if (run?.status && run.status !== 'SUCCEEDED') {
-    console.warn('Apify search run not complete', { runId: run.id, status: run.status });
+    const completed = await waitForApifyRun(run.id, env, 3);
+    if (completed?.status && completed.status !== 'SUCCEEDED') {
+      console.warn('Apify search run not complete', { runId: run.id, status: completed.status });
+    }
   }
 
-  const datasetId = run?.defaultDatasetId;
-  if (!datasetId) return [];
-  return await fetchApifyDataset(datasetId, env);
+  const runDetails = await fetchApifyRun(run.id, env);
+  const datasetId = runDetails?.defaultDatasetId || run?.defaultDatasetId;
+  if (!datasetId) return { runId: run.id, items: [] };
+  const items = await fetchApifyDataset(datasetId, env);
+  return { runId: run.id, items };
 }
 
 function normalizeSearchItems(items: any[], source: ListingSource, keyword: string): ListingCandidate[] {
   return items.map((item) => {
     const normalized = normalizeListing(item);
+    let url = normalized.url;
+    if (!url && source === 'facebook') {
+      const id = pickString(
+        item.id,
+        item.listingId,
+        item.listing_id,
+        item.marketplace_listing_id,
+        item.marketplaceListingId,
+        item.listing?.id
+      );
+      if (id) {
+        url = `https://www.facebook.com/marketplace/item/${id}/`;
+      }
+    }
     return {
       source,
       keyword,
@@ -400,7 +444,7 @@ function normalizeSearchItems(items: any[], source: ListingSource, keyword: stri
       price: normalized.price,
       location: normalized.location,
       images: normalized.images,
-      url: normalized.url,
+      url,
       isSponsored: isSponsoredListing(item),
     };
   }).filter((item) => item.url || item.title);
@@ -416,6 +460,184 @@ function dedupeCandidates(listings: ListingCandidate[]): ListingCandidate[] {
     result.push(listing);
   }
   return result;
+}
+
+async function processSourceResults(
+  source: ListingSource,
+  items: any[],
+  keyword: string,
+  runId: string,
+  runStartedAt: string,
+  newBySource: Record<ListingSource, number>,
+  scored: ScoredListing[],
+  env: Env,
+  apifyRunId?: string,
+  aiBudget?: { remaining: number }
+): Promise<{ total: number; created: number; skippedSponsored: number; skippedNoUrl: number; skippedExisting: number; skippedAiLimit: number }> {
+  return await processCandidatesWithState(source, items, keyword, runId, runStartedAt, newBySource, scored, env, {
+    consecutiveSeen: 0,
+    processedUrls: new Set<string>(),
+  }, apifyRunId, aiBudget);
+}
+
+type RadarProcessState = {
+  consecutiveSeen: number;
+  processedUrls: Set<string>;
+};
+
+async function processCandidatesWithState(
+  source: ListingSource,
+  items: any[],
+  keyword: string,
+  runId: string,
+  runStartedAt: string,
+  newBySource: Record<ListingSource, number>,
+  scored: ScoredListing[],
+  env: Env,
+  state: RadarProcessState,
+  apifyRunId?: string,
+  aiBudget?: { remaining: number }
+): Promise<{ total: number; created: number; skippedSponsored: number; skippedNoUrl: number; skippedExisting: number; skippedAiLimit: number }> {
+  const candidates = dedupeCandidates(normalizeSearchItems(items, source, keyword));
+  let createdCount = 0;
+  let skippedSponsored = 0;
+  let skippedNoUrl = 0;
+  let skippedExisting = 0;
+  let skippedAiLimit = 0;
+  const pendingCreates: Record<string, unknown>[] = [];
+
+  for (const candidate of candidates) {
+    if (newBySource[source] >= RADAR_MAX_NEW_PER_SOURCE) {
+      if (apifyRunId) {
+        await abortApifyRun(apifyRunId, env);
+      }
+      break;
+    }
+    if (candidate.isSponsored) {
+      skippedSponsored += 1;
+      continue;
+    }
+    if (!candidate.url) {
+      skippedNoUrl += 1;
+      continue;
+    }
+    if (state.processedUrls.has(candidate.url)) {
+      continue;
+    }
+    state.processedUrls.add(candidate.url);
+
+    const existing = await airtableSearchFindByUrl(candidate.url, env);
+    if (existing) {
+      skippedExisting += 1;
+      state.consecutiveSeen += 1;
+      if (state.consecutiveSeen >= RADAR_CONSECUTIVE_SEEN_LIMIT) {
+        if (apifyRunId) {
+          await abortApifyRun(apifyRunId, env);
+        }
+        break;
+      }
+      continue;
+    }
+
+    state.consecutiveSeen = 0;
+
+    let isGuitarResult: { isGuitar: boolean; reason: string } | null = null;
+    if (!aiBudget || aiBudget.remaining > 0) {
+      if (aiBudget) aiBudget.remaining -= 1;
+      isGuitarResult = await runIsGuitar(candidate, env);
+    } else {
+      skippedAiLimit += 1;
+    }
+
+    pendingCreates.push(buildSearchFields(candidate, isGuitarResult, runId, runStartedAt));
+    newBySource[source] += 1;
+    createdCount += 1;
+
+    if (pendingCreates.length >= 10) {
+      await airtableSearchCreateBatch(pendingCreates.splice(0, pendingCreates.length), env);
+    }
+
+    if (isGuitarResult) {
+      scored.push({ ...candidate, isGuitar: isGuitarResult.isGuitar, reason: isGuitarResult.reason });
+    } else {
+      console.warn('Guitar check returned no result', {
+        title: candidate.title?.slice(0, 80),
+        url: candidate.url,
+      });
+    }
+  }
+
+  if (pendingCreates.length > 0) {
+    await airtableSearchCreateBatch(pendingCreates.splice(0, pendingCreates.length), env);
+  }
+  return {
+    total: candidates.length,
+    created: createdCount,
+    skippedSponsored,
+    skippedNoUrl,
+    skippedExisting,
+    skippedAiLimit,
+  };
+}
+
+async function runCraigslistWithAbort(
+  input: Record<string, unknown>,
+  keyword: string,
+  runId: string,
+  runStartedAt: string,
+  newBySource: Record<ListingSource, number>,
+  scored: ScoredListing[],
+  env: Env,
+  aiBudget?: { remaining: number }
+): Promise<{ total: number; created: number; skippedSponsored: number; skippedNoUrl: number; skippedExisting: number; skippedAiLimit: number }> {
+  const runIdValue = await startApifySearchRun(env.APIFY_CRAIGSLIST_ACTOR, input, env);
+  if (!runIdValue) {
+    return { total: 0, created: 0, skippedSponsored: 0, skippedNoUrl: 0, skippedExisting: 0, skippedAiLimit: 0 };
+  }
+
+  const state: RadarProcessState = {
+    consecutiveSeen: 0,
+    processedUrls: new Set<string>(),
+  };
+
+  let datasetId: string | null = null;
+  let lastCount = 0;
+  const maxPolls = Math.ceil(RADAR_CL_TIMEBOX_MS / 2000);
+  let polls = 0;
+  const startedAt = Date.now();
+
+  let lastStats = { total: 0, created: 0, skippedSponsored: 0, skippedNoUrl: 0, skippedExisting: 0, skippedAiLimit: 0 };
+  while (polls < maxPolls) {
+    polls += 1;
+    if (Date.now() - startedAt >= RADAR_CL_TIMEBOX_MS) {
+      await abortApifyRun(runIdValue, env);
+      break;
+    }
+    const runDetails = await fetchApifyRun(runIdValue, env);
+    if (!datasetId) {
+      datasetId = runDetails?.defaultDatasetId || null;
+    }
+
+    if (datasetId) {
+      const items = await fetchApifyDataset(datasetId, env);
+      if (items.length !== lastCount) {
+        lastCount = items.length;
+      }
+      lastStats = await processCandidatesWithState('craigslist', items, keyword, runId, runStartedAt, newBySource, scored, env, state, runIdValue, aiBudget);
+      if (newBySource.craigslist >= RADAR_MAX_NEW_PER_SOURCE) {
+        await abortApifyRun(runIdValue, env);
+        break;
+      }
+    }
+
+    const status = runDetails?.status;
+    if (status === 'SUCCEEDED' || status === 'FAILED' || status === 'ABORTED') {
+      break;
+    }
+
+    await delay(2000);
+  }
+  return lastStats;
 }
 
 async function runIsGuitar(listing: ListingCandidate, env: Env): Promise<{ isGuitar: boolean; reason: string } | null> {
@@ -478,24 +700,28 @@ async function runIsGuitar(listing: ListingCandidate, env: Env): Promise<{ isGui
 function parseIsGuitar(text: string): { isGuitar: boolean; reason: string } | null {
   if (!text) return null;
   const guitarMatch = text.match(/Guitar:\s*(YES|NO)/i);
-  if (!guitarMatch) return null;
+  let verdict = guitarMatch?.[1]?.toUpperCase();
+  if (!verdict) {
+    const yesNoMatch = text.match(/\b(YES|NO)\b/i);
+    verdict = yesNoMatch?.[1]?.toUpperCase();
+  }
+  if (!verdict) return null;
   const reasonMatch = text.match(/Reason:\s*(.+)/i);
   const reason = reasonMatch ? reasonMatch[1].trim() : 'No reason provided.';
   return {
-    isGuitar: guitarMatch[1].toUpperCase() === 'YES',
+    isGuitar: verdict === 'YES',
     reason,
   };
 }
 
-async function airtableSearchCreate(
+function buildSearchFields(
   listing: ListingCandidate,
-  isGuitarResult: { isGuitar: boolean; reason: string },
+  isGuitarResult: { isGuitar: boolean; reason: string } | null,
   runId: string,
-  runStartedAt: string,
-  env: Env
-): Promise<string | null> {
+  runStartedAt: string
+): Record<string, unknown> {
   const priceValue = listing.price ? parseMoney(listing.price) : null;
-  const fields: Record<string, unknown> = {
+  return {
     run_id: runId,
     run_started_at: runStartedAt,
     source: formatSourceLabel(listing.source),
@@ -504,15 +730,13 @@ async function airtableSearchCreate(
     title: listing.title ?? null,
     price: priceValue ?? null,
     image_url: listing.images[0] ?? null,
-    is_guitar: isGuitarResult.isGuitar,
-    ai_reason: isGuitarResult.reason,
+    is_guitar: isGuitarResult ? isGuitarResult.isGuitar : null,
+    ai_reason: isGuitarResult ? isGuitarResult.reason : null,
     is_sponsored: listing.isSponsored ?? false,
     archived: false,
-    seen_at: formatMountainTimestamp(new Date()),
-    ai_checked_at: formatMountainTimestamp(new Date()),
+    seen_at: new Date().toISOString(),
+    ai_checked_at: isGuitarResult ? new Date().toISOString() : null,
   };
-
-  return await airtableSearchCreateRow(fields, env);
 }
 
 async function sendRadarSms(runId: string, guitarCount: number, env: Env): Promise<number> {
@@ -765,6 +989,54 @@ async function handleQueueSearchResult(env: Env, path: string, ctx: ExecutionCon
   return queueResponse;
 }
 
+async function handleRadarRun(request: Request, env: Env): Promise<Response> {
+  if (env.WEBHOOK_SECRET) {
+    const url = new URL(request.url);
+    const provided = url.searchParams.get('key');
+    if (!provided || provided !== env.WEBHOOK_SECRET) {
+      return jsonResponse({ message: 'Unauthorized' }, 401);
+    }
+  }
+
+  try {
+    const url = new URL(request.url);
+    const source = url.searchParams.get('source') as ListingSource | null;
+    const result = await runRadarScan(env, source ?? undefined);
+    return jsonResponse({ ok: true, summary: result.summary, source: source ?? 'all' });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Radar run failed.';
+    console.error('Manual radar run failed', {
+      message,
+      error,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    return jsonResponse({ message, error: String(error) }, 500);
+  }
+}
+
+async function handleRadarClassify(request: Request, env: Env): Promise<Response> {
+  if (env.WEBHOOK_SECRET) {
+    const url = new URL(request.url);
+    const provided = url.searchParams.get('key');
+    if (!provided || provided !== env.WEBHOOK_SECRET) {
+      return jsonResponse({ message: 'Unauthorized' }, 401);
+    }
+  }
+
+  try {
+    const result = await classifyPendingSearchResults(env, RADAR_CLASSIFY_BATCH);
+    return jsonResponse({ ok: true, ...result });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Radar classify failed.';
+    console.error('Manual radar classify failed', {
+      message,
+      error,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    return jsonResponse({ message, error: String(error) }, 500);
+  }
+}
+
 async function processRun(runId: string, resource: any, eventType: string | undefined, env: Env): Promise<void> {
   if (eventType && eventType.includes('FAILED')) {
     await updateRowByRunId(runId, {
@@ -950,7 +1222,21 @@ function normalizeListing(item: any): ListingData {
     location,
     condition,
     images,
-    url: item.url || item.listingUrl,
+    url: pickString(
+      item.url,
+      item.itemUrl,
+      item.item_url,
+      item.listingUrl,
+      item.listingURL,
+      item.itemUrl,
+      item.itemURL,
+      item.canonicalUrl,
+      item.canonicalURL,
+      item.shareUrl,
+      item.shareURL,
+      item.marketplaceListingUrl,
+      item.marketplaceListingURL
+    ),
   };
 }
 
@@ -1189,6 +1475,36 @@ async function fetchApifyRun(runId: string, env: Env): Promise<any | null> {
   if (!response.ok) return null;
   const data = await response.json();
   return data?.data || data;
+}
+
+async function abortApifyRun(runId: string, env: Env): Promise<void> {
+  const response = await fetch(`https://api.apify.com/v2/actor-runs/${runId}/abort?token=${env.APIFY_TOKEN}`, {
+    method: 'POST',
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.warn('Apify abort failed', {
+      runId,
+      status: response.status,
+      statusText: response.statusText,
+      body: errorText,
+    });
+  }
+}
+
+async function waitForApifyRun(runId: string, env: Env, attempts: number): Promise<any | null> {
+  let current = await fetchApifyRun(runId, env);
+  let remaining = attempts;
+  while (remaining > 0 && current && current.status && current.status !== 'SUCCEEDED' && current.status !== 'FAILED') {
+    await delay(2000);
+    remaining -= 1;
+    current = await fetchApifyRun(runId, env);
+  }
+  return current;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function fetchApifyDataset(datasetId: string, env: Env): Promise<any[]> {
@@ -1463,6 +1779,47 @@ async function airtableSearchCreateRow(fields: Record<string, unknown>, env: Env
   return data?.records?.[0]?.id || null;
 }
 
+async function airtableSearchCreateBatch(fieldsList: Record<string, unknown>[], env: Env): Promise<void> {
+  if (fieldsList.length === 0) return;
+  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_SEARCH_TABLE)}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ records: fieldsList.map((fields) => ({ fields })) }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Airtable search batch create failed', {
+      status: response.status,
+      statusText: response.statusText,
+      body: errorText,
+    });
+  }
+}
+
+async function airtableSearchUpdate(recordId: string, fields: Record<string, unknown>, env: Env): Promise<void> {
+  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_SEARCH_TABLE)}/${recordId}`, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ fields }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Airtable search update failed', {
+      status: response.status,
+      statusText: response.statusText,
+      body: errorText,
+    });
+  }
+}
+
 async function airtableSearchSetArchivedState(recordId: string, archived: boolean, env: Env): Promise<boolean> {
   const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_SEARCH_TABLE)}/${recordId}`, {
     method: 'PATCH',
@@ -1484,6 +1841,73 @@ async function airtableSearchSetArchivedState(recordId: string, archived: boolea
   }
 
   return true;
+}
+
+async function airtableSearchListPending(limit: number, env: Env): Promise<Array<{ id: string; fields: Record<string, any> }>> {
+  const params = new URLSearchParams();
+  params.append('filterByFormula', 'AND(NOT({archived}), OR({is_guitar} = BLANK(), {is_guitar} = ""))');
+  params.append('maxRecords', String(limit));
+  params.append('fields[]', 'title');
+  params.append('fields[]', 'price');
+  params.append('fields[]', 'image_url');
+  params.append('fields[]', 'url');
+  params.append('fields[]', 'keyword');
+
+  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_SEARCH_TABLE)}?${params.toString()}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Airtable search pending list failed', {
+      status: response.status,
+      statusText: response.statusText,
+      body: errorText,
+    });
+    return [];
+  }
+
+  const data = await response.json();
+  const records = Array.isArray(data?.records) ? data.records : [];
+  return records.map((record: any) => ({ id: record.id, fields: record.fields || {} }));
+}
+
+async function classifyPendingSearchResults(env: Env, limit: number): Promise<{ processed: number; updated: number }> {
+  if (!env.OPENAI_API_KEY) {
+    console.warn('OpenAI key missing; skipping radar classify.');
+    return { processed: 0, updated: 0 };
+  }
+
+  const records = await airtableSearchListPending(limit, env);
+  let updated = 0;
+
+  for (const record of records) {
+    const listing: ListingCandidate = {
+      source: 'facebook',
+      keyword: String(record.fields.keyword || 'guitar'),
+      title: String(record.fields.title || ''),
+      price: String(record.fields.price || ''),
+      location: '',
+      images: record.fields.image_url ? [String(record.fields.image_url)] : [],
+      url: record.fields.url ? String(record.fields.url) : undefined,
+    };
+
+    const isGuitarResult = await runIsGuitar(listing, env);
+    if (!isGuitarResult) continue;
+
+    await airtableSearchUpdate(record.id, {
+      is_guitar: isGuitarResult.isGuitar,
+      ai_reason: isGuitarResult.reason,
+      ai_checked_at: new Date().toISOString(),
+    }, env);
+    updated += 1;
+  }
+
+  return { processed: records.length, updated };
 }
 
 function isArchivedValue(value: unknown): boolean {
