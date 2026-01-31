@@ -2260,6 +2260,19 @@ button:active {
   color: var(--text-muted);
 }
 
+.listing-results-controls .toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 500;
+  color: var(--text-subtle);
+}
+
+.listing-results-controls .toggle input {
+  width: 18px;
+  height: 18px;
+}
+
 .listing-results-controls button {
   margin-top: 0;
 }
@@ -2307,6 +2320,14 @@ button:active {
 
 .listing-results-table td a:hover {
   color: var(--accent-gold-light);
+}
+
+.listing-results-table td button {
+  margin-right: 8px;
+}
+
+.listing-results-table td button:last-child {
+  margin-right: 0;
 }
 
 .empty-section {

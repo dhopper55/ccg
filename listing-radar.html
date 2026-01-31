@@ -7,9 +7,9 @@
   <link rel="icon" type="image/png" sizes="32x32" href="images/favicon/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="images/favicon/favicon-16x16.png">
   <link rel="shortcut icon" href="images/favicon/favicon.ico">
-  <title>Listing Evaluator Results | Coal Creek Guitars</title>
-  <meta name="description" content="Review listing evaluator results and open each item for full details.">
-  <link rel="canonical" href="https://www.coalcreekguitars.com/listing-evaluator-results">
+  <title>Listing Radar | Coal Creek Guitars</title>
+  <meta name="description" content="Review search results for the latest listing radar run.">
+  <link rel="canonical" href="https://www.coalcreekguitars.com/listing-radar">
   <link rel="stylesheet" href="styles.css?version=536799">
 </head>
 <body>
@@ -22,32 +22,33 @@
 
   <div class="container listing-results">
     <header class="listing-hero">
-      <a class="listing-results-back" href="listing-evaluator.html" aria-label="Back to evaluator">←</a>
-      <h1>Listing Evaluator Results</h1>
-      <p class="subtitle">Review the latest listings and open each item for full details.</p>
+      <h1>Listing Radar</h1>
+      <p class="subtitle">Review the latest search run and queue items for full AI evaluation.</p>
+      <div class="listing-results-controls">
+        <span id="radar-run-label">Run: —</span>
+        <label class="toggle">
+          <input id="radar-include-all" type="checkbox">
+          <span>Show all results (including non-guitars)</span>
+        </label>
+        <button id="radar-refresh" class="secondary">Refresh</button>
+      </div>
     </header>
 
     <section class="listing-results-card">
-      <div class="listing-results-controls">
-        <button id="listing-results-prev" class="secondary" disabled>Prev</button>
-        <span id="listing-results-page">Page 1</span>
-        <button id="listing-results-next" class="secondary" disabled>Next</button>
-      </div>
-
-      <div id="listing-results-error" class="error-section hidden"></div>
-      <div id="listing-results-empty" class="empty-section hidden">No listings found yet.</div>
+      <div id="radar-error" class="error-section hidden"></div>
+      <div id="radar-empty" class="empty-section hidden">No results found for this run.</div>
 
       <div class="listing-results-table">
         <table>
           <thead>
             <tr>
-              <th>Title</th>
-              <th>Score</th>
-              <th>Source</th>
               <th>Listing</th>
+              <th>Source</th>
+              <th>Guitar?</th>
+              <th>Actions</th>
             </tr>
           </thead>
-          <tbody id="listing-results-body"></tbody>
+          <tbody id="radar-results-body"></tbody>
         </table>
       </div>
     </section>
@@ -60,6 +61,6 @@
     </div>
   </footer>
 
-  <script type="module" src="dist/listing-evaluator-results.js?v=20260130&version=141530"></script>
+  <script type="module" src="dist/listing-radar.js?version=531682"></script>
 </body>
 </html>

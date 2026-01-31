@@ -16,10 +16,28 @@ Create a base and a table (e.g., `Listings`) with these field names:
 - price_ideal (currency)
 - score (number)
 
+Create a second table for radar search results (e.g., `SearchResults`) with these field names:
+
+- run_id (single line text)
+- run_started_at (date/time)
+- source (single line text)
+- keyword (single line text)
+- url (single line text)
+- title (single line text)
+- price (currency)
+- image_url (single line text)
+- is_guitar (checkbox)
+- is_sponsored (checkbox)
+- archived (checkbox)
+- ai_reason (long text)
+- seen_at (date/time)
+- ai_checked_at (date/time)
+
 ## 2) Get Airtable API values
 - **Personal Access Token** (PAT)
 - **Base ID**
 - **Table name** (exact)
+- **Search Results table name** (exact)
 
 ## 3) Add secrets
 From `workers/listing-evaluator/`:
@@ -32,6 +50,8 @@ npx wrangler secret put AIRTABLE_BASE_ID
 npx wrangler secret put AIRTABLE_TABLE
 npx wrangler secret put WEBHOOK_SECRET
 ```
+
+`AIRTABLE_SEARCH_TABLE` can live in `wrangler.toml` under `[vars]` since it is not secret.
 
 ## 4) Deploy
 

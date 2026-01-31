@@ -9,6 +9,13 @@ interface Env {
   AIRTABLE_API_KEY: string;
   AIRTABLE_BASE_ID: string;
   AIRTABLE_TABLE: string;
+  AIRTABLE_SEARCH_TABLE: string;
+  RADAR_FB_SEARCH_URL?: string;
+  RADAR_CL_SEARCH_URL?: string;
+  RADAR_KEYWORDS?: string;
+  TELNYX_API_KEY?: string;
+  TELNYX_FROM_NUMBER?: string;
+  TELNYX_TO_NUMBER?: string;
   LISTING_JOBS: KVNamespace;
 }
 
@@ -32,6 +39,16 @@ interface RejectResult {
 const MAX_URLS = 20;
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
+const RADAR_NEXT_RUN_KEY = 'radar_next_run_at';
+const RADAR_LAST_RUN_KEY = 'radar_last_run_at';
+const RADAR_LAST_SUMMARY_KEY = 'radar_last_summary';
+const RADAR_MIN_JITTER_MINUTES = 25;
+const RADAR_MAX_JITTER_MINUTES = 35;
+const RADAR_CONSECUTIVE_SEEN_LIMIT = 5;
+const MST_OFFSET_MINUTES = -7 * 60;
+const RADAR_QUIET_START_HOUR = 23;
+const RADAR_QUIET_END_HOUR = 6;
+const RADAR_DEFAULT_PAGE = '/listing-radar.html';
 
 const SUPPORTED_ORIGINS = [
   'https://www.coalcreekguitars.com',
@@ -73,7 +90,25 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/search-results' && request.method === 'GET') {
+      const response = await handleSearchResults(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path.endsWith('/archive') && path.startsWith('/api/search-results/') && request.method === 'POST') {
+      const response = await handleArchiveSearchResult(env, path);
+      return withCors(response, request, env);
+    }
+
+    if (path.endsWith('/queue') && path.startsWith('/api/search-results/') && request.method === 'POST') {
+      const response = await handleQueueSearchResult(env, path, ctx);
+      return withCors(response, request, env);
+    }
+
     return withCors(new Response('Not found', { status: 404 }), request, env);
+  },
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(runRadarIfDue(env));
   },
 };
 
@@ -161,6 +196,422 @@ async function handleSubmit(request: Request, env: Env, ctx: ExecutionContext): 
     queued: results,
     rejected,
   });
+}
+
+async function runRadarIfDue(env: Env): Promise<void> {
+  const now = Date.now();
+  const nextRunAtRaw = await env.LISTING_JOBS.get(RADAR_NEXT_RUN_KEY);
+  const nextRunAt = nextRunAtRaw ? Number.parseInt(nextRunAtRaw, 10) : null;
+
+  if (nextRunAt && Number.isFinite(nextRunAt) && now < nextRunAt) {
+    return;
+  }
+
+  if (isQuietHours(new Date(now))) {
+    const nextAllowed = nextAllowedRadarTime(new Date(now));
+    await env.LISTING_JOBS.put(RADAR_NEXT_RUN_KEY, String(nextAllowed.getTime()));
+    return;
+  }
+
+  let summary = 'Radar run skipped.';
+  try {
+    const result = await runRadarScan(env);
+    summary = result.summary;
+  } catch (error) {
+    console.error('Radar run failed', { error });
+    summary = 'Radar run failed.';
+  } finally {
+    const nextRunAtValue = now + randomJitterMinutes(RADAR_MIN_JITTER_MINUTES, RADAR_MAX_JITTER_MINUTES) * 60 * 1000;
+    await env.LISTING_JOBS.put(RADAR_NEXT_RUN_KEY, String(nextRunAtValue));
+    await env.LISTING_JOBS.put(RADAR_LAST_RUN_KEY, String(now));
+    await env.LISTING_JOBS.put(RADAR_LAST_SUMMARY_KEY, summary);
+  }
+}
+
+type RadarResult = {
+  matched: number;
+  saved: number;
+  smsSent: number;
+  summary: string;
+};
+
+async function runRadarScan(env: Env): Promise<RadarResult> {
+  const keywords = parseRadarKeywords(env.RADAR_KEYWORDS);
+  const fbUrl = env.RADAR_FB_SEARCH_URL;
+  const clUrl = env.RADAR_CL_SEARCH_URL;
+  if (!fbUrl || !clUrl) {
+    console.warn('Radar search URLs missing.');
+    return { matched: 0, saved: 0, smsSent: 0, summary: 'Radar search URLs missing.' };
+  }
+
+  const runId = generateRunId();
+  const runStartedAt = formatMountainTimestamp(new Date());
+  const allListings: ListingCandidate[] = [];
+  let consecutiveSeen = 0;
+
+  for (const keyword of keywords) {
+    const fbInput = buildFacebookSearchInput(fbUrl, keyword);
+    const clInput = buildCraigslistSearchInput(clUrl, keyword);
+
+    const [fbItems, clItems] = await Promise.all([
+      runApifySearch(env.APIFY_FACEBOOK_ACTOR, fbInput, env),
+      runApifySearch(env.APIFY_CRAIGSLIST_ACTOR, clInput, env),
+    ]);
+
+    allListings.push(...normalizeSearchItems(fbItems, 'facebook', keyword));
+    allListings.push(...normalizeSearchItems(clItems, 'craigslist', keyword));
+  }
+
+  const unique = dedupeCandidates(allListings);
+  const scored: ScoredListing[] = [];
+
+  for (const candidate of unique) {
+    if (candidate.isSponsored) {
+      continue;
+    }
+
+    if (!candidate.url) continue;
+    const existing = await airtableSearchFindByUrl(candidate.url, env);
+    if (existing) {
+      consecutiveSeen += 1;
+      if (consecutiveSeen >= RADAR_CONSECUTIVE_SEEN_LIMIT) {
+        break;
+      }
+      continue;
+    }
+
+    consecutiveSeen = 0;
+
+    const isGuitarResult = await runIsGuitar(candidate, env);
+    if (!isGuitarResult) continue;
+
+    const created = await airtableSearchCreate(candidate, isGuitarResult, runId, runStartedAt, env);
+    if (created) {
+      scored.push({ ...candidate, isGuitar: isGuitarResult.isGuitar, reason: isGuitarResult.reason });
+    }
+  }
+
+  const guitarListings = scored.filter((listing) => listing.isGuitar);
+  const smsSent = await sendRadarSms(runId, guitarListings.length, env);
+  const summary = `Radar run ${runId}: ${unique.length} candidates, ${scored.length} new, ${guitarListings.length} guitars, ${smsSent} SMS.`;
+
+  return {
+    matched: scored.length,
+    saved: scored.length,
+    smsSent,
+    summary,
+  };
+}
+
+type ListingCandidate = {
+  source: ListingSource;
+  keyword: string;
+  title: string;
+  price: string;
+  location: string;
+  images: string[];
+  url?: string;
+  isSponsored?: boolean;
+};
+
+type ScoredListing = ListingCandidate & {
+  isGuitar: boolean;
+  reason: string;
+};
+
+function parseRadarKeywords(raw?: string): string[] {
+  if (!raw) return ['guitar'];
+  const parts = raw.split(',').map((part) => part.trim()).filter(Boolean);
+  return parts.length > 0 ? parts : ['guitar'];
+}
+
+function buildFacebookSearchInput(baseUrl: string, keyword: string): Record<string, unknown> {
+  const withQuery = replaceQueryParam(baseUrl, 'query', keyword);
+  const withSort = replaceQueryParam(withQuery, 'sortBy', 'creation_time_descend');
+  return {
+    includeListingDetails: true,
+    resultsLimit: 20,
+    startUrls: [{ url: withSort }],
+  };
+}
+
+function buildCraigslistSearchInput(baseUrl: string, keyword: string): Record<string, unknown> {
+  const withQuery = replaceQueryParam(baseUrl, 'query', keyword);
+  const withSort = replaceQueryParam(withQuery, 'sort', 'date');
+  return {
+    maxAge: 15,
+    maxConcurrency: 4,
+    proxyConfiguration: {
+      useApifyProxy: true,
+    },
+    urls: [{ url: withSort }],
+  };
+}
+
+function replaceQueryParam(rawUrl: string, key: string, value: string): string {
+  try {
+    const parsed = new URL(rawUrl);
+    parsed.searchParams.set(key, value);
+    return parsed.toString();
+  } catch {
+    return rawUrl;
+  }
+}
+
+async function runApifySearch(actorId: string, input: Record<string, unknown>, env: Env): Promise<any[]> {
+  const actorPath = actorId.includes('/') ? actorId.replace('/', '~') : actorId;
+  const response = await fetch(`https://api.apify.com/v2/acts/${actorPath}/runs?token=${env.APIFY_TOKEN}&waitForFinish=120`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Apify search run start failed', {
+      status: response.status,
+      statusText: response.statusText,
+      body: errorText,
+    });
+    return [];
+  }
+
+  const data = await response.json();
+  const run = data?.data || data;
+  if (!run?.id) return [];
+  if (run?.status && run.status !== 'SUCCEEDED') {
+    console.warn('Apify search run not complete', { runId: run.id, status: run.status });
+  }
+
+  const datasetId = run?.defaultDatasetId;
+  if (!datasetId) return [];
+  return await fetchApifyDataset(datasetId, env);
+}
+
+function normalizeSearchItems(items: any[], source: ListingSource, keyword: string): ListingCandidate[] {
+  return items.map((item) => {
+    const normalized = normalizeListing(item);
+    return {
+      source,
+      keyword,
+      title: normalized.title,
+      price: normalized.price,
+      location: normalized.location,
+      images: normalized.images,
+      url: normalized.url,
+      isSponsored: isSponsoredListing(item),
+    };
+  }).filter((item) => item.url || item.title);
+}
+
+function dedupeCandidates(listings: ListingCandidate[]): ListingCandidate[] {
+  const seen = new Set<string>();
+  const result: ListingCandidate[] = [];
+  for (const listing of listings) {
+    const key = listing.url || `${listing.source}:${listing.title}:${listing.price}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(listing);
+  }
+  return result;
+}
+
+async function runIsGuitar(listing: ListingCandidate, env: Env): Promise<{ isGuitar: boolean; reason: string } | null> {
+  if (!env.OPENAI_API_KEY) {
+    console.warn('OpenAI key missing; skipping guitar check.');
+    return null;
+  }
+
+  const imageUrl = listing.images[0];
+  const prompt = `You are classifying listings. Determine if the listing is a single guitar (including electric, acoustic, bass, classical). If it is only accessories (strap, case, strings, stand) or parts, answer NO. Output EXACTLY:\nGuitar: YES or NO\nReason: <short reason>`;
+
+  const content: any[] = [
+    {
+      type: 'input_text',
+      text: `Title: ${listing.title || 'Unknown'}\nPrice: ${listing.price || 'Unknown'}\nLocation: ${listing.location || 'Unknown'}\nKeyword: ${listing.keyword}`,
+    },
+  ];
+  if (imageUrl) {
+    content.push({ type: 'input_image', image_url: imageUrl });
+  }
+
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      input: [
+        {
+          role: 'system',
+          content: [{ type: 'input_text', text: prompt }],
+        },
+        {
+          role: 'user',
+          content,
+        },
+      ],
+      temperature: 0.2,
+      max_output_tokens: 120,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('OpenAI guitar check failed', {
+      status: response.status,
+      statusText: response.statusText,
+      body: errorText,
+    });
+    return null;
+  }
+
+  const data = await response.json();
+  const text = extractOpenAIText(data);
+  return parseIsGuitar(text);
+}
+
+function parseIsGuitar(text: string): { isGuitar: boolean; reason: string } | null {
+  if (!text) return null;
+  const guitarMatch = text.match(/Guitar:\s*(YES|NO)/i);
+  if (!guitarMatch) return null;
+  const reasonMatch = text.match(/Reason:\s*(.+)/i);
+  const reason = reasonMatch ? reasonMatch[1].trim() : 'No reason provided.';
+  return {
+    isGuitar: guitarMatch[1].toUpperCase() === 'YES',
+    reason,
+  };
+}
+
+async function airtableSearchCreate(
+  listing: ListingCandidate,
+  isGuitarResult: { isGuitar: boolean; reason: string },
+  runId: string,
+  runStartedAt: string,
+  env: Env
+): Promise<string | null> {
+  const priceValue = listing.price ? parseMoney(listing.price) : null;
+  const fields: Record<string, unknown> = {
+    run_id: runId,
+    run_started_at: runStartedAt,
+    source: formatSourceLabel(listing.source),
+    keyword: listing.keyword,
+    url: listing.url ?? null,
+    title: listing.title ?? null,
+    price: priceValue ?? null,
+    image_url: listing.images[0] ?? null,
+    is_guitar: isGuitarResult.isGuitar,
+    ai_reason: isGuitarResult.reason,
+    is_sponsored: listing.isSponsored ?? false,
+    archived: false,
+    seen_at: formatMountainTimestamp(new Date()),
+    ai_checked_at: formatMountainTimestamp(new Date()),
+  };
+
+  return await airtableSearchCreateRow(fields, env);
+}
+
+async function sendRadarSms(runId: string, guitarCount: number, env: Env): Promise<number> {
+  if (guitarCount <= 0) return 0;
+  if (!env.TELNYX_API_KEY || !env.TELNYX_FROM_NUMBER || !env.TELNYX_TO_NUMBER) {
+    console.info('Telnyx credentials missing; skipping SMS.');
+    return 0;
+  }
+
+  const baseUrl = env.SITE_BASE_URL || 'https://www.coalcreekguitars.com';
+  const link = `${baseUrl}${RADAR_DEFAULT_PAGE}?run_id=${encodeURIComponent(runId)}`;
+  const message = `CCG radar run complete. ${guitarCount} new guitars.\n${link}`;
+  const chunks = chunkSms(message, 700);
+
+  let sent = 0;
+  for (const text of chunks) {
+    const ok = await sendTelnyxMessage(text, env);
+    if (ok) sent += 1;
+  }
+  return sent;
+}
+
+function chunkSms(message: string, maxLength: number): string[] {
+  if (message.length <= maxLength) return [message];
+  const lines = message.split('\n');
+  const chunks: string[] = [];
+  let buffer = '';
+  for (const line of lines) {
+    if ((buffer + '\n' + line).length > maxLength) {
+      chunks.push(buffer);
+      buffer = line;
+    } else {
+      buffer = buffer ? `${buffer}\n${line}` : line;
+    }
+  }
+  if (buffer) chunks.push(buffer);
+  return chunks;
+}
+
+async function sendTelnyxMessage(text: string, env: Env): Promise<boolean> {
+  const response = await fetch('https://api.telnyx.com/v2/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${env.TELNYX_API_KEY}`,
+    },
+    body: JSON.stringify({
+      from: env.TELNYX_FROM_NUMBER,
+      to: env.TELNYX_TO_NUMBER,
+      text,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Telnyx SMS failed', {
+      status: response.status,
+      statusText: response.statusText,
+      body: errorText,
+    });
+    return false;
+  }
+
+  return true;
+}
+
+function isQuietHours(date: Date): boolean {
+  const mst = shiftToMst(date);
+  const hour = mst.getUTCHours();
+  if (RADAR_QUIET_START_HOUR > RADAR_QUIET_END_HOUR) {
+    return hour >= RADAR_QUIET_START_HOUR || hour < RADAR_QUIET_END_HOUR;
+  }
+  return hour >= RADAR_QUIET_START_HOUR && hour < RADAR_QUIET_END_HOUR;
+}
+
+function nextAllowedRadarTime(date: Date): Date {
+  const mst = shiftToMst(date);
+  const year = mst.getUTCFullYear();
+  const month = mst.getUTCMonth();
+  const day = mst.getUTCDate();
+  let targetDay = day;
+  const hour = mst.getUTCHours();
+
+  if (hour >= RADAR_QUIET_START_HOUR) {
+    targetDay += 1;
+  }
+
+  const utcTimestamp = Date.UTC(year, month, targetDay, RADAR_QUIET_END_HOUR - MST_OFFSET_MINUTES / 60, 0, 0);
+  return new Date(utcTimestamp);
+}
+
+function shiftToMst(date: Date): Date {
+  return new Date(date.getTime() + MST_OFFSET_MINUTES * 60 * 1000);
+}
+
+function randomJitterMinutes(min: number, max: number): number {
+  const low = Math.min(min, max);
+  const high = Math.max(min, max);
+  return Math.floor(Math.random() * (high - low + 1)) + low;
 }
 
 async function handleWebhook(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -255,6 +706,63 @@ async function handleArchiveListing(env: Env, path: string): Promise<Response> {
   }
 
   return jsonResponse({ ok: true });
+}
+
+async function handleSearchResults(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const runId = url.searchParams.get('run_id');
+  const includeAll = url.searchParams.get('include_all') === 'true';
+  if (!runId) {
+    return jsonResponse({ message: 'Missing run_id.' }, 400);
+  }
+
+  const data = await airtableSearchResults(runId, includeAll, env);
+  if (!data) {
+    return jsonResponse({ message: 'Unable to fetch search results.' }, 500);
+  }
+
+  return jsonResponse(data);
+}
+
+async function handleArchiveSearchResult(env: Env, path: string): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const archiveIndex = parts.indexOf('archive');
+  const recordId = archiveIndex > 0 ? parts[archiveIndex - 1] : '';
+
+  if (!recordId || recordId === 'search-results') {
+    return jsonResponse({ message: 'Missing search result ID.' }, 400);
+  }
+
+  const updated = await airtableSearchSetArchivedState(recordId, true, env);
+  if (!updated) {
+    return jsonResponse({ message: 'Unable to archive search result.' }, 500);
+  }
+
+  return jsonResponse({ ok: true });
+}
+
+async function handleQueueSearchResult(env: Env, path: string, ctx: ExecutionContext): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const queueIndex = parts.indexOf('queue');
+  const recordId = queueIndex > 0 ? parts[queueIndex - 1] : '';
+
+  if (!recordId || recordId === 'search-results') {
+    return jsonResponse({ message: 'Missing search result ID.' }, 400);
+  }
+
+  const record = await airtableSearchGet(recordId, env);
+  if (!record?.fields?.url || typeof record.fields.url !== 'string') {
+    return jsonResponse({ message: 'Search result has no URL.' }, 400);
+  }
+
+  const url = record.fields.url;
+  const queueResponse = await handleSubmit(new Request('https://queue.local', {
+    method: 'POST',
+    body: JSON.stringify({ urls: [url] }),
+    headers: { 'Content-Type': 'application/json' },
+  }), env, ctx);
+
+  return queueResponse;
 }
 
 async function processRun(runId: string, resource: any, eventType: string | undefined, env: Env): Promise<void> {
@@ -848,6 +1356,136 @@ async function airtableSetArchivedState(recordId: string, archived: boolean, env
   return true;
 }
 
+async function airtableSearchResults(
+  runId: string,
+  includeAll: boolean,
+  env: Env
+): Promise<{ records: any[] } | null> {
+  const params = new URLSearchParams();
+  const filters = [`{run_id} = "${escapeAirtableValue(runId)}"`];
+  if (!includeAll) {
+    filters.push('{is_guitar}');
+    filters.push('NOT({archived})');
+  }
+  params.append('filterByFormula', `AND(${filters.join(',')})`);
+  params.append('sort[0][field]', 'seen_at');
+  params.append('sort[0][direction]', 'desc');
+  params.append('pageSize', '100');
+
+  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_SEARCH_TABLE)}?${params.toString()}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Airtable search list failed', {
+      status: response.status,
+      statusText: response.statusText,
+      body: errorText,
+    });
+    return null;
+  }
+
+  const data = await response.json();
+  const records = Array.isArray(data?.records) ? data.records : [];
+  return { records };
+}
+
+async function airtableSearchFindByUrl(url: string, env: Env): Promise<{ id: string; fields: Record<string, unknown> } | null> {
+  const params = new URLSearchParams();
+  params.append('filterByFormula', `{url} = "${escapeAirtableValue(url)}"`);
+  params.append('maxRecords', '1');
+  params.append('fields[]', 'url');
+  params.append('fields[]', 'archived');
+
+  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_SEARCH_TABLE)}?${params.toString()}`, {
+    headers: {
+      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
+    },
+  });
+
+  if (!response.ok) return null;
+  const data = await response.json();
+  const record = data?.records?.[0];
+  return record ? { id: record.id, fields: record.fields || {} } : null;
+}
+
+async function airtableSearchGet(recordId: string, env: Env): Promise<{ id: string; fields: Record<string, any> } | null> {
+  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_SEARCH_TABLE)}/${recordId}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    if (response.status === 404) return null;
+    const errorText = await response.text();
+    console.error('Airtable search get failed', {
+      status: response.status,
+      statusText: response.statusText,
+      body: errorText,
+    });
+    return null;
+  }
+
+  const data = await response.json();
+  if (!data?.id) return null;
+  return { id: data.id, fields: data.fields ?? {} };
+}
+
+async function airtableSearchCreateRow(fields: Record<string, unknown>, env: Env): Promise<string | null> {
+  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_SEARCH_TABLE)}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ records: [{ fields }] }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Airtable search create failed', {
+      status: response.status,
+      statusText: response.statusText,
+      body: errorText,
+    });
+    return null;
+  }
+
+  const data = await response.json();
+  return data?.records?.[0]?.id || null;
+}
+
+async function airtableSearchSetArchivedState(recordId: string, archived: boolean, env: Env): Promise<boolean> {
+  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_SEARCH_TABLE)}/${recordId}`, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ fields: { archived } }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Airtable search archive failed', {
+      status: response.status,
+      statusText: response.statusText,
+      body: errorText,
+    });
+    return false;
+  }
+
+  return true;
+}
+
 function isArchivedValue(value: unknown): boolean {
   if (value === true) return true;
   if (typeof value === 'number') return value === 1;
@@ -990,6 +1628,43 @@ function formatMountainTimestamp(date: Date): string {
 
 function formatSourceLabel(source: ListingSource): string {
   return source === 'facebook' ? 'FBM' : 'CG';
+}
+
+function generateRunId(): string {
+  const now = new Date();
+  const pad = (value: number, size = 2) => String(value).padStart(size, '0');
+  return `run-${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}-${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}`;
+}
+
+function isSponsoredListing(item: any): boolean {
+  if (!item || typeof item !== 'object') return false;
+  const directFlags = [
+    item.isSponsored,
+    item.isSponsoredListing,
+    item.isPromoted,
+    item.isPaid,
+    item.isAd,
+    item.isAdvertisement,
+  ];
+  if (directFlags.some(Boolean)) return true;
+
+  const typeFields = [
+    item.type,
+    item.listingType,
+    item.listing_type,
+    item.adType,
+    item.ad_type,
+  ].filter((value) => typeof value === 'string') as string[];
+  if (typeFields.some((value) => /sponsored|promoted|ad/i.test(value))) return true;
+
+  const labels = [
+    item.label,
+    item.badge,
+    item.badgeText,
+    item.displayName,
+    item.title,
+  ].filter((value) => typeof value === 'string') as string[];
+  return labels.some((value) => /sponsored|promoted|ad/i.test(value));
 }
 
 async function runOpenAI(listing: ListingData, env: Env): Promise<string> {
