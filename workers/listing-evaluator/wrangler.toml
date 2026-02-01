@@ -16,8 +16,8 @@ RADAR_CL_SEARCH_URL = "https://denver.craigslist.org/search/msa?postal=80113&que
 RADAR_KEYWORDS = "guitar"
 AIRTABLE_SEARCH_TABLE = "SearchResults"
 
-[triggers]
-crons = ["*/5 * * * *"]
+#[triggers]
+#crons = ["*/5 * * * *"]
 
 [[kv_namespaces]]
 binding = "LISTING_JOBS"

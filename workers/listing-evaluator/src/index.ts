@@ -47,10 +47,9 @@ const RADAR_MIN_JITTER_MINUTES = 25;
 const RADAR_MAX_JITTER_MINUTES = 35;
 const RADAR_CONSECUTIVE_SEEN_LIMIT = 5;
 const RADAR_MAX_NEW_PER_SOURCE = 5;
-const RADAR_CL_TIMEBOX_MS = 30000;
+const RADAR_CL_TIMEBOX_MS = 60000;
 const RADAR_MAX_AI_CHECKS_PER_RUN = 0;
 const RADAR_CLASSIFY_BATCH = 3;
-const RADAR_NEXT_SOURCE_KEY = 'radar_next_source';
 const MST_OFFSET_MINUTES = -7 * 60;
 const RADAR_QUIET_START_HOUR = 23;
 const RADAR_QUIET_END_HOUR = 6;
@@ -118,6 +117,11 @@ export default {
 
     if (path === '/api/radar/classify' && request.method === 'POST') {
       const response = await handleRadarClassify(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/radar/sms-test' && request.method === 'POST') {
+      const response = await handleRadarSmsTest(request, env);
       return withCors(response, request, env);
     }
 
@@ -231,12 +235,8 @@ async function runRadarIfDue(env: Env): Promise<void> {
 
   let summary = 'Radar run skipped.';
   try {
-    const nextSource = (await env.LISTING_JOBS.get(RADAR_NEXT_SOURCE_KEY)) as ListingSource | null;
-    const source = nextSource === 'facebook' ? 'facebook' : 'craigslist';
-    const result = await runRadarScan(env, source);
+    const result = await runRadarScan(env);
     summary = result.summary;
-    const next = source === 'facebook' ? 'craigslist' : 'facebook';
-    await env.LISTING_JOBS.put(RADAR_NEXT_SOURCE_KEY, next);
   } catch (error) {
     console.error('Radar run failed', { error });
     summary = 'Radar run failed.';
@@ -559,11 +559,6 @@ async function processCandidatesWithState(
 
     if (isGuitarResult) {
       scored.push({ ...candidate, isGuitar: isGuitarResult.isGuitar, reason: isGuitarResult.reason });
-    } else {
-      console.warn('Guitar check returned no result', {
-        title: candidate.title?.slice(0, 80),
-        url: candidate.url,
-      });
     }
   }
 
@@ -595,49 +590,30 @@ async function runCraigslistWithAbort(
     return { total: 0, created: 0, skippedSponsored: 0, skippedNoUrl: 0, skippedExisting: 0, skippedAiLimit: 0 };
   }
 
-  const state: RadarProcessState = {
-    consecutiveSeen: 0,
-    processedUrls: new Set<string>(),
-  };
+  await delay(RADAR_CL_TIMEBOX_MS);
 
-  let datasetId: string | null = null;
-  let lastCount = 0;
-  const maxPolls = Math.ceil(RADAR_CL_TIMEBOX_MS / 2000);
-  let polls = 0;
-  const startedAt = Date.now();
-
-  let lastStats = { total: 0, created: 0, skippedSponsored: 0, skippedNoUrl: 0, skippedExisting: 0, skippedAiLimit: 0 };
-  while (polls < maxPolls) {
-    polls += 1;
-    if (Date.now() - startedAt >= RADAR_CL_TIMEBOX_MS) {
-      await abortApifyRun(runIdValue, env);
-      break;
-    }
-    const runDetails = await fetchApifyRun(runIdValue, env);
-    if (!datasetId) {
-      datasetId = runDetails?.defaultDatasetId || null;
-    }
-
-    if (datasetId) {
-      const items = await fetchApifyDataset(datasetId, env);
-      if (items.length !== lastCount) {
-        lastCount = items.length;
-      }
-      lastStats = await processCandidatesWithState('craigslist', items, keyword, runId, runStartedAt, newBySource, scored, env, state, runIdValue, aiBudget);
-      if (newBySource.craigslist >= RADAR_MAX_NEW_PER_SOURCE) {
-        await abortApifyRun(runIdValue, env);
-        break;
-      }
-    }
-
-    const status = runDetails?.status;
-    if (status === 'SUCCEEDED' || status === 'FAILED' || status === 'ABORTED') {
-      break;
-    }
-
-    await delay(2000);
+  const runDetails = await fetchApifyRun(runIdValue, env);
+  const datasetId = runDetails?.defaultDatasetId || null;
+  let stats = { total: 0, created: 0, skippedSponsored: 0, skippedNoUrl: 0, skippedExisting: 0, skippedAiLimit: 0 };
+  if (datasetId) {
+    const items = await fetchApifyDataset(datasetId, env);
+    stats = await processCandidatesWithState(
+      'craigslist',
+      items,
+      keyword,
+      runId,
+      runStartedAt,
+      newBySource,
+      scored,
+      env,
+      { consecutiveSeen: 0, processedUrls: new Set<string>() },
+      runIdValue,
+      aiBudget
+    );
   }
-  return lastStats;
+
+  await abortApifyRun(runIdValue, env);
+  return stats;
 }
 
 async function runIsGuitar(listing: ListingCandidate, env: Env): Promise<{ isGuitar: boolean; reason: string } | null> {
@@ -721,6 +697,7 @@ function buildSearchFields(
   runStartedAt: string
 ): Record<string, unknown> {
   const priceValue = listing.price ? parseMoney(listing.price) : null;
+  const guitarValue = isGuitarResult ? (isGuitarResult.isGuitar ? 'Yes' : 'No') : 'Unsure';
   return {
     run_id: runId,
     run_started_at: runStartedAt,
@@ -730,7 +707,7 @@ function buildSearchFields(
     title: listing.title ?? null,
     price: priceValue ?? null,
     image_url: listing.images[0] ?? null,
-    is_guitar: isGuitarResult ? isGuitarResult.isGuitar : null,
+    is_guitar: guitarValue,
     ai_reason: isGuitarResult ? isGuitarResult.reason : null,
     is_sponsored: listing.isSponsored ?? false,
     archived: false,
@@ -776,7 +753,7 @@ function chunkSms(message: string, maxLength: number): string[] {
   return chunks;
 }
 
-async function sendTelnyxMessage(text: string, env: Env): Promise<boolean> {
+async function sendTelnyxMessage(text: string, env: Env): Promise<{ ok: boolean; body?: string }> {
   const response = await fetch('https://api.telnyx.com/v2/messages', {
     method: 'POST',
     headers: {
@@ -797,10 +774,11 @@ async function sendTelnyxMessage(text: string, env: Env): Promise<boolean> {
       statusText: response.statusText,
       body: errorText,
     });
-    return false;
+    return { ok: false, body: errorText };
   }
 
-  return true;
+  const body = await response.text();
+  return { ok: true, body };
 }
 
 function isQuietHours(date: Date): boolean {
@@ -1035,6 +1013,27 @@ async function handleRadarClassify(request: Request, env: Env): Promise<Response
     });
     return jsonResponse({ message, error: String(error) }, 500);
   }
+}
+
+async function handleRadarSmsTest(request: Request, env: Env): Promise<Response> {
+  if (env.WEBHOOK_SECRET) {
+    const url = new URL(request.url);
+    const provided = url.searchParams.get('key');
+    if (!provided || provided !== env.WEBHOOK_SECRET) {
+      return jsonResponse({ message: 'Unauthorized' }, 401);
+    }
+  }
+
+  if (!env.TELNYX_API_KEY || !env.TELNYX_FROM_NUMBER || !env.TELNYX_TO_NUMBER) {
+    return jsonResponse({ message: 'Telnyx credentials missing.' }, 400);
+  }
+
+  const result = await sendTelnyxMessage('CCG radar test: Telnyx SMS is configured.', env);
+  if (!result.ok) {
+    return jsonResponse({ message: 'Telnyx SMS failed.', details: result.body }, 500);
+  }
+
+  return jsonResponse({ ok: true, details: result.body });
 }
 
 async function processRun(runId: string, resource: any, eventType: string | undefined, env: Env): Promise<void> {
@@ -1680,7 +1679,7 @@ async function airtableSearchResults(
   const params = new URLSearchParams();
   const filters = [`{run_id} = "${escapeAirtableValue(runId)}"`];
   if (!includeAll) {
-    filters.push('{is_guitar}');
+    filters.push('{is_guitar} = "Yes"');
     filters.push('NOT({archived})');
   }
   params.append('filterByFormula', `AND(${filters.join(',')})`);
@@ -1845,7 +1844,7 @@ async function airtableSearchSetArchivedState(recordId: string, archived: boolea
 
 async function airtableSearchListPending(limit: number, env: Env): Promise<Array<{ id: string; fields: Record<string, any> }>> {
   const params = new URLSearchParams();
-  params.append('filterByFormula', 'AND(NOT({archived}), OR({is_guitar} = BLANK(), {is_guitar} = ""))');
+  params.append('filterByFormula', 'AND(NOT({archived}), OR({is_guitar} = BLANK(), {is_guitar} = "", {is_guitar} = "Unsure"))');
   params.append('maxRecords', String(limit));
   params.append('fields[]', 'title');
   params.append('fields[]', 'price');
@@ -1900,7 +1899,7 @@ async function classifyPendingSearchResults(env: Env, limit: number): Promise<{ 
     if (!isGuitarResult) continue;
 
     await airtableSearchUpdate(record.id, {
-      is_guitar: isGuitarResult.isGuitar,
+      is_guitar: isGuitarResult.isGuitar ? 'Yes' : 'No',
       ai_reason: isGuitarResult.reason,
       ai_checked_at: new Date().toISOString(),
     }, env);
