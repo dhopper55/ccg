@@ -12,6 +12,7 @@ const BATCH_SIZE = 5;
 
 const form = document.getElementById('listing-form') as HTMLFormElement | null;
 const urlsInput = document.getElementById('listing-urls') as HTMLTextAreaElement | null;
+const multiUrlsInput = document.getElementById('listing-urls-multi') as HTMLTextAreaElement | null;
 const submitButton = document.getElementById('listing-submit') as HTMLButtonElement | null;
 const successSection = document.getElementById('listing-success') as HTMLDivElement | null;
 const successMessage = document.getElementById('listing-success-message') as HTMLParagraphElement | null;
@@ -76,6 +77,16 @@ function extractUrls(input: string): string[] {
   return Array.from(new Set(urls));
 }
 
+function buildPayload(): Array<{ url: string; isMulti: boolean }> {
+  const singleUrls = urlsInput ? extractUrls(urlsInput.value) : [];
+  const multiUrls = multiUrlsInput ? extractUrls(multiUrlsInput.value) : [];
+  const combined = [
+    ...singleUrls.map((url) => ({ url, isMulti: false })),
+    ...multiUrls.map((url) => ({ url, isMulti: true })),
+  ];
+  return combined.slice(0, MAX_URLS);
+}
+
 function renderRejected(rejected: Array<{ url: string; reason: string }>): void {
   if (!rejectedSection) return;
   const items = rejected.map(({ url, reason }) => `<li><strong>${url}</strong> — ${reason}</li>`);
@@ -91,8 +102,8 @@ async function handleSubmit(): Promise<void> {
 
   resetMessages();
 
-  const urls = extractUrls(urlsInput.value).slice(0, MAX_URLS);
-  if (urls.length === 0) {
+  const payload = buildPayload();
+  if (payload.length === 0) {
     errorSection.textContent = 'Please paste at least one valid Craigslist or Facebook Marketplace URL.';
     errorSection.classList.remove('hidden');
     return;
@@ -105,8 +116,8 @@ async function handleSubmit(): Promise<void> {
   let anyBatchSucceeded = false;
 
   try {
-    for (let start = 0; start < urls.length; start += BATCH_SIZE) {
-      const batch = urls.slice(start, start + BATCH_SIZE);
+    for (let start = 0; start < payload.length; start += BATCH_SIZE) {
+      const batch = payload.slice(start, start + BATCH_SIZE);
       try {
         const response = await fetch('/api/listings/submit', {
           method: 'POST',
@@ -130,7 +141,7 @@ async function handleSubmit(): Promise<void> {
         const message = error instanceof Error
           ? error.message
           : 'Unable to queue this batch. Please try again.';
-        rejected.push(...batch.map((url) => ({ url, reason: message })));
+        rejected.push(...batch.map((item) => ({ url: item.url, reason: message })));
       }
     }
 
@@ -148,5 +159,6 @@ async function handleSubmit(): Promise<void> {
   } finally {
     setLoading(false);
     urlsInput.value = '';
+    if (multiUrlsInput) multiUrlsInput.value = '';
   }
 }

@@ -2,6 +2,7 @@ const MAX_URLS = 20;
 const BATCH_SIZE = 5;
 const form = document.getElementById('listing-form');
 const urlsInput = document.getElementById('listing-urls');
+const multiUrlsInput = document.getElementById('listing-urls-multi');
 const submitButton = document.getElementById('listing-submit');
 const successSection = document.getElementById('listing-success');
 const successMessage = document.getElementById('listing-success-message');
@@ -66,6 +67,15 @@ function extractUrls(input) {
     }
     return Array.from(new Set(urls));
 }
+function buildPayload() {
+    const singleUrls = urlsInput ? extractUrls(urlsInput.value) : [];
+    const multiUrls = multiUrlsInput ? extractUrls(multiUrlsInput.value) : [];
+    const combined = [
+        ...singleUrls.map((url) => ({ url, isMulti: false })),
+        ...multiUrls.map((url) => ({ url, isMulti: true })),
+    ];
+    return combined.slice(0, MAX_URLS);
+}
 function renderRejected(rejected) {
     if (!rejectedSection)
         return;
@@ -80,8 +90,8 @@ async function handleSubmit() {
     if (!urlsInput || !successSection || !successMessage || !errorSection)
         return;
     resetMessages();
-    const urls = extractUrls(urlsInput.value).slice(0, MAX_URLS);
-    if (urls.length === 0) {
+    const payload = buildPayload();
+    if (payload.length === 0) {
         errorSection.textContent = 'Please paste at least one valid Craigslist or Facebook Marketplace URL.';
         errorSection.classList.remove('hidden');
         return;
@@ -91,8 +101,8 @@ async function handleSubmit() {
     let acceptedTotal = 0;
     let anyBatchSucceeded = false;
     try {
-        for (let start = 0; start < urls.length; start += BATCH_SIZE) {
-            const batch = urls.slice(start, start + BATCH_SIZE);
+        for (let start = 0; start < payload.length; start += BATCH_SIZE) {
+            const batch = payload.slice(start, start + BATCH_SIZE);
             try {
                 const response = await fetch('/api/listings/submit', {
                     method: 'POST',
@@ -115,7 +125,7 @@ async function handleSubmit() {
                 const message = error instanceof Error
                     ? error.message
                     : 'Unable to queue this batch. Please try again.';
-                rejected.push(...batch.map((url) => ({ url, reason: message })));
+                rejected.push(...batch.map((item) => ({ url: item.url, reason: message })));
             }
         }
         if (anyBatchSucceeded) {
@@ -133,6 +143,8 @@ async function handleSubmit() {
     finally {
         setLoading(false);
         urlsInput.value = '';
+        if (multiUrlsInput)
+            multiUrlsInput.value = '';
     }
 }
 export {};

@@ -22,7 +22,7 @@ interface Env {
 }
 
 interface SubmitPayload {
-  urls: string[];
+  urls: Array<string | { url: string; isMulti?: boolean }>;
 }
 
 interface QueueResult {
@@ -31,6 +31,7 @@ interface QueueResult {
   runId?: string;
   row?: number;
   unarchived?: boolean;
+  isMulti?: boolean;
 }
 
 interface RejectResult {
@@ -168,21 +169,37 @@ async function handleSubmit(request: Request, env: Env, ctx: ExecutionContext): 
     return jsonResponse({ message: 'No URLs provided.' }, 400);
   }
 
-  const urls = rawUrls.map((url) => normalizeUrl(url)).filter(Boolean) as string[];
-  const uniqueUrls = Array.from(new Set(urls)).slice(0, MAX_URLS);
+  const normalizedItems = rawUrls.map((entry) => {
+    if (typeof entry === 'string') return { url: entry, isMulti: false };
+    if (entry && typeof entry.url === 'string') {
+      return { url: entry.url, isMulti: Boolean(entry.isMulti) };
+    }
+    return null;
+  }).filter(Boolean) as Array<{ url: string; isMulti: boolean }>;
+
+  const urls = normalizedItems
+    .map((item) => ({ ...item, url: normalizeUrl(item.url) }))
+    .filter((item) => item.url) as Array<{ url: string; isMulti: boolean }>;
+
+  const seen = new Set<string>();
+  const uniqueUrls = urls.filter((item) => {
+    if (seen.has(item.url)) return false;
+    seen.add(item.url);
+    return true;
+  }).slice(0, MAX_URLS);
 
   const accepted: QueueResult[] = [];
   const rejected: RejectResult[] = [];
 
-  for (const url of uniqueUrls) {
-    const resolvedUrl = await resolveFacebookShareUrl(url);
+  for (const item of uniqueUrls) {
+    const resolvedUrl = await resolveFacebookShareUrl(item.url);
     const source = detectSource(resolvedUrl);
     if (!source) {
-      rejected.push({ url, reason: 'Unsupported URL. Use Craigslist or Facebook Marketplace.' });
+      rejected.push({ url: item.url, reason: 'Unsupported URL. Use Craigslist or Facebook Marketplace.' });
       continue;
     }
 
-    accepted.push({ url: resolvedUrl, source });
+    accepted.push({ url: resolvedUrl, source, isMulti: item.isMulti });
   }
 
   const results: QueueResult[] = [];
@@ -208,7 +225,7 @@ async function handleSubmit(request: Request, env: Env, ctx: ExecutionContext): 
       continue;
     }
 
-    await insertQueuedRow(item.url, item.source as ListingSource, runId, env);
+    await insertQueuedRow(item.url, item.source as ListingSource, runId, item.isMulti ?? false, env);
 
     results.push({ ...item, runId });
   }
@@ -1109,7 +1126,9 @@ async function processRun(runId: string, resource: any, eventType: string | unde
   }
 
   const listing = normalizeListing(items[0]);
-  const aiResponse = await runOpenAI(listing, env);
+  const recordId = await env.LISTING_JOBS.get(runId);
+  const isMulti = recordId ? await getIsMultiFromRecord(recordId, env) : false;
+  const aiResponse = await runOpenAI(listing, env, { isMulti });
 
   await updateRowByRunId(runId, {
     runId,
@@ -1122,7 +1141,7 @@ async function processRun(runId: string, resource: any, eventType: string | unde
     photos: listing.images.join('\n'),
     aiSummary: aiResponse,
     notes: listing.notes,
-  }, env);
+  }, env, { recordId, isMulti });
 }
 
 async function airtableList(
@@ -1202,6 +1221,11 @@ async function airtableGet(recordId: string, env: Env): Promise<{ id: string; fi
   const data = await response.json();
   if (!data?.id) return null;
   return { id: data.id, fields: data.fields ?? {} };
+}
+
+async function getIsMultiFromRecord(recordId: string, env: Env): Promise<boolean> {
+  const record = await airtableGet(recordId, env);
+  return isMultiValue(record?.fields?.IsMulti);
 }
 
 type ListingSource = 'facebook' | 'craigslist';
@@ -1552,13 +1576,14 @@ async function fetchApifyDataset(datasetId: string, env: Env): Promise<any[]> {
   return await response.json();
 }
 
-async function insertQueuedRow(url: string, source: ListingSource, runId: string, env: Env): Promise<void> {
+async function insertQueuedRow(url: string, source: ListingSource, runId: string, isMulti: boolean, env: Env): Promise<void> {
   const timestamp = formatMountainTimestamp(new Date());
   const fields = {
     submitted_at: timestamp,
     source: formatSourceLabel(source),
     url,
     status: 'queued',
+    IsMulti: isMulti,
   };
 
   try {
@@ -1582,34 +1607,41 @@ async function updateRowByRunId(runId: string, updates: {
   photos?: string;
   aiSummary?: string;
   notes?: string;
-}, env: Env): Promise<void> {
+}, env: Env, options?: { recordId?: string | null; isMulti?: boolean | null }): Promise<void> {
   const timestamp = new Date().toISOString();
 
   try {
-    const recordId = await env.LISTING_JOBS.get(runId);
+    const recordId = options?.recordId ?? await env.LISTING_JOBS.get(runId);
     if (!recordId) {
       console.error('Airtable update failed: record not found for run_id', { runId });
       return;
     }
 
-  const privateParty = updates.aiSummary ? extractPrivatePartyRange(updates.aiSummary) : null;
-  const listedPrice = updates.price ? parseMoney(updates.price) : null;
-  const aiAsking = updates.aiSummary ? extractAskingFromSummary(updates.aiSummary) : null;
-  const aiScore = updates.aiSummary ? extractScoreFromSummary(updates.aiSummary) : null;
-  const asking = chooseAskingPrice(listedPrice, aiAsking, updates.description ?? '', updates.aiSummary ?? '');
-  const ideal = privateParty?.low != null ? Math.round(privateParty.low * 0.8) : null;
-  const computedScore = privateParty && asking != null ? computeScore(asking, privateParty.low, privateParty.high) : null;
-  const score = aiScore ?? computedScore;
-  const fields: Record<string, unknown> = {
-    status: updates.status ?? null,
-    title: updates.title ?? null,
-    price_asking: asking ?? null,
-    location: updates.location ?? null,
-    description: updates.description ?? null,
-    photos: updates.photos ?? null,
-    ai_summary: updates.aiSummary ?? null,
-    price_private_party: privateParty ? formatRange(privateParty.low, privateParty.high) : null,
-    price_ideal: ideal ?? null,
+    const isMulti = options?.isMulti ?? await getIsMultiFromRecord(recordId, env);
+    const privateParty = updates.aiSummary
+      ? (isMulti ? extractMultiPrivatePartyRange(updates.aiSummary) : extractPrivatePartyRange(updates.aiSummary))
+      : null;
+    const listedPrice = updates.price ? parseMoney(updates.price) : null;
+    const aiAsking = updates.aiSummary
+      ? (isMulti ? extractMultiAskingTotal(updates.aiSummary) : extractAskingFromSummary(updates.aiSummary))
+      : null;
+    const aiScore = updates.aiSummary ? extractScoreFromSummary(updates.aiSummary) : null;
+    const asking = chooseAskingPrice(listedPrice, aiAsking, updates.description ?? '', updates.aiSummary ?? '', isMulti);
+    const ideal = updates.aiSummary
+      ? (isMulti ? extractMultiIdealTotal(updates.aiSummary) : (privateParty?.low != null ? Math.round(privateParty.low * 0.8) : null))
+      : null;
+    const computedScore = privateParty && asking != null ? computeScore(asking, privateParty.low, privateParty.high) : null;
+    const score = aiScore ?? computedScore;
+    const fields: Record<string, unknown> = {
+      status: updates.status ?? null,
+      title: updates.title ?? null,
+      price_asking: asking ?? null,
+      location: updates.location ?? null,
+      description: updates.description ?? null,
+      photos: updates.photos ?? null,
+      ai_summary: updates.aiSummary ?? null,
+      price_private_party: privateParty ? formatRange(privateParty.low, privateParty.high) : null,
+      price_ideal: ideal ?? null,
     };
     if (score !== null) {
       fields.score = score;
@@ -1959,6 +1991,16 @@ function isArchivedValue(value: unknown): boolean {
   return false;
 }
 
+function isMultiValue(value: unknown): boolean {
+  if (value === true) return true;
+  if (typeof value === 'number') return value === 1;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return normalized === 'true' || normalized === 'yes' || normalized === '1';
+  }
+  return false;
+}
+
 function extractPrivatePartyRange(aiSummary: string): { low: number; high: number } | null {
   const rangeMatch = aiSummary.match(/Typical private[-\s]party value:\s*\$?([\d,]+)\s*(?:–|-|to)\s*\$?([\d,]+)/i);
   if (rangeMatch) {
@@ -1980,8 +2022,35 @@ function extractPrivatePartyRange(aiSummary: string): { low: number; high: numbe
   return null;
 }
 
+function extractMultiPrivatePartyRange(aiSummary: string): { low: number; high: number } | null {
+  const rangeMatch = aiSummary.match(/Used market range for all:\s*\$?([\d,]+)\s*(?:–|-|to)\s*\$?([\d,]+)/i);
+  if (rangeMatch) {
+    const low = parseMoney(rangeMatch[1]);
+    const high = parseMoney(rangeMatch[2]);
+    if (low != null && high != null) {
+      return { low, high };
+    }
+  }
+
+  const singleMatch = aiSummary.match(/Used market range for all:\s*\$?([\d,]+)/i);
+  if (singleMatch) {
+    const value = parseMoney(singleMatch[1]);
+    if (value != null) {
+      return { low: value, high: value };
+    }
+  }
+
+  return null;
+}
+
 function extractAskingFromSummary(aiSummary: string): number | null {
   const match = aiSummary.match(/Asking price \(from listing text\):\s*\$?([\d,]+)/i);
+  if (!match) return null;
+  return parseMoney(match[1]);
+}
+
+function extractMultiAskingTotal(aiSummary: string): number | null {
+  const match = aiSummary.match(/Total listing asking price:\s*\$?([\d,]+)/i);
   if (!match) return null;
   return parseMoney(match[1]);
 }
@@ -1994,14 +2063,25 @@ function extractScoreFromSummary(aiSummary: string): number | null {
   return Math.max(1, Math.min(10, score));
 }
 
+function extractMultiIdealTotal(aiSummary: string): number | null {
+  const match = aiSummary.match(/Ideal price for all:\s*\$?([\d,]+)/i);
+  if (!match) return null;
+  return parseMoney(match[1]);
+}
+
 function chooseAskingPrice(
   listed: number | null,
   aiAsking: number | null,
   description: string,
-  aiSummary: string
+  aiSummary: string,
+  isMulti: boolean
 ): number | null {
   if (listed == null && aiAsking == null) return null;
   if (listed == null) return aiAsking;
+
+  if (isMulti) {
+    return aiAsking ?? listed;
+  }
 
   const hasMultiplePrices = countMoneyTokens(description) >= 2;
   const summaryMentionsMultiple = /multiple items|bundle|lot|each pedal|per item/i.test(aiSummary);
@@ -2130,13 +2210,18 @@ function isSponsoredListing(item: any): boolean {
   return labels.some((value) => /sponsored|promoted|ad/i.test(value));
 }
 
-async function runOpenAI(listing: ListingData, env: Env): Promise<string> {
+async function runOpenAI(listing: ListingData, env: Env, options?: { isMulti?: boolean }): Promise<string> {
   const maxImages = Number.parseInt(env.MAX_IMAGES || '3', 10);
   const images = listing.images.slice(0, Number.isFinite(maxImages) ? maxImages : 3);
+  const isMulti = options?.isMulti ?? false;
 
-  const systemPrompt = `You are an expert used gear buyer and appraiser focused on music gear. Produce a concise valuation with the exact format below. If details are missing, be clear about uncertainty and suggest the specific photo or detail needed. Avoid hype. When listings include multiple items, identify each item and provide a price breakdown per item. Always state the asking price you infer from the listing text.`;
+  const systemPrompt = isMulti
+    ? `You are an expert used gear buyer and appraiser focused on music gear. This listing contains MULTIPLE items. Produce a concise valuation with the exact format below. If details are missing, be clear about uncertainty and suggest the specific photo or detail needed. Avoid hype.`
+    : `You are an expert used gear buyer and appraiser focused on music gear. Produce a concise valuation with the exact format below. If details are missing, be clear about uncertainty and suggest the specific photo or detail needed. Avoid hype. Always state the asking price you infer from the listing text.`;
 
-  const userPrompt = `Listing title: ${listing.title || 'Unknown'}\nListing description: ${listing.description || 'Not provided'}\nAsking price: ${listing.price || 'Unknown'}\nLocation: ${listing.location || 'Unknown'}\n\nProvide the response in this format using plain bullet points (no extra dashes or nested bullet markers):\n\nWhat it appears to be\n- Make/model/variant\n- Estimated year or range (if possible; otherwise \"Year: Not enough info\")\n- Estimated condition from photos (or \"Condition from photos: Inconclusive\")\n- Notable finish/features\n\nReal-world value (used market)\n- Typical private-party value: $X–$Y\n- Music store pricing: $X–$Y\n\n- Adds Value: include one specific, model-relevant value add if it exists; avoid generic condition/finish statements; otherwise omit this line entirely\n\nNew Price (output exactly one line)\n- $X (append \"(no longer available)\" if discontinued); or \"Unknown\" if you cannot determine\n\nHow long to sell\n- If put up for sale at the higher end of the used price range ($X), it will take about N–N weeks to sell to a local buyer, and perhaps N weeks to sell to an online buyer (Reverb.com).\n- If you cannot reasonably estimate, output exactly: Not enough data available.\n\nScore\n- Score: X/10 (resell potential based on ask vs realistic value, condition, and included extras)\n\nBottom line\n- Realistic value range\n- Buy/skip note\n- Any missing info to tighten valuation\n`;
+  const userPrompt = isMulti
+    ? `Listing title: ${listing.title || 'Unknown'}\nListing description: ${listing.description || 'Not provided'}\nAsking price: ${listing.price || 'Unknown'}\nLocation: ${listing.location || 'Unknown'}\n\nThis is a multi-item listing. Identify each distinct item for sale based on photos and description. For EACH item, output the same section format below, one item after another (no merged sections). If you cannot identify an item clearly, note it as \"Unknown item\" and explain why. If an item has no explicit asking price, write \"Asking price (from listing text): Unknown\" in that item.\n\nAfter the last item, include TWO additional sections exactly as labeled below:\n\nItemized recap\n- Item name - $X asking, used range $Y to $Z, $W ideal (use \"Unknown\" if missing)\n\nTotals\n- Total listing asking price: $X (or \"Unknown\")\n- Used market range for all: $Y to $Z (or \"Unknown\")\n- Ideal price for all: $W (or \"Unknown\")\n\nUse this format for EACH item (plain bullet points, no extra dashes or nested bullet markers):\n\nWhat it appears to be\n- Make/model/variant\n- Estimated year or range (if possible; otherwise \"Year: Not enough info\")\n- Estimated condition from photos (or \"Condition from photos: Inconclusive\")\n- Notable finish/features\n\nReal-world value (used market)\n- Typical private-party value: $X–$Y\n- Music store pricing: $X–$Y\n\n- Adds Value: include one specific, model-relevant value add if it exists; avoid generic condition/finish statements; otherwise omit this line entirely\n\nNew Price (output exactly one line)\n- $X (append \"(no longer available)\" if discontinued); or \"Unknown\" if you cannot determine\n\nHow long to sell\n- If put up for sale at the higher end of the used price range ($X), it will take about N–N weeks to sell to a local buyer, and perhaps N weeks to sell to an online buyer (Reverb.com).\n- If you cannot reasonably estimate, output exactly: Not enough data available.\n\nScore\n- Score: X/10 (resell potential based on ask vs realistic value, condition, and included extras)\n\nBottom line\n- Realistic value range\n- Asking price (from listing text): $X or \"Unknown\"\n- Buy/skip note\n- Any missing info to tighten valuation\n`
+    : `Listing title: ${listing.title || 'Unknown'}\nListing description: ${listing.description || 'Not provided'}\nAsking price: ${listing.price || 'Unknown'}\nLocation: ${listing.location || 'Unknown'}\n\nProvide the response in this format using plain bullet points (no extra dashes or nested bullet markers):\n\nWhat it appears to be\n- Make/model/variant\n- Estimated year or range (if possible; otherwise \"Year: Not enough info\")\n- Estimated condition from photos (or \"Condition from photos: Inconclusive\")\n- Notable finish/features\n\nReal-world value (used market)\n- Typical private-party value: $X–$Y\n- Music store pricing: $X–$Y\n\n- Adds Value: include one specific, model-relevant value add if it exists; avoid generic condition/finish statements; otherwise omit this line entirely\n\nNew Price (output exactly one line)\n- $X (append \"(no longer available)\" if discontinued); or \"Unknown\" if you cannot determine\n\nHow long to sell\n- If put up for sale at the higher end of the used price range ($X), it will take about N–N weeks to sell to a local buyer, and perhaps N weeks to sell to an online buyer (Reverb.com).\n- If you cannot reasonably estimate, output exactly: Not enough data available.\n\nScore\n- Score: X/10 (resell potential based on ask vs realistic value, condition, and included extras)\n\nBottom line\n- Realistic value range\n- Buy/skip note\n- Any missing info to tighten valuation\n`;
 
   if (!env.OPENAI_API_KEY) {
     console.error('OpenAI API key missing');
