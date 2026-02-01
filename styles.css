@@ -563,7 +563,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--accent-gold) 0%, var(--accent-gold-dark) 100%);
+  background: linear-gradient(135deg, var(--accent-gold-light) 0%, var(--accent-gold) 100%);
   border-radius: 16px;
   margin-bottom: 20px;
 }
@@ -721,7 +721,7 @@ button {
   padding: 14px 24px;
   font-size: 1rem;
   font-weight: 600;
-  background: linear-gradient(135deg, var(--accent-gold) 0%, var(--accent-gold-dark) 100%);
+  background: linear-gradient(135deg, var(--accent-gold-light) 0%, var(--accent-gold) 100%);
   color: var(--bg-dark);
   border: none;
   border-radius: 8px;
@@ -732,7 +732,7 @@ button {
 
 button:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 20px var(--accent-glow);
+  box-shadow: 0 4px 18px var(--accent-shadow);
 }
 
 button:active {
@@ -802,11 +802,12 @@ button:active {
 }
 
 .decoder-note a {
-  color: var(--accent-gold);
+  color: var(--text-cream);
   text-decoration: none;
 }
 
 .decoder-note a:hover {
+  color: var(--accent-gold);
   text-decoration: underline;
 }
 
@@ -821,13 +822,13 @@ button:active {
 }
 
 .decoder-guide-links a {
-  color: var(--accent-gold);
+  color: var(--text-cream);
   text-decoration: none;
   font-weight: 600;
 }
 
 .decoder-guide-links a:hover {
-  color: var(--accent-gold-light);
+  color: var(--accent-gold);
 }
 
 .decoder-guide-separator {
@@ -977,7 +978,7 @@ button:active {
 }
 
 .valuation-modal-header h2 {
-  color: var(--accent-gold);
+  color: var(--text-cream);
   margin: 0;
   font-size: 1.5rem;
 }
@@ -993,13 +994,13 @@ button:active {
 }
 
 .decoder-howto-link {
-  color: var(--accent-gold);
+  color: var(--text-cream);
   text-decoration: none;
   font-weight: 600;
 }
 
 .decoder-howto-link:hover {
-  color: var(--accent-gold-light);
+  color: var(--accent-gold);
 }
 
 .decoder-modal {
@@ -1028,7 +1029,7 @@ button:active {
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
-  border: 1px solid var(--border-accent);
+  border: 1px solid var(--border-subtle);
 }
 
 .decoder-modal-close {
@@ -1055,7 +1056,7 @@ button:active {
 }
 
 .decoder-modal-header h2 {
-  color: var(--accent-gold);
+  color: var(--text-cream);
   margin: 0 0 6px;
   font-size: 1.5rem;
 }
@@ -1095,25 +1096,25 @@ button:active {
 }
 
 .decoder-modal-link a {
-  color: var(--accent-gold);
+  color: var(--text-cream);
   text-decoration: none;
   font-weight: 600;
 }
 
 .decoder-modal-link a:hover {
-  color: var(--accent-gold-light);
+  color: var(--accent-gold);
 }
 
 .decoder-modal-note a,
 .decoder-modal-body a {
-  color: var(--accent-gold);
+  color: var(--text-cream);
   text-decoration: none;
   font-weight: 600;
 }
 
 .decoder-modal-note a:hover,
 .decoder-modal-body a:hover {
-  color: var(--accent-gold-light);
+  color: var(--accent-gold);
 }
 
 .decoder-modal-gallery {
@@ -1257,7 +1258,7 @@ button:active {
 }
 
 .wizard-btn-primary {
-  background: linear-gradient(135deg, var(--accent-gold) 0%, var(--accent-gold-dark) 100%);
+  background: linear-gradient(135deg, var(--accent-gold-light) 0%, var(--accent-gold) 100%);
   color: var(--bg-dark);
   border: none;
 }
@@ -2428,7 +2429,7 @@ button:active {
   border-radius: 8px;
   font-weight: 600;
   text-decoration: none;
-  background: linear-gradient(135deg, var(--accent-gold) 0%, var(--accent-gold-dark) 100%);
+  background: linear-gradient(135deg, var(--accent-gold-light) 0%, var(--accent-gold) 100%);
   color: var(--bg-dark);
   transition: transform 0.2s, box-shadow 0.2s;
 }
