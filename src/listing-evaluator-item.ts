@@ -170,37 +170,54 @@ function buildTextBlock(tag: keyof HTMLElementTagNameMap, text: string): HTMLEle
   return el;
 }
 
-function formatMultiSummary(text: string): DocumentFragment | null {
-  const recapMatch = text.match(/Itemized recap\s*:?(.*?)(?:\nTotals\s*:?.*|$)/is);
-  if (!recapMatch) return null;
+function formatMultiSummary(text: string, fields: Record<string, unknown>): DocumentFragment | null {
+  const totalsAskingFromSummary = text.match(/Total listing asking price:\s*([^\n]+)/i)?.[1]?.trim();
+  const totalsRangeFromSummary = text.match(/Used market range for all:\s*([^\n]+)/i)?.[1]?.trim();
+  const totalsIdealFromSummary = text.match(/Ideal price for all:\s*([^\n]+)/i)?.[1]?.trim();
 
-  const totalsAsking = text.match(/Total listing asking price:\s*([^\n]+)/i)?.[1]?.trim();
-  const totalsRange = text.match(/Used market range for all:\s*([^\n]+)/i)?.[1]?.trim();
-  const totalsIdeal = text.match(/Ideal price for all:\s*([^\n]+)/i)?.[1]?.trim();
-
-  const recapLines = recapMatch[1]
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith('-'));
+  const totalsAsking = totalsAskingFromSummary || formatCurrencyValue(fields.price_asking);
+  const totalsRange = totalsRangeFromSummary || normalizeValue(fields.price_private_party);
+  const totalsIdeal = totalsIdealFromSummary || formatCurrencyValue(fields.price_ideal);
 
   const rows: string[] = [];
-  const linePattern = /^-\s*(.+?)\s+-\s*\$?([\d,]+|Unknown)\s+asking,\s+used range\s+\$?([\d,]+|Unknown)\s+to\s+\$?([\d,]+|Unknown),\s+\$?([\d,]+|Unknown)\s+ideal/i;
+  const recapMatch = text.match(/Itemized recap\s*:?(.*?)(?:\nTotals\s*:?.*|$)/is);
+  if (recapMatch) {
+    const recapLines = recapMatch[1]
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith('-'));
 
-  for (const line of recapLines) {
-    const match = line.match(linePattern);
-    if (!match) continue;
-    const title = match[1].trim();
-    const asking = match[2];
-    const low = match[3];
-    const high = match[4];
-    const ideal = match[5];
-    rows.push(`${title}, $${asking} asking, sell range ${low}-${high}, ideal $${ideal}`);
+    const linePattern = /^-\s*(.+?)\s+-\s*\$?([\d,]+|Unknown)\s+asking,\s+used range\s+\$?([\d,]+|Unknown)\s+to\s+\$?([\d,]+|Unknown),\s+\$?([\d,]+|Unknown)\s+ideal/i;
+
+    for (const line of recapLines) {
+      const match = line.match(linePattern);
+      if (!match) continue;
+      const title = match[1].trim();
+      const asking = match[2];
+      const low = match[3];
+      const high = match[4];
+      const ideal = match[5];
+      rows.push(`${title}, $${asking} asking, sell range ${low}-${high}, ideal $${ideal}`);
+    }
+  } else {
+    const blocks = text.split(/\n---\n/).map((block) => block.trim()).filter(Boolean);
+    for (const block of blocks) {
+      const titleMatch = block.match(/Make\/model\/variant:\s*([^\n]+)/i);
+      const title = titleMatch?.[1]?.trim() || 'Unknown item';
+      const askingMatch = block.match(/Asking price \(from listing text\):\s*([^\n]+)/i);
+      const asking = askingMatch?.[1]?.trim() || 'Unknown';
+      const rangeMatch = block.match(/Typical private-party value:\s*([^\n]+)/i);
+      const range = rangeMatch?.[1]?.trim() || 'Unknown';
+      const idealMatch = block.match(/Ideal buy price:\s*([^\n]+)/i);
+      const ideal = idealMatch?.[1]?.trim() || 'Unknown';
+      rows.push(`${title}, ${asking} asking, sell range ${range}, ideal ${ideal}`);
+    }
   }
 
   if (rows.length === 0) return null;
 
-  if (totalsAsking || totalsRange || totalsIdeal) {
-    rows.push(`Total: ${totalsAsking || 'Unknown'} asking, sell range ${totalsRange || 'Unknown'}, ideal ${totalsIdeal || 'Unknown'}`);
+  if (totalsAsking !== '—' || totalsRange !== '—' || totalsIdeal !== '—') {
+    rows.push(`Total: ${totalsAsking} asking, sell range ${totalsRange}, ideal ${totalsIdeal}`);
   }
 
   const fragment = document.createDocumentFragment();
@@ -378,7 +395,7 @@ function renderRecord(record: ListingRecordResponse): void {
     const isMulti = isMultiValue(fields.IsMulti);
     multiEl.innerHTML = '';
     if (isMulti && summary !== '—') {
-      const formatted = formatMultiSummary(summary);
+      const formatted = formatMultiSummary(summary, fields);
       if (formatted) {
         multiBlockEl.classList.remove('hidden');
         multiEl.appendChild(formatted);
