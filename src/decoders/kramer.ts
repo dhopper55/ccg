@@ -43,6 +43,30 @@ export function decodeKramer(serial: string): DecodeResult {
     return { success: true, info };
   }
 
+  // S / SS prefixes on some overseas Striker-era plates (format often SS-YYMM-RR)
+  if (/^S{1,2}\d{6,8}$/.test(normalized)) {
+    const prefixMatch = normalized.match(/^S{1,2}/);
+    const prefix = prefixMatch ? prefixMatch[0] : 'S';
+    const remainder = normalized.substring(prefix.length);
+    const yearPart = remainder.substring(0, 2);
+    const monthPart = remainder.substring(2, 4);
+    const yearValue = parseInt(yearPart, 10);
+    const monthValue = parseInt(monthPart, 10);
+    const fullYear = Number.isNaN(yearValue) ? undefined : `20${yearPart}`;
+    const monthName = getMonthName(monthValue);
+    const yearDisplay =
+      fullYear && monthName ? `${monthName} ${fullYear}` : fullYear;
+    const sequence = remainder.length > 4 ? remainder.substring(4) : undefined;
+
+    const info: GuitarInfo = {
+      brand: 'Kramer',
+      serialNumber: cleaned,
+      year: yearDisplay,
+      notes: `${prefix}-prefix serial often appears on overseas models (including some Strikers). Interpreted as ${prefix}-YYMM-RR${sequence ? ` with sequence ${sequence}` : ''}. Confirm with country-of-origin markings and hardware details.`,
+    };
+    return { success: true, info };
+  }
+
   // Musicyo reissue style (e.g., 04xxxx)
   if (/^\d{5,}$/.test(normalized)) {
     const yearPrefix = normalized.substring(0, 2);
@@ -87,4 +111,35 @@ function getOverseasYearRange(prefix: string): string | undefined {
   if (prefix === 'FA') return 'late 1985–1986';
   if (prefix === 'FB') return '1987–1988';
   return undefined;
+}
+
+function getMonthName(monthValue: number): string | undefined {
+  switch (monthValue) {
+    case 1:
+      return 'January';
+    case 2:
+      return 'February';
+    case 3:
+      return 'March';
+    case 4:
+      return 'April';
+    case 5:
+      return 'May';
+    case 6:
+      return 'June';
+    case 7:
+      return 'July';
+    case 8:
+      return 'August';
+    case 9:
+      return 'September';
+    case 10:
+      return 'October';
+    case 11:
+      return 'November';
+    case 12:
+      return 'December';
+    default:
+      return undefined;
+  }
 }
