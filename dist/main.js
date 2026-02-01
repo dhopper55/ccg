@@ -144,6 +144,12 @@ function handleDecode() {
             serialInput.value = retrySerial;
         }
     }
+    if (result.success && result.info && isFutureYearResult(result.info)) {
+        result = {
+            success: false,
+            error: 'Unable to decode this serial number.',
+        };
+    }
     if (result.success && result.info) {
         displayResult(result.info);
         // Track successful decode
@@ -278,4 +284,22 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+function isFutureYearResult(info) {
+    if (!info.year) {
+        return false;
+    }
+    const years = extractYears(info.year);
+    if (!years.length) {
+        return false;
+    }
+    const currentYear = new Date().getFullYear();
+    return years.some((year) => year > currentYear);
+}
+function extractYears(text) {
+    const matches = text.match(/\b\d{4}\b/g);
+    if (!matches) {
+        return [];
+    }
+    return matches.map((value) => parseInt(value, 10)).filter((value) => !Number.isNaN(value));
 }

@@ -10,7 +10,7 @@
   <title>Listing Radar | Coal Creek Guitars</title>
   <meta name="description" content="Review search results for the latest listing radar run.">
   <link rel="canonical" href="https://www.coalcreekguitars.com/listing-radar">
-  <link rel="stylesheet" href="styles.css?version=536799">
+  <link rel="stylesheet" href="styles.css?version=099058">
 </head>
 <body>
   <nav class="site-nav">
@@ -23,14 +23,17 @@
   <div class="container listing-results">
     <header class="listing-hero">
       <h1>Listing Radar</h1>
-      <p class="subtitle">Review the latest search run and queue items for full AI evaluation.</p>
       <div class="listing-results-controls">
-        <span id="radar-run-label">Run: —</span>
         <label class="toggle">
-          <input id="radar-include-all" type="checkbox">
-          <span>Show all results (including non-guitars)</span>
+          <input id="radar-include-all" type="checkbox" checked>
+          <span>Show All</span>
         </label>
-        <button id="radar-refresh" class="secondary">Refresh</button>
+        <button id="radar-refresh" class="icon-button" type="button" aria-label="Refresh">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M20 12a8 8 0 1 1-2.35-5.65" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M20 4v6h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
       </div>
     </header>
 
@@ -61,6 +64,6 @@
     </div>
   </footer>
 
-  <script type="module" src="dist/listing-radar.js?version=531682"></script>
+  <script type="module" src="dist/listing-radar.js?version=047155"></script>
 </body>
 </html>

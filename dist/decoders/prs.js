@@ -34,7 +34,9 @@ export function decodePRS(serial) {
         return decodeElectricBass(normalized);
     }
     // USA Set-Neck with 2-digit year prefix: 08+, 09+, 10+, etc. (2008+)
-    if (/^(0[89]|[1-9]\d)\d{4,}$/.test(normalized)) {
+    // Require at least 7 digits total (YY + 5+ sequence) to avoid misreading
+    // older single-digit prefixes that are often entered without a space (e.g., "2 15107" -> "215107").
+    if (/^(0[89]|[1-9]\d)\d{5,}$/.test(normalized)) {
         return decodeUSASetNeck2008Plus(normalized);
     }
     // USA Set-Neck: Single digit + sequence (1985-2007)

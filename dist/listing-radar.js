@@ -2,20 +2,21 @@
 const bodyEl = document.getElementById('radar-results-body');
 const errorEl = document.getElementById('radar-error');
 const emptyEl = document.getElementById('radar-empty');
-const runLabel = document.getElementById('radar-run-label');
 const includeAllToggle = document.getElementById('radar-include-all');
 const refreshButton = document.getElementById('radar-refresh');
 const params = new URLSearchParams(window.location.search);
 const runId = params.get('run_id');
 function formatSourceLabel(value) {
     if (!value)
-        return '—';
+        return { label: '—', icon: '•' };
     const normalized = value.trim().toLowerCase();
-    if (normalized === 'facebook' || normalized === 'fbm' || normalized.includes('facebook'))
-        return 'FBM';
-    if (normalized === 'craigslist' || normalized === 'cg' || normalized.includes('craigslist'))
-        return 'CG';
-    return value;
+    if (normalized === 'facebook' || normalized === 'fbm' || normalized.includes('facebook')) {
+        return { label: 'Facebook Marketplace', icon: 'f' };
+    }
+    if (normalized === 'craigslist' || normalized === 'cg' || normalized.includes('craigslist')) {
+        return { label: 'Craigslist', icon: '✌' };
+    }
+    return { label: value, icon: '•' };
 }
 function formatPrice(value) {
     if (value == null)
@@ -76,7 +77,12 @@ function renderRows(records) {
             titleCell.textContent = priceText ? `${titleText} (${priceText})` : titleText;
         }
         const sourceCell = document.createElement('td');
-        sourceCell.textContent = formatSourceLabel(record.fields.source);
+        const sourceBadge = document.createElement('span');
+        sourceBadge.className = 'source-badge';
+        const { label, icon } = formatSourceLabel(record.fields.source);
+        sourceBadge.title = label;
+        sourceBadge.textContent = icon;
+        sourceCell.appendChild(sourceBadge);
         const guitarCell = document.createElement('td');
         if (record.fields.is_guitar === true)
             guitarCell.textContent = 'Yes';
@@ -86,14 +92,16 @@ function renderRows(records) {
             guitarCell.textContent = '—';
         const actionsCell = document.createElement('td');
         const archiveButton = document.createElement('button');
-        archiveButton.className = 'secondary';
-        archiveButton.textContent = 'Archive';
+        archiveButton.className = 'icon-button';
+        archiveButton.type = 'button';
+        archiveButton.setAttribute('aria-label', 'Archive');
+        archiveButton.innerHTML = '<span class="icon-archive" aria-hidden="true">🗄</span>';
         archiveButton.addEventListener('click', () => {
             void archiveRecord(record.id, row, archiveButton);
         });
         const queueButton = document.createElement('button');
-        queueButton.className = 'secondary';
-        queueButton.textContent = 'AI Search';
+        queueButton.className = 'secondary deep-search';
+        queueButton.textContent = 'Deep Search';
         queueButton.addEventListener('click', () => {
             void queueRecord(record.id, queueButton);
         });
@@ -140,8 +148,6 @@ async function loadResults() {
         return;
     }
     clearMessages();
-    if (runLabel)
-        runLabel.textContent = `Run: ${runId}`;
     const includeAll = includeAllToggle?.checked ? 'true' : 'false';
     const url = new URL('/api/search-results', window.location.origin);
     url.searchParams.set('run_id', runId);
