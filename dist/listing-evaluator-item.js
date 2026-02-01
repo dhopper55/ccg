@@ -137,6 +137,17 @@ function isArchivedValue(value) {
     }
     return false;
 }
+function isMultiValue(value) {
+    if (value === true)
+        return true;
+    if (typeof value === 'number')
+        return value === 1;
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        return normalized === 'true' || normalized === 'yes' || normalized === '1';
+    }
+    return false;
+}
 function updateArchiveButton(archived) {
     if (!archiveButton)
         return;
@@ -158,10 +169,12 @@ function buildTextBlock(tag, text) {
     el.textContent = text;
     return el;
 }
-function formatAiSummary(text) {
+function formatAiSummary(text, options) {
     const fragment = document.createDocumentFragment();
     const lines = text.split(/\r?\n/).map((line) => line.trimEnd());
     let currentList = null;
+    const isMulti = options?.isMulti ?? false;
+    let pendingMultiDetails = false;
     const flushList = () => {
         if (currentList) {
             fragment.appendChild(currentList);
@@ -176,18 +189,42 @@ function formatAiSummary(text) {
             flushList();
             continue;
         }
+        if (isMulti && line === '---') {
+            flushList();
+            fragment.appendChild(document.createElement('hr'));
+            pendingMultiDetails = false;
+            continue;
+        }
         if (bulletPattern.test(line)) {
+            const bulletText = line.replace(bulletStripper, '');
+            if (isMulti && pendingMultiDetails) {
+                const makeMatch = bulletText.match(/^Make\/model\/variant:\s*(.+)$/i);
+                if (makeMatch?.[1]) {
+                    flushList();
+                    const title = document.createElement('h2');
+                    title.className = 'multi-item-title';
+                    title.textContent = makeMatch[1].trim();
+                    fragment.appendChild(title);
+                    fragment.appendChild(buildTextBlock('h3', 'Details'));
+                    pendingMultiDetails = false;
+                    continue;
+                }
+            }
             if (!currentList) {
                 currentList = document.createElement('ul');
             }
             const item = document.createElement('li');
-            item.textContent = line.replace(bulletStripper, '');
+            item.textContent = bulletText;
             currentList.appendChild(item);
             continue;
         }
         flushList();
         const headingMatch = line.match(/^[A-Za-z].+$/);
         if (headingMatch && line.length < 80) {
+            if (isMulti && /^What it appears to be$/i.test(line)) {
+                pendingMultiDetails = true;
+                continue;
+            }
             fragment.appendChild(buildTextBlock('h3', line));
         }
         else {
@@ -196,6 +233,19 @@ function formatAiSummary(text) {
     }
     flushList();
     return fragment;
+}
+function getAiSummary(fields) {
+    const parts = [];
+    for (let index = 1; index <= 10; index += 1) {
+        const key = index === 1 ? 'ai_summary' : `ai_summary${index}`;
+        const value = fields[key];
+        if (typeof value === 'string' && value.trim().length > 0) {
+            parts.push(value.trim());
+        }
+    }
+    if (parts.length === 0)
+        return '—';
+    return parts.join('\n\n');
 }
 function addMetaRow(label, value) {
     if (!metaEl)
@@ -274,13 +324,14 @@ function renderRecord(record) {
         descriptionEl.textContent = description === '—' ? 'No description available.' : description;
     }
     if (aiEl) {
-        const summary = normalizeValue(fields.ai_summary);
+        const summary = getAiSummary(fields);
+        const isMulti = isMultiValue(fields.IsMulti);
         aiEl.innerHTML = '';
         if (summary === '—') {
             aiEl.textContent = 'No AI summary available yet.';
         }
         else {
-            aiEl.appendChild(formatAiSummary(summary));
+            aiEl.appendChild(formatAiSummary(summary, { isMulti }));
         }
     }
 }

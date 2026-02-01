@@ -2517,6 +2517,19 @@ button:active {
   font-size: 0.95rem;
 }
 
+.listing-item-text .multi-item-title {
+  margin: 18px 0 6px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-light);
+}
+
+.listing-item-text hr {
+  border: 0;
+  border-top: 1px solid var(--border-subtle);
+  margin: 18px 0;
+}
+
 .listing-item-text p {
   margin: 0 0 10px;
 }

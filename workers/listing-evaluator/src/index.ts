@@ -1628,10 +1628,13 @@ async function updateRowByRunId(runId: string, updates: {
     const aiScore = updates.aiSummary ? extractScoreFromSummary(updates.aiSummary) : null;
     const asking = chooseAskingPrice(listedPrice, aiAsking, updates.description ?? '', updates.aiSummary ?? '', isMulti);
     const ideal = updates.aiSummary
-      ? (isMulti ? extractMultiIdealTotal(updates.aiSummary) : (privateParty?.low != null ? Math.round(privateParty.low * 0.8) : null))
+      ? (isMulti
+          ? (privateParty?.low != null ? Math.round(privateParty.low * 0.8) : extractMultiIdealTotal(updates.aiSummary))
+          : (privateParty?.low != null ? Math.round(privateParty.low * 0.8) : null))
       : null;
     const computedScore = privateParty && asking != null ? computeScore(asking, privateParty.low, privateParty.high) : null;
     const score = aiScore ?? computedScore;
+    const summaryChunks = splitAiSummary(updates.aiSummary ?? null);
     const fields: Record<string, unknown> = {
       status: updates.status ?? null,
       title: updates.title ?? null,
@@ -1639,7 +1642,16 @@ async function updateRowByRunId(runId: string, updates: {
       location: updates.location ?? null,
       description: updates.description ?? null,
       photos: updates.photos ?? null,
-      ai_summary: updates.aiSummary ?? null,
+      ai_summary: summaryChunks[0] ?? null,
+      ai_summary2: summaryChunks[1] ?? null,
+      ai_summary3: summaryChunks[2] ?? null,
+      ai_summary4: summaryChunks[3] ?? null,
+      ai_summary5: summaryChunks[4] ?? null,
+      ai_summary6: summaryChunks[5] ?? null,
+      ai_summary7: summaryChunks[6] ?? null,
+      ai_summary8: summaryChunks[7] ?? null,
+      ai_summary9: summaryChunks[8] ?? null,
+      ai_summary10: summaryChunks[9] ?? null,
       price_private_party: privateParty ? formatRange(privateParty.low, privateParty.high) : null,
       price_ideal: ideal ?? null,
     };
@@ -2069,6 +2081,29 @@ function extractMultiIdealTotal(aiSummary: string): number | null {
   return parseMoney(match[1]);
 }
 
+function splitAiSummary(aiSummary: string | null): string[] {
+  if (!aiSummary) return [];
+  const maxChunkSize = 90000;
+  const chunks: string[] = [];
+  let remaining = aiSummary;
+  while (remaining.length > 0 && chunks.length < 10) {
+    if (remaining.length <= maxChunkSize) {
+      chunks.push(remaining);
+      break;
+    }
+    let splitIndex = remaining.lastIndexOf('\n\n', maxChunkSize);
+    if (splitIndex < maxChunkSize * 0.6) {
+      splitIndex = remaining.lastIndexOf('\n', maxChunkSize);
+    }
+    if (splitIndex < maxChunkSize * 0.4) {
+      splitIndex = maxChunkSize;
+    }
+    chunks.push(remaining.slice(0, splitIndex).trim());
+    remaining = remaining.slice(splitIndex).trim();
+  }
+  return chunks;
+}
+
 function chooseAskingPrice(
   listed: number | null,
   aiAsking: number | null,
@@ -2220,8 +2255,8 @@ async function runOpenAI(listing: ListingData, env: Env, options?: { isMulti?: b
     : `You are an expert used gear buyer and appraiser focused on music gear. Produce a concise valuation with the exact format below. If details are missing, be clear about uncertainty and suggest the specific photo or detail needed. Avoid hype. Always state the asking price you infer from the listing text.`;
 
   const userPrompt = isMulti
-    ? `Listing title: ${listing.title || 'Unknown'}\nListing description: ${listing.description || 'Not provided'}\nAsking price: ${listing.price || 'Unknown'}\nLocation: ${listing.location || 'Unknown'}\n\nThis is a multi-item listing. Identify each distinct item for sale based on photos and description. For EACH item, output the same section format below, one item after another (no merged sections). If you cannot identify an item clearly, note it as \"Unknown item\" and explain why. If an item has no explicit asking price, write \"Asking price (from listing text): Unknown\" in that item.\n\nAfter the last item, include TWO additional sections exactly as labeled below:\n\nItemized recap\n- Item name - $X asking, used range $Y to $Z, $W ideal (use \"Unknown\" if missing)\n\nTotals\n- Total listing asking price: $X (or \"Unknown\")\n- Used market range for all: $Y to $Z (or \"Unknown\")\n- Ideal price for all: $W (or \"Unknown\")\n\nUse this format for EACH item (plain bullet points, no extra dashes or nested bullet markers):\n\nWhat it appears to be\n- Make/model/variant\n- Estimated year or range (if possible; otherwise \"Year: Not enough info\")\n- Estimated condition from photos (or \"Condition from photos: Inconclusive\")\n- Notable finish/features\n\nReal-world value (used market)\n- Typical private-party value: $X–$Y\n- Music store pricing: $X–$Y\n\n- Adds Value: include one specific, model-relevant value add if it exists; avoid generic condition/finish statements; otherwise omit this line entirely\n\nNew Price (output exactly one line)\n- $X (append \"(no longer available)\" if discontinued); or \"Unknown\" if you cannot determine\n\nHow long to sell\n- If put up for sale at the higher end of the used price range ($X), it will take about N–N weeks to sell to a local buyer, and perhaps N weeks to sell to an online buyer (Reverb.com).\n- If you cannot reasonably estimate, output exactly: Not enough data available.\n\nScore\n- Score: X/10 (resell potential based on ask vs realistic value, condition, and included extras)\n\nBottom line\n- Realistic value range\n- Asking price (from listing text): $X or \"Unknown\"\n- Buy/skip note\n- Any missing info to tighten valuation\n`
-    : `Listing title: ${listing.title || 'Unknown'}\nListing description: ${listing.description || 'Not provided'}\nAsking price: ${listing.price || 'Unknown'}\nLocation: ${listing.location || 'Unknown'}\n\nProvide the response in this format using plain bullet points (no extra dashes or nested bullet markers):\n\nWhat it appears to be\n- Make/model/variant\n- Estimated year or range (if possible; otherwise \"Year: Not enough info\")\n- Estimated condition from photos (or \"Condition from photos: Inconclusive\")\n- Notable finish/features\n\nReal-world value (used market)\n- Typical private-party value: $X–$Y\n- Music store pricing: $X–$Y\n\n- Adds Value: include one specific, model-relevant value add if it exists; avoid generic condition/finish statements; otherwise omit this line entirely\n\nNew Price (output exactly one line)\n- $X (append \"(no longer available)\" if discontinued); or \"Unknown\" if you cannot determine\n\nHow long to sell\n- If put up for sale at the higher end of the used price range ($X), it will take about N–N weeks to sell to a local buyer, and perhaps N weeks to sell to an online buyer (Reverb.com).\n- If you cannot reasonably estimate, output exactly: Not enough data available.\n\nScore\n- Score: X/10 (resell potential based on ask vs realistic value, condition, and included extras)\n\nBottom line\n- Realistic value range\n- Buy/skip note\n- Any missing info to tighten valuation\n`;
+    ? `Listing title: ${listing.title || 'Unknown'}\nListing description: ${listing.description || 'Not provided'}\nAsking price: ${listing.price || 'Unknown'}\nLocation: ${listing.location || 'Unknown'}\n\nThis is a multi-item listing. Identify each distinct item for sale based on photos and description. For EACH item, output the same section format below, one item after another (no merged sections). If you cannot identify an item clearly, note it as \"Unknown item\" and explain why. If an item has no explicit asking price, write \"Asking price (from listing text): Unknown\" in that item. The ideal buy price is the LOW end of the used range minus 20%.\n\nAfter the last item, include TWO additional sections exactly as labeled below:\n\nItemized recap\n- Item name - $X asking, used range $Y to $Z, $W ideal (use \"Unknown\" if missing)\n\nTotals\n- Total listing asking price: $X (or \"Unknown\")\n- Used market range for all: $Y to $Z (or \"Unknown\")\n- Ideal price for all: $W (20% below used range low end; or \"Unknown\")\n\nUse this format for EACH item (plain bullet points, no extra dashes or nested bullet markers):\n\nWhat it appears to be\n- Make/model/variant\n- Estimated year or range (if possible; otherwise \"Year: Not enough info\")\n- Estimated condition from photos (or \"Condition from photos: Inconclusive\")\n- Notable finish/features\n\nPrices\n- Typical private-party value: $X–$Y\n- Music store pricing: $X–$Y\n- New price: $X (append \"(no longer available)\" if discontinued); or \"Unknown\" if you cannot determine\n- Ideal buy price: $X (20% below used range low end)\n\n- Adds Value: include one specific, model-relevant value add if it exists; avoid generic condition/finish statements; otherwise omit this line entirely\n\nHow long to sell\n- If put up for sale at the higher end of the used price range ($X), it will take about N–N weeks to sell to a local buyer, and perhaps N weeks to sell to an online buyer (Reverb.com).\n- If you cannot reasonably estimate, output exactly: Not enough data available.\n\nScore\n- Score: X/10 (resell potential based on ask vs realistic value, condition, and included extras)\n\nBottom line\n- Realistic value range\n- Asking price (from listing text): $X or \"Unknown\"\n- Buy/skip note\n- Any missing info to tighten valuation\n`
+    : `Listing title: ${listing.title || 'Unknown'}\nListing description: ${listing.description || 'Not provided'}\nAsking price: ${listing.price || 'Unknown'}\nLocation: ${listing.location || 'Unknown'}\n\nProvide the response in this format using plain bullet points (no extra dashes or nested bullet markers):\n\nWhat it appears to be\n- Make/model/variant\n- Estimated year or range (if possible; otherwise \"Year: Not enough info\")\n- Estimated condition from photos (or \"Condition from photos: Inconclusive\")\n- Notable finish/features\n\nPrices\n- Typical private-party value: $X–$Y\n- Music store pricing: $X–$Y\n- New price: $X (append \"(no longer available)\" if discontinued); or \"Unknown\" if you cannot determine\n- Ideal buy price: $X (20% below used range low end)\n\n- Adds Value: include one specific, model-relevant value add if it exists; avoid generic condition/finish statements; otherwise omit this line entirely\n\nHow long to sell\n- If put up for sale at the higher end of the used price range ($X), it will take about N–N weeks to sell to a local buyer, and perhaps N weeks to sell to an online buyer (Reverb.com).\n- If you cannot reasonably estimate, output exactly: Not enough data available.\n\nScore\n- Score: X/10 (resell potential based on ask vs realistic value, condition, and included extras)\n\nBottom line\n- Realistic value range\n- Buy/skip note\n- Any missing info to tighten valuation\n`;
 
   if (!env.OPENAI_API_KEY) {
     console.error('OpenAI API key missing');
