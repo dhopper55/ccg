@@ -2353,6 +2353,10 @@ button:active {
   margin-right: 0;
 }
 
+.listing-results-table td:last-child {
+  white-space: nowrap;
+}
+
 .listing-results-table td .icon-button {
   width: 36px;
   height: 36px;
