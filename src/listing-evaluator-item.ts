@@ -170,16 +170,30 @@ function buildTextBlock(tag: keyof HTMLElementTagNameMap, text: string): HTMLEle
   return el;
 }
 
+function parseMoneyValue(input: string): number | null {
+  const cleaned = input.replace(/[^0-9.]/g, '');
+  if (!cleaned) return null;
+  const value = Number.parseFloat(cleaned);
+  return Number.isFinite(value) ? value : null;
+}
+
 function formatMultiSummary(text: string, fields: Record<string, unknown>): DocumentFragment | null {
   const totalsAskingFromSummary = text.match(/Total listing asking price:\s*([^\n]+)/i)?.[1]?.trim();
   const totalsRangeFromSummary = text.match(/Used market range for all:\s*([^\n]+)/i)?.[1]?.trim();
   const totalsIdealFromSummary = text.match(/Ideal price for all:\s*([^\n]+)/i)?.[1]?.trim();
 
-  const totalsAsking = totalsAskingFromSummary || formatCurrencyValue(fields.price_asking);
-  const totalsRange = totalsRangeFromSummary || normalizeValue(fields.price_private_party);
-  const totalsIdeal = totalsIdealFromSummary || formatCurrencyValue(fields.price_ideal);
+  let totalsAsking = totalsAskingFromSummary || formatCurrencyValue(fields.price_asking);
+  let totalsRange = totalsRangeFromSummary || normalizeValue(fields.price_private_party);
+  let totalsIdeal = totalsIdealFromSummary || formatCurrencyValue(fields.price_ideal);
 
   const rows: string[] = [];
+  let askingSum = 0;
+  let lowSum = 0;
+  let highSum = 0;
+  let idealSum = 0;
+  let askingCount = 0;
+  let rangeCount = 0;
+  let idealCount = 0;
   const recapMatch = text.match(/Itemized recap\s*:?(.*?)(?:\nTotals\s*:?.*|$)/is);
   if (recapMatch) {
     const recapLines = recapMatch[1]
@@ -198,6 +212,23 @@ function formatMultiSummary(text: string, fields: Record<string, unknown>): Docu
       const high = match[4];
       const ideal = match[5];
       rows.push(`${title}, $${asking} asking, sell range ${low}-${high}, ideal $${ideal}`);
+      const askingValue = parseMoneyValue(String(asking));
+      const lowValue = parseMoneyValue(String(low));
+      const highValue = parseMoneyValue(String(high));
+      const idealValue = parseMoneyValue(String(ideal));
+      if (askingValue != null) {
+        askingSum += askingValue;
+        askingCount += 1;
+      }
+      if (lowValue != null && highValue != null) {
+        lowSum += lowValue;
+        highSum += highValue;
+        rangeCount += 1;
+      }
+      if (idealValue != null) {
+        idealSum += idealValue;
+        idealCount += 1;
+      }
     }
   } else {
     const blocks = text.split(/\n---\n/).map((block) => block.trim()).filter(Boolean);
@@ -211,10 +242,40 @@ function formatMultiSummary(text: string, fields: Record<string, unknown>): Docu
       const idealMatch = block.match(/Ideal buy price:\s*([^\n]+)/i);
       const ideal = idealMatch?.[1]?.trim() || 'Unknown';
       rows.push(`${title}, ${asking} asking, sell range ${range}, ideal ${ideal}`);
+      const askingValue = parseMoneyValue(asking);
+      const idealValue = parseMoneyValue(ideal);
+      if (askingValue != null) {
+        askingSum += askingValue;
+        askingCount += 1;
+      }
+      if (idealValue != null) {
+        idealSum += idealValue;
+        idealCount += 1;
+      }
+      const rangeParts = range.split(/[-–]/).map((part) => part.trim());
+      if (rangeParts.length === 2) {
+        const lowValue = parseMoneyValue(rangeParts[0]);
+        const highValue = parseMoneyValue(rangeParts[1]);
+        if (lowValue != null && highValue != null) {
+          lowSum += lowValue;
+          highSum += highValue;
+          rangeCount += 1;
+        }
+      }
     }
   }
 
   if (rows.length === 0) return null;
+
+  if ((totalsAsking === 'Unknown' || totalsAsking === '—') && askingCount > 0) {
+    totalsAsking = formatCurrencyValue(askingSum);
+  }
+  if ((totalsRange === 'Unknown' || totalsRange === '—') && rangeCount > 0) {
+    totalsRange = `${formatCurrencyValue(lowSum)}-${formatCurrencyValue(highSum)}`;
+  }
+  if ((totalsIdeal === 'Unknown' || totalsIdeal === '—') && idealCount > 0) {
+    totalsIdeal = formatCurrencyValue(idealSum);
+  }
 
   if (totalsAsking !== '—' || totalsRange !== '—' || totalsIdeal !== '—') {
     rows.push(`Total: ${totalsAsking} asking, sell range ${totalsRange}, ideal ${totalsIdeal}`);
