@@ -5,17 +5,22 @@
 */
 
 :root {
-  --bg-dark: #0e0e0b;
-  --bg-dark-alt: #0e0e0b;
-  --bg-card: rgba(212, 197, 169, 0.05);
-  --text-cream: #d4c5a9;
-  --text-light: #e8e0d0;
-  --text-muted: #9a9080;
-  --accent-gold: #c9a227;
-  --accent-gold-light: #dbb94a;
-  --accent-gold-dark: #a88820;
-  --border-subtle: rgba(212, 197, 169, 0.15);
-  --border-accent: rgba(201, 162, 39, 0.4);
+  --bg-dark: #0d0d0a;
+  --bg-dark-alt: #201d16;
+  --bg-card: rgba(205, 185, 146, 0.08);
+  --text-cream: #e7dcc5;
+  --text-light: #f1ead9;
+  --text-muted: #a79a83;
+  --accent-gold: #9f9172;
+  --accent-gold-light: #cdb992;
+  --accent-gold-dark: #6a614d;
+  --border-subtle: rgba(159, 145, 114, 0.25);
+  --border-accent: rgba(159, 145, 114, 0.45);
+  --accent-soft: rgba(159, 145, 114, 0.12);
+  --accent-softer: rgba(159, 145, 114, 0.08);
+  --accent-glow: rgba(159, 145, 114, 0.35);
+  --accent-shadow: rgba(159, 145, 114, 0.25);
+  --accent-focus: rgba(159, 145, 114, 0.22);
 }
 
 * {
@@ -60,8 +65,9 @@ body {
 }
 
 .nav-home:hover {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
+  border-color: var(--border-subtle);
+  color: var(--text-light);
+  background: var(--accent-softer);
 }
 
 /* ============================================
@@ -206,7 +212,7 @@ body {
   margin-right: 12px;
   border-radius: 999px;
   background: var(--accent-gold);
-  box-shadow: 0 0 8px rgba(201, 162, 39, 0.45);
+  box-shadow: 0 0 8px var(--accent-glow);
   transform: translateY(-1px);
 }
 
@@ -251,8 +257,8 @@ body {
   margin-top: 16px;
   padding: 16px;
   border-radius: 12px;
-  background: rgba(201, 162, 39, 0.08);
-  border: 1px solid var(--border-accent);
+  background: var(--accent-softer);
+  border: 1px solid var(--border-subtle);
 }
 
 .value-link {
@@ -416,7 +422,7 @@ body {
   margin-right: 12px;
   border-radius: 999px;
   background: var(--accent-gold);
-  box-shadow: 0 0 8px rgba(201, 162, 39, 0.45);
+  box-shadow: 0 0 8px var(--accent-glow);
   transform: translateY(-1px);
 }
 
@@ -435,7 +441,7 @@ body {
   margin-top: 16px;
   padding: 16px;
   border-radius: 12px;
-  background: rgba(201, 162, 39, 0.08);
+  background: var(--accent-softer);
   border: 1px solid var(--border-accent);
 }
 
@@ -508,9 +514,9 @@ body {
 }
 
 .home-brand-link:hover {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
-  background: rgba(201, 162, 39, 0.08);
+  border-color: var(--border-subtle);
+  color: var(--text-light);
+  background: var(--accent-softer);
   transform: translateY(-2px);
 }
 
@@ -546,7 +552,7 @@ body {
 
 .tool-card:hover {
   border-color: var(--accent-gold);
-  background: rgba(201, 162, 39, 0.08);
+  background: var(--accent-softer);
   transform: translateY(-4px);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
@@ -703,7 +709,7 @@ select, input, textarea {
 select:focus, input:focus, textarea:focus {
   outline: none;
   border-color: var(--accent-gold);
-  box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.2);
+  box-shadow: 0 0 0 3px var(--accent-focus);
 }
 
 select option {
@@ -726,7 +732,7 @@ button {
 
 button:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 20px rgba(201, 162, 39, 0.4);
+  box-shadow: 0 4px 20px var(--accent-glow);
 }
 
 button:active {
@@ -736,13 +742,13 @@ button:active {
 .result-section {
   margin-top: 30px;
   padding: 24px;
-  background: rgba(201, 162, 39, 0.08);
+  background: var(--bg-card);
   border-radius: 12px;
-  border: 1px solid var(--border-accent);
+  border: 1px solid var(--border-subtle);
 }
 
 .result-section h2 {
-  color: var(--accent-gold);
+  color: var(--text-cream);
   margin-bottom: 16px;
   font-size: 1.1rem;
 }
@@ -1187,7 +1193,7 @@ button:active {
 
 .model-card:hover {
   border-color: var(--accent-gold);
-  background: rgba(201, 162, 39, 0.1);
+  background: var(--accent-soft);
   transform: translateY(-2px);
 }
 
@@ -1258,12 +1264,14 @@ button:active {
 
 .wizard-btn-secondary {
   background: transparent;
-  color: var(--accent-gold);
-  border: 1px solid var(--accent-gold);
+  color: var(--text-cream);
+  border: 1px solid var(--border-subtle);
 }
 
 .wizard-btn-secondary:hover {
-  background: rgba(201, 162, 39, 0.1);
+  background: var(--accent-soft);
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
   transform: none;
   box-shadow: none;
 }
@@ -1383,7 +1391,7 @@ button:active {
 
 .search-link:hover {
   border-color: var(--accent-gold);
-  background: rgba(201, 162, 39, 0.1);
+  background: var(--accent-soft);
 }
 
 .search-icon {
@@ -2119,7 +2127,7 @@ button:active {
 
 .brand-select-card:hover {
   border-color: var(--accent-gold);
-  background: rgba(201, 162, 39, 0.08);
+  background: var(--accent-softer);
   transform: translateY(-4px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 }
@@ -2281,8 +2289,8 @@ button:active {
   align-items: center;
   justify-content: center;
   background: transparent;
-  border: 1px solid var(--border-accent);
-  color: var(--accent-gold);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
   box-shadow: none;
   padding: 0;
 }
@@ -2293,7 +2301,9 @@ button:active {
 }
 
 .listing-results-controls .icon-button:hover {
-  box-shadow: 0 4px 18px rgba(201, 162, 39, 0.25);
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+  box-shadow: 0 4px 18px var(--accent-shadow);
 }
 
 .listing-results-controls button {
@@ -2302,13 +2312,15 @@ button:active {
 
 .listing-results-controls button.secondary {
   background: transparent;
-  color: var(--accent-gold);
-  border: 1px solid var(--border-accent);
+  color: var(--text-cream);
+  border: 1px solid var(--border-subtle);
   box-shadow: none;
 }
 
 .listing-results-controls button.secondary:hover {
-  box-shadow: 0 4px 18px rgba(201, 162, 39, 0.25);
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+  box-shadow: 0 4px 18px var(--accent-shadow);
 }
 
 .listing-results-table {
@@ -2423,7 +2435,7 @@ button:active {
 
 .button-link:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 20px rgba(201, 162, 39, 0.4);
+  box-shadow: 0 4px 20px var(--accent-glow);
 }
 
 .button-link.secondary {
@@ -2434,7 +2446,7 @@ button:active {
 }
 
 .button-link.secondary:hover {
-  box-shadow: 0 4px 18px rgba(201, 162, 39, 0.25);
+  box-shadow: 0 4px 18px var(--accent-shadow);
 }
 
 .button-link.danger {
