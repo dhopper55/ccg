@@ -11,6 +11,8 @@ const metaEl = document.getElementById('listing-item-meta') as HTMLDListElement 
 const descriptionEl = document.getElementById('listing-item-description') as HTMLDivElement | null;
 const aiEl = document.getElementById('listing-item-ai') as HTMLDivElement | null;
 const aiTitleEl = document.getElementById('listing-item-ai-title') as HTMLHeadingElement | null;
+const multiBlockEl = document.getElementById('listing-item-multi-block') as HTMLDivElement | null;
+const multiEl = document.getElementById('listing-item-multi') as HTMLDivElement | null;
 const openLink = document.getElementById('listing-item-open') as HTMLAnchorElement | null;
 const errorSection = document.getElementById('listing-item-error') as HTMLDivElement | null;
 const archiveButton = document.getElementById('listing-item-archive') as HTMLButtonElement | null;
@@ -166,6 +168,46 @@ function buildTextBlock(tag: keyof HTMLElementTagNameMap, text: string): HTMLEle
   const el = document.createElement(tag);
   el.textContent = text;
   return el;
+}
+
+function formatMultiSummary(text: string): DocumentFragment | null {
+  const recapMatch = text.match(/Itemized recap\s*:?(.*?)(?:\nTotals\s*:?.*|$)/is);
+  if (!recapMatch) return null;
+
+  const totalsAsking = text.match(/Total listing asking price:\s*([^\n]+)/i)?.[1]?.trim();
+  const totalsRange = text.match(/Used market range for all:\s*([^\n]+)/i)?.[1]?.trim();
+  const totalsIdeal = text.match(/Ideal price for all:\s*([^\n]+)/i)?.[1]?.trim();
+
+  const recapLines = recapMatch[1]
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('-'));
+
+  const rows: string[] = [];
+  const linePattern = /^-\s*(.+?)\s+-\s*\$?([\d,]+|Unknown)\s+asking,\s+used range\s+\$?([\d,]+|Unknown)\s+to\s+\$?([\d,]+|Unknown),\s+\$?([\d,]+|Unknown)\s+ideal/i;
+
+  for (const line of recapLines) {
+    const match = line.match(linePattern);
+    if (!match) continue;
+    const title = match[1].trim();
+    const asking = match[2];
+    const low = match[3];
+    const high = match[4];
+    const ideal = match[5];
+    rows.push(`${title}, $${asking} asking, sell range ${low}-${high}, ideal $${ideal}`);
+  }
+
+  if (rows.length === 0) return null;
+
+  if (totalsAsking || totalsRange || totalsIdeal) {
+    rows.push(`Total: ${totalsAsking || 'Unknown'} asking, sell range ${totalsRange || 'Unknown'}, ideal ${totalsIdeal || 'Unknown'}`);
+  }
+
+  const fragment = document.createDocumentFragment();
+  for (const row of rows) {
+    fragment.appendChild(buildTextBlock('p', row));
+  }
+  return fragment;
 }
 
 function formatAiSummary(text: string, options?: { isMulti?: boolean }): DocumentFragment {
@@ -329,6 +371,23 @@ function renderRecord(record: ListingRecordResponse): void {
   if (descriptionEl) {
     const description = normalizeValue(fields.description);
     descriptionEl.textContent = description === '—' ? 'No description available.' : description;
+  }
+
+  if (multiBlockEl && multiEl) {
+    const summary = getAiSummary(fields);
+    const isMulti = isMultiValue(fields.IsMulti);
+    multiEl.innerHTML = '';
+    if (isMulti && summary !== '—') {
+      const formatted = formatMultiSummary(summary);
+      if (formatted) {
+        multiBlockEl.classList.remove('hidden');
+        multiEl.appendChild(formatted);
+      } else {
+        multiBlockEl.classList.add('hidden');
+      }
+    } else {
+      multiBlockEl.classList.add('hidden');
+    }
   }
 
   if (aiEl) {

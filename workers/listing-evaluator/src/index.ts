@@ -898,8 +898,7 @@ async function handleWebhook(request: Request, env: Env, ctx: ExecutionContext):
     return jsonResponse({ message: 'Missing run ID.' }, 400);
   }
 
-  ctx.waitUntil(processRun(runId, resource, eventType, env));
-
+  await processRun(runId, resource, eventType, env);
   return jsonResponse({ ok: true });
 }
 
@@ -1128,7 +1127,10 @@ async function processRun(runId: string, resource: any, eventType: string | unde
   const listing = normalizeListing(items[0]);
   const recordId = await env.LISTING_JOBS.get(runId);
   const isMulti = recordId ? await getIsMultiFromRecord(recordId, env) : false;
-  const aiResponse = await runOpenAI(listing, env, { isMulti });
+  let aiResponse = await runOpenAI(listing, env, { isMulti });
+  if (isMulti) {
+    aiResponse = ensureMultiTotals(aiResponse);
+  }
 
   await updateRowByRunId(runId, {
     runId,
@@ -1635,6 +1637,9 @@ async function updateRowByRunId(runId: string, updates: {
     const computedScore = privateParty && asking != null ? computeScore(asking, privateParty.low, privateParty.high) : null;
     const score = aiScore ?? computedScore;
     const summaryChunks = splitAiSummary(updates.aiSummary ?? null);
+    if (updates.aiSummary) {
+      console.info('AI summary split', { length: updates.aiSummary.length, chunks: summaryChunks.length });
+    }
     const fields: Record<string, unknown> = {
       status: updates.status ?? null,
       title: updates.title ?? null,
@@ -2081,9 +2086,74 @@ function extractMultiIdealTotal(aiSummary: string): number | null {
   return parseMoney(match[1]);
 }
 
+function ensureMultiTotals(aiSummary: string): string {
+  if (!aiSummary || /(^|\n)Totals\s*:?\s*$/im.test(aiSummary)) return aiSummary;
+
+  const recapIndex = aiSummary.search(/(^|\n)Itemized recap\s*:?\s*$/im);
+  if (recapIndex === -1) {
+    const fallbackTotals = [
+      '',
+      'Totals',
+      '- Total listing asking price: Unknown',
+      '- Used market range for all: Unknown',
+      '- Ideal price for all: Unknown',
+      '',
+    ].join('\n');
+    return `${aiSummary.trim()}\n${fallbackTotals}`.trim();
+  }
+
+  const lines = aiSummary.slice(recapIndex).split(/\r?\n/);
+  const itemLinePattern = /-\s+.+?\s+-\s+\$?([\d,]+)\s+asking,\s+used range\s+\$?([\d,]+)\s+to\s+\$?([\d,]+),\s+\$?([\d,]+)\s+ideal/i;
+
+  let askingTotal = 0;
+  let usedLowTotal = 0;
+  let usedHighTotal = 0;
+  let idealTotal = 0;
+  let found = 0;
+
+  for (const line of lines) {
+    if (/^Totals\s*:?\s*$/i.test(line.trim())) break;
+    const match = line.match(itemLinePattern);
+    if (!match) continue;
+    const asking = parseMoney(match[1]);
+    const usedLow = parseMoney(match[2]);
+    const usedHigh = parseMoney(match[3]);
+    const ideal = parseMoney(match[4]);
+    if (asking == null || usedLow == null || usedHigh == null || ideal == null) continue;
+    askingTotal += asking;
+    usedLowTotal += usedLow;
+    usedHighTotal += usedHigh;
+    idealTotal += ideal;
+    found += 1;
+  }
+
+  if (found === 0) {
+    const fallbackTotals = [
+      '',
+      'Totals',
+      '- Total listing asking price: Unknown',
+      '- Used market range for all: Unknown',
+      '- Ideal price for all: Unknown',
+      '',
+    ].join('\n');
+    return `${aiSummary.trim()}\n${fallbackTotals}`.trim();
+  }
+
+  const totalsSection = [
+    '',
+    'Totals',
+    `- Total listing asking price: ${formatCurrency(askingTotal)}`,
+    `- Used market range for all: ${formatCurrency(usedLowTotal)} to ${formatCurrency(usedHighTotal)}`,
+    `- Ideal price for all: ${formatCurrency(idealTotal)}`,
+    '',
+  ].join('\n');
+
+  return `${aiSummary.trim()}\n${totalsSection}`.trim();
+}
+
 function splitAiSummary(aiSummary: string | null): string[] {
   if (!aiSummary) return [];
-  const maxChunkSize = 90000;
+  const maxChunkSize = 2000;
   const chunks: string[] = [];
   let remaining = aiSummary;
   while (remaining.length > 0 && chunks.length < 10) {
@@ -2100,6 +2170,9 @@ function splitAiSummary(aiSummary: string | null): string[] {
     }
     chunks.push(remaining.slice(0, splitIndex).trim());
     remaining = remaining.slice(splitIndex).trim();
+  }
+  if (remaining.length > 0 && chunks.length === 10) {
+    console.warn('AI summary truncated after 10 chunks', { remainingLength: remaining.length });
   }
   return chunks;
 }
@@ -2293,7 +2366,7 @@ async function runOpenAI(listing: ListingData, env: Env, options?: { isMulti?: b
         },
       ],
       temperature: 0.4,
-      max_output_tokens: 700,
+      max_output_tokens: 2000,
     }),
   });
 
