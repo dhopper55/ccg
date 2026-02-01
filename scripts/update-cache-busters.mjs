@@ -73,10 +73,70 @@ async function updateHtmlFile(filePath) {
   return changed;
 }
 
-const htmlFiles = await walk(ROOT);
-let updatedCount = 0;
-for (const filePath of htmlFiles) {
-  if (await updateHtmlFile(filePath)) updatedCount += 1;
+function isRelativeUrl(url) {
+  return url.startsWith('./') || url.startsWith('../');
 }
 
-console.log(`Cache busters updated in ${updatedCount} HTML file(s).`);
+async function updateJsFile(filePath) {
+  const js = await fs.readFile(filePath, 'utf8');
+  let changed = false;
+
+  const updated = js.replace(
+    /(import\s*(?:[^'"]*?\sfrom\s*)?|\bexport\s+[^'"]*?\sfrom\s*|\bimport\s*\()\s*(['"])(\.{1,2}\/[^'"]+?\.js(?:\?[^'"]*)?(?:#[^'"]*)?)\2/g,
+    (match, prefix, quote, rawUrl) => {
+      if (!isRelativeUrl(rawUrl) || isExternalUrl(rawUrl)) return match;
+
+      const [beforeHash, hashPart] = rawUrl.split('#');
+      const [base, query] = beforeHash.split('?');
+      const targetPath = path.join(path.dirname(filePath), base);
+
+      try {
+        const buffer = fsSync.readFileSync(targetPath);
+        const version = versionFromBuffer(buffer);
+        const params = new URLSearchParams(query || '');
+        params.set('version', version);
+        const newUrl = `${base}?${params.toString()}${hashPart ? `#${hashPart}` : ''}`;
+        if (newUrl !== rawUrl) changed = true;
+        return `${prefix}${quote}${newUrl}${quote}`;
+      } catch {
+        return match;
+      }
+    }
+  );
+
+  if (changed) {
+    await fs.writeFile(filePath, updated, 'utf8');
+  }
+
+  return changed;
+}
+
+const htmlFiles = await walk(ROOT);
+let updatedHtmlCount = 0;
+for (const filePath of htmlFiles) {
+  if (await updateHtmlFile(filePath)) updatedHtmlCount += 1;
+}
+
+const distDir = path.join(ROOT, 'dist');
+let updatedJsCount = 0;
+if (fsSync.existsSync(distDir)) {
+  const entries = await fs.readdir(distDir, { withFileTypes: true });
+  const distFiles = [];
+  const distWalk = async (dir) => {
+    const dirEntries = await fs.readdir(dir, { withFileTypes: true });
+    for (const entry of dirEntries) {
+      const entryPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        await distWalk(entryPath);
+      } else if (entry.isFile() && entry.name.endsWith('.js')) {
+        distFiles.push(entryPath);
+      }
+    }
+  };
+  await distWalk(distDir);
+  for (const filePath of distFiles) {
+    if (await updateJsFile(filePath)) updatedJsCount += 1;
+  }
+}
+
+console.log(`Cache busters updated in ${updatedHtmlCount} HTML file(s) and ${updatedJsCount} JS file(s).`);
