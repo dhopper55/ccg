@@ -10,6 +10,7 @@ interface Env {
   AIRTABLE_BASE_ID: string;
   AIRTABLE_TABLE: string;
   AIRTABLE_SEARCH_TABLE: string;
+  AIRTABLE_SYSINFO_TABLE?: string;
   RADAR_FB_SEARCH_URL?: string;
   RADAR_CL_SEARCH_URL?: string;
   RADAR_KEYWORDS?: string;
@@ -50,6 +51,7 @@ const RADAR_MAX_NEW_PER_SOURCE = 5;
 const RADAR_CL_TIMEBOX_MS = 60000;
 const RADAR_MAX_AI_CHECKS_PER_RUN = 0;
 const RADAR_CLASSIFY_BATCH = 3;
+const SYSINFO_TABLE_DEFAULT = 'SysInfo';
 const MST_OFFSET_MINUTES = -7 * 60;
 const RADAR_QUIET_START_HOUR = 23;
 const RADAR_QUIET_END_HOUR = 6;
@@ -235,6 +237,14 @@ async function runRadarIfDue(env: Env): Promise<void> {
 
   let summary = 'Radar run skipped.';
   try {
+    const workerEnabled = await isWorkerEnabled(env);
+    if (workerEnabled === false) {
+      summary = 'Radar run skipped (disabled).';
+      return;
+    }
+    if (workerEnabled === null) {
+      console.warn('SysInfo check failed; proceeding with radar run.');
+    }
     const result = await runRadarScan(env);
     summary = result.summary;
   } catch (error) {
@@ -246,6 +256,36 @@ async function runRadarIfDue(env: Env): Promise<void> {
     await env.LISTING_JOBS.put(RADAR_LAST_RUN_KEY, String(now));
     await env.LISTING_JOBS.put(RADAR_LAST_SUMMARY_KEY, summary);
   }
+}
+
+async function isWorkerEnabled(env: Env): Promise<boolean | null> {
+  const table = env.AIRTABLE_SYSINFO_TABLE || SYSINFO_TABLE_DEFAULT;
+  const params = new URLSearchParams();
+  params.set('pageSize', '1');
+  params.append('fields[]', 'WorkerEnabled');
+
+  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(table)}?${params.toString()}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Airtable sysinfo list failed', {
+      status: response.status,
+      statusText: response.statusText,
+      body: errorText,
+    });
+    return null;
+  }
+
+  const data = await response.json();
+  const record = Array.isArray(data?.records) ? data.records[0] : null;
+  if (!record) return null;
+  return record.fields?.WorkerEnabled === true;
 }
 
 type RadarResult = {

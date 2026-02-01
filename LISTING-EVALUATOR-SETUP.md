@@ -30,6 +30,13 @@ Create a second table for radar search results (e.g., `SearchResults`) with thes
 - is_sponsored (checkbox)
 - archived (checkbox)
 - ai_reason (long text)
+
+Create a `SysInfo` table (same base) with:
+
+- Name (single line text)
+- WorkerEnabled (checkbox)
+
+Add one row. If `WorkerEnabled` is unchecked, the scheduled radar run will skip scraping.
 - seen_at (date/time)
 - ai_checked_at (date/time)
 
