@@ -1819,6 +1819,10 @@ button:active {
 /* ============================================
    ABOUT PAGE STYLES
    ============================================ */
+.policy-container {
+  max-width: 1000px;
+}
+
 .about-container {
   max-width: 800px;
 }
