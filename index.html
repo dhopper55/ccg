@@ -61,6 +61,15 @@
           <p class="tool-description">Decode serial numbers from Gibson, Fender, Epiphone, Taylor, Martin and more. Find out when and where your guitar was made.</p>
         </a>
 
+        
+        <a href="guitar-repair-demo-lesson-videos.html" class="tool-card">
+          <div class="tool-image">
+            <img src="images/icons/book.png" alt="Repair and maintenance videos">
+          </div>
+          <h3 class="tool-title">Repair &amp; Maintenance Videos</h3>
+          <p class="tool-description">See data from our <a href="https://www.youtube.com/@CoalCreekGuitars" target="_blank" rel="noopener noreferrer" class="tool-inline-link">YouTube channel</a> regarding guitar repair/maintenance/upgrade.</p>
+        </a>
+
         <a href="how-to-value-a-used-guitar.html" class="tool-card">
           <div class="tool-image">
             <img src="images/how-to-value/used_value.png" alt="How to value a used guitar">
@@ -208,8 +217,16 @@
 
     <footer class="home-footer">
       <p class="footer-contact"><a href="contact-us.html">Contact Us</a> | <a href="privacy-policy.html">Privacy Policy</a> | <a href="terms-conditions.html">Terms and Conditions</a></p>
-      <p>&copy; 2025 Coal Creek Guitars. All rights reserved.</p>
+      <p>&copy; <span class="footer-year"></span> Coal Creek Guitars. All rights reserved.</p>
     </footer>
   </div>
+  <script>
+    (function() {
+      const year = new Date().getFullYear();
+      document.querySelectorAll('.footer-year').forEach((el) => {
+        el.textContent = year;
+      });
+    })();
+  </script>
 </body>
 </html>

@@ -16,8 +16,8 @@
   <link rel="icon" type="image/png" sizes="32x32" href="images/favicon/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="images/favicon/favicon-16x16.png">
   <link rel="shortcut icon" href="images/favicon/favicon.ico">
-  <title>Coal Creek Video Content</title>
-  <meta name="robots" content="noindex, nofollow">
+  <title>Repair &amp; Maintenance Videos | Coal Creek Guitars</title>
+  
   <link rel="stylesheet" href="styles.css?version=603825">
 </head>
 <body>
@@ -29,7 +29,9 @@
   </nav>
 
   <div class="container listings-container">
-    <h1>Coal Creek Video Content</h1>
+    <h1>Repair &amp; Maintenance Videos</h1>
+
+    <p class="page-subtitle">See data from our <a href="https://www.youtube.com/@CoalCreekGuitars" target="_blank" rel="noopener noreferrer">YouTube channel</a> regarding guitar repair/maintenance/upgrade.</p>
 
     <div id="videos-loading" class="listings-loading">
       <div class="loading-spinner"></div>
@@ -48,10 +50,18 @@
   <footer class="site-footer">
     <div class="footer-content">
       <p class="footer-contact"><a href="contact-us.html">Contact Us</a> | <a href="privacy-policy.html">Privacy Policy</a> | <a href="terms-conditions.html">Terms and Conditions</a></p>
-      <p class="footer-copyright">&copy; 2025 Coal Creek Guitars. All rights reserved.</p>
+      <p class="footer-copyright">&copy; <span class="footer-year"></span> Coal Creek Guitars. All rights reserved.</p>
     </div>
   </footer>
 
   <script type="module" src="dist/videos.js?version=631949"></script>
+  <script>
+    (function() {
+      const year = new Date().getFullYear();
+      document.querySelectorAll('.footer-year').forEach((el) => {
+        el.textContent = year;
+      });
+    })();
+  </script>
 </body>
 </html>

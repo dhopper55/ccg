@@ -64,10 +64,18 @@
   <footer class="site-footer">
     <div class="footer-content">
       <p class="footer-contact"><a href="contact-us.html">Contact Us</a> | <a href="privacy-policy.html">Privacy Policy</a> | <a href="terms-conditions.html">Terms and Conditions</a></p>
-      <p class="footer-copyright">&copy; 2025 Coal Creek Guitars. All rights reserved.</p>
+      <p class="footer-copyright">&copy; <span class="footer-year"></span> Coal Creek Guitars. All rights reserved.</p>
     </div>
   </footer>
 
   <script type="module" src="dist/listings.js?version=447039"></script>
+  <script>
+    (function() {
+      const year = new Date().getFullYear();
+      document.querySelectorAll('.footer-year').forEach((el) => {
+        el.textContent = year;
+      });
+    })();
+  </script>
 </body>
 </html>

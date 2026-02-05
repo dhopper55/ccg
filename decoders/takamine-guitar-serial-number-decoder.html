@@ -164,7 +164,11 @@
 
     <div id="result" class="result-section hidden">
       <h2>Guitar Information</h2>
-      <div id="result-content"></div>
+      <div id="result-content">
+      <div class="decoder-guide-links decoder-guide-links-compact">
+        <a href="../guitar-repair-demo-lesson-videos.html">Repair tips &amp; tutorials</a>
+      </div>
+    </div>
 
       <div class="decoder-guide-links">
         <a href="../how-to-value-a-used-guitar.html">How to Value a Used Guitar</a>
@@ -261,10 +265,18 @@
   <footer class="site-footer">
     <div class="footer-content">
       <p class="footer-contact"><a href="../contact-us.html">Contact Us</a> | <a href="../privacy-policy.html">Privacy Policy</a> | <a href="../terms-conditions.html">Terms and Conditions</a></p>
-      <p class="footer-copyright">&copy; 2025 Coal Creek Guitars. All rights reserved.</p>
+      <p class="footer-copyright">&copy; <span class="footer-year"></span> Coal Creek Guitars. All rights reserved.</p>
     </div>
   </footer>
 
   <script type="module" src="../dist/main.js?version=160956"></script>
+  <script>
+    (function() {
+      const year = new Date().getFullYear();
+      document.querySelectorAll('.footer-year').forEach((el) => {
+        el.textContent = year;
+      });
+    })();
+  </script>
 </body>
 </html>
