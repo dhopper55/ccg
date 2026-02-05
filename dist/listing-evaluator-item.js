@@ -413,7 +413,25 @@ function addSingleRow(label, value, options) {
     }
     else {
         const normalized = normalizeValue(value);
-        detail.textContent = normalized === '—' ? '— (blank)' : normalized;
+        if (normalized === '—') {
+            detail.textContent = '— (blank)';
+        }
+        else {
+            const parts = normalized
+                .split(/\\s*;\\s*|\\r?\\n/g)
+                .map((part) => part.replace(/^[-–—•]+\\s*/g, '').trim())
+                .filter(Boolean);
+            if (parts.length <= 1) {
+                detail.textContent = normalized;
+            }
+            else {
+                parts.forEach((part, index) => {
+                    if (index > 0)
+                        detail.appendChild(document.createElement('br'));
+                    detail.appendChild(document.createTextNode(part));
+                });
+            }
+        }
     }
     singleEl.appendChild(term);
     singleEl.appendChild(detail);
@@ -425,7 +443,7 @@ function addValueWithNote(label, value, note) {
     term.textContent = label;
     const detail = document.createElement('dd');
     detail.textContent = formatCurrencyValue(value);
-    const noteText = normalizeValue(note);
+    const noteText = normalizeValue(note).replace(/^[-–—•]+\\s*/g, '').trim();
     if (noteText !== '—') {
         const noteEl = document.createElement('span');
         noteEl.className = 'inline-note';

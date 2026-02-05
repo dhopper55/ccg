@@ -2028,8 +2028,8 @@ async function updateRowByRunId(runId: string, updates: {
           known_weak_points: ensureDefaultSuffix(updates.aiData.known_weak_points, DEFAULT_TEXT.known_weak_points),
           typical_repair_needs: ensureDefaultSuffix(updates.aiData.typical_repair_needs, DEFAULT_TEXT.typical_repair_needs),
           buyers_worry: ensureDefaultSuffix(updates.aiData.buyers_worry, DEFAULT_TEXT.buyers_worry),
-          og_specs_pickups: normalizeText(updates.aiData.og_specs_pickups, ''),
-          og_specs_tuners: normalizeText(updates.aiData.og_specs_tuners, ''),
+          og_specs_pickups: normalizeText(updates.aiData.og_specs_pickups, 'Unknown'),
+          og_specs_tuners: normalizeText(updates.aiData.og_specs_tuners, 'Unknown'),
           og_specs_common_mods: ensureDefaultSuffix(updates.aiData.og_specs_common_mods, DEFAULT_TEXT.og_specs_common_mods),
           buyer_what_to_check: ensureDefaultSuffix(updates.aiData.buyer_what_to_check, DEFAULT_TEXT.buyer_what_to_check),
           buyer_common_misrepresent: ensureDefaultSuffix(updates.aiData.buyer_common_misrepresent, DEFAULT_TEXT.buyer_common_misrepresent),
@@ -2960,7 +2960,7 @@ Return JSON only with these keys:
 ${SPECIFIC_FIELDS.join(', ')}
 
 Rules:
-- Each field should start with 2–4 short, model-specific bullet points (not paragraphs). Use semicolons to separate bullets.
+- Each field should start with 2–4 short, model-specific bullets (not paragraphs). Use semicolons to separate bullets. Do not use leading dashes or bullet characters.
 - If uncertain, include "(NOT DEFINITIVE)" in the specific text.
 - End each field with "General: <default text>" exactly once.
 Default text:
