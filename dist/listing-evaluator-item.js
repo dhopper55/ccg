@@ -475,6 +475,7 @@ function addSingleRow(label, value, options) {
                 .replace(/[\u061B\uFF1B\uFE54\u037E]/g, ';')
                 .split(/\s*;\s*|\r?\n|\s+[•*-]\s+/g)
                 .map((part) => part.replace(/^[-–—•*]+\s*/g, '').trim())
+                .map((part) => part.replace(/\bUnknown\.?\s*$/i, '').trim())
                 .filter((part) => part.length > 0 && !/^unknown\.?$/i.test(part));
             if (parts.length === 0) {
                 detail.textContent = '';
