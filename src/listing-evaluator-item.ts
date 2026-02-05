@@ -481,10 +481,11 @@ function addSingleRow(label: string, value: unknown, options?: { currency?: bool
       detail.textContent = '— (blank)';
     } else {
       const parts = normalized
-        .replace(/\\bGeneral:\\s*/gi, '')
-        .split(/\\s*[;；﹔؛]\\s*|\\r?\\n|\\s+[•*-]\\s+/g)
-        .map((part) => part.replace(/^[-–—•*]+\\s*/g, '').trim())
-        .filter((part) => part.length > 0 && !/^unknown\\.?$/i.test(part));
+        .replace(/\bGeneral:\s*/gi, '')
+        .replace(/[\u061B\uFF1B\uFE54\u037E]/g, ';')
+        .split(/\s*;\s*|\r?\n|\s+[•*-]\s+/g)
+        .map((part) => part.replace(/^[-–—•*]+\s*/g, '').trim())
+        .filter((part) => part.length > 0 && !/^unknown\.?$/i.test(part));
 
       if (parts.length === 0) {
         detail.textContent = '';
