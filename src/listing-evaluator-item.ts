@@ -26,6 +26,7 @@ const doubleCheckButton = document.getElementById('listing-item-double-check') a
 
 let currentRecordId: string | null = null;
 let isArchiving = false;
+const BUILD_TAG = '2026-02-05a';
 
 const SINGLE_FIELDS: Array<{ key: string; label: string; currency?: boolean }> = [
   { key: 'category', label: 'Category' },
@@ -566,6 +567,7 @@ function extractFirstPhoto(value: unknown): string | null {
 }
 
 function renderRecord(record: ListingRecordResponse): void {
+  document.body.dataset.buildTag = BUILD_TAG;
   const fields = record.fields || {};
   const title = normalizeValue(fields.title);
   const askingPrice = formatCurrencyValue(fields.price_asking);

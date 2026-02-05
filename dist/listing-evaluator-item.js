@@ -17,6 +17,7 @@ const copyButton = document.getElementById('listing-item-copy');
 const doubleCheckButton = document.getElementById('listing-item-double-check');
 let currentRecordId = null;
 let isArchiving = false;
+const BUILD_TAG = '2026-02-05a';
 const SINGLE_FIELDS = [
     { key: 'category', label: 'Category' },
     { key: 'brand', label: 'Brand' },
@@ -562,6 +563,7 @@ function extractFirstPhoto(value) {
     return null;
 }
 function renderRecord(record) {
+    document.body.dataset.buildTag = BUILD_TAG;
     const fields = record.fields || {};
     const title = normalizeValue(fields.title);
     const askingPrice = formatCurrencyValue(fields.price_asking);
