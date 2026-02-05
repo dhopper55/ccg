@@ -402,6 +402,33 @@ function addMetaRow(label, value) {
     metaEl.appendChild(term);
     metaEl.appendChild(detail);
 }
+function addMetaIconRow(label, value) {
+    if (!metaEl)
+        return;
+    const term = document.createElement('dt');
+    term.textContent = label;
+    const detail = document.createElement('dd');
+    const normalized = (value || '').trim().toLowerCase();
+    const img = document.createElement('img');
+    img.className = 'source-icon';
+    if (normalized === 'craigslist' || normalized === 'cg' || normalized.includes('craigslist')) {
+        img.src = 'images/cl.png';
+        img.alt = 'Craigslist';
+    }
+    else if (normalized === 'facebook' || normalized === 'fbm' || normalized.includes('facebook')) {
+        img.src = 'images/fb.png';
+        img.alt = 'Facebook Marketplace';
+    }
+    else {
+        detail.textContent = normalizeValue(value);
+        metaEl.appendChild(term);
+        metaEl.appendChild(detail);
+        return;
+    }
+    detail.appendChild(img);
+    metaEl.appendChild(term);
+    metaEl.appendChild(detail);
+}
 function addSingleRow(label, value, options) {
     if (!singleEl)
         return;
@@ -512,14 +539,19 @@ function renderRecord(record) {
     }
     if (metaEl)
         metaEl.innerHTML = '';
-    addMetaRow('Status', fields.status);
-    addMetaRow('Source', formatSourceLabel(fields.source));
+    addMetaIconRow('Source', typeof fields.source === 'string' ? fields.source : '');
     addMetaRow('Submitted', formatSubmittedAt(fields.submitted_at));
-    addMetaRow('Listing URL', fields.url);
     addMetaRow('Asking Price', formatCurrencyValue(fields.price_asking));
-    addMetaRow('Private Party Range', fields.price_private_party);
-    addMetaRow('Ideal Price', formatCurrencyValue(fields.price_ideal));
-    addMetaRow('Score', formatScoreValue(fields.score));
+    const lowValue = parseMoneyValue(String(fields.value_private_party_low ?? ''));
+    const highValue = parseMoneyValue(String(fields.value_private_party_high ?? ''));
+    const privateRange = lowValue != null && highValue != null
+        ? `${formatCurrencyValue(lowValue)}–${formatCurrencyValue(highValue)}`
+        : normalizeValue(fields.price_private_party);
+    addMetaRow('Private Party Range', privateRange);
+    const idealFromField = formatCurrencyValue(fields.price_ideal);
+    const idealFromLow = lowValue != null ? formatCurrencyValue(Math.round(lowValue * 0.8)) : '';
+    const idealValue = idealFromField ? idealFromField : (idealFromLow || '—');
+    addMetaRow('Ideal Price', idealValue);
     addMetaRow('Location', fields.location);
     if (thumbnailEl && mediaEl) {
         const photoUrl = extractFirstPhoto(fields.photos);

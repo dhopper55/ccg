@@ -2414,6 +2414,13 @@ button:active {
   font-size: 0.85rem;
 }
 
+.source-icon {
+  width: 22px;
+  height: 22px;
+  display: inline-block;
+  object-fit: contain;
+}
+
 .empty-section {
   margin: 16px 0;
   color: var(--text-muted);

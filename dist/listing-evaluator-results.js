@@ -9,15 +9,23 @@ let currentOffset = null;
 let nextOffset = null;
 let pageIndex = 1;
 const offsetHistory = [];
-function formatSourceLabel(value) {
+function buildSourceIcon(value) {
     if (!value)
-        return '—';
+        return null;
     const normalized = value.trim().toLowerCase();
-    if (normalized === 'facebook' || normalized === 'fbm' || normalized.includes('facebook'))
-        return 'FBM';
-    if (normalized === 'craigslist' || normalized === 'cg' || normalized.includes('craigslist'))
-        return 'CG';
-    return value;
+    const img = document.createElement('img');
+    img.className = 'source-icon';
+    if (normalized === 'facebook' || normalized === 'fbm' || normalized.includes('facebook')) {
+        img.src = 'images/fb.png';
+        img.alt = 'Facebook Marketplace';
+        return img;
+    }
+    if (normalized === 'craigslist' || normalized === 'cg' || normalized.includes('craigslist')) {
+        img.src = 'images/cl.png';
+        img.alt = 'Craigslist';
+        return img;
+    }
+    return null;
 }
 function formatCurrencyValue(value) {
     if (value == null)
@@ -34,21 +42,6 @@ function formatCurrencyValue(value) {
     if (Number.isFinite(numeric)) {
         return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(numeric);
     }
-    return trimmed;
-}
-function formatScoreValue(value) {
-    if (value == null)
-        return '—';
-    if (typeof value === 'number' && Number.isFinite(value))
-        return `${value}/10`;
-    const trimmed = String(value).trim();
-    if (!trimmed)
-        return '—';
-    if (trimmed.includes('/10'))
-        return trimmed;
-    const numeric = Number.parseInt(trimmed, 10);
-    if (Number.isFinite(numeric))
-        return `${numeric}/10`;
     return trimmed;
 }
 function setLoading(isLoading) {
@@ -92,26 +85,16 @@ function renderRows(records) {
         titleLink.textContent = asking ? `${titleText} (${asking})` : titleText;
         titleLink.className = 'listing-item-link';
         titleCell.appendChild(titleLink);
-        const scoreCell = document.createElement('td');
-        scoreCell.textContent = `(${formatScoreValue(record.score)})`;
         const sourceCell = document.createElement('td');
-        sourceCell.textContent = formatSourceLabel(record.source);
-        const urlCell = document.createElement('td');
-        if (record.url) {
-            const openLink = document.createElement('a');
-            openLink.href = record.url;
-            openLink.textContent = 'Open';
-            openLink.target = '_blank';
-            openLink.rel = 'noopener';
-            urlCell.appendChild(openLink);
+        const sourceIcon = buildSourceIcon(record.source);
+        if (sourceIcon) {
+            sourceCell.appendChild(sourceIcon);
         }
         else {
-            urlCell.textContent = '—';
+            sourceCell.textContent = '—';
         }
         row.appendChild(titleCell);
-        row.appendChild(scoreCell);
         row.appendChild(sourceCell);
-        row.appendChild(urlCell);
         tableBody.appendChild(row);
     });
 }

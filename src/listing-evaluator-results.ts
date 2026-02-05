@@ -5,7 +5,6 @@ type ListingListItem = {
   status?: string;
   title?: string;
   askingPrice?: number | string;
-  score?: number | string;
 };
 
 export {};
@@ -30,12 +29,22 @@ let nextOffset: string | null = null;
 let pageIndex = 1;
 const offsetHistory: Array<string | null> = [];
 
-function formatSourceLabel(value: string | undefined): string {
-  if (!value) return '—';
+function buildSourceIcon(value: string | undefined): HTMLElement | null {
+  if (!value) return null;
   const normalized = value.trim().toLowerCase();
-  if (normalized === 'facebook' || normalized === 'fbm' || normalized.includes('facebook')) return 'FBM';
-  if (normalized === 'craigslist' || normalized === 'cg' || normalized.includes('craigslist')) return 'CG';
-  return value;
+  const img = document.createElement('img');
+  img.className = 'source-icon';
+  if (normalized === 'facebook' || normalized === 'fbm' || normalized.includes('facebook')) {
+    img.src = 'images/fb.png';
+    img.alt = 'Facebook Marketplace';
+    return img;
+  }
+  if (normalized === 'craigslist' || normalized === 'cg' || normalized.includes('craigslist')) {
+    img.src = 'images/cl.png';
+    img.alt = 'Craigslist';
+    return img;
+  }
+  return null;
 }
 
 function formatCurrencyValue(value: number | string | undefined): string {
@@ -50,17 +59,6 @@ function formatCurrencyValue(value: number | string | undefined): string {
   if (Number.isFinite(numeric)) {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(numeric);
   }
-  return trimmed;
-}
-
-function formatScoreValue(value: number | string | undefined): string {
-  if (value == null) return '—';
-  if (typeof value === 'number' && Number.isFinite(value)) return `${value}/10`;
-  const trimmed = String(value).trim();
-  if (!trimmed) return '—';
-  if (trimmed.includes('/10')) return trimmed;
-  const numeric = Number.parseInt(trimmed, 10);
-  if (Number.isFinite(numeric)) return `${numeric}/10`;
   return trimmed;
 }
 
@@ -109,28 +107,16 @@ function renderRows(records: ListingListItem[]): void {
     titleLink.className = 'listing-item-link';
     titleCell.appendChild(titleLink);
 
-    const scoreCell = document.createElement('td');
-    scoreCell.textContent = `(${formatScoreValue(record.score)})`;
-
     const sourceCell = document.createElement('td');
-    sourceCell.textContent = formatSourceLabel(record.source);
-
-    const urlCell = document.createElement('td');
-    if (record.url) {
-      const openLink = document.createElement('a');
-      openLink.href = record.url;
-      openLink.textContent = 'Open';
-      openLink.target = '_blank';
-      openLink.rel = 'noopener';
-      urlCell.appendChild(openLink);
+    const sourceIcon = buildSourceIcon(record.source);
+    if (sourceIcon) {
+      sourceCell.appendChild(sourceIcon);
     } else {
-      urlCell.textContent = '—';
+      sourceCell.textContent = '—';
     }
 
     row.appendChild(titleCell);
-    row.appendChild(scoreCell);
     row.appendChild(sourceCell);
-    row.appendChild(urlCell);
 
     tableBody.appendChild(row);
   });
