@@ -480,11 +480,11 @@ function addSingleRow(label: string, value: unknown, options?: { currency?: bool
     if (normalized === '—') {
       detail.textContent = '— (blank)';
     } else {
-      const hasSemicolons = normalized.includes(';');
+      const hasSemicolons = normalized.includes(';') || normalized.includes('؛');
       const parts = normalized
-        .split(/\\s*;\\s*|\\r?\\n/g)
+        .split(/\\s*[;؛]\\s*|\\r?\\n/g)
         .map((part) => part.replace(/^[-–—•]+\\s*/g, '').trim())
-        .map((part) => part.replace(/^General:\\s*/i, '').trim())
+        .map((part) => part.replace(/\\bGeneral:\\s*/i, '').trim())
         .filter((part) => part.length > 0 && !/^unknown\\.?$/i.test(part));
 
       if (parts.length === 0) {
