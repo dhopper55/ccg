@@ -1319,7 +1319,22 @@ async function processRun(runId: string, resource: any, eventType: string | unde
   }
   const isMulti = recordId ? await getIsMultiFromRecord(recordId, env) : false;
   const aiResult = await runOpenAI(listing, env, { isMulti });
-  const aiSummary = aiResult.kind === 'multi' ? ensureMultiTotals(aiResult.summary) : '';
+  let aiSummary = aiResult.kind === 'multi' ? ensureMultiTotals(aiResult.summary) : '';
+  let aiData = aiResult.kind === 'single' ? aiResult.data : undefined;
+
+  if (aiResult.kind === 'single' && aiData && needsPrivatePartyFallback(aiData)) {
+    const fallback = await runOpenAIPrivatePartyFallback(listing, aiData, env);
+    if (fallback) {
+      aiData = { ...aiData, ...stripEmptyFallback(fallback) };
+    }
+  }
+
+  if (aiResult.kind === 'multi' && !extractMultiPrivatePartyRange(aiSummary)) {
+    const fallback = await runOpenAIMultiRangeFallback(listing, aiSummary, env);
+    if (fallback) {
+      aiSummary = applyMultiRangeToSummary(aiSummary, fallback.low, fallback.high);
+    }
+  }
 
   await updateRowByRunId(runId, {
     runId,
@@ -1331,7 +1346,7 @@ async function processRun(runId: string, resource: any, eventType: string | unde
     description: listing.description,
     photos: listing.images.join('\n'),
     aiSummary,
-    aiData: aiResult.kind === 'single' ? aiResult.data : undefined,
+    aiData,
     notes: listing.notes,
   }, env, { recordId, isMulti });
 }
@@ -2730,8 +2745,8 @@ async function runOpenAI(listing: ListingData, env: Env, options?: { isMulti?: b
     : `You are an expert used gear buyer and appraiser focused on music gear. Provide structured output for a SINGLE item using the exact JSON schema provided. If details are missing, be clear about uncertainty. Avoid hype.`;
 
   const userPrompt = isMulti
-    ? `Listing title: ${listing.title || 'Unknown'}\nListing description: ${listing.description || 'Not provided'}\nAsking price: ${listing.price || 'Unknown'}\nLocation: ${listing.location || 'Unknown'}\n\nThis is a multi-item listing. Identify each distinct item for sale based on photos and description. For EACH item, output the same section format below, one item after another (no merged sections). If you cannot identify an item clearly, note it as \"Unknown item\" and explain why. If an item has no explicit asking price, write \"Asking price (from listing text): Unknown\" in that item. The ideal buy price is the LOW end of the used range minus 20%.\n\nAfter the last item, include TWO additional sections exactly as labeled below:\n\nItemized recap\n- Item name - $X asking, used range $Y to $Z, $W ideal (use \"Unknown\" if missing)\n\nTotals\n- Total listing asking price: $X (or \"Unknown\")\n- Used market range for all: $Y to $Z (or \"Unknown\")\n- Ideal price for all: $W (20% below used range low end; or \"Unknown\")\n\nUse this format for EACH item (plain bullet points, no extra dashes or nested bullet markers):\n\nWhat it appears to be\n- Make/model/variant\n- Estimated year or range (if possible; otherwise \"Year: Not enough info\")\n- Estimated condition from photos (or \"Condition from photos: Inconclusive\")\n- Notable finish/features\n\nPrices\n- Typical private-party value: $X–$Y\n- Music store pricing: $X–$Y\n- New price: $X (append \"(no longer available)\" if discontinued); or \"Unknown\" if you cannot determine\n- Ideal buy price: $X (20% below used range low end)\n\n- Adds Value: include one specific, model-relevant value add if it exists; avoid generic condition/finish statements; otherwise omit this line entirely\n\nHow long to sell\n- If put up for sale at the higher end of the used price range ($X), it will take about N–N weeks to sell to a local buyer, and perhaps N weeks to sell to an online buyer (Reverb.com).\n- If you cannot reasonably estimate, output exactly: Not enough data available.\n\nScore\n- Score: X/10 (resell potential based on ask vs realistic value, condition, and included extras)\n\nBottom line\n- Realistic value range\n- Asking price (from listing text): $X or \"Unknown\"\n- Buy/skip note\n- Any missing info to tighten valuation\n`
-    : `Listing title: ${listing.title || 'Unknown'}\nListing description: ${listing.description || 'Not provided'}\nAsking price: ${listing.price || 'Unknown'}\nLocation: ${listing.location || 'Unknown'}\n\nThis is a SINGLE item. Use the JSON schema provided to respond. Do not include any additional keys. Use these rules:\n- category must be one of: ${CATEGORY_OPTIONS.join(', ')}. Use \"Other\" if unsure.\n- condition must be one of: ${CONDITION_OPTIONS.join(', ')}.\n- brand/model should be \"Unknown\" only if truly impossible. If inferred, append \" (NOT DEFINITIVE)\" in caps.\n- finish: if unknown, guess a color and prefix with \"Guess: \".\n- year: avoid \"Unknown\". Prefer a specific year or a tight range (<= 10-15 years). If only a broad era is possible, provide a range and mark \"(NOT DEFINITIVE)\".\n- serial: only if identified from photos or description; otherwise blank.\n- serial_brand/year/model: only if serial is provided; otherwise blank.\n- value_private_party_low/medium/high: numeric or string values.\n- value_pawn_shop_notes must be less than private party low.\n- value_online_notes must mention marketplace fees and risks (shipping, buyer can't try before buying).\n- og_specs_pickups/og_specs_tuners: provide the most likely stock spec for this model; if unknown use \"Unknown\".\n- asking_price: include parsed asking price if provided (numeric if possible).\n\nModel-specific detail requirements (must be specific to this model/brand/year when possible):\n- known_weak_points, typical_repair_needs, buyers_worry, og_specs_common_mods, buyer_what_to_check, buyer_common_misrepresent, seller_how_to_price_realistic, seller_fixes_add_value_or_waste, seller_as_is_notes.\n- For each field above, start with model-specific info (at least 1–2 sentences), then END with the default text below exactly as written, prefixed by \"General: \".\n- If no model-specific info is available, still include \"General: ...\" only.\n\nDefault text (use verbatim at the end of each field listed above):\n- known_weak_points: \"Potential issues with electronics or hardware over time.\"\n- typical_repair_needs: \"Possible need for setup adjustments or electronics cleaning.\"\n- buyers_worry: \"Check for neck straightness and electronics functionality.\"\n- og_specs_common_mods: \"Common mods vary; verify originality and parts.\"\n- buyer_what_to_check: \"Inspect electronics, neck relief, fret wear, and hardware function.\"\n- buyer_common_misrepresent: \"Watch for misrepresented year, model, or replaced parts.\"\n- seller_how_to_price_realistic: \"Price realistically by comparing recent sales in similar condition.\"\n- seller_fixes_add_value_or_waste: \"Minor setup and cleaning can help; major repairs may not pay off.\"\n- seller_as_is_notes: \"Sell as-is if repair costs exceed value gains.\"\n`;
+    ? `Listing title: ${listing.title || 'Unknown'}\nListing description: ${listing.description || 'Not provided'}\nAsking price: ${listing.price || 'Unknown'}\nLocation: ${listing.location || 'Unknown'}\n\nThis is a multi-item listing. Identify each distinct item for sale based on photos and description. For EACH item, output the same section format below, one item after another (no merged sections). If you cannot identify an item clearly, note it as \"Unknown item\" and explain why. If an item has no explicit asking price, write \"Asking price (from listing text): Unknown\" in that item. The ideal buy price is the LOW end of the used range minus 20%.\n\nIMPORTANT: Do NOT use asking price to compute any market value ranges. Asking price is for context only.\n\nAfter the last item, include TWO additional sections exactly as labeled below:\n\nItemized recap\n- Item name - $X asking, used range $Y to $Z, $W ideal (use \"Unknown\" if missing)\n\nTotals\n- Total listing asking price: $X (or \"Unknown\")\n- Used market range for all: $Y to $Z (or \"Unknown\")\n- Ideal price for all: $W (20% below used range low end; or \"Unknown\")\n\nUse this format for EACH item (plain bullet points, no extra dashes or nested bullet markers):\n\nWhat it appears to be\n- Make/model/variant\n- Estimated year or range (if possible; otherwise \"Year: Not enough info\")\n- Estimated condition from photos (or \"Condition from photos: Inconclusive\")\n- Notable finish/features\n\nPrices\n- Typical private-party value: $X–$Y\n- Music store pricing: $X–$Y\n- New price: $X (append \"(no longer available)\" if discontinued); or \"Unknown\" if you cannot determine\n- Ideal buy price: $X (20% below used range low end)\n\n- Adds Value: include one specific, model-relevant value add if it exists; avoid generic condition/finish statements; otherwise omit this line entirely\n\nHow long to sell\n- If put up for sale at the higher end of the used price range ($X), it will take about N–N weeks to sell to a local buyer, and perhaps N weeks to sell to an online buyer (Reverb.com).\n- If you cannot reasonably estimate, output exactly: Not enough data available.\n\nScore\n- Score: X/10 (resell potential based on ask vs realistic value, condition, and included extras)\n\nBottom line\n- Realistic value range\n- Asking price (from listing text): $X or \"Unknown\"\n- Buy/skip note\n- Any missing info to tighten valuation\n`
+    : `Listing title: ${listing.title || 'Unknown'}\nListing description: ${listing.description || 'Not provided'}\nAsking price: ${listing.price || 'Unknown'}\nLocation: ${listing.location || 'Unknown'}\n\nThis is a SINGLE item. Use the JSON schema provided to respond. Do not include any additional keys. Use these rules:\n- category must be one of: ${CATEGORY_OPTIONS.join(', ')}. Use \"Other\" if unsure.\n- condition must be one of: ${CONDITION_OPTIONS.join(', ')}.\n- brand/model should be \"Unknown\" only if truly impossible. If inferred, append \" (NOT DEFINITIVE)\" in caps.\n- finish: if unknown, guess a color and prefix with \"Guess: \".\n- year: avoid \"Unknown\". Prefer a specific year or a tight range (<= 10-15 years). If only a broad era is possible, provide a range and mark \"(NOT DEFINITIVE)\".\n- serial: only if identified from photos or description; otherwise blank.\n- serial_brand/year/model: only if serial is provided; otherwise blank.\n- value_private_party_low/medium/high: numeric or string values.\n- value_pawn_shop_notes must be less than private party low.\n- value_online_notes must mention marketplace fees and risks (shipping, buyer can't try before buying).\n- og_specs_pickups/og_specs_tuners: provide the most likely stock spec for this model; if unknown use \"Unknown\".\n- asking_price: include parsed asking price if provided (numeric if possible).\n- Do NOT use asking price to compute any market value ranges; asking price is for context only.\n\nModel-specific detail requirements (must be specific to this model/brand/year when possible):\n- known_weak_points, typical_repair_needs, buyers_worry, og_specs_common_mods, buyer_what_to_check, buyer_common_misrepresent, seller_how_to_price_realistic, seller_fixes_add_value_or_waste, seller_as_is_notes.\n- For each field above, start with model-specific info (at least 1–2 sentences), then END with the default text below exactly as written, prefixed by \"General: \".\n- If no model-specific info is available, still include \"General: ...\" only.\n\nDefault text (use verbatim at the end of each field listed above):\n- known_weak_points: \"Potential issues with electronics or hardware over time.\"\n- typical_repair_needs: \"Possible need for setup adjustments or electronics cleaning.\"\n- buyers_worry: \"Check for neck straightness and electronics functionality.\"\n- og_specs_common_mods: \"Common mods vary; verify originality and parts.\"\n- buyer_what_to_check: \"Inspect electronics, neck relief, fret wear, and hardware function.\"\n- buyer_common_misrepresent: \"Watch for misrepresented year, model, or replaced parts.\"\n- seller_how_to_price_realistic: \"Price realistically by comparing recent sales in similar condition.\"\n- seller_fixes_add_value_or_waste: \"Minor setup and cleaning can help; major repairs may not pay off.\"\n- seller_as_is_notes: \"Sell as-is if repair costs exceed value gains.\"\n`;
 
   if (!env.OPENAI_API_KEY) {
     console.error('OpenAI API key missing');
@@ -3028,6 +3043,195 @@ seller_as_is_notes: ${DEFAULT_TEXT.seller_as_is_notes}
   } catch {
     return base;
   }
+}
+
+function needsPrivatePartyFallback(aiData: SingleAiResult): boolean {
+  const low = normalizeMoneyValue(aiData.value_private_party_low);
+  const medium = normalizeMoneyValue(aiData.value_private_party_medium);
+  const high = normalizeMoneyValue(aiData.value_private_party_high);
+  return low == null || medium == null || high == null;
+}
+
+function stripEmptyFallback(fallback: Partial<SingleAiResult>): Partial<SingleAiResult> {
+  const cleaned: Partial<SingleAiResult> = {};
+  for (const [key, value] of Object.entries(fallback)) {
+    if (value == null) continue;
+    if (typeof value === 'string' && value.trim().length === 0) continue;
+    (cleaned as Record<string, unknown>)[key] = value;
+  }
+  return cleaned;
+}
+
+async function runOpenAIPrivatePartyFallback(
+  listing: ListingData,
+  base: SingleAiResult,
+  env: Env
+): Promise<Partial<SingleAiResult> | null> {
+  if (!env.OPENAI_API_KEY) return null;
+
+  const maxImages = Number.parseInt(env.MAX_IMAGES || '3', 10);
+  const images = listing.images.slice(0, Number.isFinite(maxImages) ? maxImages : 3);
+
+  const prompt = `You are an expert used gear buyer and appraiser focused on music gear. Provide ONLY JSON using the schema below.
+
+Listing title: ${listing.title || 'Unknown'}
+Listing description: ${listing.description || 'Not provided'}
+Asking price: ${listing.price || 'Unknown'}
+Location: ${listing.location || 'Unknown'}
+
+Known/inferred details from a prior pass:
+- Category: ${base.category || 'Unknown'}
+- Brand: ${base.brand || 'Unknown'}
+- Model: ${base.model || 'Unknown'}
+- Year: ${base.year || 'Unknown'}
+- Condition: ${base.condition || 'Unknown'}
+- Finish: ${base.finish || 'Unknown'}
+
+Task:
+- Estimate realistic private-party market values (low, medium, high) for this item based on typical used market value.
+- Do NOT use asking price to compute these values. Asking price is for context only.
+- If uncertain, estimate from comparable models.
+- Use realistic numbers; do not round to the nearest 50/100 unless that is the most realistic value.
+`;
+
+  const content: any[] = [{ type: 'input_text', text: prompt }];
+  for (const imageUrl of images) {
+    content.push({ type: 'input_image', image_url: imageUrl });
+  }
+
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      input: [{ role: 'user', content }],
+      temperature: 0.2,
+      max_output_tokens: 800,
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'private_party_fallback',
+          schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              value_private_party_low: { type: ['number', 'string', 'null'] },
+              value_private_party_low_notes: { type: 'string' },
+              value_private_party_medium: { type: ['number', 'string', 'null'] },
+              value_private_party_medium_notes: { type: 'string' },
+              value_private_party_high: { type: ['number', 'string', 'null'] },
+              value_private_party_high_notes: { type: 'string' },
+            },
+            required: [
+              'value_private_party_low',
+              'value_private_party_low_notes',
+              'value_private_party_medium',
+              'value_private_party_medium_notes',
+              'value_private_party_high',
+              'value_private_party_high_notes',
+            ],
+          },
+        },
+      },
+    }),
+  });
+
+  if (!response.ok) return null;
+  const data = await response.json();
+  const text = extractOpenAIText(data);
+  try {
+    const parsed = JSON.parse(text) as Partial<SingleAiResult>;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+async function runOpenAIMultiRangeFallback(
+  listing: ListingData,
+  aiSummary: string,
+  env: Env
+): Promise<{ low: number; high: number } | null> {
+  if (!env.OPENAI_API_KEY) return null;
+
+  const maxImages = Number.parseInt(env.MAX_IMAGES || '3', 10);
+  const images = listing.images.slice(0, Number.isFinite(maxImages) ? maxImages : 3);
+
+  const prompt = `You are an expert used gear buyer and appraiser focused on music gear. Provide ONLY JSON using the schema below.
+
+Listing title: ${listing.title || 'Unknown'}
+Listing description: ${listing.description || 'Not provided'}
+Asking price: ${listing.price || 'Unknown'}
+Location: ${listing.location || 'Unknown'}
+
+Prior analysis (may be incomplete):
+${aiSummary || 'Not provided'}
+
+Task:
+- Estimate the combined private-party used market range (low/high total) for ALL items in this listing.
+- Do NOT use asking price to compute these values. Asking price is for context only.
+- If uncertain, estimate from comparable models and typical bundles.
+- Use realistic numbers; do not round to the nearest 50/100 unless that is the most realistic value.
+`;
+
+  const content: any[] = [{ type: 'input_text', text: prompt }];
+  for (const imageUrl of images) {
+    content.push({ type: 'input_image', image_url: imageUrl });
+  }
+
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      input: [{ role: 'user', content }],
+      temperature: 0.2,
+      max_output_tokens: 600,
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'multi_range_fallback',
+          schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              used_market_low_total: { type: ['number', 'string', 'null'] },
+              used_market_high_total: { type: ['number', 'string', 'null'] },
+            },
+            required: ['used_market_low_total', 'used_market_high_total'],
+          },
+        },
+      },
+    }),
+  });
+
+  if (!response.ok) return null;
+  const data = await response.json();
+  const text = extractOpenAIText(data);
+  try {
+    const parsed = JSON.parse(text) as { used_market_low_total?: unknown; used_market_high_total?: unknown };
+    const low = normalizeMoneyValue(parsed.used_market_low_total);
+    const high = normalizeMoneyValue(parsed.used_market_high_total);
+    if (low == null || high == null) return null;
+    return low <= high ? { low, high } : { low: high, high: low };
+  } catch {
+    return null;
+  }
+}
+
+function applyMultiRangeToSummary(aiSummary: string, low: number, high: number): string {
+  const withTotals = ensureMultiTotals(aiSummary);
+  const line = `- Used market range for all: ${formatCurrency(low)} to ${formatCurrency(high)}`;
+  if (/- Used market range for all:[^\n]*/i.test(withTotals)) {
+    return withTotals.replace(/- Used market range for all:[^\n]*/i, line);
+  }
+  return `${withTotals.trim()}\n${line}`.trim();
 }
 
 function extractOpenAIText(response: any): string {
