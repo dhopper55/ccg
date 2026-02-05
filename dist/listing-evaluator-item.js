@@ -470,21 +470,13 @@ function addSingleRow(label, value, options) {
             detail.textContent = '— (blank)';
         }
         else {
-            const hasSemicolons = normalized.includes(';') || normalized.includes('؛');
             const parts = normalized
-                .split(/\\s*[;؛]\\s*|\\r?\\n/g)
-                .map((part) => part.replace(/^[-–—•]+\\s*/g, '').trim())
-                .map((part) => part.replace(/\\bGeneral:\\s*/i, '').trim())
+                .replace(/\\bGeneral:\\s*/gi, '')
+                .split(/\\s*[;；﹔؛]\\s*|\\r?\\n|\\s+[•*-]\\s+/g)
+                .map((part) => part.replace(/^[-–—•*]+\\s*/g, '').trim())
                 .filter((part) => part.length > 0 && !/^unknown\\.?$/i.test(part));
             if (parts.length === 0) {
                 detail.textContent = '';
-            }
-            else if (hasSemicolons) {
-                parts.forEach((part, index) => {
-                    if (index > 0)
-                        detail.appendChild(document.createElement('br'));
-                    detail.appendChild(document.createTextNode(`• ${part}`));
-                });
             }
             else if (parts.length === 1) {
                 detail.textContent = parts[0];
@@ -493,7 +485,7 @@ function addSingleRow(label, value, options) {
                 parts.forEach((part, index) => {
                     if (index > 0)
                         detail.appendChild(document.createElement('br'));
-                    detail.appendChild(document.createTextNode(part));
+                    detail.appendChild(document.createTextNode(`• ${part}`));
                 });
             }
         }
