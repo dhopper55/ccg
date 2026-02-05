@@ -2509,6 +2509,12 @@ button:active {
   font-size: 0.95rem;
 }
 
+.listing-item-meta .inline-note {
+  font-size: 0.75rem;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
 .listing-item-block {
   margin-top: 24px;
 }

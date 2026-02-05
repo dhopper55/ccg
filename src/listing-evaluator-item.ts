@@ -38,11 +38,8 @@ const SINGLE_FIELDS: Array<{ key: string; label: string; currency?: boolean }> =
   { key: 'serial_year', label: 'Serial Year' },
   { key: 'serial_model', label: 'Serial Model' },
   { key: 'value_private_party_low', label: 'Private Party Low', currency: true },
-  { key: 'value_private_party_low_notes', label: 'Private Party Low Notes' },
   { key: 'value_private_party_medium', label: 'Private Party Medium', currency: true },
-  { key: 'value_private_party_medium_notes', label: 'Private Party Medium Notes' },
   { key: 'value_private_party_high', label: 'Private Party High', currency: true },
-  { key: 'value_private_party_high_notes', label: 'Private Party High Notes' },
   { key: 'value_pawn_shop_notes', label: 'Pawn Shop Notes' },
   { key: 'value_online_notes', label: 'Online Marketplace Notes' },
   { key: 'known_weak_points', label: 'Known Weak Points' },
@@ -434,12 +431,32 @@ function addSingleRow(label: string, value: unknown, options?: { currency?: bool
   singleEl.appendChild(detail);
 }
 
+function addValueWithNote(label: string, value: unknown, note: unknown): void {
+  if (!singleEl) return;
+  const term = document.createElement('dt');
+  term.textContent = label;
+  const detail = document.createElement('dd');
+  detail.textContent = formatCurrencyValue(value);
+  const noteText = normalizeValue(note);
+  if (noteText !== '—') {
+    const noteEl = document.createElement('span');
+    noteEl.className = 'inline-note';
+    noteEl.textContent = ` (${noteText})`;
+    detail.appendChild(noteEl);
+  }
+  singleEl.appendChild(term);
+  singleEl.appendChild(detail);
+}
+
 async function copySingleJson(fields: Record<string, unknown>): Promise<void> {
   if (!copyButton) return;
   const payload: Record<string, unknown> = {};
   SINGLE_FIELDS.forEach((field) => {
     payload[field.key] = fields[field.key as keyof typeof fields] ?? '';
   });
+  payload.value_private_party_low_notes = fields.value_private_party_low_notes ?? '';
+  payload.value_private_party_medium_notes = fields.value_private_party_medium_notes ?? '';
+  payload.value_private_party_high_notes = fields.value_private_party_high_notes ?? '';
 
   try {
     await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
@@ -545,7 +562,24 @@ function renderRecord(record: ListingRecordResponse): void {
     singleEl.innerHTML = '';
     if (!isMulti) {
       singleBlockEl.classList.remove('hidden');
+      const serialValue = normalizeValue(fields.serial);
+      const showSerial = serialValue !== '—';
       SINGLE_FIELDS.forEach((field) => {
+        if (!showSerial && (field.key === 'serial' || field.key === 'serial_brand' || field.key === 'serial_year' || field.key === 'serial_model')) {
+          return;
+        }
+        if (field.key === 'value_private_party_low') {
+          addValueWithNote(field.label, fields.value_private_party_low, fields.value_private_party_low_notes);
+          return;
+        }
+        if (field.key === 'value_private_party_medium') {
+          addValueWithNote(field.label, fields.value_private_party_medium, fields.value_private_party_medium_notes);
+          return;
+        }
+        if (field.key === 'value_private_party_high') {
+          addValueWithNote(field.label, fields.value_private_party_high, fields.value_private_party_high_notes);
+          return;
+        }
         addSingleRow(field.label, fields[field.key as keyof typeof fields], { currency: field.currency });
       });
       if (copyButton) {
