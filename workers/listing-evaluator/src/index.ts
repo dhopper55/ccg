@@ -1322,17 +1322,17 @@ async function processRun(runId: string, resource: any, eventType: string | unde
   let aiSummary = aiResult.kind === 'multi' ? ensureMultiTotals(aiResult.summary) : '';
   let aiData = aiResult.kind === 'single' ? aiResult.data : undefined;
 
-  if (aiResult.kind === 'single' && aiData && needsPrivatePartyFallback(aiData)) {
-    const fallback = await runOpenAIPrivatePartyFallback(listing, aiData, env);
-    if (fallback) {
-      aiData = { ...aiData, ...stripEmptyFallback(fallback) };
+  if (aiResult.kind === 'single' && aiData) {
+    const pricing = await runOpenAIPrivatePartyPricing(listing, aiData, env);
+    if (pricing) {
+      aiData = { ...aiData, ...stripEmptyFallback(pricing) };
     }
   }
 
-  if (aiResult.kind === 'multi' && !extractMultiPrivatePartyRange(aiSummary)) {
-    const fallback = await runOpenAIMultiRangeFallback(listing, aiSummary, env);
-    if (fallback) {
-      aiSummary = applyMultiRangeToSummary(aiSummary, fallback.low, fallback.high);
+  if (aiResult.kind === 'multi') {
+    const pricing = await runOpenAIMultiRangePricing(listing, aiSummary, env);
+    if (pricing) {
+      aiSummary = applyMultiRangeToSummary(aiSummary, pricing.low, pricing.high);
     }
   }
 
@@ -3045,13 +3045,6 @@ seller_as_is_notes: ${DEFAULT_TEXT.seller_as_is_notes}
   }
 }
 
-function needsPrivatePartyFallback(aiData: SingleAiResult): boolean {
-  const low = normalizeMoneyValue(aiData.value_private_party_low);
-  const medium = normalizeMoneyValue(aiData.value_private_party_medium);
-  const high = normalizeMoneyValue(aiData.value_private_party_high);
-  return low == null || medium == null || high == null;
-}
-
 function stripEmptyFallback(fallback: Partial<SingleAiResult>): Partial<SingleAiResult> {
   const cleaned: Partial<SingleAiResult> = {};
   for (const [key, value] of Object.entries(fallback)) {
@@ -3062,7 +3055,7 @@ function stripEmptyFallback(fallback: Partial<SingleAiResult>): Partial<SingleAi
   return cleaned;
 }
 
-async function runOpenAIPrivatePartyFallback(
+async function runOpenAIPrivatePartyPricing(
   listing: ListingData,
   base: SingleAiResult,
   env: Env
@@ -3071,12 +3064,13 @@ async function runOpenAIPrivatePartyFallback(
 
   const maxImages = Number.parseInt(env.MAX_IMAGES || '3', 10);
   const images = listing.images.slice(0, Number.isFinite(maxImages) ? maxImages : 3);
+  const redactedTitle = redactPricingInput(listing.title || '');
+  const redactedDescription = redactPricingInput(listing.description || '');
 
   const prompt = `You are an expert used gear buyer and appraiser focused on music gear. Provide ONLY JSON using the schema below.
 
-Listing title: ${listing.title || 'Unknown'}
-Listing description: ${listing.description || 'Not provided'}
-Asking price: ${listing.price || 'Unknown'}
+Listing title: ${redactedTitle || 'Unknown'}
+Listing description: ${redactedDescription || 'Not provided'}
 Location: ${listing.location || 'Unknown'}
 
 Known/inferred details from a prior pass:
@@ -3089,7 +3083,7 @@ Known/inferred details from a prior pass:
 
 Task:
 - Estimate realistic private-party market values (low, medium, high) for this item based on typical used market value.
-- Do NOT use asking price to compute these values. Asking price is for context only.
+- Asking price is intentionally omitted; do NOT infer or use it.
 - If uncertain, estimate from comparable models.
 - Use realistic numbers; do not round to the nearest 50/100 unless that is the most realistic value.
 `;
@@ -3150,7 +3144,7 @@ Task:
   }
 }
 
-async function runOpenAIMultiRangeFallback(
+async function runOpenAIMultiRangePricing(
   listing: ListingData,
   aiSummary: string,
   env: Env
@@ -3159,20 +3153,22 @@ async function runOpenAIMultiRangeFallback(
 
   const maxImages = Number.parseInt(env.MAX_IMAGES || '3', 10);
   const images = listing.images.slice(0, Number.isFinite(maxImages) ? maxImages : 3);
+  const redactedTitle = redactPricingInput(listing.title || '');
+  const redactedDescription = redactPricingInput(listing.description || '');
+  const redactedSummary = redactPricingInput(aiSummary || '');
 
   const prompt = `You are an expert used gear buyer and appraiser focused on music gear. Provide ONLY JSON using the schema below.
 
-Listing title: ${listing.title || 'Unknown'}
-Listing description: ${listing.description || 'Not provided'}
-Asking price: ${listing.price || 'Unknown'}
+Listing title: ${redactedTitle || 'Unknown'}
+Listing description: ${redactedDescription || 'Not provided'}
 Location: ${listing.location || 'Unknown'}
 
 Prior analysis (may be incomplete):
-${aiSummary || 'Not provided'}
+${redactedSummary || 'Not provided'}
 
 Task:
 - Estimate the combined private-party used market range (low/high total) for ALL items in this listing.
-- Do NOT use asking price to compute these values. Asking price is for context only.
+- Asking price is intentionally omitted; do NOT infer or use it.
 - If uncertain, estimate from comparable models and typical bundles.
 - Use realistic numbers; do not round to the nearest 50/100 unless that is the most realistic value.
 `;
@@ -3196,7 +3192,7 @@ Task:
       text: {
         format: {
           type: 'json_schema',
-          name: 'multi_range_fallback',
+          name: 'multi_range_pricing',
           schema: {
             type: 'object',
             additionalProperties: false,
@@ -3232,6 +3228,44 @@ function applyMultiRangeToSummary(aiSummary: string, low: number, high: number):
     return withTotals.replace(/- Used market range for all:[^\n]*/i, line);
   }
   return `${withTotals.trim()}\n${line}`.trim();
+}
+
+function redactPriceSignals(input: string): string {
+  if (!input) return input;
+
+  let output = input;
+
+  // Remove explicit currency symbols with numbers.
+  output = output.replace(/\$\s*\d[\d,]*(?:\.\d{1,2})?/g, '[price]');
+
+  // Remove common price tags.
+  output = output.replace(/\b(?:usd|dollars?)\s*\d[\d,]*(?:\.\d{1,2})?\b/gi, '[price]');
+  output = output.replace(/\b\d[\d,]*(?:\.\d{1,2})?\s*(?:usd|dollars?)\b/gi, '[price]');
+
+  // Remove numbers when clearly tied to price terms.
+  output = output.replace(
+    /\b(?:price|asking|ask|obo|or best offer|firm)\b[^.\n]*?\b(\d{2,5})\b/gi,
+    (match) => match.replace(/\b\d{2,5}\b/g, '[price]')
+  );
+  output = output.replace(
+    /\b(\d{2,5})\b[^.\n]*?\b(?:price|asking|ask|obo|or best offer|firm)\b/gi,
+    (match) => match.replace(/\b\d{2,5}\b/g, '[price]')
+  );
+
+  // Remove "X OBO" / "X firm" style patterns.
+  output = output.replace(/\b\d{2,5}\b\s*(?:obo|firm|negotiable)\b/gi, '[price]');
+
+  return output;
+}
+
+function redactPricingInput(input: string): string {
+  if (!input) return input;
+  let output = redactPriceSignals(input);
+
+  // Remove any remaining standalone 2-5 digit numbers to avoid price leakage.
+  output = output.replace(/\b\d{2,5}\b/g, '[num]');
+
+  return output;
 }
 
 function extractOpenAIText(response: any): string {
