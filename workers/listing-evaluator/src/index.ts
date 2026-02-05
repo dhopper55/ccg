@@ -1,3 +1,29 @@
+import { decodeGibson } from '../../../src/decoders/gibson.js';
+import { decodeEpiphone } from '../../../src/decoders/epiphone.js';
+import { decodeFender } from '../../../src/decoders/fender.js';
+import { decodeTaylor } from '../../../src/decoders/taylor.js';
+import { decodeMartin } from '../../../src/decoders/martin.js';
+import { decodeIbanez } from '../../../src/decoders/ibanez.js';
+import { decodeYamaha } from '../../../src/decoders/yamaha.js';
+import { decodePRS } from '../../../src/decoders/prs.js';
+import { decodeESP } from '../../../src/decoders/esp.js';
+import { decodeSchecter } from '../../../src/decoders/schecter.js';
+import { decodeGretsch } from '../../../src/decoders/gretsch.js';
+import { decodeJackson } from '../../../src/decoders/jackson.js';
+import { decodeSquier } from '../../../src/decoders/squier.js';
+import { decodeCort } from '../../../src/decoders/cort.js';
+import { decodeTakamine } from '../../../src/decoders/takamine.js';
+import { decodeWashburn } from '../../../src/decoders/washburn.js';
+import { decodeDean } from '../../../src/decoders/dean.js';
+import { decodeErnieBall } from '../../../src/decoders/ernieball.js';
+import { decodeGuild } from '../../../src/decoders/guild.js';
+import { decodeAlvarez } from '../../../src/decoders/alvarez.js';
+import { decodeGodin } from '../../../src/decoders/godin.js';
+import { decodeOvation } from '../../../src/decoders/ovation.js';
+import { decodeCharvel } from '../../../src/decoders/charvel.js';
+import { decodeRickenbacker } from '../../../src/decoders/rickenbacker.js';
+import { decodeKramer } from '../../../src/decoders/kramer.js';
+
 interface Env {
   OPENAI_API_KEY: string;
   APIFY_TOKEN: string;
@@ -64,6 +90,65 @@ const SUPPORTED_ORIGINS = [
   'http://localhost:8080',
 ];
 
+const CATEGORY_OPTIONS = [
+  'Accessories',
+  'Acoustic Guitars',
+  'Amps',
+  'Band and Orchestra',
+  'Bass Guitars',
+  'DJ and Lighting Gear',
+  'Drums and Percussion',
+  'Effects and Pedals',
+  'Electric Guitars',
+  'Folk Instruments',
+  'Home Audio',
+  'Keyboards and Synths',
+  'Parts',
+  'Pro Audio',
+  'Other',
+];
+
+const CONDITION_OPTIONS = [
+  'Mint',
+  'Excellent',
+  'Very Good',
+  'Good',
+  'Fair',
+  'Poor',
+  'Non Functioning',
+];
+
+const SINGLE_FIELD_KEYS = [
+  'category',
+  'brand',
+  'model',
+  'finish',
+  'year',
+  'serial',
+  'serial_brand',
+  'serial_year',
+  'serial_model',
+  'value_private_party_low',
+  'value_private_party_low_notes',
+  'value_private_party_medium',
+  'value_private_party_medium_notes',
+  'value_private_party_high',
+  'value_private_party_high_notes',
+  'value_pawn_shop_notes',
+  'value_online_notes',
+  'known_weak_points',
+  'typical_repair_needs',
+  'buyers_worry',
+  'og_specs_pickups',
+  'og_specs_tuners',
+  'og_specs_common_mods',
+  'buyer_what_to_check',
+  'buyer_common_misrepresent',
+  'seller_how_to_price_realistic',
+  'seller_fixes_add_value_or_waste',
+  'seller_as_is_notes',
+];
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     if (request.method === 'OPTIONS') {
@@ -90,6 +175,16 @@ export default {
 
     if (path.endsWith('/archive') && path.startsWith('/api/listings/') && request.method === 'POST') {
       const response = await handleArchiveListing(env, path);
+      return withCors(response, request, env);
+    }
+
+    if (path.startsWith('/api/listings/') && path.endsWith('/debug') && request.method === 'GET') {
+      const response = await handleGetListingDebug(request, env, path);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/listings/reprocess' && request.method === 'POST') {
+      const response = await handleReprocessListing(request, env);
       return withCors(response, request, env);
     }
 
@@ -949,6 +1044,71 @@ async function handleGetListing(request: Request, env: Env, path: string): Promi
   return jsonResponse(record);
 }
 
+async function handleGetListingDebug(request: Request, env: Env, path: string): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const debugIndex = parts.indexOf('debug');
+  const recordId = debugIndex > 0 ? parts[debugIndex - 1] : '';
+
+  if (!recordId || recordId === 'listings') {
+    return jsonResponse({ message: 'Missing listing ID.' }, 400);
+  }
+
+  const record = await airtableGet(recordId, env);
+  if (!record) {
+    return jsonResponse({ message: 'Listing not found.' }, 404);
+  }
+
+  return jsonResponse({
+    ok: true,
+    record,
+    isMulti: isMultiValue(record.fields?.IsMulti),
+    singleFieldKeys: SINGLE_FIELD_KEYS,
+  });
+}
+
+async function handleReprocessListing(request: Request, env: Env): Promise<Response> {
+  if (env.WEBHOOK_SECRET) {
+    const url = new URL(request.url);
+    const provided = url.searchParams.get('key');
+    if (!provided || provided !== env.WEBHOOK_SECRET) {
+      return jsonResponse({ message: 'Unauthorized' }, 401);
+    }
+  }
+
+  let body: any;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  const rawUrl = typeof body?.url === 'string' ? body.url : '';
+  if (!rawUrl) return jsonResponse({ message: 'Missing url.' }, 400);
+
+  const resolvedUrl = await resolveFacebookShareUrl(rawUrl);
+  const normalizedUrl = normalizeUrl(resolvedUrl);
+  if (!normalizedUrl) return jsonResponse({ message: 'Invalid url.' }, 400);
+
+  const existing = await airtableFindByUrl(normalizedUrl, env);
+  if (!existing?.id) return jsonResponse({ message: 'Listing not found in Airtable.' }, 404);
+
+  const source = detectSource(normalizedUrl);
+  if (!source) return jsonResponse({ message: 'Unsupported URL source.' }, 400);
+
+  const runId = await startApifyRun(normalizedUrl, source as ListingSource, env);
+  if (!runId) return jsonResponse({ message: 'Unable to start scraper run.' }, 500);
+
+  await env.LISTING_JOBS.put(runId, existing.id);
+  const runDetails = await waitForApifyRun(runId, env, 20);
+  try {
+    await processRun(runId, runDetails, runDetails?.status, env);
+    return jsonResponse({ ok: true, runId, recordId: existing.id });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return jsonResponse({ ok: false, runId, recordId: existing.id, error: message }, 500);
+  }
+}
+
 async function handleArchiveListing(env: Env, path: string): Promise<Response> {
   const parts = path.split('/').filter(Boolean);
   const archiveIndex = parts.indexOf('archive');
@@ -1125,12 +1285,17 @@ async function processRun(runId: string, resource: any, eventType: string | unde
   }
 
   const listing = normalizeListing(items[0]);
-  const recordId = await env.LISTING_JOBS.get(runId);
-  const isMulti = recordId ? await getIsMultiFromRecord(recordId, env) : false;
-  let aiResponse = await runOpenAI(listing, env, { isMulti });
-  if (isMulti) {
-    aiResponse = ensureMultiTotals(aiResponse);
+  let recordId = await env.LISTING_JOBS.get(runId);
+  if (!recordId && listing.url) {
+    const found = await airtableFindByUrl(listing.url, env);
+    if (found?.id) {
+      recordId = found.id;
+      await env.LISTING_JOBS.put(runId, recordId);
+    }
   }
+  const isMulti = recordId ? await getIsMultiFromRecord(recordId, env) : false;
+  const aiResult = await runOpenAI(listing, env, { isMulti });
+  const aiSummary = aiResult.kind === 'multi' ? ensureMultiTotals(aiResult.summary) : '';
 
   await updateRowByRunId(runId, {
     runId,
@@ -1141,7 +1306,8 @@ async function processRun(runId: string, resource: any, eventType: string | unde
     condition: listing.condition,
     description: listing.description,
     photos: listing.images.join('\n'),
-    aiSummary: aiResponse,
+    aiSummary,
+    aiData: aiResult.kind === 'single' ? aiResult.data : undefined,
     notes: listing.notes,
   }, env, { recordId, isMulti });
 }
@@ -1242,6 +1408,41 @@ type ListingData = {
   url?: string;
   notes?: string;
 };
+
+type SingleAiResult = {
+  category: string;
+  brand: string;
+  model: string;
+  finish: string;
+  year: string;
+  condition: string;
+  serial: string;
+  serial_brand: string;
+  serial_year: string;
+  serial_model: string;
+  value_private_party_low: number | string | null;
+  value_private_party_low_notes: string;
+  value_private_party_medium: number | string | null;
+  value_private_party_medium_notes: string;
+  value_private_party_high: number | string | null;
+  value_private_party_high_notes: string;
+  value_pawn_shop_notes: string;
+  value_online_notes: string;
+  known_weak_points: string;
+  typical_repair_needs: string;
+  buyers_worry: string;
+  og_specs_pickups: string;
+  og_specs_tuners: string;
+  og_specs_common_mods: string;
+  buyer_what_to_check: string;
+  buyer_common_misrepresent: string;
+  seller_how_to_price_realistic: string;
+  seller_fixes_add_value_or_waste: string;
+  seller_as_is_notes: string;
+  asking_price: number | string | null;
+};
+
+type AiResult = { kind: 'multi'; summary: string } | { kind: 'single'; data: SingleAiResult };
 
 function normalizeListing(item: any): ListingData {
   const title = pickString(item.listingTitle, item.title, item.name, item.heading);
@@ -1347,6 +1548,90 @@ function pickString(...values: any[]): string {
     }
   }
   return '';
+}
+
+function normalizeText(value: unknown, fallback = ''): string {
+  if (value == null) return fallback;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed ? trimmed : fallback;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  return fallback;
+}
+
+function normalizeCategory(value: unknown): string {
+  const raw = normalizeText(value, 'Other');
+  if (!raw) return 'Other';
+  const match = CATEGORY_OPTIONS.find((option) => option.toLowerCase() === raw.toLowerCase());
+  return match || 'Other';
+}
+
+function normalizeFinish(value: unknown): string {
+  const raw = normalizeText(value, 'Unknown');
+  if (!raw) return 'Unknown';
+  return raw;
+}
+
+function normalizeCondition(value: unknown): string {
+  const raw = normalizeText(value, 'Good');
+  if (!raw) return 'Good';
+  const match = CONDITION_OPTIONS.find((option) => option.toLowerCase() === raw.toLowerCase());
+  return match || 'Good';
+}
+
+function normalizeMoneyValue(value: unknown): number | null {
+  if (value == null) return null;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = parseMoney(value);
+    return parsed != null ? parsed : null;
+  }
+  return null;
+}
+
+function normalizeBrandKey(input: string): string {
+  return input.trim().toLowerCase().replace(/[^a-z]/g, '');
+}
+
+const DECODER_MAP: Record<string, (serial: string) => { success: boolean; info?: { brand?: string; serialNumber?: string; year?: string; model?: string } }> = {
+  gibson: decodeGibson,
+  epiphone: decodeEpiphone,
+  fender: decodeFender,
+  taylor: decodeTaylor,
+  martin: decodeMartin,
+  ibanez: decodeIbanez,
+  yamaha: decodeYamaha,
+  prs: decodePRS,
+  esp: decodeESP,
+  schecter: decodeSchecter,
+  gretsch: decodeGretsch,
+  jackson: decodeJackson,
+  squier: decodeSquier,
+  cort: decodeCort,
+  takamine: decodeTakamine,
+  washburn: decodeWashburn,
+  dean: decodeDean,
+  ernieball: decodeErnieBall,
+  ernieballmusicman: decodeErnieBall,
+  musicman: decodeErnieBall,
+  guild: decodeGuild,
+  alvarez: decodeAlvarez,
+  godin: decodeGodin,
+  ovation: decodeOvation,
+  charvel: decodeCharvel,
+  rickenbacker: decodeRickenbacker,
+  kramer: decodeKramer,
+};
+
+function decodeSerial(brandInput: string, serial: string): { success: boolean; info?: { brand?: string; serialNumber?: string; year?: string; model?: string } } | null {
+  const normalizedBrand = normalizeBrandKey(brandInput);
+  if (!normalizedBrand) return null;
+  const decoder = DECODER_MAP[normalizedBrand];
+  if (!decoder) return null;
+  return decoder(serial);
 }
 
 function pickLocation(...values: any[]): string {
@@ -1608,6 +1893,7 @@ async function updateRowByRunId(runId: string, updates: {
   description?: string;
   photos?: string;
   aiSummary?: string;
+  aiData?: SingleAiResult;
   notes?: string;
 }, env: Env, options?: { recordId?: string | null; isMulti?: boolean | null }): Promise<void> {
   const timestamp = new Date().toISOString();
@@ -1623,12 +1909,14 @@ async function updateRowByRunId(runId: string, updates: {
     const privateParty = updates.aiSummary
       ? (isMulti ? extractMultiPrivatePartyRange(updates.aiSummary) : extractPrivatePartyRange(updates.aiSummary))
       : null;
+    const aiAskingData = normalizeMoneyValue(updates.aiData?.asking_price);
     const listedPrice = updates.price ? parseMoney(updates.price) : null;
+    const listedPriceOrAi = listedPrice ?? aiAskingData;
     const aiAsking = updates.aiSummary
       ? (isMulti ? extractMultiAskingTotal(updates.aiSummary) : extractAskingFromSummary(updates.aiSummary))
       : null;
     const aiScore = updates.aiSummary ? extractScoreFromSummary(updates.aiSummary) : null;
-    const asking = chooseAskingPrice(listedPrice, aiAsking, updates.description ?? '', updates.aiSummary ?? '', isMulti);
+    const asking = chooseAskingPrice(listedPriceOrAi, aiAsking, updates.description ?? '', updates.aiSummary ?? '', isMulti);
     const ideal = updates.aiSummary
       ? (isMulti
           ? (privateParty?.low != null ? Math.round(privateParty.low * 0.8) : extractMultiIdealTotal(updates.aiSummary))
@@ -1640,6 +1928,54 @@ async function updateRowByRunId(runId: string, updates: {
     if (updates.aiSummary) {
       console.info('AI summary split', { length: updates.aiSummary.length, chunks: summaryChunks.length });
     }
+
+    const normalizedCondition = normalizeCondition(updates.aiData?.condition ?? updates.condition ?? '');
+    const serialCandidate = typeof updates.aiData?.serial === 'string' ? updates.aiData.serial.trim() : '';
+    const serialBrandCandidate = typeof updates.aiData?.serial_brand === 'string' ? updates.aiData.serial_brand.trim() : '';
+    const decoded = serialCandidate
+      ? decodeSerial(serialBrandCandidate || updates.aiData?.brand || '', serialCandidate)
+      : null;
+    const decodedBrand = decoded?.info?.brand || '';
+    const decodedYear = decoded?.info?.year || '';
+    const decodedModel = decoded?.info?.model || '';
+    const serialShouldUse = decoded?.info?.serialNumber || serialCandidate;
+    const serialBrand = decodedBrand || serialBrandCandidate || updates.aiData?.brand || '';
+    const serialYear = decodedYear || updates.aiData?.serial_year || '';
+    const serialModel = decodedModel || updates.aiData?.serial_model || '';
+
+    const aiFields = updates.aiData
+      ? {
+          category: normalizeCategory(updates.aiData.category),
+          brand: normalizeText(updates.aiData.brand, 'Unknown'),
+          model: normalizeText(updates.aiData.model, 'Unknown'),
+          finish: normalizeFinish(updates.aiData.finish),
+          year: normalizeText(updates.aiData.year, 'Unknown'),
+          condition: normalizedCondition,
+          serial: serialShouldUse || '',
+          serial_brand: serialShouldUse ? normalizeText(serialBrand, '') : '',
+          serial_year: serialShouldUse ? normalizeText(serialYear, '') : '',
+          serial_model: serialShouldUse ? normalizeText(serialModel, '') : '',
+          value_private_party_low: normalizeMoneyValue(updates.aiData.value_private_party_low),
+          value_private_party_low_notes: normalizeText(updates.aiData.value_private_party_low_notes, ''),
+          value_private_party_medium: normalizeMoneyValue(updates.aiData.value_private_party_medium),
+          value_private_party_medium_notes: normalizeText(updates.aiData.value_private_party_medium_notes, ''),
+          value_private_party_high: normalizeMoneyValue(updates.aiData.value_private_party_high),
+          value_private_party_high_notes: normalizeText(updates.aiData.value_private_party_high_notes, ''),
+          value_pawn_shop_notes: normalizeText(updates.aiData.value_pawn_shop_notes, ''),
+          value_online_notes: normalizeText(updates.aiData.value_online_notes, ''),
+          known_weak_points: normalizeText(updates.aiData.known_weak_points, ''),
+          typical_repair_needs: normalizeText(updates.aiData.typical_repair_needs, ''),
+          buyers_worry: normalizeText(updates.aiData.buyers_worry, ''),
+          og_specs_pickups: normalizeText(updates.aiData.og_specs_pickups, ''),
+          og_specs_tuners: normalizeText(updates.aiData.og_specs_tuners, ''),
+          og_specs_common_mods: normalizeText(updates.aiData.og_specs_common_mods, ''),
+          buyer_what_to_check: normalizeText(updates.aiData.buyer_what_to_check, ''),
+          buyer_common_misrepresent: normalizeText(updates.aiData.buyer_common_misrepresent, ''),
+          seller_how_to_price_realistic: normalizeText(updates.aiData.seller_how_to_price_realistic, ''),
+          seller_fixes_add_value_or_waste: normalizeText(updates.aiData.seller_fixes_add_value_or_waste, ''),
+          seller_as_is_notes: normalizeText(updates.aiData.seller_as_is_notes, ''),
+        }
+      : null;
     const fields: Record<string, unknown> = {
       status: updates.status ?? null,
       title: updates.title ?? null,
@@ -1647,26 +1983,29 @@ async function updateRowByRunId(runId: string, updates: {
       location: updates.location ?? null,
       description: updates.description ?? null,
       photos: updates.photos ?? null,
-      ai_summary: summaryChunks[0] ?? null,
-      ai_summary2: summaryChunks[1] ?? null,
-      ai_summary3: summaryChunks[2] ?? null,
-      ai_summary4: summaryChunks[3] ?? null,
-      ai_summary5: summaryChunks[4] ?? null,
-      ai_summary6: summaryChunks[5] ?? null,
-      ai_summary7: summaryChunks[6] ?? null,
-      ai_summary8: summaryChunks[7] ?? null,
-      ai_summary9: summaryChunks[8] ?? null,
-      ai_summary10: summaryChunks[9] ?? null,
+      ai_summary: isMulti ? summaryChunks[0] ?? null : null,
+      ai_summary2: isMulti ? summaryChunks[1] ?? null : null,
+      ai_summary3: isMulti ? summaryChunks[2] ?? null : null,
+      ai_summary4: isMulti ? summaryChunks[3] ?? null : null,
+      ai_summary5: isMulti ? summaryChunks[4] ?? null : null,
+      ai_summary6: isMulti ? summaryChunks[5] ?? null : null,
+      ai_summary7: isMulti ? summaryChunks[6] ?? null : null,
+      ai_summary8: isMulti ? summaryChunks[7] ?? null : null,
+      ai_summary9: isMulti ? summaryChunks[8] ?? null : null,
+      ai_summary10: isMulti ? summaryChunks[9] ?? null : null,
       price_private_party: privateParty ? formatRange(privateParty.low, privateParty.high) : null,
       price_ideal: ideal ?? null,
     };
     if (score !== null) {
       fields.score = score;
     }
-
     await airtableUpdate(recordId, fields, env);
+    if (aiFields && !isMulti) {
+      await airtableUpdate(recordId, aiFields, env);
+    }
   } catch (error) {
     console.error('Airtable update failed', { error });
+    throw error;
   }
 }
 
@@ -1734,6 +2073,7 @@ async function airtableUpdate(recordId: string, fields: Record<string, unknown>,
       statusText: response.statusText,
       body: errorText,
     });
+    throw new Error(`Airtable update failed: ${response.status} ${response.statusText} ${errorText}`);
   }
 }
 
@@ -2318,18 +2658,18 @@ function isSponsoredListing(item: any): boolean {
   return labels.some((value) => /sponsored|promoted|ad/i.test(value));
 }
 
-async function runOpenAI(listing: ListingData, env: Env, options?: { isMulti?: boolean }): Promise<string> {
+async function runOpenAI(listing: ListingData, env: Env, options?: { isMulti?: boolean }): Promise<AiResult> {
   const maxImages = Number.parseInt(env.MAX_IMAGES || '3', 10);
   const images = listing.images.slice(0, Number.isFinite(maxImages) ? maxImages : 3);
   const isMulti = options?.isMulti ?? false;
 
   const systemPrompt = isMulti
     ? `You are an expert used gear buyer and appraiser focused on music gear. This listing contains MULTIPLE items. Produce a concise valuation with the exact format below. If details are missing, be clear about uncertainty and suggest the specific photo or detail needed. Avoid hype.`
-    : `You are an expert used gear buyer and appraiser focused on music gear. Produce a concise valuation with the exact format below. If details are missing, be clear about uncertainty and suggest the specific photo or detail needed. Avoid hype. Always state the asking price you infer from the listing text.`;
+    : `You are an expert used gear buyer and appraiser focused on music gear. Provide structured output for a SINGLE item using the exact JSON schema provided. If details are missing, be clear about uncertainty. Avoid hype.`;
 
   const userPrompt = isMulti
     ? `Listing title: ${listing.title || 'Unknown'}\nListing description: ${listing.description || 'Not provided'}\nAsking price: ${listing.price || 'Unknown'}\nLocation: ${listing.location || 'Unknown'}\n\nThis is a multi-item listing. Identify each distinct item for sale based on photos and description. For EACH item, output the same section format below, one item after another (no merged sections). If you cannot identify an item clearly, note it as \"Unknown item\" and explain why. If an item has no explicit asking price, write \"Asking price (from listing text): Unknown\" in that item. The ideal buy price is the LOW end of the used range minus 20%.\n\nAfter the last item, include TWO additional sections exactly as labeled below:\n\nItemized recap\n- Item name - $X asking, used range $Y to $Z, $W ideal (use \"Unknown\" if missing)\n\nTotals\n- Total listing asking price: $X (or \"Unknown\")\n- Used market range for all: $Y to $Z (or \"Unknown\")\n- Ideal price for all: $W (20% below used range low end; or \"Unknown\")\n\nUse this format for EACH item (plain bullet points, no extra dashes or nested bullet markers):\n\nWhat it appears to be\n- Make/model/variant\n- Estimated year or range (if possible; otherwise \"Year: Not enough info\")\n- Estimated condition from photos (or \"Condition from photos: Inconclusive\")\n- Notable finish/features\n\nPrices\n- Typical private-party value: $X–$Y\n- Music store pricing: $X–$Y\n- New price: $X (append \"(no longer available)\" if discontinued); or \"Unknown\" if you cannot determine\n- Ideal buy price: $X (20% below used range low end)\n\n- Adds Value: include one specific, model-relevant value add if it exists; avoid generic condition/finish statements; otherwise omit this line entirely\n\nHow long to sell\n- If put up for sale at the higher end of the used price range ($X), it will take about N–N weeks to sell to a local buyer, and perhaps N weeks to sell to an online buyer (Reverb.com).\n- If you cannot reasonably estimate, output exactly: Not enough data available.\n\nScore\n- Score: X/10 (resell potential based on ask vs realistic value, condition, and included extras)\n\nBottom line\n- Realistic value range\n- Asking price (from listing text): $X or \"Unknown\"\n- Buy/skip note\n- Any missing info to tighten valuation\n`
-    : `Listing title: ${listing.title || 'Unknown'}\nListing description: ${listing.description || 'Not provided'}\nAsking price: ${listing.price || 'Unknown'}\nLocation: ${listing.location || 'Unknown'}\n\nProvide the response in this format using plain bullet points (no extra dashes or nested bullet markers):\n\nWhat it appears to be\n- Make/model/variant\n- Estimated year or range (if possible; otherwise \"Year: Not enough info\")\n- Estimated condition from photos (or \"Condition from photos: Inconclusive\")\n- Notable finish/features\n\nPrices\n- Typical private-party value: $X–$Y\n- Music store pricing: $X–$Y\n- New price: $X (append \"(no longer available)\" if discontinued); or \"Unknown\" if you cannot determine\n- Ideal buy price: $X (20% below used range low end)\n\n- Adds Value: include one specific, model-relevant value add if it exists; avoid generic condition/finish statements; otherwise omit this line entirely\n\nHow long to sell\n- If put up for sale at the higher end of the used price range ($X), it will take about N–N weeks to sell to a local buyer, and perhaps N weeks to sell to an online buyer (Reverb.com).\n- If you cannot reasonably estimate, output exactly: Not enough data available.\n\nScore\n- Score: X/10 (resell potential based on ask vs realistic value, condition, and included extras)\n\nBottom line\n- Realistic value range\n- Buy/skip note\n- Any missing info to tighten valuation\n`;
+    : `Listing title: ${listing.title || 'Unknown'}\nListing description: ${listing.description || 'Not provided'}\nAsking price: ${listing.price || 'Unknown'}\nLocation: ${listing.location || 'Unknown'}\n\nThis is a SINGLE item. Use the JSON schema provided to respond. Do not include any additional keys. Use these rules:\n- category must be one of: ${CATEGORY_OPTIONS.join(', ')}. Use \"Other\" if unsure.\n- condition must be one of: ${CONDITION_OPTIONS.join(', ')}.\n- brand/model should be \"Unknown\" if not found.\n- finish: if unknown, guess a color and prefix with \"Guess: \".\n- year: a definitive year, or a range, otherwise \"Unknown\".\n- serial: only if identified from photos or description; otherwise blank.\n- serial_brand/year/model: only if serial is provided; otherwise blank.\n- value_private_party_low/medium/high: numeric or string values.\n- notes fields: tailored to the model; leave blank if unknown.\n- value_pawn_shop_notes must be less than private party low.\n- value_online_notes must mention marketplace fees and risks (shipping, buyer can't try before buying).\n- seller_* and buyer_* should be specific to the model when possible.\n- og_specs_* fields are blank if unknown.\n- asking_price: include parsed asking price if provided (numeric if possible).\n`;
 
   if (!env.OPENAI_API_KEY) {
     console.error('OpenAI API key missing');
@@ -2367,6 +2707,82 @@ async function runOpenAI(listing: ListingData, env: Env, options?: { isMulti?: b
       ],
       temperature: 0.4,
       max_output_tokens: 2000,
+      text: isMulti
+        ? undefined
+        : {
+            format: {
+              type: 'json_schema',
+              name: 'single_listing',
+              schema: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  category: { type: 'string' },
+                  brand: { type: 'string' },
+                  model: { type: 'string' },
+                  finish: { type: 'string' },
+                  year: { type: 'string' },
+                  condition: { type: 'string' },
+                  serial: { type: 'string' },
+                  serial_brand: { type: 'string' },
+                  serial_year: { type: 'string' },
+                  serial_model: { type: 'string' },
+                  value_private_party_low: { type: ['number', 'string', 'null'] },
+                  value_private_party_low_notes: { type: 'string' },
+                  value_private_party_medium: { type: ['number', 'string', 'null'] },
+                  value_private_party_medium_notes: { type: 'string' },
+                  value_private_party_high: { type: ['number', 'string', 'null'] },
+                  value_private_party_high_notes: { type: 'string' },
+                  value_pawn_shop_notes: { type: 'string' },
+                  value_online_notes: { type: 'string' },
+                  known_weak_points: { type: 'string' },
+                  typical_repair_needs: { type: 'string' },
+                  buyers_worry: { type: 'string' },
+                  og_specs_pickups: { type: 'string' },
+                  og_specs_tuners: { type: 'string' },
+                  og_specs_common_mods: { type: 'string' },
+                  buyer_what_to_check: { type: 'string' },
+                  buyer_common_misrepresent: { type: 'string' },
+                  seller_how_to_price_realistic: { type: 'string' },
+                  seller_fixes_add_value_or_waste: { type: 'string' },
+                  seller_as_is_notes: { type: 'string' },
+                  asking_price: { type: ['number', 'string', 'null'] },
+                },
+                required: [
+                  'category',
+                  'brand',
+                  'model',
+                  'finish',
+                  'year',
+                  'condition',
+                  'serial',
+                  'serial_brand',
+                  'serial_year',
+                  'serial_model',
+                  'value_private_party_low',
+                  'value_private_party_low_notes',
+                  'value_private_party_medium',
+                  'value_private_party_medium_notes',
+                  'value_private_party_high',
+                  'value_private_party_high_notes',
+                  'value_pawn_shop_notes',
+                  'value_online_notes',
+                  'known_weak_points',
+                  'typical_repair_needs',
+                  'buyers_worry',
+                  'og_specs_pickups',
+                  'og_specs_tuners',
+                  'og_specs_common_mods',
+                  'buyer_what_to_check',
+                  'buyer_common_misrepresent',
+                  'seller_how_to_price_realistic',
+                  'seller_fixes_add_value_or_waste',
+                  'seller_as_is_notes',
+                  'asking_price',
+                ],
+              },
+            },
+          },
     }),
   });
 
@@ -2377,11 +2793,91 @@ async function runOpenAI(listing: ListingData, env: Env, options?: { isMulti?: b
       statusText: response.statusText,
       body: errorText,
     });
-    return 'AI analysis failed.';
+    if (isMulti) {
+      return { kind: 'multi', summary: 'AI analysis failed.' };
+    }
+    return {
+      kind: 'single',
+      data: {
+        category: 'Other',
+        brand: 'Unknown',
+        model: 'Unknown',
+        finish: 'Unknown',
+        year: 'Unknown',
+        condition: 'Good',
+        serial: '',
+        serial_brand: '',
+        serial_year: '',
+        serial_model: '',
+        value_private_party_low: null,
+        value_private_party_low_notes: '',
+        value_private_party_medium: null,
+        value_private_party_medium_notes: '',
+        value_private_party_high: null,
+        value_private_party_high_notes: '',
+        value_pawn_shop_notes: '',
+        value_online_notes: '',
+        known_weak_points: '',
+        typical_repair_needs: '',
+        buyers_worry: '',
+        og_specs_pickups: '',
+        og_specs_tuners: '',
+        og_specs_common_mods: '',
+        buyer_what_to_check: '',
+        buyer_common_misrepresent: '',
+        seller_how_to_price_realistic: '',
+        seller_fixes_add_value_or_waste: '',
+        seller_as_is_notes: '',
+        asking_price: null,
+      },
+    };
   }
 
   const data = await response.json();
-  return extractOpenAIText(data) || 'AI analysis returned no text.';
+  if (isMulti) {
+    return { kind: 'multi', summary: extractOpenAIText(data) || 'AI analysis returned no text.' };
+  }
+
+  const text = extractOpenAIText(data);
+  try {
+    const parsed = JSON.parse(text) as SingleAiResult;
+    return { kind: 'single', data: parsed };
+  } catch (error) {
+    console.error('OpenAI JSON parse failed', { error, text: text?.slice(0, 200) });
+    const fallback: SingleAiResult = {
+      category: 'Other',
+      brand: 'Unknown',
+      model: 'Unknown',
+      finish: 'Unknown',
+      year: 'Unknown',
+      condition: 'Good',
+      serial: '',
+      serial_brand: '',
+      serial_year: '',
+      serial_model: '',
+      value_private_party_low: null,
+      value_private_party_low_notes: '',
+      value_private_party_medium: null,
+      value_private_party_medium_notes: '',
+      value_private_party_high: null,
+      value_private_party_high_notes: '',
+      value_pawn_shop_notes: '',
+      value_online_notes: '',
+      known_weak_points: '',
+      typical_repair_needs: '',
+      buyers_worry: '',
+      og_specs_pickups: '',
+      og_specs_tuners: '',
+      og_specs_common_mods: '',
+      buyer_what_to_check: '',
+      buyer_common_misrepresent: '',
+      seller_how_to_price_realistic: '',
+      seller_fixes_add_value_or_waste: '',
+      seller_as_is_notes: '',
+      asking_price: null,
+    };
+    return { kind: 'single', data: fallback };
+  }
 }
 
 function extractOpenAIText(response: any): string {

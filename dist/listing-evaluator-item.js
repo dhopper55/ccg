@@ -3,6 +3,8 @@ const metaEl = document.getElementById('listing-item-meta');
 const descriptionEl = document.getElementById('listing-item-description');
 const aiEl = document.getElementById('listing-item-ai');
 const aiTitleEl = document.getElementById('listing-item-ai-title');
+const singleBlockEl = document.getElementById('listing-item-single-block');
+const singleEl = document.getElementById('listing-item-single');
 const multiBlockEl = document.getElementById('listing-item-multi-block');
 const multiEl = document.getElementById('listing-item-multi');
 const openLink = document.getElementById('listing-item-open');
@@ -11,8 +13,40 @@ const archiveButton = document.getElementById('listing-item-archive');
 const archiveLabel = archiveButton?.querySelector('.archive-label');
 const mediaEl = document.getElementById('listing-item-media');
 const thumbnailEl = document.getElementById('listing-item-thumbnail');
+const copyButton = document.getElementById('listing-item-copy');
 let currentRecordId = null;
 let isArchiving = false;
+const SINGLE_FIELDS = [
+    { key: 'category', label: 'Category' },
+    { key: 'brand', label: 'Brand' },
+    { key: 'model', label: 'Model' },
+    { key: 'finish', label: 'Finish' },
+    { key: 'year', label: 'Year' },
+    { key: 'condition', label: 'Condition' },
+    { key: 'serial', label: 'Serial' },
+    { key: 'serial_brand', label: 'Serial Brand' },
+    { key: 'serial_year', label: 'Serial Year' },
+    { key: 'serial_model', label: 'Serial Model' },
+    { key: 'value_private_party_low', label: 'Private Party Low', currency: true },
+    { key: 'value_private_party_low_notes', label: 'Private Party Low Notes' },
+    { key: 'value_private_party_medium', label: 'Private Party Medium', currency: true },
+    { key: 'value_private_party_medium_notes', label: 'Private Party Medium Notes' },
+    { key: 'value_private_party_high', label: 'Private Party High', currency: true },
+    { key: 'value_private_party_high_notes', label: 'Private Party High Notes' },
+    { key: 'value_pawn_shop_notes', label: 'Pawn Shop Notes' },
+    { key: 'value_online_notes', label: 'Online Marketplace Notes' },
+    { key: 'known_weak_points', label: 'Known Weak Points' },
+    { key: 'typical_repair_needs', label: 'Typical Repair Needs' },
+    { key: 'buyers_worry', label: 'Buyer Worries' },
+    { key: 'og_specs_pickups', label: 'Original Pickups' },
+    { key: 'og_specs_tuners', label: 'Original Tuners' },
+    { key: 'og_specs_common_mods', label: 'Common Mods' },
+    { key: 'buyer_what_to_check', label: 'Buyer: What to Check' },
+    { key: 'buyer_common_misrepresent', label: 'Buyer: Common Misrepresentation' },
+    { key: 'seller_how_to_price_realistic', label: 'Seller: Price Realistically' },
+    { key: 'seller_fixes_add_value_or_waste', label: 'Seller: Fixes That Add Value or Waste' },
+    { key: 'seller_as_is_notes', label: 'Seller: As-Is Notes' },
+];
 function formatMountainTimestamp(date) {
     const dateFormatter = new Intl.DateTimeFormat('en-US', {
         timeZone: 'America/Denver',
@@ -371,6 +405,47 @@ function addMetaRow(label, value) {
     metaEl.appendChild(term);
     metaEl.appendChild(detail);
 }
+function addSingleRow(label, value, options) {
+    if (!singleEl)
+        return;
+    const term = document.createElement('dt');
+    term.textContent = label;
+    const detail = document.createElement('dd');
+    if (options?.currency) {
+        detail.textContent = formatCurrencyValue(value);
+    }
+    else {
+        const normalized = normalizeValue(value);
+        detail.textContent = normalized === '—' ? '— (blank)' : normalized;
+    }
+    singleEl.appendChild(term);
+    singleEl.appendChild(detail);
+}
+async function copySingleJson(fields) {
+    if (!copyButton)
+        return;
+    const payload = {};
+    SINGLE_FIELDS.forEach((field) => {
+        payload[field.key] = fields[field.key] ?? '';
+    });
+    try {
+        await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+        const original = copyButton.textContent || 'Copy JSON';
+        copyButton.textContent = 'Copied!';
+        setTimeout(() => {
+            if (copyButton)
+                copyButton.textContent = original;
+        }, 1500);
+    }
+    catch {
+        const original = copyButton.textContent || 'Copy JSON';
+        copyButton.textContent = 'Copy failed';
+        setTimeout(() => {
+            if (copyButton)
+                copyButton.textContent = original;
+        }, 1500);
+    }
+}
 function extractFirstPhoto(value) {
     if (!value)
         return null;
@@ -392,6 +467,7 @@ function renderRecord(record) {
     const title = normalizeValue(fields.title);
     const askingPrice = formatCurrencyValue(fields.price_asking);
     const archived = isArchivedValue(fields.archived);
+    const isMulti = isMultiValue(fields.IsMulti);
     updateArchiveButton(archived);
     if (titleEl)
         titleEl.textContent = title === '—' ? 'Listing Details' : title;
@@ -439,7 +515,6 @@ function renderRecord(record) {
     }
     if (multiBlockEl && multiEl) {
         const summary = getAiSummary(fields);
-        const isMulti = isMultiValue(fields.IsMulti);
         multiEl.innerHTML = '';
         if (isMulti && summary !== '—') {
             const formatted = formatMultiSummary(summary, fields);
@@ -455,15 +530,39 @@ function renderRecord(record) {
             multiBlockEl.classList.add('hidden');
         }
     }
-    if (aiEl) {
-        const summary = getAiSummary(fields);
-        const isMulti = isMultiValue(fields.IsMulti);
-        aiEl.innerHTML = '';
-        if (summary === '—') {
-            aiEl.textContent = 'No AI summary available yet.';
+    if (singleBlockEl && singleEl) {
+        singleEl.innerHTML = '';
+        if (!isMulti) {
+            singleBlockEl.classList.remove('hidden');
+            SINGLE_FIELDS.forEach((field) => {
+                addSingleRow(field.label, fields[field.key], { currency: field.currency });
+            });
+            if (copyButton) {
+                copyButton.classList.remove('hidden');
+                copyButton.onclick = () => {
+                    void copySingleJson(fields);
+                };
+            }
         }
         else {
-            aiEl.appendChild(formatAiSummary(summary, { isMulti }));
+            singleBlockEl.classList.add('hidden');
+            if (copyButton)
+                copyButton.classList.add('hidden');
+        }
+    }
+    if (aiEl) {
+        const summary = getAiSummary(fields);
+        aiEl.innerHTML = '';
+        if (isMulti) {
+            if (summary === '—') {
+                aiEl.textContent = 'No AI summary available yet.';
+            }
+            else {
+                aiEl.appendChild(formatAiSummary(summary, { isMulti }));
+            }
+        }
+        else {
+            aiEl.textContent = 'Single listing details are shown above.';
         }
     }
 }

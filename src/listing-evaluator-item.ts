@@ -11,6 +11,8 @@ const metaEl = document.getElementById('listing-item-meta') as HTMLDListElement 
 const descriptionEl = document.getElementById('listing-item-description') as HTMLDivElement | null;
 const aiEl = document.getElementById('listing-item-ai') as HTMLDivElement | null;
 const aiTitleEl = document.getElementById('listing-item-ai-title') as HTMLHeadingElement | null;
+const singleBlockEl = document.getElementById('listing-item-single-block') as HTMLDivElement | null;
+const singleEl = document.getElementById('listing-item-single') as HTMLDListElement | null;
 const multiBlockEl = document.getElementById('listing-item-multi-block') as HTMLDivElement | null;
 const multiEl = document.getElementById('listing-item-multi') as HTMLDivElement | null;
 const openLink = document.getElementById('listing-item-open') as HTMLAnchorElement | null;
@@ -19,9 +21,42 @@ const archiveButton = document.getElementById('listing-item-archive') as HTMLBut
 const archiveLabel = archiveButton?.querySelector('.archive-label') as HTMLSpanElement | null;
 const mediaEl = document.getElementById('listing-item-media') as HTMLDivElement | null;
 const thumbnailEl = document.getElementById('listing-item-thumbnail') as HTMLImageElement | null;
+const copyButton = document.getElementById('listing-item-copy') as HTMLButtonElement | null;
 
 let currentRecordId: string | null = null;
 let isArchiving = false;
+
+const SINGLE_FIELDS: Array<{ key: string; label: string; currency?: boolean }> = [
+  { key: 'category', label: 'Category' },
+  { key: 'brand', label: 'Brand' },
+  { key: 'model', label: 'Model' },
+  { key: 'finish', label: 'Finish' },
+  { key: 'year', label: 'Year' },
+  { key: 'condition', label: 'Condition' },
+  { key: 'serial', label: 'Serial' },
+  { key: 'serial_brand', label: 'Serial Brand' },
+  { key: 'serial_year', label: 'Serial Year' },
+  { key: 'serial_model', label: 'Serial Model' },
+  { key: 'value_private_party_low', label: 'Private Party Low', currency: true },
+  { key: 'value_private_party_low_notes', label: 'Private Party Low Notes' },
+  { key: 'value_private_party_medium', label: 'Private Party Medium', currency: true },
+  { key: 'value_private_party_medium_notes', label: 'Private Party Medium Notes' },
+  { key: 'value_private_party_high', label: 'Private Party High', currency: true },
+  { key: 'value_private_party_high_notes', label: 'Private Party High Notes' },
+  { key: 'value_pawn_shop_notes', label: 'Pawn Shop Notes' },
+  { key: 'value_online_notes', label: 'Online Marketplace Notes' },
+  { key: 'known_weak_points', label: 'Known Weak Points' },
+  { key: 'typical_repair_needs', label: 'Typical Repair Needs' },
+  { key: 'buyers_worry', label: 'Buyer Worries' },
+  { key: 'og_specs_pickups', label: 'Original Pickups' },
+  { key: 'og_specs_tuners', label: 'Original Tuners' },
+  { key: 'og_specs_common_mods', label: 'Common Mods' },
+  { key: 'buyer_what_to_check', label: 'Buyer: What to Check' },
+  { key: 'buyer_common_misrepresent', label: 'Buyer: Common Misrepresentation' },
+  { key: 'seller_how_to_price_realistic', label: 'Seller: Price Realistically' },
+  { key: 'seller_fixes_add_value_or_waste', label: 'Seller: Fixes That Add Value or Waste' },
+  { key: 'seller_as_is_notes', label: 'Seller: As-Is Notes' },
+];
 
 function formatMountainTimestamp(date: Date): string {
   const dateFormatter = new Intl.DateTimeFormat('en-US', {
@@ -384,6 +419,44 @@ function addMetaRow(label: string, value: unknown): void {
   metaEl.appendChild(detail);
 }
 
+function addSingleRow(label: string, value: unknown, options?: { currency?: boolean }): void {
+  if (!singleEl) return;
+  const term = document.createElement('dt');
+  term.textContent = label;
+  const detail = document.createElement('dd');
+  if (options?.currency) {
+    detail.textContent = formatCurrencyValue(value);
+  } else {
+    const normalized = normalizeValue(value);
+    detail.textContent = normalized === '—' ? '— (blank)' : normalized;
+  }
+  singleEl.appendChild(term);
+  singleEl.appendChild(detail);
+}
+
+async function copySingleJson(fields: Record<string, unknown>): Promise<void> {
+  if (!copyButton) return;
+  const payload: Record<string, unknown> = {};
+  SINGLE_FIELDS.forEach((field) => {
+    payload[field.key] = fields[field.key as keyof typeof fields] ?? '';
+  });
+
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+    const original = copyButton.textContent || 'Copy JSON';
+    copyButton.textContent = 'Copied!';
+    setTimeout(() => {
+      if (copyButton) copyButton.textContent = original;
+    }, 1500);
+  } catch {
+    const original = copyButton.textContent || 'Copy JSON';
+    copyButton.textContent = 'Copy failed';
+    setTimeout(() => {
+      if (copyButton) copyButton.textContent = original;
+    }, 1500);
+  }
+}
+
 function extractFirstPhoto(value: unknown): string | null {
   if (!value) return null;
   if (Array.isArray(value)) {
@@ -404,6 +477,7 @@ function renderRecord(record: ListingRecordResponse): void {
   const title = normalizeValue(fields.title);
   const askingPrice = formatCurrencyValue(fields.price_asking);
   const archived = isArchivedValue(fields.archived);
+  const isMulti = isMultiValue(fields.IsMulti);
   updateArchiveButton(archived);
 
   if (titleEl) titleEl.textContent = title === '—' ? 'Listing Details' : title;
@@ -453,7 +527,6 @@ function renderRecord(record: ListingRecordResponse): void {
 
   if (multiBlockEl && multiEl) {
     const summary = getAiSummary(fields);
-    const isMulti = isMultiValue(fields.IsMulti);
     multiEl.innerHTML = '';
     if (isMulti && summary !== '—') {
       const formatted = formatMultiSummary(summary, fields);
@@ -468,14 +541,36 @@ function renderRecord(record: ListingRecordResponse): void {
     }
   }
 
+  if (singleBlockEl && singleEl) {
+    singleEl.innerHTML = '';
+    if (!isMulti) {
+      singleBlockEl.classList.remove('hidden');
+      SINGLE_FIELDS.forEach((field) => {
+        addSingleRow(field.label, fields[field.key as keyof typeof fields], { currency: field.currency });
+      });
+      if (copyButton) {
+        copyButton.classList.remove('hidden');
+        copyButton.onclick = () => {
+          void copySingleJson(fields);
+        };
+      }
+    } else {
+      singleBlockEl.classList.add('hidden');
+      if (copyButton) copyButton.classList.add('hidden');
+    }
+  }
+
   if (aiEl) {
     const summary = getAiSummary(fields);
-    const isMulti = isMultiValue(fields.IsMulti);
     aiEl.innerHTML = '';
-    if (summary === '—') {
-      aiEl.textContent = 'No AI summary available yet.';
+    if (isMulti) {
+      if (summary === '—') {
+        aiEl.textContent = 'No AI summary available yet.';
+      } else {
+        aiEl.appendChild(formatAiSummary(summary, { isMulti }));
+      }
     } else {
-      aiEl.appendChild(formatAiSummary(summary, { isMulti }));
+      aiEl.textContent = 'Single listing details are shown above.';
     }
   }
 }
