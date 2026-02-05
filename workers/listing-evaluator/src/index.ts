@@ -23,6 +23,13 @@ import { decodeOvation } from '../../../src/decoders/ovation.js';
 import { decodeCharvel } from '../../../src/decoders/charvel.js';
 import { decodeRickenbacker } from '../../../src/decoders/rickenbacker.js';
 import { decodeKramer } from '../../../src/decoders/kramer.js';
+import {
+  buildMainUserPrompt,
+  buildMultiPricingPrompt,
+  buildSinglePricingPrompt,
+  buildSpecificsPrompt,
+  buildSystemPrompt,
+} from './prompts.js';
 
 interface Env {
   OPENAI_API_KEY: string;
@@ -2740,13 +2747,8 @@ async function runOpenAI(listing: ListingData, env: Env, options?: { isMulti?: b
   const images = listing.images.slice(0, Number.isFinite(maxImages) ? maxImages : 3);
   const isMulti = options?.isMulti ?? false;
 
-  const systemPrompt = isMulti
-    ? `You are an expert used gear buyer and appraiser focused on music gear. This listing contains MULTIPLE items. Produce a concise valuation with the exact format below. If details are missing, be clear about uncertainty and suggest the specific photo or detail needed. Avoid hype.`
-    : `You are an expert used gear buyer and appraiser focused on music gear. Provide structured output for a SINGLE item using the exact JSON schema provided. If details are missing, be clear about uncertainty. Avoid hype.`;
-
-  const userPrompt = isMulti
-    ? `Listing title: ${listing.title || 'Unknown'}\nListing description: ${listing.description || 'Not provided'}\nAsking price: ${listing.price || 'Unknown'}\nLocation: ${listing.location || 'Unknown'}\n\nThis is a multi-item listing. Identify each distinct item for sale based on photos and description. For EACH item, output the same section format below, one item after another (no merged sections). If you cannot identify an item clearly, note it as \"Unknown item\" and explain why. If an item has no explicit asking price, write \"Asking price (from listing text): Unknown\" in that item. The ideal buy price is the LOW end of the used range minus 20%.\n\nIMPORTANT: Do NOT use asking price to compute any market value ranges. Asking price is for context only.\n\nAfter the last item, include TWO additional sections exactly as labeled below:\n\nItemized recap\n- Item name - $X asking, used range $Y to $Z, $W ideal (use \"Unknown\" if missing)\n\nTotals\n- Total listing asking price: $X (or \"Unknown\")\n- Used market range for all: $Y to $Z (or \"Unknown\")\n- Ideal price for all: $W (20% below used range low end; or \"Unknown\")\n\nUse this format for EACH item (plain bullet points, no extra dashes or nested bullet markers):\n\nWhat it appears to be\n- Make/model/variant\n- Estimated year or range (if possible; otherwise \"Year: Not enough info\")\n- Estimated condition from photos (or \"Condition from photos: Inconclusive\")\n- Notable finish/features\n\nPrices\n- Typical private-party value: $X–$Y\n- Music store pricing: $X–$Y\n- New price: $X (append \"(no longer available)\" if discontinued); or \"Unknown\" if you cannot determine\n- Ideal buy price: $X (20% below used range low end)\n\n- Adds Value: include one specific, model-relevant value add if it exists; avoid generic condition/finish statements; otherwise omit this line entirely\n\nHow long to sell\n- If put up for sale at the higher end of the used price range ($X), it will take about N–N weeks to sell to a local buyer, and perhaps N weeks to sell to an online buyer (Reverb.com).\n- If you cannot reasonably estimate, output exactly: Not enough data available.\n\nScore\n- Score: X/10 (resell potential based on ask vs realistic value, condition, and included extras)\n\nBottom line\n- Realistic value range\n- Asking price (from listing text): $X or \"Unknown\"\n- Buy/skip note\n- Any missing info to tighten valuation\n`
-    : `Listing title: ${listing.title || 'Unknown'}\nListing description: ${listing.description || 'Not provided'}\nAsking price: ${listing.price || 'Unknown'}\nLocation: ${listing.location || 'Unknown'}\n\nThis is a SINGLE item. Use the JSON schema provided to respond. Do not include any additional keys. Use these rules:\n- category must be one of: ${CATEGORY_OPTIONS.join(', ')}. Use \"Other\" if unsure.\n- condition must be one of: ${CONDITION_OPTIONS.join(', ')}.\n- brand/model should be \"Unknown\" only if truly impossible. If inferred, append \" (NOT DEFINITIVE)\" in caps.\n- finish: if unknown, guess a color and prefix with \"Guess: \".\n- year: avoid \"Unknown\". Prefer a specific year or a tight range (<= 10-15 years). If only a broad era is possible, provide a range and mark \"(NOT DEFINITIVE)\".\n- serial: only if identified from photos or description; otherwise blank.\n- serial_brand/year/model: only if serial is provided; otherwise blank.\n- value_private_party_low/medium/high: numeric or string values.\n- value_pawn_shop_notes must be less than private party low.\n- value_online_notes must mention marketplace fees and risks (shipping, buyer can't try before buying).\n- og_specs_pickups/og_specs_tuners: provide the most likely stock spec for this model; if unknown use \"Unknown\".\n- asking_price: include parsed asking price if provided (numeric if possible).\n- Do NOT use asking price to compute any market value ranges; asking price is for context only.\n\nModel-specific detail requirements (must be specific to this model/brand/year when possible):\n- known_weak_points, typical_repair_needs, buyers_worry, og_specs_common_mods, buyer_what_to_check, buyer_common_misrepresent, seller_how_to_price_realistic, seller_fixes_add_value_or_waste, seller_as_is_notes.\n- For each field above, start with model-specific info (at least 1–2 sentences), then END with the default text below exactly as written, prefixed by \"General: \".\n- If no model-specific info is available, still include \"General: ...\" only.\n\nDefault text (use verbatim at the end of each field listed above):\n- known_weak_points: \"Potential issues with electronics or hardware over time.\"\n- typical_repair_needs: \"Possible need for setup adjustments or electronics cleaning.\"\n- buyers_worry: \"Check for neck straightness and electronics functionality.\"\n- og_specs_common_mods: \"Common mods vary; verify originality and parts.\"\n- buyer_what_to_check: \"Inspect electronics, neck relief, fret wear, and hardware function.\"\n- buyer_common_misrepresent: \"Watch for misrepresented year, model, or replaced parts.\"\n- seller_how_to_price_realistic: \"Price realistically by comparing recent sales in similar condition.\"\n- seller_fixes_add_value_or_waste: \"Minor setup and cleaning can help; major repairs may not pay off.\"\n- seller_as_is_notes: \"Sell as-is if repair costs exceed value gains.\"\n`;
+  const systemPrompt = buildSystemPrompt(isMulti);
+  const userPrompt = buildMainUserPrompt(listing, isMulti, CATEGORY_OPTIONS, CONDITION_OPTIONS);
 
   if (!env.OPENAI_API_KEY) {
     console.error('OpenAI API key missing');
@@ -2963,33 +2965,7 @@ async function runOpenAI(listing: ListingData, env: Env, options?: { isMulti?: b
 
 async function runOpenAISpecifics(listing: ListingData, base: SingleAiResult, env: Env): Promise<SingleAiResult> {
   if (!env.OPENAI_API_KEY) return base;
-  const prompt = `You are improving model-specific guidance for used music gear. Use your general knowledge (no browsing) to provide concrete, model-specific bullet points.
-
-Listing title: ${listing.title || 'Unknown'}
-Description: ${listing.description || 'Not provided'}
-Brand: ${base.brand}
-Model: ${base.model}
-Year: ${base.year}
-
-Return JSON only with these keys:
-${SPECIFIC_FIELDS.join(', ')}, og_specs_pickups, og_specs_tuners
-
-Rules:
-- Each field should start with 2–4 short, model-specific bullets (not paragraphs). Use semicolons to separate bullets. Do not use leading dashes or bullet characters.
-- If uncertain, include "(NOT DEFINITIVE)" in the specific text.
-- End each field with "General: <default text>" exactly once.
-- og_specs_pickups/og_specs_tuners: provide the most likely stock spec for this model; if unknown use "Unknown".
-Default text:
-known_weak_points: ${DEFAULT_TEXT.known_weak_points}
-typical_repair_needs: ${DEFAULT_TEXT.typical_repair_needs}
-buyers_worry: ${DEFAULT_TEXT.buyers_worry}
-og_specs_common_mods: ${DEFAULT_TEXT.og_specs_common_mods}
-buyer_what_to_check: ${DEFAULT_TEXT.buyer_what_to_check}
-buyer_common_misrepresent: ${DEFAULT_TEXT.buyer_common_misrepresent}
-seller_how_to_price_realistic: ${DEFAULT_TEXT.seller_how_to_price_realistic}
-seller_fixes_add_value_or_waste: ${DEFAULT_TEXT.seller_fixes_add_value_or_waste}
-seller_as_is_notes: ${DEFAULT_TEXT.seller_as_is_notes}
-`;
+  const prompt = buildSpecificsPrompt(listing, base, SPECIFIC_FIELDS, DEFAULT_TEXT);
 
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
@@ -3062,36 +3038,14 @@ async function runOpenAIPrivatePartyPricing(
 ): Promise<Partial<SingleAiResult> | null> {
   if (!env.OPENAI_API_KEY) return null;
 
-  const maxImages = Number.parseInt(env.MAX_IMAGES || '3', 10);
-  const images = listing.images.slice(0, Number.isFinite(maxImages) ? maxImages : 3);
-  const redactedTitle = redactPricingInput(listing.title || '');
-  const redactedDescription = redactPricingInput(listing.description || '');
-
-  const prompt = `You are an expert used gear buyer and appraiser focused on music gear. Provide ONLY JSON using the schema below.
-
-Listing title: ${redactedTitle || 'Unknown'}
-Listing description: ${redactedDescription || 'Not provided'}
-Location: ${listing.location || 'Unknown'}
-
-Known/inferred details from a prior pass:
-- Category: ${base.category || 'Unknown'}
-- Brand: ${base.brand || 'Unknown'}
-- Model: ${base.model || 'Unknown'}
-- Year: ${base.year || 'Unknown'}
-- Condition: ${base.condition || 'Unknown'}
-- Finish: ${base.finish || 'Unknown'}
-
-Task:
-- Estimate realistic private-party market values (low, medium, high) for this item based on typical used market value.
-- Asking price is intentionally omitted; do NOT infer or use it.
-- If uncertain, estimate from comparable models.
-- Use realistic numbers; do not round to the nearest 50/100 unless that is the most realistic value.
-`;
+  const redactedListing: ListingData = {
+    title: redactPricingInput(listing.title || ''),
+    description: redactPricingInput(listing.description || ''),
+    location: listing.location || '',
+  };
+  const prompt = buildSinglePricingPrompt(redactedListing, base);
 
   const content: any[] = [{ type: 'input_text', text: prompt }];
-  for (const imageUrl of images) {
-    content.push({ type: 'input_image', image_url: imageUrl });
-  }
 
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
@@ -3151,32 +3105,15 @@ async function runOpenAIMultiRangePricing(
 ): Promise<{ low: number; high: number } | null> {
   if (!env.OPENAI_API_KEY) return null;
 
-  const maxImages = Number.parseInt(env.MAX_IMAGES || '3', 10);
-  const images = listing.images.slice(0, Number.isFinite(maxImages) ? maxImages : 3);
-  const redactedTitle = redactPricingInput(listing.title || '');
-  const redactedDescription = redactPricingInput(listing.description || '');
+  const redactedListing: ListingData = {
+    title: redactPricingInput(listing.title || ''),
+    description: redactPricingInput(listing.description || ''),
+    location: listing.location || '',
+  };
   const redactedSummary = redactPricingInput(aiSummary || '');
-
-  const prompt = `You are an expert used gear buyer and appraiser focused on music gear. Provide ONLY JSON using the schema below.
-
-Listing title: ${redactedTitle || 'Unknown'}
-Listing description: ${redactedDescription || 'Not provided'}
-Location: ${listing.location || 'Unknown'}
-
-Prior analysis (may be incomplete):
-${redactedSummary || 'Not provided'}
-
-Task:
-- Estimate the combined private-party used market range (low/high total) for ALL items in this listing.
-- Asking price is intentionally omitted; do NOT infer or use it.
-- If uncertain, estimate from comparable models and typical bundles.
-- Use realistic numbers; do not round to the nearest 50/100 unless that is the most realistic value.
-`;
+  const prompt = buildMultiPricingPrompt(redactedListing, redactedSummary);
 
   const content: any[] = [{ type: 'input_text', text: prompt }];
-  for (const imageUrl of images) {
-    content.push({ type: 'input_image', image_url: imageUrl });
-  }
 
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',

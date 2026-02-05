@@ -14,6 +14,7 @@ const archiveLabel = archiveButton?.querySelector('.archive-label');
 const mediaEl = document.getElementById('listing-item-media');
 const thumbnailEl = document.getElementById('listing-item-thumbnail');
 const copyButton = document.getElementById('listing-item-copy');
+const doubleCheckButton = document.getElementById('listing-item-double-check');
 let currentRecordId = null;
 let isArchiving = false;
 const SINGLE_FIELDS = [
@@ -158,6 +159,30 @@ function normalizeValue(value) {
     if (typeof value === 'number')
         return value.toString();
     return String(value);
+}
+function cleanSearchToken(value) {
+    const raw = normalizeValue(value);
+    if (raw === '—')
+        return '';
+    let cleaned = raw.replace(/\(NOT DEFINITIVE\)/gi, '');
+    cleaned = cleaned.replace(/\bGuess:\s*/gi, '');
+    cleaned = cleaned.replace(/\s+/g, ' ').trim();
+    return cleaned;
+}
+function buildDoubleCheckQuery(fields) {
+    const year = cleanSearchToken(fields.year);
+    const brand = cleanSearchToken(fields.brand);
+    const model = cleanSearchToken(fields.model);
+    const finish = cleanSearchToken(fields.finish);
+    const parts = [year, brand, model, finish].filter(Boolean);
+    return `${parts.join(' ')} used value`.trim();
+}
+function openDoubleCheck(fields) {
+    const query = buildDoubleCheckQuery(fields);
+    if (!query)
+        return;
+    const url = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+    window.open(url, '_blank', 'noopener');
 }
 function isArchivedValue(value) {
     if (value === true)
@@ -648,6 +673,12 @@ function renderRecord(record) {
         else {
             aiEl.textContent = 'Single listing details are shown above.';
         }
+    }
+    if (doubleCheckButton) {
+        doubleCheckButton.onclick = (event) => {
+            event.preventDefault();
+            openDoubleCheck(fields);
+        };
     }
 }
 async function archiveListing() {
