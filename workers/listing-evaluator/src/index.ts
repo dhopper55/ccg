@@ -161,6 +161,18 @@ const DEFAULT_TEXT = {
   seller_as_is_notes: 'Sell as-is if repair costs exceed value gains.',
 };
 
+const SPECIFIC_FIELDS = [
+  'known_weak_points',
+  'typical_repair_needs',
+  'buyers_worry',
+  'og_specs_common_mods',
+  'buyer_what_to_check',
+  'buyer_common_misrepresent',
+  'seller_how_to_price_realistic',
+  'seller_fixes_add_value_or_waste',
+  'seller_as_is_notes',
+] as const;
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     if (request.method === 'OPTIONS') {
@@ -1619,6 +1631,29 @@ function ensureDefaultSuffix(value: unknown, fallback: string): string {
   return `${text} General: ${fallback}`;
 }
 
+function isMostlyGeneric(text: string): boolean {
+  const normalized = text.toLowerCase();
+  if (!normalized) return true;
+  if (normalized.startsWith('general:')) return true;
+  if (normalized.length < 30) return true;
+  const genericPhrases = [
+    'electronics',
+    'hardware',
+    'setup',
+    'cleaning',
+    'neck straightness',
+    'fret wear',
+    'general',
+  ];
+  const hitCount = genericPhrases.filter((phrase) => normalized.includes(phrase)).length;
+  return hitCount >= 3;
+}
+
+function needsSpecificity(aiData: SingleAiResult | undefined): boolean {
+  if (!aiData) return false;
+  return SPECIFIC_FIELDS.some((field) => isMostlyGeneric(normalizeText(aiData[field], '')));
+}
+
 function normalizeBrandKey(input: string): string {
   return input.trim().toLowerCase().replace(/[^a-z]/g, '');
 }
@@ -2868,6 +2903,10 @@ async function runOpenAI(listing: ListingData, env: Env, options?: { isMulti?: b
   const text = extractOpenAIText(data);
   try {
     const parsed = JSON.parse(text) as SingleAiResult;
+    if (needsSpecificity(parsed)) {
+      const refined = await runOpenAISpecifics(listing, parsed, env);
+      return { kind: 'single', data: refined };
+    }
     return { kind: 'single', data: parsed };
   } catch (error) {
     console.error('OpenAI JSON parse failed', { error, text: text?.slice(0, 200) });
@@ -2904,6 +2943,75 @@ async function runOpenAI(listing: ListingData, env: Env, options?: { isMulti?: b
       asking_price: null,
     };
     return { kind: 'single', data: fallback };
+  }
+}
+
+async function runOpenAISpecifics(listing: ListingData, base: SingleAiResult, env: Env): Promise<SingleAiResult> {
+  if (!env.OPENAI_API_KEY) return base;
+  const prompt = `You are improving model-specific guidance for used music gear. Use your general knowledge (no browsing) to provide concrete, model-specific bullet points.
+
+Listing title: ${listing.title || 'Unknown'}
+Description: ${listing.description || 'Not provided'}
+Brand: ${base.brand}
+Model: ${base.model}
+Year: ${base.year}
+
+Return JSON only with these keys:
+${SPECIFIC_FIELDS.join(', ')}
+
+Rules:
+- Each field should start with 2–4 short, model-specific bullet points (not paragraphs). Use semicolons to separate bullets.
+- If uncertain, include "(NOT DEFINITIVE)" in the specific text.
+- End each field with "General: <default text>" exactly once.
+Default text:
+known_weak_points: ${DEFAULT_TEXT.known_weak_points}
+typical_repair_needs: ${DEFAULT_TEXT.typical_repair_needs}
+buyers_worry: ${DEFAULT_TEXT.buyers_worry}
+og_specs_common_mods: ${DEFAULT_TEXT.og_specs_common_mods}
+buyer_what_to_check: ${DEFAULT_TEXT.buyer_what_to_check}
+buyer_common_misrepresent: ${DEFAULT_TEXT.buyer_common_misrepresent}
+seller_how_to_price_realistic: ${DEFAULT_TEXT.seller_how_to_price_realistic}
+seller_fixes_add_value_or_waste: ${DEFAULT_TEXT.seller_fixes_add_value_or_waste}
+seller_as_is_notes: ${DEFAULT_TEXT.seller_as_is_notes}
+`;
+
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }],
+      temperature: 0.2,
+      max_output_tokens: 1200,
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'specific_fields',
+          schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: SPECIFIC_FIELDS.reduce((acc, key) => {
+              acc[key] = { type: 'string' };
+              return acc;
+            }, {} as Record<string, { type: 'string' }>),
+            required: [...SPECIFIC_FIELDS],
+          },
+        },
+      },
+    }),
+  });
+
+  if (!response.ok) return base;
+  const data = await response.json();
+  const text = extractOpenAIText(data);
+  try {
+    const refined = JSON.parse(text) as Partial<SingleAiResult>;
+    return { ...base, ...refined };
+  } catch {
+    return base;
   }
 }
 
