@@ -608,6 +608,13 @@ body {
   color: var(--accent-gold);
 }
 
+.tool-card-link-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
 .tool-inline-link {
   color: var(--accent-gold);
   text-decoration: none;
