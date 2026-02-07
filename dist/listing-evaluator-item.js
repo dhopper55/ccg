@@ -180,12 +180,29 @@ function buildDoubleCheckQuery(fields) {
     const parts = [year, brand, model, finish].filter(Boolean);
     return `${parts.join(' ')} used value`.trim();
 }
-function openDoubleCheck(fields) {
-    const query = buildDoubleCheckQuery(fields);
+function buildItemDoubleCheckQuery(title) {
+    const cleaned = cleanSearchToken(title);
+    if (!cleaned)
+        return '';
+    return `${cleaned} used value`.trim();
+}
+function openDoubleCheckQuery(query) {
     if (!query)
         return;
     const url = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
     window.open(url, '_blank', 'noopener');
+}
+function openDoubleCheck(fields) {
+    openDoubleCheckQuery(buildDoubleCheckQuery(fields));
+}
+function buildInlineDoubleCheckLink(query) {
+    const link = document.createElement('a');
+    link.className = 'multi-double-check';
+    link.textContent = 'Double Check';
+    link.href = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    return link;
 }
 function isArchivedValue(value) {
     if (value === true)
@@ -268,7 +285,10 @@ function formatMultiSummary(text, fields) {
             const low = match[3];
             const high = match[4];
             const ideal = match[5];
-            rows.push(`${title}, $${asking} asking, sell range ${low}-${high}, ideal $${ideal}`);
+            rows.push({
+                text: `${title}, $${asking} asking, sell range ${low}-${high}, ideal $${ideal}`,
+                query: buildItemDoubleCheckQuery(title),
+            });
             const askingValue = parseMoneyValue(String(asking));
             const lowValue = parseMoneyValue(String(low));
             const highValue = parseMoneyValue(String(high));
@@ -299,7 +319,10 @@ function formatMultiSummary(text, fields) {
             const range = rangeMatch?.[1]?.trim() || 'Unknown';
             const idealMatch = block.match(/Ideal buy price:\s*([^\n]+)/i);
             const ideal = idealMatch?.[1]?.trim() || 'Unknown';
-            rows.push(`${title}, ${asking} asking, sell range ${range}, ideal ${ideal}`);
+            rows.push({
+                text: `${title}, ${asking} asking, sell range ${range}, ideal ${ideal}`,
+                query: buildItemDoubleCheckQuery(title),
+            });
             const askingValue = parseMoneyValue(asking);
             const idealValue = parseMoneyValue(ideal);
             if (askingValue != null) {
@@ -334,11 +357,17 @@ function formatMultiSummary(text, fields) {
         totalsIdeal = formatCurrencyValue(idealSum);
     }
     if (totalsAsking !== '—' || totalsRange !== '—' || totalsIdeal !== '—') {
-        rows.push(`Total: ${totalsAsking} asking, sell range ${totalsRange}, ideal ${totalsIdeal}`);
+        rows.push({ text: `Total: ${totalsAsking} asking, sell range ${totalsRange}, ideal ${totalsIdeal}` });
     }
     const fragment = document.createDocumentFragment();
     for (const row of rows) {
-        fragment.appendChild(buildTextBlock('p', row));
+        const rowEl = document.createElement('p');
+        rowEl.appendChild(document.createTextNode(row.text));
+        if (row.query) {
+            rowEl.appendChild(document.createTextNode(' '));
+            rowEl.appendChild(buildInlineDoubleCheckLink(row.query));
+        }
+        fragment.appendChild(rowEl);
     }
     return fragment;
 }
