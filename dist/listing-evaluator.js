@@ -1,3 +1,5 @@
+import { initListingAuth } from './listing-auth.js?version=980318';
+initListingAuth();
 const MAX_URLS = 20;
 const BATCH_SIZE = 5;
 const form = document.getElementById('listing-form');
@@ -147,4 +149,3 @@ async function handleSubmit() {
             multiUrlsInput.value = '';
     }
 }
-export {};

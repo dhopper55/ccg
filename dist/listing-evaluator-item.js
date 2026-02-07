@@ -1,3 +1,5 @@
+import { initListingAuth } from './listing-auth.js?version=980318';
+initListingAuth();
 const titleEl = document.getElementById('listing-item-title');
 const metaEl = document.getElementById('listing-item-meta');
 const descriptionEl = document.getElementById('listing-item-description');
@@ -747,4 +749,3 @@ if (archiveButton) {
     });
 }
 void loadRecord();
-export {};

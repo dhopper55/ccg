@@ -1,3 +1,5 @@
+import { initListingAuth } from './listing-auth.js?version=980318';
+initListingAuth();
 const tableBody = document.getElementById('listing-results-body');
 const errorSection = document.getElementById('listing-results-error');
 const emptySection = document.getElementById('listing-results-empty');
@@ -156,4 +158,3 @@ if (nextButton) {
     });
 }
 void loadListings();
-export {};

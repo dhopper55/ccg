@@ -1,4 +1,5 @@
-"use strict";
+import { initListingAuth } from './listing-auth.js?version=980318';
+initListingAuth();
 const bodyEl = document.getElementById('radar-results-body');
 const errorEl = document.getElementById('radar-error');
 const emptyEl = document.getElementById('radar-empty');

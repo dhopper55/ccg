@@ -1,11 +1,15 @@
+import { initListingAuth } from './listing-auth.js';
+
+export {};
+
+initListingAuth();
+
 type SubmitResponse = {
   accepted: number;
   rejected?: Array<{ url: string; reason: string }>;
   queued?: Array<{ url: string; source?: string; jobId?: string }>;
   message?: string;
 };
-
-export {};
 
 const MAX_URLS = 20;
 const BATCH_SIZE = 5;

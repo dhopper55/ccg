@@ -1,3 +1,7 @@
+import { initListingAuth } from './listing-auth.js';
+
+initListingAuth();
+
 type SearchResultRecord = {
   id: string;
   fields: {

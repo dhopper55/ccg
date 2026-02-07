@@ -30,6 +30,13 @@ import {
   buildSpecificsPrompt,
   buildSystemPrompt,
 } from './prompts.js';
+import {
+  AUTH_COOKIE_NAME,
+  buildAuthCookie,
+  parseCookie,
+  signAuth,
+  verifyAuth,
+} from './auth.js';
 
 interface Env {
   OPENAI_API_KEY: string;
@@ -38,6 +45,9 @@ interface Env {
   APIFY_CRAIGSLIST_ACTOR: string;
   SITE_BASE_URL: string;
   MAX_IMAGES: string;
+  AUTH_USER: string;
+  AUTH_PASS: string;
+  AUTH_SECRET: string;
   WEBHOOK_SECRET?: string;
   AIRTABLE_API_KEY: string;
   AIRTABLE_BASE_ID: string;
@@ -189,6 +199,23 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '') || '/';
 
+    if (path === '/api/login' && request.method === 'POST') {
+      const response = await handleLogin(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/session' && request.method === 'GET') {
+      const response = await handleSession(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path.startsWith('/api/')) {
+      const authResponse = await requireAuth(request, env, path);
+      if (authResponse) {
+        return withCors(authResponse, request, env);
+      }
+    }
+
     if (path === '/api/listings/submit' && request.method === 'POST') {
       const response = await handleSubmit(request, env, ctx);
       return withCors(response, request, env);
@@ -279,6 +306,81 @@ function withCors(response: Response, request: Request, env: Env): Response {
     status: response.status,
     statusText: response.statusText,
     headers,
+  });
+}
+
+async function requireAuth(request: Request, env: Env, path: string): Promise<Response | null> {
+  if (path === '/api/listings/webhook' && request.method === 'POST') {
+    return null;
+  }
+
+  const cookies = parseCookie(request.headers.get('cookie'));
+  const token = cookies.get(AUTH_COOKIE_NAME);
+  if (!token) {
+    return jsonResponse({ error: 'unauthorized' }, 401);
+  }
+
+  const [user, sig] = token.split('.');
+  if (!user || !sig) {
+    return jsonResponse({ error: 'unauthorized' }, 401);
+  }
+
+  const validUser = user === env.AUTH_USER;
+  const validSig = await verifyAuth(user, env.AUTH_SECRET, sig);
+  if (!validUser || !validSig) {
+    return jsonResponse({ error: 'unauthorized' }, 401);
+  }
+
+  return null;
+}
+
+async function handleLogin(request: Request, env: Env): Promise<Response> {
+  if (request.method !== 'POST') {
+    return new Response('Method Not Allowed', { status: 405 });
+  }
+  let body: { username?: string; password?: string } = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ error: 'invalid_json' }, 400);
+  }
+
+  const username = body.username?.trim() ?? '';
+  const password = body.password ?? '';
+  if (username !== env.AUTH_USER || password !== env.AUTH_PASS) {
+    return jsonResponse({ error: 'invalid_credentials' }, 401);
+  }
+
+  const sig = await signAuth(username, env.AUTH_SECRET);
+  const token = `${username}.${sig}`;
+  return new Response(JSON.stringify({ ok: true }), {
+    headers: {
+      'content-type': 'application/json',
+      'set-cookie': buildAuthCookie(token),
+    },
+  });
+}
+
+async function handleSession(request: Request, env: Env): Promise<Response> {
+  const cookies = parseCookie(request.headers.get('cookie'));
+  const token = cookies.get(AUTH_COOKIE_NAME);
+  if (!token) {
+    return jsonResponse({ ok: false }, 401);
+  }
+
+  const [user, sig] = token.split('.');
+  if (!user || !sig) {
+    return jsonResponse({ ok: false }, 401);
+  }
+
+  const validUser = user === env.AUTH_USER;
+  const validSig = await verifyAuth(user, env.AUTH_SECRET, sig);
+  if (!validUser || !validSig) {
+    return jsonResponse({ ok: false }, 401);
+  }
+
+  return new Response(JSON.stringify({ ok: true, user }), {
+    headers: { 'content-type': 'application/json' },
   });
 }
 

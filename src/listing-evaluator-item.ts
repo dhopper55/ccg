@@ -1,3 +1,7 @@
+import { initListingAuth } from './listing-auth.js';
+
+initListingAuth();
+
 type ListingRecordResponse = {
   id: string;
   fields: Record<string, unknown>;
