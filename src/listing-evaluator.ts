@@ -40,6 +40,18 @@ if (radarSaveButton) {
   });
 }
 
+if (radarEnabledInput) {
+  radarEnabledInput.addEventListener('change', () => {
+    void handleRadarSave();
+  });
+}
+
+if (radarIntervalInput) {
+  radarIntervalInput.addEventListener('change', () => {
+    void handleRadarSave();
+  });
+}
+
 void loadRadarSettings();
 
 function resetMessages(): void {

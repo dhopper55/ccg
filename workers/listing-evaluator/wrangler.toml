@@ -19,7 +19,7 @@ RADAR_EMAIL_TO = "davidhopper55@gmail.com"
 RADAR_EMAIL_FROM = "david@coalcreekguitars.com"
 
 [triggers]
-crons = ["*/5 * * * *"]
+crons = ["*/1 * * * *"]
 
 [[kv_namespaces]]
 binding = "LISTING_JOBS"
