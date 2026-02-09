@@ -13,7 +13,6 @@ const errorSection = document.getElementById('listing-error');
 const radarEnabledInput = document.getElementById('radar-enabled');
 const radarIntervalInput = document.getElementById('radar-interval');
 const radarResultsLimitInput = document.getElementById('radar-results-limit');
-const radarEmailSendEmptyInput = document.getElementById('radar-email-send-empty');
 const radarStatus = document.getElementById('radar-status');
 if (form && urlsInput && submitButton) {
     form.addEventListener('submit', (event) => {
@@ -33,11 +32,6 @@ if (radarIntervalInput) {
 }
 if (radarResultsLimitInput) {
     radarResultsLimitInput.addEventListener('change', () => {
-        void handleRadarSave();
-    });
-}
-if (radarEmailSendEmptyInput) {
-    radarEmailSendEmptyInput.addEventListener('change', () => {
         void handleRadarSave();
     });
 }
@@ -69,7 +63,7 @@ function setRadarStatus(message, isError = false) {
     radarStatus.style.color = isError ? '#ffb1b1' : '';
 }
 async function loadRadarSettings() {
-    if (!radarEnabledInput || !radarIntervalInput || !radarResultsLimitInput || !radarEmailSendEmptyInput)
+    if (!radarEnabledInput || !radarIntervalInput || !radarResultsLimitInput)
         return;
     try {
         const response = await fetch('/api/radar/settings');
@@ -79,7 +73,6 @@ async function loadRadarSettings() {
         radarEnabledInput.checked = Boolean(data?.enabled);
         radarIntervalInput.value = String(data?.intervalMinutes ?? 3);
         radarResultsLimitInput.value = String(data?.resultsLimit ?? 5);
-        radarEmailSendEmptyInput.checked = data?.emailSendEmpty !== false;
         if (data?.lastSummary) {
             setRadarStatus(data.lastSummary);
         }
@@ -90,7 +83,7 @@ async function loadRadarSettings() {
     }
 }
 async function handleRadarSave() {
-    if (!radarEnabledInput || !radarIntervalInput || !radarResultsLimitInput || !radarEmailSendEmptyInput)
+    if (!radarEnabledInput || !radarIntervalInput || !radarResultsLimitInput)
         return;
     const interval = Number.parseInt(radarIntervalInput.value, 10);
     const resultsLimit = Number.parseInt(radarResultsLimitInput.value, 10);
@@ -103,7 +96,6 @@ async function handleRadarSave() {
                 enabled: radarEnabledInput.checked,
                 intervalMinutes: Number.isFinite(interval) ? interval : 3,
                 resultsLimit: Number.isFinite(resultsLimit) ? resultsLimit : 5,
-                emailSendEmpty: radarEmailSendEmptyInput.checked,
             }),
         });
         const data = await response.json();
@@ -112,7 +104,6 @@ async function handleRadarSave() {
         radarEnabledInput.checked = Boolean(data?.enabled);
         radarIntervalInput.value = String(data?.intervalMinutes ?? 3);
         radarResultsLimitInput.value = String(data?.resultsLimit ?? 5);
-        radarEmailSendEmptyInput.checked = data?.emailSendEmpty !== false;
         setRadarStatus('Saved.');
     }
     catch (error) {

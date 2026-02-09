@@ -110,7 +110,7 @@ const RADAR_MAX_AI_CHECKS_PER_RUN = 0;
 const RADAR_CLASSIFY_BATCH = 3;
 const RADAR_DEFAULT_PAGE = '/listing-radar.html';
 const RADAR_DEFAULT_EMAIL_TO = 'david@coalcreekguitars.com';
-const RADAR_EMAIL_INCLUDE_EXISTING = true;
+const RADAR_EMAIL_INCLUDE_EXISTING = false;
 const MST_OFFSET_MINUTES = -7 * 60;
 const RADAR_QUIET_START_HOUR = 23;
 const RADAR_QUIET_END_HOUR = 5;
@@ -515,7 +515,7 @@ async function runRadarIfDue(env: Env): Promise<void> {
     const hoursSinceLast = lastRunAt ? (now - lastRunAt) / (1000 * 60 * 60) : Number.POSITIVE_INFINITY;
     const baseLimit = settings.resultsLimit;
     const resultsLimit = hoursSinceLast > 5 ? Math.max(baseLimit, 15) : baseLimit;
-    const result = await runRadarScan(env, 'facebook', resultsLimit, settings.emailSendEmpty);
+    const result = await runRadarScan(env, 'facebook', resultsLimit);
     summary = result.summary;
     didRun = true;
   } catch (error) {
@@ -541,8 +541,7 @@ type RadarResult = {
 async function runRadarScan(
   env: Env,
   sourceOverride?: ListingSource,
-  resultsLimit = 5,
-  emailSendEmpty = true
+  resultsLimit = 5
 ): Promise<RadarResult> {
   const keywords = parseRadarKeywords(env.RADAR_KEYWORDS);
   const fbUrl = env.RADAR_FB_SEARCH_URL;
@@ -579,7 +578,7 @@ async function runRadarScan(
   }
 
   const guitarListings = scored.filter((listing) => listing.isGuitar);
-  const emailResult = await sendRadarEmail(runId, newListings, env, emailSendEmpty);
+  const emailResult = await sendRadarEmail(runId, newListings, env, false);
   const summary = `Radar run ${runId}: ${scored.length} new, ${guitarListings.length} guitars, email ${emailResult.ok ? 'sent' : 'failed'}.`;
 
   return {
@@ -1248,47 +1247,42 @@ function nextRadarRunAt(now: number, intervalMinutes: number): number {
   return now + safeMinutes * 60 * 1000;
 }
 
-async function getRadarSettings(env: Env): Promise<{ enabled: boolean; intervalMinutes: number; emailSendEmpty: boolean; resultsLimit: number }> {
+async function getRadarSettings(env: Env): Promise<{ enabled: boolean; intervalMinutes: number; resultsLimit: number }> {
   const enabledRaw = await env.LISTING_JOBS.get(RADAR_ENABLED_KEY);
   const intervalRaw = await env.LISTING_JOBS.get(RADAR_INTERVAL_MINUTES_KEY);
   const resultsLimitRaw = await env.LISTING_JOBS.get(RADAR_RESULTS_LIMIT_KEY);
-  const emailSendEmptyRaw = await env.LISTING_JOBS.get(RADAR_EMAIL_SEND_EMPTY_KEY);
   const enabled = enabledRaw ? enabledRaw === 'true' : false;
   const intervalParsed = intervalRaw ? Number.parseInt(intervalRaw, 10) : RADAR_DEFAULT_INTERVAL_MINUTES;
-  const emailSendEmpty = emailSendEmptyRaw ? emailSendEmptyRaw === 'true' : true;
   const resultsParsed = resultsLimitRaw ? Number.parseInt(resultsLimitRaw, 10) : RADAR_DEFAULT_RESULTS_LIMIT;
   return {
     enabled,
     intervalMinutes: clampIntervalMinutes(intervalParsed),
-    emailSendEmpty,
     resultsLimit: clampResultsLimit(resultsParsed),
   };
 }
 
 async function updateRadarSettings(
   env: Env,
-  next: { enabled?: boolean; intervalMinutes?: number; emailSendEmpty?: boolean; resultsLimit?: number }
-): Promise<{ enabled: boolean; intervalMinutes: number; emailSendEmpty: boolean; resultsLimit: number }> {
+  next: { enabled?: boolean; intervalMinutes?: number; resultsLimit?: number }
+): Promise<{ enabled: boolean; intervalMinutes: number; resultsLimit: number }> {
   const current = await getRadarSettings(env);
   const enabled = typeof next.enabled === 'boolean' ? next.enabled : current.enabled;
   const intervalMinutes = typeof next.intervalMinutes === 'number'
     ? clampIntervalMinutes(next.intervalMinutes)
     : current.intervalMinutes;
-  const emailSendEmpty = typeof next.emailSendEmpty === 'boolean' ? next.emailSendEmpty : current.emailSendEmpty;
   const resultsLimit = typeof next.resultsLimit === 'number'
     ? clampResultsLimit(next.resultsLimit)
     : current.resultsLimit;
 
   await env.LISTING_JOBS.put(RADAR_ENABLED_KEY, String(enabled));
   await env.LISTING_JOBS.put(RADAR_INTERVAL_MINUTES_KEY, String(intervalMinutes));
-  await env.LISTING_JOBS.put(RADAR_EMAIL_SEND_EMPTY_KEY, String(emailSendEmpty));
   await env.LISTING_JOBS.put(RADAR_RESULTS_LIMIT_KEY, String(resultsLimit));
 
   const now = Date.now();
   const nextRunAtValue = nextRadarRunAt(now, intervalMinutes);
   await env.LISTING_JOBS.put(RADAR_NEXT_RUN_KEY, String(nextRunAtValue));
 
-  return { enabled, intervalMinutes, emailSendEmpty, resultsLimit };
+  return { enabled, intervalMinutes, resultsLimit };
 }
 
 async function handleWebhook(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -1583,7 +1577,6 @@ async function handleRadarSettings(_request: Request, env: Env): Promise<Respons
   return jsonResponse({
     enabled: settings.enabled,
     intervalMinutes: settings.intervalMinutes,
-    emailSendEmpty: settings.emailSendEmpty,
     resultsLimit: settings.resultsLimit,
     lastRunAt: lastRunAt ? Number.parseInt(lastRunAt, 10) : null,
     nextRunAt: nextRunAt ? Number.parseInt(nextRunAt, 10) : null,
@@ -1601,9 +1594,8 @@ async function handleRadarSettingsUpdate(request: Request, env: Env): Promise<Re
 
   const enabled = typeof body?.enabled === 'boolean' ? body.enabled : undefined;
   const intervalMinutes = typeof body?.intervalMinutes === 'number' ? body.intervalMinutes : undefined;
-  const emailSendEmpty = typeof body?.emailSendEmpty === 'boolean' ? body.emailSendEmpty : undefined;
   const resultsLimit = typeof body?.resultsLimit === 'number' ? body.resultsLimit : undefined;
-  const updated = await updateRadarSettings(env, { enabled, intervalMinutes, emailSendEmpty, resultsLimit });
+  const updated = await updateRadarSettings(env, { enabled, intervalMinutes, resultsLimit });
   return jsonResponse({ ok: true, ...updated });
 }
 
