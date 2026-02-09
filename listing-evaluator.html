@@ -38,6 +38,22 @@
     </header>
 
     <section class="listing-form">
+      <div class="listing-radar-settings" aria-live="polite">
+        <div class="listing-radar-header">
+          <h2>Radar Schedule</h2>
+          <label class="toggle">
+            <input id="radar-enabled" type="checkbox">
+            <span>Enabled</span>
+          </label>
+        </div>
+        <div class="listing-radar-controls">
+          <label for="radar-interval">Interval (minutes)</label>
+          <input id="radar-interval" type="number" min="5" max="120" step="1" value="10">
+          <button type="button" id="radar-save" class="secondary">Save</button>
+          <span id="radar-status" class="listing-radar-status"></span>
+        </div>
+      </div>
+
       <form id="listing-form">
         <div class="form-group">
           <label for="listing-urls">Single Item Listing URLs <span class="optional">(one per line)</span></label>
@@ -71,7 +87,7 @@ https://www.facebook.com/marketplace/item/..."></textarea>
     </div>
   </footer>
 
-  <script type="module" src="dist/listing-evaluator.js?version=879370"></script>
+  <script type="module" src="dist/listing-evaluator.js?version=879371"></script>
   <script>
     (function() {
       const year = new Date().getFullYear();

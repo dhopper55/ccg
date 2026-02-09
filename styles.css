@@ -2244,6 +2244,55 @@ button:active {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
 }
 
+.listing-radar-settings {
+  margin-bottom: 24px;
+  padding: 20px 24px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(17, 17, 18, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.listing-radar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.listing-radar-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.listing-radar-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.listing-radar-controls label {
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.listing-radar-controls input[type='number'] {
+  width: 110px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(7, 7, 7, 0.6);
+  color: var(--text-light);
+}
+
+.listing-radar-status {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
 .listing-form textarea {
   min-height: 180px;
   resize: vertical;

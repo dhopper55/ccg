@@ -10,12 +10,22 @@ const successSection = document.getElementById('listing-success');
 const successMessage = document.getElementById('listing-success-message');
 const rejectedSection = document.getElementById('listing-rejected');
 const errorSection = document.getElementById('listing-error');
+const radarEnabledInput = document.getElementById('radar-enabled');
+const radarIntervalInput = document.getElementById('radar-interval');
+const radarSaveButton = document.getElementById('radar-save');
+const radarStatus = document.getElementById('radar-status');
 if (form && urlsInput && submitButton) {
     form.addEventListener('submit', (event) => {
         event.preventDefault();
         void handleSubmit();
     });
 }
+if (radarSaveButton) {
+    radarSaveButton.addEventListener('click', () => {
+        void handleRadarSave();
+    });
+}
+void loadRadarSettings();
 function resetMessages() {
     if (successSection)
         successSection.classList.add('hidden');
@@ -35,6 +45,61 @@ function setLoading(isLoading) {
         return;
     submitButton.disabled = isLoading;
     submitButton.textContent = isLoading ? 'Queuing…' : 'Queue Listings';
+}
+function setRadarStatus(message, isError = false) {
+    if (!radarStatus)
+        return;
+    radarStatus.textContent = message;
+    radarStatus.style.color = isError ? '#ffb1b1' : '';
+}
+async function loadRadarSettings() {
+    if (!radarEnabledInput || !radarIntervalInput)
+        return;
+    try {
+        const response = await fetch('/api/radar/settings');
+        const data = await response.json();
+        if (!response.ok)
+            throw new Error((data === null || data === void 0 ? void 0 : data.message) || 'Unable to load radar settings.');
+        radarEnabledInput.checked = Boolean(data === null || data === void 0 ? void 0 : data.enabled);
+        radarIntervalInput.value = String((data === null || data === void 0 ? void 0 : data.intervalMinutes) ?? 10);
+        if (data === null || data === void 0 ? void 0 : data.lastSummary) {
+            setRadarStatus(data.lastSummary);
+        }
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : 'Unable to load radar settings.';
+        setRadarStatus(message, true);
+    }
+}
+async function handleRadarSave() {
+    if (!radarEnabledInput || !radarIntervalInput || !radarSaveButton)
+        return;
+    const interval = Number.parseInt(radarIntervalInput.value, 10);
+    radarSaveButton.disabled = true;
+    setRadarStatus('Saving...');
+    try {
+        const response = await fetch('/api/radar/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                enabled: radarEnabledInput.checked,
+                intervalMinutes: Number.isFinite(interval) ? interval : 10,
+            }),
+        });
+        const data = await response.json();
+        if (!response.ok)
+            throw new Error((data === null || data === void 0 ? void 0 : data.message) || 'Unable to save radar settings.');
+        radarEnabledInput.checked = Boolean(data === null || data === void 0 ? void 0 : data.enabled);
+        radarIntervalInput.value = String((data === null || data === void 0 ? void 0 : data.intervalMinutes) ?? 10);
+        setRadarStatus('Saved.');
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : 'Unable to save radar settings.';
+        setRadarStatus(message, true);
+    }
+    finally {
+        radarSaveButton.disabled = false;
+    }
 }
 function normalizeUrl(raw) {
     const trimmed = raw.trim();

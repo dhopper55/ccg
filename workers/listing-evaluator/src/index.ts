@@ -61,6 +61,8 @@ interface Env {
   TELNYX_FROM_NUMBER?: string;
   TELNYX_TO_NUMBER?: string;
   RADAR_AI_ENABLED?: string;
+  RADAR_EMAIL_TO?: string;
+  RADAR_EMAIL_FROM?: string;
   LISTING_JOBS: KVNamespace;
 }
 
@@ -88,18 +90,20 @@ const MAX_PAGE_SIZE = 50;
 const RADAR_NEXT_RUN_KEY = 'radar_next_run_at';
 const RADAR_LAST_RUN_KEY = 'radar_last_run_at';
 const RADAR_LAST_SUMMARY_KEY = 'radar_last_summary';
-const RADAR_MIN_JITTER_MINUTES = 25;
-const RADAR_MAX_JITTER_MINUTES = 35;
-const RADAR_CONSECUTIVE_SEEN_LIMIT = 5;
-const RADAR_MAX_NEW_PER_SOURCE = 5;
+const RADAR_ENABLED_KEY = 'radar_enabled';
+const RADAR_INTERVAL_MINUTES_KEY = 'radar_interval_minutes';
+const RADAR_DEFAULT_INTERVAL_MINUTES = 10;
+const RADAR_MIN_INTERVAL_MINUTES = 5;
+const RADAR_MAX_INTERVAL_MINUTES = 120;
+const RADAR_JITTER_MINUTES = -2;
+const RADAR_JITTER_MAX_MINUTES = 2;
+const RADAR_CONSECUTIVE_SEEN_LIMIT = 10;
+const RADAR_MAX_NEW_PER_SOURCE = 100;
 const RADAR_CL_TIMEBOX_MS = 60000;
 const RADAR_MAX_AI_CHECKS_PER_RUN = 0;
 const RADAR_CLASSIFY_BATCH = 3;
-const SYSINFO_TABLE_DEFAULT = 'SysInfo';
-const MST_OFFSET_MINUTES = -7 * 60;
-const RADAR_QUIET_START_HOUR = 23;
-const RADAR_QUIET_END_HOUR = 6;
 const RADAR_DEFAULT_PAGE = '/listing-radar.html';
+const RADAR_DEFAULT_EMAIL_TO = 'davidhopper55@gmail.com';
 
 const SUPPORTED_ORIGINS = [
   'https://www.coalcreekguitars.com',
@@ -278,6 +282,16 @@ export default {
 
     if (path === '/api/radar/sms-test' && request.method === 'POST') {
       const response = await handleRadarSmsTest(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/radar/settings' && request.method === 'GET') {
+      const response = await handleRadarSettings(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/radar/settings' && request.method === 'POST') {
+      const response = await handleRadarSettingsUpdate(request, env);
       return withCors(response, request, env);
     }
 
@@ -467,6 +481,7 @@ async function handleSubmit(request: Request, env: Env, ctx: ExecutionContext): 
 
 async function runRadarIfDue(env: Env): Promise<void> {
   const now = Date.now();
+  const settings = await getRadarSettings(env);
   const nextRunAtRaw = await env.LISTING_JOBS.get(RADAR_NEXT_RUN_KEY);
   const nextRunAt = nextRunAtRaw ? Number.parseInt(nextRunAtRaw, 10) : null;
 
@@ -474,63 +489,23 @@ async function runRadarIfDue(env: Env): Promise<void> {
     return;
   }
 
-  if (isQuietHours(new Date(now))) {
-    const nextAllowed = nextAllowedRadarTime(new Date(now));
-    await env.LISTING_JOBS.put(RADAR_NEXT_RUN_KEY, String(nextAllowed.getTime()));
-    return;
-  }
-
   let summary = 'Radar run skipped.';
   try {
-    const workerEnabled = await isWorkerEnabled(env);
-    if (workerEnabled === false) {
+    if (!settings.enabled) {
       summary = 'Radar run skipped (disabled).';
       return;
     }
-    if (workerEnabled === null) {
-      console.warn('SysInfo check failed; proceeding with radar run.');
-    }
-    const result = await runRadarScan(env);
+    const result = await runRadarScan(env, 'facebook');
     summary = result.summary;
   } catch (error) {
     console.error('Radar run failed', { error });
     summary = 'Radar run failed.';
   } finally {
-    const nextRunAtValue = now + randomJitterMinutes(RADAR_MIN_JITTER_MINUTES, RADAR_MAX_JITTER_MINUTES) * 60 * 1000;
+    const nextRunAtValue = nextRadarRunAt(now, settings.intervalMinutes);
     await env.LISTING_JOBS.put(RADAR_NEXT_RUN_KEY, String(nextRunAtValue));
     await env.LISTING_JOBS.put(RADAR_LAST_RUN_KEY, String(now));
     await env.LISTING_JOBS.put(RADAR_LAST_SUMMARY_KEY, summary);
   }
-}
-
-async function isWorkerEnabled(env: Env): Promise<boolean | null> {
-  const table = env.AIRTABLE_SYSINFO_TABLE || SYSINFO_TABLE_DEFAULT;
-  const params = new URLSearchParams();
-  params.set('pageSize', '1');
-  params.append('fields[]', 'WorkerEnabled');
-
-  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(table)}?${params.toString()}`, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Airtable sysinfo list failed', {
-      status: response.status,
-      statusText: response.statusText,
-      body: errorText,
-    });
-    return null;
-  }
-
-  const data = await response.json();
-  const record = Array.isArray(data?.records) ? data.records[0] : null;
-  if (!record) return null;
-  return record.fields?.WorkerEnabled === true;
 }
 
 type RadarResult = {
@@ -544,41 +519,45 @@ async function runRadarScan(env: Env, sourceOverride?: ListingSource): Promise<R
   const keywords = parseRadarKeywords(env.RADAR_KEYWORDS);
   const fbUrl = env.RADAR_FB_SEARCH_URL;
   const clUrl = env.RADAR_CL_SEARCH_URL;
-  if (!fbUrl || !clUrl) {
-    console.warn('Radar search URLs missing.');
-    return { matched: 0, saved: 0, smsSent: 0, summary: 'Radar search URLs missing.' };
+  if (!fbUrl) {
+    console.warn('Radar FB search URL missing.');
+    return { matched: 0, saved: 0, smsSent: 0, summary: 'Radar FB search URL missing.' };
   }
 
   const runId = generateRunId();
   const runStartedAt = new Date().toISOString();
   const scored: ScoredListing[] = [];
   const newBySource: Record<ListingSource, number> = { facebook: 0, craigslist: 0 };
-  const aiEnabled = env.RADAR_AI_ENABLED !== 'false';
-  const aiBudget = { remaining: aiEnabled ? RADAR_MAX_AI_CHECKS_PER_RUN : 0 };
+  const aiBudget = { remaining: RADAR_MAX_AI_CHECKS_PER_RUN };
+  const newListings: ListingCandidate[] = [];
 
   for (const keyword of keywords) {
     if (!sourceOverride || sourceOverride === 'craigslist') {
-      const clInput = buildCraigslistSearchInput(clUrl, keyword);
-      const clStats = await runCraigslistWithAbort(clInput, keyword, runId, runStartedAt, newBySource, scored, env, aiBudget);
-      console.info('Radar CL stats', { keyword, ...clStats });
+      if (!clUrl) {
+        console.warn('Radar CL search URL missing; skipping Craigslist.');
+      } else {
+        const clInput = buildCraigslistSearchInput(clUrl, keyword);
+        const clStats = await runCraigslistWithAbort(clInput, keyword, runId, runStartedAt, newBySource, scored, env, aiBudget, newListings);
+        console.info('Radar CL stats', { keyword, ...clStats });
+      }
     }
 
     if (!sourceOverride || sourceOverride === 'facebook') {
       const fbInput = buildFacebookSearchInput(fbUrl, keyword);
       const fbRun = await runApifySearch(env.APIFY_FACEBOOK_ACTOR, fbInput, env);
-      const fbStats = await processSourceResults('facebook', fbRun.items, keyword, runId, runStartedAt, newBySource, scored, env, fbRun.runId, aiBudget);
+      const fbStats = await processSourceResults('facebook', fbRun.items, keyword, runId, runStartedAt, newBySource, scored, env, fbRun.runId, aiBudget, newListings);
       console.info('Radar FB stats', { keyword, ...fbStats });
     }
   }
 
   const guitarListings = scored.filter((listing) => listing.isGuitar);
-  const smsSent = await sendRadarSms(runId, guitarListings.length, env);
-  const summary = `Radar run ${runId}: ${scored.length} new, ${guitarListings.length} guitars, ${smsSent} SMS.`;
+  const emailSent = await sendRadarEmail(runId, newListings, env);
+  const summary = `Radar run ${runId}: ${scored.length} new, ${guitarListings.length} guitars, email ${emailSent ? 'sent' : 'skipped'}.`;
 
   return {
     matched: scored.length,
     saved: scored.length,
-    smsSent,
+    smsSent: 0,
     summary,
   };
 }
@@ -757,12 +736,13 @@ async function processSourceResults(
   scored: ScoredListing[],
   env: Env,
   apifyRunId?: string,
-  aiBudget?: { remaining: number }
+  aiBudget?: { remaining: number },
+  newListings?: ListingCandidate[]
 ): Promise<{ total: number; created: number; skippedSponsored: number; skippedNoUrl: number; skippedExisting: number; skippedAiLimit: number }> {
   return await processCandidatesWithState(source, items, keyword, runId, runStartedAt, newBySource, scored, env, {
     consecutiveSeen: 0,
     processedUrls: new Set<string>(),
-  }, apifyRunId, aiBudget);
+  }, apifyRunId, aiBudget, newListings);
 }
 
 type RadarProcessState = {
@@ -781,7 +761,8 @@ async function processCandidatesWithState(
   env: Env,
   state: RadarProcessState,
   apifyRunId?: string,
-  aiBudget?: { remaining: number }
+  aiBudget?: { remaining: number },
+  newListings?: ListingCandidate[]
 ): Promise<{ total: number; created: number; skippedSponsored: number; skippedNoUrl: number; skippedExisting: number; skippedAiLimit: number }> {
   const candidates = dedupeCandidates(normalizeSearchItems(items, source, keyword));
   let createdCount = 0;
@@ -827,16 +808,17 @@ async function processCandidatesWithState(
     state.consecutiveSeen = 0;
 
     let isGuitarResult: { isGuitar: boolean; reason: string } | null = null;
-    if (!aiBudget || aiBudget.remaining > 0) {
-      if (aiBudget) aiBudget.remaining -= 1;
+    if (aiBudget && aiBudget.remaining > 0) {
+      aiBudget.remaining -= 1;
       isGuitarResult = await runIsGuitar(candidate, env);
-    } else {
+    } else if (aiBudget) {
       skippedAiLimit += 1;
     }
 
     pendingCreates.push(buildSearchFields(candidate, isGuitarResult, runId, runStartedAt));
     newBySource[source] += 1;
     createdCount += 1;
+    if (newListings) newListings.push(candidate);
 
     if (pendingCreates.length >= 10) {
       await airtableSearchCreateBatch(pendingCreates.splice(0, pendingCreates.length), env);
@@ -868,7 +850,8 @@ async function runCraigslistWithAbort(
   newBySource: Record<ListingSource, number>,
   scored: ScoredListing[],
   env: Env,
-  aiBudget?: { remaining: number }
+  aiBudget?: { remaining: number },
+  newListings?: ListingCandidate[]
 ): Promise<{ total: number; created: number; skippedSponsored: number; skippedNoUrl: number; skippedExisting: number; skippedAiLimit: number }> {
   const runIdValue = await startApifySearchRun(env.APIFY_CRAIGSLIST_ACTOR, input, env);
   if (!runIdValue) {
@@ -893,7 +876,8 @@ async function runCraigslistWithAbort(
       env,
       { consecutiveSeen: 0, processedUrls: new Set<string>() },
       runIdValue,
-      aiBudget
+      aiBudget,
+      newListings
     );
   }
 
@@ -1038,6 +1022,80 @@ function chunkSms(message: string, maxLength: number): string[] {
   return chunks;
 }
 
+async function sendRadarEmail(runId: string, listings: ListingCandidate[], env: Env): Promise<boolean> {
+  if (!listings.length) return false;
+  void runId;
+  const toEmail = env.RADAR_EMAIL_TO || RADAR_DEFAULT_EMAIL_TO;
+  const fromEmail = env.RADAR_EMAIL_FROM || 'david@coalcreekguitars.com';
+  if (!toEmail) {
+    console.warn('Radar email skipped: no recipient configured.');
+    return false;
+  }
+
+  const lines = listings.map((listing) => {
+    const title = listing.title?.trim() || 'Untitled listing';
+    const url = listing.url || '';
+    return `- ${title} ${url}`.trim();
+  });
+
+  const textBody = lines.join('\n');
+  const listItems = listings.map((listing) => {
+    const title = listing.title?.trim() || 'Untitled listing';
+    const url = listing.url || '#';
+    return `<li><a href="${escapeHtml(url)}">${escapeHtml(title)}</a></li>`;
+  }).join('');
+  const htmlBody = `<!doctype html>
+<html>
+  <body>
+    <p>New Facebook Marketplace results:</p>
+    <ul>
+      ${listItems}
+    </ul>
+  </body>
+</html>`;
+
+  const payload = {
+    personalizations: [{ to: [{ email: toEmail }] }],
+    from: { email: fromEmail, name: 'CCG Radar' },
+    subject: 'CCG/FBM Worker NEW Results',
+    content: [
+      { type: 'text/plain', value: textBody },
+      { type: 'text/html', value: htmlBody },
+    ],
+  };
+
+  try {
+    const response = await fetch('https://api.mailchannels.net/tx/v1/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Radar email failed', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText,
+      });
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('Radar email failed', { error });
+    return false;
+  }
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 async function sendTelnyxMessage(text: string, env: Env): Promise<{ ok: boolean; body?: string }> {
   const response = await fetch('https://api.telnyx.com/v2/messages', {
     method: 'POST',
@@ -1066,39 +1124,50 @@ async function sendTelnyxMessage(text: string, env: Env): Promise<{ ok: boolean;
   return { ok: true, body };
 }
 
-function isQuietHours(date: Date): boolean {
-  const mst = shiftToMst(date);
-  const hour = mst.getUTCHours();
-  if (RADAR_QUIET_START_HOUR > RADAR_QUIET_END_HOUR) {
-    return hour >= RADAR_QUIET_START_HOUR || hour < RADAR_QUIET_END_HOUR;
-  }
-  return hour >= RADAR_QUIET_START_HOUR && hour < RADAR_QUIET_END_HOUR;
-}
-
-function nextAllowedRadarTime(date: Date): Date {
-  const mst = shiftToMst(date);
-  const year = mst.getUTCFullYear();
-  const month = mst.getUTCMonth();
-  const day = mst.getUTCDate();
-  let targetDay = day;
-  const hour = mst.getUTCHours();
-
-  if (hour >= RADAR_QUIET_START_HOUR) {
-    targetDay += 1;
-  }
-
-  const utcTimestamp = Date.UTC(year, month, targetDay, RADAR_QUIET_END_HOUR - MST_OFFSET_MINUTES / 60, 0, 0);
-  return new Date(utcTimestamp);
-}
-
-function shiftToMst(date: Date): Date {
-  return new Date(date.getTime() + MST_OFFSET_MINUTES * 60 * 1000);
-}
-
 function randomJitterMinutes(min: number, max: number): number {
   const low = Math.min(min, max);
   const high = Math.max(min, max);
   return Math.floor(Math.random() * (high - low + 1)) + low;
+}
+
+function clampIntervalMinutes(value: number): number {
+  if (!Number.isFinite(value)) return RADAR_DEFAULT_INTERVAL_MINUTES;
+  return Math.min(Math.max(Math.round(value), RADAR_MIN_INTERVAL_MINUTES), RADAR_MAX_INTERVAL_MINUTES);
+}
+
+function nextRadarRunAt(now: number, intervalMinutes: number): number {
+  const jitter = randomJitterMinutes(RADAR_JITTER_MINUTES, RADAR_JITTER_MAX_MINUTES);
+  const minutes = clampIntervalMinutes(intervalMinutes) + jitter;
+  const safeMinutes = Math.max(RADAR_MIN_INTERVAL_MINUTES, minutes);
+  return now + safeMinutes * 60 * 1000;
+}
+
+async function getRadarSettings(env: Env): Promise<{ enabled: boolean; intervalMinutes: number }> {
+  const enabledRaw = await env.LISTING_JOBS.get(RADAR_ENABLED_KEY);
+  const intervalRaw = await env.LISTING_JOBS.get(RADAR_INTERVAL_MINUTES_KEY);
+  const enabled = enabledRaw ? enabledRaw === 'true' : false;
+  const intervalParsed = intervalRaw ? Number.parseInt(intervalRaw, 10) : RADAR_DEFAULT_INTERVAL_MINUTES;
+  return {
+    enabled,
+    intervalMinutes: clampIntervalMinutes(intervalParsed),
+  };
+}
+
+async function updateRadarSettings(env: Env, next: { enabled?: boolean; intervalMinutes?: number }): Promise<{ enabled: boolean; intervalMinutes: number }> {
+  const current = await getRadarSettings(env);
+  const enabled = typeof next.enabled === 'boolean' ? next.enabled : current.enabled;
+  const intervalMinutes = typeof next.intervalMinutes === 'number'
+    ? clampIntervalMinutes(next.intervalMinutes)
+    : current.intervalMinutes;
+
+  await env.LISTING_JOBS.put(RADAR_ENABLED_KEY, String(enabled));
+  await env.LISTING_JOBS.put(RADAR_INTERVAL_MINUTES_KEY, String(intervalMinutes));
+
+  const now = Date.now();
+  const nextRunAtValue = nextRadarRunAt(now, intervalMinutes);
+  await env.LISTING_JOBS.put(RADAR_NEXT_RUN_KEY, String(nextRunAtValue));
+
+  return { enabled, intervalMinutes };
 }
 
 async function handleWebhook(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -1383,6 +1452,34 @@ async function handleRadarSmsTest(request: Request, env: Env): Promise<Response>
   }
 
   return jsonResponse({ ok: true, details: result.body });
+}
+
+async function handleRadarSettings(_request: Request, env: Env): Promise<Response> {
+  const settings = await getRadarSettings(env);
+  const lastRunAt = await env.LISTING_JOBS.get(RADAR_LAST_RUN_KEY);
+  const nextRunAt = await env.LISTING_JOBS.get(RADAR_NEXT_RUN_KEY);
+  const lastSummary = await env.LISTING_JOBS.get(RADAR_LAST_SUMMARY_KEY);
+  return jsonResponse({
+    enabled: settings.enabled,
+    intervalMinutes: settings.intervalMinutes,
+    lastRunAt: lastRunAt ? Number.parseInt(lastRunAt, 10) : null,
+    nextRunAt: nextRunAt ? Number.parseInt(nextRunAt, 10) : null,
+    lastSummary: lastSummary ?? null,
+  });
+}
+
+async function handleRadarSettingsUpdate(request: Request, env: Env): Promise<Response> {
+  let body: any = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  const enabled = typeof body?.enabled === 'boolean' ? body.enabled : undefined;
+  const intervalMinutes = typeof body?.intervalMinutes === 'number' ? body.intervalMinutes : undefined;
+  const updated = await updateRadarSettings(env, { enabled, intervalMinutes });
+  return jsonResponse({ ok: true, ...updated });
 }
 
 async function processRun(runId: string, resource: any, eventType: string | undefined, env: Env): Promise<void> {
@@ -2294,7 +2391,6 @@ async function airtableSearchResults(
   const params = new URLSearchParams();
   const filters = [`{run_id} = "${escapeAirtableValue(runId)}"`];
   if (!includeAll) {
-    filters.push('{is_guitar} = "Yes"');
     filters.push('NOT({archived})');
   }
   params.append('filterByFormula', `AND(${filters.join(',')})`);
