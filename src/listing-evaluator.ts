@@ -25,6 +25,7 @@ const errorSection = document.getElementById('listing-error') as HTMLDivElement 
 const radarEnabledInput = document.getElementById('radar-enabled') as HTMLInputElement | null;
 const radarIntervalInput = document.getElementById('radar-interval') as HTMLInputElement | null;
 const radarSaveButton = document.getElementById('radar-save') as HTMLButtonElement | null;
+const radarEmailTestButton = document.getElementById('radar-email-test') as HTMLButtonElement | null;
 const radarStatus = document.getElementById('radar-status') as HTMLSpanElement | null;
 
 if (form && urlsInput && submitButton) {
@@ -37,6 +38,12 @@ if (form && urlsInput && submitButton) {
 if (radarSaveButton) {
   radarSaveButton.addEventListener('click', () => {
     void handleRadarSave();
+  });
+}
+
+if (radarEmailTestButton) {
+  radarEmailTestButton.addEventListener('click', () => {
+    void handleRadarEmailTest();
   });
 }
 
@@ -116,6 +123,27 @@ async function handleRadarSave(): Promise<void> {
     setRadarStatus(message, true);
   } finally {
     radarSaveButton.disabled = false;
+  }
+}
+
+async function handleRadarEmailTest(): Promise<void> {
+  if (!radarEmailTestButton) return;
+  radarEmailTestButton.disabled = true;
+  setRadarStatus('Sending test email...');
+  try {
+    const response = await fetch('/api/radar/email-test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data?.message || 'Test email failed.');
+    setRadarStatus('Test email sent.');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Test email failed.';
+    setRadarStatus(message, true);
+  } finally {
+    radarEmailTestButton.disabled = false;
   }
 }
 

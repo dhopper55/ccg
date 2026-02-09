@@ -285,6 +285,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/radar/email-test' && request.method === 'POST') {
+      const response = await handleRadarEmailTest(request, env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/radar/settings' && request.method === 'GET') {
       const response = await handleRadarSettings(request, env);
       return withCors(response, request, env);
@@ -588,8 +593,8 @@ function buildFacebookSearchInput(baseUrl: string, keyword: string): Record<stri
   const withQuery = replaceQueryParam(baseUrl, 'query', keyword);
   const withSort = replaceQueryParam(withQuery, 'sortBy', 'creation_time_descend');
   return {
-    includeListingDetails: true,
-    resultsLimit: 15,
+    includeListingDetails: false,
+    resultsLimit: 30,
     startUrls: [{ url: withSort }],
   };
 }
@@ -1023,7 +1028,6 @@ function chunkSms(message: string, maxLength: number): string[] {
 }
 
 async function sendRadarEmail(runId: string, listings: ListingCandidate[], env: Env): Promise<boolean> {
-  if (!listings.length) return false;
   void runId;
   const toEmail = env.RADAR_EMAIL_TO || RADAR_DEFAULT_EMAIL_TO;
   const fromEmail = env.RADAR_EMAIL_FROM || 'david@coalcreekguitars.com';
@@ -1038,7 +1042,9 @@ async function sendRadarEmail(runId: string, listings: ListingCandidate[], env: 
     return `- ${title} ${url}`.trim();
   });
 
-  const textBody = lines.join('\n');
+  const textBody = listings.length > 0
+    ? lines.join('\n')
+    : 'No new listings found in this run.';
   const listItems = listings.map((listing) => {
     const title = listing.title?.trim() || 'Untitled listing';
     const url = listing.url || '#';
@@ -1048,9 +1054,7 @@ async function sendRadarEmail(runId: string, listings: ListingCandidate[], env: 
 <html>
   <body>
     <p>New Facebook Marketplace results:</p>
-    <ul>
-      ${listItems}
-    </ul>
+    ${listItems ? `<ul>${listItems}</ul>` : '<p>No new listings found in this run.</p>'}
   </body>
 </html>`;
 
@@ -1071,15 +1075,20 @@ async function sendRadarEmail(runId: string, listings: ListingCandidate[], env: 
       body: JSON.stringify(payload),
     });
 
+    const responseText = await response.text();
     if (!response.ok) {
-      const errorText = await response.text();
       console.error('Radar email failed', {
         status: response.status,
         statusText: response.statusText,
-        body: errorText,
+        body: responseText,
       });
       return false;
     }
+    console.info('Radar email sent', {
+      status: response.status,
+      statusText: response.statusText,
+      body: responseText,
+    });
     return true;
   } catch (error) {
     console.error('Radar email failed', { error });
@@ -1452,6 +1461,34 @@ async function handleRadarSmsTest(request: Request, env: Env): Promise<Response>
   }
 
   return jsonResponse({ ok: true, details: result.body });
+}
+
+async function handleRadarEmailTest(request: Request, env: Env): Promise<Response> {
+  let body: any = {};
+  try {
+    body = await request.json();
+  } catch {
+    body = {};
+  }
+
+  const url = typeof body?.url === 'string' && body.url.trim().length > 0
+    ? body.url.trim()
+    : `${env.SITE_BASE_URL || 'https://www.coalcreekguitars.com'}${RADAR_DEFAULT_PAGE}`;
+  const testListing: ListingCandidate = {
+    source: 'facebook',
+    keyword: 'test',
+    title: 'Test radar email',
+    price: '',
+    location: '',
+    images: [],
+    url,
+  };
+
+  const ok = await sendRadarEmail('email-test', [testListing], env);
+  if (!ok) {
+    return jsonResponse({ message: 'Radar email test failed.' }, 500);
+  }
+  return jsonResponse({ ok: true });
 }
 
 async function handleRadarSettings(_request: Request, env: Env): Promise<Response> {
