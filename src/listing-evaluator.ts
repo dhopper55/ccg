@@ -23,6 +23,8 @@ const successMessage = document.getElementById('listing-success-message') as HTM
 const rejectedSection = document.getElementById('listing-rejected') as HTMLDivElement | null;
 const errorSection = document.getElementById('listing-error') as HTMLDivElement | null;
 const radarEnabledInput = document.getElementById('radar-enabled') as HTMLInputElement | null;
+const radarIntervalInput = document.getElementById('radar-interval') as HTMLInputElement | null;
+const radarSaveButton = document.getElementById('radar-save') as HTMLButtonElement | null;
 const radarStatus = document.getElementById('radar-status') as HTMLSpanElement | null;
 
 if (form && urlsInput && submitButton) {
@@ -34,6 +36,18 @@ if (form && urlsInput && submitButton) {
 
 if (radarEnabledInput) {
   radarEnabledInput.addEventListener('change', () => {
+    void handleRadarSave();
+  });
+}
+
+if (radarSaveButton) {
+  radarSaveButton.addEventListener('click', () => {
+    void handleRadarSave();
+  });
+}
+
+if (radarIntervalInput) {
+  radarIntervalInput.addEventListener('change', () => {
     void handleRadarSave();
   });
 }
@@ -62,12 +76,13 @@ function setRadarStatus(message: string, isError = false): void {
 }
 
 async function loadRadarSettings(): Promise<void> {
-  if (!radarEnabledInput) return;
+  if (!radarEnabledInput || !radarIntervalInput) return;
   try {
     const response = await fetch('/api/radar/settings');
     const data = await response.json();
     if (!response.ok) throw new Error(data?.message || 'Unable to load radar settings.');
     radarEnabledInput.checked = Boolean(data?.enabled);
+    radarIntervalInput.value = String(data?.intervalMinutes ?? 3);
     if (data?.lastSummary) {
       setRadarStatus(data.lastSummary);
     }
@@ -78,7 +93,8 @@ async function loadRadarSettings(): Promise<void> {
 }
 
 async function handleRadarSave(): Promise<void> {
-  if (!radarEnabledInput) return;
+  if (!radarEnabledInput || !radarIntervalInput) return;
+  const interval = Number.parseInt(radarIntervalInput.value, 10);
   setRadarStatus('Saving...');
   try {
     const response = await fetch('/api/radar/settings', {
@@ -86,11 +102,13 @@ async function handleRadarSave(): Promise<void> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         enabled: radarEnabledInput.checked,
+        intervalMinutes: Number.isFinite(interval) ? interval : 3,
       }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data?.message || 'Unable to save radar settings.');
     radarEnabledInput.checked = Boolean(data?.enabled);
+    radarIntervalInput.value = String(data?.intervalMinutes ?? 3);
     setRadarStatus('Saved.');
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to save radar settings.';

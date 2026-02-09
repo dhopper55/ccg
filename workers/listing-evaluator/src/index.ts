@@ -92,7 +92,10 @@ const RADAR_NEXT_RUN_KEY = 'radar_next_run_at';
 const RADAR_LAST_RUN_KEY = 'radar_last_run_at';
 const RADAR_LAST_SUMMARY_KEY = 'radar_last_summary';
 const RADAR_ENABLED_KEY = 'radar_enabled';
-const RADAR_INTERVAL_MINUTES = 10;
+const RADAR_INTERVAL_MINUTES_KEY = 'radar_interval_minutes';
+const RADAR_DEFAULT_INTERVAL_MINUTES = 3;
+const RADAR_MIN_INTERVAL_MINUTES = 1;
+const RADAR_MAX_INTERVAL_MINUTES = 120;
 const RADAR_JITTER_MINUTES = -1;
 const RADAR_JITTER_MAX_MINUTES = 1;
 const RADAR_CONSECUTIVE_SEEN_LIMIT = 10;
@@ -102,6 +105,10 @@ const RADAR_MAX_AI_CHECKS_PER_RUN = 0;
 const RADAR_CLASSIFY_BATCH = 3;
 const RADAR_DEFAULT_PAGE = '/listing-radar.html';
 const RADAR_DEFAULT_EMAIL_TO = 'david@coalcreekguitars.com';
+const RADAR_EMAIL_INCLUDE_EXISTING = false;
+const MST_OFFSET_MINUTES = -7 * 60;
+const RADAR_QUIET_START_HOUR = 23;
+const RADAR_QUIET_END_HOUR = 5;
 
 const SUPPORTED_ORIGINS = [
   'https://www.coalcreekguitars.com',
@@ -493,6 +500,10 @@ async function runRadarIfDue(env: Env): Promise<void> {
       summary = 'Radar run skipped (disabled).';
       return;
     }
+    if (isQuietHours(new Date(now))) {
+      summary = 'Radar run skipped (quiet hours).';
+      return;
+    }
     const lastRunAtRaw = await env.LISTING_JOBS.get(RADAR_LAST_RUN_KEY);
     const lastRunAt = lastRunAtRaw ? Number.parseInt(lastRunAtRaw, 10) : null;
     const hoursSinceLast = lastRunAt ? (now - lastRunAt) / (1000 * 60 * 60) : Number.POSITIVE_INFINITY;
@@ -503,7 +514,7 @@ async function runRadarIfDue(env: Env): Promise<void> {
     console.error('Radar run failed', { error });
     summary = 'Radar run failed.';
   } finally {
-    const nextRunAtValue = nextRadarRunAt(now);
+    const nextRunAtValue = nextRadarRunAt(now, settings.intervalMinutes);
     await env.LISTING_JOBS.put(RADAR_NEXT_RUN_KEY, String(nextRunAtValue));
     await env.LISTING_JOBS.put(RADAR_LAST_RUN_KEY, String(now));
     await env.LISTING_JOBS.put(RADAR_LAST_SUMMARY_KEY, summary);
@@ -547,7 +558,7 @@ async function runRadarScan(env: Env, sourceOverride?: ListingSource, resultsLim
     if (!sourceOverride || sourceOverride === 'facebook') {
       const fbInput = buildFacebookSearchInput(fbUrl, keyword, resultsLimit);
       const fbRun = await runApifySearch(env.APIFY_FACEBOOK_ACTOR, fbInput, env);
-      const fbStats = await processSourceResults('facebook', fbRun.items, keyword, runId, runStartedAt, newBySource, scored, env, fbRun.runId, aiBudget, newListings);
+      const fbStats = await processSourceResults('facebook', fbRun.items, keyword, runId, runStartedAt, newBySource, scored, env, fbRun.runId, aiBudget, newListings, RADAR_EMAIL_INCLUDE_EXISTING);
       console.info('Radar FB stats', { keyword, ...fbStats });
     }
   }
@@ -739,12 +750,13 @@ async function processSourceResults(
   env: Env,
   apifyRunId?: string,
   aiBudget?: { remaining: number },
-  newListings?: ListingCandidate[]
+  newListings?: ListingCandidate[],
+  includeExistingInEmail = false
 ): Promise<{ total: number; created: number; skippedSponsored: number; skippedNoUrl: number; skippedExisting: number; skippedAiLimit: number }> {
   return await processCandidatesWithState(source, items, keyword, runId, runStartedAt, newBySource, scored, env, {
     consecutiveSeen: 0,
     processedUrls: new Set<string>(),
-  }, apifyRunId, aiBudget, newListings);
+  }, apifyRunId, aiBudget, newListings, includeExistingInEmail);
 }
 
 type RadarProcessState = {
@@ -764,7 +776,8 @@ async function processCandidatesWithState(
   state: RadarProcessState,
   apifyRunId?: string,
   aiBudget?: { remaining: number },
-  newListings?: ListingCandidate[]
+  newListings?: ListingCandidate[],
+  includeExistingInEmail = false
 ): Promise<{ total: number; created: number; skippedSponsored: number; skippedNoUrl: number; skippedExisting: number; skippedAiLimit: number }> {
   const candidates = dedupeCandidates(normalizeSearchItems(items, source, keyword));
   let createdCount = 0;
@@ -797,6 +810,10 @@ async function processCandidatesWithState(
     const existing = await airtableSearchFindByUrl(candidate.url, env);
     if (existing) {
       skippedExisting += 1;
+      if (includeExistingInEmail && newListings) {
+        newListings.push(candidate);
+        continue;
+      }
       state.consecutiveSeen += 1;
       if (state.consecutiveSeen >= RADAR_CONSECUTIVE_SEEN_LIMIT) {
         if (apifyRunId) {
@@ -1042,11 +1059,11 @@ async function sendRadarEmail(runId: string, listings: ListingCandidate[], env: 
 
   const lines = listings.map((listing) => {
     const title = listing.title?.trim() || 'Untitled listing';
-    const price = listing.price ? `Price: ${listing.price}` : 'Price: —';
-    const location = listing.location ? `Location: ${listing.location}` : 'Location: —';
-    const sponsored = listing.isSponsored ? 'Sponsored: Yes' : 'Sponsored: No';
+    const price = listing.price ? `${listing.price}` : '—';
+    const location = listing.location ? `${listing.location}` : '—';
+    const sponsored = listing.isSponsored ? 'SPONSORED' : '';
     const url = listing.url || '';
-    return `- ${title} | ${price} | ${location} | ${sponsored} | ${url}`.trim();
+    return `- ${title} | ${price} | ${location}${sponsored ? ` | ${sponsored}` : ''} | ${url}`.trim();
   });
 
   const textBody = listings.length > 0
@@ -1054,9 +1071,9 @@ async function sendRadarEmail(runId: string, listings: ListingCandidate[], env: 
     : 'No new listings found in this run.';
   const listItems = listings.map((listing) => {
     const title = listing.title?.trim() || 'Untitled listing';
-    const price = listing.price ? `Price: ${listing.price}` : 'Price: —';
-    const location = listing.location ? `Location: ${listing.location}` : 'Location: —';
-    const sponsored = listing.isSponsored ? 'Sponsored: Yes' : 'Sponsored: No';
+    const price = listing.price ? `${listing.price}` : '—';
+    const location = listing.location ? `${listing.location}` : '—';
+    const sponsored = listing.isSponsored ? 'SPONSORED' : '';
     const url = listing.url || '#';
     const image = listing.images?.[0];
     const imageHtml = image
@@ -1065,7 +1082,7 @@ async function sendRadarEmail(runId: string, listings: ListingCandidate[], env: 
     return `<li style="margin-bottom:16px;">
       <a href="${escapeHtml(url)}" style="text-decoration:none;color:#111;">
         <div style="font-weight:600;">${escapeHtml(title)}</div>
-        <div style="font-size:13px;color:#444;">${escapeHtml(price)} | ${escapeHtml(location)} | ${escapeHtml(sponsored)}</div>
+        <div style="font-size:13px;color:#444;"><strong>${escapeHtml(price)}</strong> | ${escapeHtml(location)}${sponsored ? ` | <strong>${escapeHtml(sponsored)}</strong>` : ''}</div>
         ${imageHtml}
       </a>
     </li>`;
@@ -1078,10 +1095,11 @@ async function sendRadarEmail(runId: string, listings: ListingCandidate[], env: 
   </body>
 </html>`;
 
+  const subjectTimestamp = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC');
   const payload = {
     from: `CCG Radar <${fromEmail}>`,
     to: [toEmail],
-    subject: 'CCG/FBM Worker NEW Results',
+    subject: `CCG/FBM Worker NEW Results - ${subjectTimestamp}`,
     text: textBody,
     html: htmlBody,
   };
@@ -1160,30 +1178,57 @@ function randomJitterMinutes(min: number, max: number): number {
   return Math.floor(Math.random() * (high - low + 1)) + low;
 }
 
-function nextRadarRunAt(now: number): number {
+function isQuietHours(date: Date): boolean {
+  const mst = shiftToMst(date);
+  const hour = mst.getUTCHours();
+  if (RADAR_QUIET_START_HOUR > RADAR_QUIET_END_HOUR) {
+    return hour >= RADAR_QUIET_START_HOUR || hour < RADAR_QUIET_END_HOUR;
+  }
+  return hour >= RADAR_QUIET_START_HOUR && hour < RADAR_QUIET_END_HOUR;
+}
+
+function shiftToMst(date: Date): Date {
+  return new Date(date.getTime() + MST_OFFSET_MINUTES * 60 * 1000);
+}
+
+function clampIntervalMinutes(value: number): number {
+  if (!Number.isFinite(value)) return RADAR_DEFAULT_INTERVAL_MINUTES;
+  return Math.min(Math.max(Math.round(value), RADAR_MIN_INTERVAL_MINUTES), RADAR_MAX_INTERVAL_MINUTES);
+}
+
+function nextRadarRunAt(now: number, intervalMinutes: number): number {
   const jitter = randomJitterMinutes(RADAR_JITTER_MINUTES, RADAR_JITTER_MAX_MINUTES);
-  const minutes = RADAR_INTERVAL_MINUTES + jitter;
-  const safeMinutes = Math.max(1, minutes);
+  const minutes = clampIntervalMinutes(intervalMinutes) + jitter;
+  const safeMinutes = Math.max(RADAR_MIN_INTERVAL_MINUTES, minutes);
   return now + safeMinutes * 60 * 1000;
 }
 
-async function getRadarSettings(env: Env): Promise<{ enabled: boolean }> {
+async function getRadarSettings(env: Env): Promise<{ enabled: boolean; intervalMinutes: number }> {
   const enabledRaw = await env.LISTING_JOBS.get(RADAR_ENABLED_KEY);
+  const intervalRaw = await env.LISTING_JOBS.get(RADAR_INTERVAL_MINUTES_KEY);
   const enabled = enabledRaw ? enabledRaw === 'true' : false;
-  return { enabled };
+  const intervalParsed = intervalRaw ? Number.parseInt(intervalRaw, 10) : RADAR_DEFAULT_INTERVAL_MINUTES;
+  return { enabled, intervalMinutes: clampIntervalMinutes(intervalParsed) };
 }
 
-async function updateRadarSettings(env: Env, next: { enabled?: boolean }): Promise<{ enabled: boolean }> {
+async function updateRadarSettings(
+  env: Env,
+  next: { enabled?: boolean; intervalMinutes?: number }
+): Promise<{ enabled: boolean; intervalMinutes: number }> {
   const current = await getRadarSettings(env);
   const enabled = typeof next.enabled === 'boolean' ? next.enabled : current.enabled;
+  const intervalMinutes = typeof next.intervalMinutes === 'number'
+    ? clampIntervalMinutes(next.intervalMinutes)
+    : current.intervalMinutes;
 
   await env.LISTING_JOBS.put(RADAR_ENABLED_KEY, String(enabled));
+  await env.LISTING_JOBS.put(RADAR_INTERVAL_MINUTES_KEY, String(intervalMinutes));
 
   const now = Date.now();
-  const nextRunAtValue = nextRadarRunAt(now);
+  const nextRunAtValue = nextRadarRunAt(now, intervalMinutes);
   await env.LISTING_JOBS.put(RADAR_NEXT_RUN_KEY, String(nextRunAtValue));
 
-  return { enabled };
+  return { enabled, intervalMinutes };
 }
 
 async function handleWebhook(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -1477,6 +1522,7 @@ async function handleRadarSettings(_request: Request, env: Env): Promise<Respons
   const lastSummary = await env.LISTING_JOBS.get(RADAR_LAST_SUMMARY_KEY);
   return jsonResponse({
     enabled: settings.enabled,
+    intervalMinutes: settings.intervalMinutes,
     lastRunAt: lastRunAt ? Number.parseInt(lastRunAt, 10) : null,
     nextRunAt: nextRunAt ? Number.parseInt(nextRunAt, 10) : null,
     lastSummary: lastSummary ?? null,
@@ -1492,7 +1538,8 @@ async function handleRadarSettingsUpdate(request: Request, env: Env): Promise<Re
   }
 
   const enabled = typeof body?.enabled === 'boolean' ? body.enabled : undefined;
-  const updated = await updateRadarSettings(env, { enabled });
+  const intervalMinutes = typeof body?.intervalMinutes === 'number' ? body.intervalMinutes : undefined;
+  const updated = await updateRadarSettings(env, { enabled, intervalMinutes });
   return jsonResponse({ ok: true, ...updated });
 }
 
@@ -1712,6 +1759,9 @@ function normalizeListing(item: any): ListingData {
     item.name,
     item.heading,
     item.marketplaceListingTitle,
+    item.marketplace_listing_title,
+    item.custom_title,
+    item.listing_title,
     item.listing?.title,
     item.listing?.marketplaceListingTitle
   );
@@ -1728,6 +1778,9 @@ function normalizeListing(item: any): ListingData {
     item.summary
   );
   const price = pickString(
+    item.listing_price?.formatted_amount,
+    item.listing_price?.amount,
+    item.listing_price?.amount_with_offset_in_currency,
     item.listingPrice?.formatted_amount_zeros_stripped,
     item.listingPrice?.amount,
     item.price,
@@ -1737,6 +1790,8 @@ function normalizeListing(item: any): ListingData {
     item.priceRange
   );
   const location = pickLocation(
+    item.location?.reverse_geocode?.city,
+    item.location?.reverse_geocode?.city_page?.display_name,
     item.locationText?.text,
     item.location,
     item.locationText,
@@ -1763,6 +1818,8 @@ function normalizeListing(item: any): ListingData {
       item.item_url,
       item.listingUrl,
       item.listingURL,
+      item.listingUrl,
+      item.facebookUrl,
       item.itemUrl,
       item.itemURL,
       item.canonicalUrl,
@@ -1788,6 +1845,7 @@ function pickImages(item: any): string[] {
     item.pics,
     item.picUrls,
     item.listingPhotos,
+    item.primary_listing_photo,
   ];
 
   for (const candidate of candidates) {
@@ -1800,6 +1858,8 @@ function pickImages(item: any): string[] {
       });
     } else if (typeof candidate === 'string') {
       images.push(candidate);
+    } else if (candidate?.photo_image_url) {
+      images.push(candidate.photo_image_url);
     }
   }
 
