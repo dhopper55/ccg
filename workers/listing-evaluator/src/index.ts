@@ -1045,6 +1045,9 @@ type RadarEmailResult = { ok: boolean; status?: number; statusText?: string; bod
 
 async function sendRadarEmail(runId: string, listings: ListingCandidate[], env: Env): Promise<RadarEmailResult> {
   void runId;
+  if (!listings.length) {
+    return { ok: false, body: 'No new listings.' };
+  }
   const toEmail = env.RADAR_EMAIL_TO || RADAR_DEFAULT_EMAIL_TO;
   const fromEmail = env.RADAR_EMAIL_FROM || 'onboarding@resend.dev';
   if (!toEmail) {
@@ -1066,9 +1069,7 @@ async function sendRadarEmail(runId: string, listings: ListingCandidate[], env: 
     return `- ${title} | ${price} | ${location}${sponsored ? ` | ${sponsored}` : ''} | ${url}`.trim();
   });
 
-  const textBody = listings.length > 0
-    ? lines.join('\n')
-    : 'No new listings found in this run.';
+  const textBody = lines.join('\n');
   const listItems = listings.map((listing) => {
     const title = listing.title?.trim() || 'Untitled listing';
     const price = listing.price ? `${listing.price}` : '—';
@@ -1091,7 +1092,7 @@ async function sendRadarEmail(runId: string, listings: ListingCandidate[], env: 
 <html>
   <body>
     <p>New Facebook Marketplace results:</p>
-    ${listItems ? `<ul>${listItems}</ul>` : '<p>No new listings found in this run.</p>'}
+    <ul>${listItems}</ul>
   </body>
 </html>`;
 
