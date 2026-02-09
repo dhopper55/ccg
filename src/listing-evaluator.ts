@@ -24,6 +24,7 @@ const rejectedSection = document.getElementById('listing-rejected') as HTMLDivEl
 const errorSection = document.getElementById('listing-error') as HTMLDivElement | null;
 const radarEnabledInput = document.getElementById('radar-enabled') as HTMLInputElement | null;
 const radarIntervalInput = document.getElementById('radar-interval') as HTMLInputElement | null;
+const radarEmailOnlyNewInput = document.getElementById('radar-email-only-new') as HTMLInputElement | null;
 const radarSaveButton = document.getElementById('radar-save') as HTMLButtonElement | null;
 const radarStatus = document.getElementById('radar-status') as HTMLSpanElement | null;
 
@@ -52,6 +53,12 @@ if (radarIntervalInput) {
   });
 }
 
+if (radarEmailOnlyNewInput) {
+  radarEmailOnlyNewInput.addEventListener('change', () => {
+    void handleRadarSave();
+  });
+}
+
 void loadRadarSettings();
 
 function resetMessages(): void {
@@ -76,13 +83,14 @@ function setRadarStatus(message: string, isError = false): void {
 }
 
 async function loadRadarSettings(): Promise<void> {
-  if (!radarEnabledInput || !radarIntervalInput) return;
+  if (!radarEnabledInput || !radarIntervalInput || !radarEmailOnlyNewInput) return;
   try {
     const response = await fetch('/api/radar/settings');
     const data = await response.json();
     if (!response.ok) throw new Error(data?.message || 'Unable to load radar settings.');
     radarEnabledInput.checked = Boolean(data?.enabled);
     radarIntervalInput.value = String(data?.intervalMinutes ?? 3);
+    radarEmailOnlyNewInput.checked = data?.emailOnlyNew !== false;
     if (data?.lastSummary) {
       setRadarStatus(data.lastSummary);
     }
@@ -93,7 +101,7 @@ async function loadRadarSettings(): Promise<void> {
 }
 
 async function handleRadarSave(): Promise<void> {
-  if (!radarEnabledInput || !radarIntervalInput) return;
+  if (!radarEnabledInput || !radarIntervalInput || !radarEmailOnlyNewInput) return;
   const interval = Number.parseInt(radarIntervalInput.value, 10);
   setRadarStatus('Saving...');
   try {
@@ -103,12 +111,14 @@ async function handleRadarSave(): Promise<void> {
       body: JSON.stringify({
         enabled: radarEnabledInput.checked,
         intervalMinutes: Number.isFinite(interval) ? interval : 3,
+        emailOnlyNew: radarEmailOnlyNewInput.checked,
       }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data?.message || 'Unable to save radar settings.');
     radarEnabledInput.checked = Boolean(data?.enabled);
     radarIntervalInput.value = String(data?.intervalMinutes ?? 3);
+    radarEmailOnlyNewInput.checked = data?.emailOnlyNew !== false;
     setRadarStatus('Saved.');
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to save radar settings.';
