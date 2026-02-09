@@ -59,10 +59,10 @@ async function loadRadarSettings() {
         const response = await fetch('/api/radar/settings');
         const data = await response.json();
         if (!response.ok)
-            throw new Error((data === null || data === void 0 ? void 0 : data.message) || 'Unable to load radar settings.');
-        radarEnabledInput.checked = Boolean(data === null || data === void 0 ? void 0 : data.enabled);
-        radarIntervalInput.value = String((data === null || data === void 0 ? void 0 : data.intervalMinutes) ?? 10);
-        if (data === null || data === void 0 ? void 0 : data.lastSummary) {
+            throw new Error(data?.message || 'Unable to load radar settings.');
+        radarEnabledInput.checked = Boolean(data?.enabled);
+        radarIntervalInput.value = String(data?.intervalMinutes ?? 10);
+        if (data?.lastSummary) {
             setRadarStatus(data.lastSummary);
         }
     }
@@ -88,9 +88,9 @@ async function handleRadarSave() {
         });
         const data = await response.json();
         if (!response.ok)
-            throw new Error((data === null || data === void 0 ? void 0 : data.message) || 'Unable to save radar settings.');
-        radarEnabledInput.checked = Boolean(data === null || data === void 0 ? void 0 : data.enabled);
-        radarIntervalInput.value = String((data === null || data === void 0 ? void 0 : data.intervalMinutes) ?? 10);
+            throw new Error(data?.message || 'Unable to save radar settings.');
+        radarEnabledInput.checked = Boolean(data?.enabled);
+        radarIntervalInput.value = String(data?.intervalMinutes ?? 10);
         setRadarStatus('Saved.');
     }
     catch (error) {
