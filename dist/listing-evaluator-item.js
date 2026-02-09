@@ -17,6 +17,7 @@ const mediaEl = document.getElementById('listing-item-media');
 const thumbnailEl = document.getElementById('listing-item-thumbnail');
 const copyButton = document.getElementById('listing-item-copy');
 const doubleCheckButton = document.getElementById('listing-item-double-check');
+const doubleCheckGuitarButton = document.getElementById('listing-item-double-check-guitar');
 let currentRecordId = null;
 let isArchiving = false;
 const BUILD_TAG = '2026-02-05a';
@@ -168,17 +169,28 @@ function cleanSearchToken(value) {
     if (raw === '—')
         return '';
     let cleaned = raw.replace(/\(NOT DEFINITIVE\)/gi, '');
+    cleaned = cleaned.replace(/\bEstimated\s+range\s*:?\s*/gi, '');
     cleaned = cleaned.replace(/\bGuess:\s*/gi, '');
+    cleaned = cleaned.replace(/\bUnknown\b/gi, '');
     cleaned = cleaned.replace(/\s+/g, ' ').trim();
     return cleaned;
 }
-function buildDoubleCheckQuery(fields) {
-    const year = cleanSearchToken(fields.year);
+function formatYearRangeToken(value) {
+    if (!value)
+        return value;
+    const match = value.match(/(\d{4})s?\s*(?:[-–—]|to)\s*(\d{4})s?/i);
+    if (!match)
+        return value;
+    return `${match[1]}-${match[2]}'s`;
+}
+function buildDoubleCheckQuery(fields, options = {}) {
+    const year = formatYearRangeToken(cleanSearchToken(fields.year));
     const brand = cleanSearchToken(fields.brand);
     const model = cleanSearchToken(fields.model);
     const finish = cleanSearchToken(fields.finish);
     const parts = [year, brand, model, finish].filter(Boolean);
-    return `${parts.join(' ')} used value`.trim();
+    const suffix = options.includeGuitar ? 'guitar used value' : 'used value';
+    return `${parts.join(' ')} ${suffix}`.trim();
 }
 function buildItemDoubleCheckQuery(title) {
     const cleaned = cleanSearchToken(title);
@@ -194,6 +206,9 @@ function openDoubleCheckQuery(query) {
 }
 function openDoubleCheck(fields) {
     openDoubleCheckQuery(buildDoubleCheckQuery(fields));
+}
+function openDoubleCheckGuitar(fields) {
+    openDoubleCheckQuery(buildDoubleCheckQuery(fields, { includeGuitar: true }));
 }
 function buildInlineDoubleCheckLink(query) {
     const link = document.createElement('a');
@@ -717,6 +732,12 @@ function renderRecord(record) {
         doubleCheckButton.onclick = (event) => {
             event.preventDefault();
             openDoubleCheck(fields);
+        };
+    }
+    if (doubleCheckGuitarButton) {
+        doubleCheckGuitarButton.onclick = (event) => {
+            event.preventDefault();
+            openDoubleCheckGuitar(fields);
         };
     }
 }

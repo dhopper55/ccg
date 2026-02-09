@@ -27,6 +27,7 @@ const mediaEl = document.getElementById('listing-item-media') as HTMLDivElement 
 const thumbnailEl = document.getElementById('listing-item-thumbnail') as HTMLImageElement | null;
 const copyButton = document.getElementById('listing-item-copy') as HTMLButtonElement | null;
 const doubleCheckButton = document.getElementById('listing-item-double-check') as HTMLButtonElement | null;
+const doubleCheckGuitarButton = document.getElementById('listing-item-double-check-guitar') as HTMLButtonElement | null;
 
 let currentRecordId: string | null = null;
 let isArchiving = false;
@@ -172,18 +173,32 @@ function cleanSearchToken(value: unknown): string {
   const raw = normalizeValue(value);
   if (raw === '—') return '';
   let cleaned = raw.replace(/\(NOT DEFINITIVE\)/gi, '');
+  cleaned = cleaned.replace(/\bEstimated\s+range\s*:?\s*/gi, '');
   cleaned = cleaned.replace(/\bGuess:\s*/gi, '');
+  cleaned = cleaned.replace(/\bUnknown\b/gi, '');
   cleaned = cleaned.replace(/\s+/g, ' ').trim();
   return cleaned;
 }
 
-function buildDoubleCheckQuery(fields: Record<string, unknown>): string {
-  const year = cleanSearchToken(fields.year);
+function formatYearRangeToken(value: string): string {
+  if (!value) return value;
+  const match = value.match(/(\d{4})s?\s*(?:[-–—]|to)\s*(\d{4})s?/i);
+  if (!match) return value;
+  return `${match[1]}-${match[2]}'s`;
+}
+
+type DoubleCheckOptions = {
+  includeGuitar?: boolean;
+};
+
+function buildDoubleCheckQuery(fields: Record<string, unknown>, options: DoubleCheckOptions = {}): string {
+  const year = formatYearRangeToken(cleanSearchToken(fields.year));
   const brand = cleanSearchToken(fields.brand);
   const model = cleanSearchToken(fields.model);
   const finish = cleanSearchToken(fields.finish);
   const parts = [year, brand, model, finish].filter(Boolean);
-  return `${parts.join(' ')} used value`.trim();
+  const suffix = options.includeGuitar ? 'guitar used value' : 'used value';
+  return `${parts.join(' ')} ${suffix}`.trim();
 }
 
 function buildItemDoubleCheckQuery(title: string): string {
@@ -200,6 +215,10 @@ function openDoubleCheckQuery(query: string): void {
 
 function openDoubleCheck(fields: Record<string, unknown>): void {
   openDoubleCheckQuery(buildDoubleCheckQuery(fields));
+}
+
+function openDoubleCheckGuitar(fields: Record<string, unknown>): void {
+  openDoubleCheckQuery(buildDoubleCheckQuery(fields, { includeGuitar: true }));
 }
 
 function buildInlineDoubleCheckLink(query: string): HTMLAnchorElement {
@@ -728,6 +747,12 @@ function renderRecord(record: ListingRecordResponse): void {
     doubleCheckButton.onclick = (event) => {
       event.preventDefault();
       openDoubleCheck(fields);
+    };
+  }
+  if (doubleCheckGuitarButton) {
+    doubleCheckGuitarButton.onclick = (event) => {
+      event.preventDefault();
+      openDoubleCheckGuitar(fields);
     };
   }
 }
