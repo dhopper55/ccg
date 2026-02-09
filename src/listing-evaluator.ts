@@ -23,9 +23,6 @@ const successMessage = document.getElementById('listing-success-message') as HTM
 const rejectedSection = document.getElementById('listing-rejected') as HTMLDivElement | null;
 const errorSection = document.getElementById('listing-error') as HTMLDivElement | null;
 const radarEnabledInput = document.getElementById('radar-enabled') as HTMLInputElement | null;
-const radarIntervalInput = document.getElementById('radar-interval') as HTMLInputElement | null;
-const radarSaveButton = document.getElementById('radar-save') as HTMLButtonElement | null;
-const radarEmailTestButton = document.getElementById('radar-email-test') as HTMLButtonElement | null;
 const radarStatus = document.getElementById('radar-status') as HTMLSpanElement | null;
 
 if (form && urlsInput && submitButton) {
@@ -35,26 +32,8 @@ if (form && urlsInput && submitButton) {
   });
 }
 
-if (radarSaveButton) {
-  radarSaveButton.addEventListener('click', () => {
-    void handleRadarSave();
-  });
-}
-
-if (radarEmailTestButton) {
-  radarEmailTestButton.addEventListener('click', () => {
-    void handleRadarEmailTest();
-  });
-}
-
 if (radarEnabledInput) {
   radarEnabledInput.addEventListener('change', () => {
-    void handleRadarSave();
-  });
-}
-
-if (radarIntervalInput) {
-  radarIntervalInput.addEventListener('change', () => {
     void handleRadarSave();
   });
 }
@@ -83,13 +62,12 @@ function setRadarStatus(message: string, isError = false): void {
 }
 
 async function loadRadarSettings(): Promise<void> {
-  if (!radarEnabledInput || !radarIntervalInput) return;
+  if (!radarEnabledInput) return;
   try {
     const response = await fetch('/api/radar/settings');
     const data = await response.json();
     if (!response.ok) throw new Error(data?.message || 'Unable to load radar settings.');
     radarEnabledInput.checked = Boolean(data?.enabled);
-    radarIntervalInput.value = String(data?.intervalMinutes ?? 10);
     if (data?.lastSummary) {
       setRadarStatus(data.lastSummary);
     }
@@ -100,9 +78,7 @@ async function loadRadarSettings(): Promise<void> {
 }
 
 async function handleRadarSave(): Promise<void> {
-  if (!radarEnabledInput || !radarIntervalInput || !radarSaveButton) return;
-  const interval = Number.parseInt(radarIntervalInput.value, 10);
-  radarSaveButton.disabled = true;
+  if (!radarEnabledInput) return;
   setRadarStatus('Saving...');
   try {
     const response = await fetch('/api/radar/settings', {
@@ -110,43 +86,15 @@ async function handleRadarSave(): Promise<void> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         enabled: radarEnabledInput.checked,
-        intervalMinutes: Number.isFinite(interval) ? interval : 10,
       }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data?.message || 'Unable to save radar settings.');
     radarEnabledInput.checked = Boolean(data?.enabled);
-    radarIntervalInput.value = String(data?.intervalMinutes ?? 10);
     setRadarStatus('Saved.');
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to save radar settings.';
     setRadarStatus(message, true);
-  } finally {
-    radarSaveButton.disabled = false;
-  }
-}
-
-async function handleRadarEmailTest(): Promise<void> {
-  if (!radarEmailTestButton) return;
-  radarEmailTestButton.disabled = true;
-  setRadarStatus('Sending test email...');
-  try {
-    const response = await fetch('/api/radar/email-test', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      const details = data?.details ? JSON.stringify(data.details) : '';
-      throw new Error([data?.message || 'Test email failed.', details].filter(Boolean).join(' '));
-    }
-    setRadarStatus('Test email sent.');
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Test email failed.';
-    setRadarStatus(message, true);
-  } finally {
-    radarEmailTestButton.disabled = false;
   }
 }
 

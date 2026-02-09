@@ -63,6 +63,7 @@ interface Env {
   RADAR_AI_ENABLED?: string;
   RADAR_EMAIL_TO?: string;
   RADAR_EMAIL_FROM?: string;
+  RESEND_API_KEY?: string;
   LISTING_JOBS: KVNamespace;
 }
 
@@ -91,10 +92,7 @@ const RADAR_NEXT_RUN_KEY = 'radar_next_run_at';
 const RADAR_LAST_RUN_KEY = 'radar_last_run_at';
 const RADAR_LAST_SUMMARY_KEY = 'radar_last_summary';
 const RADAR_ENABLED_KEY = 'radar_enabled';
-const RADAR_INTERVAL_MINUTES_KEY = 'radar_interval_minutes';
-const RADAR_DEFAULT_INTERVAL_MINUTES = 10;
-const RADAR_MIN_INTERVAL_MINUTES = 1;
-const RADAR_MAX_INTERVAL_MINUTES = 120;
+const RADAR_INTERVAL_MINUTES = 3;
 const RADAR_JITTER_MINUTES = -1;
 const RADAR_JITTER_MAX_MINUTES = 1;
 const RADAR_CONSECUTIVE_SEEN_LIMIT = 10;
@@ -103,7 +101,7 @@ const RADAR_CL_TIMEBOX_MS = 60000;
 const RADAR_MAX_AI_CHECKS_PER_RUN = 0;
 const RADAR_CLASSIFY_BATCH = 3;
 const RADAR_DEFAULT_PAGE = '/listing-radar.html';
-const RADAR_DEFAULT_EMAIL_TO = 'davidhopper55@gmail.com';
+const RADAR_DEFAULT_EMAIL_TO = 'david@coalcreekguitars.com';
 
 const SUPPORTED_ORIGINS = [
   'https://www.coalcreekguitars.com',
@@ -282,11 +280,6 @@ export default {
 
     if (path === '/api/radar/sms-test' && request.method === 'POST') {
       const response = await handleRadarSmsTest(request, env);
-      return withCors(response, request, env);
-    }
-
-    if (path === '/api/radar/email-test' && request.method === 'POST') {
-      const response = await handleRadarEmailTest(request, env);
       return withCors(response, request, env);
     }
 
@@ -500,13 +493,17 @@ async function runRadarIfDue(env: Env): Promise<void> {
       summary = 'Radar run skipped (disabled).';
       return;
     }
-    const result = await runRadarScan(env, 'facebook');
+    const lastRunAtRaw = await env.LISTING_JOBS.get(RADAR_LAST_RUN_KEY);
+    const lastRunAt = lastRunAtRaw ? Number.parseInt(lastRunAtRaw, 10) : null;
+    const hoursSinceLast = lastRunAt ? (now - lastRunAt) / (1000 * 60 * 60) : Number.POSITIVE_INFINITY;
+    const resultsLimit = hoursSinceLast > 5 ? 15 : 5;
+    const result = await runRadarScan(env, 'facebook', resultsLimit);
     summary = result.summary;
   } catch (error) {
     console.error('Radar run failed', { error });
     summary = 'Radar run failed.';
   } finally {
-    const nextRunAtValue = nextRadarRunAt(now, settings.intervalMinutes);
+    const nextRunAtValue = nextRadarRunAt(now);
     await env.LISTING_JOBS.put(RADAR_NEXT_RUN_KEY, String(nextRunAtValue));
     await env.LISTING_JOBS.put(RADAR_LAST_RUN_KEY, String(now));
     await env.LISTING_JOBS.put(RADAR_LAST_SUMMARY_KEY, summary);
@@ -520,7 +517,7 @@ type RadarResult = {
   summary: string;
 };
 
-async function runRadarScan(env: Env, sourceOverride?: ListingSource): Promise<RadarResult> {
+async function runRadarScan(env: Env, sourceOverride?: ListingSource, resultsLimit = 5): Promise<RadarResult> {
   const keywords = parseRadarKeywords(env.RADAR_KEYWORDS);
   const fbUrl = env.RADAR_FB_SEARCH_URL;
   const clUrl = env.RADAR_CL_SEARCH_URL;
@@ -548,7 +545,7 @@ async function runRadarScan(env: Env, sourceOverride?: ListingSource): Promise<R
     }
 
     if (!sourceOverride || sourceOverride === 'facebook') {
-      const fbInput = buildFacebookSearchInput(fbUrl, keyword);
+      const fbInput = buildFacebookSearchInput(fbUrl, keyword, resultsLimit);
       const fbRun = await runApifySearch(env.APIFY_FACEBOOK_ACTOR, fbInput, env);
       const fbStats = await processSourceResults('facebook', fbRun.items, keyword, runId, runStartedAt, newBySource, scored, env, fbRun.runId, aiBudget, newListings);
       console.info('Radar FB stats', { keyword, ...fbStats });
@@ -589,12 +586,12 @@ function parseRadarKeywords(raw?: string): string[] {
   return parts.length > 0 ? parts : ['guitar'];
 }
 
-function buildFacebookSearchInput(baseUrl: string, keyword: string): Record<string, unknown> {
+function buildFacebookSearchInput(baseUrl: string, keyword: string, resultsLimit: number): Record<string, unknown> {
   const withQuery = replaceQueryParam(baseUrl, 'query', keyword);
   const withSort = replaceQueryParam(withQuery, 'sortBy', 'creation_time_descend');
   return {
     includeListingDetails: false,
-    resultsLimit: 30,
+    resultsLimit,
     startUrls: [{ url: withSort }],
   };
 }
@@ -1032,16 +1029,24 @@ type RadarEmailResult = { ok: boolean; status?: number; statusText?: string; bod
 async function sendRadarEmail(runId: string, listings: ListingCandidate[], env: Env): Promise<RadarEmailResult> {
   void runId;
   const toEmail = env.RADAR_EMAIL_TO || RADAR_DEFAULT_EMAIL_TO;
-  const fromEmail = env.RADAR_EMAIL_FROM || 'david@coalcreekguitars.com';
+  const fromEmail = env.RADAR_EMAIL_FROM || 'onboarding@resend.dev';
   if (!toEmail) {
     console.warn('Radar email skipped: no recipient configured.');
-    return false;
+    return { ok: false, body: 'Radar email skipped: no recipient configured.' };
+  }
+
+  if (!env.RESEND_API_KEY) {
+    console.warn('Radar email skipped: RESEND_API_KEY missing.');
+    return { ok: false, body: 'Radar email skipped: RESEND_API_KEY missing.' };
   }
 
   const lines = listings.map((listing) => {
     const title = listing.title?.trim() || 'Untitled listing';
+    const price = listing.price ? `Price: ${listing.price}` : 'Price: —';
+    const location = listing.location ? `Location: ${listing.location}` : 'Location: —';
+    const sponsored = listing.isSponsored ? 'Sponsored: Yes' : 'Sponsored: No';
     const url = listing.url || '';
-    return `- ${title} ${url}`.trim();
+    return `- ${title} | ${price} | ${location} | ${sponsored} | ${url}`.trim();
   });
 
   const textBody = listings.length > 0
@@ -1049,8 +1054,21 @@ async function sendRadarEmail(runId: string, listings: ListingCandidate[], env: 
     : 'No new listings found in this run.';
   const listItems = listings.map((listing) => {
     const title = listing.title?.trim() || 'Untitled listing';
+    const price = listing.price ? `Price: ${listing.price}` : 'Price: —';
+    const location = listing.location ? `Location: ${listing.location}` : 'Location: —';
+    const sponsored = listing.isSponsored ? 'Sponsored: Yes' : 'Sponsored: No';
     const url = listing.url || '#';
-    return `<li><a href="${escapeHtml(url)}">${escapeHtml(title)}</a></li>`;
+    const image = listing.images?.[0];
+    const imageHtml = image
+      ? `<div style="margin-top:6px;"><img src="${escapeHtml(image)}" alt="${escapeHtml(title)}" style="max-width:220px;border-radius:8px;border:1px solid #ddd;" /></div>`
+      : '';
+    return `<li style="margin-bottom:16px;">
+      <a href="${escapeHtml(url)}" style="text-decoration:none;color:#111;">
+        <div style="font-weight:600;">${escapeHtml(title)}</div>
+        <div style="font-size:13px;color:#444;">${escapeHtml(price)} | ${escapeHtml(location)} | ${escapeHtml(sponsored)}</div>
+        ${imageHtml}
+      </a>
+    </li>`;
   }).join('');
   const htmlBody = `<!doctype html>
 <html>
@@ -1061,41 +1079,42 @@ async function sendRadarEmail(runId: string, listings: ListingCandidate[], env: 
 </html>`;
 
   const payload = {
-    personalizations: [{ to: [{ email: toEmail }] }],
-    from: { email: fromEmail, name: 'CCG Radar' },
+    from: `CCG Radar <${fromEmail}>`,
+    to: [toEmail],
     subject: 'CCG/FBM Worker NEW Results',
-    content: [
-      { type: 'text/plain', value: textBody },
-      { type: 'text/html', value: htmlBody },
-    ],
+    text: textBody,
+    html: htmlBody,
   };
 
   try {
-    const response = await fetch('https://api.mailchannels.net/tx/v1/send', {
+    const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+      },
       body: JSON.stringify(payload),
     });
 
-    const responseText = await response.text();
-    if (!response.ok) {
-      console.error('Radar email failed', {
-        status: response.status,
-        statusText: response.statusText,
-        body: responseText,
-      });
-      return { ok: false, status: response.status, statusText: response.statusText, body: responseText };
-    }
-    console.info('Radar email sent', {
+  const responseText = await response.text();
+  if (!response.ok) {
+    console.error('Radar email failed', {
       status: response.status,
       statusText: response.statusText,
       body: responseText,
     });
-    return { ok: true, status: response.status, statusText: response.statusText, body: responseText };
-  } catch (error) {
-    console.error('Radar email failed', { error });
-    return { ok: false, body: error instanceof Error ? error.message : String(error) };
+    return { ok: false, status: response.status, statusText: response.statusText, body: responseText };
   }
+  console.info('Radar email sent', {
+    status: response.status,
+    statusText: response.statusText,
+    body: responseText,
+  });
+  return { ok: true, status: response.status, statusText: response.statusText, body: responseText };
+} catch (error) {
+  console.error('Radar email failed', { error });
+  return { ok: false, body: error instanceof Error ? error.message : String(error) };
+}
 }
 
 function escapeHtml(value: string): string {
@@ -1141,44 +1160,30 @@ function randomJitterMinutes(min: number, max: number): number {
   return Math.floor(Math.random() * (high - low + 1)) + low;
 }
 
-function clampIntervalMinutes(value: number): number {
-  if (!Number.isFinite(value)) return RADAR_DEFAULT_INTERVAL_MINUTES;
-  return Math.min(Math.max(Math.round(value), RADAR_MIN_INTERVAL_MINUTES), RADAR_MAX_INTERVAL_MINUTES);
-}
-
-function nextRadarRunAt(now: number, intervalMinutes: number): number {
+function nextRadarRunAt(now: number): number {
   const jitter = randomJitterMinutes(RADAR_JITTER_MINUTES, RADAR_JITTER_MAX_MINUTES);
-  const minutes = clampIntervalMinutes(intervalMinutes) + jitter;
-  const safeMinutes = Math.max(RADAR_MIN_INTERVAL_MINUTES, minutes);
+  const minutes = RADAR_INTERVAL_MINUTES + jitter;
+  const safeMinutes = Math.max(1, minutes);
   return now + safeMinutes * 60 * 1000;
 }
 
-async function getRadarSettings(env: Env): Promise<{ enabled: boolean; intervalMinutes: number }> {
+async function getRadarSettings(env: Env): Promise<{ enabled: boolean }> {
   const enabledRaw = await env.LISTING_JOBS.get(RADAR_ENABLED_KEY);
-  const intervalRaw = await env.LISTING_JOBS.get(RADAR_INTERVAL_MINUTES_KEY);
   const enabled = enabledRaw ? enabledRaw === 'true' : false;
-  const intervalParsed = intervalRaw ? Number.parseInt(intervalRaw, 10) : RADAR_DEFAULT_INTERVAL_MINUTES;
-  return {
-    enabled,
-    intervalMinutes: clampIntervalMinutes(intervalParsed),
-  };
+  return { enabled };
 }
 
-async function updateRadarSettings(env: Env, next: { enabled?: boolean; intervalMinutes?: number }): Promise<{ enabled: boolean; intervalMinutes: number }> {
+async function updateRadarSettings(env: Env, next: { enabled?: boolean }): Promise<{ enabled: boolean }> {
   const current = await getRadarSettings(env);
   const enabled = typeof next.enabled === 'boolean' ? next.enabled : current.enabled;
-  const intervalMinutes = typeof next.intervalMinutes === 'number'
-    ? clampIntervalMinutes(next.intervalMinutes)
-    : current.intervalMinutes;
 
   await env.LISTING_JOBS.put(RADAR_ENABLED_KEY, String(enabled));
-  await env.LISTING_JOBS.put(RADAR_INTERVAL_MINUTES_KEY, String(intervalMinutes));
 
   const now = Date.now();
-  const nextRunAtValue = nextRadarRunAt(now, intervalMinutes);
+  const nextRunAtValue = nextRadarRunAt(now);
   await env.LISTING_JOBS.put(RADAR_NEXT_RUN_KEY, String(nextRunAtValue));
 
-  return { enabled, intervalMinutes };
+  return { enabled };
 }
 
 async function handleWebhook(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -1465,34 +1470,6 @@ async function handleRadarSmsTest(request: Request, env: Env): Promise<Response>
   return jsonResponse({ ok: true, details: result.body });
 }
 
-async function handleRadarEmailTest(request: Request, env: Env): Promise<Response> {
-  let body: any = {};
-  try {
-    body = await request.json();
-  } catch {
-    body = {};
-  }
-
-  const url = typeof body?.url === 'string' && body.url.trim().length > 0
-    ? body.url.trim()
-    : `${env.SITE_BASE_URL || 'https://www.coalcreekguitars.com'}${RADAR_DEFAULT_PAGE}`;
-  const testListing: ListingCandidate = {
-    source: 'facebook',
-    keyword: 'test',
-    title: 'Test radar email',
-    price: '',
-    location: '',
-    images: [],
-    url,
-  };
-
-  const result = await sendRadarEmail('email-test', [testListing], env);
-  if (!result.ok) {
-    return jsonResponse({ message: 'Radar email test failed.', details: result }, 500);
-  }
-  return jsonResponse({ ok: true });
-}
-
 async function handleRadarSettings(_request: Request, env: Env): Promise<Response> {
   const settings = await getRadarSettings(env);
   const lastRunAt = await env.LISTING_JOBS.get(RADAR_LAST_RUN_KEY);
@@ -1500,7 +1477,6 @@ async function handleRadarSettings(_request: Request, env: Env): Promise<Respons
   const lastSummary = await env.LISTING_JOBS.get(RADAR_LAST_SUMMARY_KEY);
   return jsonResponse({
     enabled: settings.enabled,
-    intervalMinutes: settings.intervalMinutes,
     lastRunAt: lastRunAt ? Number.parseInt(lastRunAt, 10) : null,
     nextRunAt: nextRunAt ? Number.parseInt(nextRunAt, 10) : null,
     lastSummary: lastSummary ?? null,
@@ -1516,8 +1492,7 @@ async function handleRadarSettingsUpdate(request: Request, env: Env): Promise<Re
   }
 
   const enabled = typeof body?.enabled === 'boolean' ? body.enabled : undefined;
-  const intervalMinutes = typeof body?.intervalMinutes === 'number' ? body.intervalMinutes : undefined;
-  const updated = await updateRadarSettings(env, { enabled, intervalMinutes });
+  const updated = await updateRadarSettings(env, { enabled });
   return jsonResponse({ ok: true, ...updated });
 }
 
@@ -1729,7 +1704,17 @@ type SingleAiResult = {
 type AiResult = { kind: 'multi'; summary: string } | { kind: 'single'; data: SingleAiResult };
 
 function normalizeListing(item: any): ListingData {
-  const title = pickString(item.listingTitle, item.title, item.name, item.heading);
+  const title = pickString(
+    item.listingTitle,
+    item.title?.text,
+    item.title,
+    item.name?.text,
+    item.name,
+    item.heading,
+    item.marketplaceListingTitle,
+    item.listing?.title,
+    item.listing?.marketplaceListingTitle
+  );
   const description = pickString(
     item.description?.text,
     item.post,
