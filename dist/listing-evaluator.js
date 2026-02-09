@@ -12,6 +12,7 @@ const rejectedSection = document.getElementById('listing-rejected');
 const errorSection = document.getElementById('listing-error');
 const radarEnabledInput = document.getElementById('radar-enabled');
 const radarIntervalInput = document.getElementById('radar-interval');
+const radarResultsLimitInput = document.getElementById('radar-results-limit');
 const radarEmailSendEmptyInput = document.getElementById('radar-email-send-empty');
 const radarStatus = document.getElementById('radar-status');
 if (form && urlsInput && submitButton) {
@@ -27,6 +28,11 @@ if (radarEnabledInput) {
 }
 if (radarIntervalInput) {
     radarIntervalInput.addEventListener('change', () => {
+        void handleRadarSave();
+    });
+}
+if (radarResultsLimitInput) {
+    radarResultsLimitInput.addEventListener('change', () => {
         void handleRadarSave();
     });
 }
@@ -63,7 +69,7 @@ function setRadarStatus(message, isError = false) {
     radarStatus.style.color = isError ? '#ffb1b1' : '';
 }
 async function loadRadarSettings() {
-    if (!radarEnabledInput || !radarIntervalInput || !radarEmailSendEmptyInput)
+    if (!radarEnabledInput || !radarIntervalInput || !radarResultsLimitInput || !radarEmailSendEmptyInput)
         return;
     try {
         const response = await fetch('/api/radar/settings');
@@ -72,6 +78,7 @@ async function loadRadarSettings() {
             throw new Error(data?.message || 'Unable to load radar settings.');
         radarEnabledInput.checked = Boolean(data?.enabled);
         radarIntervalInput.value = String(data?.intervalMinutes ?? 3);
+        radarResultsLimitInput.value = String(data?.resultsLimit ?? 5);
         radarEmailSendEmptyInput.checked = data?.emailSendEmpty !== false;
         if (data?.lastSummary) {
             setRadarStatus(data.lastSummary);
@@ -83,9 +90,10 @@ async function loadRadarSettings() {
     }
 }
 async function handleRadarSave() {
-    if (!radarEnabledInput || !radarIntervalInput || !radarEmailSendEmptyInput)
+    if (!radarEnabledInput || !radarIntervalInput || !radarResultsLimitInput || !radarEmailSendEmptyInput)
         return;
     const interval = Number.parseInt(radarIntervalInput.value, 10);
+    const resultsLimit = Number.parseInt(radarResultsLimitInput.value, 10);
     setRadarStatus('Saving...');
     try {
         const response = await fetch('/api/radar/settings', {
@@ -94,6 +102,7 @@ async function handleRadarSave() {
             body: JSON.stringify({
                 enabled: radarEnabledInput.checked,
                 intervalMinutes: Number.isFinite(interval) ? interval : 3,
+                resultsLimit: Number.isFinite(resultsLimit) ? resultsLimit : 5,
                 emailSendEmpty: radarEmailSendEmptyInput.checked,
             }),
         });
@@ -102,6 +111,7 @@ async function handleRadarSave() {
             throw new Error(data?.message || 'Unable to save radar settings.');
         radarEnabledInput.checked = Boolean(data?.enabled);
         radarIntervalInput.value = String(data?.intervalMinutes ?? 3);
+        radarResultsLimitInput.value = String(data?.resultsLimit ?? 5);
         radarEmailSendEmptyInput.checked = data?.emailSendEmpty !== false;
         setRadarStatus('Saved.');
     }

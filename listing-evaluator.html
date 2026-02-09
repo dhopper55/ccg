@@ -73,6 +73,8 @@ https://www.facebook.com/marketplace/item/..."></textarea>
       <div class="listing-radar-controls">
         <label for="radar-interval">Interval (minutes)</label>
         <input id="radar-interval" type="number" min="1" max="120" step="1" value="3">
+        <label for="radar-results-limit">Results per run</label>
+        <input id="radar-results-limit" type="number" min="1" max="100" step="1" value="5">
         <label class="toggle">
           <input id="radar-email-send-empty" type="checkbox" checked>
           <span>Email even if none</span>
@@ -90,7 +92,7 @@ https://www.facebook.com/marketplace/item/..."></textarea>
     </div>
   </footer>
 
-  <script type="module" src="dist/listing-evaluator.js?version=924947"></script>
+  <script type="module" src="dist/listing-evaluator.js?version=440903"></script>
   <script>
     (function() {
       const year = new Date().getFullYear();
