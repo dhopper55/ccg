@@ -496,6 +496,7 @@ async function runRadarIfDue(env: Env): Promise<void> {
   }
 
   let summary = 'Radar run skipped.';
+  let didRun = false;
   try {
     if (!settings.enabled) {
       summary = 'Radar run skipped (disabled).';
@@ -510,6 +511,7 @@ async function runRadarIfDue(env: Env): Promise<void> {
     const hoursSinceLast = lastRunAt ? (now - lastRunAt) / (1000 * 60 * 60) : Number.POSITIVE_INFINITY;
     const resultsLimit = hoursSinceLast > 5 ? 15 : 5;
     const result = await runRadarScan(env, 'facebook', resultsLimit, settings.emailOnlyNew);
+    didRun = true;
     summary = result.summary;
   } catch (error) {
     console.error('Radar run failed', { error });
@@ -517,7 +519,9 @@ async function runRadarIfDue(env: Env): Promise<void> {
   } finally {
     const nextRunAtValue = nextRadarRunAt(now, settings.intervalMinutes);
     await env.LISTING_JOBS.put(RADAR_NEXT_RUN_KEY, String(nextRunAtValue));
-    await env.LISTING_JOBS.put(RADAR_LAST_RUN_KEY, String(now));
+    if (didRun) {
+      await env.LISTING_JOBS.put(RADAR_LAST_RUN_KEY, String(now));
+    }
     await env.LISTING_JOBS.put(RADAR_LAST_SUMMARY_KEY, summary);
   }
 }

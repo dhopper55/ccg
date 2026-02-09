@@ -25,7 +25,6 @@ const errorSection = document.getElementById('listing-error') as HTMLDivElement 
 const radarEnabledInput = document.getElementById('radar-enabled') as HTMLInputElement | null;
 const radarIntervalInput = document.getElementById('radar-interval') as HTMLInputElement | null;
 const radarEmailOnlyNewInput = document.getElementById('radar-email-only-new') as HTMLInputElement | null;
-const radarSaveButton = document.getElementById('radar-save') as HTMLButtonElement | null;
 const radarStatus = document.getElementById('radar-status') as HTMLSpanElement | null;
 
 if (form && urlsInput && submitButton) {
@@ -37,12 +36,6 @@ if (form && urlsInput && submitButton) {
 
 if (radarEnabledInput) {
   radarEnabledInput.addEventListener('change', () => {
-    void handleRadarSave();
-  });
-}
-
-if (radarSaveButton) {
-  radarSaveButton.addEventListener('click', () => {
     void handleRadarSave();
   });
 }

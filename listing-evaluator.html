@@ -38,26 +38,6 @@
     </header>
 
     <section class="listing-form">
-      <div class="listing-radar-settings" aria-live="polite">
-        <div class="listing-radar-header">
-          <h2>Radar Schedule</h2>
-          <label class="toggle">
-            <input id="radar-enabled" type="checkbox">
-            <span>Enabled</span>
-          </label>
-        </div>
-        <div class="listing-radar-controls">
-          <label for="radar-interval">Interval (minutes)</label>
-          <input id="radar-interval" type="number" min="1" max="120" step="1" value="3">
-          <label class="toggle">
-            <input id="radar-email-only-new" type="checkbox" checked>
-            <span>Only email when new</span>
-          </label>
-          <button type="button" id="radar-save" class="secondary">Save</button>
-          <span class="listing-radar-status" id="radar-status"></span>
-        </div>
-      </div>
-
       <form id="listing-form">
         <div class="form-group">
           <label for="listing-urls">Single Item Listing URLs <span class="optional">(one per line)</span></label>
@@ -82,6 +62,25 @@ https://www.facebook.com/marketplace/item/..."></textarea>
       <div class="error-section hidden" id="listing-error"></div>
     </section>
 
+    <section class="listing-radar-settings" aria-live="polite">
+      <div class="listing-radar-header">
+        <h2>Radar Schedule</h2>
+        <label class="toggle">
+          <input id="radar-enabled" type="checkbox">
+          <span>Enabled</span>
+        </label>
+      </div>
+      <div class="listing-radar-controls">
+        <label for="radar-interval">Interval (minutes)</label>
+        <input id="radar-interval" type="number" min="1" max="120" step="1" value="3">
+        <label class="toggle">
+          <input id="radar-email-only-new" type="checkbox" checked>
+          <span>Only email when new</span>
+        </label>
+        <span class="listing-radar-status" id="radar-status"></span>
+      </div>
+    </section>
+
   </div>
 
   <footer class="site-footer">
@@ -91,7 +90,7 @@ https://www.facebook.com/marketplace/item/..."></textarea>
     </div>
   </footer>
 
-  <script type="module" src="dist/listing-evaluator.js?version=084896"></script>
+  <script type="module" src="dist/listing-evaluator.js?version=748041"></script>
   <script>
     (function() {
       const year = new Date().getFullYear();
