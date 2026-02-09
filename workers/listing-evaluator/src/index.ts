@@ -556,8 +556,8 @@ async function runRadarScan(env: Env, sourceOverride?: ListingSource): Promise<R
   }
 
   const guitarListings = scored.filter((listing) => listing.isGuitar);
-  const emailSent = await sendRadarEmail(runId, newListings, env);
-  const summary = `Radar run ${runId}: ${scored.length} new, ${guitarListings.length} guitars, email ${emailSent ? 'sent' : 'skipped'}.`;
+  const emailResult = await sendRadarEmail(runId, newListings, env);
+  const summary = `Radar run ${runId}: ${scored.length} new, ${guitarListings.length} guitars, email ${emailResult.ok ? 'sent' : 'failed'}.`;
 
   return {
     matched: scored.length,
@@ -1027,7 +1027,9 @@ function chunkSms(message: string, maxLength: number): string[] {
   return chunks;
 }
 
-async function sendRadarEmail(runId: string, listings: ListingCandidate[], env: Env): Promise<boolean> {
+type RadarEmailResult = { ok: boolean; status?: number; statusText?: string; body?: string };
+
+async function sendRadarEmail(runId: string, listings: ListingCandidate[], env: Env): Promise<RadarEmailResult> {
   void runId;
   const toEmail = env.RADAR_EMAIL_TO || RADAR_DEFAULT_EMAIL_TO;
   const fromEmail = env.RADAR_EMAIL_FROM || 'david@coalcreekguitars.com';
@@ -1082,17 +1084,17 @@ async function sendRadarEmail(runId: string, listings: ListingCandidate[], env: 
         statusText: response.statusText,
         body: responseText,
       });
-      return false;
+      return { ok: false, status: response.status, statusText: response.statusText, body: responseText };
     }
     console.info('Radar email sent', {
       status: response.status,
       statusText: response.statusText,
       body: responseText,
     });
-    return true;
+    return { ok: true, status: response.status, statusText: response.statusText, body: responseText };
   } catch (error) {
     console.error('Radar email failed', { error });
-    return false;
+    return { ok: false, body: error instanceof Error ? error.message : String(error) };
   }
 }
 
@@ -1484,9 +1486,9 @@ async function handleRadarEmailTest(request: Request, env: Env): Promise<Respons
     url,
   };
 
-  const ok = await sendRadarEmail('email-test', [testListing], env);
-  if (!ok) {
-    return jsonResponse({ message: 'Radar email test failed.' }, 500);
+  const result = await sendRadarEmail('email-test', [testListing], env);
+  if (!result.ok) {
+    return jsonResponse({ message: 'Radar email test failed.', details: result }, 500);
   }
   return jsonResponse({ ok: true });
 }

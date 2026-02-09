@@ -137,7 +137,10 @@ async function handleRadarEmailTest(): Promise<void> {
       body: JSON.stringify({}),
     });
     const data = await response.json();
-    if (!response.ok) throw new Error(data?.message || 'Test email failed.');
+    if (!response.ok) {
+      const details = data?.details ? JSON.stringify(data.details) : '';
+      throw new Error([data?.message || 'Test email failed.', details].filter(Boolean).join(' '));
+    }
     setRadarStatus('Test email sent.');
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Test email failed.';
