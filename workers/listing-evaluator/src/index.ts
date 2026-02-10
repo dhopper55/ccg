@@ -1928,18 +1928,9 @@ async function dbListListings(
   return { records, nextOffset };
 }
 
-async function resolveListingId(recordId: string, env: Env): Promise<number | null> {
-  const idValue = Number.parseInt(recordId, 10);
-  if (Number.isFinite(idValue)) return idValue;
-  const row = await env.DB.prepare('SELECT id FROM listings WHERE airtable_id = ?')
-    .bind(recordId)
-    .first<{ id: number }>();
-  return row?.id ?? null;
-}
-
 async function dbGetListing(recordId: string, env: Env): Promise<{ id: string; fields: Record<string, unknown> } | null> {
-  const idValue = await resolveListingId(recordId, env);
-  if (!idValue) return null;
+  const idValue = Number.parseInt(recordId, 10);
+  if (!Number.isFinite(idValue)) return null;
   const row = await env.DB.prepare('SELECT * FROM listings WHERE id = ?')
     .bind(idValue)
     .first<Record<string, any>>();
@@ -1962,8 +1953,8 @@ async function dbCreateListing(fields: Record<string, unknown>, env: Env): Promi
 }
 
 async function dbUpdateListing(recordId: string, fields: Record<string, unknown>, env: Env): Promise<void> {
-  const idValue = await resolveListingId(recordId, env);
-  if (!idValue) return;
+  const idValue = Number.parseInt(recordId, 10);
+  if (!Number.isFinite(idValue)) return;
   const columns = listingFieldsToColumns(fields);
   const update = buildUpdateStatement('listings', columns, 'id');
   if (!update) return;
@@ -1971,8 +1962,8 @@ async function dbUpdateListing(recordId: string, fields: Record<string, unknown>
 }
 
 async function dbSetListingArchived(recordId: string, archived: boolean, env: Env): Promise<boolean> {
-  const idValue = await resolveListingId(recordId, env);
-  if (!idValue) return false;
+  const idValue = Number.parseInt(recordId, 10);
+  if (!Number.isFinite(idValue)) return false;
   await env.DB.prepare(
     'UPDATE listings SET archived = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
   )
@@ -2006,18 +1997,9 @@ async function dbSearchFindByUrl(url: string, env: Env): Promise<{ id: string; f
   return row ? searchRowToRecord(row) : null;
 }
 
-async function resolveSearchId(recordId: string, env: Env): Promise<number | null> {
-  const idValue = Number.parseInt(recordId, 10);
-  if (Number.isFinite(idValue)) return idValue;
-  const row = await env.DB.prepare('SELECT id FROM search_results WHERE airtable_id = ?')
-    .bind(recordId)
-    .first<{ id: number }>();
-  return row?.id ?? null;
-}
-
 async function dbSearchGet(recordId: string, env: Env): Promise<{ id: string; fields: Record<string, any> } | null> {
-  const idValue = await resolveSearchId(recordId, env);
-  if (!idValue) return null;
+  const idValue = Number.parseInt(recordId, 10);
+  if (!Number.isFinite(idValue)) return null;
   const row = await env.DB.prepare('SELECT * FROM search_results WHERE id = ?')
     .bind(idValue)
     .first<Record<string, any>>();
@@ -2042,8 +2024,8 @@ async function dbSearchCreateBatch(fieldsList: Record<string, unknown>[], env: E
 }
 
 async function dbSearchUpdate(recordId: string, fields: Record<string, unknown>, env: Env): Promise<void> {
-  const idValue = await resolveSearchId(recordId, env);
-  if (!idValue) return;
+  const idValue = Number.parseInt(recordId, 10);
+  if (!Number.isFinite(idValue)) return;
   const columns = searchFieldsToColumns(fields);
   const update = buildUpdateStatement('search_results', columns, 'id');
   if (!update) return;
@@ -2051,8 +2033,8 @@ async function dbSearchUpdate(recordId: string, fields: Record<string, unknown>,
 }
 
 async function dbSearchSetArchivedState(recordId: string, archived: boolean, env: Env): Promise<boolean> {
-  const idValue = await resolveSearchId(recordId, env);
-  if (!idValue) return false;
+  const idValue = Number.parseInt(recordId, 10);
+  if (!Number.isFinite(idValue)) return false;
   await env.DB.prepare(
     'UPDATE search_results SET archived = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
   )

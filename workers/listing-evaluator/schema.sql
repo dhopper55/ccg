@@ -2,7 +2,6 @@
 
 CREATE TABLE IF NOT EXISTS listings (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  airtable_id TEXT,
   submitted_at TEXT,
   source TEXT,
   url TEXT NOT NULL,
@@ -61,14 +60,12 @@ CREATE TABLE IF NOT EXISTS listings (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS listings_url_idx ON listings(url);
-CREATE UNIQUE INDEX IF NOT EXISTS listings_airtable_idx ON listings(airtable_id);
 CREATE INDEX IF NOT EXISTS listings_submitted_idx ON listings(submitted_at);
 CREATE INDEX IF NOT EXISTS listings_archived_idx ON listings(archived);
 CREATE INDEX IF NOT EXISTS listings_status_idx ON listings(status);
 
 CREATE TABLE IF NOT EXISTS search_results (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  airtable_id TEXT,
   run_id TEXT,
   run_started_at TEXT,
   source TEXT,
@@ -88,6 +85,5 @@ CREATE TABLE IF NOT EXISTS search_results (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS search_results_url_idx ON search_results(url);
-CREATE UNIQUE INDEX IF NOT EXISTS search_results_airtable_idx ON search_results(airtable_id);
 CREATE INDEX IF NOT EXISTS search_results_run_idx ON search_results(run_id);
 CREATE INDEX IF NOT EXISTS search_results_archived_idx ON search_results(archived);
