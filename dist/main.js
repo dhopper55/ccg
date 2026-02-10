@@ -106,6 +106,18 @@ serialInput.addEventListener('keypress', (e) => {
     }
 });
 initModals();
+initQueryParamDecode();
+function initQueryParamDecode() {
+    const params = new URLSearchParams(window.location.search);
+    const serial = params.get('serial');
+    if (!serial)
+        return;
+    const trimmed = serial.trim();
+    if (!trimmed)
+        return;
+    serialInput.value = trimmed;
+    handleDecode();
+}
 function handleDecode() {
     // Use preselected brand if no dropdown exists, otherwise get from dropdown
     const brand = preselectedBrand || (brandSelect ? brandSelect.value : '');
