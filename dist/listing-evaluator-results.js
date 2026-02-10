@@ -86,14 +86,15 @@ function isProxyImage(url) {
     return normalized.includes('fbcdn.net') || normalized.includes('scontent-') || normalized.includes('scontent.');
 }
 function buildImageSrc(imageUrl, referrer) {
-    if (isProxyImage(imageUrl)) {
+    const cleaned = imageUrl.trim().split(/\s+/)[0];
+    if (isProxyImage(cleaned)) {
         const params = new URLSearchParams();
-        params.set('url', imageUrl);
+        params.set('url', cleaned);
         if (referrer)
             params.set('ref', referrer);
         return `/api/image?${params.toString()}`;
     }
-    return imageUrl;
+    return cleaned;
 }
 function formatCurrencyValue(value) {
     if (value == null)

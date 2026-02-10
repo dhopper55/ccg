@@ -2041,13 +2041,13 @@ async function dbListListings(
     id: String(row.id),
     url: row.url ?? '',
     source: row.source ?? '',
-      status: row.status ?? '',
-      title: row.title ?? '',
-      askingPrice: row.price_asking ?? null,
-      score: row.score ?? null,
-      saved: row.saved ? true : false,
-      imageUrl: row.image_url ?? null,
-    }));
+    status: row.status ?? '',
+    title: row.title ?? '',
+    askingPrice: row.price_asking ?? null,
+    score: row.score ?? null,
+    saved: row.saved ? true : false,
+    imageUrl: row.image_url ? String(row.image_url).trim().split(/\s+/)[0] : null,
+  }));
 
   const nextOffset = records.length === limit ? String(offsetValue + limit) : null;
   return { records, nextOffset, total };
