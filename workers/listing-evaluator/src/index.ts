@@ -246,6 +246,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path.endsWith('/save') && path.startsWith('/api/listings/') && request.method === 'POST') {
+      const response = await handleSaveListing(request, env, path);
+      return withCors(response, request, env);
+    }
+
     if (path.startsWith('/api/listings/') && path.endsWith('/debug') && request.method === 'GET') {
       const response = await handleGetListingDebug(request, env, path);
       return withCors(response, request, env);
@@ -1318,6 +1323,7 @@ type ListingListItem = {
   title?: string;
   askingPrice?: number | string;
   score?: number | string;
+  saved?: boolean;
 };
 
 async function handleList(request: Request, env: Env): Promise<Response> {
@@ -1437,6 +1443,31 @@ async function handleArchiveListing(env: Env, path: string): Promise<Response> {
   }
 
   return jsonResponse({ ok: true });
+}
+
+async function handleSaveListing(request: Request, env: Env, path: string): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const saveIndex = parts.indexOf('save');
+  const recordId = saveIndex > 0 ? parts[saveIndex - 1] : '';
+
+  if (!recordId || recordId === 'listings') {
+    return jsonResponse({ message: 'Missing listing ID.' }, 400);
+  }
+
+  let body: any = {};
+  try {
+    body = await request.json();
+  } catch {
+    body = {};
+  }
+
+  const savedValue = typeof body?.saved === 'boolean' ? body.saved : null;
+  if (savedValue === null) {
+    return jsonResponse({ message: 'Missing saved state.' }, 400);
+  }
+
+  await dbUpdateListing(recordId, { saved: savedValue }, env);
+  return jsonResponse({ ok: true, saved: savedValue });
 }
 
 async function handleSearchResults(request: Request, env: Env): Promise<Response> {
@@ -1755,6 +1786,7 @@ function listingFieldsToColumns(fields: Record<string, unknown>): Record<string,
   assign('seller_fixes_add_value_or_waste');
   assign('seller_as_is_notes');
   assign('archived', 'archived', toDbBoolean);
+  assign('saved', 'saved', toDbBoolean);
   assign('IsMulti', 'is_multi', toDbMulti);
 
   return columns;
@@ -1833,6 +1865,7 @@ function listingRowToRecord(row: Record<string, any>): { id: string; fields: Rec
       price_ideal: row.price_ideal ?? null,
       score: row.score ?? null,
       archived: row.archived ? true : false,
+      saved: row.saved ? true : false,
       IsMulti: row.is_multi ? true : false,
       category: row.category ?? null,
       brand: row.brand ?? null,
@@ -1896,7 +1929,7 @@ async function dbListListings(
 ): Promise<{ records: ListingListItem[]; nextOffset?: string | null } | null> {
   const offsetValue = offset ? Math.max(0, Number.parseInt(offset, 10) || 0) : 0;
   const result = await env.DB.prepare(
-    `SELECT id, url, source, status, title, price_asking, score
+    `SELECT id, url, source, status, title, price_asking, score, saved
      FROM listings
      WHERE (archived IS NULL OR archived = 0)
      ORDER BY
@@ -1924,6 +1957,7 @@ async function dbListListings(
     title: row.title ?? '',
     askingPrice: row.price_asking ?? null,
     score: row.score ?? null,
+    saved: row.saved ? true : false,
   }));
 
   const nextOffset = records.length === limit ? String(offsetValue + limit) : null;

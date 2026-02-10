@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS listings (
   price_ideal REAL,
   score REAL,
   archived INTEGER DEFAULT 0,
+  saved INTEGER DEFAULT 0,
   is_multi INTEGER DEFAULT 0,
   category TEXT,
   brand TEXT,
