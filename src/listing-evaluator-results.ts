@@ -9,6 +9,7 @@ type ListingListItem = {
   status?: string;
   title?: string;
   askingPrice?: number | string;
+  imageUrl?: string | null;
 };
 
 export {};
@@ -169,6 +170,16 @@ function renderRows(records: ListingListItem[]): void {
     if (isQueued) row.classList.add('is-queued');
 
     const titleCell = document.createElement('td');
+    const titleWrap = document.createElement('div');
+    titleWrap.className = 'listing-title-cell';
+    if (record.imageUrl) {
+      const thumb = document.createElement('img');
+      thumb.className = 'listing-row-thumb';
+      thumb.src = record.imageUrl;
+      thumb.alt = record.title ? `${record.title} thumbnail` : 'Listing thumbnail';
+      thumb.loading = 'lazy';
+      titleWrap.appendChild(thumb);
+    }
     const titleText = record.title?.trim()
       || (isQueued ? 'Queued — awaiting scrape' : (record.url ? record.url.replace(/^https?:\/\//i, '') : 'Untitled listing'));
     const asking = formatCurrencyValue(record.askingPrice);
@@ -177,14 +188,15 @@ function renderRows(records: ListingListItem[]): void {
       const titleSpan = document.createElement('span');
       titleSpan.textContent = titleLabel;
       titleSpan.className = 'listing-item-link listing-item-link--queued';
-      titleCell.appendChild(titleSpan);
+      titleWrap.appendChild(titleSpan);
     } else {
       const titleLink = document.createElement('a');
       titleLink.href = `/listing-evaluator-item.html?id=${encodeURIComponent(record.id)}`;
       titleLink.textContent = titleLabel;
       titleLink.className = 'listing-item-link';
-      titleCell.appendChild(titleLink);
+      titleWrap.appendChild(titleLink);
     }
+    titleCell.appendChild(titleWrap);
 
     const sourceCell = document.createElement('td');
     const sourceIcon = buildSourceIcon(record.source);

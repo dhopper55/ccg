@@ -1953,7 +1953,7 @@ async function dbListListings(
   ).first<{ total: number }>();
   const total = typeof totalResult?.total === 'number' ? totalResult.total : 0;
   const result = await env.DB.prepare(
-    `SELECT id, url, source, status, title, price_asking, score, saved
+    `SELECT id, url, source, status, title, price_asking, score, saved, image_url
      FROM listings
      ${whereClause}
      ORDER BY
@@ -1971,18 +1971,20 @@ async function dbListListings(
       title: string | null;
       price_asking: number | string | null;
       score: number | string | null;
+      image_url: string | null;
     }>();
 
   const records = (result.results ?? []).map((row) => ({
     id: String(row.id),
     url: row.url ?? '',
     source: row.source ?? '',
-    status: row.status ?? '',
-    title: row.title ?? '',
-    askingPrice: row.price_asking ?? null,
-    score: row.score ?? null,
-    saved: row.saved ? true : false,
-  }));
+      status: row.status ?? '',
+      title: row.title ?? '',
+      askingPrice: row.price_asking ?? null,
+      score: row.score ?? null,
+      saved: row.saved ? true : false,
+      imageUrl: row.image_url ?? null,
+    }));
 
   const nextOffset = records.length === limit ? String(offsetValue + limit) : null;
   return { records, nextOffset, total };
