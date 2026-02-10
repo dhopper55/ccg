@@ -82,7 +82,8 @@ function renderRows(records) {
         if (isQueued)
             row.classList.add('is-queued');
         const titleCell = document.createElement('td');
-        const titleText = record.title?.trim() || 'Untitled listing';
+        const titleText = record.title?.trim()
+            || (record.url ? record.url.replace(/^https?:\/\//i, '') : 'Queued listing');
         const asking = formatCurrencyValue(record.askingPrice);
         const titleLabel = asking ? `${titleText} (${asking})` : titleText;
         if (isQueued) {
