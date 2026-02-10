@@ -99,15 +99,25 @@ function renderRows(records: ListingListItem[]): void {
 
   records.forEach((record) => {
     const row = document.createElement('tr');
+    const isQueued = record.status?.toLowerCase() === 'queued';
+    if (isQueued) row.classList.add('is-queued');
 
     const titleCell = document.createElement('td');
-    const titleLink = document.createElement('a');
-    titleLink.href = `/listing-evaluator-item.html?id=${encodeURIComponent(record.id)}`;
     const titleText = record.title?.trim() || 'Untitled listing';
     const asking = formatCurrencyValue(record.askingPrice);
-    titleLink.textContent = asking ? `${titleText} (${asking})` : titleText;
-    titleLink.className = 'listing-item-link';
-    titleCell.appendChild(titleLink);
+    const titleLabel = asking ? `${titleText} (${asking})` : titleText;
+    if (isQueued) {
+      const titleSpan = document.createElement('span');
+      titleSpan.textContent = titleLabel;
+      titleSpan.className = 'listing-item-link listing-item-link--queued';
+      titleCell.appendChild(titleSpan);
+    } else {
+      const titleLink = document.createElement('a');
+      titleLink.href = `/listing-evaluator-item.html?id=${encodeURIComponent(record.id)}`;
+      titleLink.textContent = titleLabel;
+      titleLink.className = 'listing-item-link';
+      titleCell.appendChild(titleLink);
+    }
 
     const sourceCell = document.createElement('td');
     const sourceIcon = buildSourceIcon(record.source);

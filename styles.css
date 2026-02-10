@@ -2474,6 +2474,16 @@ button:active {
   color: var(--accent-gold-light);
 }
 
+.listing-results-table tr.is-queued td {
+  color: var(--text-muted);
+}
+
+.listing-results-table .listing-item-link--queued {
+  color: var(--text-muted);
+  font-weight: 600;
+  cursor: default;
+}
+
 .listing-results-table td button {
   margin-right: 8px;
 }
