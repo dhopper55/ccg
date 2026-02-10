@@ -2506,14 +2506,6 @@ button:active {
   white-space: nowrap;
 }
 
-.listing-results-table th:last-child {
-  text-align: right;
-}
-
-.listing-save-button {
-  min-width: 92px;
-}
-
 .listing-results-table td .icon-button {
   width: 36px;
   height: 36px;

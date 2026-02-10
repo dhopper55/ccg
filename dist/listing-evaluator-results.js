@@ -107,34 +107,8 @@ function renderRows(records) {
         else {
             sourceCell.textContent = '—';
         }
-        const actionsCell = document.createElement('td');
-        const saveButton = document.createElement('button');
-        saveButton.type = 'button';
-        saveButton.className = 'secondary listing-save-button';
-        const isSaved = record.saved === true;
-        saveButton.textContent = isSaved ? 'Un-Save' : 'Save';
-        saveButton.disabled = false;
-        saveButton.addEventListener('click', async () => {
-            saveButton.disabled = true;
-            try {
-                await toggleSave(record.id, !isSaved);
-                await loadListings();
-            }
-            catch (error) {
-                const message = error instanceof Error ? error.message : 'Save failed.';
-                if (errorSection) {
-                    errorSection.textContent = message;
-                    errorSection.classList.remove('hidden');
-                }
-            }
-            finally {
-                saveButton.disabled = false;
-            }
-        });
-        actionsCell.appendChild(saveButton);
         row.appendChild(titleCell);
         row.appendChild(sourceCell);
-        row.appendChild(actionsCell);
         tableBody.appendChild(row);
     });
 }
@@ -165,17 +139,6 @@ async function loadListings() {
     }
     finally {
         setLoading(false);
-    }
-}
-async function toggleSave(recordId, saved) {
-    const response = await fetch(`/api/listings/${encodeURIComponent(recordId)}/save`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ saved }),
-    });
-    if (!response.ok) {
-        const data = (await response.json());
-        throw new Error(data?.message || 'Save failed.');
     }
 }
 function handleNext() {

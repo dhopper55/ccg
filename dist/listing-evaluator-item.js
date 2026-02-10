@@ -13,6 +13,7 @@ const openLink = document.getElementById('listing-item-open');
 const errorSection = document.getElementById('listing-item-error');
 const archiveButton = document.getElementById('listing-item-archive');
 const archiveLabel = archiveButton?.querySelector('.archive-label');
+const saveButton = document.getElementById('listing-item-save');
 const mediaEl = document.getElementById('listing-item-media');
 const thumbnailEl = document.getElementById('listing-item-thumbnail');
 const copyButton = document.getElementById('listing-item-copy');
@@ -20,6 +21,8 @@ const doubleCheckButton = document.getElementById('listing-item-double-check');
 const doubleCheckGuitarButton = document.getElementById('listing-item-double-check-guitar');
 let currentRecordId = null;
 let isArchiving = false;
+let isSaving = false;
+let currentSaved = false;
 const BUILD_TAG = '2026-02-05a';
 const SINGLE_FIELDS = [
     { key: 'category', label: 'Category' },
@@ -256,6 +259,12 @@ function updateArchiveButton(archived) {
             archiveLabel.textContent = 'Archive';
         }
     }
+}
+function updateSaveButton(saved) {
+    if (!saveButton)
+        return;
+    saveButton.disabled = isSaving;
+    saveButton.textContent = saved ? 'Un-Save' : 'Save';
 }
 function buildTextBlock(tag, text) {
     const el = document.createElement(tag);
@@ -608,8 +617,11 @@ function renderRecord(record) {
     const title = normalizeValue(fields.title);
     const askingPrice = formatCurrencyValue(fields.price_asking);
     const archived = isArchivedValue(fields.archived);
+    const saved = isArchivedValue(fields.saved);
     const isMulti = isMultiValue(fields.IsMulti);
     updateArchiveButton(archived);
+    currentSaved = saved;
+    updateSaveButton(saved);
     if (titleEl)
         titleEl.textContent = title === '—' ? 'Listing Details' : title;
     if (aiTitleEl) {
@@ -771,6 +783,33 @@ async function archiveListing() {
         isArchiving = false;
     }
 }
+async function toggleSave() {
+    if (!currentRecordId || !saveButton)
+        return;
+    if (saveButton.disabled)
+        return;
+    clearError();
+    isSaving = true;
+    updateSaveButton(currentSaved);
+    try {
+        const response = await fetch(`/api/listings/${encodeURIComponent(currentRecordId)}/save`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ saved: !currentSaved }),
+        });
+        const data = (await response.json());
+        if (!response.ok) {
+            throw new Error(data.message || 'Unable to update saved state.');
+        }
+        window.location.reload();
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : 'Unable to update saved state.';
+        showError(message);
+        isSaving = false;
+        updateSaveButton(currentSaved);
+    }
+}
 async function loadRecord() {
     clearError();
     const recordId = getRecordId();
@@ -796,6 +835,12 @@ if (archiveButton) {
     archiveButton.addEventListener('click', (event) => {
         event.preventDefault();
         void archiveListing();
+    });
+}
+if (saveButton) {
+    saveButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        void toggleSave();
     });
 }
 void loadRecord();

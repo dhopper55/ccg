@@ -1932,6 +1932,7 @@ async function dbListListings(
     `SELECT id, url, source, status, title, price_asking, score, saved
      FROM listings
      WHERE (archived IS NULL OR archived = 0)
+       AND (saved IS NULL OR saved = 0)
      ORDER BY
        CASE WHEN status = 'queued' THEN 1 ELSE 0 END ASC,
        COALESCE(submitted_at, created_at) DESC,

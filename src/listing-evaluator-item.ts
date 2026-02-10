@@ -23,6 +23,7 @@ const openLink = document.getElementById('listing-item-open') as HTMLAnchorEleme
 const errorSection = document.getElementById('listing-item-error') as HTMLDivElement | null;
 const archiveButton = document.getElementById('listing-item-archive') as HTMLButtonElement | null;
 const archiveLabel = archiveButton?.querySelector('.archive-label') as HTMLSpanElement | null;
+const saveButton = document.getElementById('listing-item-save') as HTMLButtonElement | null;
 const mediaEl = document.getElementById('listing-item-media') as HTMLDivElement | null;
 const thumbnailEl = document.getElementById('listing-item-thumbnail') as HTMLImageElement | null;
 const copyButton = document.getElementById('listing-item-copy') as HTMLButtonElement | null;
@@ -31,6 +32,8 @@ const doubleCheckGuitarButton = document.getElementById('listing-item-double-che
 
 let currentRecordId: string | null = null;
 let isArchiving = false;
+let isSaving = false;
+let currentSaved = false;
 const BUILD_TAG = '2026-02-05a';
 
 const SINGLE_FIELDS: Array<{ key: string; label: string; currency?: boolean }> = [
@@ -263,6 +266,12 @@ function updateArchiveButton(archived: boolean): void {
       archiveLabel.textContent = 'Archive';
     }
   }
+}
+
+function updateSaveButton(saved: boolean): void {
+  if (!saveButton) return;
+  saveButton.disabled = isSaving;
+  saveButton.textContent = saved ? 'Un-Save' : 'Save';
 }
 
 function buildTextBlock(tag: keyof HTMLElementTagNameMap, text: string): HTMLElement {
@@ -622,8 +631,11 @@ function renderRecord(record: ListingRecordResponse): void {
   const title = normalizeValue(fields.title);
   const askingPrice = formatCurrencyValue(fields.price_asking);
   const archived = isArchivedValue(fields.archived);
+  const saved = isArchivedValue(fields.saved);
   const isMulti = isMultiValue(fields.IsMulti);
   updateArchiveButton(archived);
+  currentSaved = saved;
+  updateSaveButton(saved);
 
   if (titleEl) titleEl.textContent = title === '—' ? 'Listing Details' : title;
   if (aiTitleEl) {
@@ -787,6 +799,33 @@ async function archiveListing(): Promise<void> {
   }
 }
 
+async function toggleSave(): Promise<void> {
+  if (!currentRecordId || !saveButton) return;
+  if (saveButton.disabled) return;
+
+  clearError();
+  isSaving = true;
+  updateSaveButton(currentSaved);
+
+  try {
+    const response = await fetch(`/api/listings/${encodeURIComponent(currentRecordId)}/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ saved: !currentSaved }),
+    });
+    const data = (await response.json()) as ListingRecordResponse;
+    if (!response.ok) {
+      throw new Error(data.message || 'Unable to update saved state.');
+    }
+    window.location.reload();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to update saved state.';
+    showError(message);
+    isSaving = false;
+    updateSaveButton(currentSaved);
+  }
+}
+
 async function loadRecord(): Promise<void> {
   clearError();
   const recordId = getRecordId();
@@ -816,6 +855,13 @@ if (archiveButton) {
   archiveButton.addEventListener('click', (event) => {
     event.preventDefault();
     void archiveListing();
+  });
+}
+
+if (saveButton) {
+  saveButton.addEventListener('click', (event) => {
+    event.preventDefault();
+    void toggleSave();
   });
 }
 
