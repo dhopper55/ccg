@@ -92,14 +92,12 @@ function renderRows(records: ListingListItem[]): void {
   if (!tableBody) return;
   tableBody.innerHTML = '';
 
-  const visibleRecords = records.filter((record) => record.status?.toLowerCase() !== 'queued');
-
-  if (visibleRecords.length === 0) {
+  if (records.length === 0) {
     if (emptySection) emptySection.classList.remove('hidden');
     return;
   }
 
-  visibleRecords.forEach((record) => {
+  records.forEach((record) => {
     const row = document.createElement('tr');
 
     const titleCell = document.createElement('td');

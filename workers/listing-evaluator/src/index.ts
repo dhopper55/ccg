@@ -1899,8 +1899,10 @@ async function dbListListings(
     `SELECT id, url, source, status, title, price_asking, score
      FROM listings
      WHERE (archived IS NULL OR archived = 0)
-       AND (status IS NULL OR status != 'queued')
-     ORDER BY COALESCE(submitted_at, created_at) DESC, id DESC
+     ORDER BY
+       CASE WHEN status = 'queued' THEN 1 ELSE 0 END ASC,
+       COALESCE(submitted_at, created_at) DESC,
+       id DESC
      LIMIT ? OFFSET ?`
   )
     .bind(limit, offsetValue)
