@@ -19,7 +19,7 @@
   <title>Listing Evaluator | Coal Creek Guitars</title>
   <meta name="description" content="Paste Craigslist or Facebook Marketplace URLs and get AI valuation notes delivered to your Google Sheet.">
   <link rel="canonical" href="https://www.coalcreekguitars.com/listing-evaluator.html">
-  <link rel="stylesheet" href="styles.css?version=356867">
+  <link rel="stylesheet" href="styles.css?version=540670">
 </head>
 <body>
   <nav class="site-nav">
@@ -33,7 +33,25 @@
     <header class="listing-hero">
       <div class="listing-hero-row">
         <h1>Listing Evaluator</h1>
-        <a class="button-link listing-results-link" href="listing-evaluator-results.html">Results View</a>
+        <div class="listing-results-actions">
+          <a class="button-link listing-results-link" href="listing-evaluator-results.html">Results</a>
+          <a class="button-link save listing-results-link" href="listing-evaluator-results.html?showSaved=1">
+            <span class="icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" role="img" focusable="false" aria-hidden="true">
+                <path d="M5 4h11l3 3v13H5V4zm2 2v6h10V7.8L14.2 6H7zm2 9h6v5H9v-5z" fill="currentColor"></path>
+              </svg>
+            </span>
+            <span>Saved Results</span>
+          </a>
+          <a class="button-link secondary listing-results-link" href="listing-evaluator-results.html?showArchived=1">
+            <span class="icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" role="img" focusable="false" aria-hidden="true">
+                <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 7h2v8h-2v-8zm4 0h2v8h-2v-8zM7 10h2v8H7v-8z" fill="currentColor"></path>
+              </svg>
+            </span>
+            <span>Archived Results</span>
+          </a>
+        </div>
       </div>
     </header>
 
