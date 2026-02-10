@@ -104,7 +104,7 @@ function renderRows(records: ListingListItem[]): void {
 
     const titleCell = document.createElement('td');
     const titleText = record.title?.trim()
-      || (record.url ? record.url.replace(/^https?:\/\//i, '') : 'Queued listing');
+      || (isQueued ? 'Queued — awaiting scrape' : (record.url ? record.url.replace(/^https?:\/\//i, '') : 'Untitled listing'));
     const asking = formatCurrencyValue(record.askingPrice);
     const titleLabel = asking ? `${titleText} (${asking})` : titleText;
     if (isQueued) {

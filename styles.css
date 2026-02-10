@@ -2478,16 +2478,20 @@ button:active {
   color: var(--text-muted);
 }
 
-.listing-results-table .listing-item-link--queued {
-  color: var(--text-muted);
+.listing-results-table tr.is-queued .listing-item-link,
+.listing-results-table tr.is-queued .listing-item-link--queued {
+  color: var(--text-muted) !important;
   font-weight: 600;
   cursor: default;
 }
 
 .listing-results-table tr.is-queued a {
-  color: var(--text-muted);
   pointer-events: none;
   cursor: default;
+}
+
+.listing-results-table tr.is-queued td:last-child {
+  opacity: 0.6;
 }
 
 .listing-results-table td button {
