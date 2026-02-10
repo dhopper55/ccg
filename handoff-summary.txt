@@ -14,15 +14,15 @@ Frontend pages:
 
 Cloudflare Worker (workers/listing-evaluator/src/index.ts) powers the API:
 - POST /api/listings/submit
-  - Validates URLs, checks duplicates in Airtable, queues new ones.
+  - Validates URLs, checks duplicates in D1, queues new ones.
   - If a duplicate exists and it’s archived, it un-archives it and does NOT rerun scraping.
 - GET /api/listings
-  - Returns Airtable rows, filtered server-side: NOT({archived}) AND status != 'queued'.
+  - Returns D1 rows, filtered server-side: archived = false AND status != 'queued'.
   - Used by results page (paging supported).
 - GET /api/listings/:id
-  - Returns a single Airtable record for detail page.
+  - Returns a single D1 record for detail page.
 - POST /api/listings/:id/archive
-  - Marks {archived: true} in Airtable.
+  - Marks {archived: true} in D1.
 
 BACKGROUND PROCESSING
 - Worker calls Apify to scrape listing details (Facebook Marketplace + Craigslist).
@@ -30,14 +30,14 @@ BACKGROUND PROCESSING
   - Fetches dataset items
   - Normalizes listing data (title, description, price, location, images)
   - Calls OpenAI to generate AI summary
-  - Writes to Airtable (status, title, price_asking, location, description, ai_summary, notes, photos, etc.)
+  - Writes to D1 (status, title, price_asking, location, description, ai_summary, notes, photos, etc.)
 
-AIRTABLE
+D1
 - Uses fields: url, source, status, title, price_asking, location, description, ai_summary, price_private_party, price_ideal, score, submitted_at.
 - New fields added:
   - archived (checkbox)
   - photos (long text; URLs separated by newline)
-- The worker now writes photos to Airtable when updating a row (requires worker deploy).
+- The worker now writes photos to D1 when updating a row (requires worker deploy).
 
 FRONTEND BEHAVIORS
 - Results page:
@@ -55,4 +55,4 @@ BUILD / CACHE BUSTING
 OTHER NOTES
 - The project is static HTML/CSS/JS served by Cloudflare, with Worker APIs under /api/listings/*.
 - Reverb page now uses ?per_page=100 in the API call.
-- SMS/notifications are not implemented yet, but Apify + Worker + Airtable is already in place and could be extended.
+- SMS/notifications are not implemented yet, but Apify + Worker + D1 is already in place and could be extended.

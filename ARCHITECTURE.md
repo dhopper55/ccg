@@ -5,7 +5,7 @@ The Listing Evaluator is a static site + Cloudflare Worker backend that:
 1) Accepts Craigslist/Facebook Marketplace URLs for evaluation
 2) Starts Apify scraper runs and processes webhooks
 3) Calls OpenAI to summarize listings and estimate pricing
-4) Writes results to Airtable and exposes them via a listing results UI
+4) Writes results to D1 (SQLite) and exposes them via a listing results UI
 5) Runs a “radar” job on a cron to queue new listings automatically
 6) Protects `/api/*` with a simple username/password login (HttpOnly cookie)
 
@@ -46,15 +46,15 @@ All `/api/*` endpoints require auth except:
 - `POST /api/listings/submit`
   - Validates URLs (Craigslist/Facebook)
   - Starts Apify actor run
-  - Writes queued record to Airtable
-  - Stores runId → Airtable recordId in KV
+  - Writes queued record to D1
+  - Stores runId → D1 recordId in KV
 
 - `POST /api/listings/webhook`
   - Receives Apify webhook
   - Fetches dataset item
   - Normalizes fields
   - Calls OpenAI
-  - Updates Airtable record
+  - Updates D1 record
 
 - `GET /api/listings`
   - Paged listing results for results UI
@@ -93,30 +93,11 @@ All `/api/*` endpoints require auth except:
 Cookies refresh instructions live in:
 - `workers/listing-evaluator/FACEBOOK-COOKIES.md`
 
-## Airtable
-### Listings table
-Fields (exact names):
-  - submitted_at
-  - source
-  - url
-  - status
-  - title
-  - price_asking (currency)
-  - location
-  - description
-  - ai_summary
-  - price_private_party (text)
-  - price_ideal (currency)
-  - score (number)
-
-- price_asking is derived from listing price or AI if edge case
-- price_private_party parsed from AI summary
-- price_ideal = 80% of low end of private‑party range
-- score computed from asking vs private‑party range
-
-### Search results table
-Table name: `AIRTABLE_SEARCH_TABLE`
-Stores radar results and archive state
+## D1 (SQLite)
+Schema lives in `workers/listing-evaluator/schema.sql`.
+Tables:
+- `listings`
+- `search_results`
 
 ## OpenAI
 - Models: `gpt-4o` and `gpt-4o-mini` (see worker for task-specific usage)
@@ -128,22 +109,17 @@ Stores radar results and archive state
 
 ## KV
 - KV namespace: `LISTING_JOBS`
-- Maps `runId → Airtable recordId`
+- Maps `runId → D1 recordId`
 - Also stores radar scheduling metadata (last run, next run, summaries)
 
 ## Secrets / Config (Cloudflare)
 - `OPENAI_API_KEY`
 - `APIFY_TOKEN`
-- `AIRTABLE_API_KEY`
-- `AIRTABLE_BASE_ID`
-- `AIRTABLE_TABLE`
-- `AIRTABLE_SEARCH_TABLE`
 - `WEBHOOK_SECRET`
 - `AUTH_USER`
 - `AUTH_PASS`
 - `AUTH_SECRET`
 Optional:
-- `AIRTABLE_SYSINFO_TABLE`
 - `TELNYX_API_KEY`
 - `TELNYX_FROM_NUMBER`
 - `TELNYX_TO_NUMBER`

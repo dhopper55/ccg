@@ -1,72 +1,36 @@
 # Listing Evaluator Setup
 
-## 1) Create the Airtable base + table
-Create a base and a table (e.g., `Listings`) with these field names:
+## 1) Create the D1 database (primary storage)
+From `workers/listing-evaluator/`:
 
-- submitted_at (date/time)
-- source (single line text)
-- url (single line text)
-- status (single line text)
-- title (single line text)
-- price_asking (currency)
-- location (single line text)
-- description (long text)
-- ai_summary (long text)
-- price_private_party (single line text)
-- price_ideal (currency)
-- score (number)
+```bash
+npx wrangler d1 create listing_evaluator
+```
 
-Create a second table for radar search results (e.g., `SearchResults`) with these field names:
+Copy the `database_id` into `workers/listing-evaluator/wrangler.toml` under `[[d1_databases]]`.
 
-- run_id (single line text)
-- run_started_at (date/time)
-- source (single line text)
-- keyword (single line text)
-- url (single line text)
-- title (single line text)
-- price (currency)
-- image_url (single line text)
-- is_guitar (checkbox)
-- is_sponsored (checkbox)
-- archived (checkbox)
-- ai_reason (long text)
+Apply schema:
 
-Create a `SysInfo` table (same base) with:
+```bash
+npx wrangler d1 execute listing_evaluator --file workers/listing-evaluator/schema.sql
+```
 
-- Name (single line text)
-- WorkerEnabled (checkbox)
-
-Add one row. If `WorkerEnabled` is unchecked, the scheduled radar run will skip scraping.
-- seen_at (date/time)
-- ai_checked_at (date/time)
-
-## 2) Get Airtable API values
-- **Personal Access Token** (PAT)
-- **Base ID**
-- **Table name** (exact)
-- **Search Results table name** (exact)
-
-## 3) Add secrets
+## 2) Add secrets
 From `workers/listing-evaluator/`:
 
 ```bash
 npx wrangler secret put OPENAI_API_KEY
 npx wrangler secret put APIFY_TOKEN
-npx wrangler secret put AIRTABLE_API_KEY
-npx wrangler secret put AIRTABLE_BASE_ID
-npx wrangler secret put AIRTABLE_TABLE
 npx wrangler secret put WEBHOOK_SECRET
 ```
 
-`AIRTABLE_SEARCH_TABLE` can live in `wrangler.toml` under `[vars]` since it is not secret.
-
-## 4) Deploy
+## 3) Deploy
 
 ```bash
 npx wrangler deploy
 ```
 
-## 5) Lock down the Listing Evaluator page (Cloudflare Access)
+## 4) Lock down the Listing Evaluator page (Cloudflare Access)
 In Cloudflare Zero Trust, create a self-hosted Access application to protect the page:
 
 - **App name:** Listing Evaluator

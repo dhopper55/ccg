@@ -14,7 +14,6 @@ MAX_IMAGES = "10"
 RADAR_FB_SEARCH_URL = "https://www.facebook.com/marketplace/103985342969890/search?daysSinceListed=1&deliveryMethod=local_pick_up&sortBy=creation_time_descend&query=guitar&exact=false"
 RADAR_CL_SEARCH_URL = "https://denver.craigslist.org/search/msa?postal=80113&query=guitar&search_distance=20&sort=date"
 RADAR_KEYWORDS = "guitar"
-AIRTABLE_SEARCH_TABLE = "SearchResults"
 RADAR_EMAIL_TO = "david@coalcreekguitars.com"
 RADAR_EMAIL_FROM = "onboarding@resend.dev"
 
@@ -25,3 +24,8 @@ crons = ["*/1 * * * *"]
 binding = "LISTING_JOBS"
 id = "b5bb36e9ff1248fd92dd79026b5e784c"
 preview_id = "14042ee35da9481fbf659608d39b079e"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "listing_evaluator"
+database_id = "e509fd2e-31c6-4138-89bf-7e9d09679025"

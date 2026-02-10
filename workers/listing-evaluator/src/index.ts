@@ -39,6 +39,7 @@ import {
 } from './auth.js';
 
 interface Env {
+  DB: D1Database;
   OPENAI_API_KEY: string;
   APIFY_TOKEN: string;
   APIFY_FACEBOOK_ACTOR: string;
@@ -49,11 +50,6 @@ interface Env {
   AUTH_PASS: string;
   AUTH_SECRET: string;
   WEBHOOK_SECRET?: string;
-  AIRTABLE_API_KEY: string;
-  AIRTABLE_BASE_ID: string;
-  AIRTABLE_TABLE: string;
-  AIRTABLE_SEARCH_TABLE: string;
-  AIRTABLE_SYSINFO_TABLE?: string;
   RADAR_FB_SEARCH_URL?: string;
   RADAR_CL_SEARCH_URL?: string;
   RADAR_KEYWORDS?: string;
@@ -457,11 +453,11 @@ async function handleSubmit(request: Request, env: Env, ctx: ExecutionContext): 
   const results: QueueResult[] = [];
 
   for (const item of accepted) {
-    const existing = await airtableFindByUrl(item.url, env);
+    const existing = await dbFindListingByUrl(item.url, env);
     if (existing) {
       const archived = isArchivedValue(existing.fields?.archived);
       if (archived) {
-        const restored = await airtableSetArchivedState(existing.id, false, env);
+        const restored = await dbSetListingArchived(existing.id, false, env);
         if (restored) {
           results.push({ ...item, unarchived: true });
           continue;
@@ -839,7 +835,7 @@ async function processCandidatesWithState(
     }
     state.processedUrls.add(candidate.url);
 
-    const existing = await airtableSearchFindByUrl(candidate.url, env);
+    const existing = await dbSearchFindByUrl(candidate.url, env);
     if (existing) {
       skippedExisting += 1;
       if (includeExistingInEmail && newListings) {
@@ -872,7 +868,7 @@ async function processCandidatesWithState(
     if (newListings) newListings.push(candidate);
 
     if (pendingCreates.length >= 10) {
-      await airtableSearchCreateBatch(pendingCreates.splice(0, pendingCreates.length), env);
+      await dbSearchCreateBatch(pendingCreates.splice(0, pendingCreates.length), env);
     }
 
     if (isGuitarResult) {
@@ -881,7 +877,7 @@ async function processCandidatesWithState(
   }
 
   if (pendingCreates.length > 0) {
-    await airtableSearchCreateBatch(pendingCreates.splice(0, pendingCreates.length), env);
+    await dbSearchCreateBatch(pendingCreates.splice(0, pendingCreates.length), env);
   }
   return {
     total: candidates.length,
@@ -1337,7 +1333,7 @@ async function handleList(request: Request, env: Env): Promise<Response> {
     }
   }
 
-  const data = await airtableList(limit, offset, env);
+  const data = await dbListListings(limit, offset, env);
   if (!data) {
     return jsonResponse({ message: 'Unable to fetch listings.' }, 500);
   }
@@ -1353,7 +1349,7 @@ async function handleGetListing(request: Request, env: Env, path: string): Promi
     return jsonResponse({ message: 'Missing listing ID.' }, 400);
   }
 
-  const record = await airtableGet(id, env);
+  const record = await dbGetListing(id, env);
   if (!record) {
     return jsonResponse({ message: 'Listing not found.' }, 404);
   }
@@ -1370,7 +1366,7 @@ async function handleGetListingDebug(request: Request, env: Env, path: string): 
     return jsonResponse({ message: 'Missing listing ID.' }, 400);
   }
 
-  const record = await airtableGet(recordId, env);
+  const record = await dbGetListing(recordId, env);
   if (!record) {
     return jsonResponse({ message: 'Listing not found.' }, 404);
   }
@@ -1406,8 +1402,8 @@ async function handleReprocessListing(request: Request, env: Env): Promise<Respo
   const normalizedUrl = normalizeUrl(resolvedUrl);
   if (!normalizedUrl) return jsonResponse({ message: 'Invalid url.' }, 400);
 
-  const existing = await airtableFindByUrl(normalizedUrl, env);
-  if (!existing?.id) return jsonResponse({ message: 'Listing not found in Airtable.' }, 404);
+  const existing = await dbFindListingByUrl(normalizedUrl, env);
+  if (!existing?.id) return jsonResponse({ message: 'Listing not found.' }, 404);
 
   const source = detectSource(normalizedUrl);
   if (!source) return jsonResponse({ message: 'Unsupported URL source.' }, 400);
@@ -1435,7 +1431,7 @@ async function handleArchiveListing(env: Env, path: string): Promise<Response> {
     return jsonResponse({ message: 'Missing listing ID.' }, 400);
   }
 
-  const updated = await airtableSetArchivedState(recordId, true, env);
+  const updated = await dbSetListingArchived(recordId, true, env);
   if (!updated) {
     return jsonResponse({ message: 'Unable to archive listing.' }, 500);
   }
@@ -1451,7 +1447,7 @@ async function handleSearchResults(request: Request, env: Env): Promise<Response
     return jsonResponse({ message: 'Missing run_id.' }, 400);
   }
 
-  const data = await airtableSearchResults(runId, includeAll, env);
+  const data = await dbSearchResults(runId, includeAll, env);
   if (!data) {
     return jsonResponse({ message: 'Unable to fetch search results.' }, 500);
   }
@@ -1468,7 +1464,7 @@ async function handleArchiveSearchResult(env: Env, path: string): Promise<Respon
     return jsonResponse({ message: 'Missing search result ID.' }, 400);
   }
 
-  const updated = await airtableSearchSetArchivedState(recordId, true, env);
+  const updated = await dbSearchSetArchivedState(recordId, true, env);
   if (!updated) {
     return jsonResponse({ message: 'Unable to archive search result.' }, 500);
   }
@@ -1485,7 +1481,7 @@ async function handleQueueSearchResult(env: Env, path: string, ctx: ExecutionCon
     return jsonResponse({ message: 'Missing search result ID.' }, 400);
   }
 
-  const record = await airtableSearchGet(recordId, env);
+  const record = await dbSearchGet(recordId, env);
   if (!record?.fields?.url || typeof record.fields.url !== 'string') {
     return jsonResponse({ message: 'Search result has no URL.' }, 400);
   }
@@ -1634,7 +1630,7 @@ async function processRun(runId: string, resource: any, eventType: string | unde
   const listing = normalizeListing(items[0]);
   let recordId = await env.LISTING_JOBS.get(runId);
   if (!recordId && listing.url) {
-    const found = await airtableFindByUrl(listing.url, env);
+    const found = await dbFindListingByUrl(listing.url, env);
     if (found?.id) {
       recordId = found.id;
       await env.LISTING_JOBS.put(runId, recordId);
@@ -1674,87 +1670,412 @@ async function processRun(runId: string, resource: any, eventType: string | unde
   }, env, { recordId, isMulti });
 }
 
-async function airtableList(
+function hasOwnField(fields: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(fields, key);
+}
+
+function toDbBoolean(value: unknown): number | null {
+  if (value == null) return null;
+  return isArchivedValue(value) ? 1 : 0;
+}
+
+function toDbMulti(value: unknown): number | null {
+  if (value == null) return null;
+  return isMultiValue(value) ? 1 : 0;
+}
+
+function toBoolFromYesNo(value: unknown): boolean | null {
+  if (value === true || value === false) return value;
+  if (typeof value === 'number') return value === 1;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'yes' || normalized === 'true' || normalized === '1') return true;
+    if (normalized === 'no' || normalized === 'false' || normalized === '0') return false;
+  }
+  return null;
+}
+
+function listingFieldsToColumns(fields: Record<string, unknown>): Record<string, unknown> {
+  const columns: Record<string, unknown> = {};
+  const assign = (fieldKey: string, columnKey = fieldKey, transform?: (value: unknown) => unknown) => {
+    if (!hasOwnField(fields, fieldKey)) return;
+    const raw = fields[fieldKey];
+    columns[columnKey] = transform ? transform(raw) : raw;
+  };
+
+  assign('submitted_at');
+  assign('source');
+  assign('url');
+  assign('status');
+  assign('title');
+  assign('price_asking');
+  assign('location');
+  assign('description');
+  assign('photos');
+  assign('ai_summary');
+  assign('ai_summary2');
+  assign('ai_summary3');
+  assign('ai_summary4');
+  assign('ai_summary5');
+  assign('ai_summary6');
+  assign('ai_summary7');
+  assign('ai_summary8');
+  assign('ai_summary9');
+  assign('ai_summary10');
+  assign('price_private_party');
+  assign('price_ideal');
+  assign('score');
+  assign('category');
+  assign('brand');
+  assign('model');
+  assign('finish');
+  assign('year');
+  assign('condition');
+  assign('serial');
+  assign('serial_brand');
+  assign('serial_year');
+  assign('serial_model');
+  assign('value_private_party_low');
+  assign('value_private_party_low_notes');
+  assign('value_private_party_medium');
+  assign('value_private_party_medium_notes');
+  assign('value_private_party_high');
+  assign('value_private_party_high_notes');
+  assign('value_pawn_shop_notes');
+  assign('value_online_notes');
+  assign('known_weak_points');
+  assign('typical_repair_needs');
+  assign('buyers_worry');
+  assign('og_specs_pickups');
+  assign('og_specs_tuners');
+  assign('og_specs_common_mods');
+  assign('buyer_what_to_check');
+  assign('buyer_common_misrepresent');
+  assign('seller_how_to_price_realistic');
+  assign('seller_fixes_add_value_or_waste');
+  assign('seller_as_is_notes');
+  assign('archived', 'archived', toDbBoolean);
+  assign('IsMulti', 'is_multi', toDbMulti);
+
+  return columns;
+}
+
+function searchFieldsToColumns(fields: Record<string, unknown>): Record<string, unknown> {
+  const columns: Record<string, unknown> = {};
+  const assign = (fieldKey: string, columnKey = fieldKey, transform?: (value: unknown) => unknown) => {
+    if (!hasOwnField(fields, fieldKey)) return;
+    const raw = fields[fieldKey];
+    columns[columnKey] = transform ? transform(raw) : raw;
+  };
+
+  assign('run_id');
+  assign('run_started_at');
+  assign('source');
+  assign('keyword');
+  assign('url');
+  assign('title');
+  assign('price');
+  assign('image_url');
+  assign('is_guitar');
+  assign('is_sponsored', 'is_sponsored', toDbBoolean);
+  assign('archived', 'archived', toDbBoolean);
+  assign('ai_reason');
+  assign('seen_at');
+  assign('ai_checked_at');
+
+  return columns;
+}
+
+function buildInsertStatement(table: string, columns: Record<string, unknown>): { sql: string; values: unknown[] } | null {
+  const keys = Object.keys(columns);
+  if (keys.length === 0) return null;
+  const placeholders = keys.map(() => '?').join(', ');
+  return {
+    sql: `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`,
+    values: keys.map((key) => columns[key]),
+  };
+}
+
+function buildUpdateStatement(table: string, columns: Record<string, unknown>, whereKey: string): { sql: string; values: unknown[] } | null {
+  const keys = Object.keys(columns);
+  if (keys.length === 0) return null;
+  const assignments = keys.map((key) => `${key} = ?`).join(', ');
+  return {
+    sql: `UPDATE ${table} SET ${assignments}, updated_at = CURRENT_TIMESTAMP WHERE ${whereKey} = ?`,
+    values: keys.map((key) => columns[key]),
+  };
+}
+
+function listingRowToRecord(row: Record<string, any>): { id: string; fields: Record<string, unknown> } {
+  return {
+    id: String(row.id),
+    fields: {
+      submitted_at: row.submitted_at ?? null,
+      source: row.source ?? null,
+      url: row.url ?? null,
+      status: row.status ?? null,
+      title: row.title ?? null,
+      price_asking: row.price_asking ?? null,
+      location: row.location ?? null,
+      description: row.description ?? null,
+      photos: row.photos ?? null,
+      ai_summary: row.ai_summary ?? null,
+      ai_summary2: row.ai_summary2 ?? null,
+      ai_summary3: row.ai_summary3 ?? null,
+      ai_summary4: row.ai_summary4 ?? null,
+      ai_summary5: row.ai_summary5 ?? null,
+      ai_summary6: row.ai_summary6 ?? null,
+      ai_summary7: row.ai_summary7 ?? null,
+      ai_summary8: row.ai_summary8 ?? null,
+      ai_summary9: row.ai_summary9 ?? null,
+      ai_summary10: row.ai_summary10 ?? null,
+      price_private_party: row.price_private_party ?? null,
+      price_ideal: row.price_ideal ?? null,
+      score: row.score ?? null,
+      archived: row.archived ? true : false,
+      IsMulti: row.is_multi ? true : false,
+      category: row.category ?? null,
+      brand: row.brand ?? null,
+      model: row.model ?? null,
+      finish: row.finish ?? null,
+      year: row.year ?? null,
+      condition: row.condition ?? null,
+      serial: row.serial ?? null,
+      serial_brand: row.serial_brand ?? null,
+      serial_year: row.serial_year ?? null,
+      serial_model: row.serial_model ?? null,
+      value_private_party_low: row.value_private_party_low ?? null,
+      value_private_party_low_notes: row.value_private_party_low_notes ?? null,
+      value_private_party_medium: row.value_private_party_medium ?? null,
+      value_private_party_medium_notes: row.value_private_party_medium_notes ?? null,
+      value_private_party_high: row.value_private_party_high ?? null,
+      value_private_party_high_notes: row.value_private_party_high_notes ?? null,
+      value_pawn_shop_notes: row.value_pawn_shop_notes ?? null,
+      value_online_notes: row.value_online_notes ?? null,
+      known_weak_points: row.known_weak_points ?? null,
+      typical_repair_needs: row.typical_repair_needs ?? null,
+      buyers_worry: row.buyers_worry ?? null,
+      og_specs_pickups: row.og_specs_pickups ?? null,
+      og_specs_tuners: row.og_specs_tuners ?? null,
+      og_specs_common_mods: row.og_specs_common_mods ?? null,
+      buyer_what_to_check: row.buyer_what_to_check ?? null,
+      buyer_common_misrepresent: row.buyer_common_misrepresent ?? null,
+      seller_how_to_price_realistic: row.seller_how_to_price_realistic ?? null,
+      seller_fixes_add_value_or_waste: row.seller_fixes_add_value_or_waste ?? null,
+      seller_as_is_notes: row.seller_as_is_notes ?? null,
+    },
+  };
+}
+
+function searchRowToRecord(row: Record<string, any>): { id: string; fields: Record<string, unknown> } {
+  return {
+    id: String(row.id),
+    fields: {
+      run_id: row.run_id ?? null,
+      run_started_at: row.run_started_at ?? null,
+      source: row.source ?? null,
+      keyword: row.keyword ?? null,
+      url: row.url ?? null,
+      title: row.title ?? null,
+      price: row.price ?? null,
+      image_url: row.image_url ?? null,
+      is_guitar: toBoolFromYesNo(row.is_guitar),
+      is_sponsored: row.is_sponsored ? true : false,
+      archived: row.archived ? true : false,
+      ai_reason: row.ai_reason ?? null,
+      seen_at: row.seen_at ?? null,
+      ai_checked_at: row.ai_checked_at ?? null,
+    },
+  };
+}
+
+async function dbListListings(
   limit: number,
   offset: string | undefined,
   env: Env
 ): Promise<{ records: ListingListItem[]; nextOffset?: string | null } | null> {
-  const params = new URLSearchParams();
-  params.set('pageSize', String(limit));
-  params.append('fields[]', 'url');
-  params.append('fields[]', 'source');
-  params.append('fields[]', 'status');
-  params.append('fields[]', 'title');
-  params.append('fields[]', 'price_asking');
-  params.append('fields[]', 'score');
-  params.append('filterByFormula', "AND(NOT({archived}), {status} != 'queued')");
-  params.append('sort[0][field]', 'submitted_at');
-  params.append('sort[0][direction]', 'desc');
-  if (offset) params.set('offset', offset);
+  const offsetValue = offset ? Math.max(0, Number.parseInt(offset, 10) || 0) : 0;
+  const result = await env.DB.prepare(
+    `SELECT id, url, source, status, title, price_asking, score
+     FROM listings
+     WHERE (archived IS NULL OR archived = 0)
+       AND (status IS NULL OR status != 'queued')
+     ORDER BY COALESCE(submitted_at, created_at) DESC, id DESC
+     LIMIT ? OFFSET ?`
+  )
+    .bind(limit, offsetValue)
+    .all<{
+      id: number;
+      url: string | null;
+      source: string | null;
+      status: string | null;
+      title: string | null;
+      price_asking: number | string | null;
+      score: number | string | null;
+    }>();
 
-  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_TABLE)}?${params.toString()}`, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Airtable list failed', {
-      status: response.status,
-      statusText: response.statusText,
-      body: errorText,
-    });
-    return null;
-  }
-
-  const data = await response.json();
-  const records = Array.isArray(data?.records) ? data.records : [];
-  const mapped: ListingListItem[] = records.map((record: any) => ({
-    id: record.id,
-    url: record.fields?.url ?? '',
-    source: record.fields?.source ?? '',
-    status: record.fields?.status ?? '',
-    title: record.fields?.title ?? '',
-    askingPrice: record.fields?.price_asking ?? null,
-    score: record.fields?.score ?? null,
+  const records = (result.results ?? []).map((row) => ({
+    id: String(row.id),
+    url: row.url ?? '',
+    source: row.source ?? '',
+    status: row.status ?? '',
+    title: row.title ?? '',
+    askingPrice: row.price_asking ?? null,
+    score: row.score ?? null,
   }));
 
-  return {
-    records: mapped,
-    nextOffset: data?.offset ?? null,
-  };
+  const nextOffset = records.length === limit ? String(offsetValue + limit) : null;
+  return { records, nextOffset };
 }
 
-async function airtableGet(recordId: string, env: Env): Promise<{ id: string; fields: Record<string, unknown> } | null> {
-  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_TABLE)}/${recordId}`, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-  });
+async function resolveListingId(recordId: string, env: Env): Promise<number | null> {
+  const idValue = Number.parseInt(recordId, 10);
+  if (Number.isFinite(idValue)) return idValue;
+  const row = await env.DB.prepare('SELECT id FROM listings WHERE airtable_id = ?')
+    .bind(recordId)
+    .first<{ id: number }>();
+  return row?.id ?? null;
+}
 
-  if (!response.ok) {
-    if (response.status === 404) return null;
-    const errorText = await response.text();
-    console.error('Airtable get failed', {
-      status: response.status,
-      statusText: response.statusText,
-      body: errorText,
-    });
-    return null;
-  }
+async function dbGetListing(recordId: string, env: Env): Promise<{ id: string; fields: Record<string, unknown> } | null> {
+  const idValue = await resolveListingId(recordId, env);
+  if (!idValue) return null;
+  const row = await env.DB.prepare('SELECT * FROM listings WHERE id = ?')
+    .bind(idValue)
+    .first<Record<string, any>>();
+  return row ? listingRowToRecord(row) : null;
+}
 
-  const data = await response.json();
-  if (!data?.id) return null;
-  return { id: data.id, fields: data.fields ?? {} };
+async function dbFindListingByUrl(url: string, env: Env): Promise<{ id: string; fields: Record<string, unknown> } | null> {
+  const row = await env.DB.prepare('SELECT * FROM listings WHERE url = ? LIMIT 1')
+    .bind(url)
+    .first<Record<string, any>>();
+  return row ? listingRowToRecord(row) : null;
+}
+
+async function dbCreateListing(fields: Record<string, unknown>, env: Env): Promise<string | null> {
+  const columns = listingFieldsToColumns(fields);
+  const insert = buildInsertStatement('listings', columns);
+  if (!insert) return null;
+  const result = await env.DB.prepare(insert.sql).bind(...insert.values).run();
+  return result.meta?.last_row_id ? String(result.meta.last_row_id) : null;
+}
+
+async function dbUpdateListing(recordId: string, fields: Record<string, unknown>, env: Env): Promise<void> {
+  const idValue = await resolveListingId(recordId, env);
+  if (!idValue) return;
+  const columns = listingFieldsToColumns(fields);
+  const update = buildUpdateStatement('listings', columns, 'id');
+  if (!update) return;
+  await env.DB.prepare(update.sql).bind(...update.values, idValue).run();
+}
+
+async function dbSetListingArchived(recordId: string, archived: boolean, env: Env): Promise<boolean> {
+  const idValue = await resolveListingId(recordId, env);
+  if (!idValue) return false;
+  await env.DB.prepare(
+    'UPDATE listings SET archived = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+  )
+    .bind(archived ? 1 : 0, idValue)
+    .run();
+  return true;
+}
+
+async function dbSearchResults(
+  runId: string,
+  includeAll: boolean,
+  env: Env
+): Promise<{ records: any[] } | null> {
+  const clause = includeAll ? '' : 'AND (archived IS NULL OR archived = 0)';
+  const result = await env.DB.prepare(
+    `SELECT * FROM search_results
+     WHERE run_id = ?
+     ${clause}
+     ORDER BY seen_at DESC, id DESC`
+  )
+    .bind(runId)
+    .all<Record<string, any>>();
+  const records = (result.results ?? []).map((row) => searchRowToRecord(row));
+  return { records };
+}
+
+async function dbSearchFindByUrl(url: string, env: Env): Promise<{ id: string; fields: Record<string, unknown> } | null> {
+  const row = await env.DB.prepare('SELECT * FROM search_results WHERE url = ? LIMIT 1')
+    .bind(url)
+    .first<Record<string, any>>();
+  return row ? searchRowToRecord(row) : null;
+}
+
+async function resolveSearchId(recordId: string, env: Env): Promise<number | null> {
+  const idValue = Number.parseInt(recordId, 10);
+  if (Number.isFinite(idValue)) return idValue;
+  const row = await env.DB.prepare('SELECT id FROM search_results WHERE airtable_id = ?')
+    .bind(recordId)
+    .first<{ id: number }>();
+  return row?.id ?? null;
+}
+
+async function dbSearchGet(recordId: string, env: Env): Promise<{ id: string; fields: Record<string, any> } | null> {
+  const idValue = await resolveSearchId(recordId, env);
+  if (!idValue) return null;
+  const row = await env.DB.prepare('SELECT * FROM search_results WHERE id = ?')
+    .bind(idValue)
+    .first<Record<string, any>>();
+  return row ? searchRowToRecord(row) : null;
+}
+
+async function dbSearchCreateBatch(fieldsList: Record<string, unknown>[], env: Env): Promise<void> {
+  if (fieldsList.length === 0) return;
+  const statements = fieldsList
+    .map((fields) => {
+      const columns = searchFieldsToColumns(fields);
+      const keys = Object.keys(columns);
+      if (keys.length === 0) return null;
+      const placeholders = keys.map(() => '?').join(', ');
+      const sql = `INSERT OR IGNORE INTO search_results (${keys.join(', ')}) VALUES (${placeholders})`;
+      const values = keys.map((key) => columns[key]);
+      return env.DB.prepare(sql).bind(...values);
+    })
+    .filter((statement): statement is D1PreparedStatement => Boolean(statement));
+  if (statements.length === 0) return;
+  await env.DB.batch(statements);
+}
+
+async function dbSearchUpdate(recordId: string, fields: Record<string, unknown>, env: Env): Promise<void> {
+  const idValue = await resolveSearchId(recordId, env);
+  if (!idValue) return;
+  const columns = searchFieldsToColumns(fields);
+  const update = buildUpdateStatement('search_results', columns, 'id');
+  if (!update) return;
+  await env.DB.prepare(update.sql).bind(...update.values, idValue).run();
+}
+
+async function dbSearchSetArchivedState(recordId: string, archived: boolean, env: Env): Promise<boolean> {
+  const idValue = await resolveSearchId(recordId, env);
+  if (!idValue) return false;
+  await env.DB.prepare(
+    'UPDATE search_results SET archived = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+  )
+    .bind(archived ? 1 : 0, idValue)
+    .run();
+  return true;
+}
+
+async function dbSearchListPending(limit: number, env: Env): Promise<Array<{ id: string; fields: Record<string, any> }>> {
+  const result = await env.DB.prepare(
+    `SELECT * FROM search_results
+     WHERE (archived IS NULL OR archived = 0)
+       AND (is_guitar IS NULL OR is_guitar = '' OR is_guitar = 'Unsure')
+     ORDER BY seen_at DESC, id DESC
+     LIMIT ?`
+  )
+    .bind(limit)
+    .all<Record<string, any>>();
+  return (result.results ?? []).map((row) => searchRowToRecord(row));
 }
 
 async function getIsMultiFromRecord(recordId: string, env: Env): Promise<boolean> {
-  const record = await airtableGet(recordId, env);
+  const record = await dbGetListing(recordId, env);
   return isMultiValue(record?.fields?.IsMulti);
 }
 
@@ -2287,7 +2608,7 @@ async function fetchApifyDataset(datasetId: string, env: Env): Promise<any[]> {
 }
 
 async function insertQueuedRow(url: string, source: ListingSource, runId: string, isMulti: boolean, env: Env): Promise<void> {
-  const timestamp = formatMountainTimestamp(new Date());
+  const timestamp = new Date().toISOString();
   const fields = {
     submitted_at: timestamp,
     source: formatSourceLabel(source),
@@ -2297,12 +2618,12 @@ async function insertQueuedRow(url: string, source: ListingSource, runId: string
   };
 
   try {
-    const recordId = await airtableCreate(fields, env);
+    const recordId = await dbCreateListing(fields, env);
     if (recordId) {
       await env.LISTING_JOBS.put(runId, recordId);
     }
   } catch (error) {
-    console.error('Airtable create failed', { error });
+    console.error('D1 create failed', { error });
   }
 }
 
@@ -2319,12 +2640,10 @@ async function updateRowByRunId(runId: string, updates: {
   aiData?: SingleAiResult;
   notes?: string;
 }, env: Env, options?: { recordId?: string | null; isMulti?: boolean | null }): Promise<void> {
-  const timestamp = new Date().toISOString();
-
   try {
     const recordId = options?.recordId ?? await env.LISTING_JOBS.get(runId);
     if (!recordId) {
-      console.error('Airtable update failed: record not found for run_id', { runId });
+      console.error('D1 update failed: record not found for run_id', { runId });
       return;
     }
 
@@ -2422,309 +2741,16 @@ async function updateRowByRunId(runId: string, updates: {
     if (score !== null) {
       fields.score = score;
     }
-    await airtableUpdate(recordId, fields, env);
+    await dbUpdateListing(recordId, fields, env);
     if (aiFields && !isMulti) {
-      await airtableUpdate(recordId, aiFields, env);
+      await dbUpdateListing(recordId, aiFields, env);
     }
   } catch (error) {
-    console.error('Airtable update failed', { error });
+    console.error('D1 update failed', { error });
     throw error;
   }
 }
 
-async function airtableCreate(fields: Record<string, unknown>, env: Env): Promise<string | null> {
-  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_TABLE)}`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ records: [{ fields }] }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Airtable create failed', {
-      status: response.status,
-      statusText: response.statusText,
-      body: errorText,
-    });
-    return null;
-  }
-
-  const data = await response.json();
-  return data?.records?.[0]?.id || null;
-}
-
-function escapeAirtableValue(value: string): string {
-  return value.replace(/"/g, '\\"');
-}
-
-async function airtableFindByUrl(url: string, env: Env): Promise<{ id: string; fields: Record<string, unknown> } | null> {
-  const params = new URLSearchParams();
-  params.append('filterByFormula', `{url} = "${escapeAirtableValue(url)}"`);
-  params.append('maxRecords', '1');
-  params.append('fields[]', 'url');
-  params.append('fields[]', 'archived');
-
-  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_TABLE)}?${params.toString()}`, {
-    headers: {
-      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
-    },
-  });
-
-  if (!response.ok) return null;
-  const data = await response.json();
-  const record = data?.records?.[0];
-  return record ? { id: record.id, fields: record.fields || {} } : null;
-}
-
-async function airtableUpdate(recordId: string, fields: Record<string, unknown>, env: Env): Promise<void> {
-  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_TABLE)}/${recordId}`, {
-    method: 'PATCH',
-    headers: {
-      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ fields }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Airtable update failed', {
-      status: response.status,
-      statusText: response.statusText,
-      body: errorText,
-    });
-    throw new Error(`Airtable update failed: ${response.status} ${response.statusText} ${errorText}`);
-  }
-}
-
-async function airtableSetArchivedState(recordId: string, archived: boolean, env: Env): Promise<boolean> {
-  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_TABLE)}/${recordId}`, {
-    method: 'PATCH',
-    headers: {
-      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ fields: { archived } }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Airtable archive failed', {
-      status: response.status,
-      statusText: response.statusText,
-      body: errorText,
-    });
-    return false;
-  }
-
-  return true;
-}
-
-async function airtableSearchResults(
-  runId: string,
-  includeAll: boolean,
-  env: Env
-): Promise<{ records: any[] } | null> {
-  const params = new URLSearchParams();
-  const filters = [`{run_id} = "${escapeAirtableValue(runId)}"`];
-  if (!includeAll) {
-    filters.push('NOT({archived})');
-  }
-  params.append('filterByFormula', `AND(${filters.join(',')})`);
-  params.append('sort[0][field]', 'seen_at');
-  params.append('sort[0][direction]', 'desc');
-  params.append('pageSize', '100');
-
-  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_SEARCH_TABLE)}?${params.toString()}`, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Airtable search list failed', {
-      status: response.status,
-      statusText: response.statusText,
-      body: errorText,
-    });
-    return null;
-  }
-
-  const data = await response.json();
-  const records = Array.isArray(data?.records) ? data.records : [];
-  return { records };
-}
-
-async function airtableSearchFindByUrl(url: string, env: Env): Promise<{ id: string; fields: Record<string, unknown> } | null> {
-  const params = new URLSearchParams();
-  params.append('filterByFormula', `{url} = "${escapeAirtableValue(url)}"`);
-  params.append('maxRecords', '1');
-  params.append('fields[]', 'url');
-  params.append('fields[]', 'archived');
-
-  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_SEARCH_TABLE)}?${params.toString()}`, {
-    headers: {
-      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
-    },
-  });
-
-  if (!response.ok) return null;
-  const data = await response.json();
-  const record = data?.records?.[0];
-  return record ? { id: record.id, fields: record.fields || {} } : null;
-}
-
-async function airtableSearchGet(recordId: string, env: Env): Promise<{ id: string; fields: Record<string, any> } | null> {
-  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_SEARCH_TABLE)}/${recordId}`, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (!response.ok) {
-    if (response.status === 404) return null;
-    const errorText = await response.text();
-    console.error('Airtable search get failed', {
-      status: response.status,
-      statusText: response.statusText,
-      body: errorText,
-    });
-    return null;
-  }
-
-  const data = await response.json();
-  if (!data?.id) return null;
-  return { id: data.id, fields: data.fields ?? {} };
-}
-
-async function airtableSearchCreateRow(fields: Record<string, unknown>, env: Env): Promise<string | null> {
-  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_SEARCH_TABLE)}`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ records: [{ fields }] }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Airtable search create failed', {
-      status: response.status,
-      statusText: response.statusText,
-      body: errorText,
-    });
-    return null;
-  }
-
-  const data = await response.json();
-  return data?.records?.[0]?.id || null;
-}
-
-async function airtableSearchCreateBatch(fieldsList: Record<string, unknown>[], env: Env): Promise<void> {
-  if (fieldsList.length === 0) return;
-  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_SEARCH_TABLE)}`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ records: fieldsList.map((fields) => ({ fields })) }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Airtable search batch create failed', {
-      status: response.status,
-      statusText: response.statusText,
-      body: errorText,
-    });
-  }
-}
-
-async function airtableSearchUpdate(recordId: string, fields: Record<string, unknown>, env: Env): Promise<void> {
-  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_SEARCH_TABLE)}/${recordId}`, {
-    method: 'PATCH',
-    headers: {
-      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ fields }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Airtable search update failed', {
-      status: response.status,
-      statusText: response.statusText,
-      body: errorText,
-    });
-  }
-}
-
-async function airtableSearchSetArchivedState(recordId: string, archived: boolean, env: Env): Promise<boolean> {
-  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_SEARCH_TABLE)}/${recordId}`, {
-    method: 'PATCH',
-    headers: {
-      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ fields: { archived } }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Airtable search archive failed', {
-      status: response.status,
-      statusText: response.statusText,
-      body: errorText,
-    });
-    return false;
-  }
-
-  return true;
-}
-
-async function airtableSearchListPending(limit: number, env: Env): Promise<Array<{ id: string; fields: Record<string, any> }>> {
-  const params = new URLSearchParams();
-  params.append('filterByFormula', 'AND(NOT({archived}), OR({is_guitar} = BLANK(), {is_guitar} = "", {is_guitar} = "Unsure"))');
-  params.append('maxRecords', String(limit));
-  params.append('fields[]', 'title');
-  params.append('fields[]', 'price');
-  params.append('fields[]', 'image_url');
-  params.append('fields[]', 'url');
-  params.append('fields[]', 'keyword');
-
-  const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_SEARCH_TABLE)}?${params.toString()}`, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Airtable search pending list failed', {
-      status: response.status,
-      statusText: response.statusText,
-      body: errorText,
-    });
-    return [];
-  }
-
-  const data = await response.json();
-  const records = Array.isArray(data?.records) ? data.records : [];
-  return records.map((record: any) => ({ id: record.id, fields: record.fields || {} }));
-}
 
 async function classifyPendingSearchResults(env: Env, limit: number): Promise<{ processed: number; updated: number }> {
   if (!env.OPENAI_API_KEY) {
@@ -2732,7 +2758,7 @@ async function classifyPendingSearchResults(env: Env, limit: number): Promise<{ 
     return { processed: 0, updated: 0 };
   }
 
-  const records = await airtableSearchListPending(limit, env);
+  const records = await dbSearchListPending(limit, env);
   let updated = 0;
 
   for (const record of records) {
@@ -2749,7 +2775,7 @@ async function classifyPendingSearchResults(env: Env, limit: number): Promise<{ 
     const isGuitarResult = await runIsGuitar(listing, env);
     if (!isGuitarResult) continue;
 
-    await airtableSearchUpdate(record.id, {
+    await dbSearchUpdate(record.id, {
       is_guitar: isGuitarResult.isGuitar ? 'Yes' : 'No',
       ai_reason: isGuitarResult.reason,
       ai_checked_at: new Date().toISOString(),
@@ -3015,28 +3041,6 @@ function computeScore(asking: number, low: number, high: number): number {
 function clampScore(value: number): number {
   const rounded = Math.round(value);
   return Math.max(1, Math.min(10, rounded));
-}
-
-function formatMountainTimestamp(date: Date): string {
-  const dateFormatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Denver',
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-  });
-  const timeFormatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Denver',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  });
-  const datePart = dateFormatter.format(date);
-  const timeParts = timeFormatter.formatToParts(date);
-  const hour = timeParts.find((part) => part.type === 'hour')?.value ?? '';
-  const minute = timeParts.find((part) => part.type === 'minute')?.value ?? '';
-  const dayPeriod = timeParts.find((part) => part.type === 'dayPeriod')?.value ?? '';
-  const timePart = hour && minute && dayPeriod ? `${hour}:${minute}${dayPeriod}` : timeFormatter.format(date).replace(' ', '');
-  return `${datePart} ${timePart} MST`;
 }
 
 function formatSourceLabel(source: ListingSource): string {
