@@ -2694,9 +2694,9 @@ button:active {
 }
 
 .listing-row-thumb {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
   object-fit: cover;
   flex-shrink: 0;
   border: 1px solid var(--border-subtle);
