@@ -76,14 +76,19 @@ function decodeMonthFactory(serial) {
     const month = MONTH_CODE_MAP[monthCode];
     const yearValue = 2000 + parseInt(yearCode, 10);
     const factoryInfo = FACTORY_MAP[factoryCode];
+    const factoryLabel = factoryInfo ? factoryInfo.name : `Factory ${factoryCode}`;
+    const country = factoryInfo ? factoryInfo.country : 'Unknown';
+    const factoryNote = factoryInfo
+        ? ''
+        : ` Factory code ${factoryCode} is not listed in B.C. Rich's published factory list (00–10).`;
     const info = {
         brand: 'B.C. Rich',
         serialNumber: serial,
         year: yearValue.toString(),
         month: month,
-        factory: factoryInfo ? factoryInfo.name : `Factory ${factoryCode}`,
-        country: factoryInfo?.country,
-        notes: `Month/factory code format. Production sequence: ${production}.`,
+        factory: factoryLabel,
+        country,
+        notes: `Month/factory code format. Production sequence: ${production}.${factoryNote}`,
     };
     return { success: true, info };
 }
