@@ -16,6 +16,7 @@ export {};
 type ListingsResponse = {
   records: ListingListItem[];
   nextOffset?: string | null;
+  total?: number;
   message?: string;
 };
 
@@ -26,12 +27,15 @@ const prevButton = document.getElementById('listing-results-prev') as HTMLButton
 const nextButton = document.getElementById('listing-results-next') as HTMLButtonElement | null;
 const pageLabel = document.getElementById('listing-results-page') as HTMLSpanElement | null;
 const titleLabel = document.getElementById('listing-results-title') as HTMLHeadingElement | null;
+const primaryLink = document.getElementById('listing-results-link-primary') as HTMLAnchorElement | null;
+const secondaryLink = document.getElementById('listing-results-link-secondary') as HTMLAnchorElement | null;
 
 const PAGE_SIZE = 20;
 
 let currentOffset: string | null = null;
 let nextOffset: string | null = null;
 let pageIndex = 1;
+let totalCount: number | null = null;
 const offsetHistory: Array<string | null> = [];
 const viewMode = resolveViewMode();
 
@@ -53,6 +57,40 @@ function resolveViewMode(): ViewMode {
   if (showArchived) return 'archived';
   return 'default';
 }
+
+function setResultsLinks(): void {
+  if (!primaryLink || !secondaryLink) return;
+  if (viewMode === 'saved') {
+    primaryLink.textContent = 'Live Results';
+    primaryLink.href = 'listing-evaluator-results.html';
+    primaryLink.className = 'button-link';
+
+    secondaryLink.textContent = 'Archived';
+    secondaryLink.href = 'listing-evaluator-results.html?showArchived=1';
+    secondaryLink.className = 'button-link danger';
+    return;
+  }
+  if (viewMode === 'archived') {
+    primaryLink.textContent = 'Live Results';
+    primaryLink.href = 'listing-evaluator-results.html';
+    primaryLink.className = 'button-link';
+
+    secondaryLink.textContent = 'Saved';
+    secondaryLink.href = 'listing-evaluator-results.html?showSaved=1';
+    secondaryLink.className = 'button-link save';
+    return;
+  }
+
+  primaryLink.textContent = 'Saved';
+  primaryLink.href = 'listing-evaluator-results.html?showSaved=1';
+  primaryLink.className = 'button-link save';
+
+  secondaryLink.textContent = 'Archived';
+  secondaryLink.href = 'listing-evaluator-results.html?showArchived=1';
+  secondaryLink.className = 'button-link danger';
+}
+
+setResultsLinks();
 
 function buildSourceIcon(value: string | undefined): HTMLElement | null {
   if (!value) return null;
@@ -96,7 +134,14 @@ function setLoading(isLoading: boolean): void {
     nextButton.disabled = isLoading || !nextOffset;
     nextButton.classList.toggle('hidden', !nextOffset);
   }
-  if (pageLabel) pageLabel.textContent = isLoading ? 'Loading…' : `Page ${pageIndex}`;
+  if (pageLabel) {
+    if (isLoading) {
+      pageLabel.textContent = 'Loading…';
+      return;
+    }
+    const totalPages = totalCount ? Math.max(1, Math.ceil(totalCount / PAGE_SIZE)) : null;
+    pageLabel.textContent = totalPages ? `Page ${pageIndex} of ${totalPages}` : `Page ${pageIndex}`;
+  }
 }
 
 function clearMessages(): void {
@@ -180,6 +225,7 @@ async function loadListings(): Promise<void> {
     }
 
     nextOffset = data.nextOffset ?? null;
+    totalCount = typeof data.total === 'number' ? data.total : null;
 
     renderRows(data.records || []);
   } catch (error) {

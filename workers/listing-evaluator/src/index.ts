@@ -1940,7 +1940,7 @@ async function dbListListings(
   offset: string | undefined,
   mode: 'default' | 'saved' | 'archived',
   env: Env
-): Promise<{ records: ListingListItem[]; nextOffset?: string | null } | null> {
+): Promise<{ records: ListingListItem[]; nextOffset?: string | null; total?: number } | null> {
   const offsetValue = offset ? Math.max(0, Number.parseInt(offset, 10) || 0) : 0;
   let whereClause = 'WHERE (archived IS NULL OR archived = 0) AND (saved IS NULL OR saved = 0)';
   if (mode === 'saved') {
@@ -1948,6 +1948,10 @@ async function dbListListings(
   } else if (mode === 'archived') {
     whereClause = 'WHERE archived = 1';
   }
+  const totalResult = await env.DB.prepare(
+    `SELECT COUNT(*) as total FROM listings ${whereClause}`
+  ).first<{ total: number }>();
+  const total = typeof totalResult?.total === 'number' ? totalResult.total : 0;
   const result = await env.DB.prepare(
     `SELECT id, url, source, status, title, price_asking, score, saved
      FROM listings
@@ -1981,7 +1985,7 @@ async function dbListListings(
   }));
 
   const nextOffset = records.length === limit ? String(offsetValue + limit) : null;
-  return { records, nextOffset };
+  return { records, nextOffset, total };
 }
 
 async function dbGetListing(recordId: string, env: Env): Promise<{ id: string; fields: Record<string, unknown> } | null> {

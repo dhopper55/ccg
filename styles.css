@@ -354,6 +354,21 @@ body {
   gap: 16px;
 }
 
+.listing-results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.listing-results-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .listing-hero .listing-results-actions {
   display: flex;
   align-items: center;
@@ -404,6 +419,11 @@ body {
 
 @media (max-width: 720px) {
   .listing-hero .listing-hero-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .listing-results-header {
     flex-direction: column;
     align-items: flex-start;
   }
