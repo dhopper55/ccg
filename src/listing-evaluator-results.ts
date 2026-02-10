@@ -25,6 +25,7 @@ const emptySection = document.getElementById('listing-results-empty') as HTMLDiv
 const prevButton = document.getElementById('listing-results-prev') as HTMLButtonElement | null;
 const nextButton = document.getElementById('listing-results-next') as HTMLButtonElement | null;
 const pageLabel = document.getElementById('listing-results-page') as HTMLSpanElement | null;
+const titleLabel = document.getElementById('listing-results-title') as HTMLHeadingElement | null;
 
 const PAGE_SIZE = 20;
 
@@ -32,6 +33,26 @@ let currentOffset: string | null = null;
 let nextOffset: string | null = null;
 let pageIndex = 1;
 const offsetHistory: Array<string | null> = [];
+const viewMode = resolveViewMode();
+
+if (titleLabel) {
+  if (viewMode === 'saved') {
+    titleLabel.textContent = 'Saved Listings';
+  } else if (viewMode === 'archived') {
+    titleLabel.textContent = 'Archived Listings';
+  }
+}
+
+type ViewMode = 'default' | 'saved' | 'archived';
+
+function resolveViewMode(): ViewMode {
+  const params = new URLSearchParams(window.location.search);
+  const showSaved = params.get('showSaved') === '1';
+  const showArchived = params.get('showArchived') === '1';
+  if (showSaved) return 'saved';
+  if (showArchived) return 'archived';
+  return 'default';
+}
 
 function buildSourceIcon(value: string | undefined): HTMLElement | null {
   if (!value) return null;
@@ -143,6 +164,11 @@ async function loadListings(): Promise<void> {
     const params = new URLSearchParams();
     params.set('limit', String(PAGE_SIZE));
     if (currentOffset) params.set('offset', currentOffset);
+    if (viewMode === 'saved') {
+      params.set('showSaved', '1');
+    } else if (viewMode === 'archived') {
+      params.set('showArchived', '1');
+    }
 
     const url = new URL('/api/listings/', window.location.origin);
     url.search = params.toString();

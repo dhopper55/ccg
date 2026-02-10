@@ -2602,6 +2602,15 @@ button:active {
   box-shadow: 0 4px 20px rgba(217, 83, 79, 0.4);
 }
 
+.button-link.save {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: #fff;
+}
+
+.button-link.save:hover {
+  box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+}
+
 .button-link .icon {
   display: inline-flex;
   width: 18px;

@@ -24,6 +24,7 @@ const errorSection = document.getElementById('listing-item-error') as HTMLDivEle
 const archiveButton = document.getElementById('listing-item-archive') as HTMLButtonElement | null;
 const archiveLabel = archiveButton?.querySelector('.archive-label') as HTMLSpanElement | null;
 const saveButton = document.getElementById('listing-item-save') as HTMLButtonElement | null;
+const saveLabel = saveButton?.querySelector('.save-label') as HTMLSpanElement | null;
 const mediaEl = document.getElementById('listing-item-media') as HTMLDivElement | null;
 const thumbnailEl = document.getElementById('listing-item-thumbnail') as HTMLImageElement | null;
 const copyButton = document.getElementById('listing-item-copy') as HTMLButtonElement | null;
@@ -33,6 +34,7 @@ const doubleCheckGuitarButton = document.getElementById('listing-item-double-che
 let currentRecordId: string | null = null;
 let isArchiving = false;
 let isSaving = false;
+let currentArchived = false;
 let currentSaved = false;
 const BUILD_TAG = '2026-02-05a';
 
@@ -256,22 +258,23 @@ function isMultiValue(value: unknown): boolean {
 
 function updateArchiveButton(archived: boolean): void {
   if (!archiveButton) return;
-  archiveButton.disabled = archived || isArchiving;
-  if (archiveLabel) {
-    if (archived) {
-      archiveLabel.textContent = 'Archived';
-    } else if (isArchiving) {
-      archiveLabel.textContent = 'Archiving...';
-    } else {
-      archiveLabel.textContent = 'Archive';
-    }
+  archiveButton.disabled = isArchiving;
+  if (!archiveLabel) return;
+  if (isArchiving) {
+    archiveLabel.textContent = archived ? 'Un-Archiving...' : 'Archiving...';
+    return;
   }
+  archiveLabel.textContent = archived ? 'Un-Archive' : 'Archive';
 }
 
 function updateSaveButton(saved: boolean): void {
   if (!saveButton) return;
   saveButton.disabled = isSaving;
-  saveButton.textContent = saved ? 'Un-Save' : 'Save';
+  if (saveLabel) {
+    saveLabel.textContent = saved ? 'Un-Save' : 'Save';
+  } else {
+    saveButton.textContent = saved ? 'Un-Save' : 'Save';
+  }
 }
 
 function buildTextBlock(tag: keyof HTMLElementTagNameMap, text: string): HTMLElement {
@@ -633,6 +636,7 @@ function renderRecord(record: ListingRecordResponse): void {
   const archived = isArchivedValue(fields.archived);
   const saved = isArchivedValue(fields.saved);
   const isMulti = isMultiValue(fields.IsMulti);
+  currentArchived = archived;
   updateArchiveButton(archived);
   currentSaved = saved;
   updateSaveButton(saved);
@@ -775,27 +779,37 @@ async function archiveListing(): Promise<void> {
 
   clearError();
   isArchiving = true;
-  archiveButton.disabled = true;
-  updateArchiveButton(false);
+  updateArchiveButton(currentArchived);
+  const targetArchived = !currentArchived;
+  let shouldRedirect = false;
 
   try {
     const response = await fetch(`/api/listings/${encodeURIComponent(currentRecordId)}/archive`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ archived: targetArchived }),
     });
     const data = (await response.json()) as ListingRecordResponse;
     if (!response.ok) {
       throw new Error(data.message || 'Unable to archive listing.');
     }
 
-    updateArchiveButton(true);
-    window.location.href = 'listing-evaluator-results.html';
+    currentArchived = targetArchived;
+    updateArchiveButton(currentArchived);
+    const redirectUrl = targetArchived
+      ? 'listing-evaluator-results.html'
+      : 'listing-evaluator-results.html?showArchived=1';
+    shouldRedirect = true;
+    window.location.href = redirectUrl;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to archive listing.';
     showError(message);
-    archiveButton.disabled = false;
-    updateArchiveButton(false);
+    updateArchiveButton(currentArchived);
   } finally {
     isArchiving = false;
+    if (!shouldRedirect) {
+      updateArchiveButton(currentArchived);
+    }
   }
 }
 

@@ -19,7 +19,7 @@
   <title>Listing Details | Coal Creek Guitars</title>
   <meta name="description" content="Detailed listing evaluator results with full AI summary and listing info.">
   <link rel="canonical" href="https://www.coalcreekguitars.com/listing-evaluator-item">
-  <link rel="stylesheet" href="styles.css?version=599537">
+  <link rel="stylesheet" href="styles.css?version=356867">
 </head>
 <body>
   <nav class="site-nav">
@@ -43,7 +43,14 @@
         <a id="listing-item-open" class="button-link" href="#" target="_blank" rel="noopener">Open original listing</a>
         <button id="listing-item-double-check" class="button-link secondary" type="button">Double-Check</button>
         <button id="listing-item-double-check-guitar" class="button-link secondary" type="button">Double Check Guitar</button>
-        <button id="listing-item-save" class="button-link secondary" type="button">Save</button>
+        <button id="listing-item-save" class="button-link save" type="button">
+          <span class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" role="img" focusable="false" aria-hidden="true">
+              <path d="M5 4h11l3 3v13H5V4zm2 2v6h10V7.8L14.2 6H7zm2 9h6v5H9v-5z" fill="currentColor"></path>
+            </svg>
+          </span>
+          <span class="save-label">Save</span>
+        </button>
         <button id="listing-item-archive" class="button-link danger" type="button">
           <span class="icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" role="img" focusable="false" aria-hidden="true">
@@ -91,7 +98,7 @@
     </div>
   </footer>
 
-  <script type="module" src="dist/listing-evaluator-item.js?v=20260130&version=060464"></script>
+  <script type="module" src="dist/listing-evaluator-item.js?v=20260130&version=417303"></script>
   <script>
     (function() {
       const year = new Date().getFullYear();

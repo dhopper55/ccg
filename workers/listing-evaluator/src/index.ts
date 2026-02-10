@@ -242,7 +242,7 @@ export default {
     }
 
     if (path.endsWith('/archive') && path.startsWith('/api/listings/') && request.method === 'POST') {
-      const response = await handleArchiveListing(env, path);
+      const response = await handleArchiveListing(request, env, path);
       return withCors(response, request, env);
     }
 
@@ -1330,6 +1330,8 @@ async function handleList(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const limitParam = url.searchParams.get('limit');
   const offset = url.searchParams.get('offset') || undefined;
+  const showSaved = url.searchParams.get('showSaved') === '1';
+  const showArchived = url.searchParams.get('showArchived') === '1';
 
   let limit = DEFAULT_PAGE_SIZE;
   if (limitParam) {
@@ -1339,7 +1341,8 @@ async function handleList(request: Request, env: Env): Promise<Response> {
     }
   }
 
-  const data = await dbListListings(limit, offset, env);
+  const mode: 'default' | 'saved' | 'archived' = showSaved ? 'saved' : (showArchived ? 'archived' : 'default');
+  const data = await dbListListings(limit, offset, mode, env);
   if (!data) {
     return jsonResponse({ message: 'Unable to fetch listings.' }, 500);
   }
@@ -1428,7 +1431,7 @@ async function handleReprocessListing(request: Request, env: Env): Promise<Respo
   }
 }
 
-async function handleArchiveListing(env: Env, path: string): Promise<Response> {
+async function handleArchiveListing(request: Request, env: Env, path: string): Promise<Response> {
   const parts = path.split('/').filter(Boolean);
   const archiveIndex = parts.indexOf('archive');
   const recordId = archiveIndex > 0 ? parts[archiveIndex - 1] : '';
@@ -1437,12 +1440,22 @@ async function handleArchiveListing(env: Env, path: string): Promise<Response> {
     return jsonResponse({ message: 'Missing listing ID.' }, 400);
   }
 
-  const updated = await dbSetListingArchived(recordId, true, env);
+  let archivedValue = true;
+  try {
+    const body = await request.json();
+    if (typeof body?.archived === 'boolean') {
+      archivedValue = body.archived;
+    }
+  } catch {
+    archivedValue = true;
+  }
+
+  const updated = await dbSetListingArchived(recordId, archivedValue, env);
   if (!updated) {
     return jsonResponse({ message: 'Unable to archive listing.' }, 500);
   }
 
-  return jsonResponse({ ok: true });
+  return jsonResponse({ ok: true, archived: archivedValue });
 }
 
 async function handleSaveListing(request: Request, env: Env, path: string): Promise<Response> {
@@ -1925,14 +1938,20 @@ function searchRowToRecord(row: Record<string, any>): { id: string; fields: Reco
 async function dbListListings(
   limit: number,
   offset: string | undefined,
+  mode: 'default' | 'saved' | 'archived',
   env: Env
 ): Promise<{ records: ListingListItem[]; nextOffset?: string | null } | null> {
   const offsetValue = offset ? Math.max(0, Number.parseInt(offset, 10) || 0) : 0;
+  let whereClause = 'WHERE (archived IS NULL OR archived = 0) AND (saved IS NULL OR saved = 0)';
+  if (mode === 'saved') {
+    whereClause = 'WHERE (archived IS NULL OR archived = 0) AND saved = 1';
+  } else if (mode === 'archived') {
+    whereClause = 'WHERE archived = 1';
+  }
   const result = await env.DB.prepare(
     `SELECT id, url, source, status, title, price_asking, score, saved
      FROM listings
-     WHERE (archived IS NULL OR archived = 0)
-       AND (saved IS NULL OR saved = 0)
+     ${whereClause}
      ORDER BY
        CASE WHEN status = 'queued' THEN 1 ELSE 0 END ASC,
        COALESCE(submitted_at, created_at) DESC,
