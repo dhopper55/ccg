@@ -111,6 +111,21 @@ function buildSourceIcon(value: string | undefined): HTMLElement | null {
   return null;
 }
 
+function isProxyImage(url: string): boolean {
+  const normalized = url.toLowerCase();
+  return normalized.includes('fbcdn.net') || normalized.includes('scontent-') || normalized.includes('scontent.');
+}
+
+function buildImageSrc(imageUrl: string, referrer: string | undefined): string {
+  if (isProxyImage(imageUrl)) {
+    const params = new URLSearchParams();
+    params.set('url', imageUrl);
+    if (referrer) params.set('ref', referrer);
+    return `/api/image?${params.toString()}`;
+  }
+  return imageUrl;
+}
+
 function formatCurrencyValue(value: number | string | undefined): string {
   if (value == null) return '';
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -175,9 +190,12 @@ function renderRows(records: ListingListItem[]): void {
     if (record.imageUrl) {
       const thumb = document.createElement('img');
       thumb.className = 'listing-row-thumb';
-      thumb.src = record.imageUrl;
+      thumb.src = buildImageSrc(record.imageUrl, record.url);
       thumb.alt = record.title ? `${record.title} thumbnail` : 'Listing thumbnail';
       thumb.loading = 'lazy';
+      thumb.addEventListener('error', () => {
+        thumb.remove();
+      });
       titleWrap.appendChild(thumb);
     }
     const titleText = record.title?.trim()

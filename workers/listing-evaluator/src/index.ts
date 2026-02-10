@@ -241,6 +241,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/image' && request.method === 'GET') {
+      const response = await handleImageProxy(request, env);
+      return withCors(response, request, env);
+    }
+
     if (path.endsWith('/archive') && path.startsWith('/api/listings/') && request.method === 'POST') {
       const response = await handleArchiveListing(request, env, path);
       return withCors(response, request, env);
@@ -1348,6 +1353,64 @@ async function handleList(request: Request, env: Env): Promise<Response> {
   }
 
   return jsonResponse(data);
+}
+
+function isAllowedImageHost(hostname: string): boolean {
+  const normalized = hostname.toLowerCase();
+  if (normalized.endsWith('fbcdn.net')) return true;
+  if (normalized.startsWith('scontent-') && normalized.includes('.fbcdn.net')) return true;
+  if (normalized === 'scontent.xx.fbcdn.net') return true;
+  if (normalized.endsWith('.fbcdn.net')) return true;
+  if (normalized.endsWith('scontent.xx.fbcdn.net')) return true;
+  if (normalized === 'images.craigslist.org') return true;
+  return false;
+}
+
+async function handleImageProxy(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const imageUrl = url.searchParams.get('url');
+  const referrer = url.searchParams.get('ref') || '';
+
+  if (!imageUrl) {
+    return jsonResponse({ message: 'Missing image URL.' }, 400);
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(imageUrl);
+  } catch {
+    return jsonResponse({ message: 'Invalid image URL.' }, 400);
+  }
+
+  if (parsed.protocol !== 'https:' || !isAllowedImageHost(parsed.hostname)) {
+    return jsonResponse({ message: 'Image host not allowed.' }, 400);
+  }
+
+  const headers = new Headers({
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+    'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+  });
+  if (referrer) {
+    headers.set('Referer', referrer);
+  }
+
+  const response = await fetch(parsed.toString(), {
+    headers,
+    cf: { cacheTtl: 86400, cacheEverything: true },
+  });
+
+  if (!response.ok || !response.body) {
+    return jsonResponse({ message: 'Unable to fetch image.' }, 404);
+  }
+
+  const contentType = response.headers.get('content-type') || 'image/jpeg';
+  return new Response(response.body, {
+    status: 200,
+    headers: {
+      'content-type': contentType,
+      'cache-control': 'public, max-age=86400',
+    },
+  });
 }
 
 async function handleGetListing(request: Request, env: Env, path: string): Promise<Response> {
