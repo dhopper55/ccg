@@ -23,6 +23,7 @@ import { decodeOvation } from './decoders/ovation.js?version=823009';
 import { decodeCharvel } from './decoders/charvel.js?version=988463';
 import { decodeRickenbacker } from './decoders/rickenbacker.js?version=961802';
 import { decodeKramer } from './decoders/kramer.js?version=253470';
+import { decodeBCRich } from './decoders/bcrich.js?version=672169';
 // Google Forms tracking configuration
 const GOOGLE_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLScjlmEiQzVNnyGJIfbHZa3clFz97UqR6VwOAzwgBID7k04f5w/formResponse';
 const FORM_FIELDS = {
@@ -82,6 +83,7 @@ const decoders = {
     charvel: decodeCharvel,
     rickenbacker: decodeRickenbacker,
     kramer: decodeKramer,
+    bcrich: decodeBCRich,
 };
 // DOM elements
 const brandSelect = document.getElementById('brand');

@@ -24,6 +24,7 @@ import { decodeOvation } from './decoders/ovation.js';
 import { decodeCharvel } from './decoders/charvel.js';
 import { decodeRickenbacker } from './decoders/rickenbacker.js';
 import { decodeKramer } from './decoders/kramer.js';
+import { decodeBCRich } from './decoders/bcrich.js';
 
 // Google Forms tracking configuration
 const GOOGLE_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLScjlmEiQzVNnyGJIfbHZa3clFz97UqR6VwOAzwgBID7k04f5w/formResponse';
@@ -96,6 +97,7 @@ const decoders: Record<Brand, (serial: string) => DecodeResult> = {
   charvel: decodeCharvel,
   rickenbacker: decodeRickenbacker,
   kramer: decodeKramer,
+  bcrich: decodeBCRich,
 };
 
 // DOM elements

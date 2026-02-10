@@ -16,7 +16,7 @@ export interface DecodeResult {
   error?: string;
 }
 
-export type Brand = 'gibson' | 'epiphone' | 'fender' | 'taylor' | 'martin' | 'ibanez' | 'yamaha' | 'prs' | 'esp' | 'schecter' | 'gretsch' | 'jackson' | 'squier' | 'cort' | 'takamine' | 'washburn' | 'dean' | 'ernieball' | 'guild' | 'alvarez' | 'godin' | 'ovation' | 'charvel' | 'rickenbacker' | 'kramer';
+export type Brand = 'gibson' | 'epiphone' | 'fender' | 'taylor' | 'martin' | 'ibanez' | 'yamaha' | 'prs' | 'esp' | 'schecter' | 'gretsch' | 'jackson' | 'squier' | 'cort' | 'takamine' | 'washburn' | 'dean' | 'ernieball' | 'guild' | 'alvarez' | 'godin' | 'ovation' | 'charvel' | 'rickenbacker' | 'kramer' | 'bcrich';
 
 export interface Decoder {
   decode(serial: string): DecodeResult;
