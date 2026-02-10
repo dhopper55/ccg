@@ -2092,6 +2092,10 @@ button:active {
   margin-bottom: 18px;
 }
 
+.container:has(.brand-header) {
+  max-width: min(1200px, 75vw);
+}
+
 .brand-logo {
   flex-shrink: 0;
   max-width: 100px;
@@ -2149,7 +2153,14 @@ button:active {
    BRAND SELECTION PAGE STYLES
    ============================================ */
 .brand-select-container {
-  max-width: 700px;
+  max-width: min(1200px, 75vw);
+}
+
+@media (max-width: 900px) {
+  .container:has(.brand-header),
+  .brand-select-container {
+    max-width: 92vw;
+  }
 }
 
 .brand-select-grid {
