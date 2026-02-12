@@ -1782,6 +1782,7 @@ async function processRun(runId: string, resource: any, eventType: string | unde
     condition: listing.condition,
     description: listing.description,
     photos: listing.images.join('\n'),
+    image_url: listing.images[0] ?? '',
     aiSummary,
     aiData,
     notes: listing.notes,
@@ -1830,6 +1831,7 @@ function listingFieldsToColumns(fields: Record<string, unknown>): Record<string,
   assign('location');
   assign('description');
   assign('photos');
+  assign('image_url');
   assign('ai_summary');
   assign('ai_summary2');
   assign('ai_summary3');
@@ -1938,6 +1940,7 @@ function listingRowToRecord(row: Record<string, any>): { id: string; fields: Rec
       location: row.location ?? null,
       description: row.description ?? null,
       photos: row.photos ?? null,
+      image_url: row.image_url ?? null,
       ai_summary: row.ai_summary ?? null,
       ai_summary2: row.ai_summary2 ?? null,
       ai_summary3: row.ai_summary3 ?? null,
@@ -2754,6 +2757,7 @@ async function updateRowByRunId(runId: string, updates: {
   condition?: string;
   description?: string;
   photos?: string;
+  image_url?: string;
   aiSummary?: string;
   aiData?: SingleAiResult;
   notes?: string;
@@ -2843,6 +2847,7 @@ async function updateRowByRunId(runId: string, updates: {
       location: updates.location ?? null,
       description: updates.description ?? null,
       photos: updates.photos ?? null,
+      image_url: updates.image_url ?? null,
       ai_summary: isMulti ? summaryChunks[0] ?? null : null,
       ai_summary2: isMulti ? summaryChunks[1] ?? null : null,
       ai_summary3: isMulti ? summaryChunks[2] ?? null : null,

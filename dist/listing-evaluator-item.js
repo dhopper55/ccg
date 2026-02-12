@@ -613,21 +613,48 @@ async function copySingleJson(fields) {
         }, 1500);
     }
 }
-function extractFirstPhoto(value) {
+function extractPhotoCandidates(value) {
     if (!value)
-        return null;
+        return [];
     if (Array.isArray(value)) {
-        const first = value.find((entry) => typeof entry === 'string' && entry.trim().length > 0);
-        return first ? String(first).trim() : null;
+        return value
+            .filter((entry) => typeof entry === 'string')
+            .map((entry) => entry.trim())
+            .filter(Boolean);
     }
     if (typeof value === 'string') {
-        const trimmed = value.trim();
-        if (!trimmed)
-            return null;
-        const firstLine = trimmed.split(/\r?\n/).find((line) => line.trim().length > 0);
-        return firstLine ? firstLine.trim() : null;
+        return value
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter(Boolean);
     }
-    return null;
+    return [];
+}
+function getImageCandidates(fields) {
+    const photos = extractPhotoCandidates(fields.photos);
+    const singleImage = typeof fields.image_url === 'string' ? fields.image_url.trim() : '';
+    const candidates = [...photos, singleImage].filter(Boolean);
+    return Array.from(new Set(candidates));
+}
+function setThumbnailWithFallback(thumbnail, candidates, title, listingUrl) {
+    if (candidates.length === 0) {
+        thumbnail.removeAttribute('src');
+        thumbnail.alt = '';
+        return false;
+    }
+    let index = 0;
+    thumbnail.alt = title === '—' ? 'Listing photo' : `${title} photo`;
+    thumbnail.onerror = () => {
+        index += 1;
+        if (index >= candidates.length) {
+            thumbnail.onerror = null;
+            thumbnail.removeAttribute('src');
+            return;
+        }
+        thumbnail.src = buildImageSrc(candidates[index], listingUrl);
+    };
+    thumbnail.src = buildImageSrc(candidates[index], listingUrl);
+    return true;
 }
 function renderRecord(record) {
     document.body.dataset.buildTag = BUILD_TAG;
@@ -664,11 +691,10 @@ function renderRecord(record) {
     addMetaRow('Ideal Price', idealValue);
     addMetaRow('Location', fields.location);
     if (thumbnailEl && mediaEl) {
-        const photoUrl = extractFirstPhoto(fields.photos);
+        const photoCandidates = getImageCandidates(fields);
         const listingUrl = typeof fields.url === 'string' ? fields.url : '';
-        if (photoUrl) {
-            thumbnailEl.src = buildImageSrc(photoUrl, listingUrl || undefined);
-            thumbnailEl.alt = title === '—' ? 'Listing photo' : `${title} photo`;
+        const hasImage = setThumbnailWithFallback(thumbnailEl, photoCandidates, title, listingUrl || undefined);
+        if (hasImage) {
             mediaEl.classList.remove('hidden');
         }
         else {
