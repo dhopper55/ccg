@@ -235,7 +235,7 @@ export default {
     }
 
     if (path === '/api/custom-items/submit' && request.method === 'POST') {
-      const response = await handleCustomItemSubmit(request, env, ctx);
+      const response = await handleCustomItemSubmit(request, env);
       return withCors(response, request, env);
     }
 
@@ -541,6 +541,42 @@ function customTitleFromText(rawText: string): string {
   return firstLine.slice(0, 120);
 }
 
+function toAbsoluteImageUrl(url: string, baseUrl: string): string {
+  if (!url) return url;
+  if (/^https?:\/\//i.test(url)) return url;
+  try {
+    return new URL(url, baseUrl).toString();
+  } catch {
+    return url;
+  }
+}
+
+function cleanCustomTitleToken(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const cleaned = value
+    .replace(/\(NOT DEFINITIVE\)/gi, ' ')
+    .replace(/\bEstimated\s+range:\s*/gi, '')
+    .replace(/^Guess:\s*/i, '')
+    .replace(/\bUnknown\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned;
+}
+
+function buildCustomAiTitle(
+  aiData: SingleAiResult | undefined,
+  overrides?: { year?: string; brand?: string; model?: string; finish?: string }
+): string {
+  if (!aiData) return 'Custom Item';
+  const parts = [
+    cleanCustomTitleToken(overrides?.year || aiData.year),
+    cleanCustomTitleToken(overrides?.brand || aiData.brand),
+    cleanCustomTitleToken(overrides?.model || aiData.model),
+    cleanCustomTitleToken(overrides?.finish || aiData.finish),
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(' ') : 'Custom Item';
+}
+
 function normalizeCustomText(raw: unknown): string {
   if (typeof raw !== 'string') return '';
   const trimmed = raw.trim();
@@ -578,8 +614,10 @@ async function processCustomListing(
   env: Env
 ): Promise<void> {
   const runId = `custom-${recordId}-${Date.now()}`;
+  const baseUrl = env.SITE_BASE_URL || 'https://www.coalcreekguitars.com';
+  const aiImages = listing.images.map((imageUrl) => toAbsoluteImageUrl(imageUrl, baseUrl));
   try {
-    const aiResult = await runOpenAI(listing, env, { isMulti: false });
+    const aiResult = await runOpenAI({ ...listing, images: aiImages }, env, { isMulti: false });
     let aiData = aiResult.kind === 'single' ? aiResult.data : undefined;
     if (aiData) {
       aiData = clearPrivatePartyPricingFields(aiData);
@@ -588,11 +626,21 @@ async function processCustomListing(
         aiData = { ...aiData, ...pricing };
       }
     }
+    const serialCandidate = typeof aiData?.serial === 'string' ? aiData.serial.trim() : '';
+    const serialBrandCandidate = typeof aiData?.serial_brand === 'string' ? aiData.serial_brand.trim() : '';
+    const decoded = serialCandidate
+      ? decodeSerial(serialBrandCandidate || aiData?.brand || '', serialCandidate)
+      : null;
+    const aiTitle = buildCustomAiTitle(aiData, {
+      year: decoded?.info?.year || aiData?.serial_year || aiData?.year,
+      brand: decoded?.info?.brand || aiData?.serial_brand || aiData?.brand,
+      model: decoded?.info?.model || aiData?.serial_model || aiData?.model,
+    });
 
     await updateRowByRunId(runId, {
       runId,
       status: 'complete',
-      title: listing.title,
+      title: aiTitle,
       price: listing.price,
       location: listing.location,
       condition: listing.condition,
@@ -612,7 +660,7 @@ async function processCustomListing(
   }
 }
 
-async function handleCustomItemSubmit(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+async function handleCustomItemSubmit(request: Request, env: Env): Promise<Response> {
   if (!env.CUSTOM_ITEMS_BUCKET) {
     return jsonResponse({ message: 'Custom item uploads are not configured.' }, 500);
   }
@@ -683,17 +731,6 @@ async function handleCustomItemSubmit(request: Request, env: Env, ctx: Execution
     return jsonResponse({ message: 'Unable to queue custom item.' }, 500);
   }
 
-  const listing: ListingData = {
-    title,
-    price: '',
-    location: '',
-    condition: '',
-    description: details,
-    images: imageUrls,
-    notes: '',
-  };
-
-  ctx.waitUntil(processCustomListing(recordId, listing, env));
   return jsonResponse({ ok: true, recordId, status: 'queued' });
 }
 
@@ -708,8 +745,30 @@ async function handleCustomItemStatus(request: Request, env: Env): Promise<Respo
   if (source !== 'custom') {
     return jsonResponse({ message: 'Not found.' }, 404);
   }
-  const status = typeof record.fields?.status === 'string' ? record.fields.status : '';
-  return jsonResponse({ ok: true, id: record.id, status });
+  const status = typeof record.fields?.status === 'string' ? record.fields.status.trim().toLowerCase() : '';
+
+  if (status === 'queued') {
+    const photos = photoListFromRecord(record.fields);
+    if (photos.length > 0) {
+      const listing: ListingData = {
+        title: typeof record.fields.title === 'string' ? record.fields.title : 'Custom Item',
+        price: typeof record.fields.price_asking === 'number' ? String(record.fields.price_asking) : '',
+        location: typeof record.fields.location === 'string' ? record.fields.location : '',
+        condition: typeof record.fields.condition === 'string' ? record.fields.condition : '',
+        description: typeof record.fields.description === 'string' ? record.fields.description : '',
+        images: photos,
+        notes: '',
+      };
+      await dbUpdateListing(record.id, { status: 'processing' }, env);
+      await processCustomListing(record.id, listing, env);
+    }
+  }
+
+  const refreshed = await dbGetListing(id, env);
+  const refreshedStatus = typeof refreshed?.fields?.status === 'string'
+    ? refreshed.fields.status
+    : 'queued';
+  return jsonResponse({ ok: true, id: record.id, status: refreshedStatus });
 }
 
 async function handleCustomImage(request: Request, env: Env): Promise<Response> {
@@ -2721,6 +2780,45 @@ function needsSpecificity(aiData: SingleAiResult | undefined): boolean {
   return SPECIFIC_FIELDS.some((field) => isMostlyGeneric(normalizeText(aiData[field], '')));
 }
 
+function isUnknownish(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return true;
+  if (normalized === 'unknown') return true;
+  if (normalized === 'other') return true;
+  return false;
+}
+
+function needsModelDisambiguation(aiData: SingleAiResult | undefined): boolean {
+  if (!aiData) return false;
+  const brand = normalizeText(aiData.brand, '');
+  const model = normalizeText(aiData.model, '');
+  if (!brand || isUnknownish(brand)) return false;
+  if (isUnknownish(model)) return true;
+  if (model.trim().length < 3) return true;
+  return false;
+}
+
+function mergeModelDisambiguation(base: SingleAiResult, patch: Partial<SingleAiResult>): SingleAiResult {
+  const pickBetter = (current: string, next: string): string => {
+    const currentClean = normalizeText(current, '');
+    const nextClean = normalizeText(next, '');
+    if (!nextClean) return current;
+    if (isUnknownish(currentClean) && !isUnknownish(nextClean)) return nextClean;
+    if (!isUnknownish(nextClean) && nextClean.length > currentClean.length + 2) return nextClean;
+    return current;
+  };
+
+  return {
+    ...base,
+    brand: pickBetter(base.brand, normalizeText(patch.brand, '')),
+    model: pickBetter(base.model, normalizeText(patch.model, '')),
+    year: pickBetter(base.year, normalizeText(patch.year, '')),
+    finish: pickBetter(base.finish, normalizeText(patch.finish, '')),
+    condition: pickBetter(base.condition, normalizeText(patch.condition, '')),
+    serial_model: pickBetter(base.serial_model, normalizeText(patch.serial_model, '')),
+  };
+}
+
 function normalizeBrandKey(input: string): string {
   return input.trim().toLowerCase().replace(/[^a-z]/g, '');
 }
@@ -3070,14 +3168,17 @@ async function updateRowByRunId(runId: string, updates: {
     const serialBrand = decodedBrand || serialBrandCandidate || updates.aiData?.brand || '';
     const serialYear = decodedYear || updates.aiData?.serial_year || '';
     const serialModel = decodedModel || updates.aiData?.serial_model || '';
+    const definitiveBrand = serialShouldUse ? normalizeText(serialBrand, '') : '';
+    const definitiveYear = serialShouldUse ? normalizeText(serialYear, '') : '';
+    const definitiveModel = serialShouldUse ? normalizeText(serialModel, '') : '';
 
     const aiFields = updates.aiData
       ? {
           category: normalizeCategory(updates.aiData.category),
-          brand: normalizeText(updates.aiData.brand, 'Unknown'),
-          model: normalizeText(updates.aiData.model, 'Unknown'),
+          brand: definitiveBrand || normalizeText(updates.aiData.brand, 'Unknown'),
+          model: definitiveModel || normalizeText(updates.aiData.model, 'Unknown'),
           finish: normalizeFinish(updates.aiData.finish),
-          year: normalizeYear(updates.aiData.year),
+          year: definitiveYear || normalizeYear(updates.aiData.year),
           condition: normalizedCondition,
           serial: serialShouldUse || '',
           serial_brand: serialShouldUse ? normalizeText(serialBrand, '') : '',
@@ -3648,10 +3749,12 @@ async function runOpenAI(listing: ListingData, env: Env, options?: { isMulti?: b
 
   const text = extractOpenAIText(data);
   try {
-    const parsed = JSON.parse(text) as SingleAiResult;
+    let parsed = JSON.parse(text) as SingleAiResult;
+    if (needsModelDisambiguation(parsed)) {
+      parsed = await runOpenAIModelDisambiguation(listing, parsed, env);
+    }
     if (needsSpecificity(parsed)) {
-      const refined = await runOpenAISpecifics(listing, parsed, env);
-      return { kind: 'single', data: refined };
+      parsed = await runOpenAISpecifics(listing, parsed, env);
     }
     return { kind: 'single', data: parsed };
   } catch (error) {
@@ -3689,6 +3792,80 @@ async function runOpenAI(listing: ListingData, env: Env, options?: { isMulti?: b
       asking_price: null,
     };
     return { kind: 'single', data: fallback };
+  }
+}
+
+async function runOpenAIModelDisambiguation(
+  listing: ListingData,
+  base: SingleAiResult,
+  env: Env
+): Promise<SingleAiResult> {
+  if (!env.OPENAI_API_KEY) return base;
+  const maxImages = Number.parseInt(env.MAX_IMAGES || '3', 10);
+  const images = listing.images.slice(0, Number.isFinite(maxImages) ? maxImages : 3);
+  const prompt = [
+    'Identify the most likely exact guitar model/variant from this listing text and images.',
+    'Prefer specific model names (example: "Les Paul Studio").',
+    'If uncertain, provide your best guess and include "(NOT DEFINITIVE)" in model text.',
+    'Do not return "Unknown" when brand and images are provided; return the most likely model guess.',
+    '',
+    `Listing title: ${listing.title || 'Unknown'}`,
+    `Listing description: ${listing.description || 'Not provided'}`,
+    `Known brand: ${base.brand || 'Unknown'}`,
+    `Current model: ${base.model || 'Unknown'}`,
+    `Known serial: ${base.serial || 'Unknown'}`,
+    `Known serial brand: ${base.serial_brand || 'Unknown'}`,
+    `Known serial model: ${base.serial_model || 'Unknown'}`,
+    '',
+    'Return JSON only with keys: brand, model, year, finish, condition, serial_model',
+  ].join('\n');
+
+  const content: any[] = [{ type: 'input_text', text: prompt }];
+  for (const imageUrl of images) {
+    content.push({ type: 'input_image', image_url: imageUrl });
+  }
+
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      input: [{ role: 'user', content }],
+      temperature: 0.1,
+      max_output_tokens: 600,
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'model_disambiguation',
+          schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              brand: { type: 'string' },
+              model: { type: 'string' },
+              year: { type: 'string' },
+              finish: { type: 'string' },
+              condition: { type: 'string' },
+              serial_model: { type: 'string' },
+            },
+            required: ['brand', 'model', 'year', 'finish', 'condition', 'serial_model'],
+          },
+        },
+      },
+    }),
+  });
+
+  if (!response.ok) return base;
+  const data = await response.json();
+  const text = extractOpenAIText(data);
+  try {
+    const patch = JSON.parse(text) as Partial<SingleAiResult>;
+    return mergeModelDisambiguation(base, patch);
+  } catch {
+    return base;
   }
 }
 
