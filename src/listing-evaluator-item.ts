@@ -736,8 +736,10 @@ function renderRecord(record: ListingRecordResponse): void {
   }
 
   const url = typeof fields.url === 'string' ? fields.url : '';
+  const source = typeof fields.source === 'string' ? fields.source.trim().toLowerCase() : '';
+  const hasOriginalUrl = Boolean(url) && source !== 'custom' && !url.startsWith('custom-item://');
   if (openLink) {
-    if (url) {
+    if (hasOriginalUrl) {
       openLink.href = url;
       openLink.removeAttribute('aria-disabled');
       openLink.classList.remove('disabled');

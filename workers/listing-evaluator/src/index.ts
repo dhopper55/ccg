@@ -664,9 +664,11 @@ async function handleCustomItemSubmit(request: Request, env: Env, ctx: Execution
   }
 
   const title = customTitleFromText(details);
+  const syntheticUrl = `custom-item://${crypto.randomUUID()}`;
   const fields: Record<string, unknown> = {
     submitted_at: now.toISOString(),
     source: 'Custom',
+    url: syntheticUrl,
     status: 'queued',
     title,
     description: details,
