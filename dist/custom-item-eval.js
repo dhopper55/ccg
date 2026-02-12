@@ -1,5 +1,3 @@
-import { initListingAuth } from './listing-auth.js?version=980318';
-initListingAuth();
 const MAX_PHOTOS = 10;
 const MAX_TEXT_LENGTH = 5000;
 const POLL_INTERVAL_MS = 2000;
@@ -74,21 +72,15 @@ function validatePhotoSelection() {
     }
     return count > 0;
 }
-function getStatusValue(fields) {
-    const raw = fields.status;
-    if (typeof raw !== 'string')
-        return '';
-    return raw.trim().toLowerCase();
-}
 async function pollUntilComplete(recordId) {
     activeRecordId = recordId;
     while (activeRecordId === recordId) {
-        const response = await fetch(`/api/listings/${encodeURIComponent(recordId)}`);
+        const response = await fetch(`/api/custom-items/status?id=${encodeURIComponent(recordId)}`);
         const data = (await response.json());
         if (!response.ok) {
             throw new Error(data?.message || 'Unable to check processing status.');
         }
-        const status = getStatusValue(data.fields || {});
+        const status = typeof data.status === 'string' ? data.status.trim().toLowerCase() : '';
         if (status === 'complete') {
             window.location.href = `listing-evaluator-item?id=${encodeURIComponent(recordId)}`;
             return;
@@ -147,3 +139,4 @@ async function handleSubmit() {
         setLoading(false);
     }
 }
+export {};

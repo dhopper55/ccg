@@ -239,6 +239,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/custom-items/status' && request.method === 'GET') {
+      const response = await handleCustomItemStatus(request, env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/custom-image' && request.method === 'GET') {
       const response = await handleCustomImage(request, env);
       return withCors(response, request, env);
@@ -354,6 +359,15 @@ function withCors(response: Response, request: Request, env: Env): Response {
 
 async function requireAuth(request: Request, env: Env, path: string): Promise<Response | null> {
   if (path === '/api/listings/webhook' && request.method === 'POST') {
+    return null;
+  }
+  if (path === '/api/custom-items/submit' && request.method === 'POST') {
+    return null;
+  }
+  if (path === '/api/custom-items/status' && request.method === 'GET') {
+    return null;
+  }
+  if (path === '/api/custom-image' && request.method === 'GET') {
     return null;
   }
 
@@ -679,6 +693,21 @@ async function handleCustomItemSubmit(request: Request, env: Env, ctx: Execution
 
   ctx.waitUntil(processCustomListing(recordId, listing, env));
   return jsonResponse({ ok: true, recordId, status: 'queued' });
+}
+
+async function handleCustomItemStatus(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const id = url.searchParams.get('id');
+  if (!id) return jsonResponse({ message: 'Missing id.' }, 400);
+
+  const record = await dbGetListing(id, env);
+  if (!record) return jsonResponse({ message: 'Not found.' }, 404);
+  const source = typeof record.fields?.source === 'string' ? record.fields.source.trim().toLowerCase() : '';
+  if (source !== 'custom') {
+    return jsonResponse({ message: 'Not found.' }, 404);
+  }
+  const status = typeof record.fields?.status === 'string' ? record.fields.status : '';
+  return jsonResponse({ ok: true, id: record.id, status });
 }
 
 async function handleCustomImage(request: Request, env: Env): Promise<Response> {

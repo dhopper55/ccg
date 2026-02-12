@@ -1,8 +1,4 @@
-import { initListingAuth } from './listing-auth.js';
-
 export {};
-
-initListingAuth();
 
 type CustomSubmitResponse = {
   ok?: boolean;
@@ -11,9 +7,10 @@ type CustomSubmitResponse = {
   message?: string;
 };
 
-type ListingRecordResponse = {
-  id: string;
-  fields: Record<string, unknown>;
+type StatusResponse = {
+  ok?: boolean;
+  id?: string;
+  status?: string;
   message?: string;
 };
 
@@ -94,21 +91,15 @@ function validatePhotoSelection(): boolean {
   return count > 0;
 }
 
-function getStatusValue(fields: Record<string, unknown>): string {
-  const raw = fields.status;
-  if (typeof raw !== 'string') return '';
-  return raw.trim().toLowerCase();
-}
-
 async function pollUntilComplete(recordId: string): Promise<void> {
   activeRecordId = recordId;
   while (activeRecordId === recordId) {
-    const response = await fetch(`/api/listings/${encodeURIComponent(recordId)}`);
-    const data = (await response.json()) as ListingRecordResponse;
+    const response = await fetch(`/api/custom-items/status?id=${encodeURIComponent(recordId)}`);
+    const data = (await response.json()) as StatusResponse;
     if (!response.ok) {
       throw new Error(data?.message || 'Unable to check processing status.');
     }
-    const status = getStatusValue(data.fields || {});
+    const status = typeof data.status === 'string' ? data.status.trim().toLowerCase() : '';
     if (status === 'complete') {
       window.location.href = `listing-evaluator-item?id=${encodeURIComponent(recordId)}`;
       return;
