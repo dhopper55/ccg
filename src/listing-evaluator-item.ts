@@ -739,9 +739,14 @@ function renderRecord(record: ListingRecordResponse): void {
   if (openLink) {
     if (url) {
       openLink.href = url;
+      openLink.removeAttribute('aria-disabled');
+      openLink.classList.remove('disabled');
       openLink.classList.remove('hidden');
     } else {
-      openLink.classList.add('hidden');
+      openLink.href = '#';
+      openLink.setAttribute('aria-disabled', 'true');
+      openLink.classList.add('disabled');
+      openLink.classList.remove('hidden');
     }
   }
 

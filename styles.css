@@ -2614,6 +2614,15 @@ button:active {
   box-shadow: 0 4px 20px var(--accent-glow);
 }
 
+.button-link.disabled,
+.button-link[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+  transform: none;
+  box-shadow: none;
+}
+
 .button-link.secondary {
   background: transparent;
   color: var(--accent-gold);

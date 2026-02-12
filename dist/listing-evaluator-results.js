@@ -192,7 +192,7 @@ function renderRows(records) {
             sourceCell.appendChild(sourceIcon);
         }
         else {
-            sourceCell.textContent = '—';
+            sourceCell.textContent = record.source && record.source.trim().length > 0 ? record.source : '—';
         }
         row.appendChild(titleCell);
         row.appendChild(sourceCell);

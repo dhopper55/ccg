@@ -29,3 +29,8 @@ preview_id = "14042ee35da9481fbf659608d39b079e"
 binding = "DB"
 database_name = "listing_evaluator"
 database_id = "e509fd2e-31c6-4138-89bf-7e9d09679025"
+
+[[r2_buckets]]
+binding = "CUSTOM_ITEMS_BUCKET"
+bucket_name = "ccg-custom-items"
+preview_bucket_name = "ccg-custom-items-preview"

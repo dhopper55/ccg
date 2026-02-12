@@ -40,6 +40,7 @@ import {
 
 interface Env {
   DB: D1Database;
+  CUSTOM_ITEMS_BUCKET?: R2Bucket;
   OPENAI_API_KEY: string;
   APIFY_TOKEN: string;
   APIFY_FACEBOOK_ACTOR: string;
@@ -110,6 +111,8 @@ const RADAR_EMAIL_INCLUDE_EXISTING = false;
 const MST_OFFSET_MINUTES = -7 * 60;
 const RADAR_QUIET_START_HOUR = 23;
 const RADAR_QUIET_END_HOUR = 5;
+const CUSTOM_MAX_PHOTOS = 10;
+const CUSTOM_MAX_TEXT_LENGTH = 5000;
 
 const SUPPORTED_ORIGINS = [
   'https://www.coalcreekguitars.com',
@@ -228,6 +231,16 @@ export default {
 
     if (path === '/api/listings/submit' && request.method === 'POST') {
       const response = await handleSubmit(request, env, ctx);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/custom-items/submit' && request.method === 'POST') {
+      const response = await handleCustomItemSubmit(request, env, ctx);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/custom-image' && request.method === 'GET') {
+      const response = await handleCustomImage(request, env);
       return withCors(response, request, env);
     }
 
@@ -503,6 +516,195 @@ async function handleSubmit(request: Request, env: Env, ctx: ExecutionContext): 
     queued: results,
     rejected,
   });
+}
+
+function customTitleFromText(rawText: string): string {
+  const firstLine = rawText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.length > 0);
+  if (!firstLine) return 'Custom Item';
+  return firstLine.slice(0, 120);
+}
+
+function normalizeCustomText(raw: unknown): string {
+  if (typeof raw !== 'string') return '';
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+  return trimmed.slice(0, CUSTOM_MAX_TEXT_LENGTH);
+}
+
+function extensionFromContentType(contentType: string): string {
+  const normalized = contentType.toLowerCase();
+  if (normalized.includes('jpeg') || normalized.includes('jpg')) return 'jpg';
+  if (normalized.includes('png')) return 'png';
+  if (normalized.includes('webp')) return 'webp';
+  if (normalized.includes('gif')) return 'gif';
+  return 'bin';
+}
+
+function buildCustomImageUrl(key: string): string {
+  const params = new URLSearchParams();
+  params.set('key', key);
+  return `/api/custom-image?${params.toString()}`;
+}
+
+function photoListFromRecord(fields: Record<string, unknown>): string[] {
+  const photos = typeof fields.photos === 'string'
+    ? fields.photos.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+    : [];
+  const imageUrl = typeof fields.image_url === 'string' ? fields.image_url.trim() : '';
+  if (imageUrl) photos.push(imageUrl);
+  return Array.from(new Set(photos));
+}
+
+async function processCustomListing(
+  recordId: string,
+  listing: ListingData,
+  env: Env
+): Promise<void> {
+  const runId = `custom-${recordId}-${Date.now()}`;
+  try {
+    const aiResult = await runOpenAI(listing, env, { isMulti: false });
+    let aiData = aiResult.kind === 'single' ? aiResult.data : undefined;
+    if (aiData) {
+      aiData = clearPrivatePartyPricingFields(aiData);
+      const pricing = await runOpenAIPrivatePartyPricing(aiData, env);
+      if (pricing) {
+        aiData = { ...aiData, ...pricing };
+      }
+    }
+
+    await updateRowByRunId(runId, {
+      runId,
+      status: 'complete',
+      title: listing.title,
+      price: listing.price,
+      location: listing.location,
+      condition: listing.condition,
+      description: listing.description,
+      photos: listing.images.join('\n'),
+      image_url: listing.images[0] ?? '',
+      aiSummary: '',
+      aiData,
+      notes: listing.notes,
+    }, env, { recordId, isMulti: false });
+  } catch (error) {
+    console.error('Custom listing processing failed', { recordId, error });
+    await updateRowByRunId(runId, {
+      runId,
+      status: 'failed',
+    }, env, { recordId, isMulti: false });
+  }
+}
+
+async function handleCustomItemSubmit(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  if (!env.CUSTOM_ITEMS_BUCKET) {
+    return jsonResponse({ message: 'Custom item uploads are not configured.' }, 500);
+  }
+
+  let formData: FormData;
+  try {
+    formData = await request.formData();
+  } catch {
+    return jsonResponse({ message: 'Invalid form data.' }, 400);
+  }
+
+  const details = normalizeCustomText(formData.get('whatIsIt'));
+  if (!details) {
+    return jsonResponse({ message: '"What is it?" is required.' }, 400);
+  }
+
+  const files = formData
+    .getAll('photos')
+    .filter((entry): entry is File => entry instanceof File && entry.size > 0);
+
+  if (files.length < 1) {
+    return jsonResponse({ message: 'At least one photo is required.' }, 400);
+  }
+  if (files.length > CUSTOM_MAX_PHOTOS) {
+    return jsonResponse({ message: `You can upload up to ${CUSTOM_MAX_PHOTOS} photos.` }, 400);
+  }
+
+  for (const file of files) {
+    if (!file.type.startsWith('image/')) {
+      return jsonResponse({ message: 'Only image uploads are supported.' }, 400);
+    }
+  }
+
+  const now = new Date();
+  const datePrefix = now.toISOString().slice(0, 10);
+  const imageUrls: string[] = [];
+
+  for (let index = 0; index < files.length; index += 1) {
+    const file = files[index];
+    const ext = extensionFromContentType(file.type);
+    const key = `custom-items/${datePrefix}/${crypto.randomUUID()}-${index + 1}.${ext}`;
+    const body = await file.arrayBuffer();
+    await env.CUSTOM_ITEMS_BUCKET.put(key, body, {
+      httpMetadata: {
+        contentType: file.type || 'application/octet-stream',
+      },
+    });
+    imageUrls.push(buildCustomImageUrl(key));
+  }
+
+  const title = customTitleFromText(details);
+  const fields: Record<string, unknown> = {
+    submitted_at: now.toISOString(),
+    source: 'Custom',
+    status: 'queued',
+    title,
+    description: details,
+    photos: imageUrls.join('\n'),
+    image_url: imageUrls[0] ?? null,
+    IsMulti: false,
+    archived: false,
+  };
+
+  const recordId = await dbCreateListing(fields, env);
+  if (!recordId) {
+    return jsonResponse({ message: 'Unable to queue custom item.' }, 500);
+  }
+
+  const listing: ListingData = {
+    title,
+    price: '',
+    location: '',
+    condition: '',
+    description: details,
+    images: imageUrls,
+    notes: '',
+  };
+
+  ctx.waitUntil(processCustomListing(recordId, listing, env));
+  return jsonResponse({ ok: true, recordId, status: 'queued' });
+}
+
+async function handleCustomImage(request: Request, env: Env): Promise<Response> {
+  if (!env.CUSTOM_ITEMS_BUCKET) {
+    return jsonResponse({ message: 'Custom item uploads are not configured.' }, 500);
+  }
+
+  const url = new URL(request.url);
+  const key = url.searchParams.get('key');
+  if (!key || !key.startsWith('custom-items/')) {
+    return jsonResponse({ message: 'Missing or invalid image key.' }, 400);
+  }
+
+  const object = await env.CUSTOM_ITEMS_BUCKET.get(key);
+  if (!object || !object.body) {
+    return jsonResponse({ message: 'Image not found.' }, 404);
+  }
+
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+  headers.set('etag', object.httpEtag);
+  headers.set('cache-control', 'public, max-age=86400');
+  if (!headers.get('content-type')) {
+    headers.set('content-type', 'application/octet-stream');
+  }
+  return new Response(object.body, { headers });
 }
 
 async function runRadarIfDue(env: Env): Promise<void> {
@@ -1478,7 +1680,38 @@ async function handleReprocessListing(request: Request, env: Env): Promise<Respo
   }
 
   const rawUrl = typeof body?.url === 'string' ? body.url : '';
-  if (!rawUrl) return jsonResponse({ message: 'Missing url.' }, 400);
+  const recordId = typeof body?.id === 'string'
+    ? body.id
+    : (typeof body?.id === 'number' && Number.isFinite(body.id) ? String(body.id) : '');
+
+  if (!rawUrl && !recordId) return jsonResponse({ message: 'Missing url or id.' }, 400);
+
+  if (recordId) {
+    const record = await dbGetListing(recordId, env);
+    if (!record) return jsonResponse({ message: 'Listing not found.' }, 404);
+    const source = typeof record.fields?.source === 'string' ? record.fields.source.trim().toLowerCase() : '';
+    if (source !== 'custom') {
+      return jsonResponse({ message: 'ID reprocess is only supported for custom listings.' }, 400);
+    }
+
+    const photos = photoListFromRecord(record.fields);
+    if (photos.length === 0) {
+      return jsonResponse({ message: 'Custom listing has no photos to process.' }, 400);
+    }
+
+    const listing: ListingData = {
+      title: typeof record.fields.title === 'string' ? record.fields.title : 'Custom Item',
+      price: typeof record.fields.price_asking === 'number' ? String(record.fields.price_asking) : '',
+      location: typeof record.fields.location === 'string' ? record.fields.location : '',
+      condition: typeof record.fields.condition === 'string' ? record.fields.condition : '',
+      description: typeof record.fields.description === 'string' ? record.fields.description : '',
+      images: photos,
+      notes: '',
+    };
+    await dbUpdateListing(recordId, { status: 'queued' }, env);
+    await processCustomListing(recordId, listing, env);
+    return jsonResponse({ ok: true, recordId });
+  }
 
   const resolvedUrl = await resolveFacebookShareUrl(rawUrl);
   const normalizedUrl = normalizeUrl(resolvedUrl);

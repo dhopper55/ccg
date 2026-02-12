@@ -222,7 +222,7 @@ function renderRows(records: ListingListItem[]): void {
     if (sourceIcon) {
       sourceCell.appendChild(sourceIcon);
     } else {
-      sourceCell.textContent = '—';
+      sourceCell.textContent = record.source && record.source.trim().length > 0 ? record.source : '—';
     }
 
     row.appendChild(titleCell);
