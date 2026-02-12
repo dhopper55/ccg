@@ -174,6 +174,22 @@ function normalizeValue(value: unknown): string {
   return String(value);
 }
 
+function isProxyImage(url: string): boolean {
+  const normalized = url.toLowerCase();
+  return normalized.includes('fbcdn.net') || normalized.includes('scontent-') || normalized.includes('scontent.');
+}
+
+function buildImageSrc(imageUrl: string, referrer: string | undefined): string {
+  const cleaned = imageUrl.trim().split(/\s+/)[0];
+  if (isProxyImage(cleaned)) {
+    const params = new URLSearchParams();
+    params.set('url', cleaned);
+    if (referrer) params.set('ref', referrer);
+    return `/api/image?${params.toString()}`;
+  }
+  return cleaned;
+}
+
 function cleanSearchToken(value: unknown): string {
   const raw = normalizeValue(value);
   if (raw === '—') return '';
@@ -667,8 +683,9 @@ function renderRecord(record: ListingRecordResponse): void {
 
   if (thumbnailEl && mediaEl) {
     const photoUrl = extractFirstPhoto(fields.photos);
+    const listingUrl = typeof fields.url === 'string' ? fields.url : '';
     if (photoUrl) {
-      thumbnailEl.src = photoUrl;
+      thumbnailEl.src = buildImageSrc(photoUrl, listingUrl || undefined);
       thumbnailEl.alt = title === '—' ? 'Listing photo' : `${title} photo`;
       mediaEl.classList.remove('hidden');
     } else {

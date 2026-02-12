@@ -44,8 +44,34 @@ export function buildSpecificsPrompt(
   return `You are improving model-specific guidance for used music gear. Use your general knowledge (no browsing) to provide concrete, model-specific bullet points.\n\nListing title: ${listing.title || 'Unknown'}\nDescription: ${listing.description || 'Not provided'}\nBrand: ${base.brand}\nModel: ${base.model}\nYear: ${base.year}\n\nReturn JSON only with these keys:\n${specificFields.join(', ')}, og_specs_pickups, og_specs_tuners\n\nRules:\n- Each field should start with 2-4 short, model-specific bullets (not paragraphs). Use semicolons to separate bullets. Do not use leading dashes or bullet characters.\n- If uncertain, include "(NOT DEFINITIVE)" in the specific text.\n- End each field with "General: <default text>" exactly once.\n- og_specs_pickups/og_specs_tuners: provide the most likely stock spec for this model; if unknown use "Unknown".\nDefault text:\nknown_weak_points: ${defaultText.known_weak_points}\ntypical_repair_needs: ${defaultText.typical_repair_needs}\nbuyers_worry: ${defaultText.buyers_worry}\nog_specs_common_mods: ${defaultText.og_specs_common_mods}\nbuyer_what_to_check: ${defaultText.buyer_what_to_check}\nbuyer_common_misrepresent: ${defaultText.buyer_common_misrepresent}\nseller_how_to_price_realistic: ${defaultText.seller_how_to_price_realistic}\nseller_fixes_add_value_or_waste: ${defaultText.seller_fixes_add_value_or_waste}\nseller_as_is_notes: ${defaultText.seller_as_is_notes}\n`;
 }
 
-export function buildSinglePricingPrompt(listing: ListingData, base: SingleAiResult): string {
-  return `You are an expert used gear buyer and appraiser focused on music gear. Provide ONLY JSON using the schema below.\n\nListing title: ${listing.title || 'Unknown'}\nListing description: ${listing.description || 'Not provided'}\nLocation: ${listing.location || 'Unknown'}\n\nKnown/inferred details from a prior pass:\n- Category: ${base.category || 'Unknown'}\n- Brand: ${base.brand || 'Unknown'}\n- Model: ${base.model || 'Unknown'}\n- Year: ${base.year || 'Unknown'}\n- Condition: ${base.condition || 'Unknown'}\n- Finish: ${base.finish || 'Unknown'}\n\nTask:\n- Estimate realistic private-party market values (low, medium, high) for this item based on typical used market value.\n- Asking price is intentionally omitted; do NOT infer or use it.\n- Do NOT use any numbers found in text or images (including price overlays). Ignore all numeric tokens in text/images.\n- If uncertain, estimate from comparable models.\n- Use realistic numbers; do not round to the nearest 50/100 unless that is the most realistic value.\n`;
+function normalizePricingField(value: string | null | undefined): string {
+  if (!value) return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  if (/^unknown$/i.test(trimmed)) return '';
+  return trimmed
+    .replace(/\s*\(NOT DEFINITIVE\)\s*/gi, ' ')
+    .replace(/^guess:\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildPricingSubject(base: SingleAiResult): string {
+  const year = normalizePricingField(base.year);
+  const brand = normalizePricingField(base.brand);
+  const model = normalizePricingField(base.model);
+  const finish = normalizePricingField(base.finish);
+  const condition = normalizePricingField(base.condition);
+
+  const core = [year, brand, model, finish].filter(Boolean).join(' ').trim();
+  const subject = core || 'used guitar';
+  if (!condition) return subject;
+  return `${subject} in ${condition.toLowerCase()} condition`;
+}
+
+export function buildSinglePricingPrompt(base: SingleAiResult): string {
+  const subject = buildPricingSubject(base);
+  return `You are an expert used gear buyer and appraiser focused on music gear. Provide ONLY JSON using the schema below.\n\nPricing target:\n- ${subject}\n\nTask:\n- Estimate realistic private-party market values (low, medium, high) for ${subject}.\n- Treat this as the lookup/query phrase: "${subject} used value".\n- Use only the pricing target attributes above (year, brand, model, finish, condition).\n- Do NOT use listing photos, listing title, listing description, or asking price.\n- Do NOT anchor your range to common asking prices; derive an independent market range from comparable used-market sales behavior.\n- Ensure low <= medium <= high.\n- If uncertain, estimate from comparable models.\n- Use realistic numbers; do not round to the nearest 50/100 unless that is the most realistic value.\n`;
 }
 
 export function buildMultiPricingPrompt(listing: ListingData, summary: string): string {

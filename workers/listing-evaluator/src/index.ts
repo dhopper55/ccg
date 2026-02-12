@@ -469,7 +469,17 @@ async function handleSubmit(request: Request, env: Env, ctx: ExecutionContext): 
       if (archived) {
         const restored = await dbSetListingArchived(existing.id, false, env);
         if (restored) {
-          results.push({ ...item, unarchived: true });
+          let runId: string | undefined;
+          const source = detectSource(item.url);
+          if (source) {
+            const startedRunId = await startApifyRun(item.url, source as ListingSource, env);
+            if (startedRunId) {
+              runId = startedRunId;
+              await env.LISTING_JOBS.put(startedRunId, existing.id);
+              await dbUpdateListing(existing.id, { status: 'queued' }, env);
+            }
+          }
+          results.push({ ...item, unarchived: true, runId });
           continue;
         }
       }
@@ -1749,9 +1759,10 @@ async function processRun(runId: string, resource: any, eventType: string | unde
   let aiData = aiResult.kind === 'single' ? aiResult.data : undefined;
 
   if (aiResult.kind === 'single' && aiData) {
-    const pricing = await runOpenAIPrivatePartyPricing(listing, aiData, env);
+    aiData = clearPrivatePartyPricingFields(aiData);
+    const pricing = await runOpenAIPrivatePartyPricing(aiData, env);
     if (pricing) {
-      aiData = { ...aiData, ...stripEmptyFallback(pricing) };
+      aiData = { ...aiData, ...pricing };
     }
   }
 
@@ -3480,19 +3491,49 @@ function stripEmptyFallback(fallback: Partial<SingleAiResult>): Partial<SingleAi
   return cleaned;
 }
 
+function clearPrivatePartyPricingFields(base: SingleAiResult): SingleAiResult {
+  return {
+    ...base,
+    value_private_party_low: null,
+    value_private_party_low_notes: '',
+    value_private_party_medium: null,
+    value_private_party_medium_notes: '',
+    value_private_party_high: null,
+    value_private_party_high_notes: '',
+  };
+}
+
+function normalizePrivatePartyPricing(parsed: Partial<SingleAiResult>): Partial<SingleAiResult> | null {
+  const low = normalizeMoneyValue(parsed.value_private_party_low);
+  const medium = normalizeMoneyValue(parsed.value_private_party_medium);
+  const high = normalizeMoneyValue(parsed.value_private_party_high);
+  if (low == null && medium == null && high == null) return null;
+
+  const fallback = low ?? medium ?? high;
+  if (fallback == null) return null;
+
+  const resolvedLow = low ?? medium ?? fallback;
+  const resolvedHigh = high ?? medium ?? fallback;
+  const rangeLow = Math.min(resolvedLow, resolvedHigh);
+  const rangeHigh = Math.max(resolvedLow, resolvedHigh);
+  const clampedMedium = Math.min(rangeHigh, Math.max(rangeLow, medium ?? Math.round((rangeLow + rangeHigh) / 2)));
+
+  return {
+    value_private_party_low: rangeLow,
+    value_private_party_low_notes: normalizeText(parsed.value_private_party_low_notes, ''),
+    value_private_party_medium: clampedMedium,
+    value_private_party_medium_notes: normalizeText(parsed.value_private_party_medium_notes, ''),
+    value_private_party_high: rangeHigh,
+    value_private_party_high_notes: normalizeText(parsed.value_private_party_high_notes, ''),
+  };
+}
+
 async function runOpenAIPrivatePartyPricing(
-  listing: ListingData,
   base: SingleAiResult,
   env: Env
 ): Promise<Partial<SingleAiResult> | null> {
   if (!env.OPENAI_API_KEY) return null;
-
-  const redactedListing: ListingData = {
-    title: redactPricingInput(listing.title || ''),
-    description: redactPricingInput(listing.description || ''),
-    location: listing.location || '',
-  };
-  const prompt = buildSinglePricingPrompt(redactedListing, base);
+  const prompt = buildSinglePricingPrompt(base);
 
   const content: any[] = [{ type: 'input_text', text: prompt }];
 
@@ -3541,7 +3582,7 @@ async function runOpenAIPrivatePartyPricing(
   const text = extractOpenAIText(data);
   try {
     const parsed = JSON.parse(text) as Partial<SingleAiResult>;
-    return parsed;
+    return normalizePrivatePartyPricing(parsed);
   } catch {
     return null;
   }
