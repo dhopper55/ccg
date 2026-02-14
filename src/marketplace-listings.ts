@@ -25,8 +25,11 @@ const urlInput = document.getElementById('marketplace-url') as HTMLInputElement 
 const imageInput = document.getElementById('marketplace-image') as HTMLInputElement | null;
 const notesInput = document.getElementById('marketplace-notes') as HTMLTextAreaElement | null;
 const submitButton = document.getElementById('marketplace-submit') as HTMLButtonElement | null;
+const cancelButton = document.getElementById('marketplace-cancel') as HTMLButtonElement | null;
+const modeEl = document.getElementById('marketplace-form-mode') as HTMLParagraphElement | null;
 const statusEl = document.getElementById('marketplace-status') as HTMLDivElement | null;
 const rowsEl = document.getElementById('marketplace-rows') as HTMLDivElement | null;
+let editingId: string | null = null;
 
 function setStatus(message: string, isError = false): void {
   if (!statusEl) return;
@@ -43,13 +46,53 @@ async function fetchMarketplaceListings(): Promise<MarketplaceListing[]> {
   return Array.isArray(data.records) ? data.records : [];
 }
 
-async function removeMarketplaceListing(id: string): Promise<void> {
+async function setMarketplaceListingStatus(id: string, status: 'active' | 'removed'): Promise<void> {
   const response = await fetch(`/api/marketplace-listings/${encodeURIComponent(id)}/remove`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ removed: true }),
+    body: JSON.stringify({ status }),
   });
-  if (!response.ok) throw new Error('Unable to remove listing.');
+  if (!response.ok) throw new Error('Unable to update listing status.');
+}
+
+async function updateMarketplaceListing(id: string, payload: {
+  title: string;
+  priceDollars: number;
+  listingUrl: string;
+  imageUrl: string;
+  notes: string;
+}): Promise<void> {
+  const response = await fetch(`/api/marketplace-listings/${encodeURIComponent(id)}/update`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({ message: 'Unable to update listing.' }));
+    throw new Error(typeof data?.message === 'string' ? data.message : 'Unable to update listing.');
+  }
+}
+
+function setMode(mode: 'add' | 'update', row?: MarketplaceListing): void {
+  if (mode === 'add') {
+    editingId = null;
+    if (submitButton) submitButton.textContent = 'Add Listing';
+    if (modeEl) modeEl.textContent = 'Add mode';
+    cancelButton?.classList.add('hidden');
+    return;
+  }
+
+  editingId = row?.id || null;
+  if (submitButton) submitButton.textContent = 'Save Update';
+  if (modeEl) modeEl.textContent = 'Update mode';
+  cancelButton?.classList.remove('hidden');
+  if (!row) return;
+  if (titleInput) titleInput.value = row.title || '';
+  if (priceInput) priceInput.value = String(row.priceDollars || '');
+  if (urlInput) urlInput.value = row.listingUrl || '';
+  if (imageInput) imageInput.value = row.imageUrl || '';
+  if (notesInput) notesInput.value = row.notes || '';
+  titleInput?.focus();
 }
 
 function formatPrice(priceDollars: number, currency: string): string {
@@ -96,21 +139,36 @@ function renderRows(rows: MarketplaceListing[]): void {
     const actions = document.createElement('div');
     actions.className = 'marketplace-row-actions';
 
+    const updateButton = document.createElement('button');
+    updateButton.type = 'button';
+    updateButton.className = 'secondary';
+    updateButton.textContent = 'Update';
+    updateButton.addEventListener('click', () => {
+      setMode('update', row);
+      setStatus(`Editing: ${row.title}`);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
     const removeButton = document.createElement('button');
     removeButton.type = 'button';
     removeButton.className = 'secondary danger';
-    removeButton.textContent = row.status === 'removed' ? 'Removed' : 'Remove';
-    removeButton.disabled = row.status === 'removed';
+    removeButton.textContent = row.status === 'removed' ? 'Un-Remove' : 'Remove';
     removeButton.addEventListener('click', async () => {
+      if (row.status !== 'removed') {
+        const confirmed = window.confirm('Are you sure you want to remove this listing?');
+        if (!confirmed) return;
+      }
       try {
-        await removeMarketplaceListing(row.id);
-        setStatus('Listing removed.');
+        const nextStatus = row.status === 'removed' ? 'active' : 'removed';
+        await setMarketplaceListingStatus(row.id, nextStatus);
+        setStatus(nextStatus === 'removed' ? 'Listing removed.' : 'Listing restored.');
         await refreshRows();
       } catch {
-        setStatus('Could not remove listing.', true);
+        setStatus('Could not update listing status.', true);
       }
     });
 
+    actions.appendChild(updateButton);
     actions.appendChild(removeButton);
     item.appendChild(title);
     item.appendChild(meta);
@@ -141,23 +199,35 @@ async function handleSubmit(event: SubmitEvent): Promise<void> {
 
   submitButton.disabled = true;
   try {
-    const response = await fetch('/api/marketplace-listings', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
+    if (editingId) {
+      await updateMarketplaceListing(editingId, {
         title: titleInput.value.trim(),
         priceDollars,
         listingUrl: urlInput.value.trim(),
         imageUrl: imageInput?.value.trim() || '',
         notes: notesInput?.value.trim() || '',
-      }),
-    });
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({ message: 'Unable to add listing.' }));
-      throw new Error(typeof data?.message === 'string' ? data.message : 'Unable to add listing.');
+      });
+      setStatus('Listing updated.');
+    } else {
+      const response = await fetch('/api/marketplace-listings', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          title: titleInput.value.trim(),
+          priceDollars,
+          listingUrl: urlInput.value.trim(),
+          imageUrl: imageInput?.value.trim() || '',
+          notes: notesInput?.value.trim() || '',
+        }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({ message: 'Unable to add listing.' }));
+        throw new Error(typeof data?.message === 'string' ? data.message : 'Unable to add listing.');
+      }
+      setStatus('Listing added.');
     }
     form?.reset();
-    setStatus('Listing added.');
+    setMode('add');
     await refreshRows();
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to add listing.';
@@ -169,6 +239,11 @@ async function handleSubmit(event: SubmitEvent): Promise<void> {
 
 function init(): void {
   initListingAuth();
+  cancelButton?.addEventListener('click', () => {
+    form?.reset();
+    setMode('add');
+    setStatus('Update canceled.');
+  });
   form?.addEventListener('submit', (event) => {
     void handleSubmit(event as SubmitEvent);
   });

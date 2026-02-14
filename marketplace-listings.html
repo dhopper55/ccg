@@ -9,7 +9,7 @@
   <link rel="shortcut icon" href="images/favicon/favicon.ico">
   <title>Marketplace Listings Manager | Coal Creek Guitars</title>
   <meta name="robots" content="noindex,nofollow">
-  <link rel="stylesheet" href="styles.css?version=977557">
+  <link rel="stylesheet" href="styles.css?version=668163">
 </head>
 <body>
   <nav class="site-nav">
@@ -28,6 +28,7 @@
     </header>
 
     <section class="listing-form">
+      <p id="marketplace-form-mode" class="listing-hint">Add mode</p>
       <form id="marketplace-form">
         <div class="form-group">
           <label for="marketplace-title">Title</label>
@@ -54,7 +55,10 @@
           <textarea id="marketplace-notes" rows="3" maxlength="2000" placeholder="Any notes for internal use"></textarea>
         </div>
 
-        <button id="marketplace-submit" type="submit">Add Listing</button>
+        <div class="marketplace-form-actions">
+          <button id="marketplace-submit" type="submit">Add Listing</button>
+          <button id="marketplace-cancel" type="button" class="secondary hidden">Cancel Update</button>
+        </div>
       </form>
       <div id="marketplace-status" class="hidden"></div>
     </section>
@@ -65,6 +69,6 @@
     </section>
   </div>
 
-  <script type="module" src="dist/marketplace-listings.js?version=273781"></script>
+  <script type="module" src="dist/marketplace-listings.js?version=318327"></script>
 </body>
 </html>

@@ -312,8 +312,13 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path.endsWith('/update') && path.startsWith('/api/marketplace-listings/') && request.method === 'POST') {
+      const response = await handleMarketplaceListingsUpdate(request, path, env);
+      return withCors(response, request, env);
+    }
+
     if (path.endsWith('/remove') && path.startsWith('/api/marketplace-listings/') && request.method === 'POST') {
-      const response = await handleMarketplaceListingsRemove(path, env);
+      const response = await handleMarketplaceListingsRemove(request, path, env);
       return withCors(response, request, env);
     }
 
@@ -1809,15 +1814,66 @@ async function handleMarketplaceListingsCreate(request: Request, env: Env): Prom
   return jsonResponse({ ok: true, id: inserted });
 }
 
-async function handleMarketplaceListingsRemove(path: string, env: Env): Promise<Response> {
+async function handleMarketplaceListingsUpdate(request: Request, path: string, env: Env): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const updateIndex = parts.indexOf('update');
+  const recordId = updateIndex > 0 ? parts[updateIndex - 1] : '';
+  if (!recordId) return jsonResponse({ message: 'Missing listing ID.' }, 400);
+
+  let body: Record<string, unknown> = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  const title = normalizeText(body.title, '').slice(0, 200);
+  const listingUrl = normalizeUrl(normalizeText(body.listingUrl, ''));
+  const imageUrlRaw = normalizeText(body.imageUrl, '');
+  const imageUrl = imageUrlRaw ? normalizeUrl(imageUrlRaw) : null;
+  const notes = normalizeText(body.notes, '').slice(0, 2000);
+  const priceDollars = parseWholeDollars(body.priceDollars);
+
+  if (!title) return jsonResponse({ message: 'Title is required.' }, 400);
+  if (!listingUrl) return jsonResponse({ message: 'Listing URL is required.' }, 400);
+  if (!listingUrl.includes('facebook.com/marketplace')) {
+    return jsonResponse({ message: 'Listing URL must be a Facebook Marketplace URL.' }, 400);
+  }
+  if (priceDollars == null || !Number.isFinite(priceDollars) || priceDollars < 1) {
+    return jsonResponse({ message: 'Price (whole dollars) must be at least 1.' }, 400);
+  }
+
+  const ok = await dbUpdateMarketplaceListing(recordId, {
+    title,
+    price_dollars: priceDollars,
+    image_url: imageUrl,
+    listing_url: listingUrl,
+    notes: notes || null,
+  }, env);
+
+  if (!ok) return jsonResponse({ message: 'Unable to update listing.' }, 500);
+  return jsonResponse({ ok: true });
+}
+
+async function handleMarketplaceListingsRemove(request: Request, path: string, env: Env): Promise<Response> {
   const parts = path.split('/').filter(Boolean);
   const removeIndex = parts.indexOf('remove');
   const recordId = removeIndex > 0 ? parts[removeIndex - 1] : '';
   if (!recordId) return jsonResponse({ message: 'Missing listing ID.' }, 400);
 
-  const ok = await dbSetMarketplaceListingStatus(recordId, 'removed', env);
+  let nextStatus: 'active' | 'removed' = 'removed';
+  try {
+    const body = await request.json();
+    if (body?.status === 'active' || body?.status === 'removed') {
+      nextStatus = body.status;
+    }
+  } catch {
+    nextStatus = 'removed';
+  }
+
+  const ok = await dbSetMarketplaceListingStatus(recordId, nextStatus, env);
   if (!ok) return jsonResponse({ message: 'Unable to remove listing.' }, 500);
-  return jsonResponse({ ok: true });
+  return jsonResponse({ ok: true, status: nextStatus });
 }
 
 async function fetchReverbListings(env: Env): Promise<ReverbApiListing[]> {
@@ -2792,6 +2848,34 @@ async function dbSetMarketplaceListingStatus(recordId: string, status: 'active' 
     .bind(status, idValue)
     .run();
   return true;
+}
+
+async function dbUpdateMarketplaceListing(
+  recordId: string,
+  fields: {
+    title: string;
+    price_dollars: number;
+    image_url: string | null;
+    listing_url: string;
+    notes: string | null;
+  },
+  env: Env
+): Promise<boolean> {
+  const idValue = Number.parseInt(recordId, 10);
+  if (!Number.isFinite(idValue)) return false;
+  try {
+    await env.DB.prepare(
+      `UPDATE ccg_marketplace_listings
+       SET title = ?, price_dollars = ?, image_url = ?, listing_url = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`
+    )
+      .bind(fields.title, fields.price_dollars, fields.image_url, fields.listing_url, fields.notes, idValue)
+      .run();
+    return true;
+  } catch (error) {
+    console.error('Marketplace update failed', { error });
+    return false;
+  }
 }
 
 async function getIsMultiFromRecord(recordId: string, env: Env): Promise<boolean> {
