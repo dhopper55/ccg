@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="images/favicon/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="images/favicon/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="images/favicon/favicon-16x16.png">
+  <link rel="shortcut icon" href="images/favicon/favicon.ico">
+  <title>Marketplace Listings Manager | Coal Creek Guitars</title>
+  <meta name="robots" content="noindex,nofollow">
+  <link rel="stylesheet" href="styles.css?version=977557">
+</head>
+<body>
+  <nav class="site-nav">
+    <a href="index.html" class="nav-logo">
+      <img src="images/coal-creek-logo.png" alt="Coal Creek Guitars">
+    </a>
+    <a href="guitars-and-gear-for-sale.html" class="nav-home">For Sale</a>
+  </nav>
+
+  <div class="container listing-evaluator marketplace-manager">
+    <header class="listing-hero">
+      <div class="listing-hero-row">
+        <h1>Marketplace Listings Manager</h1>
+      </div>
+      <p class="subtitle">Add or remove Facebook Marketplace listings that should appear in the public for-sale feed.</p>
+    </header>
+
+    <section class="listing-form">
+      <form id="marketplace-form">
+        <div class="form-group">
+          <label for="marketplace-title">Title</label>
+          <input id="marketplace-title" type="text" required maxlength="200" placeholder="Fender Telecaster American Performer SH 2021">
+        </div>
+
+        <div class="form-group">
+          <label for="marketplace-price">Price (whole dollars)</label>
+          <input id="marketplace-price" type="number" min="1" step="1" required placeholder="1295">
+        </div>
+
+        <div class="form-group">
+          <label for="marketplace-url">Facebook Marketplace URL</label>
+          <input id="marketplace-url" type="url" required placeholder="https://www.facebook.com/marketplace/item/...">
+        </div>
+
+        <div class="form-group">
+          <label for="marketplace-image">Main image URL <span class="optional">(optional)</span></label>
+          <input id="marketplace-image" type="url" placeholder="https://...">
+        </div>
+
+        <div class="form-group">
+          <label for="marketplace-notes">Notes <span class="optional">(optional)</span></label>
+          <textarea id="marketplace-notes" rows="3" maxlength="2000" placeholder="Any notes for internal use"></textarea>
+        </div>
+
+        <button id="marketplace-submit" type="submit">Add Listing</button>
+      </form>
+      <div id="marketplace-status" class="hidden"></div>
+    </section>
+
+    <section class="listing-section">
+      <h2>Current Marketplace Listings</h2>
+      <div id="marketplace-rows"></div>
+    </section>
+  </div>
+
+  <script type="module" src="dist/marketplace-listings.js?version=273781"></script>
+</body>
+</html>

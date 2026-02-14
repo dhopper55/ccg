@@ -1,96 +1,65 @@
-const REVERB_API_TOKEN = '91712608fefe08e6915c2d781519411af3bdd750818a8edc94d94e14a3d7c491';
-const REVERB_API_URL = 'https://api.reverb.com/api/my/listings?per_page=100';
 async function fetchListings() {
-    const response = await fetch(REVERB_API_URL, {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/hal+json',
-            'Accept': 'application/hal+json',
-            'Accept-Version': '3.0',
-            'Authorization': `Bearer ${REVERB_API_TOKEN}`
-        }
-    });
+    const response = await fetch('/api/for-sale', { method: 'GET' });
     if (!response.ok) {
         throw new Error(`Failed to fetch listings: ${response.status} ${response.statusText}`);
     }
     const data = await response.json();
-    return data.listings || [];
+    return Array.isArray(data.records) ? data.records : [];
 }
-function formatPrice(price) {
-    const amount = parseFloat(price.amount);
-    if (!Number.isFinite(amount)) {
-        return price.symbol ? `${price.symbol}${price.amount}` : `$${price.amount}`;
-    }
+function formatPrice(priceDollars, currency) {
+    const safeAmount = Number.isFinite(priceDollars) ? priceDollars : 0;
     try {
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
-            currency: price.currency || 'USD',
+            currency: currency || 'USD',
             minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        }).format(amount);
+            maximumFractionDigits: 2,
+        }).format(safeAmount);
     }
     catch {
-        const formattedAmount = amount.toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        });
-        return price.symbol ? `${price.symbol}${formattedAmount}` : `$${formattedAmount}`;
+        return `$${safeAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
-}
-function getShippingAmount(listing) {
-    const shipping = listing.shipping;
-    if (!shipping)
-        return null;
-    if (shipping.rate?.amount) {
-        return parseFloat(shipping.rate.amount);
-    }
-    if (shipping.cost?.amount) {
-        return parseFloat(shipping.cost.amount);
-    }
-    if (shipping.price?.amount) {
-        return parseFloat(shipping.price.amount);
-    }
-    if (Array.isArray(shipping.rates)) {
-        const preferredRate = shipping.rates.find((rate) => rate.region_code === 'US_CON' || rate.region_code === 'US') ||
-            shipping.rates[0];
-        if (preferredRate?.rate?.amount) {
-            return parseFloat(preferredRate.rate.amount);
-        }
-    }
-    return null;
 }
 function createListingCard(listing) {
     const card = document.createElement('a');
     card.className = 'listing-card';
-    card.href = listing._links.web.href;
+    card.href = listing.listingUrl;
     card.target = '_blank';
     card.rel = 'noopener noreferrer';
-    // Get the image URL (prefer large_crop, fallback to small_crop or full)
-    let imageUrl = '';
-    if (listing.photos && listing.photos.length > 0) {
-        const photo = listing.photos[0];
-        imageUrl = photo._links.large_crop?.href ||
-            photo._links.small_crop?.href ||
-            photo._links.full?.href || '';
+    const imageWrap = document.createElement('div');
+    imageWrap.className = 'listing-image';
+    if (listing.imageUrl) {
+        const img = document.createElement('img');
+        img.src = listing.imageUrl;
+        img.alt = listing.title || 'Listing photo';
+        img.loading = 'lazy';
+        imageWrap.appendChild(img);
     }
-    // Format price
-    const priceDisplay = formatPrice(listing.price);
-    const shippingAmount = getShippingAmount(listing);
-    const shippingDisplay = shippingAmount === 0 ? '<p class="listing-shipping">Free Shipping</p>' : '';
-    card.innerHTML = `
-    <div class="listing-image">
-      ${imageUrl
-        ? `<img src="${imageUrl}" alt="${listing.title}" loading="lazy">`
-        : `<div class="listing-placeholder"><span>No Image</span></div>`}
-    </div>
-    <div class="listing-info">
-      <h3 class="listing-title">${listing.title}</h3>
-      <div class="listing-price-group">
-        <p class="listing-price">${priceDisplay}</p>
-        ${shippingDisplay}
-      </div>
-    </div>
-  `;
+    else {
+        const placeholder = document.createElement('div');
+        placeholder.className = 'listing-placeholder';
+        placeholder.textContent = 'No Image';
+        imageWrap.appendChild(placeholder);
+    }
+    const info = document.createElement('div');
+    info.className = 'listing-info';
+    const title = document.createElement('h3');
+    title.className = 'listing-title';
+    title.textContent = listing.title || 'Untitled listing';
+    const source = document.createElement('span');
+    source.className = `listing-source listing-source--${listing.source}`;
+    source.textContent = listing.source === 'facebook' ? 'Facebook' : 'Reverb';
+    const priceGroup = document.createElement('div');
+    priceGroup.className = 'listing-price-group';
+    const price = document.createElement('p');
+    price.className = 'listing-price';
+    price.textContent = formatPrice(listing.priceDollars, listing.currency);
+    priceGroup.appendChild(price);
+    info.appendChild(source);
+    info.appendChild(title);
+    info.appendChild(priceGroup);
+    card.appendChild(imageWrap);
+    card.appendChild(info);
     return card;
 }
 function showError(message) {
@@ -123,35 +92,24 @@ function renderListings(listings) {
         return;
     }
     gridEl.innerHTML = '';
-    listings.forEach(listing => {
-        const card = createListingCard(listing);
-        gridEl.appendChild(card);
+    listings.forEach((listing) => {
+        gridEl.appendChild(createListingCard(listing));
     });
 }
-function sortListingsByPrice(listings) {
-    return [...listings].sort((a, b) => {
-        const aPrice = parseFloat(a.price.amount);
-        const bPrice = parseFloat(b.price.amount);
-        return bPrice - aPrice;
-    });
-}
-// Initialize on page load
 async function init() {
     try {
         const listings = await fetchListings();
-        const sortedListings = sortListingsByPrice(listings);
-        renderListings(sortedListings);
+        renderListings(listings);
     }
     catch (error) {
-        console.error('Error fetching Reverb listings:', error);
+        console.error('Error fetching for-sale listings:', error);
         showError('Unable to load listings. Please try again later.');
     }
 }
-// Run when DOM is ready
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 }
 else {
-    init();
+    void init();
 }
 export {};

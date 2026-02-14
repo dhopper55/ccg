@@ -41,6 +41,7 @@ import {
 interface Env {
   DB: D1Database;
   CUSTOM_ITEMS_BUCKET?: R2Bucket;
+  REVERB_API_TOKEN?: string;
   OPENAI_API_KEY: string;
   APIFY_TOKEN: string;
   APIFY_FACEBOOK_ACTOR: string;
@@ -113,6 +114,8 @@ const RADAR_QUIET_START_HOUR = 23;
 const RADAR_QUIET_END_HOUR = 5;
 const CUSTOM_MAX_PHOTOS = 10;
 const CUSTOM_MAX_TEXT_LENGTH = 5000;
+const REVERB_API_URL = 'https://api.reverb.com/api/my/listings?per_page=100';
+const REVERB_API_TOKEN_FALLBACK = '91712608fefe08e6915c2d781519411af3bdd750818a8edc94d94e14a3d7c491';
 
 const SUPPORTED_ORIGINS = [
   'https://www.coalcreekguitars.com',
@@ -254,6 +257,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/for-sale' && request.method === 'GET') {
+      const response = await handleForSaleFeed(env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/listings' && request.method === 'GET') {
       const response = await handleList(request, env);
       return withCors(response, request, env);
@@ -291,6 +299,21 @@ export default {
 
     if (path === '/api/search-results' && request.method === 'GET') {
       const response = await handleSearchResults(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/marketplace-listings' && request.method === 'GET') {
+      const response = await handleMarketplaceListingsList(env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/marketplace-listings' && request.method === 'POST') {
+      const response = await handleMarketplaceListingsCreate(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path.endsWith('/remove') && path.startsWith('/api/marketplace-listings/') && request.method === 'POST') {
+      const response = await handleMarketplaceListingsRemove(path, env);
       return withCors(response, request, env);
     }
 
@@ -358,6 +381,9 @@ function withCors(response: Response, request: Request, env: Env): Response {
 }
 
 async function requireAuth(request: Request, env: Env, path: string): Promise<Response | null> {
+  if (path === '/api/for-sale' && request.method === 'GET') {
+    return null;
+  }
   if (path === '/api/listings/webhook' && request.method === 'POST') {
     return null;
   }
@@ -1633,6 +1659,55 @@ type ListingListItem = {
   saved?: boolean;
 };
 
+type ReverbApiListing = {
+  id: number;
+  title?: string;
+  price?: {
+    amount?: string;
+    currency?: string;
+    symbol?: string;
+  };
+  photos?: Array<{
+    _links?: {
+      large_crop?: { href?: string };
+      small_crop?: { href?: string };
+      full?: { href?: string };
+    };
+  }>;
+  _links?: {
+    web?: { href?: string };
+  };
+};
+
+type ReverbApiResponse = {
+  listings?: ReverbApiListing[];
+};
+
+type UnifiedForSaleItem = {
+  id: string;
+  source: 'reverb' | 'facebook';
+  title: string;
+  priceDollars: number;
+  currency: string;
+  imageUrl: string;
+  listingUrl: string;
+  createdAt: string;
+};
+
+type MarketplaceListingRow = {
+  id: number;
+  source: string;
+  title: string;
+  price_dollars: number;
+  currency: string | null;
+  image_url: string | null;
+  listing_url: string;
+  status: string | null;
+  notes: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
 async function handleList(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const limitParam = url.searchParams.get('limit');
@@ -1655,6 +1730,145 @@ async function handleList(request: Request, env: Env): Promise<Response> {
   }
 
   return jsonResponse(data);
+}
+
+async function handleForSaleFeed(env: Env): Promise<Response> {
+  const [reverbListings, marketplaceListings] = await Promise.all([
+    fetchReverbListings(env),
+    dbListMarketplaceListings(env, false),
+  ]);
+
+  const unified: UnifiedForSaleItem[] = [];
+  unified.push(...reverbListings.map((listing) => normalizeReverbForSale(listing)));
+  unified.push(...marketplaceListings.map((listing) => normalizeMarketplaceForSale(listing)));
+
+  const merged = unified
+    .filter((listing) => listing.title && listing.listingUrl && Number.isFinite(listing.priceDollars))
+    .sort((a, b) => b.priceDollars - a.priceDollars);
+
+  return jsonResponse({ records: merged });
+}
+
+async function handleMarketplaceListingsList(env: Env): Promise<Response> {
+  const records = await dbListMarketplaceListings(env, true);
+  const payload = records.map((row) => ({
+    id: String(row.id),
+    source: row.source || 'facebook',
+    title: row.title || '',
+    priceDollars: Number.isFinite(row.price_dollars) ? row.price_dollars : 0,
+    currency: row.currency || 'USD',
+    imageUrl: row.image_url || '',
+    listingUrl: row.listing_url || '',
+    status: row.status || 'active',
+    notes: row.notes || '',
+    createdAt: row.created_at || '',
+    updatedAt: row.updated_at || '',
+  }));
+  return jsonResponse({ records: payload });
+}
+
+async function handleMarketplaceListingsCreate(request: Request, env: Env): Promise<Response> {
+  let body: Record<string, unknown> = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  const title = normalizeText(body.title, '').slice(0, 200);
+  const listingUrl = normalizeUrl(normalizeText(body.listingUrl, ''));
+  const imageUrlRaw = normalizeText(body.imageUrl, '');
+  const imageUrl = imageUrlRaw ? normalizeUrl(imageUrlRaw) : null;
+  const notes = normalizeText(body.notes, '').slice(0, 2000);
+  const priceDollars = parseWholeDollars(body.priceDollars);
+
+  if (!title) return jsonResponse({ message: 'Title is required.' }, 400);
+  if (!listingUrl) return jsonResponse({ message: 'Listing URL is required.' }, 400);
+  if (!listingUrl.includes('facebook.com/marketplace')) {
+    return jsonResponse({ message: 'Listing URL must be a Facebook Marketplace URL.' }, 400);
+  }
+  if (priceDollars == null || !Number.isFinite(priceDollars) || priceDollars < 1) {
+    return jsonResponse({ message: 'Price (whole dollars) must be at least 1.' }, 400);
+  }
+
+  const inserted = await dbCreateMarketplaceListing({
+    source: 'facebook',
+    title,
+    price_dollars: priceDollars,
+    currency: 'USD',
+    image_url: imageUrl,
+    listing_url: listingUrl,
+    status: 'active',
+    notes: notes || null,
+  }, env);
+
+  if (!inserted) {
+    return jsonResponse({ message: 'Unable to create listing. URL may already exist.' }, 400);
+  }
+
+  return jsonResponse({ ok: true, id: inserted });
+}
+
+async function handleMarketplaceListingsRemove(path: string, env: Env): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const removeIndex = parts.indexOf('remove');
+  const recordId = removeIndex > 0 ? parts[removeIndex - 1] : '';
+  if (!recordId) return jsonResponse({ message: 'Missing listing ID.' }, 400);
+
+  const ok = await dbSetMarketplaceListingStatus(recordId, 'removed', env);
+  if (!ok) return jsonResponse({ message: 'Unable to remove listing.' }, 500);
+  return jsonResponse({ ok: true });
+}
+
+async function fetchReverbListings(env: Env): Promise<ReverbApiListing[]> {
+  const token = env.REVERB_API_TOKEN || REVERB_API_TOKEN_FALLBACK;
+  const response = await fetch(REVERB_API_URL, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/hal+json',
+      'Accept': 'application/hal+json',
+      'Accept-Version': '3.0',
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    console.error('Reverb fetch failed', { status: response.status, body });
+    return [];
+  }
+  const data = await response.json() as ReverbApiResponse;
+  return Array.isArray(data.listings) ? data.listings : [];
+}
+
+function normalizeReverbForSale(listing: ReverbApiListing): UnifiedForSaleItem {
+  const priceDollars = parseMoney(String(listing.price?.amount || '0')) || 0;
+  const imageUrl = listing.photos?.[0]?._links?.large_crop?.href
+    || listing.photos?.[0]?._links?.small_crop?.href
+    || listing.photos?.[0]?._links?.full?.href
+    || '';
+  return {
+    id: `reverb-${listing.id}`,
+    source: 'reverb',
+    title: normalizeText(listing.title, 'Untitled listing'),
+    priceDollars,
+    currency: normalizeText(listing.price?.currency, 'USD'),
+    imageUrl,
+    listingUrl: normalizeText(listing._links?.web?.href, ''),
+    createdAt: '',
+  };
+}
+
+function normalizeMarketplaceForSale(row: MarketplaceListingRow): UnifiedForSaleItem {
+  return {
+    id: `marketplace-${row.id}`,
+    source: 'facebook',
+    title: row.title || 'Untitled listing',
+    priceDollars: Number.isFinite(row.price_dollars) ? row.price_dollars : 0,
+    currency: row.currency || 'USD',
+    imageUrl: row.image_url || '',
+    listingUrl: row.listing_url || '',
+    createdAt: row.created_at || '',
+  };
 }
 
 function isAllowedImageHost(hostname: string): boolean {
@@ -2516,6 +2730,68 @@ async function dbSearchListPending(limit: number, env: Env): Promise<Array<{ id:
     .bind(limit)
     .all<Record<string, any>>();
   return (result.results ?? []).map((row) => searchRowToRecord(row));
+}
+
+async function dbListMarketplaceListings(env: Env, includeRemoved: boolean): Promise<MarketplaceListingRow[]> {
+  const where = includeRemoved ? '' : 'WHERE status = ?';
+  const statement = env.DB.prepare(
+    `SELECT id, source, title, price_dollars, currency, image_url, listing_url, status, notes, created_at, updated_at
+     FROM ccg_marketplace_listings
+     ${where}
+     ORDER BY created_at DESC, id DESC`
+  );
+  const result = includeRemoved
+    ? await statement.all<MarketplaceListingRow>()
+    : await statement.bind('active').all<MarketplaceListingRow>();
+  return result.results ?? [];
+}
+
+async function dbCreateMarketplaceListing(
+  fields: {
+    source: string;
+    title: string;
+    price_dollars: number;
+    currency: string;
+    image_url: string | null;
+    listing_url: string;
+    status: string;
+    notes: string | null;
+  },
+  env: Env
+): Promise<string | null> {
+  try {
+    const result = await env.DB.prepare(
+      `INSERT INTO ccg_marketplace_listings
+      (source, title, price_dollars, currency, image_url, listing_url, status, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+      .bind(
+        fields.source,
+        fields.title,
+        fields.price_dollars,
+        fields.currency,
+        fields.image_url,
+        fields.listing_url,
+        fields.status,
+        fields.notes
+      )
+      .run();
+    return result.meta?.last_row_id ? String(result.meta.last_row_id) : null;
+  } catch (error) {
+    console.error('Marketplace insert failed', { error });
+    return null;
+  }
+}
+
+async function dbSetMarketplaceListingStatus(recordId: string, status: 'active' | 'removed', env: Env): Promise<boolean> {
+  const idValue = Number.parseInt(recordId, 10);
+  if (!Number.isFinite(idValue)) return false;
+  await env.DB.prepare(
+    'UPDATE ccg_marketplace_listings SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+  )
+    .bind(status, idValue)
+    .run();
+  return true;
 }
 
 async function getIsMultiFromRecord(recordId: string, env: Env): Promise<boolean> {
@@ -3497,6 +3773,19 @@ function parseMoney(input: string): number | null {
   if (!cleaned) return null;
   const value = Number.parseFloat(cleaned);
   return Number.isFinite(value) ? value : null;
+}
+
+function parseWholeDollars(input: unknown): number | null {
+  if (typeof input === 'number' && Number.isFinite(input) && Number.isInteger(input) && input >= 0) {
+    return input;
+  }
+  if (typeof input === 'string') {
+    const trimmed = input.trim();
+    if (!/^\d+$/.test(trimmed)) return null;
+    const parsed = Number.parseInt(trimmed, 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 }
 
 function formatRange(low: number, high: number): string {

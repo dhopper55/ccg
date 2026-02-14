@@ -88,3 +88,24 @@ CREATE TABLE IF NOT EXISTS search_results (
 CREATE UNIQUE INDEX IF NOT EXISTS search_results_url_idx ON search_results(url);
 CREATE INDEX IF NOT EXISTS search_results_run_idx ON search_results(run_id);
 CREATE INDEX IF NOT EXISTS search_results_archived_idx ON search_results(archived);
+
+CREATE TABLE IF NOT EXISTS ccg_marketplace_listings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  source TEXT NOT NULL DEFAULT 'facebook',
+  title TEXT NOT NULL,
+  price_dollars INTEGER NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'USD',
+  image_url TEXT,
+  listing_url TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active',
+  notes TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ccg_marketplace_listings_url_idx
+  ON ccg_marketplace_listings(listing_url);
+CREATE INDEX IF NOT EXISTS ccg_marketplace_listings_status_idx
+  ON ccg_marketplace_listings(status);
+CREATE INDEX IF NOT EXISTS ccg_marketplace_listings_price_idx
+  ON ccg_marketplace_listings(price_dollars);
