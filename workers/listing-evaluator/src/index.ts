@@ -3805,7 +3805,7 @@ async function runOpenAIModelDisambiguation(
   const images = listing.images.slice(0, Number.isFinite(maxImages) ? maxImages : 3);
   const prompt = [
     'Identify the most likely exact guitar model/variant from this listing text and images.',
-    'Prefer specific model names (example: "Les Paul Studio").',
+    'Prefer specific model names (example: "Les Paul Studio"), but only if you are sure.  If you are not sure, use base model (example: "Les Paul").',
     'If uncertain, provide your best guess and include "(NOT DEFINITIVE)" in model text.',
     'Do not return "Unknown" when brand and images are provided; return the most likely model guess.',
     '',
