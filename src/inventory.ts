@@ -174,7 +174,7 @@ async function uploadImage(file: File): Promise<string> {
     method: 'POST',
     body: formData,
   });
-  const data = await response.json() as { imageUrl?: string; message?: string };
+  const data = await response.json().catch(() => ({})) as { imageUrl?: string; message?: string };
   if (!response.ok || !data.imageUrl) {
     throw new Error(data.message || 'Unable to upload image.');
   }
@@ -187,7 +187,7 @@ async function importSourceImage(url: string): Promise<string> {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ sourceUrl: url }),
   });
-  const data = await response.json() as { imageUrl?: string; message?: string };
+  const data = await response.json().catch(() => ({})) as { imageUrl?: string; message?: string };
   if (!response.ok || !data.imageUrl) {
     throw new Error(data.message || 'Unable to import source image.');
   }
@@ -269,18 +269,29 @@ async function handleSubmit(event: SubmitEvent): Promise<void> {
   if (!titleInput || !imageUrlInput || !submitButton) return;
 
   const title = titleInput.value.trim();
-  const imageUrl = imageUrlInput.value.trim();
+  let imageUrl = imageUrlInput.value.trim();
   if (!title) {
     setStatus('Title is required.', true);
-    return;
-  }
-  if (!imageUrl) {
-    setStatus('Please upload an image before saving.', true);
     return;
   }
 
   submitButton.disabled = true;
   try {
+    if (!imageUrl) {
+      const selectedFile = imageFileInput?.files?.[0];
+      if (selectedFile) {
+        setStatus('Uploading image...');
+        imageUrl = await uploadImage(selectedFile);
+        setImagePreview(imageUrl);
+        setStatus('Image uploaded to Cloudflare Images.');
+      }
+    }
+
+    if (!imageUrl) {
+      setStatus('Please upload an image before saving.', true);
+      return;
+    }
+
     const response = await fetch('/api/inventory', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
