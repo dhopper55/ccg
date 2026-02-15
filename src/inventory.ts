@@ -222,7 +222,7 @@ async function prefillFromListing(id: string, inventoryRows: InventoryItem[]): P
   sourceImageUrl = (fields.image_url || '').trim() || null;
   if (sourceImageUrl) {
     importSourceButton?.classList.remove('hidden');
-    setStatus('Prefilled from listing. Upload an image or import source image to Cloudflare Images.');
+    setStatus('Prefilled from listing. Upload an image or import source image to secure storage.');
   } else {
     importSourceButton?.classList.add('hidden');
   }
@@ -239,7 +239,7 @@ async function handleImageFileChange(): Promise<void> {
     setStatus('Uploading image...');
     const imageUrl = await uploadImage(file);
     setImagePreview(imageUrl);
-    setStatus('Image uploaded to Cloudflare Images.');
+    setStatus('Image uploaded.');
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to upload image.';
     setStatus(message, true);
@@ -255,7 +255,7 @@ async function handleImportSourceImage(): Promise<void> {
     setStatus('Importing source image...');
     const imageUrl = await importSourceImage(sourceImageUrl);
     setImagePreview(imageUrl);
-    setStatus('Source image imported to Cloudflare Images.');
+    setStatus('Source image imported.');
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to import source image.';
     setStatus(message, true);
@@ -283,7 +283,7 @@ async function handleSubmit(event: SubmitEvent): Promise<void> {
         setStatus('Uploading image...');
         imageUrl = await uploadImage(selectedFile);
         setImagePreview(imageUrl);
-        setStatus('Image uploaded to Cloudflare Images.');
+        setStatus('Image uploaded.');
       }
     }
 

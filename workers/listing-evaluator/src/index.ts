@@ -41,8 +41,6 @@ import {
 interface Env {
   DB: D1Database;
   CUSTOM_ITEMS_BUCKET?: R2Bucket;
-  CF_ACCOUNT_ID?: string;
-  CF_IMAGES_API_TOKEN?: string;
   REVERB_API_TOKEN?: string;
   OPENAI_API_KEY: string;
   APIFY_TOKEN: string;
@@ -339,6 +337,11 @@ export default {
 
     if (path === '/api/inventory/summary' && request.method === 'GET') {
       const response = await handleInventorySummary(env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/inventory-image' && request.method === 'GET') {
+      const response = await handleInventoryImage(request, env);
       return withCors(response, request, env);
     }
 
@@ -660,6 +663,12 @@ function buildCustomImageUrl(key: string): string {
   return `/api/custom-image?${params.toString()}`;
 }
 
+function buildInventoryImageUrl(key: string): string {
+  const params = new URLSearchParams();
+  params.set('key', key);
+  return `/api/inventory-image?${params.toString()}`;
+}
+
 function photoListFromRecord(fields: Record<string, unknown>): string[] {
   const photos = typeof fields.photos === 'string'
     ? fields.photos.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
@@ -840,6 +849,32 @@ async function handleCustomImage(request: Request, env: Env): Promise<Response> 
   const url = new URL(request.url);
   const key = url.searchParams.get('key');
   if (!key || !key.startsWith('custom-items/')) {
+    return jsonResponse({ message: 'Missing or invalid image key.' }, 400);
+  }
+
+  const object = await env.CUSTOM_ITEMS_BUCKET.get(key);
+  if (!object || !object.body) {
+    return jsonResponse({ message: 'Image not found.' }, 404);
+  }
+
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+  headers.set('etag', object.httpEtag);
+  headers.set('cache-control', 'public, max-age=86400');
+  if (!headers.get('content-type')) {
+    headers.set('content-type', 'application/octet-stream');
+  }
+  return new Response(object.body, { headers });
+}
+
+async function handleInventoryImage(request: Request, env: Env): Promise<Response> {
+  if (!env.CUSTOM_ITEMS_BUCKET) {
+    return jsonResponse({ message: 'Inventory image uploads are not configured.' }, 500);
+  }
+
+  const url = new URL(request.url);
+  const key = url.searchParams.get('key');
+  if (!key || !key.startsWith('inventory-items/')) {
     return jsonResponse({ message: 'Missing or invalid image key.' }, 400);
   }
 
@@ -1971,8 +2006,8 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
 
   if (!title) return jsonResponse({ message: 'Title is required.' }, 400);
   if (!imageUrl) return jsonResponse({ message: 'Image URL is required.' }, 400);
-  if (!isCloudflareImageUrl(imageUrl)) {
-    return jsonResponse({ message: 'Image URL must be a Cloudflare Images delivery URL.' }, 400);
+  if (!isInventoryImageUrl(imageUrl)) {
+    return jsonResponse({ message: 'Image URL must be an uploaded inventory image URL.' }, 400);
   }
 
   if (sourceListingId != null) {
@@ -2014,8 +2049,8 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
 }
 
 async function handleInventoryImageUpload(request: Request, env: Env): Promise<Response> {
-  if (!env.CF_ACCOUNT_ID || !env.CF_IMAGES_API_TOKEN) {
-    return jsonResponse({ message: 'Cloudflare Images is not configured.' }, 500);
+  if (!env.CUSTOM_ITEMS_BUCKET) {
+    return jsonResponse({ message: 'Inventory image uploads are not configured.' }, 500);
   }
 
   let formData: FormData;
@@ -2033,24 +2068,21 @@ async function handleInventoryImageUpload(request: Request, env: Env): Promise<R
     return jsonResponse({ message: 'Only image uploads are supported.' }, 400);
   }
 
-  const imageUrl = await uploadCloudflareImage({
-    accountId: env.CF_ACCOUNT_ID,
-    token: env.CF_IMAGES_API_TOKEN,
-    fileName: file.name || `inventory-${crypto.randomUUID()}`,
-    fileType: file.type,
-    body: await file.arrayBuffer(),
+  const ext = extensionFromContentType(file.type);
+  const key = `inventory-items/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${ext}`;
+  const body = await file.arrayBuffer();
+  await env.CUSTOM_ITEMS_BUCKET.put(key, body, {
+    httpMetadata: {
+      contentType: file.type || 'application/octet-stream',
+    },
   });
 
-  if (!imageUrl) {
-    return jsonResponse({ message: 'Unable to upload image to Cloudflare Images.' }, 502);
-  }
-
-  return jsonResponse({ ok: true, imageUrl });
+  return jsonResponse({ ok: true, imageUrl: buildInventoryImageUrl(key) });
 }
 
 async function handleInventoryImageImport(request: Request, env: Env): Promise<Response> {
-  if (!env.CF_ACCOUNT_ID || !env.CF_IMAGES_API_TOKEN) {
-    return jsonResponse({ message: 'Cloudflare Images is not configured.' }, 500);
+  if (!env.CUSTOM_ITEMS_BUCKET) {
+    return jsonResponse({ message: 'Inventory image uploads are not configured.' }, 500);
   }
 
   let body: Record<string, unknown> = {};
@@ -2085,21 +2117,15 @@ async function handleInventoryImageImport(request: Request, env: Env): Promise<R
   }
 
   const extension = extensionFromContentType(contentType);
-  const fileName = `inventory-import-${crypto.randomUUID()}.${extension}`;
+  const key = `inventory-items/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${extension}`;
   const bodyBytes = await sourceResponse.arrayBuffer();
-  const imageUrl = await uploadCloudflareImage({
-    accountId: env.CF_ACCOUNT_ID,
-    token: env.CF_IMAGES_API_TOKEN,
-    fileName,
-    fileType: contentType,
-    body: bodyBytes,
+  await env.CUSTOM_ITEMS_BUCKET.put(key, bodyBytes, {
+    httpMetadata: {
+      contentType: contentType || 'application/octet-stream',
+    },
   });
 
-  if (!imageUrl) {
-    return jsonResponse({ message: 'Unable to import image into Cloudflare Images.' }, 502);
-  }
-
-  return jsonResponse({ ok: true, imageUrl });
+  return jsonResponse({ ok: true, imageUrl: buildInventoryImageUrl(key) });
 }
 
 async function fetchReverbListings(env: Env): Promise<ReverbApiListing[]> {
@@ -4297,11 +4323,14 @@ function toBooleanInput(input: unknown, fallback: boolean): boolean {
   return fallback;
 }
 
-function isCloudflareImageUrl(url: string): boolean {
+function isInventoryImageUrl(url: string): boolean {
   if (!url) return false;
+  if (url.startsWith('/api/inventory-image?')) return true;
   try {
     const parsed = new URL(url);
-    return parsed.hostname.endsWith('imagedelivery.net');
+    if (parsed.pathname !== '/api/inventory-image') return false;
+    const key = parsed.searchParams.get('key') || '';
+    return key.startsWith('inventory-items/');
   } catch {
     return false;
   }
@@ -4311,48 +4340,6 @@ function randomIntInRange(min: number, max: number): number {
   const range = max - min + 1;
   const random = crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;
   return min + Math.floor(random * range);
-}
-
-async function uploadCloudflareImage(args: {
-  accountId: string;
-  token: string;
-  fileName: string;
-  fileType: string;
-  body: ArrayBuffer;
-}): Promise<string | null> {
-  const form = new FormData();
-  const blob = new Blob([args.body], { type: args.fileType || 'application/octet-stream' });
-  form.append('file', blob, args.fileName);
-
-  const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${args.accountId}/images/v1`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${args.token}`,
-    },
-    body: form,
-  });
-
-  if (!response.ok) {
-    const details = await response.text().catch(() => '');
-    console.error('Cloudflare Images upload failed', {
-      status: response.status,
-      statusText: response.statusText,
-      details,
-    });
-    return null;
-  }
-
-  const data = await response.json() as {
-    success?: boolean;
-    result?: {
-      variants?: string[];
-    };
-  };
-  const variants = data?.result?.variants || [];
-  if (!Array.isArray(variants) || variants.length === 0) {
-    return null;
-  }
-  return variants[0];
 }
 
 function formatRange(low: number, high: number): string {
