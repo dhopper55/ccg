@@ -1893,6 +1893,10 @@ button:active {
   max-width: 900px;
 }
 
+.inventory-manager {
+  max-width: 1300px;
+}
+
 #marketplace-status {
   margin-top: 14px;
 }
@@ -1933,6 +1937,30 @@ button:active {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.inventory-image-preview {
+  margin-top: 10px;
+  width: 96px;
+  height: 96px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  object-fit: cover;
+  display: block;
+}
+
+.inventory-bools {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.inventory-bools label {
+  color: var(--text-cream);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .video-title {
@@ -2497,6 +2525,7 @@ button:active {
   color: var(--text-muted);
 }
 
+
 .listing-results-controls .toggle {
   display: inline-flex;
   align-items: center;
@@ -2562,6 +2591,10 @@ button:active {
   min-width: 680px;
 }
 
+.inventory-grid-wrap table {
+  min-width: 1220px;
+}
+
 .listing-results-table th,
 .listing-results-table td {
   padding: 14px 16px;
@@ -2616,6 +2649,11 @@ button:active {
 
 .listing-results-table td:last-child {
   white-space: nowrap;
+}
+
+.add-to-inventory-link {
+  padding: 8px 12px;
+  font-size: 0.78rem;
 }
 
 .listing-results-table td .icon-button {
@@ -2896,6 +2934,7 @@ button:active {
   .listing-item-meta {
     grid-template-columns: 1fr;
   }
+
 }
 
 body.auth-locked {

@@ -16,6 +16,7 @@ RADAR_CL_SEARCH_URL = "https://denver.craigslist.org/search/msa?postal=80113&que
 RADAR_KEYWORDS = "guitar"
 RADAR_EMAIL_TO = "david@coalcreekguitars.com"
 RADAR_EMAIL_FROM = "onboarding@resend.dev"
+CF_ACCOUNT_ID = "29c0b8377a7d6c5259e8b5cc977e2aaf"
 
 [triggers]
 crons = ["*/1 * * * *"]

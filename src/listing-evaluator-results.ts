@@ -10,6 +10,7 @@ type ListingListItem = {
   title?: string;
   askingPrice?: number | string;
   imageUrl?: string | null;
+  inInventory?: boolean;
 };
 
 export {};
@@ -225,8 +226,22 @@ function renderRows(records: ListingListItem[]): void {
       sourceCell.textContent = record.source && record.source.trim().length > 0 ? record.source : '—';
     }
 
+    const actionsCell = document.createElement('td');
+    const addToInventory = document.createElement('a');
+    addToInventory.className = 'button-link secondary add-to-inventory-link';
+    addToInventory.textContent = record.inInventory ? 'In Inventory' : 'Add to Inventory';
+    addToInventory.href = record.inInventory
+      ? '#'
+      : `/inventory.html?fromListingId=${encodeURIComponent(record.id)}`;
+    if (record.inInventory) {
+      addToInventory.classList.add('disabled');
+      addToInventory.setAttribute('aria-disabled', 'true');
+    }
+    actionsCell.appendChild(addToInventory);
+
     row.appendChild(titleCell);
     row.appendChild(sourceCell);
+    row.appendChild(actionsCell);
 
     tableBody.appendChild(row);
   });

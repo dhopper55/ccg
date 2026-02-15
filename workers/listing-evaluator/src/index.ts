@@ -41,6 +41,8 @@ import {
 interface Env {
   DB: D1Database;
   CUSTOM_ITEMS_BUCKET?: R2Bucket;
+  CF_ACCOUNT_ID?: string;
+  CF_IMAGES_API_TOKEN?: string;
   REVERB_API_TOKEN?: string;
   OPENAI_API_KEY: string;
   APIFY_TOKEN: string;
@@ -116,6 +118,9 @@ const CUSTOM_MAX_PHOTOS = 10;
 const CUSTOM_MAX_TEXT_LENGTH = 5000;
 const REVERB_API_URL = 'https://api.reverb.com/api/my/listings?per_page=100';
 const REVERB_API_TOKEN_FALLBACK = '91712608fefe08e6915c2d781519411af3bdd750818a8edc94d94e14a3d7c491';
+const CCG_NUMBER_MIN = 100000;
+const CCG_NUMBER_MAX = 999999;
+const CCG_NUMBER_ATTEMPTS = 25;
 
 const SUPPORTED_ORIGINS = [
   'https://www.coalcreekguitars.com',
@@ -319,6 +324,31 @@ export default {
 
     if (path.endsWith('/remove') && path.startsWith('/api/marketplace-listings/') && request.method === 'POST') {
       const response = await handleMarketplaceListingsRemove(request, path, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/inventory' && request.method === 'GET') {
+      const response = await handleInventoryList(env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/inventory' && request.method === 'POST') {
+      const response = await handleInventoryCreate(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/inventory/summary' && request.method === 'GET') {
+      const response = await handleInventorySummary(env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/inventory/upload-image' && request.method === 'POST') {
+      const response = await handleInventoryImageUpload(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/inventory/import-image' && request.method === 'POST') {
+      const response = await handleInventoryImageImport(request, env);
       return withCors(response, request, env);
     }
 
@@ -1662,6 +1692,7 @@ type ListingListItem = {
   askingPrice?: number | string;
   score?: number | string;
   saved?: boolean;
+  inInventory?: boolean;
 };
 
 type ReverbApiListing = {
@@ -1711,6 +1742,34 @@ type MarketplaceListingRow = {
   notes: string | null;
   created_at: string | null;
   updated_at: string | null;
+};
+
+type InventoryItemRow = {
+  id: number;
+  source_listing_id: number | null;
+  ccg_number: string;
+  image_url: string;
+  title: string;
+  category: string | null;
+  brand: string | null;
+  year_range: string | null;
+  model: string | null;
+  finish: string | null;
+  original_listing_desc: string | null;
+  purchase_price: number | null;
+  purchase_notes: string | null;
+  is_active: number | null;
+  is_sold: number | null;
+  sold_amount: number | null;
+  sell_notes: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+type InventorySummaryTotals = {
+  totalListed: number;
+  totalSold: number;
+  totalPurchased: number;
 };
 
 async function handleList(request: Request, env: Env): Promise<Response> {
@@ -1874,6 +1933,173 @@ async function handleMarketplaceListingsRemove(request: Request, path: string, e
   const ok = await dbSetMarketplaceListingStatus(recordId, nextStatus, env);
   if (!ok) return jsonResponse({ message: 'Unable to remove listing.' }, 500);
   return jsonResponse({ ok: true, status: nextStatus });
+}
+
+async function handleInventoryList(env: Env): Promise<Response> {
+  const records = await dbListInventoryItems(env);
+  return jsonResponse({ records });
+}
+
+async function handleInventorySummary(env: Env): Promise<Response> {
+  const totals = await dbGetInventorySummary(env);
+  return jsonResponse(totals);
+}
+
+async function handleInventoryCreate(request: Request, env: Env): Promise<Response> {
+  let body: Record<string, unknown> = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  const sourceListingId = parseOptionalPositiveInt(body.sourceListingId);
+  const imageUrl = normalizeText(body.imageUrl, '');
+  const title = normalizeText(body.title, '').slice(0, 240);
+  const category = normalizeText(body.category, '').slice(0, 120);
+  const brand = normalizeText(body.brand, '').slice(0, 120);
+  const yearRange = normalizeText(body.yearRange, '').slice(0, 120);
+  const model = normalizeText(body.model, '').slice(0, 180);
+  const finish = normalizeText(body.finish, '').slice(0, 120);
+  const originalListingDesc = normalizeText(body.originalListingDesc, '').slice(0, 12000);
+  const purchasePrice = parseCurrencyAmount(body.purchasePrice);
+  const purchaseNotes = normalizeText(body.purchaseNotes, '').slice(0, 4000);
+  const isActive = toBooleanInput(body.isActive, true);
+  const isSold = toBooleanInput(body.isSold, false);
+  const soldAmount = parseCurrencyAmount(body.soldAmount);
+  const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
+
+  if (!title) return jsonResponse({ message: 'Title is required.' }, 400);
+  if (!imageUrl) return jsonResponse({ message: 'Image URL is required.' }, 400);
+  if (!isCloudflareImageUrl(imageUrl)) {
+    return jsonResponse({ message: 'Image URL must be a Cloudflare Images delivery URL.' }, 400);
+  }
+
+  if (sourceListingId != null) {
+    const alreadyLinked = await dbFindInventoryBySourceListingId(sourceListingId, env);
+    if (alreadyLinked) {
+      return jsonResponse({ message: 'This listing is already in inventory.' }, 400);
+    }
+  }
+
+  const ccgNumber = await generateUniqueCcgNumber(env);
+  if (!ccgNumber) {
+    return jsonResponse({ message: 'Unable to generate CCG Number. Please try again.' }, 500);
+  }
+
+  const inserted = await dbCreateInventoryItem({
+    source_listing_id: sourceListingId,
+    ccg_number: ccgNumber,
+    image_url: imageUrl,
+    title,
+    category: category || null,
+    brand: brand || null,
+    year_range: yearRange || null,
+    model: model || null,
+    finish: finish || null,
+    original_listing_desc: originalListingDesc || null,
+    purchase_price: purchasePrice,
+    purchase_notes: purchaseNotes || null,
+    is_active: isActive ? 1 : 0,
+    is_sold: isSold ? 1 : 0,
+    sold_amount: soldAmount,
+    sell_notes: sellNotes || null,
+  }, env);
+
+  if (!inserted) {
+    return jsonResponse({ message: 'Unable to create inventory item.' }, 500);
+  }
+
+  return jsonResponse({ ok: true, id: inserted.id, ccgNumber: inserted.ccgNumber });
+}
+
+async function handleInventoryImageUpload(request: Request, env: Env): Promise<Response> {
+  if (!env.CF_ACCOUNT_ID || !env.CF_IMAGES_API_TOKEN) {
+    return jsonResponse({ message: 'Cloudflare Images is not configured.' }, 500);
+  }
+
+  let formData: FormData;
+  try {
+    formData = await request.formData();
+  } catch {
+    return jsonResponse({ message: 'Invalid form data.' }, 400);
+  }
+
+  const file = formData.get('image');
+  if (!(file instanceof File) || file.size <= 0) {
+    return jsonResponse({ message: 'Image file is required.' }, 400);
+  }
+  if (!file.type.startsWith('image/')) {
+    return jsonResponse({ message: 'Only image uploads are supported.' }, 400);
+  }
+
+  const imageUrl = await uploadCloudflareImage({
+    accountId: env.CF_ACCOUNT_ID,
+    token: env.CF_IMAGES_API_TOKEN,
+    fileName: file.name || `inventory-${crypto.randomUUID()}`,
+    fileType: file.type,
+    body: await file.arrayBuffer(),
+  });
+
+  if (!imageUrl) {
+    return jsonResponse({ message: 'Unable to upload image to Cloudflare Images.' }, 502);
+  }
+
+  return jsonResponse({ ok: true, imageUrl });
+}
+
+async function handleInventoryImageImport(request: Request, env: Env): Promise<Response> {
+  if (!env.CF_ACCOUNT_ID || !env.CF_IMAGES_API_TOKEN) {
+    return jsonResponse({ message: 'Cloudflare Images is not configured.' }, 500);
+  }
+
+  let body: Record<string, unknown> = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  const sourceUrl = normalizeUrl(normalizeText(body.sourceUrl, ''));
+  if (!sourceUrl) {
+    return jsonResponse({ message: 'Source image URL is required.' }, 400);
+  }
+
+  let sourceResponse: Response;
+  try {
+    sourceResponse = await fetch(sourceUrl, {
+      headers: { 'User-Agent': 'CCG Inventory Import/1.0' },
+      redirect: 'follow',
+    });
+  } catch {
+    return jsonResponse({ message: 'Unable to fetch source image.' }, 400);
+  }
+
+  if (!sourceResponse.ok) {
+    return jsonResponse({ message: 'Unable to fetch source image.' }, 400);
+  }
+
+  const contentType = sourceResponse.headers.get('content-type') || '';
+  if (!contentType.toLowerCase().startsWith('image/')) {
+    return jsonResponse({ message: 'Source URL did not return an image.' }, 400);
+  }
+
+  const extension = extensionFromContentType(contentType);
+  const fileName = `inventory-import-${crypto.randomUUID()}.${extension}`;
+  const bodyBytes = await sourceResponse.arrayBuffer();
+  const imageUrl = await uploadCloudflareImage({
+    accountId: env.CF_ACCOUNT_ID,
+    token: env.CF_IMAGES_API_TOKEN,
+    fileName,
+    fileType: contentType,
+    body: bodyBytes,
+  });
+
+  if (!imageUrl) {
+    return jsonResponse({ message: 'Unable to import image into Cloudflare Images.' }, 502);
+  }
+
+  return jsonResponse({ ok: true, imageUrl });
 }
 
 async function fetchReverbListings(env: Env): Promise<ReverbApiListing[]> {
@@ -2612,24 +2838,36 @@ async function dbListListings(
   env: Env
 ): Promise<{ records: ListingListItem[]; nextOffset?: string | null; total?: number } | null> {
   const offsetValue = offset ? Math.max(0, Number.parseInt(offset, 10) || 0) : 0;
-  let whereClause = 'WHERE (archived IS NULL OR archived = 0) AND (saved IS NULL OR saved = 0)';
+  let whereClause = 'WHERE (l.archived IS NULL OR l.archived = 0) AND (l.saved IS NULL OR l.saved = 0)';
   if (mode === 'saved') {
-    whereClause = 'WHERE (archived IS NULL OR archived = 0) AND saved = 1';
+    whereClause = 'WHERE (l.archived IS NULL OR l.archived = 0) AND l.saved = 1';
   } else if (mode === 'archived') {
-    whereClause = 'WHERE archived = 1';
+    whereClause = 'WHERE l.archived = 1';
   }
   const totalResult = await env.DB.prepare(
-    `SELECT COUNT(*) as total FROM listings ${whereClause}`
+    `SELECT COUNT(*) as total FROM listings l ${whereClause}`
   ).first<{ total: number }>();
   const total = typeof totalResult?.total === 'number' ? totalResult.total : 0;
   const result = await env.DB.prepare(
-    `SELECT id, url, source, status, title, price_asking, score, saved, image_url
-     FROM listings
+    `SELECT
+       l.id,
+       l.url,
+       l.source,
+       l.status,
+       l.title,
+       l.price_asking,
+       l.score,
+       l.saved,
+       l.image_url,
+       CASE WHEN i.id IS NULL THEN 0 ELSE 1 END AS in_inventory
+     FROM listings l
+     LEFT JOIN ccg_inventory_items i
+       ON i.source_listing_id = l.id
      ${whereClause}
      ORDER BY
-       CASE WHEN status = 'queued' THEN 1 ELSE 0 END ASC,
-       COALESCE(submitted_at, created_at) DESC,
-       id DESC
+       CASE WHEN l.status = 'queued' THEN 1 ELSE 0 END ASC,
+       COALESCE(l.submitted_at, l.created_at) DESC,
+       l.id DESC
      LIMIT ? OFFSET ?`
   )
     .bind(limit, offsetValue)
@@ -2641,7 +2879,9 @@ async function dbListListings(
       title: string | null;
       price_asking: number | string | null;
       score: number | string | null;
+      saved: number | null;
       image_url: string | null;
+      in_inventory: number | null;
     }>();
 
   const records = (result.results ?? []).map((row) => ({
@@ -2654,6 +2894,7 @@ async function dbListListings(
     score: row.score ?? null,
     saved: row.saved ? true : false,
     imageUrl: row.image_url ? String(row.image_url).trim().split(/\s+/)[0] : null,
+    inInventory: Boolean(row.in_inventory),
   }));
 
   const nextOffset = records.length === limit ? String(offsetValue + limit) : null;
@@ -2876,6 +3117,157 @@ async function dbUpdateMarketplaceListing(
     console.error('Marketplace update failed', { error });
     return false;
   }
+}
+
+async function dbListInventoryItems(env: Env): Promise<Array<Record<string, unknown>>> {
+  const result = await env.DB.prepare(
+    `SELECT
+      i.id,
+      i.source_listing_id,
+      i.ccg_number,
+      i.image_url,
+      i.title,
+      i.category,
+      i.brand,
+      i.year_range,
+      i.model,
+      i.finish,
+      i.original_listing_desc,
+      i.purchase_price,
+      i.purchase_notes,
+      i.is_active,
+      i.is_sold,
+      i.sold_amount,
+      i.sell_notes,
+      i.created_at,
+      i.updated_at,
+      l.price_asking AS source_listing_price_asking
+     FROM ccg_inventory_items i
+     LEFT JOIN listings l ON l.id = i.source_listing_id
+     ORDER BY i.created_at DESC, i.id DESC`
+  ).all<InventoryItemRow & { source_listing_price_asking: number | null }>();
+
+  return (result.results ?? []).map((row) => ({
+    id: String(row.id),
+    sourceListingId: row.source_listing_id != null ? String(row.source_listing_id) : null,
+    ccgNumber: row.ccg_number,
+    imageUrl: row.image_url,
+    title: row.title,
+    category: row.category || '',
+    brand: row.brand || '',
+    yearRange: row.year_range || '',
+    model: row.model || '',
+    finish: row.finish || '',
+    originalListingDesc: row.original_listing_desc || '',
+    purchasePrice: row.purchase_price,
+    purchaseNotes: row.purchase_notes || '',
+    isActive: Boolean(row.is_active),
+    isSold: Boolean(row.is_sold),
+    soldAmount: row.sold_amount,
+    sellNotes: row.sell_notes || '',
+    createdAt: row.created_at || '',
+    updatedAt: row.updated_at || '',
+    sourceListingPriceAsking: row.source_listing_price_asking,
+  }));
+}
+
+async function dbFindInventoryBySourceListingId(sourceListingId: number, env: Env): Promise<{ id: number } | null> {
+  const row = await env.DB.prepare(
+    'SELECT id FROM ccg_inventory_items WHERE source_listing_id = ? LIMIT 1'
+  ).bind(sourceListingId).first<{ id: number }>();
+  return row || null;
+}
+
+async function dbCcgNumberExists(ccgNumber: string, env: Env): Promise<boolean> {
+  const row = await env.DB.prepare(
+    'SELECT id FROM ccg_inventory_items WHERE ccg_number = ? LIMIT 1'
+  ).bind(ccgNumber).first<{ id: number }>();
+  return Boolean(row?.id);
+}
+
+async function generateUniqueCcgNumber(env: Env): Promise<string | null> {
+  for (let attempt = 0; attempt < CCG_NUMBER_ATTEMPTS; attempt += 1) {
+    const value = randomIntInRange(CCG_NUMBER_MIN, CCG_NUMBER_MAX);
+    const ccgNumber = `CCG-${value}`;
+    const exists = await dbCcgNumberExists(ccgNumber, env);
+    if (!exists) return ccgNumber;
+  }
+  return null;
+}
+
+async function dbCreateInventoryItem(
+  fields: {
+    source_listing_id: number | null;
+    ccg_number: string;
+    image_url: string;
+    title: string;
+    category: string | null;
+    brand: string | null;
+    year_range: string | null;
+    model: string | null;
+    finish: string | null;
+    original_listing_desc: string | null;
+    purchase_price: number | null;
+    purchase_notes: string | null;
+    is_active: number;
+    is_sold: number;
+    sold_amount: number | null;
+    sell_notes: string | null;
+  },
+  env: Env
+): Promise<{ id: string; ccgNumber: string } | null> {
+  try {
+    const result = await env.DB.prepare(
+      `INSERT INTO ccg_inventory_items
+      (
+        source_listing_id, ccg_number, image_url, title, category, brand, year_range, model, finish,
+        original_listing_desc, purchase_price, purchase_notes, is_active, is_sold, sold_amount, sell_notes
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+      .bind(
+        fields.source_listing_id,
+        fields.ccg_number,
+        fields.image_url,
+        fields.title,
+        fields.category,
+        fields.brand,
+        fields.year_range,
+        fields.model,
+        fields.finish,
+        fields.original_listing_desc,
+        fields.purchase_price,
+        fields.purchase_notes,
+        fields.is_active,
+        fields.is_sold,
+        fields.sold_amount,
+        fields.sell_notes
+      )
+      .run();
+    const id = result.meta?.last_row_id ? String(result.meta.last_row_id) : null;
+    if (!id) return null;
+    return { id, ccgNumber: fields.ccg_number };
+  } catch (error) {
+    console.error('Inventory insert failed', { error });
+    return null;
+  }
+}
+
+async function dbGetInventorySummary(env: Env): Promise<InventorySummaryTotals> {
+  const row = await env.DB.prepare(
+    `SELECT
+      COALESCE(SUM(CASE WHEN i.is_active = 1 THEN l.price_asking ELSE 0 END), 0) AS total_listed,
+      COALESCE(SUM(CASE WHEN i.is_sold = 1 THEN i.sold_amount ELSE 0 END), 0) AS total_sold,
+      COALESCE(SUM(i.purchase_price), 0) AS total_purchased
+     FROM ccg_inventory_items i
+     LEFT JOIN listings l ON l.id = i.source_listing_id`
+  ).first<{ total_listed: number | null; total_sold: number | null; total_purchased: number | null }>();
+
+  return {
+    totalListed: Number(row?.total_listed || 0),
+    totalSold: Number(row?.total_sold || 0),
+    totalPurchased: Number(row?.total_purchased || 0),
+  };
 }
 
 async function getIsMultiFromRecord(recordId: string, env: Env): Promise<boolean> {
@@ -3870,6 +4262,97 @@ function parseWholeDollars(input: unknown): number | null {
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
+}
+
+function parseOptionalPositiveInt(input: unknown): number | null {
+  if (input == null) return null;
+  if (typeof input === 'number' && Number.isFinite(input) && Number.isInteger(input) && input > 0) {
+    return input;
+  }
+  if (typeof input === 'string' && /^\d+$/.test(input.trim())) {
+    const parsed = Number.parseInt(input.trim(), 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+  return null;
+}
+
+function parseCurrencyAmount(input: unknown): number | null {
+  if (input == null) return null;
+  if (typeof input === 'number' && Number.isFinite(input)) return input;
+  if (typeof input === 'string') {
+    const parsed = parseMoney(input);
+    return parsed != null ? parsed : null;
+  }
+  return null;
+}
+
+function toBooleanInput(input: unknown, fallback: boolean): boolean {
+  if (typeof input === 'boolean') return input;
+  if (typeof input === 'number') return input !== 0;
+  if (typeof input === 'string') {
+    const normalized = input.trim().toLowerCase();
+    if (normalized === '1' || normalized === 'true' || normalized === 'yes') return true;
+    if (normalized === '0' || normalized === 'false' || normalized === 'no') return false;
+  }
+  return fallback;
+}
+
+function isCloudflareImageUrl(url: string): boolean {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname.endsWith('imagedelivery.net');
+  } catch {
+    return false;
+  }
+}
+
+function randomIntInRange(min: number, max: number): number {
+  const range = max - min + 1;
+  const random = crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;
+  return min + Math.floor(random * range);
+}
+
+async function uploadCloudflareImage(args: {
+  accountId: string;
+  token: string;
+  fileName: string;
+  fileType: string;
+  body: ArrayBuffer;
+}): Promise<string | null> {
+  const form = new FormData();
+  const blob = new Blob([args.body], { type: args.fileType || 'application/octet-stream' });
+  form.append('file', blob, args.fileName);
+
+  const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${args.accountId}/images/v1`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${args.token}`,
+    },
+    body: form,
+  });
+
+  if (!response.ok) {
+    const details = await response.text().catch(() => '');
+    console.error('Cloudflare Images upload failed', {
+      status: response.status,
+      statusText: response.statusText,
+      details,
+    });
+    return null;
+  }
+
+  const data = await response.json() as {
+    success?: boolean;
+    result?: {
+      variants?: string[];
+    };
+  };
+  const variants = data?.result?.variants || [];
+  if (!Array.isArray(variants) || variants.length === 0) {
+    return null;
+  }
+  return variants[0];
 }
 
 function formatRange(low: number, high: number): string {

@@ -109,3 +109,36 @@ CREATE INDEX IF NOT EXISTS ccg_marketplace_listings_status_idx
   ON ccg_marketplace_listings(status);
 CREATE INDEX IF NOT EXISTS ccg_marketplace_listings_price_idx
   ON ccg_marketplace_listings(price_dollars);
+
+CREATE TABLE IF NOT EXISTS ccg_inventory_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  source_listing_id INTEGER,
+  ccg_number TEXT NOT NULL,
+  image_url TEXT NOT NULL,
+  title TEXT NOT NULL,
+  category TEXT,
+  brand TEXT,
+  year_range TEXT,
+  model TEXT,
+  finish TEXT,
+  original_listing_desc TEXT,
+  purchase_price REAL,
+  purchase_notes TEXT,
+  is_active INTEGER DEFAULT 1,
+  is_sold INTEGER DEFAULT 0,
+  sold_amount REAL,
+  sell_notes TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY(source_listing_id) REFERENCES listings(id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ccg_inventory_items_ccg_number_idx
+  ON ccg_inventory_items(ccg_number);
+CREATE UNIQUE INDEX IF NOT EXISTS ccg_inventory_items_source_listing_idx
+  ON ccg_inventory_items(source_listing_id)
+  WHERE source_listing_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS ccg_inventory_items_active_idx
+  ON ccg_inventory_items(is_active);
+CREATE INDEX IF NOT EXISTS ccg_inventory_items_sold_idx
+  ON ccg_inventory_items(is_sold);
