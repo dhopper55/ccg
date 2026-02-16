@@ -511,11 +511,11 @@ function addMetaIconRow(label, value) {
     const img = document.createElement('img');
     img.className = 'source-icon';
     if (normalized === 'craigslist' || normalized === 'cg' || normalized.includes('craigslist')) {
-        img.src = 'images/cl.png';
+        img.src = '/images/cl.png';
         img.alt = 'Craigslist';
     }
     else if (normalized === 'facebook' || normalized === 'fbm' || normalized.includes('facebook')) {
-        img.src = 'images/fb.png';
+        img.src = '/images/fb.png';
         img.alt = 'Facebook Marketplace';
     }
     else {

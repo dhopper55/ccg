@@ -300,15 +300,14 @@ async function handleSubmit(event: SubmitEvent): Promise<void> {
     }
 
     if (editId) {
-      setStatus('Inventory item updated.');
-      return;
+      setStatus('Inventory item updated. Redirecting...');
+    } else {
+      if (ccgInput) ccgInput.value = data.ccgNumber || 'Created';
+      setStatus(`Inventory item created: ${data.ccgNumber || ''}. Redirecting...`.trim());
     }
-
-    if (ccgInput) ccgInput.value = data.ccgNumber || 'Created';
-    setStatus(`Inventory item created: ${data.ccgNumber || ''}`.trim());
     window.setTimeout(() => {
       window.location.href = 'inventory.html';
-    }, 600);
+    }, 250);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to save inventory item.';
     setStatus(message, true);

@@ -265,15 +265,16 @@ async function handleSubmit(event) {
             throw new Error(data.message || (editId ? 'Unable to update inventory item.' : 'Unable to create inventory item.'));
         }
         if (editId) {
-            setStatus('Inventory item updated.');
-            return;
+            setStatus('Inventory item updated. Redirecting...');
         }
-        if (ccgInput)
-            ccgInput.value = data.ccgNumber || 'Created';
-        setStatus(`Inventory item created: ${data.ccgNumber || ''}`.trim());
+        else {
+            if (ccgInput)
+                ccgInput.value = data.ccgNumber || 'Created';
+            setStatus(`Inventory item created: ${data.ccgNumber || ''}. Redirecting...`.trim());
+        }
         window.setTimeout(() => {
             window.location.href = 'inventory.html';
-        }, 600);
+        }, 250);
     }
     catch (error) {
         const message = error instanceof Error ? error.message : 'Unable to save inventory item.';

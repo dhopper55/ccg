@@ -3258,6 +3258,7 @@ async function dbListInventoryItems(env: Env): Promise<Array<Record<string, unkn
       l.price_asking AS source_listing_price_asking
      FROM ccg_inventory_items i
      LEFT JOIN listings l ON l.id = i.source_listing_id
+     WHERE i.is_active = 1
      ORDER BY i.created_at DESC, i.id DESC`
   ).all<InventoryItemRow & { source_listing_price_asking: number | null }>();
 
