@@ -1863,7 +1863,7 @@ async function handleForSaleFeed(env: Env): Promise<Response> {
 }
 
 async function handleMarketplaceListingsList(env: Env): Promise<Response> {
-  const records = await dbListMarketplaceListings(env, true);
+  const records = await dbListMarketplaceListings(env, false);
   const payload = records.map((row) => ({
     id: String(row.id),
     source: row.source || 'facebook',
