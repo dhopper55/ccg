@@ -1805,6 +1805,7 @@ type InventoryItemRow = {
   original_listing_desc: string | null;
   purchased_date: string | null;
   purchase_price: number | null;
+  private_party_value: number | null;
   purchase_notes: string | null;
   is_active: number | null;
   for_sale: number | null;
@@ -2016,6 +2017,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const originalListingDesc = normalizeText(body.originalListingDesc, '').slice(0, 12000);
   const purchasedDate = normalizeInventoryDate(body.purchasedDate) || currentDateYmd();
   const purchasePrice = parseCurrencyAmount(body.purchasePrice);
+  const privatePartyValue = parseCurrencyAmount(body.privatePartyValue) ?? 0;
   const purchaseNotes = normalizeText(body.purchaseNotes, '').slice(0, 4000);
   const isActive = toBooleanInput(body.isActive, true);
   const isSold = toBooleanInput(body.isSold, false);
@@ -2058,6 +2060,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     original_listing_desc: originalListingDesc || null,
     purchased_date: purchasedDate,
     purchase_price: purchasePrice,
+    private_party_value: privatePartyValue,
     purchase_notes: purchaseNotes || null,
     is_active: isActive ? 1 : 0,
     for_sale: forSale ? 1 : 0,
@@ -2195,6 +2198,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const originalListingDesc = normalizeText(body.originalListingDesc, '').slice(0, 12000);
   const purchasedDate = normalizeInventoryDate(body.purchasedDate);
   const purchasePrice = parseCurrencyAmount(body.purchasePrice);
+  const privatePartyValue = parseCurrencyAmount(body.privatePartyValue) ?? 0;
   const purchaseNotes = normalizeText(body.purchaseNotes, '').slice(0, 4000);
   const isActive = toBooleanInput(body.isActive, true);
   const isSold = toBooleanInput(body.isSold, false);
@@ -2235,6 +2239,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     original_listing_desc: originalListingDesc || null,
     purchased_date: purchasedDate,
     purchase_price: purchasePrice,
+    private_party_value: privatePartyValue,
     purchase_notes: purchaseNotes || null,
     is_active: isActive ? 1 : 0,
     for_sale: forSale ? 1 : 0,
@@ -3290,6 +3295,7 @@ async function dbListInventoryItems(env: Env): Promise<Array<Record<string, unkn
       i.original_listing_desc,
       i.purchased_date,
       i.purchase_price,
+      i.private_party_value,
       i.purchase_notes,
       i.is_active,
       i.for_sale,
@@ -3322,6 +3328,7 @@ async function dbListInventoryItems(env: Env): Promise<Array<Record<string, unkn
     originalListingDesc: row.original_listing_desc || '',
     purchasedDate: row.purchased_date || '',
     purchasePrice: row.purchase_price,
+    privatePartyValue: row.private_party_value,
     purchaseNotes: row.purchase_notes || '',
     isActive: Boolean(row.is_active),
     forSale: Boolean(row.for_sale),
@@ -3355,6 +3362,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.original_listing_desc,
       i.purchased_date,
       i.purchase_price,
+      i.private_party_value,
       i.purchase_notes,
       i.is_active,
       i.for_sale,
@@ -3384,6 +3392,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     originalListingDesc: row.original_listing_desc || '',
     purchasedDate: row.purchased_date || '',
     purchasePrice: row.purchase_price,
+    privatePartyValue: row.private_party_value,
     purchaseNotes: row.purchase_notes || '',
     isActive: Boolean(row.is_active),
     forSale: Boolean(row.for_sale),
@@ -3436,6 +3445,7 @@ async function dbCreateInventoryItem(
     original_listing_desc: string | null;
     purchased_date: string;
     purchase_price: number | null;
+    private_party_value: number;
     purchase_notes: string | null;
     is_active: number;
     for_sale: number;
@@ -3453,10 +3463,10 @@ async function dbCreateInventoryItem(
       (
         source_listing_id, ccg_number, image_url, title, category, brand, year_range, model, finish,
         image_urls,
-        original_listing_desc, purchased_date, purchase_price, purchase_notes, is_active, for_sale, for_sale_date,
+        original_listing_desc, purchased_date, purchase_price, private_party_value, purchase_notes, is_active, for_sale, for_sale_date,
         is_sold, sold_date, sold_amount, sell_notes
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
       .bind(
         fields.source_listing_id,
@@ -3472,6 +3482,7 @@ async function dbCreateInventoryItem(
         fields.original_listing_desc,
         fields.purchased_date,
         fields.purchase_price,
+        fields.private_party_value,
         fields.purchase_notes,
         fields.is_active,
         fields.for_sale,
@@ -3506,6 +3517,7 @@ async function dbUpdateInventoryItem(
     original_listing_desc: string | null;
     purchased_date: string;
     purchase_price: number | null;
+    private_party_value: number;
     purchase_notes: string | null;
     is_active: number;
     for_sale: number;
@@ -3524,7 +3536,7 @@ async function dbUpdateInventoryItem(
       `UPDATE ccg_inventory_items
        SET
          source_listing_id = ?, image_url = ?, title = ?, category = ?, brand = ?, year_range = ?,
-         model = ?, finish = ?, image_urls = ?, original_listing_desc = ?, purchased_date = ?, purchase_price = ?, purchase_notes = ?,
+         model = ?, finish = ?, image_urls = ?, original_listing_desc = ?, purchased_date = ?, purchase_price = ?, private_party_value = ?, purchase_notes = ?,
          is_active = ?, for_sale = ?, for_sale_date = ?, is_sold = ?, sold_date = ?, sold_amount = ?, sell_notes = ?,
          updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
@@ -3541,6 +3553,7 @@ async function dbUpdateInventoryItem(
       fields.original_listing_desc,
       fields.purchased_date,
       fields.purchase_price,
+      fields.private_party_value,
       fields.purchase_notes,
       fields.is_active,
       fields.for_sale,

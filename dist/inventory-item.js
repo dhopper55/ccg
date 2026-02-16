@@ -18,6 +18,7 @@ const finishInput = document.getElementById('inventory-finish');
 const originalDescInput = document.getElementById('inventory-original-desc');
 const purchasedDateInput = document.getElementById('inventory-purchased-date');
 const purchasePriceInput = document.getElementById('inventory-purchase-price');
+const privatePartyValueInput = document.getElementById('inventory-private-party-value');
 const purchaseNotesInput = document.getElementById('inventory-purchase-notes');
 const isActiveInput = document.getElementById('inventory-is-active');
 const forSaleInput = document.getElementById('inventory-for-sale');
@@ -187,6 +188,9 @@ function fillFromInventoryRecord(record) {
         purchasedDateInput.value = record.purchasedDate || todayYmd();
     if (purchasePriceInput)
         purchasePriceInput.value = record.purchasePrice != null ? String(record.purchasePrice) : '';
+    if (privatePartyValueInput) {
+        privatePartyValueInput.value = record.privatePartyValue != null ? String(record.privatePartyValue) : '0';
+    }
     if (purchaseNotesInput)
         purchaseNotesInput.value = record.purchaseNotes || '';
     if (isActiveInput)
@@ -338,6 +342,7 @@ async function handleSubmit(event) {
             originalListingDesc: originalDescInput?.value.trim() || '',
             purchasedDate,
             purchasePrice: purchasePriceInput?.value.trim() || '',
+            privatePartyValue: privatePartyValueInput?.value.trim() || '0',
             purchaseNotes: purchaseNotesInput?.value.trim() || '',
             isActive: isActiveInput?.checked ?? true,
             forSale: forSaleInput?.checked ?? false,
@@ -394,6 +399,8 @@ async function init() {
     initListingAuth();
     if (purchasedDateInput && !purchasedDateInput.value)
         purchasedDateInput.value = todayYmd();
+    if (privatePartyValueInput && !privatePartyValueInput.value)
+        privatePartyValueInput.value = '0';
     if (forSaleInput && !editId)
         forSaleInput.checked = false;
     const params = new URLSearchParams(window.location.search);

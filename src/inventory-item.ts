@@ -15,6 +15,7 @@ type InventoryItem = {
   originalListingDesc?: string;
   purchasedDate?: string;
   purchasePrice?: number | null;
+  privatePartyValue?: number | null;
   purchaseNotes?: string;
   isActive?: boolean;
   forSale?: boolean;
@@ -70,6 +71,7 @@ const finishInput = document.getElementById('inventory-finish') as HTMLInputElem
 const originalDescInput = document.getElementById('inventory-original-desc') as HTMLTextAreaElement | null;
 const purchasedDateInput = document.getElementById('inventory-purchased-date') as HTMLInputElement | null;
 const purchasePriceInput = document.getElementById('inventory-purchase-price') as HTMLInputElement | null;
+const privatePartyValueInput = document.getElementById('inventory-private-party-value') as HTMLInputElement | null;
 const purchaseNotesInput = document.getElementById('inventory-purchase-notes') as HTMLTextAreaElement | null;
 const isActiveInput = document.getElementById('inventory-is-active') as HTMLInputElement | null;
 const forSaleInput = document.getElementById('inventory-for-sale') as HTMLInputElement | null;
@@ -242,6 +244,9 @@ function fillFromInventoryRecord(record: InventoryItem): void {
   if (originalDescInput) originalDescInput.value = record.originalListingDesc || '';
   if (purchasedDateInput) purchasedDateInput.value = record.purchasedDate || todayYmd();
   if (purchasePriceInput) purchasePriceInput.value = record.purchasePrice != null ? String(record.purchasePrice) : '';
+  if (privatePartyValueInput) {
+    privatePartyValueInput.value = record.privatePartyValue != null ? String(record.privatePartyValue) : '0';
+  }
   if (purchaseNotesInput) purchaseNotesInput.value = record.purchaseNotes || '';
   if (isActiveInput) isActiveInput.checked = Boolean(record.isActive);
   if (forSaleInput) forSaleInput.checked = Boolean(record.forSale);
@@ -382,6 +387,7 @@ async function handleSubmit(event: SubmitEvent): Promise<void> {
       originalListingDesc: originalDescInput?.value.trim() || '',
       purchasedDate,
       purchasePrice: purchasePriceInput?.value.trim() || '',
+      privatePartyValue: privatePartyValueInput?.value.trim() || '0',
       purchaseNotes: purchaseNotesInput?.value.trim() || '',
       isActive: isActiveInput?.checked ?? true,
       forSale: forSaleInput?.checked ?? false,
@@ -439,6 +445,7 @@ async function handleSubmit(event: SubmitEvent): Promise<void> {
 async function init(): Promise<void> {
   initListingAuth();
   if (purchasedDateInput && !purchasedDateInput.value) purchasedDateInput.value = todayYmd();
+  if (privatePartyValueInput && !privatePartyValueInput.value) privatePartyValueInput.value = '0';
   if (forSaleInput && !editId) forSaleInput.checked = false;
 
   const params = new URLSearchParams(window.location.search);
