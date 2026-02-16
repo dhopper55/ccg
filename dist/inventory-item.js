@@ -15,9 +15,11 @@ const yearRangeInput = document.getElementById('inventory-year-range');
 const modelInput = document.getElementById('inventory-model');
 const finishInput = document.getElementById('inventory-finish');
 const originalDescInput = document.getElementById('inventory-original-desc');
+const purchasedDateInput = document.getElementById('inventory-purchased-date');
 const purchasePriceInput = document.getElementById('inventory-purchase-price');
 const purchaseNotesInput = document.getElementById('inventory-purchase-notes');
 const isActiveInput = document.getElementById('inventory-is-active');
+const forSaleInput = document.getElementById('inventory-for-sale');
 const isSoldInput = document.getElementById('inventory-is-sold');
 const soldAmountInput = document.getElementById('inventory-sold-amount');
 const sellNotesInput = document.getElementById('inventory-sell-notes');
@@ -61,6 +63,9 @@ function setMode(mode) {
         modeEl.textContent = 'Add mode';
     if (submitButton)
         submitButton.textContent = 'Add Inventory Item';
+}
+function todayYmd() {
+    return new Date().toISOString().slice(0, 10);
 }
 async function uploadImage(file) {
     const formData = new FormData();
@@ -123,12 +128,16 @@ function fillFromInventoryRecord(record) {
         finishInput.value = record.finish || '';
     if (originalDescInput)
         originalDescInput.value = record.originalListingDesc || '';
+    if (purchasedDateInput)
+        purchasedDateInput.value = record.purchasedDate || todayYmd();
     if (purchasePriceInput)
         purchasePriceInput.value = record.purchasePrice != null ? String(record.purchasePrice) : '';
     if (purchaseNotesInput)
         purchaseNotesInput.value = record.purchaseNotes || '';
     if (isActiveInput)
         isActiveInput.checked = Boolean(record.isActive);
+    if (forSaleInput)
+        forSaleInput.checked = Boolean(record.forSale);
     if (isSoldInput)
         isSoldInput.checked = Boolean(record.isSold);
     if (soldAmountInput)
@@ -212,12 +221,17 @@ async function handleImportSourceImage() {
 }
 async function handleSubmit(event) {
     event.preventDefault();
-    if (!titleInput || !imageUrlInput || !submitButton)
+    if (!titleInput || !imageUrlInput || !submitButton || !purchasedDateInput)
         return;
     const title = titleInput.value.trim();
+    const purchasedDate = purchasedDateInput.value.trim();
     let imageUrl = imageUrlInput.value.trim();
     if (!title) {
         setStatus('Title is required.', true);
+        return;
+    }
+    if (!purchasedDate) {
+        setStatus('Purchased date is required.', true);
         return;
     }
     submitButton.disabled = true;
@@ -245,9 +259,11 @@ async function handleSubmit(event) {
             model: modelInput?.value.trim() || '',
             finish: finishInput?.value.trim() || '',
             originalListingDesc: originalDescInput?.value.trim() || '',
+            purchasedDate,
             purchasePrice: purchasePriceInput?.value.trim() || '',
             purchaseNotes: purchaseNotesInput?.value.trim() || '',
             isActive: isActiveInput?.checked ?? true,
+            forSale: forSaleInput?.checked ?? false,
             isSold: isSoldInput?.checked ?? false,
             soldAmount: soldAmountInput?.value.trim() || '',
             sellNotes: sellNotesInput?.value.trim() || '',
@@ -286,6 +302,10 @@ async function handleSubmit(event) {
 }
 async function init() {
     initListingAuth();
+    if (purchasedDateInput && !purchasedDateInput.value)
+        purchasedDateInput.value = todayYmd();
+    if (forSaleInput && !editId)
+        forSaleInput.checked = false;
     const params = new URLSearchParams(window.location.search);
     const id = params.get('id');
     const fromListingId = params.get('fromListingId');
@@ -310,6 +330,10 @@ async function init() {
     }
     else {
         setMode('add');
+        if (purchasedDateInput)
+            purchasedDateInput.value = todayYmd();
+        if (forSaleInput)
+            forSaleInput.checked = false;
     }
     imageFileInput?.addEventListener('change', () => {
         void handleImageFileChange();

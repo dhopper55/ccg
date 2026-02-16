@@ -82,6 +82,11 @@
         </div>
 
         <div class="form-group">
+          <label for="inventory-purchased-date">Purchased Date</label>
+          <input id="inventory-purchased-date" type="date" required>
+        </div>
+
+        <div class="form-group">
           <label for="inventory-purchase-price">How Much Paid? ($)</label>
           <input id="inventory-purchase-price" type="number" min="0" step="0.01" placeholder="0.00">
         </div>
@@ -93,6 +98,7 @@
 
         <div class="form-group inventory-bools">
           <label><input id="inventory-is-active" type="checkbox" checked> Is Active</label>
+          <label><input id="inventory-for-sale" type="checkbox"> For Sale</label>
           <label><input id="inventory-is-sold" type="checkbox"> Is Sold</label>
         </div>
 
@@ -114,6 +120,6 @@
     </section>
   </div>
 
-  <script type="module" src="../dist/inventory-item.js?version=464510"></script>
+  <script type="module" src="../dist/inventory-item.js?version=981364"></script>
 </body>
 </html>

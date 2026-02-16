@@ -122,10 +122,14 @@ CREATE TABLE IF NOT EXISTS ccg_inventory_items (
   model TEXT,
   finish TEXT,
   original_listing_desc TEXT,
+  purchased_date TEXT NOT NULL DEFAULT (DATE('now')),
   purchase_price REAL,
   purchase_notes TEXT,
   is_active INTEGER DEFAULT 1,
+  for_sale INTEGER DEFAULT 0,
+  for_sale_date TEXT,
   is_sold INTEGER DEFAULT 0,
+  sold_date TEXT,
   sold_amount REAL,
   sell_notes TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -140,5 +144,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS ccg_inventory_items_source_listing_idx
   WHERE source_listing_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS ccg_inventory_items_active_idx
   ON ccg_inventory_items(is_active);
+CREATE INDEX IF NOT EXISTS ccg_inventory_items_for_sale_idx
+  ON ccg_inventory_items(for_sale);
 CREATE INDEX IF NOT EXISTS ccg_inventory_items_sold_idx
   ON ccg_inventory_items(is_sold);

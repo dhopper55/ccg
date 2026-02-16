@@ -1801,10 +1801,14 @@ type InventoryItemRow = {
   model: string | null;
   finish: string | null;
   original_listing_desc: string | null;
+  purchased_date: string | null;
   purchase_price: number | null;
   purchase_notes: string | null;
   is_active: number | null;
+  for_sale: number | null;
+  for_sale_date: string | null;
   is_sold: number | null;
+  sold_date: string | null;
   sold_amount: number | null;
   sell_notes: string | null;
   created_at: string | null;
@@ -2007,9 +2011,11 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const model = normalizeText(body.model, '').slice(0, 180);
   const finish = normalizeText(body.finish, '').slice(0, 120);
   const originalListingDesc = normalizeText(body.originalListingDesc, '').slice(0, 12000);
+  const purchasedDate = normalizeInventoryDate(body.purchasedDate) || currentDateYmd();
   const purchasePrice = parseCurrencyAmount(body.purchasePrice);
   const purchaseNotes = normalizeText(body.purchaseNotes, '').slice(0, 4000);
   const isActive = toBooleanInput(body.isActive, true);
+  const forSale = toBooleanInput(body.forSale, false);
   const isSold = toBooleanInput(body.isSold, false);
   const soldAmount = parseCurrencyAmount(body.soldAmount);
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
@@ -2043,10 +2049,14 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     model: model || null,
     finish: finish || null,
     original_listing_desc: originalListingDesc || null,
+    purchased_date: purchasedDate,
     purchase_price: purchasePrice,
     purchase_notes: purchaseNotes || null,
     is_active: isActive ? 1 : 0,
+    for_sale: forSale ? 1 : 0,
+    for_sale_date: forSale ? new Date().toISOString() : null,
     is_sold: isSold ? 1 : 0,
+    sold_date: isSold ? new Date().toISOString() : null,
     sold_amount: soldAmount,
     sell_notes: sellNotes || null,
   }, env);
@@ -2175,18 +2185,24 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const model = normalizeText(body.model, '').slice(0, 180);
   const finish = normalizeText(body.finish, '').slice(0, 120);
   const originalListingDesc = normalizeText(body.originalListingDesc, '').slice(0, 12000);
+  const purchasedDate = normalizeInventoryDate(body.purchasedDate);
   const purchasePrice = parseCurrencyAmount(body.purchasePrice);
   const purchaseNotes = normalizeText(body.purchaseNotes, '').slice(0, 4000);
   const isActive = toBooleanInput(body.isActive, true);
+  const forSale = toBooleanInput(body.forSale, false);
   const isSold = toBooleanInput(body.isSold, false);
   const soldAmount = parseCurrencyAmount(body.soldAmount);
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
 
   if (!title) return jsonResponse({ message: 'Title is required.' }, 400);
+  if (!purchasedDate) return jsonResponse({ message: 'Purchased date is required.' }, 400);
   if (!imageUrl) return jsonResponse({ message: 'Image URL is required.' }, 400);
   if (!isInventoryImageUrl(imageUrl)) {
     return jsonResponse({ message: 'Image URL must be an uploaded inventory image URL.' }, 400);
   }
+
+  const current = await dbGetInventoryItem(recordId, env);
+  if (!current) return jsonResponse({ message: 'Inventory item not found.' }, 404);
 
   if (sourceListingId != null) {
     const alreadyLinked = await dbFindInventoryBySourceListingId(sourceListingId, env);
@@ -2205,10 +2221,22 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     model: model || null,
     finish: finish || null,
     original_listing_desc: originalListingDesc || null,
+    purchased_date: purchasedDate,
     purchase_price: purchasePrice,
     purchase_notes: purchaseNotes || null,
     is_active: isActive ? 1 : 0,
+    for_sale: forSale ? 1 : 0,
+    for_sale_date: resolveToggleTimestamp({
+      previousOn: Boolean(current.forSale),
+      nextOn: forSale,
+      previousTimestamp: typeof current.forSaleDate === 'string' ? current.forSaleDate : null,
+    }),
     is_sold: isSold ? 1 : 0,
+    sold_date: resolveToggleTimestamp({
+      previousOn: Boolean(current.isSold),
+      nextOn: isSold,
+      previousTimestamp: typeof current.soldDate === 'string' ? current.soldDate : null,
+    }),
     sold_amount: soldAmount,
     sell_notes: sellNotes || null,
   }, env);
@@ -3247,10 +3275,14 @@ async function dbListInventoryItems(env: Env): Promise<Array<Record<string, unkn
       i.model,
       i.finish,
       i.original_listing_desc,
+      i.purchased_date,
       i.purchase_price,
       i.purchase_notes,
       i.is_active,
+      i.for_sale,
+      i.for_sale_date,
       i.is_sold,
+      i.sold_date,
       i.sold_amount,
       i.sell_notes,
       i.created_at,
@@ -3274,10 +3306,14 @@ async function dbListInventoryItems(env: Env): Promise<Array<Record<string, unkn
     model: row.model || '',
     finish: row.finish || '',
     originalListingDesc: row.original_listing_desc || '',
+    purchasedDate: row.purchased_date || '',
     purchasePrice: row.purchase_price,
     purchaseNotes: row.purchase_notes || '',
     isActive: Boolean(row.is_active),
+    forSale: Boolean(row.for_sale),
+    forSaleDate: row.for_sale_date || null,
     isSold: Boolean(row.is_sold),
+    soldDate: row.sold_date || null,
     soldAmount: row.sold_amount,
     sellNotes: row.sell_notes || '',
     createdAt: row.created_at || '',
@@ -3302,10 +3338,14 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.model,
       i.finish,
       i.original_listing_desc,
+      i.purchased_date,
       i.purchase_price,
       i.purchase_notes,
       i.is_active,
+      i.for_sale,
+      i.for_sale_date,
       i.is_sold,
+      i.sold_date,
       i.sold_amount,
       i.sell_notes,
       i.created_at,
@@ -3326,10 +3366,14 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     model: row.model || '',
     finish: row.finish || '',
     originalListingDesc: row.original_listing_desc || '',
+    purchasedDate: row.purchased_date || '',
     purchasePrice: row.purchase_price,
     purchaseNotes: row.purchase_notes || '',
     isActive: Boolean(row.is_active),
+    forSale: Boolean(row.for_sale),
+    forSaleDate: row.for_sale_date || null,
     isSold: Boolean(row.is_sold),
+    soldDate: row.sold_date || null,
     soldAmount: row.sold_amount,
     sellNotes: row.sell_notes || '',
     createdAt: row.created_at || '',
@@ -3373,10 +3417,14 @@ async function dbCreateInventoryItem(
     model: string | null;
     finish: string | null;
     original_listing_desc: string | null;
+    purchased_date: string;
     purchase_price: number | null;
     purchase_notes: string | null;
     is_active: number;
+    for_sale: number;
+    for_sale_date: string | null;
     is_sold: number;
+    sold_date: string | null;
     sold_amount: number | null;
     sell_notes: string | null;
   },
@@ -3387,9 +3435,10 @@ async function dbCreateInventoryItem(
       `INSERT INTO ccg_inventory_items
       (
         source_listing_id, ccg_number, image_url, title, category, brand, year_range, model, finish,
-        original_listing_desc, purchase_price, purchase_notes, is_active, is_sold, sold_amount, sell_notes
+        original_listing_desc, purchased_date, purchase_price, purchase_notes, is_active, for_sale, for_sale_date,
+        is_sold, sold_date, sold_amount, sell_notes
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
       .bind(
         fields.source_listing_id,
@@ -3402,10 +3451,14 @@ async function dbCreateInventoryItem(
         fields.model,
         fields.finish,
         fields.original_listing_desc,
+        fields.purchased_date,
         fields.purchase_price,
         fields.purchase_notes,
         fields.is_active,
+        fields.for_sale,
+        fields.for_sale_date,
         fields.is_sold,
+        fields.sold_date,
         fields.sold_amount,
         fields.sell_notes
       )
@@ -3431,10 +3484,14 @@ async function dbUpdateInventoryItem(
     model: string | null;
     finish: string | null;
     original_listing_desc: string | null;
+    purchased_date: string;
     purchase_price: number | null;
     purchase_notes: string | null;
     is_active: number;
+    for_sale: number;
+    for_sale_date: string | null;
     is_sold: number;
+    sold_date: string | null;
     sold_amount: number | null;
     sell_notes: string | null;
   },
@@ -3447,8 +3504,9 @@ async function dbUpdateInventoryItem(
       `UPDATE ccg_inventory_items
        SET
          source_listing_id = ?, image_url = ?, title = ?, category = ?, brand = ?, year_range = ?,
-         model = ?, finish = ?, original_listing_desc = ?, purchase_price = ?, purchase_notes = ?,
-         is_active = ?, is_sold = ?, sold_amount = ?, sell_notes = ?, updated_at = CURRENT_TIMESTAMP
+         model = ?, finish = ?, original_listing_desc = ?, purchased_date = ?, purchase_price = ?, purchase_notes = ?,
+         is_active = ?, for_sale = ?, for_sale_date = ?, is_sold = ?, sold_date = ?, sold_amount = ?, sell_notes = ?,
+         updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
     ).bind(
       fields.source_listing_id,
@@ -3460,10 +3518,14 @@ async function dbUpdateInventoryItem(
       fields.model,
       fields.finish,
       fields.original_listing_desc,
+      fields.purchased_date,
       fields.purchase_price,
       fields.purchase_notes,
       fields.is_active,
+      fields.for_sale,
+      fields.for_sale_date,
       fields.is_sold,
+      fields.sold_date,
       fields.sold_amount,
       fields.sell_notes,
       idValue
@@ -4506,6 +4568,27 @@ function parseCurrencyAmount(input: unknown): number | null {
     return parsed != null ? parsed : null;
   }
   return null;
+}
+
+function currentDateYmd(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function normalizeInventoryDate(input: unknown): string {
+  if (typeof input !== 'string') return '';
+  const value = input.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return '';
+  return value;
+}
+
+function resolveToggleTimestamp(args: {
+  previousOn: boolean;
+  nextOn: boolean;
+  previousTimestamp: string | null;
+}): string | null {
+  if (!args.nextOn) return null;
+  if (args.previousOn && args.previousTimestamp) return args.previousTimestamp;
+  return new Date().toISOString();
 }
 
 function toBooleanInput(input: unknown, fallback: boolean): boolean {

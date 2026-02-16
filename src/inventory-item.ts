@@ -12,10 +12,14 @@ type InventoryItem = {
   model?: string;
   finish?: string;
   originalListingDesc?: string;
+  purchasedDate?: string;
   purchasePrice?: number | null;
   purchaseNotes?: string;
   isActive?: boolean;
+  forSale?: boolean;
+  forSaleDate?: string | null;
   isSold?: boolean;
+  soldDate?: string | null;
   soldAmount?: number | null;
   sellNotes?: string;
 };
@@ -61,9 +65,11 @@ const yearRangeInput = document.getElementById('inventory-year-range') as HTMLIn
 const modelInput = document.getElementById('inventory-model') as HTMLInputElement | null;
 const finishInput = document.getElementById('inventory-finish') as HTMLInputElement | null;
 const originalDescInput = document.getElementById('inventory-original-desc') as HTMLTextAreaElement | null;
+const purchasedDateInput = document.getElementById('inventory-purchased-date') as HTMLInputElement | null;
 const purchasePriceInput = document.getElementById('inventory-purchase-price') as HTMLInputElement | null;
 const purchaseNotesInput = document.getElementById('inventory-purchase-notes') as HTMLTextAreaElement | null;
 const isActiveInput = document.getElementById('inventory-is-active') as HTMLInputElement | null;
+const forSaleInput = document.getElementById('inventory-for-sale') as HTMLInputElement | null;
 const isSoldInput = document.getElementById('inventory-is-sold') as HTMLInputElement | null;
 const soldAmountInput = document.getElementById('inventory-sold-amount') as HTMLInputElement | null;
 const sellNotesInput = document.getElementById('inventory-sell-notes') as HTMLTextAreaElement | null;
@@ -103,6 +109,10 @@ function setMode(mode: 'add' | 'edit'): void {
   if (pageTitleEl) pageTitleEl.textContent = 'Add Inventory Item';
   if (modeEl) modeEl.textContent = 'Add mode';
   if (submitButton) submitButton.textContent = 'Add Inventory Item';
+}
+
+function todayYmd(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 async function uploadImage(file: File): Promise<string> {
@@ -163,9 +173,11 @@ function fillFromInventoryRecord(record: InventoryItem): void {
   if (modelInput) modelInput.value = record.model || '';
   if (finishInput) finishInput.value = record.finish || '';
   if (originalDescInput) originalDescInput.value = record.originalListingDesc || '';
+  if (purchasedDateInput) purchasedDateInput.value = record.purchasedDate || todayYmd();
   if (purchasePriceInput) purchasePriceInput.value = record.purchasePrice != null ? String(record.purchasePrice) : '';
   if (purchaseNotesInput) purchaseNotesInput.value = record.purchaseNotes || '';
   if (isActiveInput) isActiveInput.checked = Boolean(record.isActive);
+  if (forSaleInput) forSaleInput.checked = Boolean(record.forSale);
   if (isSoldInput) isSoldInput.checked = Boolean(record.isSold);
   if (soldAmountInput) soldAmountInput.value = record.soldAmount != null ? String(record.soldAmount) : '';
   if (sellNotesInput) sellNotesInput.value = record.sellNotes || '';
@@ -240,12 +252,17 @@ async function handleImportSourceImage(): Promise<void> {
 
 async function handleSubmit(event: SubmitEvent): Promise<void> {
   event.preventDefault();
-  if (!titleInput || !imageUrlInput || !submitButton) return;
+  if (!titleInput || !imageUrlInput || !submitButton || !purchasedDateInput) return;
 
   const title = titleInput.value.trim();
+  const purchasedDate = purchasedDateInput.value.trim();
   let imageUrl = imageUrlInput.value.trim();
   if (!title) {
     setStatus('Title is required.', true);
+    return;
+  }
+  if (!purchasedDate) {
+    setStatus('Purchased date is required.', true);
     return;
   }
 
@@ -276,9 +293,11 @@ async function handleSubmit(event: SubmitEvent): Promise<void> {
       model: modelInput?.value.trim() || '',
       finish: finishInput?.value.trim() || '',
       originalListingDesc: originalDescInput?.value.trim() || '',
+      purchasedDate,
       purchasePrice: purchasePriceInput?.value.trim() || '',
       purchaseNotes: purchaseNotesInput?.value.trim() || '',
       isActive: isActiveInput?.checked ?? true,
+      forSale: forSaleInput?.checked ?? false,
       isSold: isSoldInput?.checked ?? false,
       soldAmount: soldAmountInput?.value.trim() || '',
       sellNotes: sellNotesInput?.value.trim() || '',
@@ -318,6 +337,8 @@ async function handleSubmit(event: SubmitEvent): Promise<void> {
 
 async function init(): Promise<void> {
   initListingAuth();
+  if (purchasedDateInput && !purchasedDateInput.value) purchasedDateInput.value = todayYmd();
+  if (forSaleInput && !editId) forSaleInput.checked = false;
 
   const params = new URLSearchParams(window.location.search);
   const id = params.get('id');
@@ -340,6 +361,8 @@ async function init(): Promise<void> {
     }
   } else {
     setMode('add');
+    if (purchasedDateInput) purchasedDateInput.value = todayYmd();
+    if (forSaleInput) forSaleInput.checked = false;
   }
 
   imageFileInput?.addEventListener('change', () => {
