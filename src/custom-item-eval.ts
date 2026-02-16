@@ -101,7 +101,7 @@ async function pollUntilComplete(recordId: string): Promise<void> {
     }
     const status = typeof data.status === 'string' ? data.status.trim().toLowerCase() : '';
     if (status === 'complete') {
-      window.location.href = `listing-evaluator-item?id=${encodeURIComponent(recordId)}`;
+      window.location.href = `listing-evaluator-item.html?id=${encodeURIComponent(recordId)}`;
       return;
     }
     if (status === 'failed') {

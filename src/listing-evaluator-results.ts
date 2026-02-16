@@ -211,7 +211,7 @@ function renderRows(records: ListingListItem[]): void {
       titleWrap.appendChild(titleSpan);
     } else {
       const titleLink = document.createElement('a');
-      titleLink.href = `/listing-evaluator-item.html?id=${encodeURIComponent(record.id)}`;
+      titleLink.href = `listing-evaluator-item.html?id=${encodeURIComponent(record.id)}`;
       titleLink.textContent = titleLabel;
       titleLink.className = 'listing-item-link';
       titleWrap.appendChild(titleLink);
@@ -232,7 +232,7 @@ function renderRows(records: ListingListItem[]): void {
     addToInventory.textContent = record.inInventory ? 'In Inventory' : 'Add to Inventory';
     addToInventory.href = record.inInventory
       ? '#'
-      : `/inventory.html?fromListingId=${encodeURIComponent(record.id)}`;
+      : `inventory-item.html?fromListingId=${encodeURIComponent(record.id)}`;
     if (record.inInventory) {
       addToInventory.classList.add('disabled');
       addToInventory.setAttribute('aria-disabled', 'true');

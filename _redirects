@@ -1,1 +1,9 @@
-/listing-evaluator-item/* /listing-evaluator-item.html 200
+/admin /admin/index.html 200
+/listing-evaluator* /admin/listing-evaluator.html 302
+/listing-evaluator-results* /admin/listing-evaluator-results.html 302
+/listing-evaluator-item* /admin/listing-evaluator-item.html 302
+/listing-radar* /admin/listing-radar.html 302
+/marketplace-listings* /admin/marketplace-listings.html 302
+/custom-item-eval* /admin/custom-item-eval.html 302
+/inventory-item* /admin/inventory-item.html 302
+/inventory* /admin/inventory.html 302

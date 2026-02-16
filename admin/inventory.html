@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="../images/favicon/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="../images/favicon/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="../images/favicon/favicon-16x16.png">
+  <link rel="shortcut icon" href="../images/favicon/favicon.ico">
+  <title>Inventory Manager | Coal Creek Guitars</title>
+  <meta name="robots" content="noindex,nofollow">
+  <link rel="stylesheet" href="../styles.css?version=462535">
+</head>
+<body>
+  <nav class="site-nav">
+    <a href="../index.html" class="nav-logo">
+      <img src="../images/coal-creek-logo.png" alt="Coal Creek Guitars">
+    </a>
+    <a href="index.html" class="nav-home">Admin</a>
+  </nav>
+
+  <div class="container listing-evaluator inventory-manager">
+    <header class="listing-hero">
+      <div class="listing-hero-row">
+        <h1>Inventory Manager</h1>
+        <div class="listing-results-actions">
+          <a class="button-link" href="inventory-item.html">Add Inventory Item</a>
+        </div>
+      </div>
+    </header>
+
+    <section class="listing-section">
+      <h2>Inventory Grid</h2>
+      <div id="inventory-status" class="hidden"></div>
+      <div class="listing-results-table inventory-grid-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>CCG #</th>
+              <th>Image</th>
+              <th>Title</th>
+              <th>Category</th>
+              <th>Brand</th>
+              <th>Year Range</th>
+              <th>Model</th>
+              <th>Finish</th>
+              <th>Paid</th>
+              <th>Active</th>
+              <th>Sold</th>
+              <th>Sold Amt</th>
+            </tr>
+          </thead>
+          <tbody id="inventory-grid-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <script type="module" src="../dist/inventory.js?version=089555"></script>
+</body>
+</html>

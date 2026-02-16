@@ -355,6 +355,16 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path.endsWith('/update') && path.startsWith('/api/inventory/') && request.method === 'POST') {
+      const response = await handleInventoryUpdate(request, path, env);
+      return withCors(response, request, env);
+    }
+
+    if (path.startsWith('/api/inventory/') && request.method === 'GET') {
+      const response = await handleInventoryGet(path, env);
+      return withCors(response, request, env);
+    }
+
     if (path.endsWith('/archive') && path.startsWith('/api/search-results/') && request.method === 'POST') {
       const response = await handleArchiveSearchResult(env, path);
       return withCors(response, request, env);
@@ -2128,6 +2138,84 @@ async function handleInventoryImageImport(request: Request, env: Env): Promise<R
   return jsonResponse({ ok: true, imageUrl: buildInventoryImageUrl(key) });
 }
 
+async function handleInventoryGet(path: string, env: Env): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const recordId = parts[2] || '';
+  if (!recordId || recordId === 'inventory') {
+    return jsonResponse({ message: 'Missing inventory ID.' }, 400);
+  }
+
+  const record = await dbGetInventoryItem(recordId, env);
+  if (!record) {
+    return jsonResponse({ message: 'Inventory item not found.' }, 404);
+  }
+
+  return jsonResponse({ record });
+}
+
+async function handleInventoryUpdate(request: Request, path: string, env: Env): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const updateIndex = parts.indexOf('update');
+  const recordId = updateIndex > 0 ? parts[updateIndex - 1] : '';
+  if (!recordId) return jsonResponse({ message: 'Missing inventory ID.' }, 400);
+
+  let body: Record<string, unknown> = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  const sourceListingId = parseOptionalPositiveInt(body.sourceListingId);
+  const imageUrl = normalizeText(body.imageUrl, '');
+  const title = normalizeText(body.title, '').slice(0, 240);
+  const category = normalizeText(body.category, '').slice(0, 120);
+  const brand = normalizeText(body.brand, '').slice(0, 120);
+  const yearRange = normalizeText(body.yearRange, '').slice(0, 120);
+  const model = normalizeText(body.model, '').slice(0, 180);
+  const finish = normalizeText(body.finish, '').slice(0, 120);
+  const originalListingDesc = normalizeText(body.originalListingDesc, '').slice(0, 12000);
+  const purchasePrice = parseCurrencyAmount(body.purchasePrice);
+  const purchaseNotes = normalizeText(body.purchaseNotes, '').slice(0, 4000);
+  const isActive = toBooleanInput(body.isActive, true);
+  const isSold = toBooleanInput(body.isSold, false);
+  const soldAmount = parseCurrencyAmount(body.soldAmount);
+  const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
+
+  if (!title) return jsonResponse({ message: 'Title is required.' }, 400);
+  if (!imageUrl) return jsonResponse({ message: 'Image URL is required.' }, 400);
+  if (!isInventoryImageUrl(imageUrl)) {
+    return jsonResponse({ message: 'Image URL must be an uploaded inventory image URL.' }, 400);
+  }
+
+  if (sourceListingId != null) {
+    const alreadyLinked = await dbFindInventoryBySourceListingId(sourceListingId, env);
+    if (alreadyLinked && String(alreadyLinked.id) !== recordId) {
+      return jsonResponse({ message: 'This listing is already in inventory.' }, 400);
+    }
+  }
+
+  const ok = await dbUpdateInventoryItem(recordId, {
+    source_listing_id: sourceListingId,
+    image_url: imageUrl,
+    title,
+    category: category || null,
+    brand: brand || null,
+    year_range: yearRange || null,
+    model: model || null,
+    finish: finish || null,
+    original_listing_desc: originalListingDesc || null,
+    purchase_price: purchasePrice,
+    purchase_notes: purchaseNotes || null,
+    is_active: isActive ? 1 : 0,
+    is_sold: isSold ? 1 : 0,
+    sold_amount: soldAmount,
+    sell_notes: sellNotes || null,
+  }, env);
+  if (!ok) return jsonResponse({ message: 'Unable to update inventory item.' }, 500);
+  return jsonResponse({ ok: true });
+}
+
 async function fetchReverbListings(env: Env): Promise<ReverbApiListing[]> {
   const token = env.REVERB_API_TOKEN || REVERB_API_TOKEN_FALLBACK;
   const response = await fetch(REVERB_API_URL, {
@@ -3197,6 +3285,57 @@ async function dbListInventoryItems(env: Env): Promise<Array<Record<string, unkn
   }));
 }
 
+async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<string, unknown> | null> {
+  const idValue = Number.parseInt(recordId, 10);
+  if (!Number.isFinite(idValue)) return null;
+  const row = await env.DB.prepare(
+    `SELECT
+      i.id,
+      i.source_listing_id,
+      i.ccg_number,
+      i.image_url,
+      i.title,
+      i.category,
+      i.brand,
+      i.year_range,
+      i.model,
+      i.finish,
+      i.original_listing_desc,
+      i.purchase_price,
+      i.purchase_notes,
+      i.is_active,
+      i.is_sold,
+      i.sold_amount,
+      i.sell_notes,
+      i.created_at,
+      i.updated_at
+     FROM ccg_inventory_items i
+     WHERE i.id = ?`
+  ).bind(idValue).first<InventoryItemRow>();
+  if (!row) return null;
+  return {
+    id: String(row.id),
+    sourceListingId: row.source_listing_id != null ? String(row.source_listing_id) : null,
+    ccgNumber: row.ccg_number,
+    imageUrl: row.image_url,
+    title: row.title,
+    category: row.category || '',
+    brand: row.brand || '',
+    yearRange: row.year_range || '',
+    model: row.model || '',
+    finish: row.finish || '',
+    originalListingDesc: row.original_listing_desc || '',
+    purchasePrice: row.purchase_price,
+    purchaseNotes: row.purchase_notes || '',
+    isActive: Boolean(row.is_active),
+    isSold: Boolean(row.is_sold),
+    soldAmount: row.sold_amount,
+    sellNotes: row.sell_notes || '',
+    createdAt: row.created_at || '',
+    updatedAt: row.updated_at || '',
+  };
+}
+
 async function dbFindInventoryBySourceListingId(sourceListingId: number, env: Env): Promise<{ id: number } | null> {
   const row = await env.DB.prepare(
     'SELECT id FROM ccg_inventory_items WHERE source_listing_id = ? LIMIT 1'
@@ -3276,6 +3415,62 @@ async function dbCreateInventoryItem(
   } catch (error) {
     console.error('Inventory insert failed', { error });
     return null;
+  }
+}
+
+async function dbUpdateInventoryItem(
+  recordId: string,
+  fields: {
+    source_listing_id: number | null;
+    image_url: string;
+    title: string;
+    category: string | null;
+    brand: string | null;
+    year_range: string | null;
+    model: string | null;
+    finish: string | null;
+    original_listing_desc: string | null;
+    purchase_price: number | null;
+    purchase_notes: string | null;
+    is_active: number;
+    is_sold: number;
+    sold_amount: number | null;
+    sell_notes: string | null;
+  },
+  env: Env
+): Promise<boolean> {
+  const idValue = Number.parseInt(recordId, 10);
+  if (!Number.isFinite(idValue)) return false;
+  try {
+    await env.DB.prepare(
+      `UPDATE ccg_inventory_items
+       SET
+         source_listing_id = ?, image_url = ?, title = ?, category = ?, brand = ?, year_range = ?,
+         model = ?, finish = ?, original_listing_desc = ?, purchase_price = ?, purchase_notes = ?,
+         is_active = ?, is_sold = ?, sold_amount = ?, sell_notes = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`
+    ).bind(
+      fields.source_listing_id,
+      fields.image_url,
+      fields.title,
+      fields.category,
+      fields.brand,
+      fields.year_range,
+      fields.model,
+      fields.finish,
+      fields.original_listing_desc,
+      fields.purchase_price,
+      fields.purchase_notes,
+      fields.is_active,
+      fields.is_sold,
+      fields.sold_amount,
+      fields.sell_notes,
+      idValue
+    ).run();
+    return true;
+  } catch (error) {
+    console.error('Inventory update failed', { error });
+    return false;
   }
 }
 

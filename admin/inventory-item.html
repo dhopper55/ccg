@@ -3,28 +3,30 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="apple-touch-icon" sizes="180x180" href="images/favicon/apple-touch-icon.png">
-  <link rel="icon" type="image/png" sizes="32x32" href="images/favicon/favicon-32x32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="images/favicon/favicon-16x16.png">
-  <link rel="shortcut icon" href="images/favicon/favicon.ico">
-  <title>Inventory Manager | Coal Creek Guitars</title>
+  <link rel="apple-touch-icon" sizes="180x180" href="../images/favicon/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="../images/favicon/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="../images/favicon/favicon-16x16.png">
+  <link rel="shortcut icon" href="../images/favicon/favicon.ico">
+  <title>Inventory Item | Coal Creek Guitars</title>
   <meta name="robots" content="noindex,nofollow">
-  <link rel="stylesheet" href="styles.css?version=640874">
+  <link rel="stylesheet" href="../styles.css?version=462535">
 </head>
 <body>
   <nav class="site-nav">
-    <a href="index.html" class="nav-logo">
-      <img src="images/coal-creek-logo.png" alt="Coal Creek Guitars">
+    <a href="../index.html" class="nav-logo">
+      <img src="../images/coal-creek-logo.png" alt="Coal Creek Guitars">
     </a>
-    <a href="listing-evaluator-results.html" class="nav-home">Results</a>
+    <a href="inventory.html" class="nav-home">Inventory</a>
   </nav>
 
   <div class="container listing-evaluator inventory-manager">
     <header class="listing-hero">
       <div class="listing-hero-row">
-        <h1>Inventory Manager</h1>
+        <h1 id="inventory-item-title">Add Inventory Item</h1>
+        <div class="listing-results-actions">
+          <a class="button-link secondary" href="inventory.html">Back to Inventory</a>
+        </div>
       </div>
-      <p class="subtitle">Track CCG inventory items and purchase/sale details.</p>
     </header>
 
     <section class="listing-form">
@@ -45,8 +47,8 @@
         </div>
 
         <div class="form-group">
-          <label for="inventory-title">Title</label>
-          <input id="inventory-title" type="text" required maxlength="240" placeholder="Gibson Les Paul Standard 1996">
+          <label for="inventory-title-input">Title</label>
+          <input id="inventory-title-input" type="text" required maxlength="240" placeholder="Gibson Les Paul Standard 1996">
         </div>
 
         <div class="form-group">
@@ -110,33 +112,8 @@
       </form>
       <div id="inventory-status" class="hidden"></div>
     </section>
-
-    <section class="listing-section">
-      <h2>Inventory Grid</h2>
-      <div class="listing-results-table inventory-grid-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>CCG #</th>
-              <th>Image</th>
-              <th>Title</th>
-              <th>Category</th>
-              <th>Brand</th>
-              <th>Year Range</th>
-              <th>Model</th>
-              <th>Finish</th>
-              <th>Paid</th>
-              <th>Active</th>
-              <th>Sold</th>
-              <th>Sold Amt</th>
-            </tr>
-          </thead>
-          <tbody id="inventory-grid-body"></tbody>
-        </table>
-      </div>
-    </section>
   </div>
 
-  <script type="module" src="dist/inventory.js?version=234274"></script>
+  <script type="module" src="../dist/inventory-item.js?version=682959"></script>
 </body>
 </html>
