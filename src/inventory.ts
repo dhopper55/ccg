@@ -41,10 +41,6 @@ function formatCurrency(value: number | null | undefined): string {
   }).format(value);
 }
 
-function boolMark(value: boolean | undefined): string {
-  return value ? 'Yes' : 'No';
-}
-
 function rowCell(text: string): HTMLTableCellElement {
   const td = document.createElement('td');
   td.textContent = text;
@@ -54,18 +50,19 @@ function rowCell(text: string): HTMLTableCellElement {
 function renderInventoryGrid(rows: InventoryItem[]): void {
   if (!gridBody) return;
   gridBody.innerHTML = '';
+  const activeRows = rows.filter((row) => row.isActive !== false);
 
-  if (!rows.length) {
+  if (!activeRows.length) {
     const empty = document.createElement('tr');
     const td = document.createElement('td');
-    td.colSpan = 12;
+    td.colSpan = 9;
     td.textContent = 'No inventory items yet.';
     empty.appendChild(td);
     gridBody.appendChild(empty);
     return;
   }
 
-  rows.forEach((row) => {
+  activeRows.forEach((row) => {
     const tr = document.createElement('tr');
 
     const ccgTd = document.createElement('td');
@@ -96,9 +93,6 @@ function renderInventoryGrid(rows: InventoryItem[]): void {
     tr.appendChild(rowCell(row.model || '—'));
     tr.appendChild(rowCell(row.finish || '—'));
     tr.appendChild(rowCell(formatCurrency(row.purchasePrice)));
-    tr.appendChild(rowCell(boolMark(row.isActive)));
-    tr.appendChild(rowCell(boolMark(row.isSold)));
-    tr.appendChild(rowCell(formatCurrency(row.soldAmount)));
 
     gridBody.appendChild(tr);
   });

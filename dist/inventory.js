@@ -18,9 +18,6 @@ function formatCurrency(value) {
         maximumFractionDigits: 0,
     }).format(value);
 }
-function boolMark(value) {
-    return value ? 'Yes' : 'No';
-}
 function rowCell(text) {
     const td = document.createElement('td');
     td.textContent = text;
@@ -30,16 +27,17 @@ function renderInventoryGrid(rows) {
     if (!gridBody)
         return;
     gridBody.innerHTML = '';
-    if (!rows.length) {
+    const activeRows = rows.filter((row) => row.isActive !== false);
+    if (!activeRows.length) {
         const empty = document.createElement('tr');
         const td = document.createElement('td');
-        td.colSpan = 12;
+        td.colSpan = 9;
         td.textContent = 'No inventory items yet.';
         empty.appendChild(td);
         gridBody.appendChild(empty);
         return;
     }
-    rows.forEach((row) => {
+    activeRows.forEach((row) => {
         const tr = document.createElement('tr');
         const ccgTd = document.createElement('td');
         const ccgLink = document.createElement('a');
@@ -68,9 +66,6 @@ function renderInventoryGrid(rows) {
         tr.appendChild(rowCell(row.model || '—'));
         tr.appendChild(rowCell(row.finish || '—'));
         tr.appendChild(rowCell(formatCurrency(row.purchasePrice)));
-        tr.appendChild(rowCell(boolMark(row.isActive)));
-        tr.appendChild(rowCell(boolMark(row.isSold)));
-        tr.appendChild(rowCell(formatCurrency(row.soldAmount)));
         gridBody.appendChild(tr);
     });
 }
