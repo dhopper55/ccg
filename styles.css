@@ -1966,6 +1966,7 @@ button:active {
   border-radius: 10px;
   background: rgba(0, 0, 0, 0.2);
   padding: 8px;
+  position: relative;
 }
 
 .inventory-image-card img {
@@ -1976,24 +1977,58 @@ button:active {
   display: block;
 }
 
-.inventory-image-card-meta {
-  margin-top: 8px;
-  display: flex;
+.inventory-image-primary-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(17, 77, 173, 0.9);
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  justify-content: space-between;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
-.inventory-image-card-primary {
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--accent-gold);
+.inventory-image-primary-badge svg {
+  width: 14px;
+  height: 14px;
+  fill: #e8f1ff;
 }
 
-.inventory-image-card button {
-  padding: 6px 8px;
-  font-size: 0.75rem;
+.inventory-image-remove {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 26px;
+  height: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 50%;
+  background: rgba(24, 24, 24, 0.85);
+  color: #f0f0f0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  padding: 0;
+}
+
+.inventory-image-remove svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+.inventory-image-remove:hover:not(:disabled) {
+  background: rgba(176, 44, 44, 0.9);
+  border-color: rgba(255, 255, 255, 0.45);
+}
+
+.inventory-image-remove:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .inventory-bools {

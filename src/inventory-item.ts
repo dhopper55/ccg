@@ -129,35 +129,28 @@ function renderImageGallery(): void {
     img.loading = 'lazy';
     card.appendChild(img);
 
-    const meta = document.createElement('div');
-    meta.className = 'inventory-image-card-meta';
-
-    const primaryLabel = document.createElement('span');
-    primaryLabel.className = 'inventory-image-card-primary';
-    primaryLabel.textContent = index === 0 ? 'Primary' : `Image ${index + 1}`;
-    meta.appendChild(primaryLabel);
-
-    const actions = document.createElement('div');
-    actions.className = 'marketplace-row-actions';
-
-    if (index > 0) {
-      const makePrimary = document.createElement('button');
-      makePrimary.type = 'button';
-      makePrimary.className = 'secondary';
-      makePrimary.textContent = 'Set Primary';
-      makePrimary.addEventListener('click', () => {
-        const next = [...inventoryImageUrls];
-        const [selected] = next.splice(index, 1);
-        next.unshift(selected);
-        setInventoryImageUrls(next);
-      });
-      actions.appendChild(makePrimary);
+    if (index === 0) {
+      const primaryBadge = document.createElement('span');
+      primaryBadge.className = 'inventory-image-primary-badge';
+      primaryBadge.title = 'Primary image';
+      primaryBadge.innerHTML = `
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 2.5l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4 6.2 20.4l1.1-6.5-4.7-4.6 6.5-.9L12 2.5z"></path>
+        </svg>
+      `;
+      card.appendChild(primaryBadge);
     }
 
     const removeButton = document.createElement('button');
     removeButton.type = 'button';
-    removeButton.className = 'danger';
-    removeButton.textContent = 'Remove';
+    removeButton.className = 'inventory-image-remove';
+    removeButton.title = 'Remove image';
+    removeButton.setAttribute('aria-label', 'Remove image');
+    removeButton.innerHTML = `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"></path>
+      </svg>
+    `;
     removeButton.disabled = inventoryImageUrls.length <= 1;
     removeButton.addEventListener('click', () => {
       if (inventoryImageUrls.length <= 1) {
@@ -166,10 +159,7 @@ function renderImageGallery(): void {
       }
       setInventoryImageUrls(inventoryImageUrls.filter((_, i) => i !== index));
     });
-    actions.appendChild(removeButton);
-
-    meta.appendChild(actions);
-    card.appendChild(meta);
+    card.appendChild(removeButton);
     imageGallery.appendChild(card);
   });
 
