@@ -31,6 +31,55 @@ let editId = null;
 let sourceListingId = null;
 let sourceImageUrl = null;
 let inventoryImageUrls = [];
+let inventoryLightbox = null;
+let inventoryLightboxImage = null;
+function closeInventoryLightbox() {
+    if (!inventoryLightbox)
+        return;
+    inventoryLightbox.classList.add('hidden');
+    if (inventoryLightboxImage) {
+        inventoryLightboxImage.removeAttribute('src');
+        inventoryLightboxImage.removeAttribute('alt');
+    }
+    document.body.classList.remove('modal-open');
+}
+function ensureInventoryLightbox() {
+    if (inventoryLightbox)
+        return;
+    const lightbox = document.createElement('div');
+    lightbox.className = 'inventory-lightbox hidden';
+    lightbox.innerHTML = `
+    <div class="inventory-lightbox-backdrop"></div>
+    <div class="inventory-lightbox-content">
+      <button type="button" class="inventory-lightbox-close" aria-label="Close image preview">×</button>
+      <img class="inventory-lightbox-image" alt="">
+    </div>
+  `;
+    const backdrop = lightbox.querySelector('.inventory-lightbox-backdrop');
+    const closeButton = lightbox.querySelector('.inventory-lightbox-close');
+    inventoryLightboxImage = lightbox.querySelector('.inventory-lightbox-image');
+    backdrop?.addEventListener('click', closeInventoryLightbox);
+    closeButton?.addEventListener('click', closeInventoryLightbox);
+    lightbox.addEventListener('click', (event) => {
+        if (event.target === lightbox)
+            closeInventoryLightbox();
+    });
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape')
+            closeInventoryLightbox();
+    });
+    document.body.appendChild(lightbox);
+    inventoryLightbox = lightbox;
+}
+function openInventoryLightbox(url, altText) {
+    ensureInventoryLightbox();
+    if (!inventoryLightbox || !inventoryLightboxImage)
+        return;
+    inventoryLightboxImage.src = url;
+    inventoryLightboxImage.alt = altText;
+    inventoryLightbox.classList.remove('hidden');
+    document.body.classList.add('modal-open');
+}
 function setStatus(message, isError = false) {
     if (!statusEl)
         return;
@@ -69,6 +118,9 @@ function renderImageGallery() {
         img.src = url;
         img.alt = `Inventory image ${index + 1}`;
         img.loading = 'lazy';
+        img.addEventListener('click', () => {
+            openInventoryLightbox(url, img.alt);
+        });
         card.appendChild(img);
         if (index === 0) {
             const primaryBadge = document.createElement('span');
@@ -92,7 +144,8 @@ function renderImageGallery() {
       </svg>
     `;
         removeButton.disabled = inventoryImageUrls.length <= 1;
-        removeButton.addEventListener('click', () => {
+        removeButton.addEventListener('click', (event) => {
+            event.stopPropagation();
             if (inventoryImageUrls.length <= 1) {
                 setStatus('At least one image is required.', true);
                 return;
@@ -401,6 +454,7 @@ async function handleSubmit(event) {
 }
 async function init() {
     initListingAuth();
+    ensureInventoryLightbox();
     if (purchasedDateInput && !purchasedDateInput.value)
         purchasedDateInput.value = todayYmd();
     if (privatePartyValueInput && !privatePartyValueInput.value)
