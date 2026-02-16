@@ -115,6 +115,7 @@ CREATE TABLE IF NOT EXISTS ccg_inventory_items (
   source_listing_id INTEGER,
   ccg_number TEXT NOT NULL,
   image_url TEXT NOT NULL,
+  image_urls TEXT,
   title TEXT NOT NULL,
   category TEXT,
   brand TEXT,

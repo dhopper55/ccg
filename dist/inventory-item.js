@@ -1,4 +1,5 @@
 import { initListingAuth } from './listing-auth.js?version=980318';
+const INVENTORY_MAX_IMAGES = 10;
 const form = document.getElementById('inventory-form');
 const pageTitleEl = document.getElementById('inventory-item-title');
 const modeEl = document.getElementById('inventory-form-mode');
@@ -6,7 +7,7 @@ const statusEl = document.getElementById('inventory-status');
 const ccgInput = document.getElementById('inventory-ccg');
 const imageFileInput = document.getElementById('inventory-image-file');
 const imageUrlInput = document.getElementById('inventory-image-url');
-const imagePreview = document.getElementById('inventory-image-preview');
+const imageGallery = document.getElementById('inventory-image-gallery');
 const importSourceButton = document.getElementById('inventory-import-source');
 const titleInput = document.getElementById('inventory-title-input');
 const categoryInput = document.getElementById('inventory-category');
@@ -27,6 +28,7 @@ const submitButton = document.getElementById('inventory-submit');
 let editId = null;
 let sourceListingId = null;
 let sourceImageUrl = null;
+let inventoryImageUrls = [];
 function setStatus(message, isError = false) {
     if (!statusEl)
         return;
@@ -35,17 +37,76 @@ function setStatus(message, isError = false) {
     statusEl.classList.toggle('result-section', !isError);
     statusEl.classList.remove('hidden');
 }
-function setImagePreview(url) {
-    if (!imagePreview || !imageUrlInput)
+function normalizeImageUrls(urls) {
+    return Array.from(new Set(urls
+        .map((url) => (typeof url === 'string' ? url.trim() : ''))
+        .filter(Boolean))).slice(0, INVENTORY_MAX_IMAGES);
+}
+function syncPrimaryImage() {
+    if (!imageUrlInput)
         return;
-    imageUrlInput.value = url || '';
-    if (!url) {
-        imagePreview.classList.add('hidden');
-        imagePreview.removeAttribute('src');
+    imageUrlInput.value = inventoryImageUrls[0] || '';
+}
+function setInventoryImageUrls(urls) {
+    inventoryImageUrls = normalizeImageUrls(urls);
+    syncPrimaryImage();
+    renderImageGallery();
+}
+function renderImageGallery() {
+    if (!imageGallery)
+        return;
+    imageGallery.innerHTML = '';
+    if (!inventoryImageUrls.length) {
+        imageGallery.classList.add('hidden');
         return;
     }
-    imagePreview.src = url;
-    imagePreview.classList.remove('hidden');
+    inventoryImageUrls.forEach((url, index) => {
+        const card = document.createElement('div');
+        card.className = 'inventory-image-card';
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = `Inventory image ${index + 1}`;
+        img.loading = 'lazy';
+        card.appendChild(img);
+        const meta = document.createElement('div');
+        meta.className = 'inventory-image-card-meta';
+        const primaryLabel = document.createElement('span');
+        primaryLabel.className = 'inventory-image-card-primary';
+        primaryLabel.textContent = index === 0 ? 'Primary' : `Image ${index + 1}`;
+        meta.appendChild(primaryLabel);
+        const actions = document.createElement('div');
+        actions.className = 'marketplace-row-actions';
+        if (index > 0) {
+            const makePrimary = document.createElement('button');
+            makePrimary.type = 'button';
+            makePrimary.className = 'secondary';
+            makePrimary.textContent = 'Set Primary';
+            makePrimary.addEventListener('click', () => {
+                const next = [...inventoryImageUrls];
+                const [selected] = next.splice(index, 1);
+                next.unshift(selected);
+                setInventoryImageUrls(next);
+            });
+            actions.appendChild(makePrimary);
+        }
+        const removeButton = document.createElement('button');
+        removeButton.type = 'button';
+        removeButton.className = 'danger';
+        removeButton.textContent = 'Remove';
+        removeButton.disabled = inventoryImageUrls.length <= 1;
+        removeButton.addEventListener('click', () => {
+            if (inventoryImageUrls.length <= 1) {
+                setStatus('At least one image is required.', true);
+                return;
+            }
+            setInventoryImageUrls(inventoryImageUrls.filter((_, i) => i !== index));
+        });
+        actions.appendChild(removeButton);
+        meta.appendChild(actions);
+        card.appendChild(meta);
+        imageGallery.appendChild(card);
+    });
+    imageGallery.classList.remove('hidden');
 }
 function setMode(mode) {
     if (mode === 'edit') {
@@ -144,7 +205,10 @@ function fillFromInventoryRecord(record) {
         soldAmountInput.value = record.soldAmount != null ? String(record.soldAmount) : '';
     if (sellNotesInput)
         sellNotesInput.value = record.sellNotes || '';
-    setImagePreview(record.imageUrl || null);
+    const existingImages = Array.isArray(record.imageUrls) && record.imageUrls.length
+        ? record.imageUrls
+        : (record.imageUrl ? [record.imageUrl] : []);
+    setInventoryImageUrls(existingImages);
 }
 async function prefillFromListing(listingId) {
     sourceListingId = listingId;
@@ -179,19 +243,38 @@ async function prefillFromListing(listingId) {
     sourceImageUrl = (fields.image_url || '').trim() || null;
     if (sourceImageUrl) {
         importSourceButton?.classList.remove('hidden');
-        setStatus('Prefilled from listing. Upload an image or import source image to secure storage.');
+        setStatus('Prefilled from listing. Upload image(s) or import source image to secure storage.');
     }
 }
 async function handleImageFileChange() {
-    const file = imageFileInput?.files?.[0];
-    if (!file || !imageFileInput)
+    if (!imageFileInput || !imageFileInput.files || imageFileInput.files.length === 0)
         return;
+    const files = Array.from(imageFileInput.files);
+    if (inventoryImageUrls.length >= INVENTORY_MAX_IMAGES) {
+        setStatus(`You can upload up to ${INVENTORY_MAX_IMAGES} images.`, true);
+        imageFileInput.value = '';
+        return;
+    }
     imageFileInput.disabled = true;
     try {
-        setStatus('Uploading image...');
-        const imageUrl = await uploadImage(file);
-        setImagePreview(imageUrl);
-        setStatus('Image uploaded.');
+        let uploadedCount = 0;
+        for (const file of files) {
+            if (inventoryImageUrls.length >= INVENTORY_MAX_IMAGES)
+                break;
+            setStatus(`Uploading image ${uploadedCount + 1} of ${files.length}...`);
+            const imageUrl = await uploadImage(file);
+            setInventoryImageUrls([...inventoryImageUrls, imageUrl]);
+            uploadedCount += 1;
+        }
+        if (uploadedCount === 0) {
+            setStatus('No images were uploaded.', true);
+        }
+        else if (inventoryImageUrls.length >= INVENTORY_MAX_IMAGES && uploadedCount < files.length) {
+            setStatus(`Uploaded ${uploadedCount} image(s). Max ${INVENTORY_MAX_IMAGES} images reached.`);
+        }
+        else {
+            setStatus(`Uploaded ${uploadedCount} image(s).`);
+        }
     }
     catch (error) {
         const message = error instanceof Error ? error.message : 'Unable to upload image.';
@@ -199,16 +282,21 @@ async function handleImageFileChange() {
     }
     finally {
         imageFileInput.disabled = false;
+        imageFileInput.value = '';
     }
 }
 async function handleImportSourceImage() {
     if (!sourceImageUrl || !importSourceButton)
         return;
+    if (inventoryImageUrls.length >= INVENTORY_MAX_IMAGES) {
+        setStatus(`You can upload up to ${INVENTORY_MAX_IMAGES} images.`, true);
+        return;
+    }
     importSourceButton.disabled = true;
     try {
         setStatus('Importing source image...');
         const imageUrl = await importSourceImage(sourceImageUrl);
-        setImagePreview(imageUrl);
+        setInventoryImageUrls([...inventoryImageUrls, imageUrl]);
         setStatus('Source image imported.');
     }
     catch (error) {
@@ -221,11 +309,10 @@ async function handleImportSourceImage() {
 }
 async function handleSubmit(event) {
     event.preventDefault();
-    if (!titleInput || !imageUrlInput || !submitButton || !purchasedDateInput)
+    if (!titleInput || !submitButton || !purchasedDateInput)
         return;
     const title = titleInput.value.trim();
     const purchasedDate = purchasedDateInput.value.trim();
-    let imageUrl = imageUrlInput.value.trim();
     if (!title) {
         setStatus('Title is required.', true);
         return;
@@ -234,24 +321,16 @@ async function handleSubmit(event) {
         setStatus('Purchased date is required.', true);
         return;
     }
+    if (inventoryImageUrls.length < 1) {
+        setStatus('Please upload at least one image before saving.', true);
+        return;
+    }
     submitButton.disabled = true;
     try {
-        if (!imageUrl) {
-            const selectedFile = imageFileInput?.files?.[0];
-            if (selectedFile) {
-                setStatus('Uploading image...');
-                imageUrl = await uploadImage(selectedFile);
-                setImagePreview(imageUrl);
-                setStatus('Image uploaded.');
-            }
-        }
-        if (!imageUrl) {
-            setStatus('Please upload an image before saving.', true);
-            return;
-        }
         const payload = {
             sourceListingId,
-            imageUrl,
+            imageUrl: inventoryImageUrls[0],
+            imageUrls: [...inventoryImageUrls],
             title,
             category: categoryInput?.value.trim() || '',
             brand: brandInput?.value.trim() || '',

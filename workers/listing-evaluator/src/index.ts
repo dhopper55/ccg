@@ -119,6 +119,7 @@ const REVERB_API_TOKEN_FALLBACK = '91712608fefe08e6915c2d781519411af3bdd750818a8
 const CCG_NUMBER_MIN = 100000;
 const CCG_NUMBER_MAX = 999999;
 const CCG_NUMBER_ATTEMPTS = 25;
+const INVENTORY_MAX_IMAGES = 10;
 
 const SUPPORTED_ORIGINS = [
   'https://www.coalcreekguitars.com',
@@ -1794,6 +1795,7 @@ type InventoryItemRow = {
   source_listing_id: number | null;
   ccg_number: string;
   image_url: string;
+  image_urls: string | null;
   title: string;
   category: string | null;
   brand: string | null;
@@ -2004,6 +2006,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
 
   const sourceListingId = parseOptionalPositiveInt(body.sourceListingId);
   const imageUrl = normalizeText(body.imageUrl, '');
+  const imageUrls = normalizeInventoryImageUrls(imageUrl, body.imageUrls);
   const title = normalizeText(body.title, '').slice(0, 240);
   const category = normalizeText(body.category, '').slice(0, 120);
   const brand = normalizeText(body.brand, '').slice(0, 120);
@@ -2022,9 +2025,9 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
 
   if (!title) return jsonResponse({ message: 'Title is required.' }, 400);
-  if (!imageUrl) return jsonResponse({ message: 'Image URL is required.' }, 400);
-  if (!isInventoryImageUrl(imageUrl)) {
-    return jsonResponse({ message: 'Image URL must be an uploaded inventory image URL.' }, 400);
+  if (imageUrls.length < 1) return jsonResponse({ message: 'At least one image is required.' }, 400);
+  if (imageUrls.length > INVENTORY_MAX_IMAGES) {
+    return jsonResponse({ message: `You can upload up to ${INVENTORY_MAX_IMAGES} images.` }, 400);
   }
 
   if (sourceListingId != null) {
@@ -2039,10 +2042,13 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     return jsonResponse({ message: 'Unable to generate CCG Number. Please try again.' }, 500);
   }
 
+  const primaryImageUrl = imageUrls[0];
+
   const inserted = await dbCreateInventoryItem({
     source_listing_id: sourceListingId,
     ccg_number: ccgNumber,
-    image_url: imageUrl,
+    image_url: primaryImageUrl,
+    image_urls: imageUrls.join('\n'),
     title,
     category: category || null,
     brand: brand || null,
@@ -2179,6 +2185,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
 
   const sourceListingId = parseOptionalPositiveInt(body.sourceListingId);
   const imageUrl = normalizeText(body.imageUrl, '');
+  const imageUrls = normalizeInventoryImageUrls(imageUrl, body.imageUrls);
   const title = normalizeText(body.title, '').slice(0, 240);
   const category = normalizeText(body.category, '').slice(0, 120);
   const brand = normalizeText(body.brand, '').slice(0, 120);
@@ -2198,9 +2205,9 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
 
   if (!title) return jsonResponse({ message: 'Title is required.' }, 400);
   if (!purchasedDate) return jsonResponse({ message: 'Purchased date is required.' }, 400);
-  if (!imageUrl) return jsonResponse({ message: 'Image URL is required.' }, 400);
-  if (!isInventoryImageUrl(imageUrl)) {
-    return jsonResponse({ message: 'Image URL must be an uploaded inventory image URL.' }, 400);
+  if (imageUrls.length < 1) return jsonResponse({ message: 'At least one image is required.' }, 400);
+  if (imageUrls.length > INVENTORY_MAX_IMAGES) {
+    return jsonResponse({ message: `You can upload up to ${INVENTORY_MAX_IMAGES} images.` }, 400);
   }
 
   const current = await dbGetInventoryItem(recordId, env);
@@ -2213,9 +2220,12 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     }
   }
 
+  const primaryImageUrl = imageUrls[0];
+
   const ok = await dbUpdateInventoryItem(recordId, {
     source_listing_id: sourceListingId,
-    image_url: imageUrl,
+    image_url: primaryImageUrl,
+    image_urls: imageUrls.join('\n'),
     title,
     category: category || null,
     brand: brand || null,
@@ -3270,6 +3280,7 @@ async function dbListInventoryItems(env: Env): Promise<Array<Record<string, unkn
       i.source_listing_id,
       i.ccg_number,
       i.image_url,
+      i.image_urls,
       i.title,
       i.category,
       i.brand,
@@ -3301,6 +3312,7 @@ async function dbListInventoryItems(env: Env): Promise<Array<Record<string, unkn
     sourceListingId: row.source_listing_id != null ? String(row.source_listing_id) : null,
     ccgNumber: row.ccg_number,
     imageUrl: row.image_url,
+    imageUrls: parseStoredInventoryImageUrls(row.image_urls, row.image_url),
     title: row.title,
     category: row.category || '',
     brand: row.brand || '',
@@ -3333,6 +3345,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.source_listing_id,
       i.ccg_number,
       i.image_url,
+      i.image_urls,
       i.title,
       i.category,
       i.brand,
@@ -3361,6 +3374,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     sourceListingId: row.source_listing_id != null ? String(row.source_listing_id) : null,
     ccgNumber: row.ccg_number,
     imageUrl: row.image_url,
+    imageUrls: parseStoredInventoryImageUrls(row.image_urls, row.image_url),
     title: row.title,
     category: row.category || '',
     brand: row.brand || '',
@@ -3412,6 +3426,7 @@ async function dbCreateInventoryItem(
     source_listing_id: number | null;
     ccg_number: string;
     image_url: string;
+    image_urls: string;
     title: string;
     category: string | null;
     brand: string | null;
@@ -3437,15 +3452,17 @@ async function dbCreateInventoryItem(
       `INSERT INTO ccg_inventory_items
       (
         source_listing_id, ccg_number, image_url, title, category, brand, year_range, model, finish,
+        image_urls,
         original_listing_desc, purchased_date, purchase_price, purchase_notes, is_active, for_sale, for_sale_date,
         is_sold, sold_date, sold_amount, sell_notes
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
       .bind(
         fields.source_listing_id,
         fields.ccg_number,
         fields.image_url,
+        fields.image_urls,
         fields.title,
         fields.category,
         fields.brand,
@@ -3479,6 +3496,7 @@ async function dbUpdateInventoryItem(
   fields: {
     source_listing_id: number | null;
     image_url: string;
+    image_urls: string;
     title: string;
     category: string | null;
     brand: string | null;
@@ -3506,7 +3524,7 @@ async function dbUpdateInventoryItem(
       `UPDATE ccg_inventory_items
        SET
          source_listing_id = ?, image_url = ?, title = ?, category = ?, brand = ?, year_range = ?,
-         model = ?, finish = ?, original_listing_desc = ?, purchased_date = ?, purchase_price = ?, purchase_notes = ?,
+         model = ?, finish = ?, image_urls = ?, original_listing_desc = ?, purchased_date = ?, purchase_price = ?, purchase_notes = ?,
          is_active = ?, for_sale = ?, for_sale_date = ?, is_sold = ?, sold_date = ?, sold_amount = ?, sell_notes = ?,
          updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
@@ -3519,6 +3537,7 @@ async function dbUpdateInventoryItem(
       fields.year_range,
       fields.model,
       fields.finish,
+      fields.image_urls,
       fields.original_listing_desc,
       fields.purchased_date,
       fields.purchase_price,
@@ -4615,6 +4634,48 @@ function isInventoryImageUrl(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+function parseStoredInventoryImageUrls(imageUrlsRaw: string | null, fallbackPrimary: string | null): string[] {
+  const urls = typeof imageUrlsRaw === 'string'
+    ? imageUrlsRaw.split(/\r?\n/).map((value) => value.trim()).filter(Boolean)
+    : [];
+  if ((!urls || urls.length === 0) && fallbackPrimary) {
+    urls.push(String(fallbackPrimary).trim());
+  }
+  return Array.from(new Set(urls.filter((url) => isInventoryImageUrl(url)))).slice(0, INVENTORY_MAX_IMAGES);
+}
+
+function normalizeInventoryImageUrls(primaryImageUrl: string, rawInput: unknown): string[] {
+  const fromInput: string[] = [];
+  if (Array.isArray(rawInput)) {
+    rawInput.forEach((entry) => {
+      if (typeof entry === 'string' && entry.trim()) fromInput.push(entry.trim());
+    });
+  } else if (typeof rawInput === 'string') {
+    const trimmed = rawInput.trim();
+    if (trimmed) {
+      try {
+        const parsed = JSON.parse(trimmed) as unknown;
+        if (Array.isArray(parsed)) {
+          parsed.forEach((entry) => {
+            if (typeof entry === 'string' && entry.trim()) fromInput.push(entry.trim());
+          });
+        } else {
+          trimmed.split(/\r?\n/).forEach((entry) => {
+            if (entry.trim()) fromInput.push(entry.trim());
+          });
+        }
+      } catch {
+        trimmed.split(/\r?\n/).forEach((entry) => {
+          if (entry.trim()) fromInput.push(entry.trim());
+        });
+      }
+    }
+  }
+
+  const seed = primaryImageUrl ? [primaryImageUrl.trim(), ...fromInput] : [...fromInput];
+  return Array.from(new Set(seed.filter((url) => isInventoryImageUrl(url)))).slice(0, INVENTORY_MAX_IMAGES);
 }
 
 function randomIntInRange(min: number, max: number): number {

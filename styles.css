@@ -1954,6 +1954,48 @@ button:active {
   display: block;
 }
 
+.inventory-image-gallery {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.inventory-image-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 8px;
+}
+
+.inventory-image-card img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  object-fit: cover;
+  display: block;
+}
+
+.inventory-image-card-meta {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: space-between;
+}
+
+.inventory-image-card-primary {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-gold);
+}
+
+.inventory-image-card button {
+  padding: 6px 8px;
+  font-size: 0.75rem;
+}
+
 .inventory-bools {
   display: flex;
   gap: 18px;
