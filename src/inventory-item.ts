@@ -62,7 +62,7 @@ const imageUrlInput = document.getElementById('inventory-image-url') as HTMLInpu
 const imageGallery = document.getElementById('inventory-image-gallery') as HTMLDivElement | null;
 const importSourceButton = document.getElementById('inventory-import-source') as HTMLButtonElement | null;
 const titleInput = document.getElementById('inventory-title-input') as HTMLInputElement | null;
-const categoryInput = document.getElementById('inventory-category') as HTMLInputElement | null;
+const categoryInput = document.getElementById('inventory-category') as HTMLSelectElement | null;
 const brandInput = document.getElementById('inventory-brand') as HTMLInputElement | null;
 const yearRangeInput = document.getElementById('inventory-year-range') as HTMLInputElement | null;
 const modelInput = document.getElementById('inventory-model') as HTMLInputElement | null;
@@ -356,6 +356,10 @@ async function handleSubmit(event: SubmitEvent): Promise<void> {
   }
   if (!purchasedDate) {
     setStatus('Purchased date is required.', true);
+    return;
+  }
+  if (!categoryInput?.value.trim()) {
+    setStatus('Category is required.', true);
     return;
   }
   if (inventoryImageUrls.length < 1) {

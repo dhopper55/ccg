@@ -315,6 +315,10 @@ async function handleSubmit(event) {
         setStatus('Purchased date is required.', true);
         return;
     }
+    if (!categoryInput?.value.trim()) {
+        setStatus('Category is required.', true);
+        return;
+    }
     if (inventoryImageUrls.length < 1) {
         setStatus('Please upload at least one image before saving.', true);
         return;
