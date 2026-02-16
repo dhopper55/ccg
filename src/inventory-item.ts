@@ -318,6 +318,11 @@ async function handleSubmit(event: SubmitEvent): Promise<void> {
       throw new Error(data.message || (editId ? 'Unable to update inventory item.' : 'Unable to create inventory item.'));
     }
 
+    const shouldRedirectToMarketplace = Boolean(forSaleInput?.checked) && !Boolean(isSoldInput?.checked);
+    const rawPrice = purchasePriceInput?.value.trim() || '';
+    const parsedPrice = Number.parseFloat(rawPrice);
+    const priceDollars = Number.isFinite(parsedPrice) && parsedPrice > 0 ? Math.round(parsedPrice) : 0;
+
     if (editId) {
       setStatus('Inventory item updated. Redirecting...');
     } else {
@@ -325,6 +330,15 @@ async function handleSubmit(event: SubmitEvent): Promise<void> {
       setStatus(`Inventory item created: ${data.ccgNumber || ''}. Redirecting...`.trim());
     }
     window.setTimeout(() => {
+      if (shouldRedirectToMarketplace) {
+        const params = new URLSearchParams();
+        params.set('prefillTitle', title);
+        if (priceDollars > 0) {
+          params.set('prefillPriceDollars', String(priceDollars));
+        }
+        window.location.href = `https://www.coalcreekguitars.com/admin/marketplace-listings.html?${params.toString()}`;
+        return;
+      }
       window.location.href = 'inventory.html';
     }, 250);
   } catch (error) {
@@ -370,6 +384,11 @@ async function init(): Promise<void> {
   });
   importSourceButton?.addEventListener('click', () => {
     void handleImportSourceImage();
+  });
+  isSoldInput?.addEventListener('change', () => {
+    if (isSoldInput.checked && forSaleInput) {
+      forSaleInput.checked = false;
+    }
   });
   form?.addEventListener('submit', (event) => {
     void handleSubmit(event as SubmitEvent);

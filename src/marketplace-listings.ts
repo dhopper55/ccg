@@ -95,6 +95,28 @@ function setMode(mode: 'add' | 'update', row?: MarketplaceListing): void {
   titleInput?.focus();
 }
 
+function applyPrefillFromQuery(): void {
+  if (editingId) return;
+  const params = new URLSearchParams(window.location.search);
+  const prefillTitle = params.get('prefillTitle')?.trim() || '';
+  const prefillPrice = params.get('prefillPriceDollars')?.trim() || '';
+  let touched = false;
+
+  if (prefillTitle && titleInput && !titleInput.value.trim()) {
+    titleInput.value = prefillTitle;
+    touched = true;
+  }
+  if (prefillPrice && /^\d+$/.test(prefillPrice) && priceInput && !priceInput.value.trim()) {
+    priceInput.value = prefillPrice;
+    touched = true;
+  }
+
+  if (touched) {
+    setStatus('Draft listing details pre-filled from inventory. Add URL and save.');
+    urlInput?.focus();
+  }
+}
+
 function formatPrice(priceDollars: number, currency: string): string {
   try {
     return new Intl.NumberFormat('en-US', {
@@ -239,6 +261,8 @@ async function handleSubmit(event: SubmitEvent): Promise<void> {
 
 function init(): void {
   initListingAuth();
+  setMode('add');
+  applyPrefillFromQuery();
   cancelButton?.addEventListener('click', () => {
     form?.reset();
     setMode('add');

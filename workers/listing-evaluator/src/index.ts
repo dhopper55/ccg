@@ -2015,8 +2015,9 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const purchasePrice = parseCurrencyAmount(body.purchasePrice);
   const purchaseNotes = normalizeText(body.purchaseNotes, '').slice(0, 4000);
   const isActive = toBooleanInput(body.isActive, true);
-  const forSale = toBooleanInput(body.forSale, false);
   const isSold = toBooleanInput(body.isSold, false);
+  const forSaleRaw = toBooleanInput(body.forSale, false);
+  const forSale = isSold ? false : forSaleRaw;
   const soldAmount = parseCurrencyAmount(body.soldAmount);
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
 
@@ -2189,8 +2190,9 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const purchasePrice = parseCurrencyAmount(body.purchasePrice);
   const purchaseNotes = normalizeText(body.purchaseNotes, '').slice(0, 4000);
   const isActive = toBooleanInput(body.isActive, true);
-  const forSale = toBooleanInput(body.forSale, false);
   const isSold = toBooleanInput(body.isSold, false);
+  const forSaleRaw = toBooleanInput(body.forSale, false);
+  const forSale = isSold ? false : forSaleRaw;
   const soldAmount = parseCurrencyAmount(body.soldAmount);
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
 
