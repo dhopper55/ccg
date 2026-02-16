@@ -17,6 +17,7 @@ type InventoryItem = {
   purchasePrice?: number | null;
   privatePartyValue?: number | null;
   purchaseNotes?: string;
+  serialNumber?: string;
   isActive?: boolean;
   forSale?: boolean;
   forSaleDate?: string | null;
@@ -76,6 +77,7 @@ const purchaseNotesInput = document.getElementById('inventory-purchase-notes') a
 const isActiveInput = document.getElementById('inventory-is-active') as HTMLInputElement | null;
 const forSaleInput = document.getElementById('inventory-for-sale') as HTMLInputElement | null;
 const isSoldInput = document.getElementById('inventory-is-sold') as HTMLInputElement | null;
+const serialNumberInput = document.getElementById('inventory-serial-number') as HTMLInputElement | null;
 const soldAmountInput = document.getElementById('inventory-sold-amount') as HTMLInputElement | null;
 const sellNotesInput = document.getElementById('inventory-sell-notes') as HTMLTextAreaElement | null;
 const submitButton = document.getElementById('inventory-submit') as HTMLButtonElement | null;
@@ -251,6 +253,7 @@ function fillFromInventoryRecord(record: InventoryItem): void {
   if (isActiveInput) isActiveInput.checked = Boolean(record.isActive);
   if (forSaleInput) forSaleInput.checked = Boolean(record.forSale);
   if (isSoldInput) isSoldInput.checked = Boolean(record.isSold);
+  if (serialNumberInput) serialNumberInput.value = record.serialNumber || '';
   if (soldAmountInput) soldAmountInput.value = record.soldAmount != null ? String(record.soldAmount) : '';
   if (sellNotesInput) sellNotesInput.value = record.sellNotes || '';
 
@@ -392,6 +395,7 @@ async function handleSubmit(event: SubmitEvent): Promise<void> {
       isActive: isActiveInput?.checked ?? true,
       forSale: forSaleInput?.checked ?? false,
       isSold: isSoldInput?.checked ?? false,
+      serialNumber: serialNumberInput?.value.trim() || '',
       soldAmount: soldAmountInput?.value.trim() || '',
       sellNotes: sellNotesInput?.value.trim() || '',
     };

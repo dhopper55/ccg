@@ -127,6 +127,7 @@ CREATE TABLE IF NOT EXISTS ccg_inventory_items (
   purchase_price REAL,
   private_party_value REAL NOT NULL DEFAULT 0,
   purchase_notes TEXT,
+  serial_number TEXT,
   is_active INTEGER DEFAULT 1,
   for_sale INTEGER DEFAULT 0,
   for_sale_date TEXT,

@@ -23,6 +23,7 @@ const purchaseNotesInput = document.getElementById('inventory-purchase-notes');
 const isActiveInput = document.getElementById('inventory-is-active');
 const forSaleInput = document.getElementById('inventory-for-sale');
 const isSoldInput = document.getElementById('inventory-is-sold');
+const serialNumberInput = document.getElementById('inventory-serial-number');
 const soldAmountInput = document.getElementById('inventory-sold-amount');
 const sellNotesInput = document.getElementById('inventory-sell-notes');
 const submitButton = document.getElementById('inventory-submit');
@@ -199,6 +200,8 @@ function fillFromInventoryRecord(record) {
         forSaleInput.checked = Boolean(record.forSale);
     if (isSoldInput)
         isSoldInput.checked = Boolean(record.isSold);
+    if (serialNumberInput)
+        serialNumberInput.value = record.serialNumber || '';
     if (soldAmountInput)
         soldAmountInput.value = record.soldAmount != null ? String(record.soldAmount) : '';
     if (sellNotesInput)
@@ -347,6 +350,7 @@ async function handleSubmit(event) {
             isActive: isActiveInput?.checked ?? true,
             forSale: forSaleInput?.checked ?? false,
             isSold: isSoldInput?.checked ?? false,
+            serialNumber: serialNumberInput?.value.trim() || '',
             soldAmount: soldAmountInput?.value.trim() || '',
             sellNotes: sellNotesInput?.value.trim() || '',
         };

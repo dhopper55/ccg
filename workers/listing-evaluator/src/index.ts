@@ -1807,6 +1807,7 @@ type InventoryItemRow = {
   purchase_price: number | null;
   private_party_value: number | null;
   purchase_notes: string | null;
+  serial_number: string | null;
   is_active: number | null;
   for_sale: number | null;
   for_sale_date: string | null;
@@ -2019,6 +2020,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const purchasePrice = parseCurrencyAmount(body.purchasePrice);
   const privatePartyValue = parseCurrencyAmount(body.privatePartyValue) ?? 0;
   const purchaseNotes = normalizeText(body.purchaseNotes, '').slice(0, 4000);
+  const serialNumber = normalizeText(body.serialNumber, '').slice(0, 180);
   const isActive = toBooleanInput(body.isActive, true);
   const isSold = toBooleanInput(body.isSold, false);
   const forSaleRaw = toBooleanInput(body.forSale, false);
@@ -2062,6 +2064,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     purchase_price: purchasePrice,
     private_party_value: privatePartyValue,
     purchase_notes: purchaseNotes || null,
+    serial_number: serialNumber || null,
     is_active: isActive ? 1 : 0,
     for_sale: forSale ? 1 : 0,
     for_sale_date: forSale ? new Date().toISOString() : null,
@@ -2200,6 +2203,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const purchasePrice = parseCurrencyAmount(body.purchasePrice);
   const privatePartyValue = parseCurrencyAmount(body.privatePartyValue) ?? 0;
   const purchaseNotes = normalizeText(body.purchaseNotes, '').slice(0, 4000);
+  const serialNumber = normalizeText(body.serialNumber, '').slice(0, 180);
   const isActive = toBooleanInput(body.isActive, true);
   const isSold = toBooleanInput(body.isSold, false);
   const forSaleRaw = toBooleanInput(body.forSale, false);
@@ -2241,6 +2245,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     purchase_price: purchasePrice,
     private_party_value: privatePartyValue,
     purchase_notes: purchaseNotes || null,
+    serial_number: serialNumber || null,
     is_active: isActive ? 1 : 0,
     for_sale: forSale ? 1 : 0,
     for_sale_date: resolveToggleTimestamp({
@@ -3297,6 +3302,7 @@ async function dbListInventoryItems(env: Env): Promise<Array<Record<string, unkn
       i.purchase_price,
       i.private_party_value,
       i.purchase_notes,
+      i.serial_number,
       i.is_active,
       i.for_sale,
       i.for_sale_date,
@@ -3330,6 +3336,7 @@ async function dbListInventoryItems(env: Env): Promise<Array<Record<string, unkn
     purchasePrice: row.purchase_price,
     privatePartyValue: row.private_party_value,
     purchaseNotes: row.purchase_notes || '',
+    serialNumber: row.serial_number || '',
     isActive: Boolean(row.is_active),
     forSale: Boolean(row.for_sale),
     forSaleDate: row.for_sale_date || null,
@@ -3364,6 +3371,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.purchase_price,
       i.private_party_value,
       i.purchase_notes,
+      i.serial_number,
       i.is_active,
       i.for_sale,
       i.for_sale_date,
@@ -3394,6 +3402,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     purchasePrice: row.purchase_price,
     privatePartyValue: row.private_party_value,
     purchaseNotes: row.purchase_notes || '',
+    serialNumber: row.serial_number || '',
     isActive: Boolean(row.is_active),
     forSale: Boolean(row.for_sale),
     forSaleDate: row.for_sale_date || null,
@@ -3447,6 +3456,7 @@ async function dbCreateInventoryItem(
     purchase_price: number | null;
     private_party_value: number;
     purchase_notes: string | null;
+    serial_number: string | null;
     is_active: number;
     for_sale: number;
     for_sale_date: string | null;
@@ -3463,10 +3473,10 @@ async function dbCreateInventoryItem(
       (
         source_listing_id, ccg_number, image_url, title, category, brand, year_range, model, finish,
         image_urls,
-        original_listing_desc, purchased_date, purchase_price, private_party_value, purchase_notes, is_active, for_sale, for_sale_date,
+        original_listing_desc, purchased_date, purchase_price, private_party_value, purchase_notes, serial_number, is_active, for_sale, for_sale_date,
         is_sold, sold_date, sold_amount, sell_notes
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
       .bind(
         fields.source_listing_id,
@@ -3484,6 +3494,7 @@ async function dbCreateInventoryItem(
         fields.purchase_price,
         fields.private_party_value,
         fields.purchase_notes,
+        fields.serial_number,
         fields.is_active,
         fields.for_sale,
         fields.for_sale_date,
@@ -3519,6 +3530,7 @@ async function dbUpdateInventoryItem(
     purchase_price: number | null;
     private_party_value: number;
     purchase_notes: string | null;
+    serial_number: string | null;
     is_active: number;
     for_sale: number;
     for_sale_date: string | null;
@@ -3536,7 +3548,7 @@ async function dbUpdateInventoryItem(
       `UPDATE ccg_inventory_items
        SET
          source_listing_id = ?, image_url = ?, title = ?, category = ?, brand = ?, year_range = ?,
-         model = ?, finish = ?, image_urls = ?, original_listing_desc = ?, purchased_date = ?, purchase_price = ?, private_party_value = ?, purchase_notes = ?,
+         model = ?, finish = ?, image_urls = ?, original_listing_desc = ?, purchased_date = ?, purchase_price = ?, private_party_value = ?, purchase_notes = ?, serial_number = ?,
          is_active = ?, for_sale = ?, for_sale_date = ?, is_sold = ?, sold_date = ?, sold_amount = ?, sell_notes = ?,
          updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
@@ -3555,6 +3567,7 @@ async function dbUpdateInventoryItem(
       fields.purchase_price,
       fields.private_party_value,
       fields.purchase_notes,
+      fields.serial_number,
       fields.is_active,
       fields.for_sale,
       fields.for_sale_date,
