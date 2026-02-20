@@ -1,5 +1,16 @@
 import { initListingAuth } from './listing-auth.js?version=980318';
 const PAGE_SIZE = 20;
+const INVENTORY_CATEGORIES = [
+    'Electric Guitars',
+    'Acoustic Guitars',
+    'Electric Bass',
+    'Acoustic Bass',
+    'Effects Pedals',
+    'Amplification',
+    'Pro Audio',
+    'Keyboards & Synthesizers',
+    'Accessories',
+];
 const statusEl = document.getElementById('inventory-status');
 const gridBody = document.getElementById('inventory-grid-body');
 const categoryFilterEl = document.getElementById('inventory-filter-category');
@@ -168,9 +179,12 @@ function bindFilterEvents() {
 function setCategoryOptions(rows) {
     if (!categoryFilterEl)
         return;
-    const categories = Array.from(new Set(rows
-        .map((row) => (row.category || '').trim())
-        .filter((category) => category.length > 0))).sort((a, b) => a.localeCompare(b));
+    const categories = Array.from(new Set([
+        ...INVENTORY_CATEGORIES,
+        ...rows
+            .map((row) => (row.category || '').trim())
+            .filter((category) => category.length > 0),
+    ])).sort((a, b) => a.localeCompare(b));
     categoryFilterEl.innerHTML = '';
     const blankOption = document.createElement('option');
     blankOption.value = '';

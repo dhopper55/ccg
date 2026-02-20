@@ -22,6 +22,17 @@ type InventoryListResponse = {
 };
 
 const PAGE_SIZE = 20;
+const INVENTORY_CATEGORIES = [
+  'Electric Guitars',
+  'Acoustic Guitars',
+  'Electric Bass',
+  'Acoustic Bass',
+  'Effects Pedals',
+  'Amplification',
+  'Pro Audio',
+  'Keyboards & Synthesizers',
+  'Accessories',
+];
 
 const statusEl = document.getElementById('inventory-status') as HTMLDivElement | null;
 const gridBody = document.getElementById('inventory-grid-body') as HTMLTableSectionElement | null;
@@ -205,13 +216,12 @@ function bindFilterEvents(): void {
 function setCategoryOptions(rows: InventoryItem[]): void {
   if (!categoryFilterEl) return;
 
-  const categories = Array.from(
-    new Set(
-      rows
-        .map((row) => (row.category || '').trim())
-        .filter((category) => category.length > 0),
-    ),
-  ).sort((a, b) => a.localeCompare(b));
+  const categories = Array.from(new Set([
+    ...INVENTORY_CATEGORIES,
+    ...rows
+      .map((row) => (row.category || '').trim())
+      .filter((category) => category.length > 0),
+  ])).sort((a, b) => a.localeCompare(b));
 
   categoryFilterEl.innerHTML = '';
 
