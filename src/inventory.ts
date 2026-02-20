@@ -133,12 +133,12 @@ function applyFilters(resetToFirstPage = false): void {
   if (resetToFirstPage) currentPage = 1;
 
   const categoryFilter = normalizeCategory(categoryFilterEl?.value);
-  const soldOnly = Boolean(soldOnlyFilterEl?.checked);
+  const includeSold = Boolean(soldOnlyFilterEl?.checked);
   const activeOnly = activeOnlyFilterEl ? activeOnlyFilterEl.checked : true;
 
   filteredRows = allRows.filter((row) => {
     if (activeOnly && row.isActive === false) return false;
-    if (soldOnly && row.isSold !== true) return false;
+    if (!includeSold && row.isSold === true) return false;
     if (categoryFilter) {
       const rowCategory = normalizeCategory(row.category);
       if (rowCategory !== categoryFilter) return false;
@@ -203,7 +203,7 @@ function setCategoryOptions(rows: InventoryItem[]): void {
 
   const blankOption = document.createElement('option');
   blankOption.value = '';
-  blankOption.textContent = 'Blank';
+  blankOption.textContent = '';
   categoryFilterEl.appendChild(blankOption);
 
   categories.forEach((category) => {

@@ -99,12 +99,12 @@ function applyFilters(resetToFirstPage = false) {
     if (resetToFirstPage)
         currentPage = 1;
     const categoryFilter = normalizeCategory(categoryFilterEl?.value);
-    const soldOnly = Boolean(soldOnlyFilterEl?.checked);
+    const includeSold = Boolean(soldOnlyFilterEl?.checked);
     const activeOnly = activeOnlyFilterEl ? activeOnlyFilterEl.checked : true;
     filteredRows = allRows.filter((row) => {
         if (activeOnly && row.isActive === false)
             return false;
-        if (soldOnly && row.isSold !== true)
+        if (!includeSold && row.isSold === true)
             return false;
         if (categoryFilter) {
             const rowCategory = normalizeCategory(row.category);
@@ -161,7 +161,7 @@ function setCategoryOptions(rows) {
     categoryFilterEl.innerHTML = '';
     const blankOption = document.createElement('option');
     blankOption.value = '';
-    blankOption.textContent = 'Blank';
+    blankOption.textContent = '';
     categoryFilterEl.appendChild(blankOption);
     categories.forEach((category) => {
         const option = document.createElement('option');
