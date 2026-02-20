@@ -3218,3 +3218,85 @@ body.auth-locked {
   font-size: 0.95rem;
   margin-bottom: 10px;
 }
+
+.inventory-grid-toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.inventory-grid-wrap table {
+  min-width: 760px;
+}
+
+.inventory-grid-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 220px;
+}
+
+.inventory-grid-filter label {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.inventory-grid-filter select {
+  min-height: 44px;
+}
+
+.inventory-grid-toolbar .toggle input {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  margin: 0;
+}
+
+.listing-results-table td.inventory-cell-sm {
+  font-size: 0.88rem;
+}
+
+.listing-results-table td.inventory-cell-sm a {
+  font-size: 0.88rem;
+}
+
+.inventory-grid-pager {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.inventory-grid-pager #inventory-page-label {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  min-width: 96px;
+  text-align: center;
+}
+
+.inventory-grid-pager .button-link.secondary {
+  min-width: 96px;
+  padding: 8px 14px;
+  font-size: 0.8rem;
+}
+
+.inventory-grid-pager .button-link.secondary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+@media (max-width: 760px) {
+  .inventory-grid-toolbar {
+    align-items: stretch;
+  }
+
+  .inventory-grid-pager {
+    justify-content: flex-start;
+  }
+}

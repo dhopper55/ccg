@@ -9,7 +9,7 @@
   <link rel="shortcut icon" href="../images/favicon/favicon.ico">
   <title>Inventory Manager | Coal Creek Guitars</title>
   <meta name="robots" content="noindex,nofollow">
-  <link rel="stylesheet" href="../styles.css?version=834893">
+  <link rel="stylesheet" href="../styles.css?version=935672">
 </head>
 <body>
   <nav class="site-nav">
@@ -30,7 +30,23 @@
     </header>
 
     <section class="listing-section">
-      <h2>Inventory Grid</h2>
+      <div class="inventory-grid-toolbar listing-results-controls">
+        <div class="inventory-grid-filter">
+          <label for="inventory-filter-category">Category</label>
+          <select id="inventory-filter-category" aria-label="Filter by category">
+            <option value="" selected>Blank</option>
+          </select>
+        </div>
+        <label class="toggle" for="inventory-filter-sold">
+          <input type="checkbox" id="inventory-filter-sold">
+          <span>Sold</span>
+        </label>
+        <label class="toggle" for="inventory-filter-active">
+          <input type="checkbox" id="inventory-filter-active" checked>
+          <span>Active</span>
+        </label>
+      </div>
+
       <div id="inventory-status" class="hidden"></div>
       <div class="listing-results-table inventory-grid-wrap">
         <table>
@@ -39,20 +55,22 @@
               <th>CCG #</th>
               <th>Image</th>
               <th>Title</th>
-              <th>Category</th>
-              <th>Brand</th>
-              <th>Year Range</th>
-              <th>Model</th>
-              <th>Finish</th>
               <th>Paid</th>
+              <th>Sold</th>
             </tr>
           </thead>
           <tbody id="inventory-grid-body"></tbody>
         </table>
       </div>
+
+      <div class="inventory-grid-pager">
+        <button id="inventory-page-prev" type="button" class="button-link secondary">Previous</button>
+        <span id="inventory-page-label">Page 1 of 1</span>
+        <button id="inventory-page-next" type="button" class="button-link secondary">Next</button>
+      </div>
     </section>
   </div>
 
-  <script type="module" src="../dist/inventory.js?version=275329"></script>
+  <script type="module" src="../dist/inventory.js?version=771463"></script>
 </body>
 </html>
