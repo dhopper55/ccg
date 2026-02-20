@@ -121,7 +121,8 @@ function renderInventoryGrid(): void {
 
     tr.appendChild(rowCell(row.title || '—', 'inventory-cell-sm'));
     tr.appendChild(rowCell(formatCurrency(row.purchasePrice), 'inventory-cell-sm'));
-    tr.appendChild(rowCell(row.isSold ? 'Yes' : 'No'));
+    const soldPrice = row.isSold ? row.soldAmount ?? 0 : 0;
+    tr.appendChild(rowCell(formatCurrency(soldPrice)));
 
     gridBody.appendChild(tr);
   });
@@ -133,12 +134,25 @@ function applyFilters(resetToFirstPage = false): void {
   if (resetToFirstPage) currentPage = 1;
 
   const categoryFilter = normalizeCategory(categoryFilterEl?.value);
-  const includeSold = Boolean(soldOnlyFilterEl?.checked);
-  const activeOnly = activeOnlyFilterEl ? activeOnlyFilterEl.checked : true;
+  const soldChecked = Boolean(soldOnlyFilterEl?.checked);
+  const activeChecked = activeOnlyFilterEl ? activeOnlyFilterEl.checked : true;
 
   filteredRows = allRows.filter((row) => {
-    if (activeOnly && row.isActive === false) return false;
-    if (!includeSold && row.isSold === true) return false;
+    const isSold = row.isSold === true;
+    const isActive = row.isActive !== false;
+
+    if (soldChecked) {
+      if (!isSold) return false;
+    } else if (isSold) {
+      return false;
+    }
+
+    if (activeChecked) {
+      if (!isActive) return false;
+    } else if (isActive) {
+      return false;
+    }
+
     if (categoryFilter) {
       const rowCategory = normalizeCategory(row.category);
       if (rowCategory !== categoryFilter) return false;
