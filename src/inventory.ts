@@ -93,6 +93,18 @@ function rowCell(text: string, className?: string): HTMLTableCellElement {
   return td;
 }
 
+async function deleteInventoryItem(rowId: string, scope: 'group' | 'single'): Promise<void> {
+  const response = await fetch(`/api/inventory/${encodeURIComponent(rowId)}/delete`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ scope }),
+  });
+  const data = (await response.json().catch(() => ({}))) as { message?: string };
+  if (!response.ok) {
+    throw new Error(data.message || 'Unable to delete inventory item.');
+  }
+}
+
 function updatePaginationControls(): void {
   if (!pageLabelEl || !pagePrevEl || !pageNextEl) return;
   pageLabelEl.textContent = `Page ${currentPage} of ${totalPages}`;
@@ -114,7 +126,7 @@ function renderInventoryGrid(): void {
   if (!rows.length) {
     const empty = document.createElement('tr');
     const td = document.createElement('td');
-    td.colSpan = 6;
+    td.colSpan = 7;
     td.textContent = 'No inventory items match the selected filters.';
     empty.appendChild(td);
     gridBody.appendChild(empty);
@@ -173,8 +185,41 @@ function renderInventoryGrid(): void {
     tr.appendChild(qtyTd);
 
     tr.appendChild(rowCell(formatCurrency(row.purchasePrice), 'inventory-cell-sm'));
+
     const soldPrice = row.isSold ? row.soldAmount ?? 0 : 0;
     tr.appendChild(rowCell(formatCurrencyZero(soldPrice)));
+
+    const actionsTd = document.createElement('td');
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'inventory-delete-btn';
+    deleteButton.setAttribute('aria-label', 'Delete inventory item');
+    deleteButton.title = 'Delete';
+    deleteButton.innerHTML = `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"></path>
+      </svg>
+    `;
+    deleteButton.addEventListener('click', () => {
+      const confirmMessage = groupedView
+        ? 'Are you sure you want to completely delete this row and all associated rows?'
+        : 'Delete this 1 item completely?';
+      if (!window.confirm(confirmMessage)) return;
+      deleteButton.disabled = true;
+      const scope: 'group' | 'single' = groupedView ? 'group' : 'single';
+      void (async () => {
+        try {
+          await deleteInventoryItem(row.id, scope);
+          await loadGrid();
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unable to delete inventory item.';
+          setStatus(message, true);
+          deleteButton.disabled = false;
+        }
+      })();
+    });
+    actionsTd.appendChild(deleteButton);
+    tr.appendChild(actionsTd);
 
     gridBody.appendChild(tr);
   });

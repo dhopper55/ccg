@@ -361,6 +361,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path.endsWith('/delete') && path.startsWith('/api/inventory/') && request.method === 'POST') {
+      const response = await handleInventoryDelete(request, path, env);
+      return withCors(response, request, env);
+    }
+
     if (path.startsWith('/api/inventory/') && request.method === 'GET') {
       const response = await handleInventoryGet(path, env);
       return withCors(response, request, env);
@@ -2328,6 +2333,36 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   return jsonResponse({ ok: true });
 }
 
+async function handleInventoryDelete(request: Request, path: string, env: Env): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const deleteIndex = parts.indexOf('delete');
+  const recordId = deleteIndex > 0 ? parts[deleteIndex - 1] : '';
+  if (!recordId) return jsonResponse({ message: 'Missing inventory ID.' }, 400);
+
+  let scope: 'group' | 'single' = 'group';
+  try {
+    const body = await request.json() as { scope?: string };
+    if (body?.scope === 'single') scope = 'single';
+  } catch {
+    scope = 'group';
+  }
+
+  if (scope === 'single') {
+    const deletedCount = await dbDeleteInventoryItemById(recordId, env);
+    if (deletedCount < 1) return jsonResponse({ message: 'Inventory item not found.' }, 404);
+    return jsonResponse({ ok: true, deletedCount, scope });
+  }
+
+  const current = await dbGetInventoryItem(recordId, env);
+  if (!current) return jsonResponse({ message: 'Inventory item not found.' }, 404);
+  const ccgNumber = normalizeText((current as { ccgNumber?: string }).ccgNumber, '');
+  if (!ccgNumber) return jsonResponse({ message: 'Inventory item CCG Number is missing.' }, 500);
+
+  const deletedCount = await dbDeleteInventoryItemsByCcgNumber(ccgNumber, env);
+  if (deletedCount < 1) return jsonResponse({ message: 'Inventory item not found.' }, 404);
+  return jsonResponse({ ok: true, deletedCount, scope: 'group', ccgNumber });
+}
+
 async function fetchReverbListings(env: Env): Promise<ReverbApiListing[]> {
   const token = env.REVERB_API_TOKEN || REVERB_API_TOKEN_FALLBACK;
   const response = await fetch(REVERB_API_URL, {
@@ -3835,6 +3870,32 @@ async function dbUpdateInventoryRowSpecific(
   } catch (error) {
     console.error('Inventory update failed', { error });
     return false;
+  }
+}
+
+async function dbDeleteInventoryItemById(recordId: string, env: Env): Promise<number> {
+  const idValue = Number.parseInt(recordId, 10);
+  if (!Number.isFinite(idValue)) return 0;
+  try {
+    const result = await env.DB.prepare(
+      'DELETE FROM ccg_inventory_items WHERE id = ?'
+    ).bind(idValue).run();
+    return Number(result.meta?.changes || 0);
+  } catch (error) {
+    console.error('Inventory single delete failed', { error });
+    return 0;
+  }
+}
+
+async function dbDeleteInventoryItemsByCcgNumber(ccgNumber: string, env: Env): Promise<number> {
+  try {
+    const result = await env.DB.prepare(
+      'DELETE FROM ccg_inventory_items WHERE ccg_number = ?'
+    ).bind(ccgNumber).run();
+    return Number(result.meta?.changes || 0);
+  } catch (error) {
+    console.error('Inventory grouped delete failed', { error });
+    return 0;
   }
 }
 

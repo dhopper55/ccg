@@ -3228,7 +3228,7 @@ body.auth-locked {
 }
 
 .inventory-grid-wrap table {
-  min-width: 860px;
+  min-width: 920px;
 }
 
 .inventory-grid-filter {
@@ -3275,6 +3275,36 @@ body.auth-locked {
 .inventory-qty-link:hover {
   border-color: var(--accent-gold);
   color: var(--accent-gold-light);
+}
+
+.inventory-delete-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+}
+
+.inventory-delete-btn svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.inventory-delete-btn:hover {
+  color: #f08a82;
+  border-color: rgba(240, 138, 130, 0.45);
+}
+
+.inventory-delete-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
 }
 
 .listing-results-table td.inventory-cell-sm {
