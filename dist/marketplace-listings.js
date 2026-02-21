@@ -4,6 +4,7 @@ const titleInput = document.getElementById('marketplace-title');
 const priceInput = document.getElementById('marketplace-price');
 const urlInput = document.getElementById('marketplace-url');
 const imageInput = document.getElementById('marketplace-image');
+const imageGroup = imageInput?.closest('.form-group');
 const notesInput = document.getElementById('marketplace-notes');
 const submitButton = document.getElementById('marketplace-submit');
 const cancelButton = document.getElementById('marketplace-cancel');
@@ -53,6 +54,10 @@ function setMode(mode, row) {
             submitButton.textContent = 'Add Listing';
         if (modeEl)
             modeEl.textContent = 'Add mode';
+        if (imageGroup)
+            imageGroup.classList.remove('hidden');
+        if (imageInput)
+            imageInput.value = '';
         cancelButton?.classList.add('hidden');
         return;
     }
@@ -61,6 +66,10 @@ function setMode(mode, row) {
         submitButton.textContent = 'Save Update';
     if (modeEl)
         modeEl.textContent = 'Update mode';
+    if (imageGroup)
+        imageGroup.classList.add('hidden');
+    if (imageInput)
+        imageInput.value = '';
     cancelButton?.classList.remove('hidden');
     if (!row)
         return;
@@ -70,8 +79,6 @@ function setMode(mode, row) {
         priceInput.value = String(row.priceDollars || '');
     if (urlInput)
         urlInput.value = row.listingUrl || '';
-    if (imageInput)
-        imageInput.value = row.imageUrl || '';
     if (notesInput)
         notesInput.value = row.notes || '';
     titleInput?.focus();
@@ -197,7 +204,6 @@ async function handleSubmit(event) {
                 title: titleInput.value.trim(),
                 priceDollars,
                 listingUrl: urlInput.value.trim(),
-                imageUrl: imageInput?.value.trim() || '',
                 notes: notesInput?.value.trim() || '',
             });
             setStatus('Listing updated.');

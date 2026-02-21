@@ -1949,7 +1949,7 @@ async function handleMarketplaceListingsUpdate(request: Request, path: string, e
 
   const title = normalizeText(body.title, '').slice(0, 200);
   const listingUrl = normalizeUrl(normalizeText(body.listingUrl, ''));
-  const imageInput = normalizeText(body.imageUrl, '');
+  const imageInput = typeof body.imageUrl === 'string' ? body.imageUrl.trim() : '';
   const notes = normalizeText(body.notes, '').slice(0, 2000);
   const priceDollars = parseWholeDollars(body.priceDollars);
 
@@ -1961,15 +1961,23 @@ async function handleMarketplaceListingsUpdate(request: Request, path: string, e
   if (priceDollars == null || !Number.isFinite(priceDollars) || priceDollars < 1) {
     return jsonResponse({ message: 'Price (whole dollars) must be at least 1.' }, 400);
   }
-  const importedImage = await importMarketplaceImageToR2(imageInput, env);
-  if (importedImage.errorStatus && importedImage.errorMessage) {
-    return jsonResponse({ message: importedImage.errorMessage }, importedImage.errorStatus);
+  let nextImageUrl: string | null = null;
+  if (imageInput) {
+    const importedImage = await importMarketplaceImageToR2(imageInput, env);
+    if (importedImage.errorStatus && importedImage.errorMessage) {
+      return jsonResponse({ message: importedImage.errorMessage }, importedImage.errorStatus);
+    }
+    nextImageUrl = importedImage.imageUrl;
+  } else {
+    const current = await dbGetMarketplaceListingById(recordId, env);
+    if (!current) return jsonResponse({ message: 'Listing not found.' }, 404);
+    nextImageUrl = current.image_url || null;
   }
 
   const ok = await dbUpdateMarketplaceListing(recordId, {
     title,
     price_dollars: priceDollars,
-    image_url: importedImage.imageUrl,
+    image_url: nextImageUrl,
     listing_url: listingUrl,
     notes: notes || null,
   }, env);
@@ -3401,6 +3409,20 @@ async function dbCreateMarketplaceListing(
     console.error('Marketplace insert failed', { error });
     return null;
   }
+}
+
+async function dbGetMarketplaceListingById(recordId: string, env: Env): Promise<MarketplaceListingRow | null> {
+  const idValue = Number.parseInt(recordId, 10);
+  if (!Number.isFinite(idValue)) return null;
+  const row = await env.DB.prepare(
+    `SELECT id, source, title, price_dollars, currency, image_url, listing_url, status, notes, created_at, updated_at
+     FROM ccg_marketplace_listings
+     WHERE id = ?
+     LIMIT 1`
+  )
+    .bind(idValue)
+    .first<MarketplaceListingRow>();
+  return row ?? null;
 }
 
 async function dbSetMarketplaceListingStatus(recordId: string, status: 'active' | 'removed', env: Env): Promise<boolean> {

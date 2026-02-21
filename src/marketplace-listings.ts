@@ -23,6 +23,7 @@ const titleInput = document.getElementById('marketplace-title') as HTMLInputElem
 const priceInput = document.getElementById('marketplace-price') as HTMLInputElement | null;
 const urlInput = document.getElementById('marketplace-url') as HTMLInputElement | null;
 const imageInput = document.getElementById('marketplace-image') as HTMLInputElement | null;
+const imageGroup = imageInput?.closest('.form-group') as HTMLDivElement | null;
 const notesInput = document.getElementById('marketplace-notes') as HTMLTextAreaElement | null;
 const submitButton = document.getElementById('marketplace-submit') as HTMLButtonElement | null;
 const cancelButton = document.getElementById('marketplace-cancel') as HTMLButtonElement | null;
@@ -59,7 +60,6 @@ async function updateMarketplaceListing(id: string, payload: {
   title: string;
   priceDollars: number;
   listingUrl: string;
-  imageUrl: string;
   notes: string;
 }): Promise<void> {
   const response = await fetch(`/api/marketplace-listings/${encodeURIComponent(id)}/update`, {
@@ -78,6 +78,8 @@ function setMode(mode: 'add' | 'update', row?: MarketplaceListing): void {
     editingId = null;
     if (submitButton) submitButton.textContent = 'Add Listing';
     if (modeEl) modeEl.textContent = 'Add mode';
+    if (imageGroup) imageGroup.classList.remove('hidden');
+    if (imageInput) imageInput.value = '';
     cancelButton?.classList.add('hidden');
     return;
   }
@@ -85,12 +87,13 @@ function setMode(mode: 'add' | 'update', row?: MarketplaceListing): void {
   editingId = row?.id || null;
   if (submitButton) submitButton.textContent = 'Save Update';
   if (modeEl) modeEl.textContent = 'Update mode';
+  if (imageGroup) imageGroup.classList.add('hidden');
+  if (imageInput) imageInput.value = '';
   cancelButton?.classList.remove('hidden');
   if (!row) return;
   if (titleInput) titleInput.value = row.title || '';
   if (priceInput) priceInput.value = String(row.priceDollars || '');
   if (urlInput) urlInput.value = row.listingUrl || '';
-  if (imageInput) imageInput.value = row.imageUrl || '';
   if (notesInput) notesInput.value = row.notes || '';
   titleInput?.focus();
 }
@@ -226,7 +229,6 @@ async function handleSubmit(event: SubmitEvent): Promise<void> {
         title: titleInput.value.trim(),
         priceDollars,
         listingUrl: urlInput.value.trim(),
-        imageUrl: imageInput?.value.trim() || '',
         notes: notesInput?.value.trim() || '',
       });
       setStatus('Listing updated.');
