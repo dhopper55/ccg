@@ -2590,7 +2590,7 @@ button:active {
 }
 
 .listing-evaluator {
-  max-width: 900px;
+  max-width: 1400px;
   margin: 40px auto 80px;
   padding: 0 24px;
 }
@@ -3228,7 +3228,50 @@ body.auth-locked {
 }
 
 .inventory-grid-wrap table {
-  min-width: 920px;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.inventory-grid-wrap th,
+.inventory-grid-wrap td {
+  padding: 12px 10px;
+}
+
+.inventory-grid-wrap th:nth-child(1),
+.inventory-grid-wrap td:nth-child(1) {
+  width: 13%;
+}
+
+.inventory-grid-wrap th:nth-child(2),
+.inventory-grid-wrap td:nth-child(2) {
+  width: 9%;
+}
+
+.inventory-grid-wrap th:nth-child(4),
+.inventory-grid-wrap td:nth-child(4) {
+  width: 6%;
+}
+
+.inventory-grid-wrap th:nth-child(5),
+.inventory-grid-wrap td:nth-child(5) {
+  width: 8%;
+}
+
+.inventory-grid-wrap th:nth-child(6),
+.inventory-grid-wrap td:nth-child(6) {
+  width: 10%;
+}
+
+.inventory-grid-wrap th:nth-child(7),
+.inventory-grid-wrap td:nth-child(7) {
+  width: 4%;
+}
+
+.inventory-grid-wrap th:nth-child(3),
+.inventory-grid-wrap td:nth-child(3) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .inventory-grid-filter {
