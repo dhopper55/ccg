@@ -140,7 +140,7 @@ CREATE TABLE IF NOT EXISTS ccg_inventory_items (
   FOREIGN KEY(source_listing_id) REFERENCES listings(id)
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS ccg_inventory_items_ccg_number_idx
+CREATE INDEX IF NOT EXISTS ccg_inventory_items_ccg_number_idx
   ON ccg_inventory_items(ccg_number);
 CREATE UNIQUE INDEX IF NOT EXISTS ccg_inventory_items_source_listing_idx
   ON ccg_inventory_items(source_listing_id)
@@ -151,3 +151,7 @@ CREATE INDEX IF NOT EXISTS ccg_inventory_items_for_sale_idx
   ON ccg_inventory_items(for_sale);
 CREATE INDEX IF NOT EXISTS ccg_inventory_items_sold_idx
   ON ccg_inventory_items(is_sold);
+CREATE INDEX IF NOT EXISTS ccg_inventory_items_filter_ccg_idx
+  ON ccg_inventory_items(is_active, is_sold, category, ccg_number, id);
+CREATE INDEX IF NOT EXISTS ccg_inventory_items_ccg_created_idx
+  ON ccg_inventory_items(ccg_number, created_at, id);

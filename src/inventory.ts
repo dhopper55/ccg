@@ -6,18 +6,21 @@ type InventoryItem = {
   imageUrl: string;
   title: string;
   category?: string;
-  brand?: string;
-  yearRange?: string;
-  model?: string;
-  finish?: string;
   purchasePrice?: number | null;
-  isActive?: boolean;
   isSold?: boolean;
   soldAmount?: number | null;
+  qtyAvailable?: number;
+  groupCount?: number;
 };
 
 type InventoryListResponse = {
   records: InventoryItem[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  grouped: boolean;
+  drillDownCcgNumber?: string | null;
   message?: string;
 };
 
@@ -39,13 +42,17 @@ const gridBody = document.getElementById('inventory-grid-body') as HTMLTableSect
 const categoryFilterEl = document.getElementById('inventory-filter-category') as HTMLSelectElement | null;
 const soldOnlyFilterEl = document.getElementById('inventory-filter-sold') as HTMLInputElement | null;
 const activeOnlyFilterEl = document.getElementById('inventory-filter-active') as HTMLInputElement | null;
+const clearFiltersEl = document.getElementById('inventory-clear-filters') as HTMLButtonElement | null;
 const pagePrevEl = document.getElementById('inventory-page-prev') as HTMLButtonElement | null;
 const pageNextEl = document.getElementById('inventory-page-next') as HTMLButtonElement | null;
 const pageLabelEl = document.getElementById('inventory-page-label') as HTMLSpanElement | null;
+const toolbarEl = document.querySelector('.inventory-grid-toolbar') as HTMLDivElement | null;
 
-let allRows: InventoryItem[] = [];
-let filteredRows: InventoryItem[] = [];
+let rows: InventoryItem[] = [];
 let currentPage = 1;
+let totalPages = 1;
+let groupedView = true;
+let drillDownCcgNumber: string | null = null;
 
 function setStatus(message: string, isError = false): void {
   if (!statusEl) return;
@@ -55,13 +62,28 @@ function setStatus(message: string, isError = false): void {
   statusEl.classList.remove('hidden');
 }
 
+function clearStatus(): void {
+  statusEl?.classList.add('hidden');
+}
+
 function formatCurrency(value: number | null | undefined): string {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return '—';
+  }
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function formatCurrencyZero(value: number | null | undefined): string {
+  const normalized = typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(normalized);
 }
 
 function rowCell(text: string, className?: string): HTMLTableCellElement {
@@ -71,30 +93,28 @@ function rowCell(text: string, className?: string): HTMLTableCellElement {
   return td;
 }
 
-function normalizeCategory(value: string | undefined): string {
-  return (value || '').trim().toLowerCase();
-}
-
-function totalPages(): number {
-  return Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
-}
-
 function updatePaginationControls(): void {
   if (!pageLabelEl || !pagePrevEl || !pageNextEl) return;
-  const pages = totalPages();
-  pageLabelEl.textContent = `Page ${currentPage} of ${pages}`;
+  pageLabelEl.textContent = `Page ${currentPage} of ${totalPages}`;
   pagePrevEl.disabled = currentPage <= 1;
-  pageNextEl.disabled = currentPage >= pages;
+  pageNextEl.disabled = currentPage >= totalPages;
+}
+
+function setFilterDisabledState(disabled: boolean): void {
+  categoryFilterEl && (categoryFilterEl.disabled = disabled);
+  soldOnlyFilterEl && (soldOnlyFilterEl.disabled = disabled);
+  activeOnlyFilterEl && (activeOnlyFilterEl.disabled = disabled);
+  toolbarEl?.classList.toggle('is-drilldown', disabled);
 }
 
 function renderInventoryGrid(): void {
   if (!gridBody) return;
   gridBody.innerHTML = '';
 
-  if (!filteredRows.length) {
+  if (!rows.length) {
     const empty = document.createElement('tr');
     const td = document.createElement('td');
-    td.colSpan = 5;
+    td.colSpan = 6;
     td.textContent = 'No inventory items match the selected filters.';
     empty.appendChild(td);
     gridBody.appendChild(empty);
@@ -102,10 +122,7 @@ function renderInventoryGrid(): void {
     return;
   }
 
-  const start = (currentPage - 1) * PAGE_SIZE;
-  const pageRows = filteredRows.slice(start, start + PAGE_SIZE);
-
-  pageRows.forEach((row) => {
+  rows.forEach((row) => {
     const tr = document.createElement('tr');
 
     const ccgTd = document.createElement('td');
@@ -131,9 +148,33 @@ function renderInventoryGrid(): void {
     tr.appendChild(imageTd);
 
     tr.appendChild(rowCell(row.title || '—', 'inventory-cell-sm'));
+
+    const qtyTd = document.createElement('td');
+    const qtyValue = groupedView
+      ? Math.max(0, Number(row.qtyAvailable ?? 1))
+      : 1;
+    const groupCount = Math.max(1, Number(row.groupCount ?? 1));
+    const canDrillDown = groupedView && groupCount > 1;
+
+    if (canDrillDown) {
+      const qtyBtn = document.createElement('button');
+      qtyBtn.type = 'button';
+      qtyBtn.className = 'inventory-qty-link';
+      qtyBtn.textContent = String(qtyValue);
+      qtyBtn.addEventListener('click', () => {
+        drillDownCcgNumber = row.ccgNumber;
+        currentPage = 1;
+        void loadGrid();
+      });
+      qtyTd.appendChild(qtyBtn);
+    } else {
+      qtyTd.textContent = String(qtyValue);
+    }
+    tr.appendChild(qtyTd);
+
     tr.appendChild(rowCell(formatCurrency(row.purchasePrice), 'inventory-cell-sm'));
     const soldPrice = row.isSold ? row.soldAmount ?? 0 : 0;
-    tr.appendChild(rowCell(formatCurrency(soldPrice)));
+    tr.appendChild(rowCell(formatCurrencyZero(soldPrice)));
 
     gridBody.appendChild(tr);
   });
@@ -141,87 +182,8 @@ function renderInventoryGrid(): void {
   updatePaginationControls();
 }
 
-function applyFilters(resetToFirstPage = false): void {
-  if (resetToFirstPage) currentPage = 1;
-
-  const categoryFilter = normalizeCategory(categoryFilterEl?.value);
-  const soldChecked = Boolean(soldOnlyFilterEl?.checked);
-  const activeChecked = activeOnlyFilterEl ? activeOnlyFilterEl.checked : true;
-
-  filteredRows = allRows.filter((row) => {
-    const isSold = row.isSold === true;
-    const isActive = row.isActive !== false;
-
-    if (soldChecked) {
-      if (!isSold) return false;
-    } else if (isSold) {
-      return false;
-    }
-
-    if (activeChecked) {
-      if (!isActive) return false;
-    } else if (isActive) {
-      return false;
-    }
-
-    if (categoryFilter) {
-      const rowCategory = normalizeCategory(row.category);
-      if (rowCategory !== categoryFilter) return false;
-    }
-    return true;
-  });
-
-  const pages = totalPages();
-  if (currentPage > pages) currentPage = pages;
-  renderInventoryGrid();
-}
-
-function bindFilterEvents(): void {
-  if (categoryFilterEl) {
-    categoryFilterEl.addEventListener('change', () => {
-      applyFilters(true);
-    });
-  }
-
-  if (soldOnlyFilterEl) {
-    soldOnlyFilterEl.addEventListener('change', () => {
-      applyFilters(true);
-    });
-  }
-
-  if (activeOnlyFilterEl) {
-    activeOnlyFilterEl.addEventListener('change', () => {
-      applyFilters(true);
-    });
-  }
-
-  if (pagePrevEl) {
-    pagePrevEl.addEventListener('click', () => {
-      if (currentPage <= 1) return;
-      currentPage -= 1;
-      renderInventoryGrid();
-    });
-  }
-
-  if (pageNextEl) {
-    pageNextEl.addEventListener('click', () => {
-      const pages = totalPages();
-      if (currentPage >= pages) return;
-      currentPage += 1;
-      renderInventoryGrid();
-    });
-  }
-}
-
-function setCategoryOptions(rows: InventoryItem[]): void {
+function setCategoryOptions(): void {
   if (!categoryFilterEl) return;
-
-  const categories = Array.from(new Set([
-    ...INVENTORY_CATEGORIES,
-    ...rows
-      .map((row) => (row.category || '').trim())
-      .filter((category) => category.length > 0),
-  ])).sort((a, b) => a.localeCompare(b));
 
   categoryFilterEl.innerHTML = '';
 
@@ -230,7 +192,7 @@ function setCategoryOptions(rows: InventoryItem[]): void {
   blankOption.textContent = '';
   categoryFilterEl.appendChild(blankOption);
 
-  categories.forEach((category) => {
+  INVENTORY_CATEGORIES.forEach((category) => {
     const option = document.createElement('option');
     option.value = category;
     option.textContent = category;
@@ -240,27 +202,113 @@ function setCategoryOptions(rows: InventoryItem[]): void {
   categoryFilterEl.value = '';
 }
 
-async function fetchInventoryRows(): Promise<InventoryItem[]> {
-  const response = await fetch('/api/inventory', { method: 'GET' });
+function buildListUrl(): string {
+  const params = new URLSearchParams();
+  params.set('page', String(currentPage));
+  params.set('limit', String(PAGE_SIZE));
+
+  if (drillDownCcgNumber) {
+    params.set('ccgNumber', drillDownCcgNumber);
+    return `/api/inventory?${params.toString()}`;
+  }
+
+  const category = categoryFilterEl?.value.trim() || '';
+  const sold = soldOnlyFilterEl?.checked ? '1' : '0';
+  const active = activeOnlyFilterEl?.checked === false ? '0' : '1';
+
+  if (category) params.set('category', category);
+  params.set('sold', sold);
+  params.set('active', active);
+
+  return `/api/inventory?${params.toString()}`;
+}
+
+async function fetchInventoryRows(): Promise<InventoryListResponse> {
+  const response = await fetch(buildListUrl(), { method: 'GET' });
   const data = (await response.json()) as InventoryListResponse;
   if (!response.ok) {
     throw new Error(data.message || 'Unable to load inventory.');
   }
-  return Array.isArray(data.records) ? data.records : [];
+  return data;
 }
 
-async function init(): Promise<void> {
-  initListingAuth();
-  bindFilterEvents();
-
+async function loadGrid(): Promise<void> {
   try {
-    allRows = await fetchInventoryRows();
-    setCategoryOptions(allRows);
-    applyFilters(true);
+    clearStatus();
+    const data = await fetchInventoryRows();
+    rows = Array.isArray(data.records) ? data.records : [];
+    groupedView = Boolean(data.grouped);
+    drillDownCcgNumber = data.drillDownCcgNumber || null;
+    totalPages = Math.max(1, Number(data.totalPages || 1));
+    currentPage = Math.max(1, Math.min(Number(data.page || 1), totalPages));
+    setFilterDisabledState(Boolean(drillDownCcgNumber));
+    renderInventoryGrid();
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not load inventory grid.';
     setStatus(message, true);
   }
+}
+
+function resetFiltersAndMode(): void {
+  if (categoryFilterEl) categoryFilterEl.value = '';
+  if (soldOnlyFilterEl) soldOnlyFilterEl.checked = false;
+  if (activeOnlyFilterEl) activeOnlyFilterEl.checked = true;
+  drillDownCcgNumber = null;
+  currentPage = 1;
+}
+
+function bindFilterEvents(): void {
+  if (categoryFilterEl) {
+    categoryFilterEl.addEventListener('change', () => {
+      currentPage = 1;
+      void loadGrid();
+    });
+  }
+
+  if (soldOnlyFilterEl) {
+    soldOnlyFilterEl.addEventListener('change', () => {
+      currentPage = 1;
+      void loadGrid();
+    });
+  }
+
+  if (activeOnlyFilterEl) {
+    activeOnlyFilterEl.addEventListener('change', () => {
+      currentPage = 1;
+      void loadGrid();
+    });
+  }
+
+  if (clearFiltersEl) {
+    clearFiltersEl.addEventListener('click', () => {
+      resetFiltersAndMode();
+      void loadGrid();
+    });
+  }
+
+  if (pagePrevEl) {
+    pagePrevEl.addEventListener('click', () => {
+      if (currentPage <= 1) return;
+      currentPage -= 1;
+      void loadGrid();
+    });
+  }
+
+  if (pageNextEl) {
+    pageNextEl.addEventListener('click', () => {
+      if (currentPage >= totalPages) return;
+      currentPage += 1;
+      void loadGrid();
+    });
+  }
+}
+
+async function init(): Promise<void> {
+  initListingAuth();
+  setCategoryOptions();
+  bindFilterEvents();
+  resetFiltersAndMode();
+  await loadGrid();
 }
 
 if (document.readyState === 'loading') {

@@ -16,12 +16,16 @@ const gridBody = document.getElementById('inventory-grid-body');
 const categoryFilterEl = document.getElementById('inventory-filter-category');
 const soldOnlyFilterEl = document.getElementById('inventory-filter-sold');
 const activeOnlyFilterEl = document.getElementById('inventory-filter-active');
+const clearFiltersEl = document.getElementById('inventory-clear-filters');
 const pagePrevEl = document.getElementById('inventory-page-prev');
 const pageNextEl = document.getElementById('inventory-page-next');
 const pageLabelEl = document.getElementById('inventory-page-label');
-let allRows = [];
-let filteredRows = [];
+const toolbarEl = document.querySelector('.inventory-grid-toolbar');
+let rows = [];
 let currentPage = 1;
+let totalPages = 1;
+let groupedView = true;
+let drillDownCcgNumber = null;
 function setStatus(message, isError = false) {
     if (!statusEl)
         return;
@@ -30,14 +34,26 @@ function setStatus(message, isError = false) {
     statusEl.classList.toggle('result-section', !isError);
     statusEl.classList.remove('hidden');
 }
+function clearStatus() {
+    statusEl?.classList.add('hidden');
+}
 function formatCurrency(value) {
-    if (typeof value !== 'number' || !Number.isFinite(value))
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
         return '—';
+    }
     return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: 'USD',
         maximumFractionDigits: 0,
     }).format(value);
+}
+function formatCurrencyZero(value) {
+    const normalized = typeof value === 'number' && Number.isFinite(value) ? value : 0;
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        maximumFractionDigits: 0,
+    }).format(normalized);
 }
 function rowCell(text, className) {
     const td = document.createElement('td');
@@ -46,37 +62,34 @@ function rowCell(text, className) {
         td.classList.add(className);
     return td;
 }
-function normalizeCategory(value) {
-    return (value || '').trim().toLowerCase();
-}
-function totalPages() {
-    return Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
-}
 function updatePaginationControls() {
     if (!pageLabelEl || !pagePrevEl || !pageNextEl)
         return;
-    const pages = totalPages();
-    pageLabelEl.textContent = `Page ${currentPage} of ${pages}`;
+    pageLabelEl.textContent = `Page ${currentPage} of ${totalPages}`;
     pagePrevEl.disabled = currentPage <= 1;
-    pageNextEl.disabled = currentPage >= pages;
+    pageNextEl.disabled = currentPage >= totalPages;
+}
+function setFilterDisabledState(disabled) {
+    categoryFilterEl && (categoryFilterEl.disabled = disabled);
+    soldOnlyFilterEl && (soldOnlyFilterEl.disabled = disabled);
+    activeOnlyFilterEl && (activeOnlyFilterEl.disabled = disabled);
+    toolbarEl?.classList.toggle('is-drilldown', disabled);
 }
 function renderInventoryGrid() {
     if (!gridBody)
         return;
     gridBody.innerHTML = '';
-    if (!filteredRows.length) {
+    if (!rows.length) {
         const empty = document.createElement('tr');
         const td = document.createElement('td');
-        td.colSpan = 5;
+        td.colSpan = 6;
         td.textContent = 'No inventory items match the selected filters.';
         empty.appendChild(td);
         gridBody.appendChild(empty);
         updatePaginationControls();
         return;
     }
-    const start = (currentPage - 1) * PAGE_SIZE;
-    const pageRows = filteredRows.slice(start, start + PAGE_SIZE);
-    pageRows.forEach((row) => {
+    rows.forEach((row) => {
         const tr = document.createElement('tr');
         const ccgTd = document.createElement('td');
         ccgTd.classList.add('inventory-cell-sm');
@@ -100,97 +113,44 @@ function renderInventoryGrid() {
         }
         tr.appendChild(imageTd);
         tr.appendChild(rowCell(row.title || '—', 'inventory-cell-sm'));
+        const qtyTd = document.createElement('td');
+        const qtyValue = groupedView
+            ? Math.max(0, Number(row.qtyAvailable ?? 1))
+            : 1;
+        const groupCount = Math.max(1, Number(row.groupCount ?? 1));
+        const canDrillDown = groupedView && groupCount > 1;
+        if (canDrillDown) {
+            const qtyBtn = document.createElement('button');
+            qtyBtn.type = 'button';
+            qtyBtn.className = 'inventory-qty-link';
+            qtyBtn.textContent = String(qtyValue);
+            qtyBtn.addEventListener('click', () => {
+                drillDownCcgNumber = row.ccgNumber;
+                currentPage = 1;
+                void loadGrid();
+            });
+            qtyTd.appendChild(qtyBtn);
+        }
+        else {
+            qtyTd.textContent = String(qtyValue);
+        }
+        tr.appendChild(qtyTd);
         tr.appendChild(rowCell(formatCurrency(row.purchasePrice), 'inventory-cell-sm'));
         const soldPrice = row.isSold ? row.soldAmount ?? 0 : 0;
-        tr.appendChild(rowCell(formatCurrency(soldPrice)));
+        tr.appendChild(rowCell(formatCurrencyZero(soldPrice)));
         gridBody.appendChild(tr);
     });
     updatePaginationControls();
 }
-function applyFilters(resetToFirstPage = false) {
-    if (resetToFirstPage)
-        currentPage = 1;
-    const categoryFilter = normalizeCategory(categoryFilterEl?.value);
-    const soldChecked = Boolean(soldOnlyFilterEl?.checked);
-    const activeChecked = activeOnlyFilterEl ? activeOnlyFilterEl.checked : true;
-    filteredRows = allRows.filter((row) => {
-        const isSold = row.isSold === true;
-        const isActive = row.isActive !== false;
-        if (soldChecked) {
-            if (!isSold)
-                return false;
-        }
-        else if (isSold) {
-            return false;
-        }
-        if (activeChecked) {
-            if (!isActive)
-                return false;
-        }
-        else if (isActive) {
-            return false;
-        }
-        if (categoryFilter) {
-            const rowCategory = normalizeCategory(row.category);
-            if (rowCategory !== categoryFilter)
-                return false;
-        }
-        return true;
-    });
-    const pages = totalPages();
-    if (currentPage > pages)
-        currentPage = pages;
-    renderInventoryGrid();
-}
-function bindFilterEvents() {
-    if (categoryFilterEl) {
-        categoryFilterEl.addEventListener('change', () => {
-            applyFilters(true);
-        });
-    }
-    if (soldOnlyFilterEl) {
-        soldOnlyFilterEl.addEventListener('change', () => {
-            applyFilters(true);
-        });
-    }
-    if (activeOnlyFilterEl) {
-        activeOnlyFilterEl.addEventListener('change', () => {
-            applyFilters(true);
-        });
-    }
-    if (pagePrevEl) {
-        pagePrevEl.addEventListener('click', () => {
-            if (currentPage <= 1)
-                return;
-            currentPage -= 1;
-            renderInventoryGrid();
-        });
-    }
-    if (pageNextEl) {
-        pageNextEl.addEventListener('click', () => {
-            const pages = totalPages();
-            if (currentPage >= pages)
-                return;
-            currentPage += 1;
-            renderInventoryGrid();
-        });
-    }
-}
-function setCategoryOptions(rows) {
+function setCategoryOptions() {
     if (!categoryFilterEl)
         return;
-    const categories = Array.from(new Set([
-        ...INVENTORY_CATEGORIES,
-        ...rows
-            .map((row) => (row.category || '').trim())
-            .filter((category) => category.length > 0),
-    ])).sort((a, b) => a.localeCompare(b));
     categoryFilterEl.innerHTML = '';
     const blankOption = document.createElement('option');
     blankOption.value = '';
     blankOption.textContent = '';
     categoryFilterEl.appendChild(blankOption);
-    categories.forEach((category) => {
+    INVENTORY_CATEGORIES.forEach((category) => {
         const option = document.createElement('option');
         option.value = category;
         option.textContent = category;
@@ -198,26 +158,106 @@ function setCategoryOptions(rows) {
     });
     categoryFilterEl.value = '';
 }
+function buildListUrl() {
+    const params = new URLSearchParams();
+    params.set('page', String(currentPage));
+    params.set('limit', String(PAGE_SIZE));
+    if (drillDownCcgNumber) {
+        params.set('ccgNumber', drillDownCcgNumber);
+        return `/api/inventory?${params.toString()}`;
+    }
+    const category = categoryFilterEl?.value.trim() || '';
+    const sold = soldOnlyFilterEl?.checked ? '1' : '0';
+    const active = activeOnlyFilterEl?.checked === false ? '0' : '1';
+    if (category)
+        params.set('category', category);
+    params.set('sold', sold);
+    params.set('active', active);
+    return `/api/inventory?${params.toString()}`;
+}
 async function fetchInventoryRows() {
-    const response = await fetch('/api/inventory', { method: 'GET' });
+    const response = await fetch(buildListUrl(), { method: 'GET' });
     const data = (await response.json());
     if (!response.ok) {
         throw new Error(data.message || 'Unable to load inventory.');
     }
-    return Array.isArray(data.records) ? data.records : [];
+    return data;
 }
-async function init() {
-    initListingAuth();
-    bindFilterEvents();
+async function loadGrid() {
     try {
-        allRows = await fetchInventoryRows();
-        setCategoryOptions(allRows);
-        applyFilters(true);
+        clearStatus();
+        const data = await fetchInventoryRows();
+        rows = Array.isArray(data.records) ? data.records : [];
+        groupedView = Boolean(data.grouped);
+        drillDownCcgNumber = data.drillDownCcgNumber || null;
+        totalPages = Math.max(1, Number(data.totalPages || 1));
+        currentPage = Math.max(1, Math.min(Number(data.page || 1), totalPages));
+        setFilterDisabledState(Boolean(drillDownCcgNumber));
+        renderInventoryGrid();
     }
     catch (error) {
         const message = error instanceof Error ? error.message : 'Could not load inventory grid.';
         setStatus(message, true);
     }
+}
+function resetFiltersAndMode() {
+    if (categoryFilterEl)
+        categoryFilterEl.value = '';
+    if (soldOnlyFilterEl)
+        soldOnlyFilterEl.checked = false;
+    if (activeOnlyFilterEl)
+        activeOnlyFilterEl.checked = true;
+    drillDownCcgNumber = null;
+    currentPage = 1;
+}
+function bindFilterEvents() {
+    if (categoryFilterEl) {
+        categoryFilterEl.addEventListener('change', () => {
+            currentPage = 1;
+            void loadGrid();
+        });
+    }
+    if (soldOnlyFilterEl) {
+        soldOnlyFilterEl.addEventListener('change', () => {
+            currentPage = 1;
+            void loadGrid();
+        });
+    }
+    if (activeOnlyFilterEl) {
+        activeOnlyFilterEl.addEventListener('change', () => {
+            currentPage = 1;
+            void loadGrid();
+        });
+    }
+    if (clearFiltersEl) {
+        clearFiltersEl.addEventListener('click', () => {
+            resetFiltersAndMode();
+            void loadGrid();
+        });
+    }
+    if (pagePrevEl) {
+        pagePrevEl.addEventListener('click', () => {
+            if (currentPage <= 1)
+                return;
+            currentPage -= 1;
+            void loadGrid();
+        });
+    }
+    if (pageNextEl) {
+        pageNextEl.addEventListener('click', () => {
+            if (currentPage >= totalPages)
+                return;
+            currentPage += 1;
+            void loadGrid();
+        });
+    }
+}
+async function init() {
+    initListingAuth();
+    setCategoryOptions();
+    bindFilterEvents();
+    resetFiltersAndMode();
+    await loadGrid();
 }
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {

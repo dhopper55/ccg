@@ -327,7 +327,7 @@ export default {
     }
 
     if (path === '/api/inventory' && request.method === 'GET') {
-      const response = await handleInventoryList(env);
+      const response = await handleInventoryList(request, env);
       return withCors(response, request, env);
     }
 
@@ -1988,9 +1988,51 @@ async function handleMarketplaceListingsRemove(request: Request, path: string, e
   return jsonResponse({ ok: true, status: nextStatus });
 }
 
-async function handleInventoryList(env: Env): Promise<Response> {
-  const records = await dbListInventoryItems(env);
-  return jsonResponse({ records });
+function parseBoundedInt(value: unknown, fallback: number, min: number, max: number): number {
+  const parsed = parseOptionalPositiveInt(value);
+  if (parsed == null) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
+
+async function handleInventoryList(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const limit = parseBoundedInt(url.searchParams.get('limit'), 20, 1, 100);
+  const page = parseBoundedInt(url.searchParams.get('page'), 1, 1, 1_000_000);
+  const category = normalizeText(url.searchParams.get('category'), '').slice(0, 120);
+  const sold = url.searchParams.get('sold') === '1';
+  const active = url.searchParams.get('active') !== '0';
+  const drillDownCcgNumber = normalizeText(url.searchParams.get('ccgNumber'), '').slice(0, 32);
+
+  if (drillDownCcgNumber) {
+    const result = await dbListInventoryItemsByCcgNumber(drillDownCcgNumber, page, limit, env);
+    return jsonResponse({
+      records: result.records,
+      page: result.page,
+      limit: result.limit,
+      total: result.total,
+      totalPages: result.totalPages,
+      grouped: false,
+      drillDownCcgNumber,
+    });
+  }
+
+  const result = await dbListInventoryItemsGrouped({
+    category,
+    sold,
+    active,
+    page,
+    limit,
+  }, env);
+
+  return jsonResponse({
+    records: result.records,
+    page: result.page,
+    limit: result.limit,
+    total: result.total,
+    totalPages: result.totalPages,
+    grouped: true,
+    drillDownCcgNumber: null,
+  });
 }
 
 async function handleInventorySummary(env: Env): Promise<Response> {
@@ -2027,6 +2069,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const forSale = isSold ? false : forSaleRaw;
   const soldAmount = parseCurrencyAmount(body.soldAmount);
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
+  const qty = parseBoundedInt(body.qty, 1, 1, 100);
 
   if (!title) return jsonResponse({ message: 'Title is required.' }, 400);
   if (imageUrls.length < 1) return jsonResponse({ message: 'At least one image is required.' }, 400);
@@ -2048,7 +2091,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
 
   const primaryImageUrl = imageUrls[0];
 
-  const inserted = await dbCreateInventoryItem({
+  const inserted = await dbCreateInventoryItems({
     source_listing_id: sourceListingId,
     ccg_number: ccgNumber,
     image_url: primaryImageUrl,
@@ -2072,13 +2115,18 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     sold_date: isSold ? new Date().toISOString() : null,
     sold_amount: soldAmount,
     sell_notes: sellNotes || null,
-  }, env);
+  }, qty, env);
 
   if (!inserted) {
-    return jsonResponse({ message: 'Unable to create inventory item.' }, 500);
+    return jsonResponse({ message: 'Unable to create inventory item(s).' }, 500);
   }
 
-  return jsonResponse({ ok: true, id: inserted.id, ccgNumber: inserted.ccgNumber });
+  return jsonResponse({
+    ok: true,
+    id: inserted.firstId,
+    ccgNumber: inserted.ccgNumber,
+    createdCount: inserted.createdCount,
+  });
 }
 
 async function handleInventoryImageUpload(request: Request, env: Env): Promise<Response> {
@@ -2220,6 +2268,8 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
 
   const current = await dbGetInventoryItem(recordId, env);
   if (!current) return jsonResponse({ message: 'Inventory item not found.' }, 404);
+  const currentCcgNumber = normalizeText((current as { ccgNumber?: string }).ccgNumber, '');
+  if (!currentCcgNumber) return jsonResponse({ message: 'Inventory item CCG Number is missing.' }, 500);
 
   if (sourceListingId != null) {
     const alreadyLinked = await dbFindInventoryBySourceListingId(sourceListingId, env);
@@ -2229,9 +2279,16 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   }
 
   const primaryImageUrl = imageUrls[0];
+  const previousForSale = Boolean((current as { forSale?: boolean }).forSale);
+  const previousForSaleDate = typeof (current as { forSaleDate?: unknown }).forSaleDate === 'string'
+    ? ((current as { forSaleDate?: string }).forSaleDate || null)
+    : null;
+  const previousIsSold = Boolean((current as { isSold?: boolean }).isSold);
+  const previousSoldDate = typeof (current as { soldDate?: unknown }).soldDate === 'string'
+    ? ((current as { soldDate?: string }).soldDate || null)
+    : null;
 
-  const ok = await dbUpdateInventoryItem(recordId, {
-    source_listing_id: sourceListingId,
+  const sharedUpdateOk = await dbUpdateInventorySharedByCcgNumber(currentCcgNumber, {
     image_url: primaryImageUrl,
     image_urls: imageUrls.join('\n'),
     title,
@@ -2246,23 +2303,28 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     private_party_value: privatePartyValue,
     purchase_notes: purchaseNotes || null,
     serial_number: serialNumber || null,
+  }, env);
+  if (!sharedUpdateOk) return jsonResponse({ message: 'Unable to update inventory items.' }, 500);
+
+  const rowSpecificOk = await dbUpdateInventoryRowSpecific(recordId, {
+    source_listing_id: sourceListingId,
     is_active: isActive ? 1 : 0,
     for_sale: forSale ? 1 : 0,
     for_sale_date: resolveToggleTimestamp({
-      previousOn: Boolean(current.forSale),
+      previousOn: previousForSale,
       nextOn: forSale,
-      previousTimestamp: typeof current.forSaleDate === 'string' ? current.forSaleDate : null,
+      previousTimestamp: previousForSaleDate,
     }),
     is_sold: isSold ? 1 : 0,
     sold_date: resolveToggleTimestamp({
-      previousOn: Boolean(current.isSold),
+      previousOn: previousIsSold,
       nextOn: isSold,
-      previousTimestamp: typeof current.soldDate === 'string' ? current.soldDate : null,
+      previousTimestamp: previousSoldDate,
     }),
     sold_amount: soldAmount,
     sell_notes: sellNotes || null,
   }, env);
-  if (!ok) return jsonResponse({ message: 'Unable to update inventory item.' }, 500);
+  if (!rowSpecificOk) return jsonResponse({ message: 'Unable to update inventory item.' }, 500);
   return jsonResponse({ ok: true });
 }
 
@@ -3283,7 +3345,181 @@ async function dbUpdateMarketplaceListing(
   }
 }
 
-async function dbListInventoryItems(env: Env): Promise<Array<Record<string, unknown>>> {
+function mapInventoryRow(
+  row: InventoryItemRow & {
+    source_listing_price_asking?: number | null;
+    qty_available?: number | null;
+    total_rows?: number | null;
+  },
+): Record<string, unknown> {
+  return {
+    id: String(row.id),
+    sourceListingId: row.source_listing_id != null ? String(row.source_listing_id) : null,
+    ccgNumber: row.ccg_number,
+    imageUrl: row.image_url,
+    imageUrls: parseStoredInventoryImageUrls(row.image_urls, row.image_url),
+    title: row.title,
+    category: row.category || '',
+    brand: row.brand || '',
+    yearRange: row.year_range || '',
+    model: row.model || '',
+    finish: row.finish || '',
+    originalListingDesc: row.original_listing_desc || '',
+    purchasedDate: row.purchased_date || '',
+    purchasePrice: row.purchase_price,
+    privatePartyValue: row.private_party_value,
+    purchaseNotes: row.purchase_notes || '',
+    serialNumber: row.serial_number || '',
+    isActive: Boolean(row.is_active),
+    forSale: Boolean(row.for_sale),
+    forSaleDate: row.for_sale_date || null,
+    isSold: Boolean(row.is_sold),
+    soldDate: row.sold_date || null,
+    soldAmount: row.sold_amount,
+    sellNotes: row.sell_notes || '',
+    createdAt: row.created_at || '',
+    updatedAt: row.updated_at || '',
+    sourceListingPriceAsking: row.source_listing_price_asking ?? null,
+    qtyAvailable: Number(row.qty_available ?? 1),
+    groupCount: Number(row.total_rows ?? 1),
+  };
+}
+
+type InventoryGroupedFilters = {
+  category: string;
+  sold: boolean;
+  active: boolean;
+  page: number;
+  limit: number;
+};
+
+function inventoryFilterClause(filters: Pick<InventoryGroupedFilters, 'category' | 'sold' | 'active'>): { sql: string; binds: unknown[] } {
+  const clauses: string[] = [
+    'i.is_sold = ?',
+    'i.is_active = ?',
+  ];
+  const binds: unknown[] = [
+    filters.sold ? 1 : 0,
+    filters.active ? 1 : 0,
+  ];
+
+  if (filters.category) {
+    clauses.push('LOWER(COALESCE(i.category, \'\')) = LOWER(?)');
+    binds.push(filters.category);
+  }
+
+  return {
+    sql: clauses.join(' AND '),
+    binds,
+  };
+}
+
+async function dbListInventoryItemsGrouped(
+  filters: InventoryGroupedFilters,
+  env: Env,
+): Promise<{ records: Array<Record<string, unknown>>; total: number; page: number; limit: number; totalPages: number }> {
+  const clause = inventoryFilterClause(filters);
+
+  const countRow = await env.DB.prepare(
+    `SELECT COUNT(*) AS total
+     FROM (
+       SELECT i.ccg_number
+       FROM ccg_inventory_items i
+       WHERE ${clause.sql}
+       GROUP BY i.ccg_number
+     ) grouped`
+  ).bind(...clause.binds).first<{ total: number | null }>();
+
+  const total = Number(countRow?.total || 0);
+  const totalPages = Math.max(1, Math.ceil(total / filters.limit));
+  const safePage = Math.min(filters.page, totalPages);
+  const safeOffset = (safePage - 1) * filters.limit;
+
+  const result = await env.DB.prepare(
+    `WITH filtered AS (
+       SELECT i.id, i.ccg_number
+       FROM ccg_inventory_items i
+       WHERE ${clause.sql}
+     ),
+     first_rows AS (
+       SELECT f.ccg_number, MIN(f.id) AS first_id
+       FROM filtered f
+       GROUP BY f.ccg_number
+     ),
+     group_counts AS (
+       SELECT
+         g.ccg_number,
+         SUM(CASE WHEN g.is_active = 1 AND g.is_sold = 0 THEN 1 ELSE 0 END) AS qty_available,
+         COUNT(*) AS total_rows
+       FROM ccg_inventory_items g
+       GROUP BY g.ccg_number
+     )
+     SELECT
+       i.id,
+       i.source_listing_id,
+       i.ccg_number,
+       i.image_url,
+       i.image_urls,
+       i.title,
+       i.category,
+       i.brand,
+       i.year_range,
+       i.model,
+       i.finish,
+       i.original_listing_desc,
+       i.purchased_date,
+       i.purchase_price,
+       i.private_party_value,
+       i.purchase_notes,
+       i.serial_number,
+       i.is_active,
+       i.for_sale,
+       i.for_sale_date,
+       i.is_sold,
+       i.sold_date,
+       i.sold_amount,
+       i.sell_notes,
+       i.created_at,
+       i.updated_at,
+       l.price_asking AS source_listing_price_asking,
+       gc.qty_available,
+       gc.total_rows
+     FROM first_rows fr
+     INNER JOIN ccg_inventory_items i ON i.id = fr.first_id
+     LEFT JOIN listings l ON l.id = i.source_listing_id
+     LEFT JOIN group_counts gc ON gc.ccg_number = i.ccg_number
+     ORDER BY i.created_at DESC, i.id DESC
+     LIMIT ? OFFSET ?`
+  ).bind(...clause.binds, filters.limit, safeOffset).all<InventoryItemRow & {
+    source_listing_price_asking: number | null;
+    qty_available: number | null;
+    total_rows: number | null;
+  }>();
+
+  return {
+    records: (result.results ?? []).map((row) => mapInventoryRow(row)),
+    total,
+    page: safePage,
+    limit: filters.limit,
+    totalPages,
+  };
+}
+
+async function dbListInventoryItemsByCcgNumber(
+  ccgNumber: string,
+  page: number,
+  limit: number,
+  env: Env,
+): Promise<{ records: Array<Record<string, unknown>>; total: number; page: number; limit: number; totalPages: number }> {
+  const countRow = await env.DB.prepare(
+    'SELECT COUNT(*) AS total FROM ccg_inventory_items WHERE ccg_number = ?'
+  ).bind(ccgNumber).first<{ total: number | null }>();
+
+  const total = Number(countRow?.total || 0);
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const safePage = Math.min(page, totalPages);
+  const safeOffset = (safePage - 1) * limit;
+
   const result = await env.DB.prepare(
     `SELECT
       i.id,
@@ -3312,42 +3548,35 @@ async function dbListInventoryItems(env: Env): Promise<Array<Record<string, unkn
       i.sell_notes,
       i.created_at,
       i.updated_at,
-      l.price_asking AS source_listing_price_asking
+      l.price_asking AS source_listing_price_asking,
+      (
+        SELECT SUM(CASE WHEN g.is_active = 1 AND g.is_sold = 0 THEN 1 ELSE 0 END)
+        FROM ccg_inventory_items g
+        WHERE g.ccg_number = i.ccg_number
+      ) AS qty_available,
+      (
+        SELECT COUNT(*)
+        FROM ccg_inventory_items g
+        WHERE g.ccg_number = i.ccg_number
+      ) AS total_rows
      FROM ccg_inventory_items i
      LEFT JOIN listings l ON l.id = i.source_listing_id
-     WHERE i.is_active = 1
-     ORDER BY i.created_at DESC, i.id DESC`
-  ).all<InventoryItemRow & { source_listing_price_asking: number | null }>();
+     WHERE i.ccg_number = ?
+     ORDER BY i.created_at DESC, i.id DESC
+     LIMIT ? OFFSET ?`
+  ).bind(ccgNumber, limit, safeOffset).all<InventoryItemRow & {
+    source_listing_price_asking: number | null;
+    qty_available: number | null;
+    total_rows: number | null;
+  }>();
 
-  return (result.results ?? []).map((row) => ({
-    id: String(row.id),
-    sourceListingId: row.source_listing_id != null ? String(row.source_listing_id) : null,
-    ccgNumber: row.ccg_number,
-    imageUrl: row.image_url,
-    imageUrls: parseStoredInventoryImageUrls(row.image_urls, row.image_url),
-    title: row.title,
-    category: row.category || '',
-    brand: row.brand || '',
-    yearRange: row.year_range || '',
-    model: row.model || '',
-    finish: row.finish || '',
-    originalListingDesc: row.original_listing_desc || '',
-    purchasedDate: row.purchased_date || '',
-    purchasePrice: row.purchase_price,
-    privatePartyValue: row.private_party_value,
-    purchaseNotes: row.purchase_notes || '',
-    serialNumber: row.serial_number || '',
-    isActive: Boolean(row.is_active),
-    forSale: Boolean(row.for_sale),
-    forSaleDate: row.for_sale_date || null,
-    isSold: Boolean(row.is_sold),
-    soldDate: row.sold_date || null,
-    soldAmount: row.sold_amount,
-    sellNotes: row.sell_notes || '',
-    createdAt: row.created_at || '',
-    updatedAt: row.updated_at || '',
-    sourceListingPriceAsking: row.source_listing_price_asking,
-  }));
+  return {
+    records: (result.results ?? []).map((row) => mapInventoryRow(row)),
+    total,
+    page: safePage,
+    limit,
+    totalPages,
+  };
 }
 
 async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<string, unknown> | null> {
@@ -3439,7 +3668,7 @@ async function generateUniqueCcgNumber(env: Env): Promise<string | null> {
   return null;
 }
 
-async function dbCreateInventoryItem(
+async function dbCreateInventoryItems(
   fields: {
     source_listing_id: number | null;
     ccg_number: string;
@@ -3465,21 +3694,22 @@ async function dbCreateInventoryItem(
     sold_amount: number | null;
     sell_notes: string | null;
   },
+  qty: number,
   env: Env
-): Promise<{ id: string; ccgNumber: string } | null> {
+): Promise<{ firstId: string; ccgNumber: string; createdCount: number } | null> {
   try {
-    const result = await env.DB.prepare(
-      `INSERT INTO ccg_inventory_items
+    const statement = `INSERT INTO ccg_inventory_items
       (
         source_listing_id, ccg_number, image_url, title, category, brand, year_range, model, finish,
         image_urls,
         original_listing_desc, purchased_date, purchase_price, private_party_value, purchase_notes, serial_number, is_active, for_sale, for_sale_date,
         is_sold, sold_date, sold_amount, sell_notes
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-      .bind(
-        fields.source_listing_id,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+    const statements = Array.from({ length: qty }, (_, index) =>
+      env.DB.prepare(statement).bind(
+        index === 0 ? fields.source_listing_id : null,
         fields.ccg_number,
         fields.image_url,
         fields.title,
@@ -3501,22 +3731,23 @@ async function dbCreateInventoryItem(
         fields.is_sold,
         fields.sold_date,
         fields.sold_amount,
-        fields.sell_notes
-      )
-      .run();
-    const id = result.meta?.last_row_id ? String(result.meta.last_row_id) : null;
-    if (!id) return null;
-    return { id, ccgNumber: fields.ccg_number };
+        fields.sell_notes,
+      ),
+    );
+
+    const results = await env.DB.batch(statements);
+    const firstId = results[0]?.meta?.last_row_id ? String(results[0].meta.last_row_id) : null;
+    if (!firstId) return null;
+    return { firstId, ccgNumber: fields.ccg_number, createdCount: results.length };
   } catch (error) {
     console.error('Inventory insert failed', { error });
     return null;
   }
 }
 
-async function dbUpdateInventoryItem(
-  recordId: string,
+async function dbUpdateInventorySharedByCcgNumber(
+  ccgNumber: string,
   fields: {
-    source_listing_id: number | null;
     image_url: string;
     image_urls: string;
     title: string;
@@ -3531,6 +3762,45 @@ async function dbUpdateInventoryItem(
     private_party_value: number;
     purchase_notes: string | null;
     serial_number: string | null;
+  },
+  env: Env
+): Promise<boolean> {
+  try {
+    await env.DB.prepare(
+      `UPDATE ccg_inventory_items
+       SET
+         image_url = ?, title = ?, category = ?, brand = ?, year_range = ?, model = ?, finish = ?, image_urls = ?,
+         original_listing_desc = ?, purchased_date = ?, purchase_price = ?, private_party_value = ?, purchase_notes = ?,
+         serial_number = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE ccg_number = ?`
+    ).bind(
+      fields.image_url,
+      fields.title,
+      fields.category,
+      fields.brand,
+      fields.year_range,
+      fields.model,
+      fields.finish,
+      fields.image_urls,
+      fields.original_listing_desc,
+      fields.purchased_date,
+      fields.purchase_price,
+      fields.private_party_value,
+      fields.purchase_notes,
+      fields.serial_number,
+      ccgNumber,
+    ).run();
+    return true;
+  } catch (error) {
+    console.error('Inventory shared update failed', { error });
+    return false;
+  }
+}
+
+async function dbUpdateInventoryRowSpecific(
+  recordId: string,
+  fields: {
+    source_listing_id: number | null;
     is_active: number;
     for_sale: number;
     for_sale_date: string | null;
@@ -3547,27 +3817,11 @@ async function dbUpdateInventoryItem(
     await env.DB.prepare(
       `UPDATE ccg_inventory_items
        SET
-         source_listing_id = ?, image_url = ?, title = ?, category = ?, brand = ?, year_range = ?,
-         model = ?, finish = ?, image_urls = ?, original_listing_desc = ?, purchased_date = ?, purchase_price = ?, private_party_value = ?, purchase_notes = ?, serial_number = ?,
-         is_active = ?, for_sale = ?, for_sale_date = ?, is_sold = ?, sold_date = ?, sold_amount = ?, sell_notes = ?,
+         source_listing_id = ?, is_active = ?, for_sale = ?, for_sale_date = ?, is_sold = ?, sold_date = ?, sold_amount = ?, sell_notes = ?,
          updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
     ).bind(
       fields.source_listing_id,
-      fields.image_url,
-      fields.title,
-      fields.category,
-      fields.brand,
-      fields.year_range,
-      fields.model,
-      fields.finish,
-      fields.image_urls,
-      fields.original_listing_desc,
-      fields.purchased_date,
-      fields.purchase_price,
-      fields.private_party_value,
-      fields.purchase_notes,
-      fields.serial_number,
       fields.is_active,
       fields.for_sale,
       fields.for_sale_date,

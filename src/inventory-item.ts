@@ -32,11 +32,6 @@ type InventoryRecordResponse = {
   message?: string;
 };
 
-type InventoryListResponse = {
-  records: InventoryItem[];
-  message?: string;
-};
-
 type ListingRecordResponse = {
   id: string;
   fields?: {
@@ -81,6 +76,10 @@ const serialNumberInput = document.getElementById('inventory-serial-number') as 
 const soldAmountInput = document.getElementById('inventory-sold-amount') as HTMLInputElement | null;
 const sellNotesInput = document.getElementById('inventory-sell-notes') as HTMLTextAreaElement | null;
 const submitButton = document.getElementById('inventory-submit') as HTMLButtonElement | null;
+const qtyWrap = document.getElementById('inventory-qty-wrap') as HTMLDivElement | null;
+const qtyInput = document.getElementById('inventory-qty') as HTMLInputElement | null;
+const qtyMinusButton = document.getElementById('inventory-qty-minus') as HTMLButtonElement | null;
+const qtyPlusButton = document.getElementById('inventory-qty-plus') as HTMLButtonElement | null;
 
 let editId: string | null = null;
 let sourceListingId: string | null = null;
@@ -88,6 +87,22 @@ let sourceImageUrl: string | null = null;
 let inventoryImageUrls: string[] = [];
 let inventoryLightbox: HTMLDivElement | null = null;
 let inventoryLightboxImage: HTMLImageElement | null = null;
+
+function parseQtyValue(raw: string): number {
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed)) return 1;
+  return Math.min(100, Math.max(1, parsed));
+}
+
+function setQtyValue(next: number): void {
+  if (!qtyInput) return;
+  qtyInput.value = String(Math.min(100, Math.max(1, next)));
+}
+
+function currentQtyValue(): number {
+  if (!qtyInput) return 1;
+  return parseQtyValue(qtyInput.value);
+}
 
 function closeInventoryLightbox(): void {
   if (!inventoryLightbox) return;
@@ -230,11 +245,14 @@ function setMode(mode: 'add' | 'edit'): void {
     if (pageTitleEl) pageTitleEl.textContent = 'Edit Inventory Item';
     if (modeEl) modeEl.textContent = 'Edit mode';
     if (submitButton) submitButton.textContent = 'Save Changes';
+    qtyWrap?.classList.add('hidden');
     return;
   }
   if (pageTitleEl) pageTitleEl.textContent = 'Add Inventory Item';
   if (modeEl) modeEl.textContent = 'Add mode';
   if (submitButton) submitButton.textContent = 'Add Inventory Item';
+  qtyWrap?.classList.remove('hidden');
+  setQtyValue(1);
 }
 
 function todayYmd(): string {
@@ -266,15 +284,6 @@ async function importSourceImage(url: string): Promise<string> {
     throw new Error(data.message || 'Unable to import source image.');
   }
   return data.imageUrl;
-}
-
-async function fetchInventoryRows(): Promise<InventoryItem[]> {
-  const response = await fetch('/api/inventory', { method: 'GET' });
-  const data = await response.json() as InventoryListResponse;
-  if (!response.ok) {
-    throw new Error(data.message || 'Unable to load inventory.');
-  }
-  return Array.isArray(data.records) ? data.records : [];
 }
 
 async function fetchInventoryItem(id: string): Promise<InventoryItem> {
@@ -320,14 +329,6 @@ function fillFromInventoryRecord(record: InventoryItem): void {
 
 async function prefillFromListing(listingId: string): Promise<void> {
   sourceListingId = listingId;
-  const rows = await fetchInventoryRows();
-  const alreadyAdded = rows.some((row) => row.sourceListingId === listingId);
-  if (alreadyAdded) {
-    setStatus('This listing is already in inventory.', true);
-    if (submitButton) submitButton.disabled = true;
-    return;
-  }
-
   const response = await fetch(`/api/listings/${encodeURIComponent(listingId)}`, { method: 'GET' });
   const data = await response.json() as ListingRecordResponse;
   if (!response.ok) {
@@ -434,6 +435,7 @@ async function handleSubmit(event: SubmitEvent): Promise<void> {
   try {
     const payload = {
       sourceListingId,
+      qty: editId ? 1 : currentQtyValue(),
       imageUrl: inventoryImageUrls[0],
       imageUrls: [...inventoryImageUrls],
       title,
@@ -479,7 +481,10 @@ async function handleSubmit(event: SubmitEvent): Promise<void> {
       setStatus('Inventory item updated. Redirecting...');
     } else {
       if (ccgInput) ccgInput.value = data.ccgNumber || 'Created';
-      setStatus(`Inventory item created: ${data.ccgNumber || ''}. Redirecting...`.trim());
+      const createdCount = typeof (data as { createdCount?: unknown }).createdCount === 'number'
+        ? (data as { createdCount: number }).createdCount
+        : currentQtyValue();
+      setStatus(`Created ${createdCount} inventory item${createdCount === 1 ? '' : 's'}: ${data.ccgNumber || ''}. Redirecting...`.trim());
     }
     window.setTimeout(() => {
       if (shouldRedirectToMarketplace) {
@@ -507,6 +512,7 @@ async function init(): Promise<void> {
   if (purchasedDateInput && !purchasedDateInput.value) purchasedDateInput.value = todayYmd();
   if (privatePartyValueInput && !privatePartyValueInput.value) privatePartyValueInput.value = '0';
   if (forSaleInput && !editId) forSaleInput.checked = false;
+  setQtyValue(1);
 
   const params = new URLSearchParams(window.location.search);
   const id = params.get('id');
@@ -543,6 +549,18 @@ async function init(): Promise<void> {
     if (isSoldInput.checked && forSaleInput) {
       forSaleInput.checked = false;
     }
+  });
+  qtyMinusButton?.addEventListener('click', () => {
+    setQtyValue(currentQtyValue() - 1);
+  });
+  qtyPlusButton?.addEventListener('click', () => {
+    setQtyValue(currentQtyValue() + 1);
+  });
+  qtyInput?.addEventListener('input', () => {
+    setQtyValue(currentQtyValue());
+  });
+  qtyInput?.addEventListener('blur', () => {
+    setQtyValue(currentQtyValue());
   });
   form?.addEventListener('submit', (event) => {
     void handleSubmit(event as SubmitEvent);
