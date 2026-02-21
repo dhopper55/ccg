@@ -161,6 +161,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://www.coalcreekguitars.com/new-guitarist-practice-resources</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://www.coalcreekguitars.com/contact-us.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
