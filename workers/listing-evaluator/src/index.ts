@@ -1899,8 +1899,7 @@ async function handleMarketplaceListingsCreate(request: Request, env: Env): Prom
 
   const title = normalizeText(body.title, '').slice(0, 200);
   const listingUrl = normalizeUrl(normalizeText(body.listingUrl, ''));
-  const imageUrlRaw = normalizeText(body.imageUrl, '');
-  const imageUrl = imageUrlRaw ? normalizeUrl(imageUrlRaw) : null;
+  const imageInput = normalizeText(body.imageUrl, '');
   const notes = normalizeText(body.notes, '').slice(0, 2000);
   const priceDollars = parseWholeDollars(body.priceDollars);
 
@@ -1912,13 +1911,17 @@ async function handleMarketplaceListingsCreate(request: Request, env: Env): Prom
   if (priceDollars == null || !Number.isFinite(priceDollars) || priceDollars < 1) {
     return jsonResponse({ message: 'Price (whole dollars) must be at least 1.' }, 400);
   }
+  const importedImage = await importMarketplaceImageToR2(imageInput, env);
+  if (importedImage.errorStatus && importedImage.errorMessage) {
+    return jsonResponse({ message: importedImage.errorMessage }, importedImage.errorStatus);
+  }
 
   const inserted = await dbCreateMarketplaceListing({
     source: 'facebook',
     title,
     price_dollars: priceDollars,
     currency: 'USD',
-    image_url: imageUrl,
+    image_url: importedImage.imageUrl,
     listing_url: listingUrl,
     status: 'active',
     notes: notes || null,
@@ -1946,8 +1949,7 @@ async function handleMarketplaceListingsUpdate(request: Request, path: string, e
 
   const title = normalizeText(body.title, '').slice(0, 200);
   const listingUrl = normalizeUrl(normalizeText(body.listingUrl, ''));
-  const imageUrlRaw = normalizeText(body.imageUrl, '');
-  const imageUrl = imageUrlRaw ? normalizeUrl(imageUrlRaw) : null;
+  const imageInput = normalizeText(body.imageUrl, '');
   const notes = normalizeText(body.notes, '').slice(0, 2000);
   const priceDollars = parseWholeDollars(body.priceDollars);
 
@@ -1959,11 +1961,15 @@ async function handleMarketplaceListingsUpdate(request: Request, path: string, e
   if (priceDollars == null || !Number.isFinite(priceDollars) || priceDollars < 1) {
     return jsonResponse({ message: 'Price (whole dollars) must be at least 1.' }, 400);
   }
+  const importedImage = await importMarketplaceImageToR2(imageInput, env);
+  if (importedImage.errorStatus && importedImage.errorMessage) {
+    return jsonResponse({ message: importedImage.errorMessage }, importedImage.errorStatus);
+  }
 
   const ok = await dbUpdateMarketplaceListing(recordId, {
     title,
     price_dollars: priceDollars,
-    image_url: imageUrl,
+    image_url: importedImage.imageUrl,
     listing_url: listingUrl,
     notes: notes || null,
   }, env);
@@ -2212,6 +2218,62 @@ async function handleInventoryImageImport(request: Request, env: Env): Promise<R
   });
 
   return jsonResponse({ ok: true, imageUrl: buildInventoryImageUrl(key) });
+}
+
+async function importMarketplaceImageToR2(
+  imageInput: string,
+  env: Env
+): Promise<{ imageUrl: string | null; errorMessage?: string; errorStatus?: number }> {
+  if (!imageInput) {
+    return { imageUrl: null };
+  }
+
+  if (isInventoryImageUrl(imageInput)) {
+    return { imageUrl: imageInput };
+  }
+
+  const sourceUrl = normalizeUrl(imageInput);
+  if (!sourceUrl) {
+    return { imageUrl: null, errorMessage: 'Main image URL is invalid.', errorStatus: 400 };
+  }
+
+  if (!env.CUSTOM_ITEMS_BUCKET) {
+    return {
+      imageUrl: null,
+      errorMessage: 'Inventory image uploads are not configured.',
+      errorStatus: 500,
+    };
+  }
+
+  let sourceResponse: Response;
+  try {
+    sourceResponse = await fetch(sourceUrl, {
+      headers: { 'User-Agent': 'CCG Marketplace Import/1.0' },
+      redirect: 'follow',
+    });
+  } catch {
+    return { imageUrl: null, errorMessage: 'Unable to fetch the image URL.', errorStatus: 400 };
+  }
+
+  if (!sourceResponse.ok) {
+    return { imageUrl: null, errorMessage: 'Unable to fetch the image URL.', errorStatus: 400 };
+  }
+
+  const contentType = sourceResponse.headers.get('content-type') || '';
+  if (!contentType.toLowerCase().startsWith('image/')) {
+    return { imageUrl: null, errorMessage: 'Image URL did not return an image.', errorStatus: 400 };
+  }
+
+  const extension = extensionFromContentType(contentType);
+  const key = `inventory-items/marketplace/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${extension}`;
+  const bodyBytes = await sourceResponse.arrayBuffer();
+  await env.CUSTOM_ITEMS_BUCKET.put(key, bodyBytes, {
+    httpMetadata: {
+      contentType: contentType || 'application/octet-stream',
+    },
+  });
+
+  return { imageUrl: buildInventoryImageUrl(key) };
 }
 
 async function handleInventoryGet(path: string, env: Env): Promise<Response> {

@@ -1,3 +1,25 @@
+function buildImageSrc(listing) {
+    if (!listing.imageUrl)
+        return '';
+    if (listing.imageUrl.startsWith('/api/inventory-image?'))
+        return listing.imageUrl;
+    if (listing.source !== 'facebook')
+        return listing.imageUrl;
+    if (!/^https?:\/\//i.test(listing.imageUrl))
+        return listing.imageUrl;
+    const params = new URLSearchParams();
+    params.set('url', listing.imageUrl);
+    if (listing.listingUrl) {
+        params.set('ref', listing.listingUrl);
+    }
+    return `/api/image?${params.toString()}`;
+}
+function createPlaceholder() {
+    const placeholder = document.createElement('div');
+    placeholder.className = 'listing-placeholder';
+    placeholder.textContent = 'No Image';
+    return placeholder;
+}
 async function fetchListings() {
     const response = await fetch('/api/for-sale', { method: 'GET' });
     if (!response.ok) {
@@ -30,16 +52,25 @@ function createListingCard(listing) {
     imageWrap.className = 'listing-image';
     if (listing.imageUrl) {
         const img = document.createElement('img');
-        img.src = listing.imageUrl;
+        const proxiedSrc = buildImageSrc(listing);
+        const directSrc = listing.imageUrl;
+        let triedDirectFallback = false;
+        img.src = proxiedSrc || directSrc;
         img.alt = listing.title || 'Listing photo';
         img.loading = 'lazy';
+        img.addEventListener('error', () => {
+            if (!triedDirectFallback && proxiedSrc && proxiedSrc !== directSrc) {
+                triedDirectFallback = true;
+                img.src = directSrc;
+                return;
+            }
+            img.remove();
+            imageWrap.appendChild(createPlaceholder());
+        });
         imageWrap.appendChild(img);
     }
     else {
-        const placeholder = document.createElement('div');
-        placeholder.className = 'listing-placeholder';
-        placeholder.textContent = 'No Image';
-        imageWrap.appendChild(placeholder);
+        imageWrap.appendChild(createPlaceholder());
     }
     const info = document.createElement('div');
     info.className = 'listing-info';
