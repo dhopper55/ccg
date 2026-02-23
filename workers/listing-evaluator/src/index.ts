@@ -129,10 +129,12 @@ const SUPPORTED_ORIGINS = [
 
 const CATEGORY_OPTIONS = [
   'Accessories',
+  'Acoustic Bass',
   'Acoustic Guitars',
   'Amps',
   'Band and Orchestra',
   'Bass Guitars',
+  'Cases & Bags',
   'DJ and Lighting Gear',
   'Drums and Percussion',
   'Effects and Pedals',
@@ -140,10 +142,10 @@ const CATEGORY_OPTIONS = [
   'Folk Instruments',
   'Home Audio',
   'Keyboards and Synths',
+  'Other',
+  'Packages',
   'Parts',
   'Pro Audio',
-  'Cases & Bags',
-  'Other',
 ];
 
 const CONDITION_OPTIONS = [

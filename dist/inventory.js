@@ -1,16 +1,17 @@
 import { initListingAuth } from './listing-auth.js?version=980318';
 const PAGE_SIZE = 20;
 const INVENTORY_CATEGORIES = [
-    'Electric Guitars',
-    'Acoustic Guitars',
-    'Electric Bass',
-    'Acoustic Bass',
-    'Effects Pedals',
-    'Amplification',
-    'Pro Audio',
-    'Keyboards & Synthesizers',
-    'Cases & Bags',
     'Accessories',
+    'Acoustic Bass',
+    'Acoustic Guitars',
+    'Amplification',
+    'Cases & Bags',
+    'Effects Pedals',
+    'Electric Bass',
+    'Electric Guitars',
+    'Keyboards & Synthesizers',
+    'Packages',
+    'Pro Audio',
 ];
 const statusEl = document.getElementById('inventory-status');
 const gridBody = document.getElementById('inventory-grid-body');
