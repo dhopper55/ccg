@@ -427,7 +427,31 @@ function bindFilterEvents(): void {
     packageCreateEl.addEventListener('click', () => {
       const confirmed = window.confirm('Are you sure you want to create a pacakge from the currently filtered/marked items?');
       if (!confirmed) return;
-      // Next step will implement package creation.
+      packageCreateEl.disabled = true;
+      clearStatus();
+      void (async () => {
+        try {
+          setStatus('Creating package from marked items...');
+          const response = await fetch('/api/inventory/package-create', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({}),
+          });
+          const data = await response.json().catch(() => ({})) as { ok?: boolean; id?: string; message?: string; mergedCount?: number };
+          if (!response.ok || !data.ok || !data.id) {
+            throw new Error(data.message || 'Unable to create package.');
+          }
+          setStatus(`Package created from ${Number(data.mergedCount || 0)} item(s). Redirecting...`);
+          window.setTimeout(() => {
+            window.location.href = `inventory-item.html?id=${encodeURIComponent(data.id || '')}`;
+          }, 150);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unable to create package.';
+          setStatus(message, true);
+          packageCreateEl.disabled = false;
+          updatePackageCreateButtonVisibility();
+        }
+      })();
     });
   }
 

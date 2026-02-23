@@ -344,6 +344,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/inventory/package-create' && request.method === 'POST') {
+      const response = await handleInventoryPackageCreate(env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/inventory-image' && request.method === 'GET') {
       const response = await handleInventoryImage(request, env);
       return withCors(response, request, env);
@@ -2073,6 +2078,81 @@ async function handleInventoryList(request: Request, env: Env): Promise<Response
 async function handleInventorySummary(env: Env): Promise<Response> {
   const totals = await dbGetInventorySummary(env);
   return jsonResponse(totals);
+}
+
+async function handleInventoryPackageCreate(env: Env): Promise<Response> {
+  if (!env.CUSTOM_ITEMS_BUCKET) {
+    return jsonResponse({ message: 'Inventory image uploads are not configured.' }, 500);
+  }
+
+  const markedRows = await dbListMarkedInventoryRowsForPackage(env);
+  if (markedRows.length < 2) {
+    return jsonResponse({ message: 'At least 2 marked inventory items are required to create a package.' }, 400);
+  }
+
+  const packageImageUrls = await clonePackageImagesFromMarkedRows(markedRows, env);
+  if (packageImageUrls.length < 1) {
+    return jsonResponse({ message: 'Marked items did not contain usable images.' }, 400);
+  }
+
+  const purchasePriceTotal = markedRows.reduce((sum, row) => sum + (Number.isFinite(row.purchase_price) ? Number(row.purchase_price) : 0), 0);
+  const privatePartyValueTotal = markedRows.reduce((sum, row) => sum + (Number.isFinite(row.private_party_value) ? Number(row.private_party_value) : 0), 0);
+  const purchaseNotes = buildPackagePurchaseNotes(markedRows);
+
+  const ccgNumber = await generateUniqueCcgNumber(env);
+  if (!ccgNumber) {
+    return jsonResponse({ message: 'Unable to generate CCG Number. Please try again.' }, 500);
+  }
+
+  const inserted = await dbCreateInventoryItems({
+    source_listing_id: null,
+    ccg_number: ccgNumber,
+    image_url: packageImageUrls[0],
+    image_urls: packageImageUrls.join('\n'),
+    title: 'PACKAGE DEAL - TBD',
+    category: 'Packages',
+    brand: 'TBD',
+    year_range: 'TBD',
+    model: 'TBD',
+    finish: 'TBD',
+    original_listing_desc: null,
+    purchased_date: currentDateYmd(),
+    purchase_price: purchasePriceTotal,
+    private_party_value: privatePartyValueTotal,
+    purchase_notes: purchaseNotes || null,
+    serial_number: null,
+    is_active: 1,
+    is_marked: 0,
+    for_sale: 0,
+    for_sale_date: null,
+    is_sold: 0,
+    sold_date: null,
+    sold_amount: 0,
+    sell_notes: '',
+  }, 1, env);
+
+  if (!inserted?.firstId) {
+    return jsonResponse({ message: 'Unable to create package inventory item.' }, 500);
+  }
+
+  const sourceIds = markedRows.map((row) => row.id);
+  const deletedCount = await dbDeleteInventoryItemsByIds(sourceIds, env);
+  if (deletedCount !== sourceIds.length) {
+    return jsonResponse({
+      message: `Package item was created, but only ${deletedCount} of ${sourceIds.length} marked rows were deleted. Resolve manually.`,
+      id: inserted.firstId,
+      ccgNumber: inserted.ccgNumber,
+    }, 500);
+  }
+
+  await purgeOrphanedInventoryImagesForDeletedRows(markedRows, env);
+
+  return jsonResponse({
+    ok: true,
+    id: inserted.firstId,
+    ccgNumber: inserted.ccgNumber,
+    mergedCount: sourceIds.length,
+  });
 }
 
 async function handleInventoryCreate(request: Request, env: Env): Promise<Response> {
@@ -4071,6 +4151,21 @@ async function dbDeleteInventoryItemById(recordId: string, env: Env): Promise<nu
   }
 }
 
+async function dbDeleteInventoryItemsByIds(ids: number[], env: Env): Promise<number> {
+  const normalizedIds = ids.filter((id) => Number.isFinite(id) && id > 0);
+  if (normalizedIds.length === 0) return 0;
+  try {
+    const placeholders = normalizedIds.map(() => '?').join(', ');
+    const result = await env.DB.prepare(
+      `DELETE FROM ccg_inventory_items WHERE id IN (${placeholders})`
+    ).bind(...normalizedIds).run();
+    return Number(result.meta?.changes || 0);
+  } catch (error) {
+    console.error('Inventory bulk delete failed', { error });
+    return 0;
+  }
+}
+
 async function dbDeleteInventoryItemsByCcgNumber(ccgNumber: string, env: Env): Promise<number> {
   try {
     const result = await env.DB.prepare(
@@ -4081,6 +4176,50 @@ async function dbDeleteInventoryItemsByCcgNumber(ccgNumber: string, env: Env): P
     console.error('Inventory grouped delete failed', { error });
     return 0;
   }
+}
+
+async function dbListMarkedInventoryRowsForPackage(env: Env): Promise<InventoryItemRow[]> {
+  const result = await env.DB.prepare(
+    `SELECT
+      i.id,
+      i.source_listing_id,
+      i.ccg_number,
+      i.image_url,
+      i.image_urls,
+      i.title,
+      i.category,
+      i.brand,
+      i.year_range,
+      i.model,
+      i.finish,
+      i.original_listing_desc,
+      i.purchased_date,
+      i.purchase_price,
+      i.private_party_value,
+      i.purchase_notes,
+      i.serial_number,
+      i.is_active,
+      i.is_marked,
+      i.for_sale,
+      i.for_sale_date,
+      i.is_sold,
+      i.sold_date,
+      i.sold_amount,
+      i.sell_notes,
+      i.created_at,
+      i.updated_at
+     FROM ccg_inventory_items i
+     WHERE COALESCE(i.is_marked, 0) = 1
+     ORDER BY i.created_at ASC, i.id ASC`
+  ).all<InventoryItemRow>();
+  return result.results ?? [];
+}
+
+async function dbListAllInventoryImageRefs(env: Env): Promise<Array<{ image_url: string | null; image_urls: string | null }>> {
+  const result = await env.DB.prepare(
+    'SELECT image_url, image_urls FROM ccg_inventory_items'
+  ).all<{ image_url: string | null; image_urls: string | null }>();
+  return result.results ?? [];
 }
 
 async function dbGetInventorySummary(env: Env): Promise<InventorySummaryTotals> {
@@ -5161,6 +5300,21 @@ function isInventoryImageUrl(url: string): boolean {
   }
 }
 
+function extractInventoryImageKey(url: string): string | null {
+  if (!url) return null;
+  try {
+    const parsed = url.startsWith('/api/inventory-image?')
+      ? new URL(url, 'https://www.coalcreekguitars.com')
+      : new URL(url);
+    if (parsed.pathname !== '/api/inventory-image') return null;
+    const key = (parsed.searchParams.get('key') || '').trim();
+    if (!key.startsWith('inventory-items/')) return null;
+    return key;
+  } catch {
+    return null;
+  }
+}
+
 function parseStoredInventoryImageUrls(imageUrlsRaw: string | null, fallbackPrimary: string | null): string[] {
   const urls = typeof imageUrlsRaw === 'string'
     ? imageUrlsRaw.split(/\r?\n/).map((value) => value.trim()).filter(Boolean)
@@ -5201,6 +5355,133 @@ function normalizeInventoryImageUrls(primaryImageUrl: string, rawInput: unknown)
 
   const seed = primaryImageUrl ? [primaryImageUrl.trim(), ...fromInput] : [...fromInput];
   return Array.from(new Set(seed.filter((url) => isInventoryImageUrl(url)))).slice(0, INVENTORY_MAX_IMAGES);
+}
+
+function formatDateForPackageNotes(value: string | null): string {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  if (!raw) return '';
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return raw;
+  return `${match[2]}/${match[3]}/${match[1]}`;
+}
+
+function formatOptionalMoneyForPackageNotes(value: number | null): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '';
+  return `$${Math.round(value).toLocaleString('en-US')}`;
+}
+
+function buildPackagePurchaseNotes(rows: InventoryItemRow[]): string {
+  const separator = '------------------------';
+  const sections: string[] = [];
+
+  for (const row of rows) {
+    const lines: string[] = [];
+    const title = normalizeText(row.title, '');
+    if (title) lines.push(title);
+
+    const detailsLine = [
+      normalizeText(row.category, ''),
+      normalizeText(row.brand, ''),
+      normalizeText(row.year_range, ''),
+      normalizeText(row.model, ''),
+      normalizeText(row.finish, ''),
+      normalizeText(row.serial_number, '') ? `SERIAL# ${normalizeText(row.serial_number, '')}` : '',
+    ].filter(Boolean).join(' - ');
+    if (detailsLine) lines.push(detailsLine);
+
+    const valuesLine = [
+      formatDateForPackageNotes(row.purchased_date),
+      formatOptionalMoneyForPackageNotes(row.purchase_price),
+      formatOptionalMoneyForPackageNotes(row.private_party_value),
+    ].filter(Boolean).join(' - ');
+    if (valuesLine) lines.push(valuesLine);
+
+    const purchaseNotes = normalizeText(row.purchase_notes, '');
+    if (purchaseNotes) lines.push(purchaseNotes);
+
+    if (lines.length > 0) {
+      sections.push(lines.join('\n'));
+    }
+  }
+
+  return sections.join(`\n${separator}\n`);
+}
+
+async function cloneInventoryImageKeyToNewPackageImageUrl(sourceKey: string, env: Env): Promise<string> {
+  if (!env.CUSTOM_ITEMS_BUCKET) {
+    throw new Error('Inventory image uploads are not configured.');
+  }
+  const object = await env.CUSTOM_ITEMS_BUCKET.get(sourceKey);
+  if (!object || !object.body) {
+    throw new Error(`Source image not found for package creation: ${sourceKey}`);
+  }
+
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+  const contentType = headers.get('content-type') || 'application/octet-stream';
+  const ext = extensionFromContentType(contentType);
+  const key = `inventory-items/packages/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${ext}`;
+  const body = await object.arrayBuffer();
+  await env.CUSTOM_ITEMS_BUCKET.put(key, body, {
+    httpMetadata: {
+      contentType,
+    },
+  });
+  return buildInventoryImageUrl(key);
+}
+
+async function clonePackageImagesFromMarkedRows(rows: InventoryItemRow[], env: Env): Promise<string[]> {
+  const output: string[] = [];
+  const seenSourceKeys = new Set<string>();
+
+  for (const row of rows) {
+    const imageUrls = parseStoredInventoryImageUrls(row.image_urls, row.image_url);
+    for (const imageUrl of imageUrls) {
+      const key = extractInventoryImageKey(imageUrl);
+      if (!key || seenSourceKeys.has(key)) continue;
+      seenSourceKeys.add(key);
+      const clonedUrl = await cloneInventoryImageKeyToNewPackageImageUrl(key, env);
+      output.push(clonedUrl);
+      if (output.length >= INVENTORY_MAX_IMAGES) {
+        return output;
+      }
+    }
+  }
+
+  return output;
+}
+
+async function purgeOrphanedInventoryImagesForDeletedRows(rows: InventoryItemRow[], env: Env): Promise<void> {
+  if (!env.CUSTOM_ITEMS_BUCKET) return;
+
+  const candidateKeys = new Set<string>();
+  for (const row of rows) {
+    const imageUrls = parseStoredInventoryImageUrls(row.image_urls, row.image_url);
+    imageUrls.forEach((url) => {
+      const key = extractInventoryImageKey(url);
+      if (key) candidateKeys.add(key);
+    });
+  }
+  if (candidateKeys.size === 0) return;
+
+  const refs = await dbListAllInventoryImageRefs(env);
+  const stillReferenced = new Set<string>();
+  for (const ref of refs) {
+    const urls = parseStoredInventoryImageUrls(ref.image_urls, ref.image_url);
+    urls.forEach((url) => {
+      const key = extractInventoryImageKey(url);
+      if (key) stillReferenced.add(key);
+    });
+  }
+
+  for (const key of candidateKeys) {
+    if (stillReferenced.has(key)) continue;
+    try {
+      await env.CUSTOM_ITEMS_BUCKET.delete(key);
+    } catch (error) {
+      console.warn('Failed to purge orphaned inventory image', { key, error });
+    }
+  }
 }
 
 function randomIntInRange(min: number, max: number): number {
