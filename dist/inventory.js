@@ -21,6 +21,7 @@ const soldOnlyFilterEl = document.getElementById('inventory-filter-sold');
 const activeOnlyFilterEl = document.getElementById('inventory-filter-active');
 const onlyMarkedFilterEl = document.getElementById('inventory-filter-only-marked');
 const clearFiltersEl = document.getElementById('inventory-clear-filters');
+const packageCreateEl = document.getElementById('inventory-package-create');
 const pagePrevEl = document.getElementById('inventory-page-prev');
 const pageNextEl = document.getElementById('inventory-page-next');
 const pageLabelEl = document.getElementById('inventory-page-label');
@@ -95,6 +96,12 @@ function setFilterDisabledState(disabled) {
     onlyMarkedFilterEl && (onlyMarkedFilterEl.disabled = disabled);
     toolbarEl?.classList.toggle('is-drilldown', disabled);
 }
+function updatePackageCreateButtonVisibility() {
+    if (!packageCreateEl)
+        return;
+    const shouldShow = Boolean(onlyMarkedFilterEl?.checked) && rows.length >= 2;
+    packageCreateEl.classList.toggle('hidden', !shouldShow);
+}
 function updateSortHeaderUi() {
     sortButtons.forEach((button) => {
         const key = (button.dataset.sortKey || '');
@@ -120,6 +127,7 @@ function renderInventoryGrid() {
         empty.appendChild(td);
         gridBody.appendChild(empty);
         updatePaginationControls();
+        updatePackageCreateButtonVisibility();
         return;
     }
     rows.forEach((row) => {
@@ -207,6 +215,7 @@ function renderInventoryGrid() {
         gridBody.appendChild(tr);
     });
     updatePaginationControls();
+    updatePackageCreateButtonVisibility();
 }
 function setCategoryOptions() {
     if (!categoryFilterEl)
@@ -299,6 +308,8 @@ async function loadGrid() {
     }
     catch (error) {
         const message = error instanceof Error ? error.message : 'Could not load inventory grid.';
+        rows = [];
+        updatePackageCreateButtonVisibility();
         setStatus(message, true);
     }
 }
@@ -352,6 +363,14 @@ function bindFilterEvents() {
             void loadGrid();
         });
     }
+    if (packageCreateEl) {
+        packageCreateEl.addEventListener('click', () => {
+            const confirmed = window.confirm('Are you sure you want to create a pacakge from the currently filtered/marked items?');
+            if (!confirmed)
+                return;
+            // Next step will implement package creation.
+        });
+    }
     if (clearFiltersEl) {
         clearFiltersEl.addEventListener('click', () => {
             resetFiltersAndMode();
@@ -397,6 +416,7 @@ async function init() {
     setCategoryOptions();
     setBrandOptions([]);
     updateSortHeaderUi();
+    updatePackageCreateButtonVisibility();
     bindFilterEvents();
     resetFiltersAndMode();
     await loadGrid();

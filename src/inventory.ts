@@ -52,6 +52,7 @@ const soldOnlyFilterEl = document.getElementById('inventory-filter-sold') as HTM
 const activeOnlyFilterEl = document.getElementById('inventory-filter-active') as HTMLInputElement | null;
 const onlyMarkedFilterEl = document.getElementById('inventory-filter-only-marked') as HTMLInputElement | null;
 const clearFiltersEl = document.getElementById('inventory-clear-filters') as HTMLButtonElement | null;
+const packageCreateEl = document.getElementById('inventory-package-create') as HTMLButtonElement | null;
 const pagePrevEl = document.getElementById('inventory-page-prev') as HTMLButtonElement | null;
 const pageNextEl = document.getElementById('inventory-page-next') as HTMLButtonElement | null;
 const pageLabelEl = document.getElementById('inventory-page-label') as HTMLSpanElement | null;
@@ -133,6 +134,12 @@ function setFilterDisabledState(disabled: boolean): void {
   toolbarEl?.classList.toggle('is-drilldown', disabled);
 }
 
+function updatePackageCreateButtonVisibility(): void {
+  if (!packageCreateEl) return;
+  const shouldShow = Boolean(onlyMarkedFilterEl?.checked) && rows.length >= 2;
+  packageCreateEl.classList.toggle('hidden', !shouldShow);
+}
+
 function updateSortHeaderUi(): void {
   sortButtons.forEach((button) => {
     const key = (button.dataset.sortKey || '') as InventorySortKey;
@@ -159,6 +166,7 @@ function renderInventoryGrid(): void {
     empty.appendChild(td);
     gridBody.appendChild(empty);
     updatePaginationControls();
+    updatePackageCreateButtonVisibility();
     return;
   }
 
@@ -253,6 +261,7 @@ function renderInventoryGrid(): void {
   });
 
   updatePaginationControls();
+  updatePackageCreateButtonVisibility();
 }
 
 function setCategoryOptions(): void {
@@ -358,6 +367,8 @@ async function loadGrid(): Promise<void> {
     renderInventoryGrid();
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not load inventory grid.';
+    rows = [];
+    updatePackageCreateButtonVisibility();
     setStatus(message, true);
   }
 }
@@ -412,6 +423,14 @@ function bindFilterEvents(): void {
     });
   }
 
+  if (packageCreateEl) {
+    packageCreateEl.addEventListener('click', () => {
+      const confirmed = window.confirm('Are you sure you want to create a pacakge from the currently filtered/marked items?');
+      if (!confirmed) return;
+      // Next step will implement package creation.
+    });
+  }
+
   if (clearFiltersEl) {
     clearFiltersEl.addEventListener('click', () => {
       resetFiltersAndMode();
@@ -457,6 +476,7 @@ async function init(): Promise<void> {
   setCategoryOptions();
   setBrandOptions([]);
   updateSortHeaderUi();
+  updatePackageCreateButtonVisibility();
   bindFilterEvents();
   resetFiltersAndMode();
   await loadGrid();
