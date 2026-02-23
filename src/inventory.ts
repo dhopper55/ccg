@@ -106,6 +106,28 @@ function rowCell(text: string, className?: string): HTMLTableCellElement {
   return td;
 }
 
+function soldPriceCell(row: InventoryItem): HTMLTableCellElement {
+  const soldValue = row.isSold ? (row.soldAmount ?? 0) : 0;
+  if (!(typeof soldValue === 'number') || !Number.isFinite(soldValue) || soldValue <= 0) {
+    return rowCell('');
+  }
+
+  const td = rowCell(formatCurrencyZero(soldValue));
+  const paidValue = typeof row.purchasePrice === 'number' && Number.isFinite(row.purchasePrice)
+    ? row.purchasePrice
+    : null;
+
+  if (paidValue != null) {
+    if (soldValue > paidValue) {
+      td.classList.add('inventory-sold-price', 'inventory-sold-price--profit');
+    } else if (soldValue < paidValue) {
+      td.classList.add('inventory-sold-price', 'inventory-sold-price--loss');
+    }
+  }
+
+  return td;
+}
+
 async function deleteInventoryItem(rowId: string, scope: 'group' | 'single'): Promise<void> {
   const response = await fetch(`/api/inventory/${encodeURIComponent(rowId)}/delete`, {
     method: 'POST',
@@ -222,8 +244,7 @@ function renderInventoryGrid(): void {
 
     tr.appendChild(rowCell(formatCurrency(row.purchasePrice), 'inventory-cell-sm'));
 
-    const soldPrice = row.isSold ? row.soldAmount ?? 0 : 0;
-    tr.appendChild(rowCell(formatCurrencyZero(soldPrice)));
+    tr.appendChild(soldPriceCell(row));
 
     const actionsTd = document.createElement('td');
     const deleteButton = document.createElement('button');

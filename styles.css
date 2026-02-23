@@ -3473,6 +3473,18 @@ body.auth-locked {
   font-size: 0.88rem;
 }
 
+.inventory-sold-price {
+  font-weight: 700;
+}
+
+.inventory-sold-price--profit {
+  color: #9be58f;
+}
+
+.inventory-sold-price--loss {
+  color: #f08a82;
+}
+
 .inventory-grid-pager {
   margin-top: 16px;
   display: flex;
