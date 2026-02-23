@@ -2018,12 +2018,15 @@ async function handleInventoryList(request: Request, env: Env): Promise<Response
   const limit = parseBoundedInt(url.searchParams.get('limit'), 20, 1, 100);
   const page = parseBoundedInt(url.searchParams.get('page'), 1, 1, 1_000_000);
   const category = normalizeText(url.searchParams.get('category'), '').slice(0, 120);
+  const brand = normalizeText(url.searchParams.get('brand'), '').slice(0, 120);
   const sold = url.searchParams.get('sold') === '1';
   const active = url.searchParams.get('active') !== '0';
   const drillDownCcgNumber = normalizeText(url.searchParams.get('ccgNumber'), '').slice(0, 32);
+  const sortBy = parseInventorySortKey(url.searchParams.get('sortBy'));
+  const sortDir = parseInventorySortDir(url.searchParams.get('sortDir'));
 
   if (drillDownCcgNumber) {
-    const result = await dbListInventoryItemsByCcgNumber(drillDownCcgNumber, page, limit, env);
+    const result = await dbListInventoryItemsByCcgNumber(drillDownCcgNumber, page, limit, sortBy, sortDir, env);
     return jsonResponse({
       records: result.records,
       page: result.page,
@@ -2032,15 +2035,21 @@ async function handleInventoryList(request: Request, env: Env): Promise<Response
       totalPages: result.totalPages,
       grouped: false,
       drillDownCcgNumber,
+      availableBrands: [],
     });
   }
 
+  const availableBrands = await dbListInventoryBrands({ category, sold, active }, env);
+
   const result = await dbListInventoryItemsGrouped({
     category,
+    brand,
     sold,
     active,
     page,
     limit,
+    sortBy,
+    sortDir,
   }, env);
 
   return jsonResponse({
@@ -2051,6 +2060,7 @@ async function handleInventoryList(request: Request, env: Env): Promise<Response
     totalPages: result.totalPages,
     grouped: true,
     drillDownCcgNumber: null,
+    availableBrands,
   });
 }
 
@@ -3506,13 +3516,52 @@ function mapInventoryRow(
 
 type InventoryGroupedFilters = {
   category: string;
+  brand: string;
   sold: boolean;
   active: boolean;
   page: number;
   limit: number;
+  sortBy: InventorySortKey;
+  sortDir: InventorySortDir;
 };
 
-function inventoryFilterClause(filters: Pick<InventoryGroupedFilters, 'category' | 'sold' | 'active'>): { sql: string; binds: unknown[] } {
+type InventorySortKey = 'ccgNumber' | 'title' | 'paid' | 'soldPrice';
+type InventorySortDir = 'asc' | 'desc';
+
+function parseInventorySortKey(input: string | null): InventorySortKey {
+  switch ((input || '').trim()) {
+    case 'ccgNumber':
+      return 'ccgNumber';
+    case 'paid':
+      return 'paid';
+    case 'soldPrice':
+      return 'soldPrice';
+    case 'title':
+    default:
+      return 'title';
+  }
+}
+
+function parseInventorySortDir(input: string | null): InventorySortDir {
+  return (input || '').trim().toLowerCase() === 'desc' ? 'desc' : 'asc';
+}
+
+function inventoryOrderBySql(sortBy: InventorySortKey, sortDir: InventorySortDir): string {
+  const dir = sortDir === 'desc' ? 'DESC' : 'ASC';
+  switch (sortBy) {
+    case 'ccgNumber':
+      return `LOWER(i.ccg_number) ${dir}, LOWER(i.title) ASC, i.id DESC`;
+    case 'paid':
+      return `CASE WHEN i.purchase_price IS NULL THEN 1 ELSE 0 END ASC, COALESCE(i.purchase_price, 0) ${dir}, LOWER(i.title) ASC, i.id DESC`;
+    case 'soldPrice':
+      return `COALESCE(i.sold_amount, 0) ${dir}, LOWER(i.title) ASC, i.id DESC`;
+    case 'title':
+    default:
+      return `LOWER(i.title) ${dir}, LOWER(i.ccg_number) ASC, i.id DESC`;
+  }
+}
+
+function inventoryFilterClause(filters: Pick<InventoryGroupedFilters, 'category' | 'brand' | 'sold' | 'active'>): { sql: string; binds: unknown[] } {
   const clauses: string[] = [
     'i.is_sold = ?',
     'i.is_active = ?',
@@ -3526,6 +3575,10 @@ function inventoryFilterClause(filters: Pick<InventoryGroupedFilters, 'category'
     clauses.push('LOWER(COALESCE(i.category, \'\')) = LOWER(?)');
     binds.push(filters.category);
   }
+  if (filters.brand) {
+    clauses.push('LOWER(COALESCE(i.brand, \'\')) = LOWER(?)');
+    binds.push(filters.brand);
+  }
 
   return {
     sql: clauses.join(' AND '),
@@ -3538,6 +3591,7 @@ async function dbListInventoryItemsGrouped(
   env: Env,
 ): Promise<{ records: Array<Record<string, unknown>>; total: number; page: number; limit: number; totalPages: number }> {
   const clause = inventoryFilterClause(filters);
+  const orderBy = inventoryOrderBySql(filters.sortBy, filters.sortDir);
 
   const countRow = await env.DB.prepare(
     `SELECT COUNT(*) AS total
@@ -3607,7 +3661,7 @@ async function dbListInventoryItemsGrouped(
      INNER JOIN ccg_inventory_items i ON i.id = fr.first_id
      LEFT JOIN listings l ON l.id = i.source_listing_id
      LEFT JOIN group_counts gc ON gc.ccg_number = i.ccg_number
-     ORDER BY i.created_at DESC, i.id DESC
+     ORDER BY ${orderBy}
      LIMIT ? OFFSET ?`
   ).bind(...clause.binds, filters.limit, safeOffset).all<InventoryItemRow & {
     source_listing_price_asking: number | null;
@@ -3624,12 +3678,32 @@ async function dbListInventoryItemsGrouped(
   };
 }
 
+async function dbListInventoryBrands(
+  filters: Pick<InventoryGroupedFilters, 'category' | 'sold' | 'active'>,
+  env: Env,
+): Promise<string[]> {
+  const clause = inventoryFilterClause({ ...filters, brand: '' });
+  const result = await env.DB.prepare(
+    `SELECT DISTINCT TRIM(COALESCE(i.brand, '')) AS brand
+     FROM ccg_inventory_items i
+     WHERE ${clause.sql}
+       AND TRIM(COALESCE(i.brand, '')) <> ''
+     ORDER BY LOWER(TRIM(COALESCE(i.brand, ''))) ASC`
+  ).bind(...clause.binds).all<{ brand: string | null }>();
+  return (result.results ?? [])
+    .map((row) => String(row.brand || '').trim())
+    .filter(Boolean);
+}
+
 async function dbListInventoryItemsByCcgNumber(
   ccgNumber: string,
   page: number,
   limit: number,
+  sortBy: InventorySortKey,
+  sortDir: InventorySortDir,
   env: Env,
 ): Promise<{ records: Array<Record<string, unknown>>; total: number; page: number; limit: number; totalPages: number }> {
+  const orderBy = inventoryOrderBySql(sortBy, sortDir);
   const countRow = await env.DB.prepare(
     'SELECT COUNT(*) AS total FROM ccg_inventory_items WHERE ccg_number = ?'
   ).bind(ccgNumber).first<{ total: number | null }>();
@@ -3681,7 +3755,7 @@ async function dbListInventoryItemsByCcgNumber(
      FROM ccg_inventory_items i
      LEFT JOIN listings l ON l.id = i.source_listing_id
      WHERE i.ccg_number = ?
-     ORDER BY i.created_at DESC, i.id DESC
+     ORDER BY ${orderBy}
      LIMIT ? OFFSET ?`
   ).bind(ccgNumber, limit, safeOffset).all<InventoryItemRow & {
     source_listing_price_asking: number | null;

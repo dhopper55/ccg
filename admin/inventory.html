@@ -9,7 +9,7 @@
   <link rel="shortcut icon" href="../images/favicon/favicon.ico">
   <title>Inventory Manager | Coal Creek Guitars</title>
   <meta name="robots" content="noindex,nofollow">
-  <link rel="stylesheet" href="../styles.css?version=970660">
+  <link rel="stylesheet" href="../styles.css?version=713017">
 </head>
 <body>
   <nav class="site-nav">
@@ -37,6 +37,12 @@
             <option value="" selected></option>
           </select>
         </div>
+        <div class="inventory-grid-filter">
+          <label for="inventory-filter-brand">Brand</label>
+          <select id="inventory-filter-brand" aria-label="Filter by brand">
+            <option value="" selected></option>
+          </select>
+        </div>
         <label class="toggle" for="inventory-filter-sold">
           <input type="checkbox" id="inventory-filter-sold">
           <span>Sold</span>
@@ -53,12 +59,20 @@
         <table>
           <thead>
             <tr>
-              <th>CCG #</th>
+              <th>
+                <button type="button" class="inventory-sort-btn" data-sort-key="ccgNumber" aria-label="Sort by CCG number">CCG #</button>
+              </th>
               <th>Image</th>
-              <th>Title</th>
+              <th>
+                <button type="button" class="inventory-sort-btn" data-sort-key="title" aria-label="Sort by title">Title</button>
+              </th>
               <th>Qty</th>
-              <th>Paid</th>
-              <th>Sold Price</th>
+              <th>
+                <button type="button" class="inventory-sort-btn" data-sort-key="paid" aria-label="Sort by paid amount">Paid</button>
+              </th>
+              <th>
+                <button type="button" class="inventory-sort-btn" data-sort-key="soldPrice" aria-label="Sort by sold price">Sold Price</button>
+              </th>
               <th></th>
             </tr>
           </thead>
@@ -74,6 +88,6 @@
     </section>
   </div>
 
-  <script type="module" src="../dist/inventory.js?version=080511"></script>
+  <script type="module" src="../dist/inventory.js?version=868373"></script>
 </body>
 </html>

@@ -14,6 +14,7 @@ const INVENTORY_CATEGORIES = [
 const statusEl = document.getElementById('inventory-status');
 const gridBody = document.getElementById('inventory-grid-body');
 const categoryFilterEl = document.getElementById('inventory-filter-category');
+const brandFilterEl = document.getElementById('inventory-filter-brand');
 const soldOnlyFilterEl = document.getElementById('inventory-filter-sold');
 const activeOnlyFilterEl = document.getElementById('inventory-filter-active');
 const clearFiltersEl = document.getElementById('inventory-clear-filters');
@@ -21,11 +22,14 @@ const pagePrevEl = document.getElementById('inventory-page-prev');
 const pageNextEl = document.getElementById('inventory-page-next');
 const pageLabelEl = document.getElementById('inventory-page-label');
 const toolbarEl = document.querySelector('.inventory-grid-toolbar');
+const sortButtons = Array.from(document.querySelectorAll('.inventory-sort-btn'));
 let rows = [];
 let currentPage = 1;
 let totalPages = 1;
 let groupedView = true;
 let drillDownCcgNumber = null;
+let currentSortBy = 'title';
+let currentSortDir = 'asc';
 function setStatus(message, isError = false) {
     if (!statusEl)
         return;
@@ -82,9 +86,23 @@ function updatePaginationControls() {
 }
 function setFilterDisabledState(disabled) {
     categoryFilterEl && (categoryFilterEl.disabled = disabled);
+    brandFilterEl && (brandFilterEl.disabled = disabled);
     soldOnlyFilterEl && (soldOnlyFilterEl.disabled = disabled);
     activeOnlyFilterEl && (activeOnlyFilterEl.disabled = disabled);
     toolbarEl?.classList.toggle('is-drilldown', disabled);
+}
+function updateSortHeaderUi() {
+    sortButtons.forEach((button) => {
+        const key = (button.dataset.sortKey || '');
+        const isActive = key === currentSortBy;
+        button.classList.toggle('is-active', isActive);
+        button.classList.toggle('is-desc', isActive && currentSortDir === 'desc');
+        button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        const th = button.closest('th');
+        if (th) {
+            th.setAttribute('aria-sort', isActive ? (currentSortDir === 'asc' ? 'ascending' : 'descending') : 'none');
+        }
+    });
 }
 function renderInventoryGrid() {
     if (!gridBody)
@@ -202,21 +220,50 @@ function setCategoryOptions() {
     });
     categoryFilterEl.value = '';
 }
+function setBrandOptions(brands, preserveValue) {
+    if (!brandFilterEl)
+        return;
+    const nextBrands = Array.from(new Set(brands.map((value) => value.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    brandFilterEl.innerHTML = '';
+    const blankOption = document.createElement('option');
+    blankOption.value = '';
+    blankOption.textContent = '';
+    brandFilterEl.appendChild(blankOption);
+    nextBrands.forEach((brand) => {
+        const option = document.createElement('option');
+        option.value = brand;
+        option.textContent = brand;
+        brandFilterEl.appendChild(option);
+    });
+    if (preserveValue && nextBrands.includes(preserveValue)) {
+        brandFilterEl.value = preserveValue;
+    }
+    else {
+        brandFilterEl.value = '';
+    }
+}
 function buildListUrl() {
     const params = new URLSearchParams();
     params.set('page', String(currentPage));
     params.set('limit', String(PAGE_SIZE));
     if (drillDownCcgNumber) {
         params.set('ccgNumber', drillDownCcgNumber);
+        params.set('sortBy', currentSortBy);
+        params.set('sortDir', currentSortDir);
         return `/api/inventory?${params.toString()}`;
     }
     const category = categoryFilterEl?.value.trim() || '';
+    const brand = brandFilterEl?.value.trim() || '';
     const sold = soldOnlyFilterEl?.checked ? '1' : '0';
     const active = activeOnlyFilterEl?.checked === false ? '0' : '1';
     if (category)
         params.set('category', category);
+    if (brand)
+        params.set('brand', brand);
     params.set('sold', sold);
     params.set('active', active);
+    params.set('sortBy', currentSortBy);
+    params.set('sortDir', currentSortDir);
     return `/api/inventory?${params.toString()}`;
 }
 async function fetchInventoryRows() {
@@ -236,7 +283,11 @@ async function loadGrid() {
         drillDownCcgNumber = data.drillDownCcgNumber || null;
         totalPages = Math.max(1, Number(data.totalPages || 1));
         currentPage = Math.max(1, Math.min(Number(data.page || 1), totalPages));
+        if (!drillDownCcgNumber) {
+            setBrandOptions(Array.isArray(data.availableBrands) ? data.availableBrands : [], brandFilterEl?.value.trim() || '');
+        }
         setFilterDisabledState(Boolean(drillDownCcgNumber));
+        updateSortHeaderUi();
         renderInventoryGrid();
     }
     catch (error) {
@@ -247,16 +298,29 @@ async function loadGrid() {
 function resetFiltersAndMode() {
     if (categoryFilterEl)
         categoryFilterEl.value = '';
+    if (brandFilterEl)
+        brandFilterEl.value = '';
     if (soldOnlyFilterEl)
         soldOnlyFilterEl.checked = false;
     if (activeOnlyFilterEl)
         activeOnlyFilterEl.checked = true;
     drillDownCcgNumber = null;
     currentPage = 1;
+    currentSortBy = 'title';
+    currentSortDir = 'asc';
+    updateSortHeaderUi();
 }
 function bindFilterEvents() {
     if (categoryFilterEl) {
         categoryFilterEl.addEventListener('change', () => {
+            currentPage = 1;
+            if (brandFilterEl)
+                brandFilterEl.value = '';
+            void loadGrid();
+        });
+    }
+    if (brandFilterEl) {
+        brandFilterEl.addEventListener('change', () => {
             currentPage = 1;
             void loadGrid();
         });
@@ -295,10 +359,29 @@ function bindFilterEvents() {
             void loadGrid();
         });
     }
+    sortButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+            const nextKey = (button.dataset.sortKey || '');
+            if (!nextKey)
+                return;
+            if (currentSortBy === nextKey) {
+                currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
+            }
+            else {
+                currentSortBy = nextKey;
+                currentSortDir = 'asc';
+            }
+            currentPage = 1;
+            updateSortHeaderUi();
+            void loadGrid();
+        });
+    });
 }
 async function init() {
     initListingAuth();
     setCategoryOptions();
+    setBrandOptions([]);
+    updateSortHeaderUi();
     bindFilterEvents();
     resetFiltersAndMode();
     await loadGrid();

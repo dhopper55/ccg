@@ -3354,6 +3354,41 @@ body.auth-locked {
   text-overflow: ellipsis;
 }
 
+.inventory-sort-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.inventory-sort-btn::after {
+  content: '↕';
+  font-size: 0.8em;
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+
+.inventory-sort-btn.is-active::after {
+  content: '↑';
+  color: var(--accent-gold-light);
+  opacity: 1;
+}
+
+.inventory-sort-btn.is-active.is-desc::after {
+  content: '↓';
+}
+
+.inventory-sort-btn:hover {
+  color: var(--text-cream);
+}
+
 .inventory-grid-filter {
   display: flex;
   flex-direction: column;

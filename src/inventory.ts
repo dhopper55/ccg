@@ -6,6 +6,7 @@ type InventoryItem = {
   imageUrl: string;
   title: string;
   category?: string;
+  brand?: string;
   purchasePrice?: number | null;
   isSold?: boolean;
   soldAmount?: number | null;
@@ -21,8 +22,12 @@ type InventoryListResponse = {
   totalPages: number;
   grouped: boolean;
   drillDownCcgNumber?: string | null;
+  availableBrands?: string[];
   message?: string;
 };
+
+type InventorySortKey = 'ccgNumber' | 'title' | 'paid' | 'soldPrice';
+type InventorySortDir = 'asc' | 'desc';
 
 const PAGE_SIZE = 20;
 const INVENTORY_CATEGORIES = [
@@ -40,6 +45,7 @@ const INVENTORY_CATEGORIES = [
 const statusEl = document.getElementById('inventory-status') as HTMLDivElement | null;
 const gridBody = document.getElementById('inventory-grid-body') as HTMLTableSectionElement | null;
 const categoryFilterEl = document.getElementById('inventory-filter-category') as HTMLSelectElement | null;
+const brandFilterEl = document.getElementById('inventory-filter-brand') as HTMLSelectElement | null;
 const soldOnlyFilterEl = document.getElementById('inventory-filter-sold') as HTMLInputElement | null;
 const activeOnlyFilterEl = document.getElementById('inventory-filter-active') as HTMLInputElement | null;
 const clearFiltersEl = document.getElementById('inventory-clear-filters') as HTMLButtonElement | null;
@@ -47,12 +53,15 @@ const pagePrevEl = document.getElementById('inventory-page-prev') as HTMLButtonE
 const pageNextEl = document.getElementById('inventory-page-next') as HTMLButtonElement | null;
 const pageLabelEl = document.getElementById('inventory-page-label') as HTMLSpanElement | null;
 const toolbarEl = document.querySelector('.inventory-grid-toolbar') as HTMLDivElement | null;
+const sortButtons = Array.from(document.querySelectorAll('.inventory-sort-btn')) as HTMLButtonElement[];
 
 let rows: InventoryItem[] = [];
 let currentPage = 1;
 let totalPages = 1;
 let groupedView = true;
 let drillDownCcgNumber: string | null = null;
+let currentSortBy: InventorySortKey = 'title';
+let currentSortDir: InventorySortDir = 'asc';
 
 function setStatus(message: string, isError = false): void {
   if (!statusEl) return;
@@ -114,9 +123,24 @@ function updatePaginationControls(): void {
 
 function setFilterDisabledState(disabled: boolean): void {
   categoryFilterEl && (categoryFilterEl.disabled = disabled);
+  brandFilterEl && (brandFilterEl.disabled = disabled);
   soldOnlyFilterEl && (soldOnlyFilterEl.disabled = disabled);
   activeOnlyFilterEl && (activeOnlyFilterEl.disabled = disabled);
   toolbarEl?.classList.toggle('is-drilldown', disabled);
+}
+
+function updateSortHeaderUi(): void {
+  sortButtons.forEach((button) => {
+    const key = (button.dataset.sortKey || '') as InventorySortKey;
+    const isActive = key === currentSortBy;
+    button.classList.toggle('is-active', isActive);
+    button.classList.toggle('is-desc', isActive && currentSortDir === 'desc');
+    button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    const th = button.closest('th');
+    if (th) {
+      th.setAttribute('aria-sort', isActive ? (currentSortDir === 'asc' ? 'ascending' : 'descending') : 'none');
+    }
+  });
 }
 
 function renderInventoryGrid(): void {
@@ -247,6 +271,33 @@ function setCategoryOptions(): void {
   categoryFilterEl.value = '';
 }
 
+function setBrandOptions(brands: string[], preserveValue?: string): void {
+  if (!brandFilterEl) return;
+
+  const nextBrands = Array.from(new Set(
+    brands.map((value) => value.trim()).filter(Boolean)
+  )).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+
+  brandFilterEl.innerHTML = '';
+  const blankOption = document.createElement('option');
+  blankOption.value = '';
+  blankOption.textContent = '';
+  brandFilterEl.appendChild(blankOption);
+
+  nextBrands.forEach((brand) => {
+    const option = document.createElement('option');
+    option.value = brand;
+    option.textContent = brand;
+    brandFilterEl.appendChild(option);
+  });
+
+  if (preserveValue && nextBrands.includes(preserveValue)) {
+    brandFilterEl.value = preserveValue;
+  } else {
+    brandFilterEl.value = '';
+  }
+}
+
 function buildListUrl(): string {
   const params = new URLSearchParams();
   params.set('page', String(currentPage));
@@ -254,16 +305,22 @@ function buildListUrl(): string {
 
   if (drillDownCcgNumber) {
     params.set('ccgNumber', drillDownCcgNumber);
+    params.set('sortBy', currentSortBy);
+    params.set('sortDir', currentSortDir);
     return `/api/inventory?${params.toString()}`;
   }
 
   const category = categoryFilterEl?.value.trim() || '';
+  const brand = brandFilterEl?.value.trim() || '';
   const sold = soldOnlyFilterEl?.checked ? '1' : '0';
   const active = activeOnlyFilterEl?.checked === false ? '0' : '1';
 
   if (category) params.set('category', category);
+  if (brand) params.set('brand', brand);
   params.set('sold', sold);
   params.set('active', active);
+  params.set('sortBy', currentSortBy);
+  params.set('sortDir', currentSortDir);
 
   return `/api/inventory?${params.toString()}`;
 }
@@ -286,7 +343,11 @@ async function loadGrid(): Promise<void> {
     drillDownCcgNumber = data.drillDownCcgNumber || null;
     totalPages = Math.max(1, Number(data.totalPages || 1));
     currentPage = Math.max(1, Math.min(Number(data.page || 1), totalPages));
+    if (!drillDownCcgNumber) {
+      setBrandOptions(Array.isArray(data.availableBrands) ? data.availableBrands : [], brandFilterEl?.value.trim() || '');
+    }
     setFilterDisabledState(Boolean(drillDownCcgNumber));
+    updateSortHeaderUi();
     renderInventoryGrid();
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not load inventory grid.';
@@ -296,15 +357,27 @@ async function loadGrid(): Promise<void> {
 
 function resetFiltersAndMode(): void {
   if (categoryFilterEl) categoryFilterEl.value = '';
+  if (brandFilterEl) brandFilterEl.value = '';
   if (soldOnlyFilterEl) soldOnlyFilterEl.checked = false;
   if (activeOnlyFilterEl) activeOnlyFilterEl.checked = true;
   drillDownCcgNumber = null;
   currentPage = 1;
+  currentSortBy = 'title';
+  currentSortDir = 'asc';
+  updateSortHeaderUi();
 }
 
 function bindFilterEvents(): void {
   if (categoryFilterEl) {
     categoryFilterEl.addEventListener('change', () => {
+      currentPage = 1;
+      if (brandFilterEl) brandFilterEl.value = '';
+      void loadGrid();
+    });
+  }
+
+  if (brandFilterEl) {
+    brandFilterEl.addEventListener('change', () => {
       currentPage = 1;
       void loadGrid();
     });
@@ -346,11 +419,29 @@ function bindFilterEvents(): void {
       void loadGrid();
     });
   }
+
+  sortButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const nextKey = (button.dataset.sortKey || '') as InventorySortKey;
+      if (!nextKey) return;
+      if (currentSortBy === nextKey) {
+        currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        currentSortBy = nextKey;
+        currentSortDir = 'asc';
+      }
+      currentPage = 1;
+      updateSortHeaderUi();
+      void loadGrid();
+    });
+  });
 }
 
 async function init(): Promise<void> {
   initListingAuth();
   setCategoryOptions();
+  setBrandOptions([]);
+  updateSortHeaderUi();
   bindFilterEvents();
   resetFiltersAndMode();
   await loadGrid();
