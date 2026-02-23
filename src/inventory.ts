@@ -50,6 +50,7 @@ const categoryFilterEl = document.getElementById('inventory-filter-category') as
 const brandFilterEl = document.getElementById('inventory-filter-brand') as HTMLSelectElement | null;
 const soldOnlyFilterEl = document.getElementById('inventory-filter-sold') as HTMLInputElement | null;
 const activeOnlyFilterEl = document.getElementById('inventory-filter-active') as HTMLInputElement | null;
+const onlyMarkedFilterEl = document.getElementById('inventory-filter-only-marked') as HTMLInputElement | null;
 const clearFiltersEl = document.getElementById('inventory-clear-filters') as HTMLButtonElement | null;
 const pagePrevEl = document.getElementById('inventory-page-prev') as HTMLButtonElement | null;
 const pageNextEl = document.getElementById('inventory-page-next') as HTMLButtonElement | null;
@@ -128,6 +129,7 @@ function setFilterDisabledState(disabled: boolean): void {
   brandFilterEl && (brandFilterEl.disabled = disabled);
   soldOnlyFilterEl && (soldOnlyFilterEl.disabled = disabled);
   activeOnlyFilterEl && (activeOnlyFilterEl.disabled = disabled);
+  onlyMarkedFilterEl && (onlyMarkedFilterEl.disabled = disabled);
   toolbarEl?.classList.toggle('is-drilldown', disabled);
 }
 
@@ -307,6 +309,7 @@ function buildListUrl(): string {
 
   if (drillDownCcgNumber) {
     params.set('ccgNumber', drillDownCcgNumber);
+    params.set('onlyMarked', onlyMarkedFilterEl?.checked ? '1' : '0');
     params.set('sortBy', currentSortBy);
     params.set('sortDir', currentSortDir);
     return `/api/inventory?${params.toString()}`;
@@ -316,11 +319,13 @@ function buildListUrl(): string {
   const brand = brandFilterEl?.value.trim() || '';
   const sold = soldOnlyFilterEl?.checked ? '1' : '0';
   const active = activeOnlyFilterEl?.checked === false ? '0' : '1';
+  const onlyMarked = onlyMarkedFilterEl?.checked ? '1' : '0';
 
   if (category) params.set('category', category);
   if (brand) params.set('brand', brand);
   params.set('sold', sold);
   params.set('active', active);
+  params.set('onlyMarked', onlyMarked);
   params.set('sortBy', currentSortBy);
   params.set('sortDir', currentSortDir);
 
@@ -362,6 +367,7 @@ function resetFiltersAndMode(): void {
   if (brandFilterEl) brandFilterEl.value = '';
   if (soldOnlyFilterEl) soldOnlyFilterEl.checked = false;
   if (activeOnlyFilterEl) activeOnlyFilterEl.checked = true;
+  if (onlyMarkedFilterEl) onlyMarkedFilterEl.checked = false;
   drillDownCcgNumber = null;
   currentPage = 1;
   currentSortBy = 'title';
@@ -394,6 +400,13 @@ function bindFilterEvents(): void {
 
   if (activeOnlyFilterEl) {
     activeOnlyFilterEl.addEventListener('change', () => {
+      currentPage = 1;
+      void loadGrid();
+    });
+  }
+
+  if (onlyMarkedFilterEl) {
+    onlyMarkedFilterEl.addEventListener('change', () => {
       currentPage = 1;
       void loadGrid();
     });

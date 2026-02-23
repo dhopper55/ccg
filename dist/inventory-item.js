@@ -21,6 +21,7 @@ const purchasePriceInput = document.getElementById('inventory-purchase-price');
 const privatePartyValueInput = document.getElementById('inventory-private-party-value');
 const purchaseNotesInput = document.getElementById('inventory-purchase-notes');
 const isActiveInput = document.getElementById('inventory-is-active');
+const isMarkedInput = document.getElementById('inventory-is-marked');
 const forSaleInput = document.getElementById('inventory-for-sale');
 const isSoldInput = document.getElementById('inventory-is-sold');
 const serialNumberInput = document.getElementById('inventory-serial-number');
@@ -264,6 +265,8 @@ function fillFromInventoryRecord(record) {
         purchaseNotesInput.value = record.purchaseNotes || '';
     if (isActiveInput)
         isActiveInput.checked = Boolean(record.isActive);
+    if (isMarkedInput)
+        isMarkedInput.checked = Boolean(record.isMarked);
     if (forSaleInput)
         forSaleInput.checked = Boolean(record.forSale);
     if (isSoldInput)
@@ -409,6 +412,7 @@ async function handleSubmit(event) {
             privatePartyValue: privatePartyValueInput?.value.trim() || '0',
             purchaseNotes: purchaseNotesInput?.value.trim() || '',
             isActive: isActiveInput?.checked ?? true,
+            isMarked: isMarkedInput?.checked ?? false,
             forSale: forSaleInput?.checked ?? false,
             isSold: isSoldInput?.checked ?? false,
             serialNumber: serialNumberInput?.value.trim() || '',
@@ -472,6 +476,8 @@ async function init() {
         privatePartyValueInput.value = '0';
     if (forSaleInput && !editId)
         forSaleInput.checked = false;
+    if (isMarkedInput && !editId)
+        isMarkedInput.checked = false;
     setQtyValue(1);
     const params = new URLSearchParams(window.location.search);
     const id = params.get('id');
@@ -501,6 +507,8 @@ async function init() {
             purchasedDateInput.value = todayYmd();
         if (forSaleInput)
             forSaleInput.checked = false;
+        if (isMarkedInput)
+            isMarkedInput.checked = false;
     }
     imageFileInput?.addEventListener('change', () => {
         void handleImageFileChange();

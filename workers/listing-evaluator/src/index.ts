@@ -1817,6 +1817,7 @@ type InventoryItemRow = {
   purchase_notes: string | null;
   serial_number: string | null;
   is_active: number | null;
+  is_marked: number | null;
   for_sale: number | null;
   for_sale_date: string | null;
   is_sold: number | null;
@@ -2024,12 +2025,13 @@ async function handleInventoryList(request: Request, env: Env): Promise<Response
   const brand = normalizeText(url.searchParams.get('brand'), '').slice(0, 120);
   const sold = url.searchParams.get('sold') === '1';
   const active = url.searchParams.get('active') !== '0';
+  const onlyMarked = url.searchParams.get('onlyMarked') === '1';
   const drillDownCcgNumber = normalizeText(url.searchParams.get('ccgNumber'), '').slice(0, 32);
   const sortBy = parseInventorySortKey(url.searchParams.get('sortBy'));
   const sortDir = parseInventorySortDir(url.searchParams.get('sortDir'));
 
   if (drillDownCcgNumber) {
-    const result = await dbListInventoryItemsByCcgNumber(drillDownCcgNumber, page, limit, sortBy, sortDir, env);
+    const result = await dbListInventoryItemsByCcgNumber(drillDownCcgNumber, page, limit, sortBy, sortDir, onlyMarked, env);
     return jsonResponse({
       records: result.records,
       page: result.page,
@@ -2042,13 +2044,14 @@ async function handleInventoryList(request: Request, env: Env): Promise<Response
     });
   }
 
-  const availableBrands = await dbListInventoryBrands({ category, sold, active }, env);
+  const availableBrands = await dbListInventoryBrands({ category, sold, active, onlyMarked }, env);
 
   const result = await dbListInventoryItemsGrouped({
     category,
     brand,
     sold,
     active,
+    onlyMarked,
     page,
     limit,
     sortBy,
@@ -2096,6 +2099,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const purchaseNotes = normalizeText(body.purchaseNotes, '').slice(0, 4000);
   const serialNumber = normalizeText(body.serialNumber, '').slice(0, 180);
   const isActive = toBooleanInput(body.isActive, true);
+  const isMarked = toBooleanInput(body.isMarked, false);
   const isSold = toBooleanInput(body.isSold, false);
   const forSaleRaw = toBooleanInput(body.forSale, false);
   const forSale = isSold ? false : forSaleRaw;
@@ -2141,6 +2145,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     purchase_notes: purchaseNotes || null,
     serial_number: serialNumber || null,
     is_active: isActive ? 1 : 0,
+    is_marked: isMarked ? 1 : 0,
     for_sale: forSale ? 1 : 0,
     for_sale_date: forSale ? new Date().toISOString() : null,
     is_sold: isSold ? 1 : 0,
@@ -2341,6 +2346,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const purchaseNotes = normalizeText(body.purchaseNotes, '').slice(0, 4000);
   const serialNumber = normalizeText(body.serialNumber, '').slice(0, 180);
   const isActive = toBooleanInput(body.isActive, true);
+  const isMarked = toBooleanInput(body.isMarked, false);
   const isSold = toBooleanInput(body.isSold, false);
   const forSaleRaw = toBooleanInput(body.forSale, false);
   const forSale = isSold ? false : forSaleRaw;
@@ -2397,6 +2403,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const rowSpecificOk = await dbUpdateInventoryRowSpecific(recordId, {
     source_listing_id: sourceListingId,
     is_active: isActive ? 1 : 0,
+    is_marked: isMarked ? 1 : 0,
     for_sale: forSale ? 1 : 0,
     for_sale_date: resolveToggleTimestamp({
       previousOn: previousForSale,
@@ -3503,6 +3510,7 @@ function mapInventoryRow(
     purchaseNotes: row.purchase_notes || '',
     serialNumber: row.serial_number || '',
     isActive: Boolean(row.is_active),
+    isMarked: Boolean(row.is_marked),
     forSale: Boolean(row.for_sale),
     forSaleDate: row.for_sale_date || null,
     isSold: Boolean(row.is_sold),
@@ -3522,6 +3530,7 @@ type InventoryGroupedFilters = {
   brand: string;
   sold: boolean;
   active: boolean;
+  onlyMarked: boolean;
   page: number;
   limit: number;
   sortBy: InventorySortKey;
@@ -3564,7 +3573,7 @@ function inventoryOrderBySql(sortBy: InventorySortKey, sortDir: InventorySortDir
   }
 }
 
-function inventoryFilterClause(filters: Pick<InventoryGroupedFilters, 'category' | 'brand' | 'sold' | 'active'>): { sql: string; binds: unknown[] } {
+function inventoryFilterClause(filters: Pick<InventoryGroupedFilters, 'category' | 'brand' | 'sold' | 'active' | 'onlyMarked'>): { sql: string; binds: unknown[] } {
   const clauses: string[] = [
     'i.is_sold = ?',
     'i.is_active = ?',
@@ -3582,6 +3591,9 @@ function inventoryFilterClause(filters: Pick<InventoryGroupedFilters, 'category'
     clauses.push('LOWER(COALESCE(i.brand, \'\')) = LOWER(?)');
     binds.push(filters.brand);
   }
+  if (filters.onlyMarked) {
+    clauses.push('COALESCE(i.is_marked, 0) = 1');
+  }
 
   return {
     sql: clauses.join(' AND '),
@@ -3595,6 +3607,7 @@ async function dbListInventoryItemsGrouped(
 ): Promise<{ records: Array<Record<string, unknown>>; total: number; page: number; limit: number; totalPages: number }> {
   const clause = inventoryFilterClause(filters);
   const orderBy = inventoryOrderBySql(filters.sortBy, filters.sortDir);
+  const onlyMarkedQtyCondition = filters.onlyMarked ? ' AND COALESCE(g.is_marked, 0) = 1' : '';
 
   const countRow = await env.DB.prepare(
     `SELECT COUNT(*) AS total
@@ -3625,8 +3638,8 @@ async function dbListInventoryItemsGrouped(
      group_counts AS (
        SELECT
          g.ccg_number,
-         SUM(CASE WHEN g.is_active = 1 AND g.is_sold = 0 THEN 1 ELSE 0 END) AS qty_available,
-         COUNT(*) AS total_rows
+         SUM(CASE WHEN g.is_active = 1 AND g.is_sold = 0${onlyMarkedQtyCondition} THEN 1 ELSE 0 END) AS qty_available,
+         SUM(CASE WHEN 1 = 1${onlyMarkedQtyCondition} THEN 1 ELSE 0 END) AS total_rows
        FROM ccg_inventory_items g
        GROUP BY g.ccg_number
      )
@@ -3649,6 +3662,7 @@ async function dbListInventoryItemsGrouped(
        i.purchase_notes,
        i.serial_number,
        i.is_active,
+       i.is_marked,
        i.for_sale,
        i.for_sale_date,
        i.is_sold,
@@ -3682,7 +3696,7 @@ async function dbListInventoryItemsGrouped(
 }
 
 async function dbListInventoryBrands(
-  filters: Pick<InventoryGroupedFilters, 'category' | 'sold' | 'active'>,
+  filters: Pick<InventoryGroupedFilters, 'category' | 'sold' | 'active' | 'onlyMarked'>,
   env: Env,
 ): Promise<string[]> {
   const clause = inventoryFilterClause({ ...filters, brand: '' });
@@ -3704,11 +3718,13 @@ async function dbListInventoryItemsByCcgNumber(
   limit: number,
   sortBy: InventorySortKey,
   sortDir: InventorySortDir,
+  onlyMarked: boolean,
   env: Env,
 ): Promise<{ records: Array<Record<string, unknown>>; total: number; page: number; limit: number; totalPages: number }> {
   const orderBy = inventoryOrderBySql(sortBy, sortDir);
+  const onlyMarkedSql = onlyMarked ? ' AND COALESCE(is_marked, 0) = 1' : '';
   const countRow = await env.DB.prepare(
-    'SELECT COUNT(*) AS total FROM ccg_inventory_items WHERE ccg_number = ?'
+    `SELECT COUNT(*) AS total FROM ccg_inventory_items WHERE ccg_number = ?${onlyMarkedSql}`
   ).bind(ccgNumber).first<{ total: number | null }>();
 
   const total = Number(countRow?.total || 0);
@@ -3736,6 +3752,7 @@ async function dbListInventoryItemsByCcgNumber(
       i.purchase_notes,
       i.serial_number,
       i.is_active,
+      i.is_marked,
       i.for_sale,
       i.for_sale_date,
       i.is_sold,
@@ -3757,7 +3774,7 @@ async function dbListInventoryItemsByCcgNumber(
       ) AS total_rows
      FROM ccg_inventory_items i
      LEFT JOIN listings l ON l.id = i.source_listing_id
-     WHERE i.ccg_number = ?
+     WHERE i.ccg_number = ?${onlyMarked ? ' AND COALESCE(i.is_marked, 0) = 1' : ''}
      ORDER BY ${orderBy}
      LIMIT ? OFFSET ?`
   ).bind(ccgNumber, limit, safeOffset).all<InventoryItemRow & {
@@ -3798,6 +3815,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.purchase_notes,
       i.serial_number,
       i.is_active,
+      i.is_marked,
       i.for_sale,
       i.for_sale_date,
       i.is_sold,
@@ -3829,6 +3847,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     purchaseNotes: row.purchase_notes || '',
     serialNumber: row.serial_number || '',
     isActive: Boolean(row.is_active),
+    isMarked: Boolean(row.is_marked),
     forSale: Boolean(row.for_sale),
     forSaleDate: row.for_sale_date || null,
     isSold: Boolean(row.is_sold),
@@ -3883,6 +3902,7 @@ async function dbCreateInventoryItems(
     purchase_notes: string | null;
     serial_number: string | null;
     is_active: number;
+    is_marked: number;
     for_sale: number;
     for_sale_date: string | null;
     is_sold: number;
@@ -3898,10 +3918,10 @@ async function dbCreateInventoryItems(
       (
         source_listing_id, ccg_number, image_url, title, category, brand, year_range, model, finish,
         image_urls,
-        original_listing_desc, purchased_date, purchase_price, private_party_value, purchase_notes, serial_number, is_active, for_sale, for_sale_date,
+        original_listing_desc, purchased_date, purchase_price, private_party_value, purchase_notes, serial_number, is_active, is_marked, for_sale, for_sale_date,
         is_sold, sold_date, sold_amount, sell_notes
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const statements = Array.from({ length: qty }, (_, index) =>
       env.DB.prepare(statement).bind(
@@ -3922,6 +3942,7 @@ async function dbCreateInventoryItems(
         fields.purchase_notes,
         fields.serial_number,
         fields.is_active,
+        fields.is_marked,
         fields.for_sale,
         fields.for_sale_date,
         fields.is_sold,
@@ -3998,6 +4019,7 @@ async function dbUpdateInventoryRowSpecific(
   fields: {
     source_listing_id: number | null;
     is_active: number;
+    is_marked: number;
     for_sale: number;
     for_sale_date: string | null;
     is_sold: number;
@@ -4013,12 +4035,13 @@ async function dbUpdateInventoryRowSpecific(
     await env.DB.prepare(
       `UPDATE ccg_inventory_items
        SET
-         source_listing_id = ?, is_active = ?, for_sale = ?, for_sale_date = ?, is_sold = ?, sold_date = ?, sold_amount = ?, sell_notes = ?,
+         source_listing_id = ?, is_active = ?, is_marked = ?, for_sale = ?, for_sale_date = ?, is_sold = ?, sold_date = ?, sold_amount = ?, sell_notes = ?,
          updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
     ).bind(
       fields.source_listing_id,
       fields.is_active,
+      fields.is_marked,
       fields.for_sale,
       fields.for_sale_date,
       fields.is_sold,

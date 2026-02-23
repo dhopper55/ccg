@@ -19,6 +19,7 @@ type InventoryItem = {
   purchaseNotes?: string;
   serialNumber?: string;
   isActive?: boolean;
+  isMarked?: boolean;
   forSale?: boolean;
   forSaleDate?: string | null;
   isSold?: boolean;
@@ -70,6 +71,7 @@ const purchasePriceInput = document.getElementById('inventory-purchase-price') a
 const privatePartyValueInput = document.getElementById('inventory-private-party-value') as HTMLInputElement | null;
 const purchaseNotesInput = document.getElementById('inventory-purchase-notes') as HTMLTextAreaElement | null;
 const isActiveInput = document.getElementById('inventory-is-active') as HTMLInputElement | null;
+const isMarkedInput = document.getElementById('inventory-is-marked') as HTMLInputElement | null;
 const forSaleInput = document.getElementById('inventory-for-sale') as HTMLInputElement | null;
 const isSoldInput = document.getElementById('inventory-is-sold') as HTMLInputElement | null;
 const serialNumberInput = document.getElementById('inventory-serial-number') as HTMLInputElement | null;
@@ -315,6 +317,7 @@ function fillFromInventoryRecord(record: InventoryItem): void {
   }
   if (purchaseNotesInput) purchaseNotesInput.value = record.purchaseNotes || '';
   if (isActiveInput) isActiveInput.checked = Boolean(record.isActive);
+  if (isMarkedInput) isMarkedInput.checked = Boolean(record.isMarked);
   if (forSaleInput) forSaleInput.checked = Boolean(record.forSale);
   if (isSoldInput) isSoldInput.checked = Boolean(record.isSold);
   if (serialNumberInput) serialNumberInput.value = record.serialNumber || '';
@@ -450,6 +453,7 @@ async function handleSubmit(event: SubmitEvent): Promise<void> {
       privatePartyValue: privatePartyValueInput?.value.trim() || '0',
       purchaseNotes: purchaseNotesInput?.value.trim() || '',
       isActive: isActiveInput?.checked ?? true,
+      isMarked: isMarkedInput?.checked ?? false,
       forSale: forSaleInput?.checked ?? false,
       isSold: isSoldInput?.checked ?? false,
       serialNumber: serialNumberInput?.value.trim() || '',
@@ -512,6 +516,7 @@ async function init(): Promise<void> {
   if (purchasedDateInput && !purchasedDateInput.value) purchasedDateInput.value = todayYmd();
   if (privatePartyValueInput && !privatePartyValueInput.value) privatePartyValueInput.value = '0';
   if (forSaleInput && !editId) forSaleInput.checked = false;
+  if (isMarkedInput && !editId) isMarkedInput.checked = false;
   setQtyValue(1);
 
   const params = new URLSearchParams(window.location.search);
@@ -537,6 +542,7 @@ async function init(): Promise<void> {
     setMode('add');
     if (purchasedDateInput) purchasedDateInput.value = todayYmd();
     if (forSaleInput) forSaleInput.checked = false;
+    if (isMarkedInput) isMarkedInput.checked = false;
   }
 
   imageFileInput?.addEventListener('change', () => {

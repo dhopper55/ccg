@@ -129,6 +129,7 @@ CREATE TABLE IF NOT EXISTS ccg_inventory_items (
   purchase_notes TEXT,
   serial_number TEXT,
   is_active INTEGER DEFAULT 1,
+  is_marked INTEGER NOT NULL DEFAULT 0,
   for_sale INTEGER DEFAULT 0,
   for_sale_date TEXT,
   is_sold INTEGER DEFAULT 0,
@@ -147,6 +148,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS ccg_inventory_items_source_listing_idx
   WHERE source_listing_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS ccg_inventory_items_active_idx
   ON ccg_inventory_items(is_active);
+CREATE INDEX IF NOT EXISTS ccg_inventory_items_marked_idx
+  ON ccg_inventory_items(is_marked);
 CREATE INDEX IF NOT EXISTS ccg_inventory_items_for_sale_idx
   ON ccg_inventory_items(for_sale);
 CREATE INDEX IF NOT EXISTS ccg_inventory_items_sold_idx
