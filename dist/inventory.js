@@ -9,6 +9,7 @@ const INVENTORY_CATEGORIES = [
     'Amplification',
     'Pro Audio',
     'Keyboards & Synthesizers',
+    'Cases & Bags',
     'Accessories',
 ];
 const statusEl = document.getElementById('inventory-status');

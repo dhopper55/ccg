@@ -142,6 +142,7 @@ const CATEGORY_OPTIONS = [
   'Keyboards and Synths',
   'Parts',
   'Pro Audio',
+  'Cases & Bags',
   'Other',
 ];
 
