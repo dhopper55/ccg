@@ -192,7 +192,7 @@ function renderInventoryGrid() {
             qtyTd.appendChild(qtyBtn);
         }
         else {
-            qtyTd.textContent = String(qtyValue);
+            qtyTd.textContent = qtyValue <= 0 ? '' : String(qtyValue);
         }
         tr.appendChild(qtyTd);
         tr.appendChild(rowCell(formatCurrency(row.purchasePrice), 'inventory-cell-sm'));
