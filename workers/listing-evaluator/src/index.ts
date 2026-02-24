@@ -1819,10 +1819,20 @@ type ReverbComp = {
   url: string;
 };
 
+type ReverbPricingAttempt = {
+  label: string;
+  query: string;
+  rawCount: number;
+  pickedCount: number;
+  strongCount: number;
+};
+
 type ReverbPricingContext = {
   ok: boolean;
   query: string;
   comps: ReverbComp[];
+  baseComps?: ReverbComp[];
+  attempts?: ReverbPricingAttempt[];
   error?: string;
 };
 
@@ -6045,24 +6055,83 @@ function pricingSubjectTokens(base: SingleAiResult): string[] {
   return Array.from(new Set([brand, ...model.split(/\s+/)].filter((token) => token && token.length >= 3)));
 }
 
-function buildReverbPricingQuery(base: SingleAiResult): string {
+function normalizePricingModelText(base: SingleAiResult): string {
+  return normalizeText(base.model, '')
+    .replace(/\(NOT DEFINITIVE\)/gi, '')
+    .replace(/\bwith\s+roland\b.*$/i, '')
+    .replace(/\bwith\s+midi\b.*$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isNicheElectronicsListing(base: SingleAiResult): boolean {
+  const text = [
+    normalizeText(base.model, ''),
+    normalizeText(base.og_specs_pickups, ''),
+    normalizeText(base.known_weak_points, ''),
+    normalizeText(base.buyer_what_to_check, ''),
+  ].join(' ').toLowerCase();
+  return /roland|midi|gk|13-?pin|synth/.test(text);
+}
+
+function buildReverbPricingQueries(base: SingleAiResult): Array<{ label: string; query: string }> {
   const brand = normalizeText(base.brand, '').replace(/\(NOT DEFINITIVE\)/gi, '').trim();
   const model = normalizeText(base.model, '').replace(/\(NOT DEFINITIVE\)/gi, '').trim();
+  const baseModel = normalizePricingModelText(base);
   const finish = normalizeText(base.finish, '').replace(/^Guess:\s*/i, '').trim();
   const year = normalizeText(base.year, '').replace(/\(NOT DEFINITIVE\)/gi, '').trim();
   const condition = normalizeText(base.condition, '').trim();
+  const modelLower = model.toLowerCase();
+  const hasRoland = /roland|midi|gk/.test(modelLower)
+    || /roland|midi|gk/.test(normalizeText(base.og_specs_pickups, '').toLowerCase());
+  const hasStrat = /stratocaster|strat/.test(modelLower) || /stratocaster|strat/.test(baseModel.toLowerCase());
+  const mentionsMexico = /mexico|mim/.test([model, baseModel, normalizeText(base.serial_brand, ''), normalizeText(base.year, '')].join(' ').toLowerCase());
 
-  const parts = [
+  const exactish = [
     year && !/unknown/i.test(year) ? year : '',
     brand,
     model,
-    /roland/i.test(model) ? '' : (/roland/i.test(normalizeText(base.og_specs_pickups, '')) ? 'Roland' : ''),
-    /midi|gk|roland/i.test(model) ? '' : (/midi|roland|gk/i.test(normalizeText(base.model, '')) ? 'MIDI' : ''),
     finish && !/unknown/i.test(finish) ? finish : '',
     condition && !/unknown/i.test(condition) ? condition : '',
-  ].filter(Boolean);
+  ].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
 
-  return parts.join(' ').replace(/\s+/g, ' ').trim() || `${brand} ${model}`.trim() || 'guitar';
+  const relaxed = [
+    brand,
+    hasRoland ? 'Roland Ready' : '',
+    hasStrat ? 'Stratocaster' : baseModel,
+  ].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+
+  const feature = [
+    brand,
+    hasStrat ? 'Strat' : baseModel,
+    hasRoland ? 'Roland GK MIDI' : 'MIDI',
+  ].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+
+  const baseFloor = [
+    brand,
+    hasStrat ? 'Stratocaster' : baseModel,
+    mentionsMexico ? 'MIM' : '',
+    !mentionsMexico && /mexico/i.test([model, normalizeText(base.serial_brand, '')].join(' ')) ? 'Made in Mexico' : '',
+  ].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+
+  const queries = [
+    { label: 'exact', query: exactish || `${brand} ${model}`.trim() || 'guitar' },
+    { label: 'relaxed', query: relaxed || `${brand} ${baseModel}`.trim() || 'guitar' },
+    ...(hasRoland ? [{ label: 'feature', query: feature || `${brand} Roland Strat`.trim() }] : []),
+    { label: 'base-floor', query: baseFloor || `${brand} ${baseModel}`.trim() || 'guitar' },
+  ];
+
+  const seen = new Set<string>();
+  return queries.filter((entry) => {
+    const key = entry.query.toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function buildReverbPricingQuery(base: SingleAiResult): string {
+  return buildReverbPricingQueries(base)[0]?.query || 'guitar';
 }
 
 function reverbRequestHeaders(env: Env): HeadersInit {
@@ -6114,18 +6183,37 @@ function scoreReverbCompMatch(comp: ReverbComp, base: SingleAiResult): number {
   return score;
 }
 
-function pickReverbComps(raw: ReverbSearchListing[], base: SingleAiResult): ReverbComp[] {
-  const comps = raw
+function scoredReverbComps(raw: ReverbSearchListing[], base: SingleAiResult): Array<{ comp: ReverbComp; score: number }> {
+  return raw
     .map(normalizeReverbComp)
     .filter((comp): comp is ReverbComp => Boolean(comp))
     .filter((comp) => comp.price >= 100 && comp.price <= 20000)
     .map((comp) => ({ comp, score: scoreReverbCompMatch(comp, base) }))
-    .filter((entry) => entry.score >= 1)
-    .sort((a, b) => b.score - a.score || a.comp.price - b.comp.price)
+    .sort((a, b) => b.score - a.score || a.comp.price - b.comp.price);
+}
+
+function pickReverbComps(raw: ReverbSearchListing[], base: SingleAiResult, minScore = 1): ReverbComp[] {
+  return scoredReverbComps(raw, base)
+    .filter((entry) => entry.score >= minScore)
     .slice(0, REVERB_PRICING_SEARCH_LIMIT)
     .map((entry) => entry.comp);
+}
 
-  return comps;
+function dedupeReverbComps(comps: ReverbComp[]): ReverbComp[] {
+  const seen = new Set<string>();
+  const out: ReverbComp[] = [];
+  for (const comp of comps) {
+    const key = `${comp.url}|${comp.title.toLowerCase()}|${comp.price}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(comp);
+  }
+  return out;
+}
+
+function summarizeReverbMatchesInline(comps: ReverbComp[], limit = 3): string {
+  if (!comps.length) return 'No matched Reverb titles.';
+  return comps.slice(0, limit).map((comp) => `"${comp.title}" ($${comp.price})`).join('; ');
 }
 
 function percentile(sorted: number[], p: number): number {
@@ -6182,38 +6270,145 @@ function summarizeReverbComps(comps: ReverbComp[]): string {
 }
 
 async function fetchReverbPricingContext(base: SingleAiResult, env: Env): Promise<ReverbPricingContext> {
-  const query = buildReverbPricingQuery(base);
-  const params = new URLSearchParams();
-  params.set('query', query);
-  params.set('per_page', String(REVERB_PRICING_SEARCH_LIMIT));
+  const queryEntries = buildReverbPricingQueries(base);
+  const attempts: ReverbPricingAttempt[] = [];
+  let primaryComps: ReverbComp[] = [];
+  let baseFloorComps: ReverbComp[] = [];
+  let firstError: string | undefined;
 
-  const url = `${REVERB_SEARCH_API_URL}?${params.toString()}`;
   try {
-    const response = await fetch(url, { method: 'GET', headers: reverbRequestHeaders(env) });
-    if (!response.ok) {
-      const body = await response.text();
-      return {
-        ok: false,
-        query,
-        comps: [],
-        error: `Reverb API error ${response.status}: ${body.slice(0, 160)}`,
-      };
+    for (const entry of queryEntries) {
+      const params = new URLSearchParams();
+      params.set('query', entry.query);
+      params.set('per_page', String(REVERB_PRICING_SEARCH_LIMIT));
+      const url = `${REVERB_SEARCH_API_URL}?${params.toString()}`;
+
+      const response = await fetch(url, { method: 'GET', headers: reverbRequestHeaders(env) });
+      if (!response.ok) {
+        const body = await response.text();
+        firstError ||= `Reverb API error ${response.status}: ${body.slice(0, 160)}`;
+        attempts.push({
+          label: entry.label,
+          query: entry.query,
+          rawCount: 0,
+          pickedCount: 0,
+          strongCount: 0,
+        });
+        continue;
+      }
+
+      const data = await response.json() as ReverbSearchResponse;
+      const rawListings = Array.isArray(data.listings) ? data.listings : [];
+      const scored = scoredReverbComps(rawListings, base);
+      const minStrongScore = isNicheElectronicsListing(base) ? 2 : 1;
+      const picked = scored.filter((item) => item.score >= 1).slice(0, REVERB_PRICING_SEARCH_LIMIT);
+      const strong = scored.filter((item) => item.score >= minStrongScore).slice(0, REVERB_PRICING_SEARCH_LIMIT);
+      const pickedComps = picked.map((item) => item.comp);
+      const strongComps = strong.map((item) => item.comp);
+
+      attempts.push({
+        label: entry.label,
+        query: entry.query,
+        rawCount: rawListings.length,
+        pickedCount: pickedComps.length,
+        strongCount: strongComps.length,
+      });
+
+      if (entry.label === 'base-floor') {
+        baseFloorComps = dedupeReverbComps([...baseFloorComps, ...pickedComps]).slice(0, REVERB_PRICING_SEARCH_LIMIT);
+      } else {
+        primaryComps = dedupeReverbComps([...primaryComps, ...strongComps]).slice(0, REVERB_PRICING_SEARCH_LIMIT);
+      }
+
+      if (primaryComps.length >= 3 && entry.label !== 'base-floor') break;
     }
-    const data = await response.json() as ReverbSearchResponse;
-    const rawListings = Array.isArray(data.listings) ? data.listings : [];
+
+    const finalComps = primaryComps.length > 0 ? primaryComps : [];
+    const ok = attempts.some((attempt) => attempt.rawCount > 0) || attempts.length > 0;
+
     return {
-      ok: true,
-      query,
-      comps: pickReverbComps(rawListings, base),
+      ok,
+      query: attempts.map((attempt) => `${attempt.label}:${attempt.query}`).join(' | ') || buildReverbPricingQuery(base),
+      comps: finalComps,
+      baseComps: baseFloorComps,
+      attempts,
+      error: !ok ? (firstError || 'No Reverb responses') : undefined,
     };
   } catch (error) {
     return {
       ok: false,
-      query,
+      query: queryEntries.map((entry) => `${entry.label}:${entry.query}`).join(' | ') || buildReverbPricingQuery(base),
       comps: [],
+      baseComps: [],
+      attempts,
       error: error instanceof Error ? error.message : 'Reverb request failed',
     };
   }
+}
+
+function clampRangeToCap(
+  range: { low: number; medium: number; high: number },
+  cap: { low: number; medium: number; high: number }
+): { low: number; medium: number; high: number } {
+  const low = Math.min(range.low, cap.low);
+  const medium = Math.min(range.medium, cap.medium);
+  const high = Math.min(range.high, cap.high);
+  const normalizedLow = Math.min(low, high);
+  const normalizedHigh = Math.max(low, high);
+  const normalizedMedium = Math.min(normalizedHigh, Math.max(normalizedLow, medium));
+  return { low: normalizedLow, medium: normalizedMedium, high: normalizedHigh };
+}
+
+function clampFallbackPricingForWeakReverb(
+  fallback: Partial<SingleAiResult>,
+  base: SingleAiResult,
+  reverb: ReverbPricingContext
+): Partial<SingleAiResult> {
+  const normalized = normalizePrivatePartyPricing(fallback);
+  if (!normalized) return fallback;
+  if (!isNicheElectronicsListing(base)) return normalized;
+
+  const baseFloorRange = (reverb.baseComps && reverb.baseComps.length)
+    ? rangeFromReverbComps(reverb.baseComps, {
+        ...base,
+        model: normalizePricingModelText(base) || base.model,
+        og_specs_pickups: '',
+      })
+    : null;
+
+  let clamped = {
+    low: normalizeMoneyValue(normalized.value_private_party_low) || 0,
+    medium: normalizeMoneyValue(normalized.value_private_party_medium) || 0,
+    high: normalizeMoneyValue(normalized.value_private_party_high) || 0,
+  };
+
+  if (baseFloorRange) {
+    const cap = {
+      low: Math.round(baseFloorRange.low * 1.02),
+      medium: Math.round(baseFloorRange.medium * 1.06),
+      high: Math.round(baseFloorRange.high * 1.12),
+    };
+    clamped = clampRangeToCap(clamped, cap);
+  } else {
+    clamped = {
+      low: Math.round(clamped.low * 0.82),
+      medium: Math.round(clamped.medium * 0.8),
+      high: Math.round(clamped.high * 0.76),
+    };
+    clamped.high = Math.min(clamped.high, Math.round(Math.max(clamped.medium, clamped.low) * 1.12));
+    clamped.medium = Math.min(clamped.medium, clamped.high);
+    clamped.low = Math.min(clamped.low, clamped.medium);
+  }
+
+  return {
+    ...normalized,
+    value_private_party_low: clamped.low,
+    value_private_party_medium: clamped.medium,
+    value_private_party_high: clamped.high,
+    value_private_party_low_notes: `${normalizeText(normalized.value_private_party_low_notes, '')} ${baseFloorRange ? 'Capped near base-model Reverb floor due unverified niche electronics feature.' : 'Reduced aggressively due unverified niche electronics feature and weak Reverb matches.'}`.trim(),
+    value_private_party_medium_notes: `${normalizeText(normalized.value_private_party_medium_notes, '')} Conservative clamp applied for weak Reverb support on Roland/MIDI-style premium.`.trim(),
+    value_private_party_high_notes: `${normalizeText(normalized.value_private_party_high_notes, '')} High-end premium capped without verified functionality.`.trim(),
+  };
 }
 
 async function runOpenAIPrivatePartyPricingWithContext(
@@ -6346,12 +6541,13 @@ async function getRealisticPrivatePartyPricing(
       pricing_source: `Reverb${aiContextRange ? ' + AI' : ''}`,
       pricing_confidence: reverbRange.confidence,
       pricing_comp_count: reverb.comps.length,
-      pricing_notes: `${reverbRange.notes} Query: "${reverb.query}".`,
-      value_online_notes: `Reverb query: "${reverb.query}". Matches used for context: ${reverb.comps.length}. Active listing prices were discounted for local private-party realism, plus uncertainty/liquidity risk.`,
+      pricing_notes: `${reverbRange.notes} Queries: "${reverb.query}". Matches: ${summarizeReverbMatchesInline(reverb.comps)}${reverb.baseComps?.length ? ` Base-floor matches: ${summarizeReverbMatchesInline(reverb.baseComps)}` : ''}.`,
+      value_online_notes: `Reverb queries: "${reverb.query}". Matches used for context: ${reverb.comps.length}. Active listing prices were discounted for local private-party realism, plus uncertainty/liquidity risk. ${reverb.attempts?.length ? `Attempts: ${reverb.attempts.map((a) => `${a.label} raw:${a.rawCount} picked:${a.pickedCount} strong:${a.strongCount}`).join('; ')}.` : ''}`,
     };
   }
 
-  const fallback = await runOpenAIPrivatePartyPricing(base, env);
+  const fallbackRaw = await runOpenAIPrivatePartyPricing(base, env);
+  const fallback = fallbackRaw ? clampFallbackPricingForWeakReverb(fallbackRaw, base, reverb) : null;
   if (!fallback) return null;
   return {
     ...fallback,
@@ -6359,7 +6555,7 @@ async function getRealisticPrivatePartyPricing(
     pricing_confidence: reverb.ok ? 'Low' : 'Low',
     pricing_comp_count: reverb.comps.length,
     pricing_notes: reverb.ok
-      ? `Reverb query "${reverb.query}" returned no strong matches; used conservative AI fallback.`
+      ? `Reverb queries "${reverb.query}" returned no strong matches; used conservative AI fallback${isNicheElectronicsListing(base) ? ' with niche-feature cap' : ''}. ${reverb.baseComps?.length ? `Base-floor matches: ${summarizeReverbMatchesInline(reverb.baseComps)}.` : ''} ${reverb.attempts?.length ? `Attempts: ${reverb.attempts.map((a) => `${a.label} raw:${a.rawCount} picked:${a.pickedCount} strong:${a.strongCount}`).join('; ')}.` : ''}`.trim()
       : `Reverb failed (${reverb.error || 'unknown error'}); used conservative AI fallback.`,
     value_online_notes: `Reverb ${reverb.ok ? 'returned weak/insufficient matches' : `error: ${reverb.error || 'unknown error'}`}. Fallback is AI estimate and should be treated as lower confidence.`,
   };
