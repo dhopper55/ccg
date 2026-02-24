@@ -395,11 +395,46 @@ function openReverbQueriesModal(queries: string[]): void {
     link.style.color = '#9dc2ff';
 
     const soldLink = document.createElement('a');
-    soldLink.href = buildReverbSoldSearchUrl(query);
-    soldLink.target = '_blank';
-    soldLink.rel = 'noopener';
-    soldLink.textContent = 'Open Reverb Sold Data';
+    soldLink.href = '#';
+    soldLink.textContent = 'Copy Reverb Sold Url';
     soldLink.style.color = '#9dc2ff';
+    soldLink.onclick = (event) => {
+      event.preventDefault();
+      const soldUrl = buildReverbSoldSearchUrl(query);
+      const originalText = soldLink.textContent || 'Copy Reverb Sold Url';
+      const fallbackCopy = () => {
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = soldUrl;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.focus();
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          soldLink.textContent = 'Copied!';
+        } catch {
+          soldLink.textContent = 'Copy failed';
+        }
+        window.setTimeout(() => {
+          soldLink.textContent = originalText;
+        }, 1200);
+      };
+
+      if (navigator.clipboard?.writeText) {
+        void navigator.clipboard.writeText(soldUrl).then(() => {
+          soldLink.textContent = 'Copied!';
+          window.setTimeout(() => {
+            soldLink.textContent = originalText;
+          }, 1200);
+        }).catch(() => {
+          fallbackCopy();
+        });
+      } else {
+        fallbackCopy();
+      }
+    };
 
     row.appendChild(label);
     row.appendChild(code);
