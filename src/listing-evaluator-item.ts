@@ -291,10 +291,7 @@ function buildReverbSearchUrl(query: string): string {
 }
 
 function buildReverbSoldSearchUrl(query: string): string {
-  const url = new URL('https://reverb.com/marketplace');
-  url.searchParams.set('query', query);
-  url.searchParams.set('show_only_sold', 'true');
-  return url.toString();
+  return `https://reverb.com/marketplace?query=${encodeURIComponent(query)}&show_only_sold=true`;
 }
 
 function closeReverbQueriesModal(): void {
