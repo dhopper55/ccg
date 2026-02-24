@@ -281,25 +281,6 @@ function buildReverbSoldSearchUrl(query) {
     url.searchParams.set('show_only_sold', 'true');
     return url.toString();
 }
-function applyReverbGuitarFilters(url) {
-    // Reverb search is broad; these filters narrow to likely comp inventory.
-    url.searchParams.set('make[]', 'Fender');
-    url.searchParams.set('product_type', 'electric-guitars');
-    url.searchParams.set('condition', 'used');
-}
-function buildFilteredReverbSearchUrl(query) {
-    const url = new URL('https://reverb.com/marketplace');
-    url.searchParams.set('query', query);
-    applyReverbGuitarFilters(url);
-    return url.toString();
-}
-function buildFilteredReverbSoldSearchUrl(query) {
-    const url = new URL('https://reverb.com/marketplace');
-    url.searchParams.set('query', query);
-    url.searchParams.set('show_only_sold', 'true');
-    applyReverbGuitarFilters(url);
-    return url.toString();
-}
 function closeReverbQueriesModal() {
     if (!reverbQueriesModalEl)
         return;
@@ -392,13 +373,13 @@ function openReverbQueriesModal(queries) {
         links.style.flexWrap = 'wrap';
         links.style.gap = '10px';
         const link = document.createElement('a');
-        link.href = buildFilteredReverbSearchUrl(query);
+        link.href = buildReverbSearchUrl(query);
         link.target = '_blank';
         link.rel = 'noopener';
         link.textContent = 'Open on Reverb';
         link.style.color = '#9dc2ff';
         const soldLink = document.createElement('a');
-        soldLink.href = buildFilteredReverbSoldSearchUrl(query);
+        soldLink.href = buildReverbSoldSearchUrl(query);
         soldLink.target = '_blank';
         soldLink.rel = 'noopener';
         soldLink.textContent = 'Open Reverb Sold Data';
