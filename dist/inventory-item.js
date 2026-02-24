@@ -38,6 +38,7 @@ let sourceImageUrl = null;
 let inventoryImageUrls = [];
 let inventoryLightbox = null;
 let inventoryLightboxImage = null;
+let isSubmittingInventoryForm = false;
 function parseQtyValue(raw) {
     const parsed = Number.parseInt(raw, 10);
     if (!Number.isFinite(parsed))
@@ -375,6 +376,8 @@ async function handleSubmit(event) {
     event.preventDefault();
     if (!titleInput || !submitButton || !purchasedDateInput)
         return;
+    if (isSubmittingInventoryForm)
+        return;
     const title = titleInput.value.trim();
     const purchasedDate = purchasedDateInput.value.trim();
     if (!title) {
@@ -393,6 +396,7 @@ async function handleSubmit(event) {
         setStatus('Please upload at least one image before saving.', true);
         return;
     }
+    isSubmittingInventoryForm = true;
     submitButton.disabled = true;
     try {
         const payload = {
@@ -444,7 +448,12 @@ async function handleSubmit(event) {
             const createdCount = typeof data.createdCount === 'number'
                 ? data.createdCount
                 : currentQtyValue();
-            setStatus(`Created ${createdCount} inventory item${createdCount === 1 ? '' : 's'}: ${data.ccgNumber || ''}. Redirecting...`.trim());
+            if (data.duplicateSuppressed) {
+                setStatus(`Duplicate submit prevented. Using existing item ${data.ccgNumber || ''}. Redirecting...`.trim());
+            }
+            else {
+                setStatus(`Created ${createdCount} inventory item${createdCount === 1 ? '' : 's'}: ${data.ccgNumber || ''}. Redirecting...`.trim());
+            }
         }
         window.setTimeout(() => {
             if (shouldRedirectToMarketplace) {
@@ -464,6 +473,7 @@ async function handleSubmit(event) {
         setStatus(message, true);
     }
     finally {
+        isSubmittingInventoryForm = false;
         submitButton.disabled = false;
     }
 }

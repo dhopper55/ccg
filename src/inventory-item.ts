@@ -89,6 +89,7 @@ let sourceImageUrl: string | null = null;
 let inventoryImageUrls: string[] = [];
 let inventoryLightbox: HTMLDivElement | null = null;
 let inventoryLightboxImage: HTMLImageElement | null = null;
+let isSubmittingInventoryForm = false;
 
 function parseQtyValue(raw: string): number {
   const parsed = Number.parseInt(raw, 10);
@@ -413,6 +414,7 @@ async function handleImportSourceImage(): Promise<void> {
 async function handleSubmit(event: SubmitEvent): Promise<void> {
   event.preventDefault();
   if (!titleInput || !submitButton || !purchasedDateInput) return;
+  if (isSubmittingInventoryForm) return;
 
   const title = titleInput.value.trim();
   const purchasedDate = purchasedDateInput.value.trim();
@@ -434,6 +436,7 @@ async function handleSubmit(event: SubmitEvent): Promise<void> {
     return;
   }
 
+  isSubmittingInventoryForm = true;
   submitButton.disabled = true;
   try {
     const payload = {
@@ -471,7 +474,13 @@ async function handleSubmit(event: SubmitEvent): Promise<void> {
       body: JSON.stringify(payload),
     });
 
-    const data = await response.json().catch(() => ({})) as { ok?: boolean; ccgNumber?: string; message?: string };
+    const data = await response.json().catch(() => ({})) as {
+      ok?: boolean;
+      ccgNumber?: string;
+      message?: string;
+      createdCount?: number;
+      duplicateSuppressed?: boolean;
+    };
     if (!response.ok || !data.ok) {
       throw new Error(data.message || (editId ? 'Unable to update inventory item.' : 'Unable to create inventory item.'));
     }
@@ -485,10 +494,14 @@ async function handleSubmit(event: SubmitEvent): Promise<void> {
       setStatus('Inventory item updated. Redirecting...');
     } else {
       if (ccgInput) ccgInput.value = data.ccgNumber || 'Created';
-      const createdCount = typeof (data as { createdCount?: unknown }).createdCount === 'number'
-        ? (data as { createdCount: number }).createdCount
+      const createdCount = typeof data.createdCount === 'number'
+        ? data.createdCount
         : currentQtyValue();
-      setStatus(`Created ${createdCount} inventory item${createdCount === 1 ? '' : 's'}: ${data.ccgNumber || ''}. Redirecting...`.trim());
+      if (data.duplicateSuppressed) {
+        setStatus(`Duplicate submit prevented. Using existing item ${data.ccgNumber || ''}. Redirecting...`.trim());
+      } else {
+        setStatus(`Created ${createdCount} inventory item${createdCount === 1 ? '' : 's'}: ${data.ccgNumber || ''}. Redirecting...`.trim());
+      }
     }
     window.setTimeout(() => {
       if (shouldRedirectToMarketplace) {
@@ -506,6 +519,7 @@ async function handleSubmit(event: SubmitEvent): Promise<void> {
     const message = error instanceof Error ? error.message : 'Unable to save inventory item.';
     setStatus(message, true);
   } finally {
+    isSubmittingInventoryForm = false;
     submitButton.disabled = false;
   }
 }

@@ -2264,6 +2264,30 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   }
 
   const primaryImageUrl = imageUrls[0];
+  const duplicate = qty === 1
+    ? await dbFindRecentDuplicateInventoryCreate({
+      source_listing_id: sourceListingId,
+      image_url: primaryImageUrl,
+      title,
+      category: category || null,
+      brand: brand || null,
+      year_range: yearRange || null,
+      model: model || null,
+      finish: finish || null,
+      purchased_date: purchasedDate,
+      purchase_price: purchasePrice,
+    }, env)
+    : null;
+  if (duplicate) {
+    return jsonResponse({
+      ok: true,
+      id: String(duplicate.id),
+      ccgNumber: duplicate.ccg_number,
+      createdCount: 0,
+      duplicateSuppressed: true,
+      message: 'Duplicate submit prevented.',
+    });
+  }
 
   const inserted = await dbCreateInventoryItems({
     source_listing_id: sourceListingId,
@@ -4009,6 +4033,59 @@ async function dbFindInventoryBySourceListingId(sourceListingId: number, env: En
   const row = await env.DB.prepare(
     'SELECT id FROM ccg_inventory_items WHERE source_listing_id = ? LIMIT 1'
   ).bind(sourceListingId).first<{ id: number }>();
+  return row || null;
+}
+
+async function dbFindRecentDuplicateInventoryCreate(
+  fields: {
+    source_listing_id: number | null;
+    image_url: string;
+    title: string;
+    category: string | null;
+    brand: string | null;
+    year_range: string | null;
+    model: string | null;
+    finish: string | null;
+    purchased_date: string;
+    purchase_price: number | null;
+  },
+  env: Env
+): Promise<{ id: number; ccg_number: string } | null> {
+  if (fields.source_listing_id != null) {
+    const row = await env.DB.prepare(
+      'SELECT id, ccg_number FROM ccg_inventory_items WHERE source_listing_id = ? LIMIT 1'
+    ).bind(fields.source_listing_id).first<{ id: number; ccg_number: string }>();
+    return row || null;
+  }
+
+  const row = await env.DB.prepare(
+    `SELECT id, ccg_number
+     FROM ccg_inventory_items
+     WHERE source_listing_id IS NULL
+       AND title = ?
+       AND image_url = ?
+       AND IFNULL(category, '') = ?
+       AND IFNULL(brand, '') = ?
+       AND IFNULL(year_range, '') = ?
+       AND IFNULL(model, '') = ?
+       AND IFNULL(finish, '') = ?
+       AND purchased_date = ?
+       AND ((purchase_price IS NULL AND ? IS NULL) OR purchase_price = ?)
+       AND created_at >= datetime('now', '-2 minutes')
+     ORDER BY id DESC
+     LIMIT 1`
+  ).bind(
+    fields.title,
+    fields.image_url,
+    fields.category || '',
+    fields.brand || '',
+    fields.year_range || '',
+    fields.model || '',
+    fields.finish || '',
+    fields.purchased_date,
+    fields.purchase_price,
+    fields.purchase_price,
+  ).first<{ id: number; ccg_number: string }>();
   return row || null;
 }
 
