@@ -115,7 +115,9 @@ const RADAR_QUIET_END_HOUR = 5;
 const CUSTOM_MAX_PHOTOS = 10;
 const CUSTOM_MAX_TEXT_LENGTH = 5000;
 const REVERB_API_URL = 'https://api.reverb.com/api/my/listings?per_page=100';
+const REVERB_SEARCH_API_URL = 'https://api.reverb.com/api/listings';
 const REVERB_API_TOKEN_FALLBACK = '91712608fefe08e6915c2d781519411af3bdd750818a8edc94d94e14a3d7c491';
+const REVERB_PRICING_SEARCH_LIMIT = 12;
 const CCG_NUMBER_MIN = 100000;
 const CCG_NUMBER_MAX = 999999;
 const CCG_NUMBER_ATTEMPTS = 25;
@@ -174,6 +176,10 @@ const SINGLE_FIELD_KEYS = [
   'value_private_party_medium_notes',
   'value_private_party_high',
   'value_private_party_high_notes',
+  'pricing_source',
+  'pricing_confidence',
+  'pricing_comp_count',
+  'pricing_notes',
   'value_pawn_shop_notes',
   'value_online_notes',
   'known_weak_points',
@@ -715,7 +721,7 @@ async function processCustomListing(
     let aiData = aiResult.kind === 'single' ? aiResult.data : undefined;
     if (aiData) {
       aiData = clearPrivatePartyPricingFields(aiData);
-      const pricing = await runOpenAIPrivatePartyPricing(aiData, env);
+      const pricing = await getRealisticPrivatePartyPricing(aiData, env);
       if (pricing) {
         aiData = { ...aiData, ...pricing };
       }
@@ -1776,6 +1782,48 @@ type ReverbApiListing = {
 
 type ReverbApiResponse = {
   listings?: ReverbApiListing[];
+};
+
+type ReverbSearchListing = {
+  id?: number | string;
+  title?: string;
+  condition?: { display_name?: string } | string;
+  price?: {
+    amount?: string | number;
+    currency?: string;
+    symbol?: string;
+  };
+  shipping?: {
+    amount?: string | number;
+  };
+  photos?: Array<{
+    _links?: {
+      large_crop?: { href?: string };
+      small_crop?: { href?: string };
+      full?: { href?: string };
+    };
+  }>;
+  _links?: {
+    web?: { href?: string };
+  };
+};
+
+type ReverbSearchResponse = {
+  listings?: ReverbSearchListing[];
+};
+
+type ReverbComp = {
+  title: string;
+  price: number;
+  condition: string;
+  url: string;
+};
+
+type ReverbPricingContext = {
+  ok: boolean;
+  query: string;
+  comps: ReverbComp[];
+  error?: string;
 };
 
 type UnifiedForSaleItem = {
@@ -3010,7 +3058,7 @@ async function processRun(runId: string, resource: any, eventType: string | unde
 
   if (aiResult.kind === 'single' && aiData) {
     aiData = clearPrivatePartyPricingFields(aiData);
-    const pricing = await runOpenAIPrivatePartyPricing(aiData, env);
+    const pricing = await getRealisticPrivatePartyPricing(aiData, env);
     if (pricing) {
       aiData = { ...aiData, ...pricing };
     }
@@ -3111,6 +3159,10 @@ function listingFieldsToColumns(fields: Record<string, unknown>): Record<string,
   assign('value_private_party_medium_notes');
   assign('value_private_party_high');
   assign('value_private_party_high_notes');
+  assign('pricing_source');
+  assign('pricing_confidence');
+  assign('pricing_comp_count');
+  assign('pricing_notes');
   assign('value_pawn_shop_notes');
   assign('value_online_notes');
   assign('known_weak_points');
@@ -3223,6 +3275,10 @@ function listingRowToRecord(row: Record<string, any>): { id: string; fields: Rec
       value_private_party_medium_notes: row.value_private_party_medium_notes ?? null,
       value_private_party_high: row.value_private_party_high ?? null,
       value_private_party_high_notes: row.value_private_party_high_notes ?? null,
+      pricing_source: row.pricing_source ?? null,
+      pricing_confidence: row.pricing_confidence ?? null,
+      pricing_comp_count: row.pricing_comp_count ?? null,
+      pricing_notes: row.pricing_notes ?? null,
       value_pawn_shop_notes: row.value_pawn_shop_notes ?? null,
       value_online_notes: row.value_online_notes ?? null,
       known_weak_points: row.known_weak_points ?? null,
@@ -4288,6 +4344,10 @@ type SingleAiResult = {
   seller_fixes_add_value_or_waste: string;
   seller_as_is_notes: string;
   asking_price: number | string | null;
+  pricing_source?: string;
+  pricing_confidence?: string;
+  pricing_comp_count?: number | string | null;
+  pricing_notes?: string;
 };
 
 type AiResult = { kind: 'multi'; summary: string } | { kind: 'single'; data: SingleAiResult };
@@ -4911,6 +4971,10 @@ async function updateRowByRunId(runId: string, updates: {
           value_private_party_medium_notes: normalizeText(updates.aiData.value_private_party_medium_notes, ''),
           value_private_party_high: normalizeMoneyValue(updates.aiData.value_private_party_high),
           value_private_party_high_notes: normalizeText(updates.aiData.value_private_party_high_notes, ''),
+          pricing_source: normalizeText(updates.aiData.pricing_source, ''),
+          pricing_confidence: normalizeText(updates.aiData.pricing_confidence, ''),
+          pricing_comp_count: normalizeMoneyValue(updates.aiData.pricing_comp_count),
+          pricing_notes: normalizeText(updates.aiData.pricing_notes, ''),
           value_pawn_shop_notes: normalizeText(updates.aiData.value_pawn_shop_notes, ''),
           value_online_notes: normalizeText(updates.aiData.value_online_notes, ''),
           known_weak_points: ensureDefaultSuffix(updates.aiData.known_weak_points, DEFAULT_TEXT.known_weak_points),
@@ -5937,6 +6001,10 @@ function clearPrivatePartyPricingFields(base: SingleAiResult): SingleAiResult {
     value_private_party_medium_notes: '',
     value_private_party_high: null,
     value_private_party_high_notes: '',
+    pricing_source: '',
+    pricing_confidence: '',
+    pricing_comp_count: null,
+    pricing_notes: '',
   };
 }
 
@@ -5962,6 +6030,338 @@ function normalizePrivatePartyPricing(parsed: Partial<SingleAiResult>): Partial<
     value_private_party_medium_notes: normalizeText(parsed.value_private_party_medium_notes, ''),
     value_private_party_high: rangeHigh,
     value_private_party_high_notes: normalizeText(parsed.value_private_party_high_notes, ''),
+    pricing_source: normalizeText(parsed.pricing_source, ''),
+    pricing_confidence: normalizeText(parsed.pricing_confidence, ''),
+    pricing_comp_count: normalizeMoneyValue(parsed.pricing_comp_count),
+    pricing_notes: normalizeText(parsed.pricing_notes, ''),
+  };
+}
+
+function pricingSubjectTokens(base: SingleAiResult): string[] {
+  const brand = normalizeText(base.brand, '').toLowerCase();
+  const model = normalizeText(base.model, '').toLowerCase()
+    .replace(/\(not definitive\)/gi, '')
+    .replace(/[^a-z0-9 ]/g, ' ');
+  return Array.from(new Set([brand, ...model.split(/\s+/)].filter((token) => token && token.length >= 3)));
+}
+
+function buildReverbPricingQuery(base: SingleAiResult): string {
+  const brand = normalizeText(base.brand, '').replace(/\(NOT DEFINITIVE\)/gi, '').trim();
+  const model = normalizeText(base.model, '').replace(/\(NOT DEFINITIVE\)/gi, '').trim();
+  const finish = normalizeText(base.finish, '').replace(/^Guess:\s*/i, '').trim();
+  const year = normalizeText(base.year, '').replace(/\(NOT DEFINITIVE\)/gi, '').trim();
+  const condition = normalizeText(base.condition, '').trim();
+
+  const parts = [
+    year && !/unknown/i.test(year) ? year : '',
+    brand,
+    model,
+    /roland/i.test(model) ? '' : (/roland/i.test(normalizeText(base.og_specs_pickups, '')) ? 'Roland' : ''),
+    /midi|gk|roland/i.test(model) ? '' : (/midi|roland|gk/i.test(normalizeText(base.model, '')) ? 'MIDI' : ''),
+    finish && !/unknown/i.test(finish) ? finish : '',
+    condition && !/unknown/i.test(condition) ? condition : '',
+  ].filter(Boolean);
+
+  return parts.join(' ').replace(/\s+/g, ' ').trim() || `${brand} ${model}`.trim() || 'guitar';
+}
+
+function reverbRequestHeaders(env: Env): HeadersInit {
+  const token = env.REVERB_API_TOKEN || REVERB_API_TOKEN_FALLBACK;
+  return {
+    'Content-Type': 'application/hal+json',
+    'Accept': 'application/hal+json',
+    'Accept-Version': '3.0',
+    'Authorization': `Bearer ${token}`,
+  };
+}
+
+function parseReverbListingPrice(listing: ReverbSearchListing): number | null {
+  const base = parseCurrencyAmount(listing.price?.amount);
+  if (base == null || base <= 0) return null;
+  const shipping = parseCurrencyAmount(listing.shipping?.amount) || 0;
+  return Math.round(base + shipping);
+}
+
+function normalizeReverbCondition(listing: ReverbSearchListing): string {
+  if (typeof listing.condition === 'string') return normalizeText(listing.condition, '');
+  return normalizeText(listing.condition?.display_name, '');
+}
+
+function normalizeReverbComp(listing: ReverbSearchListing): ReverbComp | null {
+  const price = parseReverbListingPrice(listing);
+  const title = normalizeText(listing.title, '');
+  const url = normalizeText(listing._links?.web?.href, '');
+  if (!price || !title) return null;
+  return {
+    title,
+    price,
+    condition: normalizeReverbCondition(listing),
+    url,
+  };
+}
+
+function scoreReverbCompMatch(comp: ReverbComp, base: SingleAiResult): number {
+  const text = `${comp.title} ${comp.condition}`.toLowerCase();
+  const tokens = pricingSubjectTokens(base);
+  let score = 0;
+  for (const token of tokens) {
+    if (text.includes(token)) score += 1;
+  }
+  if (/roland|gk|midi/.test(normalizeText(base.model, '').toLowerCase())) {
+    if (/roland|gk|midi/.test(text)) score += 3;
+    else score -= 2;
+  }
+  return score;
+}
+
+function pickReverbComps(raw: ReverbSearchListing[], base: SingleAiResult): ReverbComp[] {
+  const comps = raw
+    .map(normalizeReverbComp)
+    .filter((comp): comp is ReverbComp => Boolean(comp))
+    .filter((comp) => comp.price >= 100 && comp.price <= 20000)
+    .map((comp) => ({ comp, score: scoreReverbCompMatch(comp, base) }))
+    .filter((entry) => entry.score >= 1)
+    .sort((a, b) => b.score - a.score || a.comp.price - b.comp.price)
+    .slice(0, REVERB_PRICING_SEARCH_LIMIT)
+    .map((entry) => entry.comp);
+
+  return comps;
+}
+
+function percentile(sorted: number[], p: number): number {
+  if (sorted.length === 0) return 0;
+  const idx = Math.max(0, Math.min(sorted.length - 1, Math.round((sorted.length - 1) * p)));
+  return sorted[idx];
+}
+
+function rangeFromReverbComps(comps: ReverbComp[], base: SingleAiResult): { low: number; medium: number; high: number; confidence: string; notes: string } | null {
+  if (comps.length === 0) return null;
+  const sorted = comps.map((c) => c.price).sort((a, b) => a - b);
+  let low = percentile(sorted, 0.2);
+  let medium = percentile(sorted, 0.5);
+  let high = percentile(sorted, 0.8);
+
+  // Convert Reverb online asking context to more realistic local private-party numbers.
+  const onlineToPrivateFactor = comps.length >= 4 ? 0.82 : 0.78;
+  low = Math.round(low * (onlineToPrivateFactor - 0.03));
+  medium = Math.round(medium * onlineToPrivateFactor);
+  high = Math.round(high * (onlineToPrivateFactor + 0.02));
+
+  const modelText = normalizeText(base.model, '').toLowerCase();
+  const serialKnown = Boolean(normalizeText(base.serial, ''));
+
+  // Niche electronics/feature penalty unless verified by listing context (not currently available here).
+  if (/roland|midi|gk/.test(modelText)) {
+    low = Math.round(low * 0.9);
+    medium = Math.round(medium * 0.9);
+    high = Math.round(high * 0.88);
+  }
+
+  // Uncertainty penalty when serial is missing.
+  if (!serialKnown) {
+    low = Math.round(low * 0.96);
+    medium = Math.round(medium * 0.95);
+    high = Math.round(high * 0.93);
+  }
+
+  low = Math.max(50, low);
+  high = Math.max(low, high);
+  medium = Math.min(high, Math.max(low, medium));
+
+  const confidence = comps.length >= 5 ? 'High' : comps.length >= 3 ? 'Medium' : 'Low';
+  const notes = `Reverb listings context (${comps.length} matches). Converted to local private-party with conservative online-to-local discount and uncertainty penalties.`;
+  return { low, medium, high, confidence, notes };
+}
+
+function summarizeReverbComps(comps: ReverbComp[]): string {
+  if (!comps.length) return 'No Reverb matches found.';
+  return comps
+    .slice(0, 6)
+    .map((comp, index) => `${index + 1}. ${comp.title} - $${comp.price}${comp.condition ? ` (${comp.condition})` : ''}`)
+    .join('\n');
+}
+
+async function fetchReverbPricingContext(base: SingleAiResult, env: Env): Promise<ReverbPricingContext> {
+  const query = buildReverbPricingQuery(base);
+  const params = new URLSearchParams();
+  params.set('query', query);
+  params.set('per_page', String(REVERB_PRICING_SEARCH_LIMIT));
+
+  const url = `${REVERB_SEARCH_API_URL}?${params.toString()}`;
+  try {
+    const response = await fetch(url, { method: 'GET', headers: reverbRequestHeaders(env) });
+    if (!response.ok) {
+      const body = await response.text();
+      return {
+        ok: false,
+        query,
+        comps: [],
+        error: `Reverb API error ${response.status}: ${body.slice(0, 160)}`,
+      };
+    }
+    const data = await response.json() as ReverbSearchResponse;
+    const rawListings = Array.isArray(data.listings) ? data.listings : [];
+    return {
+      ok: true,
+      query,
+      comps: pickReverbComps(rawListings, base),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      query,
+      comps: [],
+      error: error instanceof Error ? error.message : 'Reverb request failed',
+    };
+  }
+}
+
+async function runOpenAIPrivatePartyPricingWithContext(
+  base: SingleAiResult,
+  env: Env,
+  reverb: ReverbPricingContext
+): Promise<Partial<SingleAiResult> | null> {
+  if (!env.OPENAI_API_KEY) return null;
+
+  const subject = [normalizeText(base.year, ''), normalizeText(base.brand, ''), normalizeText(base.model, ''), normalizeText(base.finish, '')]
+    .filter(Boolean)
+    .join(' ')
+    .trim() || 'used guitar';
+  const compSummary = summarizeReverbComps(reverb.comps);
+  const prompt = [
+    'You are an expert used guitar buyer focused on realistic PRIVATE-PARTY values (not retail, not optimistic asking prices).',
+    'Return JSON only using the schema.',
+    '',
+    `Item: ${subject}`,
+    `Condition: ${normalizeText(base.condition, 'Unknown')}`,
+    `Reverb query used: ${reverb.query}`,
+    `Reverb status: ${reverb.ok ? 'ok' : 'error'}`,
+    reverb.error ? `Reverb error: ${reverb.error}` : '',
+    'Reverb listing context (usually active listing asks; do NOT treat as sold prices):',
+    compSummary,
+    '',
+    'Rules:',
+    '- Reverb active prices must be discounted to realistic local private-party value.',
+    '- Be conservative for niche/slow-mover features (e.g., Roland/MIDI) unless functionality is explicitly verified.',
+    '- If serial is missing or exact model is uncertain, apply an uncertainty discount.',
+    '- Prefer realistic numbers over round numbers.',
+    '- Ensure low <= medium <= high.',
+    '- If Reverb is unavailable or weak, estimate conservatively from comparable models.',
+  ].filter(Boolean).join('\n');
+
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }],
+      temperature: 0.2,
+      max_output_tokens: 900,
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'private_party_reverb_context',
+          schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              value_private_party_low: { type: ['number', 'string', 'null'] },
+              value_private_party_low_notes: { type: 'string' },
+              value_private_party_medium: { type: ['number', 'string', 'null'] },
+              value_private_party_medium_notes: { type: 'string' },
+              value_private_party_high: { type: ['number', 'string', 'null'] },
+              value_private_party_high_notes: { type: 'string' },
+              pricing_confidence: { type: 'string' },
+              pricing_notes: { type: 'string' },
+            },
+            required: [
+              'value_private_party_low',
+              'value_private_party_low_notes',
+              'value_private_party_medium',
+              'value_private_party_medium_notes',
+              'value_private_party_high',
+              'value_private_party_high_notes',
+              'pricing_confidence',
+              'pricing_notes',
+            ],
+          },
+        },
+      },
+    }),
+  });
+
+  if (!response.ok) return null;
+  const data = await response.json();
+  const text = extractOpenAIText(data);
+  try {
+    const parsed = JSON.parse(text) as Partial<SingleAiResult>;
+    return normalizePrivatePartyPricing(parsed);
+  } catch {
+    return null;
+  }
+}
+
+function blendPricingRanges(
+  primary: { low: number; medium: number; high: number },
+  secondary: { low: number; medium: number; high: number },
+  primaryWeight = 0.65
+): { low: number; medium: number; high: number } {
+  const secondaryWeight = 1 - primaryWeight;
+  const low = Math.round(primary.low * primaryWeight + secondary.low * secondaryWeight);
+  const medium = Math.round(primary.medium * primaryWeight + secondary.medium * secondaryWeight);
+  const high = Math.round(primary.high * primaryWeight + secondary.high * secondaryWeight);
+  return {
+    low: Math.min(low, high),
+    medium: Math.min(Math.max(medium, Math.min(low, high)), Math.max(low, high)),
+    high: Math.max(low, high),
+  };
+}
+
+async function getRealisticPrivatePartyPricing(
+  base: SingleAiResult,
+  env: Env
+): Promise<Partial<SingleAiResult> | null> {
+  const reverb = await fetchReverbPricingContext(base, env);
+  const reverbRange = reverb.ok ? rangeFromReverbComps(reverb.comps, base) : null;
+
+  if (reverbRange) {
+    const aiContextRange = await runOpenAIPrivatePartyPricingWithContext(base, env, reverb);
+    const aiLow = normalizeMoneyValue(aiContextRange?.value_private_party_low);
+    const aiMedium = normalizeMoneyValue(aiContextRange?.value_private_party_medium);
+    const aiHigh = normalizeMoneyValue(aiContextRange?.value_private_party_high);
+    const merged = (aiLow != null && aiMedium != null && aiHigh != null)
+      ? blendPricingRanges(reverbRange, { low: aiLow, medium: aiMedium, high: aiHigh }, 0.7)
+      : reverbRange;
+
+    return {
+      value_private_party_low: merged.low,
+      value_private_party_low_notes: `Reverb-backed low estimate from ${reverb.comps.length} matched listings.`,
+      value_private_party_medium: merged.medium,
+      value_private_party_medium_notes: `Conservative private-party midpoint derived from Reverb context${aiContextRange ? ' + AI normalization' : ''}.`,
+      value_private_party_high: merged.high,
+      value_private_party_high_notes: `Upper end for private-party sale, not retail ask; assumes condition/functionality as represented.`,
+      pricing_source: `Reverb${aiContextRange ? ' + AI' : ''}`,
+      pricing_confidence: reverbRange.confidence,
+      pricing_comp_count: reverb.comps.length,
+      pricing_notes: `${reverbRange.notes} Query: "${reverb.query}".`,
+      value_online_notes: `Reverb query: "${reverb.query}". Matches used for context: ${reverb.comps.length}. Active listing prices were discounted for local private-party realism, plus uncertainty/liquidity risk.`,
+    };
+  }
+
+  const fallback = await runOpenAIPrivatePartyPricing(base, env);
+  if (!fallback) return null;
+  return {
+    ...fallback,
+    pricing_source: reverb.ok ? 'Reverb attempted + AI fallback' : 'AI fallback (Reverb error)',
+    pricing_confidence: reverb.ok ? 'Low' : 'Low',
+    pricing_comp_count: reverb.comps.length,
+    pricing_notes: reverb.ok
+      ? `Reverb query "${reverb.query}" returned no strong matches; used conservative AI fallback.`
+      : `Reverb failed (${reverb.error || 'unknown error'}); used conservative AI fallback.`,
+    value_online_notes: `Reverb ${reverb.ok ? 'returned weak/insufficient matches' : `error: ${reverb.error || 'unknown error'}`}. Fallback is AI estimate and should be treated as lower confidence.`,
   };
 }
 
