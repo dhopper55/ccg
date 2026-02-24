@@ -290,6 +290,13 @@ function buildReverbSearchUrl(query: string): string {
   return `https://reverb.com/marketplace?query=${encodeURIComponent(query)}`;
 }
 
+function buildReverbSoldSearchUrl(query: string): string {
+  const url = new URL('https://reverb.com/marketplace');
+  url.searchParams.set('query', query);
+  url.searchParams.set('show_only_sold', 'true');
+  return url.toString();
+}
+
 function closeReverbQueriesModal(): void {
   if (!reverbQueriesModalEl) return;
   if (reverbQueriesModalEl instanceof HTMLDialogElement) {
@@ -378,6 +385,11 @@ function openReverbQueriesModal(queries: string[]): void {
     code.style.whiteSpace = 'pre-wrap';
     code.style.wordBreak = 'break-word';
 
+    const links = document.createElement('div');
+    links.style.display = 'flex';
+    links.style.flexWrap = 'wrap';
+    links.style.gap = '10px';
+
     const link = document.createElement('a');
     link.href = buildReverbSearchUrl(query);
     link.target = '_blank';
@@ -385,9 +397,18 @@ function openReverbQueriesModal(queries: string[]): void {
     link.textContent = 'Open on Reverb';
     link.style.color = '#9dc2ff';
 
+    const soldLink = document.createElement('a');
+    soldLink.href = buildReverbSoldSearchUrl(query);
+    soldLink.target = '_blank';
+    soldLink.rel = 'noopener';
+    soldLink.textContent = 'Open Reverb Sold Data';
+    soldLink.style.color = '#9dc2ff';
+
     row.appendChild(label);
     row.appendChild(code);
-    row.appendChild(link);
+    links.appendChild(link);
+    links.appendChild(soldLink);
+    row.appendChild(links);
     body.appendChild(row);
   });
 
