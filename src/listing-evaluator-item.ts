@@ -31,6 +31,7 @@ const copyButton = document.getElementById('listing-item-copy') as HTMLButtonEle
 const doubleCheckButton = document.getElementById('listing-item-double-check') as HTMLButtonElement | null;
 const doubleCheckGuitarButton = document.getElementById('listing-item-double-check-guitar') as HTMLButtonElement | null;
 
+let reverbQueriesModalEl: HTMLDialogElement | HTMLDivElement | null = null;
 let currentRecordId: string | null = null;
 let isArchiving = false;
 let isSaving = false;
@@ -52,12 +53,8 @@ const SINGLE_FIELDS: Array<{ key: string; label: string; currency?: boolean }> =
   { key: 'value_private_party_low', label: 'Private Party Low', currency: true },
   { key: 'value_private_party_medium', label: 'Private Party Medium', currency: true },
   { key: 'value_private_party_high', label: 'Private Party High', currency: true },
-  { key: 'pricing_source', label: 'Pricing Source' },
   { key: 'pricing_confidence', label: 'Pricing Confidence' },
-  { key: 'pricing_comp_count', label: 'Pricing Comp Count' },
-  { key: 'pricing_notes', label: 'Pricing Notes' },
   { key: 'value_pawn_shop_notes', label: 'Pawn Shop Notes' },
-  { key: 'value_online_notes', label: 'Online Marketplace Notes' },
   { key: 'known_weak_points', label: 'Known Weak Points' },
   { key: 'typical_repair_needs', label: 'Typical Repair Needs' },
   { key: 'buyers_worry', label: 'Buyer Worries' },
@@ -254,6 +251,178 @@ function buildInlineDoubleCheckLink(query: string): HTMLAnchorElement {
   link.target = '_blank';
   link.rel = 'noopener';
   return link;
+}
+
+function parseReverbQueriesFromText(value: unknown): string[] {
+  const text = typeof value === 'string' ? value : '';
+  if (!text.trim()) return [];
+
+  const out: string[] = [];
+  const patterns = [
+    /Queries:\s*"([^"]+)"/i,
+    /Reverb queries:\s*"([^"]+)"/i,
+    /Reverb query:\s*"([^"]+)"/i,
+    /Reverb query\s*"([^"]+)"/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (!match?.[1]) continue;
+    match[1].split(/\s+\|\s+/).forEach((piece) => {
+      const trimmed = piece.trim();
+      if (!trimmed) return;
+      const query = trimmed.includes(':') ? trimmed.slice(trimmed.indexOf(':') + 1).trim() : trimmed;
+      if (query) out.push(query);
+    });
+  }
+
+  return Array.from(new Set(out));
+}
+
+function getReverbQueries(fields: Record<string, unknown>): string[] {
+  return Array.from(new Set([
+    ...parseReverbQueriesFromText(fields.pricing_notes),
+    ...parseReverbQueriesFromText(fields.value_online_notes),
+  ]));
+}
+
+function buildReverbSearchUrl(query: string): string {
+  return `https://reverb.com/marketplace?query=${encodeURIComponent(query)}`;
+}
+
+function closeReverbQueriesModal(): void {
+  if (!reverbQueriesModalEl) return;
+  if (reverbQueriesModalEl instanceof HTMLDialogElement) {
+    if (reverbQueriesModalEl.open) reverbQueriesModalEl.close();
+    return;
+  }
+  reverbQueriesModalEl.classList.add('hidden');
+}
+
+function ensureReverbQueriesModal(): HTMLDialogElement | HTMLDivElement {
+  if (reverbQueriesModalEl) return reverbQueriesModalEl;
+
+  if (typeof HTMLDialogElement !== 'undefined') {
+    const dialog = document.createElement('dialog');
+    dialog.style.maxWidth = '760px';
+    dialog.style.width = 'min(92vw, 760px)';
+    dialog.style.border = '1px solid rgba(255,255,255,0.15)';
+    dialog.style.borderRadius = '14px';
+    dialog.style.background = '#171717';
+    dialog.style.color = '#f3efe4';
+    dialog.style.padding = '20px';
+    dialog.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
+        <h3 style="margin:0;font-size:1.1rem;">Reverb Queries Used</h3>
+        <button type="button" data-close style="background:#2a2a2a;color:#f3efe4;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:6px 10px;cursor:pointer;">Close</button>
+      </div>
+      <div data-body style="display:grid;gap:10px;"></div>
+    `;
+    dialog.addEventListener('click', (event) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.dataset.close != null) closeReverbQueriesModal();
+    });
+    document.body.appendChild(dialog);
+    reverbQueriesModalEl = dialog;
+    return dialog;
+  }
+
+  const overlay = document.createElement('div');
+  overlay.className = 'hidden';
+  overlay.style.position = 'fixed';
+  overlay.style.inset = '0';
+  overlay.style.background = 'rgba(0,0,0,0.6)';
+  overlay.style.alignItems = 'center';
+  overlay.style.justifyContent = 'center';
+  overlay.style.zIndex = '1000';
+  overlay.innerHTML = `
+    <div style="max-width:760px;width:min(92vw,760px);background:#171717;color:#f3efe4;border:1px solid rgba(255,255,255,0.15);border-radius:14px;padding:20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
+        <h3 style="margin:0;font-size:1.1rem;">Reverb Queries Used</h3>
+        <button type="button" data-close style="background:#2a2a2a;color:#f3efe4;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:6px 10px;cursor:pointer;">Close</button>
+      </div>
+      <div data-body style="display:grid;gap:10px;"></div>
+    </div>
+  `;
+  overlay.addEventListener('click', (event) => {
+    const target = event.target as HTMLElement | null;
+    if (target === overlay || target?.dataset.close != null) closeReverbQueriesModal();
+  });
+  document.body.appendChild(overlay);
+  reverbQueriesModalEl = overlay;
+  return overlay;
+}
+
+function openReverbQueriesModal(queries: string[]): void {
+  if (!queries.length) return;
+  const modal = ensureReverbQueriesModal();
+  const body = modal.querySelector('[data-body]') as HTMLDivElement | null;
+  if (!body) return;
+  body.innerHTML = '';
+
+  queries.forEach((query, index) => {
+    const row = document.createElement('div');
+    row.style.display = 'grid';
+    row.style.gap = '6px';
+    row.style.padding = '10px';
+    row.style.border = '1px solid rgba(255,255,255,0.08)';
+    row.style.borderRadius = '10px';
+    row.style.background = 'rgba(255,255,255,0.03)';
+
+    const label = document.createElement('div');
+    label.textContent = `Query ${index + 1}`;
+    label.style.fontWeight = '600';
+
+    const code = document.createElement('code');
+    code.textContent = query;
+    code.style.whiteSpace = 'pre-wrap';
+    code.style.wordBreak = 'break-word';
+
+    const link = document.createElement('a');
+    link.href = buildReverbSearchUrl(query);
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = 'Open on Reverb';
+    link.style.color = '#9dc2ff';
+
+    row.appendChild(label);
+    row.appendChild(code);
+    row.appendChild(link);
+    body.appendChild(row);
+  });
+
+  if (modal instanceof HTMLDialogElement) {
+    if (!modal.open) modal.showModal();
+  } else {
+    modal.style.display = 'flex';
+    modal.classList.remove('hidden');
+  }
+}
+
+function buildReverbQueriesLauncher(queries: string[]): HTMLElement {
+  const wrapper = document.createElement('div');
+  wrapper.style.display = 'flex';
+  wrapper.style.flexWrap = 'wrap';
+  wrapper.style.alignItems = 'center';
+  wrapper.style.gap = '10px';
+
+  const count = document.createElement('span');
+  count.textContent = `${queries.length} query${queries.length === 1 ? '' : 'ies'}`;
+  wrapper.appendChild(count);
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = 'View / Open Reverb Queries';
+  button.style.background = 'transparent';
+  button.style.color = 'inherit';
+  button.style.border = '1px solid rgba(255,255,255,0.2)';
+  button.style.borderRadius = '8px';
+  button.style.padding = '6px 10px';
+  button.style.cursor = 'pointer';
+  button.onclick = () => openReverbQueriesModal(queries);
+  wrapper.appendChild(button);
+
+  return wrapper;
 }
 
 function isArchivedValue(value: unknown): boolean {
@@ -529,6 +698,20 @@ function addMetaRow(label: string, value: unknown): void {
   metaEl.appendChild(detail);
 }
 
+function addMetaNodeRow(label: string, content: Node | string): void {
+  if (!metaEl) return;
+  const term = document.createElement('dt');
+  term.textContent = label;
+  const detail = document.createElement('dd');
+  if (typeof content === 'string') {
+    detail.textContent = content;
+  } else {
+    detail.appendChild(content);
+  }
+  metaEl.appendChild(term);
+  metaEl.appendChild(detail);
+}
+
 function addMetaIconRow(label: string, value: string | undefined): void {
   if (!metaEl) return;
   const term = document.createElement('dt');
@@ -720,6 +903,14 @@ function renderRecord(record: ListingRecordResponse): void {
   const idealValue = idealFromField ? idealFromField : (idealFromLow || '—');
   addMetaRow('Ideal Price', idealValue);
   addMetaRow('Location', fields.location);
+  addMetaRow('Pricing Source', fields.pricing_source);
+  addMetaRow('Pricing Comp Count', fields.pricing_comp_count);
+  addMetaRow('Pricing Notes', fields.pricing_notes);
+  addMetaRow('Value Online Notes', fields.value_online_notes);
+  const reverbQueries = getReverbQueries(fields);
+  if (reverbQueries.length) {
+    addMetaNodeRow('Reverb Queries', buildReverbQueriesLauncher(reverbQueries));
+  }
 
   if (thumbnailEl && mediaEl) {
     const photoCandidates = getImageCandidates(fields);
