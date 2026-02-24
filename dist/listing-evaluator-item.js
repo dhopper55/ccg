@@ -273,19 +273,13 @@ function getReverbQueries(fields) {
     ]));
 }
 function buildReverbSearchUrl(query) {
-    const quoted = `"${query.replace(/"/g, '').trim()}"`;
-    return `https://reverb.com/marketplace?query=${encodeURIComponent(quoted)}`;
+    return `https://reverb.com/marketplace?query=${encodeURIComponent(query)}`;
 }
 function buildReverbSoldSearchUrl(query) {
     const url = new URL('https://reverb.com/marketplace');
-    const quoted = `"${query.replace(/"/g, '').trim()}"`;
-    url.searchParams.set('query', quoted);
+    url.searchParams.set('query', query);
     url.searchParams.set('show_only_sold', 'true');
     return url.toString();
-}
-function buildGoogleReverbSoldFallbackUrl(query) {
-    const q = `site:reverb.com ${query} sold`;
-    return `https://www.google.com/search?q=${encodeURIComponent(q)}`;
 }
 function closeReverbQueriesModal() {
     if (!reverbQueriesModalEl)
@@ -390,17 +384,10 @@ function openReverbQueriesModal(queries) {
         soldLink.rel = 'noopener';
         soldLink.textContent = 'Open Reverb Sold Data';
         soldLink.style.color = '#9dc2ff';
-        const googleSoldLink = document.createElement('a');
-        googleSoldLink.href = buildGoogleReverbSoldFallbackUrl(query);
-        googleSoldLink.target = '_blank';
-        googleSoldLink.rel = 'noopener';
-        googleSoldLink.textContent = 'Google Reverb Sold (Fallback)';
-        googleSoldLink.style.color = '#9dc2ff';
         row.appendChild(label);
         row.appendChild(code);
         links.appendChild(link);
         links.appendChild(soldLink);
-        links.appendChild(googleSoldLink);
         row.appendChild(links);
         body.appendChild(row);
     });
