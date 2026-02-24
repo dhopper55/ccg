@@ -904,6 +904,7 @@ function renderRecord(record: ListingRecordResponse): void {
   addMetaRow('Ideal Price', idealValue);
   addMetaRow('Location', fields.location);
   addMetaRow('Pricing Source', fields.pricing_source);
+  addMetaRow('Pricing Confidence', fields.pricing_confidence);
   addMetaRow('Pricing Comp Count', fields.pricing_comp_count);
   addMetaRow('Pricing Notes', fields.pricing_notes);
   addMetaRow('Value Online Notes', fields.value_online_notes);
