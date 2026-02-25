@@ -3053,11 +3053,33 @@ button:active {
   box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
 }
 
+.button-link.success {
+  background: linear-gradient(135deg, #22c55e 0%, #15803d 100%);
+  color: #fff;
+}
+
+.button-link.success:hover {
+  box-shadow: 0 4px 20px rgba(34, 197, 94, 0.35);
+}
+
+.button-link.icon-only {
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border-radius: 10px;
+}
+
 .button-link .icon {
   display: inline-flex;
   width: 18px;
   height: 18px;
   margin-right: 8px;
+}
+
+.button-link.icon-only .icon {
+  margin-right: 0;
+  width: 20px;
+  height: 20px;
 }
 
 .button-link .icon svg {

@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'ccg-admin-v1';
+const CACHE_VERSION = 'ccg-admin-318565c9a4';
 const SHELL_ASSETS = [
   '/admin/index.html',
   '/admin/inventory.html',

@@ -26,25 +26,31 @@
   <meta name="apple-mobile-web-app-title" content="CCG Admin">
   <meta name="description" content="Review listing evaluator results and open each item for full details.">
   <link rel="canonical" href="https://www.coalcreekguitars.com/admin/listing-evaluator-results.html">
-  <link rel="stylesheet" href="../styles.css?version=073154">
+  <link rel="stylesheet" href="../styles.css?version=555823">
 </head>
 <body>
   <nav class="site-nav">
     <a href="../index.html" class="nav-logo">
       <img src="../images/coal-creek-logo.png" alt="Coal Creek Guitars">
     </a>
-    <a href="../index.html" class="nav-home">Home</a>
+    <a href="/admin" class="nav-home">Admin</a>
   </nav>
 
   <div class="container listing-results">
     <header class="listing-hero">
-      <a class="listing-results-back" href="listing-evaluator.html" aria-label="Back to evaluator">←</a>
       <div class="listing-results-header">
         <h1 id="listing-results-title">Listing Evaluator Results</h1>
         <div class="listing-results-actions">
-          <a class="button-link secondary" href="inventory.html">Inventory</a>
-          <a id="listing-results-link-primary" class="button-link secondary" href="#">Saved</a>
-          <a id="listing-results-link-secondary" class="button-link secondary" href="#">Archived</a>
+          <a class="button-link secondary" href="listing-evaluator.html">Back</a>
+          <a id="listing-results-link-primary" class="button-link secondary" href="#" aria-label="Saved Results" title="Saved Results"></a>
+          <a id="listing-results-link-secondary" class="button-link secondary" href="#" aria-label="Archived Results" title="Archived Results"></a>
+          <button id="listing-results-refresh" type="button" class="button-link success icon-only" aria-label="Refresh Results" title="Refresh Results">
+            <span class="icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" role="img" focusable="false" aria-hidden="true">
+                <path d="M17.65 6.35A7.95 7.95 0 0012 4V1L7 6l5 5V7a5 5 0 11-5 5H5a7 7 0 107.75-6.95 7.1 7.1 0 014.9 1.3z" fill="currentColor"></path>
+              </svg>
+            </span>
+          </button>
         </div>
       </div>
     </header>
@@ -81,7 +87,7 @@
     </div>
   </footer>
 
-  <script type="module" src="../dist/listing-evaluator-results.js?v=20260130&version=010024"></script>
+  <script type="module" src="../dist/listing-evaluator-results.js?v=20260130&version=935157"></script>
   <script>
     (function() {
       const year = new Date().getFullYear();

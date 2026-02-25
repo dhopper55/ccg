@@ -36,6 +36,53 @@ function versionFromBuffer(buffer) {
   return String(num).padStart(6, '0');
 }
 
+function collectFilesSync(dir, predicate, acc = []) {
+  const entries = fsSync.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const entryPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (SKIP_DIRS.has(entry.name) && !entryPath.endsWith(path.sep + 'dist')) continue;
+      collectFilesSync(entryPath, predicate, acc);
+    } else if (entry.isFile() && predicate(entryPath)) {
+      acc.push(entryPath);
+    }
+  }
+  return acc;
+}
+
+async function updateAdminServiceWorkerCacheVersion() {
+  const swPath = path.join(ROOT, 'admin-sw.js');
+  if (!fsSync.existsSync(swPath)) return false;
+
+  const inputs = [
+    ...collectFilesSync(path.join(ROOT, 'admin'), (p) => p.endsWith('.html')),
+    ...(fsSync.existsSync(path.join(ROOT, 'dist'))
+      ? collectFilesSync(path.join(ROOT, 'dist'), (p) => p.endsWith('.js'))
+      : []),
+    path.join(ROOT, 'styles.css'),
+    path.join(ROOT, 'admin.webmanifest'),
+  ].filter((p) => fsSync.existsSync(p)).sort();
+
+  const hash = crypto.createHash('sha256');
+  for (const filePath of inputs) {
+    hash.update(filePath.replace(ROOT, ''));
+    hash.update(fsSync.readFileSync(filePath));
+  }
+  const digest = hash.digest('hex').slice(0, 10);
+  const nextValue = `ccg-admin-${digest}`;
+
+  const current = await fs.readFile(swPath, 'utf8');
+  const updated = current.replace(
+    /const CACHE_VERSION = 'ccg-admin-[^']+';/,
+    `const CACHE_VERSION = '${nextValue}';`
+  );
+  if (updated !== current) {
+    await fs.writeFile(swPath, updated, 'utf8');
+    return true;
+  }
+  return false;
+}
+
 async function updateHtmlFile(filePath) {
   const html = await fs.readFile(filePath, 'utf8');
   let changed = false;
@@ -139,4 +186,6 @@ if (fsSync.existsSync(distDir)) {
   }
 }
 
-console.log(`Cache busters updated in ${updatedHtmlCount} HTML file(s) and ${updatedJsCount} JS file(s).`);
+const swVersionUpdated = await updateAdminServiceWorkerCacheVersion();
+
+console.log(`Cache busters updated in ${updatedHtmlCount} HTML file(s) and ${updatedJsCount} JS file(s).${swVersionUpdated ? ' Admin SW cache version bumped.' : ''}`);

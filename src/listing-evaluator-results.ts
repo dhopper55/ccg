@@ -31,6 +31,7 @@ const pageLabel = document.getElementById('listing-results-page') as HTMLSpanEle
 const titleLabel = document.getElementById('listing-results-title') as HTMLHeadingElement | null;
 const primaryLink = document.getElementById('listing-results-link-primary') as HTMLAnchorElement | null;
 const secondaryLink = document.getElementById('listing-results-link-secondary') as HTMLAnchorElement | null;
+const refreshButton = document.getElementById('listing-results-refresh') as HTMLButtonElement | null;
 
 const PAGE_SIZE = 20;
 
@@ -62,34 +63,56 @@ function resolveViewMode(): ViewMode {
 
 function setResultsLinks(): void {
   if (!primaryLink || !secondaryLink) return;
-  if (viewMode === 'saved') {
-    primaryLink.textContent = 'Live Results';
-    primaryLink.href = 'listing-evaluator-results.html';
-    primaryLink.className = 'button-link';
 
-    secondaryLink.textContent = 'Archived';
-    secondaryLink.href = 'listing-evaluator-results.html?showArchived=1';
-    secondaryLink.className = 'button-link danger';
+  const saveIcon = `
+    <span class="icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" role="img" focusable="false" aria-hidden="true">
+        <path d="M5 4h11l3 3v13H5V4zm2 2v6h10V7.8L14.2 6H7zm2 9h6v5H9v-5z" fill="currentColor"></path>
+      </svg>
+    </span>
+  `;
+  const archiveIcon = `
+    <span class="icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" role="img" focusable="false" aria-hidden="true">
+        <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 7h2v8h-2v-8zm4 0h2v8h-2v-8zM7 10h2v8H7v-8z" fill="currentColor"></path>
+      </svg>
+    </span>
+  `;
+
+  const setTextLink = (el: HTMLAnchorElement, text: string, href: string, className: string, ariaLabel?: string) => {
+    el.textContent = text;
+    el.href = href;
+    el.className = className;
+    if (ariaLabel) {
+      el.setAttribute('aria-label', ariaLabel);
+      el.title = ariaLabel;
+    } else {
+      el.removeAttribute('aria-label');
+      el.removeAttribute('title');
+    }
+  };
+
+  const setIconLink = (el: HTMLAnchorElement, iconMarkup: string, href: string, className: string, ariaLabel: string) => {
+    el.innerHTML = iconMarkup;
+    el.href = href;
+    el.className = className;
+    el.setAttribute('aria-label', ariaLabel);
+    el.title = ariaLabel;
+  };
+
+  if (viewMode === 'saved') {
+    setTextLink(primaryLink, 'Results', 'listing-evaluator-results.html', 'button-link', 'Results');
+    setIconLink(secondaryLink, archiveIcon, 'listing-evaluator-results.html?showArchived=1', 'button-link danger', 'Archived Results');
     return;
   }
   if (viewMode === 'archived') {
-    primaryLink.textContent = 'Live Results';
-    primaryLink.href = 'listing-evaluator-results.html';
-    primaryLink.className = 'button-link';
-
-    secondaryLink.textContent = 'Saved';
-    secondaryLink.href = 'listing-evaluator-results.html?showSaved=1';
-    secondaryLink.className = 'button-link save';
+    setTextLink(primaryLink, 'Results', 'listing-evaluator-results.html', 'button-link', 'Results');
+    setIconLink(secondaryLink, saveIcon, 'listing-evaluator-results.html?showSaved=1', 'button-link save', 'Saved Results');
     return;
   }
 
-  primaryLink.textContent = 'Saved';
-  primaryLink.href = 'listing-evaluator-results.html?showSaved=1';
-  primaryLink.className = 'button-link save';
-
-  secondaryLink.textContent = 'Archived';
-  secondaryLink.href = 'listing-evaluator-results.html?showArchived=1';
-  secondaryLink.className = 'button-link danger';
+  setIconLink(primaryLink, saveIcon, 'listing-evaluator-results.html?showSaved=1', 'button-link save', 'Saved Results');
+  setIconLink(secondaryLink, archiveIcon, 'listing-evaluator-results.html?showArchived=1', 'button-link danger', 'Archived Results');
 }
 
 setResultsLinks();
@@ -229,7 +252,7 @@ function renderRows(records: ListingListItem[]): void {
     const actionsCell = document.createElement('td');
     const addToInventory = document.createElement('a');
     addToInventory.className = 'button-link secondary add-to-inventory-link';
-    addToInventory.textContent = record.inInventory ? 'In Inventory' : 'Add to Inventory';
+    addToInventory.textContent = record.inInventory ? 'In Inventory' : 'Inv. Add';
     addToInventory.href = record.inInventory
       ? '#'
       : `inventory-item.html?fromListingId=${encodeURIComponent(record.id)}`;
@@ -313,6 +336,13 @@ if (nextButton) {
   nextButton.addEventListener('click', (event) => {
     event.preventDefault();
     handleNext();
+  });
+}
+
+if (refreshButton) {
+  refreshButton.addEventListener('click', (event) => {
+    event.preventDefault();
+    window.location.reload();
   });
 }
 
