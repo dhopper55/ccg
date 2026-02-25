@@ -141,8 +141,7 @@ CREATE TABLE IF NOT EXISTS ccg_inventory_items (
   sold_amount REAL,
   sell_notes TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY(source_listing_id) REFERENCES listings(id)
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS ccg_inventory_items_ccg_number_idx

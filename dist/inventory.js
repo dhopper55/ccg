@@ -70,6 +70,14 @@ function rowCell(text, className) {
         td.classList.add(className);
     return td;
 }
+function buildQtyDrilldownButton(label, onClick) {
+    const qtyBtn = document.createElement('button');
+    qtyBtn.type = 'button';
+    qtyBtn.className = 'inventory-qty-link';
+    qtyBtn.textContent = label;
+    qtyBtn.addEventListener('click', onClick);
+    return qtyBtn;
+}
 function soldPriceCell(row) {
     const soldValue = row.isSold ? (row.soldAmount ?? 0) : 0;
     if (!(typeof soldValue === 'number') || !Number.isFinite(soldValue) || soldValue <= 0) {
@@ -141,7 +149,7 @@ function renderInventoryGrid() {
     if (!rows.length) {
         const empty = document.createElement('tr');
         const td = document.createElement('td');
-        td.colSpan = 7;
+        td.colSpan = 6;
         td.textContent = 'No inventory items match the selected filters.';
         empty.appendChild(td);
         gridBody.appendChild(empty);
@@ -172,29 +180,25 @@ function renderInventoryGrid() {
             imageTd.textContent = '—';
         }
         tr.appendChild(imageTd);
-        tr.appendChild(rowCell(row.title || '—', 'inventory-cell-sm'));
-        const qtyTd = document.createElement('td');
+        const titleTd = document.createElement('td');
+        titleTd.classList.add('inventory-cell-sm');
+        titleTd.textContent = row.title || '—';
         const qtyValue = groupedView
             ? Math.max(0, Number(row.qtyAvailable ?? 1))
             : 1;
         const groupCount = Math.max(1, Number(row.groupCount ?? 1));
         const canDrillDown = groupedView && groupCount > 1;
-        if (canDrillDown) {
-            const qtyBtn = document.createElement('button');
-            qtyBtn.type = 'button';
-            qtyBtn.className = 'inventory-qty-link';
-            qtyBtn.textContent = String(qtyValue);
-            qtyBtn.addEventListener('click', () => {
+        if (canDrillDown && qtyValue > 1) {
+            titleTd.appendChild(document.createTextNode(' '));
+            const qtyBtn = buildQtyDrilldownButton(`[${qtyValue}]`, () => {
                 drillDownCcgNumber = row.ccgNumber;
                 currentPage = 1;
                 void loadGrid();
             });
-            qtyTd.appendChild(qtyBtn);
+            qtyBtn.classList.add('inventory-qty-inline');
+            titleTd.appendChild(qtyBtn);
         }
-        else {
-            qtyTd.textContent = qtyValue <= 0 ? '' : String(qtyValue);
-        }
-        tr.appendChild(qtyTd);
+        tr.appendChild(titleTd);
         tr.appendChild(rowCell(formatCurrency(row.purchasePrice), 'inventory-cell-sm'));
         tr.appendChild(soldPriceCell(row));
         const actionsTd = document.createElement('td');

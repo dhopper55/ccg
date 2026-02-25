@@ -3435,6 +3435,15 @@ body.auth-locked {
   color: var(--accent-gold-light);
 }
 
+.inventory-qty-inline {
+  margin-left: 0.35rem;
+  padding: 1px 6px;
+  border-radius: 999px;
+  vertical-align: middle;
+  font-size: 0.72rem;
+  opacity: 0.9;
+}
+
 .inventory-delete-btn {
   width: 34px;
   height: 34px;
