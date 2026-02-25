@@ -14,11 +14,18 @@ const radarEnabledInput = document.getElementById('radar-enabled');
 const radarIntervalInput = document.getElementById('radar-interval');
 const radarResultsLimitInput = document.getElementById('radar-results-limit');
 const radarStatus = document.getElementById('radar-status');
+const clipboardAutoPasteState = new WeakMap();
 if (form && urlsInput && submitButton) {
     form.addEventListener('submit', (event) => {
         event.preventDefault();
         void handleSubmit();
     });
+}
+if (urlsInput) {
+    setupClipboardHelpers(urlsInput, 'single');
+}
+if (multiUrlsInput) {
+    setupClipboardHelpers(multiUrlsInput, 'multi');
 }
 if (radarEnabledInput) {
     radarEnabledInput.addEventListener('change', () => {
@@ -143,6 +150,128 @@ function extractUrls(input) {
             urls.push(normalized);
     }
     return Array.from(new Set(urls));
+}
+function createPasteButton(textarea) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'clipboard-paste-btn';
+    button.textContent = 'Paste Clipboard';
+    button.setAttribute('aria-label', 'Paste URL from clipboard');
+    button.addEventListener('click', () => {
+        void tryPasteClipboardIntoTextarea(textarea, { isAuto: false });
+    });
+    return button;
+}
+function ensureClipboardUi(textarea) {
+    const formGroup = textarea.closest('.form-group');
+    if (!formGroup)
+        return;
+    if (formGroup.querySelector('.clipboard-paste-btn'))
+        return;
+    const label = formGroup.querySelector(`label[for="${textarea.id}"]`);
+    const button = createPasteButton(textarea);
+    if (label && label.parentElement === formGroup) {
+        label.insertAdjacentElement('afterend', button);
+    }
+    else {
+        formGroup.insertBefore(button, textarea);
+    }
+}
+function setupClipboardHelpers(textarea, _kind) {
+    clipboardAutoPasteState.set(textarea, { focusAttempted: false, lastPastedSignature: '' });
+    ensureClipboardUi(textarea);
+    textarea.addEventListener('focus', () => {
+        const state = clipboardAutoPasteState.get(textarea);
+        if (!state || state.focusAttempted)
+            return;
+        state.focusAttempted = true;
+        void tryPasteClipboardIntoTextarea(textarea, { isAuto: true });
+    });
+    textarea.addEventListener('blur', () => {
+        const state = clipboardAutoPasteState.get(textarea);
+        if (!state)
+            return;
+        // allow a fresh auto-attempt on the next focus, but don't repaste same clipboard content
+        state.focusAttempted = false;
+    });
+}
+function mergeUrlsIntoTextarea(textarea, urls) {
+    const existingUrls = extractUrls(textarea.value);
+    const seen = new Set(existingUrls.map((url) => url.toLowerCase()));
+    const toAdd = [];
+    for (const url of urls) {
+        const key = url.toLowerCase();
+        if (seen.has(key))
+            continue;
+        seen.add(key);
+        toAdd.push(url);
+    }
+    if (!toAdd.length) {
+        return { added: 0, signature: urls.join('|') };
+    }
+    const existing = textarea.value.trim();
+    const appended = toAdd.join('\n');
+    textarea.value = existing ? `${existing}\n${appended}` : appended;
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    return { added: toAdd.length, signature: urls.join('|') };
+}
+async function readClipboardTextSafe() {
+    if (typeof navigator === 'undefined' || !navigator.clipboard?.readText)
+        return null;
+    try {
+        const text = await navigator.clipboard.readText();
+        return typeof text === 'string' ? text : null;
+    }
+    catch {
+        return null;
+    }
+}
+async function tryPasteClipboardIntoTextarea(textarea, options) {
+    const button = textarea.closest('.form-group')?.querySelector('.clipboard-paste-btn') || null;
+    const originalLabel = button?.textContent || 'Paste Clipboard';
+    if (button && !options.isAuto) {
+        button.disabled = true;
+        button.textContent = 'Pasting…';
+    }
+    try {
+        const text = await readClipboardTextSafe();
+        if (!text) {
+            if (button && !options.isAuto)
+                button.textContent = 'No clipboard';
+            return;
+        }
+        const urls = extractUrls(text);
+        if (!urls.length) {
+            if (button && !options.isAuto)
+                button.textContent = 'No URL found';
+            return;
+        }
+        const state = clipboardAutoPasteState.get(textarea);
+        const signature = urls.join('|');
+        if (options.isAuto && state && state.lastPastedSignature === signature) {
+            return;
+        }
+        const result = mergeUrlsIntoTextarea(textarea, urls);
+        if (state && result.added > 0) {
+            state.lastPastedSignature = result.signature;
+        }
+        if (button) {
+            if (result.added > 0) {
+                button.textContent = options.isAuto ? `Pasted ${result.added}` : 'Pasted!';
+            }
+            else if (!options.isAuto) {
+                button.textContent = 'Already pasted';
+            }
+        }
+    }
+    finally {
+        if (button) {
+            window.setTimeout(() => {
+                button.disabled = false;
+                button.textContent = originalLabel;
+            }, 900);
+        }
+    }
 }
 function buildPayload() {
     const singleUrls = urlsInput ? extractUrls(urlsInput.value) : [];
