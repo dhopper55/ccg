@@ -27,6 +27,10 @@ const pageNextEl = document.getElementById('inventory-page-next');
 const pageLabelEl = document.getElementById('inventory-page-label');
 const toolbarEl = document.querySelector('.inventory-grid-toolbar');
 const sortButtons = Array.from(document.querySelectorAll('.inventory-sort-btn'));
+const ccgNumbersOpenEl = document.getElementById('inventory-ccg-numbers-open');
+const ccgNumbersModalEl = document.getElementById('inventory-ccg-numbers-modal');
+const ccgNumbersModalBodyEl = document.getElementById('inventory-ccg-numbers-body');
+const ccgNumbersModalContentEl = ccgNumbersModalEl?.querySelector('.inventory-ccg-modal-content');
 let rows = [];
 let currentPage = 1;
 let totalPages = 1;
@@ -34,6 +38,7 @@ let groupedView = true;
 let drillDownCcgNumber = null;
 let currentSortBy = 'title';
 let currentSortDir = 'asc';
+let ccgNumbersLastTriggerEl = null;
 function setStatus(message, isError = false) {
     if (!statusEl)
         return;
@@ -62,6 +67,23 @@ function formatCurrencyZero(value) {
         currency: 'USD',
         maximumFractionDigits: 0,
     }).format(normalized);
+}
+function formatCurrencyPrecise(value) {
+    const normalized = typeof value === 'number' && Number.isFinite(value) ? value : 0;
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    }).format(normalized);
+}
+function formatInteger(value) {
+    const normalized = typeof value === 'number' && Number.isFinite(value) ? value : 0;
+    return String(Math.trunc(normalized));
+}
+function formatPercentTwoDecimals(value) {
+    const normalized = typeof value === 'number' && Number.isFinite(value) ? value : 0;
+    return `${normalized.toFixed(2)}%`;
 }
 function rowCell(text, className) {
     const td = document.createElement('td');
@@ -141,6 +163,72 @@ function updateSortHeaderUi() {
             th.setAttribute('aria-sort', isActive ? (currentSortDir === 'asc' ? 'ascending' : 'descending') : 'none');
         }
     });
+}
+function isCcgNumbersModalOpen() {
+    return Boolean(ccgNumbersModalEl && !ccgNumbersModalEl.classList.contains('hidden'));
+}
+function closeCcgNumbersModal() {
+    if (!ccgNumbersModalEl)
+        return;
+    ccgNumbersModalEl.classList.add('hidden');
+    document.body.classList.remove('modal-open');
+    if (ccgNumbersLastTriggerEl instanceof HTMLElement) {
+        ccgNumbersLastTriggerEl.focus();
+    }
+}
+function renderCcgNumbersModalLines(summary) {
+    if (!ccgNumbersModalBodyEl)
+        return;
+    ccgNumbersModalBodyEl.innerHTML = '';
+    const lines = [
+        { label: 'Paid', value: formatCurrencyPrecise(summary.ccgPaidUnsold) },
+        { label: 'Private Party', value: formatCurrencyPrecise(summary.ccgPrivatePartyUnsold) },
+        { label: 'Sold Paid', value: formatCurrencyPrecise(summary.ccgSoldPaid) },
+        { label: 'Sold Private Party', value: formatCurrencyPrecise(summary.ccgSoldPrivateParty) },
+        { label: 'Sold item profit margin', value: formatPercentTwoDecimals(summary.ccgSoldProfitMarginPercent) },
+        { label: 'Active items', value: formatInteger(summary.ccgActiveItems) },
+        { label: 'Not For Sale', value: formatInteger(summary.ccgNotForSaleItems) },
+        { label: 'For Sale', value: formatInteger(summary.ccgForSaleItems) },
+        { label: 'Sold', value: formatInteger(summary.ccgSoldItems) },
+    ];
+    lines.forEach((line) => {
+        const rowEl = document.createElement('div');
+        rowEl.className = 'inventory-ccg-line';
+        const labelEl = document.createElement('span');
+        labelEl.className = 'inventory-ccg-line-label';
+        labelEl.textContent = line.label;
+        const valueEl = document.createElement('strong');
+        valueEl.className = 'inventory-ccg-line-value';
+        valueEl.textContent = line.value;
+        rowEl.append(labelEl, valueEl);
+        ccgNumbersModalBodyEl.appendChild(rowEl);
+    });
+}
+async function loadCcgNumbersSummary() {
+    if (!ccgNumbersModalBodyEl)
+        return;
+    ccgNumbersModalBodyEl.textContent = 'Loading...';
+    try {
+        const response = await fetch('/api/inventory/summary', { method: 'GET' });
+        const data = (await response.json().catch(() => ({})));
+        if (!response.ok) {
+            throw new Error(data.message || 'Unable to load CCG numbers.');
+        }
+        renderCcgNumbersModalLines(data);
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : 'Unable to load CCG numbers.';
+        ccgNumbersModalBodyEl.textContent = message;
+    }
+}
+function openCcgNumbersModal(trigger) {
+    if (!ccgNumbersModalEl)
+        return;
+    ccgNumbersLastTriggerEl = trigger || (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    ccgNumbersModalEl.classList.remove('hidden');
+    document.body.classList.add('modal-open');
+    ccgNumbersModalContentEl?.focus();
+    void loadCcgNumbersSummary();
 }
 function renderInventoryGrid() {
     if (!gridBody)
@@ -239,6 +327,26 @@ function renderInventoryGrid() {
     });
     updatePaginationControls();
     updatePackageCreateButtonVisibility();
+}
+function bindCcgNumbersModalEvents() {
+    if (ccgNumbersOpenEl) {
+        ccgNumbersOpenEl.addEventListener('click', () => {
+            openCcgNumbersModal(ccgNumbersOpenEl);
+        });
+    }
+    if (ccgNumbersModalEl) {
+        const closeTargets = Array.from(ccgNumbersModalEl.querySelectorAll('[data-ccg-modal-close]'));
+        closeTargets.forEach((el) => {
+            el.addEventListener('click', () => closeCcgNumbersModal());
+        });
+    }
+    window.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape')
+            return;
+        if (!isCcgNumbersModalOpen())
+            return;
+        closeCcgNumbersModal();
+    });
 }
 function setCategoryOptions() {
     if (!categoryFilterEl)
@@ -465,6 +573,7 @@ async function init() {
     setBrandOptions([]);
     updateSortHeaderUi();
     updatePackageCreateButtonVisibility();
+    bindCcgNumbersModalEvents();
     bindFilterEvents();
     resetFiltersAndMode();
     await loadGrid();

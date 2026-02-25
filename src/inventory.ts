@@ -9,6 +9,8 @@ type InventoryItem = {
   brand?: string;
   purchasePrice?: number | null;
   privatePartyValue?: number | null;
+  isActive?: boolean;
+  forSale?: boolean;
   isSold?: boolean;
   soldAmount?: number | null;
   qtyAvailable?: number;
@@ -25,6 +27,19 @@ type InventoryListResponse = {
   drillDownCcgNumber?: string | null;
   availableBrands?: string[];
   message?: string;
+};
+
+type InventorySummaryResponse = {
+  message?: string;
+  ccgPaidUnsold?: number;
+  ccgPrivatePartyUnsold?: number;
+  ccgSoldPaid?: number;
+  ccgSoldPrivateParty?: number;
+  ccgSoldProfitMarginPercent?: number;
+  ccgActiveItems?: number;
+  ccgNotForSaleItems?: number;
+  ccgForSaleItems?: number;
+  ccgSoldItems?: number;
 };
 
 type InventorySortKey = 'ccgNumber' | 'title' | 'paid' | 'private' | 'soldPrice';
@@ -59,6 +74,10 @@ const pageNextEl = document.getElementById('inventory-page-next') as HTMLButtonE
 const pageLabelEl = document.getElementById('inventory-page-label') as HTMLSpanElement | null;
 const toolbarEl = document.querySelector('.inventory-grid-toolbar') as HTMLDivElement | null;
 const sortButtons = Array.from(document.querySelectorAll('.inventory-sort-btn')) as HTMLButtonElement[];
+const ccgNumbersOpenEl = document.getElementById('inventory-ccg-numbers-open') as HTMLButtonElement | null;
+const ccgNumbersModalEl = document.getElementById('inventory-ccg-numbers-modal') as HTMLDivElement | null;
+const ccgNumbersModalBodyEl = document.getElementById('inventory-ccg-numbers-body') as HTMLDivElement | null;
+const ccgNumbersModalContentEl = ccgNumbersModalEl?.querySelector('.inventory-ccg-modal-content') as HTMLDivElement | null;
 
 let rows: InventoryItem[] = [];
 let currentPage = 1;
@@ -67,6 +86,7 @@ let groupedView = true;
 let drillDownCcgNumber: string | null = null;
 let currentSortBy: InventorySortKey = 'title';
 let currentSortDir: InventorySortDir = 'asc';
+let ccgNumbersLastTriggerEl: HTMLElement | null = null;
 
 function setStatus(message: string, isError = false): void {
   if (!statusEl) return;
@@ -98,6 +118,26 @@ function formatCurrencyZero(value: number | null | undefined): string {
     currency: 'USD',
     maximumFractionDigits: 0,
   }).format(normalized);
+}
+
+function formatCurrencyPrecise(value: number | null | undefined): string {
+  const normalized = typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(normalized);
+}
+
+function formatInteger(value: number | null | undefined): string {
+  const normalized = typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  return String(Math.trunc(normalized));
+}
+
+function formatPercentTwoDecimals(value: number | null | undefined): string {
+  const normalized = typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  return `${normalized.toFixed(2)}%`;
 }
 
 function rowCell(text: string, className?: string): HTMLTableCellElement {
@@ -184,6 +224,78 @@ function updateSortHeaderUi(): void {
       th.setAttribute('aria-sort', isActive ? (currentSortDir === 'asc' ? 'ascending' : 'descending') : 'none');
     }
   });
+}
+
+function isCcgNumbersModalOpen(): boolean {
+  return Boolean(ccgNumbersModalEl && !ccgNumbersModalEl.classList.contains('hidden'));
+}
+
+function closeCcgNumbersModal(): void {
+  if (!ccgNumbersModalEl) return;
+  ccgNumbersModalEl.classList.add('hidden');
+  document.body.classList.remove('modal-open');
+  if (ccgNumbersLastTriggerEl instanceof HTMLElement) {
+    ccgNumbersLastTriggerEl.focus();
+  }
+}
+
+function renderCcgNumbersModalLines(summary: InventorySummaryResponse): void {
+  if (!ccgNumbersModalBodyEl) return;
+  ccgNumbersModalBodyEl.innerHTML = '';
+
+  const lines: Array<{ label: string; value: string }> = [
+    { label: 'Paid', value: formatCurrencyPrecise(summary.ccgPaidUnsold) },
+    { label: 'Private Party', value: formatCurrencyPrecise(summary.ccgPrivatePartyUnsold) },
+    { label: 'Sold Paid', value: formatCurrencyPrecise(summary.ccgSoldPaid) },
+    { label: 'Sold Private Party', value: formatCurrencyPrecise(summary.ccgSoldPrivateParty) },
+    { label: 'Sold item profit margin', value: formatPercentTwoDecimals(summary.ccgSoldProfitMarginPercent) },
+    { label: 'Active items', value: formatInteger(summary.ccgActiveItems) },
+    { label: 'Not For Sale', value: formatInteger(summary.ccgNotForSaleItems) },
+    { label: 'For Sale', value: formatInteger(summary.ccgForSaleItems) },
+    { label: 'Sold', value: formatInteger(summary.ccgSoldItems) },
+  ];
+
+  lines.forEach((line) => {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'inventory-ccg-line';
+
+    const labelEl = document.createElement('span');
+    labelEl.className = 'inventory-ccg-line-label';
+    labelEl.textContent = line.label;
+
+    const valueEl = document.createElement('strong');
+    valueEl.className = 'inventory-ccg-line-value';
+    valueEl.textContent = line.value;
+
+    rowEl.append(labelEl, valueEl);
+    ccgNumbersModalBodyEl.appendChild(rowEl);
+  });
+}
+
+async function loadCcgNumbersSummary(): Promise<void> {
+  if (!ccgNumbersModalBodyEl) return;
+  ccgNumbersModalBodyEl.textContent = 'Loading...';
+
+  try {
+    const response = await fetch('/api/inventory/summary', { method: 'GET' });
+    const data = (await response.json().catch(() => ({}))) as InventorySummaryResponse;
+    if (!response.ok) {
+      throw new Error(data.message || 'Unable to load CCG numbers.');
+    }
+    renderCcgNumbersModalLines(data);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to load CCG numbers.';
+    ccgNumbersModalBodyEl.textContent = message;
+  }
+}
+
+function openCcgNumbersModal(trigger?: HTMLElement | null): void {
+  if (!ccgNumbersModalEl) return;
+  ccgNumbersLastTriggerEl = trigger || (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+  ccgNumbersModalEl.classList.remove('hidden');
+  document.body.classList.add('modal-open');
+  ccgNumbersModalContentEl?.focus();
+  void loadCcgNumbersSummary();
 }
 
 function renderInventoryGrid(): void {
@@ -290,6 +402,27 @@ function renderInventoryGrid(): void {
 
   updatePaginationControls();
   updatePackageCreateButtonVisibility();
+}
+
+function bindCcgNumbersModalEvents(): void {
+  if (ccgNumbersOpenEl) {
+    ccgNumbersOpenEl.addEventListener('click', () => {
+      openCcgNumbersModal(ccgNumbersOpenEl);
+    });
+  }
+
+  if (ccgNumbersModalEl) {
+    const closeTargets = Array.from(ccgNumbersModalEl.querySelectorAll('[data-ccg-modal-close]')) as HTMLElement[];
+    closeTargets.forEach((el) => {
+      el.addEventListener('click', () => closeCcgNumbersModal());
+    });
+  }
+
+  window.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    if (!isCcgNumbersModalOpen()) return;
+    closeCcgNumbersModal();
+  });
 }
 
 function setCategoryOptions(): void {
@@ -529,6 +662,7 @@ async function init(): Promise<void> {
   setBrandOptions([]);
   updateSortHeaderUi();
   updatePackageCreateButtonVisibility();
+  bindCcgNumbersModalEvents();
   bindFilterEvents();
   resetFiltersAndMode();
   await loadGrid();

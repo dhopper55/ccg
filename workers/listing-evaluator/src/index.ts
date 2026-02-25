@@ -1895,6 +1895,15 @@ type InventorySummaryTotals = {
   totalListed: number;
   totalSold: number;
   totalPurchased: number;
+  ccgPaidUnsold: number;
+  ccgPrivatePartyUnsold: number;
+  ccgSoldPaid: number;
+  ccgSoldPrivateParty: number;
+  ccgSoldProfitMarginPercent: number;
+  ccgActiveItems: number;
+  ccgNotForSaleItems: number;
+  ccgForSaleItems: number;
+  ccgSoldItems: number;
 };
 
 async function handleList(request: Request, env: Env): Promise<Response> {
@@ -4374,15 +4383,54 @@ async function dbGetInventorySummary(env: Env): Promise<InventorySummaryTotals> 
     `SELECT
       COALESCE(SUM(CASE WHEN i.is_active = 1 THEN l.price_asking ELSE 0 END), 0) AS total_listed,
       COALESCE(SUM(CASE WHEN i.is_sold = 1 THEN i.sold_amount ELSE 0 END), 0) AS total_sold,
-      COALESCE(SUM(i.purchase_price), 0) AS total_purchased
+      COALESCE(SUM(i.purchase_price), 0) AS total_purchased,
+      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 0 THEN COALESCE(i.purchase_price, 0) ELSE 0 END), 0) AS ccg_paid_unsold,
+      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 0 THEN COALESCE(i.private_party_value, 0) ELSE 0 END), 0) AS ccg_private_party_unsold,
+      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 1 THEN COALESCE(i.purchase_price, 0) ELSE 0 END), 0) AS ccg_sold_paid,
+      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 1 THEN COALESCE(i.private_party_value, 0) ELSE 0 END), 0) AS ccg_sold_private_party,
+      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 1 THEN (COALESCE(i.sold_amount, 0) - COALESCE(i.purchase_price, 0)) ELSE 0 END), 0) AS ccg_sold_profit_amount,
+      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 1 THEN COALESCE(i.sold_amount, 0) ELSE 0 END), 0) AS ccg_sold_amount_total,
+      COALESCE(SUM(CASE WHEN i.is_active = 1 THEN 1 ELSE 0 END), 0) AS ccg_active_items,
+      COALESCE(SUM(CASE WHEN i.is_active = 1 AND COALESCE(i.for_sale, 0) = 0 THEN 1 ELSE 0 END), 0) AS ccg_not_for_sale_items,
+      COALESCE(SUM(CASE WHEN i.is_active = 1 AND COALESCE(i.for_sale, 0) = 1 THEN 1 ELSE 0 END), 0) AS ccg_for_sale_items,
+      COALESCE(SUM(CASE WHEN i.is_active = 1 AND COALESCE(i.is_sold, 0) = 1 THEN 1 ELSE 0 END), 0) AS ccg_sold_items
      FROM ccg_inventory_items i
      LEFT JOIN listings l ON l.id = i.source_listing_id`
-  ).first<{ total_listed: number | null; total_sold: number | null; total_purchased: number | null }>();
+  ).first<{
+    total_listed: number | null;
+    total_sold: number | null;
+    total_purchased: number | null;
+    ccg_paid_unsold: number | null;
+    ccg_private_party_unsold: number | null;
+    ccg_sold_paid: number | null;
+    ccg_sold_private_party: number | null;
+    ccg_sold_profit_amount: number | null;
+    ccg_sold_amount_total: number | null;
+    ccg_active_items: number | null;
+    ccg_not_for_sale_items: number | null;
+    ccg_for_sale_items: number | null;
+    ccg_sold_items: number | null;
+  }>();
+
+  const soldProfitAmount = Number(row?.ccg_sold_profit_amount || 0);
+  const soldAmountTotal = Number(row?.ccg_sold_amount_total || 0);
+  const soldProfitMarginPercent = soldAmountTotal > 0
+    ? (soldProfitAmount / soldAmountTotal) * 100
+    : 0;
 
   return {
     totalListed: Number(row?.total_listed || 0),
     totalSold: Number(row?.total_sold || 0),
     totalPurchased: Number(row?.total_purchased || 0),
+    ccgPaidUnsold: Number(row?.ccg_paid_unsold || 0),
+    ccgPrivatePartyUnsold: Number(row?.ccg_private_party_unsold || 0),
+    ccgSoldPaid: Number(row?.ccg_sold_paid || 0),
+    ccgSoldPrivateParty: Number(row?.ccg_sold_private_party || 0),
+    ccgSoldProfitMarginPercent: soldProfitMarginPercent,
+    ccgActiveItems: Number(row?.ccg_active_items || 0),
+    ccgNotForSaleItems: Number(row?.ccg_not_for_sale_items || 0),
+    ccgForSaleItems: Number(row?.ccg_for_sale_items || 0),
+    ccgSoldItems: Number(row?.ccg_sold_items || 0),
   };
 }
 

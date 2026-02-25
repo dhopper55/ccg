@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="CCG Admin">
-  <link rel="stylesheet" href="../styles.css?version=138416">
+  <link rel="stylesheet" href="../styles.css?version=402688">
 </head>
 <body>
   <nav class="site-nav">
@@ -28,7 +28,16 @@
   <div class="container listing-evaluator inventory-manager">
     <header class="listing-hero">
       <div class="listing-hero-row">
-        <h1>Inventory Manager</h1>
+        <div class="inventory-title-row">
+          <h1>Inventory Manager</h1>
+          <button
+            id="inventory-ccg-numbers-open"
+            type="button"
+            class="inventory-ccg-numbers-btn"
+            aria-label="Open CCG Numbers"
+            title="CCG Numbers"
+          >%</button>
+        </div>
         <div class="listing-results-actions">
           <a class="button-link success icon-only" href="inventory-item.html" aria-label="Add Inventory Item" title="Add Inventory Item">
             <span class="icon" aria-hidden="true">
@@ -107,6 +116,17 @@
     </section>
   </div>
 
-  <script type="module" src="../dist/inventory.js?version=169290"></script>
+  <div id="inventory-ccg-numbers-modal" class="inventory-ccg-modal hidden" role="dialog" aria-modal="true" aria-labelledby="inventory-ccg-numbers-title">
+    <div class="inventory-ccg-modal-backdrop" data-ccg-modal-close></div>
+    <div class="inventory-ccg-modal-content" tabindex="-1">
+      <div class="inventory-ccg-modal-header">
+        <h2 id="inventory-ccg-numbers-title">CCG Numbers</h2>
+        <button type="button" class="inventory-ccg-modal-close" data-ccg-modal-close aria-label="Close CCG Numbers">×</button>
+      </div>
+      <div id="inventory-ccg-numbers-body" class="inventory-ccg-modal-body">Loading...</div>
+    </div>
+  </div>
+
+  <script type="module" src="../dist/inventory.js?version=045351"></script>
 </body>
 </html>
