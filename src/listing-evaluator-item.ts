@@ -501,21 +501,27 @@ function isMultiValue(value: unknown): boolean {
 function updateArchiveButton(archived: boolean): void {
   if (!archiveButton) return;
   archiveButton.disabled = isArchiving;
+  const nextLabel = isArchiving
+    ? (archived ? 'Un-Archiving...' : 'Archiving...')
+    : (archived ? 'Un-Archive' : 'Archive');
+  archiveButton.setAttribute('aria-label', nextLabel);
+  archiveButton.title = nextLabel;
   if (!archiveLabel) return;
-  if (isArchiving) {
-    archiveLabel.textContent = archived ? 'Un-Archiving...' : 'Archiving...';
-    return;
-  }
-  archiveLabel.textContent = archived ? 'Un-Archive' : 'Archive';
+  archiveLabel.textContent = nextLabel;
 }
 
 function updateSaveButton(saved: boolean): void {
   if (!saveButton) return;
   saveButton.disabled = isSaving;
+  const nextLabel = isSaving
+    ? (saved ? 'Un-Saving...' : 'Saving...')
+    : (saved ? 'Un-Save' : 'Save');
+  saveButton.setAttribute('aria-label', nextLabel);
+  saveButton.title = nextLabel;
   if (saveLabel) {
-    saveLabel.textContent = saved ? 'Un-Save' : 'Save';
+    saveLabel.textContent = nextLabel;
   } else {
-    saveButton.textContent = saved ? 'Un-Save' : 'Save';
+    saveButton.textContent = nextLabel;
   }
 }
 

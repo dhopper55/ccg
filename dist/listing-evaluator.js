@@ -151,6 +151,23 @@ function extractUrls(input) {
     }
     return Array.from(new Set(urls));
 }
+function isSupportedListingUrl(url) {
+    try {
+        const parsed = new URL(url);
+        const host = parsed.hostname.toLowerCase();
+        const path = parsed.pathname.toLowerCase();
+        if (host.includes('facebook.com')) {
+            return path.includes('/marketplace/item/');
+        }
+        if (host.endsWith('craigslist.org')) {
+            return path.includes('/d/') || path.startsWith('/msg/');
+        }
+        return false;
+    }
+    catch {
+        return false;
+    }
+}
 function createPasteButton(textarea) {
     const button = document.createElement('button');
     button.type = 'button';
@@ -179,7 +196,6 @@ function ensureClipboardUi(textarea) {
 }
 function setupClipboardHelpers(textarea, _kind) {
     clipboardAutoPasteState.set(textarea, { focusAttempted: false, lastPastedSignature: '' });
-    ensureClipboardUi(textarea);
     textarea.addEventListener('focus', () => {
         const state = clipboardAutoPasteState.get(textarea);
         if (!state || state.focusAttempted)
@@ -261,6 +277,18 @@ async function tryPasteClipboardIntoTextarea(textarea, options) {
             }
             else if (!options.isAuto) {
                 button.textContent = 'Already pasted';
+            }
+        }
+        if (options.isAuto &&
+            result.added > 0 &&
+            urls.some(isSupportedListingUrl) &&
+            submitButton &&
+            !submitButton.disabled) {
+            if (typeof form?.requestSubmit === 'function') {
+                form.requestSubmit();
+            }
+            else {
+                submitButton.click();
             }
         }
     }

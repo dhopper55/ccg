@@ -166,6 +166,26 @@ function extractUrls(input: string): string[] {
   return Array.from(new Set(urls));
 }
 
+function isSupportedListingUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    const path = parsed.pathname.toLowerCase();
+
+    if (host.includes('facebook.com')) {
+      return path.includes('/marketplace/item/');
+    }
+
+    if (host.endsWith('craigslist.org')) {
+      return path.includes('/d/') || path.startsWith('/msg/');
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 function createPasteButton(textarea: HTMLTextAreaElement): HTMLButtonElement {
   const button = document.createElement('button');
   button.type = 'button';
@@ -194,7 +214,6 @@ function ensureClipboardUi(textarea: HTMLTextAreaElement): void {
 
 function setupClipboardHelpers(textarea: HTMLTextAreaElement, _kind: 'single' | 'multi'): void {
   clipboardAutoPasteState.set(textarea, { focusAttempted: false, lastPastedSignature: '' });
-  ensureClipboardUi(textarea);
 
   textarea.addEventListener('focus', () => {
     const state = clipboardAutoPasteState.get(textarea);
@@ -281,6 +300,20 @@ async function tryPasteClipboardIntoTextarea(
         button.textContent = options.isAuto ? `Pasted ${result.added}` : 'Pasted!';
       } else if (!options.isAuto) {
         button.textContent = 'Already pasted';
+      }
+    }
+
+    if (
+      options.isAuto &&
+      result.added > 0 &&
+      urls.some(isSupportedListingUrl) &&
+      submitButton &&
+      !submitButton.disabled
+    ) {
+      if (typeof form?.requestSubmit === 'function') {
+        form.requestSubmit();
+      } else {
+        submitButton.click();
       }
     }
   } finally {
