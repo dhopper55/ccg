@@ -8,6 +8,7 @@ type InventoryItem = {
   category?: string;
   brand?: string;
   purchasePrice?: number | null;
+  privatePartyValue?: number | null;
   isSold?: boolean;
   soldAmount?: number | null;
   qtyAvailable?: number;
@@ -26,7 +27,7 @@ type InventoryListResponse = {
   message?: string;
 };
 
-type InventorySortKey = 'ccgNumber' | 'title' | 'paid' | 'soldPrice';
+type InventorySortKey = 'ccgNumber' | 'title' | 'paid' | 'private' | 'soldPrice';
 type InventorySortDir = 'asc' | 'desc';
 
 const PAGE_SIZE = 20;
@@ -192,7 +193,7 @@ function renderInventoryGrid(): void {
   if (!rows.length) {
     const empty = document.createElement('tr');
     const td = document.createElement('td');
-    td.colSpan = 6;
+    td.colSpan = 7;
     td.textContent = 'No inventory items match the selected filters.';
     empty.appendChild(td);
     gridBody.appendChild(empty);
@@ -237,7 +238,7 @@ function renderInventoryGrid(): void {
 
     if (canDrillDown && qtyValue > 1) {
       titleTd.appendChild(document.createTextNode(' '));
-      const qtyBtn = buildQtyDrilldownButton(`[${qtyValue}]`, () => {
+      const qtyBtn = buildQtyDrilldownButton(String(qtyValue), () => {
         drillDownCcgNumber = row.ccgNumber;
         currentPage = 1;
         void loadGrid();
@@ -248,6 +249,7 @@ function renderInventoryGrid(): void {
     tr.appendChild(titleTd);
 
     tr.appendChild(rowCell(formatCurrency(row.purchasePrice), 'inventory-cell-sm'));
+    tr.appendChild(rowCell(formatCurrency(row.privatePartyValue), 'inventory-cell-sm'));
 
     tr.appendChild(soldPriceCell(row));
 

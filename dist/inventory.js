@@ -149,7 +149,7 @@ function renderInventoryGrid() {
     if (!rows.length) {
         const empty = document.createElement('tr');
         const td = document.createElement('td');
-        td.colSpan = 6;
+        td.colSpan = 7;
         td.textContent = 'No inventory items match the selected filters.';
         empty.appendChild(td);
         gridBody.appendChild(empty);
@@ -190,7 +190,7 @@ function renderInventoryGrid() {
         const canDrillDown = groupedView && groupCount > 1;
         if (canDrillDown && qtyValue > 1) {
             titleTd.appendChild(document.createTextNode(' '));
-            const qtyBtn = buildQtyDrilldownButton(`[${qtyValue}]`, () => {
+            const qtyBtn = buildQtyDrilldownButton(String(qtyValue), () => {
                 drillDownCcgNumber = row.ccgNumber;
                 currentPage = 1;
                 void loadGrid();
@@ -200,6 +200,7 @@ function renderInventoryGrid() {
         }
         tr.appendChild(titleTd);
         tr.appendChild(rowCell(formatCurrency(row.purchasePrice), 'inventory-cell-sm'));
+        tr.appendChild(rowCell(formatCurrency(row.privatePartyValue), 'inventory-cell-sm'));
         tr.appendChild(soldPriceCell(row));
         const actionsTd = document.createElement('td');
         const deleteButton = document.createElement('button');
