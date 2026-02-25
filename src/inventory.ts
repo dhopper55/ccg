@@ -248,7 +248,7 @@ function renderCcgNumbersModalLines(summary: InventorySummaryResponse): void {
     { label: 'Private Party', value: formatCurrencyPrecise(summary.ccgPrivatePartyUnsold) },
     { label: 'Sold Paid', value: formatCurrencyPrecise(summary.ccgSoldPaid) },
     { label: 'Sold Private Party', value: formatCurrencyPrecise(summary.ccgSoldPrivateParty) },
-    { label: 'Sold item profit margin', value: formatPercentTwoDecimals(summary.ccgSoldProfitMarginPercent) },
+    { label: 'Profit Margin (non-break even items)', value: formatPercentTwoDecimals(summary.ccgSoldProfitMarginPercent) },
     { label: 'Active items', value: formatInteger(summary.ccgActiveItems) },
     { label: 'Not For Sale', value: formatInteger(summary.ccgNotForSaleItems) },
     { label: 'For Sale', value: formatInteger(summary.ccgForSaleItems) },
