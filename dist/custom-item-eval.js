@@ -1,3 +1,8 @@
+if (typeof window !== 'undefined' && typeof navigator !== 'undefined') {
+    if ('serviceWorker' in navigator && window.isSecureContext && window.location.pathname.startsWith('/admin/')) {
+        void navigator.serviceWorker.register('/admin-sw.js').catch(() => undefined);
+    }
+}
 const MAX_PHOTOS = 10;
 const MAX_TEXT_LENGTH = 5000;
 const POLL_INTERVAL_MS = 2000;

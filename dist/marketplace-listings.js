@@ -1,4 +1,4 @@
-import { initListingAuth } from './listing-auth.js?version=980318';
+import { initListingAuth } from './listing-auth.js?version=088533';
 const form = document.getElementById('marketplace-form');
 const titleInput = document.getElementById('marketplace-title');
 const priceInput = document.getElementById('marketplace-price');

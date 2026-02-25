@@ -1,4 +1,4 @@
-import { initListingAuth } from './listing-auth.js?version=980318';
+import { initListingAuth } from './listing-auth.js?version=088533';
 initListingAuth();
 const tableBody = document.getElementById('listing-results-body');
 const errorSection = document.getElementById('listing-results-error');

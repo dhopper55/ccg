@@ -1,4 +1,4 @@
-import { initListingAuth } from './listing-auth.js?version=980318';
+import { initListingAuth } from './listing-auth.js?version=088533';
 initListingAuth();
 const MAX_URLS = 20;
 const BATCH_SIZE = 5;

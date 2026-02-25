@@ -1,5 +1,11 @@
 export {};
 
+if (typeof window !== 'undefined' && typeof navigator !== 'undefined') {
+  if ('serviceWorker' in navigator && window.isSecureContext && window.location.pathname.startsWith('/admin/')) {
+    void navigator.serviceWorker.register('/admin-sw.js').catch(() => undefined);
+  }
+}
+
 type CustomSubmitResponse = {
   ok?: boolean;
   recordId?: string;

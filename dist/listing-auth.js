@@ -1,3 +1,20 @@
+let adminPwaRegistrationAttempted = false;
+function registerAdminPwa() {
+    if (adminPwaRegistrationAttempted)
+        return;
+    adminPwaRegistrationAttempted = true;
+    if (typeof window === 'undefined' || typeof navigator === 'undefined')
+        return;
+    if (!('serviceWorker' in navigator))
+        return;
+    if (!window.isSecureContext)
+        return;
+    if (!window.location.pathname.startsWith('/admin/'))
+        return;
+    void navigator.serviceWorker.register('/admin-sw.js').catch((error) => {
+        console.warn('Admin PWA service worker registration failed', error);
+    });
+}
 function buildOverlay() {
     const overlay = document.createElement('div');
     overlay.id = 'listing-auth';
@@ -30,6 +47,7 @@ async function checkSession() {
     }
 }
 export function initListingAuth() {
+    registerAdminPwa();
     let overlay = document.getElementById('listing-auth');
     if (!overlay) {
         overlay = buildOverlay();
