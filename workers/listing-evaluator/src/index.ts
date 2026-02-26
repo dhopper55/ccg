@@ -4851,7 +4851,7 @@ function isSupportedListingUrl(url: string): boolean {
     const path = parsed.pathname.toLowerCase();
 
     if (host.includes('facebook.com')) {
-      return /\/marketplace\/item\/\d+/.test(path);
+      return /\/marketplace\/item\/\d+/.test(path) || path.startsWith('/share/');
     }
 
     if (host.endsWith('craigslist.org')) {
