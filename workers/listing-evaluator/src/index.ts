@@ -572,13 +572,19 @@ async function handleSubmit(request: Request, env: Env, ctx: ExecutionContext): 
 
   for (const item of uniqueUrls) {
     const resolvedUrl = await resolveFacebookShareUrl(item.url);
-    const source = detectSource(resolvedUrl);
+    const normalizedResolvedUrl = normalizeQueuedListingUrl(resolvedUrl);
+    if (!normalizedResolvedUrl || !isSupportedListingUrl(normalizedResolvedUrl)) {
+      rejected.push({ url: item.url, reason: 'Unsupported URL. Use a Facebook Marketplace item URL or Craigslist listing URL.' });
+      continue;
+    }
+
+    const source = detectSource(normalizedResolvedUrl);
     if (!source) {
       rejected.push({ url: item.url, reason: 'Unsupported URL. Use Craigslist or Facebook Marketplace.' });
       continue;
     }
 
-    accepted.push({ url: resolvedUrl, source, isMulti: item.isMulti });
+    accepted.push({ url: normalizedResolvedUrl, source, isMulti: item.isMulti });
   }
 
   const results: QueueResult[] = [];
@@ -2822,8 +2828,11 @@ async function handleReprocessListing(request: Request, env: Env): Promise<Respo
   }
 
   const resolvedUrl = await resolveFacebookShareUrl(rawUrl);
-  const normalizedUrl = normalizeUrl(resolvedUrl);
+  const normalizedUrl = normalizeQueuedListingUrl(resolvedUrl);
   if (!normalizedUrl) return jsonResponse({ message: 'Invalid url.' }, 400);
+  if (!isSupportedListingUrl(normalizedUrl)) {
+    return jsonResponse({ message: 'Unsupported URL. Use a Facebook Marketplace item URL or Craigslist listing URL.' }, 400);
+  }
 
   const existing = await dbFindListingByUrl(normalizedUrl, env);
   if (!existing?.id) return jsonResponse({ message: 'Listing not found.' }, 404);
@@ -3093,6 +3102,14 @@ async function processRun(runId: string, resource: any, eventType: string | unde
       recordId = found.id;
       await env.LISTING_JOBS.put(runId, recordId);
     }
+  }
+  if (!listing.title.trim() && listing.images.length === 0) {
+    await updateRowByRunId(runId, {
+      runId,
+      status: 'failed',
+      notes: 'Scraper returned incomplete listing metadata (missing title and image). Check URL format; Facebook share links may not resolve.',
+    }, env, { recordId });
+    return;
   }
   const isMulti = recordId ? await getIsMultiFromRecord(recordId, env) : false;
   const aiResult = await runOpenAI(listing, env, { isMulti });
@@ -4827,6 +4844,26 @@ function detectSource(url: string): ListingSource | null {
   }
 }
 
+function isSupportedListingUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    const path = parsed.pathname.toLowerCase();
+
+    if (host.includes('facebook.com')) {
+      return /\/marketplace\/item\/\d+/.test(path);
+    }
+
+    if (host.endsWith('craigslist.org')) {
+      return path.includes('/d/') || path.startsWith('/msg/');
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 function isFacebookShareUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
@@ -4912,6 +4949,16 @@ async function resolveFacebookShareUrl(url: string): Promise<string> {
   }
 
   return url;
+}
+
+function normalizeQueuedListingUrl(url: string): string | null {
+  const normalized = normalizeUrl(url);
+  if (!normalized) return null;
+  const source = detectSource(normalized);
+  if (source === 'facebook') {
+    return normalizeFacebookItemUrl(normalized);
+  }
+  return normalized;
 }
 
 async function startApifyRun(url: string, source: ListingSource, env: Env): Promise<string | null> {
