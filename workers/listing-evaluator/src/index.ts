@@ -280,6 +280,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/listings/map' && request.method === 'GET') {
+      const response = await handleMapListings(env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/image' && request.method === 'GET') {
       const response = await handleImageProxy(request, env);
       return withCors(response, request, env);
@@ -1766,6 +1771,17 @@ type ListingListItem = {
   inInventory?: boolean;
 };
 
+type ListingMapItem = {
+  id: string;
+  url?: string;
+  source?: string;
+  status?: string;
+  title?: string;
+  askingPrice?: number | string;
+  saved?: boolean;
+  location?: string;
+};
+
 type ReverbApiListing = {
   id: number;
   title?: string;
@@ -1933,6 +1949,14 @@ async function handleList(request: Request, env: Env): Promise<Response> {
     return jsonResponse({ message: 'Unable to fetch listings.' }, 500);
   }
 
+  return jsonResponse(data);
+}
+
+async function handleMapListings(env: Env): Promise<Response> {
+  const data = await dbListListingsForMap(env);
+  if (!data) {
+    return jsonResponse({ message: 'Unable to fetch map listings.' }, 500);
+  }
   return jsonResponse(data);
 }
 
@@ -3446,6 +3470,51 @@ async function dbListListings(
 
   const nextOffset = records.length === limit ? String(offsetValue + limit) : null;
   return { records, nextOffset, total };
+}
+
+async function dbListListingsForMap(
+  env: Env
+): Promise<{ records: ListingMapItem[] } | null> {
+  const result = await env.DB.prepare(
+    `SELECT
+       l.id,
+       l.url,
+       l.source,
+       l.status,
+       l.title,
+       l.price_asking,
+       l.saved,
+       l.location
+     FROM listings l
+     WHERE (l.archived IS NULL OR l.archived = 0)
+     ORDER BY
+       CASE WHEN l.status = 'queued' THEN 1 ELSE 0 END ASC,
+       COALESCE(l.submitted_at, l.created_at) DESC,
+       l.id DESC
+     LIMIT 2000`
+  ).all<{
+    id: number;
+    url: string | null;
+    source: string | null;
+    status: string | null;
+    title: string | null;
+    price_asking: number | string | null;
+    saved: number | null;
+    location: string | null;
+  }>();
+
+  const records = (result.results ?? []).map((row) => ({
+    id: String(row.id),
+    url: row.url ?? '',
+    source: row.source ?? '',
+    status: row.status ?? '',
+    title: row.title ?? '',
+    askingPrice: row.price_asking ?? null,
+    saved: row.saved ? true : false,
+    location: row.location ?? '',
+  }));
+
+  return { records };
 }
 
 async function dbGetListing(recordId: string, env: Env): Promise<{ id: string; fields: Record<string, unknown> } | null> {

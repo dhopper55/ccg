@@ -16,7 +16,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="../images/favicon/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="../images/favicon/favicon-16x16.png">
   <link rel="shortcut icon" href="../images/favicon/favicon.ico">
-  <title>Custom Item Eval | Coal Creek Guitars</title>
+  <title>Listing Map | Coal Creek Guitars</title>
   <meta name="robots" content="noindex,nofollow">
   <link rel="manifest" href="../admin.webmanifest">
   <meta name="theme-color" content="#18150f">
@@ -24,8 +24,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="CCG Admin">
-  <meta name="description" content="Upload photos and details to evaluate a custom item with AI valuation.">
-  <link rel="canonical" href="https://www.coalcreekguitars.com/admin/custom-item-eval.html">
+  <meta name="description" content="Map view of current listing evaluator results.">
+  <link rel="canonical" href="https://www.coalcreekguitars.com/admin/listing-map">
   <link rel="stylesheet" href="../styles.css?version=699338">
 </head>
 <body>
@@ -36,36 +36,42 @@
     <a href="/admin" class="nav-home">Admin</a>
   </nav>
 
-  <div class="container listing-evaluator custom-item-eval">
+  <div class="container listing-results listing-map-page">
     <header class="listing-hero">
-      <h1>Custom Item Eval</h1>
-      <p class="subtitle">Upload item photos and details for AI evaluation.</p>
+      <div class="listing-results-header">
+        <h1>Listing Map</h1>
+        <div class="listing-results-actions">
+          <a class="button-link secondary" href="listing-evaluator-results.html">Results</a>
+          <a class="button-link save" href="listing-evaluator-results.html?showSaved=1" aria-label="Saved Results" title="Saved Results">
+            <span class="icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" role="img" focusable="false" aria-hidden="true">
+                <path d="M5 4h11l3 3v13H5V4zm2 2v6h10V7.8L14.2 6H7zm2 9h6v5H9v-5z" fill="currentColor"></path>
+              </svg>
+            </span>
+          </a>
+        </div>
+      </div>
+      <p class="subtitle">Green pins: unsaved. Blue pins: saved. Archived listings are excluded.</p>
     </header>
 
-    <section class="listing-form">
-      <form id="custom-item-form">
-        <div class="form-group">
-          <label for="custom-item-photos">Photos <span class="optional">(1-10 images)</span></label>
-          <p id="custom-item-photos-help" class="listing-hint">Take clear photos in good lighting that show all parts of the item.</p>
-          <input id="custom-item-photos" name="photos" type="file" accept="image/*" multiple required>
-        </div>
-
-        <div class="form-group">
-          <label for="custom-item-details">What is it?</label>
-          <p class="listing-hint">Include as much information as you can here. Including things like Brand, Model, Color, and serial number will help a lot - that is if you know them. If not we will do our best with what we have. Also mention your opinion on condition, and any issues or modifications that you know about.</p>
-          <textarea id="custom-item-details" name="whatIsIt" rows="10" maxlength="5000" placeholder="Describe the item here..." required></textarea>
-          <p id="custom-item-count" class="listing-hint">0/5000 characters</p>
-        </div>
-
-        <button type="submit" id="custom-item-submit">Go</button>
-      </form>
-
-      <div id="custom-item-status" class="result-section hidden">
-        <h2>Status</h2>
-        <p id="custom-item-status-text"></p>
+    <section class="listing-results-card listing-map-card">
+      <div class="listing-map-topbar">
+        <label class="listing-map-key-group" for="listing-map-api-key">
+          <span>Google Maps API Key</span>
+          <input id="listing-map-api-key" type="password" autocomplete="off" placeholder="AIza..." />
+        </label>
+        <button id="listing-map-load" class="button-link secondary" type="button">Load Map</button>
+        <button id="listing-map-clear-key" class="button-link danger" type="button">Clear Key</button>
       </div>
 
-      <div id="custom-item-error" class="error-section hidden"></div>
+      <div class="listing-map-legend">
+        <span class="legend-pill legend-pill--green">Unsaved</span>
+        <span class="legend-pill legend-pill--blue">Saved</span>
+        <span id="listing-map-counts" class="listing-hint">Waiting for map...</span>
+      </div>
+
+      <div id="listing-map-status" class="result-section">Enter your Google Maps API key, then click Load Map.</div>
+      <div id="listing-map-canvas" class="listing-map-canvas" role="region" aria-label="Listings map"></div>
     </section>
   </div>
 
@@ -76,7 +82,7 @@
     </div>
   </footer>
 
-  <script type="module" src="../dist/custom-item-eval.js?version=738219"></script>
+  <script type="module" src="../dist/listing-map.js?version=089907"></script>
   <script>
     (function() {
       const year = new Date().getFullYear();

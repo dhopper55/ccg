@@ -1,4 +1,5 @@
 /admin /admin/index.html 200
+/admin/listing-map /admin/listing-map.html 200
 /listing-evaluator* /admin/listing-evaluator.html 302
 /listing-evaluator-results* /admin/listing-evaluator-results.html 302
 /listing-evaluator-item* /admin/listing-evaluator-item.html 302

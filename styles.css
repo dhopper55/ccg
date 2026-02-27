@@ -3685,7 +3685,97 @@ body.auth-locked {
   pointer-events: none;
 }
 
+.listing-map-card {
+  display: grid;
+  gap: 14px;
+}
+
+.listing-map-topbar {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.listing-map-key-group {
+  display: grid;
+  gap: 6px;
+  min-width: 320px;
+}
+
+.listing-map-key-group span {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.listing-map-key-group input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: rgba(6, 8, 12, 0.55);
+  color: var(--text-cream);
+}
+
+.listing-map-legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.legend-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #0b0d12;
+}
+
+.legend-pill--green {
+  background: #22c55e;
+}
+
+.legend-pill--blue {
+  background: #3b82f6;
+  color: #f7fbff;
+}
+
+.listing-map-canvas {
+  width: 100%;
+  min-height: 560px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(13, 17, 23, 0.65);
+}
+
+.listing-map-info {
+  min-width: 220px;
+  line-height: 1.35;
+}
+
+.listing-map-info h3 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.listing-map-info p {
+  margin: 0 0 6px;
+}
+
 @media (max-width: 760px) {
+  .listing-map-key-group {
+    min-width: 100%;
+  }
+
+  .listing-map-canvas {
+    min-height: 420px;
+  }
+
   .inventory-grid-toolbar {
     align-items: stretch;
   }
