@@ -29,6 +29,12 @@ type ListingsMapResponse = {
   message?: string;
 };
 
+type MapsConfigResponse = {
+  hasApiKey?: boolean;
+  apiKey?: string | null;
+  message?: string;
+};
+
 type LatLngLiteral = {
   lat: number;
   lng: number;
@@ -145,6 +151,15 @@ async function fetchMapListings(): Promise<ListingMapRecord[]> {
   return Array.isArray(data.records) ? data.records : [];
 }
 
+async function fetchMapsConfig(): Promise<string> {
+  const response = await fetch('/api/maps-config');
+  const data = (await response.json().catch(() => ({}))) as MapsConfigResponse;
+  if (!response.ok) {
+    throw new Error(data.message || 'Unable to load maps config.');
+  }
+  return typeof data.apiKey === 'string' ? data.apiKey.trim() : '';
+}
+
 function geocodeAddress(geocoder: any, address: string): Promise<LatLngLiteral | null> {
   return new Promise((resolve) => {
     geocoder.geocode({ address, region: 'US' }, (results: any[], status: string) => {
@@ -218,11 +233,17 @@ function buildInfoContent(record: ListingMapRecord): string {
   const location = escapeHtml((record.location || 'Unknown location').trim());
   const source = escapeHtml((record.source || 'Unknown source').trim());
   const price = formatPrice(record.askingPrice);
-  const priceMarkup = price ? `<p><strong>${escapeHtml(price)}</strong></p>` : '';
+  const priceMarkup = price ? `<p style="margin:0 0 6px;font-size:16px;font-weight:700;color:#111827;">${escapeHtml(price)}</p>` : '';
   const linkMarkup = record.url
-    ? `<p><a href="${escapeHtml(record.url)}" target="_blank" rel="noopener noreferrer">Open listing</a></p>`
+    ? `<p style="margin:10px 0 0;"><a href="${escapeHtml(record.url)}" target="_blank" rel="noopener noreferrer" style="color:#1d4ed8;font-weight:600;text-decoration:underline;">Open listing</a></p>`
     : '';
-  return `<div class="listing-map-info"><h3>${title}</h3>${priceMarkup}<p>${location}</p><p>${source}</p>${linkMarkup}</div>`;
+  return `<div class="listing-map-info" style="min-width:240px;color:#111827;font-family:Arial,Helvetica,sans-serif;">
+    <h3 style="margin:0 0 8px;font-size:24px;line-height:1.2;font-weight:800;color:#111827;">${title}</h3>
+    ${priceMarkup}
+    <p style="margin:0 0 4px;font-size:16px;color:#374151;">${location}</p>
+    <p style="margin:0 0 6px;font-size:16px;color:#6b7280;">${source}</p>
+    ${linkMarkup}
+  </div>`;
 }
 
 async function renderMapWithListings(): Promise<void> {
@@ -328,7 +349,15 @@ async function renderMapWithListings(): Promise<void> {
 }
 
 async function handleLoadMap(): Promise<void> {
-  const key = apiKeyInput?.value.trim() || '';
+  let key = apiKeyInput?.value.trim() || '';
+  if (!key) {
+    try {
+      key = await fetchMapsConfig();
+      if (key && apiKeyInput) apiKeyInput.value = key;
+    } catch {
+      // Keep manual fallback.
+    }
+  }
   if (!key) {
     setStatus('Google Maps API key is required.', true);
     return;
@@ -379,3 +408,20 @@ if (apiKeyInput) {
     }
   });
 }
+
+void (async () => {
+  try {
+    const serverKey = await fetchMapsConfig();
+    if (serverKey) {
+      if (apiKeyInput) {
+        apiKeyInput.value = serverKey;
+      }
+      setStatus('Using server-configured Google Maps key. Loading map...');
+      await handleLoadMap();
+      return;
+    }
+    setStatus('Enter your Google Maps API key, then click Load Map.');
+  } catch {
+    setStatus('Enter your Google Maps API key, then click Load Map.');
+  }
+})();

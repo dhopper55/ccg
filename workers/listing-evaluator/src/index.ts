@@ -63,6 +63,7 @@ interface Env {
   RADAR_EMAIL_FROM?: string;
   RESEND_API_KEY?: string;
   LISTING_JOBS: KVNamespace;
+  GOOGLE_MAPS_API_KEY?: string;
 }
 
 interface SubmitPayload {
@@ -282,6 +283,11 @@ export default {
 
     if (path === '/api/listings/map' && request.method === 'GET') {
       const response = await handleMapListings(env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/maps-config' && request.method === 'GET') {
+      const response = await handleMapsConfig(env);
       return withCors(response, request, env);
     }
 
@@ -1958,6 +1964,16 @@ async function handleMapListings(env: Env): Promise<Response> {
     return jsonResponse({ message: 'Unable to fetch map listings.' }, 500);
   }
   return jsonResponse(data);
+}
+
+async function handleMapsConfig(env: Env): Promise<Response> {
+  const apiKey = typeof env.GOOGLE_MAPS_API_KEY === 'string'
+    ? env.GOOGLE_MAPS_API_KEY.trim()
+    : '';
+  return jsonResponse({
+    hasApiKey: Boolean(apiKey),
+    apiKey: apiKey || null,
+  });
 }
 
 async function handleForSaleFeed(env: Env): Promise<Response> {
