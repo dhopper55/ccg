@@ -12,8 +12,12 @@ import paths, { rootPaths } from "./paths";
 
 const Starter = lazy(() => import('pages/others/Starter'));
 const IconGallery = lazy(() => import('pages/others/IconGallery'));
+const ListingEvaluatorResults = lazy(
+  () => import('pages/listing-evaluator/ListingEvaluatorResults'),
+);
 
 const LoggedOut = lazy(() => import('pages/authentication/default/LoggedOut'));
+const Logout = lazy(() => import('pages/authentication/default/Logout'));
 
 const Login = lazy(() => import('pages/authentication/default/jwt/Login'));
 const Signup = lazy(() => import('pages/authentication/default/jwt/Signup'));
@@ -60,6 +64,14 @@ export const routes: RouteObject[] = [
           {
             index: true,
             element: <Starter />,
+          },
+          {
+            path: paths.listingEvaluatorResults,
+            element: <ListingEvaluatorResults />,
+          },
+          {
+            path: paths.logout,
+            element: <Logout />,
           },
           {
             path: paths.iconGallery,

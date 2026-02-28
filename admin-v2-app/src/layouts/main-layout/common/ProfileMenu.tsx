@@ -53,6 +53,7 @@ const ProfileMenu = ({ type = 'default' }: ProfileMenuProps) => {
       },
     [sessionUser],
   );
+  const userInitial = user.name.trim().charAt(0).toUpperCase() || 'A';
 
   const open = Boolean(anchorEl);
   const handleClick = (event: React.MouseEvent<HTMLElement>) => {
@@ -90,10 +91,15 @@ const ProfileMenu = ({ type = 'default' }: ProfileMenuProps) => {
             height: 40,
             border: 2,
             borderColor: 'background.paper',
+            bgcolor: 'primary.main',
+            color: 'common.black',
+            fontWeight: 700,
           },
           type === 'slim' && { width: 24, height: 24, border: 1, borderColor: 'background.paper' },
         ]}
-      />
+      >
+        {userInitial}
+      </StatusAvatar>
     </Button>
   );
   return (
@@ -135,8 +141,10 @@ const ProfileMenu = ({ type = 'default' }: ProfileMenuProps) => {
             status="online"
             alt={user.name}
             src={user.avatar ?? undefined}
-            sx={{ width: 48, height: 48 }}
-          />
+            sx={{ width: 48, height: 48, bgcolor: 'primary.main', color: 'common.black', fontWeight: 700 }}
+          >
+            {userInitial}
+          </StatusAvatar>
           <Box>
             <Typography
               variant="subtitle1"

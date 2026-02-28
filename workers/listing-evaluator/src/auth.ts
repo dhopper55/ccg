@@ -41,6 +41,10 @@ export function buildAuthCookie(value: string) {
   return `${AUTH_COOKIE_NAME}=${value}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`;
 }
 
+export function clearAuthCookie() {
+  return `${AUTH_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`;
+}
+
 function base64UrlEncode(bytes: Uint8Array) {
   let binary = '';
   bytes.forEach((b) => (binary += String.fromCharCode(b)));

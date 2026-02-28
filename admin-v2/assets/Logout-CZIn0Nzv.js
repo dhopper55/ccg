@@ -1,0 +1,1 @@
+import{y as o,z as r,r as i,A as n,j as u,D as l}from"./index-BR9sbugn.js";const c=()=>{const e=o(),{refreshSession:t,setSession:s}=r();return i.useEffect(()=>{let a=!0;return(async()=>{try{await fetch("/api/logout",{method:"POST",credentials:"same-origin"})}finally{s(null),await t(),a&&e(n.defaultJwtLogin,{replace:!0})}})(),()=>{a=!1}},[e,t,s]),u.jsx(l,{})};export{c as default};

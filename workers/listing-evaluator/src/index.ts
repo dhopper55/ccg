@@ -33,6 +33,7 @@ import {
 import {
   AUTH_COOKIE_NAME,
   buildAuthCookie,
+  clearAuthCookie,
   parseCookie,
   signAuth,
   verifyAuth,
@@ -236,6 +237,11 @@ export default {
 
     if (path === '/api/session' && request.method === 'GET') {
       const response = await handleSession(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/logout' && request.method === 'POST') {
+      const response = await handleLogout();
       return withCors(response, request, env);
     }
 
@@ -543,6 +549,15 @@ async function handleSession(request: Request, env: Env): Promise<Response> {
 
   return new Response(JSON.stringify({ ok: true, user }), {
     headers: { 'content-type': 'application/json' },
+  });
+}
+
+async function handleLogout(): Promise<Response> {
+  return new Response(JSON.stringify({ ok: true }), {
+    headers: {
+      'content-type': 'application/json',
+      'set-cookie': clearAuthCookie(),
+    },
   });
 }
 
