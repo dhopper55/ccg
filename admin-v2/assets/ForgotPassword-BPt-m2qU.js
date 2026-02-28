@@ -1,0 +1,1 @@
+import{j as e,bs as t,bn as a}from"./index-aiExFIp9.js";import{F as n}from"./ForgotPasswordForm-ZWyzZGBo.js";import"./docPaths-4aeWrUzX.js";import"./useCountdown-rJ7He_Qq.js";const w=()=>{const r=async({email:s})=>await t(a,s).catch(o=>{throw new Error(o.message)});return e.jsx(n,{provider:"firebase",handleSendResetLink:r})};export{w as default};

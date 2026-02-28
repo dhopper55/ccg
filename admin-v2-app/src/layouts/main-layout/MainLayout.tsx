@@ -1,148 +1,233 @@
-import { PropsWithChildren, useMemo } from 'react';
-import { Drawer, drawerClasses } from '@mui/material';
-import Box from '@mui/material/Box';
-import Toolbar, { ToolbarOwnProps } from '@mui/material/Toolbar';
-import clsx from 'clsx';
-import AppBar from 'layouts/main-layout/app-bar';
-import Sidenav from 'layouts/main-layout/sidenav';
-import { mainDrawerWidth } from 'lib/constants';
-import { useSettingsContext } from 'providers/SettingsProvider';
-import { sidenavVibrantStyle } from 'theme/styles/vibrantNav';
-import VibrantBackground from 'components/common/VibrantBackground';
-import NavProvider from './NavProvider';
-import SidenavDrawerContent from './sidenav/SidenavDrawerContent';
-import SlimSidenav from './sidenav/SlimSidenav';
-import StackedSidenav from './sidenav/StackedSidenav';
-import Topnav from './topnav';
-import TopNavStacked from './topnav/TopNavStacked';
-import TopnavSlim from './topnav/TopnavSlim';
+import { PropsWithChildren, useMemo, useState } from 'react';
+import { NavLink } from 'react-router';
+import {
+  Avatar,
+  Box,
+  Divider,
+  IconButton,
+  InputAdornment,
+  List,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Paper,
+  Stack,
+  Typography,
+} from '@mui/material';
+import IconifyIcon from 'components/base/IconifyIcon';
+import Logo from 'components/common/Logo';
+import StyledTextField from 'components/styled/StyledTextField';
+import { useThemeMode } from 'hooks/useThemeMode';
+import { useAuth } from 'providers/AuthProvider';
+import sitemap from 'routes/sitemap';
+
+const SIDEBAR_WIDTH = 280;
 
 const MainLayout = ({ children }: PropsWithChildren) => {
-  const {
-    config: {
-      drawerWidth,
-      sidenavType,
-      navigationMenuType,
-      topnavType,
-      openNavbarDrawer,
-      navColor,
-    },
-    setConfig,
-  } = useSettingsContext();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const { sessionUser } = useAuth();
+  const { setThemeMode } = useThemeMode();
 
-  const toggleNavbarDrawer = () => {
-    setConfig({
-      openNavbarDrawer: !openNavbarDrawer,
-    });
-  };
-
-  const toolbarVarint: ToolbarOwnProps['variant'] = useMemo(() => {
-    if (navigationMenuType !== 'sidenav') {
-      if (topnavType === 'slim') {
-        return 'appbarSlim';
-      }
-      if (topnavType === 'stacked') {
-        return 'appbarStacked';
-      }
-    }
-
-    return 'appbar';
-  }, [navigationMenuType, topnavType]);
+  const navItems = useMemo(() => sitemap.flatMap((section) => section.items), []);
+  const userName = sessionUser?.name?.trim() || 'Admin';
+  const userInitial = userName.charAt(0).toUpperCase() || 'A';
 
   return (
-    <Box>
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
+      {mobileNavOpen && (
+        <Box
+          onClick={() => setMobileNavOpen(false)}
+          sx={{
+            position: 'fixed',
+            inset: 0,
+            bgcolor: 'rgba(0, 0, 0, 0.45)',
+            zIndex: 1198,
+            display: { xs: 'block', md: 'none' },
+          }}
+        />
+      )}
+
       <Box
-        className={clsx({
-          'nav-vibrant': navColor === 'vibrant',
-        })}
-        sx={{ display: 'flex', zIndex: 1, position: 'relative' }}
+        component="aside"
+        sx={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          bottom: 0,
+          width: SIDEBAR_WIDTH,
+          bgcolor: 'background.paper',
+          borderRight: 1,
+          borderColor: 'divider',
+          zIndex: 1199,
+          transform: {
+            xs: mobileNavOpen ? 'translateX(0)' : 'translateX(-100%)',
+            md: 'translateX(0)',
+          },
+          transition: 'transform 180ms ease',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
       >
-        <NavProvider>
-          {navigationMenuType === 'sidenav' && <AppBar />}
-
-          {(navigationMenuType === 'sidenav' || navigationMenuType === 'combo') && (
-            <>
-              {sidenavType === 'default' && <Sidenav />}
-              {sidenavType === 'slim' && <SlimSidenav />}
-              {sidenavType === 'stacked' && <StackedSidenav />}
-            </>
-          )}
-
-          {(navigationMenuType === 'topnav' || navigationMenuType === 'combo') && (
-            <>
-              {topnavType === 'default' && <Topnav />}
-              {topnavType === 'slim' && <TopnavSlim />}
-              {topnavType === 'stacked' && <TopNavStacked />}
-            </>
-          )}
-
-          <Drawer
-            variant="temporary"
-            open={openNavbarDrawer}
-            onClose={toggleNavbarDrawer}
-            ModalProps={{
-              keepMounted: true,
+        <Box sx={{ px: 3, py: 4 }}>
+          <Logo />
+        </Box>
+        <Divider />
+        <Box sx={{ flex: 1, overflowY: 'auto', px: 1.5, py: 3 }}>
+          <Typography
+            sx={{
+              color: 'text.disabled',
+              typography: 'overline',
+              fontWeight: 700,
+              px: 1.5,
+              mb: 1,
             }}
-            sx={[
-              {
-                display: { xs: 'block', md: 'none' },
-                [`& .${drawerClasses.paper}`]: {
-                  pt: 3,
-                  boxSizing: 'border-box',
-                  width: mainDrawerWidth.full,
-                },
-              },
-              navigationMenuType === 'topnav' && {
-                display: { md: 'block', lg: 'none' },
-              },
-              navColor === 'vibrant' && sidenavVibrantStyle,
-            ]}
           >
-            {navColor === 'vibrant' && <VibrantBackground position="side" />}
-            <SidenavDrawerContent variant="temporary" />
-          </Drawer>
+            Pages
+          </Typography>
+          <List dense sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+            {navItems.map((item) => {
+              const isDisabled = item.path === '#';
 
-          <Box
-            component="main"
-            sx={[
-              {
-                flexGrow: 1,
-                p: 0,
-                minHeight: '100vh',
-                width: { xs: '100%', md: `calc(100% - ${drawerWidth}px)` },
-                display: 'flex',
-                flexDirection: 'column',
-              },
-              sidenavType === 'default' && {
-                ml: { md: `${mainDrawerWidth.collapsed}px`, lg: 0 },
-              },
-              sidenavType === 'stacked' && {
-                ml: { md: `${mainDrawerWidth.stackedNavCollapsed}px`, lg: 0 },
-              },
-              sidenavType === 'slim' && {
-                ml: { xs: 0 },
-              },
-              navigationMenuType === 'topnav' && {
-                ml: { xs: 0 },
-              },
-            ]}
+              return (
+                <ListItemButton
+                  key={item.pathName}
+                  component={isDisabled ? 'div' : NavLink}
+                  to={isDisabled ? undefined : item.path}
+                  onClick={() => setMobileNavOpen(false)}
+                  sx={{
+                    minHeight: 48,
+                    borderRadius: 2,
+                    px: 1.5,
+                    '&.active': {
+                      bgcolor: 'primary.dark',
+                      color: 'primary.main',
+                    },
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: 32, color: 'inherit' }}>
+                    <IconifyIcon icon={item.icon || 'material-symbols:circle-outline'} />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={item.name}
+                    primaryTypographyProps={{
+                      fontSize: 16,
+                      fontWeight: 500,
+                    }}
+                  />
+                </ListItemButton>
+              );
+            })}
+          </List>
+        </Box>
+      </Box>
+
+      <Box sx={{ ml: { md: `${SIDEBAR_WIDTH}px` }, minWidth: 0 }}>
+        <Box
+          component="header"
+          sx={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 1100,
+            bgcolor: 'background.default',
+            borderBottom: 1,
+            borderColor: 'divider',
+          }}
+        >
+          <Stack
+            direction="row"
+            sx={{
+              alignItems: 'center',
+              gap: 2,
+              px: { xs: 2, md: 5 },
+              py: 2,
+              minWidth: 0,
+            }}
           >
-            <Toolbar variant={toolbarVarint} />
-
-            <Box sx={{ flex: 1 }}>
-              <Box
-                sx={[
-                  {
-                    height: 1,
-                    bgcolor: 'background.default',
-                  },
-                ]}
+            <Stack direction="row" sx={{ alignItems: 'center', gap: 1.5, minWidth: 0, flex: 1 }}>
+              <IconButton
+                onClick={() => setMobileNavOpen((open) => !open)}
+                sx={{ display: { xs: 'inline-flex', md: 'none' } }}
               >
-                {children}
+                <IconifyIcon icon="material-symbols:menu-rounded" />
+              </IconButton>
+
+              <Box sx={{ display: { xs: 'block', md: 'none' } }}>
+                <Logo showName={false} />
               </Box>
-            </Box>
-          </Box>
-        </NavProvider>
+
+              <StyledTextField
+                fullWidth
+                value=""
+                placeholder="Search"
+                aria-label="Search"
+                slotProps={{
+                  input: {
+                    readOnly: true,
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <IconifyIcon icon="material-symbols:search-rounded" fontSize={20} />
+                      </InputAdornment>
+                    ),
+                  },
+                }}
+                sx={{
+                  maxWidth: { xs: 220, md: 420 },
+                }}
+              />
+            </Stack>
+
+            <Stack direction="row" sx={{ alignItems: 'center', gap: 1, flexShrink: 0 }}>
+              <Box
+                sx={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 40,
+                  height: 40,
+                }}
+              >
+                <IconifyIcon icon="flag:us-4x3" sx={{ fontSize: 24 }} />
+              </Box>
+
+              <IconButton color="inherit" onClick={() => setThemeMode()}>
+                <IconifyIcon icon="material-symbols-light:palette-outline" />
+              </IconButton>
+
+              <IconButton color="inherit" aria-label="Notifications">
+                <Box sx={{ position: 'relative', display: 'inline-flex' }}>
+                  <IconifyIcon icon="material-symbols-light:notifications-outline-rounded" />
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: -2,
+                      right: -2,
+                      width: 10,
+                      height: 10,
+                      borderRadius: '50%',
+                      bgcolor: 'error.main',
+                    }}
+                  />
+                </Box>
+              </IconButton>
+
+              <Avatar
+                sx={{
+                  width: 40,
+                  height: 40,
+                  bgcolor: 'primary.main',
+                  color: 'common.black',
+                  fontWeight: 700,
+                }}
+              >
+                {userInitial}
+              </Avatar>
+            </Stack>
+          </Stack>
+        </Box>
+
+        <Box component="main" sx={{ p: { xs: 2, md: 5 }, minWidth: 0 }}>
+          <Paper sx={{ bgcolor: 'transparent', boxShadow: 'none', minWidth: 0 }}>{children}</Paper>
+        </Box>
       </Box>
     </Box>
   );
