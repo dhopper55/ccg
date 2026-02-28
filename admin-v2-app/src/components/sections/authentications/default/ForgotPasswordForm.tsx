@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { Box, Button, Link, Stack, TextField, Typography } from '@mui/material';
 import Grid from '@mui/material/Grid';
+import routePaths from 'docs/routes/docPaths';
 import useCountdown from 'hooks/useCountdown';
 import { useSnackbar } from 'notistack';
 import * as yup from 'yup';
@@ -82,9 +83,7 @@ const ForgotPasswordForm = ({ provider = 'jwt', handleSendResetLink }: ForgotPas
       >
         {provider === 'firebase' && import.meta.env.VITE_BUILD_MODE === 'production' && (
           <Grid size={12} sx={{ mb: 1 }}>
-            <ViewOnlyAlert
-              docLink={`https://aurora.themewagon.com/documentation/authentication#firebase`}
-            />
+            <ViewOnlyAlert docLink={`${routePaths.authentication}#firebase`} />
           </Grid>
         )}
         <Grid size={12}>

@@ -4,20 +4,17 @@ import {
   Avatar,
   Box,
   Chip,
-  CircularProgress,
+  ChipOwnProps,
   IconButton,
+  Link,
   Paper,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Tooltip,
   Typography,
 } from '@mui/material';
+import { DataGrid, GridColDef } from '@mui/x-data-grid';
 import IconifyIcon from 'components/base/IconifyIcon';
+import DataGridPagination from 'components/pagination/DataGridPagination';
 
 type ListingListItem = {
   id: string;
@@ -31,12 +28,23 @@ type ListingListItem = {
 
 type ListingsResponse = {
   records: ListingListItem[];
-  nextOffset?: string | null;
-  total?: number;
   message?: string;
 };
 
+type ListingGridRow = {
+  id: string;
+  title: string;
+  url?: string;
+  sourceLabel: string;
+  sourceImageSrc: string | null;
+  statusLabel: string;
+  statusColor: ChipOwnProps['color'];
+  askingPriceLabel: string;
+  imageSrc: string | null;
+};
+
 const PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 8;
 
 const headerActions = [
   { label: 'Back', icon: 'material-symbols:arrow-back-rounded', color: 'default' as const },
@@ -76,6 +84,7 @@ function formatCurrencyValue(value: number | string | undefined): string {
       maximumFractionDigits: 0,
     }).format(numeric);
   }
+
   return trimmed;
 }
 
@@ -83,6 +92,7 @@ function buildImageSrc(imageUrl?: string | null, referrer?: string): string | nu
   if (!imageUrl) return null;
   const cleaned = imageUrl.trim().split(/\s+/)[0];
   if (!cleaned) return null;
+
   const normalized = cleaned.toLowerCase();
   if (
     normalized.includes('fbcdn.net') ||
@@ -94,21 +104,22 @@ function buildImageSrc(imageUrl?: string | null, referrer?: string): string | nu
     if (referrer) params.set('ref', referrer);
     return `/api/image?${params.toString()}`;
   }
+
   return cleaned;
 }
 
 function buildSourceMeta(source?: string): { label: string; imageSrc: string | null } {
   const normalized = source?.trim().toLowerCase() || '';
   if (normalized === 'facebook' || normalized === 'fbm' || normalized.includes('facebook')) {
-    return { label: 'Facebook Marketplace', imageSrc: '/images/fb.png' };
+    return { label: 'FBM', imageSrc: '/images/fb.png' };
   }
   if (normalized === 'craigslist' || normalized === 'cg' || normalized.includes('craigslist')) {
-    return { label: 'Craigslist', imageSrc: '/images/cl.png' };
+    return { label: 'CL', imageSrc: '/images/cl.png' };
   }
   return { label: source?.trim() || 'Unknown', imageSrc: null };
 }
 
-function buildStatusColor(status?: string): 'success' | 'error' | 'warning' | 'neutral' {
+function buildStatusColor(status?: string): ChipOwnProps['color'] {
   const normalized = status?.trim().toLowerCase() || '';
   if (normalized === 'complete' || normalized === 'completed') return 'success';
   if (normalized === 'failed' || normalized === 'error') return 'error';
@@ -117,8 +128,7 @@ function buildStatusColor(status?: string): 'success' | 'error' | 'warning' | 'n
 }
 
 function buildDisplayTitle(record: ListingListItem): string {
-  const title = record.title?.trim() || record.url?.replace(/^https?:\/\//i, '') || 'Untitled listing';
-  return title.length > 110 ? `${title.slice(0, 107)}...` : title;
+  return record.title?.trim() || record.url?.replace(/^https?:\/\//i, '') || 'Untitled listing';
 }
 
 const ListingEvaluatorResults = () => {
@@ -133,6 +143,7 @@ const ListingEvaluatorResults = () => {
   const loadListings = async () => {
     setIsLoading(true);
     setErrorMessage('');
+
     try {
       const params = new URLSearchParams();
       params.set('limit', String(PAGE_SIZE));
@@ -141,9 +152,11 @@ const ListingEvaluatorResults = () => {
         credentials: 'same-origin',
       });
       const data = (await response.json()) as ListingsResponse;
+
       if (!response.ok) {
         throw new Error(data.message || 'Unable to load listing evaluator results.');
       }
+
       setRecords(Array.isArray(data.records) ? data.records : []);
     } catch (error) {
       setErrorMessage(
@@ -159,19 +172,168 @@ const ListingEvaluatorResults = () => {
     void loadListings();
   }, []);
 
-  const rows = useMemo(() => records, [records]);
+  const rows = useMemo<ListingGridRow[]>(
+    () =>
+      records.map((record, index) => {
+        const sourceMeta = buildSourceMeta(record.source);
+        return {
+          id: record.id || record.url || `${index}`,
+          title: buildDisplayTitle(record),
+          url: record.url,
+          sourceLabel: sourceMeta.label,
+          sourceImageSrc: sourceMeta.imageSrc,
+          statusLabel: record.status?.trim() || 'unknown',
+          statusColor: buildStatusColor(record.status),
+          askingPriceLabel: formatCurrencyValue(record.askingPrice),
+          imageSrc: buildImageSrc(record.imageUrl, record.url),
+        };
+      }),
+    [records],
+  );
+
+  const columns = useMemo<GridColDef<ListingGridRow>[]>(
+    () => [
+      {
+        field: 'title',
+        headerName: 'Title',
+        sortable: false,
+        filterable: false,
+        minWidth: 480,
+        flex: 1,
+        renderCell: (params) => (
+          <Stack sx={{ gap: 2, alignItems: 'center', minWidth: 0 }}>
+            <Avatar
+              variant="rounded"
+              src={params.row.imageSrc || undefined}
+              alt={params.row.title}
+              sx={{
+                width: 56,
+                height: 56,
+                borderRadius: 2.5,
+                bgcolor: 'background.elevation1',
+                flexShrink: 0,
+              }}
+            >
+              <IconifyIcon icon="material-symbols:image-outline-rounded" />
+            </Avatar>
+
+            <Box sx={{ minWidth: 0 }}>
+              <Link
+                underline="none"
+                color="text.primary"
+                href={params.row.url || '#'}
+                target="_blank"
+                rel="noreferrer"
+                sx={{
+                  display: 'block',
+                  fontWeight: 500,
+                  fontSize: 'subtitle2.fontSize',
+                  lineHeight: 1.4,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {params.row.title}
+              </Link>
+
+              <Stack sx={{ mt: 0.75, gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                {params.row.askingPriceLabel && (
+                  <Chip
+                    label={params.row.askingPriceLabel}
+                    size="small"
+                    color="primary"
+                    variant="soft"
+                  />
+                )}
+                <Chip
+                  label={params.row.statusLabel}
+                  size="small"
+                  color={params.row.statusColor}
+                  variant="soft"
+                  sx={{ textTransform: 'capitalize' }}
+                />
+              </Stack>
+            </Box>
+          </Stack>
+        ),
+      },
+      {
+        field: 'sourceLabel',
+        headerName: 'Source',
+        sortable: false,
+        filterable: false,
+        minWidth: 120,
+        align: 'center',
+        headerAlign: 'center',
+        renderCell: (params) =>
+          params.row.sourceImageSrc ? (
+            <Avatar
+              variant="rounded"
+              src={params.row.sourceImageSrc}
+              alt={params.row.sourceLabel}
+              sx={{
+                width: 36,
+                height: 36,
+                bgcolor: 'background.elevation1',
+                '& img': {
+                  objectFit: 'contain',
+                  width: 22,
+                  height: 22,
+                },
+              }}
+            />
+          ) : (
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              {params.row.sourceLabel}
+            </Typography>
+          ),
+      },
+      {
+        field: 'actions',
+        headerName: 'Actions',
+        sortable: false,
+        filterable: false,
+        minWidth: 140,
+        align: 'right',
+        headerAlign: 'right',
+        renderCell: () => (
+          <Tooltip title="Inv. Add">
+            <IconButton
+              aria-label="Inv. Add"
+              color="primary"
+              sx={{
+                width: 36,
+                height: 36,
+                borderRadius: 2.5,
+                bgcolor: 'background.elevation1',
+                border: 1,
+                borderColor: 'divider',
+              }}
+            >
+              <IconifyIcon icon="material-symbols:add-rounded" fontSize={18} />
+            </IconButton>
+          </Tooltip>
+        ),
+      },
+    ],
+    [],
+  );
 
   return (
-    <Box sx={{ px: { xs: 2, md: 4 }, py: { xs: 3, md: 4 } }}>
-      <Stack spacing={3}>
+    <Stack direction="column" height={1} gap={3}>
+      <Paper sx={{ px: { xs: 3, md: 5 }, py: 3 }}>
         <Stack
-          direction={{ xs: 'column', md: 'row' }}
-          spacing={2}
-          sx={{ justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' } }}
+          sx={{
+            gap: 2,
+            flexDirection: { xs: 'column', sm: 'row' },
+            alignItems: { sm: 'center' },
+            justifyContent: 'space-between',
+          }}
         >
-          <Typography variant="h3">Listing Evaluator Results</Typography>
+          <Typography variant="h4">Listing Evaluator Results</Typography>
 
-          <Stack direction="row" spacing={1.25}>
+          <Stack sx={{ gap: 1, alignItems: 'center' }}>
             {headerActions.map((action) => (
               <Tooltip key={action.label} title={action.label}>
                 <IconButton
@@ -182,8 +344,8 @@ const ListingEvaluatorResults = () => {
                     }
                   }}
                   sx={{
-                    width: 48,
-                    height: 48,
+                    width: 40,
+                    height: 40,
                     border: 1,
                     borderColor:
                       action.color === 'default' ? 'divider' : `${action.color}.main`,
@@ -200,205 +362,42 @@ const ListingEvaluatorResults = () => {
                     },
                   }}
                 >
-                  <IconifyIcon icon={action.icon} sx={{ fontSize: 22 }} />
+                  <IconifyIcon icon={action.icon} fontSize={20} />
                 </IconButton>
               </Tooltip>
             ))}
           </Stack>
         </Stack>
+      </Paper>
 
-        {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
+      {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
 
-        <Paper
-          background={1}
-          sx={{
-            border: 1,
-            borderColor: 'divider',
-            overflow: 'hidden',
+      <Paper sx={{ flex: 1, p: { xs: 3, md: 5 } }}>
+        <DataGrid
+          rowHeight={76}
+          rows={rows}
+          columns={columns}
+          loading={isLoading}
+          disableRowSelectionOnClick
+          pageSizeOptions={[DEFAULT_PAGE_SIZE, PAGE_SIZE]}
+          initialState={{
+            pagination: {
+              paginationModel: {
+                pageSize: DEFAULT_PAGE_SIZE,
+              },
+            },
           }}
-        >
-          <Stack
-            direction={{ xs: 'column', md: 'row' }}
-            spacing={2}
-            sx={{
-              px: { xs: 2.5, md: 3 },
-              py: 2.5,
-              alignItems: { xs: 'flex-start', md: 'center' },
-              justifyContent: 'space-between',
-              borderBottom: 1,
-              borderColor: 'divider',
-              bgcolor: 'background.default',
-            }}
-          >
-            <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center' }}>
-              <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                All Results
-              </Typography>
-              <Chip label={`${rows.length} rows`} size="small" color="neutral" variant="soft" />
-            </Stack>
-            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-              Latest 20 records from the evaluator endpoint
-            </Typography>
-          </Stack>
-
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow
-                  sx={{
-                    '& th': {
-                      bgcolor: 'background.default',
-                      borderBottomColor: 'divider',
-                      color: 'text.secondary',
-                      fontSize: 15,
-                      fontWeight: 600,
-                      py: 2.25,
-                    },
-                  }}
-                >
-                  <TableCell sx={{ width: '68%' }}>Title</TableCell>
-                  <TableCell align="center" sx={{ width: '14%' }}>
-                    Source
-                  </TableCell>
-                  <TableCell align="right" sx={{ width: '18%' }}>
-                    Actions
-                  </TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={3} sx={{ borderBottom: 0 }}>
-                      <Stack sx={{ alignItems: 'center', py: 8 }} spacing={2}>
-                        <CircularProgress size={28} />
-                        <Typography sx={{ color: 'text.secondary' }}>Loading results…</Typography>
-                      </Stack>
-                    </TableCell>
-                  </TableRow>
-                ) : rows.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={3} sx={{ borderBottom: 0 }}>
-                      <Typography sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
-                        No listing evaluator results found.
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  rows.map((record) => {
-                    const title = buildDisplayTitle(record);
-                    const imageSrc = buildImageSrc(record.imageUrl, record.url);
-                    const sourceMeta = buildSourceMeta(record.source);
-                    const askingPrice = formatCurrencyValue(record.askingPrice);
-                    const statusLabel = record.status?.trim() || 'unknown';
-
-                    return (
-                      <TableRow
-                        hover
-                        key={record.id || record.url || record.title}
-                        sx={{
-                          '& td': {
-                            borderBottomColor: 'divider',
-                            py: 2.5,
-                          },
-                        }}
-                      >
-                        <TableCell>
-                          <Stack direction="row" spacing={2} sx={{ alignItems: 'center', minWidth: 0 }}>
-                            <Avatar
-                              src={imageSrc ?? undefined}
-                              variant="rounded"
-                              sx={{
-                                width: 76,
-                                height: 76,
-                                bgcolor: 'background.elevation2',
-                                color: 'text.secondary',
-                                borderRadius: 3,
-                                flexShrink: 0,
-                              }}
-                            >
-                              <IconifyIcon icon="material-symbols:image-outline-rounded" />
-                            </Avatar>
-
-                            <Box sx={{ minWidth: 0 }}>
-                              <Typography
-                                variant="h6"
-                                sx={{
-                                  mb: 1,
-                                  fontWeight: 700,
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap',
-                                }}
-                              >
-                                {title}
-                              </Typography>
-
-                              <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
-                                {askingPrice && (
-                                  <Chip
-                                    label={askingPrice}
-                                    size="small"
-                                    color="primary"
-                                    variant="outlined"
-                                  />
-                                )}
-                                <Chip
-                                  label={statusLabel}
-                                  size="small"
-                                  color={buildStatusColor(record.status)}
-                                  variant="soft"
-                                />
-                              </Stack>
-                            </Box>
-                          </Stack>
-                        </TableCell>
-
-                        <TableCell align="center">
-                          {sourceMeta.imageSrc ? (
-                            <Avatar
-                              src={sourceMeta.imageSrc}
-                              alt={sourceMeta.label}
-                              variant="rounded"
-                              sx={{
-                                width: 42,
-                                height: 42,
-                                mx: 'auto',
-                                bgcolor: 'background.elevation2',
-                              }}
-                            />
-                          ) : (
-                            <Chip label={sourceMeta.label} size="small" variant="outlined" />
-                          )}
-                        </TableCell>
-
-                        <TableCell align="right">
-                          <Tooltip title="Inv. Add">
-                            <IconButton
-                              aria-label="Inv. Add"
-                              sx={{
-                                border: 1,
-                                borderColor: 'divider',
-                                borderRadius: 3,
-                                bgcolor: 'background.elevation1',
-                                '&:hover': {
-                                  bgcolor: 'background.elevation2',
-                                },
-                              }}
-                            >
-                              <IconifyIcon icon="material-symbols:playlist-add-rounded" />
-                            </IconButton>
-                          </Tooltip>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Paper>
-      </Stack>
-    </Box>
+          sx={{
+            '& .MuiDataGrid-columnHeaders': {
+              minWidth: '100%',
+            },
+          }}
+          slots={{
+            basePagination: (props) => <DataGridPagination showFullPagination {...props} />,
+          }}
+        />
+      </Paper>
+    </Stack>
   );
 };
 

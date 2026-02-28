@@ -10,6 +10,7 @@ const AuthLayout = () => {
     disableTopShapeSection: true,
     disableNavColorSection: true,
   });
+
   return (
     <Suspense fallback={<Splash />}>
       <Outlet />

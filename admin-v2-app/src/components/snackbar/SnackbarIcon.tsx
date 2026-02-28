@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { Stack, useTheme } from '@mui/material';
 import { cssVarRgba } from 'lib/utils';
 import { VariantType } from 'notistack';
@@ -12,11 +11,8 @@ interface SnackbarCloseButtonProps {
 const SnackbarIcon = ({ variant, icon }: SnackbarCloseButtonProps) => {
   const { vars } = useTheme();
 
-  const color = useMemo(
-    () =>
-      variant === 'default' ? vars.palette.action.hoverChannel : vars.palette[variant].mainChannel,
-    [variant, vars.palette],
-  );
+  const color =
+    variant === 'default' ? vars.palette.action.hoverChannel : vars.palette[variant].mainChannel;
 
   return (
     <Stack

@@ -3,7 +3,7 @@ import { ButtonClasses, buttonClasses } from '@mui/material/Button';
 import { Components } from '@mui/material/styles';
 import type {} from '@mui/material/themeCssVarsAugmentation';
 import { cssVarRgba } from 'lib/utils';
-import { PaletteColorKey } from 'theme/palette';
+import { PaletteColorKey } from 'types/theme';
 import { LinkBehavior } from './Link';
 
 declare module '@mui/material/Button' {
@@ -110,6 +110,7 @@ const Button: Components<Omit<Theme, 'components'>>['MuiButton'] = {
       props: { variant: 'outlined', color: 'neutral' },
       style: (style) => {
         const theme = style.theme as Theme;
+
         return {
           borderColor: theme.vars.palette.background.elevation4,
           '&:hover': {
@@ -122,6 +123,7 @@ const Button: Components<Omit<Theme, 'components'>>['MuiButton'] = {
       props: { variant: 'soft', color: 'neutral' },
       style: (style) => {
         const theme = style.theme as Theme;
+
         return {
           background: theme.vars.palette.background.elevation2,
           color: theme.vars.palette.neutral.main,

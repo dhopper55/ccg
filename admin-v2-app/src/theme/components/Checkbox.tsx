@@ -7,7 +7,7 @@ import {
 } from '@mui/material';
 import { Components } from '@mui/material/styles';
 import { cssVarRgba } from 'lib/utils';
-import { PaletteColorKey } from 'theme/palette';
+import { PaletteColorKey } from 'types/theme';
 import CheckBoxBlankIcon from 'components/icons/CheckBoxBlankIcon';
 import CheckBoxCheckedIcon from 'components/icons/CheckBoxCheckedIcon';
 import CheckBoxIndeterminateIcon from 'components/icons/CheckBoxIndeterminateIcon';
@@ -21,6 +21,7 @@ const Checkbox: Components<Omit<Theme, 'components'>>['MuiCheckbox'] = {
       style: (style: { theme: Theme }) => {
         const theme = style.theme;
         const paletteColor = theme.vars.palette[color];
+
         return {
           '&:hover': {
             background: cssVarRgba(paletteColor.mainChannel, 0.12),
@@ -32,6 +33,7 @@ const Checkbox: Components<Omit<Theme, 'components'>>['MuiCheckbox'] = {
       props: { color: 'default' },
       style: (style) => {
         const theme = style.theme as Theme;
+
         return {
           '&:hover': {
             background: theme.vars.palette.background.elevation2,

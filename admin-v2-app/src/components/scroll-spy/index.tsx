@@ -1,7 +1,7 @@
 import {
   Dispatch,
-  MutableRefObject,
   PropsWithChildren,
+  RefObject,
   SetStateAction,
   createContext,
   use,
@@ -29,7 +29,7 @@ interface ScrollSpyProps {
 interface ScrollSpyContextInterface {
   activeElemId: string;
   setActiveElemId: Dispatch<SetStateAction<string>>;
-  sectionRefs: MutableRefObject<SectionRef>;
+  sectionRefs: RefObject<SectionRef>;
 }
 
 export const ScrollSpyContext = createContext({} as ScrollSpyContextInterface);
@@ -106,6 +106,7 @@ const ScrollSpy = ({ children, offset: globalOffset }: PropsWithChildren<ScrollS
   useEffect(() => {
     spy();
     window.addEventListener('scroll', spy);
+
     return () => {
       window.removeEventListener('scroll', spy);
     };

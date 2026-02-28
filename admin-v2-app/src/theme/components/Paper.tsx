@@ -1,6 +1,5 @@
-import { PaperProps, Theme, paperClasses } from '@mui/material';
+import { PaperProps, Theme } from '@mui/material';
 import { Components } from '@mui/material/styles';
-import { blue, grey } from 'theme/palette/colors';
 
 declare module '@mui/material' {
   interface PaperPropsVariantOverrides {
@@ -12,29 +11,47 @@ declare module '@mui/material' {
   }
 }
 
-const backgrounds: { [key: number]: { [key: string]: string } } = {
-  1: { light: grey[50], dark: grey[900] },
-  2: { light: grey[100], dark: grey[800] },
-  3: { light: grey[200], dark: grey[700] },
-  4: { light: grey[300], dark: grey[600] },
-  5: { light: blue[50], dark: blue[950] },
-};
+declare module '@mui/material/styles' {
+  interface TypeBackground {
+    elevation5: string;
+  }
+  interface PaletteBackgroundChannel {
+    elevation5Channel?: string;
+  }
+}
 
-const backgroundVariants = Object.keys(backgrounds).map((background) => ({
-  props: { background: Number(background) as PaperProps['background'] },
-  style: ({ theme }: { theme: Theme }) => [
-    theme.applyStyles('light', {
-      [`&.${paperClasses.root}`]: {
-        backgroundColor: backgrounds[Number(background)].light,
-      },
+const backgroundVariants = [
+  {
+    props: { background: 1 as PaperProps['background'] },
+    style: ({ theme }: { theme: Omit<Theme, 'components'> }) => ({
+      backgroundColor: theme.vars.palette.background.elevation1,
     }),
-    theme.applyStyles('dark', {
-      [`&.${paperClasses.root}`]: {
-        backgroundColor: backgrounds[Number(background)].dark,
-      },
+  },
+  {
+    props: { background: 2 as PaperProps['background'] },
+    style: ({ theme }: { theme: Omit<Theme, 'components'> }) => ({
+      backgroundColor: theme.vars.palette.background.elevation2,
     }),
-  ],
-}));
+  },
+  {
+    props: { background: 3 as PaperProps['background'] },
+    style: ({ theme }: { theme: Omit<Theme, 'components'> }) => ({
+      backgroundColor: theme.vars.palette.background.elevation3,
+    }),
+  },
+  {
+    props: { background: 4 as PaperProps['background'] },
+    style: ({ theme }: { theme: Omit<Theme, 'components'> }) => ({
+      backgroundColor: theme.vars.palette.background.elevation4,
+    }),
+  },
+  {
+    props: { background: 5 as PaperProps['background'] },
+    style: ({ theme }: { theme: Omit<Theme, 'components'> }) => ({
+      backgroundColor: theme.vars.palette.background.elevation5,
+    }),
+  },
+];
 
 const Paper: Components<Omit<Theme, 'components'>>['MuiPaper'] = {
   variants: [
@@ -56,6 +73,7 @@ const Paper: Components<Omit<Theme, 'components'>>['MuiPaper'] = {
     elevation: ({ theme }) => ({
       backgroundColor: theme.vars.palette.background.menu,
       backgroundImage: 'none',
+      // boxShadow: 'var(--Paper-shadow)',
       borderWidth: 0,
       borderStyle: 'solid',
       borderColor: theme.vars.palette.menuDivider,

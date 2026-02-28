@@ -1,4 +1,5 @@
 import { ChangeEvent } from 'react';
+import { useSearchParams } from 'react-router';
 import { FormControlLabel, Radio } from '@mui/material';
 import { SidenavType } from 'config';
 import { useSettingsPanelContext } from 'providers/SettingsPanelProvider';
@@ -6,18 +7,22 @@ import { useSettingsContext } from 'providers/SettingsProvider';
 import { SET_SIDENAV_SHAPE } from 'reducers/SettingsReducer';
 import SettingsItem from './SettingsItem';
 import SettingsPanelRadioGroup from './SettingsPanelRadioGroup';
+import { SidenavDefaultIllustration } from './panel-illustrations/SidenavDefaultIllustration';
+import { SlimIllustration } from './panel-illustrations/SlimIllustration';
+import { StackedIllustration } from './panel-illustrations/StackedIllustration';
 
 const SidenavShapePanel = () => {
   const {
-    config: { sidenavType, assetsDir },
+    config: { sidenavType },
     configDispatch,
   } = useSettingsContext();
-
   const {
     settingsPanelConfig: { disableSidenavShapeSection },
   } = useSettingsPanelContext();
+  const [, setSearchParams] = useSearchParams();
 
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setSearchParams({}, { replace: true });
     const value = (event.target as HTMLInputElement).value as SidenavType;
 
     configDispatch({
@@ -34,10 +39,11 @@ const SidenavShapePanel = () => {
         label={
           <SettingsItem
             label="Default"
-            image={{
-              light: `${assetsDir}/images/settings-panel/sidenav-default.webp`,
-              dark: `${assetsDir}/images/settings-panel/sidenav-default-dark.webp`,
-            }}
+            image={
+              <SidenavDefaultIllustration
+                active={!disableSidenavShapeSection && sidenavType === 'default'}
+              />
+            }
             active={!disableSidenavShapeSection && sidenavType === 'default'}
           />
         }
@@ -48,10 +54,9 @@ const SidenavShapePanel = () => {
         label={
           <SettingsItem
             label="Slim"
-            image={{
-              light: `${assetsDir}/images/settings-panel/slim.webp`,
-              dark: `${assetsDir}/images/settings-panel/slim-dark.webp`,
-            }}
+            image={
+              <SlimIllustration active={!disableSidenavShapeSection && sidenavType === 'slim'} />
+            }
             active={!disableSidenavShapeSection && sidenavType === 'slim'}
           />
         }
@@ -62,10 +67,11 @@ const SidenavShapePanel = () => {
         label={
           <SettingsItem
             label="Stacked"
-            image={{
-              light: `${assetsDir}/images/settings-panel/stacked.webp`,
-              dark: `${assetsDir}/images/settings-panel/stacked-dark.webp`,
-            }}
+            image={
+              <StackedIllustration
+                active={!disableSidenavShapeSection && sidenavType === 'stacked'}
+              />
+            }
             active={!disableSidenavShapeSection && sidenavType === 'stacked'}
           />
         }

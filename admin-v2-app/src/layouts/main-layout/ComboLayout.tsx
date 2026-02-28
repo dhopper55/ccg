@@ -53,6 +53,7 @@ const ComboLayout = ({ children }: PropsWithChildren) => {
         return 'appbarStacked';
       }
     }
+
     return 'appbar';
   }, [navigationMenuType, topnavType]);
 

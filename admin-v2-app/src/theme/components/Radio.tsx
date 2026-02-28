@@ -7,7 +7,7 @@ import {
 } from '@mui/material';
 import { Components } from '@mui/material/styles';
 import { cssVarRgba } from 'lib/utils';
-import { PaletteColorKey } from 'theme/palette';
+import { PaletteColorKey } from 'types/theme';
 import { RadioBlankIcon, RadioCheckedIcon } from 'components/icons/RadioIcon';
 
 declare module '@mui/material/Radio' {
@@ -25,6 +25,7 @@ const Radio: Components<Omit<Theme, 'components'>>['MuiRadio'] = {
       style: (style: { theme: Theme }) => {
         const theme = style.theme;
         const paletteColor = theme.vars.palette[color];
+
         return {
           '&:hover': {
             background: cssVarRgba(paletteColor.mainChannel, 0.12),
@@ -36,6 +37,7 @@ const Radio: Components<Omit<Theme, 'components'>>['MuiRadio'] = {
       props: { color: 'default' },
       style: (style) => {
         const theme = style.theme as Theme;
+
         return {
           '&:hover': {
             background: theme.vars.palette.background.elevation2,

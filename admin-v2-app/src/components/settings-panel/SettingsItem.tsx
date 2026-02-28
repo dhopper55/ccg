@@ -1,30 +1,47 @@
-import { useState } from 'react';
+import { ReactElement, isValidElement, useState } from 'react';
 import { Box, Typography } from '@mui/material';
 import IconifyIcon from 'components/base/IconifyIcon';
 import Image from 'components/base/Image';
 
 interface SettingsItemProps {
   label: string;
-  image: string | { light: string; dark: string };
+  image:
+    | string
+    | { light: string; dark: string }
+    | ReactElement<{ hovered?: boolean; active?: boolean }>;
   active?: boolean;
 }
 
-const hoverStyle = {
-  '&::after': {
-    content: '""',
-    position: 'absolute',
-    inset: 0,
-    height: 1,
-    width: 1,
-    bgcolor: 'primary.main',
-    borderRadius: 1,
-    mixBlendMode: 'overlay',
-    zIndex: 2,
-  },
-};
-
 const SettingsItem = ({ label, image, active }: SettingsItemProps) => {
   const [isHovered, setIsHovered] = useState(false);
+
+  const renderImage = () => {
+    if (isValidElement(image)) {
+      const ImageComponent = image.type as React.ComponentType<{
+        hovered?: boolean;
+        active?: boolean;
+      }>;
+      return (
+        <Box
+          sx={{
+            height: 1,
+            width: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <ImageComponent {...image.props} hovered={isHovered} active={active} />
+        </Box>
+      );
+    }
+    return (
+      <Image
+        src={image as string | { light: string; dark: string }}
+        sx={{ height: 1, width: 1, display: 'block' }}
+      />
+    );
+  };
 
   return (
     <Box
@@ -40,11 +57,11 @@ const SettingsItem = ({ label, image, active }: SettingsItemProps) => {
     >
       <Box
         sx={[
-          (!!active || isHovered) && hoverStyle,
-          { height: 92, position: 'relative', mb: 1, backgroundColor: 'transparent' },
+          !!active || isHovered,
+          { height: 63, width: 1, position: 'relative', mb: 1, backgroundColor: 'transparent' },
         ]}
       >
-        <Image src={image} sx={{ height: 1, width: 1, display: 'block' }} />
+        {renderImage()}
       </Box>
 
       {active && (
@@ -52,10 +69,10 @@ const SettingsItem = ({ label, image, active }: SettingsItemProps) => {
           icon="material-symbols:check-circle-rounded"
           sx={{
             color: 'primary.main',
-            fontSize: 24,
+            fontSize: 20,
             position: 'absolute',
-            top: 8,
-            right: 8,
+            top: 3,
+            left: 3,
           }}
         />
       )}

@@ -31,7 +31,7 @@ const Sidenav = () => {
             }),
             lg: 'none',
           },
-          position: { md: 'absolute', lg: 'static' },
+          position: { md: 'absolute', lg: 'relative' },
         },
         navColor === 'vibrant' && sidenavVibrantStyle,
       ]}

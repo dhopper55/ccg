@@ -1,27 +1,41 @@
 import { PropsWithChildren } from 'react';
-import { Box, Button, Stack, Toolbar, Typography, paperClasses } from '@mui/material';
+import { useSearchParams } from 'react-router';
+import {
+  Box,
+  Button,
+  Chip,
+  Divider,
+  Stack,
+  Toolbar,
+  Typography,
+  paperClasses,
+} from '@mui/material';
 import Drawer from '@mui/material/Drawer';
 import { useThemeMode } from 'hooks/useThemeMode';
 import { cssVarRgba } from 'lib/utils';
 import { useSettingsPanelContext } from 'providers/SettingsPanelProvider';
 import { useSettingsContext } from 'providers/SettingsProvider';
-import { RESET } from 'reducers/SettingsReducer';
-import { blue, green } from 'theme/palette/colors';
+import { useVisionMode } from 'providers/VisionModeProvider';
+import { RESET, SET_PRIMARY_COLOR } from 'reducers/SettingsReducer';
+import { blue, green } from 'theme/colors/base';
 import IconifyIcon from 'components/base/IconifyIcon';
 import SimpleBar from 'components/base/SimpleBar';
 import NavColorPanel from './NavColorPanel';
 import NavigationMenuPanel from './NavigationMenuPanel';
 import SidenavShapePanel from './SidenavShapePanel';
 import TextDirectionPanel from './TextDirectionPanel';
-import ThemeModeToggleTab from './ThemeModeToggleTab';
 import TopnavShapePanel from './TopnavShapePanel';
+import VisionModePanel from './VisionModePanel';
+import FontSettingsPanel from './font-settings/FontSettingsPanel';
+import ThemeList from './theme-preset/ThemeList';
 
 const SettingsPanel = () => {
   const {
     config: { navigationMenuType },
     configDispatch,
   } = useSettingsContext();
-  const { resetTheme } = useThemeMode();
+  const { setThemeMode, setThemePreset } = useThemeMode();
+  const { setMode } = useVisionMode();
   const {
     settingsPanelConfig: {
       openSettingPanel,
@@ -32,12 +46,15 @@ const SettingsPanel = () => {
     },
     setSettingsPanelConfig,
   } = useSettingsPanelContext();
+  const [, setSearchParams] = useSearchParams();
 
   const handleReset = () => {
-    resetTheme();
-    configDispatch({
-      type: RESET,
-    });
+    configDispatch({ type: RESET });
+    configDispatch({ type: SET_PRIMARY_COLOR, payload: blue[500] });
+    setThemePreset('default-light');
+    setThemeMode('light');
+    setMode('normal');
+    setSearchParams({}, { replace: true });
   };
 
   return (
@@ -120,16 +137,14 @@ const SettingsPanel = () => {
               <Stack
                 direction="column"
                 sx={{
-                  gap: 5,
+                  gap: 3,
                 }}
               >
-                <Section title="Theme Mode">
-                  <ThemeModeToggleTab />
+                <Section title="Theme">
+                  <ThemeList />
                 </Section>
 
-                <Section title="Text Direction">
-                  <TextDirectionPanel />
-                </Section>
+                <Divider sx={{ mx: -3 }} />
 
                 <Section title="Navigation Menu" disable={disableNavigationMenuSection}>
                   <NavigationMenuPanel />
@@ -145,8 +160,29 @@ const SettingsPanel = () => {
                     <TopnavShapePanel />
                   </Section>
                 )}
+
+                <Divider sx={{ mx: -3 }} />
+
                 <Section title="Nav Color" disable={disableNavColorSection}>
                   <NavColorPanel />
+                </Section>
+
+                <Divider sx={{ mx: -3 }} />
+
+                <Section title="Text Direction">
+                  <TextDirectionPanel />
+                </Section>
+
+                <Divider sx={{ mx: -3 }} />
+
+                <Section title="Font Family">
+                  <FontSettingsPanel />
+                </Section>
+
+                <Divider sx={{ mx: -3 }} />
+
+                <Section title="Vision Mode">
+                  <VisionModePanel />
                 </Section>
               </Stack>
             </Box>
@@ -207,18 +243,30 @@ const Section = ({
         },
       ]}
     >
-      <Typography
-        variant="subtitle1"
-        sx={[
-          {
-            fontWeight: 700,
-            mb: 2,
-          },
-          !!disable && { mb: 1, color: 'text.disabled' },
-        ]}
-      >
-        {title}
-      </Typography>
+      <Stack direction="row" alignItems="center" sx={[{ mb: 2 }, !!disable && { mb: 1 }]}>
+        <Typography
+          variant="subtitle1"
+          sx={[
+            {
+              fontWeight: 700,
+            },
+            !!disable && { color: 'text.disabled' },
+          ]}
+        >
+          {title}
+        </Typography>
+        {(title === 'Theme' ||
+          title === 'Vision Mode' ||
+          title === 'Font Family' ||
+          title === 'Font Size') && (
+          <Chip
+            size="xsmall"
+            label="new"
+            color="warning"
+            sx={{ textTransform: 'capitalize', ml: 1 }}
+          />
+        )}
+      </Stack>
       {disable && (
         <Stack sx={{ alignItems: 'center', gap: 0.5, mb: 2, color: 'info.main' }}>
           <IconifyIcon icon="material-symbols:info-outline" sx={{ fontSize: 16 }} />

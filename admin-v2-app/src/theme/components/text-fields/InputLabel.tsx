@@ -14,6 +14,7 @@ const getApplyShrink = (ownerState: any) => {
     //@ts-ignore
     applyShrink = ownerState.focused || ownerState.formControl.filled;
   }
+
   return applyShrink;
 };
 

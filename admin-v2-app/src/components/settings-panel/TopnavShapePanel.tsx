@@ -1,14 +1,18 @@
 import { ChangeEvent } from 'react';
+import { useSearchParams } from 'react-router';
 import { FormControlLabel, Radio } from '@mui/material';
 import { TopnavType } from 'config';
 import { useSettingsPanelContext } from 'providers/SettingsPanelProvider';
 import { useSettingsContext } from 'providers/SettingsProvider';
 import SettingsItem from './SettingsItem';
 import SettingsPanelRadioGroup from './SettingsPanelRadioGroup';
+import { TopnavDefaultIllustration } from './panel-illustrations/TopnavDefaultIllustration';
+import { TopnavSlimIllustration } from './panel-illustrations/TopnavSlimIllustration';
+import { TopnavStackedIllustration } from './panel-illustrations/TopnavStackedIllustration';
 
 const TopnavShapePanel = () => {
   const {
-    config: { topnavType, assetsDir },
+    config: { topnavType },
     setConfig,
   } = useSettingsContext();
 
@@ -16,7 +20,10 @@ const TopnavShapePanel = () => {
     settingsPanelConfig: { disableTopShapeSection },
   } = useSettingsPanelContext();
 
+  const [, setSearchParams] = useSearchParams();
+
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setSearchParams({}, { replace: true });
     const value = (event.target as HTMLInputElement).value as TopnavType;
     setConfig({
       topnavType: value,
@@ -31,10 +38,7 @@ const TopnavShapePanel = () => {
         label={
           <SettingsItem
             label="Default"
-            image={{
-              light: `${assetsDir}/images/settings-panel/topnav-default.webp`,
-              dark: `${assetsDir}/images/settings-panel/topnav-default-dark.webp`,
-            }}
+            image={<TopnavDefaultIllustration active={topnavType === 'default'} />}
             active={!disableTopShapeSection && topnavType === 'default'}
           />
         }
@@ -45,10 +49,7 @@ const TopnavShapePanel = () => {
         label={
           <SettingsItem
             label="Slim"
-            image={{
-              light: `${assetsDir}/images/settings-panel/topnav-slim.webp`,
-              dark: `${assetsDir}/images/settings-panel/topnav-slim-dark.webp`,
-            }}
+            image={<TopnavSlimIllustration active={topnavType === 'slim'} />}
             active={!disableTopShapeSection && topnavType === 'slim'}
           />
         }
@@ -59,10 +60,7 @@ const TopnavShapePanel = () => {
         label={
           <SettingsItem
             label="Stacked"
-            image={{
-              light: `${assetsDir}/images/settings-panel/topnav-stacked.webp`,
-              dark: `${assetsDir}/images/settings-panel/topnav-stacked-dark.webp`,
-            }}
+            image={<TopnavStackedIllustration active={topnavType === 'stacked'} />}
             active={!disableTopShapeSection && topnavType === 'stacked'}
           />
         }

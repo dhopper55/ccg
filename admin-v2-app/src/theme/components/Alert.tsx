@@ -27,6 +27,7 @@ const Alert: Components<Omit<Theme, 'components'>>['MuiAlert'] = {
         {
           props: (props) => {
             const { variant } = props;
+
             return variant === 'standard';
           },
           //@ts-ignore
@@ -34,6 +35,7 @@ const Alert: Components<Omit<Theme, 'components'>>['MuiAlert'] = {
             const paletteColor = theme.vars.palette[
               (color || severity) as AlertColor
             ] as PaletteColor;
+
             return {
               [`&.${alertClasses.standard}${capitalize(color || severity || '')}`]: {
                 backgroundColor: paletteColor.lighter,
@@ -50,6 +52,7 @@ const Alert: Components<Omit<Theme, 'components'>>['MuiAlert'] = {
           //@ts-ignore
           style: ({ severity, theme }) => {
             const paletteColor = theme.vars.palette[severity as AlertColor] as PaletteColor;
+
             return {
               [`&.${alertClasses.filled}${capitalize(severity || '')}`]: {
                 backgroundColor: paletteColor.main,
@@ -66,6 +69,7 @@ const Alert: Components<Omit<Theme, 'components'>>['MuiAlert'] = {
           //@ts-ignore
           style: ({ severity, theme }) => {
             const paletteColor = theme.vars.palette[severity as AlertColor] as PaletteColor;
+
             return {
               [`&.${alertClasses.outlined}${capitalize(severity || '')}`]: {
                 borderColor: paletteColor.main,

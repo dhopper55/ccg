@@ -1,7 +1,7 @@
 import { ChipProps, ComponentsVariants, Theme, chipClasses } from '@mui/material';
 import { Components } from '@mui/material/styles';
 import { cssVarRgba } from 'lib/utils';
-import { PaletteColorKey } from 'theme/palette';
+import { PaletteColorKey } from 'types/theme';
 import IconifyIcon from 'components/base/IconifyIcon';
 
 declare module '@mui/material/Chip' {
@@ -57,6 +57,7 @@ chipSoftVariants.push({
   props: { variant: 'soft', color: 'neutral' },
   style: (style) => {
     const theme = style.theme as Theme;
+
     return {
       background: theme.vars.palette.background.elevation2,
       color: theme.vars.palette.neutral.dark,
@@ -85,6 +86,7 @@ const Chip: Components<Omit<Theme, 'components'>>['MuiChip'] = {
       props: { variant: 'outlined', color: 'neutral' },
       style: (style) => {
         const theme = style.theme as Theme;
+
         return {
           borderColor: theme.vars.palette.background.elevation4,
           [`& .${chipClasses.label}`]: {

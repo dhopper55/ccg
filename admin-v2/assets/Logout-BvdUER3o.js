@@ -1,1 +1,0 @@
-import{z as o,D as r,r as i,E as n,j as u,F as l}from"./index-Hrf1bdRt.js";const c=()=>{const e=o(),{refreshSession:t,setSession:s}=r();return i.useEffect(()=>{let a=!0;return(async()=>{try{await fetch("/api/logout",{method:"POST",credentials:"same-origin"})}finally{s(null),await t(),a&&e(n.defaultJwtLogin,{replace:!0})}})(),()=>{a=!1}},[e,t,s]),u.jsx(l,{})};export{c as default};

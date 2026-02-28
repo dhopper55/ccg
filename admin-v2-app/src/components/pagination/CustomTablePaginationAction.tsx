@@ -1,4 +1,4 @@
-import { MouseEvent, useMemo } from 'react';
+import { MouseEvent } from 'react';
 import {
   Box,
   Button,
@@ -30,10 +30,10 @@ const CustomTablePaginationAction = ({
   showAllHref,
   showFullPagination,
 }: CustomTablePaginationActionProps) => {
-  const isShowingAll = useMemo(() => rowsPerPage === count, [rowsPerPage, count]);
   const { up } = useBreakpoints();
 
   const upSm = up('sm');
+
   return (
     <Stack
       sx={{
@@ -51,7 +51,7 @@ const CustomTablePaginationAction = ({
         onClick={onShowAllClick}
         sx={{ fontWeight: 700, flexShrink: 0, mt: { sm: 0.5 } }}
       >
-        {isShowingAll ? 'View less' : 'Show all'}
+        {rowsPerPage === count ? 'View less' : 'Show all'}
       </Link>
 
       {showFullPagination ? (

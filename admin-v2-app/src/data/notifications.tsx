@@ -291,7 +291,7 @@ export const notifications: Notification[] = [
     ),
     readAt: new Date(),
     user: [users[12]],
-    images: [`${initialConfig.assetsDir}/images/notifications/1.webp`],
+    images: [`${initialConfig.assetsDir}/images/notifications/2.webp`],
     createdAt: dayjs().subtract(3, 'd').toDate(),
   },
   {

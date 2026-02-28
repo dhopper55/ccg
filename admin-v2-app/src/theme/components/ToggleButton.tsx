@@ -7,7 +7,7 @@ import {
 } from '@mui/material';
 import { Components } from '@mui/material/styles';
 import { cssVarRgba } from 'lib/utils';
-import { PaletteColorKey } from 'theme/palette';
+import { PaletteColorKey } from 'types/theme';
 
 const toggleBtnColors: PaletteColorKey[] = [
   'primary',
@@ -24,6 +24,7 @@ const toggleBtnCustomVariants: ComponentsVariants['MuiToggleButton'] = toggleBtn
     style: (style) => {
       const theme = style.theme as Theme;
       const paletteColor = theme.vars.palette[color];
+
       return {
         backgroundColor: 'transparent',
         color: paletteColor.dark,
@@ -44,6 +45,7 @@ const toggleBtnGroupCustomVariants: ComponentsVariants['MuiToggleButtonGroup'] =
     style: (style) => {
       const theme = style.theme as Theme;
       const paletteColor = theme.vars.palette[color];
+
       return {
         [`& .${toggleButtonClasses.root}`]: {
           color: paletteColor.light,
@@ -66,6 +68,7 @@ const ToggleButton: Components<Omit<Theme, 'components'>>['MuiToggleButton'] = {
       props: { color: 'standard' },
       style: (style) => {
         const theme = style.theme as Theme;
+
         return {
           backgroundColor: 'transparent',
           color: theme.vars.palette.neutral.dark,
@@ -128,6 +131,7 @@ export const ToggleButtonGroup: Components<Omit<Theme, 'components'>>['MuiToggle
       props: { color: 'standard' },
       style: (style) => {
         const theme = style.theme as Theme;
+
         return {
           [`& .${toggleButtonClasses.root}`]: {
             color: theme.vars.palette.text.secondary,

@@ -42,16 +42,23 @@ const mixins: MixinsOptions = {
     },
   },
   footer: { xs: 72, sm: 56 },
-  topOffset: (topbarHeight, offset: number = 0, important) =>
-    Object.entries(topbarHeight).reduce((acc: { [key: string]: string }, [key, value]) => {
-      acc[key] = `${value + offset}px${important ? ' !important' : ''}`;
-      return acc;
-    }, {}),
-  contentHeight: (topbarHeight, offset = 0, important) =>
-    Object.entries(topbarHeight).reduce((acc: { [key: string]: string }, [key, value]) => {
-      acc[key] = `calc(100vh - ${value + offset}px)${important ? ' !important' : ''}`;
-      return acc;
-    }, {}),
+  topOffset: (topbarHeight, offset: number = 0, important = false) =>
+    topbarHeight
+      ? Object.entries(topbarHeight).reduce((acc: { [key: string]: string }, [key, value]) => {
+          acc[key] = `${value + offset}px${important ? ' !important' : ''}`;
+
+          return acc;
+        }, {})
+      : {},
+
+  contentHeight: (topbarHeight, offset = 0, important = false) =>
+    topbarHeight
+      ? Object.entries(topbarHeight).reduce((acc: { [key: string]: string }, [key, value]) => {
+          acc[key] = `calc(100vh - ${value + offset}px)${important ? ' !important' : ''}`;
+
+          return acc;
+        }, {})
+      : {},
 };
 
 export default mixins;

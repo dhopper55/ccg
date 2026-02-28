@@ -11,6 +11,7 @@ import {
 } from '@mui/material';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
+import paths from 'routes/paths';
 import { Notification } from 'types/notification';
 import Image from 'components/base/Image';
 import NotificationActionMenu from './NotificationActionMenu';
@@ -66,7 +67,7 @@ const NotificationList = ({
             }}
           >
             <ListItemButton
-              href="#!"
+              href={paths.notifications}
               disableRipple
               onClick={onItemClick}
               sx={[

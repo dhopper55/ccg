@@ -4,6 +4,7 @@ import { Divider, IconButton, ListSubheader } from '@mui/material';
 import Box from '@mui/material/Box';
 import List from '@mui/material/List';
 import Toolbar from '@mui/material/Toolbar';
+import DocSearch from 'layouts/main-layout/sidenav/doc-search/DocSearch';
 import { useSettingsContext } from 'providers/SettingsProvider';
 import sitemap from 'routes/sitemap';
 import IconifyIcon from 'components/base/IconifyIcon';
@@ -88,6 +89,7 @@ const SidenavDrawerContent = ({ variant = 'permanent' }: SidenavDrawerContentPro
                 {menu.subheader === 'Docs' && !sidenavCollapsed && (
                   <>
                     <Divider sx={{ mb: 4 }} />
+                    <DocSearch />
                   </>
                 )}
                 <List

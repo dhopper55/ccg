@@ -7,7 +7,7 @@ import {
   inputBaseClasses,
 } from '@mui/material';
 import { Components } from '@mui/material/styles';
-import { PaletteColorKey } from 'theme/palette';
+import { PaletteColorKey } from 'types/theme';
 
 const filledInputColors: PaletteColorKey[] = [
   'primary',
@@ -24,6 +24,7 @@ const filledInputCustomVariants: ComponentsVariants['MuiFilledInput'] = filledIn
     style: (style) => {
       const theme = style.theme as Theme;
       const paletteColor = theme.vars.palette[color];
+
       return {
         [`&.${filledInputClasses.focused}`]: {
           backgroundColor: paletteColor.lighter,

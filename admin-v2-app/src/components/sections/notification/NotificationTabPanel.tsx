@@ -24,6 +24,7 @@ const NotificationTabPanel = ({ value, notificationsData }: NotificationTabPanel
         } else {
           acc.older.push(val);
         }
+
         return acc;
       },
       {

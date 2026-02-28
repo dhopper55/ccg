@@ -1,8 +1,8 @@
 import { ComponentsVariants, PaginationProps, Theme, paginationItemClasses } from '@mui/material';
 import { Components, PaletteColor, PaletteColorChannel } from '@mui/material/styles';
 import { cssVarRgba } from 'lib/utils';
-import { PaletteColorKey } from 'theme/palette';
 import { VariantStyleProps } from 'types/mui';
+import { PaletteColorKey } from 'types/theme';
 import IconifyIcon from 'components/base/IconifyIcon';
 
 declare module '@mui/material/Pagination' {
@@ -56,6 +56,7 @@ const paginationCustomVariants: ComponentsVariants['MuiPaginationItem'] = pagina
     props: { variant: 'solid', color: color as PaginationProps['color'] },
     style: ({ theme }: { theme: Omit<Theme, 'components'> }) => {
       const paletteColor = theme.vars.palette[color];
+
       return {
         [`&.${paginationItemClasses.selected}, &.${paginationItemClasses.selected}:hover`]: {
           backgroundColor: paletteColor.dark,
@@ -101,6 +102,7 @@ export const PaginationItem: Components<Omit<Theme, 'components'>>['MuiPaginatio
               const colorKey = color as keyof typeof theme.vars.palette;
               const paletteColor = theme.vars.palette[colorKey] as PaletteColor &
                 PaletteColorChannel;
+
               return {
                 [`&.${paginationItemClasses.selected}, &.${paginationItemClasses.selected}:hover`]:
                   {

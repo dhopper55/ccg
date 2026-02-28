@@ -6,6 +6,7 @@ const SettingPanelToggler = () => {
   const { setSettingsPanelConfig } = useSettingsPanelContext();
 
   const theme = useTheme();
+
   return (
     <Button
       size="medium"

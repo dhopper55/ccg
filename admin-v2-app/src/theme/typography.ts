@@ -1,7 +1,17 @@
 import { TypographyVariantsOptions } from '@mui/material/styles';
+import { FontFamily, initialConfig } from 'config';
 
-const typography: TypographyVariantsOptions = {
-  fontFamily: ['Plus Jakarta Sans', 'sans-serif', 'Spline Sans Mono', 'monospace'].join(','),
+const createTypography = (
+  fontFamily: FontFamily = initialConfig.fontFamily,
+  fontSize: number = 16,
+): TypographyVariantsOptions => ({
+  fontFamily: [fontFamily, 'sans-serif', 'Spline Sans Mono', 'monospace', 'Josefin Sans'].join(','),
+  fontSize,
+  fontWeightLight: 300,
+  fontWeightRegular: 400,
+  fontWeightMedium: 500,
+  fontWeightSemiBold: 600,
+  fontWeightBold: 700,
   h1: {
     fontWeight: 700,
     fontSize: '3rem', // 48px
@@ -69,6 +79,6 @@ const typography: TypographyVariantsOptions = {
     lineHeight: 1.2,
     textTransform: 'uppercase',
   },
-};
+});
 
-export default typography;
+export default createTypography;

@@ -14,6 +14,7 @@ const OutlinedBadge = styled((props: OutlinedBadgeProps) => <Badge {...props} />
 })(({ theme, outlineOptions }) => {
   const borderWidth = outlineOptions?.width || 2;
   const borderColor = outlineOptions?.color || theme.vars.palette.background.paper;
+
   return {
     [`&.${badgeClasses.badge}`]: {
       '&::after': {

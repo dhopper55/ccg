@@ -1,32 +1,43 @@
-import { useEffect, useLayoutEffect } from 'react';
+import { useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router';
-import useIcons from 'hooks/useIcons';
-import { useThemeMode } from 'hooks/useThemeMode';
+import { useConfigFromQuery } from 'hooks/useConfigFromQuery';
 import AuthProvider from 'providers/AuthProvider';
-import { useSettingsContext } from 'providers/SettingsProvider';
-import { REFRESH } from 'reducers/SettingsReducer';
+import PurchaseWidget from 'components/purchase-widget/PurchaseWidget';
 import SettingPanelToggler from 'components/settings-panel/SettingPanelToggler';
 import SettingsPanel from 'components/settings-panel/SettingsPanel';
 
 const App = () => {
   const { pathname } = useLocation();
-  const { mode } = useThemeMode();
-  const { configDispatch } = useSettingsContext();
-  useIcons();
+
+  useConfigFromQuery();
+
+  const isShowcase = pathname === '/' || pathname.startsWith('/showcase');
 
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, [pathname]);
 
-  useLayoutEffect(() => {
-    configDispatch({ type: REFRESH });
-  }, [mode]);
+    if (isShowcase) {
+      document.documentElement.style.overscrollBehavior = 'none';
+      document.documentElement.style.filter = 'none';
+    }
+
+    return () => {
+      document.documentElement.style.overscrollBehavior = 'auto';
+      document.documentElement.style.filter = 'auto';
+    };
+  }, [pathname, isShowcase]);
 
   return (
     <AuthProvider>
       <Outlet />
-      <SettingsPanel />
-      <SettingPanelToggler />
+
+      {!isShowcase && (
+        <>
+          <SettingsPanel />
+          <SettingPanelToggler />
+          <PurchaseWidget />
+        </>
+      )}
     </AuthProvider>
   );
 };

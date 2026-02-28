@@ -16,4 +16,5 @@ export default [
 
 export const darkShadows = [
   '0px 12px 51px 0px rgba(0, 0, 0, 0.60), 0px 3px 24px 0px rgba(0, 0, 0, 0.56), 0px 1px 16px 0px rgba(0, 0, 0, 0.10)',
+  '-23px 0px 51px -23px rgba(0, 0, 0, 0.35),-10px 0px 20px -10px rgba(0, 0, 0, 0.28),0px 1px 16px 0px rgba(0, 0, 0, 0.22)',
 ];

@@ -14,6 +14,7 @@ import { mainDrawerWidth } from 'lib/constants';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
 import { useSettingsContext } from 'providers/SettingsProvider';
 import { COLLAPSE_NAVBAR, EXPAND_NAVBAR } from 'reducers/SettingsReducer';
+import paths from 'routes/paths';
 import { SubMenuItem } from 'routes/sitemap';
 
 interface NavContextInterface {
@@ -45,6 +46,9 @@ const NavProvider = ({ children }: PropsWithChildren) => {
   } = useSettingsContext();
 
   const isNestedItemOpen = (items: SubMenuItem[] = []) => {
+    if (pathname === paths.comingSoon) {
+      return false;
+    }
     const checkLink = (children: SubMenuItem) => {
       if (
         `${children.path}` === pathname ||
@@ -52,8 +56,10 @@ const NavProvider = ({ children }: PropsWithChildren) => {
       ) {
         return true;
       }
+
       return children.items && children.items.some(checkLink);
     };
+
     return items.some(checkLink);
   };
 

@@ -2,6 +2,7 @@ import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { Alert, Box, Button, Divider, Link, Stack, TextField, Typography } from '@mui/material';
 import Grid from '@mui/material/Grid';
+import routePaths from 'docs/routes/docPaths';
 import * as yup from 'yup';
 import IconifyIcon from 'components/base/IconifyIcon';
 import PasswordTextField from 'components/common/PasswordTextField';
@@ -81,9 +82,7 @@ const SignupForm = ({
       >
         {provider === 'firebase' && import.meta.env.VITE_BUILD_MODE === 'production' && (
           <Grid size={12} sx={{ mb: 1 }}>
-            <ViewOnlyAlert
-              docLink={`https://aurora.themewagon.com/documentation/authentication#firebase`}
-            />
+            <ViewOnlyAlert docLink={`${routePaths.authentication}#firebase`} />
           </Grid>
         )}
         <Grid size={12}>

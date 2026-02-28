@@ -6,6 +6,7 @@ import Lottie from 'lottie-react';
 
 const Page404 = () => {
   const { isDark } = useThemeMode();
+
   return (
     <Stack
       sx={{

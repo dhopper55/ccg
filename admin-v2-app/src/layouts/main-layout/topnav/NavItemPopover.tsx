@@ -9,6 +9,7 @@ import {
   Popover,
   popoverClasses,
 } from '@mui/material';
+import paths from 'routes/paths';
 import { SubMenuItem } from 'routes/sitemap';
 import IconifyIcon from 'components/base/IconifyIcon';
 import { useNavContext } from '../NavProvider';
@@ -101,9 +102,10 @@ const NavitemPopover = ({ anchorEl, open, handleClose, items, level }: NavItemPo
                   },
                 }}
                 selected={
-                  pathname === item.path ||
-                  (item.selectionPrefix && pathname!.includes(item.selectionPrefix)) ||
-                  isNestedItemOpen(item.items)
+                  pathname !== paths.comingSoon &&
+                  (pathname === item.path ||
+                    (item.selectionPrefix && pathname!.includes(item.selectionPrefix)) ||
+                    isNestedItemOpen(item.items))
                 }
               >
                 <ListItemText

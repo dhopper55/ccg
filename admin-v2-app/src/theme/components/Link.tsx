@@ -10,11 +10,13 @@ interface LinkBehaviorProps extends Omit<RouterLinkProps, 'to'> {
 
 export const LinkBehavior = ({ ref, ...props }: LinkBehaviorProps) => {
   const { href, ...other } = props;
+
   return <RouterLink ref={ref} to={href} {...other} />;
 };
 
 export const HashLinkBehavior = ({ ref, ...props }: LinkBehaviorProps) => {
   const { href, ...other } = props;
+
   return <HashLink smooth ref={ref} to={href} {...other} />;
 };
 

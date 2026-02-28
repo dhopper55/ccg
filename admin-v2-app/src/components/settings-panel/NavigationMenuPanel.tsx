@@ -1,4 +1,5 @@
 import { ChangeEvent } from 'react';
+import { useSearchParams } from 'react-router';
 import { FormControlLabel, Radio } from '@mui/material';
 import { NavigationMenuType } from 'config';
 import { useSettingsPanelContext } from 'providers/SettingsPanelProvider';
@@ -6,18 +7,23 @@ import { useSettingsContext } from 'providers/SettingsProvider';
 import { SET_NAVIGATION_MENU_TYPE } from 'reducers/SettingsReducer';
 import SettingsItem from './SettingsItem';
 import SettingsPanelRadioGroup from './SettingsPanelRadioGroup';
+import { ComboIllustration } from './panel-illustrations/ComboIllustration';
+import { SidenavIllustration } from './panel-illustrations/SidenavIllustration';
+import { TopnavIllustration } from './panel-illustrations/TopnavIllustration';
 
 const NavigationMenuPanel = () => {
   const {
-    config: { navigationMenuType, assetsDir },
+    config: { navigationMenuType },
     configDispatch,
   } = useSettingsContext();
+  const [, setSearchParams] = useSearchParams();
 
   const {
     settingsPanelConfig: { disableNavigationMenuSection },
   } = useSettingsPanelContext();
 
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setSearchParams({}, { replace: true });
     const value = (event.target as HTMLInputElement).value as NavigationMenuType;
     configDispatch({
       type: SET_NAVIGATION_MENU_TYPE,
@@ -37,10 +43,11 @@ const NavigationMenuPanel = () => {
         label={
           <SettingsItem
             label="Sidenav"
-            image={{
-              light: `${assetsDir}/images/settings-panel/sidenav.webp`,
-              dark: `${assetsDir}/images/settings-panel/sitenav-dark.webp`,
-            }}
+            image={
+              <SidenavIllustration
+                active={!disableNavigationMenuSection && navigationMenuType === 'sidenav'}
+              />
+            }
             active={!disableNavigationMenuSection && navigationMenuType === 'sidenav'}
           />
         }
@@ -51,10 +58,11 @@ const NavigationMenuPanel = () => {
         label={
           <SettingsItem
             label="Topnav"
-            image={{
-              light: `${assetsDir}/images/settings-panel/topnav.webp`,
-              dark: `${assetsDir}/images/settings-panel/topnav-dark.webp`,
-            }}
+            image={
+              <TopnavIllustration
+                active={!disableNavigationMenuSection && navigationMenuType === 'topnav'}
+              />
+            }
             active={!disableNavigationMenuSection && navigationMenuType === 'topnav'}
           />
         }
@@ -65,10 +73,11 @@ const NavigationMenuPanel = () => {
         label={
           <SettingsItem
             label="Combo"
-            image={{
-              light: `${assetsDir}/images/settings-panel/combo.webp`,
-              dark: `${assetsDir}/images/settings-panel/combo-dark.webp`,
-            }}
+            image={
+              <ComboIllustration
+                active={!disableNavigationMenuSection && navigationMenuType === 'combo'}
+              />
+            }
             active={!disableNavigationMenuSection && navigationMenuType === 'combo'}
           />
         }

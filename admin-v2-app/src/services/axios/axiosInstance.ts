@@ -14,6 +14,7 @@ axiosInstance.interceptors.request.use(async (config) => {
   if (authToken) {
     config.headers.Authorization = `Bearer ${authToken}`;
   }
+
   return config;
 });
 

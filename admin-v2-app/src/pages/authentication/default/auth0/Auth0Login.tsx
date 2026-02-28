@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
 import { Box, Button, Link, Stack, Typography } from '@mui/material';
 import Grid from '@mui/material/Grid';
+import routePaths from 'docs/routes/docPaths';
 import ViewOnlyAlert from 'components/sections/authentications/common/ViewOnlyAlert';
 
 const Auth0Login = () => {
@@ -55,10 +56,7 @@ const Auth0Login = () => {
           }}
         >
           {import.meta.env.VITE_BUILD_MODE === 'production' && (
-            <ViewOnlyAlert
-              docLink={`https://aurora.themewagon.com/documentation/authentication#auth0`}
-              sx={{ mb: 6 }}
-            />
+            <ViewOnlyAlert docLink={`${routePaths.authentication}#auth0`} sx={{ mb: 6 }} />
           )}
           <Typography
             variant="h4"

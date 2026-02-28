@@ -1,9 +1,11 @@
 import {
   Config,
+  FontFamily,
   NavColor,
   NavigationMenuType,
   SidenavType,
   SupportedLocales,
+  ThemePreset,
   initialConfig,
 } from 'config';
 import { mainDrawerWidth } from 'lib/constants';
@@ -19,6 +21,10 @@ export const SET_SIDENAV_SHAPE = 'SET_SIDENAV_SHAPE';
 export const SET_NAVIGATION_MENU_TYPE = 'SET_NAVIGATION_MENU_TYPE';
 export const SET_NAV_COLOR = 'SET_NAV_COLOR';
 export const SET_LOCALE = 'SET_LOCALE';
+export const SET_THEME_PRESET = 'SET_THEME_PRESET';
+export const SET_PRIMARY_COLOR = 'SET_PRIMARY_COLOR';
+export const SET_FONT_FAMILY = 'SET_FONT_FAMILY';
+export const SET_FONT_SIZE = 'SET_FONT_SIZE';
 
 //Action ts type
 export type ACTIONTYPE =
@@ -29,8 +35,12 @@ export type ACTIONTYPE =
   | { type: typeof SET_NAVIGATION_MENU_TYPE; payload: NavigationMenuType }
   | { type: typeof SET_SIDENAV_SHAPE; payload: SidenavType }
   | { type: typeof SET_NAV_COLOR; payload: NavColor }
+  | { type: typeof SET_THEME_PRESET; payload: ThemePreset }
+  | { type: typeof SET_PRIMARY_COLOR; payload: string | null }
   | { type: typeof RESET }
-  | { type: typeof SET_LOCALE; payload: SupportedLocales };
+  | { type: typeof SET_LOCALE; payload: SupportedLocales }
+  | { type: typeof SET_FONT_FAMILY; payload: FontFamily }
+  | { type: typeof SET_FONT_SIZE; payload: number };
 
 export const settingsReducer = (state: Config, action: ACTIONTYPE) => {
   let updatedState: Partial<Config> = {};
@@ -53,7 +63,7 @@ export const settingsReducer = (state: Config, action: ACTIONTYPE) => {
     case EXPAND_NAVBAR: {
       updatedState = {
         sidenavCollapsed: false,
-        drawerWidth: mainDrawerWidth.full,
+        drawerWidth: state.sidenavType === 'slim' ? mainDrawerWidth.slim : mainDrawerWidth.full,
       };
       break;
     }
@@ -64,12 +74,20 @@ export const settingsReducer = (state: Config, action: ACTIONTYPE) => {
       };
       break;
     }
+    case SET_THEME_PRESET: {
+      updatedState = { themePreset: action.payload };
+      break;
+    }
+    case SET_PRIMARY_COLOR: {
+      updatedState = { primaryColor: action.payload } as Partial<Config>;
+      break;
+    }
     case SET_NAVIGATION_MENU_TYPE: {
       switch (action.payload) {
         case 'sidenav': {
           updatedState = {
             navigationMenuType: 'sidenav',
-            drawerWidth: mainDrawerWidth.full,
+            drawerWidth: state.sidenavType === 'slim' ? mainDrawerWidth.slim : mainDrawerWidth.full,
           };
           break;
         }
@@ -85,7 +103,7 @@ export const settingsReducer = (state: Config, action: ACTIONTYPE) => {
           updatedState = {
             navigationMenuType: 'combo',
             sidenavCollapsed: false,
-            drawerWidth: mainDrawerWidth.full,
+            drawerWidth: state.sidenavType === 'slim' ? mainDrawerWidth.slim : mainDrawerWidth.full,
           };
           break;
         }
@@ -122,21 +140,22 @@ export const settingsReducer = (state: Config, action: ACTIONTYPE) => {
       break;
     }
     case SET_NAV_COLOR: {
-      const { payload } = action;
-      updatedState = {
-        navColor: payload,
-      };
+      updatedState = { navColor: action.payload };
+      break;
+    }
+    case SET_FONT_FAMILY: {
+      updatedState = { fontFamily: action.payload };
+      break;
+    }
+    case SET_FONT_SIZE: {
+      updatedState = { fontSize: action.payload };
       break;
     }
     case RESET:
-      updatedState = {
-        ...initialConfig,
-      };
+      updatedState = { ...initialConfig };
       break;
     case REFRESH:
-      return {
-        ...state,
-      };
+      return { ...state };
     default:
       return state;
   }
@@ -144,6 +163,8 @@ export const settingsReducer = (state: Config, action: ACTIONTYPE) => {
     if (
       [
         'themeMode',
+        'themePreset',
+        'primaryColor',
         'sidenavCollapsed',
         'sidenavType',
         'textDirection',
@@ -151,6 +172,8 @@ export const settingsReducer = (state: Config, action: ACTIONTYPE) => {
         'topnavType',
         'navColor',
         'locale',
+        'fontFamily',
+        'fontSize',
       ].includes(key)
     ) {
       setItemToStore(key, String(updatedState[key as keyof Config]));

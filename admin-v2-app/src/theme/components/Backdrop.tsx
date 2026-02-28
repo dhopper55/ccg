@@ -12,6 +12,7 @@ const Backdrop: Components<Omit<Theme, 'components'>>['MuiBackdrop'] = {
       if (ownerState.invisible) {
         return {};
       }
+
       return {
         backgroundColor: cssVarRgba(theme.vars.palette.grey['950Channel'], 0.3),
         ...theme.applyStyles('dark', {

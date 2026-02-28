@@ -46,6 +46,7 @@ const MainLayout = ({ children }: PropsWithChildren) => {
         return 'appbarStacked';
       }
     }
+
     return 'appbar';
   }, [navigationMenuType, topnavType]);
 

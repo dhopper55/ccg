@@ -15,6 +15,7 @@ const generateArrowStyles = (
       },
     };
   }
+
   return {
     [`.${tooltipClasses.tooltip}`]: {
       [borderRadiusProperty]: 0,

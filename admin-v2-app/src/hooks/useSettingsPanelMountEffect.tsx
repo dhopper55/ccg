@@ -10,8 +10,10 @@ const useSettingsPanelMountEffect = (effects: Partial<SettingsPanelConfig>) => {
     const undoEffects = Object.keys(effects).reduce((acc, effect) => {
       // @ts-ignore
       acc[effect] = settingsPanelConfig[effect as keyof Config];
+
       return acc;
     }, {} as Partial<SettingsPanelConfig>);
+
     return () => {
       setSettingsPanelConfig(undoEffects);
     };

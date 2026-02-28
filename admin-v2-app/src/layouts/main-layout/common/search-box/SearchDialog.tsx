@@ -8,6 +8,7 @@ interface SearchDialogProps {
 
 const SearchDialog = ({ anchorEl, handleClose }: SearchDialogProps) => {
   const open = Boolean(anchorEl);
+
   return (
     <Dialog
       open={open}

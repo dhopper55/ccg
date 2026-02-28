@@ -39,6 +39,7 @@ const TopnavLayout = ({ children }: PropsWithChildren) => {
     if (topnavType === 'stacked') {
       return 'appbarStacked';
     }
+
     return 'appbar';
   }, [navigationMenuType, topnavType]);
 

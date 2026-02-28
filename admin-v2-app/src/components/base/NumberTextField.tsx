@@ -15,6 +15,7 @@ const NumberTextField = ({
   ...rest
 }: NumberTextFieldProps) => {
   const Component = variant === 'custom' ? StyledTextField : TextField;
+
   return (
     <Component
       ref={ref}

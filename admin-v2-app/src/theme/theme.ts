@@ -1,10 +1,9 @@
 import type {} from '@mui/lab/themeAugmentation';
-import { createTheme as muiCreateTheme } from '@mui/material';
+import { TypographyVariantsOptions, createTheme as muiCreateTheme } from '@mui/material';
 import * as locales from '@mui/material/locale';
 import type {} from '@mui/material/themeCssVarsAugmentation';
 import type {} from '@mui/x-data-grid/themeAugmentation';
-import { SupportedLocales } from 'config';
-import createPalette from 'theme/palette';
+import { FontFamily, SupportedLocales, ThemePreset } from 'config';
 import Accordion, { AccordionDetails, AccordionSummary } from './components/Accordion';
 import Alert from './components/Alert';
 import AppBar from './components/AppBar';
@@ -82,34 +81,65 @@ import InputLabel from './components/text-fields/InputLabel';
 import OutlinedInput from './components/text-fields/OutlinedInput';
 import TextField from './components/text-fields/TextField';
 import mixins from './mixins';
+import { darkPalettes, lightPalettes } from './palettes';
+import { applyPrimaryOverride } from './primaryColorOverride';
 import shadows, { darkShadows } from './shadows';
 import sxConfig from './sxConfig';
-import typography from './typography';
+import createTypography from './typography';
 
 export type MuiSupportedLocales = keyof typeof locales;
 
-export const createTheme = (
-  direction: 'ltr' | 'rtl' = 'ltr',
-  locale: SupportedLocales = 'en-US',
-) => {
-  const muiLocales = locales[locale.split('-').join('') as MuiSupportedLocales];
+export const getMuiLocale = (locale: SupportedLocales) => {
+  return locales[locale.split('-').join('') as MuiSupportedLocales];
+};
 
-  return muiCreateTheme(
+export interface CreateThemeOptions {
+  preset: ThemePreset;
+  direction?: 'ltr' | 'rtl';
+  fontFamily?: FontFamily;
+  fontSize?: number;
+  typography?: TypographyVariantsOptions;
+  locale?: SupportedLocales;
+  primaryColor?: string | null;
+  cssVarPrefix?: string;
+}
+
+export const createTheme = ({
+  direction = 'ltr',
+  locale = 'en-US',
+  preset,
+  fontFamily,
+  fontSize,
+  typography,
+  primaryColor,
+  cssVarPrefix = 'aurora',
+}: CreateThemeOptions) => {
+  const muiLocales = getMuiLocale(locale);
+
+  const theme = muiCreateTheme(
     {
-      cssVariables: { colorSchemeSelector: 'data-aurora-color-scheme', cssVarPrefix: 'aurora' },
-      shadows: ['none', ...shadows],
+      cssVariables: { colorSchemeSelector: 'data-aurora-color-scheme', cssVarPrefix },
       colorSchemes: {
         light: {
-          palette: createPalette('light'),
+          palette: applyPrimaryOverride(
+            lightPalettes[preset] ?? lightPalettes['default-light'],
+            primaryColor,
+            'light',
+          ),
           shadows: ['none', ...shadows],
         },
         dark: {
-          palette: createPalette('dark'),
+          palette: applyPrimaryOverride(
+            darkPalettes[preset] ?? darkPalettes['default-dark'],
+            primaryColor,
+            'dark',
+          ),
           shadows: ['none', ...Array(shadows.length).fill(darkShadows[0])],
         },
       },
-      typography,
+      shadows: ['none', ...shadows],
       direction,
+      typography: typography ?? createTypography(fontFamily, fontSize),
       unstable_sxConfig: sxConfig,
       mixins,
       components: {
@@ -206,4 +236,6 @@ export const createTheme = (
     },
     muiLocales,
   );
+
+  return theme;
 };

@@ -2,6 +2,7 @@ import { SvgIcon, SvgIconProps, useTheme } from '@mui/material';
 
 const CheckBoxCheckedIcon = (props: SvgIconProps) => {
   const theme = useTheme();
+
   return (
     <SvgIcon {...props}>
       <rect width="16" height="16" rx="4" fill="currentColor" />

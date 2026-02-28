@@ -82,7 +82,10 @@ const CheckMailBoxDialog = ({
           }}
         >
           <Image
-            src={{ light: illustration, dark: illustrationDark }}
+            src={{
+              light: illustration,
+              dark: illustrationDark,
+            }}
             alt=""
             width={320}
             height={240}

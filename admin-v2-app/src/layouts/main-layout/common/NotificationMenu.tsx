@@ -3,6 +3,7 @@ import { Box, Button, Link, Popover, Stack, badgeClasses, paperClasses } from '@
 import { notifications as notificationsData } from 'data/notifications';
 import dayjs from 'dayjs';
 import { useSettingsContext } from 'providers/SettingsProvider';
+import paths from 'routes/paths';
 import { DatewiseNotification } from 'types/notification';
 import IconifyIcon from 'components/base/IconifyIcon';
 import SimpleBar from 'components/base/SimpleBar';
@@ -40,6 +41,7 @@ const NotificationMenu = ({ type = 'default' }: NotificationMenuProps) => {
         } else {
           acc.older.push(val);
         }
+
         return acc;
       },
       {
@@ -128,7 +130,13 @@ const NotificationMenu = ({ type = 'default' }: NotificationMenuProps) => {
             py: 1,
           }}
         >
-          <Button component={Link} underline="none" href="#!" variant="text" color="primary">
+          <Button
+            component={Link}
+            underline="none"
+            href={paths.notifications}
+            variant="text"
+            color="primary"
+          >
             Load more notifications
           </Button>
         </Stack>

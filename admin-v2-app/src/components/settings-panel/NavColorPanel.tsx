@@ -1,7 +1,9 @@
+import { useSearchParams } from 'react-router';
 import { Box, Button, Stack, SxProps, Typography } from '@mui/material';
 import { NavColor } from 'config';
 import { useSettingsContext } from 'providers/SettingsProvider';
 import { SET_NAV_COLOR } from 'reducers/SettingsReducer';
+import IconifyIcon from 'components/base/IconifyIcon';
 
 interface ItemProps {
   label: string;
@@ -14,29 +16,44 @@ const Item = ({ label, sx, active, onClick }: ItemProps) => {
   return (
     <Button
       sx={{
-        p: 2,
-        gap: 2,
+        p: 1,
+        pt: 1.5,
+        gap: 1,
         flex: 1,
         display: 'flex',
         flexDirection: 'column',
-        borderRadius: 4,
+        borderRadius: 2,
         bgcolor: active ? 'primary.lighter' : 'background.elevation1',
+        position: 'relative',
       }}
       onClick={onClick}
     >
+      {active && (
+        <IconifyIcon
+          icon="material-symbols:check-circle-rounded"
+          sx={{
+            color: 'primary.main',
+            fontSize: 20,
+            position: 'absolute',
+            top: 4,
+            left: 4,
+          }}
+        />
+      )}
       <Box
         sx={{
-          height: 40,
-          width: 40,
+          height: 24,
+          width: 24,
           borderRadius: '50%',
+          position: 'relative',
           ...sx,
         }}
-      />
+      ></Box>
       <Typography
         variant="body2"
         sx={{
           fontWeight: active ? 500 : 400,
-          color: active ? 'primary.main' : 'text.primary',
+          color: active ? 'primary.main' : 'text.secondary',
         }}
       >
         {label}
@@ -50,8 +67,10 @@ const NavColorPanel = () => {
     config: { navColor },
     configDispatch,
   } = useSettingsContext();
+  const [, setSearchParams] = useSearchParams();
 
   const handleClick = (value: NavColor) => {
+    setSearchParams({}, { replace: true });
     configDispatch({
       type: SET_NAV_COLOR,
       payload: value,
@@ -61,7 +80,7 @@ const NavColorPanel = () => {
   return (
     <Stack
       sx={{
-        gap: 2,
+        gap: 1,
       }}
     >
       <Item
