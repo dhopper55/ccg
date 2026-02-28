@@ -1,29 +1,30 @@
-import { useNavigate } from 'react-router';
-import { defaultJwtAuthCredentials } from 'config';
-import { useAuth } from 'providers/AuthProvider';
-import paths, { rootPaths } from 'routes/paths';
-import { useLoginUser } from 'services/swr/api-hooks/useAuthApi';
-import LoginForm, { LoginFormValues } from 'components/sections/authentications/default/LoginForm';
+import { useNavigate } from "react-router";
+import { useAuth } from "providers/AuthProvider";
+import { rootPaths } from "routes/paths";
+import LoginForm, { LoginFormValues } from "components/sections/authentications/default/LoginForm";
 
 const Login = () => {
-  const { setSession } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
-  const { trigger: login } = useLoginUser();
+
   const handleLogin = async (data: LoginFormValues) => {
-    const res = await login(data).catch((error) => {
-      throw new Error(error.data.message);
-    });
-    if (res) {
-      setSession(res.user, res.authToken);
-      navigate(rootPaths.root);
-    }
+    await login(data);
+    navigate(rootPaths.root);
   };
+
   return (
     <LoginForm
       handleLogin={handleLogin}
-      signUpLink={paths.defaultJwtSignup}
-      forgotPasswordLink={paths.defaultJwtForgotPassword}
-      defaultCredential={defaultJwtAuthCredentials}
+      provider="jwt"
+      emailLabel="Username"
+      emailType="text"
+      emailAutoComplete="username"
+      emailValidation="text"
+      signUpLink=""
+      socialAuth={false}
+      rememberDevice={false}
+      showSignUpPrompt={false}
+      supportLink={null}
     />
   );
 };

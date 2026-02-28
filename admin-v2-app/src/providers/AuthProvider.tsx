@@ -1,6 +1,5 @@
-import { PropsWithChildren, use } from 'react';
-import AuthJwtProvider, { AuthJwtContext } from './auth-provider/AuthJwtProvider';
-import SocialAuthProvider from './auth-provider/SocialAuthProvider';
+import { PropsWithChildren, use } from "react";
+import AuthJwtProvider, { AuthJwtContext } from "./auth-provider/AuthJwtProvider";
 
 // import Auth0Provider, { Auth0Context } from './auth-provider/Auth0Provider';
 // import AuthFirebaseProvider, { AuthFirebaseContext } from './auth-provider/AuthFirebaseProvider';
@@ -15,11 +14,7 @@ const AuthMethodContext = AuthJwtContext;
 // const AuthMethodContext = AuthFirebaseContext;
 
 const AuthProvider = ({ children }: PropsWithChildren) => {
-  return (
-    <AuthMethodProvider>
-      <SocialAuthProvider>{children}</SocialAuthProvider>
-    </AuthMethodProvider>
-  );
+  return <AuthMethodProvider>{children}</AuthMethodProvider>;
 };
 
 export const useAuth = () => use(AuthMethodContext);

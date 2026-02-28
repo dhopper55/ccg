@@ -21,7 +21,6 @@ import { cssVarRgba } from 'lib/utils';
 import { useAuth } from 'providers/AuthProvider';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
 import { useSettingsContext } from 'providers/SettingsProvider';
-import { demoUser } from 'providers/auth-provider/AuthJwtProvider';
 import sitemap, { MenuItem, SubMenuItem } from 'routes/sitemap';
 import { sidenavVibrantStyle } from 'theme/styles/vibrantNav';
 import IconifyIcon from 'components/base/IconifyIcon';
@@ -57,9 +56,14 @@ const StackedSidenav = () => {
   };
 
   const { sessionUser } = useAuth();
-
-  // Demo user data used for development purposes
-  const user = useMemo(() => sessionUser || demoUser, [sessionUser]);
+  const user = useMemo(
+    () =>
+      sessionUser || {
+        name: 'Admin',
+        avatar: null,
+      },
+    [sessionUser],
+  );
 
   const drawer = (
     <Box sx={{ flex: 1, overflow: 'hidden' }}>

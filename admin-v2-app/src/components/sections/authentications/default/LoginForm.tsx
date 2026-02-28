@@ -23,9 +23,15 @@ interface LoginFormProps {
   provider?: 'jwt' | 'firebase';
   handleLogin: (data: LoginFormValues) => any;
   signUpLink: string;
+  emailLabel?: string;
+  emailType?: string;
+  emailAutoComplete?: string;
+  emailValidation?: 'email' | 'text';
   socialAuth?: boolean;
   forgotPasswordLink?: string;
   rememberDevice?: boolean;
+  showSignUpPrompt?: boolean;
+  supportLink?: string | null;
   defaultCredential?: { email: string; password: string };
 }
 export interface LoginFormValues {
@@ -33,25 +39,34 @@ export interface LoginFormValues {
   password: string;
 }
 
-const schema = yup
-  .object({
-    email: yup
-      .string()
-      .email('Please provide a valid email address.')
-      .required('This field is required'),
-    password: yup.string().required('This field is required'),
-  })
-  .required();
-
 const LoginForm = ({
   provider = 'jwt',
   handleLogin,
   signUpLink,
+  emailLabel = 'Email',
+  emailType = 'email',
+  emailAutoComplete = 'email',
+  emailValidation = 'email',
   forgotPasswordLink,
   socialAuth = true,
   rememberDevice = true,
+  showSignUpPrompt = true,
+  supportLink = '#!',
   defaultCredential,
 }: LoginFormProps) => {
+  const schema = yup
+    .object({
+      email:
+        emailValidation === 'email'
+          ? yup
+              .string()
+              .email('Please provide a valid email address.')
+              .required('This field is required')
+          : yup.string().trim().required('This field is required'),
+      password: yup.string().required('This field is required'),
+    })
+    .required();
+
   const {
     register,
     handleSubmit,
@@ -114,10 +129,16 @@ const LoginForm = ({
                 color: 'text.secondary',
               }}
             >
-              Don&apos;t have an account?
-              <Link href={signUpLink} sx={{ ml: 1 }}>
-                Sign up
-              </Link>
+              {showSignUpPrompt ? (
+                <>
+                  Don&apos;t have an account?
+                  <Link href={signUpLink} sx={{ ml: 1 }}>
+                    Sign up
+                  </Link>
+                </>
+              ) : (
+                'Use your Coal Creek Guitars admin credentials.'
+              )}
             </Typography>
           </Stack>
         </Grid>
@@ -151,8 +172,9 @@ const LoginForm = ({
                   fullWidth
                   size="large"
                   id="email"
-                  type="email"
-                  label="Email"
+                  type={emailType}
+                  label={emailLabel}
+                  autoComplete={emailAutoComplete}
                   defaultValue={defaultCredential?.email}
                   error={!!errors.email}
                   helperText={<>{errors.email?.message}</>}
@@ -227,9 +249,11 @@ const LoginForm = ({
           </Box>
         </Grid>
       </Grid>
-      <Link href="#!" variant="subtitle2">
-        Trouble signing in?
-      </Link>
+      {supportLink && (
+        <Link href={supportLink} variant="subtitle2">
+          Trouble signing in?
+        </Link>
+      )}
     </Stack>
   );
 };

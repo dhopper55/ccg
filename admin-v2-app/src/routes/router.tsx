@@ -1,16 +1,14 @@
-import { Suspense, lazy } from 'react';
-import { Outlet, RouteObject, createBrowserRouter, useLocation } from 'react-router';
-import App from 'App';
-import AuthLayout from 'layouts/auth-layout';
-import DefaultAuthLayout from 'layouts/auth-layout/DefaultAuthLayout';
-import MainLayout from 'layouts/main-layout';
-import Page404 from 'pages/errors/Page404';
-import PageLoader from 'components/loading/PageLoader';
-import paths, { rootPaths } from './paths';
-
-// import AuthGurad from 'components/guard/AuthGuard';
-// import GuestGurad from 'components/guard/GuestGurad';
-// import Splash from 'components/loading/Splash';
+import { Suspense, lazy } from "react";
+import { Outlet, RouteObject, createBrowserRouter, useLocation } from "react-router";
+import App from "App";
+import AuthLayout from "layouts/auth-layout";
+import DefaultAuthLayout from "layouts/auth-layout/DefaultAuthLayout";
+import MainLayout from "layouts/main-layout";
+import Page404 from "pages/errors/Page404";
+import PageLoader from "components/loading/PageLoader";
+import AuthGurad from "components/guard/AuthGuard";
+import GuestGurad from "components/guard/GuestGurad";
+import paths, { rootPaths } from "./paths";
 
 const Starter = lazy(() => import('pages/others/Starter'));
 
@@ -51,13 +49,11 @@ export const routes: RouteObject[] = [
       {
         path: '/',
         element: (
-          // Uncomment the following line to activate the AuthGuard for protected routes
-
-          // <AuthGurad>
+          <AuthGurad>
           <MainLayout>
             <SuspenseOutlet />
           </MainLayout>
-          // </AuthGurad>
+          </AuthGurad>
         ),
         children: [
           {
@@ -70,11 +66,9 @@ export const routes: RouteObject[] = [
       {
         path: rootPaths.authRoot,
         element: (
-          // Uncomment the following line to activate the GuestGurad for guest routes
-
-          // <GuestGurad>
+          <GuestGurad>
           <AuthLayout />
-          // </GuestGurad>
+          </GuestGurad>
         ),
         children: [
           {

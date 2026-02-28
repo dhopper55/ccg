@@ -7,70 +7,131 @@ import {
   useCallback,
   useEffect,
   useState,
-} from 'react';
-import { users } from 'data/users';
-import { removeItemFromStore } from 'lib/utils';
-import { firebaseAuth } from 'services/firebase/firebase';
-import { User, useGetCurrentUser } from 'services/swr/api-hooks/useAuthApi';
+} from "react";
 
-interface SessionUser extends User {
-  provider?: string;
+export interface SessionUser {
+  id: string;
+  name: string;
+  email: string;
+  avatar: null | string;
+  designation?: string;
 }
+
+type SessionResponse = {
+  ok?: boolean;
+  user?: string;
+};
 
 interface AuthJwtContextInterface {
   sessionUser: SessionUser | null;
-  setSessionUser: Dispatch<SetStateAction<User | null>>;
-  setSession: (user: SessionUser | null, token?: string) => void;
+  isLoading: boolean;
+  setSessionUser: Dispatch<SetStateAction<SessionUser | null>>;
+  setSession: (user: SessionUser | null) => void;
+  refreshSession: () => Promise<SessionUser | null>;
+  login: (credentials: { email: string; password: string }) => Promise<void>;
   signout: () => void;
 }
 
 export const AuthJwtContext = createContext({} as AuthJwtContextInterface);
 
+function buildSessionUser(username: string): SessionUser {
+  const trimmed = username.trim();
+  return {
+    id: trimmed,
+    name: trimmed,
+    email: trimmed,
+    avatar: null,
+    designation: "Admin",
+  };
+}
+
 const AuthJwtProvider = ({ children }: PropsWithChildren) => {
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
-
-  const { data } = useGetCurrentUser();
+  const [isLoading, setIsLoading] = useState(true);
 
   const setSession = useCallback(
-    (user: User | null, token?: string) => {
+    (user: SessionUser | null) => {
       setSessionUser(user);
-      if (token) {
-        localStorage.setItem('auth_token', token);
-      }
     },
     [setSessionUser],
   );
 
+  const refreshSession = useCallback(async (): Promise<SessionUser | null> => {
+    try {
+      const response = await fetch("/api/session", {
+        method: "GET",
+        credentials: "same-origin",
+      });
+      if (!response.ok) {
+        setSessionUser(null);
+        return null;
+      }
+      const data = (await response.json()) as SessionResponse;
+      if (!data.ok || !data.user) {
+        setSessionUser(null);
+        return null;
+      }
+      const nextUser = buildSessionUser(data.user);
+      setSessionUser(nextUser);
+      return nextUser;
+    } catch {
+      setSessionUser(null);
+      return null;
+    }
+  }, []);
+
+  const login = useCallback(
+    async ({ email, password }: { email: string; password: string }) => {
+      const response = await fetch("/api/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          username: email.trim(),
+          password,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Invalid credentials. Try again.");
+      }
+
+      const nextUser = await refreshSession();
+      if (!nextUser) {
+        throw new Error("Authenticated session was not established.");
+      }
+    },
+    [refreshSession],
+  );
+
   const signout = useCallback(() => {
     setSessionUser(null);
-    removeItemFromStore('session_user');
-    removeItemFromStore('auth_token');
-    if (sessionUser?.provider === 'firebase') {
-      firebaseAuth.signOut();
-    }
-  }, [setSessionUser, sessionUser]);
+  }, []);
 
   useEffect(() => {
-    if (data) {
-      setSession(data);
-    }
-  }, [data]);
+    let isMounted = true;
+
+    void (async () => {
+      await refreshSession();
+      if (isMounted) {
+        setIsLoading(false);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [refreshSession]);
 
   return (
-    <AuthJwtContext value={{ sessionUser, setSessionUser, setSession, signout }}>
+    <AuthJwtContext
+      value={{ sessionUser, isLoading, setSessionUser, setSession, refreshSession, login, signout }}
+    >
       {children}
     </AuthJwtContext>
   );
 };
 
 export const useAuth = () => use(AuthJwtContext);
-
-export const demoUser: SessionUser = {
-  id: 0,
-  email: 'guest@mail.com',
-  name: 'Guest',
-  avatar: users[13].avatar,
-  designation: 'Merchant Captian ',
-};
 
 export default AuthJwtProvider;

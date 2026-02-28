@@ -1,5 +1,4 @@
 import { PropsWithChildren, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
 import {
   Box,
   Button,
@@ -21,8 +20,6 @@ import { useThemeMode } from 'hooks/useThemeMode';
 import { useAuth } from 'providers/AuthProvider';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
 import { useSettingsContext } from 'providers/SettingsProvider';
-import { demoUser } from 'providers/auth-provider/AuthJwtProvider';
-import paths, { authPaths } from 'routes/paths';
 import IconifyIcon from 'components/base/IconifyIcon';
 import StatusAvatar from 'components/base/StatusAvatar';
 
@@ -37,7 +34,6 @@ interface ProfileMenuItemProps extends MenuItemProps {
 }
 
 const ProfileMenu = ({ type = 'default' }: ProfileMenuProps) => {
-  const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const { up } = useBreakpoints();
   const upSm = up('sm');
@@ -47,10 +43,16 @@ const ProfileMenu = ({ type = 'default' }: ProfileMenuProps) => {
 
   const { isDark, setThemeMode } = useThemeMode();
 
-  const { sessionUser, signout } = useAuth();
-
-  // Demo user data used for development purposes
-  const user = useMemo(() => sessionUser || demoUser, [sessionUser]);
+  const { sessionUser } = useAuth();
+  const user = useMemo(
+    () =>
+      sessionUser || {
+        name: 'Admin',
+        avatar: null,
+        designation: undefined,
+      },
+    [sessionUser],
+  );
 
   const open = Boolean(anchorEl);
   const handleClick = (event: React.MouseEvent<HTMLElement>) => {
@@ -58,12 +60,6 @@ const ProfileMenu = ({ type = 'default' }: ProfileMenuProps) => {
   };
   const handleClose = () => {
     setAnchorEl(null);
-  };
-
-  const handleSignout = () => {
-    signout();
-    navigate(paths.defaultLoggedOut);
-    handleClose();
   };
 
   const menuButton = (
@@ -204,17 +200,7 @@ const ProfileMenu = ({ type = 'default' }: ProfileMenuProps) => {
           </ProfileMenuItem>
         </Box>
         <Divider />
-        <Box sx={{ py: 1 }}>
-          {sessionUser ? (
-            <ProfileMenuItem onClick={handleSignout} icon="material-symbols:logout-rounded">
-              Sign Out
-            </ProfileMenuItem>
-          ) : (
-            <ProfileMenuItem href={authPaths.login} icon="material-symbols:login-rounded">
-              Sign In
-            </ProfileMenuItem>
-          )}
-        </Box>
+        <Box sx={{ py: 1 }} />
       </Menu>
     </>
   );
