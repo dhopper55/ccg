@@ -1,40 +1,24 @@
 import { PropsWithChildren } from 'react';
-import { useThemeMode } from 'hooks/useThemeMode';
-import { cssVarRgba } from 'lib/utils';
-import { useSettingsContext } from 'providers/SettingsProvider';
-import SimpleBar, { SimpleBarProps } from 'components/base/SimpleBar';
+import { Box, BoxProps } from '@mui/material';
 
-const SidenavSimpleBar = ({ children, sx, ...props }: PropsWithChildren<SimpleBarProps>) => {
-  const {
-    config: { navColor },
-  } = useSettingsContext();
-  const { isDark } = useThemeMode();
+interface SidenavSimpleBarProps {
+  sx?: BoxProps['sx'];
+}
 
+const SidenavSimpleBar = ({ children, sx }: PropsWithChildren<SidenavSimpleBarProps>) => {
   return (
-    <SimpleBar
-      {...props}
-      autoHide
-      sx={{
-        height: 1,
-        '& .simplebar-track': {
-          '&.simplebar-vertical': {
-            '& .simplebar-scrollbar': {
-              '&:before': {
-                backgroundColor: (theme) =>
-                  navColor === 'vibrant'
-                    ? isDark
-                      ? cssVarRgba(theme.vars.palette.common.whiteChannel, 0.3)
-                      : cssVarRgba(theme.vars.palette.common.whiteChannel, 0.7)
-                    : 'chGrey.300',
-              },
-            },
-          },
+    <Box
+      sx={[
+        {
+          height: 1,
+          overflowY: 'auto',
+          overflowX: 'hidden',
         },
-        ...sx,
-      }}
+        ...(Array.isArray(sx) ? sx : [sx]),
+      ]}
     >
       {children}
-    </SimpleBar>
+    </Box>
   );
 };
 

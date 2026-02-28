@@ -1,11 +1,8 @@
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router';
 import PageLoader from 'components/loading/PageLoader';
 import { useAuth } from 'providers/AuthProvider';
-import paths from 'routes/paths';
 
 const Logout = () => {
-  const navigate = useNavigate();
   const { refreshSession, setSession } = useAuth();
 
   useEffect(() => {
@@ -21,7 +18,8 @@ const Logout = () => {
         setSession(null);
         await refreshSession();
         if (isMounted) {
-          navigate(paths.defaultJwtLogin, { replace: true });
+          const base = import.meta.env.VITE_BASENAME || '/';
+          window.location.replace(`${base}authentication/default/jwt/login`);
         }
       }
     })();
@@ -29,7 +27,7 @@ const Logout = () => {
     return () => {
       isMounted = false;
     };
-  }, [navigate, refreshSession, setSession]);
+  }, [refreshSession, setSession]);
 
   return <PageLoader />;
 };
