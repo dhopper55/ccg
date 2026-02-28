@@ -2,14 +2,9 @@ import { useTranslation } from 'react-i18next';
 import { Button, Stack, Typography } from '@mui/material';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
-import starterDark from 'assets/json/starter-dark.json';
-import starter from 'assets/json/starter.json';
-import { useThemeMode } from 'hooks/useThemeMode';
-import Lottie from 'lottie-react';
 
 const Starter = () => {
   const { t } = useTranslation();
-  const { isDark } = useThemeMode();
 
   return (
     <Box
@@ -47,8 +42,31 @@ const Starter = () => {
               position: 'relative',
             }}
           >
-            <Box>
-              <Lottie animationData={isDark ? starterDark : starter} />
+            <Box
+              sx={{
+                height: 240,
+                borderRadius: 6,
+                border: 1,
+                borderColor: 'divider',
+                bgcolor: 'background.elevation1',
+                mb: 3,
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+            >
+              <Box
+                sx={{
+                  position: 'absolute',
+                  inset: 0,
+                  background:
+                    'radial-gradient(circle at 30% 25%, rgba(88,151,251,0.16), transparent 35%)',
+                }}
+              />
+              <Stack sx={{ height: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <Typography variant="h4" sx={{ fontWeight: 300, color: 'text.secondary' }}>
+                  CCG Admin
+                </Typography>
+              </Stack>
             </Box>
             <Typography
               variant="h6"

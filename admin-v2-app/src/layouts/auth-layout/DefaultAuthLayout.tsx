@@ -1,16 +1,10 @@
 import { PropsWithChildren, Suspense } from 'react';
 import { Stack, Typography } from '@mui/material';
 import Grid from '@mui/material/Grid';
-import authDark from 'assets/json/auth-dark.json';
-import auth from 'assets/json/auth.json';
-import { useThemeMode } from 'hooks/useThemeMode';
-import Lottie from 'lottie-react';
 import Logo from 'components/common/Logo';
 import DefaultLoader from 'components/loading/DefaultLoader';
 
 const DefaultAuthLayout = ({ children }: PropsWithChildren) => {
-  const { isDark } = useThemeMode();
-
   return (
     <Grid
       container
@@ -58,7 +52,37 @@ const DefaultAuthLayout = ({ children }: PropsWithChildren) => {
               transform: (theme) => (theme.direction === 'rtl' ? 'scaleX(-1)' : 'unset'),
             }}
           >
-            {isDark ? <Lottie animationData={authDark} /> : <Lottie animationData={auth} />}
+            <Stack
+              sx={{
+                width: 1,
+                maxWidth: 420,
+                minHeight: 280,
+                borderRadius: 6,
+                border: 1,
+                borderColor: 'divider',
+                bgcolor: 'background.elevation1',
+                position: 'relative',
+                overflow: 'hidden',
+                justifyContent: 'center',
+                alignItems: 'center',
+                px: 6,
+              }}
+            >
+              <Stack
+                sx={{
+                  position: 'absolute',
+                  inset: 0,
+                  background:
+                    'radial-gradient(circle at top left, rgba(88,151,251,0.16), transparent 40%)',
+                }}
+              />
+              <Typography
+                variant="h3"
+                sx={{ position: 'relative', textAlign: 'center', fontWeight: 600 }}
+              >
+                CCG Admin
+              </Typography>
+            </Stack>
           </Stack>
 
           <Stack
