@@ -1,13 +1,10 @@
-import { Fragment, useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import {
   Box,
   Button,
-  Chip,
   Menu,
   Stack,
-  Tooltip,
-  Typography,
   keyframes,
   listItemButtonClasses,
 } from '@mui/material';
@@ -19,11 +16,6 @@ const spin = keyframes`
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 `;
-
-const THEME_TOOLTIP_KEY = 'theme-tooltip-shown';
-
-const START_TIME = 2000;
-const CLOSE_TIME = 10000;
 
 interface ThemeTogglerProps {
   type?: 'default' | 'slim';
@@ -38,8 +30,6 @@ const sizeMap = {
 };
 
 const ThemeToggler = ({ type = 'default' }: ThemeTogglerProps) => {
-  const [remainingTime, setRemainingTime] = useState(0);
-  const [showTooltip, setShowTooltip] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
@@ -63,40 +53,6 @@ const ThemeToggler = ({ type = 'default' }: ThemeTogglerProps) => {
   const getIcon = () => {
     return `material-symbols${type === 'slim' ? '' : '-light'}:palette-outline`;
   };
-
-  useEffect(() => {
-    const hasShown = sessionStorage.getItem(THEME_TOOLTIP_KEY);
-    if (hasShown) return;
-
-    let countdownInterval: number | undefined;
-
-    const startTimer = setTimeout(() => {
-      setShowTooltip(true);
-      setRemainingTime(Math.floor(CLOSE_TIME / 1000));
-
-      countdownInterval = window.setInterval(() => {
-        setRemainingTime((prev) => {
-          if (prev <= 1) {
-            clearInterval(countdownInterval);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }, START_TIME);
-    const closeTimer = setTimeout(() => {
-      setShowTooltip(false);
-      setRemainingTime(0);
-      sessionStorage.setItem(THEME_TOOLTIP_KEY, 'true');
-      if (countdownInterval) clearInterval(countdownInterval);
-    }, START_TIME + CLOSE_TIME);
-
-    return () => {
-      clearTimeout(startTimer);
-      clearTimeout(closeTimer);
-      if (countdownInterval) clearInterval(countdownInterval);
-    };
-  }, [START_TIME, CLOSE_TIME]);
 
   return (
     <Fragment>
@@ -137,67 +93,37 @@ const ThemeToggler = ({ type = 'default' }: ThemeTogglerProps) => {
           },
         }}
       >
-        <Tooltip
-          open={showTooltip}
-          title={
-            <Stack direction="column" gap={1}>
-              <Stack gap={0.5} sx={{ alignItems: 'center' }}>
-                <Typography variant="body2">Explore color themes</Typography>
-                <Chip variant="filled" label="New" color="warning" size="xsmall" />
-              </Stack>
-              <Typography variant="caption" sx={{ color: 'text.disabled' }}>
-                This message closes in {remainingTime}s
-              </Typography>
-            </Stack>
-          }
-          placement="bottom"
-          arrow
-          disableHoverListener
-          disableFocusListener
-          disableTouchListener
-          slotProps={{
-            tooltip: {
-              sx: {
-                width: 'max-content',
-              },
-            },
-            popper: {
-              disablePortal: true,
-            },
-          }}
-        >
-          <Button
-            shape="circle"
-            color="neutral"
-            variant={type === 'default' ? 'soft' : 'text'}
-            onClick={handleClick}
-            size={type === 'slim' ? 'small' : 'medium'}
-            sx={[
-              {
-                position: 'absolute',
-                zIndex: 10,
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                ...(type === 'slim' && {
+        <Button
+          shape="circle"
+          color="neutral"
+          variant={type === 'default' ? 'soft' : 'text'}
+          onClick={handleClick}
+          size={type === 'slim' ? 'small' : 'medium'}
+          sx={[
+            {
+              position: 'absolute',
+              zIndex: 10,
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              ...(type === 'slim' && {
+                backgroundColor: ({ vars }) => vars.palette.background.paper,
+                '&:hover': {
                   backgroundColor: ({ vars }) => vars.palette.background.paper,
-                  '&:hover': {
-                    backgroundColor: ({ vars }) => vars.palette.background.paper,
-                  },
-                }),
-              },
-            ]}
-          >
-            <IconifyIcon
-              icon={getIcon()}
-              sx={{
-                fontSize: type === 'slim' ? 18 : 22,
-                position: 'relative',
-                zIndex: 5,
-              }}
-            />
-          </Button>
-        </Tooltip>
+                },
+              }),
+            },
+          ]}
+        >
+          <IconifyIcon
+            icon={getIcon()}
+            sx={{
+              fontSize: type === 'slim' ? 18 : 22,
+              position: 'relative',
+              zIndex: 5,
+            }}
+          />
+        </Button>
       </Box>
 
       <Menu
