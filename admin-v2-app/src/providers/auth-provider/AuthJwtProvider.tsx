@@ -36,9 +36,10 @@ export const AuthJwtContext = createContext({} as AuthJwtContextInterface);
 
 function buildSessionUser(username: string): SessionUser {
   const trimmed = username.trim();
+  const displayName = trimmed ? trimmed.charAt(0).toUpperCase() + trimmed.slice(1) : "Admin";
   return {
     id: trimmed,
-    name: trimmed,
+    name: displayName,
     email: trimmed,
     avatar: null,
     designation: "Admin",

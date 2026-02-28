@@ -11,6 +11,7 @@ import GuestGurad from "components/guard/GuestGurad";
 import paths, { rootPaths } from "./paths";
 
 const Starter = lazy(() => import('pages/others/Starter'));
+const IconGallery = lazy(() => import('pages/others/IconGallery'));
 
 const LoggedOut = lazy(() => import('pages/authentication/default/LoggedOut'));
 
@@ -59,6 +60,10 @@ export const routes: RouteObject[] = [
           {
             index: true,
             element: <Starter />,
+          },
+          {
+            path: paths.iconGallery,
+            element: <IconGallery />,
           },
         ],
       },

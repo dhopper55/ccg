@@ -20,6 +20,7 @@ export const rootPaths = {
 
 const paths = {
   starter: `/${rootPaths.pagesRoot}/starter`,
+  iconGallery: `/${rootPaths.pagesRoot}/icons`,
 
   defaultJwtLogin: `/${rootPaths.authRoot}/${rootPaths.authDefaultJwtRoot}/login`,
   defaultJwtSignup: `/${rootPaths.authRoot}/${rootPaths.authDefaultJwtRoot}/sign-up`,
