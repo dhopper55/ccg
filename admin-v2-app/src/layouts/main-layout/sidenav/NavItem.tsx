@@ -1,5 +1,4 @@
 import { MouseEvent, useEffect, useMemo, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import { NavLink, useLocation } from 'react-router';
 import { Box, Collapse } from '@mui/material';
 import List from '@mui/material/List';
@@ -27,7 +26,6 @@ interface NavItemCollapseProps {
 }
 
 const NavItem = ({ item, level }: NavItemProps) => {
-  const { t } = useTranslation();
   const [anchorEl, setAnchorEl] = useState<HTMLDivElement | null>(null);
   const [openPopperMenu, setOpenPopperMenu] = useState(false);
   const { pathname } = useLocation();
@@ -223,7 +221,7 @@ const NavItem = ({ item, level }: NavItemProps) => {
                 },
               ]}
             >
-              {t(item.key || item.name)}
+              {item.name}
             </ListItemText>
             {hasNestedItems && expandIcon}
           </Box>
