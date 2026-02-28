@@ -4,6 +4,7 @@ import {
   Avatar,
   Box,
   Chip,
+  CircularProgress,
   IconButton,
   Paper,
   Stack,
@@ -26,7 +27,6 @@ type ListingListItem = {
   title?: string;
   askingPrice?: number | string;
   imageUrl?: string | null;
-  inInventory?: boolean;
 };
 
 type ListingsResponse = {
@@ -40,10 +40,18 @@ const PAGE_SIZE = 20;
 
 const headerActions = [
   { label: 'Back', icon: 'material-symbols:arrow-back-rounded', color: 'default' as const },
-  { label: 'Saved Results', icon: 'material-symbols:bookmark-outline-rounded', color: 'primary' as const },
-  { label: 'Archived Results', icon: 'material-symbols:archive-outline-rounded', color: 'error' as const },
+  {
+    label: 'Saved Results',
+    icon: 'material-symbols:bookmark-outline-rounded',
+    color: 'primary' as const,
+  },
+  {
+    label: 'Archived Results',
+    icon: 'material-symbols:archive-outline-rounded',
+    color: 'error' as const,
+  },
   { label: 'Refresh', icon: 'material-symbols:refresh-rounded', color: 'success' as const },
-  { label: 'Map', icon: 'material-symbols:map-outline_rounded', color: 'default' as const },
+  { label: 'Map', icon: 'material-symbols:map-outline-rounded', color: 'default' as const },
 ];
 
 function formatCurrencyValue(value: number | string | undefined): string {
@@ -108,6 +116,11 @@ function buildStatusColor(status?: string): 'success' | 'error' | 'warning' | 'n
   return 'neutral';
 }
 
+function buildDisplayTitle(record: ListingListItem): string {
+  const title = record.title?.trim() || record.url?.replace(/^https?:\/\//i, '') || 'Untitled listing';
+  return title.length > 110 ? `${title.slice(0, 107)}...` : title;
+}
+
 const ListingEvaluatorResults = () => {
   const [records, setRecords] = useState<ListingListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -156,28 +169,21 @@ const ListingEvaluatorResults = () => {
           spacing={2}
           sx={{ justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' } }}
         >
-          <Box>
-            <Typography variant="h3" sx={{ mb: 0.5 }}>
-              Listing Evaluator Results
-            </Typography>
-            <Typography variant="body1" sx={{ color: 'text.secondary' }}>
-              Review scraped listings and queue inventory adds from the latest results.
-            </Typography>
-          </Box>
+          <Typography variant="h3">Listing Evaluator Results</Typography>
 
           <Stack direction="row" spacing={1.25}>
             {headerActions.map((action) => (
               <Tooltip key={action.label} title={action.label}>
                 <IconButton
-                  color={action.color}
+                  aria-label={action.label}
                   onClick={() => {
                     if (action.label === 'Refresh') {
-                      window.location.reload();
+                      void loadListings();
                     }
                   }}
                   sx={{
-                    width: 52,
-                    height: 52,
+                    width: 48,
+                    height: 48,
                     border: 1,
                     borderColor:
                       action.color === 'default' ? 'divider' : `${action.color}.main`,
@@ -215,29 +221,45 @@ const ListingEvaluatorResults = () => {
             direction={{ xs: 'column', md: 'row' }}
             spacing={2}
             sx={{
-              px: 3,
+              px: { xs: 2.5, md: 3 },
               py: 2.5,
               alignItems: { xs: 'flex-start', md: 'center' },
               justifyContent: 'space-between',
               borderBottom: 1,
               borderColor: 'divider',
+              bgcolor: 'background.default',
             }}
           >
             <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center' }}>
-              <Typography variant="h5">All Results</Typography>
+              <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                All Results
+              </Typography>
               <Chip label={`${rows.length} rows`} size="small" color="neutral" variant="soft" />
             </Stack>
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-              Latest 20 records from the existing evaluator endpoint
+              Latest 20 records from the evaluator endpoint
             </Typography>
           </Stack>
 
           <TableContainer>
             <Table>
               <TableHead>
-                <TableRow>
-                  <TableCell sx={{ width: '64%' }}>Title</TableCell>
-                  <TableCell sx={{ width: '18%' }}>Source</TableCell>
+                <TableRow
+                  sx={{
+                    '& th': {
+                      bgcolor: 'background.default',
+                      borderBottomColor: 'divider',
+                      color: 'text.secondary',
+                      fontSize: 15,
+                      fontWeight: 600,
+                      py: 2.25,
+                    },
+                  }}
+                >
+                  <TableCell sx={{ width: '68%' }}>Title</TableCell>
+                  <TableCell align="center" sx={{ width: '14%' }}>
+                    Source
+                  </TableCell>
                   <TableCell align="right" sx={{ width: '18%' }}>
                     Actions
                   </TableCell>
@@ -246,65 +268,82 @@ const ListingEvaluatorResults = () => {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={3}>
-                      <Typography sx={{ py: 6, color: 'text.secondary' }}>Loading results…</Typography>
+                    <TableCell colSpan={3} sx={{ borderBottom: 0 }}>
+                      <Stack sx={{ alignItems: 'center', py: 8 }} spacing={2}>
+                        <CircularProgress size={28} />
+                        <Typography sx={{ color: 'text.secondary' }}>Loading results…</Typography>
+                      </Stack>
                     </TableCell>
                   </TableRow>
                 ) : rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={3}>
-                      <Typography sx={{ py: 6, color: 'text.secondary' }}>
+                    <TableCell colSpan={3} sx={{ borderBottom: 0 }}>
+                      <Typography sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
                         No listing evaluator results found.
                       </Typography>
                     </TableCell>
                   </TableRow>
                 ) : (
                   rows.map((record) => {
-                    const title =
-                      record.title?.trim() ||
-                      record.url?.replace(/^https?:\/\//i, '') ||
-                      'Untitled listing';
+                    const title = buildDisplayTitle(record);
                     const imageSrc = buildImageSrc(record.imageUrl, record.url);
-                    const price = formatCurrencyValue(record.askingPrice);
-                    const source = buildSourceMeta(record.source);
-                    const status = record.status?.trim() || 'unknown';
+                    const sourceMeta = buildSourceMeta(record.source);
+                    const askingPrice = formatCurrencyValue(record.askingPrice);
+                    const statusLabel = record.status?.trim() || 'unknown';
 
                     return (
-                      <TableRow key={record.id} hover>
+                      <TableRow
+                        hover
+                        key={record.id || record.url || record.title}
+                        sx={{
+                          '& td': {
+                            borderBottomColor: 'divider',
+                            py: 2.5,
+                          },
+                        }}
+                      >
                         <TableCell>
                           <Stack direction="row" spacing={2} sx={{ alignItems: 'center', minWidth: 0 }}>
                             <Avatar
+                              src={imageSrc ?? undefined}
                               variant="rounded"
-                              src={imageSrc || undefined}
-                              alt={title}
                               sx={{
-                                width: 72,
-                                height: 72,
+                                width: 76,
+                                height: 76,
+                                bgcolor: 'background.elevation2',
+                                color: 'text.secondary',
                                 borderRadius: 3,
-                                bgcolor: 'background.elevation1',
-                                border: 1,
-                                borderColor: 'divider',
                                 flexShrink: 0,
                               }}
                             >
-                              <IconifyIcon
-                                icon="material-symbols:image-outline-rounded"
-                                sx={{ fontSize: 28, color: 'text.disabled' }}
-                              />
+                              <IconifyIcon icon="material-symbols:image-outline-rounded" />
                             </Avatar>
 
                             <Box sx={{ minWidth: 0 }}>
                               <Typography
-                                variant="subtitle1"
-                                sx={{ fontWeight: 700, color: 'text.primary', mb: 0.75 }}
+                                variant="h6"
+                                sx={{
+                                  mb: 1,
+                                  fontWeight: 700,
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
                               >
                                 {title}
                               </Typography>
 
                               <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
-                                {price && <Chip label={price} size="small" color="primary" variant="soft" />}
+                                {askingPrice && (
+                                  <Chip
+                                    label={askingPrice}
+                                    size="small"
+                                    color="primary"
+                                    variant="outlined"
+                                  />
+                                )}
                                 <Chip
-                                  label={status}
+                                  label={statusLabel}
                                   size="small"
                                   color={buildStatusColor(record.status)}
                                   variant="soft"
@@ -314,53 +353,39 @@ const ListingEvaluatorResults = () => {
                           </Stack>
                         </TableCell>
 
-                        <TableCell>
-                          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+                        <TableCell align="center">
+                          {sourceMeta.imageSrc ? (
                             <Avatar
+                              src={sourceMeta.imageSrc}
+                              alt={sourceMeta.label}
                               variant="rounded"
-                              src={source.imageSrc || undefined}
-                              alt={source.label}
                               sx={{
-                                width: 40,
-                                height: 40,
-                                bgcolor: 'background.elevation1',
-                                border: 1,
-                                borderColor: 'divider',
-                                '& img': {
-                                  objectFit: 'contain',
-                                  width: 22,
-                                  height: 22,
-                                },
+                                width: 42,
+                                height: 42,
+                                mx: 'auto',
+                                bgcolor: 'background.elevation2',
                               }}
-                            >
-                              <IconifyIcon
-                                icon="material-symbols:link-rounded"
-                                sx={{ fontSize: 18, color: 'text.secondary' }}
-                              />
-                            </Avatar>
-                            <Typography variant="subtitle2" sx={{ color: 'text.secondary' }}>
-                              {source.label}
-                            </Typography>
-                          </Stack>
+                            />
+                          ) : (
+                            <Chip label={sourceMeta.label} size="small" variant="outlined" />
+                          )}
                         </TableCell>
 
                         <TableCell align="right">
                           <Tooltip title="Inv. Add">
                             <IconButton
-                              color="primary"
-                              onClick={() => undefined}
+                              aria-label="Inv. Add"
                               sx={{
-                                width: 42,
-                                height: 42,
                                 border: 1,
                                 borderColor: 'divider',
+                                borderRadius: 3,
                                 bgcolor: 'background.elevation1',
                                 '&:hover': {
                                   bgcolor: 'background.elevation2',
                                 },
                               }}
                             >
-                              <IconifyIcon icon="material-symbols:add-rounded" sx={{ fontSize: 20 }} />
+                              <IconifyIcon icon="material-symbols:playlist-add-rounded" />
                             </IconButton>
                           </Tooltip>
                         </TableCell>
