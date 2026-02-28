@@ -1,6 +1,5 @@
-import { PropsWithChildren, createContext, use, useEffect, useState } from 'react';
-import { Breakpoint, Theme } from '@mui/material';
-import { useMediaQuery } from '@mui/material';
+import { PropsWithChildren, createContext, use, useMemo } from 'react';
+import { Breakpoint, Theme, useMediaQuery, useTheme } from '@mui/material';
 
 interface BreakpointContextInterface {
   currentBreakpoint: Breakpoint;
@@ -10,51 +9,95 @@ interface BreakpointContextInterface {
   between: (start: Breakpoint | number, end: Breakpoint | number) => boolean;
 }
 
+const BREAKPOINT_ORDER: Breakpoint[] = ['xs', 'sm', 'md', 'lg', 'xl'];
+
 export const BreakpointContext = createContext({} as BreakpointContextInterface);
 
+function isNamedBreakpoint(key: Breakpoint | number): key is Breakpoint {
+  return typeof key === 'string' && BREAKPOINT_ORDER.includes(key);
+}
+
+function normalizeBreakpointValue(
+  theme: Theme,
+  key: Breakpoint | number,
+  fallback: number,
+): number {
+  if (typeof key === 'number') {
+    return key;
+  }
+
+  const rawValue = theme.breakpoints.values[key];
+  return typeof rawValue === 'number' ? rawValue : fallback;
+}
+
+function resolveCurrentBreakpoint(matches: Record<Breakpoint, boolean>): Breakpoint {
+  if (matches.xl) return 'xl';
+  if (matches.lg) return 'lg';
+  if (matches.md) return 'md';
+  if (matches.sm) return 'sm';
+  return 'xs';
+}
+
 const BreakpointsProvider = ({ children }: PropsWithChildren) => {
-  const [currentBreakpoint, setCurrentBreakpoint] = useState<Breakpoint>('xs');
-  const up = (key: Breakpoint | number) =>
-    useMediaQuery<Theme>((theme) => theme.breakpoints.up(key));
+  const theme = useTheme();
 
-  const down = (key: Breakpoint | number) =>
-    useMediaQuery<Theme>((theme) => theme.breakpoints.down(key));
+  const matches = {
+    xs: useMediaQuery(theme.breakpoints.up('xs')),
+    sm: useMediaQuery(theme.breakpoints.up('sm')),
+    md: useMediaQuery(theme.breakpoints.up('md')),
+    lg: useMediaQuery(theme.breakpoints.up('lg')),
+    xl: useMediaQuery(theme.breakpoints.up('xl')),
+  };
 
-  const only = (key: Breakpoint | number) =>
-    useMediaQuery<Theme>((theme) => theme.breakpoints.only(key as Breakpoint));
+  const value = useMemo<BreakpointContextInterface>(() => {
+    const currentBreakpoint = resolveCurrentBreakpoint(matches);
+    const currentValue = theme.breakpoints.values[currentBreakpoint] ?? 0;
 
-  const between = (start: Breakpoint | number, end: Breakpoint | number) =>
-    useMediaQuery<Theme>((theme) => theme.breakpoints.between(start, end));
+    const up = (key: Breakpoint | number) => {
+      if (isNamedBreakpoint(key)) {
+        return BREAKPOINT_ORDER.indexOf(currentBreakpoint) >= BREAKPOINT_ORDER.indexOf(key);
+      }
 
-  const isXs = between('xs', 'sm');
-  const isSm = between('sm', 'md');
-  const isMd = between('md', 'lg');
-  const isLg = between('lg', 'xl');
-  const isXl = up('xl');
+      return currentValue >= key;
+    };
 
-  useEffect(() => {
-    if (isXs) {
-      setCurrentBreakpoint('xs');
-    }
-    if (isSm) {
-      setCurrentBreakpoint('sm');
-    }
-    if (isMd) {
-      setCurrentBreakpoint('md');
-    }
-    if (isLg) {
-      setCurrentBreakpoint('lg');
-    }
-    if (isXl) {
-      setCurrentBreakpoint('xl');
-    }
-  }, [isXs, isSm, isMd, isLg, isXl]);
+    const down = (key: Breakpoint | number) => {
+      if (isNamedBreakpoint(key)) {
+        return BREAKPOINT_ORDER.indexOf(currentBreakpoint) < BREAKPOINT_ORDER.indexOf(key);
+      }
 
-  return (
-    <BreakpointContext value={{ currentBreakpoint, up, down, only, between }}>
-      {children}
-    </BreakpointContext>
-  );
+      return currentValue < key;
+    };
+
+    const only = (key: Breakpoint | number) => {
+      if (isNamedBreakpoint(key)) {
+        return currentBreakpoint === key;
+      }
+
+      const keyValue = normalizeBreakpointValue(theme, key, key);
+      const nextBreakpoint = BREAKPOINT_ORDER.find(
+        (breakpoint) => theme.breakpoints.values[breakpoint] > keyValue,
+      );
+      const nextValue = nextBreakpoint ? theme.breakpoints.values[nextBreakpoint] : Number.POSITIVE_INFINITY;
+      return currentValue >= keyValue && currentValue < nextValue;
+    };
+
+    const between = (start: Breakpoint | number, end: Breakpoint | number) => {
+      const startValue = normalizeBreakpointValue(theme, start, 0);
+      const endValue = normalizeBreakpointValue(theme, end, Number.POSITIVE_INFINITY);
+      return currentValue >= startValue && currentValue < endValue;
+    };
+
+    return {
+      currentBreakpoint,
+      up,
+      down,
+      only,
+      between,
+    };
+  }, [matches, theme]);
+
+  return <BreakpointContext value={value}>{children}</BreakpointContext>;
 };
 
 export const useBreakpoints = () => use(BreakpointContext);

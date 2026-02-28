@@ -1,1 +1,0 @@
-import{j as e}from"./index-Bys3UYIf.js";import{a}from"./useAuthApi-LGyMU55A.js";import{F as n}from"./ForgotPasswordForm-Zq5Vu0ev.js";import"./docPaths-4aeWrUzX.js";import"./useCountdown-DTzzpqc0.js";const w=()=>{const{trigger:r}=a(),s=async t=>await r(t).catch(o=>{throw new Error(o.data.message)});return e.jsx(n,{handleSendResetLink:s})};export{w as default};
