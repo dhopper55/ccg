@@ -2,9 +2,6 @@ import { useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router';
 import { useConfigFromQuery } from 'hooks/useConfigFromQuery';
 import AuthProvider from 'providers/AuthProvider';
-import PurchaseWidget from 'components/purchase-widget/PurchaseWidget';
-import SettingPanelToggler from 'components/settings-panel/SettingPanelToggler';
-import SettingsPanel from 'components/settings-panel/SettingsPanel';
 
 const App = () => {
   const { pathname } = useLocation();
@@ -30,14 +27,6 @@ const App = () => {
   return (
     <AuthProvider>
       <Outlet />
-
-      {!isShowcase && (
-        <>
-          <SettingsPanel />
-          <SettingPanelToggler />
-          <PurchaseWidget />
-        </>
-      )}
     </AuthProvider>
   );
 };
