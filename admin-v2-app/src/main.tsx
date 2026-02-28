@@ -13,21 +13,19 @@ import SWRConfiguration from 'services/configuration/SWRConfiguration';
 import './locales/i18n';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <SWRConfiguration>
-      <SettingsProvider>
-        <ThemeProvider>
-          <LocalizationProvider dateAdapter={AdapterDayjs}>
-            <NotistackProvider>
-              <BreakpointsProvider>
-                <SettingsPanelProvider>
-                  <RouterProvider router={router} />
-                </SettingsPanelProvider>
-              </BreakpointsProvider>
-            </NotistackProvider>
-          </LocalizationProvider>
-        </ThemeProvider>
-      </SettingsProvider>
-    </SWRConfiguration>
-  </React.StrictMode>,
+  <SWRConfiguration>
+    <SettingsProvider>
+      <ThemeProvider>
+        <LocalizationProvider dateAdapter={AdapterDayjs}>
+          <NotistackProvider>
+            <BreakpointsProvider>
+              <SettingsPanelProvider>
+                <RouterProvider router={router} />
+              </SettingsPanelProvider>
+            </BreakpointsProvider>
+          </NotistackProvider>
+        </LocalizationProvider>
+      </ThemeProvider>
+    </SettingsProvider>
+  </SWRConfiguration>,
 );
