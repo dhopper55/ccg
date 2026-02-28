@@ -5,6 +5,7 @@ import {
   Box,
   Chip,
   ChipOwnProps,
+  CircularProgress,
   IconButton,
   Link,
   Paper,
@@ -15,6 +16,7 @@ import {
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
 import IconifyIcon from 'components/base/IconifyIcon';
 import DataGridPagination from 'components/pagination/DataGridPagination';
+import { useBreakpoints } from 'providers/BreakpointsProvider';
 
 type ListingListItem = {
   id: string;
@@ -135,6 +137,8 @@ const ListingEvaluatorResults = () => {
   const [records, setRecords] = useState<ListingListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
+  const { down } = useBreakpoints();
+  const downSm = down('sm');
 
   useEffect(() => {
     document.title = 'CCG Admin | Listing Evaluator Results';
@@ -373,29 +377,163 @@ const ListingEvaluatorResults = () => {
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
 
       <Paper sx={{ flex: 1, p: { xs: 3, md: 5 } }}>
-        <DataGrid
-          rowHeight={76}
-          rows={rows}
-          columns={columns}
-          loading={isLoading}
-          disableRowSelectionOnClick
-          pageSizeOptions={[DEFAULT_PAGE_SIZE, PAGE_SIZE]}
-          initialState={{
-            pagination: {
-              paginationModel: {
-                pageSize: DEFAULT_PAGE_SIZE,
+        {downSm ? (
+          <Stack spacing={2}>
+            <Typography variant="h6" sx={{ px: 0.5 }}>
+              Results
+            </Typography>
+
+            {isLoading ? (
+              <Stack sx={{ alignItems: 'center', py: 6 }} spacing={2}>
+                <CircularProgress size={28} />
+                <Typography sx={{ color: 'text.secondary' }}>Loading results…</Typography>
+              </Stack>
+            ) : rows.length === 0 ? (
+              <Typography sx={{ py: 4, color: 'text.secondary' }}>
+                No listing evaluator results found.
+              </Typography>
+            ) : (
+              rows.map((row) => (
+                <Paper
+                  key={row.id}
+                  variant="outlined"
+                  sx={{
+                    p: 2,
+                    bgcolor: 'background.default',
+                    borderRadius: 3,
+                  }}
+                >
+                  <Stack spacing={2}>
+                    <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', minWidth: 0 }}>
+                      <Avatar
+                        variant="rounded"
+                        src={row.imageSrc || undefined}
+                        alt={row.title}
+                        sx={{
+                          width: 52,
+                          height: 52,
+                          borderRadius: 2.5,
+                          bgcolor: 'background.elevation1',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <IconifyIcon icon="material-symbols:image-outline-rounded" />
+                      </Avatar>
+
+                      <Box sx={{ minWidth: 0, flex: 1 }}>
+                        <Link
+                          underline="none"
+                          color="text.primary"
+                          href={row.url || '#'}
+                          target="_blank"
+                          rel="noreferrer"
+                          sx={{
+                            display: 'block',
+                            fontWeight: 500,
+                            lineHeight: 1.35,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {row.title}
+                        </Link>
+
+                        <Stack sx={{ mt: 0.75, gap: 0.75, alignItems: 'center', flexWrap: 'wrap' }}>
+                          {row.askingPriceLabel && (
+                            <Chip
+                              label={row.askingPriceLabel}
+                              size="small"
+                              color="primary"
+                              variant="soft"
+                            />
+                          )}
+                          <Chip
+                            label={row.statusLabel}
+                            size="small"
+                            color={row.statusColor}
+                            variant="soft"
+                            sx={{ textTransform: 'capitalize' }}
+                          />
+                        </Stack>
+                      </Box>
+                    </Stack>
+
+                    <Stack sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                        {row.sourceImageSrc ? (
+                          <Avatar
+                            variant="rounded"
+                            src={row.sourceImageSrc}
+                            alt={row.sourceLabel}
+                            sx={{
+                              width: 32,
+                              height: 32,
+                              bgcolor: 'background.elevation1',
+                              '& img': {
+                                objectFit: 'contain',
+                                width: 20,
+                                height: 20,
+                              },
+                            }}
+                          />
+                        ) : (
+                          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                            {row.sourceLabel}
+                          </Typography>
+                        )}
+                        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                          {row.sourceLabel}
+                        </Typography>
+                      </Stack>
+
+                      <Tooltip title="Inv. Add">
+                        <IconButton
+                          aria-label="Inv. Add"
+                          color="primary"
+                          sx={{
+                            width: 36,
+                            height: 36,
+                            borderRadius: 2.5,
+                            bgcolor: 'background.elevation1',
+                            border: 1,
+                            borderColor: 'divider',
+                          }}
+                        >
+                          <IconifyIcon icon="material-symbols:add-rounded" fontSize={18} />
+                        </IconButton>
+                      </Tooltip>
+                    </Stack>
+                  </Stack>
+                </Paper>
+              ))
+            )}
+          </Stack>
+        ) : (
+          <DataGrid
+            rowHeight={76}
+            rows={rows}
+            columns={columns}
+            loading={isLoading}
+            disableRowSelectionOnClick
+            pageSizeOptions={[DEFAULT_PAGE_SIZE, PAGE_SIZE]}
+            initialState={{
+              pagination: {
+                paginationModel: {
+                  pageSize: DEFAULT_PAGE_SIZE,
+                },
               },
-            },
-          }}
-          sx={{
-            '& .MuiDataGrid-columnHeaders': {
-              minWidth: '100%',
-            },
-          }}
-          slots={{
-            basePagination: (props) => <DataGridPagination showFullPagination {...props} />,
-          }}
-        />
+            }}
+            sx={{
+              '& .MuiDataGrid-columnHeaders': {
+                minWidth: '100%',
+              },
+            }}
+            slots={{
+              basePagination: (props) => <DataGridPagination showFullPagination {...props} />,
+            }}
+          />
+        )}
       </Paper>
     </Stack>
   );
