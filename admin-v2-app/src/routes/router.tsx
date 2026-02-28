@@ -12,6 +12,7 @@ import Login from 'pages/authentication/default/jwt/Login';
 
 const Starter = lazy(() => import('pages/others/Starter'));
 const IconGallery = lazy(() => import('pages/others/IconGallery'));
+const ListingEvaluator = lazy(() => import('pages/listing-evaluator/ListingEvaluator'));
 const ListingEvaluatorResults = lazy(
   () => import('pages/listing-evaluator/ListingEvaluatorResults'),
 );
@@ -66,6 +67,10 @@ export const routes: RouteObject[] = [
           {
             path: paths.listingEvaluatorResults,
             element: <ListingEvaluatorResults />,
+          },
+          {
+            path: paths.listingEvaluator,
+            element: <ListingEvaluator />,
           },
           {
             path: paths.logout,

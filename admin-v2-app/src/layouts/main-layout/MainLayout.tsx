@@ -10,7 +10,6 @@ import { useSettingsContext } from 'providers/SettingsProvider';
 import { sidenavVibrantStyle } from 'theme/styles/vibrantNav';
 import VibrantBackground from 'components/common/VibrantBackground';
 import NavProvider from './NavProvider';
-import Footer from './footer';
 import SidenavDrawerContent from './sidenav/SidenavDrawerContent';
 import SlimSidenav from './sidenav/SlimSidenav';
 import StackedSidenav from './sidenav/StackedSidenav';
@@ -142,7 +141,6 @@ const MainLayout = ({ children }: PropsWithChildren) => {
                 {children}
               </Box>
             </Box>
-            <Footer />
           </Box>
         </NavProvider>
       </Box>

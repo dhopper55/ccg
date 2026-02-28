@@ -325,19 +325,27 @@ const ListingEvaluatorResults = () => {
   );
 
   return (
-    <Stack direction="column" height={1} gap={3}>
+    <Stack direction="column" height={1} gap={3} sx={{ minWidth: 0 }}>
       <Paper sx={{ px: { xs: 3, md: 5 }, py: 3 }}>
         <Stack
+          direction={{ xs: 'column', sm: 'row' }}
           sx={{
             gap: 2,
-            flexDirection: { xs: 'column', sm: 'row' },
             alignItems: { sm: 'center' },
             justifyContent: 'space-between',
           }}
         >
           <Typography variant="h4">Listing Evaluator Results</Typography>
 
-          <Stack sx={{ gap: 1, alignItems: 'center' }}>
+          <Stack
+            direction="row"
+            sx={{
+              gap: 1,
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              justifyContent: { xs: 'flex-start', sm: 'flex-end' },
+            }}
+          >
             {headerActions.map((action) => (
               <Tooltip key={action.label} title={action.label}>
                 <IconButton
@@ -376,9 +384,9 @@ const ListingEvaluatorResults = () => {
 
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
 
-      <Paper sx={{ flex: 1, p: { xs: 3, md: 5 } }}>
+      <Paper sx={{ flex: 1, p: { xs: 2, md: 5 }, minWidth: 0, overflow: 'hidden' }}>
         {downSm ? (
-          <Stack spacing={2}>
+          <Stack direction="column" spacing={2} sx={{ minWidth: 0 }}>
             <Typography variant="h6" sx={{ px: 0.5 }}>
               Results
             </Typography>
@@ -401,17 +409,21 @@ const ListingEvaluatorResults = () => {
                     p: 2,
                     bgcolor: 'background.default',
                     borderRadius: 3,
+                    width: '100%',
+                    maxWidth: '100%',
+                    minWidth: 0,
+                    overflow: 'hidden',
                   }}
                 >
-                  <Stack spacing={2}>
-                    <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', minWidth: 0 }}>
+                  <Stack direction="column" spacing={2} sx={{ minWidth: 0 }}>
+                    <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start', minWidth: 0 }}>
                       <Avatar
                         variant="rounded"
                         src={row.imageSrc || undefined}
                         alt={row.title}
                         sx={{
-                          width: 52,
-                          height: 52,
+                          width: 72,
+                          height: 72,
                           borderRadius: 2.5,
                           bgcolor: 'background.elevation1',
                           flexShrink: 0,
@@ -432,14 +444,23 @@ const ListingEvaluatorResults = () => {
                             fontWeight: 500,
                             lineHeight: 1.35,
                             overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
+                            textOverflow: 'unset',
+                            whiteSpace: 'normal',
+                            wordBreak: 'break-word',
                           }}
                         >
                           {row.title}
                         </Link>
 
-                        <Stack sx={{ mt: 0.75, gap: 0.75, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <Stack
+                          direction="row"
+                          sx={{
+                            mt: 1,
+                            gap: 0.75,
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                          }}
+                        >
                           {row.askingPriceLabel && (
                             <Chip
                               label={row.askingPriceLabel}
@@ -459,8 +480,20 @@ const ListingEvaluatorResults = () => {
                       </Box>
                     </Stack>
 
-                    <Stack sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                    <Stack
+                      direction="row"
+                      sx={{
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: 1.5,
+                        minWidth: 0,
+                      }}
+                    >
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        sx={{ alignItems: 'center', minWidth: 0, flexShrink: 1 }}
+                      >
                         {row.sourceImageSrc ? (
                           <Avatar
                             variant="rounded"
@@ -477,12 +510,11 @@ const ListingEvaluatorResults = () => {
                               },
                             }}
                           />
-                        ) : (
-                          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                            {row.sourceLabel}
-                          </Typography>
-                        )}
-                        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                        ) : null}
+                        <Typography
+                          variant="body2"
+                          sx={{ color: 'text.secondary', whiteSpace: 'nowrap' }}
+                        >
                           {row.sourceLabel}
                         </Typography>
                       </Stack>

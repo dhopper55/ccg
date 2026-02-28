@@ -6,6 +6,7 @@ const adminV2Root = path.join(repoRoot, 'admin-v2');
 const sourceHtml = path.join(adminV2Root, 'index.html');
 
 const routeDirs = [
+  'listing-evaluator',
   'listing-evaluator-results',
   'logout',
   'pages/icons',

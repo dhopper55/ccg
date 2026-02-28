@@ -48,7 +48,7 @@ const sitemap: MenuItem[] = [
       {
         name: 'Listing Eval',
         key: 'listing_eval',
-        path: '#',
+        path: paths.listingEvaluator,
         pathName: 'listing-eval',
         icon: 'material-symbols:content-copy-outline-rounded',
         active: true,

@@ -21,6 +21,7 @@ export const rootPaths = {
 const paths = {
   starter: `/${rootPaths.pagesRoot}/starter`,
   iconGallery: `/${rootPaths.pagesRoot}/icons`,
+  listingEvaluator: '/listing-evaluator',
   listingEvaluatorResults: '/listing-evaluator-results',
   logout: '/logout',
 
