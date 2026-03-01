@@ -1,5 +1,5 @@
 import { Fragment, ReactNode, useEffect, useMemo, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 import {
   Alert,
   Box,
@@ -543,6 +543,7 @@ const InlineDetailSection = ({ items }: { items: DetailItem[] }) => {
 };
 
 const ListingEvaluatorItem = () => {
+  const navigate = useNavigate();
   const { id: routeId } = useParams();
   const [searchParams] = useSearchParams();
   const recordId = routeId || searchParams.get('id') || '';
@@ -837,7 +838,7 @@ const ListingEvaluatorItem = () => {
       const redirectUrl = nextArchived
         ? paths.listingEvaluatorResults
         : `${paths.listingEvaluatorResults}?showArchived=1`;
-      window.location.assign(redirectUrl);
+      navigate(redirectUrl);
     } catch (error) {
       setMessage({
         severity: 'error',
