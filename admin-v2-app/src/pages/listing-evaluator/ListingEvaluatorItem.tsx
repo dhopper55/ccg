@@ -6,6 +6,7 @@ import {
   Button,
   Chip,
   CircularProgress,
+  Container,
   Divider,
   Link,
   Paper,
@@ -23,7 +24,7 @@ type ListingRecordResponse = {
 };
 
 type MessageState = {
-  severity: 'success' | 'error' | 'info';
+  severity: 'success' | 'error';
   text: string;
 };
 
@@ -67,26 +68,11 @@ const SINGLE_FIELDS: FieldConfig[] = [
   { key: 'seller_as_is_notes', label: 'Seller: As-Is Notes' },
 ];
 
-const DETAIL_GROUPS: Array<{ title: string; fields: FieldConfig[] }> = [
-  {
-    title: 'Instrument details',
-    fields: SINGLE_FIELDS.slice(0, 10),
-  },
-  {
-    title: 'Market and valuation',
-    fields: SINGLE_FIELDS.slice(10, 16),
-  },
-  {
-    title: 'Buyer and seller notes',
-    fields: SINGLE_FIELDS.slice(16),
-  },
-];
-
 function normalizeValue(value: unknown): string {
   if (value == null) return '—';
   if (typeof value === 'string') {
     const trimmed = value.trim();
-    return trimmed ? trimmed : '—';
+    return trimmed || '—';
   }
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
@@ -184,10 +170,19 @@ function formatSourceLabel(value: unknown): string {
   return raw;
 }
 
+function buildSourceIcon(source?: string): string | null {
+  const normalized = source?.trim().toLowerCase() || '';
+  if (normalized === 'facebook' || normalized === 'fbm' || normalized.includes('facebook')) {
+    return '/images/fb.png';
+  }
+  if (normalized === 'craigslist' || normalized === 'cg' || normalized.includes('craigslist')) {
+    return '/images/cl.png';
+  }
+  return null;
+}
+
 function buildImageSrc(imageUrl: string, referrer?: string): string {
   const cleaned = imageUrl.trim().split(/\s+/)[0];
-  if (!cleaned) return '';
-
   const normalized = cleaned.toLowerCase();
   if (
     normalized.includes('fbcdn.net') ||
@@ -199,7 +194,6 @@ function buildImageSrc(imageUrl: string, referrer?: string): string {
     if (referrer) params.set('ref', referrer);
     return `/api/image?${params.toString()}`;
   }
-
   return cleaned;
 }
 
@@ -264,6 +258,31 @@ function buildStatusColor(status?: string): 'success' | 'error' | 'warning' | 'n
   return 'neutral';
 }
 
+function parseMoneyValue(input: unknown): number | null {
+  const normalized = normalizeValue(input);
+  if (normalized === '—') return null;
+  const cleaned = normalized.replace(/[^0-9.]/g, '');
+  if (!cleaned) return null;
+  const value = Number.parseFloat(cleaned);
+  return Number.isFinite(value) ? value : null;
+}
+
+function formatPrivateRange(fields: Record<string, unknown>): string {
+  const lowValue = parseMoneyValue(fields.value_private_party_low);
+  const highValue = parseMoneyValue(fields.value_private_party_high);
+  if (lowValue != null && highValue != null) {
+    return `${formatCurrencyValue(lowValue)} - ${formatCurrencyValue(highValue)}`;
+  }
+  return normalizeValue(fields.price_private_party);
+}
+
+function formatIdealPrice(fields: Record<string, unknown>): string {
+  const direct = formatCurrencyValue(fields.price_ideal);
+  if (direct !== '—') return direct;
+  const lowValue = parseMoneyValue(fields.value_private_party_low);
+  return lowValue != null ? formatCurrencyValue(Math.round(lowValue * 0.8)) : '—';
+}
+
 function formatTextParts(value: unknown): string[] {
   const normalized = normalizeValue(value);
   if (normalized === '—') return [];
@@ -306,15 +325,7 @@ function buildSummaryNode(text: string): ReactNode {
         const bulletText = line.replace(/^[-•*–]\s+/, '');
         const isBullet = bulletText !== line;
         return (
-          <Typography
-            key={`${index}-${bulletText}`}
-            variant="body2"
-            component="p"
-            sx={{
-              color: 'text.secondary',
-              pl: isBullet ? 2 : 0,
-            }}
-          >
+          <Typography key={`${index}-${bulletText}`} variant="body2" sx={{ color: 'text.secondary' }}>
             {isBullet ? `• ${bulletText}` : bulletText}
           </Typography>
         );
@@ -323,71 +334,29 @@ function buildSummaryNode(text: string): ReactNode {
   );
 }
 
-function buildSourceIcon(source?: string): string | null {
-  const normalized = source?.trim().toLowerCase() || '';
-  if (normalized === 'facebook' || normalized === 'fbm' || normalized.includes('facebook')) {
-    return '/images/fb.png';
-  }
-  if (normalized === 'craigslist' || normalized === 'cg' || normalized.includes('craigslist')) {
-    return '/images/cl.png';
-  }
-  return null;
-}
-
-function parseMoneyValue(input: unknown): number | null {
-  const normalized = normalizeValue(input);
-  if (normalized === '—') return null;
-  const cleaned = normalized.replace(/[^0-9.]/g, '');
-  if (!cleaned) return null;
-  const value = Number.parseFloat(cleaned);
-  return Number.isFinite(value) ? value : null;
-}
-
-function formatPrivateRange(fields: Record<string, unknown>): string {
-  const lowValue = parseMoneyValue(fields.value_private_party_low);
-  const highValue = parseMoneyValue(fields.value_private_party_high);
-  if (lowValue != null && highValue != null) {
-    return `${formatCurrencyValue(lowValue)} - ${formatCurrencyValue(highValue)}`;
-  }
-  return normalizeValue(fields.price_private_party);
-}
-
-function formatIdealPrice(fields: Record<string, unknown>): string {
-  const direct = formatCurrencyValue(fields.price_ideal);
-  if (direct !== '—') return direct;
-  const lowValue = parseMoneyValue(fields.value_private_party_low);
-  return lowValue != null ? formatCurrencyValue(Math.round(lowValue * 0.8)) : '—';
-}
-
-const DetailList = ({ items }: { items: DetailItem[] }) => (
-  <Stack spacing={2}>
-    {items.map((item) => (
-      <Stack
-        key={item.label}
-        direction={{ xs: 'column', sm: 'row' }}
-        spacing={1.5}
-        sx={{ alignItems: { sm: 'flex-start' } }}
-      >
-        <Typography
-          variant="body2"
-          sx={{ minWidth: { sm: 160 }, fontWeight: 700, color: 'text.primary' }}
-        >
-          {item.label}
+const DetailRow = ({ label, value }: DetailItem) => (
+  <Stack sx={{ alignItems: 'flex-start' }}>
+    <Typography
+      variant="body2"
+      sx={{ fontWeight: 'bold', width: { xs: '100%', md: 150 }, flexShrink: 0 }}
+    >
+      {label}
+    </Typography>
+    <Typography
+      variant="body2"
+      sx={{ fontWeight: 'bold', color: 'text.secondary', px: 2, display: { xs: 'none', md: 'block' } }}
+    >
+      :
+    </Typography>
+    <Box sx={{ minWidth: 0, flex: 1 }}>
+      {typeof value === 'string' ? (
+        <Typography variant="body2" sx={{ color: 'text.secondary', whiteSpace: 'pre-wrap' }}>
+          {value}
         </Typography>
-        <Typography variant="body2" sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'block' } }}>
-          :
-        </Typography>
-        <Box sx={{ minWidth: 0, flex: 1 }}>
-          {typeof item.value === 'string' ? (
-            <Typography variant="body2" sx={{ color: 'text.secondary', whiteSpace: 'pre-wrap' }}>
-              {item.value}
-            </Typography>
-          ) : (
-            item.value
-          )}
-        </Box>
-      </Stack>
-    ))}
+      ) : (
+        value
+      )}
+    </Box>
   </Stack>
 );
 
@@ -395,19 +364,16 @@ const DetailSection = ({ title, items }: { title: string; items: DetailItem[] })
   if (items.length === 0) return null;
 
   return (
-    <Paper
-      variant="outlined"
-      sx={{
-        p: { xs: 3, md: 4 },
-        borderRadius: 5,
-        height: 1,
-      }}
-    >
-      <Stack spacing={3}>
-        <Typography variant="h6">{title}</Typography>
-        <DetailList items={items} />
-      </Stack>
-    </Paper>
+    <Stack direction="column" gap={3}>
+      <Typography variant="h6">{title}</Typography>
+      <Grid container spacing={1}>
+        {items.map((item) => (
+          <Grid key={item.label} size={{ xs: 12, md: 6 }}>
+            <DetailRow label={item.label} value={item.value} />
+          </Grid>
+        ))}
+      </Grid>
+    </Stack>
   );
 };
 
@@ -446,9 +412,11 @@ const ListingEvaluatorItem = () => {
           credentials: 'same-origin',
         });
         const data = (await response.json()) as ListingRecordResponse;
+
         if (!response.ok) {
           throw new Error(data.message || 'Unable to load listing.');
         }
+
         if (!isActive) return;
         setRecord(data);
       } catch (error) {
@@ -472,8 +440,8 @@ const ListingEvaluatorItem = () => {
 
   const fields = record?.fields || {};
   const title = normalizeValue(fields.title) === '—' ? 'Listing Detail' : normalizeValue(fields.title);
-  const sourceIcon = buildSourceIcon(typeof fields.source === 'string' ? fields.source : '');
   const sourceLabel = formatSourceLabel(fields.source);
+  const sourceIcon = buildSourceIcon(typeof fields.source === 'string' ? fields.source : '');
   const statusLabel = normalizeValue(fields.status);
   const statusColor = buildStatusColor(typeof fields.status === 'string' ? fields.status : '');
   const askingPrice = formatCurrencyValue(fields.price_asking);
@@ -493,6 +461,7 @@ const ListingEvaluatorItem = () => {
   const isMulti = isTruthyFlag(fields.IsMulti);
   const googleQuery = buildDoubleCheckQuery(fields);
   const googleGuitarQuery = buildDoubleCheckQuery(fields, { includeGuitar: true });
+
   const aiSummary = useMemo(() => {
     const parts: string[] = [];
     for (let index = 1; index <= 10; index += 1) {
@@ -531,45 +500,37 @@ const ListingEvaluatorItem = () => {
       },
       { label: 'Status', value: statusLabel },
       { label: 'Submitted', value: formatSubmittedAt(fields.submitted_at) },
+      { label: 'Location', value: normalizeValue(fields.location) },
+    ],
+    [fields.location, fields.submitted_at, sourceIcon, sourceLabel, statusLabel],
+  );
+
+  const marketItems = useMemo<DetailItem[]>(
+    () => [
       { label: 'Asking Price', value: askingPrice },
       { label: 'Private Party Range', value: privateRange },
       { label: 'Ideal Price', value: idealPrice },
-      { label: 'Location', value: normalizeValue(fields.location) },
       { label: 'Pricing Source', value: normalizeValue(fields.pricing_source) },
-    ],
-    [askingPrice, fields.location, fields.pricing_source, fields.submitted_at, idealPrice, privateRange, sourceIcon, sourceLabel, statusLabel],
-  );
-
-  const pricingItems = useMemo<DetailItem[]>(
-    () => [
       { label: 'Pricing Confidence', value: normalizeValue(fields.pricing_confidence) },
       { label: 'Pricing Comp Count', value: normalizeValue(fields.pricing_comp_count) },
-      { label: 'Pricing Notes', value: buildTextNode(fields.pricing_notes) },
-      { label: 'Value Online Notes', value: buildTextNode(fields.value_online_notes) },
     ],
-    [fields.pricing_comp_count, fields.pricing_confidence, fields.pricing_notes, fields.value_online_notes],
+    [askingPrice, fields.pricing_comp_count, fields.pricing_confidence, fields.pricing_source, idealPrice, privateRange],
   );
 
-  const detailSections = useMemo(
+  const singleDetailItems = useMemo<DetailItem[]>(
     () =>
-      DETAIL_GROUPS.map((group) => {
-        const items = group.fields
-          .filter((field) => {
-            if (
-              normalizeValue(fields.serial) === '—' &&
-              ['serial', 'serial_brand', 'serial_year', 'serial_model'].includes(field.key)
-            ) {
-              return false;
-            }
-            return normalizeValue(fields[field.key]) !== '—';
-          })
-          .map((field) => ({
-            label: field.label,
-            value: field.currency ? formatCurrencyValue(fields[field.key]) : buildTextNode(fields[field.key]),
-          }));
-
-        return { title: group.title, items };
-      }),
+      SINGLE_FIELDS.filter((field) => {
+        if (
+          normalizeValue(fields.serial) === '—' &&
+          ['serial', 'serial_brand', 'serial_year', 'serial_model'].includes(field.key)
+        ) {
+          return false;
+        }
+        return normalizeValue(fields[field.key]) !== '—';
+      }).map((field) => ({
+        label: field.label,
+        value: field.currency ? formatCurrencyValue(fields[field.key]) : buildTextNode(fields[field.key]),
+      })),
     [fields],
   );
 
@@ -593,6 +554,7 @@ const ListingEvaluatorItem = () => {
         body: JSON.stringify({ saved: nextSaved }),
       });
       const data = (await response.json()) as ListingRecordResponse;
+
       if (!response.ok) {
         throw new Error(data.message || 'Unable to update saved state.');
       }
@@ -633,6 +595,7 @@ const ListingEvaluatorItem = () => {
         body: JSON.stringify({ archived: nextArchived }),
       });
       const data = (await response.json()) as ListingRecordResponse;
+
       if (!response.ok) {
         throw new Error(data.message || 'Unable to archive listing.');
       }
@@ -666,16 +629,16 @@ const ListingEvaluatorItem = () => {
       <Grid size={12}>
         <Paper sx={{ px: { xs: 3, md: 5 }, py: 3 }}>
           <Stack
-            direction={{ xs: 'column', lg: 'row' }}
             sx={{
               gap: 2,
-              alignItems: { lg: 'center' },
+              flexDirection: { xs: 'column', xl: 'row' },
+              alignItems: { xl: 'center' },
               justifyContent: 'space-between',
             }}
           >
             <Stack spacing={1}>
               <Typography variant="h4">{title}</Typography>
-              <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+              <Stack direction="row" sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
                 {askingPrice !== '—' && <Chip color="primary" variant="soft" label={askingPrice} />}
                 {statusLabel !== '—' && (
                   <Chip
@@ -690,10 +653,7 @@ const ListingEvaluatorItem = () => {
               </Stack>
             </Stack>
 
-            <Stack
-              direction="row"
-              sx={{ gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'flex-start', lg: 'flex-end' } }}
-            >
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
               <Button
                 variant="soft"
                 color="neutral"
@@ -757,29 +717,40 @@ const ListingEvaluatorItem = () => {
       </Grid>
 
       <Grid size={12} sx={{ overflowX: 'auto' }}>
-        <Box sx={{ width: '100%', px: { xs: 0, md: 0 }, py: 4 }}>
+        <Container
+          maxWidth={false}
+          sx={{ width: 1340, px: { xs: 3, md: 5 }, py: 5 }}
+        >
           <Paper
+            background={1}
             sx={{
               p: { xs: 3, md: 5 },
               borderRadius: 6,
+              outline: 'none',
             }}
           >
-            <Stack spacing={4}>
+            <Stack direction="column" sx={{ gap: 4 }}>
               {message && <Alert severity={message.severity}>{message.text}</Alert>}
 
               {!record ? (
                 <Alert severity="error">Unable to load listing.</Alert>
               ) : (
                 <Fragment>
-                  <Grid container spacing={3}>
-                    <Grid size={{ xs: 12, md: 4 }}>
+                  <Stack
+                    direction={{ xs: 'column', lg: 'row' }}
+                    sx={{ gap: 4, alignItems: { lg: 'flex-start' } }}
+                  >
+                    <Box
+                      sx={{
+                        width: { xs: '100%', lg: 320 },
+                        flexShrink: 0,
+                      }}
+                    >
                       <Paper
                         variant="outlined"
                         sx={{
-                          borderRadius: 5,
                           overflow: 'hidden',
-                          height: 1,
-                          minHeight: 280,
+                          borderRadius: 5,
                           bgcolor: 'background.default',
                         }}
                       >
@@ -789,7 +760,7 @@ const ListingEvaluatorItem = () => {
                             target="_blank"
                             rel="noreferrer"
                             underline="none"
-                            sx={{ display: 'block', height: 1 }}
+                            sx={{ display: 'block' }}
                           >
                             <Box
                               component="img"
@@ -798,8 +769,7 @@ const ListingEvaluatorItem = () => {
                               sx={{
                                 display: 'block',
                                 width: '100%',
-                                height: '100%',
-                                minHeight: 280,
+                                height: 280,
                                 objectFit: 'cover',
                               }}
                             />
@@ -807,7 +777,7 @@ const ListingEvaluatorItem = () => {
                         ) : (
                           <Stack
                             spacing={1.5}
-                            sx={{ alignItems: 'center', justifyContent: 'center', height: 1, p: 3 }}
+                            sx={{ alignItems: 'center', justifyContent: 'center', height: 280, p: 3 }}
                           >
                             <IconifyIcon
                               icon="material-symbols:image-outline-rounded"
@@ -819,90 +789,54 @@ const ListingEvaluatorItem = () => {
                           </Stack>
                         )}
                       </Paper>
-                    </Grid>
+                    </Box>
 
-                    <Grid size={{ xs: 12, md: 8 }}>
-                      <Stack spacing={3}>
-                        <DetailSection title="Listing overview" items={overviewItems} />
-                        <Grid container spacing={2}>
-                          <Grid size={{ xs: 12, sm: 4 }}>
-                            <Paper variant="outlined" sx={{ p: 3, borderRadius: 5, height: 1 }}>
-                              <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
-                                Asking
-                              </Typography>
-                              <Typography variant="h4">{askingPrice}</Typography>
-                            </Paper>
-                          </Grid>
-                          <Grid size={{ xs: 12, sm: 4 }}>
-                            <Paper variant="outlined" sx={{ p: 3, borderRadius: 5, height: 1 }}>
-                              <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
-                                Private Party
-                              </Typography>
-                              <Typography variant="h5">{privateRange}</Typography>
-                            </Paper>
-                          </Grid>
-                          <Grid size={{ xs: 12, sm: 4 }}>
-                            <Paper variant="outlined" sx={{ p: 3, borderRadius: 5, height: 1 }}>
-                              <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
-                                Ideal Buy
-                              </Typography>
-                              <Typography variant="h5">{idealPrice}</Typography>
-                            </Paper>
-                          </Grid>
-                        </Grid>
-                      </Stack>
-                    </Grid>
-                  </Grid>
+                    <Stack direction="column" sx={{ gap: 4, flex: 1, minWidth: 0 }}>
+                      <DetailSection title="Listing overview" items={overviewItems} />
+                      <DetailSection title="Market snapshot" items={marketItems} />
+                    </Stack>
+                  </Stack>
 
                   <Divider />
 
-                  <Grid container spacing={3}>
-                    <Grid size={{ xs: 12, lg: 7 }}>
-                      <Stack spacing={3}>
-                        <DetailSection
-                          title="Description"
-                          items={[
-                            {
-                              label: 'Listing text',
-                              value:
-                                normalizeValue(fields.description) === '—'
-                                  ? 'No description available.'
-                                  : normalizeValue(fields.description),
-                            },
-                          ]}
-                        />
-                        <DetailSection title="Pricing context" items={pricingItems} />
-                      </Stack>
-                    </Grid>
+                  <DetailSection
+                    title="Description"
+                    items={[
+                      {
+                        label: 'Listing text',
+                        value:
+                          normalizeValue(fields.description) === '—'
+                            ? 'No description available.'
+                            : normalizeValue(fields.description),
+                      },
+                    ]}
+                  />
 
-                    <Grid size={{ xs: 12, lg: 5 }}>
-                      <DetailSection
-                        title={isMulti ? 'AI summary' : 'Assessment summary'}
-                        items={[
-                          {
-                            label: isMulti ? 'Combined notes' : 'Summary',
-                            value: aiSummary ? buildSummaryNode(aiSummary) : 'No AI summary available yet.',
-                          },
-                        ]}
-                      />
-                    </Grid>
-                  </Grid>
+                  <Divider />
 
-                  {!isMulti && (
+                  <DetailSection
+                    title={isMulti ? 'AI summary' : 'Assessment summary'}
+                    items={[
+                      {
+                        label: 'Summary',
+                        value: aiSummary ? buildSummaryNode(aiSummary) : 'No AI summary available yet.',
+                      },
+                      { label: 'Pricing Notes', value: buildTextNode(fields.pricing_notes) },
+                      { label: 'Value Online Notes', value: buildTextNode(fields.value_online_notes) },
+                    ]}
+                  />
+
+                  {!isMulti && singleDetailItems.length > 0 && (
                     <Fragment>
                       <Divider />
-                      <Stack spacing={3}>
-                        {detailSections.map((section) => (
-                          <DetailSection key={section.title} title={section.title} items={section.items} />
-                        ))}
-                      </Stack>
+                      <DetailSection title="Instrument details" items={singleDetailItems} />
                     </Fragment>
                   )}
                 </Fragment>
               )}
             </Stack>
           </Paper>
-        </Box>
+        </Container>
       </Grid>
     </Grid>
   );
