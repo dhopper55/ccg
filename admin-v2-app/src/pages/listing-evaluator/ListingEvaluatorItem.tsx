@@ -892,7 +892,7 @@ const ListingEvaluatorItem = () => {
                   >
                     <Box
                       sx={{
-                        width: { xs: '100%', lg: 360 },
+                        width: { xs: '100%', lg: 'auto' },
                         flexShrink: 0,
                       }}
                     >
@@ -901,6 +901,8 @@ const ListingEvaluatorItem = () => {
                         sx={{
                           borderRadius: 5,
                           bgcolor: 'background.default',
+                          display: 'inline-block',
+                          lineHeight: 0,
                         }}
                       >
                         {imageUrl ? (
@@ -909,7 +911,7 @@ const ListingEvaluatorItem = () => {
                             target="_blank"
                             rel="noreferrer"
                             underline="none"
-                            sx={{ display: 'block' }}
+                            sx={{ display: 'block', lineHeight: 0 }}
                           >
                             <Box
                               component="img"
@@ -917,7 +919,8 @@ const ListingEvaluatorItem = () => {
                               alt={title}
                               sx={{
                                 display: 'block',
-                                width: '100%',
+                                width: { xs: '100%', lg: 540 },
+                                maxWidth: '100%',
                                 height: 'auto',
                               }}
                             />
