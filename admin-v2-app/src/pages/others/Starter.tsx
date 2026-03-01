@@ -413,8 +413,76 @@ const Starter = () => {
     [],
   );
 
+  const oldestInventoryColumns = useMemo<GridColDef<OldestInventoryRow>[]>(
+    () => [
+      {
+        field: 'title',
+        headerName: 'Product',
+        minWidth: 320,
+        flex: 1,
+        sortable: false,
+        renderCell: (params) => (
+          <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', minWidth: 0 }}>
+            <Box
+              component="img"
+              src={buildImageSrc(params.row.imageUrl)}
+              alt={params.row.title}
+              sx={{ width: 48, height: 48, borderRadius: 2, objectFit: 'cover', flexShrink: 0 }}
+            />
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.35 }}>
+                {params.row.title}
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                {params.row.ccgNumber}
+              </Typography>
+            </Box>
+          </Stack>
+        ),
+      },
+      {
+        field: 'source',
+        headerName: 'Source',
+        minWidth: 120,
+        sortable: false,
+        renderCell: (params) => sourceLabel(params.row.source),
+      },
+      {
+        field: 'purchasePrice',
+        headerName: 'Paid',
+        minWidth: 110,
+        align: 'right',
+        headerAlign: 'right',
+        renderCell: (params) => formatCurrency(params.row.purchasePrice),
+      },
+      {
+        field: 'forSale',
+        headerName: 'Status',
+        minWidth: 120,
+        sortable: false,
+        renderCell: (params) => (
+          <Chip
+            label={params.row.forSale ? 'For sale' : 'Held'}
+            size="small"
+            variant="soft"
+            color={params.row.forSale ? 'success' : 'warning'}
+          />
+        ),
+      },
+      {
+        field: 'daysHeld',
+        headerName: 'Days Held',
+        minWidth: 110,
+        align: 'right',
+        headerAlign: 'right',
+        renderCell: (params) => (params.row.daysHeld == null ? '--' : `${params.row.daysHeld}`),
+      },
+    ],
+    [],
+  );
+
   const recentSalesRows = dashboard.recentSales;
-  const oldestRows = dashboard.oldestInventory.slice(0, 5);
+  const oldestRows = dashboard.oldestInventory;
   const summary = dashboard.summary?.kpis;
   const totalProfit12m = (dashboard.profitTrend?.points || []).reduce((sum, point) => sum + point.profit, 0);
 
@@ -708,49 +776,27 @@ const Starter = () => {
                       variant="soft"
                     />
                   }
+                  sx={{ flexWrap: { xs: 'wrap', sm: 'nowrap' }, columnGap: 1, rowGap: 2, mb: 3 }}
                 />
-                <Stack sx={{ gap: 2 }}>
-                  {oldestRows.map((item) => (
-                    <Stack
-                      key={item.id}
-                      direction="row"
-                      sx={{
-                        py: 1.75,
-                        px: 1.5,
-                        bgcolor: 'background.elevation2',
-                        borderRadius: 2,
-                        gap: 1.5,
-                        alignItems: 'center',
-                      }}
-                    >
-                      <Box
-                        component="img"
-                        src={buildImageSrc(item.imageUrl)}
-                        alt={item.title}
-                        sx={{ width: 56, height: 56, borderRadius: 2, objectFit: 'cover', flexShrink: 0 }}
-                      />
-                      <Box sx={{ minWidth: 0, flex: 1 }}>
-                        <Typography variant="body1" sx={{ fontWeight: 700, lineHeight: 1.3 }}>
-                          {item.title}
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                          {sourceLabel(item.source)} • {item.daysHeld != null ? `${item.daysHeld} days held` : formatShortDate(item.purchasedDate)}
-                        </Typography>
-                      </Box>
-                      <Stack sx={{ alignItems: 'flex-end', gap: 0.5, flexShrink: 0 }}>
-                        <Typography variant="body1" sx={{ fontWeight: 700 }}>
-                          {formatCurrency(item.purchasePrice)}
-                        </Typography>
-                        <Chip
-                          label={item.forSale ? 'For sale' : 'Held'}
-                          size="small"
-                          variant="soft"
-                          color={item.forSale ? 'success' : 'warning'}
-                        />
-                      </Stack>
-                    </Stack>
-                  ))}
-                </Stack>
+                <DataGrid
+                  rowHeight={72}
+                  rows={oldestRows}
+                  columns={oldestInventoryColumns}
+                  disableColumnMenu
+                  disableRowSelectionOnClick
+                  hideFooterSelectedRowCount
+                  initialState={{
+                    pagination: {
+                      paginationModel: {
+                        pageSize: 6,
+                      },
+                    },
+                  }}
+                  pageSizeOptions={[6]}
+                  slots={{
+                    basePagination: (props) => <DataGridPagination showAllHref="#!" {...props} />,
+                  }}
+                />
               </Paper>
             </Grid>
           </Grid>
