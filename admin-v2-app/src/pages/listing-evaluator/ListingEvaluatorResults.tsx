@@ -3,6 +3,7 @@ import {
   Alert,
   Avatar,
   Box,
+  Button,
   Chip,
   ChipOwnProps,
   CircularProgress,
@@ -19,7 +20,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import IconifyIcon from 'components/base/IconifyIcon';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
 import paths from 'routes/paths';
@@ -36,6 +37,8 @@ type ListingListItem = {
 
 type ListingsResponse = {
   records: ListingListItem[];
+  nextOffset?: string | null;
+  total?: number;
   message?: string;
 };
 
@@ -53,7 +56,7 @@ type ListingGridRow = {
 
 const PAGE_SIZE = 20;
 const headerActions = [
-  { label: 'Back', icon: 'material-symbols:arrow-back-rounded', color: 'default' as const },
+  { label: 'Results', icon: 'material-symbols:list-alt-rounded', color: 'default' as const },
   {
     label: 'Saved Results',
     icon: 'material-symbols:bookmark-outline-rounded',
@@ -142,16 +145,30 @@ function buildDetailsHref(id: string): string {
 }
 
 const ListingEvaluatorResults = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [records, setRecords] = useState<ListingListItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [nextOffset, setNextOffset] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const { down } = useBreakpoints();
   const navigate = useNavigate();
   const downSm = down('sm');
+  const savedView = searchParams.get('saved') === '1';
+  const archivedView = !savedView && searchParams.get('archived') === '1';
+  const page = Math.max(1, Number.parseInt(searchParams.get('page') || '1', 10) || 1);
+  const currentOffset = (page - 1) * PAGE_SIZE;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  const currentViewLabel = archivedView
+    ? 'Archived Results'
+    : savedView
+      ? 'Saved Results'
+      : 'Listing Evaluator Results';
 
   useEffect(() => {
-    document.title = 'CCG Admin | Listing Evaluator Results';
-  }, []);
+    document.title = `CCG Admin | ${currentViewLabel}`;
+  }, [currentViewLabel]);
 
   const loadListings = async () => {
     setIsLoading(true);
@@ -160,6 +177,9 @@ const ListingEvaluatorResults = () => {
     try {
       const params = new URLSearchParams();
       params.set('limit', String(PAGE_SIZE));
+      params.set('offset', String(currentOffset));
+      if (savedView) params.set('showSaved', '1');
+      if (archivedView) params.set('showArchived', '1');
       const response = await fetch(`/api/listings?${params.toString()}`, {
         method: 'GET',
         credentials: 'same-origin',
@@ -171,11 +191,15 @@ const ListingEvaluatorResults = () => {
       }
 
       setRecords(Array.isArray(data.records) ? data.records : []);
+      setNextOffset(data.nextOffset ?? null);
+      setTotal(Number(data.total || 0));
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : 'Unable to load listing evaluator results.',
       );
       setRecords([]);
+      setNextOffset(null);
+      setTotal(0);
     } finally {
       setIsLoading(false);
     }
@@ -183,7 +207,24 @@ const ListingEvaluatorResults = () => {
 
   useEffect(() => {
     void loadListings();
-  }, []);
+  }, [archivedView, currentOffset, savedView]);
+
+  const updateView = (view: 'results' | 'saved' | 'archived') => {
+    const params = new URLSearchParams();
+    if (view === 'saved') params.set('saved', '1');
+    if (view === 'archived') params.set('archived', '1');
+    setSearchParams(params);
+  };
+
+  const updatePage = (nextPage: number) => {
+    const params = new URLSearchParams(searchParams);
+    if (nextPage <= 1) {
+      params.delete('page');
+    } else {
+      params.set('page', String(nextPage));
+    }
+    setSearchParams(params);
+  };
 
   const rows = useMemo<ListingGridRow[]>(
     () =>
@@ -215,7 +256,7 @@ const ListingEvaluatorResults = () => {
             justifyContent: 'space-between',
           }}
         >
-          <Typography variant="h4">Listing Evaluator Results</Typography>
+          <Typography variant="h4">{currentViewLabel}</Typography>
 
           <Stack
             direction="row"
@@ -231,6 +272,18 @@ const ListingEvaluatorResults = () => {
                 <IconButton
                   aria-label={action.label}
                   onClick={() => {
+                    if (action.label === 'Results') {
+                      updateView('results');
+                      return;
+                    }
+                    if (action.label === 'Saved Results') {
+                      updateView('saved');
+                      return;
+                    }
+                    if (action.label === 'Archived Results') {
+                      updateView('archived');
+                      return;
+                    }
                     if (action.label === 'Refresh') {
                       void loadListings();
                     }
@@ -268,7 +321,7 @@ const ListingEvaluatorResults = () => {
         {downSm ? (
           <Stack direction="column" spacing={2} sx={{ minWidth: 0 }}>
             <Typography variant="h6" sx={{ px: 0.5 }}>
-              Results
+              {currentViewLabel}
             </Typography>
 
             {isLoading ? (
@@ -572,6 +625,44 @@ const ListingEvaluatorResults = () => {
             </Table>
           </TableContainer>
         )}
+
+        {!isLoading && total > 0 ? (
+          <Stack
+            direction="row"
+            sx={{
+              mt: 3,
+              gap: 2,
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+            }}
+          >
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              Page {Math.min(page, totalPages)} of {totalPages} • {total} total items
+            </Typography>
+
+            <Stack direction="row" spacing={1}>
+              <Button
+                variant="outlined"
+                color="inherit"
+                disabled={page <= 1}
+                onClick={() => updatePage(page - 1)}
+                startIcon={<IconifyIcon icon="material-symbols:chevron-left-rounded" />}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="contained"
+                color="primary"
+                disabled={!nextOffset || rows.length < PAGE_SIZE || page >= totalPages}
+                onClick={() => updatePage(page + 1)}
+                endIcon={<IconifyIcon icon="material-symbols:chevron-right-rounded" />}
+              >
+                Next
+              </Button>
+            </Stack>
+          </Stack>
+        ) : null}
       </Paper>
     </Stack>
   );
