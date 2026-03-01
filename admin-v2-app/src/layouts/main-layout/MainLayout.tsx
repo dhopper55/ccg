@@ -17,7 +17,6 @@ import {
 import IconifyIcon from 'components/base/IconifyIcon';
 import Logo from 'components/common/Logo';
 import StyledTextField from 'components/styled/StyledTextField';
-import { useThemeMode } from 'hooks/useThemeMode';
 import { useAuth } from 'providers/AuthProvider';
 import sitemap from 'routes/sitemap';
 
@@ -26,7 +25,6 @@ const SIDEBAR_WIDTH = 280;
 const MainLayout = ({ children }: PropsWithChildren) => {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { sessionUser } = useAuth();
-  const { setThemeMode } = useThemeMode();
 
   const navItems = useMemo(() => sitemap.flatMap((section) => section.items), []);
   const userName = sessionUser?.name?.trim() || 'Admin';
@@ -189,7 +187,7 @@ const MainLayout = ({ children }: PropsWithChildren) => {
                 <IconifyIcon icon="flag:us-4x3" sx={{ fontSize: 24 }} />
               </Box>
 
-              <IconButton color="inherit" onClick={() => setThemeMode()}>
+              <IconButton color="inherit" aria-label="Theme">
                 <IconifyIcon icon="material-symbols-light:palette-outline" />
               </IconButton>
 
