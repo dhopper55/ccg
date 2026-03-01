@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  Avatar,
   Box,
   Chip,
   CircularProgress,
@@ -119,6 +120,15 @@ const initialState: DashboardState = {
   oldestInventory: [],
 };
 
+type StatCardProps = {
+  title: string;
+  subTitle: string;
+  value: string;
+  deltaText?: string;
+  deltaColor?: 'success' | 'warning' | 'primary' | 'neutral';
+  chart: React.ReactNode;
+};
+
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -159,6 +169,38 @@ function sourceLabel(source: string | null): string {
   if (normalized.includes('craigslist')) return 'CL';
   return source?.trim() || 'Manual';
 }
+
+const DashboardStatCard = ({
+  title,
+  subTitle,
+  value,
+  deltaText,
+  deltaColor = 'neutral',
+  chart,
+}: StatCardProps) => (
+  <Paper sx={{ p: { xs: 3, md: 4 }, flex: 1, height: 1 }}>
+    <Stack sx={{ rowGap: 2, height: 1, justifyContent: 'space-between' }}>
+      <Box>
+        <Typography variant="h6" sx={{ mb: 1 }}>
+          {title}
+        </Typography>
+        <Typography variant="subtitle2" sx={{ color: 'text.secondary' }}>
+          {subTitle}
+        </Typography>
+      </Box>
+
+      <Stack sx={{ gap: 2, alignItems: 'end', justifyContent: 'space-between' }}>
+        <Box>
+          <Typography sx={{ color: 'text.secondary', typography: { xs: 'h5', lg: 'h4' }, mb: 1 }}>
+            {value}
+          </Typography>
+          {deltaText ? <Chip label={deltaText} color={deltaColor} /> : null}
+        </Box>
+        {chart}
+      </Stack>
+    </Stack>
+  </Paper>
+);
 
 const Starter = () => {
   const theme = useTheme();
@@ -351,6 +393,44 @@ const Starter = () => {
     };
   }, [dashboard.inventoryAging?.buckets, theme.palette.divider, theme.palette.success.main, theme.palette.text.secondary]);
 
+  const sparklineOption = useMemo(() => {
+    const points = dashboard.profitTrend?.points || [];
+    return {
+      xAxis: { type: 'category', data: points.map((point) => point.label), show: false },
+      yAxis: { type: 'value', show: false },
+      grid: { top: 0, right: 0, bottom: 0, left: 0 },
+      tooltip: { show: false },
+      series: [
+        {
+          type: 'line',
+          smooth: true,
+          data: points.map((point) => point.profit),
+          showSymbol: false,
+          lineStyle: { width: 3, color: theme.palette.primary.main },
+          areaStyle: { color: 'rgba(87, 143, 246, 0.12)' },
+        },
+      ],
+    };
+  }, [dashboard.profitTrend?.points, theme.palette.primary.main]);
+
+  const agingSparklineOption = useMemo(() => {
+    const buckets = dashboard.inventoryAging?.buckets || [];
+    return {
+      xAxis: { type: 'category', data: buckets.map((bucket) => bucket.label), show: false },
+      yAxis: { type: 'value', show: false },
+      grid: { top: 0, right: 0, bottom: 0, left: 0 },
+      tooltip: { show: false },
+      series: [
+        {
+          type: 'bar',
+          data: buckets.map((bucket) => bucket.costBasis),
+          barWidth: 10,
+          itemStyle: { borderRadius: [8, 8, 0, 0], color: theme.palette.success.main },
+        },
+      ],
+    };
+  }, [dashboard.inventoryAging?.buckets, theme.palette.success.main]);
+
   const kpiCards = useMemo(() => {
     const kpis = dashboard.summary?.kpis;
     if (!kpis) return [];
@@ -398,16 +478,6 @@ const Starter = () => {
   return (
     <Box sx={{ p: { xs: 2, md: 4 }, minWidth: 0 }}>
       <Stack sx={{ gap: 3 }}>
-        <Box>
-          <Typography variant="h3" sx={{ mb: 1 }}>
-            CCG Home
-          </Typography>
-          <Typography sx={{ color: 'text.secondary', maxWidth: 760 }}>
-            A quick operating view of cash, turn, and margin across current inventory. The goal is
-            to surface tied-up money, recent profit, and which pieces need attention next.
-          </Typography>
-        </Box>
-
         {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
 
         {isLoading && !dashboard.summary ? (
@@ -420,108 +490,181 @@ const Starter = () => {
         ) : (
           <>
             <Grid container spacing={3}>
-              {kpiCards.map((card) => (
-                <Grid key={card.title} size={{ xs: 12, sm: 6, xl: 4 }}>
-                  <Paper sx={{ p: { xs: 3, md: 4 }, height: 1 }}>
-                    <Stack sx={{ gap: 2, height: 1 }}>
-                      <Stack direction="row" sx={{ alignItems: 'flex-start', justifyContent: 'space-between', gap: 2 }}>
-                        <Box>
-                          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
-                            {card.title}
-                          </Typography>
-                          <Typography variant="h3">{card.value}</Typography>
-                        </Box>
+              <Grid size={{ xs: 12, md: 5, lg: 4, xl: 3 }}>
+                <Paper
+                  sx={{
+                    p: { xs: 3, md: 5 },
+                    height: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 3,
+                  }}
+                >
+                  <Box>
+                    <Typography variant="subtitle1" sx={{ color: 'text.secondary', fontWeight: 500, mb: 1 }}>
+                      {dashboard.summary?.asOf ? formatShortDate(dashboard.summary.asOf) : 'Today'}
+                    </Typography>
+                    <Typography variant="h3" sx={{ mb: 2 }}>
+                      CCG Home
+                    </Typography>
+                    <Typography sx={{ color: 'text.secondary' }}>
+                      Buy low, sell high, and keep cash moving. This view focuses on tied-up money,
+                      realized profit, and the inventory most likely to need attention.
+                    </Typography>
+                  </Box>
+
+                  <Divider flexItem />
+
+                  <Stack sx={{ gap: 2 }}>
+                    <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center' }}>
+                      <Avatar sx={{ color: 'primary.main', bgcolor: 'primary.lighter' }}>
+                        <IconifyIcon icon="material-symbols:storefront-outline-rounded" />
+                      </Avatar>
+                      <Box>
+                        <Typography variant="h4">{formatNumber(dashboard.summary?.kpis.forSaleItems || 0)}</Typography>
+                        <Typography sx={{ color: 'text.secondary', fontWeight: 700 }}>For sale items</Typography>
+                      </Box>
+                    </Stack>
+                    <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center' }}>
+                      <Avatar sx={{ color: 'primary.main', bgcolor: 'primary.lighter' }}>
+                        <IconifyIcon icon="material-symbols:inventory-2-outline-rounded" />
+                      </Avatar>
+                      <Box>
+                        <Typography variant="h4">{formatNumber(dashboard.summary?.kpis.activeItems || 0)}</Typography>
+                        <Typography sx={{ color: 'text.secondary', fontWeight: 700 }}>Active items</Typography>
+                      </Box>
+                    </Stack>
+                    <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center' }}>
+                      <Avatar sx={{ color: 'primary.main', bgcolor: 'primary.lighter' }}>
+                        <IconifyIcon icon="material-symbols:paid-outline-rounded" />
+                      </Avatar>
+                      <Box>
+                        <Typography variant="h4">{formatCurrency(dashboard.summary?.kpis.realizedProfitMTD || 0)}</Typography>
+                        <Typography sx={{ color: 'text.secondary', fontWeight: 700 }}>Profit this month</Typography>
+                      </Box>
+                    </Stack>
+                  </Stack>
+
+                  <Divider flexItem />
+
+                  <Stack sx={{ gap: 1.5 }}>
+                    <Typography variant="subtitle2" sx={{ color: 'text.secondary', fontWeight: 400 }}>
+                      Immediate operating snapshot.
+                    </Typography>
+                    {dashboard.oldestInventory.slice(0, 3).map((item) => (
+                      <Stack
+                        key={item.id}
+                        direction="row"
+                        sx={{
+                          py: 1.75,
+                          px: 1.5,
+                          bgcolor: 'background.elevation2',
+                          borderRadius: 2,
+                          gap: 1.5,
+                          alignItems: 'center',
+                        }}
+                      >
                         <Box
-                          sx={{
-                            width: 44,
-                            height: 44,
-                            borderRadius: 2.5,
-                            bgcolor: 'background.elevation1',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'primary.main',
-                            flexShrink: 0,
-                          }}
-                        >
-                          <IconifyIcon icon={card.icon} fontSize={24} />
+                          component="img"
+                          src={buildImageSrc(item.imageUrl)}
+                          alt={item.title}
+                          sx={{ width: 48, height: 48, borderRadius: 2, objectFit: 'cover', flexShrink: 0 }}
+                        />
+                        <Box sx={{ minWidth: 0, flex: 1 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.35 }}>
+                            {item.title}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                            {item.daysHeld != null ? `${item.daysHeld} days held` : 'Unknown age'}
+                          </Typography>
                         </Box>
+                        <Chip
+                          label={item.forSale ? 'For sale' : 'Held'}
+                          size="small"
+                          variant="soft"
+                          color={item.forSale ? 'success' : 'warning'}
+                        />
                       </Stack>
-                      <Typography sx={{ color: 'text.secondary' }}>{card.hint}</Typography>
+                    ))}
+                  </Stack>
+                </Paper>
+              </Grid>
+
+              <Grid container size={{ xs: 12, md: 7, lg: 8, xl: 9 }}>
+                <Grid size={{ xs: 12, xl: 6.6 }}>
+                  <Paper sx={{ p: { xs: 3, md: 4 }, height: 1 }}>
+                    <Stack sx={{ gap: 3, height: 1 }}>
+                      <Box>
+                        <Typography variant="h6" sx={{ mb: 1 }}>
+                          Profit Trend
+                        </Typography>
+                        <Typography variant="subtitle2" sx={{ color: 'text.secondary' }}>
+                          Realized gross profit over the last 12 months
+                        </Typography>
+                      </Box>
+                      <Typography variant="h3">
+                        {formatCurrency(
+                          (dashboard.profitTrend?.points || []).reduce((sum, point) => sum + point.profit, 0),
+                        )}
+                      </Typography>
+                      <Chip label="12 months" color="success" />
+                      <ReactEchart echarts={echarts} option={profitTrendOption} sx={{ minHeight: 260, width: 1 }} />
                     </Stack>
                   </Paper>
                 </Grid>
-              ))}
-            </Grid>
 
-            <Grid container spacing={3}>
-              <Grid size={{ xs: 12, xl: 8 }}>
-                <Paper sx={{ p: { xs: 3, md: 4 }, height: 1 }}>
-                  <Stack sx={{ gap: 3, height: 1 }}>
-                    <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 2 }}>
-                      <Box>
-                        <Typography variant="h5" sx={{ mb: 1 }}>
-                          Profit Trend
+                <Grid container size={{ xs: 12, xl: 5.4 }}>
+                  <Grid size={{ xs: 12, sm: 6, xl: 12 }}>
+                    <DashboardStatCard
+                      title="Inventory Cost Basis"
+                      subTitle="Cash currently tied up"
+                      value={formatCurrency(dashboard.summary?.kpis.inventoryCostBasis || 0)}
+                      deltaText={`${formatNumber(dashboard.summary?.kpis.activeItems || 0)} active`}
+                      deltaColor="primary"
+                      chart={<ReactEchart echarts={echarts} option={sparklineOption} sx={{ height: 120, width: '42%' }} />}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6, xl: 12 }}>
+                    <DashboardStatCard
+                      title="Private Party Value"
+                      subTitle="Expected private-party value"
+                      value={formatCurrency(dashboard.summary?.kpis.privatePartyValue || 0)}
+                      deltaText={`${formatPercent(dashboard.summary?.kpis.allTimeSoldMarginPercent || 0)} margin`}
+                      deltaColor="success"
+                      chart={<ReactEchart echarts={echarts} option={agingSparklineOption} sx={{ height: 120, width: '42%' }} />}
+                    />
+                  </Grid>
+                </Grid>
+
+                <Grid size={{ xs: 12 }}>
+                  <Paper sx={{ p: { xs: 3, md: 4 } }}>
+                    <Stack
+                      direction={{ xs: 'column', xl: 'row' }}
+                      sx={{ gap: 3, alignItems: { xs: 'stretch', xl: 'center' } }}
+                    >
+                      <Box sx={{ minWidth: { xl: 260 } }}>
+                        <Typography variant="h3" sx={{ mb: 1 }}>
+                          Inventory Aging
                         </Typography>
                         <Typography sx={{ color: 'text.secondary' }}>
-                          Realized revenue, cost, and gross profit from sold inventory over the last 12 months.
+                          Cost basis concentration across unsold inventory age buckets.
                         </Typography>
                       </Box>
-                      <Chip label="12 months" color="primary" variant="soft" />
+                      <Box sx={{ flex: 1 }}>
+                        <ReactEchart echarts={echarts} option={agingOption} sx={{ minHeight: 260, width: 1 }} />
+                      </Box>
                     </Stack>
-                    <ReactEchart
-                      echarts={echarts}
-                      option={profitTrendOption}
-                      sx={{ minHeight: 320, width: 1 }}
-                    />
-                  </Stack>
-                </Paper>
-              </Grid>
-
-              <Grid size={{ xs: 12, xl: 4 }}>
-                <Paper sx={{ p: { xs: 3, md: 4 }, height: 1 }}>
-                  <Stack sx={{ gap: 3, height: 1 }}>
-                    <Box>
-                      <Typography variant="h5" sx={{ mb: 1 }}>
-                        Inventory Aging
-                      </Typography>
-                      <Typography sx={{ color: 'text.secondary' }}>
-                        Cost basis concentration across unsold inventory age buckets.
-                      </Typography>
-                    </Box>
-                    <ReactEchart
-                      echarts={echarts}
-                      option={agingOption}
-                      sx={{ minHeight: 320, width: 1 }}
-                    />
-                    <Stack sx={{ gap: 1.25 }}>
-                      {(dashboard.inventoryAging?.buckets || []).map((bucket) => (
-                        <Stack
-                          key={bucket.key}
-                          direction="row"
-                          sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 2 }}
-                        >
-                          <Box sx={{ minWidth: 0 }}>
-                            <Typography variant="body2">{bucket.label}</Typography>
-                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                              {formatNumber(bucket.itemCount)} items
-                            </Typography>
-                          </Box>
-                          <Typography variant="subtitle2">{formatCurrency(bucket.costBasis)}</Typography>
-                        </Stack>
-                      ))}
-                    </Stack>
-                  </Stack>
-                </Paper>
+                  </Paper>
+                </Grid>
               </Grid>
             </Grid>
 
             <Grid container spacing={3}>
-              <Grid size={{ xs: 12, xl: 6 }}>
+              <Grid size={{ xs: 12, xl: 7 }}>
                 <Paper sx={{ p: { xs: 3, md: 4 }, height: 1 }}>
-                  <Stack sx={{ gap: 3 }}>
+                  <Stack sx={{ gap: 3, height: 1 }}>
                     <Box>
-                      <Typography variant="h5" sx={{ mb: 1 }}>
+                      <Typography variant="h3" sx={{ mb: 1 }}>
                         Recent Sales
                       </Typography>
                       <Typography sx={{ color: 'text.secondary' }}>
@@ -529,48 +672,40 @@ const Starter = () => {
                       </Typography>
                     </Box>
 
-                    <Stack divider={<Divider flexItem />}>
-                      {dashboard.recentSales.map((item) => (
+                    <Stack sx={{ gap: 2 }}>
+                      {dashboard.recentSales.slice(0, 5).map((item) => (
                         <Stack
                           key={item.id}
                           direction="row"
-                          sx={{ gap: 2, py: 2, alignItems: 'center', minWidth: 0 }}
+                          sx={{
+                            py: 2,
+                            px: 2,
+                            bgcolor: 'background.elevation2',
+                            borderRadius: 2,
+                            gap: 2,
+                            alignItems: 'center',
+                            minWidth: 0,
+                          }}
                         >
                           <Box
                             component="img"
                             src={buildImageSrc(item.imageUrl)}
                             alt={item.title}
-                            sx={{
-                              width: 64,
-                              height: 64,
-                              borderRadius: 3,
-                              objectFit: 'cover',
-                              bgcolor: 'background.elevation1',
-                              flexShrink: 0,
-                            }}
+                            sx={{ width: 72, height: 72, borderRadius: 3, objectFit: 'cover', flexShrink: 0 }}
                           />
                           <Box sx={{ minWidth: 0, flex: 1 }}>
-                            <Typography sx={{ fontWeight: 600, lineHeight: 1.35 }}>
+                            <Typography variant="h6" sx={{ lineHeight: 1.25, mb: 1 }}>
                               {item.title}
                             </Typography>
-                            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', mt: 1 }}>
+                            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
                               <Chip label={item.ccgNumber} size="small" variant="soft" color="primary" />
-                              <Chip
-                                label={`Profit ${formatCurrency(item.profitAmount)}`}
-                                size="small"
-                                variant="soft"
-                                color={item.profitAmount >= 0 ? 'success' : 'error'}
-                              />
-                              {item.daysHeld != null && (
-                                <Chip label={`${item.daysHeld} days`} size="small" variant="soft" color="neutral" />
-                              )}
+                              <Chip label={`Profit ${formatCurrency(item.profitAmount)}`} size="small" variant="soft" color={item.profitAmount >= 0 ? 'success' : 'error'} />
+                              {item.daysHeld != null ? <Chip label={`${item.daysHeld} days`} size="small" variant="soft" color="neutral" /> : null}
                             </Stack>
                           </Box>
-                          <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
-                            <Typography sx={{ fontWeight: 700 }}>{formatCurrency(item.soldAmount)}</Typography>
-                            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                              {formatShortDate(item.soldDate)}
-                            </Typography>
+                          <Box sx={{ textAlign: 'right', minWidth: 120 }}>
+                            <Typography variant="h5">{formatCurrency(item.soldAmount)}</Typography>
+                            <Typography sx={{ color: 'text.secondary' }}>{formatShortDate(item.soldDate)}</Typography>
                           </Box>
                         </Stack>
                       ))}
@@ -579,58 +714,51 @@ const Starter = () => {
                 </Paper>
               </Grid>
 
-              <Grid size={{ xs: 12, xl: 6 }}>
+              <Grid size={{ xs: 12, xl: 5 }}>
                 <Paper sx={{ p: { xs: 3, md: 4 }, height: 1 }}>
-                  <Stack sx={{ gap: 3 }}>
+                  <Stack sx={{ gap: 3, height: 1 }}>
                     <Box>
-                      <Typography variant="h5" sx={{ mb: 1 }}>
+                      <Typography variant="h3" sx={{ mb: 1 }}>
                         Oldest Inventory
                       </Typography>
                       <Typography sx={{ color: 'text.secondary' }}>
-                        The oldest unsold items currently holding cash and shelf space.
+                        The oldest unsold pieces currently holding cash and shelf space.
                       </Typography>
                     </Box>
 
-                    <Stack divider={<Divider flexItem />}>
-                      {dashboard.oldestInventory.map((item) => (
+                    <Stack sx={{ gap: 2 }}>
+                      {dashboard.oldestInventory.slice(0, 5).map((item) => (
                         <Stack
                           key={item.id}
                           direction="row"
-                          sx={{ gap: 2, py: 2, alignItems: 'center', minWidth: 0 }}
+                          sx={{
+                            py: 2,
+                            px: 2,
+                            bgcolor: 'background.elevation2',
+                            borderRadius: 2,
+                            gap: 2,
+                            alignItems: 'center',
+                            minWidth: 0,
+                          }}
                         >
                           <Box
                             component="img"
                             src={buildImageSrc(item.imageUrl)}
                             alt={item.title}
-                            sx={{
-                              width: 64,
-                              height: 64,
-                              borderRadius: 3,
-                              objectFit: 'cover',
-                              bgcolor: 'background.elevation1',
-                              flexShrink: 0,
-                            }}
+                            sx={{ width: 56, height: 56, borderRadius: 3, objectFit: 'cover', flexShrink: 0 }}
                           />
                           <Box sx={{ minWidth: 0, flex: 1 }}>
-                            <Typography sx={{ fontWeight: 600, lineHeight: 1.35 }}>
+                            <Typography variant="h6" sx={{ lineHeight: 1.25, mb: 1 }}>
                               {item.title}
                             </Typography>
-                            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', mt: 1 }}>
-                              <Chip label={item.ccgNumber} size="small" variant="soft" color="primary" />
-                              <Chip
-                                label={item.forSale ? 'For sale' : 'Held back'}
-                                size="small"
-                                variant="soft"
-                                color={item.forSale ? 'success' : 'warning'}
-                              />
+                            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
                               <Chip label={sourceLabel(item.source)} size="small" variant="soft" color="neutral" />
+                              <Chip label={item.forSale ? 'For sale' : 'Held'} size="small" variant="soft" color={item.forSale ? 'success' : 'warning'} />
                             </Stack>
                           </Box>
-                          <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
-                            <Typography sx={{ fontWeight: 700 }}>{formatCurrency(item.purchasePrice)}</Typography>
-                            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                              {item.daysHeld != null ? `${item.daysHeld} days held` : formatShortDate(item.purchasedDate)}
-                            </Typography>
+                          <Box sx={{ textAlign: 'right', minWidth: 96 }}>
+                            <Typography variant="h6">{item.daysHeld != null ? `${item.daysHeld}d` : '--'}</Typography>
+                            <Typography sx={{ color: 'text.secondary' }}>{formatCurrency(item.purchasePrice)}</Typography>
                           </Box>
                         </Stack>
                       ))}
