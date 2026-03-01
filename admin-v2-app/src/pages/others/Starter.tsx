@@ -74,6 +74,16 @@ type InventoryAgingResponse = {
   buckets: InventoryAgingBucket[];
 };
 
+type InventoryCategoryBucket = {
+  category: string;
+  itemCount: number;
+};
+
+type InventoryByCategoryResponse = {
+  asOf: string;
+  buckets: InventoryCategoryBucket[];
+};
+
 type RecentSaleRow = {
   id: number;
   ccgNumber: string;
@@ -111,6 +121,7 @@ type DashboardState = {
   summary: DashboardSummaryResponse | null;
   profitTrend: ProfitTrendResponse | null;
   inventoryAging: InventoryAgingResponse | null;
+  inventoryByCategory: InventoryByCategoryResponse | null;
   recentSales: RecentSaleRow[];
   oldestInventory: OldestInventoryRow[];
 };
@@ -119,6 +130,7 @@ const initialState: DashboardState = {
   summary: null,
   profitTrend: null,
   inventoryAging: null,
+  inventoryByCategory: null,
   recentSales: [],
   oldestInventory: [],
 };
@@ -211,11 +223,19 @@ const Starter = () => {
       setErrorMessage('');
 
       try {
-        const [summaryResponse, trendResponse, agingResponse, recentSalesResponse, oldestResponse] =
+        const [
+          summaryResponse,
+          trendResponse,
+          agingResponse,
+          byCategoryResponse,
+          recentSalesResponse,
+          oldestResponse,
+        ] =
           await Promise.all([
             fetch('/api/admin-v2/dashboard/summary', { credentials: 'same-origin' }),
             fetch('/api/admin-v2/dashboard/profit-trend?months=12', { credentials: 'same-origin' }),
             fetch('/api/admin-v2/dashboard/inventory-aging', { credentials: 'same-origin' }),
+            fetch('/api/admin-v2/dashboard/inventory-by-category', { credentials: 'same-origin' }),
             fetch('/api/admin-v2/dashboard/recent-sales?limit=8', { credentials: 'same-origin' }),
             fetch('/api/admin-v2/dashboard/oldest-inventory?limit=8', { credentials: 'same-origin' }),
           ]);
@@ -224,6 +244,7 @@ const Starter = () => {
           summaryResponse.json() as Promise<DashboardSummaryResponse>,
           trendResponse.json() as Promise<ProfitTrendResponse>,
           agingResponse.json() as Promise<InventoryAgingResponse>,
+          byCategoryResponse.json() as Promise<InventoryByCategoryResponse>,
           recentSalesResponse.json() as Promise<RecentSalesResponse>,
           oldestResponse.json() as Promise<OldestInventoryResponse>,
         ]);
@@ -232,6 +253,7 @@ const Starter = () => {
           !summaryResponse.ok ||
           !trendResponse.ok ||
           !agingResponse.ok ||
+          !byCategoryResponse.ok ||
           !recentSalesResponse.ok ||
           !oldestResponse.ok
         ) {
@@ -243,8 +265,9 @@ const Starter = () => {
             summary: payloads[0],
             profitTrend: payloads[1],
             inventoryAging: payloads[2],
-            recentSales: payloads[3].records || [],
-            oldestInventory: payloads[4].records || [],
+            inventoryByCategory: payloads[3],
+            recentSales: payloads[4].records || [],
+            oldestInventory: payloads[5].records || [],
           });
         }
       } catch (error) {
@@ -357,6 +380,70 @@ const Starter = () => {
       ],
     };
   }, [dashboard.inventoryAging?.buckets, theme.palette]);
+
+  const inventoryCategoryPalette = useMemo(
+    () => [
+      theme.palette.primary.main,
+      theme.palette.chBlue?.[300] || '#7fb2ff',
+      theme.palette.success.main,
+      theme.palette.warning.main,
+      theme.palette.info.main,
+      theme.palette.chOrange?.[400] || '#ff9f43',
+      theme.palette.chLightBlue?.[300] || '#7cd4fd',
+      theme.palette.error.main,
+      theme.palette.chGrey?.[500] || '#8b949e',
+    ],
+    [theme.palette],
+  );
+
+  const inventoryByCategoryChartData = useMemo(
+    () =>
+      (dashboard.inventoryByCategory?.buckets || []).map((bucket, index) => ({
+        name: bucket.category,
+        value: bucket.itemCount,
+        itemStyle: {
+          color: inventoryCategoryPalette[index % inventoryCategoryPalette.length],
+        },
+      })),
+    [dashboard.inventoryByCategory?.buckets, inventoryCategoryPalette],
+  );
+
+  const inventoryByCategoryOption = useMemo(
+    () => ({
+      tooltip: {
+        trigger: 'item',
+        formatter: (params: CallbackDataParams) =>
+          `<strong>${params.name}</strong><br/>${formatNumber(Number(params.value || 0))} items`,
+      },
+      legend: {
+        show: false,
+      },
+      series: [
+        {
+          type: 'pie',
+          radius: ['45%', '70%'],
+          padAngle: 2,
+          itemStyle: {
+            borderRadius: 3,
+          },
+          label: {
+            show: false,
+          },
+          emphasis: {
+            label: {
+              show: false,
+            },
+          },
+          labelLine: {
+            show: false,
+          },
+          data: inventoryByCategoryChartData,
+        },
+      ],
+      grid: { outerBoundsMode: 'same', outerBoundsContain: 'axisLabel' },
+    }),
+    [inventoryByCategoryChartData],
+  );
 
   const recentSalesRows = dashboard.recentSales;
   const oldestRows = dashboard.oldestInventory;
@@ -504,7 +591,7 @@ const Starter = () => {
           </Grid>
 
           <Grid container spacing={3} sx={{ mt: 0 }}>
-            <Grid size={{ xs: 12, xl: 8 }}>
+            <Grid size={{ xs: 12 }}>
               <Paper sx={{ p: { xs: 3, md: 5 }, height: 1 }}>
                 <SectionHeader
                   title="Recent Sales"
@@ -562,7 +649,7 @@ const Starter = () => {
               </Paper>
             </Grid>
 
-            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+            <Grid size={{ xs: 12 }}>
               <Paper sx={{ p: { xs: 3, md: 5 }, height: '100%' }}>
                 <SectionHeader
                   title="Inventory Aging"
@@ -620,7 +707,95 @@ const Starter = () => {
               </Paper>
             </Grid>
 
-            <Grid size={{ xs: 12, md: 6, xl: 6 }} order={{ xl: 1 }} sx={{ display: 'flex', flexDirection: 'column' }}>
+            <Grid size={{ xs: 12 }}>
+              <Paper sx={{ p: { xs: 3, md: 5 }, height: 1 }}>
+                <SectionHeader
+                  title="Inventory by category"
+                  subTitle="Active inventory count by category"
+                  actionComponent={
+                    <IconButton size="small" aria-label="Inventory by category options">
+                      <IconifyIcon icon="material-symbols:more-horiz-rounded" />
+                    </IconButton>
+                  }
+                />
+                <Stack
+                  direction={{ xs: 'column', lg: 'row' }}
+                  sx={{ gap: 4, alignItems: { xs: 'stretch', lg: 'center' } }}
+                >
+                  <Stack sx={{ justifyContent: 'center', alignItems: 'center', flex: 1 }}>
+                    <Box sx={{ width: 'fit-content', position: 'relative' }}>
+                      <ReactEchart
+                        echarts={echarts}
+                        option={inventoryByCategoryOption}
+                        sx={{ height: '230px !important', width: '230px' }}
+                      />
+                      <Box
+                        sx={{
+                          position: 'absolute',
+                          top: '50%',
+                          left: '50%',
+                          transform: 'translate(-50%,-50%)',
+                          textAlign: 'center',
+                        }}
+                      >
+                        <Typography variant="h3" sx={{ mb: 1 }}>
+                          {formatNumber(
+                            (dashboard.inventoryByCategory?.buckets || []).reduce(
+                              (sum, bucket) => sum + bucket.itemCount,
+                              0,
+                            ),
+                          )}
+                        </Typography>
+                        <Typography
+                          variant="subtitle2"
+                          sx={{ fontWeight: 'regular', color: 'text.secondary' }}
+                        >
+                          Active items
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Stack>
+
+                  <Grid
+                    container
+                    spacing={{ xs: 1.5, md: 2 }}
+                    sx={{ flex: 1, alignItems: 'stretch' }}
+                  >
+                    {(dashboard.inventoryByCategory?.buckets || []).map((bucket, index) => (
+                      <Grid key={bucket.category} size={{ xs: 12, sm: 6, xl: 4 }}>
+                        <Paper
+                          variant="outlined"
+                          sx={{ p: 2, height: 1, bgcolor: 'background.default' }}
+                        >
+                          <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center' }}>
+                            <Box
+                              sx={{
+                                width: 10,
+                                height: 10,
+                                borderRadius: '50%',
+                                flexShrink: 0,
+                                bgcolor:
+                                  inventoryCategoryPalette[index % inventoryCategoryPalette.length],
+                              }}
+                            />
+                            <Box sx={{ minWidth: 0, flex: 1 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
+                                {bucket.category}
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                                {formatNumber(bucket.itemCount)} items
+                              </Typography>
+                            </Box>
+                          </Stack>
+                        </Paper>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </Stack>
+              </Paper>
+            </Grid>
+
+            <Grid size={{ xs: 12 }} sx={{ display: 'flex', flexDirection: 'column' }}>
               <Paper sx={{ p: { xs: 3, md: 5 }, height: 1 }}>
                 <SectionHeader
                   title="Oldest Inventory"

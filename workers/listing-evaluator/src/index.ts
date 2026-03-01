@@ -382,6 +382,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/dashboard/inventory-by-category' && request.method === 'GET') {
+      const response = await handleAdminV2DashboardInventoryByCategory(env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/admin-v2/dashboard/recent-sales' && request.method === 'GET') {
       const response = await handleAdminV2DashboardRecentSales(request, env);
       return withCors(response, request, env);
@@ -2010,6 +2015,11 @@ type AdminV2InventoryAgingBucket = {
   currentAskingValue: number;
 };
 
+type AdminV2InventoryCategoryBucket = {
+  category: string;
+  itemCount: number;
+};
+
 type AdminV2RecentSaleRow = {
   id: number;
   ccgNumber: string;
@@ -2319,6 +2329,14 @@ async function handleAdminV2DashboardProfitTrend(request: Request, env: Env): Pr
 
 async function handleAdminV2DashboardInventoryAging(env: Env): Promise<Response> {
   const buckets = await dbGetAdminV2InventoryAging(env);
+  return jsonResponse({
+    asOf: currentDateYmd(),
+    buckets,
+  });
+}
+
+async function handleAdminV2DashboardInventoryByCategory(env: Env): Promise<Response> {
+  const buckets = await dbGetAdminV2InventoryByCategory(env);
   return jsonResponse({
     asOf: currentDateYmd(),
     buckets,
@@ -4930,6 +4948,26 @@ async function dbGetAdminV2InventoryAging(env: Env): Promise<AdminV2InventoryAgi
     privatePartyValue: 0,
     currentAskingValue: 0,
   });
+}
+
+async function dbGetAdminV2InventoryByCategory(env: Env): Promise<AdminV2InventoryCategoryBucket[]> {
+  const rows = await env.DB.prepare(
+    `SELECT
+      COALESCE(NULLIF(TRIM(i.category), ''), 'Uncategorized') AS category,
+      COUNT(*) AS item_count
+     FROM ccg_inventory_items i
+     WHERE COALESCE(i.is_active, 0) = 1
+     GROUP BY COALESCE(NULLIF(TRIM(i.category), ''), 'Uncategorized')
+     ORDER BY item_count DESC, category ASC`
+  ).all<{
+    category: string | null;
+    item_count: number | null;
+  }>();
+
+  return (rows.results ?? []).map((row) => ({
+    category: row.category || 'Uncategorized',
+    itemCount: Number(row.item_count || 0),
+  }));
 }
 
 async function dbGetAdminV2RecentSales(limit: number, env: Env): Promise<AdminV2RecentSaleRow[]> {
