@@ -367,6 +367,31 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/dashboard/summary' && request.method === 'GET') {
+      const response = await handleAdminV2DashboardSummary(env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/dashboard/profit-trend' && request.method === 'GET') {
+      const response = await handleAdminV2DashboardProfitTrend(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/dashboard/inventory-aging' && request.method === 'GET') {
+      const response = await handleAdminV2DashboardInventoryAging(env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/dashboard/recent-sales' && request.method === 'GET') {
+      const response = await handleAdminV2DashboardRecentSales(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/dashboard/oldest-inventory' && request.method === 'GET') {
+      const response = await handleAdminV2DashboardOldestInventory(request, env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/inventory/package-create' && request.method === 'POST') {
       const response = await handleInventoryPackageCreate(env);
       return withCors(response, request, env);
@@ -1949,6 +1974,67 @@ type InventorySummaryTotals = {
   ccgSoldItems: number;
 };
 
+type AdminV2DashboardSummary = {
+  inventoryCostBasis: number;
+  privatePartyValue: number;
+  currentAskingValue: number;
+  realizedProfitMTD: number;
+  forSaleItems: number;
+  avgDaysToSell: number;
+  activeItems: number;
+  notForSaleItems: number;
+  soldItems: number;
+  allTimeSoldMarginPercent: number;
+};
+
+type AdminV2ProfitTrendPoint = {
+  month: string;
+  label: string;
+  soldCount: number;
+  revenue: number;
+  cost: number;
+  profit: number;
+};
+
+type AdminV2InventoryAgingBucket = {
+  key: string;
+  label: string;
+  itemCount: number;
+  costBasis: number;
+  privatePartyValue: number;
+  currentAskingValue: number;
+};
+
+type AdminV2RecentSaleRow = {
+  id: number;
+  ccgNumber: string;
+  title: string;
+  imageUrl: string;
+  category: string | null;
+  brand: string | null;
+  soldDate: string | null;
+  purchasePrice: number;
+  soldAmount: number;
+  profitAmount: number;
+  daysHeld: number | null;
+};
+
+type AdminV2OldestInventoryRow = {
+  id: number;
+  ccgNumber: string;
+  title: string;
+  imageUrl: string;
+  category: string | null;
+  brand: string | null;
+  purchasedDate: string | null;
+  daysHeld: number | null;
+  purchasePrice: number;
+  privatePartyValue: number;
+  currentAskingValue: number;
+  forSale: boolean;
+  source: string | null;
+};
+
 async function handleList(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const limitParam = url.searchParams.get('limit');
@@ -2206,6 +2292,50 @@ async function handleInventoryList(request: Request, env: Env): Promise<Response
 async function handleInventorySummary(env: Env): Promise<Response> {
   const totals = await dbGetInventorySummary(env);
   return jsonResponse(totals);
+}
+
+async function handleAdminV2DashboardSummary(env: Env): Promise<Response> {
+  const summary = await dbGetAdminV2DashboardSummary(env);
+  return jsonResponse({
+    asOf: currentDateYmd(),
+    kpis: summary,
+  });
+}
+
+async function handleAdminV2DashboardProfitTrend(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const months = parseBoundedInt(url.searchParams.get('months'), 12, 3, 24);
+  const points = await dbGetAdminV2ProfitTrend(months, env);
+  return jsonResponse({
+    months,
+    points,
+  });
+}
+
+async function handleAdminV2DashboardInventoryAging(env: Env): Promise<Response> {
+  const buckets = await dbGetAdminV2InventoryAging(env);
+  return jsonResponse({
+    asOf: currentDateYmd(),
+    buckets,
+  });
+}
+
+async function handleAdminV2DashboardRecentSales(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const limit = parseBoundedInt(url.searchParams.get('limit'), 10, 1, 25);
+  const records = await dbGetAdminV2RecentSales(limit, env);
+  return jsonResponse({
+    records,
+  });
+}
+
+async function handleAdminV2DashboardOldestInventory(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const limit = parseBoundedInt(url.searchParams.get('limit'), 10, 1, 25);
+  const records = await dbGetAdminV2OldestInventory(limit, env);
+  return jsonResponse({
+    records,
+  });
 }
 
 async function handleInventoryPackageCreate(env: Env): Promise<Response> {
@@ -4551,6 +4681,292 @@ async function dbGetInventorySummary(env: Env): Promise<InventorySummaryTotals> 
   };
 }
 
+async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2DashboardSummary> {
+  const summary = await dbGetInventorySummary(env);
+  const row = await env.DB.prepare(
+    `SELECT
+      COALESCE(SUM(
+        CASE
+          WHEN i.is_active = 1 AND COALESCE(i.is_sold, 0) = 0 AND COALESCE(i.for_sale, 0) = 1
+            THEN COALESCE(l.price_asking, i.private_party_value, i.purchase_price, 0)
+          ELSE 0
+        END
+      ), 0) AS current_asking_value,
+      COALESCE(SUM(
+        CASE
+          WHEN COALESCE(i.is_sold, 0) = 1
+            AND i.sold_date IS NOT NULL
+            AND i.sold_date >= date('now', 'start of month')
+            THEN COALESCE(i.sold_amount, 0) - COALESCE(i.purchase_price, 0)
+          ELSE 0
+        END
+      ), 0) AS realized_profit_mtd,
+      COALESCE(AVG(
+        CASE
+          WHEN COALESCE(i.is_sold, 0) = 1
+            AND i.purchased_date IS NOT NULL
+            AND i.sold_date IS NOT NULL
+            THEN julianday(i.sold_date) - julianday(i.purchased_date)
+          ELSE NULL
+        END
+      ), 0) AS avg_days_to_sell
+     FROM ccg_inventory_items i
+     LEFT JOIN listings l ON l.id = i.source_listing_id`
+  ).first<{
+    current_asking_value: number | null;
+    realized_profit_mtd: number | null;
+    avg_days_to_sell: number | null;
+  }>();
+
+  return {
+    inventoryCostBasis: summary.ccgPaidUnsold,
+    privatePartyValue: summary.ccgPrivatePartyUnsold,
+    currentAskingValue: Number(row?.current_asking_value || 0),
+    realizedProfitMTD: Number(row?.realized_profit_mtd || 0),
+    forSaleItems: summary.ccgForSaleItems,
+    avgDaysToSell: Number(row?.avg_days_to_sell || 0),
+    activeItems: summary.ccgActiveItems,
+    notForSaleItems: summary.ccgNotForSaleItems,
+    soldItems: summary.ccgSoldItems,
+    allTimeSoldMarginPercent: summary.ccgSoldProfitMarginPercent,
+  };
+}
+
+async function dbGetAdminV2ProfitTrend(months: number, env: Env): Promise<AdminV2ProfitTrendPoint[]> {
+  const rows = await env.DB.prepare(
+    `SELECT
+      strftime('%Y-%m', i.sold_date) AS month_key,
+      COUNT(*) AS sold_count,
+      COALESCE(SUM(i.sold_amount), 0) AS revenue,
+      COALESCE(SUM(i.purchase_price), 0) AS cost,
+      COALESCE(SUM(COALESCE(i.sold_amount, 0) - COALESCE(i.purchase_price, 0)), 0) AS profit
+     FROM ccg_inventory_items i
+     WHERE COALESCE(i.is_sold, 0) = 1
+       AND i.sold_date IS NOT NULL
+       AND i.sold_date >= date('now', 'start of month', ?)
+     GROUP BY month_key
+     ORDER BY month_key ASC`
+  ).bind(`-${Math.max(0, months - 1)} months`).all<{
+    month_key: string | null;
+    sold_count: number | null;
+    revenue: number | null;
+    cost: number | null;
+    profit: number | null;
+  }>();
+
+  const byMonth = new Map<string, {
+    soldCount: number;
+    revenue: number;
+    cost: number;
+    profit: number;
+  }>();
+  for (const row of rows.results ?? []) {
+    const key = typeof row.month_key === 'string' ? row.month_key : '';
+    if (!key) continue;
+    byMonth.set(key, {
+      soldCount: Number(row.sold_count || 0),
+      revenue: Number(row.revenue || 0),
+      cost: Number(row.cost || 0),
+      profit: Number(row.profit || 0),
+    });
+  }
+
+  const points: AdminV2ProfitTrendPoint[] = [];
+  const cursor = new Date();
+  cursor.setUTCDate(1);
+  cursor.setUTCHours(0, 0, 0, 0);
+  cursor.setUTCMonth(cursor.getUTCMonth() - (months - 1));
+
+  for (let index = 0; index < months; index += 1) {
+    const month = cursor.toISOString().slice(0, 7);
+    const row = byMonth.get(month);
+    points.push({
+      month,
+      label: formatMonthLabel(month),
+      soldCount: row?.soldCount ?? 0,
+      revenue: row?.revenue ?? 0,
+      cost: row?.cost ?? 0,
+      profit: row?.profit ?? 0,
+    });
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
+
+  return points;
+}
+
+async function dbGetAdminV2InventoryAging(env: Env): Promise<AdminV2InventoryAgingBucket[]> {
+  const rows = await env.DB.prepare(
+    `SELECT
+      CASE
+        WHEN i.purchased_date IS NULL THEN 'unknown'
+        WHEN julianday('now') - julianday(i.purchased_date) <= 30 THEN '0-30'
+        WHEN julianday('now') - julianday(i.purchased_date) <= 60 THEN '31-60'
+        WHEN julianday('now') - julianday(i.purchased_date) <= 90 THEN '61-90'
+        ELSE '90+'
+      END AS bucket_key,
+      COUNT(*) AS item_count,
+      COALESCE(SUM(COALESCE(i.purchase_price, 0)), 0) AS cost_basis,
+      COALESCE(SUM(COALESCE(i.private_party_value, 0)), 0) AS private_party_value,
+      COALESCE(SUM(COALESCE(l.price_asking, i.private_party_value, i.purchase_price, 0)), 0) AS current_asking_value
+     FROM ccg_inventory_items i
+     LEFT JOIN listings l ON l.id = i.source_listing_id
+     WHERE i.is_active = 1
+       AND COALESCE(i.is_sold, 0) = 0
+     GROUP BY bucket_key`
+  ).all<{
+    bucket_key: string | null;
+    item_count: number | null;
+    cost_basis: number | null;
+    private_party_value: number | null;
+    current_asking_value: number | null;
+  }>();
+
+  const labels: Record<string, string> = {
+    '0-30': '0-30 days',
+    '31-60': '31-60 days',
+    '61-90': '61-90 days',
+    '90+': '90+ days',
+    unknown: 'Unknown purchase date',
+  };
+
+  const defaults = ['0-30', '31-60', '61-90', '90+', 'unknown'];
+  const byKey = new Map<string, AdminV2InventoryAgingBucket>();
+
+  for (const row of rows.results ?? []) {
+    const key = typeof row.bucket_key === 'string' ? row.bucket_key : 'unknown';
+    byKey.set(key, {
+      key,
+      label: labels[key] || key,
+      itemCount: Number(row.item_count || 0),
+      costBasis: Number(row.cost_basis || 0),
+      privatePartyValue: Number(row.private_party_value || 0),
+      currentAskingValue: Number(row.current_asking_value || 0),
+    });
+  }
+
+  return defaults.map((key) => byKey.get(key) || {
+    key,
+    label: labels[key] || key,
+    itemCount: 0,
+    costBasis: 0,
+    privatePartyValue: 0,
+    currentAskingValue: 0,
+  });
+}
+
+async function dbGetAdminV2RecentSales(limit: number, env: Env): Promise<AdminV2RecentSaleRow[]> {
+  const rows = await env.DB.prepare(
+    `SELECT
+      i.id,
+      i.ccg_number,
+      i.title,
+      i.image_url,
+      i.category,
+      i.brand,
+      i.sold_date,
+      i.purchase_price,
+      i.sold_amount,
+      (COALESCE(i.sold_amount, 0) - COALESCE(i.purchase_price, 0)) AS profit_amount,
+      CASE
+        WHEN i.purchased_date IS NOT NULL AND i.sold_date IS NOT NULL
+          THEN CAST(julianday(i.sold_date) - julianday(i.purchased_date) AS INTEGER)
+        ELSE NULL
+      END AS days_held
+     FROM ccg_inventory_items i
+     WHERE COALESCE(i.is_sold, 0) = 1
+     ORDER BY COALESCE(i.sold_date, i.updated_at, i.created_at) DESC, i.id DESC
+     LIMIT ?`
+  ).bind(limit).all<{
+    id: number;
+    ccg_number: string;
+    title: string;
+    image_url: string | null;
+    category: string | null;
+    brand: string | null;
+    sold_date: string | null;
+    purchase_price: number | null;
+    sold_amount: number | null;
+    profit_amount: number | null;
+    days_held: number | null;
+  }>();
+
+  return (rows.results ?? []).map((row) => ({
+    id: Number(row.id),
+    ccgNumber: row.ccg_number,
+    title: row.title,
+    imageUrl: row.image_url || '',
+    category: row.category,
+    brand: row.brand,
+    soldDate: row.sold_date,
+    purchasePrice: Number(row.purchase_price || 0),
+    soldAmount: Number(row.sold_amount || 0),
+    profitAmount: Number(row.profit_amount || 0),
+    daysHeld: row.days_held == null ? null : Number(row.days_held),
+  }));
+}
+
+async function dbGetAdminV2OldestInventory(limit: number, env: Env): Promise<AdminV2OldestInventoryRow[]> {
+  const rows = await env.DB.prepare(
+    `SELECT
+      i.id,
+      i.ccg_number,
+      i.title,
+      i.image_url,
+      i.category,
+      i.brand,
+      i.purchased_date,
+      CASE
+        WHEN i.purchased_date IS NOT NULL
+          THEN CAST(julianday('now') - julianday(i.purchased_date) AS INTEGER)
+        ELSE NULL
+      END AS days_held,
+      i.purchase_price,
+      i.private_party_value,
+      COALESCE(l.price_asking, i.private_party_value, i.purchase_price, 0) AS current_asking_value,
+      COALESCE(i.for_sale, 0) AS for_sale,
+      l.source AS source
+     FROM ccg_inventory_items i
+     LEFT JOIN listings l ON l.id = i.source_listing_id
+     WHERE i.is_active = 1
+       AND COALESCE(i.is_sold, 0) = 0
+     ORDER BY
+       CASE WHEN i.purchased_date IS NULL THEN 1 ELSE 0 END ASC,
+       i.purchased_date ASC,
+       i.id ASC
+     LIMIT ?`
+  ).bind(limit).all<{
+    id: number;
+    ccg_number: string;
+    title: string;
+    image_url: string | null;
+    category: string | null;
+    brand: string | null;
+    purchased_date: string | null;
+    days_held: number | null;
+    purchase_price: number | null;
+    private_party_value: number | null;
+    current_asking_value: number | null;
+    for_sale: number | null;
+    source: string | null;
+  }>();
+
+  return (rows.results ?? []).map((row) => ({
+    id: Number(row.id),
+    ccgNumber: row.ccg_number,
+    title: row.title,
+    imageUrl: row.image_url || '',
+    category: row.category,
+    brand: row.brand,
+    purchasedDate: row.purchased_date,
+    daysHeld: row.days_held == null ? null : Number(row.days_held),
+    purchasePrice: Number(row.purchase_price || 0),
+    privatePartyValue: Number(row.private_party_value || 0),
+    currentAskingValue: Number(row.current_asking_value || 0),
+    forSale: Number(row.for_sale || 0) === 1,
+    source: row.source,
+  }));
+}
+
 async function getIsMultiFromRecord(recordId: string, env: Env): Promise<boolean> {
   const record = await dbGetListing(recordId, env);
   return isMultiValue(record?.fields?.IsMulti);
@@ -5607,6 +6023,17 @@ function parseCurrencyAmount(input: unknown): number | null {
 
 function currentDateYmd(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function formatMonthLabel(month: string): string {
+  const match = month.match(/^(\d{4})-(\d{2})$/);
+  if (!match) return month;
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1));
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(date);
 }
 
 function normalizeInventoryDate(input: unknown): string {
