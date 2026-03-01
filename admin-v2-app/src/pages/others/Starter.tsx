@@ -9,11 +9,16 @@ import {
   IconButton,
   Paper,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   Typography,
   useTheme,
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
-import { DataGrid, GridColDef } from '@mui/x-data-grid';
 import { BarChart, LineChart, PieChart } from 'echarts/charts';
 import { GridComponent, TooltipComponent } from 'echarts/components';
 import * as echarts from 'echarts/core';
@@ -22,7 +27,6 @@ import { CallbackDataParams } from 'echarts/types/dist/shared';
 import IconifyIcon from 'components/base/IconifyIcon';
 import ReactEchart from 'components/base/ReactEchart';
 import SectionHeader from 'components/common/SectionHeader';
-import DataGridPagination from 'components/pagination/DataGridPagination';
 
 echarts.use([TooltipComponent, GridComponent, LineChart, BarChart, PieChart, CanvasRenderer]);
 
@@ -354,133 +358,6 @@ const Starter = () => {
     };
   }, [dashboard.inventoryAging?.buckets, theme.palette]);
 
-  const recentSalesColumns = useMemo<GridColDef<RecentSaleRow>[]>(
-    () => [
-      {
-        field: 'title',
-        headerName: 'Product',
-        minWidth: 320,
-        flex: 1,
-        sortable: false,
-        renderCell: (params) => (
-          <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', minWidth: 0 }}>
-            <Box
-              component="img"
-              src={buildImageSrc(params.row.imageUrl)}
-              alt={params.row.title}
-              sx={{ width: 48, height: 48, borderRadius: 2, objectFit: 'cover', flexShrink: 0 }}
-            />
-            <Box sx={{ minWidth: 0 }}>
-              <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.35 }}>
-                {params.row.title}
-              </Typography>
-              <Chip
-                label={params.row.ccgNumber}
-                size="small"
-                variant="soft"
-                color="primary"
-                sx={{ mt: 0.5 }}
-              />
-            </Box>
-          </Stack>
-        ),
-      },
-      {
-        field: 'profitAmount',
-        headerName: 'Margin',
-        minWidth: 120,
-        align: 'right',
-        headerAlign: 'right',
-        renderCell: (params) => formatCurrency(params.row.profitAmount),
-      },
-      {
-        field: 'soldAmount',
-        headerName: 'Sold',
-        minWidth: 120,
-        align: 'right',
-        headerAlign: 'right',
-        renderCell: (params) => formatCurrency(params.row.soldAmount),
-      },
-      {
-        field: 'daysHeld',
-        headerName: 'Days Held',
-        minWidth: 120,
-        align: 'right',
-        headerAlign: 'right',
-        renderCell: (params) => (params.row.daysHeld == null ? '--' : `${params.row.daysHeld}`),
-      },
-    ],
-    [],
-  );
-
-  const oldestInventoryColumns = useMemo<GridColDef<OldestInventoryRow>[]>(
-    () => [
-      {
-        field: 'title',
-        headerName: 'Product',
-        minWidth: 320,
-        flex: 1,
-        sortable: false,
-        renderCell: (params) => (
-          <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', minWidth: 0 }}>
-            <Box
-              component="img"
-              src={buildImageSrc(params.row.imageUrl)}
-              alt={params.row.title}
-              sx={{ width: 48, height: 48, borderRadius: 2, objectFit: 'cover', flexShrink: 0 }}
-            />
-            <Box sx={{ minWidth: 0 }}>
-              <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.35 }}>
-                {params.row.title}
-              </Typography>
-              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                {params.row.ccgNumber}
-              </Typography>
-            </Box>
-          </Stack>
-        ),
-      },
-      {
-        field: 'source',
-        headerName: 'Source',
-        minWidth: 120,
-        sortable: false,
-        renderCell: (params) => sourceLabel(params.row.source),
-      },
-      {
-        field: 'purchasePrice',
-        headerName: 'Paid',
-        minWidth: 110,
-        align: 'right',
-        headerAlign: 'right',
-        renderCell: (params) => formatCurrency(params.row.purchasePrice),
-      },
-      {
-        field: 'forSale',
-        headerName: 'Status',
-        minWidth: 120,
-        sortable: false,
-        renderCell: (params) => (
-          <Chip
-            label={params.row.forSale ? 'For sale' : 'Held'}
-            size="small"
-            variant="soft"
-            color={params.row.forSale ? 'success' : 'warning'}
-          />
-        ),
-      },
-      {
-        field: 'daysHeld',
-        headerName: 'Days Held',
-        minWidth: 110,
-        align: 'right',
-        headerAlign: 'right',
-        renderCell: (params) => (params.row.daysHeld == null ? '--' : `${params.row.daysHeld}`),
-      },
-    ],
-    [],
-  );
-
   const recentSalesRows = dashboard.recentSales;
   const oldestRows = dashboard.oldestInventory;
   const summary = dashboard.summary?.kpis;
@@ -684,25 +561,49 @@ const Starter = () => {
                     </IconButton>
                   }
                 />
-                <DataGrid
-                  rowHeight={72}
-                  rows={recentSalesRows}
-                  columns={recentSalesColumns}
-                  disableColumnMenu
-                  disableRowSelectionOnClick
-                  hideFooterSelectedRowCount
-                  initialState={{
-                    pagination: {
-                      paginationModel: {
-                        pageSize: 6,
-                      },
-                    },
-                  }}
-                  pageSizeOptions={[6]}
-                  slots={{
-                    basePagination: (props) => <DataGridPagination showAllHref="#!" {...props} />,
-                  }}
-                />
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ width: '100%' }}>Product</TableCell>
+                        <TableCell align="right">Margin</TableCell>
+                        <TableCell align="right">Sold</TableCell>
+                        <TableCell align="right">Days Held</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {recentSalesRows.map((row) => (
+                        <TableRow key={row.id}>
+                          <TableCell>
+                            <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', minWidth: 0 }}>
+                              <Box
+                                component="img"
+                                src={buildImageSrc(row.imageUrl)}
+                                alt={row.title}
+                                sx={{ width: 48, height: 48, borderRadius: 2, objectFit: 'cover', flexShrink: 0 }}
+                              />
+                              <Box sx={{ minWidth: 0 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.35 }}>
+                                  {row.title}
+                                </Typography>
+                                <Chip
+                                  label={row.ccgNumber}
+                                  size="small"
+                                  variant="soft"
+                                  color="primary"
+                                  sx={{ mt: 0.5 }}
+                                />
+                              </Box>
+                            </Stack>
+                          </TableCell>
+                          <TableCell align="right">{formatCurrency(row.profitAmount)}</TableCell>
+                          <TableCell align="right">{formatCurrency(row.soldAmount)}</TableCell>
+                          <TableCell align="right">{row.daysHeld == null ? '--' : `${row.daysHeld}`}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               </Paper>
             </Grid>
 
@@ -778,25 +679,54 @@ const Starter = () => {
                   }
                   sx={{ flexWrap: { xs: 'wrap', sm: 'nowrap' }, columnGap: 1, rowGap: 2, mb: 3 }}
                 />
-                <DataGrid
-                  rowHeight={72}
-                  rows={oldestRows}
-                  columns={oldestInventoryColumns}
-                  disableColumnMenu
-                  disableRowSelectionOnClick
-                  hideFooterSelectedRowCount
-                  initialState={{
-                    pagination: {
-                      paginationModel: {
-                        pageSize: 6,
-                      },
-                    },
-                  }}
-                  pageSizeOptions={[6]}
-                  slots={{
-                    basePagination: (props) => <DataGridPagination showAllHref="#!" {...props} />,
-                  }}
-                />
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ width: '100%' }}>Product</TableCell>
+                        <TableCell>Source</TableCell>
+                        <TableCell align="right">Paid</TableCell>
+                        <TableCell>Status</TableCell>
+                        <TableCell align="right">Days Held</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {oldestRows.map((row) => (
+                        <TableRow key={row.id}>
+                          <TableCell>
+                            <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', minWidth: 0 }}>
+                              <Box
+                                component="img"
+                                src={buildImageSrc(row.imageUrl)}
+                                alt={row.title}
+                                sx={{ width: 48, height: 48, borderRadius: 2, objectFit: 'cover', flexShrink: 0 }}
+                              />
+                              <Box sx={{ minWidth: 0 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.35 }}>
+                                  {row.title}
+                                </Typography>
+                                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                                  {row.ccgNumber}
+                                </Typography>
+                              </Box>
+                            </Stack>
+                          </TableCell>
+                          <TableCell>{sourceLabel(row.source)}</TableCell>
+                          <TableCell align="right">{formatCurrency(row.purchasePrice)}</TableCell>
+                          <TableCell>
+                            <Chip
+                              label={row.forSale ? 'For sale' : 'Held'}
+                              size="small"
+                              variant="soft"
+                              color={row.forSale ? 'success' : 'warning'}
+                            />
+                          </TableCell>
+                          <TableCell align="right">{row.daysHeld == null ? '--' : `${row.daysHeld}`}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               </Paper>
             </Grid>
           </Grid>

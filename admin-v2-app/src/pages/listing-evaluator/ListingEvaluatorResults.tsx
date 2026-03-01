@@ -10,12 +10,16 @@ import {
   Link,
   Paper,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   Tooltip,
   Typography,
 } from '@mui/material';
-import { DataGrid, GridColDef } from '@mui/x-data-grid';
 import IconifyIcon from 'components/base/IconifyIcon';
-import DataGridPagination from 'components/pagination/DataGridPagination';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
 
 type ListingListItem = {
@@ -46,8 +50,6 @@ type ListingGridRow = {
 };
 
 const PAGE_SIZE = 20;
-const DEFAULT_PAGE_SIZE = 8;
-
 const headerActions = [
   { label: 'Back', icon: 'material-symbols:arrow-back-rounded', color: 'default' as const },
   {
@@ -193,135 +195,6 @@ const ListingEvaluatorResults = () => {
         };
       }),
     [records],
-  );
-
-  const columns = useMemo<GridColDef<ListingGridRow>[]>(
-    () => [
-      {
-        field: 'title',
-        headerName: 'Title',
-        sortable: false,
-        filterable: false,
-        minWidth: 480,
-        flex: 1,
-        renderCell: (params) => (
-          <Stack sx={{ gap: 2, alignItems: 'center', minWidth: 0 }}>
-            <Avatar
-              variant="rounded"
-              src={params.row.imageSrc || undefined}
-              alt={params.row.title}
-              sx={{
-                width: 56,
-                height: 56,
-                borderRadius: 2.5,
-                bgcolor: 'background.elevation1',
-                flexShrink: 0,
-              }}
-            >
-              <IconifyIcon icon="material-symbols:image-outline-rounded" />
-            </Avatar>
-
-            <Box sx={{ minWidth: 0 }}>
-              <Link
-                underline="none"
-                color="text.primary"
-                href={params.row.url || '#'}
-                target="_blank"
-                rel="noreferrer"
-                sx={{
-                  display: 'block',
-                  fontWeight: 500,
-                  fontSize: 'subtitle2.fontSize',
-                  lineHeight: 1.4,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {params.row.title}
-              </Link>
-
-              <Stack sx={{ mt: 0.75, gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-                {params.row.askingPriceLabel && (
-                  <Chip
-                    label={params.row.askingPriceLabel}
-                    size="small"
-                    color="primary"
-                    variant="soft"
-                  />
-                )}
-                <Chip
-                  label={params.row.statusLabel}
-                  size="small"
-                  color={params.row.statusColor}
-                  variant="soft"
-                  sx={{ textTransform: 'capitalize' }}
-                />
-              </Stack>
-            </Box>
-          </Stack>
-        ),
-      },
-      {
-        field: 'sourceLabel',
-        headerName: 'Source',
-        sortable: false,
-        filterable: false,
-        minWidth: 120,
-        align: 'center',
-        headerAlign: 'center',
-        renderCell: (params) =>
-          params.row.sourceImageSrc ? (
-            <Avatar
-              variant="rounded"
-              src={params.row.sourceImageSrc}
-              alt={params.row.sourceLabel}
-              sx={{
-                width: 36,
-                height: 36,
-                bgcolor: 'background.elevation1',
-                '& img': {
-                  objectFit: 'contain',
-                  width: 22,
-                  height: 22,
-                },
-              }}
-            />
-          ) : (
-            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-              {params.row.sourceLabel}
-            </Typography>
-          ),
-      },
-      {
-        field: 'actions',
-        headerName: 'Actions',
-        sortable: false,
-        filterable: false,
-        minWidth: 140,
-        align: 'right',
-        headerAlign: 'right',
-        renderCell: () => (
-          <Tooltip title="Inv. Add">
-            <IconButton
-              aria-label="Inv. Add"
-              color="primary"
-              sx={{
-                width: 36,
-                height: 36,
-                borderRadius: 2.5,
-                bgcolor: 'background.elevation1',
-                border: 1,
-                borderColor: 'divider',
-              }}
-            >
-              <IconifyIcon icon="material-symbols:add-rounded" fontSize={18} />
-            </IconButton>
-          </Tooltip>
-        ),
-      },
-    ],
-    [],
   );
 
   return (
@@ -542,29 +415,142 @@ const ListingEvaluatorResults = () => {
             )}
           </Stack>
         ) : (
-          <DataGrid
-            rowHeight={76}
-            rows={rows}
-            columns={columns}
-            loading={isLoading}
-            disableRowSelectionOnClick
-            pageSizeOptions={[DEFAULT_PAGE_SIZE, PAGE_SIZE]}
-            initialState={{
-              pagination: {
-                paginationModel: {
-                  pageSize: DEFAULT_PAGE_SIZE,
-                },
-              },
-            }}
-            sx={{
-              '& .MuiDataGrid-columnHeaders': {
-                minWidth: '100%',
-              },
-            }}
-            slots={{
-              basePagination: (props) => <DataGridPagination showFullPagination {...props} />,
-            }}
-          />
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ width: '100%' }}>Title</TableCell>
+                  <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
+                    Source
+                  </TableCell>
+                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                    Actions
+                  </TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={3}>
+                      <Stack sx={{ alignItems: 'center', py: 6 }} spacing={2}>
+                        <CircularProgress size={28} />
+                        <Typography sx={{ color: 'text.secondary' }}>Loading results…</Typography>
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                ) : rows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={3}>
+                      <Typography sx={{ py: 4, color: 'text.secondary' }}>
+                        No listing evaluator results found.
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  rows.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell>
+                        <Stack direction="row" sx={{ gap: 2, alignItems: 'center', minWidth: 0 }}>
+                          <Avatar
+                            variant="rounded"
+                            src={row.imageSrc || undefined}
+                            alt={row.title}
+                            sx={{
+                              width: 56,
+                              height: 56,
+                              borderRadius: 2.5,
+                              bgcolor: 'background.elevation1',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <IconifyIcon icon="material-symbols:image-outline-rounded" />
+                          </Avatar>
+
+                          <Box sx={{ minWidth: 0 }}>
+                            <Link
+                              underline="none"
+                              color="text.primary"
+                              href={row.url || '#'}
+                              target="_blank"
+                              rel="noreferrer"
+                              sx={{
+                                display: 'block',
+                                fontWeight: 500,
+                                fontSize: 'subtitle2.fontSize',
+                                lineHeight: 1.4,
+                              }}
+                            >
+                              {row.title}
+                            </Link>
+
+                            <Stack direction="row" sx={{ mt: 0.75, gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                              {row.askingPriceLabel && (
+                                <Chip
+                                  label={row.askingPriceLabel}
+                                  size="small"
+                                  color="primary"
+                                  variant="soft"
+                                />
+                              )}
+                              <Chip
+                                label={row.statusLabel}
+                                size="small"
+                                color={row.statusColor}
+                                variant="soft"
+                                sx={{ textTransform: 'capitalize' }}
+                              />
+                            </Stack>
+                          </Box>
+                        </Stack>
+                      </TableCell>
+                      <TableCell align="center">
+                        {row.sourceImageSrc ? (
+                          <Avatar
+                            variant="rounded"
+                            src={row.sourceImageSrc}
+                            alt={row.sourceLabel}
+                            sx={{
+                              width: 36,
+                              height: 36,
+                              mx: 'auto',
+                              bgcolor: 'background.elevation1',
+                              '& img': {
+                                objectFit: 'contain',
+                                width: 22,
+                                height: 22,
+                              },
+                            }}
+                          />
+                        ) : (
+                          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                            {row.sourceLabel}
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell align="right">
+                        <Tooltip title="Inv. Add">
+                          <IconButton
+                            aria-label="Inv. Add"
+                            color="primary"
+                            sx={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: 2.5,
+                              bgcolor: 'background.elevation1',
+                              border: 1,
+                              borderColor: 'divider',
+                            }}
+                          >
+                            <IconifyIcon icon="material-symbols:add-rounded" fontSize={18} />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
         )}
       </Paper>
     </Stack>
