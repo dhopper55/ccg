@@ -397,7 +397,10 @@ const Starter = () => {
                       Snapshot
                     </Typography>
                     <Stack sx={{ gap: 2.5 }}>
-                      <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center' }}>
+                      <Stack
+                        direction={{ xs: 'column', sm: 'row' }}
+                        sx={{ gap: 1.5, alignItems: { xs: 'flex-start', sm: 'center' } }}
+                      >
                         <Avatar sx={{ color: 'primary.main', bgcolor: 'primary.lighter' }}>
                           <IconifyIcon icon="material-symbols:payments-outline-rounded" />
                         </Avatar>
@@ -411,7 +414,10 @@ const Starter = () => {
                         </Stack>
                       </Stack>
 
-                      <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center' }}>
+                      <Stack
+                        direction={{ xs: 'column', sm: 'row' }}
+                        sx={{ gap: 1.5, alignItems: { xs: 'flex-start', sm: 'center' } }}
+                      >
                         <Avatar sx={{ color: 'primary.main', bgcolor: 'primary.lighter' }}>
                           <IconifyIcon icon="material-symbols:storefront-outline-rounded" />
                         </Avatar>
@@ -425,7 +431,10 @@ const Starter = () => {
                         </Stack>
                       </Stack>
 
-                      <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center' }}>
+                      <Stack
+                        direction={{ xs: 'column', sm: 'row' }}
+                        sx={{ gap: 1.5, alignItems: { xs: 'flex-start', sm: 'center' } }}
+                      >
                         <Avatar sx={{ color: 'primary.main', bgcolor: 'primary.lighter' }}>
                           <IconifyIcon icon="material-symbols:trending-up-rounded" />
                         </Avatar>

@@ -1,44 +1,26 @@
-import { Suspense, lazy } from "react";
-import { Outlet, RouteObject, createBrowserRouter, useLocation } from "react-router";
+import { Outlet, RouteObject, createBrowserRouter } from "react-router";
 import App from "App";
 import AuthLayout from "layouts/auth-layout";
 import DefaultAuthLayout from "layouts/auth-layout/DefaultAuthLayout";
 import MainLayout from "layouts/main-layout";
 import Page404 from "pages/errors/Page404";
-import PageLoader from "components/loading/PageLoader";
 import AuthGurad from "components/guard/AuthGuard";
 import paths, { rootPaths } from "./paths";
 import Login from 'pages/authentication/default/jwt/Login';
-
-const Starter = lazy(() => import('pages/others/Starter'));
-const IconGallery = lazy(() => import('pages/others/IconGallery'));
-const ListingEvaluator = lazy(() => import('pages/listing-evaluator/ListingEvaluator'));
-const ListingEvaluatorResults = lazy(
-  () => import('pages/listing-evaluator/ListingEvaluatorResults'),
-);
-
-const LoggedOut = lazy(() => import('pages/authentication/default/LoggedOut'));
-const Logout = lazy(() => import('pages/authentication/default/Logout'));
-const Signup = lazy(() => import('pages/authentication/default/jwt/Signup'));
-const ForgotPassword = lazy(() => import('pages/authentication/default/jwt/ForgotPassword'));
-const TwoFA = lazy(() => import('pages/authentication/default/jwt/TwoFA'));
-const SetPassword = lazy(() => import('pages/authentication/default/jwt/SetPassword'));
-const FirebaseLogin = lazy(() => import('pages/authentication/default/firebase/Login'));
-const FirebaseSignup = lazy(() => import('pages/authentication/default/firebase/Signup'));
-const FirebaseForgotPassword = lazy(
-  () => import('pages/authentication/default/firebase/ForgotPassword'),
-);
-const Auth0Login = lazy(() => import('pages/authentication/default/auth0/Login'));
-
-export const SuspenseOutlet = () => {
-  const location = useLocation();
-
-  return (
-    <Suspense key={location.pathname} fallback={<PageLoader />}>
-      <Outlet />
-    </Suspense>
-  );
-};
+import Starter from 'pages/others/Starter';
+import IconGallery from 'pages/others/IconGallery';
+import ListingEvaluator from 'pages/listing-evaluator/ListingEvaluator';
+import ListingEvaluatorResults from 'pages/listing-evaluator/ListingEvaluatorResults';
+import LoggedOut from 'pages/authentication/default/LoggedOut';
+import Logout from 'pages/authentication/default/Logout';
+import Signup from 'pages/authentication/default/jwt/Signup';
+import ForgotPassword from 'pages/authentication/default/jwt/ForgotPassword';
+import TwoFA from 'pages/authentication/default/jwt/TwoFA';
+import SetPassword from 'pages/authentication/default/jwt/SetPassword';
+import FirebaseLogin from 'pages/authentication/default/firebase/Login';
+import FirebaseSignup from 'pages/authentication/default/firebase/Signup';
+import FirebaseForgotPassword from 'pages/authentication/default/firebase/ForgotPassword';
+import Auth0Login from 'pages/authentication/default/auth0/Login';
 
 export const routes: RouteObject[] = [
   {
@@ -55,7 +37,7 @@ export const routes: RouteObject[] = [
         element: (
           <AuthGurad>
           <MainLayout>
-            <SuspenseOutlet />
+            <Outlet />
           </MainLayout>
           </AuthGurad>
         ),

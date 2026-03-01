@@ -1,8 +1,7 @@
-import { PropsWithChildren, Suspense } from 'react';
+import { PropsWithChildren } from 'react';
 import { Stack, Typography } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import Logo from 'components/common/Logo';
-import DefaultLoader from 'components/loading/DefaultLoader';
 
 const DefaultAuthLayout = ({ children }: PropsWithChildren) => {
   return (
@@ -110,7 +109,7 @@ const DefaultAuthLayout = ({ children }: PropsWithChildren) => {
           flex: 1,
         }}
       >
-        <Suspense fallback={<DefaultLoader />}>{children}</Suspense>
+        {children}
       </Grid>
     </Grid>
   );
