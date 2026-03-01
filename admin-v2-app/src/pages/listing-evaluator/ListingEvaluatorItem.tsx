@@ -69,6 +69,8 @@ const SINGLE_FIELDS: FieldConfig[] = [
   { key: 'seller_as_is_notes', label: 'Seller: As-Is Notes' },
 ];
 
+const INLINE_DETAIL_KEYS = new Set(['category', 'brand', 'model', 'finish', 'year', 'condition']);
+
 function normalizeValue(value: unknown): string {
   if (value == null) return '—';
   if (typeof value === 'string') {
@@ -498,6 +500,48 @@ const StackedDetailSection = ({ items }: { items: DetailItem[] }) => {
   );
 };
 
+const InlineDetailSection = ({ items }: { items: DetailItem[] }) => {
+  const visibleItems = items.filter((item) => item.value !== '—');
+
+  if (visibleItems.length === 0) return null;
+
+  return (
+    <Stack direction="column" gap={2}>
+      {visibleItems.map((item) => (
+        <Stack
+          key={item.label}
+          direction={{ xs: 'column', sm: 'row' }}
+          sx={{ gap: { xs: 0.75, sm: 3 }, alignItems: { sm: 'baseline' }, minWidth: 0 }}
+        >
+          <Typography
+            variant="h6"
+            sx={{ minWidth: { sm: 180 }, flexShrink: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}
+          >
+            {item.label}
+          </Typography>
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            {typeof item.value === 'string' ? (
+              <Typography
+                variant="body2"
+                sx={{
+                  color: 'text.secondary',
+                  whiteSpace: 'pre-wrap',
+                  overflowWrap: 'anywhere',
+                  wordBreak: 'break-word',
+                }}
+              >
+                {item.value}
+              </Typography>
+            ) : (
+              item.value
+            )}
+          </Box>
+        </Stack>
+      ))}
+    </Stack>
+  );
+};
+
 const ListingEvaluatorItem = () => {
   const { id: routeId } = useParams();
   const [searchParams] = useSearchParams();
@@ -640,43 +684,88 @@ const ListingEvaluatorItem = () => {
     [askingPrice, fields.pricing_comp_count, fields.pricing_confidence, fields.pricing_source, idealPrice, privateRange],
   );
 
-  const singleDetailItems = useMemo<DetailItem[]>(
+  const singleDetailItems = useMemo<DetailItem[]>(() => {
+    if (isMulti) return [];
+
+    return SINGLE_FIELDS.filter((field) => {
+      if (
+        normalizeValue(fields.serial) === '—' &&
+        ['serial', 'serial_brand', 'serial_year', 'serial_model'].includes(field.key)
+      ) {
+        return false;
+      }
+      return normalizeValue(getV2FieldValue(field.key)) !== '—';
+    }).map((field) => ({
+      label: field.label,
+      value: field.currency
+        ? formatCurrencyValue(fields[field.key])
+        : buildTextNode(getV2FieldValue(field.key)),
+    }));
+  }, [fields, isMulti, normalizedLists]);
+
+  const singleDetailItemsByKey = useMemo(() => {
+    const map = new Map<string, DetailItem>();
+    for (const field of SINGLE_FIELDS) {
+      const item = singleDetailItems.find((entry) => entry.label === field.label);
+      if (item) map.set(field.key, item);
+    }
+    return map;
+  }, [singleDetailItems]);
+
+  const orderedInlineItems = useMemo<DetailItem[]>(
     () =>
-      SINGLE_FIELDS.filter((field) => {
-        if (
-          normalizeValue(fields.serial) === '—' &&
-          ['serial', 'serial_brand', 'serial_year', 'serial_model'].includes(field.key)
-        ) {
-          return false;
-        }
-        return normalizeValue(getV2FieldValue(field.key)) !== '—';
-      }).map((field) => ({
-        label: field.label,
-        value: field.currency
-          ? formatCurrencyValue(fields[field.key])
-          : buildTextNode(getV2FieldValue(field.key)),
-      })),
-    [fields, normalizedLists],
+      ['category', 'brand', 'model', 'finish', 'year', 'condition']
+        .map((key) => singleDetailItemsByKey.get(key))
+        .filter((item): item is DetailItem => Boolean(item)),
+    [singleDetailItemsByKey],
   );
 
-  const lowerSectionItems = useMemo<DetailItem[]>(
-    () => [
-      {
-        label: 'Listing Text',
-        value:
-          normalizeValue(fields.description) === '—'
-            ? 'No description available.'
-            : normalizeValue(fields.description),
-      },
-      {
-        label: 'Summary',
-        value: aiSummary ? buildSummaryNode(aiSummary) : 'No AI summary available yet.',
-      },
-      { label: 'Pricing Notes', value: buildTextNode(getV2FieldValue('pricing_notes')) },
-      { label: 'Value Online Notes', value: buildTextNode(getV2FieldValue('value_online_notes')) },
-      ...(!isMulti ? singleDetailItems : []),
-    ],
-    [aiSummary, fields.description, isMulti, normalizedLists, singleDetailItems],
+  const orderedBlockItems = useMemo<DetailItem[]>(
+    () =>
+      [
+        {
+          label: 'Listing Text',
+          value:
+            normalizeValue(fields.description) === '—'
+              ? 'No description available.'
+              : normalizeValue(fields.description),
+        },
+        {
+          label: 'Summary',
+          value: aiSummary ? buildSummaryNode(aiSummary) : 'No AI summary available yet.',
+        },
+        {
+          label: 'Pricing Notes',
+          value: buildTextNode(getV2FieldValue('pricing_notes')),
+        },
+        {
+          label: 'Value Online Notes',
+          value: buildTextNode(getV2FieldValue('value_online_notes')),
+        },
+        {
+          label: 'Pawn Shop Notes',
+          value: buildTextNode(getV2FieldValue('value_pawn_shop_notes')),
+        },
+        ...[
+          'known_weak_points',
+          'typical_repair_needs',
+          'buyers_worry',
+          'og_specs_pickups',
+          'og_specs_tuners',
+          'og_specs_common_mods',
+          'buyer_what_to_check',
+          'buyer_common_misrepresent',
+          'seller_how_to_price_realistic',
+          'seller_fixes_add_value_or_waste',
+          'seller_as_is_notes',
+        ]
+          .map((key) => singleDetailItemsByKey.get(key))
+          .filter((item): item is DetailItem => Boolean(item)),
+      ].filter((item, index, array): item is DetailItem => {
+        if (!item) return false;
+        return array.findIndex((candidate) => candidate?.label === item.label) === index;
+      }),
+    [aiSummary, fields.description, normalizedLists, singleDetailItemsByKey],
   );
 
   const openExternal = (url: string) => {
@@ -950,7 +1039,11 @@ const ListingEvaluatorItem = () => {
 
                   <Divider />
 
-                  <StackedDetailSection items={lowerSectionItems} />
+                  <Stack direction="column" sx={{ gap: 3 }}>
+                    <StackedDetailSection items={orderedBlockItems.slice(0, 1)} />
+                    <InlineDetailSection items={orderedInlineItems} />
+                    <StackedDetailSection items={orderedBlockItems.slice(1)} />
+                  </Stack>
                 </Fragment>
               )}
             </Stack>
