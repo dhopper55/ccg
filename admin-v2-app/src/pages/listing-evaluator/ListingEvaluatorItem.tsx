@@ -920,7 +920,8 @@ const ListingEvaluatorItem = () => {
                                 display: 'block',
                                 width: '100%',
                                 height: 280,
-                                objectFit: 'cover',
+                                objectFit: 'contain',
+                                bgcolor: 'background.default',
                               }}
                             />
                           </Link>

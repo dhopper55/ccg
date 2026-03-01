@@ -104,7 +104,23 @@ const MainLayout = ({ children }: PropsWithChildren) => {
                     px: 1.5,
                     '&.active': {
                       bgcolor: 'primary.dark',
-                      color: 'primary.main',
+                      color: 'common.black',
+                      '& .MuiListItemIcon-root': {
+                        color: 'common.black',
+                      },
+                      '& .MuiListItemText-primary': {
+                        color: 'common.black',
+                      },
+                    },
+                    '&:hover': {
+                      bgcolor: 'primary.dark',
+                      color: 'common.black',
+                      '& .MuiListItemIcon-root': {
+                        color: 'common.black',
+                      },
+                      '& .MuiListItemText-primary': {
+                        color: 'common.black',
+                      },
                     },
                     '&.Mui-selected': {
                       bgcolor: 'primary.dark',
@@ -113,6 +129,10 @@ const MainLayout = ({ children }: PropsWithChildren) => {
                         color: 'common.black',
                       },
                       '& .MuiListItemText-primary': {
+                        color: 'common.black',
+                      },
+                      '&:hover': {
+                        bgcolor: 'primary.dark',
                         color: 'common.black',
                       },
                     },
