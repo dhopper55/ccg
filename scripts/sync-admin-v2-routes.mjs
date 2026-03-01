@@ -8,6 +8,7 @@ const sourceHtml = path.join(adminV2Root, 'index.html');
 const routeDirs = [
   'listing-evaluator',
   'listing-evaluator-results',
+  'listing-evaluator-item',
   'logout',
   'pages/icons',
   'authentication/default/jwt/login',

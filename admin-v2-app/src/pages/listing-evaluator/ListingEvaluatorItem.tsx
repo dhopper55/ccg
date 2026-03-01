@@ -195,7 +195,7 @@ function buildImageSrc(imageUrl: string, referrer?: string): string {
     const params = new URLSearchParams();
     params.set('url', cleaned);
     if (referrer) params.set('ref', referrer);
-    return `/api/image?${params.toString()}`;
+    return new URL(`/api/image?${params.toString()}`, window.location.origin).toString();
   }
   return cleaned;
 }

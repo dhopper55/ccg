@@ -108,7 +108,7 @@ function buildImageSrc(imageUrl?: string | null, referrer?: string): string | nu
     const params = new URLSearchParams();
     params.set('url', cleaned);
     if (referrer) params.set('ref', referrer);
-    return `/api/image?${params.toString()}`;
+    return new URL(`/api/image?${params.toString()}`, window.location.origin).toString();
   }
 
   return cleaned;
@@ -138,7 +138,7 @@ function buildDisplayTitle(record: ListingListItem): string {
 }
 
 function buildDetailsHref(id: string): string {
-  return paths.listingEvaluatorItemWithId(encodeURIComponent(id));
+  return paths.listingEvaluatorItemWithId(id);
 }
 
 const ListingEvaluatorResults = () => {

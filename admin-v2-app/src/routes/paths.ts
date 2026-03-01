@@ -23,8 +23,8 @@ const paths = {
   iconGallery: `/${rootPaths.pagesRoot}/icons`,
   listingEvaluator: '/listing-evaluator',
   listingEvaluatorResults: '/listing-evaluator-results',
-  listingEvaluatorItem: '/listing-evaluator-item/:id',
-  listingEvaluatorItemWithId: (id: string) => `/listing-evaluator-item/${id}`,
+  listingEvaluatorItem: '/listing-evaluator-item',
+  listingEvaluatorItemWithId: (id: string) => `/listing-evaluator-item?id=${encodeURIComponent(id)}`,
   logout: '/logout',
 
   defaultJwtLogin: `/${rootPaths.authRoot}/${rootPaths.authDefaultJwtRoot}/login`,
