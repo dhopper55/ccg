@@ -1,5 +1,5 @@
 import { PropsWithChildren, useMemo, useState } from 'react';
-import { NavLink } from 'react-router';
+import { NavLink, useLocation } from 'react-router';
 import {
   Avatar,
   Box,
@@ -25,6 +25,7 @@ const SIDEBAR_WIDTH = 280;
 const MainLayout = ({ children }: PropsWithChildren) => {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { sessionUser } = useAuth();
+  const { pathname } = useLocation();
 
   const navItems = useMemo(() => sitemap.flatMap((section) => section.items), []);
   const userName = sessionUser?.name?.trim() || 'Admin';
@@ -85,6 +86,10 @@ const MainLayout = ({ children }: PropsWithChildren) => {
           <List dense sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
             {navItems.map((item) => {
               const isDisabled = item.path === '#';
+              const isActive =
+                !isDisabled &&
+                (pathname === item.path ||
+                  (item.selectionPrefix && pathname.includes(item.selectionPrefix)));
 
               return (
                 <ListItemButton
@@ -92,11 +97,16 @@ const MainLayout = ({ children }: PropsWithChildren) => {
                   component={isDisabled ? 'div' : NavLink}
                   to={isDisabled ? undefined : item.path}
                   onClick={() => setMobileNavOpen(false)}
+                  selected={isActive}
                   sx={{
                     minHeight: 48,
                     borderRadius: 2,
                     px: 1.5,
                     '&.active': {
+                      bgcolor: 'primary.dark',
+                      color: 'primary.main',
+                    },
+                    '&.Mui-selected': {
                       bgcolor: 'primary.dark',
                       color: 'primary.main',
                     },

@@ -316,7 +316,7 @@ function buildTextNode(value: unknown): ReactNode {
   if (parts.length === 1) return parts[0];
 
   return (
-    <Stack component="ul" spacing={0.75} sx={{ m: 0, pl: 2 }}>
+    <Stack component="ul" spacing={0.75} sx={{ m: 0, pl: 2, minWidth: 0, width: 1 }}>
       {parts.map((part) => (
         <Typography
           key={part}
@@ -423,7 +423,7 @@ const DetailSection = ({ title, items }: { title: string; items: DetailItem[] })
       <Typography variant="h6">{title}</Typography>
       <Grid container columnSpacing={1} rowSpacing={1}>
         {items.map((item) => (
-          <Grid key={item.label} size={{ xs: 12, xl: 6 }}>
+          <Grid key={item.label} size={12}>
             <DetailRow label={item.label} value={item.value} />
           </Grid>
         ))}
@@ -440,9 +440,9 @@ const StackedDetailSection = ({ items }: { items: DetailItem[] }) => {
   return (
     <Stack direction="column" gap={3}>
       {visibleItems.map((item) => (
-        <Stack key={item.label} direction="column" gap={1.25}>
+        <Stack key={item.label} direction="column" gap={1.25} sx={{ minWidth: 0, width: 1 }}>
           <Typography variant="h6">{item.label}</Typography>
-          <Box sx={{ minWidth: 0 }}>
+          <Box sx={{ minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
             {typeof item.value === 'string' ? (
               <Typography
                 variant="body2"
@@ -829,15 +829,15 @@ const ListingEvaluatorItem = () => {
         </Paper>
       </Grid>
 
-      <Grid size={12} sx={{ overflowX: 'auto' }}>
+      <Grid size={12}>
         <Container
           maxWidth={false}
-          sx={{ width: 1340, px: { xs: 3, md: 5 }, py: 5 }}
+          sx={{ width: 1, maxWidth: 1120, px: { xs: 2, md: 4 }, py: 3, mx: 0 }}
         >
           <Paper
             background={1}
             sx={{
-              p: { xs: 3, md: 5 },
+              p: { xs: 3, md: 4 },
               borderRadius: 6,
               outline: 'none',
             }}
@@ -851,7 +851,7 @@ const ListingEvaluatorItem = () => {
                 <Fragment>
                   <Stack
                     direction={{ xs: 'column', lg: 'row' }}
-                    sx={{ gap: 2, alignItems: { lg: 'flex-start' } }}
+                    sx={{ gap: 2, alignItems: { lg: 'flex-start' }, minWidth: 0 }}
                   >
                     <Box
                       sx={{
@@ -904,7 +904,7 @@ const ListingEvaluatorItem = () => {
                       </Paper>
                     </Box>
 
-                    <Stack direction="column" sx={{ gap: 3, flex: 1, minWidth: 0 }}>
+                    <Stack direction="column" sx={{ gap: 2.5, flex: 1, minWidth: 0 }}>
                       <DetailSection title="Listing overview" items={overviewItems} />
                       <DetailSection title="Market snapshot" items={marketItems} />
                     </Stack>
