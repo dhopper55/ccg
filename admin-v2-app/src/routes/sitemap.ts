@@ -42,6 +42,7 @@ const sitemap: MenuItem[] = [
         key: 'listing_eval_results',
         path: paths.listingEvaluatorResults,
         pathName: 'listing-eval-results',
+        selectionPrefix: '/listing-evaluator-item',
         icon: 'material-symbols:library-add-check-outline-rounded',
         active: true,
       },

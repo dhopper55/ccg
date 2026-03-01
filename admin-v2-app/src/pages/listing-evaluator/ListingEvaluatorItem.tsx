@@ -377,6 +377,31 @@ const DetailSection = ({ title, items }: { title: string; items: DetailItem[] })
   );
 };
 
+const StackedDetailSection = ({ items }: { items: DetailItem[] }) => {
+  const visibleItems = items.filter((item) => item.value !== '—');
+
+  if (visibleItems.length === 0) return null;
+
+  return (
+    <Stack direction="column" gap={3}>
+      {visibleItems.map((item) => (
+        <Stack key={item.label} direction="column" gap={1.25}>
+          <Typography variant="h6">{item.label}</Typography>
+          <Box sx={{ minWidth: 0 }}>
+            {typeof item.value === 'string' ? (
+              <Typography variant="body2" sx={{ color: 'text.secondary', whiteSpace: 'pre-wrap' }}>
+                {item.value}
+              </Typography>
+            ) : (
+              item.value
+            )}
+          </Box>
+        </Stack>
+      ))}
+    </Stack>
+  );
+};
+
 const ListingEvaluatorItem = () => {
   const { id: routeId } = useParams();
   const [searchParams] = useSearchParams();
@@ -532,6 +557,26 @@ const ListingEvaluatorItem = () => {
         value: field.currency ? formatCurrencyValue(fields[field.key]) : buildTextNode(fields[field.key]),
       })),
     [fields],
+  );
+
+  const lowerSectionItems = useMemo<DetailItem[]>(
+    () => [
+      {
+        label: 'Listing Text',
+        value:
+          normalizeValue(fields.description) === '—'
+            ? 'No description available.'
+            : normalizeValue(fields.description),
+      },
+      {
+        label: 'Summary',
+        value: aiSummary ? buildSummaryNode(aiSummary) : 'No AI summary available yet.',
+      },
+      { label: 'Pricing Notes', value: buildTextNode(fields.pricing_notes) },
+      { label: 'Value Online Notes', value: buildTextNode(fields.value_online_notes) },
+      ...(!isMulti ? singleDetailItems : []),
+    ],
+    [aiSummary, fields.description, fields.pricing_notes, fields.value_online_notes, isMulti, singleDetailItems],
   );
 
   const openExternal = (url: string) => {
@@ -738,11 +783,11 @@ const ListingEvaluatorItem = () => {
                 <Fragment>
                   <Stack
                     direction={{ xs: 'column', lg: 'row' }}
-                    sx={{ gap: 4, alignItems: { lg: 'flex-start' } }}
+                    sx={{ gap: 3, alignItems: { lg: 'flex-start' } }}
                   >
                     <Box
                       sx={{
-                        width: { xs: '100%', lg: 320 },
+                        width: { xs: '100%', lg: 260 },
                         flexShrink: 0,
                       }}
                     >
@@ -791,7 +836,7 @@ const ListingEvaluatorItem = () => {
                       </Paper>
                     </Box>
 
-                    <Stack direction="column" sx={{ gap: 4, flex: 1, minWidth: 0 }}>
+                    <Stack direction="column" sx={{ gap: 3, flex: 1, minWidth: 0 }}>
                       <DetailSection title="Listing overview" items={overviewItems} />
                       <DetailSection title="Market snapshot" items={marketItems} />
                     </Stack>
@@ -799,39 +844,7 @@ const ListingEvaluatorItem = () => {
 
                   <Divider />
 
-                  <DetailSection
-                    title="Description"
-                    items={[
-                      {
-                        label: 'Listing text',
-                        value:
-                          normalizeValue(fields.description) === '—'
-                            ? 'No description available.'
-                            : normalizeValue(fields.description),
-                      },
-                    ]}
-                  />
-
-                  <Divider />
-
-                  <DetailSection
-                    title={isMulti ? 'AI summary' : 'Assessment summary'}
-                    items={[
-                      {
-                        label: 'Summary',
-                        value: aiSummary ? buildSummaryNode(aiSummary) : 'No AI summary available yet.',
-                      },
-                      { label: 'Pricing Notes', value: buildTextNode(fields.pricing_notes) },
-                      { label: 'Value Online Notes', value: buildTextNode(fields.value_online_notes) },
-                    ]}
-                  />
-
-                  {!isMulti && singleDetailItems.length > 0 && (
-                    <Fragment>
-                      <Divider />
-                      <DetailSection title="Instrument details" items={singleDetailItems} />
-                    </Fragment>
-                  )}
+                  <StackedDetailSection items={lowerSectionItems} />
                 </Fragment>
               )}
             </Stack>
