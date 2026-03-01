@@ -801,10 +801,10 @@ const ListingEvaluatorItem = () => {
           saved: nextSaved,
         },
       });
-      setMessage({
-        severity: 'success',
-        text: nextSaved ? 'Listing saved.' : 'Listing removed from saved.',
-      });
+      const redirectUrl = nextSaved
+        ? `${paths.listingEvaluatorResults}?saved=1`
+        : paths.listingEvaluatorResults;
+      navigate(redirectUrl);
     } catch (error) {
       setMessage({
         severity: 'error',
@@ -836,8 +836,8 @@ const ListingEvaluatorItem = () => {
       }
 
       const redirectUrl = nextArchived
-        ? paths.listingEvaluatorResults
-        : `${paths.listingEvaluatorResults}?showArchived=1`;
+        ? `${paths.listingEvaluatorResults}?archived=1`
+        : paths.listingEvaluatorResults;
       navigate(redirectUrl);
     } catch (error) {
       setMessage({
