@@ -362,6 +362,11 @@ const Starter = () => {
   const oldestRows = dashboard.oldestInventory;
   const summary = dashboard.summary?.kpis;
   const totalProfit12m = (dashboard.profitTrend?.points || []).reduce((sum, point) => sum + point.profit, 0);
+  const totalRevenue12m = (dashboard.profitTrend?.points || []).reduce(
+    (sum, point) => sum + point.revenue,
+    0,
+  );
+  const soldMargin12m = totalRevenue12m > 0 ? (totalProfit12m / totalRevenue12m) * 100 : 0;
 
   return (
     <Box sx={{ minWidth: 0 }}>
@@ -379,7 +384,7 @@ const Starter = () => {
           <Grid container spacing={3}>
             <Grid size={{ xs: 12, md: 5, lg: 4, xl: 3 }} sx={{ height: 1 }}>
               <Paper sx={{ p: { xs: 3, md: 5 }, height: 1, overflow: 'hidden' }}>
-                <Stack direction="column" sx={{ height: 1 }} divider={<Divider flexItem />}>
+                <Stack direction="column" sx={{ height: 1 }}>
                   <Box sx={{ pb: 3 }}>
                     <Typography variant="subtitle1" sx={{ color: 'text.secondary', fontWeight: 500, mb: 1 }}>
                       {dashboard.summary?.asOf ? formatShortDate(dashboard.summary.asOf) : 'Today'}
@@ -390,107 +395,6 @@ const Starter = () => {
                     <Typography sx={{ color: 'text.secondary' }}>
                       Inventory should move cash, not trap it. Watch margin, speed, and aging.
                     </Typography>
-                  </Box>
-
-                  <Box sx={{ py: 3 }}>
-                    <Typography variant="subtitle2" color="text.secondary" fontWeight={400} mb={2}>
-                      Snapshot
-                    </Typography>
-                    <Stack sx={{ gap: 2.5 }}>
-                      <Stack
-                        direction={{ xs: 'column', sm: 'row' }}
-                        sx={{ gap: 1.5, alignItems: { xs: 'flex-start', sm: 'center' } }}
-                      >
-                        <Avatar sx={{ color: 'primary.main', bgcolor: 'primary.lighter' }}>
-                          <IconifyIcon icon="material-symbols:payments-outline-rounded" />
-                        </Avatar>
-                        <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap', alignItems: 'baseline' }}>
-                          <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                            {formatCurrency(summary?.inventoryCostBasis || 0)}
-                          </Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.secondary' }}>
-                            Cost basis
-                          </Typography>
-                        </Stack>
-                      </Stack>
-
-                      <Stack
-                        direction={{ xs: 'column', sm: 'row' }}
-                        sx={{ gap: 1.5, alignItems: { xs: 'flex-start', sm: 'center' } }}
-                      >
-                        <Avatar sx={{ color: 'primary.main', bgcolor: 'primary.lighter' }}>
-                          <IconifyIcon icon="material-symbols:storefront-outline-rounded" />
-                        </Avatar>
-                        <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap', alignItems: 'baseline' }}>
-                          <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                            {formatNumber(summary?.forSaleItems || 0)}
-                          </Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.secondary' }}>
-                            For sale
-                          </Typography>
-                        </Stack>
-                      </Stack>
-
-                      <Stack
-                        direction={{ xs: 'column', sm: 'row' }}
-                        sx={{ gap: 1.5, alignItems: { xs: 'flex-start', sm: 'center' } }}
-                      >
-                        <Avatar sx={{ color: 'primary.main', bgcolor: 'primary.lighter' }}>
-                          <IconifyIcon icon="material-symbols:trending-up-rounded" />
-                        </Avatar>
-                        <Stack direction="row" sx={{ gap: 0.5, flexWrap: 'wrap', alignItems: 'baseline' }}>
-                          <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                            {formatCurrency(summary?.realizedProfitMTD || 0)}
-                          </Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.secondary' }}>
-                            Profit MTD
-                          </Typography>
-                        </Stack>
-                      </Stack>
-                    </Stack>
-                  </Box>
-
-                  <Box sx={{ pt: 3 }}>
-                    <Typography variant="subtitle2" sx={{ color: 'text.secondary', fontWeight: 400, mb: 2 }}>
-                      Immediate pressure points
-                    </Typography>
-                    <Stack sx={{ gap: 1 }}>
-                      {oldestRows.slice(0, 4).map((item) => (
-                        <Stack
-                          key={item.id}
-                          direction="row"
-                          sx={{
-                            py: 1.5,
-                            px: 1.5,
-                            bgcolor: 'background.elevation2',
-                            borderRadius: 2,
-                            gap: 1,
-                            alignItems: 'center',
-                          }}
-                        >
-                          <Box
-                            component="img"
-                            src={buildImageSrc(item.imageUrl)}
-                            alt={item.title}
-                            sx={{ width: 42, height: 42, borderRadius: 2, objectFit: 'cover', flexShrink: 0 }}
-                          />
-                          <Box sx={{ minWidth: 0, flex: 1 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.3 }}>
-                              {item.title}
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                              {item.daysHeld != null ? `${item.daysHeld} days held` : 'Unknown age'}
-                            </Typography>
-                          </Box>
-                          <Chip
-                            label={item.forSale ? 'For sale' : 'Held'}
-                            size="small"
-                            variant="soft"
-                            color={item.forSale ? 'success' : 'warning'}
-                          />
-                        </Stack>
-                      ))}
-                    </Stack>
                   </Box>
                 </Stack>
               </Paper>
@@ -520,9 +424,9 @@ const Starter = () => {
                             {formatCurrency(totalProfit12m)}
                           </Typography>
                           <Box>
-                            <Chip label={formatPercent(summary?.allTimeSoldMarginPercent || 0)} color="success" />
+                            <Chip label={formatPercent(soldMargin12m)} color="success" />
                             <Typography variant="body2" sx={{ color: 'text.secondary', ml: 0.75, display: 'inline' }}>
-                              sold margin
+                              margin, last 12 months
                             </Typography>
                           </Box>
                         </Stack>
@@ -554,6 +458,63 @@ const Starter = () => {
                   />
                 </Grid>
               </Grid>
+            </Grid>
+          </Grid>
+
+          <Grid container spacing={3} sx={{ mt: 0 }}>
+            <Grid size={{ xs: 12 }}>
+              <Paper sx={{ p: { xs: 3, md: 5 } }}>
+                <Typography variant="subtitle2" color="text.secondary" fontWeight={400} mb={3}>
+                  Snapshot
+                </Typography>
+                <Grid container spacing={3}>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center' }}>
+                      <Avatar sx={{ color: 'primary.main', bgcolor: 'primary.lighter' }}>
+                        <IconifyIcon icon="material-symbols:payments-outline-rounded" />
+                      </Avatar>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                          {formatCurrency(summary?.inventoryCostBasis || 0)}
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+                          Cost basis
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center' }}>
+                      <Avatar sx={{ color: 'primary.main', bgcolor: 'primary.lighter' }}>
+                        <IconifyIcon icon="material-symbols:storefront-outline-rounded" />
+                      </Avatar>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                          {formatNumber(summary?.forSaleItems || 0)}
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+                          For sale
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center' }}>
+                      <Avatar sx={{ color: 'primary.main', bgcolor: 'primary.lighter' }}>
+                        <IconifyIcon icon="material-symbols:trending-up-rounded" />
+                      </Avatar>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                          {formatCurrency(summary?.realizedProfitMTD || 0)}
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+                          Profit MTD
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </Grid>
+                </Grid>
+              </Paper>
             </Grid>
           </Grid>
 
