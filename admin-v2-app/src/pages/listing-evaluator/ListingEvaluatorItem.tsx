@@ -1008,7 +1008,7 @@ const ListingEvaluatorItem = () => {
                               alt={title}
                               sx={{
                                 display: 'block',
-                                width: { xs: '100%', lg: 350 },
+                                width: { xs: '100%', lg: 270 },
                                 maxWidth: '100%',
                                 height: 'auto',
                               }}
