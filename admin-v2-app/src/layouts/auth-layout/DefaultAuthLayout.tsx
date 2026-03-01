@@ -1,5 +1,5 @@
 import { PropsWithChildren } from 'react';
-import { Stack, Typography } from '@mui/material';
+import { Box, Stack } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import Logo from 'components/common/Logo';
 
@@ -65,8 +65,8 @@ const DefaultAuthLayout = ({ children }: PropsWithChildren) => {
                 justifyContent: 'center',
                 alignItems: 'center',
                 px: 6,
-              }}
-            >
+                }}
+              >
               <Stack
                 sx={{
                   position: 'absolute',
@@ -75,26 +75,19 @@ const DefaultAuthLayout = ({ children }: PropsWithChildren) => {
                     'radial-gradient(circle at top left, rgba(88,151,251,0.16), transparent 40%)',
                 }}
               />
-              <Typography
-                variant="h3"
-                sx={{ position: 'relative', textAlign: 'center', fontWeight: 600 }}
-              >
-                CCG Admin
-              </Typography>
+              <Box
+                component="img"
+                src="/images/coal-creek-logo.png"
+                alt="Coal Creek Guitars"
+                sx={{
+                  position: 'relative',
+                  width: 1,
+                  height: 1,
+                  objectFit: 'contain',
+                  p: 5,
+                }}
+              />
             </Stack>
-          </Stack>
-
-          <Stack
-            sx={{
-              justifyContent: 'center',
-              gap: 1,
-              textAlign: { xs: 'center', md: 'left' },
-            }}
-          >
-            <Typography variant="h4">Coal Creek Guitars Admin</Typography>
-            <Typography variant="body1" sx={{ color: 'text.secondary', maxWidth: 420 }}>
-              Sign in with your existing admin username and password to access the new admin.
-            </Typography>
           </Stack>
         </Stack>
       </Grid>
