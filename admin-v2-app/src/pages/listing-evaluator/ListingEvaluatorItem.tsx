@@ -899,7 +899,6 @@ const ListingEvaluatorItem = () => {
                       <Paper
                         variant="outlined"
                         sx={{
-                          overflow: 'hidden',
                           borderRadius: 5,
                           bgcolor: 'background.default',
                         }}
@@ -919,9 +918,7 @@ const ListingEvaluatorItem = () => {
                               sx={{
                                 display: 'block',
                                 width: '100%',
-                                height: 280,
-                                objectFit: 'contain',
-                                bgcolor: 'background.default',
+                                height: 'auto',
                               }}
                             />
                           </Link>
