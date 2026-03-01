@@ -20,6 +20,7 @@ import paths from 'routes/paths';
 type ListingRecordResponse = {
   id: string;
   fields: Record<string, unknown>;
+  normalizedLists?: Record<string, string[]>;
   message?: string;
 };
 
@@ -312,6 +313,36 @@ function formatTextParts(value: unknown): string[] {
 }
 
 function buildTextNode(value: unknown): ReactNode {
+  if (Array.isArray(value)) {
+    const parts = value
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    if (parts.length === 0) return '—';
+    if (parts.length === 1) return parts[0];
+
+    return (
+      <Stack spacing={1} sx={{ minWidth: 0, width: 1 }}>
+        {parts.map((part) => (
+          <Typography
+            key={part}
+            variant="body2"
+            sx={{
+              color: 'text.secondary',
+              overflowWrap: 'anywhere',
+              wordBreak: 'break-word',
+              whiteSpace: 'pre-wrap',
+              width: 1,
+            }}
+          >
+            {`• ${part}`}
+          </Typography>
+        ))}
+      </Stack>
+    );
+  }
+
   const parts = formatTextParts(value);
   if (parts.length === 0) return '—';
   if (parts.length === 1) return parts[0];
@@ -498,7 +529,7 @@ const ListingEvaluatorItem = () => {
       setMessage(null);
 
       try {
-        const response = await fetch(`/api/listings/${encodeURIComponent(recordId)}`, {
+        const response = await fetch(`/api/admin-v2/listings/${encodeURIComponent(recordId)}`, {
           credentials: 'same-origin',
         });
         const data = (await response.json()) as ListingRecordResponse;
@@ -551,6 +582,8 @@ const ListingEvaluatorItem = () => {
   const isMulti = isTruthyFlag(fields.IsMulti);
   const googleQuery = buildDoubleCheckQuery(fields);
   const googleGuitarQuery = buildDoubleCheckQuery(fields, { includeGuitar: true });
+  const normalizedLists = record?.normalizedLists || {};
+  const getV2FieldValue = (fieldKey: string): unknown => normalizedLists[fieldKey] ?? fields[fieldKey];
 
   const aiSummary = useMemo(() => {
     const parts: string[] = [];
@@ -616,12 +649,14 @@ const ListingEvaluatorItem = () => {
         ) {
           return false;
         }
-        return normalizeValue(fields[field.key]) !== '—';
+        return normalizeValue(getV2FieldValue(field.key)) !== '—';
       }).map((field) => ({
         label: field.label,
-        value: field.currency ? formatCurrencyValue(fields[field.key]) : buildTextNode(fields[field.key]),
+        value: field.currency
+          ? formatCurrencyValue(fields[field.key])
+          : buildTextNode(getV2FieldValue(field.key)),
       })),
-    [fields],
+    [fields, normalizedLists],
   );
 
   const lowerSectionItems = useMemo<DetailItem[]>(
@@ -637,11 +672,11 @@ const ListingEvaluatorItem = () => {
         label: 'Summary',
         value: aiSummary ? buildSummaryNode(aiSummary) : 'No AI summary available yet.',
       },
-      { label: 'Pricing Notes', value: buildTextNode(fields.pricing_notes) },
-      { label: 'Value Online Notes', value: buildTextNode(fields.value_online_notes) },
+      { label: 'Pricing Notes', value: buildTextNode(getV2FieldValue('pricing_notes')) },
+      { label: 'Value Online Notes', value: buildTextNode(getV2FieldValue('value_online_notes')) },
       ...(!isMulti ? singleDetailItems : []),
     ],
-    [aiSummary, fields.description, fields.pricing_notes, fields.value_online_notes, isMulti, singleDetailItems],
+    [aiSummary, fields.description, isMulti, normalizedLists, singleDetailItems],
   );
 
   const openExternal = (url: string) => {

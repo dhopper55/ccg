@@ -392,6 +392,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path.startsWith('/api/admin-v2/listings/') && request.method === 'GET') {
+      const response = await handleAdminV2GetListing(env, path);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/inventory/package-create' && request.method === 'POST') {
       const response = await handleInventoryPackageCreate(env);
       return withCors(response, request, env);
@@ -2938,6 +2943,79 @@ async function handleGetListing(request: Request, env: Env, path: string): Promi
   }
 
   return jsonResponse(record);
+}
+
+const ADMIN_V2_LIST_FIELD_KEYS = [
+  'pricing_notes',
+  'value_pawn_shop_notes',
+  'value_online_notes',
+  'known_weak_points',
+  'typical_repair_needs',
+  'buyers_worry',
+  'og_specs_pickups',
+  'og_specs_tuners',
+  'og_specs_common_mods',
+  'buyer_what_to_check',
+  'buyer_common_misrepresent',
+  'seller_how_to_price_realistic',
+  'seller_fixes_add_value_or_waste',
+  'seller_as_is_notes',
+];
+
+function normalizeAdminV2ListField(value: unknown): string[] {
+  if (typeof value !== 'string') return [];
+
+  const cleaned = value
+    .replace(/\bGeneral:\s*/gi, '')
+    .replace(/[\u061B\uFF1B\uFE54\u037E]/g, ';')
+    .trim();
+
+  if (!cleaned) return [];
+
+  const hasBulletMarkers = /[•●▪◦]/.test(cleaned) || /(?:^|\n)\s*[-*]\s+/.test(cleaned);
+  const segments = hasBulletMarkers
+    ? cleaned
+        .replace(/[•●▪◦]\s*/g, '\n• ')
+        .replace(/(?:^|\n)\s*[-*]\s+/g, '\n• ')
+        .split(/\r?\n/)
+    : cleaned.split(/\r?\n/);
+
+  return segments
+    .map((part) => part.replace(/^[-–—•*]+\s*/g, '').trim())
+    .filter(Boolean)
+    .filter((part) => !/^unknown\.?$/i.test(part));
+}
+
+function buildAdminV2ListingRecord(record: { id: string; fields: Record<string, unknown> }) {
+  const normalizedLists: Record<string, string[]> = {};
+
+  for (const key of ADMIN_V2_LIST_FIELD_KEYS) {
+    const items = normalizeAdminV2ListField(record.fields[key]);
+    if (items.length > 0) {
+      normalizedLists[key] = items;
+    }
+  }
+
+  return {
+    ...record,
+    normalizedLists,
+  };
+}
+
+async function handleAdminV2GetListing(env: Env, path: string): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const id = parts[parts.length - 1];
+
+  if (!id || id === 'listings') {
+    return jsonResponse({ message: 'Missing listing ID.' }, 400);
+  }
+
+  const record = await dbGetListing(id, env);
+  if (!record) {
+    return jsonResponse({ message: 'Listing not found.' }, 404);
+  }
+
+  return jsonResponse(buildAdminV2ListingRecord(record));
 }
 
 async function handleGetListingDebug(request: Request, env: Env, path: string): Promise<Response> {
