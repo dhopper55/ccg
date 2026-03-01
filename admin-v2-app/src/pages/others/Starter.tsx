@@ -727,7 +727,7 @@ const Starter = () => {
                       <ReactEchart
                         echarts={echarts}
                         option={inventoryByCategoryOption}
-                        sx={{ height: '230px !important', width: '230px' }}
+                        sx={{ height: '460px !important', width: '460px' }}
                       />
                       <Box
                         sx={{
