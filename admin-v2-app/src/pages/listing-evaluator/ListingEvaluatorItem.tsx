@@ -314,24 +314,40 @@ function formatTextParts(value: unknown): string[] {
 function buildTextNode(value: unknown): ReactNode {
   const parts = formatTextParts(value);
   if (parts.length === 0) return '—';
-  if (parts.length === 1) return parts[0];
+  if (parts.length === 1) {
+    return (
+      <Typography
+        variant="body2"
+        sx={{
+          color: 'text.secondary',
+          whiteSpace: 'pre-wrap',
+          overflowWrap: 'anywhere',
+          wordBreak: 'break-word',
+        }}
+      >
+        {parts[0]}
+      </Typography>
+    );
+  }
 
   return (
     <Stack spacing={1} sx={{ minWidth: 0, width: 1 }}>
       {parts.map((part) => (
-        <Typography
-          key={part}
-          variant="body2"
-          sx={{
-            color: 'text.secondary',
-            overflowWrap: 'anywhere',
-            wordBreak: 'break-word',
-            whiteSpace: 'pre-wrap',
-            width: 1,
-          }}
-        >
-          {`• ${part}`}
-        </Typography>
+        <Box key={part} sx={{ width: 1, minWidth: 0 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              color: 'text.secondary',
+              overflowWrap: 'anywhere',
+              wordBreak: 'break-word',
+              whiteSpace: 'pre-wrap',
+              width: 1,
+              display: 'block',
+            }}
+          >
+            {`• ${part}`}
+          </Typography>
+        </Box>
       ))}
     </Stack>
   );
@@ -378,7 +394,7 @@ const DetailRow = ({ label, value }: DetailItem) => (
       variant="body2"
       sx={{
         fontWeight: 'bold',
-        width: { xs: 156, md: 170 },
+        width: { xs: 176, md: 196 },
         flexShrink: 0,
         wordBreak: 'break-word',
       }}
@@ -857,7 +873,7 @@ const ListingEvaluatorItem = () => {
                   >
                     <Box
                       sx={{
-                        width: { xs: '100%', lg: 360 },
+                        width: { xs: '100%', lg: 540 },
                         flexShrink: 0,
                       }}
                     >
