@@ -19,8 +19,10 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import { useNavigate } from 'react-router';
 import IconifyIcon from 'components/base/IconifyIcon';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
+import paths from 'routes/paths';
 
 type ListingListItem = {
   id: string;
@@ -135,11 +137,16 @@ function buildDisplayTitle(record: ListingListItem): string {
   return record.title?.trim() || record.url?.replace(/^https?:\/\//i, '') || 'Untitled listing';
 }
 
+function buildDetailsHref(id: string): string {
+  return paths.listingEvaluatorItemWithId(encodeURIComponent(id));
+}
+
 const ListingEvaluatorResults = () => {
   const [records, setRecords] = useState<ListingListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const { down } = useBreakpoints();
+  const navigate = useNavigate();
   const downSm = down('sm');
 
   useEffect(() => {
@@ -278,6 +285,7 @@ const ListingEvaluatorResults = () => {
                 <Paper
                   key={row.id}
                   variant="outlined"
+                  onClick={() => navigate(buildDetailsHref(row.id))}
                   sx={{
                     p: 2,
                     bgcolor: 'background.default',
@@ -286,6 +294,7 @@ const ListingEvaluatorResults = () => {
                     maxWidth: '100%',
                     minWidth: 0,
                     overflow: 'hidden',
+                    cursor: 'pointer',
                   }}
                 >
                   <Stack direction="column" spacing={2} sx={{ minWidth: 0 }}>
@@ -306,16 +315,19 @@ const ListingEvaluatorResults = () => {
                       </Avatar>
 
                       <Box sx={{ minWidth: 0, flex: 1 }}>
-                        <Link
-                          underline="none"
-                          color="text.primary"
-                          href={row.url || '#'}
-                          target="_blank"
-                          rel="noreferrer"
-                          sx={{
-                            display: 'block',
-                            fontWeight: 500,
-                            lineHeight: 1.35,
+                            <Link
+                              underline="none"
+                              color="text.primary"
+                              href={buildDetailsHref(row.id)}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                navigate(buildDetailsHref(row.id));
+                              }}
+                              sx={{
+                                display: 'block',
+                                fontWeight: 500,
+                                lineHeight: 1.35,
                             overflow: 'hidden',
                             textOverflow: 'unset',
                             whiteSpace: 'normal',
@@ -448,7 +460,12 @@ const ListingEvaluatorResults = () => {
                   </TableRow>
                 ) : (
                   rows.map((row) => (
-                    <TableRow key={row.id}>
+                    <TableRow
+                      key={row.id}
+                      hover
+                      onClick={() => navigate(buildDetailsHref(row.id))}
+                      sx={{ cursor: 'pointer' }}
+                    >
                       <TableCell>
                         <Stack direction="row" sx={{ gap: 2, alignItems: 'center', minWidth: 0 }}>
                           <Avatar
@@ -470,9 +487,12 @@ const ListingEvaluatorResults = () => {
                             <Link
                               underline="none"
                               color="text.primary"
-                              href={row.url || '#'}
-                              target="_blank"
-                              rel="noreferrer"
+                              href={buildDetailsHref(row.id)}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                navigate(buildDetailsHref(row.id));
+                              }}
                               sx={{
                                 display: 'block',
                                 fontWeight: 500,

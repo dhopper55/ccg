@@ -10,6 +10,7 @@ import Login from 'pages/authentication/default/jwt/Login';
 import Starter from 'pages/others/Starter';
 import IconGallery from 'pages/others/IconGallery';
 import ListingEvaluator from 'pages/listing-evaluator/ListingEvaluator';
+import ListingEvaluatorItem from 'pages/listing-evaluator/ListingEvaluatorItem';
 import ListingEvaluatorResults from 'pages/listing-evaluator/ListingEvaluatorResults';
 import LoggedOut from 'pages/authentication/default/LoggedOut';
 import Logout from 'pages/authentication/default/Logout';
@@ -53,6 +54,10 @@ export const routes: RouteObject[] = [
           {
             path: paths.listingEvaluator,
             element: <ListingEvaluator />,
+          },
+          {
+            path: paths.listingEvaluatorItem,
+            element: <ListingEvaluatorItem />,
           },
           {
             path: paths.logout,
