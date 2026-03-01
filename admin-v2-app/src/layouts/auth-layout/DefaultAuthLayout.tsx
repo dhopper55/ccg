@@ -29,7 +29,6 @@ const DefaultAuthLayout = ({ children }: PropsWithChildren) => {
         <Stack
           direction="column"
           sx={{
-            justifyContent: 'space-between',
             height: 1,
             p: { xs: 3, sm: 5 },
           }}
@@ -45,6 +44,7 @@ const DefaultAuthLayout = ({ children }: PropsWithChildren) => {
 
           <Stack
             sx={{
+              flex: 1,
               justifyContent: 'center',
               alignItems: 'center',
               display: { xs: 'none', md: 'flex', flexDirection: 'row-reverse' },
@@ -55,18 +55,15 @@ const DefaultAuthLayout = ({ children }: PropsWithChildren) => {
               sx={{
                 width: 1,
                 maxWidth: 420,
-                minHeight: 280,
+                aspectRatio: '3 / 2',
                 borderRadius: 6,
                 border: 1,
                 borderColor: 'divider',
                 bgcolor: 'background.elevation1',
                 position: 'relative',
                 overflow: 'hidden',
-                justifyContent: 'center',
-                alignItems: 'center',
-                px: 6,
-                }}
-              >
+              }}
+            >
               <Stack
                 sx={{
                   position: 'absolute',
@@ -83,8 +80,7 @@ const DefaultAuthLayout = ({ children }: PropsWithChildren) => {
                   position: 'relative',
                   width: 1,
                   height: 1,
-                  objectFit: 'contain',
-                  p: 5,
+                  objectFit: 'cover',
                 }}
               />
             </Stack>
