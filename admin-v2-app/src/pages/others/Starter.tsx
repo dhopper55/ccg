@@ -382,86 +382,6 @@ const Starter = () => {
       ) : (
         <>
           <Grid container spacing={3}>
-            <Grid size={{ xs: 12, md: 5, lg: 4, xl: 3 }} sx={{ height: 1 }}>
-              <Paper sx={{ p: { xs: 3, md: 5 }, height: 1, overflow: 'hidden' }}>
-                <Stack direction="column" sx={{ height: 1 }}>
-                  <Box sx={{ pb: 3 }}>
-                    <Typography variant="subtitle1" sx={{ color: 'text.secondary', fontWeight: 500, mb: 1 }}>
-                      {dashboard.summary?.asOf ? formatShortDate(dashboard.summary.asOf) : 'Today'}
-                    </Typography>
-                    <Typography variant="h3" sx={{ mb: 2 }}>
-                      Good evening, CCG
-                    </Typography>
-                    <Typography sx={{ color: 'text.secondary' }}>
-                      Inventory should move cash, not trap it. Watch margin, speed, and aging.
-                    </Typography>
-                  </Box>
-                </Stack>
-              </Paper>
-            </Grid>
-
-            <Grid container size={{ xs: 12, md: 7, lg: 8, xl: 9 }}>
-              <Grid size={{ xs: 12, xl: 6.67 }} order={{ lg: 1 }}>
-                <Paper sx={{ p: { xs: 3, md: 5 }, height: 1 }}>
-                  <Stack direction="column" sx={{ rowGap: 4, height: '100%' }}>
-                    <Grid container spacing={2} sx={{ alignItems: { lg: 'flex-end' }, justifyContent: 'space-between' }}>
-                      <Grid size={{ xs: 'grow', lg: 'auto' }}>
-                        <Typography variant="h6" sx={{ mb: 1 }}>
-                          Profit Trend
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                          Realized gross profit across the last 12 months
-                        </Typography>
-                      </Grid>
-                      <Grid sx={{ ml: { sm: 'auto', md: 0 } }}>
-                        <IconButton size="small" aria-label="Profit trend options">
-                          <IconifyIcon icon="material-symbols:more-horiz-rounded" />
-                        </IconButton>
-                      </Grid>
-                      <Grid size={{ xs: 12, lg: 'auto' }}>
-                        <Stack sx={{ gap: 1 }}>
-                          <Typography sx={{ typography: { xs: 'h4', xl: 'h3' }, mb: 0.5 }}>
-                            {formatCurrency(totalProfit12m)}
-                          </Typography>
-                          <Box>
-                            <Chip label={formatPercent(soldMargin12m)} color="success" />
-                            <Typography variant="body2" sx={{ color: 'text.secondary', ml: 0.75, display: 'inline' }}>
-                              margin, last 12 months
-                            </Typography>
-                          </Box>
-                        </Stack>
-                      </Grid>
-                    </Grid>
-
-                    <Box sx={{ flex: 1, '& .echarts-for-react': { height: '100% !important' } }}>
-                      <ReactEchart echarts={echarts} option={profitTrendOption} sx={{ minHeight: 280, width: '100%' }} />
-                    </Box>
-                  </Stack>
-                </Paper>
-              </Grid>
-
-              <Grid container size={{ xs: 12, xl: 5.33 }}>
-                <Grid size={{ xs: 12, sm: 6, md: 12, lg: 6, xl: 12 }}>
-                  <MetricMiniCard
-                    title="Private Party Value"
-                    subTitle="Expected value of active unsold inventory"
-                    value={formatCurrency(summary?.privatePartyValue || 0)}
-                    chipLabel={`${formatNumber(summary?.activeItems || 0)} active`}
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6, md: 12, lg: 6, xl: 12 }}>
-                  <MetricMiniCard
-                    title="Current Asking Value"
-                    subTitle="Current value of items already listed for sale"
-                    value={formatCurrency(summary?.currentAskingValue || 0)}
-                    chipLabel={`${summary?.avgDaysToSell?.toFixed(1) || '0.0'} avg days`}
-                  />
-                </Grid>
-              </Grid>
-            </Grid>
-          </Grid>
-
-          <Grid container spacing={3} sx={{ mt: 0 }}>
             <Grid size={{ xs: 12 }}>
               <Paper sx={{ p: { xs: 3, md: 5 } }}>
                 <Typography variant="subtitle2" color="text.secondary" fontWeight={400} mb={3}>
@@ -514,6 +434,71 @@ const Starter = () => {
                     </Stack>
                   </Grid>
                 </Grid>
+              </Paper>
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <MetricMiniCard
+                title="Private Party Value"
+                subTitle="Expected value of active unsold inventory"
+                value={formatCurrency(summary?.privatePartyValue || 0)}
+                chipLabel={`${formatNumber(summary?.activeItems || 0)} active`}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <MetricMiniCard
+                title="Current Asking Value"
+                subTitle="Current value of items already listed for sale"
+                value={formatCurrency(summary?.currentAskingValue || 0)}
+                chipLabel={`${summary?.avgDaysToSell?.toFixed(1) || '0.0'} avg days`}
+              />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <Paper sx={{ p: { xs: 3, md: 5 }, height: 1 }}>
+                <Stack direction="column" sx={{ rowGap: 4, height: '100%' }}>
+                  <Grid
+                    container
+                    spacing={2}
+                    sx={{ alignItems: { lg: 'flex-end' }, justifyContent: 'space-between' }}
+                  >
+                    <Grid size={{ xs: 'grow', lg: 'auto' }}>
+                      <Typography variant="h6" sx={{ mb: 1 }}>
+                        Profit Trend
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                        Realized gross profit across the last 12 months
+                      </Typography>
+                    </Grid>
+                    <Grid sx={{ ml: { sm: 'auto', md: 0 } }}>
+                      <IconButton size="small" aria-label="Profit trend options">
+                        <IconifyIcon icon="material-symbols:more-horiz-rounded" />
+                      </IconButton>
+                    </Grid>
+                    <Grid size={{ xs: 12, lg: 'auto' }}>
+                      <Stack sx={{ gap: 1 }}>
+                        <Typography sx={{ typography: { xs: 'h4', xl: 'h3' }, mb: 0.5 }}>
+                          {formatCurrency(totalProfit12m)}
+                        </Typography>
+                        <Box>
+                          <Chip label={formatPercent(soldMargin12m)} color="success" />
+                          <Typography
+                            variant="body2"
+                            sx={{ color: 'text.secondary', ml: 0.75, display: 'inline' }}
+                          >
+                            margin, last 12 months
+                          </Typography>
+                        </Box>
+                      </Stack>
+                    </Grid>
+                  </Grid>
+
+                  <Box sx={{ flex: 1, '& .echarts-for-react': { height: '100% !important' } }}>
+                    <ReactEchart
+                      echarts={echarts}
+                      option={profitTrendOption}
+                      sx={{ minHeight: 280, width: '100%' }}
+                    />
+                  </Box>
+                </Stack>
               </Paper>
             </Grid>
           </Grid>
