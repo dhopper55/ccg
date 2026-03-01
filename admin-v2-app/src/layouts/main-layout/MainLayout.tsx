@@ -108,7 +108,13 @@ const MainLayout = ({ children }: PropsWithChildren) => {
                     },
                     '&.Mui-selected': {
                       bgcolor: 'primary.dark',
-                      color: 'primary.main',
+                      color: 'common.black',
+                      '& .MuiListItemIcon-root': {
+                        color: 'common.black',
+                      },
+                      '& .MuiListItemText-primary': {
+                        color: 'common.black',
+                      },
                     },
                   }}
                 >

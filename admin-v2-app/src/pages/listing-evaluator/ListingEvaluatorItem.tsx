@@ -297,6 +297,7 @@ function formatTextParts(value: unknown): string[] {
   if (hasBulletMarkers) {
     return cleaned
       .replace(/[•●▪◦]\s*/g, '\n• ')
+      .replace(/(?:^|\n)\s*[-*]\s+/g, '\n• ')
       .split(/\r?\n/)
       .map((part) => part.replace(/^[-–—•*]+\s*/g, '').trim())
       .filter(Boolean)
@@ -316,19 +317,20 @@ function buildTextNode(value: unknown): ReactNode {
   if (parts.length === 1) return parts[0];
 
   return (
-    <Stack component="ul" spacing={0.75} sx={{ m: 0, pl: 2, minWidth: 0, width: 1 }}>
+    <Stack spacing={1} sx={{ minWidth: 0, width: 1 }}>
       {parts.map((part) => (
         <Typography
           key={part}
-          component="li"
           variant="body2"
           sx={{
             color: 'text.secondary',
             overflowWrap: 'anywhere',
             wordBreak: 'break-word',
+            whiteSpace: 'pre-wrap',
+            width: 1,
           }}
         >
-          {part}
+          {`• ${part}`}
         </Typography>
       ))}
     </Stack>
@@ -376,7 +378,7 @@ const DetailRow = ({ label, value }: DetailItem) => (
       variant="body2"
       sx={{
         fontWeight: 'bold',
-        width: { xs: 124, md: 132 },
+        width: { xs: 156, md: 170 },
         flexShrink: 0,
         wordBreak: 'break-word',
       }}
@@ -855,7 +857,7 @@ const ListingEvaluatorItem = () => {
                   >
                     <Box
                       sx={{
-                        width: { xs: '100%', lg: 240 },
+                        width: { xs: '100%', lg: 360 },
                         flexShrink: 0,
                       }}
                     >
