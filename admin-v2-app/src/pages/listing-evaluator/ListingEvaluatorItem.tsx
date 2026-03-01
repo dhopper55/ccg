@@ -286,10 +286,25 @@ function formatIdealPrice(fields: Record<string, unknown>): string {
 function formatTextParts(value: unknown): string[] {
   const normalized = normalizeValue(value);
   if (normalized === '—') return [];
-  return normalized
+
+  const cleaned = normalized
     .replace(/\bGeneral:\s*/gi, '')
     .replace(/[\u061B\uFF1B\uFE54\u037E]/g, ';')
-    .split(/\s*;\s*|\r?\n|\s+[•*-]\s+/g)
+    .trim();
+
+  const hasBulletMarkers = /[•●▪◦]/.test(cleaned) || /(?:^|\n)\s*[-*]\s+/.test(cleaned);
+
+  if (hasBulletMarkers) {
+    return cleaned
+      .replace(/[•●▪◦]\s*/g, '\n• ')
+      .split(/\r?\n/)
+      .map((part) => part.replace(/^[-–—•*]+\s*/g, '').trim())
+      .filter(Boolean)
+      .filter((part) => !/^unknown\.?$/i.test(part));
+  }
+
+  return cleaned
+    .split(/\s*;\s*|\r?\n/g)
     .map((part) => part.replace(/^[-–—•*]+\s*/g, '').trim())
     .filter(Boolean)
     .filter((part) => !/^unknown\.?$/i.test(part));
@@ -303,7 +318,16 @@ function buildTextNode(value: unknown): ReactNode {
   return (
     <Stack component="ul" spacing={0.75} sx={{ m: 0, pl: 2 }}>
       {parts.map((part) => (
-        <Typography key={part} component="li" variant="body2" sx={{ color: 'text.secondary' }}>
+        <Typography
+          key={part}
+          component="li"
+          variant="body2"
+          sx={{
+            color: 'text.secondary',
+            overflowWrap: 'anywhere',
+            wordBreak: 'break-word',
+          }}
+        >
           {part}
         </Typography>
       ))}
@@ -325,7 +349,15 @@ function buildSummaryNode(text: string): ReactNode {
         const bulletText = line.replace(/^[-•*–]\s+/, '');
         const isBullet = bulletText !== line;
         return (
-          <Typography key={`${index}-${bulletText}`} variant="body2" sx={{ color: 'text.secondary' }}>
+          <Typography
+            key={`${index}-${bulletText}`}
+            variant="body2"
+            sx={{
+              color: 'text.secondary',
+              overflowWrap: 'anywhere',
+              wordBreak: 'break-word',
+            }}
+          >
             {isBullet ? `• ${bulletText}` : bulletText}
           </Typography>
         );
@@ -335,22 +367,45 @@ function buildSummaryNode(text: string): ReactNode {
 }
 
 const DetailRow = ({ label, value }: DetailItem) => (
-  <Stack sx={{ alignItems: 'flex-start' }}>
+  <Stack
+    direction="row"
+    spacing={1}
+    sx={{ alignItems: 'flex-start', minWidth: 0, width: 1 }}
+  >
     <Typography
       variant="body2"
-      sx={{ fontWeight: 'bold', width: { xs: '100%', md: 150 }, flexShrink: 0 }}
+      sx={{
+        fontWeight: 'bold',
+        width: { xs: 124, md: 132 },
+        flexShrink: 0,
+        wordBreak: 'break-word',
+      }}
     >
       {label}
     </Typography>
     <Typography
       variant="body2"
-      sx={{ fontWeight: 'bold', color: 'text.secondary', px: 2, display: { xs: 'none', md: 'block' } }}
+      sx={{
+        fontWeight: 'bold',
+        color: 'text.secondary',
+        px: 0.5,
+        flexShrink: 0,
+        display: { xs: 'none', md: 'block' },
+      }}
     >
       :
     </Typography>
     <Box sx={{ minWidth: 0, flex: 1 }}>
       {typeof value === 'string' ? (
-        <Typography variant="body2" sx={{ color: 'text.secondary', whiteSpace: 'pre-wrap' }}>
+        <Typography
+          variant="body2"
+          sx={{
+            color: 'text.secondary',
+            whiteSpace: 'pre-wrap',
+            overflowWrap: 'anywhere',
+            wordBreak: 'break-word',
+          }}
+        >
           {value}
         </Typography>
       ) : (
@@ -366,9 +421,9 @@ const DetailSection = ({ title, items }: { title: string; items: DetailItem[] })
   return (
     <Stack direction="column" gap={3}>
       <Typography variant="h6">{title}</Typography>
-      <Grid container spacing={1}>
+      <Grid container columnSpacing={1} rowSpacing={1}>
         {items.map((item) => (
-          <Grid key={item.label} size={{ xs: 12, md: 6 }}>
+          <Grid key={item.label} size={{ xs: 12, xl: 6 }}>
             <DetailRow label={item.label} value={item.value} />
           </Grid>
         ))}
@@ -389,7 +444,15 @@ const StackedDetailSection = ({ items }: { items: DetailItem[] }) => {
           <Typography variant="h6">{item.label}</Typography>
           <Box sx={{ minWidth: 0 }}>
             {typeof item.value === 'string' ? (
-              <Typography variant="body2" sx={{ color: 'text.secondary', whiteSpace: 'pre-wrap' }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: 'text.secondary',
+                  whiteSpace: 'pre-wrap',
+                  overflowWrap: 'anywhere',
+                  wordBreak: 'break-word',
+                }}
+              >
                 {item.value}
               </Typography>
             ) : (
@@ -682,7 +745,12 @@ const ListingEvaluatorItem = () => {
             }}
           >
             <Stack spacing={1}>
-              <Typography variant="h4">{title}</Typography>
+              <Typography
+                variant="h4"
+                sx={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}
+              >
+                {title}
+              </Typography>
               <Stack direction="row" sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
                 {askingPrice !== '—' && <Chip color="primary" variant="soft" label={askingPrice} />}
                 {statusLabel !== '—' && (
@@ -783,11 +851,11 @@ const ListingEvaluatorItem = () => {
                 <Fragment>
                   <Stack
                     direction={{ xs: 'column', lg: 'row' }}
-                    sx={{ gap: 3, alignItems: { lg: 'flex-start' } }}
+                    sx={{ gap: 2, alignItems: { lg: 'flex-start' } }}
                   >
                     <Box
                       sx={{
-                        width: { xs: '100%', lg: 260 },
+                        width: { xs: '100%', lg: 240 },
                         flexShrink: 0,
                       }}
                     >

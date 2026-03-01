@@ -132,7 +132,12 @@ const SlimNavItem = ({ item, level }: SlimNavItemProps) => {
       to={item.path}
       onClick={toggleCollapseItem}
       aria-expanded={openPopperMenu}
-      selected={pathname !== paths.comingSoon && pathname === item.path}
+      selected={
+        pathname !== paths.comingSoon &&
+        (pathname === item.path ||
+          (item.selectionPrefix && pathname!.includes(item.selectionPrefix)) ||
+          isNestedItemOpen(item.items))
+      }
       sx={[
         {
           color: 'text.secondary',
