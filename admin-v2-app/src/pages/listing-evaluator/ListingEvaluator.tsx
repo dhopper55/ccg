@@ -371,7 +371,14 @@ const ListingEvaluator = () => {
 
       <Grid size={12}>
         <Paper sx={{ mt: 3, height: 1 }}>
-          <Container maxWidth="md" sx={{ py: { xs: 4, md: 5 } }}>
+          <Container
+            maxWidth={false}
+            disableGutters
+            sx={{
+              py: { xs: 4, md: 5 },
+              px: { xs: 3, md: 5, lg: 6 },
+            }}
+          >
             <Stack direction="column" spacing={4}>
               <Typography sx={{ color: 'text.secondary', maxWidth: 1 }}>
                 Focus a field to try clipboard paste automatically, or paste manually. Submission
@@ -388,7 +395,27 @@ const ListingEvaluator = () => {
                     '& .MuiFilledInput-root': {
                       minHeight: 72,
                       borderRadius: 3,
-                      bgcolor: 'background.default',
+                      bgcolor: 'background.elevation2',
+                      border: 1,
+                      borderColor: 'divider',
+                      boxShadow: 'none',
+                      '&:before, &:after': {
+                        display: 'none',
+                      },
+                      '&:hover': {
+                        bgcolor: 'background.elevation2',
+                      },
+                      '&.Mui-focused': {
+                        bgcolor: 'background.elevation2',
+                        borderColor: 'primary.main',
+                      },
+                      '&.Mui-disabled': {
+                        bgcolor: 'background.elevation2',
+                        opacity: 0.72,
+                      },
+                    },
+                    '& .MuiFilledInput-input': {
+                      py: 0,
                     },
                   }}
                 />
@@ -401,7 +428,27 @@ const ListingEvaluator = () => {
                     '& .MuiFilledInput-root': {
                       minHeight: 72,
                       borderRadius: 3,
-                      bgcolor: 'background.default',
+                      bgcolor: 'background.elevation2',
+                      border: 1,
+                      borderColor: 'divider',
+                      boxShadow: 'none',
+                      '&:before, &:after': {
+                        display: 'none',
+                      },
+                      '&:hover': {
+                        bgcolor: 'background.elevation2',
+                      },
+                      '&.Mui-focused': {
+                        bgcolor: 'background.elevation2',
+                        borderColor: 'primary.main',
+                      },
+                      '&.Mui-disabled': {
+                        bgcolor: 'background.elevation2',
+                        opacity: 0.72,
+                      },
+                    },
+                    '& .MuiFilledInput-input': {
+                      py: 0,
                     },
                   }}
                 />
