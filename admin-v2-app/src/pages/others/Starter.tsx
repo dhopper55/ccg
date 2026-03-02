@@ -500,7 +500,7 @@ const Starter = () => {
                           {formatNumber(summary?.forSaleItems || 0)}
                         </Typography>
                         <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.secondary' }}>
-                          For sale
+                          For Sale (All Items)
                         </Typography>
                       </Box>
                     </Stack>
@@ -534,7 +534,7 @@ const Starter = () => {
             <Grid size={{ xs: 12, md: 6 }}>
               <MetricMiniCard
                 title="Current Asking Value"
-                subTitle="Current value of items already listed for sale"
+                subTitle="Listed for sale value (Personal Included)"
                 value={formatCurrency(summary?.currentAskingValue || 0)}
                 chipLabel={`${summary?.avgDaysToSell?.toFixed(1) || '0.0'} avg days`}
               />
@@ -595,7 +595,7 @@ const Starter = () => {
               <Paper sx={{ p: { xs: 3, md: 5 }, height: 1 }}>
                 <SectionHeader
                   title="Recent Sales"
-                  subTitle="Detailed information about recently sold inventory"
+                  subTitle="Detailed information about recently sold inventory (Personal Included)"
                   sx={{ flexWrap: { xs: 'wrap', sm: 'nowrap' }, columnGap: 1, rowGap: 3, mb: 3 }}
                   actionComponent={
                     <IconButton size="small" aria-label="Recent sales options">
@@ -711,7 +711,7 @@ const Starter = () => {
               <Paper sx={{ p: { xs: 3, md: 5 }, height: 1 }}>
                 <SectionHeader
                   title="Inventory by category"
-                  subTitle="Active inventory count by category"
+                  subTitle="Active inventory count by category (Personal Included)"
                   actionComponent={
                     <IconButton size="small" aria-label="Inventory by category options">
                       <IconifyIcon icon="material-symbols:more-horiz-rounded" />
@@ -799,7 +799,7 @@ const Starter = () => {
               <Paper sx={{ p: { xs: 3, md: 5 }, height: 1 }}>
                 <SectionHeader
                   title="Oldest Inventory"
-                  subTitle="Details on the oldest unsold inventory currently holding cash"
+                  subTitle="Details on the oldest unsold inventory currently holding cash (Personal Included)"
                   actionComponent={
                     <Chip
                       label={`${formatNumber(summary?.notForSaleItems || 0)} held back`}

@@ -4764,12 +4764,12 @@ async function dbGetInventorySummary(env: Env): Promise<InventorySummaryTotals> 
       COALESCE(SUM(CASE WHEN i.is_active = 1 THEN l.price_asking ELSE 0 END), 0) AS total_listed,
       COALESCE(SUM(CASE WHEN i.is_sold = 1 THEN i.sold_amount ELSE 0 END), 0) AS total_sold,
       COALESCE(SUM(i.purchase_price), 0) AS total_purchased,
-      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 0 THEN COALESCE(i.purchase_price, 0) ELSE 0 END), 0) AS ccg_paid_unsold,
-      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 0 THEN COALESCE(i.private_party_value, 0) ELSE 0 END), 0) AS ccg_private_party_unsold,
-      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 1 THEN COALESCE(i.purchase_price, 0) ELSE 0 END), 0) AS ccg_sold_paid,
-      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 1 THEN COALESCE(i.private_party_value, 0) ELSE 0 END), 0) AS ccg_sold_private_party,
-      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 1 THEN (COALESCE(i.sold_amount, 0) - COALESCE(i.purchase_price, 0)) ELSE 0 END), 0) AS ccg_sold_profit_amount,
-      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 1 THEN COALESCE(i.sold_amount, 0) ELSE 0 END), 0) AS ccg_sold_amount_total,
+      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 0 AND COALESCE(i.is_personal, 0) = 0 THEN COALESCE(i.purchase_price, 0) ELSE 0 END), 0) AS ccg_paid_unsold,
+      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 0 AND COALESCE(i.is_personal, 0) = 0 THEN COALESCE(i.private_party_value, 0) ELSE 0 END), 0) AS ccg_private_party_unsold,
+      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 1 AND COALESCE(i.is_personal, 0) = 0 THEN COALESCE(i.purchase_price, 0) ELSE 0 END), 0) AS ccg_sold_paid,
+      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 1 AND COALESCE(i.is_personal, 0) = 0 THEN COALESCE(i.private_party_value, 0) ELSE 0 END), 0) AS ccg_sold_private_party,
+      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 1 AND COALESCE(i.is_personal, 0) = 0 THEN (COALESCE(i.sold_amount, 0) - COALESCE(i.purchase_price, 0)) ELSE 0 END), 0) AS ccg_sold_profit_amount,
+      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 1 AND COALESCE(i.is_personal, 0) = 0 THEN COALESCE(i.sold_amount, 0) ELSE 0 END), 0) AS ccg_sold_amount_total,
       COALESCE(SUM(CASE WHEN i.is_active = 1 THEN 1 ELSE 0 END), 0) AS ccg_active_items,
       COALESCE(SUM(CASE WHEN i.is_active = 1 AND COALESCE(i.for_sale, 0) = 0 THEN 1 ELSE 0 END), 0) AS ccg_not_for_sale_items,
       COALESCE(SUM(CASE WHEN i.is_active = 1 AND COALESCE(i.for_sale, 0) = 1 THEN 1 ELSE 0 END), 0) AS ccg_for_sale_items,
@@ -4828,6 +4828,7 @@ async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2DashboardS
       COALESCE(SUM(
         CASE
           WHEN COALESCE(i.is_sold, 0) = 1
+            AND COALESCE(i.is_personal, 0) = 0
             AND i.sold_date IS NOT NULL
             AND i.sold_date >= date('now', 'start of month')
             THEN COALESCE(i.sold_amount, 0) - COALESCE(i.purchase_price, 0)
@@ -4875,6 +4876,7 @@ async function dbGetAdminV2ProfitTrend(months: number, env: Env): Promise<AdminV
       COALESCE(SUM(COALESCE(i.sold_amount, 0) - COALESCE(i.purchase_price, 0)), 0) AS profit
      FROM ccg_inventory_items i
      WHERE COALESCE(i.is_sold, 0) = 1
+       AND COALESCE(i.is_personal, 0) = 0
        AND i.sold_date IS NOT NULL
        AND i.sold_date >= date('now', 'start of month', ?)
      GROUP BY month_key
@@ -4945,6 +4947,7 @@ async function dbGetAdminV2InventoryAging(env: Env): Promise<AdminV2InventoryAgi
      LEFT JOIN listings l ON l.id = i.source_listing_id
      WHERE i.is_active = 1
        AND COALESCE(i.is_sold, 0) = 0
+       AND COALESCE(i.is_personal, 0) = 0
      GROUP BY bucket_key`
   ).all<{
     bucket_key: string | null;
