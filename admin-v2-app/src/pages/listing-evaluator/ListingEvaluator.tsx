@@ -370,7 +370,7 @@ const ListingEvaluator = () => {
       </Grid>
 
       <Grid size={12}>
-        <Paper sx={{ mt: 3, height: 1 }}>
+        <Box sx={{ mt: 3 }}>
           <Container
             maxWidth={false}
             disableGutters
@@ -385,73 +385,79 @@ const ListingEvaluator = () => {
                 starts as soon as a valid URL is pasted.
               </Typography>
 
-              <Stack spacing={3}>
-                <TextField
-                  {...buildInputProps('single', singleUrl, setSingleUrl)}
-                  hiddenLabel
-                  variant="filled"
-                  sx={{
-                    width: 1,
-                    '& .MuiFilledInput-root': {
-                      minHeight: 72,
-                      borderRadius: 3,
-                      bgcolor: 'background.elevation2',
-                      border: 1,
-                      borderColor: 'divider',
-                      boxShadow: 'none',
-                      '&:before, &:after': {
-                        display: 'none',
-                      },
-                      '&:hover': {
+              <Stack direction="column" spacing={3} sx={{ width: 1 }}>
+                <Box sx={{ width: 1, display: 'block' }}>
+                  <TextField
+                    {...buildInputProps('single', singleUrl, setSingleUrl)}
+                    hiddenLabel
+                    variant="filled"
+                    sx={{
+                      width: 1,
+                      display: 'block',
+                      '& .MuiFilledInput-root': {
+                        minHeight: 72,
+                        borderRadius: 3,
                         bgcolor: 'background.elevation2',
+                        border: 1,
+                        borderColor: 'divider',
+                        boxShadow: 'none',
+                        '&:before, &:after': {
+                          display: 'none',
+                        },
+                        '&:hover': {
+                          bgcolor: 'background.elevation2',
+                        },
+                        '&.Mui-focused': {
+                          bgcolor: 'background.elevation2',
+                          borderColor: 'primary.main',
+                        },
+                        '&.Mui-disabled': {
+                          bgcolor: 'background.elevation2',
+                          opacity: 0.72,
+                        },
                       },
-                      '&.Mui-focused': {
+                      '& .MuiFilledInput-input': {
+                        py: 0,
+                      },
+                    }}
+                  />
+                </Box>
+                <Box sx={{ width: 1, display: 'block' }}>
+                  <TextField
+                    {...buildInputProps('multi', multiUrl, setMultiUrl)}
+                    hiddenLabel
+                    variant="filled"
+                    sx={{
+                      width: 1,
+                      display: 'block',
+                      '& .MuiFilledInput-root': {
+                        minHeight: 72,
+                        borderRadius: 3,
                         bgcolor: 'background.elevation2',
-                        borderColor: 'primary.main',
+                        border: 1,
+                        borderColor: 'divider',
+                        boxShadow: 'none',
+                        '&:before, &:after': {
+                          display: 'none',
+                        },
+                        '&:hover': {
+                          bgcolor: 'background.elevation2',
+                        },
+                        '&.Mui-focused': {
+                          bgcolor: 'background.elevation2',
+                          borderColor: 'primary.main',
+                        },
+                        '&.Mui-disabled': {
+                          bgcolor: 'background.elevation2',
+                          opacity: 0.72,
+                        },
                       },
-                      '&.Mui-disabled': {
-                        bgcolor: 'background.elevation2',
-                        opacity: 0.72,
+                      '& .MuiFilledInput-input': {
+                        py: 0,
                       },
-                    },
-                    '& .MuiFilledInput-input': {
-                      py: 0,
-                    },
-                  }}
-                />
-                <TextField
-                  {...buildInputProps('multi', multiUrl, setMultiUrl)}
-                  hiddenLabel
-                  variant="filled"
-                  sx={{
-                    width: 1,
-                    '& .MuiFilledInput-root': {
-                      minHeight: 72,
-                      borderRadius: 3,
-                      bgcolor: 'background.elevation2',
-                      border: 1,
-                      borderColor: 'divider',
-                      boxShadow: 'none',
-                      '&:before, &:after': {
-                        display: 'none',
-                      },
-                      '&:hover': {
-                        bgcolor: 'background.elevation2',
-                      },
-                      '&.Mui-focused': {
-                        bgcolor: 'background.elevation2',
-                        borderColor: 'primary.main',
-                      },
-                      '&.Mui-disabled': {
-                        bgcolor: 'background.elevation2',
-                        opacity: 0.72,
-                      },
-                    },
-                    '& .MuiFilledInput-input': {
-                      py: 0,
-                    },
-                  }}
-                />
+                    }}
+                  />
+                </Box>
               </Stack>
 
               {errorMessage ? (
@@ -472,7 +478,7 @@ const ListingEvaluator = () => {
               </Box>
             </Stack>
           </Container>
-        </Paper>
+        </Box>
       </Grid>
     </Grid>
   );
