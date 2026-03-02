@@ -8,6 +8,23 @@ import ThemeProvider from 'providers/ThemeProvider';
 import router from 'routes/router';
 import './locales/i18n';
 
+function registerAdminV2Pwa(): void {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return;
+  if (!('serviceWorker' in navigator)) return;
+  if (!window.isSecureContext) return;
+
+  const baseUrl = import.meta.env.BASE_URL || '/';
+  if (!baseUrl.startsWith('/admin-v2/')) return;
+
+  void navigator.serviceWorker
+    .register(`${baseUrl}admin-v2-sw.js`, { scope: baseUrl })
+    .catch((error: unknown) => {
+      console.warn('Admin V2 PWA service worker registration failed', error);
+    });
+}
+
+registerAdminV2Pwa();
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <SettingsProvider>
     <ThemeProvider>
