@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router';
 import {
   Alert,
   Box,
@@ -22,10 +23,12 @@ import {
   TableSortLabel,
   Tooltip,
   Typography,
+  Link,
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
 import IconifyIcon from 'components/base/IconifyIcon';
+import paths from 'routes/paths';
 
 type InventorySortKey = 'ccgNumber' | 'title' | 'paid' | 'private' | 'soldPrice';
 type InventorySortDir = 'asc' | 'desc';
@@ -95,6 +98,7 @@ function formatCurrency(value: number | null | undefined): string {
 }
 
 const InventoryManager = () => {
+  const navigate = useNavigate();
   const { down } = useBreakpoints();
   const downSm = down('sm');
   const [filters, setFilters] = useState<InventoryFilters>(DEFAULT_FILTERS);
@@ -279,7 +283,18 @@ const InventoryManager = () => {
             records.map((record) => (
               <TableRow key={record.id} hover>
                 <TableCell sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
-                  {record.ccgNumber || '—'}
+                  <Link
+                    underline="none"
+                    color="text.primary"
+                    href={paths.inventoryItemWithId(record.id)}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      navigate(paths.inventoryItemWithId(record.id));
+                    }}
+                    sx={{ fontWeight: 600 }}
+                  >
+                    {record.ccgNumber || '—'}
+                  </Link>
                 </TableCell>
                 <TableCell>
                   <Stack direction="row" sx={{ gap: 2, alignItems: 'center', minWidth: 0 }}>
@@ -297,9 +312,23 @@ const InventoryManager = () => {
                     >
                       <IconifyIcon icon="material-symbols:image-outline-rounded" />
                     </Avatar>
-                    <Typography variant="subtitle2" sx={{ lineHeight: 1.4 }}>
+                    <Link
+                      underline="none"
+                      color="text.primary"
+                      href={paths.inventoryItemWithId(record.id)}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        navigate(paths.inventoryItemWithId(record.id));
+                      }}
+                      sx={{
+                        display: 'block',
+                        fontWeight: 500,
+                        fontSize: 'subtitle2.fontSize',
+                        lineHeight: 1.4,
+                      }}
+                    >
                       {record.title || '—'}
-                    </Typography>
+                    </Link>
                   </Stack>
                 </TableCell>
                 <TableCell align="right">{formatCurrency(record.purchasePrice)}</TableCell>
@@ -329,10 +358,12 @@ const InventoryManager = () => {
           <Paper
             key={record.id}
             variant="outlined"
+            onClick={() => navigate(paths.inventoryItemWithId(record.id))}
             sx={{
               p: 2,
               borderRadius: 3,
               bgcolor: 'background.default',
+              cursor: 'pointer',
             }}
           >
             <Stack spacing={1.5}>
@@ -388,6 +419,7 @@ const InventoryManager = () => {
           <Tooltip title="Add">
             <IconButton
               aria-label="Add"
+              onClick={() => navigate(paths.inventoryItem)}
               color="success"
               sx={{
                 width: 40,

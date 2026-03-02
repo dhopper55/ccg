@@ -13,6 +13,7 @@ import ListingEvaluator from 'pages/listing-evaluator/ListingEvaluator';
 import ListingEvaluatorItem from 'pages/listing-evaluator/ListingEvaluatorItem';
 import ListingEvaluatorResults from 'pages/listing-evaluator/ListingEvaluatorResults';
 import InventoryManager from 'pages/inventory-manager/InventoryManager';
+import InventoryItem from 'pages/inventory-manager/InventoryItem';
 import LoggedOut from 'pages/authentication/default/LoggedOut';
 import Logout from 'pages/authentication/default/Logout';
 import Signup from 'pages/authentication/default/jwt/Signup';
@@ -63,6 +64,10 @@ export const routes: RouteObject[] = [
           {
             path: paths.inventoryManager,
             element: <InventoryManager />,
+          },
+          {
+            path: paths.inventoryItem,
+            element: <InventoryItem />,
           },
           {
             path: paths.logout,
