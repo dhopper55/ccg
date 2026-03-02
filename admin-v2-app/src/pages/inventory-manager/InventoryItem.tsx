@@ -833,21 +833,27 @@ const InventoryItem = () => {
                   inputProps={{ maxLength: 4000 }}
                 />
               </Grid>
-            </Grid>
 
-            <Box sx={{ pt: 1 }}>
-              <Button
-                variant="contained"
-                color="primary"
-                disabled={isSubmitting || isUploading || isImporting}
-                onClick={handleSubmit}
-                startIcon={
-                  isSubmitting ? <CircularProgress color="inherit" size={16} /> : <IconifyIcon icon="material-symbols:save-outline-rounded" />
-                }
-              >
-                {isSubmitting ? 'Saving...' : submitLabel}
-              </Button>
-            </Box>
+              <Grid size={12}>
+                <Box sx={{ pt: 1 }}>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    disabled={isSubmitting || isUploading || isImporting}
+                    onClick={handleSubmit}
+                    startIcon={
+                      isSubmitting ? (
+                        <CircularProgress color="inherit" size={16} />
+                      ) : (
+                        <IconifyIcon icon="material-symbols:save-outline-rounded" />
+                      )
+                    }
+                  >
+                    {isSubmitting ? 'Saving...' : submitLabel}
+                  </Button>
+                </Box>
+              </Grid>
+            </Grid>
           </Stack>
         )}
       </Box>
