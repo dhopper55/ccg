@@ -7,6 +7,7 @@ import {
   CircularProgress,
   FormControl,
   FormControlLabel,
+  Avatar,
   IconButton,
   MenuItem,
   Paper,
@@ -33,6 +34,7 @@ type InventoryRecord = {
   id: string;
   ccgNumber: string;
   title: string;
+  imageUrl?: string | null;
   category?: string;
   brand?: string;
   purchasePrice?: number | null;
@@ -280,9 +282,25 @@ const InventoryManager = () => {
                   {record.ccgNumber || '—'}
                 </TableCell>
                 <TableCell>
-                  <Typography variant="subtitle2" sx={{ lineHeight: 1.4 }}>
-                    {record.title || '—'}
-                  </Typography>
+                  <Stack direction="row" sx={{ gap: 2, alignItems: 'center', minWidth: 0 }}>
+                    <Avatar
+                      variant="rounded"
+                      src={record.imageUrl || undefined}
+                      alt={record.title || 'Inventory item'}
+                      sx={{
+                        width: 56,
+                        height: 56,
+                        borderRadius: 2.5,
+                        bgcolor: 'background.elevation1',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <IconifyIcon icon="material-symbols:image-outline-rounded" />
+                    </Avatar>
+                    <Typography variant="subtitle2" sx={{ lineHeight: 1.4 }}>
+                      {record.title || '—'}
+                    </Typography>
+                  </Stack>
                 </TableCell>
                 <TableCell align="right">{formatCurrency(record.purchasePrice)}</TableCell>
                 <TableCell align="right">{formatCurrency(record.privatePartyValue)}</TableCell>
@@ -318,10 +336,28 @@ const InventoryManager = () => {
             }}
           >
             <Stack spacing={1.5}>
-              <Typography variant="subtitle2">{record.title || '—'}</Typography>
-              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                {record.ccgNumber || '—'}
-              </Typography>
+              <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center' }}>
+                <Avatar
+                  variant="rounded"
+                  src={record.imageUrl || undefined}
+                  alt={record.title || 'Inventory item'}
+                  sx={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 2.5,
+                    bgcolor: 'background.elevation1',
+                    flexShrink: 0,
+                  }}
+                >
+                  <IconifyIcon icon="material-symbols:image-outline-rounded" />
+                </Avatar>
+                <Box>
+                  <Typography variant="subtitle2">{record.title || '—'}</Typography>
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                    {record.ccgNumber || '—'}
+                  </Typography>
+                </Box>
+              </Stack>
               <Stack direction="row" sx={{ gap: 2, flexWrap: 'wrap' }}>
                 <Typography variant="body2">Paid: {formatCurrency(record.purchasePrice)}</Typography>
                 <Typography variant="body2">
@@ -373,7 +409,7 @@ const InventoryManager = () => {
 
       {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
 
-      <Paper sx={{ flex: 1, p: { xs: 2, md: 5 }, minWidth: 0, overflow: 'hidden' }}>
+      <Box sx={{ flex: 1, p: { xs: 2, md: 5 }, minWidth: 0, overflow: 'hidden' }}>
         <Stack direction="column" spacing={3}>
           <Grid container spacing={2} sx={{ alignItems: 'center' }}>
             <Grid size={{ xs: 12, md: 3 }}>
@@ -493,7 +529,7 @@ const InventoryManager = () => {
             </Stack>
           ) : null}
         </Stack>
-      </Paper>
+      </Box>
     </Stack>
   );
 };
