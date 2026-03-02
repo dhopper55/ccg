@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import {
@@ -71,10 +72,15 @@ const LoginForm = ({
     register,
     handleSubmit,
     setError,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<LoginFormValues>({
     resolver: yupResolver(schema),
   });
+
+  const emailValue = watch('email');
+  const passwordValue = watch('password');
+  const autoSubmitRef = useRef(false);
 
   const onSubmit = async (data: LoginFormValues) => {
     await handleLogin(data).catch((error: any) => {
@@ -83,6 +89,29 @@ const LoginForm = ({
       }
     });
   };
+
+  useEffect(() => {
+    if (isSubmitting) return;
+
+    const hasEmail = Boolean(emailValue?.trim());
+    const hasPassword = Boolean(passwordValue);
+
+    if (!hasEmail || !hasPassword) {
+      autoSubmitRef.current = false;
+      return;
+    }
+
+    if (autoSubmitRef.current) return;
+    autoSubmitRef.current = true;
+
+    const timer = window.setTimeout(() => {
+      void handleSubmit(onSubmit)();
+    }, 150);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [emailValue, passwordValue, handleSubmit, isSubmitting]);
 
   return (
     <Stack

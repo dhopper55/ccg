@@ -72,17 +72,6 @@ const MainLayout = ({ children }: PropsWithChildren) => {
         </Box>
         <Divider />
         <Box sx={{ flex: 1, overflowY: 'auto', px: 1.5, py: 3 }}>
-          <Typography
-            sx={{
-              color: 'text.disabled',
-              typography: 'overline',
-              fontWeight: 700,
-              px: 1.5,
-              mb: 1,
-            }}
-          >
-            Pages
-          </Typography>
           <List dense sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
             {navItems.map((item) => {
               const isDisabled = item.path === '#';
