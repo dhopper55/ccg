@@ -336,9 +336,7 @@ const InventoryManager = () => {
                         navigate(paths.inventoryItemWithId(record.id));
                       }}
                       sx={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 0.75,
+                        display: 'inline',
                         fontWeight: 500,
                         fontSize: 'subtitle2.fontSize',
                         lineHeight: 1.4,
@@ -347,7 +345,15 @@ const InventoryManager = () => {
                       <Box component="span">{record.title || '—'}</Box>
                       {record.forSale && !record.isSold ? (
                         <Tooltip title="For sale">
-                          <Box component="span" sx={{ color: '#3b82f6', display: 'inline-flex' }}>
+                          <Box
+                            component="span"
+                            sx={{
+                              color: '#3b82f6',
+                              display: 'inline-flex',
+                              verticalAlign: 'text-bottom',
+                              ml: 0.75,
+                            }}
+                          >
                             <IconifyIcon icon="material-symbols:sell" fontSize={16} />
                           </Box>
                         </Tooltip>
