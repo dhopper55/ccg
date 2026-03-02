@@ -601,7 +601,7 @@ const InventoryItem = () => {
                           variant="outlined"
                           sx={{
                             p: 1,
-                            width: 120,
+                            width: 240,
                             borderRadius: 3,
                             bgcolor: 'background.default',
                           }}
