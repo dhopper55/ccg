@@ -3,6 +3,7 @@ import {
   Alert,
   Box,
   CircularProgress,
+  Container,
   IconButton,
   InputAdornment,
   Paper,
@@ -298,7 +299,6 @@ const ListingEvaluator = () => {
     disabled: isSubmitting,
     fullWidth: true as const,
     size: 'medium' as const,
-    variant: 'outlined' as const,
     autoComplete: 'off',
     onFocus: () => {
       void handleFocus(mode);
@@ -370,85 +370,62 @@ const ListingEvaluator = () => {
       </Grid>
 
       <Grid size={12}>
-        <Box
-          sx={{
-            mt: 3,
-            px: { xs: 0, md: 0 },
-            py: { xs: 0, md: 0 },
-          }}
-        >
-          <Stack direction="column" spacing={3}>
-            <Typography sx={{ color: 'text.secondary', maxWidth: '100%' }}>
-              Focus a field to try clipboard paste automatically, or paste manually. Submission
-              starts as soon as a valid URL is pasted.
-            </Typography>
+        <Paper sx={{ mt: 3, height: 1 }}>
+          <Container maxWidth="md" sx={{ py: { xs: 4, md: 5 } }}>
+            <Stack direction="column" spacing={4}>
+              <Typography sx={{ color: 'text.secondary', maxWidth: 1 }}>
+                Focus a field to try clipboard paste automatically, or paste manually. Submission
+                starts as soon as a valid URL is pasted.
+              </Typography>
 
-            <Stack spacing={3}>
-              <TextField
-                {...buildInputProps('single', singleUrl, setSingleUrl)}
+              <Stack spacing={3}>
+                <TextField
+                  {...buildInputProps('single', singleUrl, setSingleUrl)}
+                  hiddenLabel
+                  variant="filled"
+                  sx={{
+                    width: 1,
+                    '& .MuiFilledInput-root': {
+                      minHeight: 72,
+                      borderRadius: 3,
+                      bgcolor: 'background.default',
+                    },
+                  }}
+                />
+                <TextField
+                  {...buildInputProps('multi', multiUrl, setMultiUrl)}
+                  hiddenLabel
+                  variant="filled"
+                  sx={{
+                    width: 1,
+                    '& .MuiFilledInput-root': {
+                      minHeight: 72,
+                      borderRadius: 3,
+                      bgcolor: 'background.default',
+                    },
+                  }}
+                />
+              </Stack>
+
+              {errorMessage ? (
+                <Alert severity="error" sx={{ alignSelf: 'flex-start' }}>
+                  {errorMessage}
+                </Alert>
+              ) : null}
+
+              <Box
                 sx={{
-                  width: 1,
-                  '& .MuiOutlinedInput-root': {
-                    minHeight: 64,
-                    bgcolor: 'background.default',
-                    borderRadius: 2.5,
-                    '& fieldset': {
-                      borderColor: 'rgba(255,255,255,0.26)',
-                      borderWidth: 2,
-                    },
-                    '&:hover fieldset': {
-                      borderColor: 'primary.main',
-                    },
-                    '&.Mui-focused fieldset': {
-                      borderColor: 'primary.main',
-                      borderWidth: 2,
-                    },
-                  },
+                  color: 'text.secondary',
+                  fontSize: 'body2.fontSize',
                 }}
-              />
-              <TextField
-                {...buildInputProps('multi', multiUrl, setMultiUrl)}
-                sx={{
-                  width: 1,
-                  '& .MuiOutlinedInput-root': {
-                    minHeight: 64,
-                    bgcolor: 'background.default',
-                    borderRadius: 2.5,
-                    '& fieldset': {
-                      borderColor: 'rgba(255,255,255,0.26)',
-                      borderWidth: 2,
-                    },
-                    '&:hover fieldset': {
-                      borderColor: 'primary.main',
-                    },
-                    '&.Mui-focused fieldset': {
-                      borderColor: 'primary.main',
-                      borderWidth: 2,
-                    },
-                  },
-                }}
-              />
+              >
+                {isSubmitting
+                  ? 'Submitting URL...'
+                  : 'Typing is disabled by design. Use clipboard paste or let the browser auto-paste when permission allows.'}
+              </Box>
             </Stack>
-
-            {errorMessage ? (
-              <Alert severity="error" sx={{ alignSelf: 'flex-start' }}>
-                {errorMessage}
-              </Alert>
-            ) : null}
-
-            <Box
-              sx={{
-                px: 0.5,
-                color: 'text.secondary',
-                fontSize: 'body2.fontSize',
-              }}
-            >
-              {isSubmitting
-                ? 'Submitting URL...'
-                : 'Typing is disabled by design. Use clipboard paste or let the browser auto-paste when permission allows.'}
-            </Box>
-          </Stack>
-        </Box>
+          </Container>
+        </Paper>
       </Grid>
     </Grid>
   );
