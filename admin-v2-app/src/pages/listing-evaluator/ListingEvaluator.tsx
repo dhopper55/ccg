@@ -298,6 +298,7 @@ const ListingEvaluator = () => {
     disabled: isSubmitting,
     fullWidth: true as const,
     size: 'medium' as const,
+    variant: 'outlined' as const,
     autoComplete: 'off',
     onFocus: () => {
       void handleFocus(mode);
@@ -369,30 +370,63 @@ const ListingEvaluator = () => {
       </Grid>
 
       <Grid size={12}>
-        <Paper
+        <Box
           sx={{
             mt: 3,
-            p: { xs: 3, md: 4 },
-            borderRadius: 4,
+            px: { xs: 0, md: 0 },
+            py: { xs: 0, md: 0 },
           }}
         >
           <Stack direction="column" spacing={3}>
-            <Stack spacing={0.75}>
-              <Typography variant="h6">Queue Marketplace URLs</Typography>
-              <Typography sx={{ color: 'text.secondary', maxWidth: 720 }}>
-                Focus a field to try clipboard paste automatically, or paste manually. Submission
-                starts as soon as a valid URL is pasted.
-              </Typography>
-            </Stack>
+            <Typography sx={{ color: 'text.secondary', maxWidth: '100%' }}>
+              Focus a field to try clipboard paste automatically, or paste manually. Submission
+              starts as soon as a valid URL is pasted.
+            </Typography>
 
-            <Stack spacing={2}>
+            <Stack spacing={3}>
               <TextField
                 {...buildInputProps('single', singleUrl, setSingleUrl)}
-                sx={{ '& .MuiInputBase-root': { bgcolor: 'background.default' } }}
+                sx={{
+                  width: 1,
+                  '& .MuiOutlinedInput-root': {
+                    minHeight: 64,
+                    bgcolor: 'background.default',
+                    borderRadius: 2.5,
+                    '& fieldset': {
+                      borderColor: 'rgba(255,255,255,0.26)',
+                      borderWidth: 2,
+                    },
+                    '&:hover fieldset': {
+                      borderColor: 'primary.main',
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: 'primary.main',
+                      borderWidth: 2,
+                    },
+                  },
+                }}
               />
               <TextField
                 {...buildInputProps('multi', multiUrl, setMultiUrl)}
-                sx={{ '& .MuiInputBase-root': { bgcolor: 'background.default' } }}
+                sx={{
+                  width: 1,
+                  '& .MuiOutlinedInput-root': {
+                    minHeight: 64,
+                    bgcolor: 'background.default',
+                    borderRadius: 2.5,
+                    '& fieldset': {
+                      borderColor: 'rgba(255,255,255,0.26)',
+                      borderWidth: 2,
+                    },
+                    '&:hover fieldset': {
+                      borderColor: 'primary.main',
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: 'primary.main',
+                      borderWidth: 2,
+                    },
+                  },
+                }}
               />
             </Stack>
 
@@ -414,7 +448,7 @@ const ListingEvaluator = () => {
                 : 'Typing is disabled by design. Use clipboard paste or let the browser auto-paste when permission allows.'}
             </Box>
           </Stack>
-        </Paper>
+        </Box>
       </Grid>
     </Grid>
   );
