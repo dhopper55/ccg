@@ -40,6 +40,9 @@ type InventoryRecord = {
   imageUrl?: string | null;
   category?: string;
   brand?: string;
+  isPersonal?: boolean;
+  forSale?: boolean;
+  isSold?: boolean;
   purchasePrice?: number | null;
   privatePartyValue?: number | null;
   soldAmount?: number | null;
@@ -63,6 +66,7 @@ type InventoryFilters = {
   sold: boolean;
   active: boolean;
   onlyMarked: boolean;
+  onlyPersonal: boolean;
 };
 
 const PAGE_SIZE = 20;
@@ -86,6 +90,7 @@ const DEFAULT_FILTERS: InventoryFilters = {
   sold: false,
   active: true,
   onlyMarked: false,
+  onlyPersonal: false,
 };
 
 function formatCurrency(value: number | null | undefined): string {
@@ -132,6 +137,7 @@ const InventoryManager = () => {
         params.set('sold', filters.sold ? '1' : '0');
         params.set('active', filters.active ? '1' : '0');
         params.set('onlyMarked', filters.onlyMarked ? '1' : '0');
+        params.set('onlyPersonal', filters.onlyPersonal ? '1' : '0');
         if (filters.category) params.set('category', filters.category);
         if (filters.brand) params.set('brand', filters.brand);
 
@@ -283,18 +289,27 @@ const InventoryManager = () => {
             records.map((record) => (
               <TableRow key={record.id} hover>
                 <TableCell sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
-                  <Link
-                    underline="none"
-                    color="text.primary"
-                    href={paths.inventoryItemWithId(record.id)}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      navigate(paths.inventoryItemWithId(record.id));
-                    }}
-                    sx={{ fontWeight: 600 }}
-                  >
-                    {record.ccgNumber || '—'}
-                  </Link>
+                  <Stack direction="row" sx={{ alignItems: 'center', gap: 0.75 }}>
+                    <Link
+                      underline="none"
+                      color="text.primary"
+                      href={paths.inventoryItemWithId(record.id)}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        navigate(paths.inventoryItemWithId(record.id));
+                      }}
+                      sx={{ fontWeight: 600 }}
+                    >
+                      {record.ccgNumber || '—'}
+                    </Link>
+                    {record.isPersonal ? (
+                      <Tooltip title="Personal item">
+                        <Box component="span" sx={{ color: '#f4c542', display: 'inline-flex' }}>
+                          <IconifyIcon icon="material-symbols:group-rounded" fontSize={16} />
+                        </Box>
+                      </Tooltip>
+                    ) : null}
+                  </Stack>
                 </TableCell>
                 <TableCell>
                   <Stack direction="row" sx={{ gap: 2, alignItems: 'center', minWidth: 0 }}>
@@ -321,13 +336,22 @@ const InventoryManager = () => {
                         navigate(paths.inventoryItemWithId(record.id));
                       }}
                       sx={{
-                        display: 'block',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 0.75,
                         fontWeight: 500,
                         fontSize: 'subtitle2.fontSize',
                         lineHeight: 1.4,
                       }}
                     >
-                      {record.title || '—'}
+                      <Box component="span">{record.title || '—'}</Box>
+                      {record.forSale && !record.isSold ? (
+                        <Tooltip title="For sale">
+                          <Box component="span" sx={{ color: '#3b82f6', display: 'inline-flex' }}>
+                            <IconifyIcon icon="material-symbols:sell" fontSize={16} />
+                          </Box>
+                        </Tooltip>
+                      ) : null}
                     </Link>
                   </Stack>
                 </TableCell>
@@ -383,10 +407,28 @@ const InventoryManager = () => {
                   <IconifyIcon icon="material-symbols:image-outline-rounded" />
                 </Avatar>
                 <Box>
-                  <Typography variant="subtitle2">{record.title || '—'}</Typography>
-                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                    {record.ccgNumber || '—'}
-                  </Typography>
+                  <Stack direction="row" sx={{ alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+                    <Typography variant="subtitle2">{record.title || '—'}</Typography>
+                    {record.forSale && !record.isSold ? (
+                      <Tooltip title="For sale">
+                        <Box component="span" sx={{ color: '#3b82f6', display: 'inline-flex', flexShrink: 0 }}>
+                          <IconifyIcon icon="material-symbols:sell" fontSize={15} />
+                        </Box>
+                      </Tooltip>
+                    ) : null}
+                  </Stack>
+                  <Stack direction="row" sx={{ alignItems: 'center', gap: 0.75 }}>
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                      {record.ccgNumber || '—'}
+                    </Typography>
+                    {record.isPersonal ? (
+                      <Tooltip title="Personal item">
+                        <Box component="span" sx={{ color: '#f4c542', display: 'inline-flex' }}>
+                          <IconifyIcon icon="material-symbols:group-rounded" fontSize={15} />
+                        </Box>
+                      </Tooltip>
+                    ) : null}
+                  </Stack>
                 </Box>
               </Stack>
               <Stack direction="row" sx={{ gap: 2, flexWrap: 'wrap' }}>
@@ -444,7 +486,7 @@ const InventoryManager = () => {
       <Box sx={{ flex: 1, p: { xs: 2, md: 5 }, minWidth: 0, overflow: 'hidden' }}>
         <Stack direction="column" spacing={3}>
           <Grid container spacing={2} sx={{ alignItems: 'center' }}>
-            <Grid size={{ xs: 12, md: 3 }}>
+            <Grid size={{ xs: 12, md: 2 }}>
               <FormControl fullWidth>
                 <Select
                   displayEmpty
@@ -462,7 +504,7 @@ const InventoryManager = () => {
               </FormControl>
             </Grid>
 
-            <Grid size={{ xs: 12, md: 3 }}>
+            <Grid size={{ xs: 12, md: 2 }}>
               <FormControl fullWidth>
                 <Select
                   displayEmpty
@@ -480,7 +522,7 @@ const InventoryManager = () => {
               </FormControl>
             </Grid>
 
-            <Grid size={{ xs: 12, md: 4 }}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Stack
                 direction="row"
                 sx={{ gap: 0.5, alignItems: 'center', flexWrap: 'wrap', minHeight: 56 }}
@@ -511,6 +553,15 @@ const InventoryManager = () => {
                     />
                   }
                   label="Only Marked"
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={filters.onlyPersonal}
+                      onChange={(event) => handleFilterChange('onlyPersonal', event.target.checked)}
+                    />
+                  }
+                  label="Only Personal"
                 />
               </Stack>
             </Grid>

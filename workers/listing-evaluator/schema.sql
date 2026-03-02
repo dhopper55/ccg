@@ -134,6 +134,7 @@ CREATE TABLE IF NOT EXISTS ccg_inventory_items (
   serial_number TEXT,
   is_active INTEGER DEFAULT 1,
   is_marked INTEGER NOT NULL DEFAULT 0,
+  is_personal INTEGER NOT NULL DEFAULT 0,
   for_sale INTEGER DEFAULT 0,
   for_sale_date TEXT,
   is_sold INTEGER DEFAULT 0,
