@@ -44,6 +44,7 @@ type InventoryItemRecord = {
   serialNumber?: string;
   isActive?: boolean;
   isMarked?: boolean;
+  isPersonal?: boolean;
   forSale?: boolean;
   forSaleDate?: string | null;
   isSold?: boolean;
@@ -96,6 +97,7 @@ type FormState = {
   serialNumber: string;
   isActive: boolean;
   isMarked: boolean;
+  isPersonal: boolean;
   forSale: boolean;
   isSold: boolean;
   soldAmount: string;
@@ -147,6 +149,7 @@ const DEFAULT_FORM: FormState = {
   serialNumber: '',
   isActive: true,
   isMarked: false,
+  isPersonal: false,
   forSale: false,
   isSold: false,
   soldAmount: '',
@@ -222,6 +225,7 @@ const InventoryItem = () => {
             serialNumber: record.serialNumber || '',
             isActive: Boolean(record.isActive),
             isMarked: Boolean(record.isMarked),
+            isPersonal: Boolean(record.isPersonal),
             forSale: Boolean(record.forSale),
             isSold: Boolean(record.isSold),
             soldAmount: record.soldAmount != null ? String(record.soldAmount) : '',
@@ -444,6 +448,7 @@ const InventoryItem = () => {
         serialNumber: form.serialNumber.trim(),
         soldAmount: form.soldAmount.trim(),
         sellNotes: form.sellNotes.trim(),
+        isPersonal: form.isPersonal,
       };
 
       const endpoint = editId
@@ -779,6 +784,15 @@ const InventoryItem = () => {
                         />
                       }
                       label="Is Marked"
+                    />
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={form.isPersonal}
+                          onChange={(event) => setField('isPersonal', event.target.checked)}
+                        />
+                      }
+                      label="Is Personal"
                     />
                     <FormControlLabel
                       control={
