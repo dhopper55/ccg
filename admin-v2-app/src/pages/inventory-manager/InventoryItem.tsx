@@ -523,7 +523,7 @@ const InventoryItem = () => {
 
       {message ? <Alert severity={message.severity}>{message.text}</Alert> : null}
 
-      <Paper sx={{ p: { xs: 2, md: 5 }, minWidth: 0 }}>
+      <Box sx={{ p: { xs: 2, md: 5 }, minWidth: 0 }}>
         {isLoading ? (
           <Stack sx={{ alignItems: 'center', py: 8 }} spacing={2}>
             <CircularProgress size={28} />
@@ -835,7 +835,7 @@ const InventoryItem = () => {
               </Grid>
             </Grid>
 
-            <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
+            <Box sx={{ pt: 1 }}>
               <Button
                 variant="contained"
                 color="primary"
@@ -847,10 +847,10 @@ const InventoryItem = () => {
               >
                 {isSubmitting ? 'Saving...' : submitLabel}
               </Button>
-            </Stack>
+            </Box>
           </Stack>
         )}
-      </Paper>
+      </Box>
 
       <Dialog open={Boolean(previewImage)} onClose={() => setPreviewImage(null)} maxWidth="lg">
         <DialogContent sx={{ p: 1, bgcolor: 'background.default' }}>
