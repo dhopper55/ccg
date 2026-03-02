@@ -25,6 +25,7 @@ const paths = {
   listingEvaluatorResults: '/listing-evaluator-results',
   listingEvaluatorItem: '/listing-evaluator-item',
   listingEvaluatorItemWithId: (id: string) => `/listing-evaluator-item?id=${encodeURIComponent(id)}`,
+  inventoryManager: '/inventory-manager',
   logout: '/logout',
 
   defaultJwtLogin: `/${rootPaths.authRoot}/${rootPaths.authDefaultJwtRoot}/login`,

@@ -65,7 +65,7 @@ const sitemap: MenuItem[] = [
       {
         name: 'Inventory Manager',
         key: 'inventory_manager',
-        path: '#',
+        path: paths.inventoryManager,
         pathName: 'inventory-manager',
         icon: 'material-symbols:sell',
         active: true,
