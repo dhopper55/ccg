@@ -25,7 +25,7 @@ export interface MenuItem {
 const sitemap: MenuItem[] = [
   {
     id: 'pages',
-    subheader: 'Pages',
+    subheader: '',
     key: 'pages',
     icon: 'material-symbols:view-quilt-outline',
     items: [
