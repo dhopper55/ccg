@@ -59,6 +59,7 @@ const sitemap: MenuItem[] = [
         key: 'marketplace_admin',
         path: paths.marketplaceListings,
         pathName: 'marketplace-admin',
+        selectionPrefix: '/marketplace-listing-item',
         icon: 'material-symbols:package-2-outline',
         active: true,
       },

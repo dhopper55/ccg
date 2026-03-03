@@ -20,6 +20,8 @@ import {
 import Grid from '@mui/material/Grid';
 import IconifyIcon from 'components/base/IconifyIcon';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
+import { useNavigate } from 'react-router';
+import paths from 'routes/paths';
 
 type MarketplaceRecord = {
   id: string;
@@ -56,6 +58,7 @@ function formatCurrency(value: number | null | undefined, currency = 'USD'): str
 }
 
 const MarketplaceListings = () => {
+  const navigate = useNavigate();
   const { down } = useBreakpoints();
   const downSm = down('sm');
   const [records, setRecords] = useState<MarketplaceRecord[]>([]);
@@ -126,19 +129,17 @@ const MarketplaceListings = () => {
     return `Page ${Math.min(page, totalPages)} of ${totalPages} • ${records.length} total listings`;
   }, [page, records.length, totalPages]);
 
-  const actionButtons = (
+  const renderActionButtons = (record: MarketplaceRecord) => (
     <Stack direction="row" spacing={0.5}>
-      <Tooltip title="Edit coming soon">
-        <span>
-          <IconButton
-            size="small"
-            disabled
-            aria-label="Edit listing"
-            sx={{ color: 'text.secondary' }}
-          >
-            <IconifyIcon icon="material-symbols:edit-outline-rounded" fontSize={18} />
-          </IconButton>
-        </span>
+      <Tooltip title="Edit">
+        <IconButton
+          size="small"
+          aria-label="Edit listing"
+          sx={{ color: 'text.secondary' }}
+          onClick={() => navigate(paths.marketplaceListingItemWithId(record.id))}
+        >
+          <IconifyIcon icon="material-symbols:edit-outline-rounded" fontSize={18} />
+        </IconButton>
       </Tooltip>
       <Tooltip title="Delete coming soon">
         <span>
@@ -223,7 +224,7 @@ const MarketplaceListings = () => {
                 <TableCell align="right">
                   {formatCurrency(record.priceDollars, record.currency)}
                 </TableCell>
-                <TableCell align="right">{actionButtons}</TableCell>
+                <TableCell align="right">{renderActionButtons(record)}</TableCell>
               </TableRow>
             ))
           )}
@@ -277,7 +278,7 @@ const MarketplaceListings = () => {
                   </Typography>
                 </Box>
               </Stack>
-              <Box>{actionButtons}</Box>
+              <Box>{renderActionButtons(record)}</Box>
             </Stack>
           </Paper>
         ))
@@ -299,29 +300,24 @@ const MarketplaceListings = () => {
           <Typography variant="h4">Current Marketplace Listings</Typography>
 
           <Tooltip title="Add coming soon">
-            <span>
-              <IconButton
-                aria-label="Add"
-                disabled
-                color="success"
-                sx={{
-                  width: 40,
-                  height: 40,
-                  border: 1,
-                  borderColor: 'success.main',
-                  bgcolor: 'success.main',
-                  color: 'common.white',
-                  '&.Mui-disabled': {
-                    borderColor: 'success.main',
-                    bgcolor: 'success.main',
-                    color: 'common.white',
-                    opacity: 0.45,
-                  },
-                }}
-              >
-                <IconifyIcon icon="material-symbols:add-rounded" fontSize={20} />
-              </IconButton>
-            </span>
+            <IconButton
+              aria-label="Add"
+              color="success"
+              onClick={() => navigate(paths.marketplaceListingItem)}
+              sx={{
+                width: 40,
+                height: 40,
+                border: 1,
+                borderColor: 'success.main',
+                bgcolor: 'success.main',
+                color: 'common.white',
+                '&:hover': {
+                  bgcolor: 'success.dark',
+                },
+              }}
+            >
+              <IconifyIcon icon="material-symbols:add-rounded" fontSize={20} />
+            </IconButton>
           </Tooltip>
         </Stack>
       </Paper>
