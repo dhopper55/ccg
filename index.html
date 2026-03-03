@@ -38,8 +38,14 @@
   <script>
     (function () {
       var path = window.location.pathname || '';
+      if (path === '/admin-v2/index.html') {
+        return;
+      }
       if (path === '/admin-v2' || path === '/admin-v2/' || path.indexOf('/admin-v2/') === 0) {
-        window.location.replace('/admin-v2/index.html');
+        var targetPath = path + window.location.search + window.location.hash;
+        var target =
+          '/admin-v2/index.html?ccg_admin_v2_path=' + encodeURIComponent(targetPath) + '&ccg_admin_v2_fallback=1';
+        window.location.replace(target);
       }
     })();
   </script>
