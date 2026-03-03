@@ -2394,6 +2394,7 @@ async function handleAdminV2InventoryLabelsPdf(env: Env): Promise<Response> {
     .map((row) => ({
       ccgNumber: normalizeText(row.ccg_number, ''),
       title: normalizeText(row.title, 'Untitled') || 'Untitled',
+      imageUrl: normalizeText(row.image_url, ''),
     }))
     .filter((row) => row.ccgNumber);
 
@@ -2401,7 +2402,7 @@ async function handleAdminV2InventoryLabelsPdf(env: Env): Promise<Response> {
     return jsonResponse({ message: 'No marked inventory items with a CCG number were found.' }, 400);
   }
 
-  const pdfBytes = buildInventoryLabelsPdf(labels);
+  const pdfBytes = await buildInventoryLabelsPdf(labels, env);
   const unmarkedCount = await dbUnmarkAllInventoryItems(env);
   if (unmarkedCount < 1) {
     return jsonResponse({ message: 'Labels were generated, but marked items could not be cleared.' }, 500);
@@ -4854,15 +4855,16 @@ async function dbUnmarkAllInventoryItems(env: Env): Promise<number> {
 
 async function dbListMarkedInventoryLabelRows(
   env: Env,
-): Promise<Array<{ ccg_number: string | null; title: string | null }>> {
+): Promise<Array<{ ccg_number: string | null; title: string | null; image_url: string | null }>> {
   const result = await env.DB.prepare(
     `SELECT
       i.ccg_number,
-      i.title
+      i.title,
+      i.image_url
      FROM ccg_inventory_items i
      WHERE COALESCE(i.is_marked, 0) = 1
      ORDER BY i.created_at ASC, i.id ASC`
-  ).all<{ ccg_number: string | null; title: string | null }>();
+  ).all<{ ccg_number: string | null; title: string | null; image_url: string | null }>();
   return result.results ?? [];
 }
 
@@ -7725,6 +7727,24 @@ function jsonResponse(body: any, status = 200): Response {
 type InventoryLabelPdfRow = {
   ccgNumber: string;
   title: string;
+  imageUrl: string;
+};
+
+type PdfImageAsset = {
+  width: number;
+  height: number;
+  colorSpace: '/DeviceGray' | '/DeviceRGB' | '/DeviceCMYK';
+  bitsPerComponent: number;
+  filter: '/DCTDecode' | '/FlateDecode';
+  data: Uint8Array;
+  decodeParms?: string;
+};
+
+type PdfPageDefinition = {
+  pageObjectNumber: number;
+  contentObjectNumber: number;
+  images: Array<{ name: string; objectNumber: number; asset: PdfImageAsset }>;
+  rows: InventoryLabelPdfRow[];
 };
 
 const PDF_POINTS_PER_INCH = 72;
@@ -7740,56 +7760,112 @@ const PDF_LABEL_MARGIN_Y = (PDF_LETTER_HEIGHT - PDF_LABEL_ROWS * PDF_LABEL_HEIGH
 const PDF_MONO_WIDTH_EM = 0.6;
 const PDF_LABEL_HORIZONTAL_PADDING = 10;
 const PDF_LABEL_TOP_PADDING = 10;
-const PDF_LABEL_BOTTOM_PADDING = 16;
-const PDF_LABEL_TITLE_FONT_SIZE = 18;
-const PDF_LABEL_TITLE_LINE_HEIGHT = 20;
+const PDF_LABEL_BOTTOM_PADDING = 20;
+const PDF_LABEL_LEFT_IMAGE_WIDTH = PDF_LABEL_WIDTH * 0.25;
+const PDF_LABEL_IMAGE_PADDING_X = 6;
+const PDF_LABEL_IMAGE_PADDING_Y = 8;
+const PDF_LABEL_TEXT_GAP = 6;
+const PDF_LABEL_TITLE_FONT_SIZE = 16;
+const PDF_LABEL_TITLE_LINE_HEIGHT = 18;
+const PDF_LABEL_RIGHT_PADDING = 8;
+const PDF_LABEL_TITLE_SECOND_LINE_BASELINE = 22;
 
-function buildInventoryLabelsPdf(rows: InventoryLabelPdfRow[]): Uint8Array {
+async function buildInventoryLabelsPdf(rows: InventoryLabelPdfRow[], env: Env): Promise<Uint8Array> {
   const pages = chunkArray(rows, PDF_LABELS_PER_PAGE);
-  const objects: Uint8Array[] = [];
+  const pageDefinitions: PdfPageDefinition[] = [];
+  let nextObjectNumber = 5;
+
+  for (const pageRows of pages) {
+    const images: PdfPageDefinition['images'] = [];
+    for (let index = 0; index < pageRows.length; index += 1) {
+      const asset = await fetchPdfImageAsset(pageRows[index].imageUrl, env);
+      if (!asset) continue;
+      images.push({
+        name: `Im${index + 1}`,
+        objectNumber: nextObjectNumber,
+        asset,
+      });
+      nextObjectNumber += 1;
+    }
+
+    pageDefinitions.push({
+      pageObjectNumber: nextObjectNumber,
+      contentObjectNumber: nextObjectNumber + 1,
+      images,
+      rows: pageRows,
+    });
+    nextObjectNumber += 2;
+  }
+
+  const objectMap = new Map<number, Uint8Array>();
   const encoder = new TextEncoder();
-
-  objects.push(encoder.encode('<< /Type /Catalog /Pages 2 0 R >>'));
-  const pageObjectNumbers = pages.map((_, index) => 5 + index * 2);
-  objects.push(
-    encoder.encode(`<< /Type /Pages /Count ${pages.length} /Kids [${pageObjectNumbers.map((id) => `${id} 0 R`).join(' ')}] >>`),
+  objectMap.set(1, encoder.encode('<< /Type /Catalog /Pages 2 0 R >>'));
+  objectMap.set(
+    2,
+    encoder.encode(
+      `<< /Type /Pages /Count ${pageDefinitions.length} /Kids [${pageDefinitions.map((page) => `${page.pageObjectNumber} 0 R`).join(' ')}] >>`,
+    ),
   );
-  objects.push(encoder.encode('<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>'));
-  objects.push(encoder.encode('<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold >>'));
+  objectMap.set(3, encoder.encode('<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>'));
+  objectMap.set(4, encoder.encode('<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold >>'));
 
-  pages.forEach((pageRows, pageIndex) => {
-    const pageObjectNumber = 5 + pageIndex * 2;
-    const contentObjectNumber = pageObjectNumber + 1;
-    const contentStream = buildInventoryLabelsPageContent(pageRows);
-    const contentBytes = encoder.encode(contentStream);
+  for (const page of pageDefinitions) {
+    for (const image of page.images) {
+      objectMap.set(image.objectNumber, buildPdfImageObject(image.asset));
+    }
 
-    objects.push(
+    const contentBytes = encoder.encode(buildInventoryLabelsPageContent(page.rows, page.images));
+    const xObjectSection = page.images.length
+      ? ` /XObject << ${page.images.map((image) => `/${image.name} ${image.objectNumber} 0 R`).join(' ')} >>`
+      : '';
+
+    objectMap.set(
+      page.pageObjectNumber,
       encoder.encode(
-        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PDF_LETTER_WIDTH} ${PDF_LETTER_HEIGHT}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentObjectNumber} 0 R >>`,
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PDF_LETTER_WIDTH} ${PDF_LETTER_HEIGHT}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >>${xObjectSection} >> /Contents ${page.contentObjectNumber} 0 R >>`,
       ),
     );
-    objects.push(
+    objectMap.set(
+      page.contentObjectNumber,
       concatenatePdfParts([
         encoder.encode(`<< /Length ${contentBytes.length} >>\nstream\n`),
         contentBytes,
         encoder.encode('\nendstream'),
       ]),
     );
-  });
+  }
+
+  const totalObjects = Math.max(...objectMap.keys());
+  const objects: Uint8Array[] = [];
+  for (let index = 1; index <= totalObjects; index += 1) {
+    const objectBytes = objectMap.get(index);
+    if (!objectBytes) {
+      throw new Error(`Missing PDF object ${index}`);
+    }
+    objects.push(objectBytes);
+  }
 
   return assemblePdf(objects);
 }
 
-function buildInventoryLabelsPageContent(rows: InventoryLabelPdfRow[]): string {
+function buildInventoryLabelsPageContent(
+  rows: InventoryLabelPdfRow[],
+  images: Array<{ name: string; objectNumber: number; asset: PdfImageAsset }>,
+): string {
   const commands: string[] = ['0 0 0 RG', '0 0 0 rg', '1 J', '1 j'];
+  const imageByName = new Map(images.map((image) => [image.name, image]));
 
   rows.forEach((row, index) => {
     const col = index % PDF_LABEL_COLUMNS;
     const rowIndex = Math.floor(index / PDF_LABEL_COLUMNS);
     const left = PDF_LABEL_MARGIN_X + col * PDF_LABEL_WIDTH;
     const bottom = PDF_LETTER_HEIGHT - PDF_LABEL_MARGIN_Y - (rowIndex + 1) * PDF_LABEL_HEIGHT;
+    const imageName = `Im${index + 1}`;
 
     commands.push(renderLabelBorder(left, bottom));
+    if (imageByName.has(imageName)) {
+      commands.push(renderLabelImage(left, bottom, imageName, imageByName.get(imageName)!.asset));
+    }
     commands.push(renderLabelCcgNumber(left, bottom, row.ccgNumber));
     commands.push(renderLabelTitle(left, bottom, row.title));
   });
@@ -7801,25 +7877,37 @@ function renderLabelBorder(left: number, bottom: number): string {
   return `q 0.82 G 0.4 w ${formatPdfNumber(left)} ${formatPdfNumber(bottom)} ${formatPdfNumber(PDF_LABEL_WIDTH)} ${formatPdfNumber(PDF_LABEL_HEIGHT)} re S Q`;
 }
 
+function renderLabelImage(left: number, bottom: number, imageName: string, asset: PdfImageAsset): string {
+  const availableWidth = PDF_LABEL_LEFT_IMAGE_WIDTH - PDF_LABEL_IMAGE_PADDING_X * 2;
+  const availableHeight = PDF_LABEL_HEIGHT - PDF_LABEL_IMAGE_PADDING_Y * 2;
+  const scale = Math.min(availableWidth / asset.width, availableHeight / asset.height);
+  const width = asset.width * scale;
+  const height = asset.height * scale;
+  const x = left + PDF_LABEL_IMAGE_PADDING_X + (availableWidth - width) / 2;
+  const y = bottom + PDF_LABEL_IMAGE_PADDING_Y + (availableHeight - height) / 2;
+  return `q ${formatPdfNumber(width)} 0 0 ${formatPdfNumber(height)} ${formatPdfNumber(x)} ${formatPdfNumber(y)} cm /${imageName} Do Q`;
+}
+
 function renderLabelCcgNumber(left: number, bottom: number, ccgNumber: string): string {
-  const sanitized = normalizePdfText(ccgNumber);
-  const availableWidth = PDF_LABEL_WIDTH - PDF_LABEL_HORIZONTAL_PADDING * 2;
+  const sanitized = normalizePdfText(stripCcgPrefix(ccgNumber));
+  const textStartX = left + PDF_LABEL_LEFT_IMAGE_WIDTH + PDF_LABEL_TEXT_GAP;
+  const availableWidth = PDF_LABEL_WIDTH - PDF_LABEL_LEFT_IMAGE_WIDTH - PDF_LABEL_TEXT_GAP - PDF_LABEL_RIGHT_PADDING;
   const fontSizeFromWidth = availableWidth / Math.max(1, sanitized.length * PDF_MONO_WIDTH_EM);
-  const fontSize = Math.max(18, Math.min(38, fontSizeFromWidth));
+  const fontSize = Math.max(18, Math.min(34, fontSizeFromWidth));
   const textWidth = estimateMonospaceTextWidth(sanitized, fontSize);
-  const x = left + (PDF_LABEL_WIDTH - textWidth) / 2;
+  const x = textStartX + (availableWidth - textWidth) / 2;
   const y = bottom + PDF_LABEL_HEIGHT - PDF_LABEL_TOP_PADDING - fontSize * 0.92;
 
   return renderPdfText('/F2', fontSize, x, y, sanitized);
 }
 
 function renderLabelTitle(left: number, bottom: number, title: string): string {
-  const textLeft = left + PDF_LABEL_HORIZONTAL_PADDING;
-  const secondLineBaseline = bottom + PDF_LABEL_BOTTOM_PADDING;
+  const textLeft = left + PDF_LABEL_LEFT_IMAGE_WIDTH + PDF_LABEL_TEXT_GAP;
+  const secondLineBaseline = bottom + PDF_LABEL_TITLE_SECOND_LINE_BASELINE;
   const wrapped = wrapPdfMonospaceText(
     title,
     PDF_LABEL_TITLE_FONT_SIZE,
-    PDF_LABEL_WIDTH - PDF_LABEL_HORIZONTAL_PADDING * 2,
+    PDF_LABEL_WIDTH - PDF_LABEL_LEFT_IMAGE_WIDTH - PDF_LABEL_TEXT_GAP - PDF_LABEL_RIGHT_PADDING,
     2,
   );
 
@@ -7908,10 +7996,10 @@ function wrapPdfMonospaceText(
 
 function truncateWithEllipsis(value: string, maxChars: number): string {
   if (value.length <= maxChars) {
-    return value.length >= 3 ? `${value.slice(0, Math.max(0, maxChars - 3))}...` : '.'.repeat(maxChars);
+    return value.length >= 2 ? `${value.slice(0, Math.max(0, maxChars - 2))}..` : '.'.repeat(maxChars);
   }
-  if (maxChars <= 3) return '.'.repeat(maxChars);
-  return `${value.slice(0, maxChars - 3)}...`;
+  if (maxChars <= 2) return '.'.repeat(maxChars);
+  return `${value.slice(0, maxChars - 2)}..`;
 }
 
 function normalizePdfText(value: string): string {
@@ -7938,6 +8026,206 @@ function escapePdfString(value: string): string {
 
 function formatPdfNumber(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, '');
+}
+
+function stripCcgPrefix(value: string): string {
+  return value.replace(/^CCG-/i, '').trim();
+}
+
+async function fetchPdfImageAsset(imageUrl: string, env: Env): Promise<PdfImageAsset | null> {
+  const absoluteUrl = resolvePdfImageUrl(imageUrl, env);
+  if (!absoluteUrl) return null;
+
+  try {
+    const response = await fetch(absoluteUrl);
+    if (!response.ok) return null;
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const contentType = (response.headers.get('content-type') || '').toLowerCase();
+
+    if (contentType.includes('jpeg') || contentType.includes('jpg') || isJpegBytes(bytes)) {
+      return parseJpegPdfAsset(bytes);
+    }
+    if (contentType.includes('png') || isPngBytes(bytes)) {
+      return parsePngPdfAsset(bytes);
+    }
+  } catch (error) {
+    console.warn('Unable to fetch label image asset', { imageUrl, error });
+  }
+
+  return null;
+}
+
+function resolvePdfImageUrl(imageUrl: string, env: Env): string | null {
+  const normalized = normalizeText(imageUrl, '');
+  if (!normalized) return null;
+  try {
+    return new URL(normalized, env.SITE_BASE_URL).toString();
+  } catch {
+    return null;
+  }
+}
+
+function buildPdfImageObject(asset: PdfImageAsset): Uint8Array {
+  const encoder = new TextEncoder();
+  const decodeParms = asset.decodeParms ? ` /DecodeParms ${asset.decodeParms}` : '';
+  return concatenatePdfParts([
+    encoder.encode(
+      `<< /Type /XObject /Subtype /Image /Width ${asset.width} /Height ${asset.height} /ColorSpace ${asset.colorSpace} /BitsPerComponent ${asset.bitsPerComponent} /Filter ${asset.filter}${decodeParms} /Length ${asset.data.length} >>\nstream\n`,
+    ),
+    asset.data,
+    encoder.encode('\nendstream'),
+  ]);
+}
+
+function isJpegBytes(bytes: Uint8Array): boolean {
+  return bytes.length > 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[bytes.length - 2] === 0xff && bytes[bytes.length - 1] === 0xd9;
+}
+
+function isPngBytes(bytes: Uint8Array): boolean {
+  return (
+    bytes.length > 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47 &&
+    bytes[4] === 0x0d &&
+    bytes[5] === 0x0a &&
+    bytes[6] === 0x1a &&
+    bytes[7] === 0x0a
+  );
+}
+
+function parseJpegPdfAsset(bytes: Uint8Array): PdfImageAsset | null {
+  let offset = 2;
+  while (offset + 9 < bytes.length) {
+    if (bytes[offset] !== 0xff) {
+      offset += 1;
+      continue;
+    }
+
+    const marker = bytes[offset + 1];
+    offset += 2;
+    if (marker === 0xd8 || marker === 0xd9) continue;
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) continue;
+    if (offset + 2 > bytes.length) break;
+
+    const length = (bytes[offset] << 8) | bytes[offset + 1];
+    if (length < 2 || offset + length > bytes.length) break;
+
+    if (
+      marker === 0xc0 ||
+      marker === 0xc1 ||
+      marker === 0xc2 ||
+      marker === 0xc3 ||
+      marker === 0xc5 ||
+      marker === 0xc6 ||
+      marker === 0xc7 ||
+      marker === 0xc9 ||
+      marker === 0xca ||
+      marker === 0xcb ||
+      marker === 0xcd ||
+      marker === 0xce ||
+      marker === 0xcf
+    ) {
+      const bitsPerComponent = bytes[offset + 2];
+      const height = (bytes[offset + 3] << 8) | bytes[offset + 4];
+      const width = (bytes[offset + 5] << 8) | bytes[offset + 6];
+      const components = bytes[offset + 7];
+      const colorSpace =
+        components === 1 ? '/DeviceGray' : components === 4 ? '/DeviceCMYK' : '/DeviceRGB';
+      return {
+        width,
+        height,
+        colorSpace,
+        bitsPerComponent,
+        filter: '/DCTDecode',
+        data: bytes,
+      };
+    }
+
+    offset += length;
+  }
+
+  return null;
+}
+
+function parsePngPdfAsset(bytes: Uint8Array): PdfImageAsset | null {
+  if (!isPngBytes(bytes)) return null;
+
+  let offset = 8;
+  let width = 0;
+  let height = 0;
+  let bitDepth = 0;
+  let colorType = 0;
+  let compression = 0;
+  let filter = 0;
+  let interlace = 0;
+  const idatChunks: Uint8Array[] = [];
+
+  while (offset + 8 <= bytes.length) {
+    const length = readUint32Be(bytes, offset);
+    const type = String.fromCharCode(
+      bytes[offset + 4],
+      bytes[offset + 5],
+      bytes[offset + 6],
+      bytes[offset + 7],
+    );
+    const dataStart = offset + 8;
+    const dataEnd = dataStart + length;
+    if (dataEnd + 4 > bytes.length) return null;
+
+    if (type === 'IHDR') {
+      width = readUint32Be(bytes, dataStart);
+      height = readUint32Be(bytes, dataStart + 4);
+      bitDepth = bytes[dataStart + 8];
+      colorType = bytes[dataStart + 9];
+      compression = bytes[dataStart + 10];
+      filter = bytes[dataStart + 11];
+      interlace = bytes[dataStart + 12];
+    } else if (type === 'IDAT') {
+      idatChunks.push(bytes.slice(dataStart, dataEnd));
+    } else if (type === 'IEND') {
+      break;
+    }
+
+    offset = dataEnd + 4;
+  }
+
+  if (!width || !height || idatChunks.length < 1) return null;
+  if (compression !== 0 || filter !== 0 || interlace !== 0 || bitDepth !== 8) return null;
+
+  if (colorType === 0) {
+    return {
+      width,
+      height,
+      colorSpace: '/DeviceGray',
+      bitsPerComponent: 8,
+      filter: '/FlateDecode',
+      decodeParms: `<< /Predictor 15 /Colors 1 /BitsPerComponent 8 /Columns ${width} >>`,
+      data: concatenatePdfParts(idatChunks),
+    };
+  }
+
+  if (colorType === 2) {
+    return {
+      width,
+      height,
+      colorSpace: '/DeviceRGB',
+      bitsPerComponent: 8,
+      filter: '/FlateDecode',
+      decodeParms: `<< /Predictor 15 /Colors 3 /BitsPerComponent 8 /Columns ${width} >>`,
+      data: concatenatePdfParts(idatChunks),
+    };
+  }
+
+  return null;
+}
+
+function readUint32Be(bytes: Uint8Array, offset: number): number {
+  return (
+    bytes[offset] * 0x1000000 +
+    ((bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3])
+  );
 }
 
 function assemblePdf(objects: Uint8Array[]): Uint8Array {
