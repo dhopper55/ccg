@@ -617,6 +617,24 @@ const InventoryManager = () => {
           <Typography variant="h4">Inventory Manager</Typography>
 
           <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+            {filters.onlyMarked ? (
+              <Button
+                variant="outlined"
+                color="inherit"
+                disabled={isUnmarkingAll}
+                onClick={handleUnmarkAll}
+                startIcon={
+                  isUnmarkingAll ? (
+                    <CircularProgress color="inherit" size={16} />
+                  ) : (
+                    <IconifyIcon icon="material-symbols:check-rounded" />
+                  )
+                }
+              >
+                {isUnmarkingAll ? 'Unmarking…' : 'Unmark All'}
+              </Button>
+            ) : null}
+
             <Button
               variant="outlined"
               color="inherit"
@@ -662,7 +680,7 @@ const InventoryManager = () => {
       {actionErrorMessage ? <Alert severity="error">{actionErrorMessage}</Alert> : null}
 
       <Box sx={{ flex: 1, p: { xs: 2, md: 5 }, minWidth: 0, overflow: 'hidden' }}>
-        <Stack direction="column" spacing={3}>
+        <Stack direction="column" spacing={3} sx={{ pt: { xs: 0, md: 1 } }}>
           <Grid container spacing={2} sx={{ alignItems: 'center' }}>
             <Grid size={{ xs: 12, md: 2 }}>
               <FormControl fullWidth>
@@ -754,22 +772,7 @@ const InventoryManager = () => {
             </Grid>
 
             <Grid size={{ xs: 12, md: 3 }}>
-              <Stack
-                direction={{ xs: 'column', sm: 'row' }}
-                spacing={1.5}
-                sx={{ justifyContent: 'flex-end', width: '100%' }}
-              >
-                {filters.onlyMarked ? (
-                  <Button
-                    variant="outlined"
-                    color="inherit"
-                    disabled={isUnmarkingAll}
-                    onClick={handleUnmarkAll}
-                    sx={{ minWidth: { xs: '100%', sm: 160 } }}
-                  >
-                    {isUnmarkingAll ? 'Unmarking…' : 'Unmark All'}
-                  </Button>
-                ) : null}
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ justifyContent: 'flex-end', width: '100%' }}>
                 <Button
                   variant="outlined"
                   color="inherit"
