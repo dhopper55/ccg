@@ -397,6 +397,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/inventory/labels.pdf' && request.method === 'GET') {
+      const response = await handleAdminV2InventoryLabelsPdf(env);
+      return withCors(response, request, env);
+    }
+
     if (path.startsWith('/api/admin-v2/listings/') && request.method === 'GET') {
       const response = await handleAdminV2GetListing(env, path);
       return withCors(response, request, env);
@@ -2370,6 +2375,29 @@ async function handleAdminV2DashboardOldestInventory(request: Request, env: Env)
   const records = await dbGetAdminV2OldestInventory(limit, env);
   return jsonResponse({
     records,
+  });
+}
+
+async function handleAdminV2InventoryLabelsPdf(env: Env): Promise<Response> {
+  const rows = await dbListMarkedInventoryLabelRows(env);
+  const labels = rows
+    .map((row) => ({
+      ccgNumber: normalizeText(row.ccg_number, ''),
+      title: normalizeText(row.title, 'Untitled') || 'Untitled',
+    }))
+    .filter((row) => row.ccgNumber);
+
+  if (labels.length < 1) {
+    return jsonResponse({ message: 'No marked inventory items with a CCG number were found.' }, 400);
+  }
+
+  const pdfBytes = buildInventoryLabelsPdf(labels);
+  return new Response(pdfBytes, {
+    headers: {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="ccg-labels-${currentDateYmd()}.pdf"`,
+      'Cache-Control': 'no-store',
+    },
   });
 }
 
@@ -4748,6 +4776,20 @@ async function dbListMarkedInventoryRowsForPackage(env: Env): Promise<InventoryI
      WHERE COALESCE(i.is_marked, 0) = 1
      ORDER BY i.created_at ASC, i.id ASC`
   ).all<InventoryItemRow>();
+  return result.results ?? [];
+}
+
+async function dbListMarkedInventoryLabelRows(
+  env: Env,
+): Promise<Array<{ ccg_number: string | null; title: string | null }>> {
+  const result = await env.DB.prepare(
+    `SELECT
+      i.ccg_number,
+      i.title
+     FROM ccg_inventory_items i
+     WHERE COALESCE(i.is_marked, 0) = 1
+     ORDER BY i.created_at ASC, i.id ASC`
+  ).all<{ ccg_number: string | null; title: string | null }>();
   return result.results ?? [];
 }
 
@@ -7605,4 +7647,252 @@ function jsonResponse(body: any, status = 200): Response {
       'Content-Type': 'application/json',
     },
   });
+}
+
+type InventoryLabelPdfRow = {
+  ccgNumber: string;
+  title: string;
+};
+
+const PDF_POINTS_PER_INCH = 72;
+const PDF_LETTER_WIDTH = 8.5 * PDF_POINTS_PER_INCH;
+const PDF_LETTER_HEIGHT = 11 * PDF_POINTS_PER_INCH;
+const PDF_LABEL_WIDTH = 4 * PDF_POINTS_PER_INCH;
+const PDF_LABEL_HEIGHT = 1.75 * PDF_POINTS_PER_INCH;
+const PDF_LABEL_COLUMNS = 2;
+const PDF_LABEL_ROWS = 6;
+const PDF_LABELS_PER_PAGE = PDF_LABEL_COLUMNS * PDF_LABEL_ROWS;
+const PDF_LABEL_MARGIN_X = (PDF_LETTER_WIDTH - PDF_LABEL_COLUMNS * PDF_LABEL_WIDTH) / 2;
+const PDF_LABEL_MARGIN_Y = (PDF_LETTER_HEIGHT - PDF_LABEL_ROWS * PDF_LABEL_HEIGHT) / 2;
+const PDF_MONO_WIDTH_EM = 0.6;
+
+function buildInventoryLabelsPdf(rows: InventoryLabelPdfRow[]): Uint8Array {
+  const pages = chunkArray(rows, PDF_LABELS_PER_PAGE);
+  const objects: Uint8Array[] = [];
+  const encoder = new TextEncoder();
+
+  objects.push(encoder.encode('<< /Type /Catalog /Pages 2 0 R >>'));
+  const pageObjectNumbers = pages.map((_, index) => 5 + index * 2);
+  objects.push(
+    encoder.encode(`<< /Type /Pages /Count ${pages.length} /Kids [${pageObjectNumbers.map((id) => `${id} 0 R`).join(' ')}] >>`),
+  );
+  objects.push(encoder.encode('<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>'));
+  objects.push(encoder.encode('<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold >>'));
+
+  pages.forEach((pageRows, pageIndex) => {
+    const pageObjectNumber = 5 + pageIndex * 2;
+    const contentObjectNumber = pageObjectNumber + 1;
+    const contentStream = buildInventoryLabelsPageContent(pageRows);
+    const contentBytes = encoder.encode(contentStream);
+
+    objects.push(
+      encoder.encode(
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PDF_LETTER_WIDTH} ${PDF_LETTER_HEIGHT}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentObjectNumber} 0 R >>`,
+      ),
+    );
+    objects.push(
+      concatenatePdfParts([
+        encoder.encode(`<< /Length ${contentBytes.length} >>\nstream\n`),
+        contentBytes,
+        encoder.encode('\nendstream'),
+      ]),
+    );
+  });
+
+  return assemblePdf(objects);
+}
+
+function buildInventoryLabelsPageContent(rows: InventoryLabelPdfRow[]): string {
+  const commands: string[] = ['0 0 0 RG', '0 0 0 rg', '1 J', '1 j'];
+
+  rows.forEach((row, index) => {
+    const col = index % PDF_LABEL_COLUMNS;
+    const rowIndex = Math.floor(index / PDF_LABEL_COLUMNS);
+    const left = PDF_LABEL_MARGIN_X + col * PDF_LABEL_WIDTH;
+    const bottom = PDF_LETTER_HEIGHT - PDF_LABEL_MARGIN_Y - (rowIndex + 1) * PDF_LABEL_HEIGHT;
+
+    commands.push(renderLabelBorder(left, bottom));
+    commands.push(renderLabelCcgNumber(left, bottom, row.ccgNumber));
+    commands.push(renderLabelTitle(left, bottom, row.title));
+  });
+
+  return commands.filter(Boolean).join('\n');
+}
+
+function renderLabelBorder(left: number, bottom: number): string {
+  return `q 0.82 G 0.4 w ${formatPdfNumber(left)} ${formatPdfNumber(bottom)} ${formatPdfNumber(PDF_LABEL_WIDTH)} ${formatPdfNumber(PDF_LABEL_HEIGHT)} re S Q`;
+}
+
+function renderLabelCcgNumber(left: number, bottom: number, ccgNumber: string): string {
+  const sanitized = normalizePdfText(ccgNumber);
+  const availableWidth = PDF_LABEL_WIDTH - 16;
+  const topHalfHeight = PDF_LABEL_HEIGHT / 2;
+  const fontSizeFromWidth = availableWidth / Math.max(1, sanitized.length * PDF_MONO_WIDTH_EM);
+  const fontSize = Math.max(18, Math.min(42, fontSizeFromWidth, topHalfHeight - 10));
+  const textWidth = estimateMonospaceTextWidth(sanitized, fontSize);
+  const x = left + (PDF_LABEL_WIDTH - textWidth) / 2;
+  const y = bottom + PDF_LABEL_HEIGHT - topHalfHeight / 2 + fontSize * 0.33;
+
+  return renderPdfText('/F2', fontSize, x, y, sanitized);
+}
+
+function renderLabelTitle(left: number, bottom: number, title: string): string {
+  const fontSize = 16;
+  const lineHeight = 18;
+  const textLeft = left + 10;
+  const textBottom = bottom + 11;
+  const wrapped = wrapPdfMonospaceText(title, fontSize, PDF_LABEL_WIDTH - 20, 2);
+
+  return wrapped
+    .map((line, index) => renderPdfText('/F1', fontSize, textLeft, textBottom + (1 - index) * lineHeight, line))
+    .join('\n');
+}
+
+function renderPdfText(fontName: string, fontSize: number, x: number, y: number, text: string): string {
+  return `BT ${fontName} ${formatPdfNumber(fontSize)} Tf 1 0 0 1 ${formatPdfNumber(x)} ${formatPdfNumber(y)} Tm (${escapePdfString(text)}) Tj ET`;
+}
+
+function wrapPdfMonospaceText(
+  value: string,
+  fontSize: number,
+  maxWidth: number,
+  maxLines: number,
+): string[] {
+  const sanitized = normalizePdfText(value || 'Untitled').replace(/\s+/g, ' ').trim() || 'Untitled';
+  const maxChars = Math.max(1, Math.floor(maxWidth / (fontSize * PDF_MONO_WIDTH_EM)));
+  const words = sanitized.split(' ');
+  const lines: string[] = [];
+  let current = '';
+  let truncated = false;
+
+  wordLoop: for (const originalWord of words) {
+    let word = originalWord;
+    if (!word) continue;
+    while (word) {
+      if (!current) {
+        if (word.length <= maxChars) {
+          current = word;
+          word = '';
+          continue;
+        }
+
+        if (lines.length === maxLines - 1) {
+          lines.push(truncateWithEllipsis(word, maxChars));
+          truncated = true;
+          break wordLoop;
+        }
+
+        lines.push(word.slice(0, maxChars));
+        word = word.slice(maxChars);
+        continue;
+      }
+
+      const candidate = `${current} ${word}`;
+      if (candidate.length <= maxChars) {
+        current = candidate;
+        word = '';
+        continue;
+      }
+
+      lines.push(current);
+      current = '';
+      if (lines.length === maxLines) {
+        truncated = true;
+        break wordLoop;
+      }
+    }
+  }
+
+  if (current) {
+    if (lines.length < maxLines) {
+      lines.push(current);
+    } else {
+      truncated = true;
+    }
+  }
+
+  if (truncated && lines.length > 0 && !lines[lines.length - 1].endsWith('...')) {
+    lines[lines.length - 1] = truncateWithEllipsis(lines[lines.length - 1], maxChars);
+  }
+
+  return lines.slice(0, maxLines);
+}
+
+function truncateWithEllipsis(value: string, maxChars: number): string {
+  if (value.length <= maxChars) {
+    return value.length >= 3 ? `${value.slice(0, Math.max(0, maxChars - 3))}...` : '.'.repeat(maxChars);
+  }
+  if (maxChars <= 3) return '.'.repeat(maxChars);
+  return `${value.slice(0, maxChars - 3)}...`;
+}
+
+function normalizePdfText(value: string): string {
+  return value
+    .replaceAll('\u2018', "'")
+    .replaceAll('\u2019', "'")
+    .replaceAll('\u201C', '"')
+    .replaceAll('\u201D', '"')
+    .replaceAll('\u2013', '-')
+    .replaceAll('\u2014', '-')
+    .replaceAll('\u2026', '...')
+    .replace(/[^\x20-\x7E]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function estimateMonospaceTextWidth(value: string, fontSize: number): number {
+  return value.length * fontSize * PDF_MONO_WIDTH_EM;
+}
+
+function escapePdfString(value: string): string {
+  return value.replaceAll('\\', '\\\\').replaceAll('(', '\\(').replaceAll(')', '\\)');
+}
+
+function formatPdfNumber(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, '');
+}
+
+function assemblePdf(objects: Uint8Array[]): Uint8Array {
+  const encoder = new TextEncoder();
+  const header = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a, 0x25, 0xe2, 0xe3, 0xcf, 0xd3, 0x0a]);
+  const parts: Uint8Array[] = [header];
+  const offsets: number[] = [0];
+  let length = header.length;
+
+  objects.forEach((objectBytes, index) => {
+    offsets.push(length);
+    const prefix = encoder.encode(`${index + 1} 0 obj\n`);
+    const suffix = encoder.encode('\nendobj\n');
+    parts.push(prefix, objectBytes, suffix);
+    length += prefix.length + objectBytes.length + suffix.length;
+  });
+
+  const xrefOffset = length;
+  const xrefLines = ['xref', `0 ${objects.length + 1}`, '0000000000 65535 f '];
+  for (let index = 1; index < offsets.length; index += 1) {
+    xrefLines.push(`${String(offsets[index]).padStart(10, '0')} 00000 n `);
+  }
+  const trailer = `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+  parts.push(encoder.encode(`${xrefLines.join('\n')}\n${trailer}`));
+
+  return concatenatePdfParts(parts);
+}
+
+function concatenatePdfParts(parts: Uint8Array[]): Uint8Array {
+  const totalLength = parts.reduce((sum, part) => sum + part.length, 0);
+  const merged = new Uint8Array(totalLength);
+  let offset = 0;
+  parts.forEach((part) => {
+    merged.set(part, offset);
+    offset += part.length;
+  });
+  return merged;
+}
+
+function chunkArray<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
 }

@@ -115,7 +115,9 @@ const InventoryManager = () => {
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDownloadingLabels, setIsDownloadingLabels] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [labelsErrorMessage, setLabelsErrorMessage] = useState('');
 
   useEffect(() => {
     document.title = 'CCG Admin | Inventory Manager';
@@ -208,6 +210,48 @@ const InventoryManager = () => {
     setSortBy('title');
     setSortDir('asc');
     setFilters(DEFAULT_FILTERS);
+  };
+
+  const handleDownloadLabels = async () => {
+    setIsDownloadingLabels(true);
+    setLabelsErrorMessage('');
+
+    try {
+      const response = await fetch('/api/admin-v2/inventory/labels.pdf', {
+        method: 'GET',
+        credentials: 'same-origin',
+      });
+
+      if (!response.ok) {
+        let message = 'Unable to generate labels PDF.';
+        try {
+          const data = (await response.json()) as { message?: string };
+          if (data?.message) message = data.message;
+        } catch {
+          // Ignore JSON parse failures and fall back to the default message.
+        }
+        throw new Error(message);
+      }
+
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const contentDisposition = response.headers.get('Content-Disposition') || '';
+      const match = contentDisposition.match(/filename="([^"]+)"/i);
+      const fileName = match?.[1] || 'ccg-labels.pdf';
+      const anchor = document.createElement('a');
+      anchor.href = downloadUrl;
+      anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      setLabelsErrorMessage(
+        error instanceof Error ? error.message : 'Unable to generate labels PDF.',
+      );
+    } finally {
+      setIsDownloadingLabels(false);
+    }
   };
 
   const pageLabel = useMemo(() => {
@@ -464,30 +508,49 @@ const InventoryManager = () => {
         >
           <Typography variant="h4">Inventory Manager</Typography>
 
-          <Tooltip title="Add">
-            <IconButton
-              aria-label="Add"
-              onClick={() => navigate(paths.inventoryItem)}
-              color="success"
-              sx={{
-                width: 40,
-                height: 40,
-                border: 1,
-                borderColor: 'success.main',
-                bgcolor: 'success.main',
-                color: 'common.white',
-                '&:hover': {
-                  bgcolor: 'success.dark',
-                },
-              }}
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+            <Button
+              variant="outlined"
+              color="inherit"
+              onClick={handleDownloadLabels}
+              disabled={isDownloadingLabels}
+              startIcon={
+                isDownloadingLabels ? (
+                  <CircularProgress color="inherit" size={16} />
+                ) : (
+                  <IconifyIcon icon="material-symbols:picture-as-pdf-outline-rounded" />
+                )
+              }
             >
-              <IconifyIcon icon="material-symbols:add-rounded" fontSize={20} />
-            </IconButton>
-          </Tooltip>
+              {isDownloadingLabels ? 'Generating…' : 'Labels PDF'}
+            </Button>
+
+            <Tooltip title="Add">
+              <IconButton
+                aria-label="Add"
+                onClick={() => navigate(paths.inventoryItem)}
+                color="success"
+                sx={{
+                  width: 40,
+                  height: 40,
+                  border: 1,
+                  borderColor: 'success.main',
+                  bgcolor: 'success.main',
+                  color: 'common.white',
+                  '&:hover': {
+                    bgcolor: 'success.dark',
+                  },
+                }}
+              >
+                <IconifyIcon icon="material-symbols:add-rounded" fontSize={20} />
+              </IconButton>
+            </Tooltip>
+          </Stack>
         </Stack>
       </Paper>
 
       {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
+      {labelsErrorMessage ? <Alert severity="error">{labelsErrorMessage}</Alert> : null}
 
       <Box sx={{ flex: 1, p: { xs: 2, md: 5 }, minWidth: 0, overflow: 'hidden' }}>
         <Stack direction="column" spacing={3}>
