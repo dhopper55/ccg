@@ -12,6 +12,7 @@ import IconGallery from 'pages/others/IconGallery';
 import ListingEvaluator from 'pages/listing-evaluator/ListingEvaluator';
 import ListingEvaluatorItem from 'pages/listing-evaluator/ListingEvaluatorItem';
 import ListingEvaluatorResults from 'pages/listing-evaluator/ListingEvaluatorResults';
+import MarketplaceListings from 'pages/marketplace-listings/MarketplaceListings';
 import InventoryManager from 'pages/inventory-manager/InventoryManager';
 import InventoryItem from 'pages/inventory-manager/InventoryItem';
 import LoggedOut from 'pages/authentication/default/LoggedOut';
@@ -60,6 +61,10 @@ export const routes: RouteObject[] = [
           {
             path: paths.listingEvaluatorItem,
             element: <ListingEvaluatorItem />,
+          },
+          {
+            path: paths.marketplaceListings,
+            element: <MarketplaceListings />,
           },
           {
             path: paths.inventoryManager,
