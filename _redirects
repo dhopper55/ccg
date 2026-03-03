@@ -1,5 +1,6 @@
 /admin /admin/index.html 200
 /admin-v2 /admin-v2/index.html 200
+/admin-v2/ /admin-v2/index.html 200
 /admin-v2/* /admin-v2/index.html 200
 /listing-evaluator* /admin/listing-evaluator.html 302
 /listing-evaluator-results* /admin/listing-evaluator-results.html 302
