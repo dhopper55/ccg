@@ -703,7 +703,12 @@ const InventoryManager = () => {
             <Grid size={{ xs: 12, md: 5 }}>
               <Stack
                 direction="row"
-                sx={{ gap: 0.5, alignItems: 'center', flexWrap: 'wrap', minHeight: 56 }}
+                sx={{
+                  gap: 0.5,
+                  alignItems: 'center',
+                  flexWrap: { xs: 'wrap', md: 'nowrap' },
+                  minHeight: 56,
+                }}
               >
                 <FormControlLabel
                   control={
@@ -745,19 +750,28 @@ const InventoryManager = () => {
             </Grid>
 
             <Grid size={{ xs: 12, md: 3 }}>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ justifyContent: 'flex-end' }}>
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={1.5}
+                sx={{ justifyContent: 'flex-end', width: '100%' }}
+              >
                 {filters.onlyMarked ? (
                   <Button
                     variant="outlined"
                     color="inherit"
-                    fullWidth
                     disabled={isUnmarkingAll}
                     onClick={handleUnmarkAll}
+                    sx={{ minWidth: { xs: '100%', sm: 160 } }}
                   >
                     {isUnmarkingAll ? 'Unmarking…' : 'Unmark All'}
                   </Button>
                 ) : null}
-                <Button variant="outlined" color="inherit" fullWidth onClick={clearFilters}>
+                <Button
+                  variant="outlined"
+                  color="inherit"
+                  onClick={clearFilters}
+                  sx={{ minWidth: { xs: '100%', sm: 160 } }}
+                >
                   Clear
                 </Button>
               </Stack>
