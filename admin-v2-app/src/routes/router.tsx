@@ -1,4 +1,4 @@
-import { Outlet, RouteObject, createBrowserRouter } from "react-router";
+import { Navigate, Outlet, RouteObject, createBrowserRouter } from "react-router";
 import App from "App";
 import AuthLayout from "layouts/auth-layout";
 import DefaultAuthLayout from "layouts/auth-layout/DefaultAuthLayout";
@@ -134,6 +134,11 @@ export const routes: RouteObject[] = [
             ],
           },
         ],
+      },
+
+      {
+        path: '/index.html',
+        element: <Navigate to="/" replace />,
       },
 
       {
