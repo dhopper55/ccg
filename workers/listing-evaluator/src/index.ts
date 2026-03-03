@@ -402,6 +402,16 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/inventory/unmark-all' && request.method === 'POST') {
+      const response = await handleAdminV2InventoryUnmarkAll(env);
+      return withCors(response, request, env);
+    }
+
+    if (path.endsWith('/mark') && path.startsWith('/api/admin-v2/inventory/') && request.method === 'POST') {
+      const response = await handleAdminV2InventoryMarkUpdate(request, path, env);
+      return withCors(response, request, env);
+    }
+
     if (path.startsWith('/api/admin-v2/listings/') && request.method === 'GET') {
       const response = await handleAdminV2GetListing(env, path);
       return withCors(response, request, env);
@@ -2392,6 +2402,11 @@ async function handleAdminV2InventoryLabelsPdf(env: Env): Promise<Response> {
   }
 
   const pdfBytes = buildInventoryLabelsPdf(labels);
+  const unmarkedCount = await dbUnmarkAllInventoryItems(env);
+  if (unmarkedCount < 1) {
+    return jsonResponse({ message: 'Labels were generated, but marked items could not be cleared.' }, 500);
+  }
+
   return new Response(pdfBytes, {
     headers: {
       'Content-Type': 'application/pdf',
@@ -2399,6 +2414,34 @@ async function handleAdminV2InventoryLabelsPdf(env: Env): Promise<Response> {
       'Cache-Control': 'no-store',
     },
   });
+}
+
+async function handleAdminV2InventoryMarkUpdate(
+  request: Request,
+  path: string,
+  env: Env,
+): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const markIndex = parts.indexOf('mark');
+  const recordId = markIndex > 0 ? parts[markIndex - 1] : '';
+  if (!recordId) return jsonResponse({ message: 'Missing inventory ID.' }, 400);
+
+  let body: Record<string, unknown> = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  const isMarked = toBooleanInput(body.isMarked, false);
+  const updated = await dbSetInventoryMarked(recordId, isMarked, env);
+  if (!updated) return jsonResponse({ message: 'Unable to update marked state.' }, 500);
+  return jsonResponse({ ok: true, isMarked });
+}
+
+async function handleAdminV2InventoryUnmarkAll(env: Env): Promise<Response> {
+  const count = await dbUnmarkAllInventoryItems(env);
+  return jsonResponse({ ok: true, count });
 }
 
 async function handleInventoryPackageCreate(env: Env): Promise<Response> {
@@ -4701,6 +4744,22 @@ async function dbUpdateInventoryRowSpecific(
   }
 }
 
+async function dbSetInventoryMarked(recordId: string, isMarked: boolean, env: Env): Promise<boolean> {
+  const idValue = Number.parseInt(recordId, 10);
+  if (!Number.isFinite(idValue)) return false;
+  try {
+    const result = await env.DB.prepare(
+      `UPDATE ccg_inventory_items
+       SET is_marked = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`
+    ).bind(isMarked ? 1 : 0, idValue).run();
+    return Number(result.meta?.changes || 0) > 0;
+  } catch (error) {
+    console.error('Inventory mark update failed', { error });
+    return false;
+  }
+}
+
 async function dbDeleteInventoryItemById(recordId: string, env: Env): Promise<number> {
   const idValue = Number.parseInt(recordId, 10);
   if (!Number.isFinite(idValue)) return 0;
@@ -4777,6 +4836,20 @@ async function dbListMarkedInventoryRowsForPackage(env: Env): Promise<InventoryI
      ORDER BY i.created_at ASC, i.id ASC`
   ).all<InventoryItemRow>();
   return result.results ?? [];
+}
+
+async function dbUnmarkAllInventoryItems(env: Env): Promise<number> {
+  try {
+    const result = await env.DB.prepare(
+      `UPDATE ccg_inventory_items
+       SET is_marked = 0, updated_at = CURRENT_TIMESTAMP
+       WHERE COALESCE(is_marked, 0) = 1`
+    ).run();
+    return Number(result.meta?.changes || 0);
+  } catch (error) {
+    console.error('Inventory unmark all failed', { error });
+    return 0;
+  }
 }
 
 async function dbListMarkedInventoryLabelRows(
@@ -7665,6 +7738,11 @@ const PDF_LABELS_PER_PAGE = PDF_LABEL_COLUMNS * PDF_LABEL_ROWS;
 const PDF_LABEL_MARGIN_X = (PDF_LETTER_WIDTH - PDF_LABEL_COLUMNS * PDF_LABEL_WIDTH) / 2;
 const PDF_LABEL_MARGIN_Y = (PDF_LETTER_HEIGHT - PDF_LABEL_ROWS * PDF_LABEL_HEIGHT) / 2;
 const PDF_MONO_WIDTH_EM = 0.6;
+const PDF_LABEL_HORIZONTAL_PADDING = 10;
+const PDF_LABEL_TOP_PADDING = 10;
+const PDF_LABEL_BOTTOM_PADDING = 16;
+const PDF_LABEL_TITLE_FONT_SIZE = 18;
+const PDF_LABEL_TITLE_LINE_HEIGHT = 20;
 
 function buildInventoryLabelsPdf(rows: InventoryLabelPdfRow[]): Uint8Array {
   const pages = chunkArray(rows, PDF_LABELS_PER_PAGE);
@@ -7725,26 +7803,36 @@ function renderLabelBorder(left: number, bottom: number): string {
 
 function renderLabelCcgNumber(left: number, bottom: number, ccgNumber: string): string {
   const sanitized = normalizePdfText(ccgNumber);
-  const availableWidth = PDF_LABEL_WIDTH - 16;
-  const topHalfHeight = PDF_LABEL_HEIGHT / 2;
+  const availableWidth = PDF_LABEL_WIDTH - PDF_LABEL_HORIZONTAL_PADDING * 2;
   const fontSizeFromWidth = availableWidth / Math.max(1, sanitized.length * PDF_MONO_WIDTH_EM);
-  const fontSize = Math.max(18, Math.min(42, fontSizeFromWidth, topHalfHeight - 10));
+  const fontSize = Math.max(18, Math.min(38, fontSizeFromWidth));
   const textWidth = estimateMonospaceTextWidth(sanitized, fontSize);
   const x = left + (PDF_LABEL_WIDTH - textWidth) / 2;
-  const y = bottom + PDF_LABEL_HEIGHT - topHalfHeight / 2 + fontSize * 0.33;
+  const y = bottom + PDF_LABEL_HEIGHT - PDF_LABEL_TOP_PADDING - fontSize * 0.92;
 
   return renderPdfText('/F2', fontSize, x, y, sanitized);
 }
 
 function renderLabelTitle(left: number, bottom: number, title: string): string {
-  const fontSize = 16;
-  const lineHeight = 18;
-  const textLeft = left + 10;
-  const textBottom = bottom + 11;
-  const wrapped = wrapPdfMonospaceText(title, fontSize, PDF_LABEL_WIDTH - 20, 2);
+  const textLeft = left + PDF_LABEL_HORIZONTAL_PADDING;
+  const secondLineBaseline = bottom + PDF_LABEL_BOTTOM_PADDING;
+  const wrapped = wrapPdfMonospaceText(
+    title,
+    PDF_LABEL_TITLE_FONT_SIZE,
+    PDF_LABEL_WIDTH - PDF_LABEL_HORIZONTAL_PADDING * 2,
+    2,
+  );
 
   return wrapped
-    .map((line, index) => renderPdfText('/F1', fontSize, textLeft, textBottom + (1 - index) * lineHeight, line))
+    .map((line, index) =>
+      renderPdfText(
+        '/F1',
+        PDF_LABEL_TITLE_FONT_SIZE,
+        textLeft,
+        secondLineBaseline + (1 - index) * PDF_LABEL_TITLE_LINE_HEIGHT,
+        line,
+      ),
+    )
     .join('\n');
 }
 

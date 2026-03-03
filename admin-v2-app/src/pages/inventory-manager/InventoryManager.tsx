@@ -40,6 +40,7 @@ type InventoryRecord = {
   imageUrl?: string | null;
   category?: string;
   brand?: string;
+  isMarked?: boolean;
   isPersonal?: boolean;
   forSale?: boolean;
   isSold?: boolean;
@@ -116,8 +117,11 @@ const InventoryManager = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [isDownloadingLabels, setIsDownloadingLabels] = useState(false);
+  const [isUnmarkingAll, setIsUnmarkingAll] = useState(false);
+  const [togglingMarkedIds, setTogglingMarkedIds] = useState<string[]>([]);
   const [errorMessage, setErrorMessage] = useState('');
   const [labelsErrorMessage, setLabelsErrorMessage] = useState('');
+  const [actionErrorMessage, setActionErrorMessage] = useState('');
 
   useEffect(() => {
     document.title = 'CCG Admin | Inventory Manager';
@@ -210,6 +214,7 @@ const InventoryManager = () => {
     setSortBy('title');
     setSortDir('asc');
     setFilters(DEFAULT_FILTERS);
+    setActionErrorMessage('');
   };
 
   const handleDownloadLabels = async () => {
@@ -254,10 +259,88 @@ const InventoryManager = () => {
     }
   };
 
+  const handleToggleMarked = async (recordId: string, isMarked: boolean) => {
+    setActionErrorMessage('');
+    setTogglingMarkedIds((current) => [...current, recordId]);
+    setRecords((current) =>
+      current.map((record) => (record.id === recordId ? { ...record, isMarked } : record)),
+    );
+
+    try {
+      const response = await fetch(`/api/admin-v2/inventory/${encodeURIComponent(recordId)}/mark`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ isMarked }),
+      });
+
+      if (!response.ok) {
+        let message = 'Unable to update marked state.';
+        try {
+          const data = (await response.json()) as { message?: string };
+          if (data?.message) message = data.message;
+        } catch {
+          // Ignore parse failures and use fallback message.
+        }
+        throw new Error(message);
+      }
+    } catch (error) {
+      setRecords((current) =>
+        current.map((record) =>
+          record.id === recordId ? { ...record, isMarked: !isMarked } : record,
+        ),
+      );
+      setActionErrorMessage(
+        error instanceof Error ? error.message : 'Unable to update marked state.',
+      );
+    } finally {
+      setTogglingMarkedIds((current) => current.filter((id) => id !== recordId));
+    }
+  };
+
+  const handleUnmarkAll = async () => {
+    setIsUnmarkingAll(true);
+    setActionErrorMessage('');
+
+    try {
+      const response = await fetch('/api/admin-v2/inventory/unmark-all', {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+
+      if (!response.ok) {
+        let message = 'Unable to unmark inventory items.';
+        try {
+          const data = (await response.json()) as { message?: string };
+          if (data?.message) message = data.message;
+        } catch {
+          // Ignore parse failures and use fallback message.
+        }
+        throw new Error(message);
+      }
+
+      setPage(1);
+      setSortBy('title');
+      setSortDir('asc');
+      setFilters(DEFAULT_FILTERS);
+      setRecords((current) => current.map((record) => ({ ...record, isMarked: false })));
+    } catch (error) {
+      setActionErrorMessage(
+        error instanceof Error ? error.message : 'Unable to unmark inventory items.',
+      );
+    } finally {
+      setIsUnmarkingAll(false);
+    }
+  };
+
   const pageLabel = useMemo(() => {
     if (total === 0) return 'Page 1 of 1 • 0 total items';
     return `Page ${Math.min(page, totalPages)} of ${totalPages} • ${total} total items`;
   }, [page, total, totalPages]);
+
+  const showMarkedCheckboxes = !filters.onlyMarked;
 
   const renderDesktopTable = () => (
     <TableContainer>
@@ -334,6 +417,16 @@ const InventoryManager = () => {
               <TableRow key={record.id} hover>
                 <TableCell sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
                   <Stack direction="row" sx={{ alignItems: 'center', gap: 0.75 }}>
+                    {showMarkedCheckboxes ? (
+                      <Checkbox
+                        size="small"
+                        checked={Boolean(record.isMarked)}
+                        disabled={isUnmarkingAll || togglingMarkedIds.includes(record.id)}
+                        onChange={(event) => handleToggleMarked(record.id, event.target.checked)}
+                        onClick={(event) => event.stopPropagation()}
+                        sx={{ p: 0.25, mr: 0.25 }}
+                      />
+                    ) : null}
                     <Link
                       underline="none"
                       color="text.primary"
@@ -468,6 +561,21 @@ const InventoryManager = () => {
                     ) : null}
                   </Stack>
                   <Stack direction="row" sx={{ alignItems: 'center', gap: 0.75 }}>
+                    {showMarkedCheckboxes ? (
+                      <Checkbox
+                        size="small"
+                        checked={Boolean(record.isMarked)}
+                        disabled={isUnmarkingAll || togglingMarkedIds.includes(record.id)}
+                        onChange={(event) => handleToggleMarked(record.id, event.target.checked)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                        }}
+                        onMouseDown={(event) => {
+                          event.stopPropagation();
+                        }}
+                        sx={{ p: 0.25, ml: -0.5 }}
+                      />
+                    ) : null}
                     <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                       {record.ccgNumber || '—'}
                     </Typography>
@@ -551,6 +659,7 @@ const InventoryManager = () => {
 
       {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
       {labelsErrorMessage ? <Alert severity="error">{labelsErrorMessage}</Alert> : null}
+      {actionErrorMessage ? <Alert severity="error">{actionErrorMessage}</Alert> : null}
 
       <Box sx={{ flex: 1, p: { xs: 2, md: 5 }, minWidth: 0, overflow: 'hidden' }}>
         <Stack direction="column" spacing={3}>
@@ -591,7 +700,7 @@ const InventoryManager = () => {
               </FormControl>
             </Grid>
 
-            <Grid size={{ xs: 12, md: 6 }}>
+            <Grid size={{ xs: 12, md: 5 }}>
               <Stack
                 direction="row"
                 sx={{ gap: 0.5, alignItems: 'center', flexWrap: 'wrap', minHeight: 56 }}
@@ -635,10 +744,23 @@ const InventoryManager = () => {
               </Stack>
             </Grid>
 
-            <Grid size={{ xs: 12, md: 2 }}>
-              <Button variant="outlined" color="inherit" fullWidth onClick={clearFilters}>
-                Clear
-              </Button>
+            <Grid size={{ xs: 12, md: 3 }}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ justifyContent: 'flex-end' }}>
+                {filters.onlyMarked ? (
+                  <Button
+                    variant="outlined"
+                    color="inherit"
+                    fullWidth
+                    disabled={isUnmarkingAll}
+                    onClick={handleUnmarkAll}
+                  >
+                    {isUnmarkingAll ? 'Unmarking…' : 'Unmark All'}
+                  </Button>
+                ) : null}
+                <Button variant="outlined" color="inherit" fullWidth onClick={clearFilters}>
+                  Clear
+                </Button>
+              </Stack>
             </Grid>
           </Grid>
 
