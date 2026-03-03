@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc && node scripts/update-cache-busters.mjs",
-    "build:admin-v2": "npm --prefix admin-v2-app run build:ccg && node scripts/sync-admin-v2-routes.mjs",
+    "build:admin-v2": "npm --prefix admin-v2-app run build:ccg",
     "cachebust": "node scripts/update-cache-busters.mjs",
     "watch": "tsc --watch",
     "start": "lite-server",
