@@ -717,6 +717,7 @@ const InventoryManager = () => {
                       onChange={(event) => handleFilterChange('sold', event.target.checked)}
                     />
                   }
+                  sx={{ m: 0, mr: 1.25, whiteSpace: 'nowrap' }}
                   label="Sold"
                 />
                 <FormControlLabel
@@ -726,6 +727,7 @@ const InventoryManager = () => {
                       onChange={(event) => handleFilterChange('active', event.target.checked)}
                     />
                   }
+                  sx={{ m: 0, mr: 1.25, whiteSpace: 'nowrap' }}
                   label="Active"
                 />
                 <FormControlLabel
@@ -735,6 +737,7 @@ const InventoryManager = () => {
                       onChange={(event) => handleFilterChange('onlyMarked', event.target.checked)}
                     />
                   }
+                  sx={{ m: 0, mr: 1.25, whiteSpace: 'nowrap' }}
                   label="Only Marked"
                 />
                 <FormControlLabel
@@ -744,6 +747,7 @@ const InventoryManager = () => {
                       onChange={(event) => handleFilterChange('onlyPersonal', event.target.checked)}
                     />
                   }
+                  sx={{ m: 0, whiteSpace: 'nowrap' }}
                   label="Only Personal"
                 />
               </Stack>
