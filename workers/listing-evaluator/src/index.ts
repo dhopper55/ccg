@@ -7769,6 +7769,7 @@ const PDF_LABEL_TITLE_FONT_SIZE = 16;
 const PDF_LABEL_TITLE_LINE_HEIGHT = 18;
 const PDF_LABEL_RIGHT_PADDING = 8;
 const PDF_LABEL_TITLE_SECOND_LINE_BASELINE = 22;
+const PDF_LABEL_TITLE_MAX_BOX_HEIGHT = 58;
 
 async function buildInventoryLabelsPdf(rows: InventoryLabelPdfRow[], env: Env): Promise<Uint8Array> {
   const pages = chunkArray(rows, PDF_LABELS_PER_PAGE);
@@ -7893,10 +7894,10 @@ function renderLabelCcgNumber(left: number, bottom: number, ccgNumber: string): 
   const textStartX = left + PDF_LABEL_LEFT_IMAGE_WIDTH + PDF_LABEL_TEXT_GAP;
   const availableWidth = PDF_LABEL_WIDTH - PDF_LABEL_LEFT_IMAGE_WIDTH - PDF_LABEL_TEXT_GAP - PDF_LABEL_RIGHT_PADDING;
   const fontSizeFromWidth = availableWidth / Math.max(1, sanitized.length * PDF_MONO_WIDTH_EM);
-  const fontSize = Math.max(18, Math.min(34, fontSizeFromWidth));
+  const fontSize = Math.max(22, Math.min(44, fontSizeFromWidth));
   const textWidth = estimateMonospaceTextWidth(sanitized, fontSize);
   const x = textStartX + (availableWidth - textWidth) / 2;
-  const y = bottom + PDF_LABEL_HEIGHT - PDF_LABEL_TOP_PADDING - fontSize * 0.92;
+  const y = bottom + PDF_LABEL_HEIGHT - PDF_LABEL_TOP_PADDING - fontSize * 0.82;
 
   return renderPdfText('/F2', fontSize, x, y, sanitized);
 }
@@ -7904,20 +7905,17 @@ function renderLabelCcgNumber(left: number, bottom: number, ccgNumber: string): 
 function renderLabelTitle(left: number, bottom: number, title: string): string {
   const textLeft = left + PDF_LABEL_LEFT_IMAGE_WIDTH + PDF_LABEL_TEXT_GAP;
   const secondLineBaseline = bottom + PDF_LABEL_TITLE_SECOND_LINE_BASELINE;
-  const wrapped = wrapPdfMonospaceText(
-    title,
-    PDF_LABEL_TITLE_FONT_SIZE,
-    PDF_LABEL_WIDTH - PDF_LABEL_LEFT_IMAGE_WIDTH - PDF_LABEL_TEXT_GAP - PDF_LABEL_RIGHT_PADDING,
-    2,
-  );
+  const availableWidth =
+    PDF_LABEL_WIDTH - PDF_LABEL_LEFT_IMAGE_WIDTH - PDF_LABEL_TEXT_GAP - PDF_LABEL_RIGHT_PADDING;
+  const titleLayout = layoutPdfMonospaceText(title, availableWidth, PDF_LABEL_TITLE_MAX_BOX_HEIGHT, 2);
 
-  return wrapped
+  return titleLayout.lines
     .map((line, index) =>
       renderPdfText(
         '/F1',
-        PDF_LABEL_TITLE_FONT_SIZE,
+        titleLayout.fontSize,
         textLeft,
-        secondLineBaseline + (1 - index) * PDF_LABEL_TITLE_LINE_HEIGHT,
+        secondLineBaseline + (1 - index) * titleLayout.lineHeight,
         line,
       ),
     )
@@ -7994,6 +7992,28 @@ function wrapPdfMonospaceText(
   return lines.slice(0, maxLines);
 }
 
+function layoutPdfMonospaceText(
+  value: string,
+  maxWidth: number,
+  maxHeight: number,
+  maxLines: number,
+): { fontSize: number; lineHeight: number; lines: string[] } {
+  for (let fontSize = 20; fontSize >= 13; fontSize -= 1) {
+    const lineHeight = fontSize + 2;
+    if (lineHeight * maxLines > maxHeight) continue;
+    const lines = wrapPdfMonospaceText(value, fontSize, maxWidth, maxLines);
+    if (lines.length <= maxLines) {
+      return { fontSize, lineHeight, lines };
+    }
+  }
+
+  return {
+    fontSize: 13,
+    lineHeight: 15,
+    lines: wrapPdfMonospaceText(value, 13, maxWidth, maxLines),
+  };
+}
+
 function truncateWithEllipsis(value: string, maxChars: number): string {
   if (value.length <= maxChars) {
     return value.length >= 2 ? `${value.slice(0, Math.max(0, maxChars - 2))}..` : '.'.repeat(maxChars);
@@ -8033,25 +8053,49 @@ function stripCcgPrefix(value: string): string {
 }
 
 async function fetchPdfImageAsset(imageUrl: string, env: Env): Promise<PdfImageAsset | null> {
-  const absoluteUrl = resolvePdfImageUrl(imageUrl, env);
-  if (!absoluteUrl) return null;
-
   try {
+    const directAsset = await fetchPdfImageAssetFromBucket(imageUrl, env);
+    if (directAsset) return directAsset;
+
+    const absoluteUrl = resolvePdfImageUrl(imageUrl, env);
+    if (!absoluteUrl) return null;
+
     const response = await fetch(absoluteUrl);
     if (!response.ok) return null;
     const bytes = new Uint8Array(await response.arrayBuffer());
     const contentType = (response.headers.get('content-type') || '').toLowerCase();
 
-    if (contentType.includes('jpeg') || contentType.includes('jpg') || isJpegBytes(bytes)) {
-      return parseJpegPdfAsset(bytes);
-    }
-    if (contentType.includes('png') || isPngBytes(bytes)) {
-      return parsePngPdfAsset(bytes);
+    const parsedAsset = parsePdfImageAsset(bytes, contentType);
+    if (parsedAsset) {
+      return parsedAsset;
     }
   } catch (error) {
     console.warn('Unable to fetch label image asset', { imageUrl, error });
   }
 
+  return null;
+}
+
+async function fetchPdfImageAssetFromBucket(imageUrl: string, env: Env): Promise<PdfImageAsset | null> {
+  if (!env.CUSTOM_ITEMS_BUCKET) return null;
+  const key = extractInventoryImageKey(imageUrl);
+  if (!key) return null;
+
+  const object = await env.CUSTOM_ITEMS_BUCKET.get(key);
+  if (!object?.body) return null;
+
+  const bytes = new Uint8Array(await object.arrayBuffer());
+  const contentType = (object.httpMetadata?.contentType || '').toLowerCase();
+  return parsePdfImageAsset(bytes, contentType);
+}
+
+function parsePdfImageAsset(bytes: Uint8Array, contentType: string): PdfImageAsset | null {
+  if (contentType.includes('jpeg') || contentType.includes('jpg') || isJpegBytes(bytes)) {
+    return parseJpegPdfAsset(bytes);
+  }
+  if (contentType.includes('png') || isPngBytes(bytes)) {
+    return parsePngPdfAsset(bytes);
+  }
   return null;
 }
 
