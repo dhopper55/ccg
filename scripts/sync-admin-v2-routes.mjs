@@ -10,7 +10,7 @@ const sourceHtml = path.join(adminV2Root, 'index.html');
 const routeDirs = [
   'inventory-manager',
   'inventory-item',
-  'marketplace-listings',
+  'marketplace-admin',
   'listing-evaluator',
   'listing-evaluator-results',
   'listing-evaluator-item',

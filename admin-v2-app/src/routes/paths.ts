@@ -25,7 +25,7 @@ const paths = {
   listingEvaluatorResults: '/listing-evaluator-results',
   listingEvaluatorItem: '/listing-evaluator-item',
   listingEvaluatorItemWithId: (id: string) => `/listing-evaluator-item?id=${encodeURIComponent(id)}`,
-  marketplaceListings: '/marketplace-listings',
+  marketplaceListings: '/marketplace-admin',
   inventoryManager: '/inventory-manager',
   inventoryItem: '/inventory-item',
   inventoryItemWithId: (id: string) => `/inventory-item?id=${encodeURIComponent(id)}`,
