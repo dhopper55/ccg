@@ -1,21 +1,17 @@
-import { PropsWithChildren, useEffect } from "react";
+import { PropsWithChildren } from "react";
+import { Navigate } from "react-router";
 import { useAuth } from "providers/AuthProvider";
+import paths from "routes/paths";
 import PageLoader from "components/loading/PageLoader";
 
 const AuthGurad = ({ children }: PropsWithChildren) => {
   const { isLoading, sessionUser } = useAuth();
 
-  useEffect(() => {
-    if (isLoading || sessionUser) return;
-    const base = import.meta.env.VITE_BASENAME || '/';
-    window.location.replace(`${base}authentication/default/jwt/login`);
-  }, [isLoading, sessionUser]);
-
   if (isLoading) {
     return <PageLoader />;
   }
 
-  return sessionUser ? children : <PageLoader />;
+  return sessionUser ? children : <Navigate to={paths.defaultJwtLogin} />;
 };
 
 export default AuthGurad;

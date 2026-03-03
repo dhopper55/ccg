@@ -35,21 +35,6 @@
   <meta name="twitter:description" content="Colorado's trusted source for buying, selling, and trading quality guitars. Free guitar serial number decoder tool.">
   <meta name="twitter:image" content="https://www.coalcreekguitars.com/images/coal-creek-logo.png">
 
-  <script>
-    (function () {
-      var path = window.location.pathname || '';
-      if (path === '/admin-v2/index.html') {
-        return;
-      }
-      if (path === '/admin-v2' || path === '/admin-v2/' || path.indexOf('/admin-v2/') === 0) {
-        var targetPath = path + window.location.search + window.location.hash;
-        var target =
-          '/admin-v2/index.html?ccg_admin_v2_path=' + encodeURIComponent(targetPath) + '&ccg_admin_v2_fallback=1';
-        window.location.replace(target);
-      }
-    })();
-  </script>
-
   <link rel="stylesheet" href="styles.css?version=699338">
 </head>
 <body class="home-page">

@@ -8,24 +8,6 @@ import ThemeProvider from 'providers/ThemeProvider';
 import router from 'routes/router';
 import './locales/i18n';
 
-function restoreAdminV2Route(): void {
-  if (typeof window === 'undefined') return;
-
-  const { pathname, search } = window.location;
-  if (!pathname.endsWith('/index.html')) return;
-
-  const params = new URLSearchParams(search);
-  const requestedPath = params.get('ccg_admin_v2_path');
-  const baseUrl = import.meta.env.BASE_URL || '/';
-
-  if (requestedPath && requestedPath.startsWith('/admin-v2/')) {
-    window.history.replaceState({}, '', requestedPath);
-    return;
-  }
-
-  window.history.replaceState({}, '', baseUrl);
-}
-
 function registerAdminV2Pwa(): void {
   if (typeof window === 'undefined' || typeof navigator === 'undefined') return;
   if (!('serviceWorker' in navigator)) return;
@@ -41,7 +23,6 @@ function registerAdminV2Pwa(): void {
     });
 }
 
-restoreAdminV2Route();
 registerAdminV2Pwa();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
