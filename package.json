@@ -5,7 +5,8 @@
   "main": "dist/main.js",
   "type": "module",
   "scripts": {
-    "build": "tsc && node scripts/update-cache-busters.mjs",
+    "build": "npm run build:legacy && npm run build:admin-v2",
+    "build:legacy": "tsc && node scripts/update-cache-busters.mjs",
     "build:admin-v2": "npm --prefix admin-v2-app run build:ccg",
     "cachebust": "node scripts/update-cache-busters.mjs",
     "watch": "tsc --watch",

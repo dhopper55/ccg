@@ -14,7 +14,7 @@ function registerAdminV2Pwa(): void {
   if (!window.isSecureContext) return;
 
   const baseUrl = import.meta.env.BASE_URL || '/';
-  if (!baseUrl.startsWith('/admin-v2/')) return;
+  if (!baseUrl.startsWith('/admin/')) return;
 
   void navigator.serviceWorker
     .register(`${baseUrl}admin-v2-sw.js`, { scope: baseUrl })
