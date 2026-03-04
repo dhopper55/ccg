@@ -126,7 +126,6 @@ Cookies refresh instructions live in:
 Schema lives in `workers/listing-evaluator/schema.sql`.
 Tables:
 - `listings`
-- `search_results`
 - `ccg_inventory_items`
 - `ccg_marketplace_listings`
 
