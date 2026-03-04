@@ -6,44 +6,14 @@ The Listing Evaluator is a static site + Cloudflare Worker backend that:
 2) Starts Apify scraper runs and processes webhooks
 3) Calls OpenAI to summarize listings and estimate pricing
 4) Writes results to D1 (SQLite) and exposes them via a listing results UI
-5) Runs a “radar” job on a cron to queue new listings automatically
-6) Protects `/api/*` with a simple username/password login (HttpOnly cookie)
-
-## Front‑end
-Pages:
-- `listing-evaluator.html`
-- `listing-evaluator-results.html`
-- `listing-evaluator-item.html`
-- `listing-radar.html`
-
-Scripts:
-- `src/listing-evaluator.ts` → `dist/listing-evaluator.js`
-- `src/listing-evaluator-results.ts` → `dist/listing-evaluator-results.js`
-- `src/listing-evaluator-item.ts` → `dist/listing-evaluator-item.js`
-- `src/listing-radar.ts` → `dist/listing-radar.js`
-- `src/listing-auth.ts` → shared login overlay for all listing pages
+5) Protects `/api/*` with a simple username/password login (HttpOnly cookie)
 
 ## Admin
-The legacy admin lives under `/admin` and is independent from `/admin-v2`.
-
-How it was built:
-- Static multi-page HTML under `admin/`
-- DOM-driven TypeScript in `src/` compiled into browser assets in `dist/`
-- Shared styling primarily through `styles.css`
-- Utility-first page-by-page tooling rather than a React/component-template app
-
-This means the two admin surfaces are separate front-end applications:
-- `/admin` is the original static admin
-- `/admin-v2` is the newer Aurora-based admin app
-- They can evolve independently
-- New `/admin-v2` work should not require reshaping legacy `/admin`
-
-## Admin V2
-`/admin-v2` is a separate admin application and should be treated differently from the legacy `/admin` pages.
+Admin is served from `/admin` and built from the Aurora-based app.
 
 Layout:
 - Source app: `admin-v2-app/`
-- Deployed static output: `admin-v2/`
+- Deployed static output: `admin/`
 - Build command from repo root: `npm run build:admin-v2`
 
 ### Aurora
@@ -58,24 +28,23 @@ Aurora is not just a skin:
 An early V2 mistake was trying to build pages by hand while only loosely borrowing Aurora styling. That produced pages that were functionally correct but visually worse than the template baseline.
 
 Going forward, the rule is:
-- Build new V2 pages using Aurora infrastructure first.
+- Build admin pages using Aurora infrastructure first.
 - Prefer adapting the closest Aurora page in `admin-v2-app/src/pages/` or section in `admin-v2-app/src/components/sections/`.
-- Do not hand-compose new V2 dashboards or page layouts unless there is a clear reason.
-- Keep legacy `/admin` intact. If V2 needs different backend payloads, add new endpoints for `/admin-v2` instead of changing the old `/admin` data model.
+- Do not hand-compose new dashboards or page layouts unless there is a clear reason.
+- If admin needs different backend payloads, add endpoints under `/api/admin-v2/*` rather than changing legacy endpoint contracts.
 
 ### Auth and backend
-- Admin V2 uses the same worker auth model as legacy admin:
+- Admin uses the same worker auth model:
   - `POST /api/login`
   - `GET /api/session`
   - `POST /api/logout`
-- Admin V2 can add its own endpoints under `/api/admin-v2/*` without changing legacy `/admin` behavior.
+- Admin-specific endpoints live under `/api/admin-v2/*`.
 
 ## Auth
 The public site and the admin surfaces do not use the same access model.
 
 - Public-facing pages on the main site are not gated by the admin login flow.
-- `/admin` and `/admin-v2` are protected admin applications.
-- Both admin applications use the same worker-backed admin session.
+- `/admin` is the protected admin application.
 
 Shared admin login flow:
 - `POST /api/login` with `{ username, password }`
@@ -83,8 +52,7 @@ Shared admin login flow:
 - `POST /api/logout` to clear the admin session
 
 Implementation notes:
-- Legacy `/admin` enforces auth through `src/listing-auth.ts` before allowing access to its admin pages.
-- `/admin-v2` enforces auth inside its own app shell and route guards, but still uses the same worker-backed session endpoints.
+- `/admin` enforces auth in the app shell and route guards using worker-backed session endpoints.
 - Worker issues an HttpOnly cookie (`auth`) on successful login.
 
 All `/api/*` endpoints require auth except:
@@ -126,13 +94,6 @@ All `/api/*` endpoints require auth except:
 - `POST /api/listings/reprocess`
   - Re-run AI processing for a listing
 
-- `GET /api/search-results`
-  - Paged radar results
-- `POST /api/search-results/:id/archive`
-  - Archive a radar result
-- `POST /api/search-results/:id/queue`
-  - Queue a radar result for evaluation
-
 - `GET /api/inventory`
   - Legacy inventory admin list
 - `GET /api/inventory/summary`
@@ -148,13 +109,6 @@ All `/api/*` endpoints require auth except:
   - Recent sold inventory rows for Admin V2
 - `GET /api/admin-v2/dashboard/oldest-inventory`
   - Oldest active unsold inventory rows for Admin V2
-
-- `POST /api/radar/run`
-  - Manual radar run
-- `POST /api/radar/classify`
-  - Manual classify batch
-- `POST /api/radar/sms-test`
-  - Sends a Telnyx test SMS (if configured)
 
 ## Apify
 - Craigslist actor: `ivanvs/craigslist-scraper`
@@ -187,7 +141,6 @@ Tables:
 ## KV
 - KV namespace: `LISTING_JOBS`
 - Maps `runId → D1 recordId`
-- Also stores radar scheduling metadata (last run, next run, summaries)
 
 ## Secrets / Config (Cloudflare)
 - `OPENAI_API_KEY`
@@ -200,10 +153,6 @@ Optional:
 - `TELNYX_API_KEY`
 - `TELNYX_FROM_NUMBER`
 - `TELNYX_TO_NUMBER`
-- `RADAR_FB_SEARCH_URL`
-- `RADAR_CL_SEARCH_URL`
-- `RADAR_KEYWORDS`
-- `RADAR_AI_ENABLED`
 
 ## Deployment
 From `workers/listing-evaluator/`:

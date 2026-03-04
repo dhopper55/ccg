@@ -53,16 +53,6 @@ interface Env {
   AUTH_PASS: string;
   AUTH_SECRET: string;
   WEBHOOK_SECRET?: string;
-  RADAR_FB_SEARCH_URL?: string;
-  RADAR_CL_SEARCH_URL?: string;
-  RADAR_KEYWORDS?: string;
-  TELNYX_API_KEY?: string;
-  TELNYX_FROM_NUMBER?: string;
-  TELNYX_TO_NUMBER?: string;
-  RADAR_AI_ENABLED?: string;
-  RADAR_EMAIL_TO?: string;
-  RADAR_EMAIL_FROM?: string;
-  RESEND_API_KEY?: string;
   LISTING_JOBS: KVNamespace;
   GOOGLE_MAPS_API_KEY?: string;
 }
@@ -88,32 +78,6 @@ interface RejectResult {
 const MAX_URLS = 20;
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
-const RADAR_NEXT_RUN_KEY = 'radar_next_run_at';
-const RADAR_LAST_RUN_KEY = 'radar_last_run_at';
-const RADAR_LAST_SUMMARY_KEY = 'radar_last_summary';
-const RADAR_ENABLED_KEY = 'radar_enabled';
-const RADAR_INTERVAL_MINUTES_KEY = 'radar_interval_minutes';
-const RADAR_RESULTS_LIMIT_KEY = 'radar_results_limit';
-const RADAR_DEFAULT_INTERVAL_MINUTES = 3;
-const RADAR_MIN_INTERVAL_MINUTES = 1;
-const RADAR_MAX_INTERVAL_MINUTES = 120;
-const RADAR_DEFAULT_RESULTS_LIMIT = 5;
-const RADAR_MIN_RESULTS_LIMIT = 1;
-const RADAR_MAX_RESULTS_LIMIT = 100;
-const RADAR_JITTER_MINUTES = -1;
-const RADAR_JITTER_MAX_MINUTES = 1;
-const RADAR_EMAIL_SEND_EMPTY_KEY = 'radar_email_send_empty';
-const RADAR_CONSECUTIVE_SEEN_LIMIT = 10;
-const RADAR_MAX_NEW_PER_SOURCE = 100;
-const RADAR_CL_TIMEBOX_MS = 60000;
-const RADAR_MAX_AI_CHECKS_PER_RUN = 0;
-const RADAR_CLASSIFY_BATCH = 3;
-const RADAR_DEFAULT_PAGE = '/listing-radar.html';
-const RADAR_DEFAULT_EMAIL_TO = 'david@coalcreekguitars.com';
-const RADAR_EMAIL_INCLUDE_EXISTING = false;
-const MST_OFFSET_MINUTES = -7 * 60;
-const RADAR_QUIET_START_HOUR = 23;
-const RADAR_QUIET_END_HOUR = 5;
 const CUSTOM_MAX_PHOTOS = 10;
 const CUSTOM_MAX_TEXT_LENGTH = 5000;
 const REVERB_API_URL = 'https://api.reverb.com/api/my/listings?per_page=100';
@@ -327,11 +291,6 @@ export default {
       return withCors(response, request, env);
     }
 
-    if (path === '/api/search-results' && request.method === 'GET') {
-      const response = await handleSearchResults(request, env);
-      return withCors(response, request, env);
-    }
-
     if (path === '/api/marketplace-listings' && request.method === 'GET') {
       const response = await handleMarketplaceListingsList(env);
       return withCors(response, request, env);
@@ -452,45 +411,10 @@ export default {
       return withCors(response, request, env);
     }
 
-    if (path.endsWith('/archive') && path.startsWith('/api/search-results/') && request.method === 'POST') {
-      const response = await handleArchiveSearchResult(env, path);
-      return withCors(response, request, env);
-    }
-
-    if (path.endsWith('/queue') && path.startsWith('/api/search-results/') && request.method === 'POST') {
-      const response = await handleQueueSearchResult(env, path, ctx);
-      return withCors(response, request, env);
-    }
-
-    if (path === '/api/radar/run' && request.method === 'POST') {
-      const response = await handleRadarRun(request, env);
-      return withCors(response, request, env);
-    }
-
-    if (path === '/api/radar/classify' && request.method === 'POST') {
-      const response = await handleRadarClassify(request, env);
-      return withCors(response, request, env);
-    }
-
-    if (path === '/api/radar/sms-test' && request.method === 'POST') {
-      const response = await handleRadarSmsTest(request, env);
-      return withCors(response, request, env);
-    }
-
-    if (path === '/api/radar/settings' && request.method === 'GET') {
-      const response = await handleRadarSettings(request, env);
-      return withCors(response, request, env);
-    }
-
-    if (path === '/api/radar/settings' && request.method === 'POST') {
-      const response = await handleRadarSettingsUpdate(request, env);
-      return withCors(response, request, env);
-    }
-
     return withCors(new Response('Not found', { status: 404 }), request, env);
   },
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(runRadarIfDue(env));
+    return;
   },
 };
 
