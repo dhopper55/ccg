@@ -648,7 +648,7 @@ const InventoryManager = () => {
                 )
               }
             >
-              {isDownloadingLabels ? 'Generating…' : 'Labels PDF'}
+              {isDownloadingLabels ? 'Generating…' : 'Labels PDF (Avery 5163)'}
             </Button>
 
             <Tooltip title="Add">
