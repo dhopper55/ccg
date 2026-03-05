@@ -366,6 +366,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/inventory/merge-marked' && request.method === 'POST') {
+      const response = await handleAdminV2InventoryMergeMarked(env);
+      return withCors(response, request, env);
+    }
+
     if (path.endsWith('/mark') && path.startsWith('/api/admin-v2/inventory/') && request.method === 'POST') {
       const response = await handleAdminV2InventoryMarkUpdate(request, path, env);
       return withCors(response, request, env);
@@ -1638,6 +1643,110 @@ async function handleAdminV2InventoryMarkUpdate(
 async function handleAdminV2InventoryUnmarkAll(env: Env): Promise<Response> {
   const count = await dbUnmarkAllInventoryItems(env);
   return jsonResponse({ ok: true, count });
+}
+
+async function handleAdminV2InventoryMergeMarked(env: Env): Promise<Response> {
+  const markedRows = await dbListMarkedInventoryRowsForPackage(env);
+
+  const soldMarkedRows = markedRows.filter((row) => Number(row.is_sold || 0) === 1);
+  if (soldMarkedRows.length > 0) {
+    return jsonResponse({
+      message: `Merge canceled. ${soldMarkedRows.length} marked item${soldMarkedRows.length === 1 ? ' is' : 's are'} sold. Unmark sold items and try again.`,
+      soldMarkedCount: soldMarkedRows.length,
+    }, 400);
+  }
+
+  const activeUnsoldMarkedRows = markedRows.filter(
+    (row) => Number(row.is_active || 0) === 1 && Number(row.is_sold || 0) === 0,
+  );
+  if (activeUnsoldMarkedRows.length < 2) {
+    return jsonResponse({
+      message: 'At least 2 active unsold marked inventory items are required to merge.',
+    }, 400);
+  }
+
+  const packageImageUrls = selectMergePackageImageUrls(activeUnsoldMarkedRows);
+  if (packageImageUrls.length < 1) {
+    return jsonResponse({ message: 'Marked items did not contain usable images.' }, 400);
+  }
+
+  const purchasePriceTotal = activeUnsoldMarkedRows.reduce(
+    (sum, row) => sum + (Number.isFinite(row.purchase_price) ? Number(row.purchase_price) : 0),
+    0,
+  );
+  const privatePartyValueTotal = activeUnsoldMarkedRows.reduce(
+    (sum, row) => sum + (Number.isFinite(row.private_party_value) ? Number(row.private_party_value) : 0),
+    0,
+  );
+  const purchaseNotes = buildMergedPackagePurchaseNotes(activeUnsoldMarkedRows);
+
+  const ccgNumber = await generateUniqueCcgNumber(env);
+  if (!ccgNumber) {
+    return jsonResponse({ message: 'Unable to generate CCG Number. Please try again.' }, 500);
+  }
+
+  const inserted = await dbCreateInventoryItems({
+    source_listing_id: null,
+    ccg_number: ccgNumber,
+    image_url: packageImageUrls[0],
+    image_urls: packageImageUrls.join('\n'),
+    title: 'New Package (needs edit)',
+    category: 'Packages',
+    brand: 'CCG',
+    year_range: String(new Date().getFullYear()),
+    model: null,
+    finish: null,
+    original_listing_desc: null,
+    purchased_date: currentDateYmd(),
+    purchase_price: purchasePriceTotal,
+    private_party_value: privatePartyValueTotal,
+    purchase_notes: purchaseNotes || null,
+    serial_number: null,
+    is_active: 1,
+    is_marked: 0,
+    is_personal: 0,
+    for_sale: 0,
+    for_sale_date: null,
+    is_sold: 0,
+    sold_date: null,
+    sold_amount: 0,
+    sell_notes: '',
+  }, 1, env);
+
+  if (!inserted?.firstId) {
+    return jsonResponse({ message: 'Unable to create merged inventory item.' }, 500);
+  }
+
+  const sourceIds = activeUnsoldMarkedRows.map((row) => row.id);
+  const sourceListingIds = Array.from(new Set(
+    activeUnsoldMarkedRows
+      .map((row) => row.source_listing_id)
+      .filter((value): value is number => Number.isFinite(value) && Number(value) > 0),
+  ));
+
+  const deletedCount = await dbDeleteInventoryItemsByIds(sourceIds, env);
+  if (deletedCount !== sourceIds.length) {
+    return jsonResponse({
+      message: `Merged item was created, but only ${deletedCount} of ${sourceIds.length} source rows were deleted. Resolve manually.`,
+      id: inserted.firstId,
+      ccgNumber: inserted.ccgNumber,
+    }, 500);
+  }
+
+  if (sourceListingIds.length > 0) {
+    const listingUrls = await dbListListingUrlsByIds(sourceListingIds, env);
+    if (listingUrls.length > 0) {
+      await dbDeleteMarketplaceListingsByUrls(listingUrls, env);
+    }
+    await dbDeleteListingsByIds(sourceListingIds, env);
+  }
+
+  return jsonResponse({
+    ok: true,
+    id: inserted.firstId,
+    ccgNumber: inserted.ccgNumber,
+    mergedCount: sourceIds.length,
+  });
 }
 
 async function handleInventoryPackageCreate(env: Env): Promise<Response> {
@@ -3698,6 +3807,55 @@ async function dbDeleteInventoryItemsByCcgNumber(ccgNumber: string, env: Env): P
   }
 }
 
+async function dbListListingUrlsByIds(ids: number[], env: Env): Promise<string[]> {
+  const normalizedIds = ids.filter((id) => Number.isFinite(id) && id > 0);
+  if (normalizedIds.length === 0) return [];
+  try {
+    const placeholders = normalizedIds.map(() => '?').join(', ');
+    const result = await env.DB.prepare(
+      `SELECT url FROM listings WHERE id IN (${placeholders})`
+    ).bind(...normalizedIds).all<{ url: string | null }>();
+    return (result.results ?? [])
+      .map((row) => normalizeText(row.url, ''))
+      .filter(Boolean);
+  } catch (error) {
+    console.error('Listing URL lookup failed', { error });
+    return [];
+  }
+}
+
+async function dbDeleteListingsByIds(ids: number[], env: Env): Promise<number> {
+  const normalizedIds = ids.filter((id) => Number.isFinite(id) && id > 0);
+  if (normalizedIds.length === 0) return 0;
+  try {
+    const placeholders = normalizedIds.map(() => '?').join(', ');
+    const result = await env.DB.prepare(
+      `DELETE FROM listings WHERE id IN (${placeholders})`
+    ).bind(...normalizedIds).run();
+    return Number(result.meta?.changes || 0);
+  } catch (error) {
+    console.error('Listing cleanup delete failed', { error });
+    return 0;
+  }
+}
+
+async function dbDeleteMarketplaceListingsByUrls(urls: string[], env: Env): Promise<number> {
+  const normalizedUrls = urls
+    .map((url) => normalizeText(url, ''))
+    .filter(Boolean);
+  if (normalizedUrls.length === 0) return 0;
+  try {
+    const placeholders = normalizedUrls.map(() => '?').join(', ');
+    const result = await env.DB.prepare(
+      `DELETE FROM ccg_marketplace_listings WHERE listing_url IN (${placeholders})`
+    ).bind(...normalizedUrls).run();
+    return Number(result.meta?.changes || 0);
+  } catch (error) {
+    console.error('Marketplace cleanup delete failed', { error });
+    return 0;
+  }
+}
+
 async function dbListMarkedInventoryRowsForPackage(env: Env): Promise<InventoryItemRow[]> {
   const result = await env.DB.prepare(
     `SELECT
@@ -5347,6 +5505,53 @@ function buildPackagePurchaseNotes(rows: InventoryItemRow[]): string {
   return sections.join(`\n${separator}\n`);
 }
 
+function selectMergePackageImageUrls(rows: InventoryItemRow[]): string[] {
+  const selected: string[] = [];
+  const seen = new Set<string>();
+  const perRowImageUrls = rows.map((row) => parseStoredInventoryImageUrls(row.image_urls, row.image_url));
+
+  // First pass: first image from each merged item.
+  for (const imageUrls of perRowImageUrls) {
+    const firstUrl = imageUrls[0];
+    if (!firstUrl || seen.has(firstUrl)) continue;
+    selected.push(firstUrl);
+    seen.add(firstUrl);
+    if (selected.length >= INVENTORY_MAX_IMAGES) return selected;
+  }
+
+  // Second pass: fill remaining slots from the rest of each item's image set.
+  for (const imageUrls of perRowImageUrls) {
+    for (let i = 1; i < imageUrls.length; i += 1) {
+      const imageUrl = imageUrls[i];
+      if (!imageUrl || seen.has(imageUrl)) continue;
+      selected.push(imageUrl);
+      seen.add(imageUrl);
+      if (selected.length >= INVENTORY_MAX_IMAGES) return selected;
+    }
+  }
+
+  return selected;
+}
+
+function buildMergedPackagePurchaseNotes(rows: InventoryItemRow[]): string {
+  return rows.map((row, index) => {
+    const paid = formatOptionalMoneyForPackageNotes(row.purchase_price) || '$0';
+    const privateParty = formatOptionalMoneyForPackageNotes(row.private_party_value) || '$0';
+    const itemLines = [
+      `${index + 1}. ${normalizeText(row.ccg_number, 'N/A')} | ${normalizeText(row.title, 'Untitled')}`,
+      `Category: ${normalizeText(row.category, '') || 'N/A'}`,
+      `Brand: ${normalizeText(row.brand, '') || 'N/A'}`,
+      `Year: ${normalizeText(row.year_range, '') || 'N/A'}`,
+      `Model: ${normalizeText(row.model, '') || 'N/A'}`,
+      `Finish: ${normalizeText(row.finish, '') || 'N/A'}`,
+      `How Much Paid: ${paid}`,
+      `Private Party Value: ${privateParty}`,
+      `Serial Number: ${normalizeText(row.serial_number, '') || 'N/A'}`,
+    ];
+    return itemLines.join('\n');
+  }).join('\n\n');
+}
+
 async function cloneInventoryImageKeyToNewPackageImageUrl(sourceKey: string, env: Env): Promise<string> {
   if (!env.CUSTOM_ITEMS_BUCKET) {
     throw new Error('Inventory image uploads are not configured.');
@@ -6668,6 +6873,12 @@ const PDF_LABEL_TITLE_LINE_HEIGHT = 18;
 const PDF_LABEL_RIGHT_PADDING = 3;
 const PDF_LABEL_TITLE_SECOND_LINE_BASELINE = 22 * PDF_LABEL_INTERNAL_SCALE;
 const PDF_LABEL_TITLE_MAX_BOX_HEIGHT = 58 * PDF_LABEL_INTERNAL_SCALE;
+// Printer/feed compensation:
+// keep the top row where it is, and progressively nudge lower rows down to prevent upward drift.
+const PDF_LABEL_CONTENT_GLOBAL_Y_OFFSET = -1.5;
+const PDF_LABEL_CONTENT_ROW_DRIFT_COMPENSATION = -2;
+const PDF_LABEL_CONTENT_ROW_FINE_TUNE: readonly number[] = [0, 0, 0, -0.8, -2.2];
+const PDF_LABEL_IMAGE_ROW_FINE_TUNE: readonly number[] = [0, 0, 0, -1.2, -18];
 
 async function buildInventoryLabelsPdf(rows: InventoryLabelPdfRow[], env: Env): Promise<Uint8Array> {
   const pages = chunkArray(rows, PDF_LABELS_PER_PAGE);
@@ -6760,21 +6971,22 @@ function buildInventoryLabelsPageContent(
     const left = PDF_LABEL_MARGIN_X + col * PDF_LABEL_PITCH_X;
     const bottom =
       PDF_LETTER_HEIGHT - PDF_LABEL_MARGIN_Y - PDF_LABEL_HEIGHT - rowIndex * PDF_LABEL_PITCH_Y;
+    const contentBottom =
+      bottom +
+      PDF_LABEL_CONTENT_GLOBAL_Y_OFFSET +
+      rowIndex * PDF_LABEL_CONTENT_ROW_DRIFT_COMPENSATION +
+      (PDF_LABEL_CONTENT_ROW_FINE_TUNE[rowIndex] ?? 0);
+    const imageBottom = contentBottom + (PDF_LABEL_IMAGE_ROW_FINE_TUNE[rowIndex] ?? 0);
     const imageName = `Im${index + 1}`;
 
-    commands.push(renderLabelBorder(left, bottom));
     if (imageByName.has(imageName)) {
-      commands.push(renderLabelImage(left, bottom, imageName, imageByName.get(imageName)!.asset));
+      commands.push(renderLabelImage(left, imageBottom, imageName, imageByName.get(imageName)!.asset));
     }
-    commands.push(renderLabelCcgNumber(left, bottom, row.ccgNumber));
-    commands.push(renderLabelTitle(left, bottom, row.title));
+    commands.push(renderLabelCcgNumber(left, contentBottom, row.ccgNumber));
+    commands.push(renderLabelTitle(left, contentBottom, row.title));
   });
 
   return commands.filter(Boolean).join('\n');
-}
-
-function renderLabelBorder(left: number, bottom: number): string {
-  return `q 0.82 G 0.4 w ${formatPdfNumber(left)} ${formatPdfNumber(bottom)} ${formatPdfNumber(PDF_LABEL_WIDTH)} ${formatPdfNumber(PDF_LABEL_HEIGHT)} re S Q`;
 }
 
 function renderLabelImage(left: number, bottom: number, imageName: string, asset: PdfImageAsset): string {

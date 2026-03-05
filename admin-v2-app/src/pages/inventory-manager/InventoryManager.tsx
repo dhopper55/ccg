@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { useSnackbar } from 'notistack';
 import {
   Alert,
   Box,
@@ -105,6 +106,7 @@ function formatCurrency(value: number | null | undefined): string {
 
 const InventoryManager = () => {
   const navigate = useNavigate();
+  const { enqueueSnackbar } = useSnackbar();
   const { down } = useBreakpoints();
   const downSm = down('sm');
   const [filters, setFilters] = useState<InventoryFilters>(DEFAULT_FILTERS);
@@ -118,6 +120,7 @@ const InventoryManager = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isDownloadingLabels, setIsDownloadingLabels] = useState(false);
   const [isUnmarkingAll, setIsUnmarkingAll] = useState(false);
+  const [isMergingMarked, setIsMergingMarked] = useState(false);
   const [togglingMarkedIds, setTogglingMarkedIds] = useState<string[]>([]);
   const [errorMessage, setErrorMessage] = useState('');
   const [labelsErrorMessage, setLabelsErrorMessage] = useState('');
@@ -332,6 +335,53 @@ const InventoryManager = () => {
       );
     } finally {
       setIsUnmarkingAll(false);
+    }
+  };
+
+  const handleMergeMarked = async () => {
+    const isConfirmed = window.confirm("Are you sure you want to merge all 'Marked' items?");
+    if (!isConfirmed) return;
+
+    setIsMergingMarked(true);
+    setActionErrorMessage('');
+
+    try {
+      const response = await fetch('/api/admin-v2/inventory/merge-marked', {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+
+      let message = 'Marked items were merged.';
+      let mergedCount = 0;
+      try {
+        const data = (await response.json()) as { message?: string; mergedCount?: number };
+        if (data?.message) message = data.message;
+        if (typeof data?.mergedCount === 'number' && Number.isFinite(data.mergedCount)) {
+          mergedCount = data.mergedCount;
+        }
+      } catch {
+        // Ignore parse failures and use fallback message.
+      }
+
+      if (!response.ok) {
+        throw new Error(message || 'Unable to merge marked inventory items.');
+      }
+
+      setPage(1);
+      setSortBy('title');
+      setSortDir('asc');
+      setFilters(DEFAULT_FILTERS);
+      setRecords([]);
+      const successText = mergedCount > 0
+        ? `Merged ${mergedCount} marked items.`
+        : 'Marked items were merged.';
+      enqueueSnackbar(successText, { variant: 'success' });
+    } catch (error) {
+      const text = error instanceof Error ? error.message : 'Unable to merge marked inventory items.';
+      setActionErrorMessage(text);
+      enqueueSnackbar(text, { variant: 'error' });
+    } finally {
+      setIsMergingMarked(false);
     }
   };
 
@@ -635,11 +685,29 @@ const InventoryManager = () => {
               </Button>
             ) : null}
 
+            {filters.onlyMarked ? (
+              <Button
+                variant="outlined"
+                color="inherit"
+                onClick={handleMergeMarked}
+                disabled={isMergingMarked || isUnmarkingAll || isDownloadingLabels}
+                startIcon={
+                  isMergingMarked ? (
+                    <CircularProgress color="inherit" size={16} />
+                  ) : (
+                    <IconifyIcon icon="material-symbols:check-rounded" />
+                  )
+                }
+              >
+                {isMergingMarked ? 'Merging…' : 'Merge Marked'}
+              </Button>
+            ) : null}
+
             <Button
               variant="outlined"
               color="inherit"
               onClick={handleDownloadLabels}
-              disabled={isDownloadingLabels}
+              disabled={isDownloadingLabels || isMergingMarked}
               startIcon={
                 isDownloadingLabels ? (
                   <CircularProgress color="inherit" size={16} />
