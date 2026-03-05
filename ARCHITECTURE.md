@@ -14,7 +14,7 @@ Admin is served from `/admin` and built from the Aurora-based app.
 Layout:
 - Source app: `admin-v2-app/`
 - Deployed static output: `admin/`
-- Build command from repo root: `npm run build:admin-v2`
+- Build command from repo root: `npm run build` (builds legacy + admin)
 
 ### Aurora
 Admin V2 is based on the Aurora admin template.
@@ -59,6 +59,9 @@ All `/api/*` endpoints require auth except:
 - `/api/login`
 - `/api/session`
 - `/api/listings/webhook` (Apify webhook)
+- `/api/custom-items/submit`
+- `/api/custom-items/status`
+- `/api/custom-image`
 
 ## Cloudflare Worker
 - Location: `workers/listing-evaluator/src/index.ts`
@@ -105,10 +108,20 @@ All `/api/*` endpoints require auth except:
   - Profit trend series for Admin V2 home page
 - `GET /api/admin-v2/dashboard/inventory-aging`
   - Aging buckets for active unsold inventory
+- `GET /api/admin-v2/dashboard/inventory-by-category`
+  - Inventory category distribution for Admin V2
 - `GET /api/admin-v2/dashboard/recent-sales`
   - Recent sold inventory rows for Admin V2
 - `GET /api/admin-v2/dashboard/oldest-inventory`
   - Oldest active unsold inventory rows for Admin V2
+- `GET /api/admin-v2/listings/:id`
+  - Listing detail payload used by Admin V2 listing drilldown
+- `POST /api/admin-v2/inventory/:id/mark`
+  - Toggle inventory `Marked` state from Inventory Manager grid
+- `POST /api/admin-v2/inventory/unmark-all`
+  - Unmark all inventory rows in DB
+- `GET /api/admin-v2/inventory/labels.pdf`
+  - Generate labels PDF from currently marked inventory and then clear marked state
 
 ## Apify
 - Craigslist actor: `ivanvs/craigslist-scraper`
@@ -140,6 +153,7 @@ Tables:
 ## KV
 - KV namespace: `LISTING_JOBS`
 - Maps `runId → D1 recordId`
+- Scheduled handler exists in worker but is intentionally a no-op (radar/scheduled scraping removed).
 
 ## Secrets / Config (Cloudflare)
 - `OPENAI_API_KEY`
@@ -149,9 +163,7 @@ Tables:
 - `AUTH_PASS`
 - `AUTH_SECRET`
 Optional:
-- `TELNYX_API_KEY`
-- `TELNYX_FROM_NUMBER`
-- `TELNYX_TO_NUMBER`
+- `REVERB_API_TOKEN`
 
 ## Deployment
 From `workers/listing-evaluator/`:

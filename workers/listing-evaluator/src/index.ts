@@ -4636,6 +4636,34 @@ async function resolveFacebookShareUrl(url: string): Promise<string> {
   return url;
 }
 
+function normalizeFacebookItemUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    if (!host.includes('facebook.com')) return null;
+
+    if (parsed.pathname.startsWith('/l.php')) {
+      const target = parsed.searchParams.get('u');
+      if (!target) return parsed.toString();
+      const decoded = decodeURIComponent(target);
+      return normalizeFacebookItemUrl(decoded) ?? decoded;
+    }
+
+    const itemMatch = parsed.pathname.match(/\/marketplace\/item\/(\d+)/);
+    if (itemMatch?.[1]) {
+      return `https://www.facebook.com/marketplace/item/${itemMatch[1]}/`;
+    }
+
+    if (parsed.pathname.startsWith('/share/')) {
+      return parsed.toString();
+    }
+
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
 function normalizeQueuedListingUrl(url: string): string | null {
   const normalized = normalizeUrl(url);
   if (!normalized) return null;
