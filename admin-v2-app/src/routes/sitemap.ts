@@ -55,15 +55,6 @@ const sitemap: MenuItem[] = [
         active: true,
       },
       {
-        name: 'Marketplace Admin',
-        key: 'marketplace_admin',
-        path: paths.marketplaceListings,
-        pathName: 'marketplace-admin',
-        selectionPrefix: '/marketplace-listing-item',
-        icon: 'material-symbols:package-2-outline',
-        active: true,
-      },
-      {
         name: 'Inventory Manager',
         key: 'inventory_manager',
         path: paths.inventoryManager,

@@ -96,6 +96,8 @@ All `/api/*` endpoints require auth except:
   - Debug payload for a listing
 - `POST /api/listings/reprocess`
   - Re-run AI processing for a listing
+- `GET /api/for-sale`
+  - Public feed that merges Reverb listings with inventory-managed Facebook Marketplace listings
 
 - `GET /api/inventory`
   - Legacy inventory admin list
@@ -140,7 +142,7 @@ Schema lives in `workers/listing-evaluator/schema.sql`.
 Tables:
 - `listings`
 - `ccg_inventory_items`
-- `ccg_marketplace_listings`
+  - Includes FBM fields: `fbm_listing`, `fbm_title`, `fbm_url`, `fbm_image_url`, `fbm_listing_price`
 
 ## OpenAI
 - Models: `gpt-4o` and `gpt-4o-mini` (see worker for task-specific usage)

@@ -291,26 +291,6 @@ export default {
       return withCors(response, request, env);
     }
 
-    if (path === '/api/marketplace-listings' && request.method === 'GET') {
-      const response = await handleMarketplaceListingsList(env);
-      return withCors(response, request, env);
-    }
-
-    if (path === '/api/marketplace-listings' && request.method === 'POST') {
-      const response = await handleMarketplaceListingsCreate(request, env);
-      return withCors(response, request, env);
-    }
-
-    if (path.endsWith('/update') && path.startsWith('/api/marketplace-listings/') && request.method === 'POST') {
-      const response = await handleMarketplaceListingsUpdate(request, path, env);
-      return withCors(response, request, env);
-    }
-
-    if (path.endsWith('/remove') && path.startsWith('/api/marketplace-listings/') && request.method === 'POST') {
-      const response = await handleMarketplaceListingsRemove(request, path, env);
-      return withCors(response, request, env);
-    }
-
     if (path === '/api/inventory' && request.method === 'GET') {
       const response = await handleInventoryList(request, env);
       return withCors(response, request, env);
@@ -1140,16 +1120,14 @@ type UnifiedForSaleItem = {
   createdAt: string;
 };
 
-type MarketplaceListingRow = {
+type InventoryFbmForSaleRow = {
   id: number;
-  source: string;
   title: string;
-  price_dollars: number;
-  currency: string | null;
   image_url: string | null;
-  listing_url: string;
-  status: string | null;
-  notes: string | null;
+  fbm_title: string | null;
+  fbm_url: string | null;
+  fbm_image_url: string | null;
+  fbm_listing_price: number | null;
   created_at: string | null;
   updated_at: string | null;
 };
@@ -1177,6 +1155,11 @@ type InventoryItemRow = {
   is_personal: number | null;
   for_sale: number | null;
   for_sale_date: string | null;
+  fbm_listing: number | null;
+  fbm_title: string | null;
+  fbm_url: string | null;
+  fbm_image_url: string | null;
+  fbm_listing_price: number | null;
   is_sold: number | null;
   sold_date: string | null;
   sold_amount: number | null;
@@ -1309,156 +1292,20 @@ async function handleMapsConfig(env: Env): Promise<Response> {
 }
 
 async function handleForSaleFeed(env: Env): Promise<Response> {
-  const [reverbListings, marketplaceListings] = await Promise.all([
+  const [reverbListings, inventoryFbmListings] = await Promise.all([
     fetchReverbListings(env),
-    dbListMarketplaceListings(env, false),
+    dbListInventoryFacebookForSale(env),
   ]);
 
   const unified: UnifiedForSaleItem[] = [];
   unified.push(...reverbListings.map((listing) => normalizeReverbForSale(listing)));
-  unified.push(...marketplaceListings.map((listing) => normalizeMarketplaceForSale(listing)));
+  unified.push(...inventoryFbmListings.map((listing) => normalizeInventoryFacebookForSale(listing)));
 
   const merged = unified
     .filter((listing) => listing.title && listing.listingUrl && Number.isFinite(listing.priceDollars))
     .sort((a, b) => b.priceDollars - a.priceDollars);
 
   return jsonResponse({ records: merged });
-}
-
-async function handleMarketplaceListingsList(env: Env): Promise<Response> {
-  const records = await dbListMarketplaceListings(env, false);
-  const payload = records.map((row) => ({
-    id: String(row.id),
-    source: row.source || 'facebook',
-    title: row.title || '',
-    priceDollars: Number.isFinite(row.price_dollars) ? row.price_dollars : 0,
-    currency: row.currency || 'USD',
-    imageUrl: row.image_url || '',
-    listingUrl: row.listing_url || '',
-    status: row.status || 'active',
-    notes: row.notes || '',
-    createdAt: row.created_at || '',
-    updatedAt: row.updated_at || '',
-  }));
-  return jsonResponse({ records: payload });
-}
-
-async function handleMarketplaceListingsCreate(request: Request, env: Env): Promise<Response> {
-  let body: Record<string, unknown> = {};
-  try {
-    body = await request.json();
-  } catch {
-    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
-  }
-
-  const title = normalizeText(body.title, '').slice(0, 200);
-  const listingUrl = normalizeUrl(normalizeText(body.listingUrl, ''));
-  const imageInput = normalizeText(body.imageUrl, '');
-  const notes = normalizeText(body.notes, '').slice(0, 2000);
-  const priceDollars = parseWholeDollars(body.priceDollars);
-
-  if (!title) return jsonResponse({ message: 'Title is required.' }, 400);
-  if (!listingUrl) return jsonResponse({ message: 'Listing URL is required.' }, 400);
-  if (!listingUrl.includes('facebook.com/marketplace')) {
-    return jsonResponse({ message: 'Listing URL must be a Facebook Marketplace URL.' }, 400);
-  }
-  if (priceDollars == null || !Number.isFinite(priceDollars) || priceDollars < 1) {
-    return jsonResponse({ message: 'Price (whole dollars) must be at least 1.' }, 400);
-  }
-  const importedImage = await importMarketplaceImageToR2(imageInput, env);
-  if (importedImage.errorStatus && importedImage.errorMessage) {
-    return jsonResponse({ message: importedImage.errorMessage }, importedImage.errorStatus);
-  }
-
-  const inserted = await dbCreateMarketplaceListing({
-    source: 'facebook',
-    title,
-    price_dollars: priceDollars,
-    currency: 'USD',
-    image_url: importedImage.imageUrl,
-    listing_url: listingUrl,
-    status: 'active',
-    notes: notes || null,
-  }, env);
-
-  if (!inserted) {
-    return jsonResponse({ message: 'Unable to create listing. URL may already exist.' }, 400);
-  }
-
-  return jsonResponse({ ok: true, id: inserted });
-}
-
-async function handleMarketplaceListingsUpdate(request: Request, path: string, env: Env): Promise<Response> {
-  const parts = path.split('/').filter(Boolean);
-  const updateIndex = parts.indexOf('update');
-  const recordId = updateIndex > 0 ? parts[updateIndex - 1] : '';
-  if (!recordId) return jsonResponse({ message: 'Missing listing ID.' }, 400);
-
-  let body: Record<string, unknown> = {};
-  try {
-    body = await request.json();
-  } catch {
-    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
-  }
-
-  const title = normalizeText(body.title, '').slice(0, 200);
-  const listingUrl = normalizeUrl(normalizeText(body.listingUrl, ''));
-  const imageInput = typeof body.imageUrl === 'string' ? body.imageUrl.trim() : '';
-  const notes = normalizeText(body.notes, '').slice(0, 2000);
-  const priceDollars = parseWholeDollars(body.priceDollars);
-
-  if (!title) return jsonResponse({ message: 'Title is required.' }, 400);
-  if (!listingUrl) return jsonResponse({ message: 'Listing URL is required.' }, 400);
-  if (!listingUrl.includes('facebook.com/marketplace')) {
-    return jsonResponse({ message: 'Listing URL must be a Facebook Marketplace URL.' }, 400);
-  }
-  if (priceDollars == null || !Number.isFinite(priceDollars) || priceDollars < 1) {
-    return jsonResponse({ message: 'Price (whole dollars) must be at least 1.' }, 400);
-  }
-  let nextImageUrl: string | null = null;
-  if (imageInput) {
-    const importedImage = await importMarketplaceImageToR2(imageInput, env);
-    if (importedImage.errorStatus && importedImage.errorMessage) {
-      return jsonResponse({ message: importedImage.errorMessage }, importedImage.errorStatus);
-    }
-    nextImageUrl = importedImage.imageUrl;
-  } else {
-    const current = await dbGetMarketplaceListingById(recordId, env);
-    if (!current) return jsonResponse({ message: 'Listing not found.' }, 404);
-    nextImageUrl = current.image_url || null;
-  }
-
-  const ok = await dbUpdateMarketplaceListing(recordId, {
-    title,
-    price_dollars: priceDollars,
-    image_url: nextImageUrl,
-    listing_url: listingUrl,
-    notes: notes || null,
-  }, env);
-
-  if (!ok) return jsonResponse({ message: 'Unable to update listing.' }, 500);
-  return jsonResponse({ ok: true });
-}
-
-async function handleMarketplaceListingsRemove(request: Request, path: string, env: Env): Promise<Response> {
-  const parts = path.split('/').filter(Boolean);
-  const removeIndex = parts.indexOf('remove');
-  const recordId = removeIndex > 0 ? parts[removeIndex - 1] : '';
-  if (!recordId) return jsonResponse({ message: 'Missing listing ID.' }, 400);
-
-  let nextStatus: 'active' | 'removed' = 'removed';
-  try {
-    const body = await request.json();
-    if (body?.status === 'active' || body?.status === 'removed') {
-      nextStatus = body.status;
-    }
-  } catch {
-    nextStatus = 'removed';
-  }
-
-  const ok = await dbSetMarketplaceListingStatus(recordId, nextStatus, env);
-  if (!ok) return jsonResponse({ message: 'Unable to remove listing.' }, 500);
-  return jsonResponse({ ok: true, status: nextStatus });
 }
 
 function parseBoundedInt(value: unknown, fallback: number, min: number, max: number): number {
@@ -1707,6 +1554,11 @@ async function handleAdminV2InventoryMergeMarked(env: Env): Promise<Response> {
     is_personal: 0,
     for_sale: 0,
     for_sale_date: null,
+    fbm_listing: 0,
+    fbm_title: null,
+    fbm_url: null,
+    fbm_image_url: null,
+    fbm_listing_price: null,
     is_sold: 0,
     sold_date: null,
     sold_amount: 0,
@@ -1734,10 +1586,6 @@ async function handleAdminV2InventoryMergeMarked(env: Env): Promise<Response> {
   }
 
   if (sourceListingIds.length > 0) {
-    const listingUrls = await dbListListingUrlsByIds(sourceListingIds, env);
-    if (listingUrls.length > 0) {
-      await dbDeleteMarketplaceListingsByUrls(listingUrls, env);
-    }
     await dbDeleteListingsByIds(sourceListingIds, env);
   }
 
@@ -1795,6 +1643,11 @@ async function handleInventoryPackageCreate(env: Env): Promise<Response> {
     is_personal: 0,
     for_sale: 0,
     for_sale_date: null,
+    fbm_listing: 0,
+    fbm_title: null,
+    fbm_url: null,
+    fbm_image_url: null,
+    fbm_listing_price: null,
     is_sold: 0,
     sold_date: null,
     sold_amount: 0,
@@ -1854,6 +1707,14 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const isSold = toBooleanInput(body.isSold, false);
   const forSaleRaw = toBooleanInput(body.forSale, false);
   const forSale = isSold ? false : forSaleRaw;
+  const fbmListing = toBooleanInput(body.fbmListing, false);
+  const fbmTitle = normalizeText(body.fbmTitle, '').slice(0, 240);
+  const fbmUrlRaw = normalizeText(body.fbmUrl, '');
+  const fbmImageUrlRaw = normalizeText(body.fbmImageUrl, '');
+  const fbmListingPriceRaw = parseCurrencyAmount(body.fbmListingPrice);
+  const fbmUrl = fbmListing ? normalizeUrl(fbmUrlRaw) : null;
+  const fbmImageUrl = fbmListing ? normalizeUrl(fbmImageUrlRaw) : null;
+  const fbmListingPrice = fbmListing ? fbmListingPriceRaw : null;
   const soldAmount = parseCurrencyAmount(body.soldAmount);
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
   const qty = parseBoundedInt(body.qty, 1, 1, 100);
@@ -1862,6 +1723,20 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   if (imageUrls.length < 1) return jsonResponse({ message: 'At least one image is required.' }, 400);
   if (imageUrls.length > INVENTORY_MAX_IMAGES) {
     return jsonResponse({ message: `You can upload up to ${INVENTORY_MAX_IMAGES} images.` }, 400);
+  }
+  if (fbmListing) {
+    if (!fbmTitle) {
+      return jsonResponse({ message: 'FBM title is required when FBM Listing is enabled.' }, 400);
+    }
+    if (!fbmUrl || !fbmUrl.includes('facebook.com/marketplace')) {
+      return jsonResponse({ message: 'FBM URL must be a valid Facebook Marketplace URL.' }, 400);
+    }
+    if (!fbmImageUrl) {
+      return jsonResponse({ message: 'FBM image URL is required when FBM Listing is enabled.' }, 400);
+    }
+    if (fbmListingPrice == null || !Number.isFinite(fbmListingPrice) || fbmListingPrice <= 0) {
+      return jsonResponse({ message: 'FBM listing price must be greater than 0.' }, 400);
+    }
   }
 
   if (sourceListingId != null) {
@@ -1924,6 +1799,11 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     is_personal: isPersonal ? 1 : 0,
     for_sale: forSale ? 1 : 0,
     for_sale_date: forSale ? new Date().toISOString() : null,
+    fbm_listing: fbmListing ? 1 : 0,
+    fbm_title: fbmTitle || null,
+    fbm_url: fbmUrl,
+    fbm_image_url: fbmImageUrl,
+    fbm_listing_price: fbmListingPrice,
     is_sold: isSold ? 1 : 0,
     sold_date: isSold ? new Date().toISOString() : null,
     sold_amount: soldAmount,
@@ -2022,62 +1902,6 @@ async function handleInventoryImageImport(request: Request, env: Env): Promise<R
   return jsonResponse({ ok: true, imageUrl: buildInventoryImageUrl(key) });
 }
 
-async function importMarketplaceImageToR2(
-  imageInput: string,
-  env: Env
-): Promise<{ imageUrl: string | null; errorMessage?: string; errorStatus?: number }> {
-  if (!imageInput) {
-    return { imageUrl: null };
-  }
-
-  if (isInventoryImageUrl(imageInput)) {
-    return { imageUrl: imageInput };
-  }
-
-  const sourceUrl = normalizeUrl(imageInput);
-  if (!sourceUrl) {
-    return { imageUrl: null, errorMessage: 'Main image URL is invalid.', errorStatus: 400 };
-  }
-
-  if (!env.CUSTOM_ITEMS_BUCKET) {
-    return {
-      imageUrl: null,
-      errorMessage: 'Inventory image uploads are not configured.',
-      errorStatus: 500,
-    };
-  }
-
-  let sourceResponse: Response;
-  try {
-    sourceResponse = await fetch(sourceUrl, {
-      headers: { 'User-Agent': 'CCG Marketplace Import/1.0' },
-      redirect: 'follow',
-    });
-  } catch {
-    return { imageUrl: null, errorMessage: 'Unable to fetch the image URL.', errorStatus: 400 };
-  }
-
-  if (!sourceResponse.ok) {
-    return { imageUrl: null, errorMessage: 'Unable to fetch the image URL.', errorStatus: 400 };
-  }
-
-  const contentType = sourceResponse.headers.get('content-type') || '';
-  if (!contentType.toLowerCase().startsWith('image/')) {
-    return { imageUrl: null, errorMessage: 'Image URL did not return an image.', errorStatus: 400 };
-  }
-
-  const extension = extensionFromContentType(contentType);
-  const key = `inventory-items/marketplace/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${extension}`;
-  const bodyBytes = await sourceResponse.arrayBuffer();
-  await env.CUSTOM_ITEMS_BUCKET.put(key, bodyBytes, {
-    httpMetadata: {
-      contentType: contentType || 'application/octet-stream',
-    },
-  });
-
-  return { imageUrl: buildInventoryImageUrl(key) };
-}
-
 async function handleInventoryGet(path: string, env: Env): Promise<Response> {
   const parts = path.split('/').filter(Boolean);
   const recordId = parts[2] || '';
@@ -2127,6 +1951,14 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const isSold = toBooleanInput(body.isSold, false);
   const forSaleRaw = toBooleanInput(body.forSale, false);
   const forSale = isSold ? false : forSaleRaw;
+  const fbmListing = toBooleanInput(body.fbmListing, false);
+  const fbmTitle = normalizeText(body.fbmTitle, '').slice(0, 240);
+  const fbmUrlRaw = normalizeText(body.fbmUrl, '');
+  const fbmImageUrlRaw = normalizeText(body.fbmImageUrl, '');
+  const fbmListingPriceRaw = parseCurrencyAmount(body.fbmListingPrice);
+  const fbmUrl = fbmListing ? normalizeUrl(fbmUrlRaw) : null;
+  const fbmImageUrl = fbmListing ? normalizeUrl(fbmImageUrlRaw) : null;
+  const fbmListingPrice = fbmListing ? fbmListingPriceRaw : null;
   const soldAmount = parseCurrencyAmount(body.soldAmount);
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
 
@@ -2135,6 +1967,20 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   if (imageUrls.length < 1) return jsonResponse({ message: 'At least one image is required.' }, 400);
   if (imageUrls.length > INVENTORY_MAX_IMAGES) {
     return jsonResponse({ message: `You can upload up to ${INVENTORY_MAX_IMAGES} images.` }, 400);
+  }
+  if (fbmListing) {
+    if (!fbmTitle) {
+      return jsonResponse({ message: 'FBM title is required when FBM Listing is enabled.' }, 400);
+    }
+    if (!fbmUrl || !fbmUrl.includes('facebook.com/marketplace')) {
+      return jsonResponse({ message: 'FBM URL must be a valid Facebook Marketplace URL.' }, 400);
+    }
+    if (!fbmImageUrl) {
+      return jsonResponse({ message: 'FBM image URL is required when FBM Listing is enabled.' }, 400);
+    }
+    if (fbmListingPrice == null || !Number.isFinite(fbmListingPrice) || fbmListingPrice <= 0) {
+      return jsonResponse({ message: 'FBM listing price must be greater than 0.' }, 400);
+    }
   }
 
   const current = await dbGetInventoryItem(recordId, env);
@@ -2188,6 +2034,11 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       nextOn: forSale,
       previousTimestamp: previousForSaleDate,
     }),
+    fbm_listing: fbmListing ? 1 : 0,
+    fbm_title: fbmTitle || null,
+    fbm_url: fbmUrl,
+    fbm_image_url: fbmImageUrl,
+    fbm_listing_price: fbmListingPrice,
     is_sold: isSold ? 1 : 0,
     sold_date: resolveToggleTimestamp({
       previousOn: previousIsSold,
@@ -2269,16 +2120,16 @@ function normalizeReverbForSale(listing: ReverbApiListing): UnifiedForSaleItem {
   };
 }
 
-function normalizeMarketplaceForSale(row: MarketplaceListingRow): UnifiedForSaleItem {
+function normalizeInventoryFacebookForSale(row: InventoryFbmForSaleRow): UnifiedForSaleItem {
   return {
-    id: `marketplace-${row.id}`,
+    id: `inventory-fbm-${row.id}`,
     source: 'facebook',
-    title: row.title || 'Untitled listing',
-    priceDollars: Number.isFinite(row.price_dollars) ? row.price_dollars : 0,
-    currency: row.currency || 'USD',
-    imageUrl: row.image_url || '',
-    listingUrl: row.listing_url || '',
-    createdAt: row.created_at || '',
+    title: normalizeText(row.fbm_title || row.title, 'Untitled listing'),
+    priceDollars: Number.isFinite(row.fbm_listing_price) ? Number(row.fbm_listing_price) : 0,
+    currency: 'USD',
+    imageUrl: row.fbm_image_url || row.image_url || '',
+    listingUrl: row.fbm_url || '',
+    createdAt: row.updated_at || row.created_at || '',
   };
 }
 
@@ -2996,108 +2847,34 @@ async function dbSetListingArchived(recordId: string, archived: boolean, env: En
   return true;
 }
 
-async function dbListMarketplaceListings(env: Env, includeRemoved: boolean): Promise<MarketplaceListingRow[]> {
-  const where = includeRemoved ? '' : 'WHERE status = ?';
-  const statement = env.DB.prepare(
-    `SELECT id, source, title, price_dollars, currency, image_url, listing_url, status, notes, created_at, updated_at
-     FROM ccg_marketplace_listings
-     ${where}
-     ORDER BY created_at DESC, id DESC`
-  );
-  const result = includeRemoved
-    ? await statement.all<MarketplaceListingRow>()
-    : await statement.bind('active').all<MarketplaceListingRow>();
-  return result.results ?? [];
-}
+async function dbListInventoryFacebookForSale(env: Env): Promise<InventoryFbmForSaleRow[]> {
+  const result = await env.DB.prepare(
+    `SELECT
+      i.id,
+      i.title,
+      i.image_url,
+      i.fbm_title,
+      i.fbm_url,
+      i.fbm_image_url,
+      i.fbm_listing_price,
+      i.created_at,
+      i.updated_at
+     FROM ccg_inventory_items i
+     WHERE COALESCE(i.fbm_listing, 0) = 1
+       AND COALESCE(i.is_active, 1) = 1
+       AND COALESCE(i.is_sold, 0) = 0
+       AND TRIM(COALESCE(i.fbm_url, '')) <> ''
+       AND i.fbm_listing_price IS NOT NULL
+     ORDER BY i.updated_at DESC, i.id DESC`
+  ).all<InventoryFbmForSaleRow>();
 
-async function dbCreateMarketplaceListing(
-  fields: {
-    source: string;
-    title: string;
-    price_dollars: number;
-    currency: string;
-    image_url: string | null;
-    listing_url: string;
-    status: string;
-    notes: string | null;
-  },
-  env: Env
-): Promise<string | null> {
-  try {
-    const result = await env.DB.prepare(
-      `INSERT INTO ccg_marketplace_listings
-      (source, title, price_dollars, currency, image_url, listing_url, status, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-      .bind(
-        fields.source,
-        fields.title,
-        fields.price_dollars,
-        fields.currency,
-        fields.image_url,
-        fields.listing_url,
-        fields.status,
-        fields.notes
-      )
-      .run();
-    return result.meta?.last_row_id ? String(result.meta.last_row_id) : null;
-  } catch (error) {
-    console.error('Marketplace insert failed', { error });
-    return null;
+  const dedupedByUrl = new Map<string, InventoryFbmForSaleRow>();
+  for (const row of result.results ?? []) {
+    const key = normalizeText(row.fbm_url, '').toLowerCase();
+    if (!key || dedupedByUrl.has(key)) continue;
+    dedupedByUrl.set(key, row);
   }
-}
-
-async function dbGetMarketplaceListingById(recordId: string, env: Env): Promise<MarketplaceListingRow | null> {
-  const idValue = Number.parseInt(recordId, 10);
-  if (!Number.isFinite(idValue)) return null;
-  const row = await env.DB.prepare(
-    `SELECT id, source, title, price_dollars, currency, image_url, listing_url, status, notes, created_at, updated_at
-     FROM ccg_marketplace_listings
-     WHERE id = ?
-     LIMIT 1`
-  )
-    .bind(idValue)
-    .first<MarketplaceListingRow>();
-  return row ?? null;
-}
-
-async function dbSetMarketplaceListingStatus(recordId: string, status: 'active' | 'removed', env: Env): Promise<boolean> {
-  const idValue = Number.parseInt(recordId, 10);
-  if (!Number.isFinite(idValue)) return false;
-  await env.DB.prepare(
-    'UPDATE ccg_marketplace_listings SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-  )
-    .bind(status, idValue)
-    .run();
-  return true;
-}
-
-async function dbUpdateMarketplaceListing(
-  recordId: string,
-  fields: {
-    title: string;
-    price_dollars: number;
-    image_url: string | null;
-    listing_url: string;
-    notes: string | null;
-  },
-  env: Env
-): Promise<boolean> {
-  const idValue = Number.parseInt(recordId, 10);
-  if (!Number.isFinite(idValue)) return false;
-  try {
-    await env.DB.prepare(
-      `UPDATE ccg_marketplace_listings
-       SET title = ?, price_dollars = ?, image_url = ?, listing_url = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`
-    )
-      .bind(fields.title, fields.price_dollars, fields.image_url, fields.listing_url, fields.notes, idValue)
-      .run();
-    return true;
-  } catch (error) {
-    console.error('Marketplace update failed', { error });
-    return false;
-  }
+  return Array.from(dedupedByUrl.values());
 }
 
 function mapInventoryRow(
@@ -3130,6 +2907,11 @@ function mapInventoryRow(
     isPersonal: Boolean(row.is_personal),
     forSale: Boolean(row.for_sale),
     forSaleDate: row.for_sale_date || null,
+    fbmListing: Boolean(row.fbm_listing),
+    fbmTitle: row.fbm_title || '',
+    fbmUrl: row.fbm_url || '',
+    fbmImageUrl: row.fbm_image_url || '',
+    fbmListingPrice: row.fbm_listing_price,
     isSold: Boolean(row.is_sold),
     soldDate: row.sold_date || null,
     soldAmount: row.sold_amount,
@@ -3294,6 +3076,11 @@ async function dbListInventoryItemsGrouped(
        i.is_personal,
        i.for_sale,
        i.for_sale_date,
+       i.fbm_listing,
+       i.fbm_title,
+       i.fbm_url,
+       i.fbm_image_url,
+       i.fbm_listing_price,
        i.is_sold,
        i.sold_date,
        i.sold_amount,
@@ -3389,6 +3176,11 @@ async function dbListInventoryItemsByCcgNumber(
       i.is_personal,
       i.for_sale,
       i.for_sale_date,
+      i.fbm_listing,
+      i.fbm_title,
+      i.fbm_url,
+      i.fbm_image_url,
+      i.fbm_listing_price,
       i.is_sold,
       i.sold_date,
       i.sold_amount,
@@ -3453,6 +3245,11 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.is_personal,
       i.for_sale,
       i.for_sale_date,
+      i.fbm_listing,
+      i.fbm_title,
+      i.fbm_url,
+      i.fbm_image_url,
+      i.fbm_listing_price,
       i.is_sold,
       i.sold_date,
       i.sold_amount,
@@ -3486,6 +3283,11 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     isPersonal: Boolean(row.is_personal),
     forSale: Boolean(row.for_sale),
     forSaleDate: row.for_sale_date || null,
+    fbmListing: Boolean(row.fbm_listing),
+    fbmTitle: row.fbm_title || '',
+    fbmUrl: row.fbm_url || '',
+    fbmImageUrl: row.fbm_image_url || '',
+    fbmListingPrice: row.fbm_listing_price,
     isSold: Boolean(row.is_sold),
     soldDate: row.sold_date || null,
     soldAmount: row.sold_amount,
@@ -3595,6 +3397,11 @@ async function dbCreateInventoryItems(
     is_personal: number;
     for_sale: number;
     for_sale_date: string | null;
+    fbm_listing: number;
+    fbm_title: string | null;
+    fbm_url: string | null;
+    fbm_image_url: string | null;
+    fbm_listing_price: number | null;
     is_sold: number;
     sold_date: string | null;
     sold_amount: number | null;
@@ -3609,9 +3416,10 @@ async function dbCreateInventoryItems(
         source_listing_id, ccg_number, image_url, title, category, brand, year_range, model, finish,
         image_urls,
         original_listing_desc, purchased_date, purchase_price, private_party_value, purchase_notes, serial_number, is_active, is_marked, is_personal, for_sale, for_sale_date,
+        fbm_listing, fbm_title, fbm_url, fbm_image_url, fbm_listing_price,
         is_sold, sold_date, sold_amount, sell_notes
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const statements = Array.from({ length: qty }, (_, index) =>
       env.DB.prepare(statement).bind(
@@ -3636,6 +3444,11 @@ async function dbCreateInventoryItems(
         fields.is_personal,
         fields.for_sale,
         fields.for_sale_date,
+        fields.fbm_listing,
+        fields.fbm_title,
+        fields.fbm_url,
+        fields.fbm_image_url,
+        fields.fbm_listing_price,
         fields.is_sold,
         fields.sold_date,
         fields.sold_amount,
@@ -3714,6 +3527,11 @@ async function dbUpdateInventoryRowSpecific(
     is_personal: number;
     for_sale: number;
     for_sale_date: string | null;
+    fbm_listing: number;
+    fbm_title: string | null;
+    fbm_url: string | null;
+    fbm_image_url: string | null;
+    fbm_listing_price: number | null;
     is_sold: number;
     sold_date: string | null;
     sold_amount: number | null;
@@ -3727,7 +3545,9 @@ async function dbUpdateInventoryRowSpecific(
     await env.DB.prepare(
       `UPDATE ccg_inventory_items
        SET
-         source_listing_id = ?, is_active = ?, is_marked = ?, is_personal = ?, for_sale = ?, for_sale_date = ?, is_sold = ?, sold_date = ?, sold_amount = ?, sell_notes = ?,
+         source_listing_id = ?, is_active = ?, is_marked = ?, is_personal = ?, for_sale = ?, for_sale_date = ?,
+         fbm_listing = ?, fbm_title = ?, fbm_url = ?, fbm_image_url = ?, fbm_listing_price = ?,
+         is_sold = ?, sold_date = ?, sold_amount = ?, sell_notes = ?,
          updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
     ).bind(
@@ -3737,6 +3557,11 @@ async function dbUpdateInventoryRowSpecific(
       fields.is_personal,
       fields.for_sale,
       fields.for_sale_date,
+      fields.fbm_listing,
+      fields.fbm_title,
+      fields.fbm_url,
+      fields.fbm_image_url,
+      fields.fbm_listing_price,
       fields.is_sold,
       fields.sold_date,
       fields.sold_amount,
@@ -3807,23 +3632,6 @@ async function dbDeleteInventoryItemsByCcgNumber(ccgNumber: string, env: Env): P
   }
 }
 
-async function dbListListingUrlsByIds(ids: number[], env: Env): Promise<string[]> {
-  const normalizedIds = ids.filter((id) => Number.isFinite(id) && id > 0);
-  if (normalizedIds.length === 0) return [];
-  try {
-    const placeholders = normalizedIds.map(() => '?').join(', ');
-    const result = await env.DB.prepare(
-      `SELECT url FROM listings WHERE id IN (${placeholders})`
-    ).bind(...normalizedIds).all<{ url: string | null }>();
-    return (result.results ?? [])
-      .map((row) => normalizeText(row.url, ''))
-      .filter(Boolean);
-  } catch (error) {
-    console.error('Listing URL lookup failed', { error });
-    return [];
-  }
-}
-
 async function dbDeleteListingsByIds(ids: number[], env: Env): Promise<number> {
   const normalizedIds = ids.filter((id) => Number.isFinite(id) && id > 0);
   if (normalizedIds.length === 0) return 0;
@@ -3835,23 +3643,6 @@ async function dbDeleteListingsByIds(ids: number[], env: Env): Promise<number> {
     return Number(result.meta?.changes || 0);
   } catch (error) {
     console.error('Listing cleanup delete failed', { error });
-    return 0;
-  }
-}
-
-async function dbDeleteMarketplaceListingsByUrls(urls: string[], env: Env): Promise<number> {
-  const normalizedUrls = urls
-    .map((url) => normalizeText(url, ''))
-    .filter(Boolean);
-  if (normalizedUrls.length === 0) return 0;
-  try {
-    const placeholders = normalizedUrls.map(() => '?').join(', ');
-    const result = await env.DB.prepare(
-      `DELETE FROM ccg_marketplace_listings WHERE listing_url IN (${placeholders})`
-    ).bind(...normalizedUrls).run();
-    return Number(result.meta?.changes || 0);
-  } catch (error) {
-    console.error('Marketplace cleanup delete failed', { error });
     return 0;
   }
 }
@@ -3878,8 +3669,14 @@ async function dbListMarkedInventoryRowsForPackage(env: Env): Promise<InventoryI
       i.serial_number,
       i.is_active,
       i.is_marked,
+      i.is_personal,
       i.for_sale,
       i.for_sale_date,
+      i.fbm_listing,
+      i.fbm_title,
+      i.fbm_url,
+      i.fbm_image_url,
+      i.fbm_listing_price,
       i.is_sold,
       i.sold_date,
       i.sold_amount,
@@ -5305,19 +5102,6 @@ function parseMoney(input: string): number | null {
   if (!cleaned) return null;
   const value = Number.parseFloat(cleaned);
   return Number.isFinite(value) ? value : null;
-}
-
-function parseWholeDollars(input: unknown): number | null {
-  if (typeof input === 'number' && Number.isFinite(input) && Number.isInteger(input) && input >= 0) {
-    return input;
-  }
-  if (typeof input === 'string') {
-    const trimmed = input.trim();
-    if (!/^\d+$/.test(trimmed)) return null;
-    const parsed = Number.parseInt(trimmed, 10);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
 }
 
 function parseOptionalPositiveInt(input: unknown): number | null {

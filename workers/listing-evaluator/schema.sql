@@ -93,27 +93,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS search_results_url_idx ON search_results(url);
 CREATE INDEX IF NOT EXISTS search_results_run_idx ON search_results(run_id);
 CREATE INDEX IF NOT EXISTS search_results_archived_idx ON search_results(archived);
 
-CREATE TABLE IF NOT EXISTS ccg_marketplace_listings (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  source TEXT NOT NULL DEFAULT 'facebook',
-  title TEXT NOT NULL,
-  price_dollars INTEGER NOT NULL,
-  currency TEXT NOT NULL DEFAULT 'USD',
-  image_url TEXT,
-  listing_url TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'active',
-  notes TEXT,
-  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS ccg_marketplace_listings_url_idx
-  ON ccg_marketplace_listings(listing_url);
-CREATE INDEX IF NOT EXISTS ccg_marketplace_listings_status_idx
-  ON ccg_marketplace_listings(status);
-CREATE INDEX IF NOT EXISTS ccg_marketplace_listings_price_idx
-  ON ccg_marketplace_listings(price_dollars);
-
 CREATE TABLE IF NOT EXISTS ccg_inventory_items (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   source_listing_id INTEGER,
@@ -137,6 +116,11 @@ CREATE TABLE IF NOT EXISTS ccg_inventory_items (
   is_personal INTEGER NOT NULL DEFAULT 0,
   for_sale INTEGER DEFAULT 0,
   for_sale_date TEXT,
+  fbm_listing INTEGER NOT NULL DEFAULT 0,
+  fbm_title TEXT,
+  fbm_url TEXT,
+  fbm_image_url TEXT,
+  fbm_listing_price REAL,
   is_sold INTEGER DEFAULT 0,
   sold_date TEXT,
   sold_amount REAL,
@@ -156,6 +140,8 @@ CREATE INDEX IF NOT EXISTS ccg_inventory_items_marked_idx
   ON ccg_inventory_items(is_marked);
 CREATE INDEX IF NOT EXISTS ccg_inventory_items_for_sale_idx
   ON ccg_inventory_items(for_sale);
+CREATE INDEX IF NOT EXISTS ccg_inventory_items_fbm_listing_idx
+  ON ccg_inventory_items(fbm_listing);
 CREATE INDEX IF NOT EXISTS ccg_inventory_items_sold_idx
   ON ccg_inventory_items(is_sold);
 CREATE INDEX IF NOT EXISTS ccg_inventory_items_filter_ccg_idx
