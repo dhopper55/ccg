@@ -6861,6 +6861,7 @@ const PDF_LABEL_PITCH_Y = PDF_LABEL_HEIGHT + PDF_LABEL_ROW_GAP;
 const PDF_LABEL_BASE_HEIGHT = 1.75 * PDF_POINTS_PER_INCH;
 const PDF_LABEL_INTERNAL_SCALE = PDF_LABEL_HEIGHT / PDF_LABEL_BASE_HEIGHT;
 const PDF_MONO_WIDTH_EM = 0.6;
+const PDF_HELVETICA_DEFAULT_WIDTH_EM = 0.52;
 const PDF_LABEL_HORIZONTAL_PADDING = 10 * PDF_LABEL_INTERNAL_SCALE;
 const PDF_LABEL_TOP_PADDING = 10 * PDF_LABEL_INTERNAL_SCALE;
 const PDF_LABEL_BOTTOM_PADDING = 20 * PDF_LABEL_INTERNAL_SCALE;
@@ -6883,7 +6884,7 @@ const PDF_LABEL_IMAGE_ROW_FINE_TUNE: readonly number[] = [0, 0, 0, -1.2, -18];
 async function buildInventoryLabelsPdf(rows: InventoryLabelPdfRow[], env: Env): Promise<Uint8Array> {
   const pages = chunkArray(rows, PDF_LABELS_PER_PAGE);
   const pageDefinitions: PdfPageDefinition[] = [];
-  let nextObjectNumber = 5;
+  let nextObjectNumber = 6;
 
   for (const pageRows of pages) {
     const images: PdfPageDefinition['images'] = [];
@@ -6918,6 +6919,7 @@ async function buildInventoryLabelsPdf(rows: InventoryLabelPdfRow[], env: Env): 
   );
   objectMap.set(3, encoder.encode('<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>'));
   objectMap.set(4, encoder.encode('<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold >>'));
+  objectMap.set(5, encoder.encode('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'));
 
   for (const page of pageDefinitions) {
     for (const image of page.images) {
@@ -6932,7 +6934,7 @@ async function buildInventoryLabelsPdf(rows: InventoryLabelPdfRow[], env: Env): 
     objectMap.set(
       page.pageObjectNumber,
       encoder.encode(
-        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PDF_LETTER_WIDTH} ${PDF_LETTER_HEIGHT}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >>${xObjectSection} >> /Contents ${page.contentObjectNumber} 0 R >>`,
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PDF_LETTER_WIDTH} ${PDF_LETTER_HEIGHT}] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >>${xObjectSection} >> /Contents ${page.contentObjectNumber} 0 R >>`,
       ),
     );
     objectMap.set(
@@ -7018,12 +7020,12 @@ function renderLabelTitle(left: number, bottom: number, title: string): string {
   const secondLineBaseline = bottom + PDF_LABEL_TITLE_SECOND_LINE_BASELINE;
   const availableWidth =
     PDF_LABEL_WIDTH - PDF_LABEL_LEFT_IMAGE_WIDTH - PDF_LABEL_TEXT_GAP - PDF_LABEL_RIGHT_PADDING;
-  const titleLayout = layoutPdfMonospaceText(title, availableWidth, PDF_LABEL_TITLE_MAX_BOX_HEIGHT, 2);
+  const titleLayout = layoutPdfProportionalText(title, availableWidth, PDF_LABEL_TITLE_MAX_BOX_HEIGHT, 2);
 
   return titleLayout.lines
     .map((line, index) =>
       renderPdfText(
-        '/F1',
+        '/F3',
         titleLayout.fontSize,
         textLeft,
         secondLineBaseline + (1 - index) * titleLayout.lineHeight,
@@ -7125,6 +7127,93 @@ function layoutPdfMonospaceText(
   };
 }
 
+function wrapPdfProportionalText(
+  value: string,
+  fontSize: number,
+  maxWidth: number,
+  maxLines: number,
+): string[] {
+  const sanitized = normalizePdfText(value || 'Untitled').replace(/\s+/g, ' ').trim() || 'Untitled';
+  const words = sanitized.split(' ');
+  const lines: string[] = [];
+  let current = '';
+  let truncated = false;
+
+  for (const word of words) {
+    if (!word) continue;
+    const candidate = current ? `${current} ${word}` : word;
+    if (estimateHelveticaTextWidth(candidate, fontSize) <= maxWidth) {
+      current = candidate;
+      continue;
+    }
+
+    if (current) {
+      lines.push(current);
+      current = '';
+      if (lines.length === maxLines) {
+        truncated = true;
+        break;
+      }
+    }
+
+    if (estimateHelveticaTextWidth(word, fontSize) <= maxWidth) {
+      current = word;
+      continue;
+    }
+
+    let remaining = word;
+    while (remaining) {
+      const chunk = fitTextToWidth(remaining, fontSize, maxWidth);
+      if (!chunk) {
+        truncated = true;
+        remaining = '';
+        break;
+      }
+      lines.push(chunk);
+      remaining = remaining.slice(chunk.length);
+      if (lines.length === maxLines) {
+        truncated = remaining.length > 0;
+        break;
+      }
+    }
+    if (lines.length === maxLines) break;
+  }
+
+  if (current && lines.length < maxLines) {
+    lines.push(current);
+  } else if (current && lines.length >= maxLines) {
+    truncated = true;
+  }
+
+  if (truncated && lines.length > 0) {
+    lines[lines.length - 1] = truncateToWidthWithEllipsis(lines[lines.length - 1], fontSize, maxWidth);
+  }
+
+  return lines.slice(0, maxLines);
+}
+
+function layoutPdfProportionalText(
+  value: string,
+  maxWidth: number,
+  maxHeight: number,
+  maxLines: number,
+): { fontSize: number; lineHeight: number; lines: string[] } {
+  for (let fontSize = 20; fontSize >= 13; fontSize -= 1) {
+    const lineHeight = fontSize + 2;
+    if (lineHeight * maxLines > maxHeight) continue;
+    const lines = wrapPdfProportionalText(value, fontSize, maxWidth, maxLines);
+    if (lines.length <= maxLines) {
+      return { fontSize, lineHeight, lines };
+    }
+  }
+
+  return {
+    fontSize: 13,
+    lineHeight: 15,
+    lines: wrapPdfProportionalText(value, 13, maxWidth, maxLines),
+  };
+}
+
 function truncateWithEllipsis(value: string, maxChars: number): string {
   if (value.length <= maxChars) {
     return value.length >= 2 ? `${value.slice(0, Math.max(0, maxChars - 2))}..` : '.'.repeat(maxChars);
@@ -7149,6 +7238,64 @@ function normalizePdfText(value: string): string {
 
 function estimateMonospaceTextWidth(value: string, fontSize: number): number {
   return value.length * fontSize * PDF_MONO_WIDTH_EM;
+}
+
+function estimateHelveticaTextWidth(value: string, fontSize: number): number {
+  let emWidth = 0;
+  for (const char of value) {
+    if (char === ' ') {
+      emWidth += 0.28;
+      continue;
+    }
+    if (/[ilIjt'`!|:;.,()\[\]{}]/.test(char)) {
+      emWidth += 0.28;
+      continue;
+    }
+    if (/[fr]/.test(char)) {
+      emWidth += 0.36;
+      continue;
+    }
+    if (/[MW@#%&Q]/.test(char)) {
+      emWidth += 0.9;
+      continue;
+    }
+    if (/[A-Z]/.test(char)) {
+      emWidth += 0.67;
+      continue;
+    }
+    if (/[0-9]/.test(char)) {
+      emWidth += 0.56;
+      continue;
+    }
+    emWidth += PDF_HELVETICA_DEFAULT_WIDTH_EM;
+  }
+  return emWidth * fontSize;
+}
+
+function fitTextToWidth(value: string, fontSize: number, maxWidth: number): string {
+  let fitted = '';
+  for (const char of value) {
+    const candidate = `${fitted}${char}`;
+    if (estimateHelveticaTextWidth(candidate, fontSize) > maxWidth) break;
+    fitted = candidate;
+  }
+  return fitted;
+}
+
+function truncateToWidthWithEllipsis(value: string, fontSize: number, maxWidth: number): string {
+  const ellipsis = '..';
+  if (estimateHelveticaTextWidth(value, fontSize) <= maxWidth) {
+    if (estimateHelveticaTextWidth(`${value}${ellipsis}`, fontSize) <= maxWidth) {
+      return `${value}${ellipsis}`;
+    }
+    return value;
+  }
+
+  let fitted = fitTextToWidth(value, fontSize, maxWidth);
+  while (fitted && estimateHelveticaTextWidth(`${fitted}${ellipsis}`, fontSize) > maxWidth) {
+    fitted = fitted.slice(0, -1);
+  }
+  return fitted ? `${fitted}${ellipsis}` : '.';
 }
 
 function escapePdfString(value: string): string {
