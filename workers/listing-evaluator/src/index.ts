@@ -1166,6 +1166,7 @@ type InventoryItemRow = {
   sell_notes: string | null;
   created_at: string | null;
   updated_at: string | null;
+  group_count?: number | null;
 };
 
 type InventorySummaryTotals = {
@@ -2023,8 +2024,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   }, env);
   if (!sharedUpdateOk) return jsonResponse({ message: 'Unable to update inventory items.' }, 500);
 
-  const rowSpecificOk = await dbUpdateInventoryRowSpecific(recordId, {
-    source_listing_id: sourceListingId,
+  const rowSpecificOk = await dbUpdateInventoryRowsByCcgNumber(currentCcgNumber, {
     is_active: isActive ? 1 : 0,
     is_marked: isMarked ? 1 : 0,
     is_personal: isPersonal ? 1 : 0,
@@ -2039,6 +2039,11 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     fbm_url: fbmUrl,
     fbm_image_url: fbmImageUrl,
     fbm_listing_price: fbmListingPrice,
+  }, env);
+  if (!rowSpecificOk) return jsonResponse({ message: 'Unable to update inventory items.' }, 500);
+
+  const selectedRowSaleOk = await dbUpdateInventorySaleById(recordId, {
+    source_listing_id: sourceListingId,
     is_sold: isSold ? 1 : 0,
     sold_date: resolveToggleTimestamp({
       previousOn: previousIsSold,
@@ -2048,7 +2053,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     sold_amount: soldAmount,
     sell_notes: sellNotes || null,
   }, env);
-  if (!rowSpecificOk) return jsonResponse({ message: 'Unable to update inventory item.' }, 500);
+  if (!selectedRowSaleOk) return jsonResponse({ message: 'Unable to update selected inventory unit.' }, 500);
   return jsonResponse({ ok: true });
 }
 
@@ -3255,7 +3260,12 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.sold_amount,
       i.sell_notes,
       i.created_at,
-      i.updated_at
+      i.updated_at,
+      (
+        SELECT COUNT(*)
+        FROM ccg_inventory_items g
+        WHERE g.ccg_number = i.ccg_number
+      ) AS group_count
      FROM ccg_inventory_items i
      WHERE i.id = ?`
   ).bind(idValue).first<InventoryItemRow>();
@@ -3288,6 +3298,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     fbmUrl: row.fbm_url || '',
     fbmImageUrl: row.fbm_image_url || '',
     fbmListingPrice: row.fbm_listing_price,
+    groupCount: Number(row.group_count ?? 1),
     isSold: Boolean(row.is_sold),
     soldDate: row.sold_date || null,
     soldAmount: row.sold_amount,
@@ -3518,10 +3529,9 @@ async function dbUpdateInventorySharedByCcgNumber(
   }
 }
 
-async function dbUpdateInventoryRowSpecific(
-  recordId: string,
+async function dbUpdateInventoryRowsByCcgNumber(
+  ccgNumber: string,
   fields: {
-    source_listing_id: number | null;
     is_active: number;
     is_marked: number;
     is_personal: number;
@@ -3532,26 +3542,19 @@ async function dbUpdateInventoryRowSpecific(
     fbm_url: string | null;
     fbm_image_url: string | null;
     fbm_listing_price: number | null;
-    is_sold: number;
-    sold_date: string | null;
-    sold_amount: number | null;
-    sell_notes: string | null;
   },
   env: Env
 ): Promise<boolean> {
-  const idValue = Number.parseInt(recordId, 10);
-  if (!Number.isFinite(idValue)) return false;
+  if (!ccgNumber) return false;
   try {
     await env.DB.prepare(
       `UPDATE ccg_inventory_items
        SET
-         source_listing_id = ?, is_active = ?, is_marked = ?, is_personal = ?, for_sale = ?, for_sale_date = ?,
+         is_active = ?, is_marked = ?, is_personal = ?, for_sale = ?, for_sale_date = ?,
          fbm_listing = ?, fbm_title = ?, fbm_url = ?, fbm_image_url = ?, fbm_listing_price = ?,
-         is_sold = ?, sold_date = ?, sold_amount = ?, sell_notes = ?,
          updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`
+       WHERE ccg_number = ?`
     ).bind(
-      fields.source_listing_id,
       fields.is_active,
       fields.is_marked,
       fields.is_personal,
@@ -3562,15 +3565,46 @@ async function dbUpdateInventoryRowSpecific(
       fields.fbm_url,
       fields.fbm_image_url,
       fields.fbm_listing_price,
-      fields.is_sold,
-      fields.sold_date,
-      fields.sold_amount,
-      fields.sell_notes,
-      idValue
+      ccgNumber
     ).run();
     return true;
   } catch (error) {
     console.error('Inventory update failed', { error });
+    return false;
+  }
+}
+
+async function dbUpdateInventorySaleById(
+  recordId: string,
+  fields: {
+    source_listing_id: number | null;
+    is_sold: number;
+    sold_date: string | null;
+    sold_amount: number | null;
+    sell_notes: string | null;
+  },
+  env: Env,
+): Promise<boolean> {
+  const idValue = Number.parseInt(recordId, 10);
+  if (!Number.isFinite(idValue)) return false;
+  try {
+    await env.DB.prepare(
+      `UPDATE ccg_inventory_items
+       SET
+         source_listing_id = ?, is_sold = ?, sold_date = ?, sold_amount = ?, sell_notes = ?,
+         updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`
+    ).bind(
+      fields.source_listing_id,
+      fields.is_sold,
+      fields.sold_date,
+      fields.sold_amount,
+      fields.sell_notes,
+      idValue,
+    ).run();
+    return true;
+  } catch (error) {
+    console.error('Inventory selected-row sale update failed', { error });
     return false;
   }
 }

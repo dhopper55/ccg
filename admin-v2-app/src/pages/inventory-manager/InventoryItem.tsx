@@ -52,6 +52,7 @@ type InventoryItemRecord = {
   fbmUrl?: string;
   fbmImageUrl?: string;
   fbmListingPrice?: number | null;
+  groupCount?: number | null;
   isSold?: boolean;
   soldDate?: string | null;
   soldAmount?: number | null;
@@ -182,6 +183,7 @@ const InventoryItem = () => {
   const [editId, setEditId] = useState<string | null>(null);
   const [sourceListingId, setSourceListingId] = useState<string | null>(null);
   const [sourceImageUrl, setSourceImageUrl] = useState<string | null>(null);
+  const [groupCount, setGroupCount] = useState(1);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -224,6 +226,7 @@ const InventoryItem = () => {
           const record = data.record;
           setEditId(record.id);
           setSourceListingId(record.sourceListingId || null);
+          setGroupCount(Math.max(1, Number(record.groupCount || 1)));
           setForm({
             qty: 1,
             ccgNumber: record.ccgNumber || '',
@@ -279,6 +282,7 @@ const InventoryItem = () => {
 
           const fields = data.fields || {};
           setSourceListingId(fromListingId);
+          setGroupCount(1);
           setSourceImageUrl((fields.image_url || '').trim() || null);
           setForm((current) => ({
             ...current,
@@ -306,6 +310,7 @@ const InventoryItem = () => {
         }
       } finally {
         if (!cancelled) {
+          if (!id && !fromListingId) setGroupCount(1);
           setIsLoading(false);
         }
       }
@@ -589,6 +594,13 @@ const InventoryItem = () => {
           </Stack>
         ) : (
           <Stack spacing={4}>
+            {editId && groupCount > 1 ? (
+              <Alert severity="info">
+                <strong>Unit edit:</strong> Unit ID {editId} of {form.ccgNumber} (Qty {groupCount}).
+                Shared fields update all units with this CCG#. Sold fields update only this unit.
+              </Alert>
+            ) : null}
+
             <Grid container spacing={3}>
               <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
@@ -721,6 +733,12 @@ const InventoryItem = () => {
                     </Stack>
                   ) : null}
                 </Stack>
+              </Grid>
+
+              <Grid size={12}>
+                <Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: 0.6 }}>
+                  Shared Across Qty
+                </Typography>
               </Grid>
 
               <Grid size={12}>
@@ -880,15 +898,6 @@ const InventoryItem = () => {
                       }
                       label="FBM Listing"
                     />
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={form.isSold}
-                          onChange={(event) => setField('isSold', event.target.checked)}
-                        />
-                      }
-                      label="Is Sold"
-                    />
                   </Stack>
                 </Paper>
               </Grid>
@@ -949,6 +958,24 @@ const InventoryItem = () => {
                   onChange={(event) => setField('serialNumber', event.target.value)}
                   inputProps={{ maxLength: 180 }}
                 />
+              </Grid>
+              <Grid size={12}>
+                <Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: 0.6 }}>
+                  This Unit Only
+                </Typography>
+              </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, bgcolor: 'background.default' }}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={form.isSold}
+                        onChange={(event) => setField('isSold', event.target.checked)}
+                      />
+                    }
+                    label="Is Sold"
+                  />
+                </Paper>
               </Grid>
               <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
