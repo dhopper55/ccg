@@ -595,10 +595,21 @@ const InventoryItem = () => {
         ) : (
           <Stack spacing={4}>
             {editId && groupCount > 1 ? (
-              <Alert severity="info">
-                <strong>Unit edit:</strong> Unit ID {editId} of {form.ccgNumber} (Qty {groupCount}).
-                Shared fields update all units with this CCG#. Sold fields update only this unit.
-              </Alert>
+              <Paper
+                variant="outlined"
+                sx={{
+                  width: 1,
+                  p: 1.5,
+                  borderRadius: 2,
+                  borderColor: 'info.main',
+                  bgcolor: 'info.lighter',
+                }}
+              >
+                <Typography variant="body2" sx={{ color: 'info.darker', fontWeight: 600 }}>
+                  Unit edit: Unit ID {editId} of {form.ccgNumber} (Qty {groupCount}). Shared fields
+                  update all units with this CCG#. Sold fields update only this unit.
+                </Typography>
+              </Paper>
             ) : null}
 
             <Grid container spacing={3}>
