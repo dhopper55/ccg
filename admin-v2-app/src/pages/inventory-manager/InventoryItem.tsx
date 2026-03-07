@@ -582,6 +582,24 @@ const InventoryItem = () => {
             </IconButton>
           </Tooltip>
         </Stack>
+        {editId && groupCount > 1 ? (
+          <Paper
+            variant="outlined"
+            sx={{
+              mt: 2,
+              width: 1,
+              p: 1.5,
+              borderRadius: 2,
+              borderColor: 'info.main',
+              bgcolor: 'info.lighter',
+            }}
+          >
+            <Typography variant="body2" sx={{ color: 'info.darker', fontWeight: 600 }}>
+              Unit edit: Unit ID {editId} of {form.ccgNumber} (Qty {groupCount}). Shared fields
+              update all units with this CCG#. Sold fields update only this unit.
+            </Typography>
+          </Paper>
+        ) : null}
       </Paper>
 
       {message ? <Alert severity={message.severity}>{message.text}</Alert> : null}
@@ -594,24 +612,6 @@ const InventoryItem = () => {
           </Stack>
         ) : (
           <Stack spacing={4}>
-            {editId && groupCount > 1 ? (
-              <Paper
-                variant="outlined"
-                sx={{
-                  width: 1,
-                  p: 1.5,
-                  borderRadius: 2,
-                  borderColor: 'info.main',
-                  bgcolor: 'info.lighter',
-                }}
-              >
-                <Typography variant="body2" sx={{ color: 'info.darker', fontWeight: 600 }}>
-                  Unit edit: Unit ID {editId} of {form.ccgNumber} (Qty {groupCount}). Shared fields
-                  update all units with this CCG#. Sold fields update only this unit.
-                </Typography>
-              </Paper>
-            ) : null}
-
             <Grid container spacing={3}>
               <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
