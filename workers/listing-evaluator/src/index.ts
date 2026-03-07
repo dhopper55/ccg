@@ -1712,9 +1712,9 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const fbmUrlRaw = normalizeText(body.fbmUrl, '');
   const fbmImageUrlRaw = normalizeText(body.fbmImageUrl, '');
   const fbmListingPriceRaw = parseCurrencyAmount(body.fbmListingPrice);
-  const fbmUrl = fbmListing ? normalizeUrl(fbmUrlRaw) : null;
-  const fbmImageUrl = fbmListing ? normalizeUrl(fbmImageUrlRaw) : null;
-  const fbmListingPrice = fbmListing ? fbmListingPriceRaw : null;
+  const fbmUrl = normalizeUrl(fbmUrlRaw);
+  const fbmImageUrl = normalizeUrl(fbmImageUrlRaw);
+  const fbmListingPrice = fbmListingPriceRaw;
   const soldAmount = parseCurrencyAmount(body.soldAmount);
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
   const qty = parseBoundedInt(body.qty, 1, 1, 100);
@@ -1956,9 +1956,9 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const fbmUrlRaw = normalizeText(body.fbmUrl, '');
   const fbmImageUrlRaw = normalizeText(body.fbmImageUrl, '');
   const fbmListingPriceRaw = parseCurrencyAmount(body.fbmListingPrice);
-  const fbmUrl = fbmListing ? normalizeUrl(fbmUrlRaw) : null;
-  const fbmImageUrl = fbmListing ? normalizeUrl(fbmImageUrlRaw) : null;
-  const fbmListingPrice = fbmListing ? fbmListingPriceRaw : null;
+  const fbmUrl = normalizeUrl(fbmUrlRaw);
+  const fbmImageUrl = normalizeUrl(fbmImageUrlRaw);
+  const fbmListingPrice = fbmListingPriceRaw;
   const soldAmount = parseCurrencyAmount(body.soldAmount);
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
 

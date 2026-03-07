@@ -87,6 +87,7 @@ type SaveResponse = {
 };
 
 type FormState = {
+  qty: number;
   ccgNumber: string;
   title: string;
   category: string;
@@ -144,6 +145,7 @@ function normalizeImageUrls(urls: string[]): string[] {
 }
 
 const DEFAULT_FORM: FormState = {
+  qty: 1,
   ccgNumber: 'Auto-generated on save',
   title: '',
   category: '',
@@ -223,6 +225,7 @@ const InventoryItem = () => {
           setEditId(record.id);
           setSourceListingId(record.sourceListingId || null);
           setForm({
+            qty: 1,
             ccgNumber: record.ccgNumber || '',
             title: record.title || '',
             category: record.category || '',
@@ -319,16 +322,6 @@ const InventoryItem = () => {
     setForm((current) => {
       if (key === 'isSold' && value === true) {
         return { ...current, isSold: true, forSale: false };
-      }
-      if (key === 'fbmListing' && value === false) {
-        return {
-          ...current,
-          fbmListing: false,
-          fbmTitle: '',
-          fbmUrl: '',
-          fbmImageUrl: '',
-          fbmListingPrice: '',
-        };
       }
       return { ...current, [key]: value };
     });
@@ -451,6 +444,12 @@ const InventoryItem = () => {
       setMessage({ severity: 'error', text: 'Please upload at least one image before saving.' });
       return;
     }
+    if (!editId) {
+      if (!Number.isInteger(form.qty) || form.qty < 1 || form.qty > 100) {
+        setMessage({ severity: 'error', text: 'Quantity must be a whole number between 1 and 100.' });
+        return;
+      }
+    }
     if (form.fbmListing) {
       if (!form.fbmTitle.trim()) {
         setMessage({ severity: 'error', text: 'Facebook Marketplace title is required when FBM Listing is enabled.' });
@@ -476,7 +475,7 @@ const InventoryItem = () => {
     try {
       const payload = {
         sourceListingId,
-        qty: 1,
+        qty: editId ? 1 : form.qty,
         imageUrl: imageUrls[0],
         imageUrls: [...imageUrls],
         title: form.title.trim(),
@@ -599,7 +598,7 @@ const InventoryItem = () => {
                   InputProps={{ readOnly: true }}
                 />
               </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
+              <Grid size={{ xs: 12, md: editId ? 6 : 3 }}>
                 <TextField
                   fullWidth
                   label="Purchased Date"
@@ -609,6 +608,21 @@ const InventoryItem = () => {
                   slotProps={{ inputLabel: { shrink: true } }}
                 />
               </Grid>
+              {!editId ? (
+                <Grid size={{ xs: 12, md: 3 }}>
+                  <TextField
+                    fullWidth
+                    label="Qty"
+                    type="number"
+                    value={form.qty}
+                    onChange={(event) => {
+                      const parsed = Number.parseInt(event.target.value, 10);
+                      setField('qty', Number.isFinite(parsed) ? parsed : 1);
+                    }}
+                    inputProps={{ min: 1, max: 100, step: 1 }}
+                  />
+                </Grid>
+              ) : null}
 
               <Grid size={12}>
                 <Stack spacing={1.5}>
