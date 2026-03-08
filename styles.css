@@ -2635,8 +2635,28 @@ button:active {
   border-radius: 12px;
 }
 
+.decoder-update-note {
+  margin: -6px 0 12px;
+}
+
+.decoder-update-note p {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #facc15;
+  line-height: 1.35;
+}
+
+.decoder-update-note p + p {
+  margin-top: 2px;
+}
+
 /* Smaller heading for brand-specific decoder pages */
 .container h1 + .brand-header {
+  margin-top: -10px;
+}
+
+.container h1 + .decoder-update-note + .brand-header {
   margin-top: -10px;
 }
 

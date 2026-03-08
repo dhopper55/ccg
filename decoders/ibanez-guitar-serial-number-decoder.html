@@ -25,7 +25,7 @@
   <meta name="twitter:description" content="Free Ibanez serial number lookup/decoder. Find the year, factory location, and production details of your Ibanez guitar.">
   <meta name="twitter:image" content="https://www.coalcreekguitars.com/images/coal-creek-logo.png">
 
-  <link rel="stylesheet" href="../styles.css?version=529140">
+  <link rel="stylesheet" href="../styles.css?version=912414">
 
   <!-- Structured Data -->
   <script type="application/ld+json">
@@ -147,6 +147,10 @@
 
   <div class="container">
     <h1>Ibanez Guitar Serial Number Lookup/Decoder</h1>
+    <div class="decoder-update-note" aria-label="Decoder update status">
+      <p>Our decoders are constantly being updated</p>
+      <p>Current as of <span id="decoder-current-as-of">Mar/2026</span></p>
+    </div>
 
     <div class="brand-header">
       <img src="../images/brand-logos/Ibanez_guitars_logo.webp" alt="Ibanez" class="brand-logo brand-logo-invert">
@@ -264,11 +268,21 @@
   <script type="module" src="../dist/main.js?version=523698"></script>
   <script>
     (function() {
+      const asOf = document.getElementById('decoder-current-as-of');
+      if (asOf) {
+        const now = new Date();
+        const month = now.toLocaleString('en-US', { month: 'short' });
+        asOf.textContent = `${month}/${now.getFullYear()}`;
+      }
+    })();
+
+    (function() {
       const year = new Date().getFullYear();
       document.querySelectorAll('.footer-year').forEach((el) => {
         el.textContent = year;
       });
     })();
+
   </script>
 </body>
 </html>
