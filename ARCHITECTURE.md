@@ -40,6 +40,10 @@ Going forward, the rule is:
   - `GET /api/session`
   - `POST /api/logout`
 - Admin-specific endpoints live under `/api/admin-v2/*`.
+- Serial Decodes admin page behavior:
+  - Top chart: Brand response counts (descending), clickable bars set page-level Brand filter.
+  - Grid: pagination, timestamp sort, page-level Brand filter, `Only errors`, conditional `Unevaluated`.
+  - Grid row action: for failed decodes, `Evaluated?` checkbox updates DB via `/api/admin-v2/serial-decodes/:id/evaluated`.
 
 ## Auth
 The public site and the admin surfaces do not use the same access model.
@@ -124,6 +128,14 @@ All `/api/*` endpoints require auth except:
   - Recent sold inventory rows for Admin V2
 - `GET /api/admin-v2/dashboard/oldest-inventory`
   - Oldest active unsold inventory rows for Admin V2
+- `GET /api/admin-v2/serial-decodes`
+  - Admin V2 serial decode grid data
+  - Supports query params: `page`, `limit`, `brand`, `onlyErrors`, `unevaluated`, `sortDir`
+  - Returns rows sorted by decode timestamp with pagination and available brand list
+- `GET /api/admin-v2/serial-decodes/brand-responses`
+  - Admin V2 chart payload for response counts by brand (descending)
+- `POST /api/admin-v2/serial-decodes/:id/evaluated`
+  - Toggle one serial decode row `evaluated` state (`true/false`)
 - `GET /api/admin-v2/listings/:id`
   - Listing detail payload used by Admin V2 listing drilldown
 - `POST /api/admin-v2/inventory/:id/mark`
@@ -154,10 +166,12 @@ Tables:
 - `serial_decode_events`
   - Stores decoder tracking rows from `/api/serial-decodes`
   - Core fields: `brand`, `serial`, `success`, `year`, `factory`, `country`, `error`
+  - Workflow field: `evaluated` (`INTEGER` 0/1, default `0`)
   - Metadata fields: `event_time_utc`, `page_path`, `user_agent`, `client_timestamp`, `ip_address`, `cf_country`, `cf_colo`, `created_at`
 
 Migration file:
 - `workers/listing-evaluator/migrations/2026-03-08_serial_decode_events.sql`
+- `workers/listing-evaluator/migrations/2026-03-08_serial_decode_events_evaluated.sql`
 
 ## OpenAI
 - Models: `gpt-4o` and `gpt-4o-mini` (see worker for task-specific usage)
@@ -188,6 +202,7 @@ From `workers/listing-evaluator/`:
 
 For the serial decoder event table only (single migration file, no full migration sweep):
 - `npx wrangler d1 execute listing_evaluator --remote --file=./migrations/2026-03-08_serial_decode_events.sql`
+- `npx wrangler d1 execute listing_evaluator --remote --file=./migrations/2026-03-08_serial_decode_events_evaluated.sql`
 
 From repo root:
 - `npm run build`
