@@ -259,19 +259,19 @@ const SerialDecodes = () => {
   }), [brandResponses, theme.vars.palette.divider, theme.vars.palette.primary.main, theme.vars.palette.text.secondary]);
 
   return (
-    <Stack spacing={3}>
-      <Paper sx={{ p: { xs: 3, md: 4 } }}>
+    <Stack direction="column" spacing={3} sx={{ width: 1 }}>
+      <Paper sx={{ p: { xs: 3, md: 4 }, width: 1, display: 'block' }}>
         <Stack spacing={2}>
           <Typography variant="h5">Brand Responses</Typography>
           <ReactEchart
             echarts={echarts}
             option={chartOption}
-            sx={{ height: 340, width: '100%' }}
+            sx={{ height: 340, width: 1, minWidth: 0 }}
           />
         </Stack>
       </Paper>
 
-      <Paper sx={{ p: { xs: 3, md: 4 } }}>
+      <Paper sx={{ p: { xs: 3, md: 4 }, width: 1, display: 'block' }}>
         <Stack
           direction={{ xs: 'column', sm: 'row' }}
           alignItems={{ xs: 'flex-start', sm: 'center' }}
@@ -364,6 +364,7 @@ const SerialDecodes = () => {
               ) : (
                 records.map((record) => {
                   const successColor = record.success ? '#9be7b0' : '#ff9f9f';
+                  const successBorderColor = record.success ? 'rgba(155, 231, 176, 0.35)' : 'rgba(255, 159, 159, 0.35)';
                   return (
                     <TableRow
                       key={record.id}
@@ -371,7 +372,10 @@ const SerialDecodes = () => {
                       onClick={() => setSelectedRecord(record)}
                       sx={{
                         cursor: 'pointer',
-                        '& td': { color: successColor },
+                        '& td': {
+                          color: successColor,
+                          borderBottomColor: successBorderColor,
+                        },
                       }}
                     >
                       <TableCell>{formatTimestampMountain(record.clientTimestamp, record.eventTimeUtc)}</TableCell>
