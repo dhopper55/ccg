@@ -126,6 +126,7 @@ const SerialDecodes = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
+  const [chartErrorMessage, setChartErrorMessage] = useState('');
   const [selectedRecord, setSelectedRecord] = useState<SerialDecodeRecord | null>(null);
 
   useEffect(() => {
@@ -137,7 +138,10 @@ const SerialDecodes = () => {
 
     const loadBrandResponses = async () => {
       try {
-        const response = await fetch('/api/admin-v2/serial-decodes/brand-responses', {
+        setChartErrorMessage('');
+        const params = new URLSearchParams();
+        if (selectedBrand) params.set('brand', selectedBrand);
+        const response = await fetch(`/api/admin-v2/serial-decodes/brand-responses?${params.toString()}`, {
           method: 'GET',
           credentials: 'same-origin',
         });
@@ -147,9 +151,10 @@ const SerialDecodes = () => {
         }
         if (cancelled) return;
         setBrandResponses(Array.isArray(data.records) ? data.records : []);
-      } catch {
+      } catch (error) {
         if (cancelled) return;
         setBrandResponses([]);
+        setChartErrorMessage(error instanceof Error ? error.message : 'Unable to load brand response chart.');
       }
     };
 
@@ -158,7 +163,7 @@ const SerialDecodes = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedBrand]);
 
   useEffect(() => {
     let cancelled = false;
@@ -214,27 +219,31 @@ const SerialDecodes = () => {
 
   const pageStart = useMemo(() => (page - 1) * PAGE_SIZE + 1, [page]);
   const pageEnd = useMemo(() => Math.min(page * PAGE_SIZE, total), [page, total]);
+  const chartRows = useMemo(
+    () => brandResponses.filter((item) => item.responseCount > 0).slice(0, 20),
+    [brandResponses],
+  );
   const chartOption = useMemo(() => ({
-    color: [theme.vars.palette.primary.main],
-    grid: { left: 48, right: 20, top: 24, bottom: 130 },
+    color: ['#4cc9f0'],
+    grid: { left: 56, right: 24, top: 24, bottom: 140 },
     xAxis: {
       type: 'category',
-      data: brandResponses.map((item) => formatBrandName(item.brand)),
+      data: chartRows.map((item) => formatBrandName(item.brand)),
       axisLabel: {
         rotate: 90,
         interval: 0,
         margin: 16,
-        color: theme.vars.palette.text.secondary,
+        color: 'rgba(255, 255, 255, 0.7)',
       },
       axisLine: {
-        lineStyle: { color: theme.vars.palette.divider },
+        lineStyle: { color: 'rgba(255, 255, 255, 0.25)' },
       },
     },
     yAxis: {
       type: 'value',
-      axisLabel: { color: theme.vars.palette.text.secondary },
+      axisLabel: { color: 'rgba(255, 255, 255, 0.8)' },
       splitLine: {
-        lineStyle: { color: theme.vars.palette.divider },
+        lineStyle: { color: 'rgba(255, 255, 255, 0.12)' },
       },
     },
     tooltip: {
@@ -249,25 +258,31 @@ const SerialDecodes = () => {
     series: [
       {
         type: 'bar',
-        data: brandResponses.map((item) => item.responseCount),
-        barWidth: 22,
+        data: chartRows.map((item) => item.responseCount),
+        barWidth: '55%',
         itemStyle: {
+          color: '#4cc9f0',
           borderRadius: [4, 4, 0, 0],
         },
       },
     ],
-  }), [brandResponses, theme.vars.palette.divider, theme.vars.palette.primary.main, theme.vars.palette.text.secondary]);
+  }), [chartRows]);
 
   return (
     <Stack direction="column" spacing={3} sx={{ width: 1 }}>
       <Paper sx={{ p: { xs: 3, md: 4 }, width: 1, display: 'block' }}>
         <Stack spacing={2}>
           <Typography variant="h5">Brand Responses</Typography>
-          <ReactEchart
-            echarts={echarts}
-            option={chartOption}
-            sx={{ height: 340, width: 1, minWidth: 0 }}
-          />
+          {chartErrorMessage ? <Alert severity="error">{chartErrorMessage}</Alert> : null}
+          {chartRows.length > 0 ? (
+            <ReactEchart
+              echarts={echarts}
+              option={chartOption}
+              sx={{ height: 360, width: '100%', minWidth: 0 }}
+            />
+          ) : (
+            <Typography variant="body2" color="text.secondary">No brand response data available.</Typography>
+          )}
         </Stack>
       </Paper>
 
@@ -365,6 +380,7 @@ const SerialDecodes = () => {
                 records.map((record) => {
                   const successColor = record.success ? '#9be7b0' : '#ff9f9f';
                   const successBorderColor = record.success ? 'rgba(155, 231, 176, 0.35)' : 'rgba(255, 159, 159, 0.35)';
+                  const successBackground = record.success ? 'rgba(155, 231, 176, 0.03)' : 'rgba(255, 159, 159, 0.03)';
                   return (
                     <TableRow
                       key={record.id}
@@ -372,16 +388,16 @@ const SerialDecodes = () => {
                       onClick={() => setSelectedRecord(record)}
                       sx={{
                         cursor: 'pointer',
-                        '& td': {
-                          color: successColor,
-                          borderBottomColor: successBorderColor,
-                        },
+                        backgroundColor: successBackground,
+                        '& td': { borderBottom: `1px solid ${successBorderColor} !important` },
                       }}
                     >
-                      <TableCell>{formatTimestampMountain(record.clientTimestamp, record.eventTimeUtc)}</TableCell>
-                      <TableCell>{formatBrandName(record.brand || '')}</TableCell>
-                      <TableCell>{record.serial || '-'}</TableCell>
-                      <TableCell>{record.success ? 'Yes' : 'No'}</TableCell>
+                      <TableCell sx={{ color: `${successColor} !important` }}>
+                        {formatTimestampMountain(record.clientTimestamp, record.eventTimeUtc)}
+                      </TableCell>
+                      <TableCell sx={{ color: `${successColor} !important` }}>{formatBrandName(record.brand || '')}</TableCell>
+                      <TableCell sx={{ color: `${successColor} !important` }}>{record.serial || '-'}</TableCell>
+                      <TableCell sx={{ color: `${successColor} !important` }}>{record.success ? 'Yes' : 'No'}</TableCell>
                     </TableRow>
                   );
                 })

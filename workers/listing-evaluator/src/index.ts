@@ -360,7 +360,7 @@ export default {
     }
 
     if (path === '/api/admin-v2/serial-decodes/brand-responses' && request.method === 'GET') {
-      const response = await handleAdminV2SerialDecodeBrandResponses(env);
+      const response = await handleAdminV2SerialDecodeBrandResponses(request, env);
       return withCors(response, request, env);
     }
 
@@ -1562,8 +1562,10 @@ async function handleAdminV2SerialDecodes(request: Request, env: Env): Promise<R
   return jsonResponse(data);
 }
 
-async function handleAdminV2SerialDecodeBrandResponses(env: Env): Promise<Response> {
-  const records = await dbGetAdminV2SerialDecodeBrandResponses(env);
+async function handleAdminV2SerialDecodeBrandResponses(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const brand = normalizeText(url.searchParams.get('brand'), '').slice(0, 120);
+  const records = await dbGetAdminV2SerialDecodeBrandResponses(brand, env);
   return jsonResponse({ records });
 }
 
@@ -4358,17 +4360,28 @@ async function dbListAdminV2SerialDecodes(
 }
 
 async function dbGetAdminV2SerialDecodeBrandResponses(
+  brand: string,
   env: Env,
 ): Promise<AdminV2SerialDecodeBrandResponseRow[]> {
+  const where: string[] = [`trim(COALESCE(brand, '')) <> ''`];
+  const values: unknown[] = [];
+
+  if (brand) {
+    where.push(`lower(trim(brand)) = lower(trim(?))`);
+    values.push(brand);
+  }
+
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
   const rows = await env.DB.prepare(
     `SELECT
       trim(brand) AS brand,
       COUNT(*) AS response_count
      FROM serial_decode_events
-     WHERE trim(COALESCE(brand, '')) <> ''
+     ${whereSql}
      GROUP BY lower(trim(brand))
      ORDER BY response_count DESC, lower(trim(brand)) ASC`
-  ).all<{
+  ).bind(...values).all<{
     brand: string | null;
     response_count: number | null;
   }>();
