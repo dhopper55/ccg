@@ -8,6 +8,7 @@
     "build": "npm run build:legacy && npm run build:admin-v2",
     "build:legacy": "tsc && node scripts/update-cache-busters.mjs",
     "build:admin-v2": "npm --prefix admin-v2-app install && npm --prefix admin-v2-app run build:ccg",
+    "test:regressions": "tsc && node scripts/test-regressions.mjs",
     "cachebust": "node scripts/update-cache-busters.mjs",
     "watch": "tsc --watch",
     "start": "lite-server",

@@ -217,12 +217,13 @@
         <p class="decoder-modal-subtitle">A quick manual method when you don't want to use a decoder.</p>
       </div>
       <div class="decoder-modal-body">
-        <p>Ibanez serial numbers are generally found on the back of the headstock and can often be decoded by prefix plus date digits. A common modern pattern is factory prefix + YYMM + sequence (for example, <strong>I160100231</strong> = Indonesia, January 2016). This decoder also supports <strong>B + 9 digits</strong> as a month-letter variant, where <strong>B = February</strong> (A=January, B=February, etc.).</p>
+        <p>Ibanez serial numbers are generally found on the back of the headstock and can often be decoded by prefix plus date digits. A common modern pattern is factory prefix + YYMM + sequence (for example, <strong>I160100231</strong> = Indonesia, January 2016). This decoder also supports both <strong>5B + 9 digits</strong> (import prefix with YYMM date digits) and <strong>B + 9 digits</strong> (month-letter variant where B = February).</p>
 
         <h3>Decoding by Location &amp; Year</h3>
         <ul class="decoder-howto-steps">
           <li><strong>Japan (FujiGen, 1987–Present):</strong> Starts with a letter, followed by 6–7 digits. The first two digits after the letter are the year (e.g., F97XXXX = 1997).</li>
           <li><strong>Indonesia (2001+):</strong> <strong>I/K/J + 9 digits</strong>, where digits usually map to <strong>YYMM + sequence</strong>.</li>
+          <li><strong>Two-character Import Prefix:</strong> Some serials use <strong>5B + 9 digits</strong>; the decoder treats <strong>5B</strong> as prefix and uses the remaining digits as <strong>YYMM + sequence</strong> (e.g., 5B160100231 = January 2016).</li>
           <li><strong>Month-letter Variant:</strong> Some serials appear as <strong>B + 9 digits</strong>; in this case the leading letter is treated as month code (A=Jan, B=Feb, etc.) rather than factory code (e.g., B160100231 = February 2016).</li>
           <li><strong>Korea/China/Other Imports:</strong> Often use a factory letter/prefix followed by year-month style digits, but exact rules vary by plant and era.</li>
           <li><strong>Older Models (Pre-1976):</strong> Often have no serial number.</li>

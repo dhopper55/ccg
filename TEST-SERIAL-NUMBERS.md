@@ -10,6 +10,9 @@ Sample serial numbers for testing the guitar serial decoder.
 | F523456 | Japan (FujiGen), 1995 |
 | C03071234 | Korea (Cort), 2003, July |
 | I120426682 | Indonesia, 2012, April |
+| B160100231 | Month-letter format, 2016, **February** (B=Feb; not a factory code) |
+| B-160100231 | Same as B160100231 after normalization (hyphen removed) |
+| 5B-160100231 | Two-character import prefix format, 2016, January (5B prefix + YYMM + sequence) |
 | W842827 | Korea (World), 2004 |
 | GS140406094 | China, 2014, April |
 | 2Y03GS241108648 | China (GIO), 2024, November (compound format with model code 2Y03) |

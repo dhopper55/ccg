@@ -95,6 +95,11 @@ export function decodeIbanez(serial) {
     if (/^CP\d+$/.test(normalized)) {
         return decodeCP(normalized);
     }
+    // Import two-character prefix variant: 5B + 9 digits
+    // Treats 5B as a plant/line prefix and parses YYMM + sequence from digits.
+    if (/^5B\d{9}$/.test(normalized)) {
+        return decodeTwoCharImportPrefix9Digit(normalized);
+    }
     // Month-letter variant seen on some imports: B + 9 digits
     // Treats leading letter as month code (A=Jan, B=Feb, ...), not factory code.
     if (/^B\d{9}$/.test(normalized)) {
@@ -483,6 +488,23 @@ function decodeCP(serial) {
         factory: 'South Korea (possibly Cort partnership)',
         country: 'South Korea',
         notes: `CP prefix was used 2003-2008. Exact manufacturer unclear.`
+    };
+    return { success: true, info };
+}
+// Import two-character prefix variant: 5B + 9 digits
+function decodeTwoCharImportPrefix9Digit(serial) {
+    const prefix = serial.substring(0, 2);
+    const year = parseInt(serial.substring(2, 4), 10) + 2000;
+    const month = parseInt(serial.substring(4, 6), 10);
+    const sequence = serial.substring(6);
+    const info = {
+        brand: 'Ibanez',
+        serialNumber: serial,
+        year: year.toString(),
+        month: getMonthName(month),
+        factory: 'Unknown import factory (5B prefix)',
+        country: 'China or Indonesia',
+        notes: `Sequence: ${sequence}. "${prefix}" appears as a two-character import prefix; this decoder uses YYMM from the following digits.`
     };
     return { success: true, info };
 }
