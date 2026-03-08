@@ -25,6 +25,8 @@ Sample serial numbers for testing the guitar serial decoder.
 | 2Y03GS241108648 | China (GIO), 2024, November (compound format with model code 2Y03) |
 | 212Y03GS251101952 | China (GIO), 2025, November (compound format with extended model code 212Y03) |
 | 5B01PW230401856 | Indonesia (PT Woonan), 2023, April (compound format with model code 5B01) |
+| 4L1901087937 | China, 2019, January (4L prefix with extended 10-digit numeric payload) |
+| 83030041D | Legacy alpha-suffix format, 1983, March (YYMM#### + suffix letter) |
 
 ## Gibson
 

@@ -149,9 +149,13 @@ export function decodeIbanez(serial) {
     if (/^A\d{8}$/.test(normalized)) {
         return decodeChinaA(normalized);
     }
-    // China: 4L + 9 digits
-    if (/^4L\d{9}$/.test(normalized)) {
+    // China: 4L + 9-10 digits
+    if (/^4L\d{9,10}$/.test(normalized)) {
         return decodeChina4L(normalized);
+    }
+    // Legacy alpha-suffix format: YYMM#### + letter
+    if (/^\d{8}[A-Z]$/.test(normalized)) {
+        return decodeLegacyAlphaSuffix(normalized);
     }
     // Numeric-only 9 digits: YYMM + sequence (seen on some modern imports)
     if (/^\d{9}$/.test(normalized)) {
@@ -171,7 +175,7 @@ export function decodeIbanez(serial) {
     }
     return {
         success: false,
-        error: 'Unrecognized Ibanez serial number format. Ibanez has used many different serial number systems across factories in Japan, Korea, Indonesia, and China. Common formats include: F + 7 digits (Japan), letter + 6-9 digits (various factories), numeric 7-9 digits (date + sequence on some imports), or factory prefix + digits.'
+        error: 'Unrecognized Ibanez serial number format. Ibanez has used many different serial number systems across factories in Japan, Korea, Indonesia, and China. Common formats include: F + 7 digits (Japan), letter + 6-9 digits (various factories), numeric 7-9 digits (date + sequence on some imports), legacy YYMM#### + letter, or factory prefix + digits.'
     };
 }
 function decodeKnownModelCode(modelCode) {
@@ -815,7 +819,7 @@ function decodeChinaA(serial) {
     };
     return { success: true, info };
 }
-// China 4L format: 4L + 9 digits
+// China 4L format: 4L + 9-10 digits
 function decodeChina4L(serial) {
     const year = parseInt(serial.substring(2, 4), 10) + 2000;
     const month = parseInt(serial.substring(4, 6), 10);
@@ -828,6 +832,24 @@ function decodeChina4L(serial) {
         factory: 'China',
         country: 'China',
         notes: `Sequence: ${sequence}. 4L prefix format.`
+    };
+    return { success: true, info };
+}
+// Legacy alpha-suffix format: YYMM#### + letter
+function decodeLegacyAlphaSuffix(serial) {
+    const yy = parseInt(serial.substring(0, 2), 10);
+    const month = parseInt(serial.substring(2, 4), 10);
+    const sequence = serial.substring(4, 8);
+    const suffix = serial[8];
+    const year = yy >= 70 ? 1900 + yy : 2000 + yy;
+    const info = {
+        brand: 'Ibanez',
+        serialNumber: serial,
+        year: year.toString(),
+        month: getMonthName(month),
+        factory: 'Japan (legacy format, exact factory unclear)',
+        country: 'Japan',
+        notes: `Sequence: ${sequence}. Suffix "${suffix}" is treated as a factory/inspector/batch marker in legacy serial usage.`
     };
     return { success: true, info };
 }
