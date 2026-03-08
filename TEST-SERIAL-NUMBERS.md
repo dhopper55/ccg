@@ -18,6 +18,7 @@ Sample serial numbers for testing the guitar serial decoder.
 | 311717707 | Numeric-only 9-digit ambiguous format, primary: 2003 November (YMM fallback), alt: 2013 November |
 | 02010903 | Numeric-only 8-digit import format, 2002, January (YYMM + sequence) |
 | 4120210 | Numeric-only 7-digit import format, 2014, December (YMM + sequence) |
+| 5230401406 | Numeric-only 10-digit format with leading factory digit, 2023, April (factory digit + YYMM + sequence) |
 | I110626774 | Indonesia format, 2011, June (I + 9 digits) |
 | I11o626774 | Same as I110626774 after O->0 retry correction in UI |
 | GI0012180 | Indonesia GIO legacy format, 2000, December (GI + 7 digits) |
@@ -26,6 +27,7 @@ Sample serial numbers for testing the guitar serial decoder.
 | vo54683 | V-prefix format with O/0 ambiguity, primary read V054683 => 2005 (case-insensitive) |
 | M3013293 | M-prefix 7-digit format, primary: 2003 January, alt: 2013 January |
 | L160200319 | China L-prefix format, 2016, February (L + 9 digits) |
+| N230401406 | China N-prefix format, 2023, April (N + 9 digits) |
 | SR305EDX | Model code fallback (not serial): likely Indonesia origin; exact date requires actual serial |
 | W842827 | Korea (World), 2004 |
 | W0111538 | Korea (World), 2000, November (W-prefix variant with numeric month) |

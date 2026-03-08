@@ -86,6 +86,21 @@ function assertIbanezNumericOnly7Digit(serialInput, expectedYear, expectedMonth)
   );
 }
 
+function assertIbanezNumericOnly10DigitFactoryLeading(serialInput, expectedYear, expectedMonth) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'Unknown China factory (numeric 10-digit format)',
+    `Expected numeric 10-digit China factory note for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'China', `Expected country China for ${serialInput}, got ${info.country}`);
+}
+
 function assertIbanezModelCodeFallback(serialInput) {
   const result = decodeIbanez(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -219,6 +234,21 @@ function assertIbanezChinaL(serialInput, expectedYear, expectedMonth) {
   assert(info.country === 'China', `Expected country China for ${serialInput}, got ${info.country}`);
 }
 
+function assertIbanezChinaN(serialInput, expectedYear, expectedMonth) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'China (N-prefix factory)',
+    `Expected N-prefix China factory for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'China', `Expected country China for ${serialInput}, got ${info.country}`);
+}
+
 function assertIbanez4L(serialInput, expectedYear, expectedMonth) {
   const result = decodeIbanez(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -326,6 +356,7 @@ assertIbanezVPrefix('V054683', '2005');
 assertIbanezVPrefix('vo54683', '2005');
 assertIbanezMPrefix('M3013293', '2003', 'January');
 assertIbanezChinaL('L160200319', '2016', 'February');
+assertIbanezChinaN('N230401406', '2023', 'April');
 assertIbanezWorldExtended('W0111538', '2000', 'November');
 assertIbanezWorldShortWK('WK1007');
 assertIbanezNumericOnly9Digit('220600378', '2022', 'June');
@@ -333,6 +364,7 @@ assertIbanezNumericOnly9DigitAmbiguous('311717707', '2003', 'November');
 assertIbanezNumericOnly9Digit('141209632', '2014', 'December');
 assertIbanezNumericOnly9Digit('02010903', '2002', 'January');
 assertIbanezNumericOnly7Digit('4120210', '2014', 'December');
+assertIbanezNumericOnly10DigitFactoryLeading('5230401406', '2023', 'April');
 assertIbanezModelCodeFallback('SR305EDX');
 assertIbanezExistingSamples();
 

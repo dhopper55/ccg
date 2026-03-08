@@ -187,6 +187,10 @@ export function decodeIbanez(serial) {
     if (/^L\d{9}$/.test(normalized)) {
         return decodeChinaL(normalized);
     }
+    // China: N + 9 digits
+    if (/^N\d{9}$/.test(normalized)) {
+        return decodeChinaN(normalized);
+    }
     // China: GP + 8 digits
     if (/^GP\d{8}$/.test(normalized)) {
         return decodeChinaGP(normalized);
@@ -232,13 +236,17 @@ export function decodeIbanez(serial) {
     if (/^\d{7}$/.test(normalized)) {
         return decodeNumeric7DigitModern(normalized);
     }
+    // Numeric-only 10 digits: factory digit + YYMM + sequence
+    if (/^\d{10}$/.test(normalized)) {
+        return decodeNumeric10DigitFactoryLeading(normalized);
+    }
     // Japan: 5-digit J-Custom (2001-2004)
     if (/^\d{5}$/.test(normalized)) {
         return decodeJCustom5Digit(normalized);
     }
     return {
         success: false,
-        error: 'Unrecognized Ibanez serial number format. Ibanez has used many different serial number systems across factories in Japan, Korea, Indonesia, and China. Common formats include: F + 7 digits (Japan), letter + 6-9 digits (various factories), numeric 6-9 digits (legacy or modern date/sequence variants), compact/legacy alpha suffix variants, or factory prefix + digits.'
+        error: 'Unrecognized Ibanez serial number format. Ibanez has used many different serial number systems across factories in Japan, Korea, Indonesia, and China. Common formats include: F + 7 digits (Japan), letter + 6-10 digits (various factories), numeric 6-10 digits (legacy or modern date/sequence variants), compact/legacy alpha suffix variants, or factory prefix + digits.'
     };
 }
 function decodeKnownModelCode(modelCode) {
@@ -781,6 +789,24 @@ function decodeNumeric7DigitModern(serial) {
     };
     return { success: true, info };
 }
+// Numeric-only modern variant: factory digit + YYMM + sequence (10 digits)
+function decodeNumeric10DigitFactoryLeading(serial) {
+    const factoryDigit = serial[0];
+    const year = parseInt(serial.substring(1, 3), 10) + 2000;
+    const month = parseInt(serial.substring(3, 5), 10);
+    const sequence = serial.substring(5);
+    const monthText = getMonthName(month);
+    const info = {
+        brand: 'Ibanez',
+        serialNumber: serial,
+        year: year.toString(),
+        month: monthText,
+        factory: 'Unknown China factory (numeric 10-digit format)',
+        country: 'China',
+        notes: `Factory digit: ${factoryDigit}. Sequence: ${sequence}. Numeric-only 10-digit pattern interpreted as factory digit + YYMM + production sequence.`
+    };
+    return { success: true, info };
+}
 // Month-letter prefix variant: B + 9 digits
 function decodeMonthLetterPrefix9Digit(serial) {
     const monthLetter = serial[0];
@@ -1041,6 +1067,22 @@ function decodeChinaL(serial) {
         factory: 'China (L-prefix factory)',
         country: 'China',
         notes: `Sequence: ${sequence}. L prefix appears on modern China production serials.`
+    };
+    return { success: true, info };
+}
+// China N format: N + 9 digits
+function decodeChinaN(serial) {
+    const year = parseInt(serial.substring(1, 3), 10) + 2000;
+    const month = parseInt(serial.substring(3, 5), 10);
+    const sequence = serial.substring(5);
+    const info = {
+        brand: 'Ibanez',
+        serialNumber: serial,
+        year: year.toString(),
+        month: getMonthName(month),
+        factory: 'China (N-prefix factory)',
+        country: 'China',
+        notes: `Sequence: ${sequence}. N prefix appears on modern China production serials using YYMM + sequence.`
     };
     return { success: true, info };
 }
