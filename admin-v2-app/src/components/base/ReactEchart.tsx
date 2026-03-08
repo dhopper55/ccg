@@ -8,6 +8,8 @@ import { grey } from 'theme/colors/base';
 export interface ReactEchartProps extends BoxProps {
   echarts: EChartsReactProps['echarts'];
   option: EChartsReactProps['option'];
+  onEvents?: EChartsReactProps['onEvents'];
+  onChartReady?: EChartsReactProps['onChartReady'];
 }
 
 const ReactEchart = ({ option, ref, ...rest }: ReactEchartProps) => {

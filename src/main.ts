@@ -52,7 +52,7 @@ function trackDecode(data: {
       error: data.error || '',
       pagePath: window.location.pathname,
       userAgent: navigator.userAgent,
-      clientTimestamp: new Date().toISOString(),
+      clientTimestamp: new Date().toString(),
     }),
   }).catch(() => {
     // Silently ignore errors - tracking should not affect user experience

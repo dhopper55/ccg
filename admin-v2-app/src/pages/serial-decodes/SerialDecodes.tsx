@@ -113,6 +113,11 @@ function formatBrandName(value: string): string {
   return normalized.replace(/\b[a-z]/g, (ch) => ch.toUpperCase());
 }
 
+function truncateBrandLabel(value: string, max = 13): string {
+  if (value.length <= max) return value;
+  return `${value.slice(0, Math.max(1, max - 2))}..`;
+}
+
 const SerialDecodes = () => {
   const theme = useTheme();
   const [records, setRecords] = useState<SerialDecodeRecord[]>([]);
@@ -223,17 +228,19 @@ const SerialDecodes = () => {
     () => brandResponses.filter((item) => item.responseCount > 0).slice(0, 20),
     [brandResponses],
   );
+  const chartLabels = useMemo(() => chartRows.map((item) => formatBrandName(item.brand)), [chartRows]);
   const chartOption = useMemo(() => ({
     color: ['#4cc9f0'],
-    grid: { left: 56, right: 24, top: 24, bottom: 140 },
+    grid: { left: 56, right: 24, top: 16, bottom: 70, containLabel: true },
     xAxis: {
       type: 'category',
-      data: chartRows.map((item) => formatBrandName(item.brand)),
+      data: chartLabels,
       axisLabel: {
         rotate: 90,
         interval: 0,
-        margin: 16,
+        margin: 8,
         color: 'rgba(255, 255, 255, 0.7)',
+        formatter: (value: string) => truncateBrandLabel(String(value || ''), 13),
       },
       axisLine: {
         lineStyle: { color: 'rgba(255, 255, 255, 0.25)' },
@@ -266,19 +273,34 @@ const SerialDecodes = () => {
         },
       },
     ],
-  }), [chartRows]);
+  }), [chartLabels, chartRows]);
+
+  const chartEvents = useMemo(
+    () => ({
+      click: (params: { dataIndex?: number }) => {
+        const index = typeof params?.dataIndex === 'number' ? params.dataIndex : -1;
+        if (index < 0 || index >= chartRows.length) return;
+        const selected = chartRows[index]?.brand || '';
+        if (!selected) return;
+        setPage(1);
+        setSelectedBrand(selected);
+      },
+    }),
+    [chartRows],
+  );
 
   return (
     <Stack direction="column" spacing={3} sx={{ width: 1 }}>
       <Paper sx={{ p: { xs: 3, md: 4 }, width: 1, display: 'block' }}>
-        <Stack spacing={2}>
+        <Stack spacing={1.5} sx={{ width: 1 }}>
           <Typography variant="h5">Brand Responses</Typography>
           {chartErrorMessage ? <Alert severity="error">{chartErrorMessage}</Alert> : null}
           {chartRows.length > 0 ? (
             <ReactEchart
               echarts={echarts}
               option={chartOption}
-              sx={{ height: 360, width: '100%', minWidth: 0 }}
+              onEvents={chartEvents}
+              sx={{ height: 290, width: '100%', minWidth: 0 }}
             />
           ) : (
             <Typography variant="body2" color="text.secondary">No brand response data available.</Typography>
