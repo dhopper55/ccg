@@ -1571,8 +1571,9 @@ async function handleAdminV2SerialDecodes(request: Request, env: Env): Promise<R
   const limit = parseBoundedInt(url.searchParams.get('limit'), 20, 1, 100);
   const brand = normalizeText(url.searchParams.get('brand'), '').slice(0, 120);
   const onlyErrors = url.searchParams.get('onlyErrors') === '1';
+  const unevaluated = url.searchParams.get('unevaluated') === '1';
   const sortDir = normalizeText(url.searchParams.get('sortDir'), '').toLowerCase() === 'asc' ? 'asc' : 'desc';
-  const data = await dbListAdminV2SerialDecodes(page, limit, brand, onlyErrors, sortDir, env);
+  const data = await dbListAdminV2SerialDecodes(page, limit, brand, onlyErrors, unevaluated, sortDir, env);
   return jsonResponse(data);
 }
 
@@ -4300,6 +4301,7 @@ async function dbListAdminV2SerialDecodes(
   limit: number,
   brand: string,
   onlyErrors: boolean,
+  unevaluated: boolean,
   sortDir: 'asc' | 'desc',
   env: Env,
 ): Promise<{
@@ -4310,7 +4312,6 @@ async function dbListAdminV2SerialDecodes(
   totalPages: number;
   availableBrands: string[];
 }> {
-  const offset = (page - 1) * limit;
   const where: string[] = [];
   const values: unknown[] = [];
   const db = env.DB.withSession('first-primary');
@@ -4322,6 +4323,9 @@ async function dbListAdminV2SerialDecodes(
   if (onlyErrors) {
     where.push(`COALESCE(success, 0) = 0`);
   }
+  if (unevaluated) {
+    where.push(`COALESCE(evaluated, 0) = 0`);
+  }
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
   const totalRow = await db.prepare(
@@ -4329,6 +4333,8 @@ async function dbListAdminV2SerialDecodes(
   ).bind(...values).first<{ total: number | null }>();
   const total = Number(totalRow?.total || 0);
   const totalPages = Math.max(1, Math.ceil(total / limit));
+  const effectivePage = Math.min(Math.max(1, page), totalPages);
+  const offset = (effectivePage - 1) * limit;
 
   const brandRows = await db.prepare(
     `SELECT DISTINCT brand
@@ -4392,7 +4398,7 @@ async function dbListAdminV2SerialDecodes(
 
   return {
     records,
-    page,
+    page: effectivePage,
     limit,
     total,
     totalPages,

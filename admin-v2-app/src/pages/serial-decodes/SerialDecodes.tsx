@@ -126,10 +126,12 @@ const SerialDecodes = () => {
   const [availableBrands, setAvailableBrands] = useState<string[]>([]);
   const [selectedBrand, setSelectedBrand] = useState('');
   const [onlyErrors, setOnlyErrors] = useState(false);
+  const [onlyUnevaluated, setOnlyUnevaluated] = useState(false);
   const [timestampSortDir, setTimestampSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [chartErrorMessage, setChartErrorMessage] = useState('');
@@ -188,6 +190,7 @@ const SerialDecodes = () => {
         params.set('sortDir', timestampSortDir);
         if (selectedBrand) params.set('brand', selectedBrand);
         if (onlyErrors) params.set('onlyErrors', '1');
+        if (onlyErrors && onlyUnevaluated) params.set('unevaluated', '1');
         params.set('_', String(Date.now()));
 
         const response = await fetch(`/api/admin-v2/serial-decodes?${params.toString()}`, {
@@ -226,7 +229,7 @@ const SerialDecodes = () => {
     return () => {
       cancelled = true;
     };
-  }, [onlyErrors, page, selectedBrand, timestampSortDir]);
+  }, [onlyErrors, onlyUnevaluated, page, refreshKey, selectedBrand, timestampSortDir]);
 
   const pageStart = useMemo(() => (page - 1) * PAGE_SIZE + 1, [page]);
   const pageEnd = useMemo(() => Math.min(page * PAGE_SIZE, total), [page, total]);
@@ -319,6 +322,9 @@ const SerialDecodes = () => {
       setSelectedRecord((current) => (
         current && current.id === recordId ? { ...current, evaluated: Boolean(data.evaluated) } : current
       ));
+      if (onlyErrors && onlyUnevaluated && nextValue) {
+        setRefreshKey((current) => current + 1);
+      }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to update evaluated state.');
     } finally {
@@ -382,12 +388,34 @@ const SerialDecodes = () => {
                   checked={onlyErrors}
                   onChange={(event) => {
                     setPage(1);
-                    setOnlyErrors(event.target.checked);
+                    const next = event.target.checked;
+                    setOnlyErrors(next);
+                    if (next) {
+                      setOnlyUnevaluated(false);
+                    } else {
+                      setOnlyUnevaluated(false);
+                    }
                   }}
                 />
               }
               label="Only errors"
             />
+            {onlyErrors ? (
+              <FormControlLabel
+                sx={{ mr: 0 }}
+                control={
+                  <Checkbox
+                    size="small"
+                    checked={onlyUnevaluated}
+                    onChange={(event) => {
+                      setPage(1);
+                      setOnlyUnevaluated(event.target.checked);
+                    }}
+                  />
+                }
+                label="Unevaluated"
+              />
+            ) : null}
           </Stack>
         </Stack>
 
