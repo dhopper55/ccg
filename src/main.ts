@@ -157,19 +157,22 @@ function handleDecode(): void {
   let result = decoder(serial);
   let correctedSerial: string | null = null;
 
-  // If Ibanez decode fails and the first character is a "1", retry as "I"
-  if (!result.success && brand === 'ibanez' && serial.length >= 2 && serial[0] === '1') {
-    const retrySerial = `I${serial.slice(1)}`.toUpperCase();
-    const retryResult = decoder(retrySerial);
-    if (retryResult.success && retryResult.info) {
-      correctedSerial = retrySerial;
-      retryResult.info.serialNumber = retrySerial;
-      const correctionNote = `Serial number corrected from ${serial} to ${retrySerial} (leading "1" interpreted as "I").`;
-      retryResult.info.notes = retryResult.info.notes
-        ? `${retryResult.info.notes} ${correctionNote}`
-        : correctionNote;
-      result = retryResult;
-      serialInput.value = retrySerial;
+  // Retry with normalized/corrected variants if first decode fails.
+  if (!result.success) {
+    const retrySerials = buildRetrySerials(serial, brand);
+    for (const retrySerial of retrySerials) {
+      const retryResult = decoder(retrySerial);
+      if (retryResult.success && retryResult.info) {
+        correctedSerial = retrySerial;
+        retryResult.info.serialNumber = retrySerial;
+        const correctionNote = `Serial number corrected from ${serial} to ${retrySerial} after retrying with normalized formatting.`;
+        retryResult.info.notes = retryResult.info.notes
+          ? `${retryResult.info.notes} ${correctionNote}`
+          : correctionNote;
+        result = retryResult;
+        serialInput.value = retrySerial;
+        break;
+      }
     }
   }
 
@@ -202,6 +205,30 @@ function handleDecode(): void {
       error: errorMsg,
     });
   }
+}
+
+function buildRetrySerials(serial: string, brand: Brand): string[] {
+  const candidates: string[] = [];
+
+  const addCandidate = (candidate: string) => {
+    const cleaned = candidate.trim();
+    if (!cleaned || cleaned === serial || candidates.includes(cleaned)) {
+      return;
+    }
+    candidates.push(cleaned);
+  };
+
+  addCandidate(serial.toUpperCase());
+  addCandidate(serial.replace(/[\s-]/g, ''));
+  addCandidate(serial.replace(/[\s-]/g, '').toUpperCase());
+  addCandidate(serial.replace(/[^A-Za-z0-9]/g, ''));
+  addCandidate(serial.replace(/[^A-Za-z0-9]/g, '').toUpperCase());
+
+  if (brand === 'ibanez' && serial.length >= 2 && serial[0] === '1') {
+    addCandidate(`I${serial.slice(1)}`.toUpperCase());
+  }
+
+  return candidates;
 }
 
 function displayResult(info: GuitarInfo): void {
