@@ -181,6 +181,19 @@ function assertIbanezWorldShortWK(serialInput) {
   );
 }
 
+function assertIbanezVPrefix(serialInput, expectedYear) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(
+    info.factory === 'Unknown V-prefix production line (Japan or Korea)',
+    `Expected V-prefix factory note for ${serialInput}, got ${info.factory}`
+  );
+}
+
 function assertIbanez4L(serialInput, expectedYear, expectedMonth) {
   const result = decodeIbanez(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -284,6 +297,8 @@ assertIbanezIndonesiaI('I110626774', '2011', 'June');
 assertIbanezIndonesiaGILegacy('GI0012180', '2000', 'December');
 assertIbanezChinaGP('gp05105792', '2005', 'October');
 assertIbanezFujiGenFD('FD2468031', '2024', 'July');
+assertIbanezVPrefix('V054683', '2005');
+assertIbanezVPrefix('vo54683', '2005');
 assertIbanezWorldExtended('W0111538', '2000', 'November');
 assertIbanezWorldShortWK('WK1007');
 assertIbanezNumericOnly9Digit('220600378', '2022', 'June');

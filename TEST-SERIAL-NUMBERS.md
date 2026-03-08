@@ -23,6 +23,7 @@ Sample serial numbers for testing the guitar serial decoder.
 | GI0012180 | Indonesia GIO legacy format, 2000, December (GI + 7 digits) |
 | gp05105792 | China GP prefix format, 2005, October (GP + 8 digits; case-insensitive input) |
 | FD2468031 | Japan FujiGen variant prefix, 2024, July (FD + 7 digits) |
+| vo54683 | V-prefix format with O/0 ambiguity, primary read V054683 => 2005 (case-insensitive) |
 | SR305EDX | Model code fallback (not serial): likely Indonesia origin; exact date requires actual serial |
 | W842827 | Korea (World), 2004 |
 | W0111538 | Korea (World), 2000, November (W-prefix variant with numeric month) |

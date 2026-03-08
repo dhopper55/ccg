@@ -113,6 +113,10 @@ export function decodeIbanez(serial) {
     if (/^SQ\d+$/.test(normalized)) {
         return decodeSaehan(normalized);
     }
+    // Less-common V prefix: V + 6 digits (supports O/0 in 2nd position)
+    if (/^V[0O]\d{5}$/.test(normalized)) {
+        return decodeVPrefix(normalized);
+    }
     // Korea: KR + 9 digits (2004-2006)
     if (/^KR\d{9}$/.test(normalized)) {
         return decodeKR(normalized);
@@ -618,6 +622,21 @@ function decodeSaehan(serial) {
         factory: 'Saehan Guitar Technology',
         country: 'South Korea',
         notes: `SQ prefix indicates Saehan factory, typically used for acoustic models.`
+    };
+    return { success: true, info };
+}
+// Less-common V prefix: V + 6 digits
+function decodeVPrefix(serial) {
+    const yearPart = serial.substring(1, 3).replace('O', '0');
+    const year = parseInt(yearPart, 10) + 2000;
+    const sequence = serial.substring(3);
+    const info = {
+        brand: 'Ibanez',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'Unknown V-prefix production line (Japan or Korea)',
+        country: 'Japan or South Korea',
+        notes: `Sequence: ${sequence}. V prefix is treated as a less-common factory/series code. If original stamp used a letter "O", the serial may be a 2005-format read (e.g., V054683).`
     };
     return { success: true, info };
 }
