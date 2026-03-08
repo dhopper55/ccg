@@ -40,6 +40,7 @@ type SerialDecodeRecord = {
   brand: string;
   serial: string;
   success: boolean;
+  evaluated: boolean;
   year: string | null;
   factory: string | null;
   country: string | null;
@@ -133,6 +134,7 @@ const SerialDecodes = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [chartErrorMessage, setChartErrorMessage] = useState('');
   const [selectedRecord, setSelectedRecord] = useState<SerialDecodeRecord | null>(null);
+  const [updatingEvaluatedIds, setUpdatingEvaluatedIds] = useState<number[]>([]);
 
   useEffect(() => {
     document.title = 'CCG Admin | Serial Decodes';
@@ -290,6 +292,36 @@ const SerialDecodes = () => {
     [chartRows],
   );
 
+  const handleEvaluatedToggle = async (recordId: number, nextValue: boolean) => {
+    setUpdatingEvaluatedIds((current) => [...current, recordId]);
+    try {
+      const response = await fetch(`/api/admin-v2/serial-decodes/${recordId}/evaluated`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ evaluated: nextValue }),
+      });
+
+      const data = (await response.json()) as { evaluated?: boolean; message?: string };
+      if (!response.ok) {
+        throw new Error(data.message || 'Unable to update evaluated state.');
+      }
+
+      setRecords((current) => current.map((row) => (
+        row.id === recordId ? { ...row, evaluated: Boolean(data.evaluated) } : row
+      )));
+      setSelectedRecord((current) => (
+        current && current.id === recordId ? { ...current, evaluated: Boolean(data.evaluated) } : current
+      ));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to update evaluated state.');
+    } finally {
+      setUpdatingEvaluatedIds((current) => current.filter((id) => id !== recordId));
+    }
+  };
+
   return (
     <Stack direction="column" spacing={3} sx={{ width: 1 }}>
       <Paper sx={{ pt: { xs: 2, md: 2.5 }, pb: { xs: 1, md: 1.25 }, px: { xs: 3, md: 4 }, width: 1, display: 'block' }}>
@@ -318,25 +350,41 @@ const SerialDecodes = () => {
           mb={3}
         >
           <Typography variant="h4">Serial Decodes</Typography>
-          <FormControl size="small" sx={{ minWidth: 220 }}>
-            <InputLabel id="serial-decodes-brand-filter-label">Brand</InputLabel>
-            <Select
-              labelId="serial-decodes-brand-filter-label"
-              value={selectedBrand}
-              label="Brand"
-              onChange={(event) => {
-                setPage(1);
-                setSelectedBrand(String(event.target.value || ''));
-              }}
-            >
-              <MenuItem value="">All brands</MenuItem>
-              {availableBrands.map((brand) => (
-                <MenuItem key={brand} value={brand}>
-                  {formatBrandName(brand)}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2}>
+            <FormControl size="small" sx={{ minWidth: 220 }}>
+              <InputLabel id="serial-decodes-brand-filter-label">Brand</InputLabel>
+              <Select
+                labelId="serial-decodes-brand-filter-label"
+                value={selectedBrand}
+                label="Brand"
+                onChange={(event) => {
+                  setPage(1);
+                  setSelectedBrand(String(event.target.value || ''));
+                }}
+              >
+                <MenuItem value="">All brands</MenuItem>
+                {availableBrands.map((brand) => (
+                  <MenuItem key={brand} value={brand}>
+                    {formatBrandName(brand)}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControlLabel
+              sx={{ mr: 0 }}
+              control={
+                <Checkbox
+                  size="small"
+                  checked={onlyErrors}
+                  onChange={(event) => {
+                    setPage(1);
+                    setOnlyErrors(event.target.checked);
+                  }}
+                />
+              }
+              label="Only errors"
+            />
+          </Stack>
         </Stack>
 
         {errorMessage ? <Alert severity="error" sx={{ mb: 2 }}>{errorMessage}</Alert> : null}
@@ -359,33 +407,14 @@ const SerialDecodes = () => {
                 </TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Brand</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Serial</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>
-                  <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
-                    <Typography variant="inherit" component="span" sx={{ fontWeight: 700 }}>
-                      Success
-                    </Typography>
-                    <FormControlLabel
-                      sx={{ mr: 0 }}
-                      control={
-                        <Checkbox
-                          size="small"
-                          checked={onlyErrors}
-                          onChange={(event) => {
-                            setPage(1);
-                            setOnlyErrors(event.target.checked);
-                          }}
-                        />
-                      }
-                      label="Only errors"
-                    />
-                  </Stack>
-                </TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Success</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Evaluated?</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={4}>
+                  <TableCell colSpan={5}>
                     <Stack direction="row" justifyContent="center" py={4}>
                       <CircularProgress size={26} />
                     </Stack>
@@ -393,7 +422,7 @@ const SerialDecodes = () => {
                 </TableRow>
               ) : records.length < 1 ? (
                 <TableRow>
-                  <TableCell colSpan={4}>
+                  <TableCell colSpan={5}>
                     <Typography variant="body2" color="text.secondary" py={2}>
                       No serial decode records found.
                     </Typography>
@@ -421,6 +450,20 @@ const SerialDecodes = () => {
                       <TableCell sx={{ color: `${successColor} !important` }}>{formatBrandName(record.brand || '')}</TableCell>
                       <TableCell sx={{ color: `${successColor} !important` }}>{record.serial || '-'}</TableCell>
                       <TableCell sx={{ color: `${successColor} !important` }}>{record.success ? 'Yes' : 'No'}</TableCell>
+                      <TableCell sx={{ color: `${successColor} !important` }}>
+                        {record.success ? null : (
+                          <Checkbox
+                            size="small"
+                            checked={record.evaluated}
+                            disabled={updatingEvaluatedIds.includes(record.id)}
+                            onClick={(event) => event.stopPropagation()}
+                            onChange={(event) => {
+                              event.stopPropagation();
+                              void handleEvaluatedToggle(record.id, event.target.checked);
+                            }}
+                          />
+                        )}
+                      </TableCell>
                     </TableRow>
                   );
                 })

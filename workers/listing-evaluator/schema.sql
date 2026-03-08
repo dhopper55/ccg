@@ -155,6 +155,7 @@ CREATE TABLE IF NOT EXISTS serial_decode_events (
   brand TEXT NOT NULL,
   serial TEXT NOT NULL,
   success INTEGER NOT NULL DEFAULT 0,
+  evaluated INTEGER NOT NULL DEFAULT 0,
   year TEXT,
   factory TEXT,
   country TEXT,

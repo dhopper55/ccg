@@ -364,6 +364,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path.endsWith('/evaluated') && path.startsWith('/api/admin-v2/serial-decodes/') && request.method === 'POST') {
+      const response = await handleAdminV2SerialDecodeEvaluatedUpdate(request, path, env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/admin-v2/inventory/labels.pdf' && request.method === 'GET') {
       const response = await handleAdminV2InventoryLabelsPdf(env);
       return withCors(response, request, env);
@@ -525,6 +530,7 @@ async function handleSerialDecodeEvent(request: Request, env: Env): Promise<Resp
       brand,
       serial,
       success,
+      evaluated,
       year,
       factory,
       country,
@@ -1354,6 +1360,7 @@ type AdminV2SerialDecodeRow = {
   brand: string;
   serial: string;
   success: boolean;
+  evaluated: boolean;
   year: string | null;
   factory: string | null;
   country: string | null;
@@ -1567,6 +1574,29 @@ async function handleAdminV2SerialDecodeBrandResponses(request: Request, env: En
   const brand = normalizeText(url.searchParams.get('brand'), '').slice(0, 120);
   const records = await dbGetAdminV2SerialDecodeBrandResponses(brand, env);
   return jsonResponse({ records });
+}
+
+async function handleAdminV2SerialDecodeEvaluatedUpdate(
+  request: Request,
+  path: string,
+  env: Env,
+): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const evaluatedIndex = parts.indexOf('evaluated');
+  const recordId = evaluatedIndex > 0 ? parts[evaluatedIndex - 1] : '';
+  if (!recordId) return jsonResponse({ message: 'Missing serial decode ID.' }, 400);
+
+  let body: Record<string, unknown> = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  const evaluated = toBooleanInput(body.evaluated, false);
+  const updated = await dbSetSerialDecodeEvaluated(recordId, evaluated, env);
+  if (!updated) return jsonResponse({ message: 'Unable to update evaluated state.' }, 500);
+  return jsonResponse({ ok: true, evaluated });
 }
 
 async function handleAdminV2InventoryLabelsPdf(env: Env): Promise<Response> {
@@ -4330,6 +4360,7 @@ async function dbListAdminV2SerialDecodes(
     brand: string | null;
     serial: string | null;
     success: number | null;
+    evaluated: number | null;
     year: string | null;
     factory: string | null;
     country: string | null;
@@ -4343,6 +4374,7 @@ async function dbListAdminV2SerialDecodes(
     brand: normalizeText(row.brand, ''),
     serial: normalizeText(row.serial, ''),
     success: Number(row.success || 0) === 1,
+    evaluated: Number(row.evaluated || 0) === 1,
     year: normalizeText(row.year, '') || null,
     factory: normalizeText(row.factory, '') || null,
     country: normalizeText(row.country, '') || null,
@@ -4390,6 +4422,19 @@ async function dbGetAdminV2SerialDecodeBrandResponses(
     brand: normalizeText(row.brand, ''),
     responseCount: Number(row.response_count || 0),
   }));
+}
+
+async function dbSetSerialDecodeEvaluated(recordId: string, evaluated: boolean, env: Env): Promise<boolean> {
+  const id = Number.parseInt(recordId, 10);
+  if (!Number.isFinite(id) || id <= 0) return false;
+
+  const result = await env.DB.prepare(
+    `UPDATE serial_decode_events
+     SET evaluated = ?
+     WHERE id = ?`
+  ).bind(evaluated ? 1 : 0, id).run();
+
+  return Number(result.meta.changes || 0) > 0;
 }
 
 async function getIsMultiFromRecord(recordId: string, env: Env): Promise<boolean> {
