@@ -997,6 +997,90 @@ button:active {
   font-size: 0.95rem;
 }
 
+.ovation-extra-content {
+  margin-top: 18px;
+  padding: 14px 16px;
+  background: rgba(12, 12, 14, 0.45);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+}
+
+.ovation-extra-content h2 {
+  margin: 0 0 8px;
+  color: var(--text-cream);
+  font-size: 1rem;
+}
+
+.ovation-extra-intro {
+  margin: 0 0 12px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.ovation-model-card + .ovation-model-card {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.ovation-model-card h3 {
+  margin: 0 0 6px;
+  color: var(--accent-gold);
+  font-size: 0.9rem;
+}
+
+.ovation-model-card p {
+  margin: 0;
+  color: var(--text-light);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.ovation-model-images {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ovation-model-images img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.ovation-serial-locations {
+  margin-top: 12px;
+}
+
+.ovation-serial-group + .ovation-serial-group {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.ovation-serial-group h3 {
+  margin: 0 0 6px;
+  color: var(--accent-gold);
+  font-size: 0.88rem;
+}
+
+.ovation-serial-group ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.ovation-serial-group li {
+  margin-bottom: 4px;
+  color: var(--text-light);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
 .kramer-model-list {
   margin-top: 48px;
   padding: 36px 0 42px;
