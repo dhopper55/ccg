@@ -293,8 +293,15 @@ const SerialDecodes = () => {
   );
 
   const handleEvaluatedToggle = async (recordId: number, nextValue: boolean) => {
+    console.log('[SerialDecodes] evaluated toggle start', { recordId, nextValue });
     setUpdatingEvaluatedIds((current) => [...current, recordId]);
     try {
+      const endpoint = `/api/admin-v2/serial-decodes/${recordId}/evaluated`;
+      console.log('[SerialDecodes] evaluated toggle request', {
+        endpoint,
+        method: 'POST',
+        body: { evaluated: nextValue },
+      });
       const response = await fetch(`/api/admin-v2/serial-decodes/${recordId}/evaluated`, {
         method: 'POST',
         credentials: 'same-origin',
@@ -304,9 +311,15 @@ const SerialDecodes = () => {
         body: JSON.stringify({ evaluated: nextValue }),
       });
 
+      console.log('[SerialDecodes] evaluated toggle response status', {
+        recordId,
+        status: response.status,
+        ok: response.ok,
+      });
       const data = (await response.json()) as { evaluated?: boolean; message?: string };
+      console.log('[SerialDecodes] evaluated toggle response body', { recordId, data });
       if (!response.ok) {
-        throw new Error(data.message || 'Unable to update evaluated state.');
+        throw new Error(data.message || `Unable to update evaluated state (HTTP ${response.status}).`);
       }
 
       setRecords((current) => current.map((row) => (
@@ -316,8 +329,10 @@ const SerialDecodes = () => {
         current && current.id === recordId ? { ...current, evaluated: Boolean(data.evaluated) } : current
       ));
     } catch (error) {
+      console.error('[SerialDecodes] evaluated toggle error', { recordId, error });
       setErrorMessage(error instanceof Error ? error.message : 'Unable to update evaluated state.');
     } finally {
+      console.log('[SerialDecodes] evaluated toggle done', { recordId });
       setUpdatingEvaluatedIds((current) => current.filter((id) => id !== recordId));
     }
   };
