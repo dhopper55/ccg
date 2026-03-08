@@ -1545,7 +1545,10 @@ async function handleAdminV2SerialDecodes(request: Request, env: Env): Promise<R
   const url = new URL(request.url);
   const page = parseBoundedInt(url.searchParams.get('page'), 1, 1, 1_000_000);
   const limit = parseBoundedInt(url.searchParams.get('limit'), 20, 1, 100);
-  const data = await dbListAdminV2SerialDecodes(page, limit, env);
+  const brand = normalizeText(url.searchParams.get('brand'), '').slice(0, 120);
+  const onlyErrors = url.searchParams.get('onlyErrors') === '1';
+  const sortDir = normalizeText(url.searchParams.get('sortDir'), '').toLowerCase() === 'asc' ? 'asc' : 'desc';
+  const data = await dbListAdminV2SerialDecodes(page, limit, brand, onlyErrors, sortDir, env);
   return jsonResponse(data);
 }
 
@@ -4241,14 +4244,46 @@ async function dbGetAdminV2OldestInventory(limit: number, env: Env): Promise<Adm
 async function dbListAdminV2SerialDecodes(
   page: number,
   limit: number,
+  brand: string,
+  onlyErrors: boolean,
+  sortDir: 'asc' | 'desc',
   env: Env,
-): Promise<{ records: AdminV2SerialDecodeRow[]; page: number; limit: number; total: number; totalPages: number }> {
+): Promise<{
+  records: AdminV2SerialDecodeRow[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  availableBrands: string[];
+}> {
   const offset = (page - 1) * limit;
+  const where: string[] = [];
+  const values: unknown[] = [];
+
+  if (brand) {
+    where.push(`lower(trim(brand)) = lower(trim(?))`);
+    values.push(brand);
+  }
+  if (onlyErrors) {
+    where.push(`COALESCE(success, 0) = 0`);
+  }
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
   const totalRow = await env.DB.prepare(
-    `SELECT COUNT(*) AS total FROM serial_decode_events`
-  ).first<{ total: number | null }>();
+    `SELECT COUNT(*) AS total FROM serial_decode_events ${whereSql}`
+  ).bind(...values).first<{ total: number | null }>();
   const total = Number(totalRow?.total || 0);
   const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  const brandRows = await env.DB.prepare(
+    `SELECT DISTINCT brand
+     FROM serial_decode_events
+     WHERE trim(COALESCE(brand, '')) <> ''
+     ORDER BY lower(trim(brand)) ASC`
+  ).all<{ brand: string | null }>();
+  const availableBrands = (brandRows.results ?? [])
+    .map((row) => normalizeText(row.brand, ''))
+    .filter(Boolean);
 
   const rows = await env.DB.prepare(
     `SELECT
@@ -4268,9 +4303,10 @@ async function dbListAdminV2SerialDecodes(
         datetime(created_at)
       ) AS sort_ts
      FROM serial_decode_events
-     ORDER BY sort_ts DESC, id DESC
+     ${whereSql}
+     ORDER BY sort_ts ${sortDir.toUpperCase()}, id ${sortDir.toUpperCase()}
      LIMIT ? OFFSET ?`
-  ).bind(limit, offset).all<{
+  ).bind(...values, limit, offset).all<{
     id: number | null;
     event_time_utc: string | null;
     client_timestamp: string | null;
@@ -4302,6 +4338,7 @@ async function dbListAdminV2SerialDecodes(
     limit,
     total,
     totalPages,
+    availableBrands,
   };
 }
 

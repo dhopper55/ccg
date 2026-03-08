@@ -3,11 +3,17 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   CircularProgress,
   Dialog,
   DialogContent,
   DialogTitle,
+  FormControl,
+  FormControlLabel,
+  InputLabel,
+  MenuItem,
   Paper,
+  Select,
   Stack,
   Table,
   TableBody,
@@ -15,6 +21,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TableSortLabel,
   Typography,
 } from '@mui/material';
 
@@ -37,6 +44,7 @@ type SerialDecodesResponse = {
   limit: number;
   total: number;
   totalPages: number;
+  availableBrands: string[];
   message?: string;
 };
 
@@ -81,8 +89,18 @@ function formatTimestampMountain(clientTimestamp: string | null, eventTimeUtc: s
   return formatted.replace(',', '');
 }
 
+function formatBrandName(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return '-';
+  return normalized.replace(/\b[a-z]/g, (ch) => ch.toUpperCase());
+}
+
 const SerialDecodes = () => {
   const [records, setRecords] = useState<SerialDecodeRecord[]>([]);
+  const [availableBrands, setAvailableBrands] = useState<string[]>([]);
+  const [selectedBrand, setSelectedBrand] = useState('');
+  const [onlyErrors, setOnlyErrors] = useState(false);
+  const [timestampSortDir, setTimestampSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -105,6 +123,9 @@ const SerialDecodes = () => {
         const params = new URLSearchParams();
         params.set('page', String(page));
         params.set('limit', String(PAGE_SIZE));
+        params.set('sortDir', timestampSortDir);
+        if (selectedBrand) params.set('brand', selectedBrand);
+        if (onlyErrors) params.set('onlyErrors', '1');
 
         const response = await fetch(`/api/admin-v2/serial-decodes?${params.toString()}`, {
           method: 'GET',
@@ -118,12 +139,14 @@ const SerialDecodes = () => {
 
         if (cancelled) return;
         setRecords(Array.isArray(data.records) ? data.records : []);
+        setAvailableBrands(Array.isArray(data.availableBrands) ? data.availableBrands : []);
         setPage(Math.max(1, Number(data.page || 1)));
         setTotal(Number(data.total || 0));
         setTotalPages(Math.max(1, Number(data.totalPages || 1)));
       } catch (error) {
         if (cancelled) return;
         setRecords([]);
+        setAvailableBrands([]);
         setTotal(0);
         setTotalPages(1);
         setErrorMessage(
@@ -139,7 +162,7 @@ const SerialDecodes = () => {
     return () => {
       cancelled = true;
     };
-  }, [page]);
+  }, [onlyErrors, page, selectedBrand, timestampSortDir]);
 
   const pageStart = useMemo(() => (page - 1) * PAGE_SIZE + 1, [page]);
   const pageEnd = useMemo(() => Math.min(page * PAGE_SIZE, total), [page, total]);
@@ -147,11 +170,33 @@ const SerialDecodes = () => {
   return (
     <Stack spacing={3}>
       <Paper sx={{ p: { xs: 3, md: 4 } }}>
-        <Stack spacing={1} mb={3}>
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          alignItems={{ xs: 'flex-start', sm: 'center' }}
+          justifyContent="space-between"
+          spacing={2}
+          mb={3}
+        >
           <Typography variant="h4">Serial Decodes</Typography>
-          <Typography variant="body2" color="text.secondary">
-            Recent decoder events. Additional charts and trend visualizations will be added here in a later step.
-          </Typography>
+          <FormControl size="small" sx={{ minWidth: 220 }}>
+            <InputLabel id="serial-decodes-brand-filter-label">Brand</InputLabel>
+            <Select
+              labelId="serial-decodes-brand-filter-label"
+              value={selectedBrand}
+              label="Brand"
+              onChange={(event) => {
+                setPage(1);
+                setSelectedBrand(String(event.target.value || ''));
+              }}
+            >
+              <MenuItem value="">All brands</MenuItem>
+              {availableBrands.map((brand) => (
+                <MenuItem key={brand} value={brand}>
+                  {formatBrandName(brand)}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
         </Stack>
 
         {errorMessage ? <Alert severity="error" sx={{ mb: 2 }}>{errorMessage}</Alert> : null}
@@ -160,10 +205,41 @@ const SerialDecodes = () => {
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: 700 }}>Timestamp</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>
+                  <TableSortLabel
+                    active
+                    direction={timestampSortDir}
+                    onClick={() => {
+                      setPage(1);
+                      setTimestampSortDir((current) => (current === 'desc' ? 'asc' : 'desc'));
+                    }}
+                  >
+                    Timestamp
+                  </TableSortLabel>
+                </TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Brand</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Serial</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Success</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>
+                  <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+                    <Typography variant="inherit" component="span" sx={{ fontWeight: 700 }}>
+                      Success
+                    </Typography>
+                    <FormControlLabel
+                      sx={{ mr: 0 }}
+                      control={
+                        <Checkbox
+                          size="small"
+                          checked={onlyErrors}
+                          onChange={(event) => {
+                            setPage(1);
+                            setOnlyErrors(event.target.checked);
+                          }}
+                        />
+                      }
+                      label="Only errors"
+                    />
+                  </Stack>
+                </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -185,7 +261,7 @@ const SerialDecodes = () => {
                 </TableRow>
               ) : (
                 records.map((record) => {
-                  const successColor = record.success ? 'success.light' : 'error.light';
+                  const successColor = record.success ? '#9be7b0' : '#ff9f9f';
                   return (
                     <TableRow
                       key={record.id}
@@ -197,7 +273,7 @@ const SerialDecodes = () => {
                       }}
                     >
                       <TableCell>{formatTimestampMountain(record.clientTimestamp, record.eventTimeUtc)}</TableCell>
-                      <TableCell>{record.brand || '-'}</TableCell>
+                      <TableCell>{formatBrandName(record.brand || '')}</TableCell>
                       <TableCell>{record.serial || '-'}</TableCell>
                       <TableCell>{record.success ? 'Yes' : 'No'}</TableCell>
                     </TableRow>
@@ -247,7 +323,7 @@ const SerialDecodes = () => {
               </Box>
               <Box>
                 <Typography variant="caption" color="text.secondary">Brand</Typography>
-                <Typography variant="body2">{selectedRecord.brand || '-'}</Typography>
+                <Typography variant="body2">{formatBrandName(selectedRecord.brand || '')}</Typography>
               </Box>
               <Box>
                 <Typography variant="caption" color="text.secondary">Serial</Typography>
