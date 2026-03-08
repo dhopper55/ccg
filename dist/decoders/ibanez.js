@@ -43,6 +43,16 @@ export function decodeIbanez(serial) {
             return decodeJapan1975to1988(normalized);
         }
     }
+    // Japan: Letter (A-L) + 8 digits (extended 1975-1988 month-year format)
+    const monthYearExtendedMatch = normalized.match(/^([A-L])(\d{2})\d{6}$/);
+    if (monthYearExtendedMatch) {
+        const monthLetter = monthYearExtendedMatch[1];
+        const yearDigits = parseInt(monthYearExtendedMatch[2], 10);
+        const isFactoryCode = monthLetter === 'F' || monthLetter === 'H' || monthLetter === 'I';
+        if (!isFactoryCode || yearDigits <= 86) {
+            return decodeJapan1975to1988Extended(normalized);
+        }
+    }
     // Japan: F/H/I + 6 digits (1987-1996)
     if (/^[FHI]\d{6}$/.test(normalized)) {
         return decodeJapan1987to1996(normalized);
@@ -153,8 +163,21 @@ export function decodeIbanez(serial) {
     if (/^4L\d{9,10}$/.test(normalized)) {
         return decodeChina4L(normalized);
     }
-    // Legacy alpha-suffix format: YYMM#### + letter
-    if (/^\d{8}[A-Z]$/.test(normalized)) {
+    // Compound extended prefix + 9-digit date payload
+    // Example: 215N015N250401143 -> prefix 215N015N + 250401143
+    const compoundNumericMatch = normalized.match(/^([A-Z0-9]{5,12})(\d{9})$/);
+    if (compoundNumericMatch && /[A-Z]/.test(compoundNumericMatch[1])) {
+        const prefixCode = compoundNumericMatch[1];
+        const actualSerial = compoundNumericMatch[2];
+        const result = decodeNumeric9DigitModern(actualSerial);
+        if (result.success && result.info) {
+            result.info.serialNumber = normalized;
+            result.info.notes = `Prefix code: ${prefixCode}. ${result.info.notes}`;
+        }
+        return result;
+    }
+    // Legacy alpha-suffix format: YYMM###/#### + 1-2 letters
+    if (/^\d{7,8}[A-Z]{1,2}$/.test(normalized)) {
         return decodeLegacyAlphaSuffix(normalized);
     }
     // Numeric-only 9 digits: YYMM + sequence (seen on some modern imports)
@@ -175,7 +198,7 @@ export function decodeIbanez(serial) {
     }
     return {
         success: false,
-        error: 'Unrecognized Ibanez serial number format. Ibanez has used many different serial number systems across factories in Japan, Korea, Indonesia, and China. Common formats include: F + 7 digits (Japan), letter + 6-9 digits (various factories), numeric 7-9 digits (date + sequence on some imports), legacy YYMM#### + letter, or factory prefix + digits.'
+        error: 'Unrecognized Ibanez serial number format. Ibanez has used many different serial number systems across factories in Japan, Korea, Indonesia, and China. Common formats include: F + 7 digits (Japan), letter + 6-9 digits (various factories), numeric 7-9 digits (date + sequence on some imports), legacy YYMM###/#### + 1-2 letters, or factory prefix + digits.'
     };
 }
 function decodeKnownModelCode(modelCode) {
@@ -275,6 +298,25 @@ function decodeJapan1975to1988(serial) {
         factory: 'FujiGen Gakki, Nagano (most likely)',
         country: 'Japan',
         notes: `Production number: ${productionNum}. This format was used from 1975-1988 for Japanese-made guitars.`
+    };
+    return { success: true, info };
+}
+// Japan 1975-1988 (extended): Month letter + 8 digits
+function decodeJapan1975to1988Extended(serial) {
+    const monthLetter = serial[0];
+    const year = parseInt(serial.substring(1, 3), 10);
+    const sequence = serial.substring(3);
+    const monthNum = monthLetter.charCodeAt(0) - 64;
+    const month = getMonthName(monthNum);
+    const fullYear = year >= 75 ? 1900 + year : 2000 + year;
+    const info = {
+        brand: 'Ibanez',
+        serialNumber: serial,
+        year: fullYear.toString(),
+        month,
+        factory: 'Japan (likely FujiGen or Terada)',
+        country: 'Japan',
+        notes: `Sequence: ${sequence}. Extended month-letter format from the pre-1987 Japanese period. "${monthLetter}" indicates month ${month}.`
     };
     return { success: true, info };
 }
@@ -835,12 +877,14 @@ function decodeChina4L(serial) {
     };
     return { success: true, info };
 }
-// Legacy alpha-suffix format: YYMM#### + letter
+// Legacy alpha-suffix format: YYMM###/#### + 1-2 letters
 function decodeLegacyAlphaSuffix(serial) {
-    const yy = parseInt(serial.substring(0, 2), 10);
-    const month = parseInt(serial.substring(2, 4), 10);
-    const sequence = serial.substring(4, 8);
-    const suffix = serial[8];
+    const suffixMatch = serial.match(/[A-Z]{1,2}$/);
+    const suffix = suffixMatch ? suffixMatch[0] : '';
+    const numeric = suffix ? serial.slice(0, -suffix.length) : serial;
+    const yy = parseInt(numeric.substring(0, 2), 10);
+    const month = parseInt(numeric.substring(2, 4), 10);
+    const sequence = numeric.substring(4);
     const year = yy >= 70 ? 1900 + yy : 2000 + yy;
     const info = {
         brand: 'Ibanez',
