@@ -23,7 +23,15 @@ import {
   TableRow,
   TableSortLabel,
   Typography,
+  useTheme,
 } from '@mui/material';
+import { BarChart } from 'echarts/charts';
+import { GridComponent, TooltipComponent } from 'echarts/components';
+import * as echarts from 'echarts/core';
+import { CanvasRenderer } from 'echarts/renderers';
+import ReactEchart from 'components/base/ReactEchart';
+
+echarts.use([TooltipComponent, GridComponent, BarChart, CanvasRenderer]);
 
 type SerialDecodeRecord = {
   id: number;
@@ -45,6 +53,16 @@ type SerialDecodesResponse = {
   total: number;
   totalPages: number;
   availableBrands: string[];
+  message?: string;
+};
+
+type BrandResponsesRecord = {
+  brand: string;
+  responseCount: number;
+};
+
+type BrandResponsesResponse = {
+  records: BrandResponsesRecord[];
   message?: string;
 };
 
@@ -96,7 +114,9 @@ function formatBrandName(value: string): string {
 }
 
 const SerialDecodes = () => {
+  const theme = useTheme();
   const [records, setRecords] = useState<SerialDecodeRecord[]>([]);
+  const [brandResponses, setBrandResponses] = useState<BrandResponsesRecord[]>([]);
   const [availableBrands, setAvailableBrands] = useState<string[]>([]);
   const [selectedBrand, setSelectedBrand] = useState('');
   const [onlyErrors, setOnlyErrors] = useState(false);
@@ -110,6 +130,34 @@ const SerialDecodes = () => {
 
   useEffect(() => {
     document.title = 'CCG Admin | Serial Decodes';
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadBrandResponses = async () => {
+      try {
+        const response = await fetch('/api/admin-v2/serial-decodes/brand-responses', {
+          method: 'GET',
+          credentials: 'same-origin',
+        });
+        const data = (await response.json()) as BrandResponsesResponse;
+        if (!response.ok) {
+          throw new Error(data.message || 'Unable to load brand response chart.');
+        }
+        if (cancelled) return;
+        setBrandResponses(Array.isArray(data.records) ? data.records : []);
+      } catch {
+        if (cancelled) return;
+        setBrandResponses([]);
+      }
+    };
+
+    void loadBrandResponses();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -166,9 +214,63 @@ const SerialDecodes = () => {
 
   const pageStart = useMemo(() => (page - 1) * PAGE_SIZE + 1, [page]);
   const pageEnd = useMemo(() => Math.min(page * PAGE_SIZE, total), [page, total]);
+  const chartOption = useMemo(() => ({
+    color: [theme.vars.palette.primary.main],
+    grid: { left: 48, right: 20, top: 24, bottom: 130 },
+    xAxis: {
+      type: 'category',
+      data: brandResponses.map((item) => formatBrandName(item.brand)),
+      axisLabel: {
+        rotate: 90,
+        interval: 0,
+        margin: 16,
+        color: theme.vars.palette.text.secondary,
+      },
+      axisLine: {
+        lineStyle: { color: theme.vars.palette.divider },
+      },
+    },
+    yAxis: {
+      type: 'value',
+      axisLabel: { color: theme.vars.palette.text.secondary },
+      splitLine: {
+        lineStyle: { color: theme.vars.palette.divider },
+      },
+    },
+    tooltip: {
+      trigger: 'axis',
+      formatter: (params: Array<{ axisValueLabel?: string; value?: number }>) => {
+        const point = params?.[0];
+        const label = point?.axisValueLabel || '';
+        const value = Number(point?.value || 0);
+        return `${label}<br/>Responses: ${value}`;
+      },
+    },
+    series: [
+      {
+        type: 'bar',
+        data: brandResponses.map((item) => item.responseCount),
+        barWidth: 22,
+        itemStyle: {
+          borderRadius: [4, 4, 0, 0],
+        },
+      },
+    ],
+  }), [brandResponses, theme.vars.palette.divider, theme.vars.palette.primary.main, theme.vars.palette.text.secondary]);
 
   return (
     <Stack spacing={3}>
+      <Paper sx={{ p: { xs: 3, md: 4 } }}>
+        <Stack spacing={2}>
+          <Typography variant="h5">Brand Responses</Typography>
+          <ReactEchart
+            echarts={echarts}
+            option={chartOption}
+            sx={{ height: 340, width: '100%' }}
+          />
+        </Stack>
+      </Paper>
+
       <Paper sx={{ p: { xs: 3, md: 4 } }}>
         <Stack
           direction={{ xs: 'column', sm: 'row' }}

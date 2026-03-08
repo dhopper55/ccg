@@ -359,6 +359,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/serial-decodes/brand-responses' && request.method === 'GET') {
+      const response = await handleAdminV2SerialDecodeBrandResponses(env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/admin-v2/inventory/labels.pdf' && request.method === 'GET') {
       const response = await handleAdminV2InventoryLabelsPdf(env);
       return withCors(response, request, env);
@@ -1355,6 +1360,11 @@ type AdminV2SerialDecodeRow = {
   error: string | null;
 };
 
+type AdminV2SerialDecodeBrandResponseRow = {
+  brand: string;
+  responseCount: number;
+};
+
 async function handleList(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const limitParam = url.searchParams.get('limit');
@@ -1550,6 +1560,11 @@ async function handleAdminV2SerialDecodes(request: Request, env: Env): Promise<R
   const sortDir = normalizeText(url.searchParams.get('sortDir'), '').toLowerCase() === 'asc' ? 'asc' : 'desc';
   const data = await dbListAdminV2SerialDecodes(page, limit, brand, onlyErrors, sortDir, env);
   return jsonResponse(data);
+}
+
+async function handleAdminV2SerialDecodeBrandResponses(env: Env): Promise<Response> {
+  const records = await dbGetAdminV2SerialDecodeBrandResponses(env);
+  return jsonResponse({ records });
 }
 
 async function handleAdminV2InventoryLabelsPdf(env: Env): Promise<Response> {
@@ -4340,6 +4355,28 @@ async function dbListAdminV2SerialDecodes(
     totalPages,
     availableBrands,
   };
+}
+
+async function dbGetAdminV2SerialDecodeBrandResponses(
+  env: Env,
+): Promise<AdminV2SerialDecodeBrandResponseRow[]> {
+  const rows = await env.DB.prepare(
+    `SELECT
+      trim(brand) AS brand,
+      COUNT(*) AS response_count
+     FROM serial_decode_events
+     WHERE trim(COALESCE(brand, '')) <> ''
+     GROUP BY lower(trim(brand))
+     ORDER BY response_count DESC, lower(trim(brand)) ASC`
+  ).all<{
+    brand: string | null;
+    response_count: number | null;
+  }>();
+
+  return (rows.results ?? []).map((row) => ({
+    brand: normalizeText(row.brand, ''),
+    responseCount: Number(row.response_count || 0),
+  }));
 }
 
 async function getIsMultiFromRecord(recordId: string, env: Env): Promise<boolean> {
