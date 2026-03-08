@@ -18,6 +18,7 @@ Sample serial numbers for testing the guitar serial decoder.
 | 141209632 | Numeric-only 9-digit import format, 2014, December (YYMM + sequence) |
 | 311717707 | Numeric-only 9-digit ambiguous format, primary: 2003 November (YMM fallback), alt: 2013 November |
 | 02010903 | Numeric-only 8-digit import format, 2002, January (YYMM + sequence) |
+| 40800605 | Numeric-only 8-digit ambiguous format, primary: 2004, August (YMM fallback), alt: 2014, August |
 | 4120210 | Numeric-only 7-digit import format, 2014, December (YMM + sequence) |
 | 5230401406 | Numeric-only 10-digit format with leading factory digit, 2023, April (factory digit + YYMM + sequence) |
 | I110626774 | Indonesia format, 2011, June (I + 9 digits) |

@@ -757,17 +757,36 @@ function decodeNumeric9DigitModern(serial) {
 }
 // Numeric-only modern import variant: YYMM + sequence (8 digits)
 function decodeNumeric8DigitModern(serial) {
-    const year = parseInt(serial.substring(0, 2), 10) + 2000;
-    const month = parseInt(serial.substring(2, 4), 10);
-    const sequence = serial.substring(4);
+    const yyYear = parseInt(serial.substring(0, 2), 10) + 2000;
+    const yyMonth = parseInt(serial.substring(2, 4), 10);
+    const yySequence = serial.substring(4);
+    // Primary interpretation: YYMM + sequence.
+    // Fallback interpretation: YMM + sequence when YYMM produces an invalid month.
+    if (yyMonth >= 1 && yyMonth <= 12) {
+        const info = {
+            brand: 'Ibanez',
+            serialNumber: serial,
+            year: yyYear.toString(),
+            month: getMonthName(yyMonth),
+            factory: 'Unknown import factory (numeric-only format)',
+            country: 'China or Indonesia',
+            notes: `Sequence: ${yySequence}. Numeric-only 8-digit pattern interpreted as YYMM + production sequence.`
+        };
+        return { success: true, info };
+    }
+    const yearDigit = parseInt(serial[0], 10);
+    const month = parseInt(serial.substring(1, 3), 10);
+    const sequence = serial.substring(3);
+    const primaryYear = 2000 + yearDigit;
+    const alternateYear = 2010 + yearDigit;
     const info = {
         brand: 'Ibanez',
         serialNumber: serial,
-        year: year.toString(),
+        year: primaryYear.toString(),
         month: getMonthName(month),
         factory: 'Unknown import factory (numeric-only format)',
-        country: 'China or Indonesia',
-        notes: `Sequence: ${sequence}. Numeric-only 8-digit pattern interpreted as YYMM + production sequence.`
+        country: 'South Korea or China',
+        notes: `Sequence: ${sequence}. YYMM parse was invalid (month ${yyMonth}), so fallback YMM + sequence was used. Alternate interpretation sometimes used in newer runs: ${alternateYear}, ${getMonthName(month)}.`
     };
     return { success: true, info };
 }
