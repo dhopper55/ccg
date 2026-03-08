@@ -19,6 +19,8 @@ Sample serial numbers for testing the guitar serial decoder.
 | 4120210 | Numeric-only 7-digit import format, 2014, December (YMM + sequence) |
 | I110626774 | Indonesia format, 2011, June (I + 9 digits) |
 | I11o626774 | Same as I110626774 after O->0 retry correction in UI |
+| GI0012180 | Indonesia GIO legacy format, 2000, December (GI + 7 digits) |
+| gp05105792 | China GP prefix format, 2005, October (GP + 8 digits; case-insensitive input) |
 | SR305EDX | Model code fallback (not serial): likely Indonesia origin; exact date requires actual serial |
 | W842827 | Korea (World), 2004 |
 | GS140406094 | China, 2014, April |
@@ -27,9 +29,11 @@ Sample serial numbers for testing the guitar serial decoder.
 | 5B01PW230401856 | Indonesia (PT Woonan), 2023, April (compound format with model code 5B01) |
 | 4L1901087937 | China, 2019, January (4L prefix with extended 10-digit numeric payload) |
 | 215N015N250401143 | Compound extended prefix + numeric payload, 2025, April |
+| 1P-01 I220300400 | Compound extended prefix + numeric payload with spaces/hyphen, 2022, March |
 | 83030041D | Legacy alpha-suffix format, 1983, March (YYMM#### + suffix letter) |
 | 8303004ID | Legacy alpha-suffix format, 1983, March (YYMM### + 2-letter suffix) |
 | H83020056 | Japan extended month-letter format, 1983, August (H=Aug, YY + 6-digit sequence) |
+| 00906B | Compact legacy alpha-suffix format, 2000, September (YYMSS + suffix letter) |
 
 ## Gibson
 

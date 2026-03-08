@@ -127,6 +127,10 @@ export function decodeIbanez(serial) {
     if (/^I\d{7}$/.test(normalized)) {
         return decodeIndonesia1997to2000(normalized);
     }
+    // Indonesia GIO (legacy): GI + 7 digits
+    if (/^GI\d{7}$/.test(normalized)) {
+        return decodeGioIndonesiaLegacy(normalized);
+    }
     // Indonesia: PR + 9 digits (2004-2007)
     if (/^PR\d{9}$/.test(normalized)) {
         return decodePR(normalized);
@@ -159,6 +163,10 @@ export function decodeIbanez(serial) {
     if (/^A\d{8}$/.test(normalized)) {
         return decodeChinaA(normalized);
     }
+    // China: GP + 8 digits
+    if (/^GP\d{8}$/.test(normalized)) {
+        return decodeChinaGP(normalized);
+    }
     // China: 4L + 9-10 digits
     if (/^4L\d{9,10}$/.test(normalized)) {
         return decodeChina4L(normalized);
@@ -180,6 +188,10 @@ export function decodeIbanez(serial) {
     if (/^\d{7,8}[A-Z]{1,2}$/.test(normalized)) {
         return decodeLegacyAlphaSuffix(normalized);
     }
+    // Compact legacy format: YYMSS + suffix letter (6 chars total)
+    if (/^\d{5}[A-Z]$/.test(normalized)) {
+        return decodeCompactAlphaSuffix(normalized);
+    }
     // Numeric-only 9 digits: YYMM + sequence (seen on some modern imports)
     if (/^\d{9}$/.test(normalized)) {
         return decodeNumeric9DigitModern(normalized);
@@ -198,7 +210,7 @@ export function decodeIbanez(serial) {
     }
     return {
         success: false,
-        error: 'Unrecognized Ibanez serial number format. Ibanez has used many different serial number systems across factories in Japan, Korea, Indonesia, and China. Common formats include: F + 7 digits (Japan), letter + 6-9 digits (various factories), numeric 7-9 digits (date + sequence on some imports), legacy YYMM###/#### + 1-2 letters, or factory prefix + digits.'
+        error: 'Unrecognized Ibanez serial number format. Ibanez has used many different serial number systems across factories in Japan, Korea, Indonesia, and China. Common formats include: F + 7 digits (Japan), letter + 6-9 digits (various factories), numeric 7-9 digits (date + sequence on some imports), compact/legacy alpha suffix variants, or factory prefix + digits.'
     };
 }
 function decodeKnownModelCode(modelCode) {
@@ -708,6 +720,23 @@ function decodeIndonesia1997to2000(serial) {
     };
     return { success: true, info };
 }
+// Indonesia GIO legacy: GI + 7 digits
+function decodeGioIndonesiaLegacy(serial) {
+    const year = parseInt(serial.substring(2, 4), 10) + 2000;
+    const month = parseInt(serial.substring(4, 6), 10);
+    const sequence = serial.substring(6);
+    const info = {
+        brand: 'Ibanez',
+        serialNumber: serial,
+        year: year.toString(),
+        month: getMonthName(month),
+        factory: 'Indonesia (GIO legacy prefix)',
+        country: 'Indonesia',
+        model: 'GIO Series (likely)',
+        notes: `Sequence: ${sequence}. GI prefix appears on early Indonesia GIO production.`
+    };
+    return { success: true, info };
+}
 // Indonesia PR format: PR + 9 digits (2004-2007)
 function decodePR(serial) {
     const year = parseInt(serial.substring(2, 4), 10) + 2000;
@@ -861,6 +890,23 @@ function decodeChinaA(serial) {
     };
     return { success: true, info };
 }
+// China GP format: GP + 8 digits
+function decodeChinaGP(serial) {
+    const year = parseInt(serial.substring(2, 4), 10) + 2000;
+    const month = parseInt(serial.substring(4, 6), 10);
+    const sequence = serial.substring(6);
+    const info = {
+        brand: 'Ibanez',
+        serialNumber: serial,
+        year: year.toString(),
+        month: getMonthName(month),
+        factory: 'China (GP prefix factory)',
+        country: 'China',
+        model: 'GIO Series (likely)',
+        notes: `Sequence: ${sequence}. GP prefix appears on mid-2000s China GIO/entry-level production.`
+    };
+    return { success: true, info };
+}
 // China 4L format: 4L + 9-10 digits
 function decodeChina4L(serial) {
     const year = parseInt(serial.substring(2, 4), 10) + 2000;
@@ -894,6 +940,24 @@ function decodeLegacyAlphaSuffix(serial) {
         factory: 'Japan (legacy format, exact factory unclear)',
         country: 'Japan',
         notes: `Sequence: ${sequence}. Suffix "${suffix}" is treated as a factory/inspector/batch marker in legacy serial usage.`
+    };
+    return { success: true, info };
+}
+// Compact legacy format: YYMSS + suffix letter (6 chars)
+function decodeCompactAlphaSuffix(serial) {
+    const yy = parseInt(serial.substring(0, 2), 10);
+    const month = parseInt(serial[2], 10);
+    const sequence = serial.substring(3, 5);
+    const suffix = serial[5];
+    const year = yy >= 70 ? 1900 + yy : 2000 + yy;
+    const info = {
+        brand: 'Ibanez',
+        serialNumber: serial,
+        year: year.toString(),
+        month: getMonthName(month),
+        factory: 'Unknown (compact legacy alpha-suffix format)',
+        country: 'China or Korea',
+        notes: `Sequence: ${sequence}. Suffix "${suffix}" is treated as a batch/inspector marker in compact legacy serial usage.`
     };
     return { success: true, info };
 }

@@ -156,6 +156,8 @@ CREATE TABLE IF NOT EXISTS serial_decode_events (
   serial TEXT NOT NULL,
   success INTEGER NOT NULL DEFAULT 0,
   evaluated INTEGER NOT NULL DEFAULT 0,
+  used_ai INTEGER NOT NULL DEFAULT 0,
+  is_listing_eval INTEGER NOT NULL DEFAULT 0,
   year TEXT,
   factory TEXT,
   country TEXT,
