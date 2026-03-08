@@ -438,6 +438,7 @@ export default {
 
 function withCors(response: Response, request: Request, env: Env): Response {
   const origin = request.headers.get('Origin');
+  const path = new URL(request.url).pathname.replace(/\/+$/, '') || '/';
   const headers = new Headers(response.headers);
 
   if (origin && (SUPPORTED_ORIGINS.includes(origin) || origin === env.SITE_BASE_URL)) {
@@ -449,6 +450,12 @@ function withCors(response: Response, request: Request, env: Env): Response {
   headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   headers.set('Access-Control-Allow-Headers', 'Content-Type');
   headers.set('Access-Control-Max-Age', '86400');
+
+  if (path.startsWith('/api/admin-v2/serial-decodes')) {
+    headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    headers.set('Pragma', 'no-cache');
+    headers.set('Expires', '0');
+  }
 
   return new Response(response.body, {
     status: response.status,
@@ -4302,10 +4309,12 @@ async function dbListAdminV2SerialDecodes(
   total: number;
   totalPages: number;
   availableBrands: string[];
+  debugEvaluated713: number | null;
 }> {
   const offset = (page - 1) * limit;
   const where: string[] = [];
   const values: unknown[] = [];
+  const db = env.DB.withSession('first-primary');
 
   if (brand) {
     where.push(`lower(trim(brand)) = lower(trim(?))`);
@@ -4316,13 +4325,13 @@ async function dbListAdminV2SerialDecodes(
   }
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
-  const totalRow = await env.DB.prepare(
+  const totalRow = await db.prepare(
     `SELECT COUNT(*) AS total FROM serial_decode_events ${whereSql}`
   ).bind(...values).first<{ total: number | null }>();
   const total = Number(totalRow?.total || 0);
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
-  const brandRows = await env.DB.prepare(
+  const brandRows = await db.prepare(
     `SELECT DISTINCT brand
      FROM serial_decode_events
      WHERE trim(COALESCE(brand, '')) <> ''
@@ -4332,7 +4341,7 @@ async function dbListAdminV2SerialDecodes(
     .map((row) => normalizeText(row.brand, ''))
     .filter(Boolean);
 
-  const rows = await env.DB.prepare(
+  const rows = await db.prepare(
     `SELECT
       id,
       event_time_utc,
@@ -4381,6 +4390,12 @@ async function dbListAdminV2SerialDecodes(
     error: normalizeText(row.error, '') || null,
   }));
 
+  const debugRow = await db.prepare(
+    `SELECT evaluated
+     FROM serial_decode_events
+     WHERE id = 713`
+  ).first<{ evaluated: number | null }>();
+
   return {
     records,
     page,
@@ -4388,6 +4403,7 @@ async function dbListAdminV2SerialDecodes(
     total,
     totalPages,
     availableBrands,
+    debugEvaluated713: debugRow?.evaluated == null ? null : Number(debugRow.evaluated),
   };
 }
 
@@ -4427,14 +4443,15 @@ async function dbGetAdminV2SerialDecodeBrandResponses(
 async function dbSetSerialDecodeEvaluated(recordId: string, evaluated: boolean, env: Env): Promise<boolean | null> {
   const id = normalizeText(recordId, '');
   if (!/^\d+$/.test(id)) return null;
+  const db = env.DB.withSession('first-primary');
 
-  await env.DB.prepare(
+  await db.prepare(
     `UPDATE serial_decode_events
      SET evaluated = ?
      WHERE CAST(id AS TEXT) = ?`
   ).bind(evaluated ? 1 : 0, id).run();
 
-  const row = await env.DB.prepare(
+  const row = await db.prepare(
     `SELECT evaluated
      FROM serial_decode_events
      WHERE CAST(id AS TEXT) = ?`

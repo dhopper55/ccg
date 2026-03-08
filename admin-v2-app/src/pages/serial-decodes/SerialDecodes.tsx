@@ -54,6 +54,7 @@ type SerialDecodesResponse = {
   total: number;
   totalPages: number;
   availableBrands: string[];
+  debugEvaluated713?: number | null;
   message?: string;
 };
 
@@ -148,9 +149,11 @@ const SerialDecodes = () => {
         setChartErrorMessage('');
         const params = new URLSearchParams();
         if (selectedBrand) params.set('brand', selectedBrand);
+        params.set('_', String(Date.now()));
         const response = await fetch(`/api/admin-v2/serial-decodes/brand-responses?${params.toString()}`, {
           method: 'GET',
           credentials: 'same-origin',
+          cache: 'no-store',
         });
         const data = (await response.json()) as BrandResponsesResponse;
         if (!response.ok) {
@@ -186,10 +189,12 @@ const SerialDecodes = () => {
         params.set('sortDir', timestampSortDir);
         if (selectedBrand) params.set('brand', selectedBrand);
         if (onlyErrors) params.set('onlyErrors', '1');
+        params.set('_', String(Date.now()));
 
         const response = await fetch(`/api/admin-v2/serial-decodes?${params.toString()}`, {
           method: 'GET',
           credentials: 'same-origin',
+          cache: 'no-store',
         });
 
         const data = (await response.json()) as SerialDecodesResponse;
@@ -206,6 +211,7 @@ const SerialDecodes = () => {
             evaluated: row.evaluated,
           })),
         );
+        console.log('[SerialDecodes] load response debugEvaluated713', data.debugEvaluated713);
         setRecords(Array.isArray(data.records) ? data.records : []);
         setAvailableBrands(Array.isArray(data.availableBrands) ? data.availableBrands : []);
         setPage(Math.max(1, Number(data.page || 1)));
