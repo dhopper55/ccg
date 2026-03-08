@@ -1602,9 +1602,13 @@ async function handleAdminV2SerialDecodeEvaluatedUpdate(
   }
 
   const evaluated = toBooleanInput(body.evaluated, false);
-  const updatedValue = await dbSetSerialDecodeEvaluated(recordId, evaluated, env);
-  if (updatedValue == null) return jsonResponse({ message: 'Unable to update evaluated state.' }, 500);
-  return jsonResponse({ ok: true, evaluated: updatedValue });
+  const updateResult = await dbSetSerialDecodeEvaluated(recordId, evaluated, env);
+  if (!updateResult) return jsonResponse({ message: 'Unable to update evaluated state.' }, 500);
+  return jsonResponse({
+    ok: true,
+    evaluated: updateResult.evaluated,
+    updatedCount: updateResult.updatedCount,
+  });
 }
 
 async function handleAdminV2InventoryLabelsPdf(env: Env): Promise<Response> {
@@ -4439,16 +4443,45 @@ async function dbGetAdminV2SerialDecodeBrandResponses(
   }));
 }
 
-async function dbSetSerialDecodeEvaluated(recordId: string, evaluated: boolean, env: Env): Promise<boolean | null> {
+async function dbSetSerialDecodeEvaluated(
+  recordId: string,
+  evaluated: boolean,
+  env: Env,
+): Promise<{ evaluated: boolean; updatedCount: number } | null> {
   const id = normalizeText(recordId, '');
   if (!/^\d+$/.test(id)) return null;
   const db = env.DB.withSession('first-primary');
 
-  await db.prepare(
+  if (evaluated) {
+    const keyRow = await db.prepare(
+      `SELECT brand, serial
+       FROM serial_decode_events
+       WHERE CAST(id AS TEXT) = ?`
+    ).bind(id).first<{ brand: string | null; serial: string | null }>();
+    if (!keyRow) return null;
+
+    const brand = normalizeText(keyRow.brand, '');
+    const serial = normalizeText(keyRow.serial, '');
+    if (!brand || !serial) return null;
+
+    const updateResult = await db.prepare(
+      `UPDATE serial_decode_events
+       SET evaluated = 1
+       WHERE lower(trim(brand)) = lower(trim(?))
+         AND lower(trim(serial)) = lower(trim(?))`
+    ).bind(brand, serial).run();
+
+    return {
+      evaluated: true,
+      updatedCount: Number(updateResult.meta.changes || 0),
+    };
+  }
+
+  const updateResult = await db.prepare(
     `UPDATE serial_decode_events
-     SET evaluated = ?
+     SET evaluated = 0
      WHERE CAST(id AS TEXT) = ?`
-  ).bind(evaluated ? 1 : 0, id).run();
+  ).bind(id).run();
 
   const row = await db.prepare(
     `SELECT evaluated
@@ -4457,7 +4490,10 @@ async function dbSetSerialDecodeEvaluated(recordId: string, evaluated: boolean, 
   ).bind(id).first<{ evaluated: number | null }>();
 
   if (!row) return null;
-  return Number(row.evaluated || 0) === 1;
+  return {
+    evaluated: Number(row.evaluated || 0) === 1,
+    updatedCount: Number(updateResult.meta.changes || 0),
+  };
 }
 
 async function getIsMultiFromRecord(recordId: string, env: Env): Promise<boolean> {

@@ -311,7 +311,7 @@ const SerialDecodes = () => {
         body: JSON.stringify({ evaluated: nextValue }),
       });
 
-      const data = (await response.json()) as { evaluated?: boolean; message?: string };
+      const data = (await response.json()) as { evaluated?: boolean; updatedCount?: number; message?: string };
       if (!response.ok) {
         throw new Error(data.message || `Unable to update evaluated state (HTTP ${response.status}).`);
       }
@@ -322,9 +322,7 @@ const SerialDecodes = () => {
       setSelectedRecord((current) => (
         current && current.id === recordId ? { ...current, evaluated: Boolean(data.evaluated) } : current
       ));
-      if (onlyErrors && onlyUnevaluated && nextValue) {
-        setRefreshKey((current) => current + 1);
-      }
+      setRefreshKey((current) => current + 1);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to update evaluated state.');
     } finally {
