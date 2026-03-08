@@ -7,6 +7,7 @@ The Listing Evaluator is a static site + Cloudflare Worker backend that:
 3) Calls OpenAI to summarize listings and estimate pricing
 4) Writes results to D1 (SQLite) and exposes them via a listing results UI
 5) Protects `/api/*` with a simple username/password login (HttpOnly cookie)
+6) Receives serial decoder tracking events from public decoder pages and stores them in D1
 
 ## Admin
 Admin is served from `/admin` and built from the Aurora-based app.
@@ -62,6 +63,7 @@ All `/api/*` endpoints require auth except:
 - `/api/custom-items/submit`
 - `/api/custom-items/status`
 - `/api/custom-image`
+- `/api/serial-decodes` (public decoder tracking ingest)
 
 ## Cloudflare Worker
 - Location: `workers/listing-evaluator/src/index.ts`
@@ -85,6 +87,12 @@ All `/api/*` endpoints require auth except:
   - Normalizes fields
   - Calls OpenAI
   - Updates D1 record
+
+- `POST /api/serial-decodes`
+  - Public ingest endpoint used by all serial decoder pages
+  - Accepts decoder event payload (`brand`, `serial`, `success`, optional `year/factory/country/error`)
+  - Adds request metadata (`page_path`, `user_agent`, `CF-Connecting-IP`, `cf_country`, `cf_colo`)
+  - Writes one row per decode attempt to D1 table `serial_decode_events`
 
 - `GET /api/listings`
   - Paged listing results for results UI
@@ -143,6 +151,13 @@ Tables:
 - `listings`
 - `ccg_inventory_items`
   - Includes FBM fields: `fbm_listing`, `fbm_title`, `fbm_url`, `fbm_image_url`, `fbm_listing_price`
+- `serial_decode_events`
+  - Stores decoder tracking rows from `/api/serial-decodes`
+  - Core fields: `brand`, `serial`, `success`, `year`, `factory`, `country`, `error`
+  - Metadata fields: `event_time_utc`, `page_path`, `user_agent`, `client_timestamp`, `ip_address`, `cf_country`, `cf_colo`, `created_at`
+
+Migration file:
+- `workers/listing-evaluator/migrations/2026-03-08_serial_decode_events.sql`
 
 ## OpenAI
 - Models: `gpt-4o` and `gpt-4o-mini` (see worker for task-specific usage)
@@ -170,6 +185,9 @@ Optional:
 ## Deployment
 From `workers/listing-evaluator/`:
 - `npx wrangler deploy`
+
+For the serial decoder event table only (single migration file, no full migration sweep):
+- `npx wrangler d1 execute listing_evaluator --remote --file=./migrations/2026-03-08_serial_decode_events.sql`
 
 From repo root:
 - `npm run build`
