@@ -95,8 +95,8 @@ export function decodeIbanez(serial) {
     if (/^CP\d+$/.test(normalized)) {
         return decodeCP(normalized);
     }
-    // Indonesia: I/K/J + 9 digits (2001-present)
-    if (/^[IKJ]\d{9}$/.test(normalized)) {
+    // Indonesia: B/I/K/J + 9 digits (2001-present)
+    if (/^[BIKJ]\d{9}$/.test(normalized)) {
         return decodeIndonesia2001(normalized);
     }
     // Indonesia: I + 7 digits (1997-2000)
@@ -481,7 +481,7 @@ function decodeCP(serial) {
     };
     return { success: true, info };
 }
-// Indonesia 2001-present: I/K/J + 9 digits
+// Indonesia 2001-present: B/I/K/J + 9 digits
 function decodeIndonesia2001(serial) {
     const factoryCode = serial[0];
     const year = parseInt(serial.substring(1, 3), 10) + 2000;
@@ -497,6 +497,9 @@ function decodeIndonesia2001(serial) {
             break;
         case 'J':
             factory = 'Sejung';
+            break;
+        case 'B':
+            factory = 'Indonesia (B-prefix production, exact factory unclear)';
             break;
         default:
             factory = 'Indonesia (factory unspecified)';
