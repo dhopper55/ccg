@@ -143,6 +143,11 @@ export function decodeIbanez(serial: string): DecodeResult {
     return decodeVPrefix(normalized);
   }
 
+  // Less-common M prefix: M + 7 digits
+  if (/^M\d{7}$/.test(normalized)) {
+    return decodeMPrefix(normalized);
+  }
+
   // Korea: KR + 9 digits (2004-2006)
   if (/^KR\d{9}$/.test(normalized)) {
     return decodeKR(normalized);
@@ -218,6 +223,11 @@ export function decodeIbanez(serial: string): DecodeResult {
   // China: A + 8 digits (2005-present)
   if (/^A\d{8}$/.test(normalized)) {
     return decodeChinaA(normalized);
+  }
+
+  // China: L + 9 digits
+  if (/^L\d{9}$/.test(normalized)) {
+    return decodeChinaL(normalized);
   }
 
   // China: GP + 8 digits
@@ -767,6 +777,28 @@ function decodeVPrefix(serial: string): DecodeResult {
   return { success: true, info };
 }
 
+// Less-common M prefix: M + 7 digits
+function decodeMPrefix(serial: string): DecodeResult {
+  const yearDigit = parseInt(serial[1], 10);
+  const month = parseInt(serial.substring(2, 4), 10);
+  const sequence = serial.substring(4);
+
+  const primaryYear = 2000 + yearDigit;
+  const alternateYear = 2010 + yearDigit;
+
+  const info: GuitarInfo = {
+    brand: 'Ibanez',
+    serialNumber: serial,
+    year: primaryYear.toString(),
+    month: getMonthName(month),
+    factory: 'Unknown M-prefix production line (Korea or China)',
+    country: 'South Korea or China',
+    notes: `Sequence: ${sequence}. M-prefix format interpreted with year digit "${yearDigit}". Alternate interpretation in some series: ${alternateYear}, ${getMonthName(month)}.`
+  };
+
+  return { success: true, info };
+}
+
 // Korea KR format: KR + 9 digits (2004-2006)
 function decodeKR(serial: string): DecodeResult {
   const year = parseInt(serial.substring(2, 4), 10) + 2000;
@@ -1185,6 +1217,25 @@ function decodeChinaA(serial: string): DecodeResult {
     factory: 'China',
     country: 'China',
     notes: `Sequence: ${sequence}. A + 8 digits format used since 2005.`
+  };
+
+  return { success: true, info };
+}
+
+// China L format: L + 9 digits
+function decodeChinaL(serial: string): DecodeResult {
+  const year = parseInt(serial.substring(1, 3), 10) + 2000;
+  const month = parseInt(serial.substring(3, 5), 10);
+  const sequence = serial.substring(5);
+
+  const info: GuitarInfo = {
+    brand: 'Ibanez',
+    serialNumber: serial,
+    year: year.toString(),
+    month: getMonthName(month),
+    factory: 'China (L-prefix factory)',
+    country: 'China',
+    notes: `Sequence: ${sequence}. L prefix appears on modern China production serials.`
   };
 
   return { success: true, info };

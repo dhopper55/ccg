@@ -194,6 +194,31 @@ function assertIbanezVPrefix(serialInput, expectedYear) {
   );
 }
 
+function assertIbanezMPrefix(serialInput, expectedYear, expectedMonth) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.notes && info.notes.includes('Alternate interpretation'),
+    `Expected alternate interpretation note for ${serialInput}, got ${info.notes}`
+  );
+}
+
+function assertIbanezChinaL(serialInput, expectedYear, expectedMonth) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(info.country === 'China', `Expected country China for ${serialInput}, got ${info.country}`);
+}
+
 function assertIbanez4L(serialInput, expectedYear, expectedMonth) {
   const result = decodeIbanez(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -299,6 +324,8 @@ assertIbanezChinaGP('gp05105792', '2005', 'October');
 assertIbanezFujiGenFD('FD2468031', '2024', 'July');
 assertIbanezVPrefix('V054683', '2005');
 assertIbanezVPrefix('vo54683', '2005');
+assertIbanezMPrefix('M3013293', '2003', 'January');
+assertIbanezChinaL('L160200319', '2016', 'February');
 assertIbanezWorldExtended('W0111538', '2000', 'November');
 assertIbanezWorldShortWK('WK1007');
 assertIbanezNumericOnly9Digit('220600378', '2022', 'June');
