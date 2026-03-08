@@ -117,8 +117,14 @@ export function decodeIbanez(serial: string): DecodeResult {
     return decodeCP(normalized);
   }
 
-  // Indonesia: B/I/K/J + 9 digits (2001-present)
-  if (/^[BIKJ]\d{9}$/.test(normalized)) {
+  // Month-letter variant seen on some imports: B + 9 digits
+  // Treats leading letter as month code (A=Jan, B=Feb, ...), not factory code.
+  if (/^B\d{9}$/.test(normalized)) {
+    return decodeMonthLetterPrefix9Digit(normalized);
+  }
+
+  // Indonesia: I/K/J + 9 digits (2001-present)
+  if (/^[IKJ]\d{9}$/.test(normalized)) {
     return decodeIndonesia2001(normalized);
   }
 
@@ -575,7 +581,31 @@ function decodeCP(serial: string): DecodeResult {
   return { success: true, info };
 }
 
-// Indonesia 2001-present: B/I/K/J + 9 digits
+// Month-letter prefix variant: B + 9 digits
+function decodeMonthLetterPrefix9Digit(serial: string): DecodeResult {
+  const monthLetter = serial[0];
+  const year = parseInt(serial.substring(1, 3), 10) + 2000;
+  const monthFromLetter = getMonthName(monthLetter.charCodeAt(0) - 64);
+  const numericMonth = parseInt(serial.substring(3, 5), 10);
+  const sequence = serial.substring(5);
+
+  const monthNote = numericMonth >= 1 && numericMonth <= 12 && getMonthName(numericMonth) !== monthFromLetter
+    ? ` Digits 4-5 read as ${getMonthName(numericMonth)}, but this decode prioritizes the leading month-letter convention.`
+    : '';
+
+  const info: GuitarInfo = {
+    brand: 'Ibanez',
+    serialNumber: serial,
+    year: year.toString(),
+    month: monthFromLetter,
+    factory: 'Unknown (B used as month-letter code, not a factory code)',
+    notes: `Sequence: ${sequence}. Leading "${monthLetter}" interpreted as month code (A=January, B=February, ...).${monthNote}`
+  };
+
+  return { success: true, info };
+}
+
+// Indonesia 2001-present: I/K/J + 9 digits
 function decodeIndonesia2001(serial: string): DecodeResult {
   const factoryCode = serial[0];
   const year = parseInt(serial.substring(1, 3), 10) + 2000;
@@ -592,9 +622,6 @@ function decodeIndonesia2001(serial: string): DecodeResult {
       break;
     case 'J':
       factory = 'Sejung';
-      break;
-    case 'B':
-      factory = 'Indonesia (B-prefix production, exact factory unclear)';
       break;
     default:
       factory = 'Indonesia (factory unspecified)';
