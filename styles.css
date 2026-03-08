@@ -1057,6 +1057,10 @@ button:active {
   width: 186px;
 }
 
+.ovation-model-images a {
+  display: block;
+}
+
 .ovation-model-images img {
   width: 100%;
   aspect-ratio: 4 / 3;
