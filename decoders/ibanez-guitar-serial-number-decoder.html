@@ -194,7 +194,7 @@
       </div>
       <div class="decoder-faq-item">
         <h3>Why won't my Ibanez serial number decode?</h3>
-        <p>Serial formats change over time, and limited runs or custom shop instruments can deviate from standard patterns. The decoder now retries common formatting fixes automatically (such as removing spaces/hyphens), but some serials still require manual review. If it fails, reach out so we can improve coverage.</p>
+        <p>Serial formats change over time, and limited runs or custom shop instruments can deviate from standard patterns. The decoder now retries common formatting fixes automatically (such as removing spaces/hyphens), but some serials still require manual review. Also, model codes (for example <strong>SR305EDX</strong>) are not serial numbers and usually cannot provide exact month/year without the actual stamped serial.</p>
       </div>
     </section>
 
@@ -217,7 +217,7 @@
         <p class="decoder-modal-subtitle">A quick manual method when you don't want to use a decoder.</p>
       </div>
       <div class="decoder-modal-body">
-        <p>Ibanez serial numbers are generally found on the back of the headstock and can often be decoded by prefix plus date digits. A common modern pattern is factory prefix + YYMM + sequence (for example, <strong>I160100231</strong> = Indonesia, January 2016). This decoder also supports both <strong>5B + 9 digits</strong> (import prefix with YYMM date digits) and <strong>B + 9 digits</strong> (month-letter variant where B = February).</p>
+        <p>Ibanez serial numbers are generally found on the back of the headstock and can often be decoded by prefix plus date digits. A common modern pattern is factory prefix + YYMM + sequence (for example, <strong>I160100231</strong> = Indonesia, January 2016). This decoder also supports <strong>5B + 9 digits</strong> (import prefix with YYMM date digits), <strong>B + 9 digits</strong> (month-letter variant where B = February), and <strong>numeric-only 9 digits</strong> where the serial is interpreted as <strong>YYMM + sequence</strong> (e.g., 220600378 = June 2022).</p>
 
         <h3>Decoding by Location &amp; Year</h3>
         <ul class="decoder-howto-steps">
@@ -225,6 +225,7 @@
           <li><strong>Indonesia (2001+):</strong> <strong>I/K/J + 9 digits</strong>, where digits usually map to <strong>YYMM + sequence</strong>.</li>
           <li><strong>Two-character Import Prefix:</strong> Some serials use <strong>5B + 9 digits</strong>; the decoder treats <strong>5B</strong> as prefix and uses the remaining digits as <strong>YYMM + sequence</strong> (e.g., 5B160100231 = January 2016).</li>
           <li><strong>Month-letter Variant:</strong> Some serials appear as <strong>B + 9 digits</strong>; in this case the leading letter is treated as month code (A=Jan, B=Feb, etc.) rather than factory code (e.g., B160100231 = February 2016).</li>
+          <li><strong>Numeric-only Import Variant:</strong> Some modern imports use <strong>9 digits only</strong> with no leading letters; these are decoded as <strong>YYMM + sequence</strong> (e.g., 220600378 = June 2022).</li>
           <li><strong>Korea/China/Other Imports:</strong> Often use a factory letter/prefix followed by year-month style digits, but exact rules vary by plant and era.</li>
           <li><strong>Older Models (Pre-1976):</strong> Often have no serial number.</li>
           <li><strong>Pedals:</strong> The first digit of a 4-digit serial number typically represents the last digit of the year (e.g., “3” = 1983).</li>
@@ -235,6 +236,7 @@
           <li><strong>Letter Prefix:</strong> Identifies factory/origin (e.g., F/J = Japan, I = Indonesia, C = China, K = Korea).</li>
           <li><strong>First 2 Digits (Modern):</strong> Represent the year (e.g., 05 = 2005).</li>
           <li><strong>Input Cleanup:</strong> If your serial includes spaces or hyphens (e.g., B-160100231), the decoder retries a normalized version automatically and updates the serial box when a corrected format succeeds.</li>
+          <li><strong>Model vs Serial:</strong> Entries like <strong>SR305EDX</strong> are model names, not serial numbers. They can suggest likely country/factory, but exact dating needs the stamped serial number.</li>
           <li><strong>Online Tools:</strong> Check the Ibanez Wiki for the most comprehensive database.</li>
         </ul>
 

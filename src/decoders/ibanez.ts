@@ -4,6 +4,11 @@ export function decodeIbanez(serial: string): DecodeResult {
   const cleaned = serial.trim().toUpperCase();
   const normalized = cleaned.replace(/[\s-]/g, '');
 
+  // Known model-code fallback (not a serial number)
+  if (normalized === 'SR305EDX') {
+    return decodeKnownModelCode(normalized);
+  }
+
   // Check for compound serial numbers with model prefix + actual serial
   // Format: Model code (e.g., 2Y03, 5B01) followed by standard serial (GS..., PW..., etc.)
   const compoundMatch = normalized.match(/^([A-Z0-9]{4})(GS\d{9})$/);
@@ -184,6 +189,11 @@ export function decodeIbanez(serial: string): DecodeResult {
     return decodeChina4L(normalized);
   }
 
+  // Numeric-only 9 digits: YYMM + sequence (seen on some modern imports)
+  if (/^\d{9}$/.test(normalized)) {
+    return decodeNumeric9DigitModern(normalized);
+  }
+
   // Japan: 5-digit J-Custom (2001-2004)
   if (/^\d{5}$/.test(normalized)) {
     return decodeJCustom5Digit(normalized);
@@ -191,8 +201,21 @@ export function decodeIbanez(serial: string): DecodeResult {
 
   return {
     success: false,
-    error: 'Unrecognized Ibanez serial number format. Ibanez has used many different serial number systems across factories in Japan, Korea, Indonesia, and China. Common formats include: F + 7 digits (Japan), letter + 6-9 digits (various factories), or factory prefix + digits.'
+    error: 'Unrecognized Ibanez serial number format. Ibanez has used many different serial number systems across factories in Japan, Korea, Indonesia, and China. Common formats include: F + 7 digits (Japan), letter + 6-9 digits (various factories), numeric 9 digits (YYMM+sequence on some imports), or factory prefix + digits.'
   };
+}
+
+function decodeKnownModelCode(modelCode: string): DecodeResult {
+  const info: GuitarInfo = {
+    brand: 'Ibanez',
+    serialNumber: modelCode,
+    model: modelCode,
+    country: 'Indonesia',
+    factory: 'Likely Cort Indonesia (Cor-Tek) or another Indonesia facility',
+    notes: `${modelCode} is a model code, not a stamped serial number. Model lookup can indicate likely origin, but exact manufacture date requires the actual serial from the headstock/label.`
+  };
+
+  return { success: true, info };
 }
 
 // Japan FujiGen 1997-present: F + 7 digits
@@ -602,6 +625,25 @@ function decodeTwoCharImportPrefix9Digit(serial: string): DecodeResult {
     factory: 'Unknown import factory (5B prefix)',
     country: 'China or Indonesia',
     notes: `Sequence: ${sequence}. "${prefix}" appears as a two-character import prefix; this decoder uses YYMM from the following digits.`
+  };
+
+  return { success: true, info };
+}
+
+// Numeric-only modern import variant: YYMM + sequence (9 digits)
+function decodeNumeric9DigitModern(serial: string): DecodeResult {
+  const year = parseInt(serial.substring(0, 2), 10) + 2000;
+  const month = parseInt(serial.substring(2, 4), 10);
+  const sequence = serial.substring(4);
+
+  const info: GuitarInfo = {
+    brand: 'Ibanez',
+    serialNumber: serial,
+    year: year.toString(),
+    month: getMonthName(month),
+    factory: 'Unknown import factory (numeric-only format)',
+    country: 'China or Indonesia',
+    notes: `Sequence: ${sequence}. Numeric-only 9-digit pattern interpreted as YYMM + production sequence.`
   };
 
   return { success: true, info };
