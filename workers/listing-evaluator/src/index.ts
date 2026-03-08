@@ -75,6 +75,19 @@ interface RejectResult {
   reason: string;
 }
 
+interface SerialDecodeEventPayload {
+  brand?: unknown;
+  serial?: unknown;
+  success?: unknown;
+  year?: unknown;
+  factory?: unknown;
+  country?: unknown;
+  error?: unknown;
+  pagePath?: unknown;
+  userAgent?: unknown;
+  clientTimestamp?: unknown;
+}
+
 const MAX_URLS = 20;
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
@@ -233,6 +246,11 @@ export default {
 
     if (path === '/api/custom-image' && request.method === 'GET') {
       const response = await handleCustomImage(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/serial-decodes' && request.method === 'POST') {
+      const response = await handleSerialDecodeEvent(request, env);
       return withCors(response, request, env);
     }
 
@@ -440,6 +458,9 @@ async function requireAuth(request: Request, env: Env, path: string): Promise<Re
   if (path === '/api/custom-image' && request.method === 'GET') {
     return null;
   }
+  if (path === '/api/serial-decodes' && request.method === 'POST') {
+    return null;
+  }
 
   const cookies = parseCookie(request.headers.get('cookie'));
   const token = cookies.get(AUTH_COOKIE_NAME);
@@ -459,6 +480,72 @@ async function requireAuth(request: Request, env: Env, path: string): Promise<Re
   }
 
   return null;
+}
+
+async function handleSerialDecodeEvent(request: Request, env: Env): Promise<Response> {
+  let body: SerialDecodeEventPayload = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  const brand = normalizeText(body.brand, '').slice(0, 120);
+  const serial = normalizeText(body.serial, '').slice(0, 180);
+  const year = normalizeText(body.year, '').slice(0, 120);
+  const factory = normalizeText(body.factory, '').slice(0, 180);
+  const country = normalizeText(body.country, '').slice(0, 120);
+  const error = normalizeText(body.error, '').slice(0, 1200);
+  const pagePath = normalizeText(body.pagePath, '').slice(0, 300);
+  const userAgent = normalizeText(body.userAgent, '').slice(0, 500);
+  const clientTimestamp = normalizeText(body.clientTimestamp, '').slice(0, 120);
+  const success = Boolean(body.success);
+
+  if (!brand) return jsonResponse({ message: 'Brand is required.' }, 400);
+  if (!serial) return jsonResponse({ message: 'Serial is required.' }, 400);
+
+  const cf = (request as Request & { cf?: Record<string, unknown> }).cf || {};
+  const countryCode = normalizeText(cf.country, '').slice(0, 8);
+  const colo = normalizeText(cf.colo, '').slice(0, 32);
+  const ipAddress = normalizeText(request.headers.get('CF-Connecting-IP'), '').slice(0, 64);
+
+  await env.DB.prepare(
+    `INSERT INTO serial_decode_events (
+      event_time_utc,
+      brand,
+      serial,
+      success,
+      year,
+      factory,
+      country,
+      error,
+      page_path,
+      user_agent,
+      client_timestamp,
+      ip_address,
+      cf_country,
+      cf_colo
+    ) VALUES (
+      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+    )`
+  ).bind(
+    new Date().toISOString(),
+    brand,
+    serial,
+    success ? 1 : 0,
+    year || null,
+    factory || null,
+    country || null,
+    error || null,
+    pagePath || null,
+    userAgent || null,
+    clientTimestamp || null,
+    ipAddress || null,
+    countryCode || null,
+    colo || null,
+  ).run();
+
+  return jsonResponse({ ok: true });
 }
 
 async function handleLogin(request: Request, env: Env): Promise<Response> {

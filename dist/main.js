@@ -24,34 +24,26 @@ import { decodeCharvel } from './decoders/charvel.js?version=988463';
 import { decodeRickenbacker } from './decoders/rickenbacker.js?version=961802';
 import { decodeKramer } from './decoders/kramer.js?version=253470';
 import { decodeBCRich } from './decoders/bcrich.js?version=330486';
-// Google Forms tracking configuration
-const GOOGLE_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLScjlmEiQzVNnyGJIfbHZa3clFz97UqR6VwOAzwgBID7k04f5w/formResponse';
-const FORM_FIELDS = {
-    brand: 'entry.1337294788',
-    serial: 'entry.1296168262',
-    success: 'entry.1111959987',
-    year: 'entry.1354356712',
-    factory: 'entry.1430981141',
-    country: 'entry.193038505',
-    error: 'entry.429448273',
-    timestamp: 'entry.844467292',
-};
-// Track decode attempts to Google Forms (fire and forget)
+// Track decode attempts in D1 via worker API (fire and forget)
 function trackDecode(data) {
-    const timestamp = new Date().toLocaleDateString('en-US');
-    const params = new URLSearchParams();
-    params.append(FORM_FIELDS.brand, data.brand || '');
-    params.append(FORM_FIELDS.serial, data.serial || '');
-    params.append(FORM_FIELDS.success, data.success ? 'true' : 'false');
-    params.append(FORM_FIELDS.year, data.year || '');
-    params.append(FORM_FIELDS.factory, data.factory || '');
-    params.append(FORM_FIELDS.country, data.country || '');
-    params.append(FORM_FIELDS.error, data.error || '');
-    params.append(FORM_FIELDS.timestamp, timestamp);
-    // Send as fire-and-forget using fetch with no-cors mode
-    fetch(`${GOOGLE_FORM_URL}?${params.toString()}`, {
-        method: 'GET',
-        mode: 'no-cors',
+    fetch('/api/serial-decodes', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        keepalive: true,
+        body: JSON.stringify({
+            brand: data.brand || '',
+            serial: data.serial || '',
+            success: Boolean(data.success),
+            year: data.year || '',
+            factory: data.factory || '',
+            country: data.country || '',
+            error: data.error || '',
+            pagePath: window.location.pathname,
+            userAgent: navigator.userAgent,
+            clientTimestamp: new Date().toLocaleDateString('en-US'),
+        }),
     }).catch(() => {
         // Silently ignore errors - tracking should not affect user experience
     });
