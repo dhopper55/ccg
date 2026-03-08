@@ -198,6 +198,14 @@ const SerialDecodes = () => {
         }
 
         if (cancelled) return;
+        console.log(
+          '[SerialDecodes] load response rows',
+          (Array.isArray(data.records) ? data.records : []).map((row) => ({
+            id: row.id,
+            success: row.success,
+            evaluated: row.evaluated,
+          })),
+        );
         setRecords(Array.isArray(data.records) ? data.records : []);
         setAvailableBrands(Array.isArray(data.availableBrands) ? data.availableBrands : []);
         setPage(Math.max(1, Number(data.page || 1)));
