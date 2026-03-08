@@ -157,13 +157,17 @@ export function decodeIbanez(serial) {
     if (/^\d{9}$/.test(normalized)) {
         return decodeNumeric9DigitModern(normalized);
     }
+    // Numeric-only 8 digits: YYMM + sequence (short variant on some imports)
+    if (/^\d{8}$/.test(normalized)) {
+        return decodeNumeric8DigitModern(normalized);
+    }
     // Japan: 5-digit J-Custom (2001-2004)
     if (/^\d{5}$/.test(normalized)) {
         return decodeJCustom5Digit(normalized);
     }
     return {
         success: false,
-        error: 'Unrecognized Ibanez serial number format. Ibanez has used many different serial number systems across factories in Japan, Korea, Indonesia, and China. Common formats include: F + 7 digits (Japan), letter + 6-9 digits (various factories), numeric 9 digits (YYMM+sequence on some imports), or factory prefix + digits.'
+        error: 'Unrecognized Ibanez serial number format. Ibanez has used many different serial number systems across factories in Japan, Korea, Indonesia, and China. Common formats include: F + 7 digits (Japan), letter + 6-9 digits (various factories), numeric 8-9 digits (YYMM+sequence on some imports), or factory prefix + digits.'
     };
 }
 function decodeKnownModelCode(modelCode) {
@@ -540,6 +544,22 @@ function decodeNumeric9DigitModern(serial) {
         factory: 'Unknown import factory (numeric-only format)',
         country: 'China or Indonesia',
         notes: `Sequence: ${sequence}. Numeric-only 9-digit pattern interpreted as YYMM + production sequence.`
+    };
+    return { success: true, info };
+}
+// Numeric-only modern import variant: YYMM + sequence (8 digits)
+function decodeNumeric8DigitModern(serial) {
+    const year = parseInt(serial.substring(0, 2), 10) + 2000;
+    const month = parseInt(serial.substring(2, 4), 10);
+    const sequence = serial.substring(4);
+    const info = {
+        brand: 'Ibanez',
+        serialNumber: serial,
+        year: year.toString(),
+        month: getMonthName(month),
+        factory: 'Unknown import factory (numeric-only format)',
+        country: 'China or Indonesia',
+        notes: `Sequence: ${sequence}. Numeric-only 8-digit pattern interpreted as YYMM + production sequence.`
     };
     return { success: true, info };
 }

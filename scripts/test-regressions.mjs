@@ -78,6 +78,7 @@ assertIbanez5BPrefix('5B160100231');
 assertIbanez5BPrefix('5B-160100231');
 assertIbanezNumericOnly9Digit('220600378', '2022', 'June');
 assertIbanezNumericOnly9Digit('141209632', '2014', 'December');
+assertIbanezNumericOnly9Digit('02010903', '2002', 'January');
 assertIbanezModelCodeFallback('SR305EDX');
 assertIbanezExistingSamples();
 

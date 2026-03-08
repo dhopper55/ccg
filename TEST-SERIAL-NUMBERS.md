@@ -15,6 +15,7 @@ Sample serial numbers for testing the guitar serial decoder.
 | 5B-160100231 | Two-character import prefix format, 2016, January (5B prefix + YYMM + sequence) |
 | 220600378 | Numeric-only 9-digit import format, 2022, June (YYMM + sequence) |
 | 141209632 | Numeric-only 9-digit import format, 2014, December (YYMM + sequence) |
+| 02010903 | Numeric-only 8-digit import format, 2002, January (YYMM + sequence) |
 | SR305EDX | Model code fallback (not serial): likely Indonesia origin; exact date requires actual serial |
 | W842827 | Korea (World), 2004 |
 | GS140406094 | China, 2014, April |
