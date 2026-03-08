@@ -354,6 +354,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/serial-decodes' && request.method === 'GET') {
+      const response = await handleAdminV2SerialDecodes(request, env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/admin-v2/inventory/labels.pdf' && request.method === 'GET') {
       const response = await handleAdminV2InventoryLabelsPdf(env);
       return withCors(response, request, env);
@@ -1337,6 +1342,19 @@ type AdminV2OldestInventoryRow = {
   source: string | null;
 };
 
+type AdminV2SerialDecodeRow = {
+  id: number;
+  eventTimeUtc: string | null;
+  clientTimestamp: string | null;
+  brand: string;
+  serial: string;
+  success: boolean;
+  year: string | null;
+  factory: string | null;
+  country: string | null;
+  error: string | null;
+};
+
 async function handleList(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const limitParam = url.searchParams.get('limit');
@@ -1521,6 +1539,14 @@ async function handleAdminV2DashboardOldestInventory(request: Request, env: Env)
   return jsonResponse({
     records,
   });
+}
+
+async function handleAdminV2SerialDecodes(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const page = parseBoundedInt(url.searchParams.get('page'), 1, 1, 1_000_000);
+  const limit = parseBoundedInt(url.searchParams.get('limit'), 20, 1, 100);
+  const data = await dbListAdminV2SerialDecodes(page, limit, env);
+  return jsonResponse(data);
 }
 
 async function handleAdminV2InventoryLabelsPdf(env: Env): Promise<Response> {
@@ -4210,6 +4236,73 @@ async function dbGetAdminV2OldestInventory(limit: number, env: Env): Promise<Adm
     forSale: Number(row.for_sale || 0) === 1,
     source: row.source,
   }));
+}
+
+async function dbListAdminV2SerialDecodes(
+  page: number,
+  limit: number,
+  env: Env,
+): Promise<{ records: AdminV2SerialDecodeRow[]; page: number; limit: number; total: number; totalPages: number }> {
+  const offset = (page - 1) * limit;
+  const totalRow = await env.DB.prepare(
+    `SELECT COUNT(*) AS total FROM serial_decode_events`
+  ).first<{ total: number | null }>();
+  const total = Number(totalRow?.total || 0);
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  const rows = await env.DB.prepare(
+    `SELECT
+      id,
+      event_time_utc,
+      client_timestamp,
+      brand,
+      serial,
+      success,
+      year,
+      factory,
+      country,
+      error,
+      COALESCE(
+        datetime(client_timestamp),
+        datetime(event_time_utc),
+        datetime(created_at)
+      ) AS sort_ts
+     FROM serial_decode_events
+     ORDER BY sort_ts DESC, id DESC
+     LIMIT ? OFFSET ?`
+  ).bind(limit, offset).all<{
+    id: number | null;
+    event_time_utc: string | null;
+    client_timestamp: string | null;
+    brand: string | null;
+    serial: string | null;
+    success: number | null;
+    year: string | null;
+    factory: string | null;
+    country: string | null;
+    error: string | null;
+  }>();
+
+  const records = (rows.results ?? []).map((row) => ({
+    id: Number(row.id || 0),
+    eventTimeUtc: typeof row.event_time_utc === 'string' ? row.event_time_utc : null,
+    clientTimestamp: typeof row.client_timestamp === 'string' ? row.client_timestamp : null,
+    brand: normalizeText(row.brand, ''),
+    serial: normalizeText(row.serial, ''),
+    success: Number(row.success || 0) === 1,
+    year: normalizeText(row.year, '') || null,
+    factory: normalizeText(row.factory, '') || null,
+    country: normalizeText(row.country, '') || null,
+    error: normalizeText(row.error, '') || null,
+  }));
+
+  return {
+    records,
+    page,
+    limit,
+    total,
+    totalPages,
+  };
 }
 
 async function getIsMultiFromRecord(recordId: string, env: Env): Promise<boolean> {

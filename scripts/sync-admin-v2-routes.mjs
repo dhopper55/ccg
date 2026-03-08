@@ -13,6 +13,7 @@ const routeDirs = [
   'listing-evaluator',
   'listing-evaluator-results',
   'listing-evaluator-item',
+  'serial-decodes',
   'logout',
   'pages/icons',
   'authentication/default/jwt/login',

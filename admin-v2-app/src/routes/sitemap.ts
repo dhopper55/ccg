@@ -64,6 +64,14 @@ const sitemap: MenuItem[] = [
         active: true,
       },
       {
+        name: 'Serial Decodes',
+        key: 'serial_decodes',
+        path: paths.serialDecodes,
+        pathName: 'serial-decodes',
+        icon: 'material-symbols:data-table-outline-rounded',
+        active: true,
+      },
+      {
         name: 'Logout',
         key: 'logout',
         path: paths.logout,
