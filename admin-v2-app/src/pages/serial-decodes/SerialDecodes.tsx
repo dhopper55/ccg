@@ -54,7 +54,6 @@ type SerialDecodesResponse = {
   total: number;
   totalPages: number;
   availableBrands: string[];
-  debugEvaluated713?: number | null;
   message?: string;
 };
 
@@ -203,15 +202,6 @@ const SerialDecodes = () => {
         }
 
         if (cancelled) return;
-        console.log(
-          '[SerialDecodes] load response rows',
-          (Array.isArray(data.records) ? data.records : []).map((row) => ({
-            id: row.id,
-            success: row.success,
-            evaluated: row.evaluated,
-          })),
-        );
-        console.log('[SerialDecodes] load response debugEvaluated713', data.debugEvaluated713);
         setRecords(Array.isArray(data.records) ? data.records : []);
         setAvailableBrands(Array.isArray(data.availableBrands) ? data.availableBrands : []);
         setPage(Math.max(1, Number(data.page || 1)));

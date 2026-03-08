@@ -4309,7 +4309,6 @@ async function dbListAdminV2SerialDecodes(
   total: number;
   totalPages: number;
   availableBrands: string[];
-  debugEvaluated713: number | null;
 }> {
   const offset = (page - 1) * limit;
   const where: string[] = [];
@@ -4349,6 +4348,7 @@ async function dbListAdminV2SerialDecodes(
       brand,
       serial,
       success,
+      evaluated,
       year,
       factory,
       country,
@@ -4390,12 +4390,6 @@ async function dbListAdminV2SerialDecodes(
     error: normalizeText(row.error, '') || null,
   }));
 
-  const debugRow = await db.prepare(
-    `SELECT evaluated
-     FROM serial_decode_events
-     WHERE id = 713`
-  ).first<{ evaluated: number | null }>();
-
   return {
     records,
     page,
@@ -4403,7 +4397,6 @@ async function dbListAdminV2SerialDecodes(
     total,
     totalPages,
     availableBrands,
-    debugEvaluated713: debugRow?.evaluated == null ? null : Number(debugRow.evaluated),
   };
 }
 
