@@ -25,7 +25,7 @@
   <meta name="twitter:description" content="Free Ibanez serial number lookup/decoder. Find the year, factory location, and production details of your Ibanez guitar.">
   <meta name="twitter:image" content="https://www.coalcreekguitars.com/images/coal-creek-logo.png">
 
-  <link rel="stylesheet" href="../styles.css?version=912414">
+  <link rel="stylesheet" href="../styles.css?version=664424">
 
   <!-- Structured Data -->
   <script type="application/ld+json">
@@ -221,14 +221,14 @@
         <p class="decoder-modal-subtitle">A quick manual method when you don't want to use a decoder.</p>
       </div>
       <div class="decoder-modal-body">
-        <p>Ibanez serial numbers are generally found on the back of the headstock and can often be decoded by prefix plus date digits. A common modern pattern is factory prefix + YYMM + sequence (for example, <strong>I160100231</strong> = Indonesia, January 2016). This decoder also supports <strong>GI + 7 digits</strong> legacy Indonesia GIO format (e.g., GI0012180 = December 2000), <strong>5B + 9 digits</strong> (import prefix with YYMM date digits), <strong>B + 9 digits</strong> (month-letter variant where B = February), China <strong>L/N + 9 digits</strong> variants (e.g., L160200319 and N230401406), <strong>numeric-only 7-10 digits</strong> interpreted as date + sequence on import variants (e.g., 220600378 = June 2022, 02010903 = January 2002, 4120210 = December 2014 using YMM + sequence, 5230401406 = April 2023 with leading factory digit), legacy <strong>YYMM###/#### + 1-2 letters</strong> formats (e.g., 83030041D and 8303004ID = March 1983), and compound codes like <strong>212Y03GS251101952</strong> or <strong>215N015N250401143</strong> where an internal prefix is prepended to a standard date payload.</p>
+        <p>Ibanez serial numbers are generally found on the back of the headstock and can often be decoded by prefix plus date digits. A common modern pattern is factory prefix + YYMM + sequence (for example, <strong>I160100231</strong> = Indonesia, January 2016). This decoder also supports <strong>GI + 7 digits</strong> legacy Indonesia GIO format (e.g., GI0012180 = December 2000), <strong>5B/5N + 9 digits</strong> (two-character import prefix with YYMM date digits), <strong>B + 9 digits</strong> (month-letter variant where B = February), China <strong>L/N + 9 digits</strong> variants (e.g., L160200319 and N230401406), <strong>numeric-only 7-10 digits</strong> interpreted as date + sequence on import variants (e.g., 220600378 = June 2022, 02010903 = January 2002, 4120210 = December 2014 using YMM + sequence, 5230401406 = April 2023 with leading factory digit), legacy <strong>YYMM###/#### + 1-2 letters</strong> formats (e.g., 83030041D and 8303004ID = March 1983), and compound codes like <strong>212Y03GS251101952</strong> or <strong>215N015N250401143</strong> where an internal prefix is prepended to a standard date payload.</p>
 
         <h3>Decoding by Location &amp; Year</h3>
         <ul class="decoder-howto-steps">
           <li><strong>Japan (FujiGen, 1987–Present):</strong> Starts with a letter, followed by 6–7 digits. The first two digits after the letter are the year (e.g., F97XXXX = 1997).</li>
           <li><strong>Indonesia (2001+):</strong> <strong>I/K/J + 9 digits</strong>, where digits usually map to <strong>YYMM + sequence</strong>.</li>
           <li><strong>Indonesia GIO Legacy:</strong> <strong>GI + 7 digits</strong> appears on some early GIO production (e.g., GI0012180 = December 2000).</li>
-          <li><strong>Two-character Import Prefix:</strong> Some serials use <strong>5B + 9 digits</strong>; the decoder treats <strong>5B</strong> as prefix and uses the remaining digits as <strong>YYMM + sequence</strong> (e.g., 5B160100231 = January 2016).</li>
+          <li><strong>Two-character Import Prefix:</strong> Some serials use <strong>5B/5N + 9 digits</strong>; the decoder treats that two-character code as prefix and uses the remaining digits as <strong>YYMM + sequence</strong> (e.g., 5B160100231 = January 2016, 5N230401406 = April 2023).</li>
           <li><strong>Month-letter Variant:</strong> Some serials appear as <strong>B + 9 digits</strong>; in this case the leading letter is treated as month code (A=Jan, B=Feb, etc.) rather than factory code (e.g., B160100231 = February 2016).</li>
           <li><strong>Numeric-only Import Variant:</strong> Some modern imports use <strong>8-10 digits only</strong> with no leading letters; these are decoded primarily as <strong>YYMM + sequence</strong> (or <strong>factory-digit + YYMM + sequence</strong> on some 10-digit runs) (e.g., 220600378 = June 2022, 02010903 = January 2002, 5230401406 = April 2023). If YYMM yields an invalid month on a 9-digit serial, the decoder falls back to <strong>YMM + sequence</strong> and includes an alternate-year note (e.g., 311717707).</li>
           <li><strong>6-digit Numeric Variants:</strong> Some serials are read as <strong>YYMMSS</strong> (e.g., 041195 = November 2004, with possible 1994 vintage alt-read), while others fit late-80s <strong>YY + sequence</strong> (e.g., 881865), often tied to USA-linked assembly or omitted-prefix Japanese runs.</li>
@@ -265,7 +265,7 @@
     </div>
   </footer>
 
-  <script type="module" src="../dist/main.js?version=523698"></script>
+  <script type="module" src="../dist/main.js?version=892672"></script>
   <script>
     (function() {
       const asOf = document.getElementById('decoder-current-as-of');

@@ -1,89 +1,12 @@
-import { decodeGibson } from './decoders/gibson.js?version=917338';
-import { decodeEpiphone } from './decoders/epiphone.js?version=262979';
-import { decodeFender } from './decoders/fender.js?version=411815';
-import { decodeTaylor } from './decoders/taylor.js?version=678368';
-import { decodeMartin } from './decoders/martin.js?version=695834';
-import { decodeIbanez } from './decoders/ibanez.js?version=688238';
-import { decodeYamaha } from './decoders/yamaha.js?version=952461';
-import { decodePRS } from './decoders/prs.js?version=790194';
-import { decodeESP } from './decoders/esp.js?version=188311';
-import { decodeSchecter } from './decoders/schecter.js?version=187652';
-import { decodeGretsch } from './decoders/gretsch.js?version=232391';
-import { decodeJackson } from './decoders/jackson.js?version=406866';
-import { decodeSquier } from './decoders/squier.js?version=126188';
-import { decodeCort } from './decoders/cort.js?version=165226';
-import { decodeTakamine } from './decoders/takamine.js?version=112324';
-import { decodeWashburn } from './decoders/washburn.js?version=141474';
-import { decodeDean } from './decoders/dean.js?version=932781';
-import { decodeErnieBall } from './decoders/ernieball.js?version=707110';
-import { decodeGuild } from './decoders/guild.js?version=441239';
-import { decodeAlvarez } from './decoders/alvarez.js?version=638619';
-import { decodeGodin } from './decoders/godin.js?version=699990';
-import { decodeOvation } from './decoders/ovation.js?version=823009';
-import { decodeCharvel } from './decoders/charvel.js?version=988463';
-import { decodeRickenbacker } from './decoders/rickenbacker.js?version=961802';
-import { decodeKramer } from './decoders/kramer.js?version=253470';
-import { decodeBCRich } from './decoders/bcrich.js?version=330486';
-// Track decode attempts in D1 via worker API (fire and forget)
-function trackDecode(data) {
-    fetch('/api/serial-decodes', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        keepalive: true,
-        body: JSON.stringify({
-            brand: data.brand || '',
-            serial: data.serial || '',
-            success: Boolean(data.success),
-            year: data.year || '',
-            factory: data.factory || '',
-            country: data.country || '',
-            error: data.error || '',
-            pagePath: window.location.pathname,
-            userAgent: navigator.userAgent,
-            clientTimestamp: new Date().toString(),
-        }),
-    }).catch(() => {
-        // Silently ignore errors - tracking should not affect user experience
-    });
-}
-// Decoder mapping
-const decoders = {
-    gibson: decodeGibson,
-    epiphone: decodeEpiphone,
-    fender: decodeFender,
-    taylor: decodeTaylor,
-    martin: decodeMartin,
-    ibanez: decodeIbanez,
-    yamaha: decodeYamaha,
-    prs: decodePRS,
-    esp: decodeESP,
-    schecter: decodeSchecter,
-    gretsch: decodeGretsch,
-    jackson: decodeJackson,
-    squier: decodeSquier,
-    cort: decodeCort,
-    takamine: decodeTakamine,
-    washburn: decodeWashburn,
-    dean: decodeDean,
-    ernieball: decodeErnieBall,
-    guild: decodeGuild,
-    alvarez: decodeAlvarez,
-    godin: decodeGodin,
-    ovation: decodeOvation,
-    charvel: decodeCharvel,
-    rickenbacker: decodeRickenbacker,
-    kramer: decodeKramer,
-    bcrich: decodeBCRich,
-};
 // DOM elements
 const brandSelect = document.getElementById('brand');
 const serialInput = document.getElementById('serial');
 const decodeButton = document.getElementById('decode-btn');
+const inputSection = document.querySelector('.input-section');
 const resultSection = document.getElementById('result');
 const resultContent = document.getElementById('result-content');
 const errorSection = document.getElementById('error');
+const decodeButtonDefaultText = decodeButton.textContent?.trim() || 'Decode Serial Number';
 // Check for pre-selected brand from data attribute (used on brand-specific pages without dropdown)
 const preselectedBrand = document.body.dataset.preselectBrand;
 // If there's a dropdown and a preselected brand, set it
@@ -94,7 +17,7 @@ if (preselectedBrand && brandSelect) {
 decodeButton.addEventListener('click', handleDecode);
 serialInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
-        handleDecode();
+        void handleDecode();
     }
 });
 initModals();
@@ -108,9 +31,9 @@ function initQueryParamDecode() {
     if (!trimmed)
         return;
     serialInput.value = trimmed;
-    handleDecode();
+    void handleDecode();
 }
-function handleDecode() {
+async function handleDecode() {
     // Use preselected brand if no dropdown exists, otherwise get from dropdown
     const brand = preselectedBrand || (brandSelect ? brandSelect.value : '');
     const serial = serialInput.value.trim();
@@ -126,85 +49,62 @@ function handleDecode() {
         showError('Please select a brand.');
         return;
     }
-    // Get the decoder for the selected brand
-    const decoder = decoders[brand];
-    if (!decoder) {
-        showError('Unknown brand selected.');
-        return;
-    }
-    // Decode the serial number
-    let result = decoder(serial);
-    let correctedSerial = null;
-    // Retry with normalized/corrected variants if first decode fails.
-    if (!result.success) {
-        const retrySerials = buildRetrySerials(serial, brand);
-        for (const retrySerial of retrySerials) {
-            const retryResult = decoder(retrySerial);
-            if (retryResult.success && retryResult.info) {
-                correctedSerial = retrySerial;
-                retryResult.info.serialNumber = retrySerial;
-                const correctionNote = `Serial number corrected from ${serial} to ${retrySerial} after retrying with normalized formatting.`;
-                retryResult.info.notes = retryResult.info.notes
-                    ? `${retryResult.info.notes} ${correctionNote}`
-                    : correctionNote;
-                result = retryResult;
-                serialInput.value = retrySerial;
-                break;
-            }
+    setDecodingState(true);
+    try {
+        const response = await fetch('/api/decode', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                brand,
+                serial,
+                pagePath: window.location.pathname,
+                userAgent: navigator.userAgent,
+                clientTimestamp: new Date().toString(),
+            }),
+        });
+        let result = null;
+        try {
+            result = await response.json();
         }
-    }
-    if (result.success && result.info && isFutureYearResult(result.info)) {
-        result = {
-            success: false,
-            error: 'Unable to decode this serial number.',
-        };
-    }
-    if (result.success && result.info) {
-        displayResult(result.info);
-        // Track successful decode
-        trackDecode({
-            brand: result.info.brand || brand,
-            serial: correctedSerial || serial,
-            success: true,
-            year: result.info.year,
-            factory: result.info.factory,
-            country: result.info.country,
-        });
-    }
-    else {
-        const errorMsg = result.error || 'Unable to decode serial number.';
-        showError(errorMsg);
-        // Track failed decode
-        trackDecode({
-            brand,
-            serial,
-            success: false,
-            error: errorMsg,
-        });
-    }
-}
-function buildRetrySerials(serial, brand) {
-    const candidates = [];
-    const addCandidate = (candidate) => {
-        const cleaned = candidate.trim();
-        if (!cleaned || cleaned === serial || candidates.includes(cleaned)) {
+        catch {
+            result = null;
+        }
+        if (result && result.success && result.info) {
+            if (result.info.serialNumber) {
+                serialInput.value = result.info.serialNumber;
+            }
+            displayResult(result.info);
             return;
         }
-        candidates.push(cleaned);
-    };
-    addCandidate(serial.toUpperCase());
-    addCandidate(serial.replace(/[\s-]/g, ''));
-    addCandidate(serial.replace(/[\s-]/g, '').toUpperCase());
-    addCandidate(serial.replace(/[^A-Za-z0-9]/g, ''));
-    addCandidate(serial.replace(/[^A-Za-z0-9]/g, '').toUpperCase());
-    if (brand === 'ibanez' && serial.length >= 2 && serial[0] === '1') {
-        addCandidate(`I${serial.slice(1)}`.toUpperCase());
+        const errorMsg = (result && result.error) || 'Unable to decode serial number.';
+        showError(errorMsg);
     }
-    if (brand === 'ibanez') {
-        addCandidate(serial.toUpperCase().replace(/O/g, '0'));
-        addCandidate(serial.toUpperCase().replace(/0/g, 'O'));
+    catch {
+        showError('Unable to decode serial number.');
     }
-    return candidates;
+    finally {
+        setDecodingState(false);
+    }
+}
+function setDecodingState(isLoading) {
+    if (inputSection) {
+        inputSection.classList.toggle('is-loading', isLoading);
+        inputSection.setAttribute('aria-busy', isLoading ? 'true' : 'false');
+    }
+    const controls = [brandSelect, serialInput, decodeButton];
+    controls.forEach((control) => {
+        if (control) {
+            control.disabled = isLoading;
+        }
+    });
+    if (isLoading) {
+        decodeButton.innerHTML = '<span class="button-loading-spinner" aria-hidden="true"></span>Decoding...';
+    }
+    else {
+        decodeButton.textContent = decodeButtonDefaultText;
+    }
 }
 function displayResult(info) {
     resultContent.innerHTML = '';
@@ -317,21 +217,4 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
-function isFutureYearResult(info) {
-    if (!info.year) {
-        return false;
-    }
-    const years = extractYears(info.year);
-    if (!years.length) {
-        return false;
-    }
-    const currentYear = new Date().getFullYear();
-    return years.some((year) => year > currentYear);
-}
-function extractYears(text) {
-    const matches = text.match(/\b\d{4}\b/g);
-    if (!matches) {
-        return [];
-    }
-    return matches.map((value) => parseInt(value, 10)).filter((value) => !Number.isNaN(value));
-}
+export {};

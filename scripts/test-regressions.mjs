@@ -1,9 +1,13 @@
-import { decodeIbanez } from '../dist/decoders/ibanez.js';
+import { decodeSerialForBackend } from '../dist/serial-decode-service.js';
 
 function assert(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
+}
+
+function decodeIbanez(serialInput) {
+  return decodeSerialForBackend('ibanez', serialInput);
 }
 
 function assertIbanezBPrefix(serialInput) {
@@ -31,6 +35,20 @@ function assertIbanez5BPrefix(serialInput) {
   assert(
     info.factory === 'Unknown import factory (5B prefix)',
     `Expected 5B prefix factory note for ${serialInput}, got ${info.factory}`
+  );
+}
+
+function assertIbanez5NPrefix(serialInput) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '2023', `Expected year 2023 for ${serialInput}, got ${info.year}`);
+  assert(info.month === 'April', `Expected month April for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'Unknown import factory (5N prefix)',
+    `Expected 5N prefix factory note for ${serialInput}, got ${info.factory}`
   );
 }
 
@@ -337,6 +355,7 @@ assertIbanezBPrefix('B160100231');
 assertIbanezBPrefix('B-160100231');
 assertIbanez5BPrefix('5B160100231');
 assertIbanez5BPrefix('5B-160100231');
+assertIbanez5NPrefix('5N230401406');
 assertIbanezCompoundGS('2Y03GS241108648', '2024', 'November');
 assertIbanezCompoundGS('212Y03GS251101952', '2025', 'November');
 assertIbanezCompoundNumeric('215N015N250401143', '2025', 'April');

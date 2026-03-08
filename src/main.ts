@@ -1,101 +1,14 @@
 import { Brand, DecodeResult, GuitarInfo } from './types.js';
-import { decodeGibson } from './decoders/gibson.js';
-import { decodeEpiphone } from './decoders/epiphone.js';
-import { decodeFender } from './decoders/fender.js';
-import { decodeTaylor } from './decoders/taylor.js';
-import { decodeMartin } from './decoders/martin.js';
-import { decodeIbanez } from './decoders/ibanez.js';
-import { decodeYamaha } from './decoders/yamaha.js';
-import { decodePRS } from './decoders/prs.js';
-import { decodeESP } from './decoders/esp.js';
-import { decodeSchecter } from './decoders/schecter.js';
-import { decodeGretsch } from './decoders/gretsch.js';
-import { decodeJackson } from './decoders/jackson.js';
-import { decodeSquier } from './decoders/squier.js';
-import { decodeCort } from './decoders/cort.js';
-import { decodeTakamine } from './decoders/takamine.js';
-import { decodeWashburn } from './decoders/washburn.js';
-import { decodeDean } from './decoders/dean.js';
-import { decodeErnieBall } from './decoders/ernieball.js';
-import { decodeGuild } from './decoders/guild.js';
-import { decodeAlvarez } from './decoders/alvarez.js';
-import { decodeGodin } from './decoders/godin.js';
-import { decodeOvation } from './decoders/ovation.js';
-import { decodeCharvel } from './decoders/charvel.js';
-import { decodeRickenbacker } from './decoders/rickenbacker.js';
-import { decodeKramer } from './decoders/kramer.js';
-import { decodeBCRich } from './decoders/bcrich.js';
-
-// Track decode attempts in D1 via worker API (fire and forget)
-function trackDecode(data: {
-  brand: string;
-  serial: string;
-  success: boolean;
-  year?: string;
-  factory?: string;
-  country?: string;
-  error?: string;
-}): void {
-  fetch('/api/serial-decodes', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    keepalive: true,
-    body: JSON.stringify({
-      brand: data.brand || '',
-      serial: data.serial || '',
-      success: Boolean(data.success),
-      year: data.year || '',
-      factory: data.factory || '',
-      country: data.country || '',
-      error: data.error || '',
-      pagePath: window.location.pathname,
-      userAgent: navigator.userAgent,
-      clientTimestamp: new Date().toString(),
-    }),
-  }).catch(() => {
-    // Silently ignore errors - tracking should not affect user experience
-  });
-}
-
-// Decoder mapping
-const decoders: Record<Brand, (serial: string) => DecodeResult> = {
-  gibson: decodeGibson,
-  epiphone: decodeEpiphone,
-  fender: decodeFender,
-  taylor: decodeTaylor,
-  martin: decodeMartin,
-  ibanez: decodeIbanez,
-  yamaha: decodeYamaha,
-  prs: decodePRS,
-  esp: decodeESP,
-  schecter: decodeSchecter,
-  gretsch: decodeGretsch,
-  jackson: decodeJackson,
-  squier: decodeSquier,
-  cort: decodeCort,
-  takamine: decodeTakamine,
-  washburn: decodeWashburn,
-  dean: decodeDean,
-  ernieball: decodeErnieBall,
-  guild: decodeGuild,
-  alvarez: decodeAlvarez,
-  godin: decodeGodin,
-  ovation: decodeOvation,
-  charvel: decodeCharvel,
-  rickenbacker: decodeRickenbacker,
-  kramer: decodeKramer,
-  bcrich: decodeBCRich,
-};
 
 // DOM elements
 const brandSelect = document.getElementById('brand') as HTMLSelectElement | null;
 const serialInput = document.getElementById('serial') as HTMLInputElement;
 const decodeButton = document.getElementById('decode-btn') as HTMLButtonElement;
+const inputSection = document.querySelector('.input-section') as HTMLDivElement | null;
 const resultSection = document.getElementById('result') as HTMLDivElement;
 const resultContent = document.getElementById('result-content') as HTMLDivElement;
 const errorSection = document.getElementById('error') as HTMLDivElement;
+const decodeButtonDefaultText = decodeButton.textContent?.trim() || 'Decode Serial Number';
 
 // Check for pre-selected brand from data attribute (used on brand-specific pages without dropdown)
 const preselectedBrand = document.body.dataset.preselectBrand as Brand | undefined;
@@ -109,7 +22,7 @@ if (preselectedBrand && brandSelect) {
 decodeButton.addEventListener('click', handleDecode);
 serialInput.addEventListener('keypress', (e) => {
   if (e.key === 'Enter') {
-    handleDecode();
+    void handleDecode();
   }
 });
 
@@ -123,10 +36,10 @@ function initQueryParamDecode(): void {
   const trimmed = serial.trim();
   if (!trimmed) return;
   serialInput.value = trimmed;
-  handleDecode();
+  void handleDecode();
 }
 
-function handleDecode(): void {
+async function handleDecode(): Promise<void> {
   // Use preselected brand if no dropdown exists, otherwise get from dropdown
   const brand: Brand | '' = preselectedBrand || (brandSelect ? brandSelect.value as Brand | '' : '');
   const serial = serialInput.value.trim();
@@ -146,94 +59,64 @@ function handleDecode(): void {
     return;
   }
 
-  // Get the decoder for the selected brand
-  const decoder = decoders[brand];
-  if (!decoder) {
-    showError('Unknown brand selected.');
-    return;
-  }
+  setDecodingState(true);
+  try {
+    const response = await fetch('/api/decode', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        brand,
+        serial,
+        pagePath: window.location.pathname,
+        userAgent: navigator.userAgent,
+        clientTimestamp: new Date().toString(),
+      }),
+    });
 
-  // Decode the serial number
-  let result = decoder(serial);
-  let correctedSerial: string | null = null;
-
-  // Retry with normalized/corrected variants if first decode fails.
-  if (!result.success) {
-    const retrySerials = buildRetrySerials(serial, brand);
-    for (const retrySerial of retrySerials) {
-      const retryResult = decoder(retrySerial);
-      if (retryResult.success && retryResult.info) {
-        correctedSerial = retrySerial;
-        retryResult.info.serialNumber = retrySerial;
-        const correctionNote = `Serial number corrected from ${serial} to ${retrySerial} after retrying with normalized formatting.`;
-        retryResult.info.notes = retryResult.info.notes
-          ? `${retryResult.info.notes} ${correctionNote}`
-          : correctionNote;
-        result = retryResult;
-        serialInput.value = retrySerial;
-        break;
-      }
+    let result: DecodeResult | null = null;
+    try {
+      result = await response.json() as DecodeResult;
+    } catch {
+      result = null;
     }
-  }
 
-  if (result.success && result.info && isFutureYearResult(result.info)) {
-    result = {
-      success: false,
-      error: 'Unable to decode this serial number.',
-    };
-  }
+    if (result && result.success && result.info) {
+      if (result.info.serialNumber) {
+        serialInput.value = result.info.serialNumber;
+      }
+      displayResult(result.info);
+      return;
+    }
 
-  if (result.success && result.info) {
-    displayResult(result.info);
-    // Track successful decode
-    trackDecode({
-      brand: result.info.brand || brand,
-      serial: correctedSerial || serial,
-      success: true,
-      year: result.info.year,
-      factory: result.info.factory,
-      country: result.info.country,
-    });
-  } else {
-    const errorMsg = result.error || 'Unable to decode serial number.';
+    const errorMsg = (result && result.error) || 'Unable to decode serial number.';
     showError(errorMsg);
-    // Track failed decode
-    trackDecode({
-      brand,
-      serial,
-      success: false,
-      error: errorMsg,
-    });
+  } catch {
+    showError('Unable to decode serial number.');
+  } finally {
+    setDecodingState(false);
   }
 }
 
-function buildRetrySerials(serial: string, brand: Brand): string[] {
-  const candidates: string[] = [];
+function setDecodingState(isLoading: boolean): void {
+  if (inputSection) {
+    inputSection.classList.toggle('is-loading', isLoading);
+    inputSection.setAttribute('aria-busy', isLoading ? 'true' : 'false');
+  }
 
-  const addCandidate = (candidate: string) => {
-    const cleaned = candidate.trim();
-    if (!cleaned || cleaned === serial || candidates.includes(cleaned)) {
-      return;
+  const controls = [brandSelect, serialInput, decodeButton];
+  controls.forEach((control) => {
+    if (control) {
+      control.disabled = isLoading;
     }
-    candidates.push(cleaned);
-  };
+  });
 
-  addCandidate(serial.toUpperCase());
-  addCandidate(serial.replace(/[\s-]/g, ''));
-  addCandidate(serial.replace(/[\s-]/g, '').toUpperCase());
-  addCandidate(serial.replace(/[^A-Za-z0-9]/g, ''));
-  addCandidate(serial.replace(/[^A-Za-z0-9]/g, '').toUpperCase());
-
-  if (brand === 'ibanez' && serial.length >= 2 && serial[0] === '1') {
-    addCandidate(`I${serial.slice(1)}`.toUpperCase());
+  if (isLoading) {
+    decodeButton.innerHTML = '<span class="button-loading-spinner" aria-hidden="true"></span>Decoding...';
+  } else {
+    decodeButton.textContent = decodeButtonDefaultText;
   }
-
-  if (brand === 'ibanez') {
-    addCandidate(serial.toUpperCase().replace(/O/g, '0'));
-    addCandidate(serial.toUpperCase().replace(/0/g, 'O'));
-  }
-
-  return candidates;
 }
 
 function displayResult(info: GuitarInfo): void {
@@ -365,24 +248,4 @@ function escapeHtml(text: string): string {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
-}
-
-function isFutureYearResult(info: GuitarInfo): boolean {
-  if (!info.year) {
-    return false;
-  }
-  const years = extractYears(info.year);
-  if (!years.length) {
-    return false;
-  }
-  const currentYear = new Date().getFullYear();
-  return years.some((year) => year > currentYear);
-}
-
-function extractYears(text: string): number[] {
-  const matches = text.match(/\b\d{4}\b/g);
-  if (!matches) {
-    return [];
-  }
-  return matches.map((value) => parseInt(value, 10)).filter((value) => !Number.isNaN(value));
 }

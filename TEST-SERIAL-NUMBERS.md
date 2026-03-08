@@ -13,6 +13,7 @@ Sample serial numbers for testing the guitar serial decoder.
 | B160100231 | Month-letter format, 2016, **February** (B=Feb; not a factory code) |
 | B-160100231 | Same as B160100231 after normalization (hyphen removed) |
 | 5B-160100231 | Two-character import prefix format, 2016, January (5B prefix + YYMM + sequence) |
+| 5N230401406 | Two-character import prefix format, 2023, April (5N prefix + YYMM + sequence) |
 | 220600378 | Numeric-only 9-digit import format, 2022, June (YYMM + sequence) |
 | 141209632 | Numeric-only 9-digit import format, 2014, December (YYMM + sequence) |
 | 311717707 | Numeric-only 9-digit ambiguous format, primary: 2003 November (YMM fallback), alt: 2013 November |

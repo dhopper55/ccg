@@ -1,28 +1,4 @@
-import { decodeGibson } from '../../../src/decoders/gibson.js';
-import { decodeEpiphone } from '../../../src/decoders/epiphone.js';
-import { decodeFender } from '../../../src/decoders/fender.js';
-import { decodeTaylor } from '../../../src/decoders/taylor.js';
-import { decodeMartin } from '../../../src/decoders/martin.js';
-import { decodeIbanez } from '../../../src/decoders/ibanez.js';
-import { decodeYamaha } from '../../../src/decoders/yamaha.js';
-import { decodePRS } from '../../../src/decoders/prs.js';
-import { decodeESP } from '../../../src/decoders/esp.js';
-import { decodeSchecter } from '../../../src/decoders/schecter.js';
-import { decodeGretsch } from '../../../src/decoders/gretsch.js';
-import { decodeJackson } from '../../../src/decoders/jackson.js';
-import { decodeSquier } from '../../../src/decoders/squier.js';
-import { decodeCort } from '../../../src/decoders/cort.js';
-import { decodeTakamine } from '../../../src/decoders/takamine.js';
-import { decodeWashburn } from '../../../src/decoders/washburn.js';
-import { decodeDean } from '../../../src/decoders/dean.js';
-import { decodeErnieBall } from '../../../src/decoders/ernieball.js';
-import { decodeGuild } from '../../../src/decoders/guild.js';
-import { decodeAlvarez } from '../../../src/decoders/alvarez.js';
-import { decodeGodin } from '../../../src/decoders/godin.js';
-import { decodeOvation } from '../../../src/decoders/ovation.js';
-import { decodeCharvel } from '../../../src/decoders/charvel.js';
-import { decodeRickenbacker } from '../../../src/decoders/rickenbacker.js';
-import { decodeKramer } from '../../../src/decoders/kramer.js';
+import { decodeSerialForBackend } from '../../../src/serial-decode-service.js';
 import {
   buildMainUserPrompt,
   buildMultiPricingPrompt,
@@ -83,6 +59,14 @@ interface SerialDecodeEventPayload {
   factory?: unknown;
   country?: unknown;
   error?: unknown;
+  pagePath?: unknown;
+  userAgent?: unknown;
+  clientTimestamp?: unknown;
+}
+
+interface DecodeRequestPayload {
+  brand?: unknown;
+  serial?: unknown;
   pagePath?: unknown;
   userAgent?: unknown;
   clientTimestamp?: unknown;
@@ -251,6 +235,11 @@ export default {
 
     if (path === '/api/serial-decodes' && request.method === 'POST') {
       const response = await handleSerialDecodeEvent(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/decode' && request.method === 'POST') {
+      const response = await handleDecodeRequest(request, env);
       return withCors(response, request, env);
     }
 
@@ -483,6 +472,9 @@ async function requireAuth(request: Request, env: Env, path: string): Promise<Re
   if (path === '/api/serial-decodes' && request.method === 'POST') {
     return null;
   }
+  if (path === '/api/decode' && request.method === 'POST') {
+    return null;
+  }
 
   const cookies = parseCookie(request.headers.get('cookie'));
   const token = cookies.get(AUTH_COOKIE_NAME);
@@ -531,6 +523,86 @@ async function handleSerialDecodeEvent(request: Request, env: Env): Promise<Resp
   const colo = normalizeText(cf.colo, '').slice(0, 32);
   const ipAddress = normalizeText(request.headers.get('CF-Connecting-IP'), '').slice(0, 64);
 
+  await insertSerialDecodeEvent(env, {
+    brand,
+    serial,
+    success,
+    year,
+    factory,
+    country,
+    error,
+    pagePath,
+    userAgent,
+    clientTimestamp,
+    ipAddress,
+    countryCode,
+    colo,
+  });
+
+  return jsonResponse({ ok: true });
+}
+
+async function handleDecodeRequest(request: Request, env: Env): Promise<Response> {
+  let body: DecodeRequestPayload = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ error: 'Invalid JSON payload.' }, 400);
+  }
+
+  const brand = normalizeText(body.brand, '').slice(0, 120);
+  const serial = normalizeText(body.serial, '').slice(0, 180);
+  const pagePath = normalizeText(body.pagePath, '').slice(0, 300);
+  const userAgent = normalizeText(body.userAgent, '').slice(0, 500);
+  const clientTimestamp = normalizeText(body.clientTimestamp, '').slice(0, 120);
+
+  const result = decodeSerialForBackend(brand, serial);
+
+  const cf = (request as Request & { cf?: Record<string, unknown> }).cf || {};
+  const countryCode = normalizeText(cf.country, '').slice(0, 8);
+  const colo = normalizeText(cf.colo, '').slice(0, 32);
+  const ipAddress = normalizeText(request.headers.get('CF-Connecting-IP'), '').slice(0, 64);
+
+  try {
+    await insertSerialDecodeEvent(env, {
+      brand: (result.info?.brand || brand).slice(0, 120),
+      serial: (result.info?.serialNumber || serial).slice(0, 180),
+      success: result.success,
+      year: normalizeText(result.info?.year, '').slice(0, 120),
+      factory: normalizeText(result.info?.factory, '').slice(0, 180),
+      country: normalizeText(result.info?.country, '').slice(0, 120),
+      error: normalizeText(result.error, '').slice(0, 1200),
+      pagePath,
+      userAgent,
+      clientTimestamp,
+      ipAddress,
+      countryCode,
+      colo,
+    });
+  } catch (error) {
+    console.error('serial decode event insert failed', { error });
+  }
+
+  return jsonResponse(result);
+}
+
+interface SerialDecodeEventInsert {
+  brand: string;
+  serial: string;
+  success: boolean;
+  year?: string;
+  factory?: string;
+  country?: string;
+  error?: string;
+  pagePath?: string;
+  userAgent?: string;
+  clientTimestamp?: string;
+  ipAddress?: string;
+  countryCode?: string;
+  colo?: string;
+}
+
+async function insertSerialDecodeEvent(env: Env, payload: SerialDecodeEventInsert): Promise<void> {
   await env.DB.prepare(
     `INSERT INTO serial_decode_events (
       event_time_utc,
@@ -538,6 +610,8 @@ async function handleSerialDecodeEvent(request: Request, env: Env): Promise<Resp
       serial,
       success,
       evaluated,
+      used_ai,
+      is_listing_eval,
       year,
       factory,
       country,
@@ -549,26 +623,27 @@ async function handleSerialDecodeEvent(request: Request, env: Env): Promise<Resp
       cf_country,
       cf_colo
     ) VALUES (
-      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
     )`
   ).bind(
     new Date().toISOString(),
-    brand,
-    serial,
-    success ? 1 : 0,
-    year || null,
-    factory || null,
-    country || null,
-    error || null,
-    pagePath || null,
-    userAgent || null,
-    clientTimestamp || null,
-    ipAddress || null,
-    countryCode || null,
-    colo || null,
+    payload.brand,
+    payload.serial,
+    payload.success ? 1 : 0,
+    0,
+    0,
+    0,
+    payload.year || null,
+    payload.factory || null,
+    payload.country || null,
+    payload.error || null,
+    payload.pagePath || null,
+    payload.userAgent || null,
+    payload.clientTimestamp || null,
+    payload.ipAddress || null,
+    payload.countryCode || null,
+    payload.colo || null,
   ).run();
-
-  return jsonResponse({ ok: true });
 }
 
 async function handleLogin(request: Request, env: Env): Promise<Response> {
@@ -4802,46 +4877,13 @@ function mergeModelDisambiguation(base: SingleAiResult, patch: Partial<SingleAiR
   };
 }
 
-function normalizeBrandKey(input: string): string {
-  return input.trim().toLowerCase().replace(/[^a-z]/g, '');
-}
-
-const DECODER_MAP: Record<string, (serial: string) => { success: boolean; info?: { brand?: string; serialNumber?: string; year?: string; model?: string } }> = {
-  gibson: decodeGibson,
-  epiphone: decodeEpiphone,
-  fender: decodeFender,
-  taylor: decodeTaylor,
-  martin: decodeMartin,
-  ibanez: decodeIbanez,
-  yamaha: decodeYamaha,
-  prs: decodePRS,
-  esp: decodeESP,
-  schecter: decodeSchecter,
-  gretsch: decodeGretsch,
-  jackson: decodeJackson,
-  squier: decodeSquier,
-  cort: decodeCort,
-  takamine: decodeTakamine,
-  washburn: decodeWashburn,
-  dean: decodeDean,
-  ernieball: decodeErnieBall,
-  ernieballmusicman: decodeErnieBall,
-  musicman: decodeErnieBall,
-  guild: decodeGuild,
-  alvarez: decodeAlvarez,
-  godin: decodeGodin,
-  ovation: decodeOvation,
-  charvel: decodeCharvel,
-  rickenbacker: decodeRickenbacker,
-  kramer: decodeKramer,
-};
-
 function decodeSerial(brandInput: string, serial: string): { success: boolean; info?: { brand?: string; serialNumber?: string; year?: string; model?: string } } | null {
-  const normalizedBrand = normalizeBrandKey(brandInput);
-  if (!normalizedBrand) return null;
-  const decoder = DECODER_MAP[normalizedBrand];
-  if (!decoder) return null;
-  return decoder(serial);
+  const result = decodeSerialForBackend(brandInput, serial);
+  if (!result.normalizedBrand) return null;
+  return {
+    success: result.success,
+    info: result.info,
+  };
 }
 
 function pickLocation(...values: any[]): string {

@@ -158,9 +158,9 @@ export function decodeIbanez(serial: string): DecodeResult {
     return decodeCP(normalized);
   }
 
-  // Import two-character prefix variant: 5B + 9 digits
+  // Import two-character prefix variant: 5B/5N + 9 digits
   // Treats 5B as a plant/line prefix and parses YYMM + sequence from digits.
-  if (/^5B\d{9}$/.test(normalized)) {
+  if (/^5[BN]\d{9}$/.test(normalized)) {
     return decodeTwoCharImportPrefix9Digit(normalized);
   }
 
@@ -844,7 +844,7 @@ function decodeCP(serial: string): DecodeResult {
   return { success: true, info };
 }
 
-// Import two-character prefix variant: 5B + 9 digits
+// Import two-character prefix variant: 5B/5N + 9 digits
 function decodeTwoCharImportPrefix9Digit(serial: string): DecodeResult {
   const prefix = serial.substring(0, 2);
   const year = parseInt(serial.substring(2, 4), 10) + 2000;
@@ -856,7 +856,7 @@ function decodeTwoCharImportPrefix9Digit(serial: string): DecodeResult {
     serialNumber: serial,
     year: year.toString(),
     month: getMonthName(month),
-    factory: 'Unknown import factory (5B prefix)',
+    factory: `Unknown import factory (${prefix} prefix)`,
     country: 'China or Indonesia',
     notes: `Sequence: ${sequence}. "${prefix}" appears as a two-character import prefix; this decoder uses YYMM from the following digits.`
   };
