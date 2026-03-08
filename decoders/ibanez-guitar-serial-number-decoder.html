@@ -217,7 +217,7 @@
         <p class="decoder-modal-subtitle">A quick manual method when you don't want to use a decoder.</p>
       </div>
       <div class="decoder-modal-body">
-        <p>Ibanez serial numbers are generally found on the back of the headstock and can often be decoded by prefix plus date digits. A common modern pattern is factory prefix + YYMM + sequence (for example, <strong>I160100231</strong> = Indonesia, January 2016). This decoder also supports <strong>5B + 9 digits</strong> (import prefix with YYMM date digits), <strong>B + 9 digits</strong> (month-letter variant where B = February), and <strong>numeric-only 8-9 digits</strong> where the serial is interpreted as <strong>YYMM + sequence</strong> (e.g., 220600378 = June 2022, 02010903 = January 2002).</p>
+        <p>Ibanez serial numbers are generally found on the back of the headstock and can often be decoded by prefix plus date digits. A common modern pattern is factory prefix + YYMM + sequence (for example, <strong>I160100231</strong> = Indonesia, January 2016). This decoder also supports <strong>5B + 9 digits</strong> (import prefix with YYMM date digits), <strong>B + 9 digits</strong> (month-letter variant where B = February), <strong>numeric-only 7-9 digits</strong> interpreted as date + sequence on import variants (e.g., 220600378 = June 2022, 02010903 = January 2002, 4120210 = December 2014 using YMM + sequence), and compound codes like <strong>212Y03GS251101952</strong> where the model code is prepended to a standard GS serial.</p>
 
         <h3>Decoding by Location &amp; Year</h3>
         <ul class="decoder-howto-steps">
@@ -235,7 +235,7 @@
         <ul class="decoder-howto-steps">
           <li><strong>Letter Prefix:</strong> Identifies factory/origin (e.g., F/J = Japan, I = Indonesia, C = China, K = Korea).</li>
           <li><strong>First 2 Digits (Modern):</strong> Represent the year (e.g., 05 = 2005).</li>
-          <li><strong>Input Cleanup:</strong> If your serial includes spaces or hyphens (e.g., B-160100231), the decoder retries a normalized version automatically and updates the serial box when a corrected format succeeds.</li>
+          <li><strong>Input Cleanup:</strong> If your serial includes spaces/hyphens (e.g., B-160100231) or likely character misreads like <strong>O</strong> vs <strong>0</strong> (e.g., I11o626774), the decoder retries normalized variants automatically and updates the serial box when a corrected format succeeds.</li>
           <li><strong>Model vs Serial:</strong> Entries like <strong>SR305EDX</strong> are model names, not serial numbers. They can suggest likely country/factory, but exact dating needs the stamped serial number.</li>
           <li><strong>Online Tools:</strong> Check the Ibanez Wiki for the most comprehensive database.</li>
         </ul>
@@ -258,7 +258,7 @@
     </div>
   </footer>
 
-  <script type="module" src="../dist/main.js?version=606244"></script>
+  <script type="module" src="../dist/main.js?version=523698"></script>
   <script>
     (function() {
       const year = new Date().getFullYear();

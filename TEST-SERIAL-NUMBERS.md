@@ -16,10 +16,14 @@ Sample serial numbers for testing the guitar serial decoder.
 | 220600378 | Numeric-only 9-digit import format, 2022, June (YYMM + sequence) |
 | 141209632 | Numeric-only 9-digit import format, 2014, December (YYMM + sequence) |
 | 02010903 | Numeric-only 8-digit import format, 2002, January (YYMM + sequence) |
+| 4120210 | Numeric-only 7-digit import format, 2014, December (YMM + sequence) |
+| I110626774 | Indonesia format, 2011, June (I + 9 digits) |
+| I11o626774 | Same as I110626774 after O->0 retry correction in UI |
 | SR305EDX | Model code fallback (not serial): likely Indonesia origin; exact date requires actual serial |
 | W842827 | Korea (World), 2004 |
 | GS140406094 | China, 2014, April |
 | 2Y03GS241108648 | China (GIO), 2024, November (compound format with model code 2Y03) |
+| 212Y03GS251101952 | China (GIO), 2025, November (compound format with extended model code 212Y03) |
 | 5B01PW230401856 | Indonesia (PT Woonan), 2023, April (compound format with model code 5B01) |
 
 ## Gibson

@@ -3,7 +3,7 @@ import { decodeEpiphone } from './decoders/epiphone.js?version=262979';
 import { decodeFender } from './decoders/fender.js?version=411815';
 import { decodeTaylor } from './decoders/taylor.js?version=678368';
 import { decodeMartin } from './decoders/martin.js?version=695834';
-import { decodeIbanez } from './decoders/ibanez.js?version=870011';
+import { decodeIbanez } from './decoders/ibanez.js?version=998487';
 import { decodeYamaha } from './decoders/yamaha.js?version=952461';
 import { decodePRS } from './decoders/prs.js?version=790194';
 import { decodeESP } from './decoders/esp.js?version=188311';
@@ -199,6 +199,10 @@ function buildRetrySerials(serial, brand) {
     addCandidate(serial.replace(/[^A-Za-z0-9]/g, '').toUpperCase());
     if (brand === 'ibanez' && serial.length >= 2 && serial[0] === '1') {
         addCandidate(`I${serial.slice(1)}`.toUpperCase());
+    }
+    if (brand === 'ibanez') {
+        addCandidate(serial.toUpperCase().replace(/O/g, '0'));
+        addCandidate(serial.toUpperCase().replace(/0/g, 'O'));
     }
     return candidates;
 }

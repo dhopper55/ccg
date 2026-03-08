@@ -7,7 +7,7 @@ export function decodeIbanez(serial) {
     }
     // Check for compound serial numbers with model prefix + actual serial
     // Format: Model code (e.g., 2Y03, 5B01) followed by standard serial (GS..., PW..., etc.)
-    const compoundMatch = normalized.match(/^([A-Z0-9]{4})(GS\d{9})$/);
+    const compoundMatch = normalized.match(/^([A-Z0-9]{4,8})(GS\d{9})$/);
     if (compoundMatch) {
         const modelCode = compoundMatch[1];
         const actualSerial = compoundMatch[2];
@@ -17,7 +17,7 @@ export function decodeIbanez(serial) {
         }
         return result;
     }
-    const compoundMatchPW = normalized.match(/^([A-Z0-9]{4})(PW\d{8,9})$/);
+    const compoundMatchPW = normalized.match(/^([A-Z0-9]{4,8})(PW\d{8,9})$/);
     if (compoundMatchPW) {
         const modelCode = compoundMatchPW[1];
         const actualSerial = compoundMatchPW[2];
@@ -161,13 +161,17 @@ export function decodeIbanez(serial) {
     if (/^\d{8}$/.test(normalized)) {
         return decodeNumeric8DigitModern(normalized);
     }
+    // Numeric-only 7 digits: YMM + sequence (short import variant)
+    if (/^\d{7}$/.test(normalized)) {
+        return decodeNumeric7DigitModern(normalized);
+    }
     // Japan: 5-digit J-Custom (2001-2004)
     if (/^\d{5}$/.test(normalized)) {
         return decodeJCustom5Digit(normalized);
     }
     return {
         success: false,
-        error: 'Unrecognized Ibanez serial number format. Ibanez has used many different serial number systems across factories in Japan, Korea, Indonesia, and China. Common formats include: F + 7 digits (Japan), letter + 6-9 digits (various factories), numeric 8-9 digits (YYMM+sequence on some imports), or factory prefix + digits.'
+        error: 'Unrecognized Ibanez serial number format. Ibanez has used many different serial number systems across factories in Japan, Korea, Indonesia, and China. Common formats include: F + 7 digits (Japan), letter + 6-9 digits (various factories), numeric 7-9 digits (date + sequence on some imports), or factory prefix + digits.'
     };
 }
 function decodeKnownModelCode(modelCode) {
@@ -560,6 +564,24 @@ function decodeNumeric8DigitModern(serial) {
         factory: 'Unknown import factory (numeric-only format)',
         country: 'China or Indonesia',
         notes: `Sequence: ${sequence}. Numeric-only 8-digit pattern interpreted as YYMM + production sequence.`
+    };
+    return { success: true, info };
+}
+// Numeric-only import variant: YMM + sequence (7 digits)
+function decodeNumeric7DigitModern(serial) {
+    const yearDigit = parseInt(serial[0], 10);
+    const month = parseInt(serial.substring(1, 3), 10);
+    const sequence = serial.substring(3);
+    const year = 2010 + yearDigit;
+    const monthText = getMonthName(month);
+    const info = {
+        brand: 'Ibanez',
+        serialNumber: serial,
+        year: year.toString(),
+        month: monthText,
+        factory: 'Unknown import factory (numeric-only format)',
+        country: 'China or Korea',
+        notes: `Sequence: ${sequence}. Numeric-only 7-digit pattern interpreted as YMM + production sequence (assumed 2010s decade; month ${monthText}).`
     };
     return { success: true, info };
 }

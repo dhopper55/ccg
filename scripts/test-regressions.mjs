@@ -58,6 +58,20 @@ function assertIbanezNumericOnly9Digit(serialInput, expectedYear, expectedMonth)
   );
 }
 
+function assertIbanezNumericOnly7Digit(serialInput, expectedYear, expectedMonth) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'Unknown import factory (numeric-only format)',
+    `Expected numeric-only factory note for ${serialInput}, got ${info.factory}`
+  );
+}
+
 function assertIbanezModelCodeFallback(serialInput) {
   const result = decodeIbanez(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -72,13 +86,39 @@ function assertIbanezModelCodeFallback(serialInput) {
   );
 }
 
+function assertIbanezCompoundGS(serialInput, expectedYear, expectedMonth) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(info.country === 'China', `Expected country China for ${serialInput}, got ${info.country}`);
+}
+
+function assertIbanezIndonesiaI(serialInput, expectedYear, expectedMonth) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(info.country === 'Indonesia', `Expected country Indonesia for ${serialInput}, got ${info.country}`);
+}
+
 assertIbanezBPrefix('B160100231');
 assertIbanezBPrefix('B-160100231');
 assertIbanez5BPrefix('5B160100231');
 assertIbanez5BPrefix('5B-160100231');
+assertIbanezCompoundGS('2Y03GS241108648', '2024', 'November');
+assertIbanezCompoundGS('212Y03GS251101952', '2025', 'November');
+assertIbanezIndonesiaI('I110626774', '2011', 'June');
 assertIbanezNumericOnly9Digit('220600378', '2022', 'June');
 assertIbanezNumericOnly9Digit('141209632', '2014', 'December');
 assertIbanezNumericOnly9Digit('02010903', '2002', 'January');
+assertIbanezNumericOnly7Digit('4120210', '2014', 'December');
 assertIbanezModelCodeFallback('SR305EDX');
 assertIbanezExistingSamples();
 

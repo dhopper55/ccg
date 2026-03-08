@@ -228,6 +228,11 @@ function buildRetrySerials(serial: string, brand: Brand): string[] {
     addCandidate(`I${serial.slice(1)}`.toUpperCase());
   }
 
+  if (brand === 'ibanez') {
+    addCandidate(serial.toUpperCase().replace(/O/g, '0'));
+    addCandidate(serial.toUpperCase().replace(/0/g, 'O'));
+  }
+
   return candidates;
 }
 

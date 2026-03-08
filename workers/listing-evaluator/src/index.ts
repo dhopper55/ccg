@@ -4341,9 +4341,10 @@ async function dbListAdminV2SerialDecodes(
   const offset = (effectivePage - 1) * limit;
 
   const brandRows = await db.prepare(
-    `SELECT DISTINCT brand
+    `SELECT MIN(trim(brand)) AS brand
      FROM serial_decode_events
      WHERE trim(COALESCE(brand, '')) <> ''
+     GROUP BY lower(trim(brand))
      ORDER BY lower(trim(brand)) ASC`
   ).all<{ brand: string | null }>();
   const availableBrands = (brandRows.results ?? [])
