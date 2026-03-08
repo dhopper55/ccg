@@ -32,6 +32,10 @@ export function decodeIbanez(serial) {
     if (/^F\d{7}$/.test(normalized)) {
         return decodeFujiGenModern(normalized);
     }
+    // Japan: FD + 7 digits (FujiGen variant)
+    if (/^FD\d{7}$/.test(normalized)) {
+        return decodeFujiGenFD(normalized);
+    }
     // Japan: Letter (A-L) + 6 digits (1975-1988, month-year format)
     // Disambiguate from 1987-1996 F/H/I factory code format.
     const monthYearMatch = normalized.match(/^([A-L])(\d{2})\d{4}$/);
@@ -92,6 +96,10 @@ export function decodeIbanez(serial) {
     // Korea: W + 6 digits (World factory, 1999-2008)
     if (/^W\d{6}$/.test(normalized)) {
         return decodeWorld(normalized);
+    }
+    // Korea: W + 7 digits (World factory variant, numeric MM)
+    if (/^W\d{7}$/.test(normalized)) {
+        return decodeWorldExtended(normalized);
     }
     // Korea: S + 7 digits (Samick, 1990-1995)
     if (/^S\d{7}$/.test(normalized)) {
@@ -192,6 +200,10 @@ export function decodeIbanez(serial) {
     if (/^\d{5}[A-Z]$/.test(normalized)) {
         return decodeCompactAlphaSuffix(normalized);
     }
+    // Legacy numeric late-80s format: YY + sequence (6 digits)
+    if (/^\d{6}$/.test(normalized)) {
+        return decodeLegacyNumericLate80s(normalized);
+    }
     // Numeric-only 9 digits: YYMM + sequence (seen on some modern imports)
     if (/^\d{9}$/.test(normalized)) {
         return decodeNumeric9DigitModern(normalized);
@@ -210,7 +222,7 @@ export function decodeIbanez(serial) {
     }
     return {
         success: false,
-        error: 'Unrecognized Ibanez serial number format. Ibanez has used many different serial number systems across factories in Japan, Korea, Indonesia, and China. Common formats include: F + 7 digits (Japan), letter + 6-9 digits (various factories), numeric 7-9 digits (date + sequence on some imports), compact/legacy alpha suffix variants, or factory prefix + digits.'
+        error: 'Unrecognized Ibanez serial number format. Ibanez has used many different serial number systems across factories in Japan, Korea, Indonesia, and China. Common formats include: F + 7 digits (Japan), letter + 6-9 digits (various factories), numeric 6-9 digits (legacy or modern date/sequence variants), compact/legacy alpha suffix variants, or factory prefix + digits.'
     };
 }
 function decodeKnownModelCode(modelCode) {
@@ -243,6 +255,30 @@ function decodeFujiGenModern(serial) {
         factory: 'FujiGen Gakki, Nagano',
         country: 'Japan',
         notes: `Production number: ${productionNum}. FujiGen is Ibanez's premium Japanese factory, known for high-quality Prestige and J-Custom models.`
+    };
+    return { success: true, info };
+}
+// Japan FujiGen variant: FD + 7 digits
+function decodeFujiGenFD(serial) {
+    const year = parseInt(serial.substring(2, 4), 10);
+    const productionNum = parseInt(serial.substring(4), 10);
+    const fullYear = year >= 97 ? 1900 + year : 2000 + year;
+    const baseUnitsPerMonth = fullYear >= 2005 ? 3000 : 5000;
+    let monthNum = Math.floor(productionNum / baseUnitsPerMonth) + 1;
+    let month = monthNum <= 12 ? getMonthName(monthNum) : undefined;
+    // Some FD runs appear to use larger monthly blocks than standard F-prefix assumptions.
+    if (!month) {
+        monthNum = Math.floor(productionNum / 10000) + 1;
+        month = monthNum <= 12 ? getMonthName(monthNum) : undefined;
+    }
+    const info = {
+        brand: 'Ibanez',
+        serialNumber: serial,
+        year: fullYear.toString(),
+        month,
+        factory: 'FujiGen Gakki, Nagano',
+        country: 'Japan',
+        notes: `Production number: ${productionNum}. FD is treated as a FujiGen variant prefix used on some modern Japan production.`
     };
     return { success: true, info };
 }
@@ -513,6 +549,23 @@ function decodeWorld(serial) {
         factory: 'World Musical Instruments Co.',
         country: 'South Korea',
         notes: `Sequence: ${sequence}. W prefix indicates World factory production.`
+    };
+    return { success: true, info };
+}
+// Korea World (variant): W + 7 digits (YMM####)
+function decodeWorldExtended(serial) {
+    const yearDigit = parseInt(serial[1], 10);
+    const month = parseInt(serial.substring(2, 4), 10);
+    const sequence = serial.substring(4);
+    const year = yearDigit === 9 ? 1999 : 2000 + yearDigit;
+    const info = {
+        brand: 'Ibanez',
+        serialNumber: serial,
+        year: year.toString(),
+        month: getMonthName(month),
+        factory: 'World Musical Instruments Co.',
+        country: 'South Korea',
+        notes: `Sequence: ${sequence}. W-prefix variant using numeric month digits (MM).`
     };
     return { success: true, info };
 }
@@ -958,6 +1011,21 @@ function decodeCompactAlphaSuffix(serial) {
         factory: 'Unknown (compact legacy alpha-suffix format)',
         country: 'China or Korea',
         notes: `Sequence: ${sequence}. Suffix "${suffix}" is treated as a batch/inspector marker in compact legacy serial usage.`
+    };
+    return { success: true, info };
+}
+// Legacy numeric late-80s format: YY + sequence (6 digits)
+function decodeLegacyNumericLate80s(serial) {
+    const yy = parseInt(serial.substring(0, 2), 10);
+    const sequence = serial.substring(2);
+    const year = yy >= 70 ? 1900 + yy : 2000 + yy;
+    const info = {
+        brand: 'Ibanez',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'USA-linked assembly (H&S/Bensalem) or omitted-prefix Japan format',
+        country: 'USA/Japan (ambiguous)',
+        notes: `Sequence: ${sequence}. 6-digit late-80s numeric format is often seen on USA-linked Ibanez runs, but can also represent a Japanese serial where the expected letter prefix (e.g., F/H/I) is omitted.`
     };
     return { success: true, info };
 }
