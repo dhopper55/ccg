@@ -15,6 +15,7 @@ Sample serial numbers for testing the guitar serial decoder.
 | 5B-160100231 | Two-character import prefix format, 2016, January (5B prefix + YYMM + sequence) |
 | 220600378 | Numeric-only 9-digit import format, 2022, June (YYMM + sequence) |
 | 141209632 | Numeric-only 9-digit import format, 2014, December (YYMM + sequence) |
+| 311717707 | Numeric-only 9-digit ambiguous format, primary: 2003 November (YMM fallback), alt: 2013 November |
 | 02010903 | Numeric-only 8-digit import format, 2002, January (YYMM + sequence) |
 | 4120210 | Numeric-only 7-digit import format, 2014, December (YMM + sequence) |
 | I110626774 | Indonesia format, 2011, June (I + 9 digits) |
@@ -25,6 +26,7 @@ Sample serial numbers for testing the guitar serial decoder.
 | SR305EDX | Model code fallback (not serial): likely Indonesia origin; exact date requires actual serial |
 | W842827 | Korea (World), 2004 |
 | W0111538 | Korea (World), 2000, November (W-prefix variant with numeric month) |
+| WK1007 | Korea (World short format), primary: 2000, October; alt analysis: 2001, July |
 | GS140406094 | China, 2014, April |
 | 2Y03GS241108648 | China (GIO), 2024, November (compound format with model code 2Y03) |
 | 212Y03GS251101952 | China (GIO), 2025, November (compound format with extended model code 212Y03) |
@@ -37,6 +39,7 @@ Sample serial numbers for testing the guitar serial decoder.
 | H83020056 | Japan extended month-letter format, 1983, August (H=Aug, YY + 6-digit sequence) |
 | 00906B | Compact legacy alpha-suffix format, 2000, September (YYMSS + suffix letter) |
 | 881865 | Legacy late-80s numeric format, 1988 (YY + sequence; USA-linked assembly/Japan parts context) |
+| 041195 | 6-digit numeric YYMMSS format, primary: 2004 November, alt vintage read: 1994 November |
 
 ## Gibson
 

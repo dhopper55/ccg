@@ -58,6 +58,20 @@ function assertIbanezNumericOnly9Digit(serialInput, expectedYear, expectedMonth)
   );
 }
 
+function assertIbanezNumericOnly9DigitAmbiguous(serialInput, expectedYear, expectedMonth) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.notes && info.notes.includes('Alternate interpretation'),
+    `Expected alternate interpretation note for ${serialInput}, got ${info.notes}`
+  );
+}
+
 function assertIbanezNumericOnly7Digit(serialInput, expectedYear, expectedMonth) {
   const result = decodeIbanez(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -152,6 +166,21 @@ function assertIbanezWorldExtended(serialInput, expectedYear, expectedMonth) {
   assert(info.factory === 'World Musical Instruments Co.', `Expected World factory for ${serialInput}, got ${info.factory}`);
 }
 
+function assertIbanezWorldShortWK(serialInput) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '2000', `Expected year 2000 for ${serialInput}, got ${info.year}`);
+  assert(info.month === 'October', `Expected month October for ${serialInput}, got ${info.month}`);
+  assert(info.factory === 'World Musical Instruments Co.', `Expected World factory for ${serialInput}, got ${info.factory}`);
+  assert(
+    info.notes && info.notes.includes('Alternate interpretation'),
+    `Expected alternate interpretation note for ${serialInput}, got ${info.notes}`
+  );
+}
+
 function assertIbanez4L(serialInput, expectedYear, expectedMonth) {
   const result = decodeIbanez(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -222,6 +251,20 @@ function assertIbanezLegacyNumericLate80s(serialInput, expectedYear) {
   );
 }
 
+function assertIbanezNumeric6DigitYYMM(serialInput, expectedYear, expectedMonth) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.notes && info.notes.includes('Alternate vintage interpretation'),
+    `Expected alternate vintage interpretation note for ${serialInput}, got ${info.notes}`
+  );
+}
+
 assertIbanezBPrefix('B160100231');
 assertIbanezBPrefix('B-160100231');
 assertIbanez5BPrefix('5B160100231');
@@ -236,12 +279,15 @@ assertIbanezLegacyAlphaSuffix('8303004ID', '1983', 'March');
 assertIbanezJapanMonthLetterExtended('H83020056', '1983', 'August');
 assertIbanezCompactAlphaSuffix('00906B', '2000', 'September');
 assertIbanezLegacyNumericLate80s('881865', '1988');
+assertIbanezNumeric6DigitYYMM('041195', '2004', 'November');
 assertIbanezIndonesiaI('I110626774', '2011', 'June');
 assertIbanezIndonesiaGILegacy('GI0012180', '2000', 'December');
 assertIbanezChinaGP('gp05105792', '2005', 'October');
 assertIbanezFujiGenFD('FD2468031', '2024', 'July');
 assertIbanezWorldExtended('W0111538', '2000', 'November');
+assertIbanezWorldShortWK('WK1007');
 assertIbanezNumericOnly9Digit('220600378', '2022', 'June');
+assertIbanezNumericOnly9DigitAmbiguous('311717707', '2003', 'November');
 assertIbanezNumericOnly9Digit('141209632', '2014', 'December');
 assertIbanezNumericOnly9Digit('02010903', '2002', 'January');
 assertIbanezNumericOnly7Digit('4120210', '2014', 'December');
