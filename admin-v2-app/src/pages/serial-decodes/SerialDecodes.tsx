@@ -231,14 +231,15 @@ const SerialDecodes = () => {
   const chartLabels = useMemo(() => chartRows.map((item) => formatBrandName(item.brand)), [chartRows]);
   const chartOption = useMemo(() => ({
     color: ['#4cc9f0'],
-    grid: { left: 56, right: 24, top: 16, bottom: 70, containLabel: true },
+    grid: { left: 56, right: 20, top: 10, bottom: 10, containLabel: false },
     xAxis: {
       type: 'category',
       data: chartLabels,
       axisLabel: {
         rotate: 90,
         interval: 0,
-        margin: 8,
+        margin: 4,
+        fontSize: 11,
         color: 'rgba(255, 255, 255, 0.7)',
         formatter: (value: string) => truncateBrandLabel(String(value || ''), 13),
       },
@@ -291,7 +292,7 @@ const SerialDecodes = () => {
 
   return (
     <Stack direction="column" spacing={3} sx={{ width: 1 }}>
-      <Paper sx={{ p: { xs: 3, md: 4 }, width: 1, display: 'block' }}>
+      <Paper sx={{ pt: { xs: 2, md: 2.5 }, pb: { xs: 1, md: 1.25 }, px: { xs: 3, md: 4 }, width: 1, display: 'block' }}>
         <Stack spacing={1.5} sx={{ width: 1 }}>
           <Typography variant="h5">Brand Responses</Typography>
           {chartErrorMessage ? <Alert severity="error">{chartErrorMessage}</Alert> : null}
@@ -300,7 +301,7 @@ const SerialDecodes = () => {
               echarts={echarts}
               option={chartOption}
               onEvents={chartEvents}
-              sx={{ height: 290, width: '100%', minWidth: 0 }}
+              sx={{ height: 220, width: '100%', minWidth: 0 }}
             />
           ) : (
             <Typography variant="body2" color="text.secondary">No brand response data available.</Typography>
