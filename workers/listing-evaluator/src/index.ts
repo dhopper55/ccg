@@ -112,6 +112,57 @@ const CCG_NUMBER_MAX = 999999;
 const CCG_NUMBER_ATTEMPTS = 25;
 const INVENTORY_MAX_IMAGES = 10;
 const SERIAL_AI_HOURLY_LIMIT = 20;
+const ACTIVITY_BASE_URL = 'https://www.coalcreekguitars.com';
+
+type ActivityEventKey =
+  | 'decode_success'
+  | 'decode_failure'
+  | 'listing_eval_completed'
+  | 'inventory_marked_sold'
+  | 'inventory_updated'
+  | 'inventory_added'
+  | 'failed_serial_evaluated';
+
+const ACTIVITY_EVENT_TYPE_SEEDS: Array<{ key: ActivityEventKey; templateText: string; iconKey: string }> = [
+  { key: 'decode_success', templateText: 'User decoded serial #{{serial}} in the {{brand}} decoder', iconKey: 'check-circle' },
+  { key: 'decode_failure', templateText: 'User attempted to decode serial #{{serial}} in {{brand}} decoder', iconKey: 'x-circle' },
+  { key: 'listing_eval_completed', templateText: 'Listing Eval completed for {{title}}', iconKey: 'sale' },
+  { key: 'inventory_marked_sold', templateText: 'Inventory item {{title}} marked sold', iconKey: 'inventory' },
+  { key: 'inventory_updated', templateText: 'Inventory item {{title}} updated', iconKey: 'inventory' },
+  { key: 'inventory_added', templateText: 'Inventory item {{title}} added to system.', iconKey: 'inventory' },
+  { key: 'failed_serial_evaluated', templateText: 'Failed {{brand}} Serial Number {{serial}} evaluated by an admin.', iconKey: 'check-circle' },
+];
+
+const BRAND_ACTIVITY_META: Record<string, { label: string; decoderSlug: string; logoFile: string }> = {
+  gibson: { label: 'Gibson', decoderSlug: 'gibson', logoFile: 'Gibson-logo.png' },
+  epiphone: { label: 'Epiphone', decoderSlug: 'epiphone', logoFile: 'Epiphone-Logo.png' },
+  fender: { label: 'Fender', decoderSlug: 'fender', logoFile: 'Fender-logo.jpg' },
+  taylor: { label: 'Taylor', decoderSlug: 'taylor', logoFile: 'Taylor_guitar_logo.png' },
+  martin: { label: 'Martin', decoderSlug: 'martin', logoFile: 'Martin_guitar_logo.png' },
+  ibanez: { label: 'Ibanez', decoderSlug: 'ibanez', logoFile: 'Ibanez_guitars_logo.webp' },
+  yamaha: { label: 'Yamaha', decoderSlug: 'yamaha', logoFile: 'yamaha-logo.jpg' },
+  prs: { label: 'PRS', decoderSlug: 'prs', logoFile: 'Prs_guitars_logo.png' },
+  esp: { label: 'ESP', decoderSlug: 'esp', logoFile: 'esp-logo.png' },
+  schecter: { label: 'Schecter', decoderSlug: 'schecter', logoFile: 'Schecter_Guitar_Research_logo.svg' },
+  gretsch: { label: 'Gretsch', decoderSlug: 'gretsch', logoFile: 'gretsch-guitars-logo.png' },
+  jackson: { label: 'Jackson', decoderSlug: 'jackson', logoFile: 'Jackson_guitars_logo.png' },
+  squier: { label: 'Squier', decoderSlug: 'squier', logoFile: 'Squier_guitars_logo.png' },
+  cort: { label: 'Cort', decoderSlug: 'cort', logoFile: 'Cort_Logo.png' },
+  takamine: { label: 'Takamine', decoderSlug: 'takamine', logoFile: 'Takamine_guitar_logo.png' },
+  washburn: { label: 'Washburn', decoderSlug: 'washburn', logoFile: 'Washburn_Guitars_logo.png' },
+  dean: { label: 'Dean', decoderSlug: 'dean', logoFile: 'Dean_Guitars_logo.png' },
+  ernieball: { label: 'Ernie Ball Music Man', decoderSlug: 'ernieball', logoFile: 'Ernie_ball_music_man_logo.png' },
+  ernieballmusicman: { label: 'Ernie Ball Music Man', decoderSlug: 'ernieball', logoFile: 'Ernie_ball_music_man_logo.png' },
+  musicman: { label: 'Ernie Ball Music Man', decoderSlug: 'ernieball', logoFile: 'Ernie_ball_music_man_logo.png' },
+  guild: { label: 'Guild', decoderSlug: 'guild', logoFile: 'Guild-logo.png' },
+  alvarez: { label: 'Alvarez', decoderSlug: 'alvarez', logoFile: 'alvarez.png' },
+  godin: { label: 'Godin', decoderSlug: 'godin', logoFile: 'Godin_guitars_logo.png' },
+  ovation: { label: 'Ovation', decoderSlug: 'ovation', logoFile: 'Ovation_Logo.png' },
+  charvel: { label: 'Charvel', decoderSlug: 'charvel', logoFile: 'Charvel-Logo.jpg' },
+  rickenbacker: { label: 'Rickenbacker', decoderSlug: 'rickenbacker', logoFile: 'Rickenbacker-logo.png' },
+  kramer: { label: 'Kramer', decoderSlug: 'kramer', logoFile: 'Kramer_guitars_logo.png' },
+  bcrich: { label: 'B.C. Rich', decoderSlug: 'bc-rich', logoFile: 'bc-rich.jpg' },
+};
 
 const SUPPORTED_ORIGINS = [
   'https://www.coalcreekguitars.com',
@@ -670,6 +721,25 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
     console.error('serial decode event insert failed', { error });
   }
 
+  const decodeBrand = normalizeText(result.info?.brand || brand, '').slice(0, 120);
+  const decodeSerial = normalizeText(result.info?.serialNumber || serial, '').slice(0, 180);
+  const decodeBrandContext = buildBrandActivityContext(decodeBrand, normalizedBrand);
+  const decodeEventText = result.success
+    ? `User decoded serial #${decodeSerial} in the ${decodeBrandContext.brandLabel} decoder`
+    : `User attempted to decode serial #${decodeSerial} in ${decodeBrandContext.brandLabel} decoder`;
+  await insertActivityLogBestEffort(env, {
+    eventKey: result.success ? 'decode_success' : 'decode_failure',
+    eventText: decodeEventText,
+    eventUrl: decodeBrandContext.decoderUrl,
+    imageUrl: decodeBrandContext.imageUrl,
+    entityType: 'serial_decode',
+    metadata: {
+      brand: decodeBrandContext.brandLabel,
+      serial: decodeSerial,
+      success: result.success,
+    },
+  });
+
   return jsonResponse(result);
 }
 
@@ -697,6 +767,119 @@ interface SerialDecodeEventInsert {
   ipAddress?: string;
   countryCode?: string;
   colo?: string;
+}
+
+interface ActivityLogInsert {
+  eventKey: ActivityEventKey;
+  eventText: string;
+  eventUrl?: string | null;
+  imageUrl?: string | null;
+  eventTimeUtc?: string;
+  entityType?: string | null;
+  entityId?: string | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+function buildBrandActivityContext(brandInput: string, normalizedBrandInput = ''): {
+  brandLabel: string;
+  decoderUrl: string | null;
+  imageUrl: string | null;
+} {
+  const normalized = normalizeBrandKey(normalizedBrandInput || brandInput);
+  const meta = BRAND_ACTIVITY_META[normalized];
+  const brandLabel = meta?.label || normalizeText(brandInput, '') || 'Unknown';
+  const decoderUrl = meta
+    ? `${ACTIVITY_BASE_URL}/decoders/${meta.decoderSlug}-guitar-serial-number-decoder.html`
+    : null;
+  const imageUrl = meta
+    ? `${ACTIVITY_BASE_URL}/images/brand-logos/${meta.logoFile}`
+    : null;
+  return { brandLabel, decoderUrl, imageUrl };
+}
+
+function buildAdminInventoryItemUrl(recordId: string): string {
+  return `${ACTIVITY_BASE_URL}/admin/inventory-item?id=${encodeURIComponent(recordId)}`;
+}
+
+function toAbsoluteSiteUrl(input: string): string | null {
+  const trimmed = normalizeText(input, '');
+  if (!trimmed) return null;
+  if (trimmed.startsWith('/')) {
+    try {
+      return new URL(trimmed, ACTIVITY_BASE_URL).toString();
+    } catch {
+      return null;
+    }
+  }
+  return normalizeUrl(trimmed);
+}
+
+async function ensureActivityEventTypeId(eventKey: ActivityEventKey, env: Env): Promise<number | null> {
+  const db = env.DB.withSession('first-primary');
+  let row = await db.prepare(
+    `SELECT id
+     FROM activity_event_type
+     WHERE event_key = ?
+     LIMIT 1`
+  ).bind(eventKey).first<{ id: number | null }>();
+
+  if (row?.id != null) return Number(row.id);
+
+  const seed = ACTIVITY_EVENT_TYPE_SEEDS.find((entry) => entry.key === eventKey);
+  if (!seed) return null;
+
+  await db.prepare(
+    `INSERT OR IGNORE INTO activity_event_type (event_key, template_text, icon_key)
+     VALUES (?, ?, ?)`
+  ).bind(seed.key, seed.templateText, seed.iconKey).run();
+
+  row = await db.prepare(
+    `SELECT id
+     FROM activity_event_type
+     WHERE event_key = ?
+     LIMIT 1`
+  ).bind(eventKey).first<{ id: number | null }>();
+
+  if (row?.id == null) return null;
+  return Number(row.id);
+}
+
+async function insertActivityLogBestEffort(env: Env, payload: ActivityLogInsert): Promise<void> {
+  try {
+    const eventTypeId = await ensureActivityEventTypeId(payload.eventKey, env);
+    if (eventTypeId == null) {
+      console.warn('Activity log event type missing', { eventKey: payload.eventKey });
+      return;
+    }
+
+    const metadataJson = payload.metadata ? JSON.stringify(payload.metadata) : null;
+    await env.DB.prepare(
+      `INSERT INTO activity_log (
+        event_time_utc,
+        event_type_id,
+        event_url,
+        event_text,
+        image_url,
+        entity_type,
+        entity_id,
+        metadata_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      payload.eventTimeUtc || new Date().toISOString(),
+      eventTypeId,
+      payload.eventUrl || null,
+      payload.eventText,
+      payload.imageUrl || null,
+      payload.entityType || null,
+      payload.entityId || null,
+      metadataJson,
+    ).run();
+  } catch (error) {
+    console.error('Activity log insert failed', {
+      eventKey: payload.eventKey,
+      error,
+    });
+  }
 }
 
 async function insertSerialDecodeEvent(env: Env, payload: SerialDecodeEventInsert): Promise<void> {
@@ -1810,6 +1993,31 @@ async function handleAdminV2SerialDecodeEvaluatedUpdate(
   const evaluated = toBooleanInput(body.evaluated, false);
   const updateResult = await dbSetSerialDecodeEvaluated(recordId, evaluated, env);
   if (!updateResult) return jsonResponse({ message: 'Unable to update evaluated state.' }, 500);
+
+  if (
+    evaluated &&
+    updateResult.activityCandidate &&
+    !updateResult.activityCandidate.wasEvaluated &&
+    !updateResult.activityCandidate.success
+  ) {
+    const brandContext = buildBrandActivityContext(
+      updateResult.activityCandidate.brand,
+      updateResult.activityCandidate.normalizedBrand,
+    );
+    await insertActivityLogBestEffort(env, {
+      eventKey: 'failed_serial_evaluated',
+      eventText: `Failed ${brandContext.brandLabel} Serial Number ${updateResult.activityCandidate.serial} evaluated by an admin.`,
+      eventUrl: brandContext.decoderUrl,
+      imageUrl: brandContext.imageUrl,
+      entityType: 'serial_decode',
+      entityId: recordId,
+      metadata: {
+        brand: brandContext.brandLabel,
+        serial: updateResult.activityCandidate.serial,
+      },
+    });
+  }
+
   return jsonResponse({
     ok: true,
     evaluated: updateResult.evaluated,
@@ -2196,6 +2404,20 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     return jsonResponse({ message: 'Unable to create inventory item(s).' }, 500);
   }
 
+  await insertActivityLogBestEffort(env, {
+    eventKey: 'inventory_added',
+    eventText: `Inventory item ${title} added to system.`,
+    eventUrl: buildAdminInventoryItemUrl(inserted.firstId),
+    imageUrl: toAbsoluteSiteUrl(primaryImageUrl),
+    entityType: 'inventory_item',
+    entityId: inserted.firstId,
+    metadata: {
+      ccgNumber: inserted.ccgNumber,
+      createdCount: inserted.createdCount,
+      title,
+    },
+  });
+
   return jsonResponse({
     ok: true,
     id: inserted.firstId,
@@ -2386,6 +2608,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const previousSoldDate = typeof (current as { soldDate?: unknown }).soldDate === 'string'
     ? ((current as { soldDate?: string }).soldDate || null)
     : null;
+  const becameSold = !previousIsSold && isSold;
 
   const sharedUpdateOk = await dbUpdateInventorySharedByCcgNumber(currentCcgNumber, {
     image_url: primaryImageUrl,
@@ -2435,6 +2658,23 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     sell_notes: sellNotes || null,
   }, env);
   if (!selectedRowSaleOk) return jsonResponse({ message: 'Unable to update selected inventory unit.' }, 500);
+
+  await insertActivityLogBestEffort(env, {
+    eventKey: becameSold ? 'inventory_marked_sold' : 'inventory_updated',
+    eventText: becameSold
+      ? `Inventory item ${title} marked sold`
+      : `Inventory item ${title} updated`,
+    eventUrl: buildAdminInventoryItemUrl(recordId),
+    imageUrl: toAbsoluteSiteUrl(primaryImageUrl),
+    entityType: 'inventory_item',
+    entityId: recordId,
+    metadata: {
+      title,
+      soldBefore: previousIsSold,
+      soldAfter: isSold,
+    },
+  });
+
   return jsonResponse({ ok: true });
 }
 
@@ -2900,6 +3140,24 @@ async function processRun(runId: string, resource: any, eventType: string | unde
     aiData,
     notes: listing.notes,
   }, env, { recordId, isMulti });
+
+  const listingTitle = normalizeText(listing.title, '').slice(0, 300) || 'Untitled listing';
+  const listingUrl = toAbsoluteSiteUrl(listing.url || '');
+  const listingImageUrl = toAbsoluteSiteUrl(listing.images[0] || '');
+  await insertActivityLogBestEffort(env, {
+    eventKey: 'listing_eval_completed',
+    eventText: `Listing Eval completed for ${listingTitle}`,
+    eventUrl: listingUrl,
+    imageUrl: listingImageUrl,
+    entityType: 'listing_eval',
+    entityId: recordId || null,
+    metadata: {
+      runId,
+      listingId: recordId || null,
+      title: listingTitle,
+      sourceUrl: listingUrl,
+    },
+  });
 }
 
 function hasOwnField(fields: Record<string, unknown>, key: string): boolean {
@@ -4813,22 +5071,41 @@ async function dbSetSerialDecodeEvaluated(
   recordId: string,
   evaluated: boolean,
   env: Env,
-): Promise<{ evaluated: boolean; updatedCount: number } | null> {
+): Promise<{
+  evaluated: boolean;
+  updatedCount: number;
+  activityCandidate?: {
+    brand: string;
+    serial: string;
+    normalizedBrand: string;
+    success: boolean;
+    wasEvaluated: boolean;
+  };
+} | null> {
   const id = normalizeText(recordId, '');
   if (!/^\d+$/.test(id)) return null;
   const db = env.DB.withSession('first-primary');
 
   if (evaluated) {
     const keyRow = await db.prepare(
-      `SELECT brand, serial
+      `SELECT brand, serial, normalized_brand, success, evaluated
        FROM serial_decode_events
        WHERE CAST(id AS TEXT) = ?`
-    ).bind(id).first<{ brand: string | null; serial: string | null }>();
+    ).bind(id).first<{
+      brand: string | null;
+      serial: string | null;
+      normalized_brand: string | null;
+      success: number | null;
+      evaluated: number | null;
+    }>();
     if (!keyRow) return null;
 
     const brand = normalizeText(keyRow.brand, '');
     const serial = normalizeText(keyRow.serial, '');
     if (!brand || !serial) return null;
+    const normalizedBrand = normalizeText(keyRow.normalized_brand, '') || normalizeBrandKey(brand);
+    const success = Number(keyRow.success || 0) === 1;
+    const wasEvaluated = Number(keyRow.evaluated || 0) === 1;
 
     const updateResult = await db.prepare(
       `UPDATE serial_decode_events
@@ -4840,6 +5117,13 @@ async function dbSetSerialDecodeEvaluated(
     return {
       evaluated: true,
       updatedCount: Number(updateResult.meta.changes || 0),
+      activityCandidate: {
+        brand,
+        serial,
+        normalizedBrand,
+        success,
+        wasEvaluated,
+      },
     };
   }
 
