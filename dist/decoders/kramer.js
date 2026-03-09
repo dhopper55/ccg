@@ -79,6 +79,19 @@ export function decodeKramer(serial) {
     }
     // Musicyo reissue style (e.g., 04xxxx)
     if (/^\d{5,}$/.test(normalized)) {
+        // 7-digit numeric serials beginning with 5 are commonly tied to
+        // late-1980s/early-1990s Korean import-era runs (often Striker/Focus-adjacent).
+        if (/^5\d{6}$/.test(normalized)) {
+            const info = {
+                brand: 'Kramer',
+                serialNumber: cleaned,
+                year: '1987-1991 (estimated)',
+                factory: 'Korean import production line',
+                country: 'South Korea',
+                notes: `7-digit numeric format beginning with 5 is commonly associated with late-1980s to early-1990s Korean import-era Kramer production. Sequence: ${normalized.substring(1)}. Confirm with headstock style, neckplate text, and hardware details.`,
+            };
+            return { success: true, info };
+        }
         const yearPrefix = normalized.substring(0, 2);
         const yearValue = parseInt(yearPrefix, 10);
         if (!Number.isNaN(yearValue) && yearValue <= 24) {

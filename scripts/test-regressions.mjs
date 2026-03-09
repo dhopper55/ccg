@@ -658,6 +658,20 @@ function assertKramerCFPrefix(serialInput, expectedYearRange) {
   );
 }
 
+function assertKramerNumeric5Prefix(serialInput, expectedYearRange) {
+  const result = decodeKramer(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYearRange, `Expected year range ${expectedYearRange} for ${serialInput}, got ${info.year}`);
+  assert(
+    info.factory === 'Korean import production line',
+    `Expected Korean import production line for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'South Korea', `Expected South Korea for ${serialInput}, got ${info.country}`);
+}
+
 function assertYamahaLetterZeroLetter(serialInput) {
   const result = decodeSerialForBackend('yamaha', serialInput);
   assert(result.success, `Expected decode success for yamaha:${serialInput}`);
@@ -873,6 +887,7 @@ assertBCRichUSA5DigitOffset('36642', '1982-1983 (estimated)');
 assertKramerModernS('S106020848', '2010', 'June');
 assertKramerVPrefix('V9954', 'mid-to-late 1980s (estimated)');
 assertKramerCFPrefix('CF22271', '1985-1989 (estimated)');
+assertKramerNumeric5Prefix('5062786', '1987-1991 (estimated)');
 assertYamahaLetterZeroLetter('IOL033214');
 assertYamahaLetterZeroLetter('I0L033214');
 assertGretschFenderEraWithSuffix('CYG16080893', '2016', 'August');
