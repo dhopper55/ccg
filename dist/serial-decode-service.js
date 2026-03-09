@@ -1,29 +1,29 @@
-import { decodeGibson } from './decoders/gibson.js';
-import { decodeEpiphone } from './decoders/epiphone.js';
-import { decodeFender } from './decoders/fender.js';
-import { decodeTaylor } from './decoders/taylor.js';
-import { decodeMartin } from './decoders/martin.js';
-import { decodeIbanez } from './decoders/ibanez.js';
-import { decodeYamaha } from './decoders/yamaha.js';
-import { decodePRS } from './decoders/prs.js';
-import { decodeESP } from './decoders/esp.js';
-import { decodeSchecter } from './decoders/schecter.js';
-import { decodeGretsch } from './decoders/gretsch.js';
-import { decodeJackson } from './decoders/jackson.js';
-import { decodeSquier } from './decoders/squier.js';
-import { decodeCort } from './decoders/cort.js';
-import { decodeTakamine } from './decoders/takamine.js';
-import { decodeWashburn } from './decoders/washburn.js';
-import { decodeDean } from './decoders/dean.js';
-import { decodeErnieBall } from './decoders/ernieball.js';
-import { decodeGuild } from './decoders/guild.js';
-import { decodeAlvarez } from './decoders/alvarez.js';
-import { decodeGodin } from './decoders/godin.js';
-import { decodeOvation } from './decoders/ovation.js';
-import { decodeCharvel } from './decoders/charvel.js';
-import { decodeRickenbacker } from './decoders/rickenbacker.js';
-import { decodeKramer } from './decoders/kramer.js';
-import { decodeBCRich } from './decoders/bcrich.js';
+import { decodeGibson } from './decoders/gibson.js?version=917338';
+import { decodeEpiphone } from './decoders/epiphone.js?version=262979';
+import { decodeFender } from './decoders/fender.js?version=367040';
+import { decodeTaylor } from './decoders/taylor.js?version=678368';
+import { decodeMartin } from './decoders/martin.js?version=695834';
+import { decodeIbanez } from './decoders/ibanez.js?version=851911';
+import { decodeYamaha } from './decoders/yamaha.js?version=880046';
+import { decodePRS } from './decoders/prs.js?version=790194';
+import { decodeESP } from './decoders/esp.js?version=188311';
+import { decodeSchecter } from './decoders/schecter.js?version=187652';
+import { decodeGretsch } from './decoders/gretsch.js?version=916316';
+import { decodeJackson } from './decoders/jackson.js?version=406866';
+import { decodeSquier } from './decoders/squier.js?version=126188';
+import { decodeCort } from './decoders/cort.js?version=749450';
+import { decodeTakamine } from './decoders/takamine.js?version=112324';
+import { decodeWashburn } from './decoders/washburn.js?version=141474';
+import { decodeDean } from './decoders/dean.js?version=710504';
+import { decodeErnieBall } from './decoders/ernieball.js?version=707110';
+import { decodeGuild } from './decoders/guild.js?version=441239';
+import { decodeAlvarez } from './decoders/alvarez.js?version=638619';
+import { decodeGodin } from './decoders/godin.js?version=699990';
+import { decodeOvation } from './decoders/ovation.js?version=823009';
+import { decodeCharvel } from './decoders/charvel.js?version=431826';
+import { decodeRickenbacker } from './decoders/rickenbacker.js?version=961802';
+import { decodeKramer } from './decoders/kramer.js?version=397197';
+import { decodeBCRich } from './decoders/bcrich.js?version=883587';
 const DECODER_MAP = {
     gibson: decodeGibson,
     epiphone: decodeEpiphone,
@@ -146,6 +146,13 @@ function buildRetrySerials(serial, normalizedBrand) {
         const alnumUpper = serial.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
         if (/^HU\d{9}$/.test(alnumUpper)) {
             addCandidate(alnumUpper.slice(1));
+        }
+    }
+    if (normalizedBrand === 'fender') {
+        const alnumUpper = serial.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+        // Common OCR/mistype case on E-prefix 1980s serials: trailing "F" for "3".
+        if (/^E\d+F$/.test(alnumUpper)) {
+            addCandidate(alnumUpper.slice(0, -1) + '3');
         }
     }
     return candidates;

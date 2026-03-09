@@ -644,6 +644,156 @@ function assertKramerVPrefix(serialInput, expectedYearRange) {
   );
 }
 
+function assertKramerCFPrefix(serialInput, expectedYearRange) {
+  const result = decodeKramer(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYearRange, `Expected year range ${expectedYearRange} for ${serialInput}, got ${info.year}`);
+  assert(info.country === 'Japan', `Expected country Japan for ${serialInput}, got ${info.country}`);
+  assert(
+    info.notes && info.notes.includes('Focus/Striker-era'),
+    `Expected Focus/Striker-era note for ${serialInput}, got ${info.notes}`
+  );
+}
+
+function assertYamahaLetterZeroLetter(serialInput) {
+  const result = decodeSerialForBackend('yamaha', serialInput);
+  assert(result.success, `Expected decode success for yamaha:${serialInput}`);
+  assert(result.info, `Expected decoded info for yamaha:${serialInput}`);
+
+  const info = result.info;
+  assert(
+    info.year === '2001 or 2011 or 2021',
+    `Expected year candidates 2001/2011/2021 for ${serialInput}, got ${info.year}`
+  );
+  assert(info.month === 'October', `Expected month October for ${serialInput}, got ${info.month}`);
+  assert(
+    info.notes && info.notes.includes('O and zero 0'),
+    `Expected O/0 ambiguity note for ${serialInput}, got ${info.notes}`
+  );
+}
+
+function assertGretschFenderEraWithSuffix(serialInput, expectedYear, expectedMonth) {
+  const result = decodeSerialForBackend('gretsch', serialInput);
+  assert(result.success, `Expected decode success for gretsch:${serialInput}`);
+  assert(result.info, `Expected decoded info for gretsch:${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(info.factory === 'Yako Facility', `Expected Yako Facility for ${serialInput}, got ${info.factory}`);
+  assert(info.country === 'China', `Expected China for ${serialInput}, got ${info.country}`);
+  assert(
+    info.notes && info.notes.includes('Additional prefix letter "G"'),
+    `Expected suffix-letter note for ${serialInput}, got ${info.notes}`
+  );
+}
+
+function assertDeanHPrefixIndia(serialInput, expectedYear, expectedMonth) {
+  const result = decodeSerialForBackend('dean', serialInput);
+  assert(result.success, `Expected decode success for dean:${serialInput}`);
+  assert(result.info, `Expected decoded info for dean:${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'India import production line',
+    `Expected India import production line for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'India', `Expected country India for ${serialInput}, got ${info.country}`);
+}
+
+function assertCortIEPrefix(serialInput, expectedYear, expectedMonth) {
+  const result = decodeSerialForBackend('cort', serialInput);
+  assert(result.success, `Expected decode success for cort:${serialInput}`);
+  assert(result.info, `Expected decoded info for cort:${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'PT. Cort Indonesia, Surabaya',
+    `Expected PT. Cort Indonesia, Surabaya for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'Indonesia', `Expected country Indonesia for ${serialInput}, got ${info.country}`);
+}
+
+function assertCharvelCFPrefix(serialInput, expectedYear) {
+  const result = decodeSerialForBackend('charvel', serialInput);
+  assert(result.success, `Expected decode success for charvel:${serialInput}`);
+  assert(result.info, `Expected decoded info for charvel:${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(
+    info.factory === 'World Music Instruments (WMI)',
+    `Expected WMI factory for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'South Korea', `Expected South Korea for ${serialInput}, got ${info.country}`);
+}
+
+function assertFenderTrailingFTypoCorrection(serialInput, expectedCorrected, expectedYear) {
+  const result = decodeSerialForBackend('fender', serialInput);
+  assert(result.success, `Expected decode success for fender:${serialInput}`);
+  assert(result.info, `Expected decoded info for fender:${serialInput}`);
+  assert(
+    result.correctedSerial === expectedCorrected,
+    `Expected corrected serial ${expectedCorrected} for ${serialInput}, got ${result.correctedSerial}`
+  );
+
+  const info = result.info;
+  assert(info.serialNumber === expectedCorrected, `Expected corrected serialNumber ${expectedCorrected}, got ${info.serialNumber}`);
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.country === 'USA', `Expected USA country for ${serialInput}, got ${info.country}`);
+}
+
+function assertFenderJDPrefix(serialInput, expectedYear) {
+  const result = decodeSerialForBackend('fender', serialInput);
+  assert(result.success, `Expected decode success for fender:${serialInput}`);
+  assert(result.info, `Expected decoded info for fender:${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.country === 'Japan', `Expected Japan country for ${serialInput}, got ${info.country}`);
+  assert(
+    info.factory === 'Dyna Gakki / Fender Japan network',
+    `Expected Dyna Gakki / Fender Japan network for ${serialInput}, got ${info.factory}`
+  );
+}
+
+function assertFenderICSPrefix(serialInput, expectedYear) {
+  const result = decodeSerialForBackend('fender', serialInput);
+  assert(result.success, `Expected decode success for fender:${serialInput}`);
+  assert(result.info, `Expected decoded info for fender:${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.country === 'Indonesia', `Expected Indonesia country for ${serialInput}, got ${info.country}`);
+  assert(
+    info.factory === 'Indonesian Factory (Cort or other)',
+    `Expected Indonesian Factory (Cort or other) for ${serialInput}, got ${info.factory}`
+  );
+}
+
+function assertFenderInternalPartNumber(serialInput) {
+  const result = decodeSerialForBackend('fender', serialInput);
+  assert(result.success, `Expected decode success for fender:${serialInput}`);
+  assert(result.info, `Expected decoded info for fender:${serialInput}`);
+
+  const info = result.info;
+  assert(
+    info.model === 'Internal Fender part number (not date-coded serial)',
+    `Expected internal part-number model for ${serialInput}, got ${info.model}`
+  );
+  assert(
+    info.notes && info.notes.includes('internal Fender part/product identifier'),
+    `Expected internal part-number note for ${serialInput}, got ${info.notes}`
+  );
+}
+
 function assertCharvelNumeric8(serialInput, expectedYear, expectedMonth) {
   const result = decodeCharvel(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -722,8 +872,20 @@ assertBCRichIShortImport('i50311', '2005', 'March');
 assertBCRichUSA5DigitOffset('36642', '1982-1983 (estimated)');
 assertKramerModernS('S106020848', '2010', 'June');
 assertKramerVPrefix('V9954', 'mid-to-late 1980s (estimated)');
+assertKramerCFPrefix('CF22271', '1985-1989 (estimated)');
+assertYamahaLetterZeroLetter('IOL033214');
+assertYamahaLetterZeroLetter('I0L033214');
+assertGretschFenderEraWithSuffix('CYG16080893', '2016', 'August');
+assertDeanHPrefixIndia('H22020 143', '2022', 'February');
+assertDeanHPrefixIndia('H22020143', '2022', 'February');
+assertDeanHPrefixIndia('H22020', '2022', 'February');
+assertCortIEPrefix('ie220403666', '2022', 'April');
+assertCharvelCFPrefix('CF22271', '2022');
+assertFenderTrailingFTypoCorrection('E528104f', 'E5281043', '1985');
+assertFenderJDPrefix('JD13006111', '2013');
+assertFenderICSPrefix('ICS11185000', '2011');
+assertFenderInternalPartNumber('0060579747');
 assertCharvelNumeric8('05050187', '2005', 'May');
-assertDecodeFails('kramer', 'CF22271');
 assertDecodeFails('ovation', '123456789');
 
 console.log('Regression tests passed.');

@@ -50,6 +50,11 @@ export function decodeYamaha(serial) {
     if (/^[A-Z]{2}\d{5}$/.test(normalized)) {
         return decodeStandard(normalized);
     }
+    // Modern letter-number-letter + 6 digits variant (e.g., I0L033214 / IOL033214)
+    // Some serials use a zero in position 2 that is commonly misread as letter O.
+    if (/^[A-Z][O0][A-Z]\d{6}$/.test(normalized)) {
+        return decodeLetterZeroLetter6(normalized);
+    }
     // Taiwan 2002+: Letter-Letter-Letter-###### (e.g., QJM120013)
     if (/^[A-Z]{3}\d{6}$/.test(normalized)) {
         return decodeTaiwan2002(normalized);
@@ -405,6 +410,40 @@ function decodeTaiwan2002(serial) {
         notes: `Unit #${unit}. This format is used by both Taiwan and Indonesia factories from 2001/2002 onwards. Check the label inside your guitar for exact origin.`
     };
     return { success: true, info };
+}
+// Modern acoustic/electric variant: Letter-(O/0)-Letter-######
+function decodeLetterZeroLetter6(serial) {
+    const yearLetter = serial[0];
+    const secondChar = serial[1];
+    const lineLetter = serial[2];
+    const productionNumber = parseInt(serial.substring(3), 10);
+    const possibleYears = getModernLetterZeroYearCandidates(yearLetter);
+    if (!possibleYears.length) {
+        return {
+            success: false,
+            error: 'Invalid year code in serial number.'
+        };
+    }
+    const info = {
+        brand: 'Yamaha',
+        serialNumber: serial,
+        year: possibleYears.join(' or '),
+        month: 'October',
+        notes: `Interpreted as Letter-(O/0)-Letter-###### format. The second character "${secondChar}" is treated as the October code and is commonly confused between letter O and zero 0. Line code: ${lineLetter}. Production sequence: ${productionNumber}. Confirm exact decade from model features and origin label.`
+    };
+    return { success: true, info };
+}
+function getModernLetterZeroYearCandidates(yearLetter) {
+    const mapping = {
+        'H': 0, 'I': 1, 'J': 2, 'K': 3, 'L': 4,
+        'M': 5, 'N': 6, 'O': 7, 'P': 8, 'Q': 9
+    };
+    const yearDigit = mapping[yearLetter];
+    if (yearDigit === undefined)
+        return [];
+    const candidates = [2000 + yearDigit, 2010 + yearDigit, 2020 + yearDigit];
+    const currentYear = new Date().getFullYear();
+    return candidates.filter((year) => year <= currentYear);
 }
 // Indonesia 2000+: 10 digits YYMMDDXXXX
 function decodeIndonesia2000(serial) {

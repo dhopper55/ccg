@@ -217,11 +217,11 @@
         <p class="decoder-modal-subtitle">A quick manual method when you don't want to use a decoder.</p>
       </div>
       <div class="decoder-modal-body">
-        <p>Modern Gretsch guitars (post‑2002/Fender era) use a straightforward 10‑character serial number found on the back of the headstock. The format is FFYYMMXXXX, where “FF” is the factory code (e.g., JT for Japan‑Terada), “YY” is the year, “MM” is the month, and “XXXX” is the production number. For example, JT04021010 means Japan‑Terada, 2004, February, 1010th unit.</p>
+        <p>Modern Gretsch guitars (post‑2002/Fender era) usually use FFYYMMXXXX (10 characters), where “FF” is the factory code, “YY” is the year, “MM” is the month, and “XXXX” is the production number. Some runs include an extra letter after the factory code (FFXYYMMXXXX), such as <strong>CYG16080893</strong>; in that case, decode from the two-letter factory code first, then read year/month/sequence from the following 8 digits.</p>
 
         <h3>Decoding by Era</h3>
         <ul class="decoder-howto-steps">
-          <li><strong>Modern (2002–Present):</strong> Letters (1–2) = factory code (e.g., JT = Japan Terada, CY = China Yako, KP = Korea Peerless, JD = Japan Dyna). Digits 1–2 = year (e.g., 04 = 2004, 15 = 2015). Digits 3–4 = month (e.g., 01 = Jan, 12 = Dec). Digits 5–8 = production number (e.g., 0101–9999 for standard models).</li>
+          <li><strong>Modern (2002–Present):</strong> Letters (1–2) = factory code (e.g., JT = Japan Terada, CY = China Yako, KP = Korea Peerless, JD = Japan Dyna). Some serials add a third letter before the digits (example: <strong>CYG16080893</strong>). Digits YY = year (e.g., 04 = 2004, 16 = 2016). Digits MM = month (e.g., 01 = Jan, 08 = Aug, 12 = Dec). Final digits = production number.</li>
           <li><strong>Baldwin Era (Aug 1966–1972):</strong> Uses a 5–6 digit code stamped on the top or back of the headstock. First 1–2 digits = month (1–12). Next digit = last digit of the year (e.g., 6 = 1966, 0 = 1970). Remaining digits = production number. Note: “Made in USA” was added to stamps starting in June 1967.</li>
           <li><strong>Pre‑1966/Vintage (1950s–1966):</strong> Numbers were generally sequential (e.g., 1000–99999), often stamped on the top of the headstock. Rough dating: &lt;1000 (pre‑WWII), 10xx–20xx (1945–47), 260xx–300xx (1958), 630xx–770xx (1964).</li>
         </ul>
@@ -259,7 +259,7 @@
     </div>
   </footer>
 
-  <script type="module" src="../dist/main.js?version=816628"></script>
+  <script type="module" src="../dist/main.js?version=629157"></script>
   <script>
     (function() {
       const year = new Date().getFullYear();

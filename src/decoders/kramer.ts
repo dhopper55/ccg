@@ -42,15 +42,20 @@ export function decodeKramer(serial: string): DecodeResult {
     return { success: true, info };
   }
 
-  // Two-letter overseas prefixes (e.g., FA, FB)
+  // Two-letter overseas prefixes (e.g., FA, FB, CF)
   if (/^[A-Z]{2}\d+$/.test(normalized)) {
     const prefix = normalized.substring(0, 2);
     const yearRange = getOverseasYearRange(prefix);
+    const country = getOverseasCountry(prefix);
     const info: GuitarInfo = {
       brand: 'Kramer',
       serialNumber: cleaned,
       year: yearRange,
-      notes: `Overseas model prefix ${prefix}. The second letter often indicates the production year range, but verification with features is recommended.`,
+      country,
+      notes:
+        prefix === 'CF'
+          ? `Overseas model prefix ${prefix}. This prefix is commonly associated with Japan-built Focus/Striker-era instruments from the mid-to-late 1980s (often around 1985-1989). Verify with headstock shape, neck-plate details, and hardware.`
+          : `Overseas model prefix ${prefix}. The second letter often indicates the production year range, but verification with features is recommended.`,
     };
     return { success: true, info };
   }
@@ -160,8 +165,14 @@ function getPrefixYearRange(prefix: string): string {
 }
 
 function getOverseasYearRange(prefix: string): string | undefined {
+  if (prefix === 'CF') return '1985-1989 (estimated)';
   if (prefix === 'FA') return 'late 1985–1986';
   if (prefix === 'FB') return '1987–1988';
+  return undefined;
+}
+
+function getOverseasCountry(prefix: string): string | undefined {
+  if (prefix === 'CF') return 'Japan';
   return undefined;
 }
 

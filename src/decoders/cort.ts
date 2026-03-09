@@ -38,6 +38,11 @@ export function decodeCort(serial: string): DecodeResult {
     return decodeIndonesiaICF(normalized);
   }
 
+  // Indonesian Cort factory: IE prefix
+  if (/^IE\d{8,9}$/.test(normalized)) {
+    return decodeIndonesiaIE(normalized);
+  }
+
   // Chinese Cort factory: COS prefix
   if (/^COS\d{8,9}$/.test(normalized)) {
     return decodeChinaCOS(normalized);
@@ -151,6 +156,28 @@ function decodeIndonesiaICF(serial: string): DecodeResult {
     factory: 'PT. Cort Indonesia, Surabaya',
     country: 'Indonesia',
     notes: `ICF prefix indicates Indonesian Cor-Tek factory production. The "F" typically indicates this was a Fender-branded instrument manufactured by Cort. Sequence: ${sequence}.`,
+  };
+
+  return { success: true, info };
+}
+
+// Indonesian IE prefix
+function decodeIndonesiaIE(serial: string): DecodeResult {
+  const yearDigits = serial.substring(2, 4);
+  const monthDigits = serial.substring(4, 6);
+  const sequence = serial.substring(6);
+
+  const year = 2000 + parseInt(yearDigits, 10);
+  const month = parseInt(monthDigits, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Cort',
+    serialNumber: serial,
+    year: year.toString(),
+    month: month >= 1 && month <= 12 ? getMonthName(month) : undefined,
+    factory: 'PT. Cort Indonesia, Surabaya',
+    country: 'Indonesia',
+    notes: `IE prefix indicates Indonesian Cor-Tek factory production. Parsed as IE + YYMM + sequence. Sequence: ${sequence}.`,
   };
 
   return { success: true, info };

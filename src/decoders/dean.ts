@@ -76,6 +76,11 @@ export function decodeDean(serial: string): DecodeResult {
     return decodeKoreaW(normalized);
   }
 
+  // India import line: H prefix (modern import pattern)
+  if (/^H\d{5,10}$/.test(normalized)) {
+    return decodeIndiaH(normalized);
+  }
+
   // USA-made: 7-digit numeric (standard format)
   if (/^\d{7}$/.test(normalized)) {
     return decodeUSA7Digit(normalized);
@@ -373,6 +378,46 @@ function decodeKoreaW(serial: string): DecodeResult {
     factory: 'Korea',
     country: 'South Korea',
     notes: `W prefix indicates Korean production (often seen on DBZ Bolero models). Production sequence: ${sequence}.`,
+  };
+
+  return { success: true, info };
+}
+
+// India import line: H prefix
+// Typical pattern: H + YYMM + sequence (variable sequence length in the wild)
+function decodeIndiaH(serial: string): DecodeResult {
+  const digits = serial.substring(1);
+  const yearDigits = digits.substring(0, 2);
+  const monthDigits = digits.length >= 4 ? digits.substring(2, 4) : '';
+  const sequence = digits.length > 4 ? digits.substring(4) : '';
+
+  const yearNum = parseInt(yearDigits, 10);
+  const monthNum = monthDigits ? parseInt(monthDigits, 10) : NaN;
+
+  let year: string | undefined;
+  if (!Number.isNaN(yearNum)) {
+    const fullYear = 2000 + yearNum;
+    if (fullYear <= new Date().getFullYear()) {
+      year = fullYear.toString();
+    } else if (yearNum >= 80) {
+      year = (1900 + yearNum).toString();
+    } else {
+      year = `20${yearDigits}`;
+    }
+  }
+
+  const month = !Number.isNaN(monthNum) && monthNum >= 1 && monthNum <= 12
+    ? getMonthName(monthNum)
+    : undefined;
+
+  const info: GuitarInfo = {
+    brand: 'Dean',
+    serialNumber: serial,
+    year,
+    month,
+    factory: 'India import production line',
+    country: 'India',
+    notes: `H prefix import format interpreted as H + YYMM + sequence. Parsed digits: ${digits}.${sequence ? ` Sequence: ${sequence}.` : ''} Spacing/hyphen differences are normalization variants of the same serial.`
   };
 
   return { success: true, info };

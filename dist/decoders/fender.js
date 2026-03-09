@@ -54,6 +54,11 @@ export function decodeFender(serial) {
     if (jffMatch) {
         return decodeJFFPrefix(jffMatch[1], jffMatch[2], jffMatch[3], normalized);
     }
+    // JD prefix (modern Japan production, ~2012+): JD + 8 digits
+    const jdMatch = normalized.match(/^JD(\d{2})(\d{6})$/);
+    if (jdMatch) {
+        return decodeJDPrefix(jdMatch[1], jdMatch[2], normalized);
+    }
     // JV prefix (early 1980s Japan)
     const jvMatch = normalized.match(/^JV(\d+)$/);
     if (jvMatch) {
@@ -80,9 +85,13 @@ export function decodeFender(serial) {
         return decodeKoreanPrefix(koMatch[1], normalized);
     }
     // Indonesian formats (IC, ICS prefixes)
-    const indoMatch = normalized.match(/^I[CS]?(\d{2})(\d+)$/);
+    const indoMatch = normalized.match(/^I(?:CS|C|S)?(\d{2})(\d+)$/);
     if (indoMatch) {
         return decodeIndonesianPrefix(indoMatch[1], indoMatch[2], normalized);
+    }
+    // Fender internal part-number style: 00 + 8 digits (not date-coded serial)
+    if (/^00\d{8}$/.test(normalized)) {
+        return decodeInternalPartNumber(normalized);
     }
     // Vintage 5-6 digit serials (pre-1976)
     if (/^\d{5,6}$/.test(normalized)) {
@@ -218,6 +227,18 @@ function decodeJFFPrefix(letter, year, sequence, serial) {
     };
     return { success: true, info };
 }
+function decodeJDPrefix(yearDigits, sequence, serial) {
+    const fullYear = `20${yearDigits}`;
+    const info = {
+        brand: 'Fender',
+        serialNumber: serial,
+        year: fullYear,
+        factory: 'Dyna Gakki / Fender Japan network',
+        country: 'Japan',
+        notes: `JD prefix indicates modern Japanese Fender production (commonly seen from around 2012 onward). Parsed as JD + YY + sequence. Year: ${fullYear}. Production sequence: ${sequence}. Confirm exact plant from model documentation and markings.`,
+    };
+    return { success: true, info };
+}
 function decodeJVPrefix(sequence, serial) {
     const info = {
         brand: 'Fender',
@@ -294,6 +315,15 @@ function decodeIndonesianPrefix(year, sequence, serial) {
         factory: 'Indonesian Factory (Cort or other)',
         country: 'Indonesia',
         notes: `Indonesian-made Fender (typically Squier line). Production sequence: ${sequence}.`
+    };
+    return { success: true, info };
+}
+function decodeInternalPartNumber(serial) {
+    const info = {
+        brand: 'Fender',
+        serialNumber: serial,
+        model: 'Internal Fender part number (not date-coded serial)',
+        notes: `10-digit numeric value beginning with "00" is commonly an internal Fender part/product identifier (for example on replacement components) rather than a standard date-coded guitar serial number. Use model markings, neck stamps, and component details for dating.`
     };
     return { success: true, info };
 }

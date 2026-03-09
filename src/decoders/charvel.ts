@@ -25,6 +25,11 @@ export function decodeCharvel(serial: string): DecodeResult {
     return decodeJapanNeckThrough(normalized);
   }
 
+  // Modern Korea/WMI run seen as CF + YY + sequence
+  if (/^CF\d{5,8}$/.test(normalized)) {
+    return decodeKoreaCF(normalized);
+  }
+
   // Modern Japan MIJ: JC + year + production (2009-2012)
   if (/^JC\d{8,10}$/.test(normalized)) {
     return decodeModernJapan(normalized);
@@ -166,6 +171,27 @@ function decodeJapanNeckThrough(serial: string): DecodeResult {
     country: 'Japan',
     model: 'Model 5 or Model 6 (neck-through)',
     notes: `Japanese neck-through model. "C${yearDigit}" indicates ${year} production. Sequence: ${sequence}. These were made at Chushin Gakki in Japan. 1986 serials appear on a sticker on the headstock back; 1987+ are stamped into the final fret of the fingerboard.`,
+  };
+
+  return { success: true, info };
+}
+
+// Modern Korea/WMI: CF + YY + sequence
+function decodeKoreaCF(serial: string): DecodeResult {
+  const digits = serial.substring(2);
+  const yearDigits = digits.substring(0, 2);
+  const sequence = digits.substring(2);
+
+  const yearNum = parseInt(yearDigits, 10);
+  const year = Number.isNaN(yearNum) ? undefined : (2000 + yearNum).toString();
+
+  const info: GuitarInfo = {
+    brand: 'Charvel',
+    serialNumber: serial,
+    year,
+    factory: 'World Music Instruments (WMI)',
+    country: 'South Korea',
+    notes: `CF-prefix modern production format interpreted as CF + YY + sequence. Parsed year: ${year || 'unknown'}. Sequence: ${sequence}. Confirm with country-of-origin marking and model specs.`,
   };
 
   return { success: true, info };

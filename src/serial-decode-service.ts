@@ -173,6 +173,14 @@ function buildRetrySerials(serial: string, normalizedBrand: string): string[] {
     }
   }
 
+  if (normalizedBrand === 'fender') {
+    const alnumUpper = serial.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    // Common OCR/mistype case on E-prefix 1980s serials: trailing "F" for "3".
+    if (/^E\d+F$/.test(alnumUpper)) {
+      addCandidate(alnumUpper.slice(0, -1) + '3');
+    }
+  }
+
   return candidates;
 }
 

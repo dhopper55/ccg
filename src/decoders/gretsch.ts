@@ -4,9 +4,10 @@ export function decodeGretsch(serial: string): DecodeResult {
   const cleaned = serial.trim().toUpperCase();
   const normalized = cleaned.replace(/[\s-]/g, '');
 
-  // Fender Era (2003+): Two letter prefix + 8 digits (LLYYMMNNNN)
+  // Fender Era (2003+): Two-letter factory prefix + 8 digits (FFYYMMNNNN)
+  // Some runs include an extra letter after the factory prefix (e.g., CYG16080893).
   // Factory codes: JT, JD, JF, CS, CY, KP, KS
-  if (/^(JT|JD|JF|CS|CY|KP|KS)\d{8}$/.test(normalized)) {
+  if (/^(JT|JD|JF|CS|CY|KP|KS)([A-Z])?\d{8}$/.test(normalized)) {
     return decodeFenderEra(normalized);
   }
 
@@ -44,9 +45,12 @@ export function decodeGretsch(serial: string): DecodeResult {
 
 function decodeFenderEra(serial: string): DecodeResult {
   const factoryCode = serial.substring(0, 2);
-  const year = parseInt(serial.substring(2, 4), 10) + 2000;
-  const month = parseInt(serial.substring(4, 6), 10);
-  const productionNum = parseInt(serial.substring(6), 10);
+  const hasSuffixLetter = /^[A-Z]{3}\d{8}$/.test(serial);
+  const suffixLetter = hasSuffixLetter ? serial[2] : '';
+  const digitsOffset = hasSuffixLetter ? 3 : 2;
+  const year = parseInt(serial.substring(digitsOffset, digitsOffset + 2), 10) + 2000;
+  const month = parseInt(serial.substring(digitsOffset + 2, digitsOffset + 4), 10);
+  const productionNum = parseInt(serial.substring(digitsOffset + 4), 10);
 
   const { factory, country } = getFactoryInfo(factoryCode);
   const monthName = getMonthName(month);
@@ -65,7 +69,7 @@ function decodeFenderEra(serial: string): DecodeResult {
     month: monthName,
     factory: factory,
     country: country,
-    notes: `Fender era (2003+). Production #${productionNum} for ${year}. ${modelNote}`
+    notes: `Fender era (2003+).${suffixLetter ? ` Additional prefix letter "${suffixLetter}" detected after factory code (often retailer/channel-specific).` : ''} Production #${productionNum} for ${year}. ${modelNote}`
   };
   return { success: true, info };
 }
