@@ -15,6 +15,7 @@ import ListingEvaluatorResults from 'pages/listing-evaluator/ListingEvaluatorRes
 import InventoryManager from 'pages/inventory-manager/InventoryManager';
 import InventoryItem from 'pages/inventory-manager/InventoryItem';
 import SerialDecodes from 'pages/serial-decodes/SerialDecodes';
+import SerialPatternText from 'pages/serial-pattern-text/SerialPatternText';
 import LoggedOut from 'pages/authentication/default/LoggedOut';
 import Logout from 'pages/authentication/default/Logout';
 import Signup from 'pages/authentication/default/jwt/Signup';
@@ -69,6 +70,10 @@ export const routes: RouteObject[] = [
           {
             path: paths.serialDecodes,
             element: <SerialDecodes />,
+          },
+          {
+            path: paths.serialPatternText,
+            element: <SerialPatternText />,
           },
           {
             path: paths.inventoryItem,

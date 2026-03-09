@@ -1,0 +1,368 @@
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Alert,
+  Box,
+  Button,
+  Checkbox,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  FormControlLabel,
+  Paper,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TableSortLabel,
+  TextField,
+  Typography,
+} from '@mui/material';
+
+type SerialPatternTextRecord = {
+  brand: string;
+  pattern: string;
+  richText: string;
+  richTextPopulated: boolean;
+  sampleSerial: string;
+};
+
+type SerialPatternTextResponse = {
+  records: SerialPatternTextRecord[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  message?: string;
+};
+
+type SortBy = 'brand' | 'pattern' | 'populated';
+
+type EditState = {
+  brand: string;
+  pattern: string;
+  sampleSerial: string;
+  richText: string;
+};
+
+const PAGE_SIZE = 20;
+
+function formatBrandName(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return '-';
+  return normalized.replace(/\b[a-z]/g, (ch) => ch.toUpperCase());
+}
+
+const SerialPatternText = () => {
+  const [records, setRecords] = useState<SerialPatternTextRecord[]>([]);
+  const [showAll, setShowAll] = useState(false);
+  const [sortBy, setSortBy] = useState<SortBy>('brand');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [saveMessage, setSaveMessage] = useState('');
+  const [saveErrorMessage, setSaveErrorMessage] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [editState, setEditState] = useState<EditState | null>(null);
+
+  useEffect(() => {
+    document.title = 'CCG Admin | Serial Pattern Text';
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadRows = async () => {
+      setIsLoading(true);
+      setErrorMessage('');
+
+      try {
+        const params = new URLSearchParams();
+        params.set('page', String(page));
+        params.set('limit', String(PAGE_SIZE));
+        params.set('sortBy', sortBy);
+        params.set('sortDir', sortDir);
+        if (showAll) params.set('showAll', '1');
+        params.set('_', String(Date.now()));
+
+        const response = await fetch(`/api/admin-v2/serial-pattern-text?${params.toString()}`, {
+          method: 'GET',
+          credentials: 'same-origin',
+          cache: 'no-store',
+        });
+        const data = (await response.json()) as SerialPatternTextResponse;
+        if (!response.ok) {
+          throw new Error(data.message || 'Unable to load serial pattern text rows.');
+        }
+        if (cancelled) return;
+
+        setRecords(Array.isArray(data.records) ? data.records : []);
+        setPage(Math.max(1, Number(data.page) || 1));
+        setTotal(Math.max(0, Number(data.total) || 0));
+        setTotalPages(Math.max(1, Number(data.totalPages) || 1));
+      } catch (error) {
+        if (cancelled) return;
+        setRecords([]);
+        setTotal(0);
+        setTotalPages(1);
+        setErrorMessage(error instanceof Error ? error.message : 'Unable to load serial pattern text rows.');
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+
+    void loadRows();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [page, showAll, sortBy, sortDir, refreshKey]);
+
+  const pageStart = useMemo(() => (total > 0 ? (page - 1) * PAGE_SIZE + 1 : 0), [page, total]);
+  const pageEnd = useMemo(() => {
+    if (total < 1) return 0;
+    return Math.min(total, page * PAGE_SIZE);
+  }, [page, total]);
+
+  const toggleSort = (field: SortBy) => {
+    setPage(1);
+    if (sortBy === field) {
+      setSortDir((current) => (current === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+    setSortBy(field);
+    setSortDir('asc');
+  };
+
+  const handleSave = async () => {
+    if (!editState) return;
+    setSaving(true);
+    setSaveErrorMessage('');
+
+    try {
+      const response = await fetch('/api/admin-v2/serial-pattern-text', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          brand: editState.brand,
+          pattern: editState.pattern,
+          richText: editState.richText,
+        }),
+      });
+      const data = (await response.json()) as { ok?: boolean; message?: string };
+      if (!response.ok || !data.ok) {
+        throw new Error(data.message || 'Unable to save rich text.');
+      }
+
+      setEditState(null);
+      setSaveMessage('Pattern text saved.');
+      setRefreshKey((value) => value + 1);
+    } catch (error) {
+      setSaveErrorMessage(error instanceof Error ? error.message : 'Unable to save rich text.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Stack spacing={3} sx={{ width: 1, pb: 4 }}>
+      <Paper sx={{ p: { xs: 3, md: 4 }, width: 1, display: 'block' }}>
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          alignItems={{ xs: 'flex-start', sm: 'center' }}
+          justifyContent="space-between"
+          spacing={2}
+          mb={2}
+        >
+          <Stack spacing={0.5}>
+            <Typography variant="h4">Serial Pattern Text</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Manage brand + pattern rows and add additional context content.
+            </Typography>
+          </Stack>
+
+          <FormControlLabel
+            sx={{ mr: 0 }}
+            control={(
+              <Checkbox
+                size="small"
+                checked={showAll}
+                onChange={(event) => {
+                  setPage(1);
+                  setShowAll(event.target.checked);
+                }}
+              />
+            )}
+            label="Show All"
+          />
+        </Stack>
+
+        {saveMessage ? <Alert severity="success" sx={{ mb: 2 }}>{saveMessage}</Alert> : null}
+        {errorMessage ? <Alert severity="error" sx={{ mb: 2 }}>{errorMessage}</Alert> : null}
+
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 700 }}>
+                  <TableSortLabel
+                    active={sortBy === 'brand'}
+                    direction={sortBy === 'brand' ? sortDir : 'asc'}
+                    onClick={() => toggleSort('brand')}
+                  >
+                    Brand
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>
+                  <TableSortLabel
+                    active={sortBy === 'pattern'}
+                    direction={sortBy === 'pattern' ? sortDir : 'asc'}
+                    onClick={() => toggleSort('pattern')}
+                  >
+                    Pattern
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>
+                  <TableSortLabel
+                    active={sortBy === 'populated'}
+                    direction={sortBy === 'populated' ? sortDir : 'asc'}
+                    onClick={() => toggleSort('populated')}
+                  >
+                    Rich Text Populated
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ fontWeight: 700, textAlign: 'right' }}>Action</TableCell>
+              </TableRow>
+            </TableHead>
+
+            <TableBody>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={4}>
+                    <Typography variant="body2" color="text.secondary" py={2}>
+                      Loading...
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ) : records.length < 1 ? (
+                <TableRow>
+                  <TableCell colSpan={4}>
+                    <Typography variant="body2" color="text.secondary" py={2}>
+                      No rows found.
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                records.map((row) => (
+                  <TableRow key={`${row.brand}:${row.pattern}`} hover>
+                    <TableCell>{formatBrandName(row.brand)}</TableCell>
+                    <TableCell sx={{ fontFamily: 'monospace' }}>{row.pattern}</TableCell>
+                    <TableCell>{row.richTextPopulated ? 'Yes' : 'No'}</TableCell>
+                    <TableCell sx={{ textAlign: 'right' }}>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={() => {
+                          setSaveMessage('');
+                          setSaveErrorMessage('');
+                          setEditState({
+                            brand: row.brand,
+                            pattern: row.pattern,
+                            sampleSerial: row.sampleSerial,
+                            richText: row.richText || '',
+                          });
+                        }}
+                      >
+                        Edit
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+
+        <Stack direction="row" justifyContent="space-between" alignItems="center" mt={2}>
+          <Typography variant="body2" color="text.secondary">
+            {total > 0 ? `Showing ${pageStart}-${pageEnd} of ${total}` : 'Showing 0 records'}
+          </Typography>
+
+          <Stack direction="row" spacing={1}>
+            <Button
+              variant="outlined"
+              size="small"
+              disabled={page <= 1 || isLoading}
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              disabled={page >= totalPages || isLoading}
+              onClick={() => setPage((current) => current + 1)}
+            >
+              Next
+            </Button>
+          </Stack>
+        </Stack>
+      </Paper>
+
+      <Dialog open={Boolean(editState)} onClose={() => (saving ? undefined : setEditState(null))} fullWidth maxWidth="md">
+        <DialogTitle>Edit Serial Pattern Text</DialogTitle>
+        <DialogContent dividers>
+          {editState ? (
+            <Stack spacing={2}>
+              {saveErrorMessage ? <Alert severity="error">{saveErrorMessage}</Alert> : null}
+
+              <Box>
+                <Typography variant="caption" color="text.secondary">Brand</Typography>
+                <Typography variant="body2">{formatBrandName(editState.brand)}</Typography>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary">Pattern</Typography>
+                <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>{editState.pattern}</Typography>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary">Sample Serial #</Typography>
+                <Typography variant="body1" sx={{ fontFamily: 'monospace', mt: 0.5 }}>
+                  {editState.sampleSerial}
+                </Typography>
+              </Box>
+
+              <TextField
+                label="Enter rich text content"
+                multiline
+                minRows={12}
+                fullWidth
+                value={editState.richText}
+                onChange={(event) => setEditState({ ...editState, richText: event.target.value })}
+              />
+
+              <Stack direction="row" justifyContent="flex-end" spacing={1}>
+                <Button variant="outlined" disabled={saving} onClick={() => setEditState(null)}>
+                  Cancel
+                </Button>
+                <Button variant="contained" disabled={saving} onClick={() => void handleSave()}>
+                  Save
+                </Button>
+              </Stack>
+            </Stack>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+    </Stack>
+  );
+};
+
+export default SerialPatternText;

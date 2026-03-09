@@ -27,6 +27,7 @@ const paths = {
   listingEvaluatorItemWithId: (id: string) => `/listing-evaluator-item?id=${encodeURIComponent(id)}`,
   inventoryManager: '/inventory-manager',
   serialDecodes: '/serial-decodes',
+  serialPatternText: '/serial-pattern-text',
   inventoryItem: '/inventory-item',
   inventoryItemWithId: (id: string) => `/inventory-item?id=${encodeURIComponent(id)}`,
   inventoryItemFromListing: (listingId: string) =>

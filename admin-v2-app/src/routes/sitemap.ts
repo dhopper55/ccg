@@ -72,6 +72,14 @@ const sitemap: MenuItem[] = [
         active: true,
       },
       {
+        name: 'Serial Pattern Text',
+        key: 'serial_pattern_text',
+        path: paths.serialPatternText,
+        pathName: 'serial-pattern-text',
+        icon: 'material-symbols:notes-rounded',
+        active: true,
+      },
+      {
         name: 'Logout',
         key: 'logout',
         path: paths.logout,

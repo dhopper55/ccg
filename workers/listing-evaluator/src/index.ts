@@ -461,6 +461,21 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/serial-decodes/backfill-patterns' && request.method === 'POST') {
+      const response = await handleAdminV2SerialDecodeBackfillPatterns(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/serial-pattern-text' && request.method === 'GET') {
+      const response = await handleAdminV2SerialPatternTextList(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/serial-pattern-text' && request.method === 'POST') {
+      const response = await handleAdminV2SerialPatternTextSave(request, env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/admin-v2/serial-contexts/generate' && request.method === 'POST') {
       const response = await handleAdminV2SerialPatternContextGenerate(request, env);
       return withCors(response, request, env);
@@ -558,7 +573,7 @@ function withCors(response: Response, request: Request, env: Env): Response {
   headers.set('Access-Control-Allow-Headers', 'Content-Type');
   headers.set('Access-Control-Max-Age', '86400');
 
-  if (path.startsWith('/api/admin-v2/serial-decodes')) {
+  if (path.startsWith('/api/admin-v2/serial-decodes') || path.startsWith('/api/admin-v2/serial-pattern-text')) {
     headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     headers.set('Pragma', 'no-cache');
     headers.set('Expires', '0');
@@ -642,7 +657,7 @@ async function handleSerialDecodeEvent(request: Request, env: Env): Promise<Resp
     const decodeResult = decodeSerialForBackend(brand, serial);
     if (decodeResult.success && decodeResult.info) {
       pattern = deriveSerialPatternMeta(normalizedBrand, decodeResult.info.serialNumber || serial).patternKey;
-      await ensureSerialDecodePatternLookup(pattern, env);
+      await ensureSerialDecodePatternLookup(normalizedBrand, pattern, env);
     }
   }
 
@@ -757,8 +772,8 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
   }
 
   if (patternKey) {
-    await ensureSerialDecodePatternLookup(patternKey, env);
-    additionalContextRichText = await getSerialDecodePatternRichText(patternKey, env);
+    await ensureSerialDecodePatternLookup(normalizedBrand, patternKey, env);
+    additionalContextRichText = await getSerialDecodePatternRichText(normalizedBrand, patternKey, env);
   }
 
   try {
@@ -1037,24 +1052,27 @@ async function insertSerialDecodeEvent(env: Env, payload: SerialDecodeEventInser
   ).run();
 }
 
-async function ensureSerialDecodePatternLookup(pattern: string, env: Env): Promise<void> {
+async function ensureSerialDecodePatternLookup(brand: string, pattern: string, env: Env): Promise<void> {
+  const brandKey = normalizeText(brand, '').slice(0, 120);
   const cleaned = normalizeText(pattern, '').slice(0, 180);
-  if (!cleaned) return;
+  if (!brandKey || !cleaned) return;
   await env.DB.prepare(
-    `INSERT OR IGNORE INTO serial_decode_pattern_lookup (pattern, rich_text)
-     VALUES (?, '')`
-  ).bind(cleaned).run();
+    `INSERT OR IGNORE INTO serial_decode_pattern_lookup (brand, pattern, rich_text)
+     VALUES (?, ?, '')`
+  ).bind(brandKey, cleaned).run();
 }
 
-async function getSerialDecodePatternRichText(pattern: string, env: Env): Promise<string> {
+async function getSerialDecodePatternRichText(brand: string, pattern: string, env: Env): Promise<string> {
+  const brandKey = normalizeText(brand, '').slice(0, 120);
   const cleaned = normalizeText(pattern, '').slice(0, 180);
-  if (!cleaned) return '';
+  if (!brandKey || !cleaned) return '';
   const row = await env.DB.prepare(
     `SELECT rich_text
      FROM serial_decode_pattern_lookup
-     WHERE pattern = ?
+     WHERE brand = ?
+       AND pattern = ?
      LIMIT 1`
-  ).bind(cleaned).first<{ rich_text: string | null }>();
+  ).bind(brandKey, cleaned).first<{ rich_text: string | null }>();
   return normalizeText(row?.rich_text, '').slice(0, 12000);
 }
 
@@ -1876,6 +1894,18 @@ type AdminV2SerialLookupVolumeBucket = {
   responseCount: number;
 };
 
+type AdminV2SerialPatternLookupSortBy = 'brand' | 'pattern' | 'populated';
+
+type AdminV2SerialPatternLookupRow = {
+  brand: string;
+  pattern: string;
+  richText: string;
+  richTextPopulated: boolean;
+  sampleSerial: string;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
 async function handleList(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const limitParam = url.searchParams.get('limit');
@@ -2087,6 +2117,142 @@ async function handleAdminV2SerialDecodeLookupVolume(request: Request, env: Env)
   const brand = normalizeText(url.searchParams.get('brand'), '').slice(0, 120);
   const data = await dbGetAdminV2SerialDecodeLookupVolume(view, brand, env);
   return jsonResponse(data);
+}
+
+async function handleAdminV2SerialDecodeBackfillPatterns(request: Request, env: Env): Promise<Response> {
+  let body: Record<string, unknown> = {};
+  try {
+    body = await request.json();
+  } catch {
+    // Allow empty body.
+  }
+
+  const maxRows = parseBoundedInt(body.maxRows, 2000, 1, 20000);
+  const startId = parseBoundedInt(body.startId, 0, 0, 10_000_000_000);
+  const db = env.DB.withSession('first-primary');
+
+  const rows = await db.prepare(
+    `SELECT id, brand, serial
+     FROM serial_decode_events
+     WHERE success = 1
+       AND id > ?
+     ORDER BY id ASC
+     LIMIT ?`
+  ).bind(startId, maxRows).all<{
+    id: number | null;
+    brand: string | null;
+    serial: string | null;
+  }>();
+
+  const items = rows.results ?? [];
+  let scanned = 0;
+  let decoded = 0;
+  let insertedOrEnsured = 0;
+  let updatedEvents = 0;
+  let skipped = 0;
+  let lastId = startId;
+
+  for (const row of items) {
+    scanned += 1;
+    const rowId = Number(row.id || 0);
+    if (rowId > lastId) lastId = rowId;
+
+    const brand = normalizeText(row.brand, '');
+    const serial = normalizeText(row.serial, '');
+    if (!brand || !serial) {
+      skipped += 1;
+      continue;
+    }
+
+    const decodeResult = decodeSerialForBackend(brand, serial);
+    const normalizedBrand = normalizeText(decodeResult.normalizedBrand, '');
+    if (!decodeResult.success || !decodeResult.info || !normalizedBrand) {
+      skipped += 1;
+      continue;
+    }
+
+    const patternMeta = deriveSerialPatternMeta(
+      normalizedBrand,
+      normalizeText(decodeResult.info.serialNumber, serial),
+    );
+    const pattern = patternMeta.patternKey;
+    if (!pattern) {
+      skipped += 1;
+      continue;
+    }
+
+    decoded += 1;
+    await ensureSerialDecodePatternLookup(normalizedBrand, pattern, env);
+    insertedOrEnsured += 1;
+
+    const updateResult = await db.prepare(
+      `UPDATE serial_decode_events
+       SET pattern = COALESCE(pattern, ?),
+           pattern_key = COALESCE(pattern_key, ?),
+           pattern_label = COALESCE(pattern_label, ?)
+       WHERE id = ?`
+    ).bind(pattern, patternMeta.patternKey, patternMeta.patternLabel, rowId).run();
+    updatedEvents += Number(updateResult.meta?.changes || 0);
+  }
+
+  return jsonResponse({
+    ok: true,
+    startId,
+    lastId,
+    scanned,
+    decoded,
+    insertedOrEnsured,
+    updatedEvents,
+    skipped,
+    done: items.length < maxRows,
+    nextStartId: items.length < maxRows ? null : lastId,
+    note: 'If done=false, call this endpoint again with nextStartId as startId.',
+  });
+}
+
+async function handleAdminV2SerialPatternTextList(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const page = parseBoundedInt(url.searchParams.get('page'), 1, 1, 1_000_000);
+  const limit = parseBoundedInt(url.searchParams.get('limit'), 20, 1, 100);
+  const showAll = url.searchParams.get('showAll') === '1';
+  const sortByParam = normalizeText(url.searchParams.get('sortBy'), '').toLowerCase();
+  const sortBy: AdminV2SerialPatternLookupSortBy = sortByParam === 'pattern'
+    ? 'pattern'
+    : sortByParam === 'populated'
+      ? 'populated'
+      : 'brand';
+  const sortDir = normalizeText(url.searchParams.get('sortDir'), '').toLowerCase() === 'desc' ? 'desc' : 'asc';
+
+  const data = await dbListAdminV2SerialPatternLookup(page, limit, showAll, sortBy, sortDir, env);
+  return jsonResponse(data);
+}
+
+async function handleAdminV2SerialPatternTextSave(request: Request, env: Env): Promise<Response> {
+  let body: Record<string, unknown> = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  const brand = normalizeText(body.brand, '').slice(0, 120);
+  const pattern = normalizeText(body.pattern, '').slice(0, 180);
+  const richTextRaw = normalizeText(body.richText, '');
+
+  if (!brand) return jsonResponse({ message: 'Brand is required.' }, 400);
+  if (!pattern) return jsonResponse({ message: 'Pattern is required.' }, 400);
+
+  const richText = cleanupPatternLookupRichText(richTextRaw).slice(0, 12000);
+
+  await env.DB.prepare(
+    `INSERT INTO serial_decode_pattern_lookup (brand, pattern, rich_text, updated_at)
+     VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+     ON CONFLICT(brand, pattern) DO UPDATE SET
+       rich_text = excluded.rich_text,
+       updated_at = CURRENT_TIMESTAMP`
+  ).bind(brand, pattern, richText).run();
+
+  return jsonResponse({ ok: true, brand, pattern, richText });
 }
 
 async function handleAdminV2SerialPatternContextGenerate(request: Request, env: Env): Promise<Response> {
@@ -5249,6 +5415,88 @@ async function dbGetAdminV2SerialDecodeLookupVolume(
   };
 }
 
+async function dbListAdminV2SerialPatternLookup(
+  page: number,
+  limit: number,
+  showAll: boolean,
+  sortBy: AdminV2SerialPatternLookupSortBy,
+  sortDir: 'asc' | 'desc',
+  env: Env,
+): Promise<{
+  records: AdminV2SerialPatternLookupRow[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}> {
+  const safePage = Math.max(1, page);
+  const safeLimit = Math.max(1, Math.min(100, limit));
+  const whereSql = showAll ? '' : `WHERE trim(COALESCE(rich_text, '')) = ''`;
+  const db = env.DB.withSession('first-primary');
+
+  const totalRow = await db.prepare(
+    `SELECT COUNT(*) AS total
+     FROM serial_decode_pattern_lookup
+     ${whereSql}`
+  ).first<{ total: number | null }>();
+  const total = Number(totalRow?.total || 0);
+  const totalPages = Math.max(1, Math.ceil(total / safeLimit));
+  const effectivePage = Math.min(safePage, totalPages);
+  const offset = (effectivePage - 1) * safeLimit;
+
+  const sortExpr = sortBy === 'pattern'
+    ? 'lower(trim(pattern))'
+    : sortBy === 'populated'
+      ? `CASE WHEN trim(COALESCE(rich_text, '')) <> '' THEN 1 ELSE 0 END`
+      : 'lower(trim(brand))';
+  const dir = sortDir === 'desc' ? 'DESC' : 'ASC';
+
+  const rows = await db.prepare(
+    `SELECT
+      brand,
+      pattern,
+      rich_text,
+      created_at,
+      updated_at,
+      CASE WHEN trim(COALESCE(rich_text, '')) <> '' THEN 1 ELSE 0 END AS is_populated
+     FROM serial_decode_pattern_lookup
+     ${whereSql}
+     ORDER BY ${sortExpr} ${dir}, lower(trim(brand)) ASC, lower(trim(pattern)) ASC
+     LIMIT ? OFFSET ?`
+  ).bind(safeLimit, offset).all<{
+    brand: string | null;
+    pattern: string | null;
+    rich_text: string | null;
+    created_at: string | null;
+    updated_at: string | null;
+    is_populated: number | null;
+  }>();
+
+  const records: AdminV2SerialPatternLookupRow[] = (rows.results ?? [])
+    .map((row) => {
+      const brand = normalizeText(row.brand, '');
+      const pattern = normalizeText(row.pattern, '');
+      return {
+        brand,
+        pattern,
+        richText: normalizeText(row.rich_text, ''),
+        richTextPopulated: Number(row.is_populated || 0) === 1,
+        sampleSerial: generateSampleSerialFromPatternKey(pattern),
+        createdAt: normalizeText(row.created_at, '') || null,
+        updatedAt: normalizeText(row.updated_at, '') || null,
+      };
+    })
+    .filter((row) => row.brand.length > 0 && row.pattern.length > 0);
+
+  return {
+    records,
+    page: effectivePage,
+    limit: safeLimit,
+    total,
+    totalPages,
+  };
+}
+
 function buildSerialLookupVolumeBuckets(
   view: AdminV2SerialLookupVolumeView,
   rows: Array<{ lookup_ts: string | null }>,
@@ -5767,8 +6015,88 @@ function normalizeText(value: unknown, fallback = ''): string {
   return fallback;
 }
 
+function cleanupPatternLookupRichText(input: string): string {
+  const withoutScripts = input
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '');
+  const plain = withoutScripts.replace(/<\/?[^>]+>/g, '');
+  const normalized = plain.replace(/\r\n?/g, '\n').replace(/\t/g, ' ');
+  const lines = normalized
+    .split('\n')
+    .map((line) => line.replace(/\s+$/g, '').replace(/^\s*[•*]\s+/, '- ').replace(/^\s*-\s+/, '- ').trim());
+  const compact: string[] = [];
+
+  for (const line of lines) {
+    if (!line) {
+      if (compact.length > 0 && compact[compact.length - 1] !== '') {
+        compact.push('');
+      }
+      continue;
+    }
+    compact.push(line);
+  }
+
+  while (compact.length > 0 && compact[compact.length - 1] === '') {
+    compact.pop();
+  }
+
+  return compact.join('\n');
+}
+
 function normalizeSerialKey(value: string): string {
   return value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function generateSampleSerialFromPatternKey(patternKey: string): string {
+  const fallback = 'A1234567';
+  const parts = normalizeText(patternKey, '').split(':');
+  if (parts.length < 3) return fallback;
+
+  const prefixPart = parts.find((part) => part.startsWith('prefix-')) || '';
+  const lenPart = parts.find((part) => part.startsWith('len-')) || '';
+  const maskPart = parts.find((part) => part.startsWith('A') || part.startsWith('9')) || '';
+
+  const prefixRaw = prefixPart.replace(/^prefix-/i, '');
+  const prefix = prefixRaw && prefixRaw !== 'none' ? prefixRaw.toUpperCase() : '';
+  const targetLen = Number.parseInt(lenPart.replace(/^len-/i, ''), 10);
+
+  let sample = '';
+  const maskMatches = Array.from(maskPart.matchAll(/([A9])(\d{1,3})/g));
+  if (maskMatches.length > 0) {
+    let alphaIdx = 0;
+    let digitIdx = 1;
+    for (const match of maskMatches) {
+      const kind = match[1];
+      const count = Number.parseInt(match[2], 10);
+      if (!Number.isFinite(count) || count <= 0) continue;
+      if (kind === 'A') {
+        for (let i = 0; i < count; i += 1) {
+          sample += String.fromCharCode(65 + (alphaIdx % 26));
+          alphaIdx += 1;
+        }
+      } else {
+        for (let i = 0; i < count; i += 1) {
+          sample += String(digitIdx % 10);
+          digitIdx += 1;
+        }
+      }
+    }
+  }
+
+  if (!sample && Number.isFinite(targetLen) && targetLen > 0) {
+    sample = `A${'1'.repeat(Math.max(1, targetLen - 1))}`;
+  }
+  if (!sample) sample = fallback;
+
+  if (prefix) {
+    sample = `${prefix}${sample.slice(prefix.length)}`;
+  }
+  if (Number.isFinite(targetLen) && targetLen > 0) {
+    if (sample.length > targetLen) sample = sample.slice(0, targetLen);
+    if (sample.length < targetLen) sample = `${sample}${'1'.repeat(targetLen - sample.length)}`;
+  }
+
+  return sample || fallback;
 }
 
 function deriveSerialPatternMeta(normalizedBrand: string, serialInput: string): { patternKey: string; patternLabel: string } {
