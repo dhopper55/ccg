@@ -380,6 +380,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/serial-decodes/lookup-volume' && request.method === 'GET') {
+      const response = await handleAdminV2SerialDecodeLookupVolume(request, env);
+      return withCors(response, request, env);
+    }
+
     if (path.endsWith('/evaluated') && path.startsWith('/api/admin-v2/serial-decodes/') && request.method === 'POST') {
       const response = await handleAdminV2SerialDecodeEvaluatedUpdate(request, path, env);
       return withCors(response, request, env);
@@ -1564,6 +1569,14 @@ type AdminV2SerialDecodeBrandResponseRow = {
   responseCount: number;
 };
 
+type AdminV2SerialLookupVolumeView = 'day' | 'month';
+
+type AdminV2SerialLookupVolumeBucket = {
+  key: string;
+  label: string;
+  responseCount: number;
+};
+
 async function handleList(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const limitParam = url.searchParams.get('limit');
@@ -1767,6 +1780,14 @@ async function handleAdminV2SerialDecodeBrandResponses(request: Request, env: En
   const brand = normalizeText(url.searchParams.get('brand'), '').slice(0, 120);
   const records = await dbGetAdminV2SerialDecodeBrandResponses(brand, env);
   return jsonResponse({ records });
+}
+
+async function handleAdminV2SerialDecodeLookupVolume(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const view = normalizeText(url.searchParams.get('view'), '').toLowerCase() === 'month' ? 'month' : 'day';
+  const brand = normalizeText(url.searchParams.get('brand'), '').slice(0, 120);
+  const data = await dbGetAdminV2SerialDecodeLookupVolume(view, brand, env);
+  return jsonResponse(data);
 }
 
 async function handleAdminV2SerialDecodeEvaluatedUpdate(
@@ -4627,6 +4648,155 @@ async function dbGetAdminV2SerialDecodeBrandResponses(
     brand: normalizeText(row.brand, ''),
     responseCount: Number(row.response_count || 0),
   }));
+}
+
+async function dbGetAdminV2SerialDecodeLookupVolume(
+  view: AdminV2SerialLookupVolumeView,
+  brand: string,
+  env: Env,
+): Promise<{
+  view: AdminV2SerialLookupVolumeView;
+  records: AdminV2SerialLookupVolumeBucket[];
+  availableBrands: string[];
+}> {
+  const db = env.DB.withSession('first-primary');
+  const where: string[] = [];
+  const values: unknown[] = [];
+
+  if (brand) {
+    where.push(`lower(trim(brand)) = lower(trim(?))`);
+    values.push(brand);
+  }
+
+  const lookbackWindow = view === 'month' ? '-31 months' : '-35 days';
+  where.push(
+    `COALESCE(datetime(client_timestamp), datetime(event_time_utc), datetime(created_at)) >= datetime('now', '${lookbackWindow}')`,
+  );
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+  const [eventRows, brandRows] = await Promise.all([
+    db.prepare(
+      `SELECT
+        COALESCE(datetime(client_timestamp), datetime(event_time_utc), datetime(created_at)) AS lookup_ts
+       FROM serial_decode_events
+       ${whereSql}`,
+    ).bind(...values).all<{ lookup_ts: string | null }>(),
+    db.prepare(
+      `SELECT MIN(trim(brand)) AS brand
+       FROM serial_decode_events
+       WHERE trim(COALESCE(brand, '')) <> ''
+       GROUP BY lower(trim(brand))
+       ORDER BY lower(trim(brand)) ASC`,
+    ).all<{ brand: string | null }>(),
+  ]);
+
+  const availableBrands = (brandRows.results ?? [])
+    .map((row) => normalizeText(row.brand, ''))
+    .filter(Boolean);
+
+  const records = buildSerialLookupVolumeBuckets(view, eventRows.results ?? []);
+  return {
+    view,
+    records,
+    availableBrands,
+  };
+}
+
+function buildSerialLookupVolumeBuckets(
+  view: AdminV2SerialLookupVolumeView,
+  rows: Array<{ lookup_ts: string | null }>,
+): AdminV2SerialLookupVolumeBucket[] {
+  const bucketCount = 30;
+  const bucketDates = getRecentDenverBucketDates(view, bucketCount);
+  const counts = new Map<string, number>();
+  for (const bucketDate of bucketDates) {
+    counts.set(getDenverBucketKey(view, bucketDate), 0);
+  }
+
+  for (const row of rows) {
+    const eventDate = parseSerialLookupTimestamp(row.lookup_ts);
+    if (!eventDate) continue;
+    const key = getDenverBucketKey(view, eventDate);
+    if (!counts.has(key)) continue;
+    counts.set(key, Number(counts.get(key) || 0) + 1);
+  }
+
+  return bucketDates.map((bucketDate) => {
+    const key = getDenverBucketKey(view, bucketDate);
+    return {
+      key,
+      label: formatDenverBucketLabel(view, bucketDate),
+      responseCount: Number(counts.get(key) || 0),
+    };
+  });
+}
+
+function getRecentDenverBucketDates(view: AdminV2SerialLookupVolumeView, count: number): Date[] {
+  const now = new Date();
+  const denverNowParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Denver',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const denverYear = Number(denverNowParts.find((part) => part.type === 'year')?.value || now.getUTCFullYear());
+  const denverMonth = Number(denverNowParts.find((part) => part.type === 'month')?.value || now.getUTCMonth() + 1);
+  const denverDay = Number(denverNowParts.find((part) => part.type === 'day')?.value || now.getUTCDate());
+
+  const anchor = view === 'month'
+    ? new Date(Date.UTC(denverYear, denverMonth - 1, 1, 12, 0, 0))
+    : new Date(Date.UTC(denverYear, denverMonth - 1, denverDay, 12, 0, 0));
+
+  const dates: Date[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const cursor = new Date(anchor.getTime());
+    if (view === 'month') {
+      cursor.setUTCMonth(cursor.getUTCMonth() - index);
+    } else {
+      cursor.setUTCDate(cursor.getUTCDate() - index);
+    }
+    dates.push(cursor);
+  }
+  return dates;
+}
+
+function getDenverBucketKey(view: AdminV2SerialLookupVolumeView, date: Date): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Denver',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === 'year')?.value || '';
+  const month = parts.find((part) => part.type === 'month')?.value || '';
+  const day = parts.find((part) => part.type === 'day')?.value || '';
+  if (view === 'month') {
+    return `${year}-${month}`;
+  }
+  return `${year}-${month}-${day}`;
+}
+
+function formatDenverBucketLabel(view: AdminV2SerialLookupVolumeView, date: Date): string {
+  if (view === 'month') {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Denver',
+      month: 'short',
+      year: 'numeric',
+    }).format(date).replace(/\s+/g, '-');
+  }
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Denver',
+    month: 'numeric',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date);
+}
+
+function parseSerialLookupTimestamp(input: string | null): Date | null {
+  if (typeof input !== 'string') return null;
+  const parsed = new Date(input);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
 }
 
 async function dbSetSerialDecodeEvaluated(

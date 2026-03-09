@@ -23,7 +23,6 @@ import {
   TableRow,
   TableSortLabel,
   Typography,
-  useTheme,
 } from '@mui/material';
 import { BarChart } from 'echarts/charts';
 import { GridComponent, TooltipComponent } from 'echarts/components';
@@ -64,6 +63,21 @@ type BrandResponsesRecord = {
 
 type BrandResponsesResponse = {
   records: BrandResponsesRecord[];
+  message?: string;
+};
+
+type LookupVolumeView = 'day' | 'month';
+
+type LookupVolumeRecord = {
+  key: string;
+  label: string;
+  responseCount: number;
+};
+
+type LookupVolumeResponse = {
+  view: LookupVolumeView;
+  records: LookupVolumeRecord[];
+  availableBrands: string[];
   message?: string;
 };
 
@@ -120,7 +134,6 @@ function truncateBrandLabel(value: string, max = 13): string {
 }
 
 const SerialDecodes = () => {
-  const theme = useTheme();
   const [records, setRecords] = useState<SerialDecodeRecord[]>([]);
   const [brandResponses, setBrandResponses] = useState<BrandResponsesRecord[]>([]);
   const [availableBrands, setAvailableBrands] = useState<string[]>([]);
@@ -137,6 +150,12 @@ const SerialDecodes = () => {
   const [chartErrorMessage, setChartErrorMessage] = useState('');
   const [selectedRecord, setSelectedRecord] = useState<SerialDecodeRecord | null>(null);
   const [updatingEvaluatedIds, setUpdatingEvaluatedIds] = useState<number[]>([]);
+  const [lookupVolumeView, setLookupVolumeView] = useState<LookupVolumeView>('day');
+  const [lookupVolumeBrand, setLookupVolumeBrand] = useState('');
+  const [lookupVolumeRecords, setLookupVolumeRecords] = useState<LookupVolumeRecord[]>([]);
+  const [lookupVolumeAvailableBrands, setLookupVolumeAvailableBrands] = useState<string[]>([]);
+  const [lookupVolumeLoading, setLookupVolumeLoading] = useState(true);
+  const [lookupVolumeErrorMessage, setLookupVolumeErrorMessage] = useState('');
 
   useEffect(() => {
     document.title = 'CCG Admin | Serial Decodes';
@@ -231,6 +250,48 @@ const SerialDecodes = () => {
     };
   }, [onlyErrors, onlyUnevaluated, page, refreshKey, selectedBrand, timestampSortDir]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadLookupVolume = async () => {
+      setLookupVolumeLoading(true);
+      setLookupVolumeErrorMessage('');
+      try {
+        const params = new URLSearchParams();
+        params.set('view', lookupVolumeView);
+        if (lookupVolumeBrand) params.set('brand', lookupVolumeBrand);
+        params.set('_', String(Date.now()));
+        const response = await fetch(`/api/admin-v2/serial-decodes/lookup-volume?${params.toString()}`, {
+          method: 'GET',
+          credentials: 'same-origin',
+          cache: 'no-store',
+        });
+        const data = (await response.json()) as LookupVolumeResponse;
+        if (!response.ok) {
+          throw new Error(data.message || 'Unable to load serial lookup volume chart.');
+        }
+        if (cancelled) return;
+        setLookupVolumeRecords(Array.isArray(data.records) ? data.records : []);
+        setLookupVolumeAvailableBrands(Array.isArray(data.availableBrands) ? data.availableBrands : []);
+      } catch (error) {
+        if (cancelled) return;
+        setLookupVolumeRecords([]);
+        setLookupVolumeAvailableBrands([]);
+        setLookupVolumeErrorMessage(
+          error instanceof Error ? error.message : 'Unable to load serial lookup volume chart.',
+        );
+      } finally {
+        if (!cancelled) setLookupVolumeLoading(false);
+      }
+    };
+
+    void loadLookupVolume();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [lookupVolumeBrand, lookupVolumeView]);
+
   const pageStart = useMemo(() => (page - 1) * PAGE_SIZE + 1, [page]);
   const pageEnd = useMemo(() => Math.min(page * PAGE_SIZE, total), [page, total]);
   const chartRows = useMemo(
@@ -298,6 +359,56 @@ const SerialDecodes = () => {
     }),
     [chartRows],
   );
+
+  const lookupTotalResponses = useMemo(
+    () => lookupVolumeRecords.reduce((sum, item) => sum + Number(item.responseCount || 0), 0),
+    [lookupVolumeRecords],
+  );
+  const lookupVolumeOption = useMemo(() => ({
+    color: ['#7e57c2'],
+    grid: { left: 56, right: 20, top: 10, bottom: 10, containLabel: false },
+    xAxis: {
+      type: 'category',
+      data: lookupVolumeRecords.map((item) => item.label),
+      axisLabel: {
+        rotate: 90,
+        interval: 0,
+        margin: 4,
+        fontSize: 11,
+        color: 'rgba(255, 255, 255, 0.7)',
+      },
+      axisLine: {
+        lineStyle: { color: 'rgba(255, 255, 255, 0.25)' },
+      },
+    },
+    yAxis: {
+      type: 'value',
+      axisLabel: { color: 'rgba(255, 255, 255, 0.8)' },
+      splitLine: {
+        lineStyle: { color: 'rgba(255, 255, 255, 0.12)' },
+      },
+    },
+    tooltip: {
+      trigger: 'axis',
+      formatter: (params: Array<{ axisValueLabel?: string; value?: number }>) => {
+        const point = params?.[0];
+        const label = point?.axisValueLabel || '';
+        const value = Number(point?.value || 0);
+        return `${label}<br/>Lookups: ${value}`;
+      },
+    },
+    series: [
+      {
+        type: 'bar',
+        data: lookupVolumeRecords.map((item) => item.responseCount),
+        barWidth: '55%',
+        itemStyle: {
+          color: '#7e57c2',
+          borderRadius: [4, 4, 0, 0],
+        },
+      },
+    ],
+  }), [lookupVolumeRecords]);
 
   const handleEvaluatedToggle = async (recordId: number, nextValue: boolean) => {
     setUpdatingEvaluatedIds((current) => [...current, recordId]);
@@ -539,6 +650,69 @@ const SerialDecodes = () => {
             </Button>
           </Stack>
         </Stack>
+      </Paper>
+
+      <Paper sx={{ p: { xs: 3, md: 4 }, width: 1, display: 'block' }}>
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          alignItems={{ xs: 'flex-start', sm: 'center' }}
+          justifyContent="space-between"
+          spacing={2}
+          mb={2.5}
+        >
+          <Stack spacing={0.5}>
+            <Typography variant="h5">Serial Lookups Over Time</Typography>
+            <Typography variant="body2" color="text.secondary">
+              {lookupTotalResponses} lookups across {lookupVolumeRecords.length} {lookupVolumeView === 'day' ? 'days' : 'months'}
+            </Typography>
+          </Stack>
+          <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'stretch', sm: 'center' }} spacing={2}>
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <InputLabel id="serial-lookup-view-filter-label">View</InputLabel>
+              <Select
+                labelId="serial-lookup-view-filter-label"
+                value={lookupVolumeView}
+                label="View"
+                onChange={(event) => setLookupVolumeView(String(event.target.value || 'day') as LookupVolumeView)}
+              >
+                <MenuItem value="day">Day (last 30)</MenuItem>
+                <MenuItem value="month">Month (last 30)</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 220 }}>
+              <InputLabel id="serial-lookup-brand-filter-label">Brand</InputLabel>
+              <Select
+                labelId="serial-lookup-brand-filter-label"
+                value={lookupVolumeBrand}
+                label="Brand"
+                onChange={(event) => setLookupVolumeBrand(String(event.target.value || ''))}
+              >
+                <MenuItem value="">All brands</MenuItem>
+                {lookupVolumeAvailableBrands.map((brand) => (
+                  <MenuItem key={brand} value={brand}>
+                    {formatBrandName(brand)}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Stack>
+        </Stack>
+
+        {lookupVolumeErrorMessage ? <Alert severity="error" sx={{ mb: 2 }}>{lookupVolumeErrorMessage}</Alert> : null}
+
+        {lookupVolumeLoading ? (
+          <Stack direction="row" justifyContent="center" py={4}>
+            <CircularProgress size={26} />
+          </Stack>
+        ) : lookupVolumeRecords.length > 0 ? (
+          <ReactEchart
+            echarts={echarts}
+            option={lookupVolumeOption}
+            sx={{ height: 280, width: '100%', minWidth: 0 }}
+          />
+        ) : (
+          <Typography variant="body2" color="text.secondary">No serial lookup volume data available.</Typography>
+        )}
       </Paper>
 
       <Dialog open={Boolean(selectedRecord)} onClose={() => setSelectedRecord(null)} fullWidth maxWidth="sm">
