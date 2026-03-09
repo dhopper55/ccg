@@ -3,7 +3,7 @@
 ## Overview
 The Listing Evaluator is a static site + Cloudflare Worker backend that:
 1) Accepts Craigslist/Facebook Marketplace URLs for evaluation
-2) Starts Apify scraper runs and processes webhooks
+2) Starts Apify scraper runs and processes webhooks.
 3) Calls OpenAI to summarize listings and estimate pricing
 4) Writes results to D1 (SQLite) and exposes them via a listing results UI
 5) Protects `/api/*` with a simple username/password login (HttpOnly cookie)
