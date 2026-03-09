@@ -154,6 +154,7 @@ CREATE TABLE IF NOT EXISTS serial_decode_events (
   event_time_utc TEXT NOT NULL,
   brand TEXT NOT NULL,
   serial TEXT NOT NULL,
+  pattern TEXT,
   pattern_key TEXT,
   pattern_label TEXT,
   normalized_brand TEXT,
@@ -191,6 +192,8 @@ CREATE INDEX IF NOT EXISTS serial_decode_events_success_idx
   ON serial_decode_events(success);
 CREATE INDEX IF NOT EXISTS serial_decode_events_brand_serial_idx
   ON serial_decode_events(brand, serial);
+CREATE INDEX IF NOT EXISTS serial_decode_events_pattern_only_idx
+  ON serial_decode_events(pattern, created_at);
 CREATE INDEX IF NOT EXISTS serial_decode_events_norm_ai_cache_idx
   ON serial_decode_events(normalized_brand, normalized_serial, used_ai, is_listing_eval, created_at);
 CREATE INDEX IF NOT EXISTS serial_decode_events_pattern_idx
@@ -221,6 +224,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS serial_pattern_contexts_brand_pattern_idx
   ON serial_pattern_contexts(normalized_brand, pattern_key);
 CREATE INDEX IF NOT EXISTS serial_pattern_contexts_published_idx
   ON serial_pattern_contexts(published, normalized_brand, pattern_key);
+
+CREATE TABLE IF NOT EXISTS serial_decode_pattern_lookup (
+  pattern TEXT PRIMARY KEY,
+  rich_text TEXT NOT NULL DEFAULT '',
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
 
 CREATE TABLE IF NOT EXISTS activity_event_type (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

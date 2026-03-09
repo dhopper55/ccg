@@ -632,9 +632,19 @@ async function handleSerialDecodeEvent(request: Request, env: Env): Promise<Resp
   const userAgent = normalizeText(body.userAgent, '').slice(0, 500);
   const clientTimestamp = normalizeText(body.clientTimestamp, '').slice(0, 120);
   const success = Boolean(body.success);
+  const normalizedBrand = normalizeBrandKey(brand);
+  let pattern = '';
 
   if (!brand) return jsonResponse({ message: 'Brand is required.' }, 400);
   if (!serial) return jsonResponse({ message: 'Serial is required.' }, 400);
+
+  if (success && normalizedBrand) {
+    const decodeResult = decodeSerialForBackend(brand, serial);
+    if (decodeResult.success && decodeResult.info) {
+      pattern = deriveSerialPatternMeta(normalizedBrand, decodeResult.info.serialNumber || serial).patternKey;
+      await ensureSerialDecodePatternLookup(pattern, env);
+    }
+  }
 
   const cf = (request as Request & { cf?: Record<string, unknown> }).cf || {};
   const countryCode = normalizeText(cf.country, '').slice(0, 8);
@@ -644,6 +654,7 @@ async function handleSerialDecodeEvent(request: Request, env: Env): Promise<Resp
   await insertSerialDecodeEvent(env, {
     brand,
     serial,
+    pattern: pattern || null,
     success,
     year,
     factory,
@@ -744,10 +755,15 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
     }
   }
 
+  if (patternKey) {
+    await ensureSerialDecodePatternLookup(patternKey, env);
+  }
+
   try {
     await insertSerialDecodeEvent(env, {
       brand: (result.info?.brand || brand).slice(0, 120),
       serial: (result.info?.serialNumber || serial).slice(0, 180),
+      pattern: patternKey || null,
       patternKey: patternKey || null,
       patternLabel: patternLabel || null,
       normalizedBrand: normalizedBrand.slice(0, 120),
@@ -808,6 +824,7 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
 interface SerialDecodeEventInsert {
   brand: string;
   serial: string;
+  pattern?: string | null;
   patternKey?: string | null;
   patternLabel?: string | null;
   normalizedBrand?: string;
@@ -953,6 +970,7 @@ async function insertSerialDecodeEvent(env: Env, payload: SerialDecodeEventInser
       event_time_utc,
       brand,
       serial,
+      pattern,
       pattern_key,
       pattern_label,
       normalized_brand,
@@ -980,12 +998,13 @@ async function insertSerialDecodeEvent(env: Env, payload: SerialDecodeEventInser
       cf_country,
       cf_colo
     ) VALUES (
-      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
     )`
   ).bind(
     new Date().toISOString(),
     payload.brand,
     payload.serial,
+    payload.pattern || null,
     payload.patternKey || null,
     payload.patternLabel || null,
     payload.normalizedBrand || normalizeBrandKey(payload.brand),
@@ -1013,6 +1032,15 @@ async function insertSerialDecodeEvent(env: Env, payload: SerialDecodeEventInser
     payload.countryCode || null,
     payload.colo || null,
   ).run();
+}
+
+async function ensureSerialDecodePatternLookup(pattern: string, env: Env): Promise<void> {
+  const cleaned = normalizeText(pattern, '').slice(0, 180);
+  if (!cleaned) return;
+  await env.DB.prepare(
+    `INSERT OR IGNORE INTO serial_decode_pattern_lookup (pattern, rich_text)
+     VALUES (?, '')`
+  ).bind(cleaned).run();
 }
 
 async function handleLogin(request: Request, env: Env): Promise<Response> {
