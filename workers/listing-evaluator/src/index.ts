@@ -741,6 +741,7 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
   let patternLabel = '';
   let needsAdditionalContext = false;
   let additionalContext: SerialPatternContextPayload | null = null;
+  let additionalContextRichText = '';
 
   if (result.success && result.info && normalizedBrand) {
     const decodedSerial = normalizeText(result.info.serialNumber, serial).slice(0, 180);
@@ -757,6 +758,7 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
 
   if (patternKey) {
     await ensureSerialDecodePatternLookup(patternKey, env);
+    additionalContextRichText = await getSerialDecodePatternRichText(patternKey, env);
   }
 
   try {
@@ -818,6 +820,7 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
     patternLabel: patternLabel || undefined,
     needsAdditionalContext,
     additionalContext,
+    additionalContextRichText: additionalContextRichText || undefined,
   });
 }
 
@@ -1041,6 +1044,18 @@ async function ensureSerialDecodePatternLookup(pattern: string, env: Env): Promi
     `INSERT OR IGNORE INTO serial_decode_pattern_lookup (pattern, rich_text)
      VALUES (?, '')`
   ).bind(cleaned).run();
+}
+
+async function getSerialDecodePatternRichText(pattern: string, env: Env): Promise<string> {
+  const cleaned = normalizeText(pattern, '').slice(0, 180);
+  if (!cleaned) return '';
+  const row = await env.DB.prepare(
+    `SELECT rich_text
+     FROM serial_decode_pattern_lookup
+     WHERE pattern = ?
+     LIMIT 1`
+  ).bind(cleaned).first<{ rich_text: string | null }>();
+  return normalizeText(row?.rich_text, '').slice(0, 12000);
 }
 
 async function handleLogin(request: Request, env: Env): Promise<Response> {

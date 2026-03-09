@@ -163,8 +163,17 @@ function displayResult(info: GuitarInfo, decodeResult?: DecodeResult): void {
     resultContent.appendChild(notesDiv);
   }
 
+  const richText = (decodeResult?.additionalContextRichText || '').trim();
+  if (richText) {
+    const contextDiv = document.createElement('div');
+    contextDiv.className = 'additional-context';
+    contextDiv.appendChild(buildContextHeading('Additional Context'));
+    contextDiv.appendChild(buildRichTextContext(richText));
+    resultContent.appendChild(contextDiv);
+  }
+
   const context = decodeResult?.additionalContext;
-  if (context && (context.summary || context.highlights.length || context.caveats.length || context.verificationTips.length)) {
+  if (!richText && context && (context.summary || context.highlights.length || context.caveats.length || context.verificationTips.length)) {
     const contextDiv = document.createElement('div');
     contextDiv.className = 'additional-context';
     contextDiv.appendChild(buildContextHeading(context.title));
@@ -326,4 +335,45 @@ function buildContextSection(label: string, lines: string[]): HTMLElement {
   }
   section.appendChild(list);
   return section;
+}
+
+function buildRichTextContext(text: string): HTMLElement {
+  const container = document.createElement('div');
+  container.className = 'additional-context-richtext';
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (!lines.length) {
+    const p = document.createElement('p');
+    p.className = 'additional-context-summary';
+    p.textContent = text;
+    container.appendChild(p);
+    return container;
+  }
+
+  let currentList: HTMLUListElement | null = null;
+  for (const line of lines) {
+    const bulletMatch = line.match(/^[-*]\s+(.+)$/);
+    if (bulletMatch) {
+      if (!currentList) {
+        currentList = document.createElement('ul');
+        currentList.className = 'additional-context-list';
+        container.appendChild(currentList);
+      }
+      const li = document.createElement('li');
+      li.textContent = bulletMatch[1];
+      currentList.appendChild(li);
+      continue;
+    }
+
+    currentList = null;
+    const p = document.createElement('p');
+    p.className = 'additional-context-summary';
+    p.textContent = line;
+    container.appendChild(p);
+  }
+
+  return container;
 }

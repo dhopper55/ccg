@@ -24,6 +24,7 @@ export interface DecodeResult {
     caveats: string[];
     verificationTips: string[];
   } | null;
+  additionalContextRichText?: string;
 }
 
 export type Brand = 'gibson' | 'epiphone' | 'fender' | 'taylor' | 'martin' | 'ibanez' | 'yamaha' | 'prs' | 'esp' | 'schecter' | 'gretsch' | 'jackson' | 'squier' | 'cort' | 'takamine' | 'washburn' | 'dean' | 'ernieball' | 'guild' | 'alvarez' | 'godin' | 'ovation' | 'charvel' | 'rickenbacker' | 'kramer' | 'bcrich';
