@@ -1,6 +1,6 @@
 # Test Serial Numbers
 
-Sample serial numbers for testing the guitar serial decoder.
+Sample serial numbers for testing the guitar serial decoder locally.
 
 ## Ibanez
 
