@@ -10,6 +10,10 @@ function decodeIbanez(serialInput) {
   return decodeSerialForBackend('ibanez', serialInput);
 }
 
+function decodeBCRich(serialInput) {
+  return decodeSerialForBackend('bcrich', serialInput);
+}
+
 function assertIbanezBPrefix(serialInput) {
   const result = decodeIbanez(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -572,6 +576,24 @@ function assertIbanezNumeric6DigitPreLetter(serialInput, expectedYear, expectedM
   );
 }
 
+function assertBCRichIShortImport(serialInput, expectedYear, expectedMonth) {
+  const result = decodeBCRich(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'Import production (I-prefix short format)',
+    `Expected I-prefix short import factory note for ${serialInput}, got ${info.factory}`
+  );
+  assert(
+    info.country === 'Asia (factory unspecified)',
+    `Expected Asia import country note for ${serialInput}, got ${info.country}`
+  );
+}
+
 assertIbanezBPrefix('B160100231');
 assertIbanezBPrefix('B-160100231');
 assertIbanez5APrefix('5A210401373');
@@ -623,5 +645,6 @@ assertIbanezNumericOnly10DigitFactoryLeading('5230401406', '2023', 'April');
 assertIbanezModelCodeFallback('SR305EDX');
 assertIbanezModelCodeFallbackGRG('GRG170DX');
 assertIbanezExistingSamples();
+assertBCRichIShortImport('i50311', '2005', 'March');
 
 console.log('Regression tests passed.');

@@ -73,13 +73,17 @@ export function decodeBCRich(serial: string): DecodeResult {
     return decodeClassAxeB(normalized);
   }
 
+  if (/^I\d{5}$/.test(normalized)) {
+    return decodeIShortImport(normalized);
+  }
+
   if (/^\d{5}$/.test(normalized)) {
     return decodeUSA5Digit(normalized);
   }
 
   return {
     success: false,
-    error: 'Unable to decode this B.C. Rich serial number. Known formats include: 5-digit USA neck-through (YYXXX), F7/F8/F9/F0 import serials, 8-digit date-stamp (e.g., 121XXXXX), month/factory codes like A08140023, NJ series R/P + 6 digits, or Class Axe BC/B0 series.',
+    error: 'Unable to decode this B.C. Rich serial number. Known formats include: 5-digit USA neck-through (YYXXX), F7/F8/F9/F0 import serials, 8-digit date-stamp (e.g., 121XXXXX), month/factory codes like A08140023, NJ series R/P + 6 digits, Class Axe BC/B0 series, or short I-prefix import estimates (I + 5 digits).',
   };
 }
 
@@ -200,6 +204,28 @@ function decodeClassAxeB(serial: string): DecodeResult {
   return { success: true, info };
 }
 
+function decodeIShortImport(serial: string): DecodeResult {
+  const yearDigit = parseInt(serial[1], 10);
+  const monthDigits = serial.slice(2, 4);
+  const monthValue = parseInt(monthDigits, 10);
+  const sequence = serial.slice(4);
+
+  const year = 2000 + yearDigit;
+  const monthText = monthValue >= 1 && monthValue <= 12 ? MONTH_NAME(monthValue) : undefined;
+
+  const info: GuitarInfo = {
+    brand: 'B.C. Rich',
+    serialNumber: serial,
+    year: year.toString(),
+    month: monthText,
+    factory: 'Import production (I-prefix short format)',
+    country: 'Asia (factory unspecified)',
+    notes: `Short I-prefix import format interpreted as I + Y + MM + sequence. Parsed as ${year}${monthText ? `, ${monthText}` : ''} with sequence ${sequence}. B.C. Rich serial records are inconsistent across eras, so treat this as an estimate and confirm with headstock/soundhole country markings.`,
+  };
+
+  return { success: true, info };
+}
+
 function decodeNJSeries(serial: string): DecodeResult {
   const yearDigits = serial.slice(1, 3);
   const sequence = serial.slice(3);
@@ -214,4 +240,12 @@ function decodeNJSeries(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+function MONTH_NAME(month: number): string {
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+  return months[month - 1];
 }

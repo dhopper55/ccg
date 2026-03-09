@@ -162,6 +162,10 @@
       <button id="decode-btn">Decode Serial Number</button>
     </div>
 
+    <div class="decoder-warning-note">
+      <p><strong>Important:</strong> B.C. Rich serial records are known to be inconsistent across ownership eras and factories. Decoder results may be estimates and should be confirmed with country-of-origin markings and model details.</p>
+    </div>
+
     <div id="result" class="result-section hidden">
       <h2>Guitar Information</h2>
       <div id="result-content">
@@ -224,6 +228,7 @@
           <li><strong>USA Neck-Through (1974+):</strong> Usually a 5-digit number in <em>YYXXX</em> format, where the first two digits are the year and the last three are the production sequence. Early/mid-1980s numbers can be out of sequence, so treat the year as an estimate.</li>
           <li><strong>Class Axe Era (1989–1993):</strong> Numbers like <em>B0XXX</em>, <em>BXXXXX</em>, or <em>BCXXXXX</em>. These typically do not encode a clear year.</li>
           <li><strong>Import (1997–2000):</strong> Formats like <em>F7XXXXX</em>, <em>F8XXXXX</em>, <em>F9XXXXX</em>, or <em>F0XXXXX</em>. The second digit indicates the year (7=1997, 8=1998, 9=1999, 0=2000).</li>
+          <li><strong>Short I-Prefix Import (estimate-only):</strong> Some imports appear as <em>I + 5 digits</em> (e.g., <em>I50311</em>). A practical read is <em>I + year digit + month digits + sequence</em> (example: 2005, March), but this is not factory-verified and should be treated as a best-effort estimate.</li>
           <li><strong>Numeric Date Stamp (late 2000–2009):</strong> 8-digit numbers like <em>121XXXXX</em>. The first digit is the year (1=2001, 2=2002, etc.), the third digit indicates the quarter, and the last five digits are the production sequence.</li>
           <li><strong>Month/Factory Code (2007+):</strong> A letter + 8 digits, such as <em>A08140023</em>. The letter is the month, the next two digits are the factory number, the next two digits are the year, and the last four are the production sequence.</li>
         </ul>

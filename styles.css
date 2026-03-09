@@ -952,6 +952,23 @@ button:active {
   text-decoration: underline;
 }
 
+.decoder-warning-note {
+  margin: 0 auto 24px;
+  padding: 14px 16px;
+  max-width: 700px;
+  background: #fff4cc;
+  border: 1px solid #f4d27a;
+  border-left: 4px solid #d49b00;
+  border-radius: 8px;
+  color: #3f3200;
+}
+
+.decoder-warning-note p {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
 .decoder-guide-links {
   margin-top: 12px;
   display: flex;

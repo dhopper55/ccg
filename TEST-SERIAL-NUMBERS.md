@@ -187,6 +187,12 @@ Sample serial numbers for testing the guitar serial decoder.
 | 1234567 | Korea Performer |
 | 65002013 | Taiwan JS20, 1996 |
 
+## B.C. Rich
+
+| Serial Number | Expected Result |
+|---------------|-----------------|
+| i50311 | Short I-prefix import estimate: likely 2005, March (I + Y + MM + sequence; factory unresolved) |
+
 ## Squier
 
 | Serial Number | Expected Result |
