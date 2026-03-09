@@ -139,9 +139,19 @@ export function decodeIbanez(serial) {
     if (/^B\d{9}$/.test(normalized)) {
         return decodeMonthLetterPrefix9Digit(normalized);
     }
-    // Indonesia: I/K/J + 9 digits (2001-present)
-    if (/^[IKJ]\d{9}$/.test(normalized)) {
+    // Month-letter compact variant: A-L + 7 digits
+    // Interpreted as month-letter + YY + 5-digit sequence.
+    if (/^[A-L]\d{7}$/.test(normalized)) {
+        return decodeMonthLetterPrefix7Digit(normalized);
+    }
+    // Indonesia: I/K/J/U + 9 digits (2001-present)
+    if (/^[IKJU]\d{9}$/.test(normalized)) {
         return decodeIndonesia2001(normalized);
+    }
+    // Indonesia: I/K/J/U + 10 digits (extended variant with internal line digit)
+    // Interpreted as factory + YY + line + MM + 5-digit sequence.
+    if (/^[IKJU]\d{10}$/.test(normalized)) {
+        return decodeIndonesia2001Extended(normalized);
     }
     // Indonesia: I + 7 digits (1997-2000)
     if (/^I\d{7}$/.test(normalized)) {
@@ -175,6 +185,10 @@ export function decodeIbanez(serial) {
     if (/^GS\d{9}$/.test(normalized)) {
         return decodeChinaGS(normalized);
     }
+    // China: GZ + 9 digits (GIO-style variant)
+    if (/^GZ\d{9}$/.test(normalized)) {
+        return decodeChinaGZ(normalized);
+    }
     // China: Z + 6 characters (Yeou Chern, 1999-2006)
     if (/^Z[0-9XYZ]\d{5}$/.test(normalized)) {
         return decodeYeouChern(normalized);
@@ -191,6 +205,10 @@ export function decodeIbanez(serial) {
     if (/^N\d{9}$/.test(normalized)) {
         return decodeChinaN(normalized);
     }
+    // China: H + 9 digits
+    if (/^H\d{9}$/.test(normalized)) {
+        return decodeChinaH(normalized);
+    }
     // China: GP + 8 digits
     if (/^GP\d{8}$/.test(normalized)) {
         return decodeChinaGP(normalized);
@@ -198,6 +216,10 @@ export function decodeIbanez(serial) {
     // China: 4L + 9-10 digits
     if (/^4L\d{9,10}$/.test(normalized)) {
         return decodeChina4L(normalized);
+    }
+    // China two-character prefixes: 4H/OZ + 9 digits
+    if (/^(4H|OZ)\d{9}$/.test(normalized)) {
+        return decodeChinaTwoCharPrefix9Digit(normalized);
     }
     // Compound extended prefix + 9-digit date payload
     // Example: 215N015N250401143 -> prefix 215N015N + 250401143
@@ -846,7 +868,25 @@ function decodeMonthLetterPrefix9Digit(serial) {
     };
     return { success: true, info };
 }
-// Indonesia 2001-present: I/K/J + 9 digits
+// Month-letter compact variant: A-L + 7 digits
+function decodeMonthLetterPrefix7Digit(serial) {
+    const monthLetter = serial[0];
+    const yearDigits = parseInt(serial.substring(1, 3), 10);
+    const monthFromLetter = getMonthName(monthLetter.charCodeAt(0) - 64);
+    const sequence = serial.substring(3);
+    const year = 2000 + yearDigits;
+    const info = {
+        brand: 'Ibanez',
+        serialNumber: serial,
+        year: year.toString(),
+        month: monthFromLetter,
+        factory: 'Unknown Japan/import factory (month-letter compact format)',
+        country: 'Japan or import',
+        notes: `Sequence: ${sequence}. Compact month-letter format interpreted as ${monthLetter}=month, ${yearDigits.toString().padStart(2, '0')}=year (20YY).`
+    };
+    return { success: true, info };
+}
+// Indonesia 2001-present: I/K/J/U + 9 digits
 function decodeIndonesia2001(serial) {
     const factoryCode = serial[0];
     const year = parseInt(serial.substring(1, 3), 10) + 2000;
@@ -862,6 +902,9 @@ function decodeIndonesia2001(serial) {
             break;
         case 'J':
             factory = 'Sejung';
+            break;
+        case 'U':
+            factory = 'Cort Indonesia (Cor-Tek)';
             break;
         default:
             factory = 'Indonesia (factory unspecified)';
@@ -882,6 +925,42 @@ function decodeIndonesia2001(serial) {
         factory,
         country: 'Indonesia',
         notes: `Sequence: ${sequence}.${instrumentType}`
+    };
+    return { success: true, info };
+}
+// Indonesia extended variant: I/K/J/U + 10 digits
+// Format: [factory][YY][line][MM][sequence(5)]
+function decodeIndonesia2001Extended(serial) {
+    const factoryCode = serial[0];
+    const year = parseInt(serial.substring(1, 3), 10) + 2000;
+    const lineCode = serial[3];
+    const month = parseInt(serial.substring(4, 6), 10);
+    const sequence = parseInt(serial.substring(6), 10);
+    let factory;
+    switch (factoryCode) {
+        case 'I':
+            factory = 'Cort Indonesia (Cor-Tek)';
+            break;
+        case 'K':
+            factory = 'Kwo Hsiao Co., Ltd.';
+            break;
+        case 'J':
+            factory = 'Sejung';
+            break;
+        case 'U':
+            factory = 'Cort Indonesia (Cor-Tek)';
+            break;
+        default:
+            factory = 'Indonesia (factory unspecified)';
+    }
+    const info = {
+        brand: 'Ibanez',
+        serialNumber: serial,
+        year: year.toString(),
+        month: getMonthName(month),
+        factory,
+        country: 'Indonesia',
+        notes: `Line code: ${lineCode}. Sequence: ${sequence}. Extended Indonesia format interpreted as factory + YY + line + MM + sequence.`
     };
     return { success: true, info };
 }
@@ -1022,6 +1101,23 @@ function decodeChinaGS(serial) {
     };
     return { success: true, info };
 }
+// China GZ format: GZ + 9 digits (GIO-style variant)
+function decodeChinaGZ(serial) {
+    const year = parseInt(serial.substring(2, 4), 10) + 2000;
+    const month = parseInt(serial.substring(4, 6), 10);
+    const sequence = serial.substring(6);
+    const info = {
+        brand: 'Ibanez',
+        serialNumber: serial,
+        year: year.toString(),
+        month: getMonthName(month),
+        factory: 'China (GZ-prefix factory/line)',
+        country: 'China',
+        model: 'GIO Series (likely)',
+        notes: `Sequence: ${sequence}. GZ prefix appears on China GIO/entry-level production using YYMM + sequence.`
+    };
+    return { success: true, info };
+}
 // China Yeou Chern: Z + letter/digit + 5 digits (1999-2006)
 function decodeYeouChern(serial) {
     const monthCode = serial[1];
@@ -1105,6 +1201,22 @@ function decodeChinaN(serial) {
     };
     return { success: true, info };
 }
+// China H format: H + 9 digits
+function decodeChinaH(serial) {
+    const year = parseInt(serial.substring(1, 3), 10) + 2000;
+    const month = parseInt(serial.substring(3, 5), 10);
+    const sequence = serial.substring(5);
+    const info = {
+        brand: 'Ibanez',
+        serialNumber: serial,
+        year: year.toString(),
+        month: getMonthName(month),
+        factory: 'China (H-prefix factory)',
+        country: 'China',
+        notes: `Sequence: ${sequence}. H prefix appears on some modern China production serials using YYMM + sequence.`
+    };
+    return { success: true, info };
+}
 // China GP format: GP + 8 digits
 function decodeChinaGP(serial) {
     const year = parseInt(serial.substring(2, 4), 10) + 2000;
@@ -1135,6 +1247,23 @@ function decodeChina4L(serial) {
         factory: 'China',
         country: 'China',
         notes: `Sequence: ${sequence}. 4L prefix format.`
+    };
+    return { success: true, info };
+}
+// China two-character prefix format: 4H/OZ + 9 digits
+function decodeChinaTwoCharPrefix9Digit(serial) {
+    const prefix = serial.substring(0, 2);
+    const year = parseInt(serial.substring(2, 4), 10) + 2000;
+    const month = parseInt(serial.substring(4, 6), 10);
+    const sequence = serial.substring(6);
+    const info = {
+        brand: 'Ibanez',
+        serialNumber: serial,
+        year: year.toString(),
+        month: getMonthName(month),
+        factory: `China (${prefix}-prefix factory)`,
+        country: 'China',
+        notes: `Sequence: ${sequence}. ${prefix} prefix appears on some modern China production serials using YYMM + sequence.`
     };
     return { success: true, info };
 }
@@ -1193,6 +1322,25 @@ function decodeLegacyNumericLate80s(serial) {
             factory: 'Unknown numeric-only format (likely Korea or China)',
             country: 'South Korea or China',
             notes: `Sequence: ${sequence}. 6-digit numeric format interpreted as YYMMSS. Alternate vintage interpretation seen in some analyses: ${year1900s} with the same month.`
+        };
+        return { success: true, info };
+    }
+    // Pre-letter-era interpretation (commonly cited for early 1970s):
+    // YMMNNN, where Y is year-in-decade and MM is month.
+    const yearDigit = parseInt(serial[0], 10);
+    const ymmMonth = parseInt(serial.substring(1, 3), 10);
+    if (ymmMonth >= 1 && ymmMonth <= 12) {
+        const sequence = serial.substring(3);
+        const preLetterYear = 1970 + yearDigit;
+        const altYear = 1980 + yearDigit;
+        const info = {
+            brand: 'Ibanez',
+            serialNumber: serial,
+            year: preLetterYear.toString(),
+            month: getMonthName(ymmMonth),
+            factory: 'Japan pre-letter numeric format (likely FujiGen)',
+            country: 'Japan (likely)',
+            notes: `Sequence: ${sequence}. 6-digit numeric format interpreted as pre-letter YMMNNN. Alternate interpretation used in some analyses is ${altYear} with the same month.`
         };
         return { success: true, info };
     }

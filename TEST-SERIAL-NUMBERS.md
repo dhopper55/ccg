@@ -14,6 +14,9 @@ Sample serial numbers for testing the guitar serial decoder.
 | B-160100231 | Same as B160100231 after normalization (hyphen removed) |
 | 5B-160100231 | Two-character import prefix format, 2016, January (5B prefix + YYMM + sequence) |
 | 5N230401406 | Two-character import prefix format, 2023, April (5N prefix + YYMM + sequence) |
+| 4H140800605 | China two-character prefix format, 2014, August (4H prefix + YYMM + sequence) |
+| OZ100500158 | China two-letter prefix format, 2010, May (OZ prefix + YYMM + sequence) |
+| H081100181 | China H-prefix format, 2008, November (H + YYMM + sequence) |
 | 220600378 | Numeric-only 9-digit import format, 2022, June (YYMM + sequence) |
 | 141209632 | Numeric-only 9-digit import format, 2014, December (YYMM + sequence) |
 | 311717707 | Numeric-only 9-digit ambiguous format, primary: 2003 November (YMM fallback), alt: 2013 November |
@@ -22,9 +25,14 @@ Sample serial numbers for testing the guitar serial decoder.
 | 4120210 | Numeric-only 7-digit import format, 2014, December (YMM + sequence) |
 | 5230401406 | Numeric-only 10-digit format with leading factory digit, 2023, April (factory digit + YYMM + sequence) |
 | I110626774 | Indonesia format, 2011, June (I + 9 digits) |
+| I1161207864 | Indonesia extended format, 2011, December (I + 10 digits: YY + line + MM + sequence) |
+| U081100181 | Indonesia format, 2008, November (U + 9 digits) |
+| HU081100181 | Known HU variant retries as U081100181 (Indonesia U-prefix format) |
+| Ao3oooo9 | O/0 typo retry to A0300009, compact month-letter format (January 2003) |
 | I11o626774 | Same as I110626774 after O->0 retry correction in UI |
 | GI0012180 | Indonesia GIO legacy format, 2000, December (GI + 7 digits) |
 | gp05105792 | China GP prefix format, 2005, October (GP + 8 digits; case-insensitive input) |
+| GZ150102324 | China GZ-prefix GIO-style format, 2015, January (GZ + 9 digits) |
 | FD2468031 | Japan FujiGen variant prefix, 2024, July (FD + 7 digits) |
 | vo54683 | V-prefix format with O/0 ambiguity, primary read V054683 => 2005 (case-insensitive) |
 | M3013293 | M-prefix 7-digit format, primary: 2003 January, alt: 2013 January |
@@ -47,6 +55,7 @@ Sample serial numbers for testing the guitar serial decoder.
 | 00906B | Compact legacy alpha-suffix format, 2000, September (YYMSS + suffix letter) |
 | 881865 | Legacy late-80s numeric format, 1988 (YY + sequence; USA-linked assembly/Japan parts context) |
 | 041195 | 6-digit numeric YYMMSS format, primary: 2004 November, alt vintage read: 1994 November |
+| 402989 | 6-digit pre-letter numeric YMMNNN format, primary: 1974 February, alt read: 1984 February |
 
 ## Gibson
 

@@ -156,6 +156,12 @@ function buildRetrySerials(serial: string, normalizedBrand: string): string[] {
   if (normalizedBrand === 'ibanez') {
     addCandidate(serial.toUpperCase().replace(/O/g, '0'));
     addCandidate(serial.toUpperCase().replace(/0/g, 'O'));
+
+    // Known Ibanez typo variant: HU + 9 digits is often intended as U + 9 digits.
+    const alnumUpper = serial.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    if (/^HU\d{9}$/.test(alnumUpper)) {
+      addCandidate(alnumUpper.slice(1));
+    }
   }
 
   return candidates;

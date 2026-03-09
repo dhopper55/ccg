@@ -52,6 +52,51 @@ function assertIbanez5NPrefix(serialInput) {
   );
 }
 
+function assertIbanez4HPrefix(serialInput) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '2014', `Expected year 2014 for ${serialInput}, got ${info.year}`);
+  assert(info.month === 'August', `Expected month August for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'China (4H-prefix factory)',
+    `Expected 4H prefix factory note for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'China', `Expected country China for ${serialInput}, got ${info.country}`);
+}
+
+function assertIbanezOZPrefix(serialInput) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '2010', `Expected year 2010 for ${serialInput}, got ${info.year}`);
+  assert(info.month === 'May', `Expected month May for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'China (OZ-prefix factory)',
+    `Expected OZ prefix factory note for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'China', `Expected country China for ${serialInput}, got ${info.country}`);
+}
+
+function assertIbanezHPrefix(serialInput) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '2008', `Expected year 2008 for ${serialInput}, got ${info.year}`);
+  assert(info.month === 'November', `Expected month November for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'China (H-prefix factory)',
+    `Expected H prefix factory note for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'China', `Expected country China for ${serialInput}, got ${info.country}`);
+}
+
 function assertIbanezExistingSamples() {
   const samples = ['F0712345', 'F523456', 'I120426682', 'GS140406094'];
 
@@ -169,6 +214,51 @@ function assertIbanezIndonesiaI(serialInput, expectedYear, expectedMonth) {
   assert(info.country === 'Indonesia', `Expected country Indonesia for ${serialInput}, got ${info.country}`);
 }
 
+function assertIbanezIndonesiaExtended10(serialInput, expectedYear, expectedMonth) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(info.country === 'Indonesia', `Expected country Indonesia for ${serialInput}, got ${info.country}`);
+  assert(
+    info.notes && info.notes.includes('Line code:'),
+    `Expected line-code note for ${serialInput}, got ${info.notes}`
+  );
+}
+
+function assertIbanezKnownHUVariant(serialInput, correctedSerial, expectedYear, expectedMonth) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.serialNumber === correctedSerial, `Expected corrected serial ${correctedSerial} for ${serialInput}, got ${info.serialNumber}`);
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.notes && info.notes.includes(`corrected from ${serialInput} to ${correctedSerial}`),
+    `Expected correction note for ${serialInput}, got ${info.notes}`
+  );
+}
+
+function assertIbanezMonthLetterCompactWithOTypo(serialInput, correctedSerial, expectedYear, expectedMonth) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.serialNumber === correctedSerial, `Expected corrected serial ${correctedSerial} for ${serialInput}, got ${info.serialNumber}`);
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.notes && info.notes.includes(`corrected from ${serialInput} to ${correctedSerial}`),
+    `Expected correction note for ${serialInput}, got ${info.notes}`
+  );
+}
+
 function assertIbanezIndonesiaGILegacy(serialInput, expectedYear, expectedMonth) {
   const result = decodeIbanez(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -189,6 +279,21 @@ function assertIbanezChinaGP(serialInput, expectedYear, expectedMonth) {
   assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
   assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
   assert(info.country === 'China', `Expected country China for ${serialInput}, got ${info.country}`);
+}
+
+function assertIbanezChinaGZ(serialInput, expectedYear, expectedMonth) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(info.country === 'China', `Expected country China for ${serialInput}, got ${info.country}`);
+  assert(
+    info.factory === 'China (GZ-prefix factory/line)',
+    `Expected GZ factory note for ${serialInput}, got ${info.factory}`
+  );
 }
 
 function assertIbanezFujiGenFD(serialInput, expectedYear, expectedMonth) {
@@ -365,11 +470,28 @@ function assertIbanezNumeric6DigitYYMM(serialInput, expectedYear, expectedMonth)
   );
 }
 
+function assertIbanezNumeric6DigitPreLetter(serialInput, expectedYear, expectedMonth) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.notes && info.notes.includes('pre-letter YMMNNN'),
+    `Expected pre-letter YMMNNN note for ${serialInput}, got ${info.notes}`
+  );
+}
+
 assertIbanezBPrefix('B160100231');
 assertIbanezBPrefix('B-160100231');
 assertIbanez5BPrefix('5B160100231');
 assertIbanez5BPrefix('5B-160100231');
 assertIbanez5NPrefix('5N230401406');
+assertIbanez4HPrefix('4H140800605');
+assertIbanezOZPrefix('OZ100500158');
+assertIbanezHPrefix('H081100181');
 assertIbanezCompoundGS('2Y03GS241108648', '2024', 'November');
 assertIbanezCompoundGS('212Y03GS251101952', '2025', 'November');
 assertIbanezCompoundNumeric('215N015N250401143', '2025', 'April');
@@ -381,9 +503,15 @@ assertIbanezJapanMonthLetterExtended('H83020056', '1983', 'August');
 assertIbanezCompactAlphaSuffix('00906B', '2000', 'September');
 assertIbanezLegacyNumericLate80s('881865', '1988');
 assertIbanezNumeric6DigitYYMM('041195', '2004', 'November');
+assertIbanezNumeric6DigitPreLetter('402989', '1974', 'February');
 assertIbanezIndonesiaI('I110626774', '2011', 'June');
+assertIbanezIndonesiaExtended10('I1161207864', '2011', 'December');
+assertIbanezIndonesiaI('U081100181', '2008', 'November');
+assertIbanezKnownHUVariant('HU081100181', 'U081100181', '2008', 'November');
+assertIbanezMonthLetterCompactWithOTypo('Ao3oooo9', 'A0300009', '2003', 'January');
 assertIbanezIndonesiaGILegacy('GI0012180', '2000', 'December');
 assertIbanezChinaGP('gp05105792', '2005', 'October');
+assertIbanezChinaGZ('GZ150102324', '2015', 'January');
 assertIbanezFujiGenFD('FD2468031', '2024', 'July');
 assertIbanezVPrefix('V054683', '2005');
 assertIbanezVPrefix('vo54683', '2005');
