@@ -77,8 +77,8 @@ export function decodeIbanez(serial) {
     if (/^FC\d{7}$/.test(normalized)) {
         return decodeFCHybrid(normalized);
     }
-    // Korea: C/S/A/Y/P + 9 digits (2000-2008)
-    if (/^[CSAYP]\d{9}$/.test(normalized)) {
+    // Korea: C/S/A/Y/P/R + 9 digits (2000-2008)
+    if (/^[CSAYPR]\d{9}$/.test(normalized)) {
         return decodeKorea2000to2008(normalized);
     }
     // Korea: C/S/A/Y/P + 8 digits (1995-1999)
@@ -88,6 +88,10 @@ export function decodeIbanez(serial) {
     // Korea: C/Y/A/P + 6 digits (1987-1995)
     if (/^[CYAP]\d{6}$/.test(normalized)) {
         return decodeKorea1987to1995(normalized);
+    }
+    // Korea: C + 7 digits (1990s Cort variant)
+    if (/^C\d{7}$/.test(normalized)) {
+        return decodeKoreaCort1990s7Digit(normalized);
     }
     // Korea: E + 7 digits (Sung-Eum factory)
     if (/^E\d{7}$/.test(normalized)) {
@@ -109,7 +113,11 @@ export function decodeIbanez(serial) {
     if (/^S\d{7}$/.test(normalized)) {
         return decodeSamick(normalized);
     }
-    // Korea: SQ + digits (Saehan acoustics)
+    // Saehan acoustics month-letter format: SQ + YY + month-letter + 5 digits
+    if (/^SQ\d{2}[A-L]\d{5}$/.test(normalized)) {
+        return decodeSaehanMonthLetter(normalized);
+    }
+    // Saehan acoustics: SQ + digits (fallback)
     if (/^SQ\d+$/.test(normalized)) {
         return decodeSaehan(normalized);
     }
@@ -129,9 +137,9 @@ export function decodeIbanez(serial) {
     if (/^CP\d+$/.test(normalized)) {
         return decodeCP(normalized);
     }
-    // Import two-character prefix variant: 5B/5N + 9 digits
-    // Treats 5B as a plant/line prefix and parses YYMM + sequence from digits.
-    if (/^5[BN]\d{9}$/.test(normalized)) {
+    // Import two-character prefix variant: 5A/5B/5N + 9 digits
+    // Treats the prefix as a plant/line code and parses YYMM + sequence from digits.
+    if (/^5[ABN]\d{9}$/.test(normalized)) {
         return decodeTwoCharImportPrefix9Digit(normalized);
     }
     // Month-letter variant seen on some imports: B + 9 digits
@@ -562,6 +570,25 @@ function decodeKorea1987to1995(serial) {
     };
     return { success: true, info };
 }
+// Korea 1990s Cort variant: C + 7 digits (YMM + sequence)
+function decodeKoreaCort1990s7Digit(serial) {
+    const factoryCode = serial[0];
+    const yearDigit = parseInt(serial[1], 10);
+    const month = parseInt(serial.substring(2, 4), 10);
+    const sequence = serial.substring(4);
+    const year = 1990 + yearDigit;
+    const factory = getKoreanFactory(factoryCode);
+    const info = {
+        brand: 'Ibanez',
+        serialNumber: serial,
+        year: year.toString(),
+        month: getMonthName(month),
+        factory,
+        country: 'South Korea',
+        notes: `Sequence: ${sequence}. 7-digit Korean format interpreted as factory code + YMM + sequence. Factory code "${factoryCode}" indicates ${factory}.`
+    };
+    return { success: true, info };
+}
 // Korea Sung-Eum: E + 7 digits
 function decodeSungEum(serial) {
     const yearDigit = parseInt(serial[1], 10);
@@ -666,15 +693,31 @@ function decodeSamick(serial) {
     };
     return { success: true, info };
 }
-// Korea Saehan: SQ + digits
+// Saehan acoustics: SQ + YY + month-letter + 5 digits
+function decodeSaehanMonthLetter(serial) {
+    const year = 2000 + parseInt(serial.substring(2, 4), 10);
+    const monthLetter = serial[4];
+    const month = monthLetter.charCodeAt(0) - 64; // A=1 ... L=12
+    const sequence = serial.substring(5);
+    const info = {
+        brand: 'Ibanez',
+        serialNumber: serial,
+        year: year.toString(),
+        month: getMonthName(month),
+        factory: 'Saehan Guitar Technology (acoustic production)',
+        country: 'China',
+        notes: `Sequence: ${sequence}. SQ acoustic format uses YY + month-letter (A=Jan ... L=Dec) after the SQ prefix.`
+    };
+    return { success: true, info };
+}
+// Saehan acoustics fallback: SQ + digits
 function decodeSaehan(serial) {
-    const remaining = serial.substring(2);
     const info = {
         brand: 'Ibanez',
         serialNumber: serial,
         year: '2000s',
         factory: 'Saehan Guitar Technology',
-        country: 'South Korea',
+        country: 'South Korea or China',
         notes: `SQ prefix indicates Saehan factory, typically used for acoustic models.`
     };
     return { success: true, info };
@@ -741,7 +784,7 @@ function decodeCP(serial) {
     };
     return { success: true, info };
 }
-// Import two-character prefix variant: 5B/5N + 9 digits
+// Import two-character prefix variant: 5A/5B/5N + 9 digits
 function decodeTwoCharImportPrefix9Digit(serial) {
     const prefix = serial.substring(0, 2);
     const year = parseInt(serial.substring(2, 4), 10) + 2000;
@@ -1429,6 +1472,8 @@ function getKoreanFactory(code) {
         case 'Y':
             return 'Yoojin Industrial Co.';
         case 'P':
+            return 'Peerless Korea Co., Pusan';
+        case 'R':
             return 'Peerless Korea Co., Pusan';
         default:
             return 'South Korea (factory unspecified)';

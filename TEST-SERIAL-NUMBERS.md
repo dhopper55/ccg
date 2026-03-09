@@ -9,9 +9,13 @@ Sample serial numbers for testing the guitar serial decoder.
 | F0712345 | Japan (FujiGen), 2007 |
 | F523456 | Japan (FujiGen), 1995 |
 | C03071234 | Korea (Cort), 2003, July |
+| C8016949 | Korea (Cort), 1998, January (7-digit Korean 1990s variant: C + YMM + sequence) |
+| R060300616 | Korea (Peerless), 2006, March |
+| SQ08E06597 | Saehan acoustic SQ month-letter format, 2008, May (SQ + YY + month letter + sequence) |
 | I120426682 | Indonesia, 2012, April |
 | B160100231 | Month-letter format, 2016, **February** (B=Feb; not a factory code) |
 | B-160100231 | Same as B160100231 after normalization (hyphen removed) |
+| 5A210401373 | Two-character import prefix format, 2021, April (5A prefix + YYMM + sequence) |
 | 5B-160100231 | Two-character import prefix format, 2016, January (5B prefix + YYMM + sequence) |
 | 5N230401406 | Two-character import prefix format, 2023, April (5N prefix + YYMM + sequence) |
 | 4H140800605 | China two-character prefix format, 2014, August (4H prefix + YYMM + sequence) |

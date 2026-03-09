@@ -38,6 +38,20 @@ function assertIbanez5BPrefix(serialInput) {
   );
 }
 
+function assertIbanez5APrefix(serialInput) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '2021', `Expected year 2021 for ${serialInput}, got ${info.year}`);
+  assert(info.month === 'April', `Expected month April for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'Unknown import factory (5A prefix)',
+    `Expected 5A prefix factory note for ${serialInput}, got ${info.factory}`
+  );
+}
+
 function assertIbanez5NPrefix(serialInput) {
   const result = decodeIbanez(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -362,6 +376,51 @@ function assertIbanezWorldShortWK(serialInput) {
   );
 }
 
+function assertIbanezRPrefix(serialInput, expectedYear, expectedMonth) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'Peerless Korea Co., Pusan',
+    `Expected Peerless Korea factory for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'South Korea', `Expected country South Korea for ${serialInput}, got ${info.country}`);
+}
+
+function assertIbanezSQMonthLetter(serialInput, expectedYear, expectedMonth) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'Saehan Guitar Technology (acoustic production)',
+    `Expected Saehan acoustic factory for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'China', `Expected country China for ${serialInput}, got ${info.country}`);
+}
+
+function assertIbanezKorea7DigitC(serialInput, expectedYear, expectedMonth) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'Cort Guitars, Incheon/Daejeon',
+    `Expected Cort Korea factory for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'South Korea', `Expected country South Korea for ${serialInput}, got ${info.country}`);
+}
+
 function assertIbanezVPrefix(serialInput, expectedYear) {
   const result = decodeIbanez(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -515,6 +574,7 @@ function assertIbanezNumeric6DigitPreLetter(serialInput, expectedYear, expectedM
 
 assertIbanezBPrefix('B160100231');
 assertIbanezBPrefix('B-160100231');
+assertIbanez5APrefix('5A210401373');
 assertIbanez5BPrefix('5B160100231');
 assertIbanez5BPrefix('5B-160100231');
 assertIbanez5NPrefix('5N230401406');
@@ -550,6 +610,9 @@ assertIbanezChinaL('L160200319', '2016', 'February');
 assertIbanezChinaN('N230401406', '2023', 'April');
 assertIbanezWorldExtended('W0111538', '2000', 'November');
 assertIbanezWorldShortWK('WK1007');
+assertIbanezRPrefix('R060300616', '2006', 'March');
+assertIbanezSQMonthLetter('SQ08E06597', '2008', 'May');
+assertIbanezKorea7DigitC('C8016949', '1998', 'January');
 assertIbanezNumericOnly9Digit('220600378', '2022', 'June');
 assertIbanezNumericOnly9DigitAmbiguous('311717707', '2003', 'November');
 assertIbanezNumericOnly9Digit('141209632', '2014', 'December');
