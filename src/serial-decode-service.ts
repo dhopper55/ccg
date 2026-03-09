@@ -197,6 +197,40 @@ function extractYears(text: string): number[] {
 }
 
 function hasMeaningfulDecodedFields(info: GuitarInfo): boolean {
-  const meaningfulValues = [info.year, info.month, info.factory, info.country, info.model];
-  return meaningfulValues.some((value) => typeof value === 'string' && value.trim().length > 0);
+  return (
+    isMeaningfulYear(info.year) ||
+    isMeaningfulMonth(info.month) ||
+    isMeaningfulDescriptor(info.factory, 'factory') ||
+    isMeaningfulDescriptor(info.country, 'country') ||
+    isMeaningfulDescriptor(info.model, 'model')
+  );
+}
+
+function isMeaningfulYear(value: string | undefined): boolean {
+  if (!value) return false;
+  const text = value.trim();
+  if (!text) return false;
+  if (/\b(possibly|likely|maybe|check|unknown|contact)\b/i.test(text)) return false;
+  return /\d{4}/.test(text);
+}
+
+function isMeaningfulMonth(value: string | undefined): boolean {
+  if (!value) return false;
+  const month = value.trim();
+  if (!month) return false;
+  return /^(January|February|March|April|May|June|July|August|September|October|November|December)$/i.test(month);
+}
+
+function isMeaningfulDescriptor(value: string | undefined, kind: 'factory' | 'country' | 'model'): boolean {
+  if (!value) return false;
+  const text = value.trim();
+  if (!text) return false;
+
+  if (/\b(unknown|unspecified|check|contact|n\/a|not available)\b/i.test(text)) return false;
+  if (/\s+or\s+/i.test(text)) return false;
+
+  if (kind === 'country' && /\bimport\b/i.test(text)) return false;
+  if (kind === 'factory' && /\blikely\b/i.test(text)) return false;
+
+  return true;
 }

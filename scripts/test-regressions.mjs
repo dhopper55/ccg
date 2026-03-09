@@ -724,5 +724,6 @@ assertKramerModernS('S106020848', '2010', 'June');
 assertKramerVPrefix('V9954', 'mid-to-late 1980s (estimated)');
 assertCharvelNumeric8('05050187', '2005', 'May');
 assertDecodeFails('kramer', 'CF22271');
+assertDecodeFails('ovation', '123456789');
 
 console.log('Regression tests passed.');

@@ -1,29 +1,29 @@
-import { decodeGibson } from './decoders/gibson.js';
-import { decodeEpiphone } from './decoders/epiphone.js';
-import { decodeFender } from './decoders/fender.js';
-import { decodeTaylor } from './decoders/taylor.js';
-import { decodeMartin } from './decoders/martin.js';
-import { decodeIbanez } from './decoders/ibanez.js';
-import { decodeYamaha } from './decoders/yamaha.js';
-import { decodePRS } from './decoders/prs.js';
-import { decodeESP } from './decoders/esp.js';
-import { decodeSchecter } from './decoders/schecter.js';
-import { decodeGretsch } from './decoders/gretsch.js';
-import { decodeJackson } from './decoders/jackson.js';
-import { decodeSquier } from './decoders/squier.js';
-import { decodeCort } from './decoders/cort.js';
-import { decodeTakamine } from './decoders/takamine.js';
-import { decodeWashburn } from './decoders/washburn.js';
-import { decodeDean } from './decoders/dean.js';
-import { decodeErnieBall } from './decoders/ernieball.js';
-import { decodeGuild } from './decoders/guild.js';
-import { decodeAlvarez } from './decoders/alvarez.js';
-import { decodeGodin } from './decoders/godin.js';
-import { decodeOvation } from './decoders/ovation.js';
-import { decodeCharvel } from './decoders/charvel.js';
-import { decodeRickenbacker } from './decoders/rickenbacker.js';
-import { decodeKramer } from './decoders/kramer.js';
-import { decodeBCRich } from './decoders/bcrich.js';
+import { decodeGibson } from './decoders/gibson.js?version=917338';
+import { decodeEpiphone } from './decoders/epiphone.js?version=262979';
+import { decodeFender } from './decoders/fender.js?version=411815';
+import { decodeTaylor } from './decoders/taylor.js?version=678368';
+import { decodeMartin } from './decoders/martin.js?version=695834';
+import { decodeIbanez } from './decoders/ibanez.js?version=851911';
+import { decodeYamaha } from './decoders/yamaha.js?version=952461';
+import { decodePRS } from './decoders/prs.js?version=790194';
+import { decodeESP } from './decoders/esp.js?version=188311';
+import { decodeSchecter } from './decoders/schecter.js?version=187652';
+import { decodeGretsch } from './decoders/gretsch.js?version=232391';
+import { decodeJackson } from './decoders/jackson.js?version=406866';
+import { decodeSquier } from './decoders/squier.js?version=126188';
+import { decodeCort } from './decoders/cort.js?version=165226';
+import { decodeTakamine } from './decoders/takamine.js?version=112324';
+import { decodeWashburn } from './decoders/washburn.js?version=141474';
+import { decodeDean } from './decoders/dean.js?version=932781';
+import { decodeErnieBall } from './decoders/ernieball.js?version=707110';
+import { decodeGuild } from './decoders/guild.js?version=441239';
+import { decodeAlvarez } from './decoders/alvarez.js?version=638619';
+import { decodeGodin } from './decoders/godin.js?version=699990';
+import { decodeOvation } from './decoders/ovation.js?version=823009';
+import { decodeCharvel } from './decoders/charvel.js?version=097460';
+import { decodeRickenbacker } from './decoders/rickenbacker.js?version=961802';
+import { decodeKramer } from './decoders/kramer.js?version=621169';
+import { decodeBCRich } from './decoders/bcrich.js?version=883587';
 const DECODER_MAP = {
     gibson: decodeGibson,
     epiphone: decodeEpiphone,
@@ -169,6 +169,43 @@ function extractYears(text) {
     return matches.map((value) => parseInt(value, 10)).filter((value) => !Number.isNaN(value));
 }
 function hasMeaningfulDecodedFields(info) {
-    const meaningfulValues = [info.year, info.month, info.factory, info.country, info.model];
-    return meaningfulValues.some((value) => typeof value === 'string' && value.trim().length > 0);
+    return (isMeaningfulYear(info.year) ||
+        isMeaningfulMonth(info.month) ||
+        isMeaningfulDescriptor(info.factory, 'factory') ||
+        isMeaningfulDescriptor(info.country, 'country') ||
+        isMeaningfulDescriptor(info.model, 'model'));
+}
+function isMeaningfulYear(value) {
+    if (!value)
+        return false;
+    const text = value.trim();
+    if (!text)
+        return false;
+    if (/\b(possibly|likely|maybe|check|unknown|contact)\b/i.test(text))
+        return false;
+    return /\d{4}/.test(text);
+}
+function isMeaningfulMonth(value) {
+    if (!value)
+        return false;
+    const month = value.trim();
+    if (!month)
+        return false;
+    return /^(January|February|March|April|May|June|July|August|September|October|November|December)$/i.test(month);
+}
+function isMeaningfulDescriptor(value, kind) {
+    if (!value)
+        return false;
+    const text = value.trim();
+    if (!text)
+        return false;
+    if (/\b(unknown|unspecified|check|contact|n\/a|not available)\b/i.test(text))
+        return false;
+    if (/\s+or\s+/i.test(text))
+        return false;
+    if (kind === 'country' && /\bimport\b/i.test(text))
+        return false;
+    if (kind === 'factory' && /\blikely\b/i.test(text))
+        return false;
+    return true;
 }

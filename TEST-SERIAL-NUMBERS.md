@@ -402,6 +402,7 @@ Sample serial numbers for testing the guitar serial decoder.
 | 5000 | Adamas, 1990 (separate Adamas numbering) |
 | 10000 | Adamas, 1995-1996 (separate Adamas numbering) |
 | 1234567 | Import (7-digit, Korea/China) |
+| 123456789 | Unable to decode (insufficient/conflicting format evidence) |
 | US12051234 | Import, Un Sung Korea, 2012, May |
 | Y15031234 | Import, Yoojin China, 2015, March |
 
