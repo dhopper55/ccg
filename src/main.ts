@@ -83,10 +83,14 @@ async function handleDecode(): Promise<void> {
     }
 
     if (result && result.success && result.info) {
-      if (result.info.serialNumber) {
-        serialInput.value = result.info.serialNumber;
+      if (hasRenderableDecodeInfo(result.info)) {
+        if (result.info.serialNumber) {
+          serialInput.value = result.info.serialNumber;
+        }
+        displayResult(result.info);
+        return;
       }
-      displayResult(result.info);
+      showError('Unable to decode serial number.');
       return;
     }
 
@@ -242,6 +246,19 @@ function showError(message: string): void {
 function hideResults(): void {
   resultSection.classList.add('hidden');
   errorSection.classList.add('hidden');
+}
+
+function hasRenderableDecodeInfo(info: GuitarInfo): boolean {
+  const fields = [
+    info.year,
+    info.month,
+    info.day,
+    info.model,
+    info.factory,
+    info.country,
+    info.notes,
+  ];
+  return fields.some((value) => Boolean(value && value.trim().length > 0));
 }
 
 function escapeHtml(text: string): string {

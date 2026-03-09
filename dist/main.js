@@ -72,10 +72,14 @@ async function handleDecode() {
             result = null;
         }
         if (result && result.success && result.info) {
-            if (result.info.serialNumber) {
-                serialInput.value = result.info.serialNumber;
+            if (hasRenderableDecodeInfo(result.info)) {
+                if (result.info.serialNumber) {
+                    serialInput.value = result.info.serialNumber;
+                }
+                displayResult(result.info);
+                return;
             }
-            displayResult(result.info);
+            showError('Unable to decode serial number.');
             return;
         }
         const errorMsg = (result && result.error) || 'Unable to decode serial number.';
@@ -211,6 +215,18 @@ function showError(message) {
 function hideResults() {
     resultSection.classList.add('hidden');
     errorSection.classList.add('hidden');
+}
+function hasRenderableDecodeInfo(info) {
+    const fields = [
+        info.year,
+        info.month,
+        info.day,
+        info.model,
+        info.factory,
+        info.country,
+        info.notes,
+    ];
+    return fields.some((value) => Boolean(value && value.trim().length > 0));
 }
 function escapeHtml(text) {
     const div = document.createElement('div');

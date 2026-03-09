@@ -586,6 +586,13 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
   const normalizedSerial = normalizeSerialKey(serial).slice(0, 180);
 
   let result = decodeSerialForBackend(brand, serial);
+  if (result.success && result.info && !hasMeaningfulServerDecodeInfo(result.info)) {
+    result = {
+      success: false,
+      error: 'Unable to decode this serial number.',
+      normalizedBrand,
+    };
+  }
 
   const cf = (request as Request & { cf?: Record<string, unknown> }).cf || {};
   const countryCode = normalizeText(cf.country, '').slice(0, 8);
@@ -600,9 +607,6 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
   let aiLogText = normalizeText(result.error, '').slice(0, 1200);
 
   if (shouldAttemptAiFallback(result) && normalizedBrand && normalizedSerial) {
-    usedAi = true;
-    aiAttemptedAt = new Date().toISOString();
-
     const cached = await getAiSerialDecodeCache(env, normalizedBrand, normalizedSerial);
     if (cached) {
       aiCacheHit = true;
@@ -611,6 +615,8 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
       result = mapCachedAiRowToDecodeResult(cached, normalizedBrand);
       aiLogText = normalizeText(cached.error, '').slice(0, 1200);
     } else {
+      usedAi = true;
+      aiAttemptedAt = new Date().toISOString();
       const rateLimited = await isAiSerialDecodeRateLimited(env, ipAddress);
       if (rateLimited) {
         result = {
@@ -4887,6 +4893,49 @@ function shouldAttemptAiFallback(result: { success: boolean; error?: string }): 
     'Unknown brand selected.',
     'Please enter a serial number.',
   ].includes(error);
+}
+
+function hasMeaningfulServerDecodeInfo(info: {
+  year?: string;
+  month?: string;
+  factory?: string;
+  country?: string;
+  model?: string;
+}): boolean {
+  return (
+    isMeaningfulServerYear(info.year) ||
+    isMeaningfulServerMonth(info.month) ||
+    isMeaningfulServerDescriptor(info.factory, 'factory') ||
+    isMeaningfulServerDescriptor(info.country, 'country') ||
+    isMeaningfulServerDescriptor(info.model, 'model')
+  );
+}
+
+function isMeaningfulServerYear(value: string | undefined): boolean {
+  const text = normalizeText(value, '');
+  if (!text) return false;
+  if (/\b(possibly|likely|maybe|check|unknown|contact)\b/i.test(text)) return false;
+  if (/\s+or\s+/i.test(text)) return false;
+  return /\d{4}/.test(text);
+}
+
+function isMeaningfulServerMonth(value: string | undefined): boolean {
+  const text = normalizeText(value, '');
+  if (!text) return false;
+  return /^(January|February|March|April|May|June|July|August|September|October|November|December)$/i.test(text);
+}
+
+function isMeaningfulServerDescriptor(
+  value: string | undefined,
+  kind: 'factory' | 'country' | 'model',
+): boolean {
+  const text = normalizeText(value, '');
+  if (!text) return false;
+  if (/\b(unknown|unspecified|check|contact|n\/a|not available)\b/i.test(text)) return false;
+  if (/\s+or\s+/i.test(text)) return false;
+  if (kind === 'country' && /\bimport\b/i.test(text)) return false;
+  if (kind === 'factory' && /\blikely\b/i.test(text)) return false;
+  return true;
 }
 
 function hasMeaningfulDecodedFields(payload: AiSerialDecodeParsed): boolean {
