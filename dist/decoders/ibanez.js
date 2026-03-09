@@ -2,7 +2,7 @@ export function decodeIbanez(serial) {
     const cleaned = serial.trim().toUpperCase();
     const normalized = cleaned.replace(/[\s-]/g, '');
     // Known model-code fallback (not a serial number)
-    if (normalized === 'SR305EDX') {
+    if (normalized === 'SR305EDX' || normalized === 'GRG170DX') {
         return decodeKnownModelCode(normalized);
     }
     // Check for compound serial numbers with model prefix + actual serial
@@ -221,6 +221,11 @@ export function decodeIbanez(serial) {
     if (/^(4H|OZ)\d{9}$/.test(normalized)) {
         return decodeChinaTwoCharPrefix9Digit(normalized);
     }
+    // China 4H extended format: 4H + 10 digits
+    // Interpreted as YY + batch/line + MM + sequence.
+    if (/^4H\d{10}$/.test(normalized)) {
+        return decodeChina4HExtended10(normalized);
+    }
     // Compound extended prefix + 9-digit date payload
     // Example: 215N015N250401143 -> prefix 215N015N + 250401143
     const compoundNumericMatch = normalized.match(/^([A-Z0-9]{5,12})(\d{9})$/);
@@ -272,6 +277,17 @@ export function decodeIbanez(serial) {
     };
 }
 function decodeKnownModelCode(modelCode) {
+    if (modelCode === 'GRG170DX') {
+        const info = {
+            brand: 'Ibanez',
+            serialNumber: modelCode,
+            model: modelCode,
+            country: 'China or Indonesia',
+            factory: 'Likely China or Indonesia GIO production facility',
+            notes: `${modelCode} is a model code, not a stamped serial number. GRG (GIO) models are commonly built in China or Indonesia, but exact month/year requires the actual serial from the headstock/label.`
+        };
+        return { success: true, info };
+    }
     const info = {
         brand: 'Ibanez',
         serialNumber: modelCode,
@@ -1264,6 +1280,23 @@ function decodeChinaTwoCharPrefix9Digit(serial) {
         factory: `China (${prefix}-prefix factory)`,
         country: 'China',
         notes: `Sequence: ${sequence}. ${prefix} prefix appears on some modern China production serials using YYMM + sequence.`
+    };
+    return { success: true, info };
+}
+// China 4H extended format: 4H + 10 digits
+function decodeChina4HExtended10(serial) {
+    const year = parseInt(serial.substring(2, 4), 10) + 2000;
+    const batchCode = serial[4];
+    const month = parseInt(serial.substring(5, 7), 10);
+    const sequence = serial.substring(7);
+    const info = {
+        brand: 'Ibanez',
+        serialNumber: serial,
+        year: year.toString(),
+        month: getMonthName(month),
+        factory: 'China (4H-prefix factory)',
+        country: 'China',
+        notes: `Batch/line code: ${batchCode}. Sequence: ${sequence}. 4H extended format interpreted as YY + batch/line + MM + sequence.`
     };
     return { success: true, info };
 }

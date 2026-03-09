@@ -15,6 +15,7 @@ Sample serial numbers for testing the guitar serial decoder.
 | 5B-160100231 | Two-character import prefix format, 2016, January (5B prefix + YYMM + sequence) |
 | 5N230401406 | Two-character import prefix format, 2023, April (5N prefix + YYMM + sequence) |
 | 4H140800605 | China two-character prefix format, 2014, August (4H prefix + YYMM + sequence) |
+| 4H2300501778 | China 4H extended format, 2023, May (4H + 10 digits: YY + batch/line + MM + sequence) |
 | OZ100500158 | China two-letter prefix format, 2010, May (OZ prefix + YYMM + sequence) |
 | H081100181 | China H-prefix format, 2008, November (H + YYMM + sequence) |
 | 220600378 | Numeric-only 9-digit import format, 2022, June (YYMM + sequence) |
@@ -39,6 +40,7 @@ Sample serial numbers for testing the guitar serial decoder.
 | L160200319 | China L-prefix format, 2016, February (L + 9 digits) |
 | N230401406 | China N-prefix format, 2023, April (N + 9 digits) |
 | SR305EDX | Model code fallback (not serial): likely Indonesia origin; exact date requires actual serial |
+| GRG170DX | Model code fallback (not serial): GIO model, likely China/Indonesia origin; exact date requires actual serial |
 | W842827 | Korea (World), 2004 |
 | W0111538 | Korea (World), 2000, November (W-prefix variant with numeric month) |
 | WK1007 | Korea (World short format), primary: 2000, October; alt analysis: 2001, July |

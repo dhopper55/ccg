@@ -67,6 +67,21 @@ function assertIbanez4HPrefix(serialInput) {
   assert(info.country === 'China', `Expected country China for ${serialInput}, got ${info.country}`);
 }
 
+function assertIbanez4HExtended(serialInput) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '2023', `Expected year 2023 for ${serialInput}, got ${info.year}`);
+  assert(info.month === 'May', `Expected month May for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'China (4H-prefix factory)',
+    `Expected 4H prefix factory note for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'China', `Expected country China for ${serialInput}, got ${info.country}`);
+}
+
 function assertIbanezOZPrefix(serialInput) {
   const result = decodeIbanez(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -186,6 +201,20 @@ function assertIbanezModelCodeFallback(serialInput) {
   const info = result.info;
   assert(info.model === 'SR305EDX', `Expected model SR305EDX for ${serialInput}, got ${info.model}`);
   assert(info.country === 'Indonesia', `Expected country Indonesia for ${serialInput}, got ${info.country}`);
+  assert(
+    info.notes && info.notes.includes('model code, not a stamped serial number'),
+    `Expected model-code note for ${serialInput}, got ${info.notes}`
+  );
+}
+
+function assertIbanezModelCodeFallbackGRG(serialInput) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.model === 'GRG170DX', `Expected model GRG170DX for ${serialInput}, got ${info.model}`);
+  assert(info.country === 'China or Indonesia', `Expected country China or Indonesia for ${serialInput}, got ${info.country}`);
   assert(
     info.notes && info.notes.includes('model code, not a stamped serial number'),
     `Expected model-code note for ${serialInput}, got ${info.notes}`
@@ -490,6 +519,7 @@ assertIbanez5BPrefix('5B160100231');
 assertIbanez5BPrefix('5B-160100231');
 assertIbanez5NPrefix('5N230401406');
 assertIbanez4HPrefix('4H140800605');
+assertIbanez4HExtended('4H2300501778');
 assertIbanezOZPrefix('OZ100500158');
 assertIbanezHPrefix('H081100181');
 assertIbanezCompoundGS('2Y03GS241108648', '2024', 'November');
@@ -528,6 +558,7 @@ assertIbanezNumericOnly8DigitAmbiguous('40800605', '2004', 'August');
 assertIbanezNumericOnly7Digit('4120210', '2014', 'December');
 assertIbanezNumericOnly10DigitFactoryLeading('5230401406', '2023', 'April');
 assertIbanezModelCodeFallback('SR305EDX');
+assertIbanezModelCodeFallbackGRG('GRG170DX');
 assertIbanezExistingSamples();
 
 console.log('Regression tests passed.');
