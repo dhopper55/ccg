@@ -187,11 +187,19 @@ Sample serial numbers for testing the guitar serial decoder.
 | 1234567 | Korea Performer |
 | 65002013 | Taiwan JS20, 1996 |
 
+## Kramer
+
+| Serial Number | Expected Result |
+|---------------|-----------------|
+| S106020848 | Modern S-prefix import format, 2010, June (Samick Korea; S + YYMM + sequence) |
+| V9954 | V-prefix vintage/import plate serial, estimated mid-to-late 1980s (non-chronological plate numbering) |
+
 ## B.C. Rich
 
 | Serial Number | Expected Result |
 |---------------|-----------------|
 | i50311 | Short I-prefix import estimate: likely 2005, March (I + Y + MM + sequence; factory unresolved) |
+| 36642 | USA neck-through 5-digit with known serial drift, estimated 1982-1983 (apparent code often reads later) |
 
 ## Squier
 

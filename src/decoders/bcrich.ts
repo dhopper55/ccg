@@ -170,6 +170,26 @@ function decodeUSA5Digit(serial: string): DecodeResult {
   const yearDigits = serial.slice(0, 2);
   const sequence = serial.slice(2);
   const yearNum = parseInt(yearDigits, 10);
+
+  // B.C. Rich 5-digit neck-through serials can drift ahead of actual build year
+  // in the early/mid-1980s due to numbering inconsistencies.
+  if (yearNum >= 30 && yearNum <= 49) {
+    const apparentYear = 1950 + yearNum;
+    const likelyStart = apparentYear - 4;
+    const likelyEnd = apparentYear - 3;
+
+    const info: GuitarInfo = {
+      brand: 'B.C. Rich',
+      serialNumber: serial,
+      year: `${likelyStart}-${likelyEnd} (estimated)`,
+      factory: 'USA (neck-through)',
+      country: 'United States',
+      notes: `5-digit USA neck-through format (YYXXX). Production sequence: ${sequence}. Apparent code "${yearDigits}" often reads as ${apparentYear}, but known B.C. Rich serial drift in this era means actual production is typically earlier (about 3-4 years), so this is estimated as ${likelyStart}-${likelyEnd}.`,
+    };
+
+    return { success: true, info };
+  }
+
   const year = yearNum >= 70 ? `19${yearDigits}` : `20${yearDigits.padStart(2, '0')}`;
 
   const info: GuitarInfo = {

@@ -30,6 +30,18 @@ export function decodeKramer(serial: string): DecodeResult {
     return { success: true, info };
   }
 
+  // V-prefix vintage/import plates (often Vanguard/Voyager-era, non-chronological)
+  if (/^V\d{4,6}$/.test(normalized)) {
+    const sequence = normalized.substring(1);
+    const info: GuitarInfo = {
+      brand: 'Kramer',
+      serialNumber: cleaned,
+      year: 'mid-to-late 1980s (estimated)',
+      notes: `V-prefix plate serial. These are commonly seen on 1980s import-era Kramer runs (often Vanguard/Voyager-associated), but plate numbers were not always chronological. Sequence: ${sequence}. Confirm era with headstock shape, logo style, and neck-plate markings.`,
+    };
+    return { success: true, info };
+  }
+
   // Two-letter overseas prefixes (e.g., FA, FB)
   if (/^[A-Z]{2}\d+$/.test(normalized)) {
     const prefix = normalized.substring(0, 2);
@@ -41,6 +53,11 @@ export function decodeKramer(serial: string): DecodeResult {
       notes: `Overseas model prefix ${prefix}. The second letter often indicates the production year range, but verification with features is recommended.`,
     };
     return { success: true, info };
+  }
+
+  // Modern Samick import pattern: S + YYMM + sequence (8-9 digits after S)
+  if (/^S\d{8,9}$/.test(normalized)) {
+    return decodeModernSamickS(normalized, cleaned);
   }
 
   // S / SS prefixes on some overseas Striker-era plates (format often SS-YYMM-RR)
@@ -94,6 +111,41 @@ export function decodeKramer(serial: string): DecodeResult {
     success: false,
     error: 'Unable to decode this Kramer serial number. Kramer serials vary by era, and many vintage records were lost. Try the Vintage Kramer registry or HTPG serial search for additional context.',
   };
+}
+
+function decodeModernSamickS(normalized: string, cleaned: string): DecodeResult {
+  const yearPart = normalized.substring(1, 3);
+  const monthPart = normalized.substring(3, 5);
+  let sequence = normalized.substring(5);
+
+  const yearValue = parseInt(yearPart, 10);
+  let monthValue = parseInt(monthPart, 10);
+  const fullYear = Number.isNaN(yearValue) ? undefined : 2000 + yearValue;
+  let monthName = getMonthName(monthValue);
+
+  // Some S-prefix runs appear to use a single month digit after YY
+  // (e.g., S106020848 => YY=10, M=6, sequence=020848).
+  if (!monthName) {
+    const singleMonthDigit = parseInt(normalized.charAt(3), 10);
+    const singleMonthName = getMonthName(singleMonthDigit);
+    if (singleMonthName) {
+      monthValue = singleMonthDigit;
+      monthName = singleMonthName;
+      sequence = normalized.substring(4);
+    }
+  }
+
+  const info: GuitarInfo = {
+    brand: 'Kramer',
+    serialNumber: cleaned,
+    year: fullYear ? fullYear.toString() : undefined,
+    month: monthName,
+    factory: 'Samick',
+    country: 'South Korea',
+    notes: `Modern S-prefix import format interpreted as S + YYMM + sequence${monthPart && !getMonthName(parseInt(monthPart, 10)) && monthName ? ' (single-digit month fallback applied as S + YY + M + sequence)' : ''}. Sequence: ${sequence}. S prefix is commonly associated with Samick Korea on Gibson-era imports; confirm with country-of-origin stamp for certainty.`,
+  };
+
+  return { success: true, info };
 }
 
 function getPrefixYearRange(prefix: string): string {
