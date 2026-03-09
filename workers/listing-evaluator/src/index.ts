@@ -1871,10 +1871,8 @@ type AdminV2SerialDecodeRow = {
   clientTimestamp: string | null;
   brand: string;
   serial: string;
-  patternKey: string | null;
   success: boolean;
   evaluated: boolean;
-  needsContext: boolean;
   year: string | null;
   factory: string | null;
   country: string | null;
@@ -5276,10 +5274,8 @@ async function dbListAdminV2SerialDecodes(
       client_timestamp,
       brand,
       serial,
-      pattern_key,
       success,
       evaluated,
-      needs_context,
       year,
       factory,
       country,
@@ -5299,10 +5295,8 @@ async function dbListAdminV2SerialDecodes(
     client_timestamp: string | null;
     brand: string | null;
     serial: string | null;
-    pattern_key: string | null;
     success: number | null;
     evaluated: number | null;
-    needs_context: number | null;
     year: string | null;
     factory: string | null;
     country: string | null;
@@ -5315,10 +5309,8 @@ async function dbListAdminV2SerialDecodes(
     clientTimestamp: typeof row.client_timestamp === 'string' ? row.client_timestamp : null,
     brand: normalizeText(row.brand, ''),
     serial: normalizeText(row.serial, ''),
-    patternKey: normalizeText(row.pattern_key, '') || null,
     success: Number(row.success || 0) === 1,
     evaluated: Number(row.evaluated || 0) === 1,
-    needsContext: Number(row.needs_context || 0) === 1,
     year: normalizeText(row.year, '') || null,
     factory: normalizeText(row.factory, '') || null,
     country: normalizeText(row.country, '') || null,
