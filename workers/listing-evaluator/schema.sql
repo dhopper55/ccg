@@ -154,14 +154,23 @@ CREATE TABLE IF NOT EXISTS serial_decode_events (
   event_time_utc TEXT NOT NULL,
   brand TEXT NOT NULL,
   serial TEXT NOT NULL,
+  normalized_brand TEXT,
+  normalized_serial TEXT,
   success INTEGER NOT NULL DEFAULT 0,
   evaluated INTEGER NOT NULL DEFAULT 0,
   used_ai INTEGER NOT NULL DEFAULT 0,
   is_listing_eval INTEGER NOT NULL DEFAULT 0,
   year TEXT,
+  month TEXT,
   factory TEXT,
   country TEXT,
+  model TEXT,
+  notes TEXT,
   error TEXT,
+  ai_cache_hit INTEGER NOT NULL DEFAULT 0,
+  ai_model TEXT,
+  ai_response_json TEXT,
+  ai_attempted_at TEXT,
   page_path TEXT,
   user_agent TEXT,
   client_timestamp TEXT,
@@ -179,3 +188,5 @@ CREATE INDEX IF NOT EXISTS serial_decode_events_success_idx
   ON serial_decode_events(success);
 CREATE INDEX IF NOT EXISTS serial_decode_events_brand_serial_idx
   ON serial_decode_events(brand, serial);
+CREATE INDEX IF NOT EXISTS serial_decode_events_norm_ai_cache_idx
+  ON serial_decode_events(normalized_brand, normalized_serial, used_ai, is_listing_eval, created_at);

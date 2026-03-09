@@ -1,4 +1,4 @@
-import { decodeSerialForBackend } from '../../../src/serial-decode-service.js';
+import { decodeSerialForBackend, normalizeBrandKey } from '../../../src/serial-decode-service.js';
 import {
   buildMainUserPrompt,
   buildMultiPricingPrompt,
@@ -72,6 +72,32 @@ interface DecodeRequestPayload {
   clientTimestamp?: unknown;
 }
 
+interface AiSerialDecodeParsed {
+  success: boolean;
+  year: string | null;
+  month: string | null;
+  factory: string | null;
+  country: string | null;
+  model: string | null;
+  notes: string | null;
+  error: string | null;
+}
+
+interface AiSerialDecodeCacheRow {
+  success: number | null;
+  brand: string | null;
+  serial: string | null;
+  year: string | null;
+  month: string | null;
+  factory: string | null;
+  country: string | null;
+  model: string | null;
+  notes: string | null;
+  error: string | null;
+  ai_model: string | null;
+  ai_response_json: string | null;
+}
+
 const MAX_URLS = 20;
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
@@ -85,6 +111,7 @@ const CCG_NUMBER_MIN = 100000;
 const CCG_NUMBER_MAX = 999999;
 const CCG_NUMBER_ATTEMPTS = 25;
 const INVENTORY_MAX_IMAGES = 10;
+const SERIAL_AI_HOURLY_LIMIT = 20;
 
 const SUPPORTED_ORIGINS = [
   'https://www.coalcreekguitars.com',
@@ -555,23 +582,72 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
   const pagePath = normalizeText(body.pagePath, '').slice(0, 300);
   const userAgent = normalizeText(body.userAgent, '').slice(0, 500);
   const clientTimestamp = normalizeText(body.clientTimestamp, '').slice(0, 120);
+  const normalizedBrand = normalizeBrandKey(brand);
+  const normalizedSerial = normalizeSerialKey(serial).slice(0, 180);
 
-  const result = decodeSerialForBackend(brand, serial);
+  let result = decodeSerialForBackend(brand, serial);
 
   const cf = (request as Request & { cf?: Record<string, unknown> }).cf || {};
   const countryCode = normalizeText(cf.country, '').slice(0, 8);
   const colo = normalizeText(cf.colo, '').slice(0, 32);
   const ipAddress = normalizeText(request.headers.get('CF-Connecting-IP'), '').slice(0, 64);
 
+  let usedAi = false;
+  let aiCacheHit = false;
+  let aiModel = '';
+  let aiResponseJson = '';
+  let aiAttemptedAt = '';
+  let aiLogText = normalizeText(result.error, '').slice(0, 1200);
+
+  if (shouldAttemptAiFallback(result) && normalizedBrand && normalizedSerial) {
+    usedAi = true;
+    aiAttemptedAt = new Date().toISOString();
+
+    const cached = await getAiSerialDecodeCache(env, normalizedBrand, normalizedSerial);
+    if (cached) {
+      aiCacheHit = true;
+      aiModel = normalizeText(cached.ai_model, '').slice(0, 80);
+      aiResponseJson = normalizeText(cached.ai_response_json, '').slice(0, 12000);
+      result = mapCachedAiRowToDecodeResult(cached, normalizedBrand);
+      aiLogText = normalizeText(cached.error, '').slice(0, 1200);
+    } else {
+      const rateLimited = await isAiSerialDecodeRateLimited(env, ipAddress);
+      if (rateLimited) {
+        result = {
+          success: false,
+          error: 'Unable to decode this serial number.',
+          normalizedBrand,
+        };
+        aiLogText = 'AI fallback skipped due to per-IP rate limit.';
+      } else {
+        const aiParsed = await runOpenAISerialDecodeFallback(brand, serial, env);
+        aiModel = aiParsed.model.slice(0, 80);
+        aiResponseJson = aiParsed.rawResponseJson.slice(0, 12000);
+        aiLogText = aiParsed.logText.slice(0, 1200);
+        result = mapAiParsedToDecodeResult(aiParsed.payload, brand, serial, normalizedBrand);
+      }
+    }
+  }
+
   try {
     await insertSerialDecodeEvent(env, {
       brand: (result.info?.brand || brand).slice(0, 120),
       serial: (result.info?.serialNumber || serial).slice(0, 180),
+      normalizedBrand: normalizedBrand.slice(0, 120),
+      normalizedSerial,
       success: result.success,
       year: normalizeText(result.info?.year, '').slice(0, 120),
+      month: normalizeText(result.info?.month, '').slice(0, 120),
       factory: normalizeText(result.info?.factory, '').slice(0, 180),
       country: normalizeText(result.info?.country, '').slice(0, 120),
-      error: normalizeText(result.error, '').slice(0, 1200),
+      model: normalizeText(result.info?.model, '').slice(0, 180),
+      notes: normalizeText(result.info?.notes, '').slice(0, 4000),
+      error: (usedAi ? aiLogText : normalizeText(result.error, '')).slice(0, 1200),
+      usedAi,
+      aiCacheHit,
+      aiModel,
+      aiResponseJson,
+      aiAttemptedAt,
       pagePath,
       userAgent,
       clientTimestamp,
@@ -589,11 +665,21 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
 interface SerialDecodeEventInsert {
   brand: string;
   serial: string;
+  normalizedBrand?: string;
+  normalizedSerial?: string;
   success: boolean;
   year?: string;
+  month?: string;
   factory?: string;
   country?: string;
+  model?: string;
+  notes?: string;
   error?: string;
+  usedAi?: boolean;
+  aiCacheHit?: boolean;
+  aiModel?: string;
+  aiResponseJson?: string;
+  aiAttemptedAt?: string;
   pagePath?: string;
   userAgent?: string;
   clientTimestamp?: string;
@@ -608,14 +694,23 @@ async function insertSerialDecodeEvent(env: Env, payload: SerialDecodeEventInser
       event_time_utc,
       brand,
       serial,
+      normalized_brand,
+      normalized_serial,
       success,
       evaluated,
       used_ai,
       is_listing_eval,
       year,
+      month,
       factory,
       country,
+      model,
+      notes,
       error,
+      ai_cache_hit,
+      ai_model,
+      ai_response_json,
+      ai_attempted_at,
       page_path,
       user_agent,
       client_timestamp,
@@ -623,20 +718,29 @@ async function insertSerialDecodeEvent(env: Env, payload: SerialDecodeEventInser
       cf_country,
       cf_colo
     ) VALUES (
-      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
     )`
   ).bind(
     new Date().toISOString(),
     payload.brand,
     payload.serial,
+    payload.normalizedBrand || normalizeBrandKey(payload.brand),
+    payload.normalizedSerial || normalizeSerialKey(payload.serial),
     payload.success ? 1 : 0,
     0,
-    0,
+    payload.usedAi ? 1 : 0,
     0,
     payload.year || null,
+    payload.month || null,
     payload.factory || null,
     payload.country || null,
+    payload.model || null,
+    payload.notes || null,
     payload.error || null,
+    payload.aiCacheHit ? 1 : 0,
+    payload.aiModel || null,
+    payload.aiResponseJson || null,
+    payload.aiAttemptedAt || null,
     payload.pagePath || null,
     payload.userAgent || null,
     payload.clientTimestamp || null,
@@ -4768,6 +4872,253 @@ function normalizeText(value: unknown, fallback = ''): string {
     return String(value);
   }
   return fallback;
+}
+
+function normalizeSerialKey(value: string): string {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function shouldAttemptAiFallback(result: { success: boolean; error?: string }): boolean {
+  if (result.success) return false;
+  const error = normalizeText(result.error, '');
+  if (!error) return true;
+  return ![
+    'Please select a brand.',
+    'Unknown brand selected.',
+    'Please enter a serial number.',
+  ].includes(error);
+}
+
+function hasMeaningfulDecodedFields(payload: AiSerialDecodeParsed): boolean {
+  return [payload.year, payload.month, payload.factory, payload.country, payload.model]
+    .some((value) => normalizeText(value, '').length > 0 && !/^unknown$/i.test(normalizeText(value, '')));
+}
+
+function mapAiParsedToDecodeResult(
+  payload: AiSerialDecodeParsed,
+  brandInput: string,
+  serialInput: string,
+  normalizedBrand: string,
+): ReturnType<typeof decodeSerialForBackend> {
+  if (!payload.success || !hasMeaningfulDecodedFields(payload)) {
+    return {
+      success: false,
+      error: 'Unable to decode this serial number.',
+      normalizedBrand,
+    };
+  }
+
+  return {
+    success: true,
+    normalizedBrand,
+    info: {
+      brand: normalizeText(brandInput, 'Unknown'),
+      serialNumber: normalizeText(serialInput, ''),
+      year: normalizeNullableDecodedField(payload.year),
+      month: normalizeNullableDecodedField(payload.month),
+      factory: normalizeNullableDecodedField(payload.factory),
+      country: normalizeNullableDecodedField(payload.country),
+      model: normalizeNullableDecodedField(payload.model),
+      notes: normalizeNullableDecodedField(payload.notes)
+        || 'AI-assisted fallback decode. Verify with factory markings and model features.',
+    },
+  };
+}
+
+function mapCachedAiRowToDecodeResult(
+  row: AiSerialDecodeCacheRow,
+  normalizedBrand: string,
+): ReturnType<typeof decodeSerialForBackend> {
+  const success = Number(row.success || 0) === 1;
+  if (!success) {
+    return {
+      success: false,
+      error: normalizeText(row.error, 'Unable to decode this serial number.'),
+      normalizedBrand,
+    };
+  }
+
+  return {
+    success: true,
+    normalizedBrand,
+    info: {
+      brand: normalizeText(row.brand, 'Unknown'),
+      serialNumber: normalizeText(row.serial, ''),
+      year: normalizeNullableDecodedField(row.year),
+      month: normalizeNullableDecodedField(row.month),
+      factory: normalizeNullableDecodedField(row.factory),
+      country: normalizeNullableDecodedField(row.country),
+      model: normalizeNullableDecodedField(row.model),
+      notes: normalizeNullableDecodedField(row.notes)
+        || 'AI-assisted fallback decode (cached). Verify with factory markings and model features.',
+    },
+  };
+}
+
+function normalizeNullableDecodedField(value: unknown): string | undefined {
+  const text = normalizeText(value, '');
+  if (!text) return undefined;
+  if (/^(unknown|n\/a|not sure)$/i.test(text)) return undefined;
+  return text;
+}
+
+async function getAiSerialDecodeCache(
+  env: Env,
+  normalizedBrand: string,
+  normalizedSerial: string,
+): Promise<AiSerialDecodeCacheRow | null> {
+  return await env.DB.prepare(
+    `SELECT
+      success,
+      brand,
+      serial,
+      year,
+      month,
+      factory,
+      country,
+      model,
+      notes,
+      error,
+      ai_model,
+      ai_response_json
+     FROM serial_decode_events
+     WHERE normalized_brand = ?
+       AND normalized_serial = ?
+       AND used_ai = 1
+       AND is_listing_eval = 0
+     ORDER BY created_at DESC, id DESC
+     LIMIT 1`
+  ).bind(normalizedBrand, normalizedSerial).first<AiSerialDecodeCacheRow>();
+}
+
+async function isAiSerialDecodeRateLimited(env: Env, ipAddress: string): Promise<boolean> {
+  if (!ipAddress) return false;
+  const row = await env.DB.prepare(
+    `SELECT COUNT(*) AS total
+     FROM serial_decode_events
+     WHERE used_ai = 1
+       AND is_listing_eval = 0
+       AND ip_address = ?
+       AND datetime(created_at) >= datetime('now', '-1 hour')`
+  ).bind(ipAddress).first<{ total: number | null }>();
+  const total = Number(row?.total || 0);
+  return total >= SERIAL_AI_HOURLY_LIMIT;
+}
+
+async function runOpenAISerialDecodeFallback(
+  brand: string,
+  serial: string,
+  env: Env,
+): Promise<{ payload: AiSerialDecodeParsed; model: string; rawResponseJson: string; logText: string }> {
+  if (!env.OPENAI_API_KEY) {
+    return {
+      payload: {
+        success: false,
+        year: null,
+        month: null,
+        factory: null,
+        country: null,
+        model: null,
+        notes: null,
+        error: 'AI fallback unavailable: missing OPENAI_API_KEY.',
+      },
+      model: 'gpt-4o',
+      rawResponseJson: '',
+      logText: 'AI fallback unavailable: missing OPENAI_API_KEY.',
+    };
+  }
+
+  const userPrompt = [
+    `I have a ${brand} guitar with serial number "${serial}".`,
+    'Decode this serial number.',
+    'Return year, month (if available), factory, country, model (if inferable), and useful notes.',
+    'If the serial cannot be decoded reliably, set success=false and explain why in error and notes.',
+    'Also include concise information that could help decode similar serials in the future.',
+  ].join('\n');
+
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      input: [{ role: 'user', content: [{ type: 'input_text', text: userPrompt }] }],
+      temperature: 0.1,
+      max_output_tokens: 700,
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'serial_decode_fallback',
+          schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              success: { type: 'boolean' },
+              year: { type: ['string', 'null'] },
+              month: { type: ['string', 'null'] },
+              factory: { type: ['string', 'null'] },
+              country: { type: ['string', 'null'] },
+              model: { type: ['string', 'null'] },
+              notes: { type: ['string', 'null'] },
+              error: { type: ['string', 'null'] },
+            },
+            required: ['success', 'year', 'month', 'factory', 'country', 'model', 'notes', 'error'],
+          },
+        },
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    return {
+      payload: {
+        success: false,
+        year: null,
+        month: null,
+        factory: null,
+        country: null,
+        model: null,
+        notes: null,
+        error: `AI fallback request failed (${response.status}).`,
+      },
+      model: 'gpt-4o',
+      rawResponseJson: '',
+      logText: `AI fallback request failed (${response.status}).`,
+    };
+  }
+
+  const data = await response.json();
+  const rawResponseJson = JSON.stringify(data);
+  const text = extractOpenAIText(data);
+
+  try {
+    const parsed = JSON.parse(text) as AiSerialDecodeParsed;
+    const logText = normalizeText(parsed.error, '') || normalizeText(parsed.notes, '') || 'AI fallback attempted.';
+    return {
+      payload: parsed,
+      model: 'gpt-4o',
+      rawResponseJson,
+      logText,
+    };
+  } catch {
+    return {
+      payload: {
+        success: false,
+        year: null,
+        month: null,
+        factory: null,
+        country: null,
+        model: null,
+        notes: null,
+        error: 'AI fallback returned invalid JSON.',
+      },
+      model: 'gpt-4o',
+      rawResponseJson,
+      logText: 'AI fallback returned invalid JSON.',
+    };
+  }
 }
 
 function normalizeCategory(value: unknown): string {
