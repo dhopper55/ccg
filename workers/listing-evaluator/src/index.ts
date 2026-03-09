@@ -4660,24 +4660,19 @@ async function dbGetAdminV2SerialDecodeLookupVolume(
   availableBrands: string[];
 }> {
   const db = env.DB.withSession('first-primary');
-  const where: string[] = [];
+  const where: string[] = [`trim(COALESCE(client_timestamp, '')) <> ''`];
   const values: unknown[] = [];
 
   if (brand) {
     where.push(`lower(trim(brand)) = lower(trim(?))`);
     values.push(brand);
   }
-
-  const lookbackWindow = view === 'month' ? '-31 months' : '-35 days';
-  where.push(
-    `COALESCE(datetime(client_timestamp), datetime(event_time_utc), datetime(created_at)) >= datetime('now', '${lookbackWindow}')`,
-  );
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
   const [eventRows, brandRows] = await Promise.all([
     db.prepare(
       `SELECT
-        COALESCE(datetime(client_timestamp), datetime(event_time_utc), datetime(created_at)) AS lookup_ts
+        client_timestamp AS lookup_ts
        FROM serial_decode_events
        ${whereSql}`,
     ).bind(...values).all<{ lookup_ts: string | null }>(),
@@ -4794,7 +4789,22 @@ function formatDenverBucketLabel(view: AdminV2SerialLookupVolumeView, date: Date
 
 function parseSerialLookupTimestamp(input: string | null): Date | null {
   if (typeof input !== 'string') return null;
-  const parsed = new Date(input);
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  const direct = new Date(trimmed);
+  if (!Number.isNaN(direct.getTime())) return direct;
+
+  const usDate = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (!usDate) return null;
+
+  const month = Number.parseInt(usDate[1], 10) - 1;
+  const day = Number.parseInt(usDate[2], 10);
+  const year = Number.parseInt(usDate[3], 10);
+  const hour = Number.parseInt(usDate[4] || '0', 10);
+  const minute = Number.parseInt(usDate[5] || '0', 10);
+  const second = Number.parseInt(usDate[6] || '0', 10);
+  const parsed = new Date(year, month, day, hour, minute, second);
   if (Number.isNaN(parsed.getTime())) return null;
   return parsed;
 }
