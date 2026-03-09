@@ -125,6 +125,15 @@ export function decodeSerialForBackend(brandInput: string, serialInput: string):
     };
   }
 
+  if (result.success && result.info && !hasMeaningfulDecodedFields(result.info)) {
+    return {
+      success: false,
+      error: 'Unable to decode this serial number.',
+      normalizedBrand,
+      correctedSerial,
+    };
+  }
+
   return {
     ...result,
     normalizedBrand,
@@ -185,4 +194,9 @@ function extractYears(text: string): number[] {
     return [];
   }
   return matches.map((value) => parseInt(value, 10)).filter((value) => !Number.isNaN(value));
+}
+
+function hasMeaningfulDecodedFields(info: GuitarInfo): boolean {
+  const meaningfulValues = [info.year, info.month, info.factory, info.country, info.model];
+  return meaningfulValues.some((value) => typeof value === 'string' && value.trim().length > 0);
 }

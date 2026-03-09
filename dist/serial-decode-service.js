@@ -108,6 +108,14 @@ export function decodeSerialForBackend(brandInput, serialInput) {
             correctedSerial,
         };
     }
+    if (result.success && result.info && !hasMeaningfulDecodedFields(result.info)) {
+        return {
+            success: false,
+            error: 'Unable to decode this serial number.',
+            normalizedBrand,
+            correctedSerial,
+        };
+    }
     return {
         ...result,
         normalizedBrand,
@@ -159,4 +167,8 @@ function extractYears(text) {
         return [];
     }
     return matches.map((value) => parseInt(value, 10)).filter((value) => !Number.isNaN(value));
+}
+function hasMeaningfulDecodedFields(info) {
+    const meaningfulValues = [info.year, info.month, info.factory, info.country, info.model];
+    return meaningfulValues.some((value) => typeof value === 'string' && value.trim().length > 0);
 }

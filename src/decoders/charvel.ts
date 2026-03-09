@@ -50,6 +50,11 @@ export function decodeCharvel(serial: string): DecodeResult {
     return decodeUSASelect(normalized);
   }
 
+  // Numeric 8-digit modern import-style format (YYMM + sequence)
+  if (/^\d{8}$/.test(normalized)) {
+    return decodeNumeric8Modern(normalized);
+  }
+
   // San Dimas USA: 4-digit (1001-5491)
   if (/^\d{4}$/.test(normalized)) {
     return decodeSanDimas(normalized);
@@ -363,4 +368,57 @@ function decodeSurfcaster(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+// Numeric 8-digit modern import-style format: YYMM + sequence
+function decodeNumeric8Modern(serial: string): DecodeResult {
+  const yy = parseInt(serial.substring(0, 2), 10);
+  const mm = parseInt(serial.substring(2, 4), 10);
+  const sequence = serial.substring(4);
+
+  const year = yy <= 30 ? 2000 + yy : 1900 + yy;
+  const monthName = getMonthName(mm);
+
+  const info: GuitarInfo = {
+    brand: 'Charvel',
+    serialNumber: serial,
+    year: year.toString(),
+    month: monthName,
+    factory: 'Unknown (8-digit numeric format)',
+    country: 'Unknown (likely import)',
+    notes: `8-digit numeric format interpreted as YYMM + sequence. Sequence: ${sequence}. Charvel serial schemes vary by factory and era, so this read is a best-effort estimate; verify with country-of-origin markings.`,
+  };
+
+  return { success: true, info };
+}
+
+function getMonthName(monthValue: number): string | undefined {
+  switch (monthValue) {
+    case 1:
+      return 'January';
+    case 2:
+      return 'February';
+    case 3:
+      return 'March';
+    case 4:
+      return 'April';
+    case 5:
+      return 'May';
+    case 6:
+      return 'June';
+    case 7:
+      return 'July';
+    case 8:
+      return 'August';
+    case 9:
+      return 'September';
+    case 10:
+      return 'October';
+    case 11:
+      return 'November';
+    case 12:
+      return 'December';
+    default:
+      return undefined;
+  }
 }

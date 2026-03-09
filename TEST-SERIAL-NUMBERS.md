@@ -428,6 +428,7 @@ Sample serial numbers for testing the guitar serial decoder.
 | CM123456 | Mexico, early 2013 |
 | ICJ1500001 | Indonesia Cort, 2015 |
 | ISJ1720250 | Indonesia Samick, 2017 |
+| 05050187 | 8-digit numeric format, 2005, May (best-effort YYMM + sequence parse; likely import) |
 | 001234 | USA Pro-Mod, 2009-2010 |
 | 10000821 | USA Pro-Mod, 2010 |
 | 11000123 | USA Pro-Mod, 2011 |

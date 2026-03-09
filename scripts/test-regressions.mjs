@@ -18,6 +18,10 @@ function decodeKramer(serialInput) {
   return decodeSerialForBackend('kramer', serialInput);
 }
 
+function decodeCharvel(serialInput) {
+  return decodeSerialForBackend('charvel', serialInput);
+}
+
 function assertIbanezBPrefix(serialInput) {
   const result = decodeIbanez(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -640,6 +644,29 @@ function assertKramerVPrefix(serialInput, expectedYearRange) {
   );
 }
 
+function assertCharvelNumeric8(serialInput, expectedYear, expectedMonth) {
+  const result = decodeCharvel(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'Unknown (8-digit numeric format)',
+    `Expected 8-digit numeric factory note for ${serialInput}, got ${info.factory}`
+  );
+}
+
+function assertDecodeFails(brandInput, serialInput) {
+  const result = decodeSerialForBackend(brandInput, serialInput);
+  assert(!result.success, `Expected decode failure for ${brandInput}:${serialInput}`);
+  assert(
+    result.error === 'Unable to decode this serial number.',
+    `Expected generic decode failure message for ${brandInput}:${serialInput}, got ${result.error}`
+  );
+}
+
 assertIbanezBPrefix('B160100231');
 assertIbanezBPrefix('B-160100231');
 assertIbanez5APrefix('5A210401373');
@@ -695,5 +722,7 @@ assertBCRichIShortImport('i50311', '2005', 'March');
 assertBCRichUSA5DigitOffset('36642', '1982-1983 (estimated)');
 assertKramerModernS('S106020848', '2010', 'June');
 assertKramerVPrefix('V9954', 'mid-to-late 1980s (estimated)');
+assertCharvelNumeric8('05050187', '2005', 'May');
+assertDecodeFails('kramer', 'CF22271');
 
 console.log('Regression tests passed.');
