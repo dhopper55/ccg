@@ -165,6 +165,7 @@ function displayResult(info: GuitarInfo): void {
 
   resultSection.classList.remove('hidden');
   errorSection.classList.add('hidden');
+  scrollToDecodeFeedback(resultSection);
 }
 
 function initModals(): void {
@@ -241,6 +242,7 @@ function showError(message: string): void {
   errorSection.textContent = message;
   errorSection.classList.remove('hidden');
   resultSection.classList.add('hidden');
+  scrollToDecodeFeedback(errorSection);
 }
 
 function hideResults(): void {
@@ -259,6 +261,14 @@ function hasRenderableDecodeInfo(info: GuitarInfo): boolean {
     info.notes,
   ];
   return fields.some((value) => Boolean(value && value.trim().length > 0));
+}
+
+function scrollToDecodeFeedback(element: HTMLElement): void {
+  try {
+    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch {
+    // Ignore if scrolling API is unavailable.
+  }
 }
 
 function escapeHtml(text: string): string {

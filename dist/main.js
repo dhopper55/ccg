@@ -147,6 +147,7 @@ function displayResult(info) {
     }
     resultSection.classList.remove('hidden');
     errorSection.classList.add('hidden');
+    scrollToDecodeFeedback(resultSection);
 }
 function initModals() {
     const triggers = document.querySelectorAll('[data-modal-target]');
@@ -211,6 +212,7 @@ function showError(message) {
     errorSection.textContent = message;
     errorSection.classList.remove('hidden');
     resultSection.classList.add('hidden');
+    scrollToDecodeFeedback(errorSection);
 }
 function hideResults() {
     resultSection.classList.add('hidden');
@@ -227,6 +229,14 @@ function hasRenderableDecodeInfo(info) {
         info.notes,
     ];
     return fields.some((value) => Boolean(value && value.trim().length > 0));
+}
+function scrollToDecodeFeedback(element) {
+    try {
+        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    catch {
+        // Ignore if scrolling API is unavailable.
+    }
 }
 function escapeHtml(text) {
     const div = document.createElement('div');
