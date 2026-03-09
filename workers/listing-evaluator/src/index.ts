@@ -98,6 +98,31 @@ interface AiSerialDecodeCacheRow {
   ai_response_json: string | null;
 }
 
+interface SerialPatternContextPayload {
+  title: string;
+  summary: string;
+  highlights: string[];
+  caveats: string[];
+  verificationTips: string[];
+}
+
+interface SerialPatternContextRow {
+  id: number | null;
+  brand: string | null;
+  normalized_brand: string | null;
+  pattern_key: string | null;
+  pattern_label: string | null;
+  title: string | null;
+  summary: string | null;
+  highlights_json: string | null;
+  caveats_json: string | null;
+  verification_json: string | null;
+  source_serial: string | null;
+  ai_model: string | null;
+  ai_response_json: string | null;
+  published: number | null;
+}
+
 const MAX_URLS = 20;
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
@@ -436,6 +461,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/serial-contexts/generate' && request.method === 'POST') {
+      const response = await handleAdminV2SerialPatternContextGenerate(request, env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/admin-v2/activity-log' && request.method === 'GET') {
       const response = await handleAdminV2ActivityLog(request, env);
       return withCors(response, request, env);
@@ -696,13 +726,34 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
     }
   }
 
+  let patternKey = '';
+  let patternLabel = '';
+  let needsAdditionalContext = false;
+  let additionalContext: SerialPatternContextPayload | null = null;
+
+  if (result.success && result.info && normalizedBrand) {
+    const decodedSerial = normalizeText(result.info.serialNumber, serial).slice(0, 180);
+    const patternMeta = deriveSerialPatternMeta(normalizedBrand, decodedSerial);
+    patternKey = patternMeta.patternKey;
+    patternLabel = patternMeta.patternLabel;
+    const contextRow = await dbGetPublishedSerialPatternContext(normalizedBrand, patternMeta.patternKey, env);
+    if (contextRow) {
+      additionalContext = contextRow;
+    } else {
+      needsAdditionalContext = true;
+    }
+  }
+
   try {
     await insertSerialDecodeEvent(env, {
       brand: (result.info?.brand || brand).slice(0, 120),
       serial: (result.info?.serialNumber || serial).slice(0, 180),
+      patternKey: patternKey || null,
+      patternLabel: patternLabel || null,
       normalizedBrand: normalizedBrand.slice(0, 120),
       normalizedSerial,
       success: result.success,
+      needsContext: needsAdditionalContext,
       year: normalizeText(result.info?.year, '').slice(0, 120),
       month: normalizeText(result.info?.month, '').slice(0, 120),
       factory: normalizeText(result.info?.factory, '').slice(0, 180),
@@ -745,15 +796,24 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
     },
   });
 
-  return jsonResponse(result);
+  return jsonResponse({
+    ...result,
+    patternKey: patternKey || undefined,
+    patternLabel: patternLabel || undefined,
+    needsAdditionalContext,
+    additionalContext,
+  });
 }
 
 interface SerialDecodeEventInsert {
   brand: string;
   serial: string;
+  patternKey?: string | null;
+  patternLabel?: string | null;
   normalizedBrand?: string;
   normalizedSerial?: string;
   success: boolean;
+  needsContext?: boolean;
   year?: string;
   month?: string;
   factory?: string;
@@ -893,10 +953,13 @@ async function insertSerialDecodeEvent(env: Env, payload: SerialDecodeEventInser
       event_time_utc,
       brand,
       serial,
+      pattern_key,
+      pattern_label,
       normalized_brand,
       normalized_serial,
       success,
       evaluated,
+      needs_context,
       used_ai,
       is_listing_eval,
       year,
@@ -917,16 +980,19 @@ async function insertSerialDecodeEvent(env: Env, payload: SerialDecodeEventInser
       cf_country,
       cf_colo
     ) VALUES (
-      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
     )`
   ).bind(
     new Date().toISOString(),
     payload.brand,
     payload.serial,
+    payload.patternKey || null,
+    payload.patternLabel || null,
     payload.normalizedBrand || normalizeBrandKey(payload.brand),
     payload.normalizedSerial || normalizeSerialKey(payload.serial),
     payload.success ? 1 : 0,
     0,
+    payload.needsContext ? 1 : 0,
     payload.usedAi ? 1 : 0,
     0,
     payload.year || null,
@@ -1744,8 +1810,10 @@ type AdminV2SerialDecodeRow = {
   clientTimestamp: string | null;
   brand: string;
   serial: string;
+  patternKey: string | null;
   success: boolean;
   evaluated: boolean;
+  needsContext: boolean;
   year: string | null;
   factory: string | null;
   country: string | null;
@@ -1976,6 +2044,87 @@ async function handleAdminV2SerialDecodeLookupVolume(request: Request, env: Env)
   const brand = normalizeText(url.searchParams.get('brand'), '').slice(0, 120);
   const data = await dbGetAdminV2SerialDecodeLookupVolume(view, brand, env);
   return jsonResponse(data);
+}
+
+async function handleAdminV2SerialPatternContextGenerate(request: Request, env: Env): Promise<Response> {
+  let formData: FormData;
+  try {
+    formData = await request.formData();
+  } catch {
+    return jsonResponse({ message: 'Invalid multipart form payload.' }, 400);
+  }
+
+  const brandInput = normalizeText(formData.get('brand'), '').slice(0, 120);
+  const serialInput = normalizeText(formData.get('serial'), '').slice(0, 180);
+  const titleHint = normalizeText(formData.get('titleHint'), '').slice(0, 180);
+
+  if (!brandInput) return jsonResponse({ message: 'Brand is required.' }, 400);
+  if (!serialInput) return jsonResponse({ message: 'Serial is required.' }, 400);
+
+  const decodeResult = decodeSerialForBackend(brandInput, serialInput);
+  if (!decodeResult.success || !decodeResult.info || !decodeResult.normalizedBrand) {
+    return jsonResponse({ message: decodeResult.error || 'Serial must decode successfully before adding context.' }, 400);
+  }
+
+  const normalizedBrand = decodeResult.normalizedBrand;
+  const decodedBrand = normalizeText(decodeResult.info.brand, brandInput).slice(0, 120);
+  const decodedSerial = normalizeText(decodeResult.info.serialNumber, serialInput).slice(0, 180);
+  const patternMeta = deriveSerialPatternMeta(normalizedBrand, decodedSerial);
+
+  const screenshotFiles = formData.getAll('screenshots').filter((entry): entry is File => entry instanceof File);
+  if (screenshotFiles.length < 1) {
+    return jsonResponse({ message: 'Upload at least one screenshot.' }, 400);
+  }
+  if (screenshotFiles.length > 6) {
+    return jsonResponse({ message: 'You can upload up to 6 screenshots.' }, 400);
+  }
+
+  for (const file of screenshotFiles) {
+    if (!file.type.toLowerCase().startsWith('image/')) {
+      return jsonResponse({ message: 'Only image uploads are supported.' }, 400);
+    }
+    if (file.size > 6 * 1024 * 1024) {
+      return jsonResponse({ message: 'Each screenshot must be 6MB or smaller.' }, 400);
+    }
+  }
+
+  const aiResult = await runOpenAISerialPatternContextFromScreenshots(
+    decodedBrand,
+    decodedSerial,
+    patternMeta.patternLabel,
+    titleHint,
+    screenshotFiles,
+    env,
+  );
+
+  if (!aiResult.payload) {
+    return jsonResponse({ message: aiResult.error || 'Unable to generate context from screenshots.' }, 500);
+  }
+
+  const payload = aiResult.payload;
+  const saved = await dbUpsertSerialPatternContext({
+    brand: decodedBrand,
+    normalizedBrand,
+    patternKey: patternMeta.patternKey,
+    patternLabel: patternMeta.patternLabel,
+    title: payload.title,
+    summary: payload.summary,
+    highlights: payload.highlights,
+    caveats: payload.caveats,
+    verificationTips: payload.verificationTips,
+    sourceSerial: decodedSerial,
+    aiModel: aiResult.model,
+    aiResponseJson: aiResult.rawResponseJson,
+    published: true,
+  }, env);
+
+  return jsonResponse({
+    ok: true,
+    id: saved.id,
+    context: saved.context,
+    patternKey: patternMeta.patternKey,
+    patternLabel: patternMeta.patternLabel,
+  });
 }
 
 async function handleAdminV2ActivityLog(request: Request, env: Env): Promise<Response> {
@@ -4918,8 +5067,10 @@ async function dbListAdminV2SerialDecodes(
       client_timestamp,
       brand,
       serial,
+      pattern_key,
       success,
       evaluated,
+      needs_context,
       year,
       factory,
       country,
@@ -4939,8 +5090,10 @@ async function dbListAdminV2SerialDecodes(
     client_timestamp: string | null;
     brand: string | null;
     serial: string | null;
+    pattern_key: string | null;
     success: number | null;
     evaluated: number | null;
+    needs_context: number | null;
     year: string | null;
     factory: string | null;
     country: string | null;
@@ -4953,8 +5106,10 @@ async function dbListAdminV2SerialDecodes(
     clientTimestamp: typeof row.client_timestamp === 'string' ? row.client_timestamp : null,
     brand: normalizeText(row.brand, ''),
     serial: normalizeText(row.serial, ''),
+    patternKey: normalizeText(row.pattern_key, '') || null,
     success: Number(row.success || 0) === 1,
     evaluated: Number(row.evaluated || 0) === 1,
+    needsContext: Number(row.needs_context || 0) === 1,
     year: normalizeText(row.year, '') || null,
     factory: normalizeText(row.factory, '') || null,
     country: normalizeText(row.country, '') || null,
@@ -5161,6 +5316,135 @@ function parseSerialLookupTimestamp(input: string | null): Date | null {
   const parsed = new Date(year, month, day, hour, minute, second);
   if (Number.isNaN(parsed.getTime())) return null;
   return parsed;
+}
+
+async function dbGetPublishedSerialPatternContext(
+  normalizedBrand: string,
+  patternKey: string,
+  env: Env,
+): Promise<SerialPatternContextPayload | null> {
+  if (!normalizedBrand || !patternKey) return null;
+  const row = await env.DB.prepare(
+    `SELECT
+      title,
+      summary,
+      highlights_json,
+      caveats_json,
+      verification_json
+     FROM serial_pattern_contexts
+     WHERE normalized_brand = ?
+       AND pattern_key = ?
+       AND published = 1
+     LIMIT 1`
+  ).bind(normalizedBrand, patternKey).first<SerialPatternContextRow>();
+
+  if (!row) return null;
+  return {
+    title: normalizeText(row.title, ''),
+    summary: normalizeText(row.summary, ''),
+    highlights: parseStringArray(row.highlights_json),
+    caveats: parseStringArray(row.caveats_json),
+    verificationTips: parseStringArray(row.verification_json),
+  };
+}
+
+async function dbUpsertSerialPatternContext(
+  payload: {
+    brand: string;
+    normalizedBrand: string;
+    patternKey: string;
+    patternLabel: string;
+    title: string;
+    summary: string;
+    highlights: string[];
+    caveats: string[];
+    verificationTips: string[];
+    sourceSerial?: string;
+    aiModel?: string;
+    aiResponseJson?: string;
+    published?: boolean;
+  },
+  env: Env,
+): Promise<{ id: number; context: SerialPatternContextPayload }> {
+  const db = env.DB.withSession('first-primary');
+  await db.prepare(
+    `INSERT INTO serial_pattern_contexts (
+      brand,
+      normalized_brand,
+      pattern_key,
+      pattern_label,
+      title,
+      summary,
+      highlights_json,
+      caveats_json,
+      verification_json,
+      source_serial,
+      ai_model,
+      ai_response_json,
+      published,
+      updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(normalized_brand, pattern_key)
+    DO UPDATE SET
+      brand = excluded.brand,
+      pattern_label = excluded.pattern_label,
+      title = excluded.title,
+      summary = excluded.summary,
+      highlights_json = excluded.highlights_json,
+      caveats_json = excluded.caveats_json,
+      verification_json = excluded.verification_json,
+      source_serial = excluded.source_serial,
+      ai_model = excluded.ai_model,
+      ai_response_json = excluded.ai_response_json,
+      published = excluded.published,
+      updated_at = CURRENT_TIMESTAMP`
+  ).bind(
+    payload.brand,
+    payload.normalizedBrand,
+    payload.patternKey,
+    payload.patternLabel,
+    payload.title,
+    payload.summary,
+    JSON.stringify(payload.highlights || []),
+    JSON.stringify(payload.caveats || []),
+    JSON.stringify(payload.verificationTips || []),
+    payload.sourceSerial || null,
+    payload.aiModel || null,
+    payload.aiResponseJson || null,
+    payload.published === false ? 0 : 1,
+  ).run();
+
+  const row = await db.prepare(
+    `SELECT id
+     FROM serial_pattern_contexts
+     WHERE normalized_brand = ? AND pattern_key = ?
+     LIMIT 1`
+  ).bind(payload.normalizedBrand, payload.patternKey).first<{ id: number | null }>();
+
+  return {
+    id: Number(row?.id || 0),
+    context: {
+      title: payload.title,
+      summary: payload.summary,
+      highlights: payload.highlights || [],
+      caveats: payload.caveats || [],
+      verificationTips: payload.verificationTips || [],
+    },
+  };
+}
+
+function parseStringArray(input: string | null | undefined): string[] {
+  if (!input) return [];
+  try {
+    const parsed = JSON.parse(input);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((value) => normalizeText(value, ''))
+      .filter((value) => value.length > 0)
+      .slice(0, 12);
+  } catch {
+    return [];
+  }
 }
 
 async function dbSetSerialDecodeEvaluated(
@@ -5442,6 +5726,51 @@ function normalizeText(value: unknown, fallback = ''): string {
 
 function normalizeSerialKey(value: string): string {
   return value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function deriveSerialPatternMeta(normalizedBrand: string, serialInput: string): { patternKey: string; patternLabel: string } {
+  const serial = normalizeSerialKey(serialInput).slice(0, 180);
+  if (!serial) {
+    return {
+      patternKey: `${normalizedBrand}:unknown`,
+      patternLabel: 'Unknown format',
+    };
+  }
+
+  const alphaPrefix = (serial.match(/^[A-Z]+/)?.[0] || '').slice(0, 6);
+  const masked = serial.replace(/[A-Z]/g, 'A').replace(/\d/g, '9');
+  const compactMask = compressMask(masked).slice(0, 80);
+  const prefixPart = alphaPrefix ? `prefix-${alphaPrefix.toLowerCase()}` : 'prefix-none';
+  const lengthPart = `len-${serial.length}`;
+  const maskPart = compactMask || 'mask-none';
+
+  return {
+    patternKey: `${prefixPart}:${lengthPart}:${maskPart}`,
+    patternLabel: [
+      alphaPrefix ? `Prefix ${alphaPrefix}` : 'No prefix',
+      `${serial.length} chars`,
+      compactMask,
+    ].filter(Boolean).join(' | '),
+  };
+}
+
+function compressMask(mask: string): string {
+  if (!mask) return '';
+  let out = '';
+  let current = mask[0];
+  let count = 1;
+  for (let i = 1; i < mask.length; i += 1) {
+    const ch = mask[i];
+    if (ch === current) {
+      count += 1;
+      continue;
+    }
+    out += `${current}${count}`;
+    current = ch;
+    count = 1;
+  }
+  out += `${current}${count}`;
+  return out;
 }
 
 function shouldAttemptAiFallback(result: { success: boolean; error?: string }): boolean {
@@ -5728,6 +6057,146 @@ async function runOpenAISerialDecodeFallback(
       logText: 'AI fallback returned invalid JSON.',
     };
   }
+}
+
+async function runOpenAISerialPatternContextFromScreenshots(
+  brand: string,
+  serial: string,
+  patternLabel: string,
+  titleHint: string,
+  screenshots: File[],
+  env: Env,
+): Promise<{ payload: SerialPatternContextPayload | null; model: string; rawResponseJson: string; error?: string }> {
+  if (!env.OPENAI_API_KEY) {
+    return {
+      payload: null,
+      model: 'gpt-4o',
+      rawResponseJson: '',
+      error: 'OPENAI_API_KEY is not configured.',
+    };
+  }
+
+  const prompt = [
+    `You are helping build reusable serial-decoder context for ${brand}.`,
+    `Serial sample: ${serial}`,
+    `Detected pattern: ${patternLabel}`,
+    'Use only the uploaded screenshots as source material.',
+    'Paraphrase and consolidate; do not quote long passages.',
+    'If data conflicts across screenshots, mention that as a caveat.',
+    'Keep output concise and useful for end-users doing a lookup.',
+    titleHint ? `Optional editor hint: ${titleHint}` : '',
+  ].filter(Boolean).join('\n');
+
+  const content: Array<Record<string, unknown>> = [{ type: 'input_text', text: prompt }];
+  for (const shot of screenshots.slice(0, 6)) {
+    const bytes = new Uint8Array(await shot.arrayBuffer());
+    const mime = normalizeText(shot.type, '').toLowerCase().startsWith('image/')
+      ? shot.type
+      : 'image/jpeg';
+    const b64 = toBase64(bytes);
+    content.push({
+      type: 'input_image',
+      image_url: `data:${mime};base64,${b64}`,
+    });
+  }
+
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      input: [{ role: 'user', content }],
+      temperature: 0.2,
+      max_output_tokens: 900,
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'serial_pattern_context',
+          schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              title: { type: 'string' },
+              summary: { type: 'string' },
+              highlights: { type: 'array', items: { type: 'string' } },
+              caveats: { type: 'array', items: { type: 'string' } },
+              verificationTips: { type: 'array', items: { type: 'string' } },
+            },
+            required: ['title', 'summary', 'highlights', 'caveats', 'verificationTips'],
+          },
+        },
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    return {
+      payload: null,
+      model: 'gpt-4o',
+      rawResponseJson: '',
+      error: `OpenAI request failed (${response.status}).`,
+    };
+  }
+
+  const data = await response.json();
+  const rawResponseJson = JSON.stringify(data);
+  const text = extractOpenAIText(data);
+
+  try {
+    const parsed = JSON.parse(text) as Partial<SerialPatternContextPayload>;
+    return {
+      payload: sanitizePatternContextPayload(parsed, brand, patternLabel),
+      model: 'gpt-4o',
+      rawResponseJson,
+    };
+  } catch {
+    return {
+      payload: null,
+      model: 'gpt-4o',
+      rawResponseJson,
+      error: 'OpenAI returned invalid JSON.',
+    };
+  }
+}
+
+function sanitizePatternContextPayload(
+  payload: Partial<SerialPatternContextPayload>,
+  brand: string,
+  patternLabel: string,
+): SerialPatternContextPayload {
+  const fallbackTitle = `${brand} ${patternLabel} pattern notes`;
+  return {
+    title: normalizeText(payload.title, fallbackTitle).slice(0, 140),
+    summary: normalizeText(payload.summary, 'Additional context available for this serial pattern.').slice(0, 1200),
+    highlights: sanitizePatternContextList(payload.highlights, 10, 320),
+    caveats: sanitizePatternContextList(payload.caveats, 8, 320),
+    verificationTips: sanitizePatternContextList(payload.verificationTips, 8, 320),
+  };
+}
+
+function sanitizePatternContextList(input: unknown, maxItems: number, maxItemLength: number): string[] {
+  if (!Array.isArray(input)) return [];
+  const items: string[] = [];
+  for (const entry of input) {
+    const cleaned = normalizeText(entry, '').slice(0, maxItemLength);
+    if (!cleaned) continue;
+    items.push(cleaned);
+    if (items.length >= maxItems) break;
+  }
+  return items;
+}
+
+function toBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    const chunk = bytes.subarray(index, index + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
 }
 
 function normalizeCategory(value: unknown): string {

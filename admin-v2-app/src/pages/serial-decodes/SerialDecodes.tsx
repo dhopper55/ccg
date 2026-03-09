@@ -22,6 +22,7 @@ import {
   TableHead,
   TableRow,
   TableSortLabel,
+  TextField,
   Typography,
 } from '@mui/material';
 import { BarChart } from 'echarts/charts';
@@ -38,8 +39,10 @@ type SerialDecodeRecord = {
   clientTimestamp: string | null;
   brand: string;
   serial: string;
+  patternKey: string | null;
   success: boolean;
   evaluated: boolean;
+  needsContext: boolean;
   year: string | null;
   factory: string | null;
   country: string | null;
@@ -78,6 +81,21 @@ type LookupVolumeResponse = {
   view: LookupVolumeView;
   records: LookupVolumeRecord[];
   availableBrands: string[];
+  message?: string;
+};
+
+type GeneratePatternContextResponse = {
+  ok?: boolean;
+  id?: number;
+  patternKey?: string;
+  patternLabel?: string;
+  context?: {
+    title: string;
+    summary: string;
+    highlights: string[];
+    caveats: string[];
+    verificationTips: string[];
+  };
   message?: string;
 };
 
@@ -156,6 +174,13 @@ const SerialDecodes = () => {
   const [lookupVolumeAvailableBrands, setLookupVolumeAvailableBrands] = useState<string[]>([]);
   const [lookupVolumeLoading, setLookupVolumeLoading] = useState(true);
   const [lookupVolumeErrorMessage, setLookupVolumeErrorMessage] = useState('');
+  const [contextBrand, setContextBrand] = useState('');
+  const [contextSerial, setContextSerial] = useState('');
+  const [contextTitleHint, setContextTitleHint] = useState('');
+  const [contextFiles, setContextFiles] = useState<File[]>([]);
+  const [contextBusy, setContextBusy] = useState(false);
+  const [contextMessage, setContextMessage] = useState('');
+  const [contextErrorMessage, setContextErrorMessage] = useState('');
 
   useEffect(() => {
     document.title = 'CCG Admin | Serial Decodes';
@@ -441,6 +466,58 @@ const SerialDecodes = () => {
     }
   };
 
+  const handleContextFileChange = (files: FileList | null) => {
+    if (!files) {
+      setContextFiles([]);
+      return;
+    }
+    const selected = Array.from(files).slice(0, 6);
+    setContextFiles(selected);
+  };
+
+  const handleGenerateContext = async () => {
+    const brand = contextBrand.trim();
+    const serial = contextSerial.trim();
+    if (!brand || !serial) {
+      setContextErrorMessage('Brand and serial are required.');
+      return;
+    }
+    if (contextFiles.length < 1) {
+      setContextErrorMessage('Upload at least one screenshot.');
+      return;
+    }
+
+    setContextBusy(true);
+    setContextErrorMessage('');
+    setContextMessage('');
+    try {
+      const formData = new FormData();
+      formData.set('brand', brand);
+      formData.set('serial', serial);
+      if (contextTitleHint.trim()) formData.set('titleHint', contextTitleHint.trim());
+      contextFiles.forEach((file) => formData.append('screenshots', file));
+
+      const response = await fetch('/api/admin-v2/serial-contexts/generate', {
+        method: 'POST',
+        credentials: 'same-origin',
+        body: formData,
+      });
+      const data = (await response.json()) as GeneratePatternContextResponse;
+      if (!response.ok || !data.ok) {
+        throw new Error(data.message || `Unable to generate context (HTTP ${response.status}).`);
+      }
+
+      setContextMessage(
+        `Saved context for pattern ${data.patternLabel || data.patternKey || ''}${data.id ? ` (ID ${data.id})` : ''}.`,
+      );
+      setRefreshKey((current) => current + 1);
+    } catch (error) {
+      setContextErrorMessage(error instanceof Error ? error.message : 'Unable to generate context.');
+    } finally {
+      setContextBusy(false);
+    }
+  };
+
   return (
     <Stack direction="column" spacing={3} sx={{ width: 1 }}>
       <Paper sx={{ pt: { xs: 2, md: 2.5 }, pb: { xs: 1, md: 1.25 }, px: { xs: 3, md: 4 }, width: 1, display: 'block' }}>
@@ -457,6 +534,62 @@ const SerialDecodes = () => {
           ) : (
             <Typography variant="body2" color="text.secondary">No brand response data available.</Typography>
           )}
+        </Stack>
+      </Paper>
+
+      <Paper sx={{ p: { xs: 3, md: 4 }, width: 1, display: 'block' }}>
+        <Stack spacing={2}>
+          <Typography variant="h5">Generate Pattern Context</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Upload screenshots of your research for one successful serial decode. AI paraphrases and auto-publishes reusable
+            context for future lookups matching the same serial pattern.
+          </Typography>
+          {contextErrorMessage ? <Alert severity="error">{contextErrorMessage}</Alert> : null}
+          {contextMessage ? <Alert severity="success">{contextMessage}</Alert> : null}
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+            <TextField
+              size="small"
+              label="Brand"
+              placeholder="kramer"
+              value={contextBrand}
+              onChange={(event) => setContextBrand(event.target.value)}
+              fullWidth
+            />
+            <TextField
+              size="small"
+              label="Serial"
+              placeholder="CF22271"
+              value={contextSerial}
+              onChange={(event) => setContextSerial(event.target.value)}
+              fullWidth
+            />
+          </Stack>
+          <TextField
+            size="small"
+            label="Optional title hint"
+            placeholder="Late 1980s Korea CF format"
+            value={contextTitleHint}
+            onChange={(event) => setContextTitleHint(event.target.value)}
+            fullWidth
+          />
+          <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2}>
+            <Button variant="outlined" component="label" disabled={contextBusy}>
+              Upload Screenshots
+              <input
+                hidden
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(event) => handleContextFileChange(event.target.files)}
+              />
+            </Button>
+            <Typography variant="body2" color="text.secondary">
+              {contextFiles.length > 0 ? `${contextFiles.length} file(s) selected` : 'No screenshots selected'}
+            </Typography>
+            <Button variant="contained" disabled={contextBusy} onClick={() => void handleGenerateContext()}>
+              {contextBusy ? 'Generating...' : 'Generate & Publish'}
+            </Button>
+          </Stack>
         </Stack>
       </Paper>
 
@@ -548,14 +681,16 @@ const SerialDecodes = () => {
                 </TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Brand</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Serial</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Pattern</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Success</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Needs context</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Evaluated?</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5}>
+                  <TableCell colSpan={7}>
                     <Stack direction="row" justifyContent="center" py={4}>
                       <CircularProgress size={26} />
                     </Stack>
@@ -563,7 +698,7 @@ const SerialDecodes = () => {
                 </TableRow>
               ) : records.length < 1 ? (
                 <TableRow>
-                  <TableCell colSpan={5}>
+                  <TableCell colSpan={7}>
                     <Typography variant="body2" color="text.secondary" py={2}>
                       No serial decode records found.
                     </Typography>
@@ -590,7 +725,11 @@ const SerialDecodes = () => {
                       </TableCell>
                       <TableCell sx={{ color: `${successColor} !important` }}>{formatBrandName(record.brand || '')}</TableCell>
                       <TableCell sx={{ color: `${successColor} !important` }}>{record.serial || '-'}</TableCell>
+                      <TableCell sx={{ color: `${successColor} !important` }}>{record.patternKey || '-'}</TableCell>
                       <TableCell sx={{ color: `${successColor} !important` }}>{record.success ? 'Yes' : 'No'}</TableCell>
+                      <TableCell sx={{ color: `${successColor} !important` }}>
+                        {record.success ? (record.needsContext ? 'Yes' : 'No') : '-'}
+                      </TableCell>
                       <TableCell sx={{ color: `${successColor} !important` }}>
                         {record.success ? null : (
                           <Stack direction="row" alignItems="center" spacing={1}>
@@ -735,6 +874,10 @@ const SerialDecodes = () => {
                 <Typography variant="body2">{selectedRecord.serial || '-'}</Typography>
               </Box>
               <Box>
+                <Typography variant="caption" color="text.secondary">Pattern</Typography>
+                <Typography variant="body2">{selectedRecord.patternKey || '-'}</Typography>
+              </Box>
+              <Box>
                 <Typography variant="caption" color="text.secondary">Success</Typography>
                 <Typography variant="body2">{selectedRecord.success ? 'Yes' : 'No'}</Typography>
               </Box>
@@ -752,6 +895,10 @@ const SerialDecodes = () => {
                   <Box>
                     <Typography variant="caption" color="text.secondary">Country</Typography>
                     <Typography variant="body2">{selectedRecord.country || '-'}</Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary">Needs context</Typography>
+                    <Typography variant="body2">{selectedRecord.needsContext ? 'Yes' : 'No'}</Typography>
                   </Box>
                 </>
               ) : (

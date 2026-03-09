@@ -76,7 +76,7 @@ async function handleDecode() {
                 if (result.info.serialNumber) {
                     serialInput.value = result.info.serialNumber;
                 }
-                displayResult(result.info);
+                displayResult(result.info, result);
                 return;
             }
             showError('Unable to decode serial number.');
@@ -110,7 +110,7 @@ function setDecodingState(isLoading) {
         decodeButton.textContent = decodeButtonDefaultText;
     }
 }
-function displayResult(info) {
+function displayResult(info, decodeResult) {
     resultContent.innerHTML = '';
     // Update the result heading to include brand name
     const resultHeading = resultSection.querySelector('h2');
@@ -144,6 +144,23 @@ function displayResult(info) {
         notesDiv.className = 'notes';
         notesDiv.innerHTML = `<strong>Notes:</strong> ${escapeHtml(info.notes)}`;
         resultContent.appendChild(notesDiv);
+    }
+    const context = decodeResult?.additionalContext;
+    if (context && (context.summary || context.highlights.length || context.caveats.length || context.verificationTips.length)) {
+        const contextDiv = document.createElement('div');
+        contextDiv.className = 'additional-context';
+        contextDiv.appendChild(buildContextHeading(context.title));
+        if (context.summary) {
+            contextDiv.appendChild(buildContextSection('Summary', [context.summary]));
+        }
+        if (context.highlights.length)
+            contextDiv.appendChild(buildContextSection('Highlights', context.highlights));
+        if (context.caveats.length)
+            contextDiv.appendChild(buildContextSection('Caveats', context.caveats));
+        if (context.verificationTips.length) {
+            contextDiv.appendChild(buildContextSection('How to verify', context.verificationTips));
+        }
+        resultContent.appendChild(contextDiv);
     }
     resultSection.classList.remove('hidden');
     errorSection.classList.add('hidden');
@@ -242,5 +259,35 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+function buildContextHeading(title) {
+    const heading = document.createElement('h3');
+    heading.className = 'additional-context-title';
+    heading.textContent = title || 'Additional Context';
+    return heading;
+}
+function buildContextSection(label, lines) {
+    const section = document.createElement('div');
+    section.className = 'additional-context-section';
+    const title = document.createElement('strong');
+    title.className = 'additional-context-section-title';
+    title.textContent = label;
+    section.appendChild(title);
+    if (lines.length === 1) {
+        const p = document.createElement('p');
+        p.className = 'additional-context-summary';
+        p.textContent = lines[0];
+        section.appendChild(p);
+        return section;
+    }
+    const list = document.createElement('ul');
+    list.className = 'additional-context-list';
+    for (const line of lines) {
+        const item = document.createElement('li');
+        item.textContent = line;
+        list.appendChild(item);
+    }
+    section.appendChild(list);
+    return section;
 }
 export {};
