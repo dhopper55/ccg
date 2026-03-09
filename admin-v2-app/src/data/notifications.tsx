@@ -14,6 +14,13 @@ export const notificationBadge = {
   photos: { color: 'primary.main', icon: 'material-symbols:imagesmode-rounded' },
   group_invitation: { color: 'primary.main', icon: 'material-symbols:group-rounded' },
   tagged: { color: 'primary.main', icon: 'material-symbols:sell' },
+  activity_decode_success: { color: 'success.main', icon: 'material-symbols:check-circle-rounded' },
+  activity_decode_failure: { color: 'error.main', icon: 'material-symbols:cancel-rounded' },
+  activity_listing_eval_completed: { color: 'warning.main', icon: 'material-symbols:local-offer-rounded' },
+  activity_inventory_marked_sold: { color: 'primary.main', icon: 'material-symbols:inventory-2-rounded' },
+  activity_inventory_updated: { color: 'primary.main', icon: 'material-symbols:inventory-2-rounded' },
+  activity_inventory_added: { color: 'primary.main', icon: 'material-symbols:inventory-2-rounded' },
+  activity_failed_serial_evaluated: { color: 'success.main', icon: 'material-symbols:check-circle-rounded' },
 };
 
 export const notifications: Notification[] = [

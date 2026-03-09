@@ -17,6 +17,7 @@ import {
 import IconifyIcon from 'components/base/IconifyIcon';
 import Logo from 'components/common/Logo';
 import StyledTextField from 'components/styled/StyledTextField';
+import NotificationMenu from 'layouts/main-layout/common/NotificationMenu';
 import { useAuth } from 'providers/AuthProvider';
 import sitemap from 'routes/sitemap';
 
@@ -216,22 +217,7 @@ const MainLayout = ({ children }: PropsWithChildren) => {
                 <IconifyIcon icon="material-symbols-light:palette-outline" />
               </IconButton>
 
-              <IconButton color="inherit" aria-label="Notifications">
-                <Box sx={{ position: 'relative', display: 'inline-flex' }}>
-                  <IconifyIcon icon="material-symbols-light:notifications-outline-rounded" />
-                  <Box
-                    sx={{
-                      position: 'absolute',
-                      top: -2,
-                      right: -2,
-                      width: 10,
-                      height: 10,
-                      borderRadius: '50%',
-                      bgcolor: 'error.main',
-                    }}
-                  />
-                </Box>
-              </IconButton>
+              <NotificationMenu />
 
               <Avatar
                 sx={{

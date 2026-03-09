@@ -436,6 +436,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/activity-log' && request.method === 'GET') {
+      const response = await handleAdminV2ActivityLog(request, env);
+      return withCors(response, request, env);
+    }
+
     if (path.endsWith('/evaluated') && path.startsWith('/api/admin-v2/serial-decodes/') && request.method === 'POST') {
       const response = await handleAdminV2SerialDecodeEvaluatedUpdate(request, path, env);
       return withCors(response, request, env);
@@ -1970,6 +1975,14 @@ async function handleAdminV2SerialDecodeLookupVolume(request: Request, env: Env)
   const view = normalizeText(url.searchParams.get('view'), '').toLowerCase() === 'month' ? 'month' : 'day';
   const brand = normalizeText(url.searchParams.get('brand'), '').slice(0, 120);
   const data = await dbGetAdminV2SerialDecodeLookupVolume(view, brand, env);
+  return jsonResponse(data);
+}
+
+async function handleAdminV2ActivityLog(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const page = parseBoundedInt(url.searchParams.get('page'), 1, 1, 1_000_000);
+  const limit = parseBoundedInt(url.searchParams.get('limit'), 8, 1, 25);
+  const data = await dbListAdminV2ActivityLog(page, limit, env);
   return jsonResponse(data);
 }
 
@@ -4762,6 +4775,89 @@ async function dbGetAdminV2OldestInventory(limit: number, env: Env): Promise<Adm
     forSale: Number(row.for_sale || 0) === 1,
     source: row.source,
   }));
+}
+
+async function dbListAdminV2ActivityLog(
+  page: number,
+  limit: number,
+  env: Env,
+): Promise<{
+  records: Array<{
+    id: number;
+    eventTimeUtc: string;
+    eventKey: string;
+    iconKey: string;
+    eventText: string;
+    eventUrl: string | null;
+    imageUrl: string | null;
+    entityType: string | null;
+    entityId: string | null;
+  }>;
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasMore: boolean;
+}> {
+  const safePage = Math.max(1, page);
+  const safeLimit = Math.max(1, Math.min(25, limit));
+  const offset = (safePage - 1) * safeLimit;
+
+  const totalRow = await env.DB.prepare(
+    `SELECT COUNT(*) AS total
+     FROM activity_log`
+  ).first<{ total: number | null }>();
+  const total = Number(totalRow?.total || 0);
+  const totalPages = Math.max(1, Math.ceil(total / safeLimit));
+
+  const result = await env.DB.prepare(
+    `SELECT
+      l.id,
+      l.event_time_utc,
+      l.event_text,
+      l.event_url,
+      l.image_url,
+      l.entity_type,
+      l.entity_id,
+      t.event_key,
+      t.icon_key
+     FROM activity_log l
+     INNER JOIN activity_event_type t
+       ON t.id = l.event_type_id
+     ORDER BY l.event_time_utc DESC, l.id DESC
+     LIMIT ? OFFSET ?`
+  ).bind(safeLimit, offset).all<{
+    id: number;
+    event_time_utc: string | null;
+    event_text: string | null;
+    event_url: string | null;
+    image_url: string | null;
+    entity_type: string | null;
+    entity_id: string | null;
+    event_key: string | null;
+    icon_key: string | null;
+  }>();
+
+  const records = (result.results ?? []).map((row) => ({
+    id: Number(row.id),
+    eventTimeUtc: normalizeText(row.event_time_utc, ''),
+    eventKey: normalizeText(row.event_key, ''),
+    iconKey: normalizeText(row.icon_key, ''),
+    eventText: normalizeText(row.event_text, ''),
+    eventUrl: normalizeUrl(normalizeText(row.event_url, '')),
+    imageUrl: normalizeUrl(normalizeText(row.image_url, '')),
+    entityType: normalizeText(row.entity_type, '') || null,
+    entityId: normalizeText(row.entity_id, '') || null,
+  }));
+
+  return {
+    records,
+    total,
+    page: safePage,
+    limit: safeLimit,
+    totalPages,
+    hasMore: safePage * safeLimit < total,
+  };
 }
 
 async function dbListAdminV2SerialDecodes(

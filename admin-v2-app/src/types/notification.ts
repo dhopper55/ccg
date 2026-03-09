@@ -9,7 +9,14 @@ export type NotificationType =
   | 'reaction_smile'
   | 'photos'
   | 'group_invitation'
-  | 'tagged';
+  | 'tagged'
+  | 'activity_decode_success'
+  | 'activity_decode_failure'
+  | 'activity_listing_eval_completed'
+  | 'activity_inventory_marked_sold'
+  | 'activity_inventory_updated'
+  | 'activity_inventory_added'
+  | 'activity_failed_serial_evaluated';
 
 export interface Notification {
   id: number;
@@ -23,6 +30,8 @@ export interface Notification {
   }[];
   images?: string[];
   createdAt: string | Date;
+  url?: string | null;
+  openInNewTab?: boolean;
 }
 
 export interface DatewiseNotification {

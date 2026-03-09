@@ -11,7 +11,6 @@ import {
 } from '@mui/material';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import paths from 'routes/paths';
 import { Notification } from 'types/notification';
 import Image from 'components/base/Image';
 import NotificationActionMenu from './NotificationActionMenu';
@@ -33,6 +32,14 @@ const NotificationList = ({
   variant = 'default',
   onItemClick,
 }: NotificationListProps) => {
+  const formatTimestamp = (value: string | Date) => {
+    const timestamp = dayjs(value);
+    if (dayjs().diff(timestamp, 'day') < 1) {
+      return timestamp.fromNow();
+    }
+    return timestamp.format('MMM D, YYYY h:mm A');
+  };
+
   if (notifications.length > 0) {
     return (
       <List
@@ -67,9 +74,12 @@ const NotificationList = ({
             }}
           >
             <ListItemButton
-              href={paths.notifications}
-              disableRipple
-              onClick={onItemClick}
+              component={notification.url ? 'a' : 'div'}
+              href={notification.url || undefined}
+              target={notification.openInNewTab ? '_blank' : undefined}
+              rel={notification.openInNewTab ? 'noopener noreferrer' : undefined}
+              disableRipple={!notification.url}
+              onClick={notification.url ? onItemClick : undefined}
               sx={[
                 {
                   flexDirection: 'column',
@@ -77,6 +87,7 @@ const NotificationList = ({
                   borderRadius: 0,
                   p: 2,
                   gap: 1,
+                  cursor: notification.url ? 'pointer' : 'default',
                   '&:hover': {
                     bgcolor: 'background.menuElevation1',
                   },
@@ -139,7 +150,7 @@ const NotificationList = ({
                       color: 'text.secondary',
                     }}
                   >
-                    {dayjs(notification.createdAt).fromNow()}
+                    {formatTimestamp(notification.createdAt)}
                   </Typography>
                 </Box>
               </Stack>
