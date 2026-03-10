@@ -461,11 +461,6 @@ export default {
       return withCors(response, request, env);
     }
 
-    if (path === '/api/admin-v2/serial-decodes/backfill-patterns' && request.method === 'POST') {
-      const response = await handleAdminV2SerialDecodeBackfillPatterns(request, env);
-      return withCors(response, request, env);
-    }
-
     if (path === '/api/admin-v2/serial-pattern-text' && request.method === 'GET') {
       const response = await handleAdminV2SerialPatternTextList(request, env);
       return withCors(response, request, env);
@@ -473,11 +468,6 @@ export default {
 
     if (path === '/api/admin-v2/serial-pattern-text' && request.method === 'POST') {
       const response = await handleAdminV2SerialPatternTextSave(request, env);
-      return withCors(response, request, env);
-    }
-
-    if (path === '/api/admin-v2/serial-pattern-text/backfill-regex' && request.method === 'POST') {
-      const response = await handleAdminV2SerialPatternTextBackfillRegex(request, env);
       return withCors(response, request, env);
     }
 
@@ -2257,97 +2247,6 @@ async function handleAdminV2SerialDecodeLookupVolume(request: Request, env: Env)
   return jsonResponse(data);
 }
 
-async function handleAdminV2SerialDecodeBackfillPatterns(request: Request, env: Env): Promise<Response> {
-  let body: Record<string, unknown> = {};
-  try {
-    body = await request.json();
-  } catch {
-    // Allow empty body.
-  }
-
-  const maxRows = parseBoundedInt(body.maxRows, 2000, 1, 20000);
-  const startId = parseBoundedInt(body.startId, 0, 0, 10_000_000_000);
-  const db = env.DB.withSession('first-primary');
-
-  const rows = await db.prepare(
-    `SELECT id, brand, serial
-     FROM serial_decode_events
-     WHERE success = 1
-       AND id > ?
-     ORDER BY id ASC
-     LIMIT ?`
-  ).bind(startId, maxRows).all<{
-    id: number | null;
-    brand: string | null;
-    serial: string | null;
-  }>();
-
-  const items = rows.results ?? [];
-  let scanned = 0;
-  let decoded = 0;
-  let insertedOrEnsured = 0;
-  let updatedEvents = 0;
-  let skipped = 0;
-  let lastId = startId;
-
-  for (const row of items) {
-    scanned += 1;
-    const rowId = Number(row.id || 0);
-    if (rowId > lastId) lastId = rowId;
-
-    const brand = normalizeText(row.brand, '');
-    const serial = normalizeText(row.serial, '');
-    if (!brand || !serial) {
-      skipped += 1;
-      continue;
-    }
-
-    const decodeResult = decodeSerialForBackend(brand, serial);
-    const normalizedBrand = normalizeText(decodeResult.normalizedBrand, '');
-    if (!decodeResult.success || !decodeResult.info || !normalizedBrand) {
-      skipped += 1;
-      continue;
-    }
-
-    const patternMeta = deriveSerialPatternMeta(
-      normalizedBrand,
-      normalizeText(decodeResult.info.serialNumber, serial),
-    );
-    const pattern = patternMeta.patternKey;
-    if (!pattern) {
-      skipped += 1;
-      continue;
-    }
-
-    decoded += 1;
-    await ensureSerialDecodePatternLookup(normalizedBrand, pattern, env);
-    insertedOrEnsured += 1;
-
-    const updateResult = await db.prepare(
-      `UPDATE serial_decode_events
-       SET pattern = COALESCE(pattern, ?),
-           pattern_key = COALESCE(pattern_key, ?),
-           pattern_label = COALESCE(pattern_label, ?)
-       WHERE id = ?`
-    ).bind(pattern, patternMeta.patternKey, patternMeta.patternLabel, rowId).run();
-    updatedEvents += Number(updateResult.meta?.changes || 0);
-  }
-
-  return jsonResponse({
-    ok: true,
-    startId,
-    lastId,
-    scanned,
-    decoded,
-    insertedOrEnsured,
-    updatedEvents,
-    skipped,
-    done: items.length < maxRows,
-    nextStartId: items.length < maxRows ? null : lastId,
-    note: 'If done=false, call this endpoint again with nextStartId as startId.',
-  });
-}
-
 async function handleAdminV2SerialPatternTextList(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const page = parseBoundedInt(url.searchParams.get('page'), 1, 1, 1_000_000);
@@ -2406,91 +2305,6 @@ async function handleAdminV2SerialPatternTextSave(request: Request, env: Env): P
   }
 
   return jsonResponse({ ok: true, brand, pattern, richText });
-}
-
-async function handleAdminV2SerialPatternTextBackfillRegex(request: Request, env: Env): Promise<Response> {
-  let body: Record<string, unknown> = {};
-  try {
-    body = await request.json();
-  } catch {
-    // Allow empty body.
-  }
-
-  const maxRows = parseBoundedInt(body.maxRows, 2000, 1, 20000);
-  const startId = parseBoundedInt(body.startId, 0, 0, 10_000_000_000);
-  const db = env.DB.withSession('first-primary');
-
-  const rows = await db.prepare(
-    `SELECT id, pattern, regex_pattern
-     FROM serial_decode_pattern_lookup
-     WHERE id > ?
-     ORDER BY id ASC
-     LIMIT ?`
-  ).bind(startId, maxRows).all<{
-    id: number | null;
-    pattern: string | null;
-    regex_pattern: string | null;
-  }>();
-
-  const items = rows.results ?? [];
-  let scanned = 0;
-  let updated = 0;
-  let skipped = 0;
-  let failed = 0;
-  let lastId = startId;
-  const failures: Array<{ id: number; pattern: string; error: string }> = [];
-
-  for (const row of items) {
-    scanned += 1;
-    const rowId = Number(row.id || 0);
-    if (rowId > lastId) lastId = rowId;
-
-    const pattern = normalizeText(row.pattern, '').slice(0, 180);
-    if (!pattern) {
-      skipped += 1;
-      continue;
-    }
-
-    try {
-      const nextRegex = deriveRegexFromPatternKey(pattern).slice(0, 1000);
-      const currentRegex = normalizeText(row.regex_pattern, '');
-      if (nextRegex === currentRegex) {
-        skipped += 1;
-        continue;
-      }
-
-      await db.prepare(
-        `UPDATE serial_decode_pattern_lookup
-         SET regex_pattern = ?,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`
-      ).bind(nextRegex, rowId).run();
-      updated += 1;
-    } catch (error) {
-      failed += 1;
-      if (failures.length < 50) {
-        failures.push({
-          id: rowId,
-          pattern,
-          error: error instanceof Error ? error.message : String(error || 'Unknown error'),
-        });
-      }
-    }
-  }
-
-  return jsonResponse({
-    ok: true,
-    startId,
-    lastId,
-    scanned,
-    updated,
-    skipped,
-    failed,
-    failures,
-    done: items.length < maxRows,
-    nextStartId: items.length < maxRows ? null : lastId,
-    note: 'If done=false, call this endpoint again with nextStartId as startId.',
-  });
 }
 
 async function handleAdminV2SerialPatternContextGenerate(request: Request, env: Env): Promise<Response> {
