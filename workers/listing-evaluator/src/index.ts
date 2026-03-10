@@ -587,7 +587,10 @@ function withCors(response: Response, request: Request, env: Env): Response {
 }
 
 async function requireAuth(request: Request, env: Env, path: string): Promise<Response | null> {
-  if (path === '/api/for-sale' && request.method === 'GET') {
+  if (isPublicSiteScopedEndpoint(request, path)) {
+    if (!isRequestFromAllowedSitePage(request, env)) {
+      return jsonResponse({ error: 'forbidden' }, 403);
+    }
     return null;
   }
   if (path === '/api/listings/webhook' && request.method === 'POST') {
@@ -602,13 +605,6 @@ async function requireAuth(request: Request, env: Env, path: string): Promise<Re
   if (path === '/api/custom-image' && request.method === 'GET') {
     return null;
   }
-  if (path === '/api/serial-decodes' && request.method === 'POST') {
-    return null;
-  }
-  if (path === '/api/decode' && request.method === 'POST') {
-    return null;
-  }
-
   const cookies = parseCookie(request.headers.get('cookie'));
   const token = cookies.get(AUTH_COOKIE_NAME);
   if (!token) {
@@ -627,6 +623,64 @@ async function requireAuth(request: Request, env: Env, path: string): Promise<Re
   }
 
   return null;
+}
+
+function isPublicSiteScopedEndpoint(request: Request, path: string): boolean {
+  const method = request.method.toUpperCase();
+  return (
+    (path === '/api/for-sale' && method === 'GET')
+    || (path === '/api/decode' && method === 'POST')
+    || (path === '/api/serial-decodes' && method === 'POST')
+  );
+}
+
+function isRequestFromAllowedSitePage(request: Request, env: Env): boolean {
+  const allowedOrigin = getAllowedSiteOrigin(env);
+  if (!allowedOrigin) return false;
+
+  const originHeader = normalizeText(request.headers.get('origin'), '');
+  const refererHeader = normalizeText(request.headers.get('referer'), '');
+
+  const originMatches = originHeader === allowedOrigin;
+  const refererMatches = isRefererFromOrigin(refererHeader, allowedOrigin);
+
+  // Accept:
+  // 1) origin is exact allowed origin; referer may be absent.
+  // 2) origin absent (common for some same-origin GETs), but referer matches.
+  if (originMatches) return true;
+  if (!originHeader && refererMatches) return true;
+
+  return false;
+}
+
+function getAllowedSiteOrigin(env: Env): string {
+  const configured = normalizeText(env.SITE_BASE_URL, '');
+  if (configured) {
+    try {
+      return new URL(configured).origin;
+    } catch {
+      // Continue to fallback origin list.
+    }
+  }
+
+  for (const origin of SUPPORTED_ORIGINS) {
+    if (!origin) continue;
+    try {
+      return new URL(origin).origin;
+    } catch {
+      // Skip invalid entry.
+    }
+  }
+  return '';
+}
+
+function isRefererFromOrigin(referer: string, expectedOrigin: string): boolean {
+  if (!referer) return false;
+  try {
+    return new URL(referer).origin === expectedOrigin;
+  } catch {
+    return false;
+  }
 }
 
 async function handleSerialDecodeEvent(request: Request, env: Env): Promise<Response> {
@@ -880,6 +934,8 @@ interface ActivityLogInsert {
   metadata?: Record<string, unknown> | null;
 }
 
+let serialDecodeEventColumnCache: Set<string> | null = null;
+
 function buildBrandActivityContext(brandInput: string, normalizedBrandInput = ''): {
   brandLabel: string;
   decoderUrl: string | null;
@@ -982,74 +1038,116 @@ async function insertActivityLogBestEffort(env: Env, payload: ActivityLogInsert)
   }
 }
 
+async function getSerialDecodeEventColumns(env: Env): Promise<Set<string>> {
+  if (serialDecodeEventColumnCache) return serialDecodeEventColumnCache;
+  const rows = await env.DB.withSession('first-primary').prepare(
+    `PRAGMA table_info(serial_decode_events)`
+  ).all<{ name: string | null }>();
+
+  serialDecodeEventColumnCache = new Set(
+    (rows.results ?? [])
+      .map((row) => normalizeText(row.name, '').toLowerCase())
+      .filter(Boolean),
+  );
+  return serialDecodeEventColumnCache;
+}
+
+async function insertSerialDecodeEventWithColumns(
+  env: Env,
+  payload: SerialDecodeEventInsert,
+  columnSet: Set<string>,
+): Promise<void> {
+  const valuesByColumn: Record<string, unknown> = {
+    event_time_utc: new Date().toISOString(),
+    brand: payload.brand,
+    serial: payload.serial,
+    pattern: payload.pattern || null,
+    pattern_key: payload.patternKey || null,
+    pattern_label: payload.patternLabel || null,
+    normalized_brand: payload.normalizedBrand || normalizeBrandKey(payload.brand),
+    normalized_serial: payload.normalizedSerial || normalizeSerialKey(payload.serial),
+    success: payload.success ? 1 : 0,
+    evaluated: 0,
+    needs_context: payload.needsContext ? 1 : 0,
+    used_ai: payload.usedAi ? 1 : 0,
+    is_listing_eval: 0,
+    year: payload.year || null,
+    month: payload.month || null,
+    factory: payload.factory || null,
+    country: payload.country || null,
+    model: payload.model || null,
+    notes: payload.notes || null,
+    error: payload.error || null,
+    ai_cache_hit: payload.aiCacheHit ? 1 : 0,
+    ai_model: payload.aiModel || null,
+    ai_response_json: payload.aiResponseJson || null,
+    ai_attempted_at: payload.aiAttemptedAt || null,
+    page_path: payload.pagePath || null,
+    user_agent: payload.userAgent || null,
+    client_timestamp: payload.clientTimestamp || null,
+    ip_address: payload.ipAddress || null,
+    cf_country: payload.countryCode || null,
+    cf_colo: payload.colo || null,
+  };
+
+  const preferredOrder = [
+    'event_time_utc',
+    'brand',
+    'serial',
+    'pattern',
+    'pattern_key',
+    'pattern_label',
+    'normalized_brand',
+    'normalized_serial',
+    'success',
+    'evaluated',
+    'needs_context',
+    'used_ai',
+    'is_listing_eval',
+    'year',
+    'month',
+    'factory',
+    'country',
+    'model',
+    'notes',
+    'error',
+    'ai_cache_hit',
+    'ai_model',
+    'ai_response_json',
+    'ai_attempted_at',
+    'page_path',
+    'user_agent',
+    'client_timestamp',
+    'ip_address',
+    'cf_country',
+    'cf_colo',
+  ];
+
+  const columns = preferredOrder.filter((column) => columnSet.has(column));
+  if (!columns.includes('brand') || !columns.includes('serial') || !columns.includes('success')) {
+    throw new Error('serial_decode_events is missing required columns (brand, serial, success).');
+  }
+
+  const placeholders = columns.map(() => '?').join(', ');
+  const bindValues = columns.map((column) => valuesByColumn[column] ?? null);
+  const sql = `INSERT INTO serial_decode_events (${columns.join(', ')}) VALUES (${placeholders})`;
+  await env.DB.prepare(sql).bind(...bindValues).run();
+}
+
 async function insertSerialDecodeEvent(env: Env, payload: SerialDecodeEventInsert): Promise<void> {
-  await env.DB.prepare(
-    `INSERT INTO serial_decode_events (
-      event_time_utc,
-      brand,
-      serial,
-      pattern,
-      pattern_key,
-      pattern_label,
-      normalized_brand,
-      normalized_serial,
-      success,
-      evaluated,
-      needs_context,
-      used_ai,
-      is_listing_eval,
-      year,
-      month,
-      factory,
-      country,
-      model,
-      notes,
-      error,
-      ai_cache_hit,
-      ai_model,
-      ai_response_json,
-      ai_attempted_at,
-      page_path,
-      user_agent,
-      client_timestamp,
-      ip_address,
-      cf_country,
-      cf_colo
-    ) VALUES (
-      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-    )`
-  ).bind(
-    new Date().toISOString(),
-    payload.brand,
-    payload.serial,
-    payload.pattern || null,
-    payload.patternKey || null,
-    payload.patternLabel || null,
-    payload.normalizedBrand || normalizeBrandKey(payload.brand),
-    payload.normalizedSerial || normalizeSerialKey(payload.serial),
-    payload.success ? 1 : 0,
-    0,
-    payload.needsContext ? 1 : 0,
-    payload.usedAi ? 1 : 0,
-    0,
-    payload.year || null,
-    payload.month || null,
-    payload.factory || null,
-    payload.country || null,
-    payload.model || null,
-    payload.notes || null,
-    payload.error || null,
-    payload.aiCacheHit ? 1 : 0,
-    payload.aiModel || null,
-    payload.aiResponseJson || null,
-    payload.aiAttemptedAt || null,
-    payload.pagePath || null,
-    payload.userAgent || null,
-    payload.clientTimestamp || null,
-    payload.ipAddress || null,
-    payload.countryCode || null,
-    payload.colo || null,
-  ).run();
+  const columns = await getSerialDecodeEventColumns(env);
+  try {
+    await insertSerialDecodeEventWithColumns(env, payload, columns);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error || '');
+    if (/no column named/i.test(message) || /has no column named/i.test(message)) {
+      serialDecodeEventColumnCache = null;
+      const refreshedColumns = await getSerialDecodeEventColumns(env);
+      await insertSerialDecodeEventWithColumns(env, payload, refreshedColumns);
+      return;
+    }
+    throw error;
+  }
 }
 
 async function ensureSerialDecodePatternLookup(brand: string, pattern: string, env: Env): Promise<void> {
@@ -5425,6 +5523,31 @@ async function dbListAdminV2SerialPatternLookup(
   const safeLimit = Math.max(1, Math.min(100, limit));
   const whereSql = showAll ? '' : `WHERE trim(COALESCE(rich_text, '')) = ''`;
   const db = env.DB.withSession('first-primary');
+  const eventColumns = await db.prepare(`PRAGMA table_info(serial_decode_events)`).all<{
+    name: string | null;
+  }>();
+  const eventColumnNames = new Set(
+    (eventColumns.results ?? []).map((row) => normalizeText(row.name, '').toLowerCase()).filter(Boolean),
+  );
+  const hasPatternKeyColumn = eventColumnNames.has('pattern_key');
+  const hasPatternColumn = eventColumnNames.has('pattern');
+
+  let sampleSerialExpr = `'' AS sample_serial`;
+  if (hasPatternKeyColumn || hasPatternColumn) {
+    const patternMatchSql = hasPatternKeyColumn && hasPatternColumn
+      ? `COALESCE(s.pattern_key, s.pattern) = l.pattern`
+      : hasPatternKeyColumn
+        ? `s.pattern_key = l.pattern`
+        : `s.pattern = l.pattern`;
+    sampleSerialExpr = `(SELECT trim(COALESCE(s.serial, ''))
+      FROM serial_decode_events s
+      WHERE COALESCE(s.success, 0) = 1
+        AND trim(COALESCE(s.serial, '')) <> ''
+        AND lower(trim(COALESCE(s.brand, ''))) = lower(trim(COALESCE(l.brand, '')))
+        AND ${patternMatchSql}
+      ORDER BY s.id DESC
+      LIMIT 1) AS sample_serial`;
+  }
 
   const totalRow = await db.prepare(
     `SELECT COUNT(*) AS total
@@ -5445,13 +5568,14 @@ async function dbListAdminV2SerialPatternLookup(
 
   const rows = await db.prepare(
     `SELECT
-      brand,
-      pattern,
-      rich_text,
-      created_at,
-      updated_at,
+      l.brand,
+      l.pattern,
+      l.rich_text,
+      l.created_at,
+      l.updated_at,
+      ${sampleSerialExpr},
       CASE WHEN trim(COALESCE(rich_text, '')) <> '' THEN 1 ELSE 0 END AS is_populated
-     FROM serial_decode_pattern_lookup
+     FROM serial_decode_pattern_lookup l
      ${whereSql}
      ORDER BY ${sortExpr} ${dir}, lower(trim(brand)) ASC, lower(trim(pattern)) ASC
      LIMIT ? OFFSET ?`
@@ -5461,6 +5585,7 @@ async function dbListAdminV2SerialPatternLookup(
     rich_text: string | null;
     created_at: string | null;
     updated_at: string | null;
+    sample_serial: string | null;
     is_populated: number | null;
   }>();
 
@@ -5473,7 +5598,7 @@ async function dbListAdminV2SerialPatternLookup(
         pattern,
         richText: normalizeText(row.rich_text, ''),
         richTextPopulated: Number(row.is_populated || 0) === 1,
-        sampleSerial: generateSampleSerialFromPatternKey(pattern),
+        sampleSerial: normalizeText(row.sample_serial, '') || generateSampleSerialFromPatternKey(pattern),
         createdAt: normalizeText(row.created_at, '') || null,
         updatedAt: normalizeText(row.updated_at, '') || null,
       };
@@ -6046,46 +6171,21 @@ function generateSampleSerialFromPatternKey(patternKey: string): string {
 
   const prefixPart = parts.find((part) => part.startsWith('prefix-')) || '';
   const lenPart = parts.find((part) => part.startsWith('len-')) || '';
-  const maskPart = parts.find((part) => part.startsWith('A') || part.startsWith('9')) || '';
-
   const prefixRaw = prefixPart.replace(/^prefix-/i, '');
   const prefix = prefixRaw && prefixRaw !== 'none' ? prefixRaw.toUpperCase() : '';
   const targetLen = Number.parseInt(lenPart.replace(/^len-/i, ''), 10);
 
   let sample = '';
-  const maskMatches = Array.from(maskPart.matchAll(/([A9])(\d{1,3})/g));
-  if (maskMatches.length > 0) {
-    let alphaIdx = 0;
-    let digitIdx = 1;
-    for (const match of maskMatches) {
-      const kind = match[1];
-      const count = Number.parseInt(match[2], 10);
-      if (!Number.isFinite(count) || count <= 0) continue;
-      if (kind === 'A') {
-        for (let i = 0; i < count; i += 1) {
-          sample += String.fromCharCode(65 + (alphaIdx % 26));
-          alphaIdx += 1;
-        }
-      } else {
-        for (let i = 0; i < count; i += 1) {
-          sample += String(digitIdx % 10);
-          digitIdx += 1;
-        }
-      }
-    }
-  }
+  if (prefix) sample = prefix;
 
-  if (!sample && Number.isFinite(targetLen) && targetLen > 0) {
-    sample = `A${'1'.repeat(Math.max(1, targetLen - 1))}`;
-  }
-  if (!sample) sample = fallback;
-
-  if (prefix) {
-    sample = `${prefix}${sample.slice(prefix.length)}`;
-  }
   if (Number.isFinite(targetLen) && targetLen > 0) {
-    if (sample.length > targetLen) sample = sample.slice(0, targetLen);
-    if (sample.length < targetLen) sample = `${sample}${'1'.repeat(targetLen - sample.length)}`;
+    if (sample.length >= targetLen) {
+      sample = sample.slice(0, targetLen);
+    } else {
+      sample = `${sample}${'1'.repeat(targetLen - sample.length)}`;
+    }
+  } else if (!sample) {
+    sample = fallback;
   }
 
   return sample || fallback;
