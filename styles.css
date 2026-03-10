@@ -1248,6 +1248,49 @@ button:active {
   font-size: 0.86rem;
 }
 
+.additional-context-richtext p,
+.additional-context-richtext ul,
+.additional-context-richtext ol,
+.additional-context-richtext blockquote {
+  margin: 8px 0;
+  color: var(--text-light);
+  line-height: 1.6;
+  font-size: 0.92rem;
+}
+
+.additional-context-richtext h3,
+.additional-context-richtext h4 {
+  margin: 12px 0 6px;
+  color: var(--text-cream);
+  line-height: 1.35;
+}
+
+.additional-context-richtext ul,
+.additional-context-richtext ol {
+  padding-left: 20px;
+}
+
+.additional-context-richtext li {
+  margin: 4px 0;
+}
+
+.additional-context-richtext blockquote {
+  border-left: 3px solid var(--border-accent);
+  padding-left: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.additional-context-richtext a {
+  color: var(--accent-gold-light);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.additional-context-richtext a:hover {
+  color: var(--text-light);
+}
+
 /* Value Button */
 .value-button-container {
   margin-top: 20px;

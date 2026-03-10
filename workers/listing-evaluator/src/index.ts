@@ -2380,7 +2380,7 @@ async function handleAdminV2SerialPatternTextSave(request: Request, env: Env): P
   if (!brand) return jsonResponse({ message: 'Brand is required.' }, 400);
   if (!pattern) return jsonResponse({ message: 'Pattern is required.' }, 400);
 
-  const richText = cleanupPatternLookupRichText(richTextRaw).slice(0, 12000);
+  const richText = sanitizePatternLookupHtml(richTextRaw).slice(0, 12000);
   const regexPattern = deriveRegexFromPatternKey(pattern).slice(0, 1000);
   try {
     await env.DB.prepare(
@@ -6249,32 +6249,119 @@ function normalizeText(value: unknown, fallback = ''): string {
   return fallback;
 }
 
-function cleanupPatternLookupRichText(input: string): string {
-  const withoutScripts = input
-    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '');
-  const plain = withoutScripts.replace(/<\/?[^>]+>/g, '');
-  const normalized = plain.replace(/\r\n?/g, '\n').replace(/\t/g, ' ');
+function sanitizePatternLookupHtml(input: string): string {
+  const raw = normalizeText(input, '').replace(/\u0000/g, '');
+  if (!raw) return '';
+
+  let html = raw
+    .replace(/\r\n?/g, '\n')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<(script|style|iframe|object|embed|svg|math|form|input|button|textarea|select|meta|link|base)\b[\s\S]*?>[\s\S]*?<\/\1>/gi, '')
+    .replace(/<(script|style|iframe|object|embed|svg|math|form|input|button|textarea|select|meta|link|base)\b[^>]*\/?>/gi, '')
+    .replace(/<\s*\/?\s*span\b[^>]*>/gi, '')
+    .replace(/<\s*\/?\s*font\b[^>]*>/gi, '')
+    .replace(/<\s*b\b[^>]*>/gi, '<strong>')
+    .replace(/<\s*\/\s*b\s*>/gi, '</strong>')
+    .replace(/<\s*i\b[^>]*>/gi, '<em>')
+    .replace(/<\s*\/\s*i\s*>/gi, '</em>')
+    .replace(/<\s*div\b[^>]*>/gi, '<p>')
+    .replace(/<\s*\/\s*div\s*>/gi, '</p>');
+
+  const allowedTags = new Set(['p', 'br', 'ul', 'ol', 'li', 'strong', 'em', 'a', 'h3', 'h4', 'blockquote']);
+
+  html = html.replace(/<\/?([a-z0-9]+)([^>]*)>/gi, (full, tagNameRaw: string, attrsRaw: string) => {
+    const tagName = String(tagNameRaw || '').toLowerCase();
+    if (!allowedTags.has(tagName)) return '';
+
+    const isClosing = /^<\s*\//.test(full);
+    if (isClosing) return `</${tagName}>`;
+    if (tagName === 'br') return '<br>';
+    if (tagName === 'a') {
+      const hrefMatch = String(attrsRaw || '').match(/\bhref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i);
+      const hrefCandidate = hrefMatch ? (hrefMatch[2] || hrefMatch[3] || hrefMatch[4] || '') : '';
+      const href = sanitizeHrefAttribute(hrefCandidate);
+      return `<a href="${escapeHtmlAttribute(href)}" target="_blank" rel="noopener noreferrer nofollow">`;
+    }
+    return `<${tagName}>`;
+  });
+
+  html = html
+    .replace(/<p>\s*<\/p>/gi, '')
+    .replace(/<li>\s*<\/li>/gi, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  if (!/<[a-z][\s\S]*>/i.test(html)) {
+    return plainTextToSafeHtml(html);
+  }
+
+  return html;
+}
+
+function sanitizeHrefAttribute(value: string): string {
+  const href = normalizeText(value, '');
+  if (!href) return '#';
+  const lower = href.toLowerCase();
+  if (
+    lower.startsWith('http://')
+    || lower.startsWith('https://')
+    || lower.startsWith('mailto:')
+    || lower.startsWith('tel:')
+    || lower.startsWith('/')
+    || lower.startsWith('#')
+  ) {
+    return href;
+  }
+  return '#';
+}
+
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function plainTextToSafeHtml(input: string): string {
+  const normalized = normalizeText(input, '');
+  if (!normalized) return '';
+
   const lines = normalized
     .split('\n')
-    .map((line) => line.replace(/\s+$/g, '').replace(/^\s*[•*]\s+/, '- ').replace(/^\s*-\s+/, '- ').trim());
-  const compact: string[] = [];
+    .map((line) => line.trim())
+    .filter(Boolean);
 
+  if (!lines.length) return '';
+
+  let inList = false;
+  const out: string[] = [];
   for (const line of lines) {
-    if (!line) {
-      if (compact.length > 0 && compact[compact.length - 1] !== '') {
-        compact.push('');
+    const bullet = line.match(/^[-*•]\s+(.+)$/);
+    if (bullet) {
+      if (!inList) {
+        out.push('<ul>');
+        inList = true;
       }
+      out.push(`<li>${escapeHtml(bullet[1])}</li>`);
       continue;
     }
-    compact.push(line);
-  }
 
-  while (compact.length > 0 && compact[compact.length - 1] === '') {
-    compact.pop();
+    if (inList) {
+      out.push('</ul>');
+      inList = false;
+    }
+    out.push(`<p>${escapeHtml(line)}</p>`);
   }
+  if (inList) out.push('</ul>');
+  return out.join('');
+}
 
-  return compact.join('\n');
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 function normalizeSerialKey(value: string): string {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -70,10 +70,20 @@ const SerialPatternText = () => {
   const [saving, setSaving] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [editState, setEditState] = useState<EditState | null>(null);
+  const editorRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     document.title = 'CCG Admin | Serial Pattern Text';
   }, []);
+
+  useEffect(() => {
+    if (!editorRef.current) return;
+    if (!editState) {
+      editorRef.current.innerHTML = '';
+      return;
+    }
+    editorRef.current.innerHTML = editState.richText || '';
+  }, [editState]);
 
   useEffect(() => {
     let cancelled = false;
@@ -357,15 +367,45 @@ const SerialPatternText = () => {
                 </Box>
               </Box>
 
-              <TextField
-                label="Enter rich text content"
-                multiline
-                minRows={12}
-                fullWidth
-                sx={{ width: 1 }}
-                value={editState.richText}
-                onChange={(event) => setEditState({ ...editState, richText: event.target.value })}
-              />
+              <Box sx={{ width: 1 }}>
+                <Typography variant="caption" color="text.secondary">Enter rich text content</Typography>
+                <Box
+                  ref={editorRef}
+                  contentEditable
+                  suppressContentEditableWarning
+                  onInput={(event) => {
+                    const html = (event.currentTarget as HTMLDivElement).innerHTML;
+                    setEditState((current) => (current ? { ...current, richText: html } : current));
+                  }}
+                  sx={{
+                    mt: 0.75,
+                    minHeight: 280,
+                    maxHeight: 460,
+                    overflowY: 'auto',
+                    width: 1,
+                    borderRadius: 1.5,
+                    p: 1.5,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    bgcolor: 'background.default',
+                    color: 'text.primary',
+                    fontSize: '0.95rem',
+                    lineHeight: 1.6,
+                    '&:focus': {
+                      outline: 'none',
+                      borderColor: 'primary.main',
+                    },
+                    '& p, & ul, & ol, & blockquote, & h3, & h4': {
+                      mt: 0,
+                      mb: 1,
+                    },
+                    '&[contenteditable=\"true\"]:empty:before': {
+                      content: '\"Paste formatted content here\"',
+                      color: 'text.disabled',
+                    },
+                  }}
+                />
+              </Box>
 
               <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', columnGap: 1, width: 1 }}>
                 <Button variant="outlined" disabled={saving} onClick={() => setEditState(null)} sx={{ width: 1 }}>

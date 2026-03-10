@@ -301,6 +301,11 @@ function buildContextSection(label, lines) {
 function buildRichTextContext(text) {
     const container = document.createElement('div');
     container.className = 'additional-context-richtext';
+    const hasHtml = /<\s*[a-z][^>]*>/i.test(text);
+    if (hasHtml) {
+        container.innerHTML = sanitizeAdditionalContextHtmlClient(text);
+        return container;
+    }
     const lines = text
         .split(/\r?\n/)
         .map((line) => line.trim())
@@ -333,5 +338,42 @@ function buildRichTextContext(text) {
         container.appendChild(p);
     }
     return container;
+}
+function sanitizeAdditionalContextHtmlClient(input) {
+    const template = document.createElement('template');
+    template.innerHTML = input;
+    const allowedTags = new Set(['P', 'BR', 'UL', 'OL', 'LI', 'STRONG', 'EM', 'A', 'H3', 'H4', 'BLOCKQUOTE']);
+    const walk = (node) => {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+            const el = node;
+            const tag = el.tagName.toUpperCase();
+            if (!allowedTags.has(tag)) {
+                const parent = el.parentNode;
+                if (parent) {
+                    while (el.firstChild)
+                        parent.insertBefore(el.firstChild, el);
+                    parent.removeChild(el);
+                }
+                return;
+            }
+            Array.from(el.attributes).forEach((attr) => {
+                const name = attr.name.toLowerCase();
+                if (tag === 'A' && name === 'href')
+                    return;
+                el.removeAttribute(attr.name);
+            });
+            if (tag === 'A') {
+                const href = (el.getAttribute('href') || '').trim();
+                if (!/^(https?:|mailto:|tel:|\/|#)/i.test(href)) {
+                    el.setAttribute('href', '#');
+                }
+                el.setAttribute('target', '_blank');
+                el.setAttribute('rel', 'noopener noreferrer nofollow');
+            }
+        }
+        Array.from(node.childNodes).forEach((child) => walk(child));
+    };
+    walk(template.content);
+    return template.innerHTML;
 }
 export {};
