@@ -320,12 +320,27 @@ const SerialPatternText = () => {
 
       <Dialog open={Boolean(editState)} onClose={() => (saving ? undefined : setEditState(null))} fullWidth maxWidth="md">
         <DialogTitle>Edit Serial Pattern Text</DialogTitle>
-        <DialogContent dividers>
+        <DialogContent dividers sx={{ display: 'block' }}>
           {editState ? (
-            <Stack spacing={2}>
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: '1fr',
+                rowGap: 2,
+                width: 1,
+              }}
+            >
               {saveErrorMessage ? <Alert severity="error">{saveErrorMessage}</Alert> : null}
 
-              <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ width: 1 }}>
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' },
+                  columnGap: 2,
+                  rowGap: 1.5,
+                  width: 1,
+                }}
+              >
                 <Box sx={{ flex: 1 }}>
                   <Typography variant="caption" color="text.secondary">Brand</Typography>
                   <Typography variant="body2">{formatBrandName(editState.brand)}</Typography>
@@ -340,26 +355,27 @@ const SerialPatternText = () => {
                     {editState.regexPattern || '-'}
                   </Typography>
                 </Box>
-              </Stack>
+              </Box>
 
               <TextField
                 label="Enter rich text content"
                 multiline
                 minRows={12}
                 fullWidth
+                sx={{ width: 1 }}
                 value={editState.richText}
                 onChange={(event) => setEditState({ ...editState, richText: event.target.value })}
               />
 
-              <Stack direction="row" spacing={1} sx={{ width: 1 }}>
-                <Button variant="outlined" disabled={saving} onClick={() => setEditState(null)} sx={{ flex: 1 }}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', columnGap: 1, width: 1 }}>
+                <Button variant="outlined" disabled={saving} onClick={() => setEditState(null)} sx={{ width: 1 }}>
                   Cancel
                 </Button>
-                <Button variant="contained" disabled={saving} onClick={() => void handleSave()} sx={{ flex: 1 }}>
+                <Button variant="contained" disabled={saving} onClick={() => void handleSave()} sx={{ width: 1 }}>
                   Save
                 </Button>
-              </Stack>
-            </Stack>
+              </Box>
+            </Box>
           ) : null}
         </DialogContent>
       </Dialog>
