@@ -126,7 +126,6 @@ function displayResult(info, decodeResult) {
         { label: 'Model', value: info.model },
         { label: 'Factory', value: info.factory },
         { label: 'Country', value: info.country },
-        { label: 'Notes', value: info.notes },
     ];
     for (const field of fields) {
         if (field.value) {
@@ -138,6 +137,18 @@ function displayResult(info, decodeResult) {
       `;
             resultContent.appendChild(item);
         }
+    }
+    if (info.notes) {
+        const item = document.createElement('div');
+        item.className = 'result-item result-item-notes';
+        item.innerHTML = `
+      <span class="result-label">Notes</span>
+      <span class="result-value"></span>
+      <div class="result-item-notes-content">
+        <p class="result-notes-text">${escapeHtml(info.notes).replace(/\r?\n/g, '<br>')}</p>
+      </div>
+    `;
+        resultContent.appendChild(item);
     }
     const richText = (decodeResult?.additionalContextRichText || '').trim();
     if (richText) {
