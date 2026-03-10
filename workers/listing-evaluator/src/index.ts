@@ -2279,7 +2279,25 @@ async function handleAdminV2SerialPatternTextSave(request: Request, env: Env): P
   if (!brand) return jsonResponse({ message: 'Brand is required.' }, 400);
   if (!pattern) return jsonResponse({ message: 'Pattern is required.' }, 400);
 
-  const richText = sanitizePatternLookupHtml(richTextRaw).slice(0, 12000);
+  const submittedRichText = sanitizePatternLookupHtml(richTextRaw).slice(0, 12000);
+  const existingRow = await env.DB.prepare(
+    `SELECT rich_text
+     FROM serial_decode_pattern_lookup
+     WHERE brand = ? AND pattern = ?
+     LIMIT 1`
+  ).bind(brand, pattern).first<{ rich_text: string | null }>();
+  const existingRichText = normalizeText(existingRow?.rich_text, '');
+  const isAddMode = existingRichText.length < 1;
+
+  let richText = submittedRichText;
+  let transformed = false;
+  if (isAddMode && submittedRichText) {
+    const transformedHtml = await maybeParaphrasePatternLookupHtml(brand, pattern, submittedRichText, env);
+    if (transformedHtml) {
+      richText = sanitizePatternLookupHtml(transformedHtml).slice(0, 12000);
+      transformed = true;
+    }
+  }
   const regexPattern = deriveRegexFromPatternKey(pattern).slice(0, 1000);
   try {
     await env.DB.prepare(
@@ -2304,7 +2322,7 @@ async function handleAdminV2SerialPatternTextSave(request: Request, env: Env): P
     ).bind(brand, pattern, richText).run();
   }
 
-  return jsonResponse({ ok: true, brand, pattern, richText });
+  return jsonResponse({ ok: true, brand, pattern, richText, transformed, mode: isAddMode ? 'add' : 'update' });
 }
 
 async function handleAdminV2SerialPatternContextGenerate(request: Request, env: Env): Promise<Response> {
@@ -6749,6 +6767,178 @@ async function runOpenAISerialPatternContextFromScreenshots(
       error: 'OpenAI returned invalid JSON.',
     };
   }
+}
+
+async function maybeParaphrasePatternLookupHtml(
+  brand: string,
+  pattern: string,
+  richHtml: string,
+  env: Env,
+): Promise<string | null> {
+  if (!env.OPENAI_API_KEY) return null;
+  const sourceText = htmlToPromptText(richHtml).slice(0, 9000);
+  if (!sourceText) return null;
+
+  const regexPattern = deriveRegexFromPatternKey(pattern);
+  const prompt = [
+    `You are writing standardized serial-pattern guidance for Coal Creek Guitars.`,
+    `Brand: ${brand}`,
+    `Pattern key: ${pattern}`,
+    `Regex pattern: ${regexPattern || '-'}`,
+    '',
+    'Rewrite the source material into original wording. Do not quote source text verbatim.',
+    'Output concise, practical content for buyers decoding serial numbers.',
+    'No dates or "as of" timestamps.',
+    '',
+    'Use this structure:',
+    '1) overview paragraph',
+    '2) serialStructure paragraph (how this pattern is typically read)',
+    '3) keyIndicators bullet list',
+    '4) caveats bullet list',
+    '5) additionalInfo bullet list (use for overflow/extra details)',
+    '6) one short Coal Creek Guitars note based on hands-on experience language',
+    '',
+    'Source text:',
+    sourceText,
+  ].join('\n');
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }],
+        temperature: 0.2,
+        max_output_tokens: 1000,
+        text: {
+          format: {
+            type: 'json_schema',
+            name: 'serial_pattern_rich_text',
+            schema: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                overview: { type: 'string' },
+                serialStructure: { type: 'string' },
+                keyIndicators: { type: 'array', items: { type: 'string' } },
+                caveats: { type: 'array', items: { type: 'string' } },
+                additionalInfo: { type: 'array', items: { type: 'string' } },
+                coalCreekNote: { type: 'string' },
+              },
+              required: ['overview', 'serialStructure', 'keyIndicators', 'caveats', 'additionalInfo', 'coalCreekNote'],
+            },
+          },
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const bodyText = await response.text();
+      console.warn('Pattern rich-text paraphrase failed', { status: response.status, body: bodyText.slice(0, 600) });
+      return null;
+    }
+
+    const data = await response.json();
+    const output = extractOpenAIText(data);
+    const parsed = JSON.parse(output) as {
+      overview?: string;
+      serialStructure?: string;
+      keyIndicators?: unknown;
+      caveats?: unknown;
+      additionalInfo?: unknown;
+      coalCreekNote?: string;
+    };
+
+    const overview = normalizeText(parsed.overview, '').slice(0, 1200);
+    const serialStructure = normalizeText(parsed.serialStructure, '').slice(0, 1400);
+    const coalCreekNote = normalizeText(parsed.coalCreekNote, '').slice(0, 600);
+    const keyIndicators = sanitizePatternContextList(parsed.keyIndicators, 12, 320);
+    const caveats = sanitizePatternContextList(parsed.caveats, 10, 320);
+    const additionalInfo = sanitizePatternContextList(parsed.additionalInfo, 16, 320);
+
+    return buildStandardPatternLookupHtml({
+      brand,
+      overview,
+      serialStructure,
+      keyIndicators,
+      caveats,
+      additionalInfo,
+      coalCreekNote,
+    });
+  } catch (error) {
+    console.warn('Pattern rich-text paraphrase error', { error });
+    return null;
+  }
+}
+
+function htmlToPromptText(input: string): string {
+  const normalized = normalizeText(input, '').replace(/\u0000/g, '');
+  if (!normalized) return '';
+  return normalized
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<\/(ul|ol|blockquote|h3|h4|div)>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&#39;/gi, '\'')
+    .replace(/&quot;/gi, '"')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}
+
+function buildStandardPatternLookupHtml(input: {
+  brand: string;
+  overview: string;
+  serialStructure: string;
+  keyIndicators: string[];
+  caveats: string[];
+  additionalInfo: string[];
+  coalCreekNote: string;
+}): string {
+  const out: string[] = [];
+  if (input.overview) out.push(`<h3>Overview</h3><p>${escapeHtmlText(input.overview)}</p>`);
+  if (input.serialStructure) out.push(`<h3>How This Pattern Is Typically Read</h3><p>${escapeHtmlText(input.serialStructure)}</p>`);
+  if (input.keyIndicators.length > 0) {
+    out.push('<h3>Key Indicators</h3>');
+    out.push('<ul>');
+    for (const item of input.keyIndicators) out.push(`<li>${escapeHtmlText(item)}</li>`);
+    out.push('</ul>');
+  }
+  if (input.caveats.length > 0) {
+    out.push('<h3>What To Verify</h3>');
+    out.push('<ul>');
+    for (const item of input.caveats) out.push(`<li>${escapeHtmlText(item)}</li>`);
+    out.push('</ul>');
+  }
+  if (input.additionalInfo.length > 0) {
+    out.push('<h3>Additional Info</h3>');
+    out.push('<ul>');
+    for (const item of input.additionalInfo) out.push(`<li>${escapeHtmlText(item)}</li>`);
+    out.push('</ul>');
+  }
+  const fallbackNote = `Coal Creek Guitars uses this as practical guidance and recommends confirming with in-hand markings, hardware, and construction details before final conclusions.`;
+  out.push(`<h3>Coal Creek Guitars Note</h3><p>${escapeHtmlText(input.coalCreekNote || fallbackNote)}</p>`);
+
+  return out.join('');
+}
+
+function escapeHtmlText(value: string): string {
+  return normalizeText(value, '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function sanitizePatternContextPayload(

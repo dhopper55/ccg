@@ -3,6 +3,7 @@ import {
   Alert,
   Box,
   Button,
+  Chip,
   Checkbox,
   Dialog,
   DialogContent,
@@ -45,6 +46,7 @@ type EditState = {
   pattern: string;
   regexPattern: string;
   richText: string;
+  mode: 'add' | 'update';
 };
 
 const PAGE_SIZE = 20;
@@ -296,6 +298,7 @@ const SerialPatternText = () => {
                             pattern: row.pattern,
                             regexPattern: row.regexPattern || '',
                             richText: row.richText || '',
+                            mode: (row.richText || '').trim() ? 'update' : 'add',
                           });
                         }}
                       >
@@ -348,6 +351,15 @@ const SerialPatternText = () => {
               }}
             >
               {saveErrorMessage ? <Alert severity="error">{saveErrorMessage}</Alert> : null}
+
+              <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
+                <Chip
+                  size="small"
+                  color={editState.mode === 'add' ? 'warning' : 'info'}
+                  variant="outlined"
+                  label={editState.mode === 'add' ? 'Mode: Add (AI paraphrase on save)' : 'Mode: Update (direct save)'}
+                />
+              </Box>
 
               <Box
                 sx={{
