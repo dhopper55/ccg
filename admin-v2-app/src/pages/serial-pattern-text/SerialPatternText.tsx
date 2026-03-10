@@ -24,9 +24,9 @@ import {
 type SerialPatternTextRecord = {
   brand: string;
   pattern: string;
+  regexPattern: string;
   richText: string;
   richTextPopulated: boolean;
-  sampleSerial: string;
 };
 
 type SerialPatternTextResponse = {
@@ -43,7 +43,7 @@ type SortBy = 'brand' | 'pattern' | 'populated';
 type EditState = {
   brand: string;
   pattern: string;
-  sampleSerial: string;
+  regexPattern: string;
   richText: string;
 };
 
@@ -277,7 +277,7 @@ const SerialPatternText = () => {
                           setEditState({
                             brand: row.brand,
                             pattern: row.pattern,
-                            sampleSerial: row.sampleSerial,
+                            regexPattern: row.regexPattern || '',
                             richText: row.richText || '',
                           });
                         }}
@@ -325,20 +325,22 @@ const SerialPatternText = () => {
             <Stack spacing={2}>
               {saveErrorMessage ? <Alert severity="error">{saveErrorMessage}</Alert> : null}
 
-              <Box>
-                <Typography variant="caption" color="text.secondary">Brand</Typography>
-                <Typography variant="body2">{formatBrandName(editState.brand)}</Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Pattern</Typography>
-                <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>{editState.pattern}</Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Sample Serial #</Typography>
-                <Typography variant="body1" sx={{ fontFamily: 'monospace', mt: 0.5 }}>
-                  {editState.sampleSerial}
-                </Typography>
-              </Box>
+              <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ width: 1 }}>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="caption" color="text.secondary">Brand</Typography>
+                  <Typography variant="body2">{formatBrandName(editState.brand)}</Typography>
+                </Box>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="caption" color="text.secondary">Pattern</Typography>
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>{editState.pattern}</Typography>
+                </Box>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="caption" color="text.secondary">Regex Pattern</Typography>
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                    {editState.regexPattern || '-'}
+                  </Typography>
+                </Box>
+              </Stack>
 
               <TextField
                 label="Enter rich text content"
@@ -349,11 +351,11 @@ const SerialPatternText = () => {
                 onChange={(event) => setEditState({ ...editState, richText: event.target.value })}
               />
 
-              <Stack direction="row" justifyContent="flex-end" spacing={1}>
-                <Button variant="outlined" disabled={saving} onClick={() => setEditState(null)}>
+              <Stack direction="row" spacing={1} sx={{ width: 1 }}>
+                <Button variant="outlined" disabled={saving} onClick={() => setEditState(null)} sx={{ flex: 1 }}>
                   Cancel
                 </Button>
-                <Button variant="contained" disabled={saving} onClick={() => void handleSave()}>
+                <Button variant="contained" disabled={saving} onClick={() => void handleSave()} sx={{ flex: 1 }}>
                   Save
                 </Button>
               </Stack>

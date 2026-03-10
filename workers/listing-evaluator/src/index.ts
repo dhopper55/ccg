@@ -476,6 +476,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/serial-pattern-text/backfill-regex' && request.method === 'POST') {
+      const response = await handleAdminV2SerialPatternTextBackfillRegex(request, env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/admin-v2/serial-contexts/generate' && request.method === 'POST') {
       const response = await handleAdminV2SerialPatternContextGenerate(request, env);
       return withCors(response, request, env);
@@ -1161,10 +1166,27 @@ async function ensureSerialDecodePatternLookup(brand: string, pattern: string, e
   const brandKey = normalizeText(brand, '').slice(0, 120);
   const cleaned = normalizeText(pattern, '').slice(0, 180);
   if (!brandKey || !cleaned) return null;
-  await env.DB.prepare(
-    `INSERT OR IGNORE INTO serial_decode_pattern_lookup (brand, pattern, rich_text)
-     VALUES (?, ?, '')`
-  ).bind(brandKey, cleaned).run();
+  const regexPattern = deriveRegexFromPatternKey(cleaned).slice(0, 1000);
+  try {
+    await env.DB.prepare(
+      `INSERT INTO serial_decode_pattern_lookup (brand, pattern, regex_pattern, rich_text)
+       VALUES (?, ?, ?, '')
+       ON CONFLICT(brand, pattern) DO UPDATE SET
+         regex_pattern = CASE
+           WHEN trim(COALESCE(serial_decode_pattern_lookup.regex_pattern, '')) = '' THEN excluded.regex_pattern
+           ELSE serial_decode_pattern_lookup.regex_pattern
+         END`
+    ).bind(brandKey, cleaned, regexPattern).run();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error || '');
+    if (!/no column named regex_pattern/i.test(message) && !/has no column named regex_pattern/i.test(message)) {
+      throw error;
+    }
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO serial_decode_pattern_lookup (brand, pattern, rich_text)
+       VALUES (?, ?, '')`
+    ).bind(brandKey, cleaned).run();
+  }
   try {
     const row = await env.DB.prepare(
       `SELECT id
@@ -2015,9 +2037,9 @@ type AdminV2SerialPatternLookupSortBy = 'brand' | 'pattern' | 'populated';
 type AdminV2SerialPatternLookupRow = {
   brand: string;
   pattern: string;
+  regexPattern: string;
   richText: string;
   richTextPopulated: boolean;
-  sampleSerial: string;
   createdAt: string | null;
   updatedAt: string | null;
 };
@@ -2359,16 +2381,116 @@ async function handleAdminV2SerialPatternTextSave(request: Request, env: Env): P
   if (!pattern) return jsonResponse({ message: 'Pattern is required.' }, 400);
 
   const richText = cleanupPatternLookupRichText(richTextRaw).slice(0, 12000);
-
-  await env.DB.prepare(
-    `INSERT INTO serial_decode_pattern_lookup (brand, pattern, rich_text, updated_at)
-     VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-     ON CONFLICT(brand, pattern) DO UPDATE SET
-       rich_text = excluded.rich_text,
-       updated_at = CURRENT_TIMESTAMP`
-  ).bind(brand, pattern, richText).run();
+  const regexPattern = deriveRegexFromPatternKey(pattern).slice(0, 1000);
+  try {
+    await env.DB.prepare(
+      `INSERT INTO serial_decode_pattern_lookup (brand, pattern, regex_pattern, rich_text, updated_at)
+       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(brand, pattern) DO UPDATE SET
+         regex_pattern = excluded.regex_pattern,
+         rich_text = excluded.rich_text,
+         updated_at = CURRENT_TIMESTAMP`
+    ).bind(brand, pattern, regexPattern, richText).run();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error || '');
+    if (!/no column named regex_pattern/i.test(message) && !/has no column named regex_pattern/i.test(message)) {
+      throw error;
+    }
+    await env.DB.prepare(
+      `INSERT INTO serial_decode_pattern_lookup (brand, pattern, rich_text, updated_at)
+       VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(brand, pattern) DO UPDATE SET
+         rich_text = excluded.rich_text,
+         updated_at = CURRENT_TIMESTAMP`
+    ).bind(brand, pattern, richText).run();
+  }
 
   return jsonResponse({ ok: true, brand, pattern, richText });
+}
+
+async function handleAdminV2SerialPatternTextBackfillRegex(request: Request, env: Env): Promise<Response> {
+  let body: Record<string, unknown> = {};
+  try {
+    body = await request.json();
+  } catch {
+    // Allow empty body.
+  }
+
+  const maxRows = parseBoundedInt(body.maxRows, 2000, 1, 20000);
+  const startId = parseBoundedInt(body.startId, 0, 0, 10_000_000_000);
+  const db = env.DB.withSession('first-primary');
+
+  const rows = await db.prepare(
+    `SELECT id, pattern, regex_pattern
+     FROM serial_decode_pattern_lookup
+     WHERE id > ?
+     ORDER BY id ASC
+     LIMIT ?`
+  ).bind(startId, maxRows).all<{
+    id: number | null;
+    pattern: string | null;
+    regex_pattern: string | null;
+  }>();
+
+  const items = rows.results ?? [];
+  let scanned = 0;
+  let updated = 0;
+  let skipped = 0;
+  let failed = 0;
+  let lastId = startId;
+  const failures: Array<{ id: number; pattern: string; error: string }> = [];
+
+  for (const row of items) {
+    scanned += 1;
+    const rowId = Number(row.id || 0);
+    if (rowId > lastId) lastId = rowId;
+
+    const pattern = normalizeText(row.pattern, '').slice(0, 180);
+    if (!pattern) {
+      skipped += 1;
+      continue;
+    }
+
+    try {
+      const nextRegex = deriveRegexFromPatternKey(pattern).slice(0, 1000);
+      const currentRegex = normalizeText(row.regex_pattern, '');
+      if (nextRegex === currentRegex) {
+        skipped += 1;
+        continue;
+      }
+
+      await db.prepare(
+        `UPDATE serial_decode_pattern_lookup
+         SET regex_pattern = ?,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`
+      ).bind(nextRegex, rowId).run();
+      updated += 1;
+    } catch (error) {
+      failed += 1;
+      if (failures.length < 50) {
+        failures.push({
+          id: rowId,
+          pattern,
+          error: error instanceof Error ? error.message : String(error || 'Unknown error'),
+        });
+      }
+    }
+  }
+
+  return jsonResponse({
+    ok: true,
+    startId,
+    lastId,
+    scanned,
+    updated,
+    skipped,
+    failed,
+    failures,
+    done: items.length < maxRows,
+    nextStartId: items.length < maxRows ? null : lastId,
+    note: 'If done=false, call this endpoint again with nextStartId as startId.',
+  });
 }
 
 async function handleAdminV2SerialPatternContextGenerate(request: Request, env: Env): Promise<Response> {
@@ -5543,31 +5665,6 @@ async function dbListAdminV2SerialPatternLookup(
   const safeLimit = Math.max(1, Math.min(100, limit));
   const whereSql = showAll ? '' : `WHERE trim(COALESCE(rich_text, '')) = ''`;
   const db = env.DB.withSession('first-primary');
-  const eventColumns = await db.prepare(`PRAGMA table_info(serial_decode_events)`).all<{
-    name: string | null;
-  }>();
-  const eventColumnNames = new Set(
-    (eventColumns.results ?? []).map((row) => normalizeText(row.name, '').toLowerCase()).filter(Boolean),
-  );
-  const hasPatternKeyColumn = eventColumnNames.has('pattern_key');
-  const hasPatternColumn = eventColumnNames.has('pattern');
-
-  let sampleSerialExpr = `'' AS sample_serial`;
-  if (hasPatternKeyColumn || hasPatternColumn) {
-    const patternMatchSql = hasPatternKeyColumn && hasPatternColumn
-      ? `COALESCE(s.pattern_key, s.pattern) = l.pattern`
-      : hasPatternKeyColumn
-        ? `s.pattern_key = l.pattern`
-        : `s.pattern = l.pattern`;
-    sampleSerialExpr = `(SELECT trim(COALESCE(s.serial, ''))
-      FROM serial_decode_events s
-      WHERE COALESCE(s.success, 0) = 1
-        AND trim(COALESCE(s.serial, '')) <> ''
-        AND lower(trim(COALESCE(s.brand, ''))) = lower(trim(COALESCE(l.brand, '')))
-        AND ${patternMatchSql}
-      ORDER BY s.id DESC
-      LIMIT 1) AS sample_serial`;
-  }
 
   const totalRow = await db.prepare(
     `SELECT COUNT(*) AS total
@@ -5590,10 +5687,10 @@ async function dbListAdminV2SerialPatternLookup(
     `SELECT
       l.brand,
       l.pattern,
+      l.regex_pattern,
       l.rich_text,
       l.created_at,
       l.updated_at,
-      ${sampleSerialExpr},
       CASE WHEN trim(COALESCE(rich_text, '')) <> '' THEN 1 ELSE 0 END AS is_populated
      FROM serial_decode_pattern_lookup l
      ${whereSql}
@@ -5602,10 +5699,10 @@ async function dbListAdminV2SerialPatternLookup(
   ).bind(safeLimit, offset).all<{
     brand: string | null;
     pattern: string | null;
+    regex_pattern: string | null;
     rich_text: string | null;
     created_at: string | null;
     updated_at: string | null;
-    sample_serial: string | null;
     is_populated: number | null;
   }>();
 
@@ -5616,9 +5713,9 @@ async function dbListAdminV2SerialPatternLookup(
       return {
         brand,
         pattern,
+        regexPattern: normalizeText(row.regex_pattern, ''),
         richText: normalizeText(row.rich_text, ''),
         richTextPopulated: Number(row.is_populated || 0) === 1,
-        sampleSerial: normalizeText(row.sample_serial, '') || generateSampleSerialFromPatternKey(pattern),
         createdAt: normalizeText(row.created_at, '') || null,
         updatedAt: normalizeText(row.updated_at, '') || null,
       };
@@ -6182,6 +6279,114 @@ function cleanupPatternLookupRichText(input: string): string {
 
 function normalizeSerialKey(value: string): string {
   return value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function deriveRegexFromPatternKey(patternKey: string): string {
+  try {
+  const cleaned = normalizeText(patternKey, '');
+  if (!cleaned) return '^.{1,}$';
+
+  const parts = cleaned.split(':');
+  const prefixPart = parts.find((part) => part.startsWith('prefix-')) || '';
+  const lengthPart = parts.find((part) => part.startsWith('len-')) || '';
+  const maskPart = parts.length > 0 ? parts[parts.length - 1] : '';
+  const lengthValue = Number.parseInt(lengthPart.replace(/^len-/i, ''), 10);
+  const prefixRaw = prefixPart.replace(/^prefix-/i, '');
+  const prefix = prefixRaw && prefixRaw !== 'none' ? prefixRaw.toUpperCase() : '';
+  const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  const maskRuns = parsePatternMaskRuns(maskPart, Number.isFinite(lengthValue) && lengthValue > 0 ? lengthValue : null);
+  const runLength = maskRuns.reduce((sum, run) => sum + run.count, 0);
+
+  if (maskRuns.length > 0) {
+    const pieces: string[] = [];
+    let prefixRemaining = escapedPrefix;
+    let consumedPrefix = false;
+
+    for (const run of maskRuns) {
+      if (!consumedPrefix && prefixRemaining && run.type === 'A') {
+        const consumeCount = Math.min(prefixRemaining.length, run.count);
+        if (consumeCount > 0) {
+          pieces.push(prefixRemaining.slice(0, consumeCount));
+          prefixRemaining = prefixRemaining.slice(consumeCount);
+        }
+        const alphaRemainder = run.count - consumeCount;
+        if (alphaRemainder > 0) pieces.push(`[A-Z]{${alphaRemainder}}`);
+        if (!prefixRemaining) consumedPrefix = true;
+      } else {
+        pieces.push(run.type === 'A' ? `[A-Z]{${run.count}}` : `\\d{${run.count}}`);
+      }
+    }
+
+    if (prefixRemaining) {
+      pieces.unshift(escapedPrefix);
+    }
+    return `^${pieces.join('')}$`;
+  }
+
+  if (Number.isFinite(lengthValue) && lengthValue > 0) {
+    if (escapedPrefix) {
+      const remaining = Math.max(0, lengthValue - escapedPrefix.length);
+      return `^${escapedPrefix}[A-Z0-9]{${remaining}}$`;
+    }
+    return `^[A-Z0-9]{${lengthValue}}$`;
+  }
+
+  if (escapedPrefix) return `^${escapedPrefix}[A-Z0-9]*$`;
+  return '^.{1,}$';
+  } catch {
+    return '^.{1,}$';
+  }
+}
+
+function parsePatternMaskRuns(maskPart: string, expectedLength: number | null): Array<{ type: 'A' | '9'; count: number }> {
+  const mask = normalizeText(maskPart, '');
+  if (!mask || !/^[A9]/.test(mask)) return [];
+
+  const memo = new Map<string, Array<{ type: 'A' | '9'; count: number }> | null>();
+
+  const solve = (idx: number, remaining: number | null): Array<{ type: 'A' | '9'; count: number }> | null => {
+    const key = `${idx}:${remaining == null ? 'n' : remaining}`;
+    if (memo.has(key)) return memo.get(key) || null;
+
+    if (idx >= mask.length) {
+      const done = remaining == null || remaining === 0 ? [] : null;
+      memo.set(key, done);
+      return done;
+    }
+
+    const marker = mask[idx];
+    if (marker !== 'A' && marker !== '9') {
+      memo.set(key, null);
+      return null;
+    }
+
+    let best: Array<{ type: 'A' | '9'; count: number }> | null = null;
+    for (let end = idx + 2; end <= mask.length; end += 1) {
+      const countText = mask.slice(idx + 1, end);
+      if (!/^\d+$/.test(countText)) continue;
+      const count = Number.parseInt(countText, 10);
+      if (!Number.isFinite(count) || count <= 0) continue;
+      if (remaining != null && count > remaining) continue;
+
+      const nextRemaining = remaining == null ? null : remaining - count;
+      const next = solve(end, nextRemaining);
+      if (!next) continue;
+
+      const candidate = [{ type: marker as 'A' | '9', count }, ...next];
+      best = candidate;
+      break;
+    }
+
+    memo.set(key, best);
+    return best;
+  };
+
+  const exact = solve(0, expectedLength);
+  if (exact) return exact;
+
+  const fallback = solve(0, null);
+  return fallback || [];
 }
 
 function generateSampleSerialFromPatternKey(patternKey: string): string {

@@ -4,16 +4,18 @@ CREATE TABLE IF NOT EXISTS serial_decode_pattern_lookup_new (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   brand TEXT NOT NULL,
   pattern TEXT NOT NULL,
+  regex_pattern TEXT NOT NULL DEFAULT '',
   rich_text TEXT NOT NULL DEFAULT '',
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (brand, pattern)
 );
 
-INSERT OR IGNORE INTO serial_decode_pattern_lookup_new (brand, pattern, rich_text, created_at, updated_at)
+INSERT OR IGNORE INTO serial_decode_pattern_lookup_new (brand, pattern, regex_pattern, rich_text, created_at, updated_at)
 SELECT
   trim(COALESCE(brand, '')),
   trim(COALESCE(pattern, '')),
+  '',
   COALESCE(rich_text, ''),
   COALESCE(created_at, CURRENT_TIMESTAMP),
   COALESCE(updated_at, COALESCE(created_at, CURRENT_TIMESTAMP))
