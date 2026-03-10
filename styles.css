@@ -916,6 +916,16 @@ button:active {
   text-align: right;
 }
 
+.result-item-addtl {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.result-item-addtl-content {
+  width: 100%;
+  margin-top: 8px;
+}
+
 .error-section {
   margin-top: 20px;
   padding: 16px 20px;

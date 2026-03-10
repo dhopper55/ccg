@@ -141,11 +141,17 @@ function displayResult(info, decodeResult) {
     }
     const richText = (decodeResult?.additionalContextRichText || '').trim();
     if (richText) {
-        const contextDiv = document.createElement('div');
-        contextDiv.className = 'additional-context';
-        contextDiv.appendChild(buildContextHeading('Additional Context'));
-        contextDiv.appendChild(buildRichTextContext(richText));
-        resultContent.appendChild(contextDiv);
+        const item = document.createElement('div');
+        item.className = 'result-item result-item-addtl';
+        item.innerHTML = `
+      <span class="result-label">Addtl. Info</span>
+      <span class="result-value"></span>
+    `;
+        const content = document.createElement('div');
+        content.className = 'result-item-addtl-content';
+        content.appendChild(buildRichTextContext(richText));
+        item.appendChild(content);
+        resultContent.appendChild(item);
     }
     const context = decodeResult?.additionalContext;
     if (!richText && context && (context.summary || context.highlights.length || context.caveats.length || context.verificationTips.length)) {
