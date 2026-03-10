@@ -48,6 +48,7 @@ type EditState = {
 };
 
 const PAGE_SIZE = 20;
+const AI_REGEX_PROMPT_TEMPLATE = 'Tell me what you know about <BRAND> guitars with a serial number that matches this regex: <REGEX>';
 
 function formatBrandName(value: string): string {
   const normalized = value.trim().toLowerCase();
@@ -367,9 +368,24 @@ const SerialPatternText = () => {
                 </Box>
                 <Box sx={{ flex: 1 }}>
                   <Typography variant="caption" color="text.secondary">Regex Pattern</Typography>
-                  <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                    {editState.regexPattern || '-'}
-                  </Typography>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.25 }}>
+                    <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all', flex: 1 }}>
+                      {editState.regexPattern || '-'}
+                    </Typography>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => {
+                        const prompt = AI_REGEX_PROMPT_TEMPLATE
+                          .replace('<BRAND>', formatBrandName(editState.brand))
+                          .replace('<REGEX>', editState.regexPattern || editState.pattern || '-');
+                        const url = `https://www.google.com/search?q=${encodeURIComponent(prompt)}`;
+                        window.open(url, '_blank', 'noopener,noreferrer');
+                      }}
+                    >
+                      AI Regex Search
+                    </Button>
+                  </Stack>
                 </Box>
               </Box>
 
