@@ -71,6 +71,12 @@ const SerialPatternText = () => {
   const [refreshKey, setRefreshKey] = useState(0);
   const [editState, setEditState] = useState<EditState | null>(null);
   const editorRef = useRef<HTMLDivElement | null>(null);
+  const setEditorRef = (node: HTMLDivElement | null) => {
+    editorRef.current = node;
+    if (node && editState) {
+      node.innerHTML = editState.richText || '';
+    }
+  };
 
   useEffect(() => {
     document.title = 'CCG Admin | Serial Pattern Text';
@@ -370,7 +376,7 @@ const SerialPatternText = () => {
               <Box sx={{ width: 1 }}>
                 <Typography variant="caption" color="text.secondary">Enter rich text content</Typography>
                 <Box
-                  ref={editorRef}
+                  ref={setEditorRef}
                   contentEditable
                   suppressContentEditableWarning
                   onInput={(event) => {
