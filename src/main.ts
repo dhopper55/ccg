@@ -141,6 +141,7 @@ function displayResult(info: GuitarInfo, decodeResult?: DecodeResult): void {
     { label: 'Model', value: info.model },
     { label: 'Factory', value: info.factory },
     { label: 'Country', value: info.country },
+    { label: 'Notes', value: info.notes },
   ];
 
   for (const field of fields) {
@@ -153,14 +154,6 @@ function displayResult(info: GuitarInfo, decodeResult?: DecodeResult): void {
       `;
       resultContent.appendChild(item);
     }
-  }
-
-  // Add notes if present
-  if (info.notes) {
-    const notesDiv = document.createElement('div');
-    notesDiv.className = 'notes';
-    notesDiv.innerHTML = `<strong>Notes:</strong> ${escapeHtml(info.notes)}`;
-    resultContent.appendChild(notesDiv);
   }
 
   const richText = (decodeResult?.additionalContextRichText || '').trim();
