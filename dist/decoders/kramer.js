@@ -36,6 +36,10 @@ export function decodeKramer(serial) {
         };
         return { success: true, info };
     }
+    // Samick Indonesia modern import format: SI + YYMM + sequence
+    if (/^SI\d{8}$/.test(normalized)) {
+        return decodeSamickIndonesiaSI(normalized, cleaned);
+    }
     // Two-letter overseas prefixes (e.g., FA, FB, CF)
     if (/^[A-Z]{2}\d+$/.test(normalized)) {
         const prefix = normalized.substring(0, 2);
@@ -114,6 +118,29 @@ export function decodeKramer(serial) {
         success: false,
         error: 'Unable to decode this Kramer serial number. Kramer serials vary by era, and many vintage records were lost. Try the Vintage Kramer registry or HTPG serial search for additional context.',
     };
+}
+function decodeSamickIndonesiaSI(normalized, cleaned) {
+    const yearPart = normalized.substring(2, 4);
+    const monthPart = normalized.substring(4, 6);
+    const sequence = normalized.substring(6);
+    const yy = parseInt(yearPart, 10);
+    const monthValue = parseInt(monthPart, 10);
+    const monthName = getMonthName(monthValue);
+    const fullYear = Number.isNaN(yy)
+        ? undefined
+        : yy <= 24
+            ? 2000 + yy
+            : 1900 + yy;
+    const info = {
+        brand: 'Kramer',
+        serialNumber: cleaned,
+        year: fullYear ? fullYear.toString() : undefined,
+        month: monthName,
+        factory: 'Samick Indonesia',
+        country: 'Indonesia',
+        notes: `SI-prefix import format interpreted as SI + YYMM + sequence. Sequence: ${sequence}. SI is commonly associated with Samick Indonesia production on modern/import-era Kramer runs.`,
+    };
+    return { success: true, info };
 }
 function decodeModernSamickS(normalized, cleaned) {
     const yearPart = normalized.substring(1, 3);

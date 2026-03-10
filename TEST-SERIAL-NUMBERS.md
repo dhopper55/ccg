@@ -192,6 +192,7 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | Serial Number | Expected Result |
 |---------------|-----------------|
 | S106020848 | Modern S-prefix import format, 2010, June (Samick Korea; S + YYMM + sequence) |
+| SI05070297 | Samick Indonesia SI-prefix format, 2005, July (SI + YYMM + sequence) |
 | V9954 | V-prefix vintage/import plate serial, estimated mid-to-late 1980s (non-chronological plate numbering) |
 
 ## B.C. Rich

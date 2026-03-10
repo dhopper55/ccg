@@ -22,7 +22,7 @@ import { decodeGodin } from './decoders/godin.js?version=699990';
 import { decodeOvation } from './decoders/ovation.js?version=823009';
 import { decodeCharvel } from './decoders/charvel.js?version=431826';
 import { decodeRickenbacker } from './decoders/rickenbacker.js?version=961802';
-import { decodeKramer } from './decoders/kramer.js?version=428790';
+import { decodeKramer } from './decoders/kramer.js?version=922293';
 import { decodeBCRich } from './decoders/bcrich.js?version=883587';
 const DECODER_MAP = {
     gibson: decodeGibson,
