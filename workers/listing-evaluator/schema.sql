@@ -154,6 +154,7 @@ CREATE TABLE IF NOT EXISTS serial_decode_events (
   event_time_utc TEXT NOT NULL,
   brand TEXT NOT NULL,
   serial TEXT NOT NULL,
+  pattern_lookup_id INTEGER,
   pattern TEXT,
   pattern_key TEXT,
   pattern_label TEXT,
@@ -181,7 +182,8 @@ CREATE TABLE IF NOT EXISTS serial_decode_events (
   ip_address TEXT,
   cf_country TEXT,
   cf_colo TEXT,
-  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (pattern_lookup_id) REFERENCES serial_decode_pattern_lookup(id)
 );
 
 CREATE INDEX IF NOT EXISTS serial_decode_events_created_idx
@@ -200,6 +202,8 @@ CREATE INDEX IF NOT EXISTS serial_decode_events_pattern_idx
   ON serial_decode_events(normalized_brand, pattern_key, created_at);
 CREATE INDEX IF NOT EXISTS serial_decode_events_needs_context_idx
   ON serial_decode_events(needs_context, success, created_at);
+CREATE INDEX IF NOT EXISTS serial_decode_events_pattern_lookup_id_idx
+  ON serial_decode_events(pattern_lookup_id);
 
 CREATE TABLE IF NOT EXISTS serial_pattern_contexts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -226,11 +230,16 @@ CREATE INDEX IF NOT EXISTS serial_pattern_contexts_published_idx
   ON serial_pattern_contexts(published, normalized_brand, pattern_key);
 
 CREATE TABLE IF NOT EXISTS serial_decode_pattern_lookup (
-  pattern TEXT PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  brand TEXT NOT NULL,
+  pattern TEXT NOT NULL,
   rich_text TEXT NOT NULL DEFAULT '',
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (brand, pattern)
 );
+CREATE INDEX IF NOT EXISTS serial_decode_pattern_lookup_brand_pattern_idx
+  ON serial_decode_pattern_lookup(brand, pattern);
 
 CREATE TABLE IF NOT EXISTS activity_event_type (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

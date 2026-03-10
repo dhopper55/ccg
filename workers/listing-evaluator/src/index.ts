@@ -703,6 +703,7 @@ async function handleSerialDecodeEvent(request: Request, env: Env): Promise<Resp
   const success = Boolean(body.success);
   const normalizedBrand = normalizeBrandKey(brand);
   let pattern = '';
+  let patternLookupId: number | null = null;
 
   if (!brand) return jsonResponse({ message: 'Brand is required.' }, 400);
   if (!serial) return jsonResponse({ message: 'Serial is required.' }, 400);
@@ -711,7 +712,7 @@ async function handleSerialDecodeEvent(request: Request, env: Env): Promise<Resp
     const decodeResult = decodeSerialForBackend(brand, serial);
     if (decodeResult.success && decodeResult.info) {
       pattern = deriveSerialPatternMeta(normalizedBrand, decodeResult.info.serialNumber || serial).patternKey;
-      await ensureSerialDecodePatternLookup(normalizedBrand, pattern, env);
+      patternLookupId = await ensureSerialDecodePatternLookup(normalizedBrand, pattern, env);
     }
   }
 
@@ -724,6 +725,7 @@ async function handleSerialDecodeEvent(request: Request, env: Env): Promise<Resp
     brand,
     serial,
     pattern: pattern || null,
+    patternLookupId,
     success,
     year,
     factory,
@@ -811,6 +813,7 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
   let needsAdditionalContext = false;
   let additionalContext: SerialPatternContextPayload | null = null;
   let additionalContextRichText = '';
+  let patternLookupId: number | null = null;
 
   if (result.success && result.info && normalizedBrand) {
     const decodedSerial = normalizeText(result.info.serialNumber, serial).slice(0, 180);
@@ -826,7 +829,7 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
   }
 
   if (patternKey) {
-    await ensureSerialDecodePatternLookup(normalizedBrand, patternKey, env);
+    patternLookupId = await ensureSerialDecodePatternLookup(normalizedBrand, patternKey, env);
     additionalContextRichText = await getSerialDecodePatternRichText(normalizedBrand, patternKey, env);
   }
 
@@ -837,6 +840,7 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
       pattern: patternKey || null,
       patternKey: patternKey || null,
       patternLabel: patternLabel || null,
+      patternLookupId,
       normalizedBrand: normalizedBrand.slice(0, 120),
       normalizedSerial,
       success: result.success,
@@ -899,6 +903,7 @@ interface SerialDecodeEventInsert {
   pattern?: string | null;
   patternKey?: string | null;
   patternLabel?: string | null;
+  patternLookupId?: number | null;
   normalizedBrand?: string;
   normalizedSerial?: string;
   success: boolean;
@@ -1064,6 +1069,7 @@ async function insertSerialDecodeEventWithColumns(
     pattern: payload.pattern || null,
     pattern_key: payload.patternKey || null,
     pattern_label: payload.patternLabel || null,
+    pattern_lookup_id: payload.patternLookupId ?? null,
     normalized_brand: payload.normalizedBrand || normalizeBrandKey(payload.brand),
     normalized_serial: payload.normalizedSerial || normalizeSerialKey(payload.serial),
     success: payload.success ? 1 : 0,
@@ -1097,6 +1103,7 @@ async function insertSerialDecodeEventWithColumns(
     'pattern',
     'pattern_key',
     'pattern_label',
+    'pattern_lookup_id',
     'normalized_brand',
     'normalized_serial',
     'success',
@@ -1150,14 +1157,27 @@ async function insertSerialDecodeEvent(env: Env, payload: SerialDecodeEventInser
   }
 }
 
-async function ensureSerialDecodePatternLookup(brand: string, pattern: string, env: Env): Promise<void> {
+async function ensureSerialDecodePatternLookup(brand: string, pattern: string, env: Env): Promise<number | null> {
   const brandKey = normalizeText(brand, '').slice(0, 120);
   const cleaned = normalizeText(pattern, '').slice(0, 180);
-  if (!brandKey || !cleaned) return;
+  if (!brandKey || !cleaned) return null;
   await env.DB.prepare(
     `INSERT OR IGNORE INTO serial_decode_pattern_lookup (brand, pattern, rich_text)
      VALUES (?, ?, '')`
   ).bind(brandKey, cleaned).run();
+  try {
+    const row = await env.DB.prepare(
+      `SELECT id
+       FROM serial_decode_pattern_lookup
+       WHERE brand = ?
+         AND pattern = ?
+       LIMIT 1`
+    ).bind(brandKey, cleaned).first<{ id: number | null }>();
+    if (row?.id == null) return null;
+    return Number(row.id);
+  } catch {
+    return null;
+  }
 }
 
 async function getSerialDecodePatternRichText(brand: string, pattern: string, env: Env): Promise<string> {
