@@ -24,11 +24,13 @@ import {
   TableSortLabel,
   Typography,
 } from '@mui/material';
+import { useNavigate } from 'react-router';
 import { BarChart } from 'echarts/charts';
 import { GridComponent, TooltipComponent } from 'echarts/components';
 import * as echarts from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import ReactEchart from 'components/base/ReactEchart';
+import paths from 'routes/paths';
 
 echarts.use([TooltipComponent, GridComponent, BarChart, CanvasRenderer]);
 
@@ -38,6 +40,7 @@ type SerialDecodeRecord = {
   clientTimestamp: string | null;
   brand: string;
   serial: string;
+  pattern: string | null;
   success: boolean;
   evaluated: boolean;
   year: string | null;
@@ -134,6 +137,7 @@ function truncateBrandLabel(value: string, max = 13): string {
 }
 
 const SerialDecodes = () => {
+  const navigate = useNavigate();
   const [records, setRecords] = useState<SerialDecodeRecord[]>([]);
   const [brandResponses, setBrandResponses] = useState<BrandResponsesRecord[]>([]);
   const [availableBrands, setAvailableBrands] = useState<string[]>([]);
@@ -550,12 +554,13 @@ const SerialDecodes = () => {
                 <TableCell sx={{ fontWeight: 700 }}>Serial</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Success</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Evaluated?</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} />
               </TableRow>
             </TableHead>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5}>
+                  <TableCell colSpan={6}>
                     <Stack direction="row" justifyContent="center" py={4}>
                       <CircularProgress size={26} />
                     </Stack>
@@ -563,7 +568,7 @@ const SerialDecodes = () => {
                 </TableRow>
               ) : records.length < 1 ? (
                 <TableRow>
-                  <TableCell colSpan={5}>
+                  <TableCell colSpan={6}>
                     <Typography variant="body2" color="text.secondary" py={2}>
                       No serial decode records found.
                     </Typography>
@@ -617,6 +622,25 @@ const SerialDecodes = () => {
                             ) : null}
                           </Stack>
                         )}
+                      </TableCell>
+                      <TableCell sx={{ color: `${successColor} !important` }}>
+                        {record.success && record.pattern ? (
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              const params = new URLSearchParams({
+                                brand: record.brand,
+                                pattern: record.pattern,
+                                open: '1',
+                              });
+                              navigate(`${paths.serialPatternText}?${params.toString()}`);
+                            }}
+                          >
+                            Pattern
+                          </Button>
+                        ) : null}
                       </TableCell>
                     </TableRow>
                   );

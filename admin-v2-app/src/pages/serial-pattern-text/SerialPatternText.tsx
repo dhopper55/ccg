@@ -21,6 +21,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import { useSearchParams } from 'react-router';
 
 type SerialPatternTextRecord = {
   brand: string;
@@ -59,6 +60,7 @@ function formatBrandName(value: string): string {
 }
 
 const SerialPatternText = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [records, setRecords] = useState<SerialPatternTextRecord[]>([]);
   const [showAll, setShowAll] = useState(false);
   const [sortBy, setSortBy] = useState<SortBy>('brand');
@@ -84,6 +86,67 @@ const SerialPatternText = () => {
   useEffect(() => {
     document.title = 'CCG Admin | Serial Pattern Text';
   }, []);
+
+  useEffect(() => {
+    const brand = searchParams.get('brand')?.trim() || '';
+    const pattern = searchParams.get('pattern')?.trim() || '';
+    const shouldOpen = searchParams.get('open') === '1';
+    if (!shouldOpen || !brand || !pattern) return;
+
+    let cancelled = false;
+
+    const openTargetRow = async () => {
+      setSaveMessage('');
+      setSaveErrorMessage('');
+      setErrorMessage('');
+
+      try {
+        const params = new URLSearchParams();
+        params.set('brand', brand);
+        params.set('pattern', pattern);
+        params.set('showAll', '1');
+        params.set('limit', '1');
+        params.set('_', String(Date.now()));
+
+        const response = await fetch(`/api/admin-v2/serial-pattern-text?${params.toString()}`, {
+          method: 'GET',
+          credentials: 'same-origin',
+          cache: 'no-store',
+        });
+        const data = (await response.json()) as SerialPatternTextResponse;
+        if (!response.ok) {
+          throw new Error(data.message || 'Unable to load serial pattern text row.');
+        }
+        if (cancelled) return;
+
+        const targetRow = Array.isArray(data.records) ? data.records[0] : null;
+        if (!targetRow) {
+          throw new Error('Associated serial pattern row was not found.');
+        }
+
+        setEditState({
+          brand: targetRow.brand,
+          pattern: targetRow.pattern,
+          regexPattern: targetRow.regexPattern || '',
+          richText: targetRow.richText || '',
+          mode: (targetRow.richText || '').trim() ? 'update' : 'add',
+        });
+      } catch (error) {
+        if (cancelled) return;
+        setErrorMessage(error instanceof Error ? error.message : 'Unable to load serial pattern text row.');
+      } finally {
+        if (!cancelled) {
+          setSearchParams({}, { replace: true });
+        }
+      }
+    };
+
+    void openTargetRow();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     if (!editorRef.current) return;

@@ -2001,6 +2001,7 @@ type AdminV2SerialDecodeRow = {
   clientTimestamp: string | null;
   brand: string;
   serial: string;
+  pattern: string | null;
   success: boolean;
   evaluated: boolean;
   year: string | null;
@@ -2252,6 +2253,8 @@ async function handleAdminV2SerialPatternTextList(request: Request, env: Env): P
   const page = parseBoundedInt(url.searchParams.get('page'), 1, 1, 1_000_000);
   const limit = parseBoundedInt(url.searchParams.get('limit'), 20, 1, 100);
   const showAll = url.searchParams.get('showAll') === '1';
+  const brand = normalizeText(url.searchParams.get('brand'), '').slice(0, 120);
+  const pattern = normalizeText(url.searchParams.get('pattern'), '').slice(0, 180);
   const sortByParam = normalizeText(url.searchParams.get('sortBy'), '').toLowerCase();
   const sortBy: AdminV2SerialPatternLookupSortBy = sortByParam === 'pattern'
     ? 'pattern'
@@ -2260,7 +2263,7 @@ async function handleAdminV2SerialPatternTextList(request: Request, env: Env): P
       : 'brand';
   const sortDir = normalizeText(url.searchParams.get('sortDir'), '').toLowerCase() === 'desc' ? 'desc' : 'asc';
 
-  const data = await dbListAdminV2SerialPatternLookup(page, limit, showAll, sortBy, sortDir, env);
+  const data = await dbListAdminV2SerialPatternLookup(page, limit, showAll, sortBy, sortDir, brand, pattern, env);
   return jsonResponse(data);
 }
 
@@ -5346,6 +5349,7 @@ async function dbListAdminV2SerialDecodes(
       client_timestamp,
       brand,
       serial,
+      pattern,
       success,
       evaluated,
       year,
@@ -5367,6 +5371,7 @@ async function dbListAdminV2SerialDecodes(
     client_timestamp: string | null;
     brand: string | null;
     serial: string | null;
+    pattern: string | null;
     success: number | null;
     evaluated: number | null;
     year: string | null;
@@ -5381,6 +5386,7 @@ async function dbListAdminV2SerialDecodes(
     clientTimestamp: typeof row.client_timestamp === 'string' ? row.client_timestamp : null,
     brand: normalizeText(row.brand, ''),
     serial: normalizeText(row.serial, ''),
+    pattern: normalizeText(row.pattern, '') || null,
     success: Number(row.success || 0) === 1,
     evaluated: Number(row.evaluated || 0) === 1,
     year: normalizeText(row.year, '') || null,
@@ -5485,6 +5491,8 @@ async function dbListAdminV2SerialPatternLookup(
   showAll: boolean,
   sortBy: AdminV2SerialPatternLookupSortBy,
   sortDir: 'asc' | 'desc',
+  brand: string,
+  pattern: string,
   env: Env,
 ): Promise<{
   records: AdminV2SerialPatternLookupRow[];
@@ -5495,14 +5503,28 @@ async function dbListAdminV2SerialPatternLookup(
 }> {
   const safePage = Math.max(1, page);
   const safeLimit = Math.max(1, Math.min(100, limit));
-  const whereSql = showAll ? '' : `WHERE trim(COALESCE(rich_text, '')) = ''`;
   const db = env.DB.withSession('first-primary');
+  const where: string[] = [];
+  const values: unknown[] = [];
+
+  if (!showAll) {
+    where.push(`trim(COALESCE(rich_text, '')) = ''`);
+  }
+  if (brand) {
+    where.push(`lower(trim(brand)) = lower(trim(?))`);
+    values.push(brand);
+  }
+  if (pattern) {
+    where.push(`trim(pattern) = ?`);
+    values.push(pattern);
+  }
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
   const totalRow = await db.prepare(
     `SELECT COUNT(*) AS total
      FROM serial_decode_pattern_lookup
      ${whereSql}`
-  ).first<{ total: number | null }>();
+  ).bind(...values).first<{ total: number | null }>();
   const total = Number(totalRow?.total || 0);
   const totalPages = Math.max(1, Math.ceil(total / safeLimit));
   const effectivePage = Math.min(safePage, totalPages);
@@ -5528,7 +5550,7 @@ async function dbListAdminV2SerialPatternLookup(
      ${whereSql}
      ORDER BY ${sortExpr} ${dir}, lower(trim(brand)) ASC, lower(trim(pattern)) ASC
      LIMIT ? OFFSET ?`
-  ).bind(safeLimit, offset).all<{
+  ).bind(...values, safeLimit, offset).all<{
     brand: string | null;
     pattern: string | null;
     regex_pattern: string | null;

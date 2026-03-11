@@ -801,10 +801,7 @@ const ListingEvaluatorItem = () => {
           saved: nextSaved,
         },
       });
-      const redirectUrl = nextSaved
-        ? `${paths.listingEvaluatorResults}?saved=1`
-        : paths.listingEvaluatorResults;
-      navigate(redirectUrl);
+      navigate(paths.listingEvaluatorResults);
     } catch (error) {
       setMessage({
         severity: 'error',
@@ -835,10 +832,7 @@ const ListingEvaluatorItem = () => {
         throw new Error(data.message || 'Unable to archive listing.');
       }
 
-      const redirectUrl = nextArchived
-        ? `${paths.listingEvaluatorResults}?archived=1`
-        : paths.listingEvaluatorResults;
-      navigate(redirectUrl);
+      navigate(paths.listingEvaluatorResults);
     } catch (error) {
       setMessage({
         severity: 'error',
