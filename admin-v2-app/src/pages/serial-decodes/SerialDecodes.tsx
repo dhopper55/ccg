@@ -40,7 +40,7 @@ type SerialDecodeRecord = {
   clientTimestamp: string | null;
   brand: string;
   serial: string;
-  pattern: string | null;
+  patternLookupId: number | null;
   success: boolean;
   evaluated: boolean;
   year: string | null;
@@ -624,15 +624,14 @@ const SerialDecodes = () => {
                         )}
                       </TableCell>
                       <TableCell sx={{ color: `${successColor} !important` }}>
-                        {record.success && record.pattern ? (
+                        {record.success && record.patternLookupId ? (
                           <Button
                             variant="outlined"
                             size="small"
                             onClick={(event) => {
                               event.stopPropagation();
                               const params = new URLSearchParams({
-                                brand: record.brand,
-                                pattern: record.pattern,
+                                id: String(record.patternLookupId),
                                 open: '1',
                               });
                               navigate(`${paths.serialPatternText}?${params.toString()}`);

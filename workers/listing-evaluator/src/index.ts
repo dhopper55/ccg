@@ -2001,7 +2001,7 @@ type AdminV2SerialDecodeRow = {
   clientTimestamp: string | null;
   brand: string;
   serial: string;
-  pattern: string | null;
+  patternLookupId: number | null;
   success: boolean;
   evaluated: boolean;
   year: string | null;
@@ -2026,6 +2026,7 @@ type AdminV2SerialLookupVolumeBucket = {
 type AdminV2SerialPatternLookupSortBy = 'brand' | 'pattern' | 'populated';
 
 type AdminV2SerialPatternLookupRow = {
+  id: number;
   brand: string;
   pattern: string;
   regexPattern: string;
@@ -2253,6 +2254,7 @@ async function handleAdminV2SerialPatternTextList(request: Request, env: Env): P
   const page = parseBoundedInt(url.searchParams.get('page'), 1, 1, 1_000_000);
   const limit = parseBoundedInt(url.searchParams.get('limit'), 20, 1, 100);
   const showAll = url.searchParams.get('showAll') === '1';
+  const lookupId = parseBoundedInt(url.searchParams.get('id'), 0, 0, 1_000_000_000);
   const brand = normalizeText(url.searchParams.get('brand'), '').slice(0, 120);
   const pattern = normalizeText(url.searchParams.get('pattern'), '').slice(0, 180);
   const sortByParam = normalizeText(url.searchParams.get('sortBy'), '').toLowerCase();
@@ -2263,7 +2265,7 @@ async function handleAdminV2SerialPatternTextList(request: Request, env: Env): P
       : 'brand';
   const sortDir = normalizeText(url.searchParams.get('sortDir'), '').toLowerCase() === 'desc' ? 'desc' : 'asc';
 
-  const data = await dbListAdminV2SerialPatternLookup(page, limit, showAll, sortBy, sortDir, brand, pattern, env);
+  const data = await dbListAdminV2SerialPatternLookup(page, limit, showAll, sortBy, sortDir, lookupId, brand, pattern, env);
   return jsonResponse(data);
 }
 
@@ -5346,24 +5348,24 @@ async function dbListAdminV2SerialDecodes(
   try {
     rows = await db.prepare(
       `SELECT
-        id,
-        event_time_utc,
-        client_timestamp,
-        brand,
-        serial,
-        pattern,
-        success,
-        evaluated,
-        year,
-        factory,
-        country,
-        error,
+        e.id,
+        e.event_time_utc,
+        e.client_timestamp,
+        e.brand,
+        e.serial,
+        e.pattern_lookup_id,
+        e.success,
+        e.evaluated,
+        e.year,
+        e.factory,
+        e.country,
+        e.error,
         COALESCE(
-          datetime(client_timestamp),
-          datetime(event_time_utc),
-          datetime(created_at)
+          datetime(e.client_timestamp),
+          datetime(e.event_time_utc),
+          datetime(e.created_at)
         ) AS sort_ts
-       FROM serial_decode_events
+       FROM serial_decode_events e
        ${whereSql}
        ORDER BY sort_ts ${sortDir.toUpperCase()}, id ${sortDir.toUpperCase()}
        LIMIT ? OFFSET ?`
@@ -5373,7 +5375,7 @@ async function dbListAdminV2SerialDecodes(
       client_timestamp: string | null;
       brand: string | null;
       serial: string | null;
-      pattern: string | null;
+      pattern_lookup_id: number | null;
       success: number | null;
       evaluated: number | null;
       year: string | null;
@@ -5385,23 +5387,23 @@ async function dbListAdminV2SerialDecodes(
     console.warn('Serial decode list query fell back to legacy schema', { error });
     rows = await db.prepare(
       `SELECT
-        id,
-        event_time_utc,
-        client_timestamp,
-        brand,
-        serial,
-        success,
-        evaluated,
-        year,
-        factory,
-        country,
-        error,
+        e.id,
+        e.event_time_utc,
+        e.client_timestamp,
+        e.brand,
+        e.serial,
+        e.success,
+        e.evaluated,
+        e.year,
+        e.factory,
+        e.country,
+        e.error,
         COALESCE(
-          datetime(client_timestamp),
-          datetime(event_time_utc),
-          datetime(created_at)
+          datetime(e.client_timestamp),
+          datetime(e.event_time_utc),
+          datetime(e.created_at)
         ) AS sort_ts
-       FROM serial_decode_events
+       FROM serial_decode_events e
        ${whereSql}
        ORDER BY sort_ts ${sortDir.toUpperCase()}, id ${sortDir.toUpperCase()}
        LIMIT ? OFFSET ?`
@@ -5426,7 +5428,7 @@ async function dbListAdminV2SerialDecodes(
     clientTimestamp: typeof row.client_timestamp === 'string' ? row.client_timestamp : null,
     brand: normalizeText(row.brand, ''),
     serial: normalizeText(row.serial, ''),
-    pattern: normalizeText((row as { pattern?: string | null }).pattern, '') || null,
+    patternLookupId: Number((row as { pattern_lookup_id?: number | null }).pattern_lookup_id || 0) || null,
     success: Number(row.success || 0) === 1,
     evaluated: Number(row.evaluated || 0) === 1,
     year: normalizeText(row.year, '') || null,
@@ -5531,6 +5533,7 @@ async function dbListAdminV2SerialPatternLookup(
   showAll: boolean,
   sortBy: AdminV2SerialPatternLookupSortBy,
   sortDir: 'asc' | 'desc',
+  lookupId: number,
   brand: string,
   pattern: string,
   env: Env,
@@ -5549,6 +5552,10 @@ async function dbListAdminV2SerialPatternLookup(
 
   if (!showAll) {
     where.push(`trim(COALESCE(rich_text, '')) = ''`);
+  }
+  if (lookupId > 0) {
+    where.push(`id = ?`);
+    values.push(lookupId);
   }
   if (brand) {
     where.push(`lower(trim(brand)) = lower(trim(?))`);
@@ -5579,6 +5586,7 @@ async function dbListAdminV2SerialPatternLookup(
 
   const rows = await db.prepare(
     `SELECT
+      l.id,
       l.brand,
       l.pattern,
       l.regex_pattern,
@@ -5591,6 +5599,7 @@ async function dbListAdminV2SerialPatternLookup(
      ORDER BY ${sortExpr} ${dir}, lower(trim(brand)) ASC, lower(trim(pattern)) ASC
      LIMIT ? OFFSET ?`
   ).bind(...values, safeLimit, offset).all<{
+    id: number | null;
     brand: string | null;
     pattern: string | null;
     regex_pattern: string | null;
@@ -5605,6 +5614,7 @@ async function dbListAdminV2SerialPatternLookup(
       const brand = normalizeText(row.brand, '');
       const pattern = normalizeText(row.pattern, '');
       return {
+        id: Number(row.id || 0),
         brand,
         pattern,
         regexPattern: normalizeText(row.regex_pattern, ''),

@@ -24,6 +24,7 @@ import {
 import { useSearchParams } from 'react-router';
 
 type SerialPatternTextRecord = {
+  id: number;
   brand: string;
   pattern: string;
   regexPattern: string;
@@ -88,10 +89,9 @@ const SerialPatternText = () => {
   }, []);
 
   useEffect(() => {
-    const brand = searchParams.get('brand')?.trim() || '';
-    const pattern = searchParams.get('pattern')?.trim() || '';
+    const lookupId = searchParams.get('id')?.trim() || '';
     const shouldOpen = searchParams.get('open') === '1';
-    if (!shouldOpen || !brand || !pattern) return;
+    if (!shouldOpen || !lookupId) return;
 
     let cancelled = false;
 
@@ -102,8 +102,7 @@ const SerialPatternText = () => {
 
       try {
         const params = new URLSearchParams();
-        params.set('brand', brand);
-        params.set('pattern', pattern);
+        params.set('id', lookupId);
         params.set('showAll', '1');
         params.set('limit', '1');
         params.set('_', String(Date.now()));
