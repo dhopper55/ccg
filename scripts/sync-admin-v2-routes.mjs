@@ -15,7 +15,6 @@ const routeDirs = [
   'listing-evaluator-item',
   'serial-decodes',
   'serial-pattern-text',
-  'logout',
   'authentication/default/jwt/login',
   'authentication/default/jwt/sign-up',
   'authentication/default/jwt/forgot-password',

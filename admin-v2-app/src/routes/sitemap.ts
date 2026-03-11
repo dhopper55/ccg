@@ -79,14 +79,6 @@ const sitemap: MenuItem[] = [
         icon: 'material-symbols:notes-rounded',
         active: true,
       },
-      {
-        name: 'Logout',
-        key: 'logout',
-        path: paths.logout,
-        pathName: 'logout',
-        icon: 'material-symbols:arrow-back-rounded',
-        active: true,
-      },
     ],
   },
 ];
