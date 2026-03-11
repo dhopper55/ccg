@@ -264,12 +264,7 @@ const SerialPatternText = () => {
           spacing={2}
           mb={2}
         >
-          <Stack spacing={0.5}>
-            <Typography variant="h4">Serial Pattern Text</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Manage brand + pattern rows and add additional context content.
-            </Typography>
-          </Stack>
+          <Typography variant="h4">Serial Pattern Text</Typography>
 
           <FormControlLabel
             sx={{ mr: 0 }}

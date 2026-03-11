@@ -6860,7 +6860,9 @@ async function maybeParaphrasePatternLookupHtml(
   env: Env,
 ): Promise<string | null> {
   if (!env.OPENAI_API_KEY) return null;
-  const sourceText = htmlToPromptText(richHtml).slice(0, 9000);
+  const rawSourceText = htmlToPromptText(richHtml);
+  // Strip the boilerplate "Based on the provided regex ..." opener that AI tools often prepend
+  const sourceText = rawSourceText.replace(/^Based on the provided regex\b[^.]*\.\s*/i, '').slice(0, 9000);
   if (!sourceText) return null;
 
   const regexPattern = deriveRegexFromPatternKey(pattern);

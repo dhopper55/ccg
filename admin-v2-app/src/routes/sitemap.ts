@@ -87,14 +87,6 @@ const sitemap: MenuItem[] = [
         icon: 'material-symbols:arrow-back-rounded',
         active: true,
       },
-      {
-        name: 'Icon Gallery',
-        key: 'icon_gallery',
-        path: paths.iconGallery,
-        pathName: 'icons',
-        icon: 'material-symbols:imagesmode-rounded',
-        active: true,
-      },
     ],
   },
 ];

@@ -7,7 +7,6 @@ import {
   Chip,
   ChipOwnProps,
   CircularProgress,
-  IconButton,
   Link,
   Paper,
   Stack,
@@ -17,7 +16,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Tooltip,
   Typography,
 } from '@mui/material';
 import { useNavigate, useSearchParams } from 'react-router';
@@ -68,7 +66,6 @@ const headerActions = [
     color: 'error' as const,
   },
   { label: 'Refresh', icon: 'material-symbols:refresh-rounded', color: 'success' as const },
-  { label: 'Map', icon: 'material-symbols:map-outline-rounded', color: 'default' as const },
 ];
 
 function formatCurrencyValue(value: number | string | undefined): string {
@@ -418,61 +415,23 @@ const ListingEvaluatorResults = () => {
                       </Box>
                     </Stack>
 
-                    <Stack
-                      direction="row"
-                      sx={{
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        gap: 1.5,
-                        minWidth: 0,
-                      }}
-                    >
-                      <Stack
-                        direction="row"
-                        spacing={1}
-                        sx={{ alignItems: 'center', minWidth: 0, flexShrink: 1 }}
-                      >
-                        {row.sourceImageSrc ? (
-                          <Avatar
-                            variant="rounded"
-                            src={row.sourceImageSrc}
-                            alt={row.sourceLabel}
-                            sx={{
-                              width: 32,
-                              height: 32,
-                              bgcolor: 'background.elevation1',
-                              '& img': {
-                                objectFit: 'contain',
-                                width: 20,
-                                height: 20,
-                              },
-                            }}
-                          />
-                        ) : null}
-                        <Typography
-                          variant="body2"
-                          sx={{ color: 'text.secondary', whiteSpace: 'nowrap' }}
-                        >
-                          {row.sourceLabel}
-                        </Typography>
-                      </Stack>
-
-                      <Tooltip title="Inv. Add">
-                        <IconButton
-                          aria-label="Inv. Add"
-                          color="primary"
+                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 0 }}>
+                      {row.sourceImageSrc ? (
+                        <Avatar
+                          variant="rounded"
+                          src={row.sourceImageSrc}
+                          alt={row.sourceLabel}
                           sx={{
-                            width: 36,
-                            height: 36,
-                            borderRadius: 2.5,
+                            width: 32,
+                            height: 32,
                             bgcolor: 'background.elevation1',
-                            border: 1,
-                            borderColor: 'divider',
+                            '& img': { objectFit: 'contain', width: 20, height: 20 },
                           }}
-                        >
-                          <IconifyIcon icon="material-symbols:add-rounded" fontSize={18} />
-                        </IconButton>
-                      </Tooltip>
+                        />
+                      ) : null}
+                      <Typography variant="body2" sx={{ color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                        {row.sourceLabel}
+                      </Typography>
                     </Stack>
                   </Stack>
                 </Paper>
@@ -488,15 +447,12 @@ const ListingEvaluatorResults = () => {
                   <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
                     Source
                   </TableCell>
-                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                    Actions
-                  </TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={3}>
+                    <TableCell colSpan={2}>
                       <Stack sx={{ alignItems: 'center', py: 6 }} spacing={2}>
                         <CircularProgress size={28} />
                         <Typography sx={{ color: 'text.secondary' }}>Loading results…</Typography>
@@ -505,7 +461,7 @@ const ListingEvaluatorResults = () => {
                   </TableRow>
                 ) : rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={3}>
+                    <TableCell colSpan={2}>
                       <Typography sx={{ py: 4, color: 'text.secondary' }}>
                         No listing evaluator results found.
                       </Typography>
@@ -599,24 +555,6 @@ const ListingEvaluatorResults = () => {
                             {row.sourceLabel}
                           </Typography>
                         )}
-                      </TableCell>
-                      <TableCell align="right">
-                        <Tooltip title="Inv. Add">
-                          <IconButton
-                            aria-label="Inv. Add"
-                            color="primary"
-                            sx={{
-                              width: 36,
-                              height: 36,
-                              borderRadius: 2.5,
-                              bgcolor: 'background.elevation1',
-                              border: 1,
-                              borderColor: 'divider',
-                            }}
-                          >
-                            <IconifyIcon icon="material-symbols:add-rounded" fontSize={18} />
-                          </IconButton>
-                        </Tooltip>
                       </TableCell>
                     </TableRow>
                   ))
