@@ -1301,7 +1301,7 @@ async function handleSubmit(request: Request, env: Env, ctx: ExecutionContext): 
   const rejected: RejectResult[] = [];
 
   for (const item of uniqueUrls) {
-    const resolvedUrl = await resolveListingInputUrl(item.url, env);
+    const resolvedUrl = await resolveFacebookShareUrl(item.url);
     const normalizedResolvedUrl = normalizeQueuedListingUrl(resolvedUrl);
     if (!normalizedResolvedUrl || !isSupportedListingUrl(normalizedResolvedUrl)) {
       rejected.push({ url: item.url, reason: 'Unsupported URL. Use a Facebook Marketplace item URL or Craigslist listing URL.' });
@@ -1663,8 +1663,6 @@ type ApifyRunResult = {
   runId?: string;
   items: any[];
 };
-
-const FACEBOOK_SHARE_RESOLVE_TIMEOUT_MS = 8000;
 
 async function startApifySearchRun(actorId: string, input: Record<string, unknown>, env: Env): Promise<string | null> {
   const actorPath = actorId.includes('/') ? actorId.replace('/', '~') : actorId;
@@ -3426,7 +3424,7 @@ async function handleReprocessListing(request: Request, env: Env): Promise<Respo
     return jsonResponse({ ok: true, recordId });
   }
 
-  const resolvedUrl = await resolveListingInputUrl(rawUrl, env);
+  const resolvedUrl = await resolveFacebookShareUrl(rawUrl);
   const normalizedUrl = normalizeQueuedListingUrl(resolvedUrl);
   if (!normalizedUrl) return jsonResponse({ message: 'Invalid url.' }, 400);
   if (!isSupportedListingUrl(normalizedUrl)) {
@@ -3555,6 +3553,7 @@ async function processRun(runId: string, resource: any, eventType: string | unde
     return;
   }
   const isMulti = recordId ? await getIsMultiFromRecord(recordId, env) : false;
+  const canonicalListingUrl = normalizeQueuedListingUrl(listing.url || '') || '';
   const aiResult = await runOpenAI(listing, env, { isMulti });
   let aiSummary = aiResult.kind === 'multi' ? ensureMultiTotals(aiResult.summary) : '';
   let aiData = aiResult.kind === 'single' ? aiResult.data : undefined;
@@ -3588,6 +3587,17 @@ async function processRun(runId: string, resource: any, eventType: string | unde
     aiData,
     notes: listing.notes,
   }, env, { recordId, isMulti });
+
+  if (recordId && canonicalListingUrl) {
+    const currentRecord = await dbGetListing(recordId, env);
+    const currentUrl = normalizeText(currentRecord?.fields?.url, '');
+    if (currentUrl && currentUrl !== canonicalListingUrl) {
+      const existingCanonical = await dbFindListingByUrl(canonicalListingUrl, env);
+      if (!existingCanonical || existingCanonical.id === recordId) {
+        await dbUpdateListing(recordId, { url: canonicalListingUrl }, env);
+      }
+    }
+  }
 
   const listingTitle = normalizeText(listing.title, '').slice(0, 300) || 'Untitled listing';
   const listingUrl = toAbsoluteSiteUrl(listing.url || '');
@@ -7329,44 +7339,6 @@ function buildFacebookApifyInput(url: string): Record<string, unknown> {
   };
 }
 
-async function resolveFacebookShareUrlWithApify(url: string, env: Env): Promise<string> {
-  if (!isFacebookShareUrl(url)) return url;
-  if (!env.APIFY_FACEBOOK_ACTOR || !env.APIFY_TOKEN) return url;
-
-  try {
-    const result = await promiseWithTimeout(
-      runApifySearch(env.APIFY_FACEBOOK_ACTOR, buildFacebookApifyInput(url), env),
-      FACEBOOK_SHARE_RESOLVE_TIMEOUT_MS,
-    );
-    for (const item of result.items) {
-      const listing = normalizeListing(item);
-      const normalizedCandidate = normalizeQueuedListingUrl(listing.url || '');
-      if (!normalizedCandidate) continue;
-      if (isFacebookShareUrl(normalizedCandidate)) continue;
-      if (/\/marketplace\/item\/\d+/.test(new URL(normalizedCandidate).pathname.toLowerCase())) {
-        return normalizedCandidate;
-      }
-    }
-  } catch (error) {
-    console.warn('Unable to resolve Facebook share URL with Apify', { url, error });
-  }
-
-  return url;
-}
-
-async function resolveListingInputUrl(url: string, env: Env): Promise<string> {
-  if (!isFacebookShareUrl(url)) {
-    return url;
-  }
-
-  const apifyResolved = await resolveFacebookShareUrlWithApify(url, env);
-  if (!isFacebookShareUrl(apifyResolved)) {
-    return apifyResolved;
-  }
-
-  return await resolveFacebookShareUrl(url);
-}
-
 function normalizeFacebookItemUrl(url: string): string | null {
   try {
     const parsed = new URL(url);
@@ -7489,24 +7461,6 @@ async function waitForApifyRun(runId: string, env: Env, attempts: number): Promi
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function promiseWithTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      reject(new Error(`Timed out after ${timeoutMs}ms`));
-    }, timeoutMs);
-
-    promise
-      .then((value) => {
-        clearTimeout(timeoutId);
-        resolve(value);
-      })
-      .catch((error) => {
-        clearTimeout(timeoutId);
-        reject(error);
-      });
-  });
 }
 
 async function fetchApifyDataset(datasetId: string, env: Env): Promise<any[]> {
