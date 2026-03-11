@@ -1,7 +1,6 @@
 import { PropsWithChildren, useMemo, useState } from 'react';
 import { NavLink, useLocation } from 'react-router';
 import {
-  Avatar,
   Box,
   Divider,
   IconButton,
@@ -18,19 +17,16 @@ import IconifyIcon from 'components/base/IconifyIcon';
 import Logo from 'components/common/Logo';
 import StyledTextField from 'components/styled/StyledTextField';
 import NotificationMenu from 'layouts/main-layout/common/NotificationMenu';
-import { useAuth } from 'providers/AuthProvider';
+import ProfileMenu from 'layouts/main-layout/common/ProfileMenu';
 import sitemap from 'routes/sitemap';
 
 const SIDEBAR_WIDTH = 280;
 
 const MainLayout = ({ children }: PropsWithChildren) => {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const { sessionUser } = useAuth();
   const { pathname } = useLocation();
 
   const navItems = useMemo(() => sitemap.flatMap((section) => section.items), []);
-  const userName = sessionUser?.name?.trim() || 'Admin';
-  const userInitial = userName.charAt(0).toUpperCase() || 'A';
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -201,35 +197,8 @@ const MainLayout = ({ children }: PropsWithChildren) => {
             </Stack>
 
             <Stack direction="row" sx={{ alignItems: 'center', gap: 1, flexShrink: 0 }}>
-              <Box
-                sx={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: 40,
-                  height: 40,
-                }}
-              >
-                <IconifyIcon icon="flag:us-4x3" sx={{ fontSize: 24 }} />
-              </Box>
-
-              <IconButton color="inherit" aria-label="Theme">
-                <IconifyIcon icon="material-symbols-light:palette-outline" />
-              </IconButton>
-
               <NotificationMenu />
-
-              <Avatar
-                sx={{
-                  width: 40,
-                  height: 40,
-                  bgcolor: 'primary.main',
-                  color: 'common.black',
-                  fontWeight: 700,
-                }}
-              >
-                {userInitial}
-              </Avatar>
+              <ProfileMenu />
             </Stack>
           </Stack>
         </Box>
