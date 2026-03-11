@@ -1,0 +1,13 @@
+# Hashed JS/CSS assets cached forever (filename changes on every build)
+/admin/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Never cache the admin SPA entry points so new JS bundles are always picked up
+/admin/index.html
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/admin
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/admin/*
+  Cache-Control: no-cache, no-store, must-revalidate
