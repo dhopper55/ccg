@@ -5342,43 +5342,83 @@ async function dbListAdminV2SerialDecodes(
     .map((row) => normalizeText(row.brand, ''))
     .filter(Boolean);
 
-  const rows = await db.prepare(
-    `SELECT
-      id,
-      event_time_utc,
-      client_timestamp,
-      brand,
-      serial,
-      pattern,
-      success,
-      evaluated,
-      year,
-      factory,
-      country,
-      error,
-      COALESCE(
-        datetime(client_timestamp),
-        datetime(event_time_utc),
-        datetime(created_at)
-      ) AS sort_ts
-     FROM serial_decode_events
-     ${whereSql}
-     ORDER BY sort_ts ${sortDir.toUpperCase()}, id ${sortDir.toUpperCase()}
-     LIMIT ? OFFSET ?`
-  ).bind(...values, limit, offset).all<{
-    id: number | null;
-    event_time_utc: string | null;
-    client_timestamp: string | null;
-    brand: string | null;
-    serial: string | null;
-    pattern: string | null;
-    success: number | null;
-    evaluated: number | null;
-    year: string | null;
-    factory: string | null;
-    country: string | null;
-    error: string | null;
-  }>();
+  let rows;
+  try {
+    rows = await db.prepare(
+      `SELECT
+        id,
+        event_time_utc,
+        client_timestamp,
+        brand,
+        serial,
+        pattern,
+        success,
+        evaluated,
+        year,
+        factory,
+        country,
+        error,
+        COALESCE(
+          datetime(client_timestamp),
+          datetime(event_time_utc),
+          datetime(created_at)
+        ) AS sort_ts
+       FROM serial_decode_events
+       ${whereSql}
+       ORDER BY sort_ts ${sortDir.toUpperCase()}, id ${sortDir.toUpperCase()}
+       LIMIT ? OFFSET ?`
+    ).bind(...values, limit, offset).all<{
+      id: number | null;
+      event_time_utc: string | null;
+      client_timestamp: string | null;
+      brand: string | null;
+      serial: string | null;
+      pattern: string | null;
+      success: number | null;
+      evaluated: number | null;
+      year: string | null;
+      factory: string | null;
+      country: string | null;
+      error: string | null;
+    }>();
+  } catch (error) {
+    console.warn('Serial decode list query fell back to legacy schema', { error });
+    rows = await db.prepare(
+      `SELECT
+        id,
+        event_time_utc,
+        client_timestamp,
+        brand,
+        serial,
+        success,
+        evaluated,
+        year,
+        factory,
+        country,
+        error,
+        COALESCE(
+          datetime(client_timestamp),
+          datetime(event_time_utc),
+          datetime(created_at)
+        ) AS sort_ts
+       FROM serial_decode_events
+       ${whereSql}
+       ORDER BY sort_ts ${sortDir.toUpperCase()}, id ${sortDir.toUpperCase()}
+       LIMIT ? OFFSET ?`
+    ).bind(...values, limit, offset).all<{
+      id: number | null;
+      event_time_utc: string | null;
+      client_timestamp: string | null;
+      brand: string | null;
+      serial: string | null;
+      success: number | null;
+      evaluated: number | null;
+      year: string | null;
+      factory: string | null;
+      country: string | null;
+      error: string | null;
+    }>();
+  }
 
   const records = (rows.results ?? []).map((row) => ({
     id: Number(row.id || 0),
@@ -5386,7 +5426,7 @@ async function dbListAdminV2SerialDecodes(
     clientTimestamp: typeof row.client_timestamp === 'string' ? row.client_timestamp : null,
     brand: normalizeText(row.brand, ''),
     serial: normalizeText(row.serial, ''),
-    pattern: normalizeText(row.pattern, '') || null,
+    pattern: normalizeText((row as { pattern?: string | null }).pattern, '') || null,
     success: Number(row.success || 0) === 1,
     evaluated: Number(row.evaluated || 0) === 1,
     year: normalizeText(row.year, '') || null,
