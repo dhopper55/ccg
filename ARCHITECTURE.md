@@ -8,6 +8,7 @@ The Listing Evaluator is a static site + Cloudflare Worker backend that:
 4) Writes results to D1 (SQLite) and exposes them via a listing results UI
 5) Protects `/api/*` with a simple username/password login (HttpOnly cookie)
 6) Receives serial decoder tracking events from public decoder pages and stores them in D1
+7) Stores reusable serial-pattern metadata/content for decoder context rendering
 
 ## Admin
 Admin is served from `/admin` and built from the Aurora-based app.
@@ -44,6 +45,13 @@ Going forward, the rule is:
   - Top chart: Brand response counts (descending), clickable bars set page-level Brand filter.
   - Grid: pagination, timestamp sort, page-level Brand filter, `Only errors`, conditional `Unevaluated`.
   - Grid row action: for failed decodes, `Evaluated?` checkbox updates DB via `/api/admin-v2/serial-decodes/:id/evaluated`.
+- Serial Pattern Text admin page behavior:
+  - Grid lists `brand + pattern` rows from `serial_decode_pattern_lookup`
+  - Default view shows rows where rich text is empty; `Show All` reveals all rows
+  - Edit dialog shows Brand/Pattern/Regex and rich-text editor
+  - Save path (`POST /api/admin-v2/serial-pattern-text`) sanitizes HTML before persistence
+  - Add mode behavior: if row had empty rich text, server runs AI paraphrase into standardized Coal Creek structure before save
+  - Update mode behavior: if row already had content, server saves edited HTML directly (sanitized)
 
 ## Auth
 The public site and the admin surfaces do not use the same access model.
@@ -98,6 +106,13 @@ All `/api/*` endpoints require auth except:
   - Adds request metadata (`page_path`, `user_agent`, `CF-Connecting-IP`, `cf_country`, `cf_colo`)
   - Writes one row per decode attempt to D1 table `serial_decode_events`
 
+- `POST /api/decode`
+  - Public decoder endpoint used by brand decoder pages
+  - Runs `decodeSerialForBackend(...)` (brand decoder + normalization/retry rules)
+  - Logs decode event rows to `serial_decode_events`
+  - On successful decode, derives pattern metadata and upserts pattern rows into `serial_decode_pattern_lookup`
+  - Returns `additionalContextRichText` when the matched pattern row has populated rich text
+
 - `GET /api/listings`
   - Paged listing results for results UI
 - `GET /api/listings/:id`
@@ -136,6 +151,15 @@ All `/api/*` endpoints require auth except:
   - Admin V2 chart payload for response counts by brand (descending)
 - `POST /api/admin-v2/serial-decodes/:id/evaluated`
   - Toggle one serial decode row `evaluated` state (`true/false`)
+- `GET /api/admin-v2/serial-pattern-text`
+  - Admin V2 serial pattern text grid data (paged/sorted, optional show-all)
+- `POST /api/admin-v2/serial-pattern-text`
+  - Upsert rich text content for one `brand + pattern` row
+  - Derives/stores regex for pattern key (`regex_pattern`) where column exists
+  - Sanitizes HTML input before storing
+  - Add mode (existing row empty) triggers AI paraphrase to standardized HTML structure
+- `POST /api/admin-v2/serial-contexts/generate`
+  - Screenshot-to-context flow for generating reusable pattern context (AI + sanitization)
 - `GET /api/admin-v2/listings/:id`
   - Listing detail payload used by Admin V2 listing drilldown
 - `POST /api/admin-v2/inventory/:id/mark`
@@ -168,10 +192,22 @@ Tables:
   - Core fields: `brand`, `serial`, `success`, `year`, `factory`, `country`, `error`
   - Workflow field: `evaluated` (`INTEGER` 0/1, default `0`)
   - Metadata fields: `event_time_utc`, `page_path`, `user_agent`, `client_timestamp`, `ip_address`, `cf_country`, `cf_colo`, `created_at`
+  - Pattern linkage fields:
+    - `pattern_lookup_id` (FK-style linkage to pattern lookup row id when available)
+    - stores matched pattern metadata in event stream for analytics/debug
+- `serial_decode_pattern_lookup`
+  - Reusable pattern-level content table used by decoder responses and Admin V2 editor
+  - Primary identity: `brand + pattern` (composite uniqueness)
+  - Content fields: `regex_pattern`, `rich_text`, timestamps
+  - Populated automatically from successful decode traffic (upsert on pattern)
+  - Edited from Admin V2 Serial Pattern Text page
 
-Migration file:
+Migration files (serial decoder related):
 - `workers/listing-evaluator/migrations/2026-03-08_serial_decode_events.sql`
 - `workers/listing-evaluator/migrations/2026-03-08_serial_decode_events_evaluated.sql`
+- `workers/listing-evaluator/migrations/2026-03-09_serial_decode_pattern_lookup.sql`
+- `workers/listing-evaluator/migrations/2026-03-10_serial_decode_pattern_lookup_fk.sql`
+- `workers/listing-evaluator/migrations/2026-03-10_serial_decode_pattern_lookup_regex.sql`
 
 ## OpenAI
 - Models: `gpt-4o` and `gpt-4o-mini` (see worker for task-specific usage)

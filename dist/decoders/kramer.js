@@ -148,7 +148,11 @@ function decodeModernSamickS(normalized, cleaned) {
     let sequence = normalized.substring(5);
     const yearValue = parseInt(yearPart, 10);
     let monthValue = parseInt(monthPart, 10);
-    const fullYear = Number.isNaN(yearValue) ? undefined : 2000 + yearValue;
+    const fullYear = Number.isNaN(yearValue)
+        ? undefined
+        : yearValue <= 24
+            ? 2000 + yearValue
+            : 1900 + yearValue;
     let monthName = getMonthName(monthValue);
     // Some S-prefix runs appear to use a single month digit after YY
     // (e.g., S106020848 => YY=10, M=6, sequence=020848).
