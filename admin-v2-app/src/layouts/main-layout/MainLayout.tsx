@@ -4,7 +4,6 @@ import {
   Box,
   Divider,
   IconButton,
-  InputAdornment,
   List,
   ListItemButton,
   ListItemIcon,
@@ -15,9 +14,9 @@ import {
 } from '@mui/material';
 import IconifyIcon from 'components/base/IconifyIcon';
 import Logo from 'components/common/Logo';
-import StyledTextField from 'components/styled/StyledTextField';
 import NotificationMenu from 'layouts/main-layout/common/NotificationMenu';
 import ProfileMenu from 'layouts/main-layout/common/ProfileMenu';
+import SearchDropdown from 'layouts/main-layout/common/SearchDropdown';
 import sitemap from 'routes/sitemap';
 
 const SIDEBAR_WIDTH = 280;
@@ -175,25 +174,7 @@ const MainLayout = ({ children }: PropsWithChildren) => {
                 <Logo showName={false} />
               </Box>
 
-              <StyledTextField
-                fullWidth
-                value=""
-                placeholder="Search"
-                aria-label="Search"
-                slotProps={{
-                  input: {
-                    readOnly: true,
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <IconifyIcon icon="material-symbols:search-rounded" fontSize={20} />
-                      </InputAdornment>
-                    ),
-                  },
-                }}
-                sx={{
-                  maxWidth: { xs: 220, md: 420 },
-                }}
-              />
+              <SearchDropdown />
             </Stack>
 
             <Stack direction="row" sx={{ alignItems: 'center', gap: 1, flexShrink: 0 }}>

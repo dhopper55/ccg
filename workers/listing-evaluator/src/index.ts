@@ -471,6 +471,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/search' && request.method === 'GET') {
+      const response = await handleAdminV2Search(request, env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/admin-v2/serial-contexts/generate' && request.method === 'POST') {
       const response = await handleAdminV2SerialPatternContextGenerate(request, env);
       return withCors(response, request, env);
@@ -2247,6 +2252,50 @@ async function handleAdminV2SerialDecodeLookupVolume(request: Request, env: Env)
   const brand = normalizeText(url.searchParams.get('brand'), '').slice(0, 120);
   const data = await dbGetAdminV2SerialDecodeLookupVolume(view, brand, env);
   return jsonResponse(data);
+}
+
+async function handleAdminV2Search(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const q = normalizeText(url.searchParams.get('q'), '').slice(0, 200);
+  if (q.length < 3) return jsonResponse({ results: [] });
+
+  const like = `%${q}%`;
+
+  const invRows = await env.DB.prepare(
+    `SELECT id, title, brand, model, image_url
+     FROM ccg_inventory_items
+     WHERE title LIKE ? OR (COALESCE(brand,'') || ' ' || COALESCE(model,'')) LIKE ?
+     LIMIT 5`
+  ).bind(like, like).all<{ id: number; title: string; brand: string | null; model: string | null; image_url: string | null }>();
+
+  const listingRows = await env.DB.prepare(
+    `SELECT id, title, brand, model, photos
+     FROM listings
+     WHERE archived = 0 AND (title LIKE ? OR (COALESCE(brand,'') || ' ' || COALESCE(model,'')) LIKE ?)
+     LIMIT 5`
+  ).bind(like, like).all<{ id: number; title: string | null; brand: string | null; model: string | null; photos: string | null }>();
+
+  const results = [
+    ...(invRows.results || []).map((r) => ({
+      type: 'inventory' as const,
+      id: String(r.id),
+      title: normalizeText(r.title, 'Untitled'),
+      subtitle: [r.brand, r.model].filter(Boolean).join(' ') || null,
+      imageUrl: normalizeText(r.image_url, '').slice(0, 1000) || null,
+    })),
+    ...(listingRows.results || []).map((r) => {
+      const firstPhoto = normalizeText(r.photos, '').split('\n').map((s) => s.trim()).find((s) => s.length > 0) || null;
+      return {
+        type: 'listing' as const,
+        id: String(r.id),
+        title: normalizeText(r.title, 'Untitled'),
+        subtitle: [r.brand, r.model].filter(Boolean).join(' ') || null,
+        imageUrl: firstPhoto,
+      };
+    }),
+  ].slice(0, 10);
+
+  return jsonResponse({ results });
 }
 
 async function handleAdminV2SerialPatternTextList(request: Request, env: Env): Promise<Response> {
