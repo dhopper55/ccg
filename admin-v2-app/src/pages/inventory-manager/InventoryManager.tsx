@@ -31,7 +31,7 @@ import { useBreakpoints } from 'providers/BreakpointsProvider';
 import IconifyIcon from 'components/base/IconifyIcon';
 import paths from 'routes/paths';
 
-type InventorySortKey = 'ccgNumber' | 'title' | 'paid' | 'private' | 'soldPrice';
+type InventorySortKey = 'ccgNumber' | 'title' | 'paid' | 'private' | 'addDate';
 type InventorySortDir = 'asc' | 'desc';
 
 type InventoryRecord = {
@@ -48,6 +48,7 @@ type InventoryRecord = {
   purchasePrice?: number | null;
   privatePartyValue?: number | null;
   soldAmount?: number | null;
+  createdAt?: string | null;
   qtyAvailable?: number | null;
   groupCount?: number | null;
 };
@@ -97,6 +98,19 @@ const DEFAULT_FILTERS: InventoryFilters = {
   onlyPersonal: false,
 };
 
+function formatAddDate(value: string | null | undefined): string {
+  if (!value) return '—';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '—';
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Denver',
+    month: '2-digit',
+    day: '2-digit',
+    year: 'numeric',
+  });
+  return formatter.format(parsed);
+}
+
 function formatCurrency(value: number | null | undefined): string {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
   return new Intl.NumberFormat('en-US', {
@@ -113,8 +127,8 @@ const InventoryManager = () => {
   const downSm = down('sm');
   const [filters, setFilters] = useState<InventoryFilters>(DEFAULT_FILTERS);
   const [page, setPage] = useState(1);
-  const [sortBy, setSortBy] = useState<InventorySortKey>('title');
-  const [sortDir, setSortDir] = useState<InventorySortDir>('asc');
+  const [sortBy, setSortBy] = useState<InventorySortKey>('addDate');
+  const [sortDir, setSortDir] = useState<InventorySortDir>('desc');
   const [records, setRecords] = useState<InventoryRecord[]>([]);
   const [availableBrands, setAvailableBrands] = useState<string[]>([]);
   const [total, setTotal] = useState(0);
@@ -216,8 +230,8 @@ const InventoryManager = () => {
 
   const clearFilters = () => {
     setPage(1);
-    setSortBy('title');
-    setSortDir('asc');
+    setSortBy('addDate');
+    setSortDir('desc');
     setFilters(DEFAULT_FILTERS);
     setActionErrorMessage('');
   };
@@ -437,11 +451,11 @@ const InventoryManager = () => {
             </TableCell>
             <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
               <TableSortLabel
-                active={sortBy === 'soldPrice'}
-                direction={sortBy === 'soldPrice' ? sortDir : 'asc'}
-                onClick={() => handleSort('soldPrice')}
+                active={sortBy === 'addDate'}
+                direction={sortBy === 'addDate' ? sortDir : 'asc'}
+                onClick={() => handleSort('addDate')}
               >
-                Sold $
+                Add Date
               </TableSortLabel>
             </TableCell>
           </TableRow>
@@ -576,7 +590,7 @@ const InventoryManager = () => {
                 </TableCell>
                 <TableCell align="right">{formatCurrency(record.purchasePrice)}</TableCell>
                 <TableCell align="right">{formatCurrency(record.privatePartyValue)}</TableCell>
-                <TableCell align="right">{formatCurrency(record.soldAmount)}</TableCell>
+                <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>{formatAddDate(record.createdAt)}</TableCell>
               </TableRow>
             ))
           )}
@@ -692,7 +706,7 @@ const InventoryManager = () => {
                 <Typography variant="body2">
                   Private: {formatCurrency(record.privatePartyValue)}
                 </Typography>
-                <Typography variant="body2">Sold: {formatCurrency(record.soldAmount)}</Typography>
+                <Typography variant="body2">Added: {formatAddDate(record.createdAt)}</Typography>
               </Stack>
             </Stack>
           </Paper>

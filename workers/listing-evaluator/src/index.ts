@@ -4088,7 +4088,7 @@ type InventoryGroupedFilters = {
   sortDir: InventorySortDir;
 };
 
-type InventorySortKey = 'ccgNumber' | 'title' | 'paid' | 'private' | 'soldPrice';
+type InventorySortKey = 'ccgNumber' | 'title' | 'paid' | 'private' | 'soldPrice' | 'addDate';
 type InventorySortDir = 'asc' | 'desc';
 
 function parseInventorySortKey(input: string | null): InventorySortKey {
@@ -4101,6 +4101,8 @@ function parseInventorySortKey(input: string | null): InventorySortKey {
       return 'private';
     case 'soldPrice':
       return 'soldPrice';
+    case 'addDate':
+      return 'addDate';
     case 'title':
     default:
       return 'title';
@@ -4122,6 +4124,8 @@ function inventoryOrderBySql(sortBy: InventorySortKey, sortDir: InventorySortDir
       return `CASE WHEN i.private_party_value IS NULL THEN 1 ELSE 0 END ASC, COALESCE(i.private_party_value, 0) ${dir}, LOWER(i.title) ASC, i.id DESC`;
     case 'soldPrice':
       return `COALESCE(i.sold_amount, 0) ${dir}, LOWER(i.title) ASC, i.id DESC`;
+    case 'addDate':
+      return `COALESCE(i.created_at, '') ${dir}, i.id ${dir}`;
     case 'title':
     default:
       return `LOWER(i.title) ${dir}, LOWER(i.ccg_number) ASC, i.id DESC`;
