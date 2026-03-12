@@ -182,7 +182,6 @@ Cookies refresh instructions live in:
 - `workers/listing-evaluator/FACEBOOK-COOKIES.md`
 
 ## D1 (SQLite)
-Schema lives in `workers/listing-evaluator/schema.sql`.
 Tables:
 - `listings`
 - `ccg_inventory_items`
@@ -202,12 +201,7 @@ Tables:
   - Populated automatically from successful decode traffic (upsert on pattern)
   - Edited from Admin V2 Serial Pattern Text page
 
-Migration files (serial decoder related):
-- `workers/listing-evaluator/migrations/2026-03-08_serial_decode_events.sql`
-- `workers/listing-evaluator/migrations/2026-03-08_serial_decode_events_evaluated.sql`
-- `workers/listing-evaluator/migrations/2026-03-09_serial_decode_pattern_lookup.sql`
-- `workers/listing-evaluator/migrations/2026-03-10_serial_decode_pattern_lookup_fk.sql`
-- `workers/listing-evaluator/migrations/2026-03-10_serial_decode_pattern_lookup_regex.sql`
+No migration files are kept in the repo. The live D1 database is the source of truth for schema. For future schema changes, run one-off SQL via `npx wrangler d1 execute listing_evaluator --remote --command="..."` from `workers/listing-evaluator/`.
 
 ## OpenAI
 - Models: `gpt-4o` and `gpt-4o-mini` (see worker for task-specific usage)
@@ -235,10 +229,6 @@ Optional:
 ## Deployment
 From `workers/listing-evaluator/`:
 - `npx wrangler deploy`
-
-For the serial decoder event table only (single migration file, no full migration sweep):
-- `npx wrangler d1 execute listing_evaluator --remote --file=./migrations/2026-03-08_serial_decode_events.sql`
-- `npx wrangler d1 execute listing_evaluator --remote --file=./migrations/2026-03-08_serial_decode_events_evaluated.sql`
 
 From repo root:
 - `npm run build`
