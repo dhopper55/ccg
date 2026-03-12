@@ -148,9 +148,19 @@ const SearchDropdown = () => {
                 <ListItemButton
                   key={`${result.type}-${result.id}`}
                   onClick={() => handleSelect(result)}
-                  sx={{ gap: 1.5, py: 1, px: 1.5 }}
+                  sx={{ gap: 1, py: 1, px: 1.5, alignItems: 'center' }}
                 >
-                  <ListItemAvatar sx={{ minWidth: 44 }}>
+                  <IconifyIcon
+                    icon={
+                      result.type === 'inventory'
+                        ? 'material-symbols:sell'
+                        : 'material-symbols:library-add-check-outline-rounded'
+                    }
+                    fontSize={16}
+                    sx={{ color: 'text.secondary', flexShrink: 0 }}
+                  />
+
+                  <ListItemAvatar sx={{ minWidth: 44, ml: 0.5 }}>
                     <Avatar
                       variant="rounded"
                       src={result.imageUrl || undefined}
@@ -165,7 +175,7 @@ const SearchDropdown = () => {
                       <IconifyIcon
                         icon={
                           result.type === 'inventory'
-                            ? 'material-symbols:sell-outline-rounded'
+                            ? 'material-symbols:sell'
                             : 'material-symbols:library-add-check-outline-rounded'
                         }
                         fontSize={18}
@@ -185,16 +195,6 @@ const SearchDropdown = () => {
                       fontSize: 12,
                       noWrap: true,
                     }}
-                  />
-
-                  <IconifyIcon
-                    icon={
-                      result.type === 'inventory'
-                        ? 'material-symbols:sell-outline-rounded'
-                        : 'material-symbols:library-add-check-outline-rounded'
-                    }
-                    fontSize={16}
-                    sx={{ color: 'text.disabled', flexShrink: 0 }}
                   />
                 </ListItemButton>
               ))}
