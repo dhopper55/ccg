@@ -40,6 +40,20 @@ export function decodeKramer(serial) {
     if (/^SI\d{8}$/.test(normalized)) {
         return decodeSamickIndonesiaSI(normalized, cleaned);
     }
+    // SF-prefix: Focus series, made by ESP in Japan for Kramer (mid-to-late 1980s)
+    if (/^SF\d{3,6}$/.test(normalized)) {
+        const sequence = normalized.substring(2);
+        const info = {
+            brand: 'Kramer',
+            serialNumber: cleaned,
+            year: 'mid-to-late 1980s',
+            factory: 'ESP Japan',
+            country: 'Japan',
+            model: 'Focus series',
+            notes: `SF-prefix neck plate serial. The "S" and "F" letter codes on Kramer neck plates from this era generally indicate the Focus series (e.g., Focus 1000, 3000, 6000), manufactured by ESP in Japan for Kramer. Kramer did not keep detailed production records, so an exact year cannot be determined from the serial alone. Production sequence: ${sequence}. Confirm the specific model with headstock shape, pickup configuration, and body style.`,
+        };
+        return { success: true, info };
+    }
     // Two-letter overseas prefixes (e.g., FA, FB, CF)
     if (/^[A-Z]{2}\d+$/.test(normalized)) {
         const prefix = normalized.substring(0, 2);
