@@ -945,6 +945,15 @@ const ListingEvaluatorItem = () => {
               >
                 <IconifyIcon icon="material-symbols:delete-outline-rounded" />
               </Button>
+              <Button
+                variant="contained"
+                color="warning"
+                disabled={!recordId}
+                onClick={() => navigate(paths.inventoryItemFromListing(recordId))}
+                sx={{ minWidth: 44, px: 1.5 }}
+              >
+                <IconifyIcon icon="material-symbols:sell" />
+              </Button>
             </Stack>
           </Stack>
         </Paper>

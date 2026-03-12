@@ -75,6 +75,7 @@ type ListingRecordResponse = {
     finish?: string;
     description?: string;
     image_url?: string;
+    photos?: string;
   };
   message?: string;
 };
@@ -283,21 +284,35 @@ const InventoryItem = () => {
           const fields = data.fields || {};
           setSourceListingId(fromListingId);
           setGroupCount(1);
-          setSourceImageUrl((fields.image_url || '').trim() || null);
+          const photoCandidates = (fields.photos || '')
+            .split(/\r?\n/)
+            .map((u: string) => u.trim())
+            .filter(Boolean);
+          const singleImage = (fields.image_url || '').trim();
+          const allImages = Array.from(new Set([...photoCandidates, singleImage].filter(Boolean)));
+          setSourceImageUrl(singleImage || null);
+          if (allImages.length > 0) {
+            setImageUrls(normalizeImageUrls(allImages));
+          }
+          const year = (fields.year || '').trim();
+          const brand = (fields.brand || '').trim();
+          const model = (fields.model || '').trim();
+          const finish = (fields.finish || '').trim();
+          const concatTitle = [year, brand, model, finish].filter(Boolean).join(' ');
           setForm((current) => ({
             ...current,
-            title: (fields.title || '').trim(),
+            title: concatTitle || (fields.title || '').trim(),
             category: (fields.category || '').trim(),
-            brand: (fields.brand || '').trim(),
-            yearRange: (fields.year || '').trim(),
-            model: (fields.model || '').trim(),
-            finish: (fields.finish || '').trim(),
+            brand,
+            yearRange: year,
+            model,
+            finish,
             originalListingDesc: (fields.description || '').trim(),
           }));
-          if (fields.image_url) {
+          if (allImages.length > 0) {
             setMessage({
               severity: 'success',
-              text: 'Prefilled from listing. Upload image(s) or import the source image.',
+              text: `Prefilled from listing with ${allImages.length} image(s).`,
             });
           }
         }
