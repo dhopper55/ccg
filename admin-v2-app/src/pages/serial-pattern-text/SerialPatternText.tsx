@@ -239,14 +239,24 @@ const SerialPatternText = () => {
           richText: editState.richText,
         }),
       });
-      const data = (await response.json()) as { ok?: boolean; message?: string };
+      const data = (await response.json()) as { ok?: boolean; message?: string; richText?: string };
       if (!response.ok || !data.ok) {
         throw new Error(data.message || 'Unable to save rich text.');
       }
 
-      setEditState(null);
       setSaveMessage('Pattern text saved.');
       setRefreshKey((value) => value + 1);
+
+      // In AI paraphrase mode, re-open the dialog so the user can review the result
+      if (editState.mode === 'add' && data.richText) {
+        setEditState({
+          ...editState,
+          richText: data.richText,
+          mode: 'update',
+        });
+      } else {
+        setEditState(null);
+      }
     } catch (error) {
       setSaveErrorMessage(error instanceof Error ? error.message : 'Unable to save rich text.');
     } finally {
