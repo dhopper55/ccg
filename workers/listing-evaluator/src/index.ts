@@ -136,6 +136,8 @@ const CCG_NUMBER_MIN = 100000;
 const CCG_NUMBER_MAX = 999999;
 const CCG_NUMBER_ATTEMPTS = 25;
 const INVENTORY_MAX_IMAGES = 10;
+const SERIAL_DECODE_HOURLY_LIMIT = 60;
+const SERIAL_DECODE_DUPLICATE_WINDOW_HOURS = 24;
 const SERIAL_AI_HOURLY_LIMIT = 20;
 const ACTIVITY_BASE_URL = 'https://www.coalcreekguitars.com';
 
@@ -721,6 +723,27 @@ async function handleSerialDecodeEvent(request: Request, env: Env): Promise<Resp
   const colo = normalizeText(cf.colo, '').slice(0, 32);
   const ipAddress = normalizeText(request.headers.get('CF-Connecting-IP'), '').slice(0, 64);
 
+  if (await isSerialDecodeRateLimited(env, ipAddress)) {
+    return jsonResponse({ message: 'Too many decode requests. Please try again later.' }, 429);
+  }
+
+  const duplicateId = await findRecentSerialDecodeDuplicateId(
+    env,
+    normalizedBrand,
+    normalizeSerialKey(serial).slice(0, 180),
+    ipAddress,
+  );
+  if (duplicateId) {
+    await touchSerialDecodeEventTimestamp(env, duplicateId, {
+      pagePath,
+      userAgent,
+      clientTimestamp,
+      countryCode,
+      colo,
+    });
+    return jsonResponse({ ok: true, duplicateSuppressed: true });
+  }
+
   await insertSerialDecodeEvent(env, {
     brand,
     serial,
@@ -771,6 +794,10 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
   const countryCode = normalizeText(cf.country, '').slice(0, 8);
   const colo = normalizeText(cf.colo, '').slice(0, 32);
   const ipAddress = normalizeText(request.headers.get('CF-Connecting-IP'), '').slice(0, 64);
+
+  if (await isSerialDecodeRateLimited(env, ipAddress)) {
+    return jsonResponse({ error: 'Too many decode requests. Please try again later.' }, 429);
+  }
 
   let usedAi = false;
   let aiCacheHit = false;
@@ -833,39 +860,56 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
     additionalContextRichText = await getSerialDecodePatternRichText(normalizedBrand, patternKey, env);
   }
 
-  try {
-    await insertSerialDecodeEvent(env, {
-      brand: (result.info?.brand || brand).slice(0, 120),
-      serial: (result.info?.serialNumber || serial).slice(0, 180),
-      pattern: patternKey || null,
-      patternKey: patternKey || null,
-      patternLabel: patternLabel || null,
-      patternLookupId,
-      normalizedBrand: normalizedBrand.slice(0, 120),
-      normalizedSerial,
-      success: result.success,
-      needsContext: needsAdditionalContext,
-      year: normalizeText(result.info?.year, '').slice(0, 120),
-      month: normalizeText(result.info?.month, '').slice(0, 120),
-      factory: normalizeText(result.info?.factory, '').slice(0, 180),
-      country: normalizeText(result.info?.country, '').slice(0, 120),
-      model: normalizeText(result.info?.model, '').slice(0, 180),
-      notes: normalizeText(result.info?.notes, '').slice(0, 4000),
-      error: (usedAi ? aiLogText : normalizeText(result.error, '')).slice(0, 1200),
-      usedAi,
-      aiCacheHit,
-      aiModel,
-      aiResponseJson,
-      aiAttemptedAt,
-      pagePath,
-      userAgent,
-      clientTimestamp,
-      ipAddress,
-      countryCode,
-      colo,
-    });
-  } catch (error) {
-    console.error('serial decode event insert failed', { error });
+  const eventPayload: SerialDecodeEventInsert = {
+    brand: (result.info?.brand || brand).slice(0, 120),
+    serial: (result.info?.serialNumber || serial).slice(0, 180),
+    pattern: patternKey || null,
+    patternKey: patternKey || null,
+    patternLabel: patternLabel || null,
+    patternLookupId,
+    normalizedBrand: normalizedBrand.slice(0, 120),
+    normalizedSerial,
+    success: result.success,
+    needsContext: needsAdditionalContext,
+    year: normalizeText(result.info?.year, '').slice(0, 120),
+    month: normalizeText(result.info?.month, '').slice(0, 120),
+    factory: normalizeText(result.info?.factory, '').slice(0, 180),
+    country: normalizeText(result.info?.country, '').slice(0, 120),
+    model: normalizeText(result.info?.model, '').slice(0, 180),
+    notes: normalizeText(result.info?.notes, '').slice(0, 4000),
+    error: (usedAi ? aiLogText : normalizeText(result.error, '')).slice(0, 1200),
+    usedAi,
+    aiCacheHit,
+    aiModel,
+    aiResponseJson,
+    aiAttemptedAt,
+    pagePath,
+    userAgent,
+    clientTimestamp,
+    ipAddress,
+    countryCode,
+    colo,
+  };
+
+  const duplicateId = await findRecentSerialDecodeDuplicateId(
+    env,
+    normalizedBrand.slice(0, 120),
+    normalizedSerial,
+    ipAddress,
+  );
+
+  if (duplicateId) {
+    try {
+      await touchSerialDecodeEventTimestamp(env, duplicateId, eventPayload);
+    } catch (error) {
+      console.error('serial decode event duplicate touch failed', { error, duplicateId });
+    }
+  } else {
+    try {
+      await insertSerialDecodeEvent(env, eventPayload);
+    } catch (error) {
+      console.error('serial decode event insert failed', { error });
+    }
   }
 
   const decodeBrand = normalizeText(result.info?.brand || brand, '').slice(0, 120);
@@ -874,18 +918,20 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
   const decodeEventText = result.success
     ? `User decoded serial #${decodeSerial} in the ${decodeBrandContext.brandLabel} decoder`
     : `User attempted to decode serial #${decodeSerial} in ${decodeBrandContext.brandLabel} decoder`;
-  await insertActivityLogBestEffort(env, {
-    eventKey: result.success ? 'decode_success' : 'decode_failure',
-    eventText: decodeEventText,
-    eventUrl: decodeBrandContext.decoderUrl,
-    imageUrl: decodeBrandContext.imageUrl,
-    entityType: 'serial_decode',
-    metadata: {
-      brand: decodeBrandContext.brandLabel,
-      serial: decodeSerial,
-      success: result.success,
-    },
-  });
+  if (!duplicateId) {
+    await insertActivityLogBestEffort(env, {
+      eventKey: result.success ? 'decode_success' : 'decode_failure',
+      eventText: decodeEventText,
+      eventUrl: decodeBrandContext.decoderUrl,
+      imageUrl: decodeBrandContext.imageUrl,
+      entityType: 'serial_decode',
+      metadata: {
+        brand: decodeBrandContext.brandLabel,
+        serial: decodeSerial,
+        success: result.success,
+      },
+    });
+  }
 
   return jsonResponse({
     ...result,
@@ -937,6 +983,32 @@ interface ActivityLogInsert {
   entityType?: string | null;
   entityId?: string | null;
   metadata?: Record<string, unknown> | null;
+}
+
+function buildSerialDecodeRateLimitKey(ipAddress: string, now = new Date()): string {
+  return `serial-decode-rate:${ipAddress}:${now.toISOString().slice(0, 13)}`;
+}
+
+async function incrementSerialDecodeRequestCount(env: Env, ipAddress: string): Promise<number> {
+  if (!ipAddress || !env.LISTING_JOBS) return 0;
+
+  const key = buildSerialDecodeRateLimitKey(ipAddress);
+
+  try {
+    const currentRaw = await env.LISTING_JOBS.get(key);
+    const nextCount = Math.max(0, Number(currentRaw || 0)) + 1;
+    await env.LISTING_JOBS.put(key, String(nextCount), { expirationTtl: 7200 });
+    return nextCount;
+  } catch (error) {
+    console.error('serial decode rate counter update failed', { error, ipAddress });
+    return 0;
+  }
+}
+
+async function isSerialDecodeRateLimited(env: Env, ipAddress: string): Promise<boolean> {
+  if (!ipAddress) return false;
+  const count = await incrementSerialDecodeRequestCount(env, ipAddress);
+  return count > SERIAL_DECODE_HOURLY_LIMIT;
 }
 
 let serialDecodeEventColumnCache: Set<string> | null = null;
@@ -1155,6 +1227,86 @@ async function insertSerialDecodeEvent(env: Env, payload: SerialDecodeEventInser
     }
     throw error;
   }
+}
+
+async function findRecentSerialDecodeDuplicateId(
+  env: Env,
+  normalizedBrand: string,
+  normalizedSerial: string,
+  ipAddress: string,
+): Promise<number | null> {
+  if (!normalizedBrand || !normalizedSerial || !ipAddress) return null;
+
+  const columns = await getSerialDecodeEventColumns(env);
+  if (!columns.has('normalized_brand') || !columns.has('normalized_serial') || !columns.has('ip_address')) {
+    return null;
+  }
+
+  const row = await env.DB.prepare(
+    `SELECT id
+     FROM serial_decode_events
+     WHERE normalized_brand = ?
+       AND normalized_serial = ?
+       AND ip_address = ?
+       AND is_listing_eval = 0
+       AND datetime(COALESCE(event_time_utc, created_at)) >= datetime('now', ?)
+     ORDER BY datetime(COALESCE(event_time_utc, created_at)) DESC, id DESC
+     LIMIT 1`
+  ).bind(
+    normalizedBrand,
+    normalizedSerial,
+    ipAddress,
+    `-${SERIAL_DECODE_DUPLICATE_WINDOW_HOURS} hours`,
+  ).first<{ id: number | null }>();
+
+  if (row?.id == null) return null;
+  return Number(row.id);
+}
+
+async function touchSerialDecodeEventTimestamp(
+  env: Env,
+  id: number,
+  payload: Pick<SerialDecodeEventInsert, 'pagePath' | 'userAgent' | 'clientTimestamp' | 'countryCode' | 'colo'>,
+): Promise<void> {
+  if (!(id > 0)) return;
+
+  const columns = await getSerialDecodeEventColumns(env);
+  const assignments: string[] = [];
+  const bindValues: unknown[] = [];
+
+  if (columns.has('event_time_utc')) {
+    assignments.push('event_time_utc = ?');
+    bindValues.push(new Date().toISOString());
+  }
+  if (columns.has('page_path')) {
+    assignments.push('page_path = ?');
+    bindValues.push(payload.pagePath || null);
+  }
+  if (columns.has('user_agent')) {
+    assignments.push('user_agent = ?');
+    bindValues.push(payload.userAgent || null);
+  }
+  if (columns.has('client_timestamp')) {
+    assignments.push('client_timestamp = ?');
+    bindValues.push(payload.clientTimestamp || null);
+  }
+  if (columns.has('cf_country')) {
+    assignments.push('cf_country = ?');
+    bindValues.push(payload.countryCode || null);
+  }
+  if (columns.has('cf_colo')) {
+    assignments.push('cf_colo = ?');
+    bindValues.push(payload.colo || null);
+  }
+
+  if (!assignments.length) return;
+
+  bindValues.push(id);
+  await env.DB.prepare(
+    `UPDATE serial_decode_events
+     SET ${assignments.join(', ')}
+     WHERE id = ?`
+  ).bind(...bindValues).run();
 }
 
 async function ensureSerialDecodePatternLookup(brand: string, pattern: string, env: Env): Promise<number | null> {
