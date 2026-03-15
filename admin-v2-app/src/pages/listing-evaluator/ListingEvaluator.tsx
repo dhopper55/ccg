@@ -527,14 +527,16 @@ const ListingEvaluator = () => {
                 }}
               >
                 <Stack spacing={3}>
-                  <Typography variant="h6">Custom Item</Typography>
+                  <Box>
+                    <Typography variant="h6">Custom Item</Typography>
+                  </Box>
 
                   <Stack
-                    direction={{ xs: 'column', lg: 'row' }}
+                    direction={{ xs: 'column', md: 'row' }}
                     spacing={2}
-                    sx={{ alignItems: { lg: 'center' }, flexWrap: 'wrap' }}
+                    sx={{ alignItems: { md: 'center' }, width: 1 }}
                   >
-                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                    <Typography variant="body2" sx={{ color: 'text.secondary', flexShrink: 0 }}>
                       Upload 1 to 10 photos.
                     </Typography>
                     <Button
@@ -543,27 +545,29 @@ const ListingEvaluator = () => {
                       color="inherit"
                       startIcon={<IconifyIcon icon="material-symbols:add-photo-alternate-outline-rounded" />}
                       disabled={isUrlSubmitting || isCustomSubmitting}
-                      sx={{ alignSelf: 'flex-start' }}
+                      sx={{ alignSelf: { xs: 'flex-start', md: 'center' } }}
                     >
                       {customPhotos.length > 0 ? 'Replace Photos' : 'Upload Photos'}
                       <input hidden accept="image/*" multiple type="file" onChange={handleCustomPhotoChange} />
                     </Button>
-
-                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                    <Typography variant="body2" sx={{ color: 'text.secondary', flexShrink: 0 }}>
                       {customPhotos.length > 0
                         ? `${customPhotos.length} photo${customPhotos.length === 1 ? '' : 's'} selected`
                         : 'No photos selected yet'}
                     </Typography>
-
                     {customPhotos.length > 0 ? (
                       <Stack
                         direction="row"
                         spacing={1}
                         useFlexGap
-                        sx={{ flexWrap: 'wrap', alignItems: 'center' }}
+                        sx={{ flexWrap: 'wrap', alignItems: 'center', minWidth: 0 }}
                       >
                         {customPhotos.map((photo) => (
-                          <Typography key={`${photo.name}-${photo.size}`} variant="caption" sx={{ color: 'text.secondary' }}>
+                          <Typography
+                            key={`${photo.name}-${photo.size}`}
+                            variant="caption"
+                            sx={{ color: 'text.secondary' }}
+                          >
                             {photo.name}
                           </Typography>
                         ))}
@@ -572,7 +576,7 @@ const ListingEvaluator = () => {
                   </Stack>
 
                   <Grid container spacing={2}>
-                    <Grid size={{ xs: 12, md: 2.5 }}>
+                    <Grid size={{ xs: 12, md: 2 }}>
                       <TextField
                         fullWidth
                         label="Brand"
@@ -584,7 +588,7 @@ const ListingEvaluator = () => {
                         }}
                       />
                     </Grid>
-                    <Grid size={{ xs: 12, md: 2.5 }}>
+                    <Grid size={{ xs: 12, md: 2 }}>
                       <TextField
                         fullWidth
                         label="Model"
@@ -596,7 +600,7 @@ const ListingEvaluator = () => {
                         }}
                       />
                     </Grid>
-                    <Grid size={{ xs: 12, md: 2.5 }}>
+                    <Grid size={{ xs: 12, md: 2 }}>
                       <TextField
                         fullWidth
                         label="Condition"
@@ -608,7 +612,7 @@ const ListingEvaluator = () => {
                         }}
                       />
                     </Grid>
-                    <Grid size={{ xs: 12, md: 4.5 }}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                       <TextField
                         fullWidth
                         label="Notes"
@@ -624,13 +628,14 @@ const ListingEvaluator = () => {
                     </Grid>
                   </Grid>
 
-                  <Stack>
+                  <Stack direction="row" sx={{ width: 1 }}>
                     <Button
                       variant="contained"
                       onClick={() => {
                         void submitCustom();
                       }}
                       disabled={isUrlSubmitting || isCustomSubmitting}
+                      sx={{ alignSelf: 'flex-start' }}
                       startIcon={
                         isCustomSubmitting ? <CircularProgress size={16} color="inherit" /> : <IconifyIcon icon="material-symbols:photo-camera-rounded" />
                       }
