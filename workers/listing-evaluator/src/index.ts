@@ -1627,6 +1627,8 @@ function buildCustomListingFromRecordFields(fields: Record<string, unknown>): Li
     description: normalizeCustomText(fields.description),
     images: photos,
     notes: normalizeCustomText(fields.notes),
+    brandHint: normalizeCustomText(fields.brand, 180),
+    modelHint: normalizeCustomText(fields.model, 180),
   };
 }
 
@@ -1769,6 +1771,8 @@ async function handleCustomListingSubmit(
     description,
     images: imageUrls,
     notes,
+    brandHint: brand,
+    modelHint: model,
   };
 
   ctx.waitUntil((async () => {
@@ -6200,6 +6204,8 @@ type ListingData = {
   images: string[];
   url?: string;
   notes?: string;
+  brandHint?: string;
+  modelHint?: string;
 };
 
 type SingleAiResult = {
@@ -7729,6 +7735,9 @@ async function updateRowByRunId(runId: string, updates: {
       return;
     }
 
+    const existingRecord = await dbGetListing(recordId, env);
+    const existingFields = existingRecord?.fields || {};
+    const isCustomSource = normalizeText(existingFields.source, '').toLowerCase() === 'custom';
     const isMulti = options?.isMulti ?? await getIsMultiFromRecord(recordId, env);
     const privateParty = updates.aiSummary
       ? (isMulti ? extractMultiPrivatePartyRange(updates.aiSummary) : extractPrivatePartyRange(updates.aiSummary))
@@ -7746,11 +7755,13 @@ async function updateRowByRunId(runId: string, updates: {
           ? (privateParty?.low != null ? Math.round(privateParty.low * 0.8) : extractMultiIdealTotal(updates.aiSummary))
           : (privateParty?.low != null ? Math.round(privateParty.low * 0.8) : null))
       : null;
+    const singleAiSummary = !isMulti ? buildSingleAiSummary(updates.aiData, { ideal, privateParty }) : '';
     const computedScore = privateParty && asking != null ? computeScore(asking, privateParty.low, privateParty.high) : null;
     const score = aiScore ?? computedScore;
-    const summaryChunks = splitAiSummary(updates.aiSummary ?? null);
-    if (updates.aiSummary) {
-      console.info('AI summary split', { length: updates.aiSummary.length, chunks: summaryChunks.length });
+    const fullSummary = updates.aiSummary ?? singleAiSummary;
+    const summaryChunks = splitAiSummary(fullSummary || null);
+    if (fullSummary) {
+      console.info('AI summary split', { length: fullSummary.length, chunks: summaryChunks.length });
     }
 
     const normalizedCondition = normalizeCondition(updates.aiData?.condition ?? updates.condition ?? '');
@@ -7773,11 +7784,17 @@ async function updateRowByRunId(runId: string, updates: {
     const aiFields = updates.aiData
       ? {
           category: normalizeCategory(updates.aiData.category),
-          brand: definitiveBrand || normalizeText(updates.aiData.brand, 'Unknown'),
-          model: definitiveModel || normalizeText(updates.aiData.model, 'Unknown'),
+          brand: isCustomSource
+            ? chooseBestStructuredText(definitiveBrand || updates.aiData.brand, existingFields.brand)
+            : definitiveBrand || normalizeText(updates.aiData.brand, 'Unknown'),
+          model: isCustomSource
+            ? chooseBestStructuredText(definitiveModel || updates.aiData.model, existingFields.model)
+            : definitiveModel || normalizeText(updates.aiData.model, 'Unknown'),
           finish: normalizeFinish(updates.aiData.finish),
           year: definitiveYear || normalizeYear(updates.aiData.year),
-          condition: normalizedCondition,
+          condition: isCustomSource
+            ? chooseBestStructuredText(normalizedCondition, existingFields.condition)
+            : normalizedCondition,
           serial: serialShouldUse || '',
           serial_brand: serialShouldUse ? normalizeText(serialBrand, '') : '',
           serial_year: serialShouldUse ? normalizeText(serialYear, '') : '',
@@ -7815,7 +7832,7 @@ async function updateRowByRunId(runId: string, updates: {
       description: updates.description ?? null,
       photos: updates.photos ?? null,
       image_url: updates.image_url ?? null,
-      ai_summary: isMulti ? summaryChunks[0] ?? null : null,
+      ai_summary: summaryChunks[0] ?? null,
       ai_summary2: isMulti ? summaryChunks[1] ?? null : null,
       ai_summary3: isMulti ? summaryChunks[2] ?? null : null,
       ai_summary4: isMulti ? summaryChunks[3] ?? null : null,
@@ -8391,6 +8408,68 @@ function formatCurrency(value: number): string {
   return `$${Math.round(value).toLocaleString('en-US')}`;
 }
 
+function isWeakAiText(value: unknown): boolean {
+  const text = normalizeText(value, '');
+  if (!text) return true;
+  return /^(unknown|other|n\/a|na)$/i.test(text.trim());
+}
+
+function chooseBestStructuredText(primary: unknown, fallback: unknown, maxLength = 180): string {
+  const primaryText = normalizeText(primary, '').slice(0, maxLength);
+  if (!isWeakAiText(primaryText)) return primaryText;
+  return normalizeText(fallback, '').slice(0, maxLength);
+}
+
+function buildSingleAiSummary(
+  aiData: SingleAiResult | undefined,
+  options?: { ideal?: number | null; privateParty?: { low: number; high: number } | null }
+): string {
+  if (!aiData) return '';
+
+  const name = [
+    normalizeText(aiData.year, ''),
+    normalizeText(aiData.brand, ''),
+    normalizeText(aiData.model, ''),
+    normalizeText(aiData.finish, ''),
+  ].filter(Boolean).join(' ').trim();
+
+  const lines: string[] = [];
+  lines.push('What it appears to be');
+  lines.push(`- ${name || 'Unknown item'}`);
+  lines.push(`- Condition: ${normalizeText(aiData.condition, 'Unknown')}`);
+
+  const low = normalizeMoneyValue(aiData.value_private_party_low);
+  const medium = normalizeMoneyValue(aiData.value_private_party_medium);
+  const high = normalizeMoneyValue(aiData.value_private_party_high);
+  const asking = normalizeMoneyValue(aiData.asking_price);
+
+  if (low != null || medium != null || high != null || options?.ideal != null || asking != null) {
+    lines.push('');
+    lines.push('Prices');
+    if (low != null && high != null) {
+      lines.push(`- Typical private-party value: ${formatRange(low, high)}`);
+    }
+    if (medium != null) {
+      lines.push(`- Midpoint estimate: ${formatCurrency(medium)}`);
+    }
+    if (options?.ideal != null) {
+      lines.push(`- Ideal buy price: ${formatCurrency(options.ideal)}`);
+    }
+    if (asking != null) {
+      lines.push(`- Asking price used: ${formatCurrency(asking)}`);
+    }
+  }
+
+  const pricingNotes = normalizeText(aiData.pricing_notes, '');
+  if (pricingNotes) {
+    lines.push('');
+    lines.push('Pricing notes');
+    lines.push(`- ${pricingNotes}`);
+  }
+
+  return lines.join('\n').trim();
+}
+
 function computeScore(asking: number, low: number, high: number): number {
   if (asking <= low) {
     const margin = (low - asking) / low;
@@ -8694,6 +8773,8 @@ async function runOpenAIModelDisambiguation(
     '',
     `Listing title: ${listing.title || 'Unknown'}`,
     `Listing description: ${listing.description || 'Not provided'}`,
+    `User-provided brand hint: ${listing.brandHint || 'Not provided'}`,
+    `User-provided model hint: ${listing.modelHint || 'Not provided'}`,
     `Known brand: ${base.brand || 'Unknown'}`,
     `Current model: ${base.model || 'Unknown'}`,
     `Known serial: ${base.serial || 'Unknown'}`,
