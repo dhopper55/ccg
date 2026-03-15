@@ -526,17 +526,17 @@ const ListingEvaluator = () => {
                   bgcolor: 'background.elevation1',
                 }}
               >
-                <Stack spacing={2.5} sx={{ width: 1 }}>
-                  <Box sx={{ width: 1 }}>
+                <Grid container spacing={3}>
+                  <Grid size={12}>
                     <Typography variant="h6">Custom Item</Typography>
-                  </Box>
+                  </Grid>
 
-                  <Box sx={{ width: 1 }}>
+                  <Grid size={12}>
                     <Stack
-                      direction={{ xs: 'column', lg: 'row' }}
+                      direction={{ xs: 'column', md: 'row' }}
                       spacing={2}
                       useFlexGap
-                      sx={{ width: 1, alignItems: { lg: 'center' }, flexWrap: 'wrap' }}
+                      sx={{ alignItems: { md: 'center' }, flexWrap: 'wrap' }}
                     >
                       <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                         Upload 1 to 10 photos.
@@ -572,13 +572,13 @@ const ListingEvaluator = () => {
                             >
                               {photo.name}
                             </Typography>
-                          ))}
-                        </Stack>
-                      ) : null}
-                    </Stack>
-                  </Box>
+                        ))}
+                      </Stack>
+                    ) : null}
+                  </Stack>
+                  </Grid>
 
-                  <Box sx={{ width: 1 }}>
+                  <Grid size={12}>
                     <Grid container spacing={2}>
                       <Grid size={{ xs: 12, md: 2 }}>
                         <TextField
@@ -631,9 +631,9 @@ const ListingEvaluator = () => {
                         />
                       </Grid>
                     </Grid>
-                  </Box>
+                  </Grid>
 
-                  <Box sx={{ width: 1 }}>
+                  <Grid size={12}>
                     <Button
                       variant="contained"
                       onClick={() => {
@@ -650,8 +650,8 @@ const ListingEvaluator = () => {
                     >
                       {isCustomSubmitting ? 'Submitting...' : 'Submit Custom Eval'}
                     </Button>
-                  </Box>
-                </Stack>
+                  </Grid>
+                </Grid>
               </Paper>
 
               {errorMessage ? (
