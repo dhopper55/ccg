@@ -32,7 +32,10 @@ An early V2 mistake was trying to build pages by hand while only loosely borrowi
 Going forward, the rule is:
 - Build admin pages using Aurora infrastructure first.
 - Prefer adapting the closest Aurora page in `admin-v2-app/src/pages/` or section in `admin-v2-app/src/components/sections/`.
-- Do not hand-compose new dashboards or page layouts unless there is a clear reason.
+- Do not hand-compose admin UI.
+- Do not hand-compose new dashboards, forms, cards, grids, or page layouts.
+- In admin, always use Aurora patterns, Aurora page structure, Aurora spacing, and Aurora composition primitives first.
+- If a screen needs a new arrangement, find the closest Aurora example and adapt it instead of inventing a custom layout.
 - If admin needs different backend payloads, add endpoints under `/api/admin-v2/*` rather than changing legacy endpoint contracts.
 
 ### Auth and backend
