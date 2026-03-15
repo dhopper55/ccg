@@ -179,7 +179,10 @@ function decodeClassAxeB(serial) {
     const info = {
         brand: 'B.C. Rich',
         serialNumber: serial,
-        notes: 'B-prefixed Class Axe/NJ-era serials can be hard to date. These typically do not encode a reliable year.',
+        year: '1989-1993 (estimated)',
+        factory: 'Class Axe-era import production',
+        country: 'Japan / South Korea',
+        notes: 'B-prefixed short serial used on many late-1980s to early-1990s bolt-on B.C. Rich imports. These usually do not encode an exact year, so 1989-1993 should be treated as an estimate and confirmed with headstock, neck plate, or electronics-cavity markings.',
     };
     return { success: true, info };
 }
