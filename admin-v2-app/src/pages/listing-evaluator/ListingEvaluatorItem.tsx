@@ -173,13 +173,21 @@ function formatSourceLabel(value: unknown): string {
   return raw;
 }
 
-function buildSourceIcon(source?: string): string | null {
+function buildSourceImage(source?: string): string | null {
   const normalized = source?.trim().toLowerCase() || '';
   if (normalized === 'facebook' || normalized === 'fbm' || normalized.includes('facebook')) {
     return '/images/fb.png';
   }
   if (normalized === 'craigslist' || normalized === 'cg' || normalized.includes('craigslist')) {
     return '/images/cl.png';
+  }
+  return null;
+}
+
+function buildSourceGlyph(source?: string): string | null {
+  const normalized = source?.trim().toLowerCase() || '';
+  if (normalized === 'custom') {
+    return 'material-symbols:photo-camera-rounded';
   }
   return null;
 }
@@ -607,7 +615,8 @@ const ListingEvaluatorItem = () => {
   const fields = record?.fields || {};
   const title = normalizeValue(fields.title) === '—' ? 'Listing Detail' : normalizeValue(fields.title);
   const sourceLabel = formatSourceLabel(fields.source);
-  const sourceIcon = buildSourceIcon(typeof fields.source === 'string' ? fields.source : '');
+  const sourceImage = buildSourceImage(typeof fields.source === 'string' ? fields.source : '');
+  const sourceGlyph = buildSourceGlyph(typeof fields.source === 'string' ? fields.source : '');
   const statusLabel = normalizeValue(fields.status);
   const statusColor = buildStatusColor(typeof fields.status === 'string' ? fields.status : '');
   const askingPrice = formatCurrencyValue(fields.price_asking);
@@ -617,6 +626,7 @@ const ListingEvaluatorItem = () => {
     typeof fields.url === 'string' &&
     fields.url.trim() &&
     !fields.url.startsWith('custom-item://') &&
+    !fields.url.startsWith('custom-listing://') &&
     String(fields.source || '').trim().toLowerCase() !== 'custom'
       ? fields.url.trim()
       : '';
@@ -650,14 +660,18 @@ const ListingEvaluatorItem = () => {
     () => [
       {
         label: 'Source',
-        value: sourceIcon ? (
+        value: sourceImage || sourceGlyph ? (
           <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center' }}>
-            <Box
-              component="img"
-              src={sourceIcon}
-              alt={sourceLabel}
-              sx={{ width: 22, height: 22, objectFit: 'contain' }}
-            />
+            {sourceImage ? (
+              <Box
+                component="img"
+                src={sourceImage}
+                alt={sourceLabel}
+                sx={{ width: 22, height: 22, objectFit: 'contain' }}
+              />
+            ) : sourceGlyph ? (
+              <IconifyIcon icon={sourceGlyph} fontSize={20} />
+            ) : null}
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
               {sourceLabel}
             </Typography>
@@ -670,7 +684,7 @@ const ListingEvaluatorItem = () => {
       { label: 'Submitted', value: formatSubmittedAt(fields.submitted_at) },
       { label: 'Location', value: normalizeValue(fields.location) },
     ],
-    [fields.location, fields.submitted_at, sourceIcon, sourceLabel, statusLabel],
+    [fields.location, fields.submitted_at, sourceGlyph, sourceImage, sourceLabel, statusLabel],
   );
 
   const marketItems = useMemo<DetailItem[]>(

@@ -48,6 +48,7 @@ type ListingGridRow = {
   url?: string;
   sourceLabel: string;
   sourceImageSrc: string | null;
+  sourceIcon: string | null;
   statusLabel: string;
   statusColor: ChipOwnProps['color'];
   askingPriceLabel: string;
@@ -116,15 +117,22 @@ function buildImageSrc(imageUrl?: string | null, referrer?: string): string | nu
   return cleaned;
 }
 
-function buildSourceMeta(source?: string): { label: string; imageSrc: string | null } {
+function buildSourceMeta(source?: string): { label: string; imageSrc: string | null; icon: string | null } {
   const normalized = source?.trim().toLowerCase() || '';
   if (normalized === 'facebook' || normalized === 'fbm' || normalized.includes('facebook')) {
-    return { label: 'FBM', imageSrc: '/images/fb.png' };
+    return { label: 'FBM', imageSrc: '/images/fb.png', icon: null };
   }
   if (normalized === 'craigslist' || normalized === 'cg' || normalized.includes('craigslist')) {
-    return { label: 'CL', imageSrc: '/images/cl.png' };
+    return { label: 'CL', imageSrc: '/images/cl.png', icon: null };
   }
-  return { label: source?.trim() || 'Unknown', imageSrc: null };
+  if (normalized === 'custom') {
+    return {
+      label: 'Custom',
+      imageSrc: null,
+      icon: 'material-symbols:photo-camera-rounded',
+    };
+  }
+  return { label: source?.trim() || 'Unknown', imageSrc: null, icon: null };
 }
 
 function buildStatusColor(status?: string): ChipOwnProps['color'] {
@@ -235,6 +243,7 @@ const ListingEvaluatorResults = () => {
           url: record.url,
           sourceLabel: sourceMeta.label,
           sourceImageSrc: sourceMeta.imageSrc,
+          sourceIcon: sourceMeta.icon,
           statusLabel: record.status?.trim() || 'unknown',
           statusColor: buildStatusColor(record.status),
           askingPriceLabel: formatCurrencyValue(record.askingPrice),
@@ -418,10 +427,10 @@ const ListingEvaluatorResults = () => {
                     </Stack>
 
                     <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 0 }}>
-                      {row.sourceImageSrc ? (
+                      {row.sourceImageSrc || row.sourceIcon ? (
                         <Avatar
                           variant="rounded"
-                          src={row.sourceImageSrc}
+                          src={row.sourceImageSrc || undefined}
                           alt={row.sourceLabel}
                           sx={{
                             width: 32,
@@ -429,7 +438,11 @@ const ListingEvaluatorResults = () => {
                             bgcolor: 'background.elevation1',
                             '& img': { objectFit: 'contain', width: 20, height: 20 },
                           }}
-                        />
+                        >
+                          {row.sourceImageSrc ? null : row.sourceIcon ? (
+                            <IconifyIcon icon={row.sourceIcon} fontSize={18} />
+                          ) : null}
+                        </Avatar>
                       ) : null}
                       <Typography variant="body2" sx={{ color: 'text.secondary', whiteSpace: 'nowrap' }}>
                         {row.sourceLabel}
@@ -535,10 +548,10 @@ const ListingEvaluatorResults = () => {
                         </Stack>
                       </TableCell>
                       <TableCell align="center">
-                        {row.sourceImageSrc ? (
+                        {row.sourceImageSrc || row.sourceIcon ? (
                           <Avatar
                             variant="rounded"
-                            src={row.sourceImageSrc}
+                            src={row.sourceImageSrc || undefined}
                             alt={row.sourceLabel}
                             sx={{
                               width: 36,
@@ -551,7 +564,11 @@ const ListingEvaluatorResults = () => {
                                 height: 22,
                               },
                             }}
-                          />
+                          >
+                            {row.sourceImageSrc ? null : row.sourceIcon ? (
+                              <IconifyIcon icon={row.sourceIcon} fontSize={20} />
+                            ) : null}
+                          </Avatar>
                         ) : (
                           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                             {row.sourceLabel}

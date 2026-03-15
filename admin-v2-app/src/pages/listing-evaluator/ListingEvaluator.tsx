@@ -2,8 +2,10 @@ import { ChangeEvent, ClipboardEvent, KeyboardEvent, useEffect, useMemo, useRef,
 import {
   Alert,
   Box,
+  Button,
   CircularProgress,
   Container,
+  Divider,
   IconButton,
   InputAdornment,
   Paper,
@@ -24,6 +26,13 @@ type SubmitResponse = {
   message?: string;
 };
 
+type CustomSubmitResponse = {
+  ok?: boolean;
+  recordId?: string;
+  status?: string;
+  message?: string;
+};
+
 type FieldMode = 'single' | 'multi';
 type FieldStatus = 'idle' | 'pasting' | 'submitting';
 
@@ -31,6 +40,8 @@ const PLACEHOLDERS: Record<FieldMode, string> = {
   single: 'Single Item Listing URL (paste here)',
   multi: 'Multi-Item Listing URL (paste here)',
 };
+
+const CUSTOM_MAX_PHOTOS = 10;
 
 function normalizeUrl(raw: string): string | null {
   const trimmed = raw.trim();
@@ -85,15 +96,51 @@ function isSupportedListingUrl(url: string): boolean {
   }
 }
 
+const urlFieldSx = {
+  width: 1,
+  display: 'block',
+  '& .MuiFilledInput-root': {
+    minHeight: 72,
+    borderRadius: 3,
+    bgcolor: 'background.elevation2',
+    border: 1,
+    borderColor: 'divider',
+    boxShadow: 'none',
+    '&:before, &:after': {
+      display: 'none',
+    },
+    '&:hover': {
+      bgcolor: 'background.elevation2',
+    },
+    '&.Mui-focused': {
+      bgcolor: 'background.elevation2',
+      borderColor: 'primary.main',
+    },
+    '&.Mui-disabled': {
+      bgcolor: 'background.elevation2',
+      opacity: 0.72,
+    },
+  },
+  '& .MuiFilledInput-input': {
+    py: 0,
+  },
+};
+
 const ListingEvaluator = () => {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const [singleUrl, setSingleUrl] = useState('');
   const [multiUrl, setMultiUrl] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUrlSubmitting, setIsUrlSubmitting] = useState(false);
+  const [isCustomSubmitting, setIsCustomSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [activeField, setActiveField] = useState<FieldMode | null>(null);
   const [fieldStatus, setFieldStatus] = useState<FieldStatus>('idle');
+  const [customPhotos, setCustomPhotos] = useState<File[]>([]);
+  const [customBrand, setCustomBrand] = useState('');
+  const [customModel, setCustomModel] = useState('');
+  const [customCondition, setCustomCondition] = useState('');
+  const [customNotes, setCustomNotes] = useState('');
   const focusAttemptRef = useRef<Record<FieldMode, boolean>>({
     single: false,
     multi: false,
@@ -132,25 +179,32 @@ const ListingEvaluator = () => {
     [navigate],
   );
 
-  const clearFields = () => {
+  const clearUrlFields = () => {
     setSingleUrl('');
     setMultiUrl('');
   };
 
+  const clearCustomFields = () => {
+    setCustomPhotos([]);
+    setCustomBrand('');
+    setCustomModel('');
+    setCustomCondition('');
+    setCustomNotes('');
+  };
+
   const submitUrl = async (mode: FieldMode, rawValue: string) => {
-    if (isSubmitting) return;
+    if (isUrlSubmitting || isCustomSubmitting) return;
 
     const firstUrl = extractUrls(rawValue)[0];
     if (!firstUrl || !isSupportedListingUrl(firstUrl)) {
-      const message =
-        'Please paste a valid Craigslist or Facebook Marketplace item URL.';
+      const message = 'Please paste a valid Craigslist or Facebook Marketplace item URL.';
       setErrorMessage(message);
       enqueueSnackbar(message, { variant: 'error', autoHideDuration: 3500 });
-      clearFields();
+      clearUrlFields();
       return;
     }
 
-    setIsSubmitting(true);
+    setIsUrlSubmitting(true);
     setActiveField(mode);
     setFieldStatus('submitting');
     setErrorMessage('');
@@ -181,20 +235,70 @@ const ListingEvaluator = () => {
         return;
       }
 
-      enqueueSnackbar('Url Submitted', { variant: 'success', autoHideDuration: 3000 });
+      enqueueSnackbar('URL submitted', { variant: 'success', autoHideDuration: 3000 });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to queue listing.';
       setErrorMessage(message);
       enqueueSnackbar(message, { variant: 'error', autoHideDuration: 3500 });
     } finally {
-      clearFields();
-      setIsSubmitting(false);
+      clearUrlFields();
+      setIsUrlSubmitting(false);
       setFieldStatus('idle');
     }
   };
 
+  const submitCustom = async () => {
+    if (isUrlSubmitting || isCustomSubmitting) return;
+
+    if (customPhotos.length < 1) {
+      const message = 'Add at least one photo for a custom eval.';
+      setErrorMessage(message);
+      enqueueSnackbar(message, { variant: 'error', autoHideDuration: 3500 });
+      return;
+    }
+
+    if (customPhotos.length > CUSTOM_MAX_PHOTOS) {
+      const message = `You can upload up to ${CUSTOM_MAX_PHOTOS} photos.`;
+      setErrorMessage(message);
+      enqueueSnackbar(message, { variant: 'error', autoHideDuration: 3500 });
+      return;
+    }
+
+    setIsCustomSubmitting(true);
+    setErrorMessage('');
+
+    try {
+      const formData = new FormData();
+      customPhotos.forEach((photo) => formData.append('photos', photo));
+      formData.append('brand', customBrand.trim());
+      formData.append('model', customModel.trim());
+      formData.append('condition', customCondition.trim());
+      formData.append('notes', customNotes.trim());
+
+      const response = await fetch('/api/listings/custom', {
+        method: 'POST',
+        credentials: 'same-origin',
+        body: formData,
+      });
+
+      const data = (await response.json()) as CustomSubmitResponse;
+      if (!response.ok) {
+        throw new Error(data.message || 'Unable to queue custom eval.');
+      }
+
+      clearCustomFields();
+      enqueueSnackbar('Custom eval submitted', { variant: 'success', autoHideDuration: 3000 });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to queue custom eval.';
+      setErrorMessage(message);
+      enqueueSnackbar(message, { variant: 'error', autoHideDuration: 3500 });
+    } finally {
+      setIsCustomSubmitting(false);
+    }
+  };
+
   const handleFocus = async (mode: FieldMode) => {
-    if (isSubmitting || focusAttemptRef.current[mode]) return;
+    if (isUrlSubmitting || isCustomSubmitting || focusAttemptRef.current[mode]) return;
 
     focusAttemptRef.current[mode] = true;
     setActiveField(mode);
@@ -229,14 +333,13 @@ const ListingEvaluator = () => {
 
       await submitUrl(mode, firstUrl);
     } catch {
-      // Wait for manual paste if clipboard access is unavailable.
       setFieldStatus('idle');
     }
   };
 
   const handleBlur = (mode: FieldMode) => {
     focusAttemptRef.current[mode] = false;
-    if (!isSubmitting && activeField === mode) {
+    if (!isUrlSubmitting && activeField === mode) {
       setFieldStatus('idle');
     }
   };
@@ -246,7 +349,7 @@ const ListingEvaluator = () => {
     mode: FieldMode,
   ) => {
     event.preventDefault();
-    if (isSubmitting) return;
+    if (isUrlSubmitting || isCustomSubmitting) return;
 
     const pastedText = event.nativeEvent.clipboardData?.getData('text') || '';
     const firstUrl = extractUrls(pastedText)[0] || pastedText.trim();
@@ -296,7 +399,7 @@ const ListingEvaluator = () => {
   ) => ({
     value,
     placeholder: PLACEHOLDERS[mode],
-    disabled: isSubmitting,
+    disabled: isUrlSubmitting || isCustomSubmitting,
     fullWidth: true as const,
     size: 'medium' as const,
     autoComplete: 'off',
@@ -349,6 +452,13 @@ const ListingEvaluator = () => {
     },
   });
 
+  const handleCustomPhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextFiles = Array.from(event.target.files || []).filter((file) => file.type.startsWith('image/'));
+    setCustomPhotos(nextFiles.slice(0, CUSTOM_MAX_PHOTOS));
+    setErrorMessage('');
+    event.target.value = '';
+  };
+
   return (
     <Grid container>
       <Grid size={12}>
@@ -381,8 +491,9 @@ const ListingEvaluator = () => {
           >
             <Stack direction="column" spacing={4}>
               <Typography sx={{ color: 'text.secondary', maxWidth: 1 }}>
-                Focus a field to try clipboard paste automatically, or paste manually. Submission
-                starts as soon as a valid URL is pasted.
+                Focus a URL field to try clipboard paste automatically, or paste manually.
+                Custom evals let you upload photos for an item that is in front of you instead of
+                already listed online.
               </Typography>
 
               <Stack direction="column" spacing={3} sx={{ width: 1 }}>
@@ -391,74 +502,145 @@ const ListingEvaluator = () => {
                     {...buildInputProps('single', singleUrl, setSingleUrl)}
                     hiddenLabel
                     variant="filled"
-                    sx={{
-                      width: 1,
-                      display: 'block',
-                      '& .MuiFilledInput-root': {
-                        minHeight: 72,
-                        borderRadius: 3,
-                        bgcolor: 'background.elevation2',
-                        border: 1,
-                        borderColor: 'divider',
-                        boxShadow: 'none',
-                        '&:before, &:after': {
-                          display: 'none',
-                        },
-                        '&:hover': {
-                          bgcolor: 'background.elevation2',
-                        },
-                        '&.Mui-focused': {
-                          bgcolor: 'background.elevation2',
-                          borderColor: 'primary.main',
-                        },
-                        '&.Mui-disabled': {
-                          bgcolor: 'background.elevation2',
-                          opacity: 0.72,
-                        },
-                      },
-                      '& .MuiFilledInput-input': {
-                        py: 0,
-                      },
-                    }}
+                    sx={urlFieldSx}
                   />
                 </Box>
+
                 <Box sx={{ width: 1, display: 'block' }}>
                   <TextField
                     {...buildInputProps('multi', multiUrl, setMultiUrl)}
                     hiddenLabel
                     variant="filled"
-                    sx={{
-                      width: 1,
-                      display: 'block',
-                      '& .MuiFilledInput-root': {
-                        minHeight: 72,
-                        borderRadius: 3,
-                        bgcolor: 'background.elevation2',
-                        border: 1,
-                        borderColor: 'divider',
-                        boxShadow: 'none',
-                        '&:before, &:after': {
-                          display: 'none',
-                        },
-                        '&:hover': {
-                          bgcolor: 'background.elevation2',
-                        },
-                        '&.Mui-focused': {
-                          bgcolor: 'background.elevation2',
-                          borderColor: 'primary.main',
-                        },
-                        '&.Mui-disabled': {
-                          bgcolor: 'background.elevation2',
-                          opacity: 0.72,
-                        },
-                      },
-                      '& .MuiFilledInput-input': {
-                        py: 0,
-                      },
-                    }}
+                    sx={urlFieldSx}
                   />
                 </Box>
               </Stack>
+
+              <Divider sx={{ pt: 1 }}>
+                <Typography variant="subtitle2" sx={{ color: 'text.secondary', letterSpacing: 0.6 }}>
+                  CUSTOM EVAL
+                </Typography>
+              </Divider>
+
+              <Paper
+                variant="outlined"
+                sx={{
+                  p: { xs: 2.5, md: 3 },
+                  borderRadius: 3,
+                  bgcolor: 'background.elevation1',
+                }}
+              >
+                <Stack spacing={3}>
+                  <Stack spacing={1}>
+                    <Typography variant="h6">Custom Item</Typography>
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                      Upload 1 to 10 photos. Brand, model, condition, and notes are optional, but
+                      more context will usually improve the analysis.
+                    </Typography>
+                  </Stack>
+
+                  <Stack spacing={1.5}>
+                    <Button
+                      component="label"
+                      variant="outlined"
+                      color="inherit"
+                      startIcon={<IconifyIcon icon="material-symbols:add-photo-alternate-outline-rounded" />}
+                      disabled={isUrlSubmitting || isCustomSubmitting}
+                      sx={{ alignSelf: 'flex-start' }}
+                    >
+                      {customPhotos.length > 0 ? 'Replace Photos' : 'Upload Photos'}
+                      <input hidden accept="image/*" multiple type="file" onChange={handleCustomPhotoChange} />
+                    </Button>
+
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                      {customPhotos.length > 0
+                        ? `${customPhotos.length} photo${customPhotos.length === 1 ? '' : 's'} selected`
+                        : 'No photos selected yet'}
+                    </Typography>
+
+                    {customPhotos.length > 0 ? (
+                      <Stack spacing={0.5}>
+                        {customPhotos.map((photo) => (
+                          <Typography key={`${photo.name}-${photo.size}`} variant="caption" sx={{ color: 'text.secondary' }}>
+                            {photo.name}
+                          </Typography>
+                        ))}
+                      </Stack>
+                    ) : null}
+                  </Stack>
+
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <TextField
+                        fullWidth
+                        label="Brand"
+                        value={customBrand}
+                        disabled={isUrlSubmitting || isCustomSubmitting}
+                        onChange={(event) => {
+                          setCustomBrand(event.target.value);
+                          setErrorMessage('');
+                        }}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <TextField
+                        fullWidth
+                        label="Model"
+                        value={customModel}
+                        disabled={isUrlSubmitting || isCustomSubmitting}
+                        onChange={(event) => {
+                          setCustomModel(event.target.value);
+                          setErrorMessage('');
+                        }}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <TextField
+                        fullWidth
+                        label="Condition"
+                        value={customCondition}
+                        disabled={isUrlSubmitting || isCustomSubmitting}
+                        onChange={(event) => {
+                          setCustomCondition(event.target.value);
+                          setErrorMessage('');
+                        }}
+                      />
+                    </Grid>
+                    <Grid size={12}>
+                      <TextField
+                        fullWidth
+                        label="Notes"
+                        value={customNotes}
+                        multiline
+                        minRows={4}
+                        disabled={isUrlSubmitting || isCustomSubmitting}
+                        onChange={(event) => {
+                          setCustomNotes(event.target.value);
+                          setErrorMessage('');
+                        }}
+                      />
+                    </Grid>
+                  </Grid>
+
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' } }}>
+                    <Button
+                      variant="contained"
+                      onClick={() => {
+                        void submitCustom();
+                      }}
+                      disabled={isUrlSubmitting || isCustomSubmitting}
+                      startIcon={
+                        isCustomSubmitting ? <CircularProgress size={16} color="inherit" /> : <IconifyIcon icon="material-symbols:photo-camera-rounded" />
+                      }
+                    >
+                      {isCustomSubmitting ? 'Submitting...' : 'Submit Custom Eval'}
+                    </Button>
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                      Photos are required. Everything else is optional.
+                    </Typography>
+                  </Stack>
+                </Stack>
+              </Paper>
 
               {errorMessage ? (
                 <Alert severity="error" sx={{ alignSelf: 'flex-start' }}>
@@ -472,9 +654,11 @@ const ListingEvaluator = () => {
                   fontSize: 'body2.fontSize',
                 }}
               >
-                {isSubmitting
+                {isUrlSubmitting
                   ? 'Submitting URL...'
-                  : 'Typing is disabled by design. Use clipboard paste or let the browser auto-paste when permission allows.'}
+                  : isCustomSubmitting
+                    ? 'Submitting custom eval...'
+                    : 'Typing is disabled for the URL boxes by design. Use clipboard paste there, or use the custom section for in-person items.'}
               </Box>
             </Stack>
           </Container>

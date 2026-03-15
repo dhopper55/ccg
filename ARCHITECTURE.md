@@ -72,9 +72,6 @@ All `/api/*` endpoints require auth except:
 - `/api/login`
 - `/api/session`
 - `/api/listings/webhook` (Apify webhook)
-- `/api/custom-items/submit`
-- `/api/custom-items/status`
-- `/api/custom-image`
 - `/api/serial-decodes` (public decoder tracking ingest)
 
 ## Cloudflare Worker
@@ -92,6 +89,14 @@ All `/api/*` endpoints require auth except:
   - Starts Apify actor run
   - Writes queued record to D1
   - Stores runId → D1 recordId in KV
+
+- `POST /api/listings/custom`
+  - Admin-only custom eval path for in-person items
+  - Accepts 1-10 uploaded photos plus optional `brand`, `model`, `condition`, and `notes`
+  - Stores images in R2, creates a queued listing row in D1, and processes it through the same single-item AI analysis pipeline
+
+- `GET /api/listings/custom-image`
+  - Streams custom eval images from R2 for admin results/detail views
 
 - `POST /api/listings/webhook`
   - Receives Apify webhook

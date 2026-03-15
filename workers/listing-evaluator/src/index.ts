@@ -323,17 +323,12 @@ export default {
       return withCors(response, request, env);
     }
 
-    if (path === '/api/custom-items/submit' && request.method === 'POST') {
-      const response = await handleCustomItemSubmit(request, env);
+    if (path === '/api/listings/custom' && request.method === 'POST') {
+      const response = await handleCustomListingSubmit(request, env, ctx);
       return withCors(response, request, env);
     }
 
-    if (path === '/api/custom-items/status' && request.method === 'GET') {
-      const response = await handleCustomItemStatus(request, env);
-      return withCors(response, request, env);
-    }
-
-    if (path === '/api/custom-image' && request.method === 'GET') {
+    if (path === '/api/listings/custom-image' && request.method === 'GET') {
       const response = await handleCustomImage(request, env);
       return withCors(response, request, env);
     }
@@ -596,15 +591,6 @@ async function requireAuth(request: Request, env: Env, path: string): Promise<Re
     return null;
   }
   if (path === '/api/listings/webhook' && request.method === 'POST') {
-    return null;
-  }
-  if (path === '/api/custom-items/submit' && request.method === 'POST') {
-    return null;
-  }
-  if (path === '/api/custom-items/status' && request.method === 'GET') {
-    return null;
-  }
-  if (path === '/api/custom-image' && request.method === 'GET') {
     return null;
   }
   const cookies = parseCookie(request.headers.get('cookie'));
@@ -1523,15 +1509,6 @@ async function handleSubmit(request: Request, env: Env, ctx: ExecutionContext): 
   });
 }
 
-function customTitleFromText(rawText: string): string {
-  const firstLine = rawText
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .find((line) => line.length > 0);
-  if (!firstLine) return 'Custom Item';
-  return firstLine.slice(0, 120);
-}
-
 function toAbsoluteImageUrl(url: string, baseUrl: string): string {
   if (!url) return url;
   if (/^https?:\/\//i.test(url)) return url;
@@ -1568,11 +1545,39 @@ function buildCustomAiTitle(
   return parts.length > 0 ? parts.join(' ') : 'Custom Item';
 }
 
-function normalizeCustomText(raw: unknown): string {
+function normalizeCustomText(raw: unknown, maxLength = CUSTOM_MAX_TEXT_LENGTH): string {
   if (typeof raw !== 'string') return '';
   const trimmed = raw.trim();
   if (!trimmed) return '';
-  return trimmed.slice(0, CUSTOM_MAX_TEXT_LENGTH);
+  return trimmed.slice(0, maxLength);
+}
+
+function buildCustomListingTitle(input: { brand?: string; model?: string }): string {
+  const parts = [input.brand, input.model].map((value) => normalizeCustomText(value, 180)).filter(Boolean);
+  if (parts.length > 0) {
+    return parts.join(' ').slice(0, 120);
+  }
+  return 'Custom Item';
+}
+
+function buildCustomListingDescription(input: {
+  brand?: string;
+  model?: string;
+  condition?: string;
+  notes?: string;
+}): string {
+  const lines = ['Custom in-person item for evaluation.'];
+  const brand = normalizeCustomText(input.brand, 180);
+  const model = normalizeCustomText(input.model, 180);
+  const condition = normalizeCustomText(input.condition, 180);
+  const notes = normalizeCustomText(input.notes);
+
+  if (brand) lines.push(`Brand: ${brand}`);
+  if (model) lines.push(`Model: ${model}`);
+  if (condition) lines.push(`Observed condition: ${condition}`);
+  if (notes) lines.push(`Notes: ${notes}`);
+
+  return lines.join('\n');
 }
 
 function extensionFromContentType(contentType: string): string {
@@ -1587,7 +1592,7 @@ function extensionFromContentType(contentType: string): string {
 function buildCustomImageUrl(key: string): string {
   const params = new URLSearchParams();
   params.set('key', key);
-  return `/api/custom-image?${params.toString()}`;
+  return `/api/listings/custom-image?${params.toString()}`;
 }
 
 function buildInventoryImageUrl(key: string): string {
@@ -1603,6 +1608,26 @@ function photoListFromRecord(fields: Record<string, unknown>): string[] {
   const imageUrl = typeof fields.image_url === 'string' ? fields.image_url.trim() : '';
   if (imageUrl) photos.push(imageUrl);
   return Array.from(new Set(photos));
+}
+
+function buildCustomListingFromRecordFields(fields: Record<string, unknown>): ListingData | null {
+  const photos = photoListFromRecord(fields);
+  if (photos.length === 0) return null;
+
+  const priceValue = fields.price_asking;
+  const price = typeof priceValue === 'number'
+    ? String(priceValue)
+    : normalizeCustomText(priceValue, 120);
+
+  return {
+    title: normalizeCustomText(fields.title, 120) || 'Custom Item',
+    price,
+    location: normalizeCustomText(fields.location, 180),
+    condition: normalizeCustomText(fields.condition, 180),
+    description: normalizeCustomText(fields.description),
+    images: photos,
+    notes: normalizeCustomText(fields.notes),
+  };
 }
 
 async function processCustomListing(
@@ -1657,7 +1682,11 @@ async function processCustomListing(
   }
 }
 
-async function handleCustomItemSubmit(request: Request, env: Env): Promise<Response> {
+async function handleCustomListingSubmit(
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<Response> {
   if (!env.CUSTOM_ITEMS_BUCKET) {
     return jsonResponse({ message: 'Custom item uploads are not configured.' }, 500);
   }
@@ -1667,11 +1696,6 @@ async function handleCustomItemSubmit(request: Request, env: Env): Promise<Respo
     formData = await request.formData();
   } catch {
     return jsonResponse({ message: 'Invalid form data.' }, 400);
-  }
-
-  const details = normalizeCustomText(formData.get('whatIsIt'));
-  if (!details) {
-    return jsonResponse({ message: '"What is it?" is required.' }, 400);
   }
 
   const files = formData
@@ -1708,15 +1732,24 @@ async function handleCustomItemSubmit(request: Request, env: Env): Promise<Respo
     imageUrls.push(buildCustomImageUrl(key));
   }
 
-  const title = customTitleFromText(details);
-  const syntheticUrl = `custom-item://${crypto.randomUUID()}`;
+  const brand = normalizeCustomText(formData.get('brand'), 180);
+  const model = normalizeCustomText(formData.get('model'), 180);
+  const condition = normalizeCustomText(formData.get('condition'), 180);
+  const notes = normalizeCustomText(formData.get('notes'));
+  const title = buildCustomListingTitle({ brand, model });
+  const description = buildCustomListingDescription({ brand, model, condition, notes });
+  const syntheticUrl = `custom-listing://${crypto.randomUUID()}`;
   const fields: Record<string, unknown> = {
     submitted_at: now.toISOString(),
     source: 'Custom',
     url: syntheticUrl,
     status: 'queued',
     title,
-    description: details,
+    description,
+    brand: brand || null,
+    model: model || null,
+    condition: condition || null,
+    notes: notes || null,
     photos: imageUrls.join('\n'),
     image_url: imageUrls[0] ?? null,
     IsMulti: false,
@@ -1728,44 +1761,27 @@ async function handleCustomItemSubmit(request: Request, env: Env): Promise<Respo
     return jsonResponse({ message: 'Unable to queue custom item.' }, 500);
   }
 
-  return jsonResponse({ ok: true, recordId, status: 'queued' });
-}
+  const listing: ListingData = {
+    title,
+    price: '',
+    location: '',
+    condition,
+    description,
+    images: imageUrls,
+    notes,
+  };
 
-async function handleCustomItemStatus(request: Request, env: Env): Promise<Response> {
-  const url = new URL(request.url);
-  const id = url.searchParams.get('id');
-  if (!id) return jsonResponse({ message: 'Missing id.' }, 400);
-
-  const record = await dbGetListing(id, env);
-  if (!record) return jsonResponse({ message: 'Not found.' }, 404);
-  const source = typeof record.fields?.source === 'string' ? record.fields.source.trim().toLowerCase() : '';
-  if (source !== 'custom') {
-    return jsonResponse({ message: 'Not found.' }, 404);
-  }
-  const status = typeof record.fields?.status === 'string' ? record.fields.status.trim().toLowerCase() : '';
-
-  if (status === 'queued') {
-    const photos = photoListFromRecord(record.fields);
-    if (photos.length > 0) {
-      const listing: ListingData = {
-        title: typeof record.fields.title === 'string' ? record.fields.title : 'Custom Item',
-        price: typeof record.fields.price_asking === 'number' ? String(record.fields.price_asking) : '',
-        location: typeof record.fields.location === 'string' ? record.fields.location : '',
-        condition: typeof record.fields.condition === 'string' ? record.fields.condition : '',
-        description: typeof record.fields.description === 'string' ? record.fields.description : '',
-        images: photos,
-        notes: '',
-      };
-      await dbUpdateListing(record.id, { status: 'processing' }, env);
-      await processCustomListing(record.id, listing, env);
+  ctx.waitUntil((async () => {
+    try {
+      await dbUpdateListing(recordId, { status: 'processing' }, env);
+      await processCustomListing(recordId, listing, env);
+    } catch (error) {
+      console.error('Custom listing background processing failed', { recordId, error });
+      await dbUpdateListing(recordId, { status: 'failed' }, env);
     }
-  }
+  })());
 
-  const refreshed = await dbGetListing(id, env);
-  const refreshedStatus = typeof refreshed?.fields?.status === 'string'
-    ? refreshed.fields.status
-    : 'queued';
-  return jsonResponse({ ok: true, id: record.id, status: refreshedStatus });
+  return jsonResponse({ ok: true, recordId, status: 'queued' });
 }
 
 async function handleCustomImage(request: Request, env: Env): Promise<Response> {
@@ -3610,20 +3626,10 @@ async function handleReprocessListing(request: Request, env: Env): Promise<Respo
       return jsonResponse({ message: 'ID reprocess is only supported for custom listings.' }, 400);
     }
 
-    const photos = photoListFromRecord(record.fields);
-    if (photos.length === 0) {
+    const listing = buildCustomListingFromRecordFields(record.fields);
+    if (!listing) {
       return jsonResponse({ message: 'Custom listing has no photos to process.' }, 400);
     }
-
-    const listing: ListingData = {
-      title: typeof record.fields.title === 'string' ? record.fields.title : 'Custom Item',
-      price: typeof record.fields.price_asking === 'number' ? String(record.fields.price_asking) : '',
-      location: typeof record.fields.location === 'string' ? record.fields.location : '',
-      condition: typeof record.fields.condition === 'string' ? record.fields.condition : '',
-      description: typeof record.fields.description === 'string' ? record.fields.description : '',
-      images: photos,
-      notes: '',
-    };
     await dbUpdateListing(recordId, { status: 'queued' }, env);
     await processCustomListing(recordId, listing, env);
     return jsonResponse({ ok: true, recordId });
