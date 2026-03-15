@@ -526,123 +526,131 @@ const ListingEvaluator = () => {
                   bgcolor: 'background.elevation1',
                 }}
               >
-                <Stack spacing={3}>
-                  <Box>
+                <Stack spacing={2.5} sx={{ width: 1 }}>
+                  <Box sx={{ width: 1 }}>
                     <Typography variant="h6">Custom Item</Typography>
                   </Box>
 
-                  <Stack
-                    direction={{ xs: 'column', md: 'row' }}
-                    spacing={2}
-                    sx={{ alignItems: { md: 'center' }, width: 1 }}
-                  >
-                    <Typography variant="body2" sx={{ color: 'text.secondary', flexShrink: 0 }}>
-                      Upload 1 to 10 photos.
-                    </Typography>
-                    <Button
-                      component="label"
-                      variant="outlined"
-                      color="inherit"
-                      startIcon={<IconifyIcon icon="material-symbols:add-photo-alternate-outline-rounded" />}
-                      disabled={isUrlSubmitting || isCustomSubmitting}
-                      sx={{ alignSelf: { xs: 'flex-start', md: 'center' } }}
+                  <Box sx={{ width: 1 }}>
+                    <Stack
+                      direction={{ xs: 'column', lg: 'row' }}
+                      spacing={2}
+                      useFlexGap
+                      sx={{ width: 1, alignItems: { lg: 'center' }, flexWrap: 'wrap' }}
                     >
-                      {customPhotos.length > 0 ? 'Replace Photos' : 'Upload Photos'}
-                      <input hidden accept="image/*" multiple type="file" onChange={handleCustomPhotoChange} />
-                    </Button>
-                    <Typography variant="body2" sx={{ color: 'text.secondary', flexShrink: 0 }}>
-                      {customPhotos.length > 0
-                        ? `${customPhotos.length} photo${customPhotos.length === 1 ? '' : 's'} selected`
-                        : 'No photos selected yet'}
-                    </Typography>
-                    {customPhotos.length > 0 ? (
-                      <Stack
-                        direction="row"
-                        spacing={1}
-                        useFlexGap
-                        sx={{ flexWrap: 'wrap', alignItems: 'center', minWidth: 0 }}
+                      <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                        Upload 1 to 10 photos.
+                      </Typography>
+                      <Button
+                        component="label"
+                        variant="outlined"
+                        color="inherit"
+                        startIcon={<IconifyIcon icon="material-symbols:add-photo-alternate-outline-rounded" />}
+                        disabled={isUrlSubmitting || isCustomSubmitting}
+                        sx={{ alignSelf: 'flex-start' }}
                       >
-                        {customPhotos.map((photo) => (
-                          <Typography
-                            key={`${photo.name}-${photo.size}`}
-                            variant="caption"
-                            sx={{ color: 'text.secondary' }}
-                          >
-                            {photo.name}
-                          </Typography>
-                        ))}
-                      </Stack>
-                    ) : null}
-                  </Stack>
+                        {customPhotos.length > 0 ? 'Replace Photos' : 'Upload Photos'}
+                        <input hidden accept="image/*" multiple type="file" onChange={handleCustomPhotoChange} />
+                      </Button>
+                      <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                        {customPhotos.length > 0
+                          ? `${customPhotos.length} photo${customPhotos.length === 1 ? '' : 's'} selected`
+                          : 'No photos selected yet'}
+                      </Typography>
+                      {customPhotos.length > 0 ? (
+                        <Stack
+                          direction="row"
+                          spacing={1}
+                          useFlexGap
+                          sx={{ flexWrap: 'wrap', alignItems: 'center' }}
+                        >
+                          {customPhotos.map((photo) => (
+                            <Typography
+                              key={`${photo.name}-${photo.size}`}
+                              variant="caption"
+                              sx={{ color: 'text.secondary' }}
+                            >
+                              {photo.name}
+                            </Typography>
+                          ))}
+                        </Stack>
+                      ) : null}
+                    </Stack>
+                  </Box>
 
-                  <Grid container spacing={2}>
-                    <Grid size={{ xs: 12, md: 2 }}>
-                      <TextField
-                        fullWidth
-                        label="Brand"
-                        value={customBrand}
-                        disabled={isUrlSubmitting || isCustomSubmitting}
-                        onChange={(event) => {
-                          setCustomBrand(event.target.value);
-                          setErrorMessage('');
-                        }}
-                      />
+                  <Box sx={{ width: 1 }}>
+                    <Grid container spacing={2}>
+                      <Grid size={{ xs: 12, md: 2 }}>
+                        <TextField
+                          fullWidth
+                          label="Brand"
+                          value={customBrand}
+                          disabled={isUrlSubmitting || isCustomSubmitting}
+                          onChange={(event) => {
+                            setCustomBrand(event.target.value);
+                            setErrorMessage('');
+                          }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 2 }}>
+                        <TextField
+                          fullWidth
+                          label="Model"
+                          value={customModel}
+                          disabled={isUrlSubmitting || isCustomSubmitting}
+                          onChange={(event) => {
+                            setCustomModel(event.target.value);
+                            setErrorMessage('');
+                          }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 2 }}>
+                        <TextField
+                          fullWidth
+                          label="Condition"
+                          value={customCondition}
+                          disabled={isUrlSubmitting || isCustomSubmitting}
+                          onChange={(event) => {
+                            setCustomCondition(event.target.value);
+                            setErrorMessage('');
+                          }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 6 }}>
+                        <TextField
+                          fullWidth
+                          label="Notes"
+                          value={customNotes}
+                          multiline
+                          minRows={1}
+                          disabled={isUrlSubmitting || isCustomSubmitting}
+                          onChange={(event) => {
+                            setCustomNotes(event.target.value);
+                            setErrorMessage('');
+                          }}
+                        />
+                      </Grid>
                     </Grid>
-                    <Grid size={{ xs: 12, md: 2 }}>
-                      <TextField
-                        fullWidth
-                        label="Model"
-                        value={customModel}
-                        disabled={isUrlSubmitting || isCustomSubmitting}
-                        onChange={(event) => {
-                          setCustomModel(event.target.value);
-                          setErrorMessage('');
-                        }}
-                      />
-                    </Grid>
-                    <Grid size={{ xs: 12, md: 2 }}>
-                      <TextField
-                        fullWidth
-                        label="Condition"
-                        value={customCondition}
-                        disabled={isUrlSubmitting || isCustomSubmitting}
-                        onChange={(event) => {
-                          setCustomCondition(event.target.value);
-                          setErrorMessage('');
-                        }}
-                      />
-                    </Grid>
-                    <Grid size={{ xs: 12, md: 6 }}>
-                      <TextField
-                        fullWidth
-                        label="Notes"
-                        value={customNotes}
-                        multiline
-                        minRows={1}
-                        disabled={isUrlSubmitting || isCustomSubmitting}
-                        onChange={(event) => {
-                          setCustomNotes(event.target.value);
-                          setErrorMessage('');
-                        }}
-                      />
-                    </Grid>
-                  </Grid>
+                  </Box>
 
-                  <Stack direction="row" sx={{ width: 1 }}>
+                  <Box sx={{ width: 1 }}>
                     <Button
                       variant="contained"
                       onClick={() => {
                         void submitCustom();
                       }}
                       disabled={isUrlSubmitting || isCustomSubmitting}
-                      sx={{ alignSelf: 'flex-start' }}
                       startIcon={
-                        isCustomSubmitting ? <CircularProgress size={16} color="inherit" /> : <IconifyIcon icon="material-symbols:photo-camera-rounded" />
+                        isCustomSubmitting ? (
+                          <CircularProgress size={16} color="inherit" />
+                        ) : (
+                          <IconifyIcon icon="material-symbols:photo-camera-rounded" />
+                        )
                       }
                     >
                       {isCustomSubmitting ? 'Submitting...' : 'Submit Custom Eval'}
                     </Button>
-                  </Stack>
+                  </Box>
                 </Stack>
               </Paper>
 
