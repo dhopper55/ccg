@@ -50,7 +50,7 @@ function mapActivityRecordToNotification(record: ActivityLogRecord): Notificatio
       : [],
     createdAt: record.eventTimeUtc,
     url: record.eventUrl,
-    openInNewTab: Boolean(record.eventUrl),
+    openInNewTab: false,
   };
 }
 

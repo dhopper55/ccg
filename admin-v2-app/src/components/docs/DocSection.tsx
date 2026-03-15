@@ -1,8 +1,6 @@
 import { PropsWithChildren, ReactElement } from 'react';
-import { useLocation } from 'react-router';
 import {
   Box,
-  Button,
   Container,
   List,
   ListOwnProps,
@@ -42,7 +40,6 @@ const DocSection = ({
   const headerId = id ?? kebabCase(title);
   const { up } = useBreakpoints();
   const upLg = up('lg');
-  const { pathname } = useLocation();
 
   const sectionContent = (
     <Box sx={{ mb: 2 }}>
@@ -63,11 +60,6 @@ const DocSection = ({
               {upLg && titleAdornment}
               {badge}
             </AnchorLinkContainer>
-            {!pathname.includes('migration') && titleAdornment && (
-              <Button size="small" href="/documentation/migration">
-                See Migration
-              </Button>
-            )}
           </Stack>
           {!upLg && titleAdornment}
         </ScrollSpyContent>

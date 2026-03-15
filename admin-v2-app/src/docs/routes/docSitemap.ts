@@ -543,14 +543,6 @@ const docSitemap: MenuItem[] = [
         icon: 'material-symbols:change-circle-outline',
         active: true,
       },
-      {
-        name: 'Migration',
-        key: 'Migration',
-        path: paths.migration,
-        pathName: 'migration',
-        icon: 'material-symbols:fast-forward-outline',
-        active: true,
-      },
     ],
   },
 ];

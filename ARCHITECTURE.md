@@ -201,7 +201,14 @@ Tables:
   - Populated automatically from successful decode traffic (upsert on pattern)
   - Edited from Admin V2 Serial Pattern Text page
 
-No migration files are kept in the repo. The live D1 database is the source of truth for schema. For future schema changes, run one-off SQL via `npx wrangler d1 execute listing_evaluator --remote --command="..."` from `workers/listing-evaluator/`.
+The live D1 database is the source of truth for schema.
+
+D1 workflow rules:
+- Schema changes are forward-only.
+- Assume all prior schema changes have already been run in the live database.
+- Do not add or keep migration history files, schema snapshots, or old SQL change logs in the repo.
+- When a schema change is needed, provide a one-off D1 command or SQL script for the user to run manually.
+- Standard pattern: `npx wrangler d1 execute listing_evaluator --remote --command="..."` from `workers/listing-evaluator/`.
 
 ## OpenAI
 - Models: `gpt-4o` and `gpt-4o-mini` (see worker for task-specific usage)

@@ -79,7 +79,6 @@ const routePaths = {
   apiCalls: `/${rootPaths.documentationRoot}/api-calls`,
   dependencies: `/${rootPaths.documentationRoot}/dependencies`,
   changelog: `/${rootPaths.documentationRoot}/changelog`,
-  migration: `/${rootPaths.documentationRoot}/migration`,
 };
 
 export default routePaths;

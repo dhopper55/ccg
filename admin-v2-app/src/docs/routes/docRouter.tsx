@@ -75,7 +75,6 @@ const Dependencies = lazy(() => import('docs/documentation/Dependencies'));
 const EmojiPickerDoc = lazy(() => import('docs/component-docs/EmojiPickerDoc'));
 const ResizableDoc = lazy(() => import('docs/component-docs/ResizableDoc'));
 const Changelog = lazy(() => import('pages/changelog'));
-const Migration = lazy(() => import('pages/migration'));
 
 export const docRoutes = [
   {
@@ -387,9 +386,5 @@ export const docRoutes = [
   {
     path: paths.changelog,
     element: <Changelog />,
-  },
-  {
-    path: paths.migration,
-    element: <Migration />,
   },
 ];
