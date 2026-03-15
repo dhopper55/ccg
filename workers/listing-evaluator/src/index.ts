@@ -1034,6 +1034,10 @@ function buildAdminInventoryItemUrl(recordId: string): string {
   return `${ACTIVITY_BASE_URL}/admin/inventory-item?id=${encodeURIComponent(recordId)}`;
 }
 
+function buildAdminListingEvaluatorItemUrl(recordId: string): string {
+  return `${ACTIVITY_BASE_URL}/admin/listing-evaluator-item?id=${encodeURIComponent(recordId)}`;
+}
+
 function toAbsoluteSiteUrl(input: string): string | null {
   const trimmed = normalizeText(input, '');
   if (!trimmed) return null;
@@ -3806,7 +3810,7 @@ async function processRun(runId: string, resource: any, eventType: string | unde
   await insertActivityLogBestEffort(env, {
     eventKey: 'listing_eval_completed',
     eventText: `Listing Eval completed for ${listingTitle}`,
-    eventUrl: listingUrl,
+    eventUrl: recordId ? buildAdminListingEvaluatorItemUrl(recordId) : listingUrl,
     imageUrl: listingImageUrl,
     entityType: 'listing_eval',
     entityId: recordId || null,
@@ -5494,7 +5498,9 @@ async function dbListAdminV2ActivityLog(
     eventKey: normalizeText(row.event_key, ''),
     iconKey: normalizeText(row.icon_key, ''),
     eventText: normalizeText(row.event_text, ''),
-    eventUrl: normalizeUrl(normalizeText(row.event_url, '')),
+    eventUrl: normalizeText(row.entity_type, '') === 'listing_eval' && normalizeText(row.entity_id, '')
+      ? buildAdminListingEvaluatorItemUrl(normalizeText(row.entity_id, ''))
+      : normalizeUrl(normalizeText(row.event_url, '')),
     imageUrl: normalizeUrl(normalizeText(row.image_url, '')),
     entityType: normalizeText(row.entity_type, '') || null,
     entityId: normalizeText(row.entity_id, '') || null,
