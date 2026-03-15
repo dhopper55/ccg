@@ -299,7 +299,7 @@ const SerialDecodes = () => {
   const pageStart = useMemo(() => (page - 1) * PAGE_SIZE + 1, [page]);
   const pageEnd = useMemo(() => Math.min(page * PAGE_SIZE, total), [page, total]);
   const chartRows = useMemo(
-    () => brandResponses.filter((item) => item.responseCount > 0).slice(0, 20),
+    () => brandResponses.filter((item) => item.responseCount > 0),
     [brandResponses],
   );
   const chartLabels = useMemo(() => chartRows.map((item) => formatBrandName(item.brand)), [chartRows]);
