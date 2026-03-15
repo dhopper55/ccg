@@ -516,11 +516,7 @@ const ListingEvaluator = () => {
                 </Box>
               </Stack>
 
-              <Divider sx={{ pt: 1 }}>
-                <Typography variant="subtitle2" sx={{ color: 'text.secondary', letterSpacing: 0.6 }}>
-                  CUSTOM EVAL
-                </Typography>
-              </Divider>
+              <Divider sx={{ pt: 1 }} />
 
               <Paper
                 variant="outlined"
@@ -531,15 +527,16 @@ const ListingEvaluator = () => {
                 }}
               >
                 <Stack spacing={3}>
-                  <Stack spacing={1}>
-                    <Typography variant="h6">Custom Item</Typography>
-                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                      Upload 1 to 10 photos. Brand, model, condition, and notes are optional, but
-                      more context will usually improve the analysis.
-                    </Typography>
-                  </Stack>
+                  <Typography variant="h6">Custom Item</Typography>
 
-                  <Stack spacing={1.5}>
+                  <Stack
+                    direction={{ xs: 'column', lg: 'row' }}
+                    spacing={2}
+                    sx={{ alignItems: { lg: 'center' }, flexWrap: 'wrap' }}
+                  >
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                      Upload 1 to 10 photos.
+                    </Typography>
                     <Button
                       component="label"
                       variant="outlined"
@@ -559,7 +556,12 @@ const ListingEvaluator = () => {
                     </Typography>
 
                     {customPhotos.length > 0 ? (
-                      <Stack spacing={0.5}>
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        useFlexGap
+                        sx={{ flexWrap: 'wrap', alignItems: 'center' }}
+                      >
                         {customPhotos.map((photo) => (
                           <Typography key={`${photo.name}-${photo.size}`} variant="caption" sx={{ color: 'text.secondary' }}>
                             {photo.name}
@@ -570,7 +572,7 @@ const ListingEvaluator = () => {
                   </Stack>
 
                   <Grid container spacing={2}>
-                    <Grid size={{ xs: 12, md: 4 }}>
+                    <Grid size={{ xs: 12, md: 2.5 }}>
                       <TextField
                         fullWidth
                         label="Brand"
@@ -582,7 +584,7 @@ const ListingEvaluator = () => {
                         }}
                       />
                     </Grid>
-                    <Grid size={{ xs: 12, md: 4 }}>
+                    <Grid size={{ xs: 12, md: 2.5 }}>
                       <TextField
                         fullWidth
                         label="Model"
@@ -594,7 +596,7 @@ const ListingEvaluator = () => {
                         }}
                       />
                     </Grid>
-                    <Grid size={{ xs: 12, md: 4 }}>
+                    <Grid size={{ xs: 12, md: 2.5 }}>
                       <TextField
                         fullWidth
                         label="Condition"
@@ -606,13 +608,13 @@ const ListingEvaluator = () => {
                         }}
                       />
                     </Grid>
-                    <Grid size={12}>
+                    <Grid size={{ xs: 12, md: 4.5 }}>
                       <TextField
                         fullWidth
                         label="Notes"
                         value={customNotes}
                         multiline
-                        minRows={4}
+                        minRows={1}
                         disabled={isUrlSubmitting || isCustomSubmitting}
                         onChange={(event) => {
                           setCustomNotes(event.target.value);
@@ -622,7 +624,7 @@ const ListingEvaluator = () => {
                     </Grid>
                   </Grid>
 
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' } }}>
+                  <Stack>
                     <Button
                       variant="contained"
                       onClick={() => {
@@ -635,9 +637,6 @@ const ListingEvaluator = () => {
                     >
                       {isCustomSubmitting ? 'Submitting...' : 'Submit Custom Eval'}
                     </Button>
-                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                      Photos are required. Everything else is optional.
-                    </Typography>
                   </Stack>
                 </Stack>
               </Paper>
