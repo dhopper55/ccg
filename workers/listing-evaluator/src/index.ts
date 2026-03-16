@@ -2070,6 +2070,7 @@ type InventoryItemRow = {
   year_range: string | null;
   model: string | null;
   finish: string | null;
+  repair_notes: string | null;
   original_listing_desc: string | null;
   purchased_date: string | null;
   purchase_price: number | null;
@@ -2079,6 +2080,7 @@ type InventoryItemRow = {
   is_active: number | null;
   is_marked: number | null;
   is_personal: number | null;
+  needs_repair: number | null;
   for_sale: number | null;
   for_sale_date: string | null;
   fbm_listing: number | null;
@@ -2292,6 +2294,7 @@ async function handleInventoryList(request: Request, env: Env): Promise<Response
   const active = url.searchParams.get('active') !== '0';
   const onlyMarked = url.searchParams.get('onlyMarked') === '1';
   const onlyPersonal = url.searchParams.get('onlyPersonal') === '1';
+  const onlyRepair = url.searchParams.get('onlyRepair') === '1';
   const drillDownCcgNumber = normalizeText(url.searchParams.get('ccgNumber'), '').slice(0, 32);
   const sortBy = parseInventorySortKey(url.searchParams.get('sortBy'));
   const sortDir = parseInventorySortDir(url.searchParams.get('sortDir'));
@@ -2305,6 +2308,7 @@ async function handleInventoryList(request: Request, env: Env): Promise<Response
       sortDir,
       onlyMarked,
       onlyPersonal,
+      onlyRepair,
       env,
     );
     return jsonResponse({
@@ -2319,7 +2323,7 @@ async function handleInventoryList(request: Request, env: Env): Promise<Response
     });
   }
 
-  const availableBrands = await dbListInventoryBrands({ category, sold, active, onlyMarked, onlyPersonal }, env);
+  const availableBrands = await dbListInventoryBrands({ category, sold, active, onlyMarked, onlyPersonal, onlyRepair }, env);
 
   const result = await dbListInventoryItemsGrouped({
     category,
@@ -2328,6 +2332,7 @@ async function handleInventoryList(request: Request, env: Env): Promise<Response
     active,
     onlyMarked,
     onlyPersonal,
+    onlyRepair,
     page,
     limit,
     sortBy,
@@ -2956,6 +2961,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const yearRange = normalizeText(body.yearRange, '').slice(0, 120);
   const model = normalizeText(body.model, '').slice(0, 180);
   const finish = normalizeText(body.finish, '').slice(0, 120);
+  const repairNotes = normalizeText(body.repairNotes, '').slice(0, 12000);
   const originalListingDesc = normalizeText(body.originalListingDesc, '').slice(0, 12000);
   const purchasedDate = normalizeInventoryDate(body.purchasedDate) || currentDateYmd();
   const purchasePrice = parseCurrencyAmount(body.purchasePrice);
@@ -2965,6 +2971,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const isActive = toBooleanInput(body.isActive, true);
   const isMarked = toBooleanInput(body.isMarked, false);
   const isPersonal = toBooleanInput(body.isPersonal, false);
+  const needsRepair = toBooleanInput(body.needsRepair, false);
   const isSold = toBooleanInput(body.isSold, false);
   const forSaleRaw = toBooleanInput(body.forSale, false);
   const forSale = isSold ? false : forSaleRaw;
@@ -3049,6 +3056,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     year_range: yearRange || null,
     model: model || null,
     finish: finish || null,
+    repair_notes: repairNotes || null,
     original_listing_desc: originalListingDesc || null,
     purchased_date: purchasedDate,
     purchase_price: purchasePrice,
@@ -3058,6 +3066,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     is_active: isActive ? 1 : 0,
     is_marked: isMarked ? 1 : 0,
     is_personal: isPersonal ? 1 : 0,
+    needs_repair: needsRepair ? 1 : 0,
     for_sale: forSale ? 1 : 0,
     for_sale_date: forSale ? new Date().toISOString() : null,
     fbm_listing: fbmListing ? 1 : 0,
@@ -3214,6 +3223,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const yearRange = normalizeText(body.yearRange, '').slice(0, 120);
   const model = normalizeText(body.model, '').slice(0, 180);
   const finish = normalizeText(body.finish, '').slice(0, 120);
+  const repairNotes = normalizeText(body.repairNotes, '').slice(0, 12000);
   const originalListingDesc = normalizeText(body.originalListingDesc, '').slice(0, 12000);
   const purchasedDate = normalizeInventoryDate(body.purchasedDate);
   const purchasePrice = parseCurrencyAmount(body.purchasePrice);
@@ -3223,6 +3233,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const isActive = toBooleanInput(body.isActive, true);
   const isMarked = toBooleanInput(body.isMarked, false);
   const isPersonal = toBooleanInput(body.isPersonal, false);
+  const needsRepair = toBooleanInput(body.needsRepair, false);
   const isSold = toBooleanInput(body.isSold, false);
   const forSaleRaw = toBooleanInput(body.forSale, false);
   const forSale = isSold ? false : forSaleRaw;
@@ -3290,6 +3301,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     year_range: yearRange || null,
     model: model || null,
     finish: finish || null,
+    repair_notes: repairNotes || null,
     original_listing_desc: originalListingDesc || null,
     purchased_date: purchasedDate,
     purchase_price: purchasePrice,
@@ -3303,6 +3315,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     is_active: isActive ? 1 : 0,
     is_marked: isMarked ? 1 : 0,
     is_personal: isPersonal ? 1 : 0,
+    needs_repair: needsRepair ? 1 : 0,
     for_sale: forSale ? 1 : 0,
     for_sale_date: resolveToggleTimestamp({
       previousOn: previousForSale,
@@ -4213,6 +4226,7 @@ function mapInventoryRow(
     yearRange: row.year_range || '',
     model: row.model || '',
     finish: row.finish || '',
+    repairNotes: row.repair_notes || '',
     originalListingDesc: row.original_listing_desc || '',
     purchasedDate: row.purchased_date || '',
     purchasePrice: row.purchase_price,
@@ -4222,6 +4236,7 @@ function mapInventoryRow(
     isActive: Boolean(row.is_active),
     isMarked: Boolean(row.is_marked),
     isPersonal: Boolean(row.is_personal),
+    needsRepair: Boolean(row.needs_repair),
     forSale: Boolean(row.for_sale),
     forSaleDate: row.for_sale_date || null,
     fbmListing: Boolean(row.fbm_listing),
@@ -4248,6 +4263,7 @@ type InventoryGroupedFilters = {
   active: boolean;
   onlyMarked: boolean;
   onlyPersonal: boolean;
+  onlyRepair: boolean;
   page: number;
   limit: number;
   sortBy: InventorySortKey;
@@ -4298,7 +4314,7 @@ function inventoryOrderBySql(sortBy: InventorySortKey, sortDir: InventorySortDir
   }
 }
 
-function inventoryFilterClause(filters: Pick<InventoryGroupedFilters, 'category' | 'brand' | 'sold' | 'active' | 'onlyMarked' | 'onlyPersonal'>): { sql: string; binds: unknown[] } {
+function inventoryFilterClause(filters: Pick<InventoryGroupedFilters, 'category' | 'brand' | 'sold' | 'active' | 'onlyMarked' | 'onlyPersonal' | 'onlyRepair'>): { sql: string; binds: unknown[] } {
   const clauses: string[] = [
     'i.is_sold = ?',
     'i.is_active = ?',
@@ -4322,6 +4338,9 @@ function inventoryFilterClause(filters: Pick<InventoryGroupedFilters, 'category'
   if (filters.onlyPersonal) {
     clauses.push('COALESCE(i.is_personal, 0) = 1');
   }
+  if (filters.onlyRepair) {
+    clauses.push('COALESCE(i.needs_repair, 0) = 1');
+  }
 
   return {
     sql: clauses.join(' AND '),
@@ -4338,6 +4357,7 @@ async function dbListInventoryItemsGrouped(
   const qtyConditions: string[] = [];
   if (filters.onlyMarked) qtyConditions.push('COALESCE(g.is_marked, 0) = 1');
   if (filters.onlyPersonal) qtyConditions.push('COALESCE(g.is_personal, 0) = 1');
+  if (filters.onlyRepair) qtyConditions.push('COALESCE(g.needs_repair, 0) = 1');
   const qtyConditionSql = qtyConditions.length > 0 ? ` AND ${qtyConditions.join(' AND ')}` : '';
 
   const countRow = await env.DB.prepare(
@@ -4386,6 +4406,7 @@ async function dbListInventoryItemsGrouped(
        i.year_range,
        i.model,
        i.finish,
+       i.repair_notes,
        i.original_listing_desc,
        i.purchased_date,
        i.purchase_price,
@@ -4395,6 +4416,7 @@ async function dbListInventoryItemsGrouped(
        i.is_active,
        i.is_marked,
        i.is_personal,
+       i.needs_repair,
        i.for_sale,
        i.for_sale_date,
        i.fbm_listing,
@@ -4433,7 +4455,7 @@ async function dbListInventoryItemsGrouped(
 }
 
 async function dbListInventoryBrands(
-  filters: Pick<InventoryGroupedFilters, 'category' | 'sold' | 'active' | 'onlyMarked' | 'onlyPersonal'>,
+  filters: Pick<InventoryGroupedFilters, 'category' | 'sold' | 'active' | 'onlyMarked' | 'onlyPersonal' | 'onlyRepair'>,
   env: Env,
 ): Promise<string[]> {
   const clause = inventoryFilterClause({ ...filters, brand: '' });
@@ -4457,12 +4479,14 @@ async function dbListInventoryItemsByCcgNumber(
   sortDir: InventorySortDir,
   onlyMarked: boolean,
   onlyPersonal: boolean,
+  onlyRepair: boolean,
   env: Env,
 ): Promise<{ records: Array<Record<string, unknown>>; total: number; page: number; limit: number; totalPages: number }> {
   const orderBy = inventoryOrderBySql(sortBy, sortDir);
   const extraConditions: string[] = [];
   if (onlyMarked) extraConditions.push('COALESCE(is_marked, 0) = 1');
   if (onlyPersonal) extraConditions.push('COALESCE(is_personal, 0) = 1');
+  if (onlyRepair) extraConditions.push('COALESCE(needs_repair, 0) = 1');
   const extraSql = extraConditions.length > 0 ? ` AND ${extraConditions.join(' AND ')}` : '';
   const countRow = await env.DB.prepare(
     `SELECT COUNT(*) AS total FROM ccg_inventory_items WHERE ccg_number = ?${extraSql}`
@@ -4486,6 +4510,7 @@ async function dbListInventoryItemsByCcgNumber(
       i.year_range,
       i.model,
       i.finish,
+      i.repair_notes,
       i.original_listing_desc,
       i.purchased_date,
       i.purchase_price,
@@ -4495,6 +4520,7 @@ async function dbListInventoryItemsByCcgNumber(
       i.is_active,
       i.is_marked,
       i.is_personal,
+      i.needs_repair,
       i.for_sale,
       i.for_sale_date,
       i.fbm_listing,
@@ -4555,6 +4581,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.year_range,
       i.model,
       i.finish,
+      i.repair_notes,
       i.original_listing_desc,
       i.purchased_date,
       i.purchase_price,
@@ -4564,6 +4591,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.is_active,
       i.is_marked,
       i.is_personal,
+      i.needs_repair,
       i.for_sale,
       i.for_sale_date,
       i.fbm_listing,
@@ -4598,6 +4626,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     yearRange: row.year_range || '',
     model: row.model || '',
     finish: row.finish || '',
+    repairNotes: row.repair_notes || '',
     originalListingDesc: row.original_listing_desc || '',
     purchasedDate: row.purchased_date || '',
     purchasePrice: row.purchase_price,
@@ -4607,6 +4636,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     isActive: Boolean(row.is_active),
     isMarked: Boolean(row.is_marked),
     isPersonal: Boolean(row.is_personal),
+    needsRepair: Boolean(row.needs_repair),
     forSale: Boolean(row.for_sale),
     forSaleDate: row.for_sale_date || null,
     fbmListing: Boolean(row.fbm_listing),
@@ -4713,6 +4743,7 @@ async function dbCreateInventoryItems(
     year_range: string | null;
     model: string | null;
     finish: string | null;
+    repair_notes: string | null;
     original_listing_desc: string | null;
     purchased_date: string;
     purchase_price: number | null;
@@ -4722,6 +4753,7 @@ async function dbCreateInventoryItems(
     is_active: number;
     is_marked: number;
     is_personal: number;
+    needs_repair: number;
     for_sale: number;
     for_sale_date: string | null;
     fbm_listing: number;
@@ -4742,11 +4774,11 @@ async function dbCreateInventoryItems(
       (
         source_listing_id, ccg_number, image_url, title, category, brand, year_range, model, finish,
         image_urls,
-        original_listing_desc, purchased_date, purchase_price, private_party_value, purchase_notes, serial_number, is_active, is_marked, is_personal, for_sale, for_sale_date,
+        repair_notes, original_listing_desc, purchased_date, purchase_price, private_party_value, purchase_notes, serial_number, is_active, is_marked, is_personal, needs_repair, for_sale, for_sale_date,
         fbm_listing, fbm_title, fbm_url, fbm_image_url, fbm_listing_price,
         is_sold, sold_date, sold_amount, sell_notes
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const statements = Array.from({ length: qty }, (_, index) =>
       env.DB.prepare(statement).bind(
@@ -4760,6 +4792,7 @@ async function dbCreateInventoryItems(
         fields.model,
         fields.finish,
         fields.image_urls,
+        fields.repair_notes,
         fields.original_listing_desc,
         fields.purchased_date,
         fields.purchase_price,
@@ -4769,6 +4802,7 @@ async function dbCreateInventoryItems(
         fields.is_active,
         fields.is_marked,
         fields.is_personal,
+        fields.needs_repair,
         fields.for_sale,
         fields.for_sale_date,
         fields.fbm_listing,
@@ -4804,6 +4838,7 @@ async function dbUpdateInventorySharedByCcgNumber(
     year_range: string | null;
     model: string | null;
     finish: string | null;
+    repair_notes: string | null;
     original_listing_desc: string | null;
     purchased_date: string;
     purchase_price: number | null;
@@ -4818,7 +4853,7 @@ async function dbUpdateInventorySharedByCcgNumber(
       `UPDATE ccg_inventory_items
        SET
          image_url = ?, title = ?, category = ?, brand = ?, year_range = ?, model = ?, finish = ?, image_urls = ?,
-         original_listing_desc = ?, purchased_date = ?, purchase_price = ?, private_party_value = ?, purchase_notes = ?,
+         repair_notes = ?, original_listing_desc = ?, purchased_date = ?, purchase_price = ?, private_party_value = ?, purchase_notes = ?,
          serial_number = ?, updated_at = CURRENT_TIMESTAMP
        WHERE ccg_number = ?`
     ).bind(
@@ -4830,6 +4865,7 @@ async function dbUpdateInventorySharedByCcgNumber(
       fields.model,
       fields.finish,
       fields.image_urls,
+      fields.repair_notes,
       fields.original_listing_desc,
       fields.purchased_date,
       fields.purchase_price,
@@ -4851,6 +4887,7 @@ async function dbUpdateInventoryRowsByCcgNumber(
     is_active: number;
     is_marked: number;
     is_personal: number;
+    needs_repair: number;
     for_sale: number;
     for_sale_date: string | null;
     fbm_listing: number;
@@ -4866,7 +4903,7 @@ async function dbUpdateInventoryRowsByCcgNumber(
     await env.DB.prepare(
       `UPDATE ccg_inventory_items
        SET
-         is_active = ?, is_marked = ?, is_personal = ?, for_sale = ?, for_sale_date = ?,
+         is_active = ?, is_marked = ?, is_personal = ?, needs_repair = ?, for_sale = ?, for_sale_date = ?,
          fbm_listing = ?, fbm_title = ?, fbm_url = ?, fbm_image_url = ?, fbm_listing_price = ?,
          updated_at = CURRENT_TIMESTAMP
        WHERE ccg_number = ?`
@@ -4874,6 +4911,7 @@ async function dbUpdateInventoryRowsByCcgNumber(
       fields.is_active,
       fields.is_marked,
       fields.is_personal,
+      fields.needs_repair,
       fields.for_sale,
       fields.for_sale_date,
       fields.fbm_listing,

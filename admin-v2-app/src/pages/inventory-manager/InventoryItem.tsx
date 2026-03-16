@@ -36,6 +36,7 @@ type InventoryItemRecord = {
   yearRange?: string;
   model?: string;
   finish?: string;
+  repairNotes?: string;
   originalListingDesc?: string;
   purchasedDate?: string;
   purchasePrice?: number | null;
@@ -45,6 +46,7 @@ type InventoryItemRecord = {
   isActive?: boolean;
   isMarked?: boolean;
   isPersonal?: boolean;
+  needsRepair?: boolean;
   forSale?: boolean;
   forSaleDate?: string | null;
   fbmListing?: boolean;
@@ -97,6 +99,7 @@ type FormState = {
   yearRange: string;
   model: string;
   finish: string;
+  repairNotes: string;
   originalListingDesc: string;
   purchasedDate: string;
   purchasePrice: string;
@@ -106,6 +109,7 @@ type FormState = {
   isActive: boolean;
   isMarked: boolean;
   isPersonal: boolean;
+  needsRepair: boolean;
   forSale: boolean;
   fbmListing: boolean;
   fbmTitle: string;
@@ -155,6 +159,7 @@ const DEFAULT_FORM: FormState = {
   yearRange: '',
   model: '',
   finish: '',
+  repairNotes: '',
   originalListingDesc: '',
   purchasedDate: todayYmd(),
   purchasePrice: '',
@@ -164,6 +169,7 @@ const DEFAULT_FORM: FormState = {
   isActive: true,
   isMarked: false,
   isPersonal: false,
+  needsRepair: false,
   forSale: false,
   fbmListing: false,
   fbmTitle: '',
@@ -237,6 +243,7 @@ const InventoryItem = () => {
             yearRange: record.yearRange || '',
             model: record.model || '',
             finish: record.finish || '',
+            repairNotes: record.repairNotes || '',
             originalListingDesc: record.originalListingDesc || '',
             purchasedDate: record.purchasedDate || todayYmd(),
             purchasePrice:
@@ -248,6 +255,7 @@ const InventoryItem = () => {
             isActive: Boolean(record.isActive),
             isMarked: Boolean(record.isMarked),
             isPersonal: Boolean(record.isPersonal),
+            needsRepair: Boolean(record.needsRepair),
             forSale: Boolean(record.forSale),
             fbmListing: Boolean(record.fbmListing),
             fbmTitle: record.fbmTitle || '',
@@ -504,6 +512,7 @@ const InventoryItem = () => {
         yearRange: form.yearRange.trim(),
         model: form.model.trim(),
         finish: form.finish.trim(),
+        repairNotes: form.repairNotes.trim(),
         originalListingDesc: form.originalListingDesc.trim(),
         purchasedDate: form.purchasedDate.trim(),
         purchasePrice: form.purchasePrice.trim(),
@@ -511,6 +520,7 @@ const InventoryItem = () => {
         purchaseNotes: form.purchaseNotes.trim(),
         isActive: form.isActive,
         isMarked: form.isMarked,
+        needsRepair: form.needsRepair,
         forSale: form.forSale,
         fbmListing: form.fbmListing,
         fbmTitle: form.fbmTitle.trim(),
@@ -835,7 +845,19 @@ const InventoryItem = () => {
                 <TextField
                   fullWidth
                   multiline
-                  minRows={4}
+                  minRows={2}
+                  label="Repair Notes"
+                  value={form.repairNotes}
+                  onChange={(event) => setField('repairNotes', event.target.value)}
+                  inputProps={{ maxLength: 12000 }}
+                />
+              </Grid>
+
+              <Grid size={12}>
+                <TextField
+                  fullWidth
+                  multiline
+                  minRows={2}
                   label="Original Listing Desc."
                   value={form.originalListingDesc}
                   onChange={(event) => setField('originalListingDesc', event.target.value)}
@@ -905,6 +927,15 @@ const InventoryItem = () => {
                         />
                       }
                       label="Is Personal"
+                    />
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={form.needsRepair}
+                          onChange={(event) => setField('needsRepair', event.target.checked)}
+                        />
+                      }
+                      label="Needs Repair"
                     />
                     <FormControlLabel
                       control={

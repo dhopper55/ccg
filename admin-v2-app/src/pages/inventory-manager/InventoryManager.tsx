@@ -41,8 +41,10 @@ type InventoryRecord = {
   imageUrl?: string | null;
   category?: string;
   brand?: string;
+  repairNotes?: string;
   isMarked?: boolean;
   isPersonal?: boolean;
+  needsRepair?: boolean;
   forSale?: boolean;
   isSold?: boolean;
   purchasePrice?: number | null;
@@ -72,6 +74,7 @@ type InventoryFilters = {
   active: boolean;
   onlyMarked: boolean;
   onlyPersonal: boolean;
+  onlyRepair: boolean;
 };
 
 const PAGE_SIZE = 20;
@@ -96,6 +99,7 @@ const DEFAULT_FILTERS: InventoryFilters = {
   active: true,
   onlyMarked: false,
   onlyPersonal: false,
+  onlyRepair: false,
 };
 
 function formatAddDate(value: string | null | undefined): string {
@@ -163,6 +167,7 @@ const InventoryManager = () => {
         params.set('active', filters.active ? '1' : '0');
         params.set('onlyMarked', filters.onlyMarked ? '1' : '0');
         params.set('onlyPersonal', filters.onlyPersonal ? '1' : '0');
+        params.set('onlyRepair', filters.onlyRepair ? '1' : '0');
         if (filters.category) params.set('category', filters.category);
         if (filters.brand) params.set('brand', filters.brand);
 
@@ -585,6 +590,21 @@ const InventoryManager = () => {
                           </Box>
                         </Tooltip>
                       ) : null}
+                      {record.needsRepair ? (
+                        <Tooltip title={record.repairNotes?.trim() || 'Needs repair'}>
+                          <Box
+                            component="span"
+                            sx={{
+                              color: 'error.main',
+                              display: 'inline-flex',
+                              verticalAlign: 'text-bottom',
+                              ml: 0.75,
+                            }}
+                          >
+                            <IconifyIcon icon="material-symbols:construction-rounded" fontSize={16} />
+                          </Box>
+                        </Tooltip>
+                      ) : null}
                     </Link>
                   </Stack>
                 </TableCell>
@@ -668,6 +688,13 @@ const InventoryManager = () => {
                       <Tooltip title="For sale">
                         <Box component="span" sx={{ color: '#3b82f6', display: 'inline-flex', flexShrink: 0 }}>
                           <IconifyIcon icon="material-symbols:sell" fontSize={15} />
+                        </Box>
+                      </Tooltip>
+                    ) : null}
+                    {record.needsRepair ? (
+                      <Tooltip title={record.repairNotes?.trim() || 'Needs repair'}>
+                        <Box component="span" sx={{ color: 'error.main', display: 'inline-flex', flexShrink: 0 }}>
+                          <IconifyIcon icon="material-symbols:construction-rounded" fontSize={15} />
                         </Box>
                       </Tooltip>
                     ) : null}
@@ -849,56 +876,64 @@ const InventoryManager = () => {
             </Grid>
 
             <Grid size={{ xs: 12, md: 5 }}>
-              <Stack
-                direction="row"
-                sx={{
-                  gap: 0.5,
-                  alignItems: 'center',
-                  flexWrap: { xs: 'wrap', md: 'nowrap' },
-                  minHeight: 56,
-                }}
-              >
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={filters.sold}
-                      onChange={(event) => handleFilterChange('sold', event.target.checked)}
+              <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, bgcolor: 'background.default' }}>
+                <Stack spacing={0.75}>
+                  <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={filters.sold}
+                          onChange={(event) => handleFilterChange('sold', event.target.checked)}
+                        />
+                      }
+                      sx={{ m: 0, whiteSpace: 'nowrap' }}
+                      label="Sold"
                     />
-                  }
-                  sx={{ m: 0, mr: 1.25, whiteSpace: 'nowrap' }}
-                  label="Sold"
-                />
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={filters.active}
-                      onChange={(event) => handleFilterChange('active', event.target.checked)}
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={filters.active}
+                          onChange={(event) => handleFilterChange('active', event.target.checked)}
+                        />
+                      }
+                      sx={{ m: 0, whiteSpace: 'nowrap' }}
+                      label="Active"
                     />
-                  }
-                  sx={{ m: 0, mr: 1.25, whiteSpace: 'nowrap' }}
-                  label="Active"
-                />
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={filters.onlyMarked}
-                      onChange={(event) => handleFilterChange('onlyMarked', event.target.checked)}
+                  </Stack>
+                  <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={filters.onlyMarked}
+                          onChange={(event) => handleFilterChange('onlyMarked', event.target.checked)}
+                        />
+                      }
+                      sx={{ m: 0, whiteSpace: 'nowrap' }}
+                      label="Only Marked"
                     />
-                  }
-                  sx={{ m: 0, mr: 1.25, whiteSpace: 'nowrap' }}
-                  label="Only Marked"
-                />
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={filters.onlyPersonal}
-                      onChange={(event) => handleFilterChange('onlyPersonal', event.target.checked)}
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={filters.onlyPersonal}
+                          onChange={(event) => handleFilterChange('onlyPersonal', event.target.checked)}
+                        />
+                      }
+                      sx={{ m: 0, whiteSpace: 'nowrap' }}
+                      label="Only Personal"
                     />
-                  }
-                  sx={{ m: 0, whiteSpace: 'nowrap' }}
-                  label="Only Personal"
-                />
-              </Stack>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={filters.onlyRepair}
+                          onChange={(event) => handleFilterChange('onlyRepair', event.target.checked)}
+                        />
+                      }
+                      sx={{ m: 0, whiteSpace: 'nowrap' }}
+                      label="Only Repair"
+                    />
+                  </Stack>
+                </Stack>
+              </Paper>
             </Grid>
 
             <Grid size={{ xs: 12, md: 3 }}>
