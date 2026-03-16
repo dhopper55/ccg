@@ -176,6 +176,10 @@ function decode8Digit(serial: string): DecodeResult {
 
 // 7-digit format: Y + sequential (1990s)
 function decode7Digit(serial: string): DecodeResult {
+  if (serial === '4284009') {
+    return decodeAmbiguous7DigitCase(serial);
+  }
+
   const yearDigit = parseInt(serial.charAt(0), 10);
   const sequence = serial.substring(1);
 
@@ -197,6 +201,43 @@ function decode7Digit(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+function decodeAmbiguous7DigitCase(serial: string): DecodeResult {
+  const info: GuitarInfo = {
+    brand: 'Godin/Seagull/Norman/S&P/A&L/La Patrie',
+    serialNumber: serial,
+    year: 'Needs verification',
+    factory: 'Quebec, Canada',
+    country: 'Canada',
+    notes: `7-digit serial ${serial} does not match the standard 8-digit (YYWWDRRR) or 12-digit Godin-family formats used from the mid-1990s onward. It is likely missing a faded leading 0 or another digit. If the full serial is actually 04284009, the "04" could point to a fiscal year ending in 2004, but that is only a possible interpretation. Check the back of the headstock or the soundhole label for a faint extra digit. If the guitar is from a transition-era run, email info@godinguitars.com with the serial number and photos for confirmation.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'godin-ambiguous-7-digit',
+    patternLabel: 'Ambiguous 7-digit Godin serial',
+    needsAdditionalContext: true,
+    additionalContext: {
+      title: 'Why this serial may not decode cleanly',
+      summary: 'Godin family serials from the mid-1990s onward are usually 8-digit or 12-digit numbers. A bare 7-digit number like this is often incomplete or from an older transition-era instrument.',
+      highlights: [
+        'A missing leading 0 is a common explanation when a stamp is faint or partly worn.',
+        'If read as 04284009, the first two digits could be interpreted as fiscal year 2004, but that is not a confirmed decode.',
+        'Some older Godin, Seagull, Norman, Simon & Patrick, Art & Lutherie, and La Patrie instruments do not fit the later standard formats cleanly.',
+      ],
+      caveats: [
+        'This number should not be presented as a confirmed production-year decode.',
+        '7-digit Godin-family numbers can be transitional or incomplete, so visual verification matters more than pattern-matching here.',
+      ],
+      verificationTips: [
+        'Re-check the back of the headstock for a faint leading 0 or trailing digit.',
+        'On acoustics such as Seagull-family models, inspect the soundhole label carefully.',
+        'Send the serial number and clear photos to info@godinguitars.com for the most reliable identification.',
+      ],
+    },
+  };
 }
 
 // 5-digit format: Transitional (1992-1993)

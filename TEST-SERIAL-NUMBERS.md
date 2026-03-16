@@ -372,6 +372,7 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | 045013900456 | Godin (12-digit SKU), 2007-2022, factory second (9 in position 7) |
 | 3474036 | Godin/Seagull (7-digit), 1993 |
 | 7891234 | Godin/Seagull (7-digit), 1997 |
+| 4284009 | Godin/Seagull ambiguous 7-digit, likely missing digit or transition-era serial; advise re-checking stamp and contacting Godin |
 | 12345 | Godin/Seagull (5-digit transitional), 1992-1993 |
 | 4998 | Godin/Seagull (4-digit sequential), 1990 |
 | 8615 | Godin/Seagull (4-digit sequential), 1991 |

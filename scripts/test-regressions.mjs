@@ -831,6 +831,25 @@ function assertDecodeFails(brandInput, serialInput) {
   );
 }
 
+function assertGodinAmbiguous7Digit(serialInput) {
+  const result = decodeSerialForBackend('godin', serialInput);
+  assert(result.success, `Expected decode success for godin:${serialInput}`);
+  assert(result.info, `Expected decoded info for godin:${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === 'Needs verification', `Expected advisory year for ${serialInput}, got ${info.year}`);
+  assert(info.factory === 'Quebec, Canada', `Expected Quebec factory note for ${serialInput}, got ${info.factory}`);
+  assert(info.country === 'Canada', `Expected Canada country for ${serialInput}, got ${info.country}`);
+  assert(
+    info.notes && info.notes.includes('missing a faded leading 0'),
+    `Expected missing-digit note for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    result.additionalContext && result.additionalContext.verificationTips.some((tip) => tip.includes('headstock')),
+    `Expected verification tips for ${serialInput}`
+  );
+}
+
 assertIbanezBPrefix('B160100231');
 assertIbanezBPrefix('B-160100231');
 assertIbanez5APrefix('5A210401373');
@@ -901,6 +920,7 @@ assertFenderJDPrefix('JD13006111', '2013');
 assertFenderICSPrefix('ICS11185000', '2011');
 assertFenderInternalPartNumber('0060579747');
 assertCharvelNumeric8('05050187', '2005', 'May');
+assertGodinAmbiguous7Digit('4284009');
 assertDecodeFails('ovation', '123456789');
 
 console.log('Regression tests passed.');
