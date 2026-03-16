@@ -846,10 +846,16 @@ const InventoryItem = () => {
                   fullWidth
                   multiline
                   minRows={2}
+                  maxRows={3}
                   label="Repair Notes"
                   value={form.repairNotes}
                   onChange={(event) => setField('repairNotes', event.target.value)}
                   inputProps={{ maxLength: 12000 }}
+                  sx={{
+                    '& .MuiInputBase-root': {
+                      py: 0.75,
+                    },
+                  }}
                 />
               </Grid>
 
@@ -858,10 +864,16 @@ const InventoryItem = () => {
                   fullWidth
                   multiline
                   minRows={2}
+                  maxRows={3}
                   label="Original Listing Desc."
                   value={form.originalListingDesc}
                   onChange={(event) => setField('originalListingDesc', event.target.value)}
                   inputProps={{ maxLength: 12000 }}
+                  sx={{
+                    '& .MuiInputBase-root': {
+                      py: 0.75,
+                    },
+                  }}
                 />
               </Grid>
 

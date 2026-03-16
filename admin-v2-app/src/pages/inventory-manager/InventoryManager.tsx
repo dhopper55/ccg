@@ -876,64 +876,62 @@ const InventoryManager = () => {
             </Grid>
 
             <Grid size={{ xs: 12, md: 5 }}>
-              <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, bgcolor: 'background.default' }}>
-                <Stack spacing={0.75}>
-                  <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={filters.sold}
-                          onChange={(event) => handleFilterChange('sold', event.target.checked)}
-                        />
-                      }
-                      sx={{ m: 0, whiteSpace: 'nowrap' }}
-                      label="Sold"
-                    />
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={filters.active}
-                          onChange={(event) => handleFilterChange('active', event.target.checked)}
-                        />
-                      }
-                      sx={{ m: 0, whiteSpace: 'nowrap' }}
-                      label="Active"
-                    />
-                  </Stack>
-                  <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={filters.onlyMarked}
-                          onChange={(event) => handleFilterChange('onlyMarked', event.target.checked)}
-                        />
-                      }
-                      sx={{ m: 0, whiteSpace: 'nowrap' }}
-                      label="Only Marked"
-                    />
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={filters.onlyPersonal}
-                          onChange={(event) => handleFilterChange('onlyPersonal', event.target.checked)}
-                        />
-                      }
-                      sx={{ m: 0, whiteSpace: 'nowrap' }}
-                      label="Only Personal"
-                    />
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={filters.onlyRepair}
-                          onChange={(event) => handleFilterChange('onlyRepair', event.target.checked)}
-                        />
-                      }
-                      sx={{ m: 0, whiteSpace: 'nowrap' }}
-                      label="Only Repair"
-                    />
-                  </Stack>
+              <Stack spacing={0.75} sx={{ minHeight: 56, justifyContent: 'center' }}>
+                <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={filters.sold}
+                        onChange={(event) => handleFilterChange('sold', event.target.checked)}
+                      />
+                    }
+                    sx={{ m: 0, whiteSpace: 'nowrap' }}
+                    label="Sold"
+                  />
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={filters.active}
+                        onChange={(event) => handleFilterChange('active', event.target.checked)}
+                      />
+                    }
+                    sx={{ m: 0, whiteSpace: 'nowrap' }}
+                    label="Active"
+                  />
                 </Stack>
-              </Paper>
+                <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={filters.onlyMarked}
+                        onChange={(event) => handleFilterChange('onlyMarked', event.target.checked)}
+                      />
+                    }
+                    sx={{ m: 0, whiteSpace: 'nowrap' }}
+                    label="Only Marked"
+                  />
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={filters.onlyPersonal}
+                        onChange={(event) => handleFilterChange('onlyPersonal', event.target.checked)}
+                      />
+                    }
+                    sx={{ m: 0, whiteSpace: 'nowrap' }}
+                    label="Only Personal"
+                  />
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={filters.onlyRepair}
+                        onChange={(event) => handleFilterChange('onlyRepair', event.target.checked)}
+                      />
+                    }
+                    sx={{ m: 0, whiteSpace: 'nowrap' }}
+                    label="Only Repair"
+                  />
+                </Stack>
+              </Stack>
             </Grid>
 
             <Grid size={{ xs: 12, md: 3 }}>
