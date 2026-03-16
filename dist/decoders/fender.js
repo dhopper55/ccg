@@ -97,6 +97,12 @@ export function decodeFender(serial) {
     if (/^\d{5,6}$/.test(normalized)) {
         return decodeVintageFender(normalized);
     }
+    // Some Fender Japan acoustics from the mid-1980s use a plain 7-digit label number
+    // rather than a later standardized Fender serial. These usually cannot be fully decoded,
+    // but they still carry useful production clues.
+    if (/^\d{7}$/.test(normalized)) {
+        return decodeJapanAcousticLabelNumber(normalized);
+    }
     // 4 digit serials (very early)
     if (/^\d{4}$/.test(normalized)) {
         return decodeEarlyVintage(normalized);
@@ -115,6 +121,21 @@ function decodeUSPrefix(year, sequence, serial) {
         factory: 'Corona, California',
         country: 'USA',
         notes: `US prefix indicates American-made Fender (2010 or later). Production sequence: ${sequence}.`
+    };
+    return { success: true, info };
+}
+function decodeJapanAcousticLabelNumber(serial) {
+    const info = {
+        brand: 'Fender',
+        serialNumber: serial,
+        year: '1984-1987 (NOT DEFINITIVE)',
+        factory: 'Fender Japan acoustic production / FujiGen-era label format',
+        country: 'Japan',
+        model: 'Fender Japan acoustic (Gemini-era possible)',
+        notes: 'This 7-digit number does not match the later standardized Fender serial formats. ' +
+            'On many Fender Japan acoustics from the mid-1980s, a plain 7-digit number on the paper label is a production or batch-style label number rather than a traceable Fender serial. ' +
+            'That means the exact year and model usually cannot be confirmed from the number alone, but it is commonly associated with mid-1980s Fender Japan acoustics, including Gemini-era instruments. ' +
+            'Use the interior label wording, headstock logo style, and country-of-origin markings to narrow the exact model.',
     };
     return { success: true, info };
 }

@@ -1,6 +1,6 @@
 import { decodeGibson } from './decoders/gibson.js?version=917338';
 import { decodeEpiphone } from './decoders/epiphone.js?version=262979';
-import { decodeFender } from './decoders/fender.js?version=367040';
+import { decodeFender } from './decoders/fender.js?version=940349';
 import { decodeTaylor } from './decoders/taylor.js?version=678368';
 import { decodeMartin } from './decoders/martin.js?version=695834';
 import { decodeIbanez } from './decoders/ibanez.js?version=851911';
