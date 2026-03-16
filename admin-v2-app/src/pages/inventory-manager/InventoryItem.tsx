@@ -181,6 +181,16 @@ const DEFAULT_FORM: FormState = {
   sellNotes: '',
 };
 
+const notesFieldSx = {
+  '& .MuiInputBase-root.MuiInputBase-multiline': {
+    pt: 2.25,
+    pb: 1.25,
+  },
+  '& .MuiInputBase-inputMultiline': {
+    lineHeight: 1.5,
+  },
+};
+
 const InventoryItem = () => {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
@@ -845,17 +855,13 @@ const InventoryItem = () => {
                 <TextField
                   fullWidth
                   multiline
-                  minRows={2}
-                  maxRows={3}
-                  label="Repair Notes"
+                  minRows={3}
+                  maxRows={4}
+                  label="Repair/Cleaning Notes"
                   value={form.repairNotes}
                   onChange={(event) => setField('repairNotes', event.target.value)}
                   inputProps={{ maxLength: 12000 }}
-                  sx={{
-                    '& .MuiInputBase-root': {
-                      py: 0.75,
-                    },
-                  }}
+                  sx={notesFieldSx}
                 />
               </Grid>
 
@@ -863,17 +869,13 @@ const InventoryItem = () => {
                 <TextField
                   fullWidth
                   multiline
-                  minRows={2}
-                  maxRows={3}
+                  minRows={3}
+                  maxRows={4}
                   label="Original Listing Desc."
                   value={form.originalListingDesc}
                   onChange={(event) => setField('originalListingDesc', event.target.value)}
                   inputProps={{ maxLength: 12000 }}
-                  sx={{
-                    '& .MuiInputBase-root': {
-                      py: 0.75,
-                    },
-                  }}
+                  sx={notesFieldSx}
                 />
               </Grid>
 
