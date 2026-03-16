@@ -1,3 +1,4 @@
+const GODIN_FAMILY_BRAND_LABEL = 'Godin & Associated Brands';
 /**
  * Godin Guitar Serial Number Decoder
  *
@@ -92,7 +93,7 @@ function decode12Digit(serial) {
     const productionCount = serial.substring(7);
     const isSecond = factorySecond === '9';
     const info = {
-        brand: 'Godin/Seagull/Norman/S&P/A&L/La Patrie',
+        brand: GODIN_FAMILY_BRAND_LABEL,
         serialNumber: serial,
         year: '2007-2022 (12-digit era)',
         factory: 'Quebec, Canada (various) or Berlin, NH',
@@ -134,7 +135,7 @@ function decode8Digit(serial) {
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     const dayName = days[dayCode - 1];
     const info = {
-        brand: 'Godin/Seagull/Norman/S&P/A&L/La Patrie',
+        brand: GODIN_FAMILY_BRAND_LABEL,
         serialNumber: serial,
         year: calendarYear.toString(),
         month: month,
@@ -160,7 +161,7 @@ function decode7Digit(serial) {
         year = '1990s';
     }
     const info = {
-        brand: 'Godin/Seagull/Norman/S&P/A&L/La Patrie',
+        brand: GODIN_FAMILY_BRAND_LABEL,
         serialNumber: serial,
         year: year,
         factory: 'Quebec, Canada',
@@ -171,7 +172,7 @@ function decode7Digit(serial) {
 }
 function decodeAmbiguous7DigitCase(serial) {
     const info = {
-        brand: 'Godin/Seagull/Norman/S&P/A&L/La Patrie',
+        brand: GODIN_FAMILY_BRAND_LABEL,
         serialNumber: serial,
         year: 'Needs verification',
         factory: 'Quebec, Canada',
@@ -208,7 +209,7 @@ function decodeAmbiguous7DigitCase(serial) {
 function decode5Digit(serial) {
     const num = parseInt(serial, 10);
     const info = {
-        brand: 'Godin/Seagull/Norman/S&P/A&L/La Patrie',
+        brand: GODIN_FAMILY_BRAND_LABEL,
         serialNumber: serial,
         year: '1992-1993 (estimated)',
         factory: 'Quebec, Canada',
@@ -235,7 +236,7 @@ function decode4Digit(serial) {
         yearEstimate = '1987-1991';
     }
     const info = {
-        brand: 'Godin/Seagull/Norman/S&P/A&L/La Patrie',
+        brand: GODIN_FAMILY_BRAND_LABEL,
         serialNumber: serial,
         year: yearEstimate,
         factory: 'Quebec, Canada',
@@ -247,7 +248,7 @@ function decode4Digit(serial) {
 // Pre-1987 format (not decodable)
 function decodePreModern(serial) {
     const info = {
-        brand: 'Godin/Seagull/Norman/S&P/A&L/La Patrie',
+        brand: GODIN_FAMILY_BRAND_LABEL,
         serialNumber: serial,
         year: 'Pre-1987 (contact Godin)',
         factory: 'Quebec, Canada',
@@ -259,7 +260,7 @@ function decodePreModern(serial) {
 // Fallback for numeric serials that don't match expected patterns
 function decodeNumericFallback(serial) {
     const info = {
-        brand: 'Godin/Seagull/Norman/S&P/A&L/La Patrie',
+        brand: GODIN_FAMILY_BRAND_LABEL,
         serialNumber: serial,
         year: 'Check with Godin',
         factory: 'Quebec, Canada (various) or Berlin, NH',
