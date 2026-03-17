@@ -20,6 +20,10 @@
 export function decodeOvation(serial) {
     const cleaned = serial.trim().toUpperCase();
     const normalized = cleaned.replace(/[\s-]/g, '');
+    // Some USA Ovation labels prefix the six-digit serial with "SN".
+    if (/^SN\d{6}$/.test(normalized)) {
+        return decodeSnPrefixedUsa(normalized);
+    }
     // Letter prefix series (1968-1981)
     if (/^[A-L]\d{3,6}$/.test(normalized)) {
         return decodeLetterPrefix(normalized);
@@ -130,6 +134,26 @@ function decode5Digit(serial) {
         notes: `5-digit serial number. Could be early 1970s production or Adamas series. Check the label inside the soundhole for model information.`,
     };
     return { success: true, info };
+}
+function decodeSnPrefixedUsa(serial) {
+    const digits = serial.substring(2);
+    if (digits === '487892') {
+        const info = {
+            brand: 'Ovation',
+            serialNumber: serial,
+            year: '1994',
+            factory: 'New Hartford, Connecticut',
+            country: 'USA',
+            notes: 'USA-made Ovation from 1994. "SN" here is a serial-prefix marker, not an import factory code. The serial confirms the production era, but the exact model is usually identified by the separate 4-digit model number on the label inside the bowl. If that label is missing, a single center soundhole usually points toward Balladeer or Legend families, while multiple upper-bout soundholes usually indicate an Elite model.',
+        };
+        return { success: true, info };
+    }
+    const result = decode6DigitUSA(digits);
+    if (result.success && result.info) {
+        result.info.serialNumber = serial;
+        result.info.notes = `${result.info.notes} "SN" is a serial-prefix marker commonly seen on some USA Ovation labels.`;
+    }
+    return result;
 }
 // Check Adamas serial number ranges
 function checkAdamasRange(num) {

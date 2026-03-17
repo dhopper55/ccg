@@ -398,6 +398,7 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | 250000 | USA, 1981 (6-digit series) |
 | 350000 | USA, 1986 (6-digit series) |
 | 450000 | USA, 1990 (6-digit series) |
+| SN487892 | USA, 1994 (SN-prefixed six-digit USA serial), New Hartford |
 | 550000 | USA, 1998 (6-digit series) |
 | 600000 | USA, 2001-2005 (6-digit series) |
 | 0500 | Adamas, 1978 (separate Adamas numbering) |
