@@ -155,19 +155,6 @@ function displayResult(info: GuitarInfo, decodeResult?: DecodeResult): void {
     }
   }
 
-  if (info.notes) {
-    const item = document.createElement('div');
-    item.className = 'result-item result-item-notes';
-    item.innerHTML = `
-      <span class="result-label">Notes</span>
-      <span class="result-value"></span>
-      <div class="result-item-notes-content">
-        <p class="result-notes-text">${escapeHtml(info.notes).replace(/\r?\n/g, '<br>')}</p>
-      </div>
-    `;
-    resultContent.appendChild(item);
-  }
-
   const richText = (decodeResult?.additionalContextRichText || '').trim();
   if (richText) {
     const item = document.createElement('div');
@@ -180,6 +167,19 @@ function displayResult(info: GuitarInfo, decodeResult?: DecodeResult): void {
     content.className = 'result-item-addtl-content';
     content.appendChild(buildRichTextContext(richText));
     item.appendChild(content);
+    resultContent.appendChild(item);
+  }
+
+  if (info.notes) {
+    const item = document.createElement('div');
+    item.className = 'result-item result-item-notes';
+    item.innerHTML = `
+      <span class="result-label">Notes</span>
+      <span class="result-value"></span>
+      <div class="result-item-notes-content">
+        <p class="result-notes-text">${escapeHtml(info.notes).replace(/\r?\n/g, '<br>')}</p>
+      </div>
+    `;
     resultContent.appendChild(item);
   }
 
