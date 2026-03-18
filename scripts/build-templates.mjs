@@ -15,9 +15,34 @@ const env = nunjucks.configure(TEMPLATES_DIR, {
 });
 
 // Map of template filename → output filename
-// This allows the template name to differ from the output file
+// Brand key → full decoder page filename
 const OUTPUT_MAP = {
-  'gibson.njk': 'gibson-guitar-serial-number-decoder-test.html',
+  'alvarez.njk': 'alvarez-guitar-serial-number-decoder.html',
+  'bc-rich.njk': 'bc-rich-guitar-serial-number-decoder.html',
+  'charvel.njk': 'charvel-guitar-serial-number-decoder.html',
+  'cort.njk': 'cort-guitar-serial-number-decoder.html',
+  'dean.njk': 'dean-guitar-serial-number-decoder.html',
+  'epiphone.njk': 'epiphone-guitar-serial-number-decoder.html',
+  'ernieball.njk': 'ernieball-guitar-serial-number-decoder.html',
+  'esp.njk': 'esp-guitar-serial-number-decoder.html',
+  'fender.njk': 'fender-guitar-serial-number-decoder.html',
+  'gibson.njk': 'gibson-guitar-serial-number-decoder.html',
+  'godin.njk': 'godin-guitar-serial-number-decoder.html',
+  'gretsch.njk': 'gretsch-guitar-serial-number-decoder.html',
+  'guild.njk': 'guild-guitar-serial-number-decoder.html',
+  'ibanez.njk': 'ibanez-guitar-serial-number-decoder.html',
+  'jackson.njk': 'jackson-guitar-serial-number-decoder.html',
+  'kramer.njk': 'kramer-guitar-serial-number-decoder.html',
+  'martin.njk': 'martin-guitar-serial-number-decoder.html',
+  'ovation.njk': 'ovation-guitar-serial-number-decoder.html',
+  'prs.njk': 'prs-guitar-serial-number-decoder.html',
+  'rickenbacker.njk': 'rickenbacker-guitar-serial-number-decoder.html',
+  'schecter.njk': 'schecter-guitar-serial-number-decoder.html',
+  'squier.njk': 'squier-guitar-serial-number-decoder.html',
+  'takamine.njk': 'takamine-guitar-serial-number-decoder.html',
+  'taylor.njk': 'taylor-guitar-serial-number-decoder.html',
+  'washburn.njk': 'washburn-guitar-serial-number-decoder.html',
+  'yamaha.njk': 'yamaha-guitar-serial-number-decoder.html',
 };
 
 const templates = fs.readdirSync(DECODERS_SRC).filter((f) => f.endsWith('.njk'));

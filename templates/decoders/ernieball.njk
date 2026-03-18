@@ -1,0 +1,68 @@
+{% extends "layout.njk" %}
+
+{% set brand = "ernieball" %}
+{% set brandName = "Ernie Ball Music Man" %}
+{% set brandLogo = "Ernie_ball_music_man_logo.png" %}
+{% set brandLogoClass = "brand-logo-invert" %}
+{% set decoderDate = "Mar/2026" %}
+{% set brandShortName = "Ernie Ball" %}
+{% set brandAltName = "Ernie Ball Music Man" %}
+
+{% set pageTitle = "Ernie Ball Guitar Serial Number Lookup/Decoder | Coal Creek Guitars" %}
+{% set decoderTitle = "Ernie Ball Guitar Serial Number Lookup/Decoder" %}
+{% set metaDescription = "Free Ernie Ball Music Man guitar and bass serial number lookup/decoder. Find the year, model series, and production details of your EBMM instrument. Works with all USA-made Music Man guitars and basses." %}
+{% set ogDescription = "Free Ernie Ball Music Man serial number lookup/decoder. Find the year, model series, and production details of your EBMM guitar or bass." %}
+{% set pageSlug = "ernieball-guitar-serial-number-decoder" %}
+{% set serialPlaceholder = "Enter Ernie Ball Music Man serial number" %}
+{% set faqTitle = "Ernie Ball Serial Number Lookup/Decoder FAQs" %}
+{% set h1Title = "Ernie Ball Music Man Serial Number Decoder" %}
+
+{% set faqs = [
+  {
+    question: "Where can I find the Ernie Ball serial number?",
+    answer: "Most Ernie Ball Music Man guitars list the serial number on the back of the headstock. Some acoustics place it inside the soundhole on a paper label, and older instruments may use a neck plate or stamped marking. If you cannot find it, check the headstock back and the neck joint first."
+  },
+  {
+    question: "What can this Ernie Ball serial number lookup/decoder tell me?",
+    answer: "It typically identifies the production year, factory or plant code, and country of origin. Some serial formats also hint at model lines or production sequence, but that varies by era."
+  },
+  {
+    question: "Why won't my Ernie Ball serial number decode?",
+    answer: "Serial formats change over time, and limited runs or custom shop instruments can deviate from standard patterns. Try removing spaces or hyphens, and if it still fails, reach out so we can review it and improve the decoder."
+  }
+] %}
+
+{% block brandDescription %}
+      <p class="brand-description">Ernie Ball Music Man is a premier American manufacturer of high-end guitars and basses, founded in 1974 with roots involving Leo Fender, and acquired by Ernie Ball in 1984. Known for marrying traditional craftsmanship with innovation—such as active electronics, graphite-acrylic body cavity coating, and stainless steel frets—the company is acclaimed for its quality, ergonomically designed instruments manufactured in San Luis Obispo, California.<br><a href="#" class="decoder-howto-link" data-modal-target="howto-ernieball">(How to decode a Ernie Ball Music Man serial #)</a></p>
+{% endblock %}
+
+{% block howtoModal %}
+  <div id="howto-ernieball" class="decoder-modal hidden" role="dialog" aria-modal="true" aria-labelledby="howto-ernieball-title">
+    <div class="decoder-modal-backdrop" data-modal-close></div>
+    <div class="decoder-modal-content" role="document">
+      <button type="button" class="decoder-modal-close" aria-label="Close dialog" data-modal-close>&times;</button>
+      <div class="decoder-modal-header">
+        <h2 id="howto-ernieball-title">How to decode a Ernie Ball Music Man serial number</h2>
+        <p class="decoder-modal-subtitle">A quick manual method when you don't want to use a decoder.</p>
+      </div>
+      <div class="decoder-modal-body">
+        <p>Music Man guitar serial numbers, primarily for post‑1980s models, are generally found on the back of the headstock or the bridge and follow a format of one or two letters followed by 5–6 digits, often requiring a lookup in the Ernie Ball database for exact dating. The letter often corresponds to the model, while the numbers are typically sequential and do not directly encode the date.</p>
+
+        <h3>Here is how to decode and find Music Man serial numbers</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>Best Tool:</strong> Use the official Music Man Serial Number Database for instruments made in San Luis Obispo, CA.</li>
+          <li><strong>What the Database Covers:</strong> Generally, Ernie Ball Music Man instruments from the late 80s to the present.</li>
+          <li><strong>What it Does NOT Cover:</strong> OLP, Sterling by Music Man, and older pre‑EB (1970s–early 80s) instruments.</li>
+          <li><strong>Location:</strong> Primarily on the bridge or the back of the headstock.</li>
+        </ul>
+
+        <h3>Decoding by Era</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>Modern (Late 1980s – Present):</strong> Serial numbers often start with a letter (e.g., G, F, A) followed by 5 or 6 digits. The letters sometimes indicate the model, but the numbers are largely sequential.</li>
+          <li><strong>Pre‑Ernie Ball (Mid‑1970s – 1984):</strong> These often start with “B” followed by 5 digits (e.g., B0xxxxx). For these, you may need to remove the neck to find the date stamped on the heel or in the neck pocket.</li>
+          <li><strong>Sterling by Music Man:</strong> Serial numbers on these imports usually do not work with the EBMM database. They often follow a year‑coded format, where the first two digits might indicate the year (e.g., 10xxxx = 2010).</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+{% endblock %}

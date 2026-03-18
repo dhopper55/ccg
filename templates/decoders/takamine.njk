@@ -1,0 +1,71 @@
+{% extends "layout.njk" %}
+
+{% set brand = "takamine" %}
+{% set brandName = "Takamine" %}
+{% set brandLogo = "Takamine_guitar_logo.png" %}
+{% set brandLogoClass = "brand-logo-invert" %}
+{% set decoderDate = "Mar/2026" %}
+
+{% set pageTitle = "Takamine Guitar Serial Number Lookup/Decoder | Coal Creek Guitars" %}
+{% set decoderTitle = "Takamine Guitar Serial Number Lookup/Decoder" %}
+{% set metaDescription = "Free Takamine guitar serial number lookup/decoder. Find the year, factory location, and production details of your Takamine guitar. Works with Pro Series, G Series, Japanese and Korean models." %}
+{% set ogDescription = "Free Takamine serial number lookup/decoder. Find the year, factory location, and production details of your Takamine guitar." %}
+{% set pageSlug = "takamine-guitar-serial-number-decoder" %}
+{% set serialPlaceholder = "Enter Takamine serial number" %}
+{% set faqTitle = "Takamine Serial Number Lookup/Decoder FAQs" %}
+
+{% set faqs = [
+  {
+    question: "Where can I find the Takamine serial number?",
+    answer: "Most Takamine guitars list the serial number on the back of the headstock. Some acoustics place it inside the soundhole on a paper label, and older instruments may use a neck plate or stamped marking. If you cannot find it, check the headstock back and the neck joint first."
+  },
+  {
+    question: "What can this Takamine serial number lookup/decoder tell me?",
+    answer: "It typically identifies the production year, factory or plant code, and country of origin. Some serial formats also hint at model lines or production sequence, but that varies by era."
+  },
+  {
+    question: "Why won't my Takamine serial number decode?",
+    answer: "Serial formats change over time, and limited runs or custom shop instruments can deviate from standard patterns. Try removing spaces or hyphens, and if it still fails, reach out so we can review it and improve the decoder."
+  }
+] %}
+
+{% block brandDescription %}
+      <p class="brand-description">Founded in 1959 at the base of Mount Takamine in Sakashita, Japan, Takamine is a premier manufacturer of acoustic-electric guitars renowned for superior craftsmanship, innovative pickup technology, and reliability. Renamed in 1962, the company pioneered the modern acoustic-electric guitar with their proprietary Palathetic pickup system.<br><a href="#" class="decoder-howto-link" data-modal-target="howto-takamine">(How to decode a Takamine serial #)</a></p>
+{% endblock %}
+
+{% block howtoModal %}
+  <div id="howto-takamine" class="decoder-modal hidden" role="dialog" aria-modal="true" aria-labelledby="howto-takamine-title">
+    <div class="decoder-modal-backdrop" data-modal-close></div>
+    <div class="decoder-modal-content" role="document">
+      <button type="button" class="decoder-modal-close" aria-label="Close dialog" data-modal-close>&times;</button>
+      <div class="decoder-modal-header">
+        <h2 id="howto-takamine-title">How to decode a Takamine serial number</h2>
+        <p class="decoder-modal-subtitle">A quick manual method when you don't want to use a decoder.</p>
+      </div>
+      <div class="decoder-modal-body">
+        <p>Takamine guitars, specifically Japanese‑built models from 1962 to 2012, use an 8‑digit serial number typically found on the neck block inside the soundhole. The first two digits represent the year (e.g., 07 for 2007), the next two digits indicate the month (e.g., 10 for October), and the final four are the production sequence.</p>
+
+        <h3>Decoding Takamine Serial Numbers (Common 8‑Digit Format)</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>Digits 1 &amp; 2:</strong> Year of manufacture (e.g., “09” = 2009).</li>
+          <li><strong>Digits 3 &amp; 4:</strong> Month of manufacture (e.g., “05” = May).</li>
+          <li><strong>Digits 5–8:</strong> Production number for that month (e.g., “0112” = 112th guitar).</li>
+        </ul>
+
+        <h3>Examples</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>07100091:</strong> Built in October 2007, 91st guitar produced that month.</li>
+          <li><strong>09050112:</strong> Built in May 2009, 112th guitar produced that month.</li>
+        </ul>
+
+        <h3>Important Notes</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>Location:</strong> Look for the number on the neck block inside the soundhole.</li>
+          <li><strong>G‑Series/Other:</strong> Some, particularly G‑Series, may have different formats (sometimes found on the electronics box or back of the headstock).</li>
+          <li><strong>Modern Models:</strong> Post‑2012 models might feature different formatting, but many still follow a similar date‑coded structure.</li>
+          <li><strong>Limited Runs:</strong> Special Limited Edition models (LTD) are usually marked with the year, such as “LTD2025”.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+{% endblock %}

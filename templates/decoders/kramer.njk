@@ -1,0 +1,102 @@
+{% extends "layout.njk" %}
+
+{% set brand = "kramer" %}
+{% set brandName = "Kramer" %}
+{% set brandLogo = "Kramer_guitars_logo.png" %}
+{% set brandLogoClass = "brand-logo-invert" %}
+{% set decoderDate = "Mar/2026" %}
+
+{% set pageTitle = "Kramer Guitar Serial Number Lookup/Decoder | Coal Creek Guitars" %}
+{% set decoderTitle = "Kramer Guitar Serial Number Lookup/Decoder" %}
+{% set metaDescription = "Free Kramer guitar serial number lookup/decoder. Find the year, factory location, and production details of your Kramer guitar. Works with vintage USA and overseas models." %}
+{% set ogDescription = "Free Kramer serial number lookup/decoder. Find the year, factory location, and production details of your Kramer guitar." %}
+{% set pageSlug = "kramer-guitar-serial-number-decoder" %}
+{% set serialPlaceholder = "Enter Kramer serial number" %}
+{% set faqTitle = "Kramer Serial Number Lookup/Decoder FAQs" %}
+
+{% set faqs = [
+  {
+    question: "Where can I find the Kramer serial number?",
+    answer: "Most Kramer guitars list the serial number on the back of the headstock. Some acoustics place it inside the soundhole on a paper label, and older instruments may use a neck plate or stamped marking. If you cannot find it, check the headstock back and the neck joint first."
+  },
+  {
+    question: "What can this Kramer serial number lookup/decoder tell me?",
+    answer: "It typically identifies the production year, factory or plant code, and country of origin. Some serial formats also hint at model lines or production sequence, but that varies by era."
+  },
+  {
+    question: "Why won't my Kramer serial number decode?",
+    answer: "Serial formats change over time, and limited runs or custom shop instruments can deviate from standard patterns. Try removing spaces or hyphens, and if it still fails, reach out so we can review it and improve the decoder."
+  }
+] %}
+
+{% block brandDescription %}
+      <p class="brand-description">Kramer Guitars is an American manufacturer that rose to prominence in the 1980s as the leading brand in hard rock and heavy metal guitars, largely due to its innovative use of high-performance features like Floyd Rose tremolos and a key endorsement deal with Eddie Van Halen. The company is currently a division of the Gibson Guitar Corporation.<br><a href="#" class="decoder-howto-link" data-modal-target="howto-kramer">(How to decode a Kramer serial #)</a></p>
+{% endblock %}
+
+{% block howtoModal %}
+  <div id="howto-kramer" class="decoder-modal hidden" role="dialog" aria-modal="true" aria-labelledby="howto-kramer-title">
+    <div class="decoder-modal-backdrop" data-modal-close></div>
+    <div class="decoder-modal-content" role="document">
+      <button type="button" class="decoder-modal-close" aria-label="Close dialog" data-modal-close>&times;</button>
+      <div class="decoder-modal-header">
+        <h2 id="howto-kramer-title">How to decode a Kramer serial number</h2>
+        <p class="decoder-modal-subtitle">A quick manual method when you don’t want to use a decoder.</p>
+      </div>
+      <div class="decoder-modal-body">
+        <p>To look up a Kramer guitar’s serial number, use online guides that detail the brand’s inconsistent serial number patterns across different eras, as official factory records for vintage American models have been lost. You can also use the serial number search tool for some specific models on the HTPG website.</p>
+
+        <h3>Using the HTPG Serial Number Database</h3>
+        <ul class="decoder-howto-steps">
+          <li>A specialized online tool is available for looking up serial numbers related to the Kramer brand, though its scope for guitars may be limited.</li>
+          <li>You can access the <a href="https://www.htpg.com/warranty/online-product-registry/serial-number-lookup" target="_blank" rel="noopener noreferrer">Serial Number Research Database</a> provided by Kramer - HTPG.</li>
+          <li>Enter the full serial number into the provided search box.</li>
+          <li>The search function allows partial number entries to find similar models if an exact match is not found.</li>
+        </ul>
+
+        <h3>Dating Vintage Kramer Guitars</h3>
+        <ul class="decoder-howto-steps">
+          <li>For vintage Kramer guitars, the serial number alone often only provides a general timeframe, requiring cross-referencing with other guitar features like the headstock shape or neckplate details.</li>
+          <li><strong>A-prefix serials (Axxxx):</strong> Generally indicate production from 1980 to early 1981.</li>
+          <li><strong>B-prefix serials (Bxxxx):</strong> Typically represent production from early 1981 to early 1983.</li>
+          <li><strong>C-prefix to F-prefix serials:</strong> These plates span from the mid-80s onwards, with specific characteristics like the “Classic” or “Chicken Beak” headstocks appearing in the B-to-C serial ranges.</li>
+          <li><strong>CF-prefix serials (e.g., CF22271):</strong> Commonly associated with Japan-built Focus/Striker-era instruments from the mid-to-late 1980s (often around 1985-1989). Treat as an estimate and confirm with headstock shape, logo style, and hardware.</li>
+          <li><strong>V-prefix plate serials (e.g., V9954):</strong> Often seen on 1980s import-era runs (commonly linked with Vanguard/Voyager models). These are best treated as mid-to-late 1980s estimates because neck-plate numbering was not always chronological.</li>
+          <li><strong>No Letter Prefix:</strong> Many American models from various eras did not use a letter prefix and are tracked in a specific registry on the <a href="https://www.vintagekramer.com/serials2.htm" target="_blank" rel="noopener noreferrer">Vintage Kramer</a> website.</li>
+          <li><strong>7-digit numeric starting with 5 (e.g., 5062786):</strong> Often associated with late-1980s to early-1990s Korean import-era production (commonly Striker/Focus-adjacent). Treat as an estimated era and verify with hardware and neckplate details.</li>
+          <li><strong>Musicyo Reissues:</strong> These models follow a more standard date-based format, such as 04xxxx indicating the year 2004.</li>
+          <li><strong>Overseas Models (Striker, Focus, Ferrington):</strong> These often had different plate styles and serial number schemes, such as a two-letter prefix where the second letter indicates the year (e.g., FA for late '85-'86, FB for '87-'88), or S/SS prefixes that can follow an SS-YYMM-RR date/sequence pattern.</li>
+          <li><strong>Modern S-Prefix Imports:</strong> Some Gibson-era imports use <strong>S + YYMM + sequence</strong> (e.g., <strong>S106020848</strong> = June 2010), commonly associated with Samick Korea production.</li>
+        </ul>
+
+        <h3>Additional Resources</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>Vintage Kramer Website:</strong> This site provides extensive information on various serial number types and registries, helping to narrow down the era and model of your specific guitar. The site explicitly states that original factory records are lost, so dating is based on community data and known features.</li>
+          <li><strong>Potentiometer codes:</strong> If the guitar has its original USA-made potentiometers (pots), the code stamped on them can help date the instrument. Codes starting with 137 or 304 can be read as YYWW (Year and Week), e.g., 1378433 indicates the 33rd week of 1984.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block afterContent %}
+  <section class="kramer-model-list">
+    <div class="container">
+      <h2 class="home-intro-title">Popular Kramer Guitars</h2>
+      <p class="kramer-model-intro">Common Kramer models and series you might see on headstocks or listings.</p>
+      <ul class="kramer-model-grid">
+        <li>Baretta</li>
+        <li>Pacer</li>
+        <li>Jersey Star</li>
+        <li>Stagemaster</li>
+        <li>Nightswan</li>
+        <li>Voyager</li>
+        <li>Focus</li>
+        <li>Striker</li>
+        <li>Vanguard</li>
+        <li>Ferrington</li>
+        <li>ProAxe</li>
+        <li>Assault</li>
+      </ul>
+    </div>
+  </section>
+{% endblock %}

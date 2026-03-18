@@ -241,6 +241,35 @@ D1 workflow rules:
 Optional:
 - `REVERB_API_TOKEN`
 
+## Decoder Page Templates (Nunjucks)
+All 26 brand decoder HTML pages are generated from Nunjucks templates at build time.
+
+Layout:
+- Shared layout: `templates/layout.njk` — contains all boilerplate (head/meta/structured data, nav, input section, result section, FAQ section, footer, scripts)
+- Brand templates: `templates/decoders/{brand}.njk` — each extends `layout.njk` and provides brand-specific variables and block content
+- Build script: `scripts/build-templates.mjs` — compiles `.njk` → `.html` into `decoders/`
+- Output map in build script maps template filenames to decoder HTML filenames (e.g. `gibson.njk` → `gibson-guitar-serial-number-decoder.html`)
+
+Template variables (set per brand):
+- `brand`, `brandName`, `brandLogo`, `brandLogoClass`, `decoderDate`
+- `pageTitle`, `decoderTitle`, `metaDescription`, `ogDescription`, `pageSlug`
+- `serialPlaceholder`, `faqTitle`, `h1Title` (optional override)
+- `brandShortName`, `brandAltName` (optional, for structured data `alternateName`)
+- `faqs` array with `question`, `answer`, optional `answerPlain` (for structured data when HTML answer has tags)
+
+Template blocks (override per brand as needed):
+- `brandDescription` — brand description paragraph
+- `howtoModal` — how-to-decode modal dialog
+- `beforeResult` — custom content between input and result (used by Ovation, B.C. Rich)
+- `afterResult` — custom content between error section and FAQ
+- `decoderNote` — decoder note with default "contact us" text (overridden by Charvel, Godin, Rickenbacker, Ovation)
+- `afterContent` — related brand decoders, popular models sections
+- `customScripts` — inline JS injected before footer year script (used by Ibanez for dynamic date)
+
+Build pipeline: `tsc` → `build-templates.mjs` → `update-cache-busters.mjs`
+
+The generated HTML files in `decoders/` are build output (like `dist/`). Edit the `.njk` source templates, not the HTML files directly.
+
 ## Deployment
 From `workers/listing-evaluator/`:
 - `npx wrangler deploy`

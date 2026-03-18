@@ -1,0 +1,80 @@
+{% extends "layout.njk" %}
+
+{% set brand = "schecter" %}
+{% set brandName = "Schecter" %}
+{% set brandLogo = "Schecter_Guitar_Research_logo.svg" %}
+{% set brandLogoClass = "brand-logo-invert" %}
+{% set decoderDate = "Mar/2026" %}
+
+{% set pageTitle = "Schecter Guitar Serial Number Lookup/Decoder | Coal Creek Guitars" %}
+{% set decoderTitle = "Schecter Guitar Serial Number Lookup/Decoder" %}
+{% set metaDescription = "Free Schecter guitar serial number lookup/decoder. Find the year, factory location, and production details of your Schecter guitar. Works with USA Custom Shop, Diamond Series, and all Schecter models from Korea, Indonesia, and China." %}
+{% set ogDescription = "Free Schecter serial number lookup/decoder. Find the year, factory location, and production details of your Schecter guitar." %}
+{% set pageSlug = "schecter-guitar-serial-number-decoder" %}
+{% set serialPlaceholder = "Enter Schecter serial number" %}
+{% set faqTitle = "Schecter Serial Number Lookup/Decoder FAQs" %}
+
+{% set faqs = [
+  {
+    question: "Where can I find the Schecter serial number?",
+    answer: "Most Schecter guitars list the serial number on the back of the headstock. Some acoustics place it inside the soundhole on a paper label, and older instruments may use a neck plate or stamped marking. If you cannot find it, check the headstock back and the neck joint first."
+  },
+  {
+    question: "What can this Schecter serial number lookup/decoder tell me?",
+    answer: "It typically identifies the production year, factory or plant code, and country of origin. Some serial formats also hint at model lines or production sequence, but that varies by era."
+  },
+  {
+    question: "Why won't my Schecter serial number decode?",
+    answer: "Serial formats change over time, and limited runs or custom shop instruments can deviate from standard patterns. Try removing spaces or hyphens, and if it still fails, reach out so we can review it and improve the decoder."
+  }
+] %}
+
+{% block brandDescription %}
+      <p class="brand-description">Schecter Guitar Research is a prominent American manufacturer founded in 1976 by David Schecter, initially specializing in high-quality replacement parts for Fender and Gibson. Known for electric guitars, basses, and acoustic instruments, the brand has evolved from a custom shop to a globally recognized manufacturer, frequently utilized by artists like Avenged Sevenfold and The Cure.<br><a href="#" class="decoder-howto-link" data-modal-target="howto-schecter">(How to decode a Schecter serial #)</a></p>
+{% endblock %}
+
+{% block howtoModal %}
+  <div id="howto-schecter" class="decoder-modal hidden" role="dialog" aria-modal="true" aria-labelledby="howto-schecter-title">
+    <div class="decoder-modal-backdrop" data-modal-close></div>
+    <div class="decoder-modal-content" role="document">
+      <button type="button" class="decoder-modal-close" aria-label="Close dialog" data-modal-close>&times;</button>
+      <div class="decoder-modal-header">
+        <h2 id="howto-schecter-title">How to decode a Schecter serial number</h2>
+        <p class="decoder-modal-subtitle">A quick manual method when you don't want to use a decoder.</p>
+      </div>
+      <div class="decoder-modal-body">
+        <p>Schecter guitar serial numbers, typically found on the back of the headstock, generally indicate the manufacturing date using the first two or four digits. For post‑2000 Diamond Series, the format often follows: first letter (factory), next two digits (year), and the following two digits (month).</p>
+
+        <h3>Key Decoding Details</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>Year (Post‑2008):</strong> The first two digits (or digits 2–3 if a letter prefix exists) indicate the year (e.g., “W10…” is 2010, “13…” is 2013).</li>
+          <li><strong>Month (Post‑2008):</strong> The third and fourth digits usually indicate the month of production.</li>
+          <li><strong>Pre‑2008:</strong> Usually starts with the year, followed by the sequence number (e.g., 02xxxxxx for 2002).</li>
+          <li><strong>Factory Letter Codes:</strong> Often start with H or W (South Korea), or other letters indicating specific Asian factories.</li>
+          <li><strong>USA Models:</strong> Generally start with a letter indicating the decade, followed by a number for the specific year.</li>
+        </ul>
+
+        <p class="decoder-modal-note">If the serial number is difficult to decode, contacting Schecter directly via their website is recommended for accurate information.</p>
+
+        <div class="decoder-modal-gallery">
+          <figure>
+            <img src="../images/serial-number-examples/schecter-serial.jpg" alt="Schecter headstock back with serial number" loading="lazy">
+            <figcaption>Example: headstock serial number.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block afterContent %}
+  <section class="home-brand-decoders related-brand-decoders">
+    <h2 class="home-intro-title">Related Brand Decoders</h2>
+    <div class="home-brand-grid">
+      <a href="bc-rich-guitar-serial-number-decoder.html" class="home-brand-link">
+        <img src="../images/brand-logos/bc-rich.jpg" alt="B.C. Rich" class="home-brand-logo brand-logo-invert">
+        <span>B.C. Rich Decoder</span>
+      </a>
+    </div>
+  </section>
+{% endblock %}

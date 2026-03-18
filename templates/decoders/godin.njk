@@ -1,0 +1,56 @@
+{% extends "layout.njk" %}
+
+{% set brand = "godin" %}
+{% set brandName = "Godin" %}
+{% set brandLogo = "Godin_guitars_logo.png" %}
+{% set brandLogoClass = "brand-logo-invert" %}
+{% set decoderDate = "Mar/2026" %}
+
+{% set pageTitle = "Godin Guitar Serial Number Lookup/Decoder | Coal Creek Guitars" %}
+{% set decoderTitle = "Godin Guitar Serial Number Lookup/Decoder" %}
+{% set metaDescription = "Free Godin guitar serial number lookup/decoder. Find the year and production details of your Godin, Seagull, Norman, Simon & Patrick, Art & Lutherie, or La Patrie guitar. Works with all Godin family brands." %}
+{% set ogDescription = "Free Godin serial number lookup/decoder. Find the year and production details of your Godin, Seagull, Norman, Simon & Patrick, Art & Lutherie, or La Patrie guitar." %}
+{% set pageSlug = "godin-guitar-serial-number-decoder" %}
+{% set serialPlaceholder = "Enter Godin/Seagull/Norman serial number" %}
+{% set faqTitle = "Godin Serial Number Lookup/Decoder FAQs" %}
+
+{% set faqs = [
+  {
+    question: "Where can I find the Godin serial number?",
+    answer: "Most Godin guitars list the serial number on the back of the headstock. Some acoustics place it inside the soundhole on a paper label, and older instruments may use a neck plate or stamped marking. If you cannot find it, check the headstock back and the neck joint first."
+  },
+  {
+    question: "What can this Godin serial number lookup/decoder tell me?",
+    answer: "It typically identifies the production year, factory or plant code, and country of origin. Some serial formats also hint at model lines or production sequence, but that varies by era."
+  },
+  {
+    question: "Why won't my Godin serial number decode?",
+    answer: "Serial formats change over time, and limited runs or custom shop instruments can deviate from standard patterns. Try removing spaces or hyphens, and if it still fails, reach out so we can review it and improve the decoder."
+  }
+] %}
+
+{% block brandDescription %}
+      <p class="brand-description">Founded in 1972 by Robert Godin in La Patrie, Quebec, Godin Guitars is a premier Canadian manufacturer known for producing high-quality, handcrafted electric and acoustic guitars, often using North American woods. As one of North America's largest guitar manufacturers, it operates five factories in Quebec and New Hampshire, producing around 175,000 instruments annually under brands including Godin, Seagull, Simon & Patrick, Art & Lutherie, Norman, and La Patrie.<br><a href="#" class="decoder-howto-link" data-modal-target="howto-godin">(How to decode a Godin serial #)</a></p>
+{% endblock %}
+
+{% block decoderNote %}
+    <div class="decoder-note">
+      <p>Note: This decoder works for all Godin family brands: Godin, Seagull, Norman, Simon & Patrick, Art & Lutherie, and La Patrie. If you try a serial number and the decoder is not able to decode it, please <a href="../contact-us.html">contact us</a> and let us know so we can check the number and fix the decoder. Thank you!</p>
+    </div>
+{% endblock %}
+
+{% block howtoModal %}
+  <div id="howto-godin" class="decoder-modal hidden" role="dialog" aria-modal="true" aria-labelledby="howto-godin-title">
+    <div class="decoder-modal-backdrop" data-modal-close></div>
+    <div class="decoder-modal-content" role="document">
+      <button type="button" class="decoder-modal-close" aria-label="Close dialog" data-modal-close>&times;</button>
+      <div class="decoder-modal-header">
+        <h2 id="howto-godin-title">How to decode a Godin serial number</h2>
+        <p class="decoder-modal-subtitle">A quick manual method when you don't want to use a decoder.</p>
+      </div>
+      <div class="decoder-modal-body">
+        <p>Godin guitar serial numbers generally follow a system where the first two digits indicate the year of manufacture (e.g., “04” indicates 2004). For 7‑digit numbers, often seen in the 90s, the first digit represents the year. For newer, 12‑digit codes (approx. 2007/2008 onwards), the first two digits still commonly indicate the year, while the seventh digit indicates if it is a factory second.</p>
+      </div>
+    </div>
+  </div>
+{% endblock %}

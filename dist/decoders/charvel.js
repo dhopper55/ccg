@@ -3,6 +3,7 @@
  *
  * Supports:
  * - San Dimas USA (1981-1986): 4-digit serials 1001-5491
+ * - Japanese MIJ neck plate (1986-1989): 5-digit serials
  * - Japanese neck-through (1986-1991): C + digit + sequential
  * - Japanese bolt-on (1986-1991): 6-digit sequential (220000+)
  * - Modern Japan MIJ (2009-2012): JC + year + production
@@ -51,6 +52,10 @@ export function decodeCharvel(serial) {
     // San Dimas USA: 4-digit (1001-5491)
     if (/^\d{4}$/.test(normalized)) {
         return decodeSanDimas(normalized);
+    }
+    // Japanese MIJ neck plate: 5-digit (roughly 1986-1989)
+    if (/^\d{5}$/.test(normalized)) {
+        return decodeJapanNeckPlate(normalized);
     }
     // Japanese bolt-on: 6-digit sequential (220000+)
     if (/^\d{6}$/.test(normalized)) {
@@ -166,6 +171,19 @@ function decodeKoreaCF(serial) {
         factory: 'World Music Instruments (WMI)',
         country: 'South Korea',
         notes: `CF-prefix modern production format interpreted as CF + YY + sequence. Parsed year: ${year || 'unknown'}. Sequence: ${sequence}. Confirm with country-of-origin marking and model specs.`,
+    };
+    return { success: true, info };
+}
+// Japanese MIJ neck plate: 5-digit (roughly 1986-1989)
+function decodeJapanNeckPlate(serial) {
+    const num = parseInt(serial, 10);
+    const info = {
+        brand: 'Charvel',
+        serialNumber: serial,
+        year: '~1986-1989',
+        factory: 'Chushin Gakki (Nagano Prefecture)',
+        country: 'Japan',
+        notes: `5-digit MIJ (Made in Japan) serial number ${num.toLocaleString()}, typically found on a neck plate reading "Fort Worth, Texas" despite being manufactured in Japan. These Charvel guitars were bolt-on models from the late 1980s. The serial is sequential and not date-coded — determine the exact year by checking headstock logo style ("toothpaste" vs "Strat-style"), tremolo type (Kahler vs JT-6), and other physical features. Caution: blank or forged neck plates exist, so verify the guitar's features match the era.`,
     };
     return { success: true, info };
 }

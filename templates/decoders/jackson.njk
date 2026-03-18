@@ -1,0 +1,91 @@
+{% extends "layout.njk" %}
+
+{% set brand = "jackson" %}
+{% set brandName = "Jackson" %}
+{% set brandLogo = "Jackson_guitars_logo.png" %}
+{% set brandLogoClass = "brand-logo-invert" %}
+{% set decoderDate = "Mar/2026" %}
+
+{% set pageTitle = "Jackson Guitar Serial Number Lookup/Decoder | Coal Creek Guitars" %}
+{% set decoderTitle = "Jackson Guitar Serial Number Lookup/Decoder" %}
+{% set metaDescription = "Free Jackson guitar serial number lookup/decoder. Find the year, factory location, and production details of your Jackson guitar. Works with USA Custom Shop, Randy Rhoads, Soloist, King V, Japan, Indonesia, and import models." %}
+{% set ogDescription = "Free Jackson serial number lookup/decoder. Find the year, factory location, and production details of your Jackson guitar." %}
+{% set pageSlug = "jackson-guitar-serial-number-decoder" %}
+{% set serialPlaceholder = "Enter Jackson serial number" %}
+{% set faqTitle = "Jackson Serial Number Lookup/Decoder FAQs" %}
+
+{% set faqs = [
+  {
+    question: "Where can I find the Jackson serial number?",
+    answer: "Most Jackson guitars list the serial number on the back of the headstock. Some acoustics place it inside the soundhole on a paper label, and older instruments may use a neck plate or stamped marking. If you cannot find it, check the headstock back and the neck joint first."
+  },
+  {
+    question: "What can this Jackson serial number lookup/decoder tell me?",
+    answer: "It typically identifies the production year, factory or plant code, and country of origin. Some serial formats also hint at model lines or production sequence, but that varies by era."
+  },
+  {
+    question: "Why won't my Jackson serial number decode?",
+    answer: "Serial formats change over time, and limited runs or custom shop instruments can deviate from standard patterns. Try removing spaces or hyphens, and if it still fails, reach out so we can review it and improve the decoder."
+  }
+] %}
+
+{% block brandDescription %}
+      <p class="brand-description">Founded in 1980 by Grover Jackson, Jackson Guitars emerged from a California repair shop to define the "shred" guitar era, heavily influenced by a custom collaboration with Randy Rhoads. Known for high-performance features like compound radius fretboards, "hot" pickups, and sharp, angular bodies (Rhoads, Soloist, King V, Dinky, Kelly), the company became synonymous with 1980s heavy metal. Acquired by Fender in 2002, Jackson continues to produce iconic instruments for metal and hard rock.<br><a href="#" class="decoder-howto-link" data-modal-target="howto-jackson">(How to decode a Jackson serial #)</a></p>
+{% endblock %}
+
+{% block howtoModal %}
+  <div id="howto-jackson" class="decoder-modal hidden" role="dialog" aria-modal="true" aria-labelledby="howto-jackson-title">
+    <div class="decoder-modal-backdrop" data-modal-close></div>
+    <div class="decoder-modal-content" role="document">
+      <button type="button" class="decoder-modal-close" aria-label="Close dialog" data-modal-close>&times;</button>
+      <div class="decoder-modal-header">
+        <h2 id="howto-jackson-title">How to decode a Jackson serial number</h2>
+        <p class="decoder-modal-subtitle">A quick manual method when you don't want to use a decoder.</p>
+      </div>
+      <div class="decoder-modal-body">
+        <p>Jackson guitar serial numbers are generally found on the back of the headstock or neck plate, with modern (2013‑present) import models using a 10‑digit code where the first two digits indicate the year (e.g., ICJ15xxxxxxx is 2015). For older models, especially 1990s Japanese (MIJ) guitars, the first two digits often represent the year, while 7‑digit numbers starting with 96–98 often date from 2002–2008.</p>
+
+        <h3>Decoding by Region and Model</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>Modern Imports (Indonesia/China/Mexico – 2013‑Present):</strong> 10‑digit, e.g., ICJ15xxxxxx. First two digits are the year.</li>
+          <li><strong>Japan (MIJ – 1990–1996):</strong> 6‑digit numbers. First two digits = year (e.g., 94xxxx is 1994).</li>
+          <li><strong>Japan (MIJ – Late 1996–2000s):</strong> 7+ digit numbers often start with 96, 97, or 98. These are often mid‑2000s guitars, not 1990s.</li>
+          <li><strong>India/Taiwan (1990s):</strong> 8–9 digits. Often the first two (India) or first one (Taiwan) digits indicate the year.</li>
+          <li><strong>USA/Custom Shop:</strong> Serial numbers are typically stamped on the last fret of the fingerboard (neck‑through) or on the neck plate (bolt‑on). These do not usually follow a direct year‑digit code.</li>
+        </ul>
+
+        <h3>Key Identification Tips</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>Neck Pocket Stamp:</strong> The only definitive way to date many Japanese Jacksons is by removing the neck and looking for a date stamp in the neck pocket or heel.</li>
+          <li><strong>Import Serial Check:</strong> Use the <a href="https://serialnumberlookup.jacksonguitars.com/" target="_blank" rel="noopener noreferrer">Jackson Serial Number Lookup</a> for newer models, though it may not include models prior to 2002 or certain import lines.</li>
+          <li><strong>Manufacturer Codes (Import):</strong> ICJ = Indonesia, CorTek; NHJ = Chushin Gakki (Japan); JV = Japan (Vintage/Early).</li>
+        </ul>
+
+        <p class="decoder-modal-note">Note: Pre‑2002 records are often unavailable, and many 90s MIJ serial numbers were not officially recorded by factory, making them difficult to track.</p>
+
+        <div class="decoder-modal-gallery">
+          <figure>
+            <img src="../images/serial-number-examples/jackson-serial.jpeg" alt="Jackson headstock serial number example" loading="lazy">
+            <figcaption>Example: headstock serial number.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block afterContent %}
+  <section class="home-brand-decoders related-brand-decoders">
+    <h2 class="home-intro-title">Related Brand Decoders</h2>
+    <div class="home-brand-grid">
+      <a href="fender-guitar-serial-number-decoder.html" class="home-brand-link">
+        <img src="../images/brand-logos/Fender-logo.jpg" alt="Fender" class="home-brand-logo brand-logo-invert">
+        <span>Fender Decoder</span>
+      </a>
+      <a href="bc-rich-guitar-serial-number-decoder.html" class="home-brand-link">
+        <img src="../images/brand-logos/bc-rich.jpg" alt="B.C. Rich" class="home-brand-logo brand-logo-invert">
+        <span>B.C. Rich Decoder</span>
+      </a>
+    </div>
+  </section>
+{% endblock %}

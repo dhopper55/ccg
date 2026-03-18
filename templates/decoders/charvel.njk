@@ -1,0 +1,88 @@
+{% extends "layout.njk" %}
+
+{% set brand = "charvel" %}
+{% set brandName = "Charvel" %}
+{% set brandLogo = "Charvel-Logo.jpg" %}
+{% set brandLogoClass = "brand-logo-invert" %}
+{% set decoderDate = "Mar/2026" %}
+
+{% set pageTitle = "Charvel Guitar Serial Number Lookup/Decoder | Coal Creek Guitars" %}
+{% set decoderTitle = "Charvel Guitar Serial Number Lookup/Decoder" %}
+{% set metaDescription = "Free Charvel guitar serial number lookup/decoder. Find the year, factory location, and production details of your Charvel guitar. Works with USA San Dimas, Japan, Mexico, and import models." %}
+{% set ogDescription = "Free Charvel serial number lookup/decoder. Find the year, factory location, and production details of your Charvel guitar." %}
+{% set pageSlug = "charvel-guitar-serial-number-decoder" %}
+{% set serialPlaceholder = "Enter Charvel serial number" %}
+{% set faqTitle = "Charvel Serial Number Lookup/Decoder FAQs" %}
+
+{% set faqs = [
+  {
+    question: "Where can I find the Charvel serial number?",
+    answer: "Most Charvel guitars list the serial number on the back of the headstock. Some acoustics place it inside the soundhole on a paper label, and older instruments may use a neck plate or stamped marking. If you cannot find it, check the headstock back and the neck joint first."
+  },
+  {
+    question: "What can this Charvel serial number lookup/decoder tell me?",
+    answer: "It typically identifies the production year, factory or plant code, and country of origin. Some serial formats also hint at model lines or production sequence, but that varies by era."
+  },
+  {
+    question: "Why won't my Charvel serial number decode?",
+    answer: "Serial formats change over time, and limited runs or custom shop instruments can deviate from standard patterns. Try removing spaces or hyphens, and if it still fails, reach out so we can review it and improve the decoder."
+  }
+] %}
+
+{% block brandDescription %}
+      <p class="brand-description">Founded in the 1970s by Wayne Charvel in California, Charvel is a premier electric guitar brand, owned by Fender Musical Instruments Corporation, known for pioneering the "hot-rodded" Superstrat design. Originally a high-end repair shop, it became iconic in the 1980s for producing fast-playing, high-performance instruments favored by metal and hard rock artists.<br><a href="#" class="decoder-howto-link" data-modal-target="howto-charvel">(How to decode a Charvel serial #)</a></p>
+{% endblock %}
+
+{% block decoderNote %}
+    <div class="decoder-note">
+      <p>Note: Pre-1981 San Dimas Charvel guitars (approximately 750 instruments) have no serial numbers. If you try a serial number and the decoder is not able to decode it, please <a href="../contact-us.html">contact us</a> and let us know so we can check the number and fix the decoder. Thank you!</p>
+    </div>
+{% endblock %}
+
+{% block howtoModal %}
+  <div id="howto-charvel" class="decoder-modal hidden" role="dialog" aria-modal="true" aria-labelledby="howto-charvel-title">
+    <div class="decoder-modal-backdrop" data-modal-close></div>
+    <div class="decoder-modal-content" role="document">
+      <button type="button" class="decoder-modal-close" aria-label="Close dialog" data-modal-close>&times;</button>
+      <div class="decoder-modal-header">
+        <h2 id="howto-charvel-title">How to decode a Charvel serial number</h2>
+        <p class="decoder-modal-subtitle">A quick manual method when you don't want to use a decoder.</p>
+      </div>
+      <div class="decoder-modal-body">
+        <p>Charvel guitar serial numbers vary significantly by era and factory, with modern (2013‑present) models using a 10‑digit code where the first two digits indicate the year (e.g., ICJ1500001 is 2015). Earlier Japanese models often start with a number representing the year (e.g., “8” for 1988), while older US models feature 4–6 digit codes on the neck plate.</p>
+
+        <h3>Here is how to decode Charvel serial numbers based on era and origin</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>Modern Models (2013–Present):</strong> 10‑digit serials usually located on the back of the headstock. The first two digits are the year (e.g., 15 = 2015, 16 = 2016).</li>
+          <li><strong>Made in Mexico (MIM):</strong> Typically feature “MC” or “MX” at the beginning, indicating Mexico, followed by the year.</li>
+          <li><strong>8-digit Numeric Variant:</strong> Some serials appear as <strong>YYMM + sequence</strong> (e.g., <strong>05050187</strong> = May 2005). Treat this as a best-effort read and confirm with country-of-origin markings.</li>
+          <li><strong>CF Prefix Variant:</strong> Some modern serials appear as <strong>CF + YY + sequence</strong> (example: <strong>CF22271</strong>), often associated with Korea production; decode <strong>22</strong> as 2022 and treat the remaining digits as sequence.</li>
+          <li><strong>Japanese Charvels (1986–1990s):</strong> Often have 6 digits. Early Japanese models (Model Series) had serial numbers starting with “0” for the first year (1986) and increasing subsequently.</li>
+          <li><strong>USA Charvels (Pre‑Production/1980s):</strong> Early models (San Dimas) often feature a 4‑digit number stamped on a neck plate that also includes a P.O. Box address.</li>
+          <li><strong>USA/Custom Shop (Modern):</strong> Stamped at the end of the fingerboard for neck‑through models, or on the neck plate for bolt‑ons.</li>
+        </ul>
+
+        <h3>Key Indicators</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>Prefix Letters:</strong> Can indicate the series or factory, such as “C” for custom, “MC” for Mexico.</li>
+          <li><strong>Neck Plate:</strong> Often used on older or bolt‑on models.</li>
+          <li><strong>Neck Heel:</strong> Sometimes, serial numbers or production dates are written on the neck heel, requiring the neck to be removed.</li>
+        </ul>
+
+        <p class="decoder-modal-note">For specific, hard‑to‑identify models, using the <a href="https://www.charvel.com/support/faqs" target="_blank" rel="noopener noreferrer">Charvel Guitars support FAQ</a> or reaching out to their customer support is the most reliable method.</p>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block afterContent %}
+  <section class="home-brand-decoders related-brand-decoders">
+    <h2 class="home-intro-title">Related Brand Decoders</h2>
+    <div class="home-brand-grid">
+      <a href="fender-guitar-serial-number-decoder.html" class="home-brand-link">
+        <img src="../images/brand-logos/Fender-logo.jpg" alt="Fender" class="home-brand-logo brand-logo-invert">
+        <span>Fender Decoder</span>
+      </a>
+    </div>
+  </section>
+{% endblock %}

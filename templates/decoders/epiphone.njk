@@ -1,0 +1,109 @@
+{% extends "layout.njk" %}
+
+{% set brand = "epiphone" %}
+{% set brandName = "Epiphone" %}
+{% set brandLogo = "Epiphone-Logo.png" %}
+{% set brandLogoClass = "brand-logo-invert" %}
+{% set decoderDate = "Mar/2026" %}
+
+{% set pageTitle = "Epiphone Guitar Serial Number Lookup/Decoder | Coal Creek Guitars" %}
+{% set decoderTitle = "Epiphone Guitar Serial Number Lookup/Decoder" %}
+{% set metaDescription = "Free Epiphone guitar serial number lookup/decoder. Find the year, factory location, and production details of your Epiphone guitar. Works with Les Paul, SG, Casino, and all Epiphone models." %}
+{% set ogDescription = "Free Epiphone serial number lookup/decoder. Find the year, factory location, and production details of your Epiphone guitar." %}
+{% set pageSlug = "epiphone-guitar-serial-number-decoder" %}
+{% set serialPlaceholder = "Enter Epiphone serial number" %}
+{% set faqTitle = "Epiphone Serial Number Lookup/Decoder FAQs" %}
+
+{% set faqs = [
+  {
+    question: "Where can I find the Epiphone serial number?",
+    answer: "Most Epiphone guitars list the serial number on the back of the headstock. Some acoustics place it inside the soundhole on a paper label, and older instruments may use a neck plate or stamped marking. If you cannot find it, check the headstock back and the neck joint first."
+  },
+  {
+    question: "What can this Epiphone serial number lookup/decoder tell me?",
+    answer: "It typically identifies the production year, factory or plant code, and country of origin. Some serial formats also hint at model lines or production sequence, but that varies by era."
+  },
+  {
+    question: "Why won't my Epiphone serial number decode?",
+    answer: "Serial formats change over time, and limited runs or custom shop instruments can deviate from standard patterns. Try removing spaces or hyphens, and if it still fails, reach out so we can review it and improve the decoder."
+  }
+] %}
+
+{% block brandDescription %}
+      <p class="brand-description">Epiphone is a venerable American instrument manufacturer with a history dating back to 1873, which was the primary rival to Gibson in the archtop guitar market before being acquired by Gibson's parent company in 1957. Today, it operates as a subsidiary brand under Gibson Brands, Inc., producing both affordable versions of classic Gibson models and unique Epiphone-exclusive instruments.<br><a href="#" class="decoder-howto-link" data-modal-target="howto-epiphone">(How to decode an Epiphone serial #)</a></p>
+{% endblock %}
+
+{% block howtoModal %}
+  <div id="howto-epiphone" class="decoder-modal hidden" role="dialog" aria-modal="true" aria-labelledby="howto-epiphone-title">
+    <div class="decoder-modal-backdrop" data-modal-close></div>
+    <div class="decoder-modal-content" role="document">
+      <button type="button" class="decoder-modal-close" aria-label="Close dialog" data-modal-close>&times;</button>
+      <div class="decoder-modal-header">
+        <h2 id="howto-epiphone-title">How to decode an Epiphone serial number</h2>
+        <p class="decoder-modal-subtitle">A quick manual method when you don't want to use a decoder.</p>
+      </div>
+      <div class="decoder-modal-body">
+        <p>Epiphone serial numbers generally use a FYYMMRRRR format (Factory, Year, Month, Ranking) since 1993, allowing for easy dating.</p>
+        <ul class="decoder-howto-steps">
+          <li><strong>Letters:</strong> Represent the factory (e.g., S = Samick, U = Unsung, R = Peerless).</li>
+          <li><strong>First 2 Numbers (post‑1993):</strong> Year of manufacture (e.g., 02 = 2002).</li>
+          <li><strong>Next 2 Numbers:</strong> Month (e.g., 05 = May).</li>
+          <li><strong>Remaining Numbers:</strong> Unit production number.</li>
+        </ul>
+
+        <h3>Common Serial Number Formats &amp; Decoding</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>Modern (1993–2008):</strong> Example S02021234 → S (Samick, Korea), 02 (2002), 02 (February), 1234 (Production).</li>
+          <li><strong>Modern (2008–Present):</strong> Example 15122300123 → 15 (2015), 12 (December), 23 (Factory/format code), 00123 (Production).</li>
+          <li><strong>Elite/Elitist Models:</strong> Typically F YY SSSS (F = Factory, Y = Year, S = Sequential).</li>
+        </ul>
+
+        <h3>Key Factory Letter Codes</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>B:</strong> Bohart, Czech Republic</li>
+          <li><strong>DW:</strong> DeaWon, China</li>
+          <li><strong>F:</strong> Fuji-gen, Japan</li>
+          <li><strong>I:</strong> Saein, Korea</li>
+          <li><strong>J:</strong> Pallet, China</li>
+          <li><strong>K:</strong> Korea Insung</li>
+          <li><strong>MC:</strong> Muse, China</li>
+          <li><strong>R:</strong> Peerless, Korea</li>
+          <li><strong>S:</strong> Samick, Korea</li>
+          <li><strong>SI:</strong> Samick, Indonesia</li>
+          <li><strong>T:</strong> Terada, Japan</li>
+          <li><strong>U:</strong> Unsung, Korea</li>
+          <li><strong>EE:</strong> Qingdao, China</li>
+        </ul>
+
+        <h3>Other Scenarios</h3>
+        <ul class="decoder-howto-steps">
+          <li><strong>Pre‑1994:</strong> Often 7–8 digits without a factory letter, or sometimes missing entirely.</li>
+          <li><strong>Japanese Models:</strong> Often use different, sometimes stamped, formats.</li>
+          <li><strong>No Serial:</strong> Some very old Epiphones or refinished models may lack a visible number.</li>
+        </ul>
+        <div class="decoder-modal-gallery">
+          <figure>
+            <img src="../images/serial-number-examples/epiphone-electric.jpg" alt="Epiphone electric guitar serial number example" loading="lazy">
+            <figcaption>Electric example: headstock serial number.</figcaption>
+          </figure>
+          <figure>
+            <img src="../images/serial-number-examples/epiphone-acoustic.jpeg" alt="Epiphone acoustic guitar serial number label" loading="lazy">
+            <figcaption>Acoustic example: soundhole label serial number.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block afterContent %}
+  <section class="home-brand-decoders related-brand-decoders">
+    <h2 class="home-intro-title">Related Brand Decoders</h2>
+    <div class="home-brand-grid">
+      <a href="gibson-guitar-serial-number-decoder.html" class="home-brand-link">
+        <img src="../images/brand-logos/Gibson-logo.png" alt="Gibson" class="home-brand-logo brand-logo-invert">
+        <span>Gibson Decoder</span>
+      </a>
+    </div>
+  </section>
+{% endblock %}
