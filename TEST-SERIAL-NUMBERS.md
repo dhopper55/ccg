@@ -32,9 +32,12 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | I110626774 | Indonesia format, 2011, June (I + 9 digits) |
 | I1161207864 | Indonesia extended format, 2011, December (I + 10 digits: YY + line + MM + sequence) |
 | U081100181 | Indonesia format, 2008, November (U + 9 digits) |
+| I9123856 | Indonesia, 1999, December (I + 7 digits, 1997-2000 format) |
 | HU081100181 | Known HU variant retries as U081100181 (Indonesia U-prefix format) |
 | Ao3oooo9 | O/0 typo retry to A0300009, compact month-letter format (January 2003) |
 | I11o626774 | Same as I110626774 after O->0 retry correction in UI |
+| GSA 20 19123856 | Model + serial input fallback; retries last token and decodes as 2019, December |
+| GSA 20 I9123856 | Model + serial input fallback; retries last token and decodes as 1999, December |
 | GI0012180 | Indonesia GIO legacy format, 2000, December (GI + 7 digits) |
 | gp05105792 | China GP prefix format, 2005, October (GP + 8 digits; case-insensitive input) |
 | GZ150102324 | China GZ-prefix GIO-style format, 2015, January (GZ + 9 digits) |

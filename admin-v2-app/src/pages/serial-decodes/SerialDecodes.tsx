@@ -6,10 +6,12 @@ import {
   Checkbox,
   CircularProgress,
   Dialog,
+  DialogActions,
   DialogContent,
   DialogTitle,
   FormControl,
   FormControlLabel,
+  IconButton,
   InputLabel,
   MenuItem,
   Paper,
@@ -22,9 +24,11 @@ import {
   TableHead,
   TableRow,
   TableSortLabel,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import { useNavigate } from 'react-router';
+import IconifyIcon from 'components/base/IconifyIcon';
 import { BarChart } from 'echarts/charts';
 import { GridComponent, TooltipComponent } from 'echarts/components';
 import * as echarts from 'echarts/core';
@@ -154,6 +158,8 @@ const SerialDecodes = () => {
   const [chartErrorMessage, setChartErrorMessage] = useState('');
   const [selectedRecord, setSelectedRecord] = useState<SerialDecodeRecord | null>(null);
   const [updatingEvaluatedIds, setUpdatingEvaluatedIds] = useState<number[]>([]);
+  const [deletingRecordIds, setDeletingRecordIds] = useState<number[]>([]);
+  const [deleteTargetRecord, setDeleteTargetRecord] = useState<SerialDecodeRecord | null>(null);
   const [lookupVolumeView, setLookupVolumeView] = useState<LookupVolumeView>('day');
   const [lookupVolumeBrand, setLookupVolumeBrand] = useState('');
   const [lookupVolumeRecords, setLookupVolumeRecords] = useState<LookupVolumeRecord[]>([]);
@@ -445,6 +451,39 @@ const SerialDecodes = () => {
     }
   };
 
+  const handleDeleteRecord = async () => {
+    const target = deleteTargetRecord;
+    if (!target) return;
+
+    setDeletingRecordIds((current) => [...current, target.id]);
+    try {
+      const response = await fetch(`/api/admin-v2/serial-decodes/${target.id}/delete`, {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+
+      const data = (await response.json()) as { deletedCount?: number; message?: string };
+      if (!response.ok) {
+        throw new Error(data.message || `Unable to delete serial decode record (HTTP ${response.status}).`);
+      }
+
+      setRecords((current) => current.filter((row) => row.id !== target.id));
+      setSelectedRecord((current) => (current && current.id === target.id ? null : current));
+      setDeleteTargetRecord(null);
+      setTotal((current) => Math.max(0, current - 1));
+
+      if (records.length === 1 && page > 1) {
+        setPage((current) => Math.max(1, current - 1));
+      } else {
+        setRefreshKey((current) => current + 1);
+      }
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to delete serial decode record.');
+    } finally {
+      setDeletingRecordIds((current) => current.filter((id) => id !== target.id));
+    }
+  };
+
   return (
     <Stack direction="column" spacing={3} sx={{ width: 1 }}>
       <Paper sx={{ pt: { xs: 2, md: 2.5 }, pb: { xs: 1, md: 1.25 }, px: { xs: 3, md: 4 }, width: 1, display: 'block' }}>
@@ -624,22 +663,48 @@ const SerialDecodes = () => {
                         )}
                       </TableCell>
                       <TableCell sx={{ color: `${successColor} !important` }}>
-                        {record.success && record.patternLookupId ? (
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              const params = new URLSearchParams({
-                                id: String(record.patternLookupId),
-                                open: '1',
-                              });
-                              navigate(`${paths.serialPatternText}?${params.toString()}`);
-                            }}
-                          >
-                            Pattern
-                          </Button>
-                        ) : null}
+                        <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
+                          {record.success && record.patternLookupId ? (
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                const params = new URLSearchParams({
+                                  id: String(record.patternLookupId),
+                                  open: '1',
+                                });
+                                navigate(`${paths.serialPatternText}?${params.toString()}`);
+                              }}
+                            >
+                              Pattern
+                            </Button>
+                          ) : null}
+                          <Tooltip title="Delete decode record">
+                            <span>
+                              <IconButton
+                                size="small"
+                                aria-label="Delete decode record"
+                                disabled={deletingRecordIds.includes(record.id)}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setDeleteTargetRecord(record);
+                                }}
+                                sx={{
+                                  color: 'error.main',
+                                  border: '1px solid',
+                                  borderColor: 'rgba(244, 67, 54, 0.35)',
+                                  '&:hover': {
+                                    backgroundColor: 'rgba(244, 67, 54, 0.08)',
+                                    borderColor: 'error.main',
+                                  },
+                                }}
+                              >
+                                <IconifyIcon icon="mdi:trash-can-outline" fontSize={18} />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                        </Stack>
                       </TableCell>
                     </TableRow>
                   );
@@ -788,6 +853,40 @@ const SerialDecodes = () => {
             </Stack>
           ) : null}
         </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(deleteTargetRecord)}
+        onClose={() => {
+          if (deleteTargetRecord && deletingRecordIds.includes(deleteTargetRecord.id)) return;
+          setDeleteTargetRecord(null);
+        }}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>Delete Decode Record</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2">
+            Are you sure you want to delete this decode record?
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button
+            variant="outlined"
+            onClick={() => setDeleteTargetRecord(null)}
+            disabled={Boolean(deleteTargetRecord && deletingRecordIds.includes(deleteTargetRecord.id))}
+          >
+            No
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={() => void handleDeleteRecord()}
+            disabled={Boolean(deleteTargetRecord && deletingRecordIds.includes(deleteTargetRecord.id))}
+          >
+            Yes
+          </Button>
+        </DialogActions>
       </Dialog>
     </Stack>
   );

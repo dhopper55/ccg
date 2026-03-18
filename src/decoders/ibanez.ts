@@ -180,12 +180,6 @@ export function decodeIbanez(serial: string): DecodeResult {
     return decodeMonthLetterPrefix9Digit(normalized);
   }
 
-  // Month-letter compact variant: A-L + 7 digits
-  // Interpreted as month-letter + YY + 5-digit sequence.
-  if (/^[A-L]\d{7}$/.test(normalized)) {
-    return decodeMonthLetterPrefix7Digit(normalized);
-  }
-
   // Indonesia: I/K/J/U + 9 digits (2001-present)
   if (/^[IKJU]\d{9}$/.test(normalized)) {
     return decodeIndonesia2001(normalized);
@@ -200,6 +194,14 @@ export function decodeIbanez(serial: string): DecodeResult {
   // Indonesia: I + 7 digits (1997-2000)
   if (/^I\d{7}$/.test(normalized)) {
     return decodeIndonesia1997to2000(normalized);
+  }
+
+  // Month-letter compact variant: A-L + 7 digits
+  // Interpreted as month-letter + YY + 5-digit sequence.
+  // This stays after I + 7 digits so Indonesia serials like I9123856
+  // do not get misread as a future-dated month-letter format.
+  if (/^[A-L]\d{7}$/.test(normalized)) {
+    return decodeMonthLetterPrefix7Digit(normalized);
   }
 
   // Indonesia GIO (legacy): GI + 7 digits

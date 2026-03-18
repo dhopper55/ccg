@@ -3,7 +3,7 @@ import { decodeEpiphone } from './decoders/epiphone.js?version=262979';
 import { decodeFender } from './decoders/fender.js?version=940349';
 import { decodeTaylor } from './decoders/taylor.js?version=678368';
 import { decodeMartin } from './decoders/martin.js?version=695834';
-import { decodeIbanez } from './decoders/ibanez.js?version=851911';
+import { decodeIbanez } from './decoders/ibanez.js?version=400470';
 import { decodeYamaha } from './decoders/yamaha.js?version=880046';
 import { decodePRS } from './decoders/prs.js?version=790194';
 import { decodeESP } from './decoders/esp.js?version=188311';
@@ -131,21 +131,41 @@ function buildRetrySerials(serial, normalizedBrand) {
         }
         candidates.push(cleaned);
     };
+    const spaceSeparatedParts = serial.trim().split(/\s+/).filter(Boolean);
+    const lastSpaceSeparatedPart = spaceSeparatedParts.length > 1
+        ? spaceSeparatedParts[spaceSeparatedParts.length - 1]
+        : '';
     addCandidate(serial.toUpperCase());
     addCandidate(serial.replace(/[\s-]/g, ''));
     addCandidate(serial.replace(/[\s-]/g, '').toUpperCase());
     addCandidate(serial.replace(/[^A-Za-z0-9]/g, ''));
     addCandidate(serial.replace(/[^A-Za-z0-9]/g, '').toUpperCase());
+    if (lastSpaceSeparatedPart) {
+        addCandidate(lastSpaceSeparatedPart);
+        addCandidate(lastSpaceSeparatedPart.toUpperCase());
+        addCandidate(lastSpaceSeparatedPart.replace(/[\s-]/g, ''));
+        addCandidate(lastSpaceSeparatedPart.replace(/[\s-]/g, '').toUpperCase());
+        addCandidate(lastSpaceSeparatedPart.replace(/[^A-Za-z0-9]/g, ''));
+        addCandidate(lastSpaceSeparatedPart.replace(/[^A-Za-z0-9]/g, '').toUpperCase());
+    }
     if (normalizedBrand === 'ibanez' && serial.length >= 2 && serial[0] === '1') {
         addCandidate(`I${serial.slice(1)}`.toUpperCase());
     }
     if (normalizedBrand === 'ibanez') {
         addCandidate(serial.toUpperCase().replace(/O/g, '0'));
         addCandidate(serial.toUpperCase().replace(/0/g, 'O'));
+        if (lastSpaceSeparatedPart) {
+            addCandidate(lastSpaceSeparatedPart.toUpperCase().replace(/O/g, '0'));
+            addCandidate(lastSpaceSeparatedPart.toUpperCase().replace(/0/g, 'O'));
+        }
         // Known Ibanez typo variant: HU + 9 digits is often intended as U + 9 digits.
         const alnumUpper = serial.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
         if (/^HU\d{9}$/.test(alnumUpper)) {
             addCandidate(alnumUpper.slice(1));
+        }
+        const lastPartAlnumUpper = lastSpaceSeparatedPart.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+        if (/^HU\d{9}$/.test(lastPartAlnumUpper)) {
+            addCandidate(lastPartAlnumUpper.slice(1));
         }
     }
     if (normalizedBrand === 'fender') {
@@ -153,6 +173,10 @@ function buildRetrySerials(serial, normalizedBrand) {
         // Common OCR/mistype case on E-prefix 1980s serials: trailing "F" for "3".
         if (/^E\d+F$/.test(alnumUpper)) {
             addCandidate(alnumUpper.slice(0, -1) + '3');
+        }
+        const lastPartAlnumUpper = lastSpaceSeparatedPart.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+        if (/^E\d+F$/.test(lastPartAlnumUpper)) {
+            addCandidate(lastPartAlnumUpper.slice(0, -1) + '3');
         }
     }
     return candidates;

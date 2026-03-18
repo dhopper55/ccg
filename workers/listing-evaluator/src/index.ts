@@ -488,6 +488,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path.endsWith('/delete') && path.startsWith('/api/admin-v2/serial-decodes/') && request.method === 'POST') {
+      const response = await handleAdminV2SerialDecodeDelete(path, env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/admin-v2/inventory/labels.pdf' && request.method === 'GET') {
       const response = await handleAdminV2InventoryLabelsPdf(env);
       return withCors(response, request, env);
@@ -2698,6 +2703,24 @@ async function handleAdminV2SerialDecodeEvaluatedUpdate(
     ok: true,
     evaluated: updateResult.evaluated,
     updatedCount: updateResult.updatedCount,
+  });
+}
+
+async function handleAdminV2SerialDecodeDelete(path: string, env: Env): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const deleteIndex = parts.indexOf('delete');
+  const recordId = deleteIndex > 0 ? parts[deleteIndex - 1] : '';
+  if (!recordId) return jsonResponse({ message: 'Missing serial decode ID.' }, 400);
+
+  const deleteResult = await dbDeleteSerialDecodeRecord(recordId, env);
+  if (!deleteResult) return jsonResponse({ message: 'Unable to delete serial decode record.' }, 500);
+  if (deleteResult.deletedCount < 1) {
+    return jsonResponse({ message: 'Serial decode record not found.' }, 404);
+  }
+
+  return jsonResponse({
+    ok: true,
+    deletedCount: deleteResult.deletedCount,
   });
 }
 
@@ -6286,6 +6309,24 @@ async function dbSetSerialDecodeEvaluated(
   return {
     evaluated: Number(row.evaluated || 0) === 1,
     updatedCount: Number(updateResult.meta.changes || 0),
+  };
+}
+
+async function dbDeleteSerialDecodeRecord(
+  recordId: string,
+  env: Env,
+): Promise<{ deletedCount: number } | null> {
+  const id = normalizeText(recordId, '');
+  if (!/^\d+$/.test(id)) return null;
+
+  const db = env.DB.withSession('first-primary');
+  const deleteResult = await db.prepare(
+    `DELETE FROM serial_decode_events
+     WHERE CAST(id AS TEXT) = ?`
+  ).bind(id).run();
+
+  return {
+    deletedCount: Number(deleteResult.meta.changes || 0),
   };
 }
 
