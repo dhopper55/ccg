@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "npm run build:legacy && npm run build:admin-v2",
-    "build:legacy": "tsc && node scripts/update-cache-busters.mjs",
+    "build:legacy": "tsc && node scripts/build-templates.mjs && node scripts/update-cache-busters.mjs",
     "build:admin-v2": "npm --prefix admin-v2-app install && npm --prefix admin-v2-app run build:ccg",
     "test:regressions": "tsc && node scripts/test-regressions.mjs",
     "cachebust": "node scripts/update-cache-busters.mjs",
@@ -14,11 +14,16 @@
     "start": "lite-server",
     "dev": "tsc && node scripts/update-cache-busters.mjs && lite-server"
   },
-  "keywords": ["guitar", "serial-number", "decoder"],
+  "keywords": [
+    "guitar",
+    "serial-number",
+    "decoder"
+  ],
   "author": "",
   "license": "ISC",
   "devDependencies": {
     "lite-server": "^2.6.1",
+    "nunjucks": "^3.2.4",
     "typescript": "^5.9.3"
   }
 }

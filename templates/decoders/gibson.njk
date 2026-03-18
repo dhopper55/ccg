@@ -1,0 +1,104 @@
+{% extends "layout.njk" %}
+
+{% set brand = "gibson" %}
+{% set brandName = "Gibson" %}
+{% set brandLogo = "Gibson-logo.png" %}
+{% set brandLogoClass = "brand-logo-invert" %}
+{% set decoderDate = "Mar/2026" %}
+
+{% set pageTitle = "Gibson Guitar Serial Number Lookup/Decoder | Coal Creek Guitars" %}
+{% set metaDescription = "Free Gibson guitar serial number lookup/decoder. Find the year, factory location, and production details of your Gibson guitar. Works with Les Paul, SG, ES-335, and all Gibson models." %}
+{% set ogDescription = "Free Gibson serial number lookup/decoder. Find the year, factory location, and production details of your Gibson guitar." %}
+{% set pageSlug = "gibson-guitar-serial-number-decoder" %}
+
+{% set faqs = [
+  {
+    question: "Where can I find the Gibson serial number?",
+    answer: "Most Gibson guitars list the serial number on the back of the headstock. Some acoustics place it inside the soundhole on a paper label, and older instruments may use a neck plate or stamped marking. If you cannot find it, check the headstock back and the neck joint first."
+  },
+  {
+    question: "What can this Gibson serial number lookup/decoder tell me?",
+    answer: "It typically identifies the production year, factory or plant code, and country of origin. Some serial formats also hint at model lines or production sequence, but that varies by era."
+  },
+  {
+    question: "Why won't my Gibson serial number decode?",
+    answer: "Serial formats change over time, and limited runs or custom shop instruments can deviate from standard patterns. Try removing spaces or hyphens, and if it still fails, reach out so we can review it and improve the decoder."
+  }
+] %}
+
+{% block brandDescription %}
+      <p class="brand-description">The Gibson Guitar Corporation (now known as Gibson Brands, Inc.) is an iconic American manufacturer of musical instruments, best known for its influential electric and acoustic guitars like the Les Paul model. Founded in 1894 and headquartered in Nashville, Tennessee, the company has a long history of craftsmanship and musical innovation.<br><a href="#" class="decoder-howto-link" data-modal-target="howto-gibson">(How to decode a Gibson serial #)</a></p>
+{% endblock %}
+
+{% block howtoModal %}
+  <div id="howto-gibson" class="decoder-modal hidden" role="dialog" aria-modal="true" aria-labelledby="howto-gibson-title">
+    <div class="decoder-modal-backdrop" data-modal-close></div>
+    <div class="decoder-modal-content" role="document">
+      <button type="button" class="decoder-modal-close" aria-label="Close dialog" data-modal-close>&times;</button>
+      <div class="decoder-modal-header">
+        <h2 id="howto-gibson-title">How to decode a Gibson serial number</h2>
+        <p class="decoder-modal-subtitle">A quick manual method for common Gibson formats.</p>
+      </div>
+      <div class="decoder-modal-body">
+        <p>Gibson serial numbers have changed over time, but most modern Gibson USA, Gibson Acoustic, and Gibson Memphis instruments use an 8-digit stamp on the back of the headstock. If your serial doesn't match the standard pattern, it may be from a different era, model line, or special run—use our decoder or the official Gibson guide to confirm.</p>
+
+        <ol class="decoder-howto-steps">
+          <li><strong>Find the serial number.</strong> On many Gibsons it is stamped or impressed on the back of the headstock, often with “MADE IN USA” below.</li>
+          <li><strong>Check the 8-digit format (1977–present).</strong> The most common pattern is <strong>YDDDYRRR</strong>. The 1st and 5th digits indicate the year, the middle three digits are the day of the year, and the last three digits are the factory ranking/plant designation for that day.</li>
+          <li><strong>Watch for 1975–1977 decals.</strong> In that period, Gibson used an 8-digit decal where the first two digits indicate the year (99 = 1975, 00 = 1976, 06 = 1977).</li>
+        </ol>
+
+        <p class="decoder-modal-note">Still unsure? Gibson has multiple exceptions and model-specific formats. The official Gibson serial number guide is the best reference for tricky cases.</p>
+        <p class="decoder-modal-link"><a href="https://www.gibson.com/pages/serial-number-search" target="_blank" rel="noopener noreferrer">Gibson Serial Number Guide</a></p>
+
+        <div class="decoder-modal-gallery">
+          <figure>
+            <img src="../images/serial-number-examples/gibson-sg-serial-1984.jpg" alt="Gibson SG Standard headstock back with stamped serial number" loading="lazy">
+            <figcaption>Electric example: headstock stamp.</figcaption>
+          </figure>
+          <figure>
+            <img src="../images/serial-number-examples/gibson-les-paul-deluxe-serial.jpg" alt="Gibson Les Paul Deluxe serial number detail" loading="lazy">
+            <figcaption>Electric example: serial number detail.</figcaption>
+          </figure>
+          <figure>
+            <img src="../images/serial-number-examples/gibson-j200-soundhole-label.jpg" alt="Gibson acoustic soundhole label with serial number" loading="lazy">
+            <figcaption>Acoustic example: soundhole label serial number.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block afterContent %}
+  <section class="home-brand-decoders related-brand-decoders">
+    <h2 class="home-intro-title">Related Brand Decoders</h2>
+    <div class="home-brand-grid">
+      <a href="epiphone-guitar-serial-number-decoder.html" class="home-brand-link">
+        <img src="../images/brand-logos/Epiphone-Logo.png" alt="Epiphone" class="home-brand-logo brand-logo-invert">
+        <span>Epiphone Decoder</span>
+      </a>
+    </div>
+  </section>
+
+  <section class="kramer-model-list">
+    <div class="container">
+      <h2 class="home-intro-title">Popular Gibson Guitars</h2>
+      <p class="kramer-model-intro">Common Gibson models and series you might see on headstocks or listings.</p>
+      <ul class="kramer-model-grid">
+        <li><a href="https://en.wikipedia.org/wiki/Gibson_Les_Paul" target="_blank" rel="noopener">Les Paul</a></li>
+        <li><a href="https://en.wikipedia.org/wiki/Gibson_SG" target="_blank" rel="noopener">SG</a></li>
+        <li><a href="https://en.wikipedia.org/wiki/Gibson_ES-335" target="_blank" rel="noopener">ES-335</a></li>
+        <li><a href="https://en.wikipedia.org/wiki/Gibson_ES-355" target="_blank" rel="noopener">ES-355</a></li>
+        <li><a href="https://en.wikipedia.org/wiki/Gibson_ES-175" target="_blank" rel="noopener">ES-175</a></li>
+        <li><a href="https://en.wikipedia.org/wiki/Gibson_Explorer" target="_blank" rel="noopener">Explorer</a></li>
+        <li><a href="https://en.wikipedia.org/wiki/Gibson_Flying_V" target="_blank" rel="noopener">Flying V</a></li>
+        <li><a href="https://en.wikipedia.org/wiki/Gibson_Firebird" target="_blank" rel="noopener">Firebird</a></li>
+        <li><a href="https://en.wikipedia.org/wiki/Gibson_J-45" target="_blank" rel="noopener">J-45</a></li>
+        <li><a href="https://en.wikipedia.org/wiki/Gibson_Hummingbird" target="_blank" rel="noopener">Hummingbird</a></li>
+        <li><a href="https://en.wikipedia.org/wiki/Gibson_J-200" target="_blank" rel="noopener">SJ-200</a></li>
+        <li><a href="https://en.wikipedia.org/wiki/Gibson_%28guitar_company%29" target="_blank" rel="noopener">L-00</a></li>
+      </ul>
+    </div>
+  </section>
+{% endblock %}
