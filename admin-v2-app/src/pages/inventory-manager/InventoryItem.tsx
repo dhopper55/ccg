@@ -43,6 +43,12 @@ type InventoryItemRecord = {
   privatePartyValue?: number | null;
   purchaseNotes?: string;
   serialNumber?: string;
+  weightLbs?: string;
+  nutWidth?: string;
+  neckThickness?: string;
+  twelveFretAction?: string;
+  neckProfile?: string;
+  fretboardRadius?: string;
   isActive?: boolean;
   isMarked?: boolean;
   isPersonal?: boolean;
@@ -106,6 +112,12 @@ type FormState = {
   privatePartyValue: string;
   purchaseNotes: string;
   serialNumber: string;
+  weightLbs: string;
+  nutWidth: string;
+  neckThickness: string;
+  twelveFretAction: string;
+  neckProfile: string;
+  fretboardRadius: string;
   isActive: boolean;
   isMarked: boolean;
   isPersonal: boolean;
@@ -122,6 +134,13 @@ type FormState = {
 };
 
 const INVENTORY_MAX_IMAGES = 10;
+const GUITAR_CATEGORIES = new Set([
+  'Acoustic Bass',
+  'Acoustic Guitars',
+  'Electric Bass',
+  'Electric Guitars',
+]);
+
 const CATEGORY_OPTIONS = [
   'Accessories',
   'Acoustic Bass',
@@ -166,6 +185,12 @@ const DEFAULT_FORM: FormState = {
   privatePartyValue: '0',
   purchaseNotes: '',
   serialNumber: '',
+  weightLbs: '',
+  nutWidth: '',
+  neckThickness: '',
+  twelveFretAction: '',
+  neckProfile: '',
+  fretboardRadius: '',
   isActive: true,
   isMarked: false,
   isPersonal: false,
@@ -262,6 +287,12 @@ const InventoryItem = () => {
               record.privatePartyValue != null ? String(record.privatePartyValue) : '0',
             purchaseNotes: record.purchaseNotes || '',
             serialNumber: record.serialNumber || '',
+            weightLbs: record.weightLbs || '',
+            nutWidth: record.nutWidth || '',
+            neckThickness: record.neckThickness || '',
+            twelveFretAction: record.twelveFretAction || '',
+            neckProfile: record.neckProfile || '',
+            fretboardRadius: record.fretboardRadius || '',
             isActive: Boolean(record.isActive),
             isMarked: Boolean(record.isMarked),
             isPersonal: Boolean(record.isPersonal),
@@ -539,6 +570,12 @@ const InventoryItem = () => {
         fbmListingPrice: form.fbmListingPrice.trim(),
         isSold: form.isSold,
         serialNumber: form.serialNumber.trim(),
+        weightLbs: form.weightLbs.trim(),
+        nutWidth: form.nutWidth.trim(),
+        neckThickness: form.neckThickness.trim(),
+        twelveFretAction: form.twelveFretAction.trim(),
+        neckProfile: form.neckProfile.trim(),
+        fretboardRadius: form.fretboardRadius.trim(),
         soldAmount: form.soldAmount.trim(),
         sellNotes: form.sellNotes.trim(),
         isPersonal: form.isPersonal,
@@ -790,6 +827,16 @@ const InventoryItem = () => {
               <Grid size={12}>
                 <TextField
                   fullWidth
+                  label="Serial Number"
+                  value={form.serialNumber}
+                  onChange={(event) => setField('serialNumber', event.target.value)}
+                  inputProps={{ maxLength: 180 }}
+                />
+              </Grid>
+
+              <Grid size={12}>
+                <TextField
+                  fullWidth
                   label="Title"
                   value={form.title}
                   onChange={(event) => setField('title', event.target.value)}
@@ -1021,15 +1068,76 @@ const InventoryItem = () => {
                 />
               </Grid>
 
-              <Grid size={{ xs: 12, md: 6 }}>
-                <TextField
-                  fullWidth
-                  label="Serial Number"
-                  value={form.serialNumber}
-                  onChange={(event) => setField('serialNumber', event.target.value)}
-                  inputProps={{ maxLength: 180 }}
-                />
-              </Grid>
+              {GUITAR_CATEGORIES.has(form.category) ? (
+                <>
+                  <Grid size={12}>
+                    <Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: 0.6 }}>
+                      Guitar Specs
+                    </Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <TextField
+                      fullWidth
+                      label="Weight (lbs)"
+                      value={form.weightLbs}
+                      onChange={(event) => setField('weightLbs', event.target.value)}
+                      inputProps={{ maxLength: 10 }}
+                      placeholder='e.g. 9.5'
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <TextField
+                      fullWidth
+                      label="Nut Width"
+                      value={form.nutWidth}
+                      onChange={(event) => setField('nutWidth', event.target.value)}
+                      inputProps={{ maxLength: 100 }}
+                      placeholder='e.g. 1.69" (standard)'
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <TextField
+                      fullWidth
+                      label="Neck Thickness"
+                      value={form.neckThickness}
+                      onChange={(event) => setField('neckThickness', event.target.value)}
+                      inputProps={{ maxLength: 100 }}
+                      placeholder='e.g. 0.86"–0.95"+ (chunky)'
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <TextField
+                      fullWidth
+                      label="12th Fret Action"
+                      value={form.twelveFretAction}
+                      onChange={(event) => setField('twelveFretAction', event.target.value)}
+                      inputProps={{ maxLength: 100 }}
+                      placeholder='e.g. ~4/64"–5/64"'
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <TextField
+                      fullWidth
+                      label="Neck Profile"
+                      value={form.neckProfile}
+                      onChange={(event) => setField('neckProfile', event.target.value)}
+                      inputProps={{ maxLength: 100 }}
+                      placeholder="e.g. C Shape (modern, rounded)"
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <TextField
+                      fullWidth
+                      label="Fretboard Radius"
+                      value={form.fretboardRadius}
+                      onChange={(event) => setField('fretboardRadius', event.target.value)}
+                      inputProps={{ maxLength: 100 }}
+                      placeholder='e.g. 9.5" → modern Fender'
+                    />
+                  </Grid>
+                </>
+              ) : null}
+
               <Grid size={12}>
                 <Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: 0.6 }}>
                   This Unit Only

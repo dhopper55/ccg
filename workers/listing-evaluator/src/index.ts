@@ -2968,6 +2968,12 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const privatePartyValue = parseCurrencyAmount(body.privatePartyValue) ?? 0;
   const purchaseNotes = normalizeText(body.purchaseNotes, '').slice(0, 4000);
   const serialNumber = normalizeText(body.serialNumber, '').slice(0, 180);
+  const weightLbs = normalizeText(body.weightLbs, '').slice(0, 10);
+  const nutWidth = normalizeText(body.nutWidth, '').slice(0, 100);
+  const neckThickness = normalizeText(body.neckThickness, '').slice(0, 100);
+  const twelveFretAction = normalizeText(body.twelveFretAction, '').slice(0, 100);
+  const neckProfile = normalizeText(body.neckProfile, '').slice(0, 100);
+  const fretboardRadius = normalizeText(body.fretboardRadius, '').slice(0, 100);
   const isActive = toBooleanInput(body.isActive, true);
   const isMarked = toBooleanInput(body.isMarked, false);
   const isPersonal = toBooleanInput(body.isPersonal, false);
@@ -3063,6 +3069,12 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     private_party_value: privatePartyValue,
     purchase_notes: purchaseNotes || null,
     serial_number: serialNumber || null,
+    weight_lbs: weightLbs || null,
+    nut_width: nutWidth || null,
+    neck_thickness: neckThickness || null,
+    twelve_fret_action: twelveFretAction || null,
+    neck_profile: neckProfile || null,
+    fretboard_radius: fretboardRadius || null,
     is_active: isActive ? 1 : 0,
     is_marked: isMarked ? 1 : 0,
     is_personal: isPersonal ? 1 : 0,
@@ -3230,6 +3242,12 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const privatePartyValue = parseCurrencyAmount(body.privatePartyValue) ?? 0;
   const purchaseNotes = normalizeText(body.purchaseNotes, '').slice(0, 4000);
   const serialNumber = normalizeText(body.serialNumber, '').slice(0, 180);
+  const weightLbs = normalizeText(body.weightLbs, '').slice(0, 10);
+  const nutWidth = normalizeText(body.nutWidth, '').slice(0, 100);
+  const neckThickness = normalizeText(body.neckThickness, '').slice(0, 100);
+  const twelveFretAction = normalizeText(body.twelveFretAction, '').slice(0, 100);
+  const neckProfile = normalizeText(body.neckProfile, '').slice(0, 100);
+  const fretboardRadius = normalizeText(body.fretboardRadius, '').slice(0, 100);
   const isActive = toBooleanInput(body.isActive, true);
   const isMarked = toBooleanInput(body.isMarked, false);
   const isPersonal = toBooleanInput(body.isPersonal, false);
@@ -3308,6 +3326,12 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     private_party_value: privatePartyValue,
     purchase_notes: purchaseNotes || null,
     serial_number: serialNumber || null,
+    weight_lbs: weightLbs || null,
+    nut_width: nutWidth || null,
+    neck_thickness: neckThickness || null,
+    twelve_fret_action: twelveFretAction || null,
+    neck_profile: neckProfile || null,
+    fretboard_radius: fretboardRadius || null,
   }, env);
   if (!sharedUpdateOk) return jsonResponse({ message: 'Unable to update inventory items.' }, 500);
 
@@ -4588,6 +4612,12 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.private_party_value,
       i.purchase_notes,
       i.serial_number,
+      i.weight_lbs,
+      i.nut_width,
+      i.neck_thickness,
+      i.twelve_fret_action,
+      i.neck_profile,
+      i.fretboard_radius,
       i.is_active,
       i.is_marked,
       i.is_personal,
@@ -4633,6 +4663,12 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     privatePartyValue: row.private_party_value,
     purchaseNotes: row.purchase_notes || '',
     serialNumber: row.serial_number || '',
+    weightLbs: row.weight_lbs || '',
+    nutWidth: row.nut_width || '',
+    neckThickness: row.neck_thickness || '',
+    twelveFretAction: row.twelve_fret_action || '',
+    neckProfile: row.neck_profile || '',
+    fretboardRadius: row.fretboard_radius || '',
     isActive: Boolean(row.is_active),
     isMarked: Boolean(row.is_marked),
     isPersonal: Boolean(row.is_personal),
@@ -4750,6 +4786,12 @@ async function dbCreateInventoryItems(
     private_party_value: number;
     purchase_notes: string | null;
     serial_number: string | null;
+    weight_lbs: string | null;
+    nut_width: string | null;
+    neck_thickness: string | null;
+    twelve_fret_action: string | null;
+    neck_profile: string | null;
+    fretboard_radius: string | null;
     is_active: number;
     is_marked: number;
     is_personal: number;
@@ -4774,11 +4816,13 @@ async function dbCreateInventoryItems(
       (
         source_listing_id, ccg_number, image_url, title, category, brand, year_range, model, finish,
         image_urls,
-        repair_notes, original_listing_desc, purchased_date, purchase_price, private_party_value, purchase_notes, serial_number, is_active, is_marked, is_personal, needs_repair, for_sale, for_sale_date,
+        repair_notes, original_listing_desc, purchased_date, purchase_price, private_party_value, purchase_notes, serial_number,
+        weight_lbs, nut_width, neck_thickness, twelve_fret_action, neck_profile, fretboard_radius,
+        is_active, is_marked, is_personal, needs_repair, for_sale, for_sale_date,
         fbm_listing, fbm_title, fbm_url, fbm_image_url, fbm_listing_price,
         is_sold, sold_date, sold_amount, sell_notes
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const statements = Array.from({ length: qty }, (_, index) =>
       env.DB.prepare(statement).bind(
@@ -4799,6 +4843,12 @@ async function dbCreateInventoryItems(
         fields.private_party_value,
         fields.purchase_notes,
         fields.serial_number,
+        fields.weight_lbs,
+        fields.nut_width,
+        fields.neck_thickness,
+        fields.twelve_fret_action,
+        fields.neck_profile,
+        fields.fretboard_radius,
         fields.is_active,
         fields.is_marked,
         fields.is_personal,
@@ -4845,6 +4895,12 @@ async function dbUpdateInventorySharedByCcgNumber(
     private_party_value: number;
     purchase_notes: string | null;
     serial_number: string | null;
+    weight_lbs: string | null;
+    nut_width: string | null;
+    neck_thickness: string | null;
+    twelve_fret_action: string | null;
+    neck_profile: string | null;
+    fretboard_radius: string | null;
   },
   env: Env
 ): Promise<boolean> {
@@ -4854,7 +4910,8 @@ async function dbUpdateInventorySharedByCcgNumber(
        SET
          image_url = ?, title = ?, category = ?, brand = ?, year_range = ?, model = ?, finish = ?, image_urls = ?,
          repair_notes = ?, original_listing_desc = ?, purchased_date = ?, purchase_price = ?, private_party_value = ?, purchase_notes = ?,
-         serial_number = ?, updated_at = CURRENT_TIMESTAMP
+         serial_number = ?, weight_lbs = ?, nut_width = ?, neck_thickness = ?, twelve_fret_action = ?, neck_profile = ?, fretboard_radius = ?,
+         updated_at = CURRENT_TIMESTAMP
        WHERE ccg_number = ?`
     ).bind(
       fields.image_url,
@@ -4872,6 +4929,12 @@ async function dbUpdateInventorySharedByCcgNumber(
       fields.private_party_value,
       fields.purchase_notes,
       fields.serial_number,
+      fields.weight_lbs,
+      fields.nut_width,
+      fields.neck_thickness,
+      fields.twelve_fret_action,
+      fields.neck_profile,
+      fields.fretboard_radius,
       ccgNumber,
     ).run();
     return true;
