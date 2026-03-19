@@ -44,11 +44,12 @@ type InventoryItemRecord = {
   purchaseNotes?: string;
   serialNumber?: string;
   weightLbs?: string;
-  nutWidth?: string;
-  neckThickness?: string;
-  twelveFretAction?: string;
   neckProfile?: string;
+  neckThickness?: string;
+  nutWidth?: string;
+  width12Fret?: string;
   fretboardRadius?: string;
+  twelveFretAction?: string;
   isActive?: boolean;
   isMarked?: boolean;
   isPersonal?: boolean;
@@ -113,11 +114,12 @@ type FormState = {
   purchaseNotes: string;
   serialNumber: string;
   weightLbs: string;
-  nutWidth: string;
-  neckThickness: string;
-  twelveFretAction: string;
   neckProfile: string;
+  neckThickness: string;
+  nutWidth: string;
+  width12Fret: string;
   fretboardRadius: string;
+  twelveFretAction: string;
   isActive: boolean;
   isMarked: boolean;
   isPersonal: boolean;
@@ -186,11 +188,12 @@ const DEFAULT_FORM: FormState = {
   purchaseNotes: '',
   serialNumber: '',
   weightLbs: '',
-  nutWidth: '',
-  neckThickness: '',
-  twelveFretAction: '',
   neckProfile: '',
+  neckThickness: '',
+  nutWidth: '',
+  width12Fret: '',
   fretboardRadius: '',
+  twelveFretAction: '',
   isActive: true,
   isMarked: false,
   isPersonal: false,
@@ -288,11 +291,12 @@ const InventoryItem = () => {
             purchaseNotes: record.purchaseNotes || '',
             serialNumber: record.serialNumber || '',
             weightLbs: record.weightLbs || '',
-            nutWidth: record.nutWidth || '',
-            neckThickness: record.neckThickness || '',
-            twelveFretAction: record.twelveFretAction || '',
             neckProfile: record.neckProfile || '',
+            neckThickness: record.neckThickness || '',
+            nutWidth: record.nutWidth || '',
+            width12Fret: record.width12Fret || '',
             fretboardRadius: record.fretboardRadius || '',
+            twelveFretAction: record.twelveFretAction || '',
             isActive: Boolean(record.isActive),
             isMarked: Boolean(record.isMarked),
             isPersonal: Boolean(record.isPersonal),
@@ -571,11 +575,12 @@ const InventoryItem = () => {
         isSold: form.isSold,
         serialNumber: form.serialNumber.trim(),
         weightLbs: form.weightLbs.trim(),
-        nutWidth: form.nutWidth.trim(),
-        neckThickness: form.neckThickness.trim(),
-        twelveFretAction: form.twelveFretAction.trim(),
         neckProfile: form.neckProfile.trim(),
+        neckThickness: form.neckThickness.trim(),
+        nutWidth: form.nutWidth.trim(),
+        width12Fret: form.width12Fret.trim(),
         fretboardRadius: form.fretboardRadius.trim(),
+        twelveFretAction: form.twelveFretAction.trim(),
         soldAmount: form.soldAmount.trim(),
         sellNotes: form.sellNotes.trim(),
         isPersonal: form.isPersonal,
@@ -1088,11 +1093,11 @@ const InventoryItem = () => {
                   <Grid size={{ xs: 12, md: 4 }}>
                     <TextField
                       fullWidth
-                      label="Nut Width"
-                      value={form.nutWidth}
-                      onChange={(event) => setField('nutWidth', event.target.value)}
+                      label="Neck Profile"
+                      value={form.neckProfile}
+                      onChange={(event) => setField('neckProfile', event.target.value)}
                       inputProps={{ maxLength: 100 }}
-                      placeholder='e.g. 1.69" (standard)'
+                      placeholder="e.g. C Shape (modern, rounded)"
                     />
                   </Grid>
                   <Grid size={{ xs: 12, md: 4 }}>
@@ -1108,21 +1113,21 @@ const InventoryItem = () => {
                   <Grid size={{ xs: 12, md: 4 }}>
                     <TextField
                       fullWidth
-                      label="12th Fret Action"
-                      value={form.twelveFretAction}
-                      onChange={(event) => setField('twelveFretAction', event.target.value)}
+                      label="Nut Width"
+                      value={form.nutWidth}
+                      onChange={(event) => setField('nutWidth', event.target.value)}
                       inputProps={{ maxLength: 100 }}
-                      placeholder='e.g. ~4/64"–5/64"'
+                      placeholder='e.g. 1.69" (standard)'
                     />
                   </Grid>
                   <Grid size={{ xs: 12, md: 4 }}>
                     <TextField
                       fullWidth
-                      label="Neck Profile"
-                      value={form.neckProfile}
-                      onChange={(event) => setField('neckProfile', event.target.value)}
+                      label="Neck Width (12th Fret)"
+                      value={form.width12Fret}
+                      onChange={(event) => setField('width12Fret', event.target.value)}
                       inputProps={{ maxLength: 100 }}
-                      placeholder="e.g. C Shape (modern, rounded)"
+                      placeholder='e.g. 2.06"'
                     />
                   </Grid>
                   <Grid size={{ xs: 12, md: 4 }}>
@@ -1133,6 +1138,16 @@ const InventoryItem = () => {
                       onChange={(event) => setField('fretboardRadius', event.target.value)}
                       inputProps={{ maxLength: 100 }}
                       placeholder='e.g. 9.5" → modern Fender'
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <TextField
+                      fullWidth
+                      label="12th Fret Action"
+                      value={form.twelveFretAction}
+                      onChange={(event) => setField('twelveFretAction', event.target.value)}
+                      inputProps={{ maxLength: 100 }}
+                      placeholder='e.g. ~4/64"–5/64"'
                     />
                   </Grid>
                 </>
