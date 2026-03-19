@@ -65,6 +65,22 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | 881865 | Legacy late-80s numeric format, 1988 (YY + sequence; USA-linked assembly/Japan parts context) |
 | 041195 | 6-digit numeric YYMMSS format, primary: 2004 November, alt vintage read: 1994 November |
 | 402989 | 6-digit pre-letter numeric YMMNNN format, primary: 1974 February, alt read: 1984 February |
+| F912345 | Japan F/H/I format, 1989, April |
+| A12345 | Sugi / J-Custom 5-digit format |
+| IG123456 | IGDC format |
+| FC1234567 | FC hybrid format |
+| S98012345 | Korea 8-digit format, 1999 |
+| Y123456 | Korea 6-digit format, 1991 |
+| E1234567 | Korea Sung-Eum format |
+| SQ123456 | Saehan acoustic fallback format |
+| KR040512345 | KR format, 2004, May |
+| CP051234 | CP format |
+| A0300009 | Month-letter 7-digit format, 2003, January |
+| PW230401856 | PT Woonan Indonesia, 2023, April |
+| A1234B | Indonesia Premium format, 2011, January |
+| S1234567 | Korea Samick format, 1991 |
+| PR040512345 | Indonesia PR prefix, 2004, May |
+| Z912345 | China Yeou Chern format |
 
 ## Gibson
 
@@ -73,6 +89,9 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | 90234567 | 1999 (9th digit = decade, 1st digit = year) |
 | 02345678 | 2000 |
 | 12345678 | 2001 |
+| 115100123 | 9-digit Gibson format, 2010 |
+| 123456 | 6-digit 1970s Gibson format |
+| 12345 | Vintage Gibson, approximate 1950s-1960s |
 
 ## Fender
 
@@ -81,6 +100,24 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | MX21123456 | Mexico, 2021 |
 | US12345678 | USA |
 | JD14123456 | Japan, 2014 |
+| DZ1234567 | USA American Deluxe, 2001 |
+| Z1234567 | USA Z-prefix, 2001 |
+| N1234567 | USA N-prefix, 1991 |
+| E1234567 | USA E-prefix, 1981 |
+| S9123456 | USA S-prefix, 1979 |
+| MZ1234567 | Mexico, 2001 |
+| MN1234567 | Mexico, 1991 |
+| JFFA211234 | Japan JFF prefix, 2021 |
+| JV12345 | Japan JV series, 1982-1984 |
+| J123456 | Japan J-prefix format |
+| A123456 | Japan letter prefix format |
+| V123456 | American Vintage Reissue V-prefix |
+| KO123456 | Korea KO/K prefix format |
+| IC21123456 | Indonesia, 2021 |
+| 0012345678 | Internal Fender part-number style |
+| 12345 | Vintage Fender 5-digit format |
+| 1234567 | Fender Japan acoustic label number |
+| 1234 | Early vintage Fender 4-digit format |
 
 ## Epiphone
 
@@ -89,6 +126,11 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | F1234567 | FujiGen Japan |
 | S1234567 | Samick Korea |
 | I1234567 | Indonesia |
+| EE12051234 | Qingdao China two-letter format, 2012, May |
+| 08121512345 | Numeric factory code format, 2008, December, factory 15 |
+| Z51234 | Letter-year format, 2005 |
+| FTRIBUTE | F-serial format used on some Tribute / '59 / '60 models |
+| 12345 | Vintage Epiphone, approximate pre-1958 era |
 
 ## Taylor
 
@@ -96,6 +138,9 @@ Sample serial numbers for testing the guitar serial decoder locally.
 |---------------|-----------------|
 | 2107154123 | 2021, July 15 |
 | 1012104567 | 2010, December 10 |
+| 20051215023 | 11-digit Taylor format, 2005, December 15 |
+| 970715423 | 9-digit Taylor format, 1997, July 15 |
+| 12345678 | Early Taylor pre-1993 format |
 
 ## Martin
 
@@ -103,6 +148,8 @@ Sample serial numbers for testing the guitar serial decoder locally.
 |---------------|-----------------|
 | 2473516 | 2021 (based on sequential numbering) |
 | 1234567 | ~2000 |
+| 900500 | Sigma-Martin, 1981-1982 |
+| 1234 | Pre-1898 Martin / pre-serial era |
 
 ## Yamaha
 
@@ -113,6 +160,19 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | QQH123456 | Taiwan/Indonesia 2001+, year ending in 0 |
 | 2AB1234 | Japan Electric 1997+ |
 | ABCD123 | Japan Electric 1989-2002 |
+| QIH111C | Japan Custom Shop 2004+ format |
+| QZ333 | Japan Custom Shop 1997-2003 format |
+| HP213J | Japan Custom Shop 1991-1996 format |
+| 7FM123 | Japan Electric 1994-1997 format |
+| 5I04013 | Japan Electric 1986-1989 format |
+| MI0031 | Japan Electric 1984-1996 format |
+| 710502 | Tenryu 1969-1984 numeric format |
+| 12345 | Tenryu 1946-1968 5-digit format |
+| I0L033214 | Letter-zero-letter + 6 digits variant |
+| 2103151234 | Indonesia 2000+ 10-digit format |
+| 912151234 | Indonesia 1997-1999 9-digit format |
+| 81215123 | Indonesia 1990-1996 8-digit format |
+| QKJ0011Y | Korea/China 2003+ format |
 
 ## PRS
 
@@ -125,6 +185,9 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | CTCK12345 | SE Series, Cort China, 2010 |
 | CE12345 | CE Bolt-On, USA, 1998-2008 |
 | A15001 | Acoustic, USA, 2015 |
+| EC12345 | EG model format, 1990-1995 |
+| SA12345 | Swamp Ash Special format, 1998-2009 |
+| EB12345 | Electric Bass format, 2000-2004 |
 
 ## ESP
 
@@ -134,10 +197,13 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | E1234162 | ESP Japan, 2016, Signatures Series |
 | ES1234173 | E-II Japan, 2017 |
 | K1507501 | Kiso Factory Japan, 2015, February |
+| K1234 | Kirk Hammett signature, 1993-1994 |
 | US15123 | ESP USA California, 2015 |
 | 25055012 | Pre-2000 Japan, May 25, 1985 or 1995 |
 | W21051234 | LTD Korea, 2021, May |
 | L21031234 | LTD China, 2021, March |
+| IR21051234 | LTD Indonesia, 2021, May |
+| I21051234 | LTD Vietnam, 2021, May |
 
 ## Schecter
 
@@ -150,6 +216,10 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | C08051234 | Korea (Cort), 2008, May |
 | 0236758 | Korea, 2002 |
 | A1234 | USA Custom Shop |
+| H1205123 | Korea H-prefix format, 2012, May |
+| S2105123 | China S-prefix format, 2021, May |
+| L2105123 | China L-prefix format, 2021, May |
+| SA123456 | Japan SA prefix format |
 
 ## Gretsch
 
@@ -165,6 +235,7 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | 123456-123 | Japan Revival 1989-2002 |
 | 150000 | Baldwin era, ~1972 |
 | 25000 | Pre-Baldwin, ~1959 |
+| 8-123 | Baldwin-era hyphen format |
 
 ## Jackson
 
@@ -189,6 +260,8 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | 2010123456 | India JS30xx, 2010 |
 | 1234567 | Korea Performer |
 | 65002013 | Taiwan JS20, 1996 |
+| JSA1234567 | Modern alphanumeric Jackson format |
+| 931234 | Japan Fusion, 1993 |
 
 ## Kramer
 
@@ -204,6 +277,13 @@ Sample serial numbers for testing the guitar serial decoder locally.
 |---------------|-----------------|
 | i50311 | Short I-prefix import estimate: likely 2005, March (I + Y + MM + sequence; factory unresolved) |
 | 36642 | USA neck-through 5-digit with known serial drift, estimated 1982-1983 (apparent code often reads later) |
+| A08240023 | Month/factory code format, January 2024, World Korea |
+| F812345 | Import F-series, 1998 |
+| BO123 | Bolt-on B0/BO format, 2000 |
+| 12112345 | 8-digit date-stamp numeric format, 2001 |
+| R991234 | NJ series, 1999 |
+| BC12345 | Class Axe BC-prefix format |
+| B1234 | Class Axe B-prefix format, estimated 1989-1993 |
 
 ## Squier
 
@@ -229,6 +309,13 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | CGS10123456 | China (Grand Reward), 2010 |
 | MN5123456 | Mexico, 1995 |
 | MZ3123456 | Mexico, 2003 |
+| ISS123456 | Indonesia ISS prefix format |
+| SI15123456 | Indonesia SI prefix, 2015 |
+| YN6123456 | China YN prefix |
+| CA10123456 | China CA/CAE prefix, 2010 |
+| COS12123456 | China COB/COS prefix, 2012 |
+| CSS12123456 | China CSS prefix, 2012 |
+| NC123456 | China NC prefix |
 
 ## Cort
 
@@ -246,6 +333,9 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | ICF09123456 | Indonesia (Cort, Fender branded), 2009 |
 | COS12123456 | China (Cort), 2012 |
 | COB15123456 | China (Cort), 2015 |
+| IE21051234 | Indonesia IE prefix, 2021, May |
+| 210812345 | 9-digit modern format, 2021, August |
+| 123456 | 6-digit older/ambiguous format |
 
 ## Takamine
 
@@ -260,6 +350,7 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | 0812345678 | Japan, 2008, December (10-digit format) |
 | 031234 | Korea G Series, 2003, week 12 (6-digit Korean format) |
 | 9506123 | Japan, 1995, June (7-digit format) |
+| T123456 | Alphanumeric Takamine format |
 
 ## Washburn
 
@@ -292,6 +383,10 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | IW19070289 | Indonesia (IW), 2019, July |
 | CT18051234 | Indonesia (CT), 2018, May |
 | JF9801234 | Japan FujiGen, 1998 |
+| J123456 | Japan J-prefix format |
+| O123456 | China O-prefix format |
+| W123456 | Korea W-prefix format |
+| H123456 | India H-prefix format |
 | S9512345 | Samick Korea, 1993-1996 |
 | 8512345 | USA, 1985 (Zelinsky era) |
 | 0012345 | USA, 2000 (Armadillo era) |
@@ -317,6 +412,7 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | B021396 | Pre-EB or early EB bass |
 | 85123 | USA, 1985 (headstock format) |
 | 93123 | USA, 1993 (neck plate format) |
+| 123456 | USA, 6-digit numeric format |
 | SR12345 | Sterling by Music Man (Indonesia) |
 
 ## Guild
@@ -363,6 +459,7 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | 0506123 | Alvarez Yairi Japan (Emperor code with sequence: 2005, June) |
 | 9703456 | Alvarez Yairi Japan (Emperor code: Heisei 9 or 1997, March) |
 | 12345678 | Alvarez (8-digit, format YYMMXXXX) |
+| 241234567 | Alvarez (long numeric format, possible 2024) |
 
 ## Godin
 
@@ -379,6 +476,7 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | 12345 | Godin/Seagull (5-digit transitional), 1992-1993 |
 | 4998 | Godin/Seagull (4-digit sequential), 1990 |
 | 8615 | Godin/Seagull (4-digit sequential), 1991 |
+| 123456 | Godin/Seagull pre-1987 numeric format |
 | B12345 | Norman (B prefix), 1980-1988 |
 | F06053168 | Godin (F prefix = factory second), fiscal year 2006 |
 
@@ -435,10 +533,14 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | CM123456 | Mexico, early 2013 |
 | ICJ1500001 | Indonesia Cort, 2015 |
 | ISJ1720250 | Indonesia Samick, 2017 |
+| CF2312345 | Korea WMI, 2023 (CF prefix) |
+| CXA1234567 | USA Select / USA Select-style 10-character format |
+| 12345 | Japan neck plate, ~1986-1989 |
 | 05050187 | 8-digit numeric format, 2005, May (best-effort YYMM + sequence parse; likely import) |
 | 001234 | USA Pro-Mod, 2009-2010 |
 | 10000821 | USA Pro-Mod, 2010 |
 | 11000123 | USA Pro-Mod, 2011 |
+| 110123456 | USA Pro-Mod, 2011 (9-digit 2010+ format) |
 | 370000 | Surfcaster, 1990s |
 
 ## Rickenbacker
