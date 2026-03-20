@@ -3020,7 +3020,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const fbmImageUrlRaw = normalizeText(body.fbmImageUrl, '');
   const fbmListingPriceRaw = parseCurrencyAmount(body.fbmListingPrice);
   const fbmUrl = normalizeUrl(fbmUrlRaw);
-  const fbmImageUrl = normalizeUrl(fbmImageUrlRaw);
+  let fbmImageUrl = normalizeInventoryOrExternalImageUrl(fbmImageUrlRaw);
   const fbmListingPrice = fbmListingPriceRaw;
   const soldAmount = parseCurrencyAmount(body.soldAmount);
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
@@ -3043,6 +3043,17 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     }
     if (fbmListingPrice == null || !Number.isFinite(fbmListingPrice) || fbmListingPrice <= 0) {
       return jsonResponse({ message: 'FBM listing price must be greater than 0.' }, 400);
+    }
+    if (fbmImageUrl && !isInventoryImageUrl(fbmImageUrl)) {
+      try {
+        fbmImageUrl = await importExternalImageToInventory(fbmImageUrl, env);
+      } catch (error) {
+        return jsonResponse({
+          message: error instanceof Error
+            ? `Unable to import Facebook Marketplace image: ${error.message}`
+            : 'Unable to import Facebook Marketplace image.',
+        }, 400);
+      }
     }
   }
 
@@ -3201,35 +3212,14 @@ async function handleInventoryImageImport(request: Request, env: Env): Promise<R
     return jsonResponse({ message: 'Source image URL is required.' }, 400);
   }
 
-  let sourceResponse: Response;
   try {
-    sourceResponse = await fetch(sourceUrl, {
-      headers: { 'User-Agent': 'CCG Inventory Import/1.0' },
-      redirect: 'follow',
-    });
-  } catch {
-    return jsonResponse({ message: 'Unable to fetch source image.' }, 400);
+    const imageUrl = await importExternalImageToInventory(sourceUrl, env);
+    return jsonResponse({ ok: true, imageUrl });
+  } catch (error) {
+    return jsonResponse({
+      message: error instanceof Error ? error.message : 'Unable to import source image.',
+    }, 400);
   }
-
-  if (!sourceResponse.ok) {
-    return jsonResponse({ message: 'Unable to fetch source image.' }, 400);
-  }
-
-  const contentType = sourceResponse.headers.get('content-type') || '';
-  if (!contentType.toLowerCase().startsWith('image/')) {
-    return jsonResponse({ message: 'Source URL did not return an image.' }, 400);
-  }
-
-  const extension = extensionFromContentType(contentType);
-  const key = `inventory-items/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${extension}`;
-  const bodyBytes = await sourceResponse.arrayBuffer();
-  await env.CUSTOM_ITEMS_BUCKET.put(key, bodyBytes, {
-    httpMetadata: {
-      contentType: contentType || 'application/octet-stream',
-    },
-  });
-
-  return jsonResponse({ ok: true, imageUrl: buildInventoryImageUrl(key) });
 }
 
 async function handleInventoryGet(path: string, env: Env): Promise<Response> {
@@ -3296,7 +3286,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const fbmImageUrlRaw = normalizeText(body.fbmImageUrl, '');
   const fbmListingPriceRaw = parseCurrencyAmount(body.fbmListingPrice);
   const fbmUrl = normalizeUrl(fbmUrlRaw);
-  const fbmImageUrl = normalizeUrl(fbmImageUrlRaw);
+  let fbmImageUrl = normalizeInventoryOrExternalImageUrl(fbmImageUrlRaw);
   const fbmListingPrice = fbmListingPriceRaw;
   const soldAmount = parseCurrencyAmount(body.soldAmount);
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
@@ -3319,6 +3309,17 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     }
     if (fbmListingPrice == null || !Number.isFinite(fbmListingPrice) || fbmListingPrice <= 0) {
       return jsonResponse({ message: 'FBM listing price must be greater than 0.' }, 400);
+    }
+    if (fbmImageUrl && !isInventoryImageUrl(fbmImageUrl)) {
+      try {
+        fbmImageUrl = await importExternalImageToInventory(fbmImageUrl, env);
+      } catch (error) {
+        return jsonResponse({
+          message: error instanceof Error
+            ? `Unable to import Facebook Marketplace image: ${error.message}`
+            : 'Unable to import Facebook Marketplace image.',
+        }, 400);
+      }
     }
   }
 
@@ -7599,6 +7600,14 @@ function normalizeUrl(raw: string): string | null {
   }
 }
 
+function normalizeInventoryOrExternalImageUrl(raw: string): string | null {
+  if (!raw || typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (isInventoryImageUrl(trimmed)) return trimmed;
+  return normalizeUrl(trimmed);
+}
+
 function detectSource(url: string): ListingSource | null {
   try {
     const parsed = new URL(url);
@@ -8378,6 +8387,42 @@ function normalizeInventoryImageUrls(primaryImageUrl: string, rawInput: unknown)
 
   const seed = primaryImageUrl ? [primaryImageUrl.trim(), ...fromInput] : [...fromInput];
   return Array.from(new Set(seed.filter((url) => isInventoryImageUrl(url)))).slice(0, INVENTORY_MAX_IMAGES);
+}
+
+async function importExternalImageToInventory(sourceUrl: string, env: Env): Promise<string> {
+  if (!env.CUSTOM_ITEMS_BUCKET) {
+    throw new Error('Inventory image uploads are not configured.');
+  }
+
+  let sourceResponse: Response;
+  try {
+    sourceResponse = await fetch(sourceUrl, {
+      headers: { 'User-Agent': 'CCG Inventory Import/1.0' },
+      redirect: 'follow',
+    });
+  } catch {
+    throw new Error('Unable to fetch source image.');
+  }
+
+  if (!sourceResponse.ok) {
+    throw new Error('Unable to fetch source image.');
+  }
+
+  const contentType = sourceResponse.headers.get('content-type') || '';
+  if (!contentType.toLowerCase().startsWith('image/')) {
+    throw new Error('Source URL did not return an image.');
+  }
+
+  const extension = extensionFromContentType(contentType);
+  const key = `inventory-items/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${extension}`;
+  const bodyBytes = await sourceResponse.arrayBuffer();
+  await env.CUSTOM_ITEMS_BUCKET.put(key, bodyBytes, {
+    httpMetadata: {
+      contentType: contentType || 'application/octet-stream',
+    },
+  });
+
+  return buildInventoryImageUrl(key);
 }
 
 function formatDateForPackageNotes(value: string | null): string {
