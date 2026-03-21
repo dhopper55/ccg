@@ -49,6 +49,7 @@ type ListingGridRow = {
   sourceLabel: string;
   sourceImageSrc: string | null;
   sourceIcon: string | null;
+  sourceBadgeText: string | null;
   statusLabel: string;
   statusColor: ChipOwnProps['color'];
   askingPriceLabel: string;
@@ -117,22 +118,26 @@ function buildImageSrc(imageUrl?: string | null, referrer?: string): string | nu
   return cleaned;
 }
 
-function buildSourceMeta(source?: string): { label: string; imageSrc: string | null; icon: string | null } {
+function buildSourceMeta(source?: string): { label: string; imageSrc: string | null; icon: string | null; badgeText: string | null } {
   const normalized = source?.trim().toLowerCase() || '';
   if (normalized === 'facebook' || normalized === 'fbm' || normalized.includes('facebook')) {
-    return { label: 'FBM', imageSrc: '/images/fb.png', icon: null };
+    return { label: 'FBM', imageSrc: '/images/fb.png', icon: null, badgeText: null };
   }
   if (normalized === 'craigslist' || normalized === 'cg' || normalized.includes('craigslist')) {
-    return { label: 'CL', imageSrc: '/images/cl.png', icon: null };
+    return { label: 'CL', imageSrc: '/images/cl.png', icon: null, badgeText: null };
+  }
+  if (normalized === 'reverb' || normalized === 'r' || normalized.includes('reverb')) {
+    return { label: 'Reverb', imageSrc: null, icon: null, badgeText: 'R' };
   }
   if (normalized === 'custom') {
     return {
       label: 'Custom',
       imageSrc: null,
       icon: 'material-symbols:photo-camera-rounded',
+      badgeText: null,
     };
   }
-  return { label: source?.trim() || 'Unknown', imageSrc: null, icon: null };
+  return { label: source?.trim() || 'Unknown', imageSrc: null, icon: null, badgeText: null };
 }
 
 function buildStatusColor(status?: string): ChipOwnProps['color'] {
@@ -244,6 +249,7 @@ const ListingEvaluatorResults = () => {
           sourceLabel: sourceMeta.label,
           sourceImageSrc: sourceMeta.imageSrc,
           sourceIcon: sourceMeta.icon,
+          sourceBadgeText: sourceMeta.badgeText,
           statusLabel: record.status?.trim() || 'unknown',
           statusColor: buildStatusColor(record.status),
           askingPriceLabel: formatCurrencyValue(record.askingPrice),
@@ -427,7 +433,7 @@ const ListingEvaluatorResults = () => {
                     </Stack>
 
                     <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 0 }}>
-                      {row.sourceImageSrc || row.sourceIcon ? (
+                      {row.sourceImageSrc || row.sourceIcon || row.sourceBadgeText ? (
                         <Avatar
                           variant="rounded"
                           src={row.sourceImageSrc || undefined}
@@ -441,6 +447,10 @@ const ListingEvaluatorResults = () => {
                         >
                           {row.sourceImageSrc ? null : row.sourceIcon ? (
                             <IconifyIcon icon={row.sourceIcon} fontSize={18} />
+                          ) : row.sourceBadgeText ? (
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                              {row.sourceBadgeText}
+                            </Typography>
                           ) : null}
                         </Avatar>
                       ) : null}
@@ -548,7 +558,7 @@ const ListingEvaluatorResults = () => {
                         </Stack>
                       </TableCell>
                       <TableCell align="center">
-                        {row.sourceImageSrc || row.sourceIcon ? (
+                        {row.sourceImageSrc || row.sourceIcon || row.sourceBadgeText ? (
                           <Avatar
                             variant="rounded"
                             src={row.sourceImageSrc || undefined}
@@ -567,6 +577,10 @@ const ListingEvaluatorResults = () => {
                           >
                             {row.sourceImageSrc ? null : row.sourceIcon ? (
                               <IconifyIcon icon={row.sourceIcon} fontSize={20} />
+                            ) : row.sourceBadgeText ? (
+                              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                {row.sourceBadgeText}
+                              </Typography>
                             ) : null}
                           </Avatar>
                         ) : (

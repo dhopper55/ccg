@@ -98,7 +98,7 @@ function createListingCard(listing: UnifiedListing): HTMLElement {
 
   const source = document.createElement('span');
   source.className = `listing-source listing-source--${listing.source}`;
-  source.textContent = listing.source === 'facebook' ? 'Facebook' : 'Reverb';
+  source.textContent = listing.source === 'facebook' ? 'Facebook' : 'R';
 
   const priceGroup = document.createElement('div');
   priceGroup.className = 'listing-price-group';

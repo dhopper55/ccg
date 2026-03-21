@@ -42,6 +42,7 @@ interface QueueResult {
   source?: string;
   runId?: string;
   row?: number;
+  recordId?: string;
   unarchived?: boolean;
   isMulti?: boolean;
 }
@@ -1456,13 +1457,18 @@ async function handleSubmit(request: Request, env: Env, ctx: ExecutionContext): 
     const resolvedUrl = await resolveFacebookShareUrl(item.url);
     const normalizedResolvedUrl = normalizeQueuedListingUrl(resolvedUrl);
     if (!normalizedResolvedUrl || !isSupportedListingUrl(normalizedResolvedUrl)) {
-      rejected.push({ url: item.url, reason: 'Unsupported URL. Use a Facebook Marketplace item URL or Craigslist listing URL.' });
+      rejected.push({ url: item.url, reason: 'Unsupported URL. Use a Facebook Marketplace item URL, Craigslist listing URL, or single Reverb item URL.' });
       continue;
     }
 
     const source = detectSource(normalizedResolvedUrl);
     if (!source) {
-      rejected.push({ url: item.url, reason: 'Unsupported URL. Use Craigslist or Facebook Marketplace.' });
+      rejected.push({ url: item.url, reason: 'Unsupported URL. Use Craigslist, Facebook Marketplace, or Reverb.' });
+      continue;
+    }
+
+    if (source === 'reverb' && item.isMulti) {
+      rejected.push({ url: item.url, reason: 'Reverb URLs are supported only in single-item mode.' });
       continue;
     }
 
@@ -1481,11 +1487,32 @@ async function handleSubmit(request: Request, env: Env, ctx: ExecutionContext): 
           let runId: string | undefined;
           const source = detectSource(item.url);
           if (source) {
-            const startedRunId = await startApifyRun(item.url, source as ListingSource, env);
-            if (startedRunId) {
-              runId = startedRunId;
-              await env.LISTING_JOBS.put(startedRunId, existing.id);
+            if (source === 'reverb') {
+              const listingId = extractReverbListingId(item.url);
+              if (!listingId) {
+                rejected.push({ url: item.url, reason: 'Unsupported Reverb URL. Use a direct Reverb item URL.' });
+                continue;
+              }
+              runId = generateRunId();
+              await env.LISTING_JOBS.put(runId, existing.id);
               await dbUpdateListing(existing.id, { status: 'queued' }, env);
+              ctx.waitUntil((async () => {
+                try {
+                  const listing = await fetchReverbListingById(listingId, env);
+                  if (!listing) throw new Error('Reverb API returned incomplete listing data.');
+                  await processDirectListing(existing.id, runId as string, listing, env, { isMulti: item.isMulti });
+                } catch (error) {
+                  console.error('Reverb restore processing failed', { url: item.url, error });
+                  await updateRowByRunId(runId as string, { runId, status: 'failed' }, env, { recordId: existing.id, isMulti: item.isMulti });
+                }
+              })());
+            } else {
+              const startedRunId = await startApifyRun(item.url, source as ListingSource, env);
+              if (startedRunId) {
+                runId = startedRunId;
+                await env.LISTING_JOBS.put(startedRunId, existing.id);
+                await dbUpdateListing(existing.id, { status: 'queued' }, env);
+              }
             }
           }
           results.push({ ...item, unarchived: true, runId });
@@ -1496,15 +1523,32 @@ async function handleSubmit(request: Request, env: Env, ctx: ExecutionContext): 
       continue;
     }
 
+    if (item.source === 'reverb') {
+      try {
+        const { runId, recordId, listing } = await queueAndProcessReverbListing(item.url, item.isMulti ?? false, env);
+        ctx.waitUntil((async () => {
+          try {
+            await processDirectListing(recordId, runId, listing, env, { isMulti: item.isMulti });
+          } catch (error) {
+            console.error('Reverb queued processing failed', { url: item.url, recordId, error });
+          }
+        })());
+        results.push({ ...item, runId, recordId });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unable to load Reverb listing from API.';
+        rejected.push({ url: item.url, reason: message });
+      }
+      continue;
+    }
+
     const runId = await startApifyRun(item.url, item.source as ListingSource, env);
     if (!runId) {
       rejected.push({ url: item.url, reason: 'Unable to start scraper run.' });
       continue;
     }
 
-    await insertQueuedRow(item.url, item.source as ListingSource, runId, item.isMulti ?? false, env);
-
-    results.push({ ...item, runId });
+    const recordId = await insertQueuedRow(item.url, item.source as ListingSource, runId, item.isMulti ?? false, env);
+    results.push({ ...item, runId, recordId: recordId || undefined });
   }
 
   return jsonResponse({
@@ -1686,6 +1730,62 @@ async function processCustomListing(
       runId,
       status: 'failed',
     }, env, { recordId, isMulti: false });
+  }
+}
+
+async function processDirectListing(
+  recordId: string,
+  runId: string,
+  listing: ListingData,
+  env: Env,
+  options?: { isMulti?: boolean }
+): Promise<void> {
+  const isMulti = Boolean(options?.isMulti);
+  const baseUrl = env.SITE_BASE_URL || 'https://www.coalcreekguitars.com';
+  const aiImages = listing.images.map((imageUrl) => toAbsoluteImageUrl(imageUrl, baseUrl));
+
+  try {
+    await dbUpdateListing(recordId, { status: 'processing' }, env);
+    const aiResult = await runOpenAI({ ...listing, images: aiImages }, env, { isMulti });
+    let aiSummary = aiResult.kind === 'multi' ? ensureMultiTotals(aiResult.summary) : '';
+    let aiData = aiResult.kind === 'single' ? aiResult.data : undefined;
+
+    if (aiResult.kind === 'single' && aiData) {
+      aiData = clearPrivatePartyPricingFields(aiData);
+      const pricing = await getRealisticPrivatePartyPricing(aiData, env);
+      if (pricing) {
+        aiData = { ...aiData, ...pricing };
+      }
+    }
+
+    if (aiResult.kind === 'multi') {
+      const pricing = await runOpenAIMultiRangePricing(listing, aiSummary, env);
+      if (pricing) {
+        aiSummary = applyMultiRangeToSummary(aiSummary, pricing.low, pricing.high);
+      }
+    }
+
+    await updateRowByRunId(runId, {
+      runId,
+      status: 'complete',
+      title: listing.title,
+      price: listing.price,
+      location: listing.location,
+      condition: listing.condition,
+      description: listing.description,
+      photos: listing.images.join('\n'),
+      image_url: listing.images[0] ?? '',
+      aiSummary,
+      aiData,
+      notes: listing.notes,
+    }, env, { recordId, isMulti });
+  } catch (error) {
+    console.error('Direct listing processing failed', { recordId, runId, error });
+    await updateRowByRunId(runId, {
+      runId,
+      status: 'failed',
+    }, env, { recordId, isMulti });
+    throw error;
   }
 }
 
@@ -2014,6 +2114,39 @@ type ReverbSearchListing = {
 
 type ReverbSearchResponse = {
   listings?: ReverbSearchListing[];
+};
+
+type ReverbItemResponse = {
+  id?: number | string;
+  title?: string;
+  description?: string;
+  condition?: { display_name?: string } | string;
+  price?: {
+    amount?: string | number;
+    currency?: string;
+    symbol?: string;
+  };
+  shipping?: {
+    amount?: string | number;
+  };
+  photos?: Array<{
+    _links?: {
+      large_crop?: { href?: string };
+      small_crop?: { href?: string };
+      full?: { href?: string };
+    };
+  }>;
+  _links?: {
+    web?: { href?: string };
+  };
+  shop?: {
+    location?: string;
+  };
+  location?: {
+    city?: string;
+    region?: string;
+    country_code?: string;
+  } | string;
 };
 
 type ReverbComp = {
@@ -3473,12 +3606,92 @@ async function fetchReverbListings(env: Env): Promise<ReverbApiListing[]> {
   return Array.isArray(data.listings) ? data.listings : [];
 }
 
+function pickReverbImageUrls(listing: {
+  photos?: Array<{
+    _links?: {
+      large_crop?: { href?: string };
+      small_crop?: { href?: string };
+      full?: { href?: string };
+    };
+  }>;
+}): string[] {
+  const images = (listing.photos || []).flatMap((photo) => ([
+    normalizeText(photo?._links?.large_crop?.href, ''),
+    normalizeText(photo?._links?.full?.href, ''),
+    normalizeText(photo?._links?.small_crop?.href, ''),
+  ]));
+
+  return Array.from(new Set(images.filter(Boolean)));
+}
+
+function normalizeReverbListingData(listing: ReverbItemResponse): ListingData {
+  const images = pickReverbImageUrls(listing);
+  const location = typeof listing.location === 'string'
+    ? normalizeText(listing.location, '')
+    : [
+        normalizeText(listing.location?.city, ''),
+        normalizeText(listing.location?.region, ''),
+        normalizeText(listing.location?.country_code, ''),
+      ].filter(Boolean).join(', ');
+
+  return {
+    title: normalizeText(listing.title, 'Untitled listing'),
+    price: normalizeText(listing.price?.amount, ''),
+    location: normalizeText(listing.shop?.location, '') || location,
+    condition: normalizeReverbCondition(listing),
+    description: normalizeText(listing.description, ''),
+    images,
+    url: normalizeText(listing._links?.web?.href, ''),
+  };
+}
+
+async function fetchReverbListingById(listingId: string, env: Env): Promise<ListingData | null> {
+  const response = await fetch(`${REVERB_SEARCH_API_URL}/${encodeURIComponent(listingId)}`, {
+    method: 'GET',
+    headers: reverbRequestHeaders(env),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    console.error('Reverb listing fetch failed', { listingId, status: response.status, body: body.slice(0, 500) });
+    return null;
+  }
+
+  const data = await response.json() as ReverbItemResponse;
+  const normalized = normalizeReverbListingData(data);
+  if (!normalized.title.trim() || normalized.images.length === 0) {
+    return null;
+  }
+  return normalized;
+}
+
+async function queueAndProcessReverbListing(
+  url: string,
+  isMulti: boolean,
+  env: Env,
+): Promise<{ runId: string; recordId: string; listing: ListingData }> {
+  const listingId = extractReverbListingId(url);
+  if (!listingId) {
+    throw new Error('Unsupported Reverb URL. Use a direct Reverb item URL.');
+  }
+
+  const listing = await fetchReverbListingById(listingId, env);
+  if (!listing) {
+    throw new Error('Unable to load Reverb listing from API.');
+  }
+
+  const runId = generateRunId();
+  const recordId = await insertQueuedRow(url, 'reverb', runId, isMulti, env);
+  if (!recordId) {
+    throw new Error('Unable to queue Reverb listing.');
+  }
+
+  return { runId, recordId, listing };
+}
+
 function normalizeReverbForSale(listing: ReverbApiListing): UnifiedForSaleItem {
   const priceDollars = parseMoney(String(listing.price?.amount || '0')) || 0;
-  const imageUrl = listing.photos?.[0]?._links?.large_crop?.href
-    || listing.photos?.[0]?._links?.small_crop?.href
-    || listing.photos?.[0]?._links?.full?.href
-    || '';
+  const imageUrl = pickReverbImageUrls(listing)[0] || '';
   return {
     id: `reverb-${listing.id}`,
     source: 'reverb',
@@ -3717,7 +3930,7 @@ async function handleReprocessListing(request: Request, env: Env): Promise<Respo
   const normalizedUrl = normalizeQueuedListingUrl(resolvedUrl);
   if (!normalizedUrl) return jsonResponse({ message: 'Invalid url.' }, 400);
   if (!isSupportedListingUrl(normalizedUrl)) {
-    return jsonResponse({ message: 'Unsupported URL. Use a Facebook Marketplace item URL or Craigslist listing URL.' }, 400);
+    return jsonResponse({ message: 'Unsupported URL. Use a Facebook Marketplace item URL, Craigslist listing URL, or single Reverb item URL.' }, 400);
   }
 
   const existing = await dbFindListingByUrl(normalizedUrl, env);
@@ -3725,6 +3938,24 @@ async function handleReprocessListing(request: Request, env: Env): Promise<Respo
 
   const source = detectSource(normalizedUrl);
   if (!source) return jsonResponse({ message: 'Unsupported URL source.' }, 400);
+
+  if (source === 'reverb') {
+    const listingId = extractReverbListingId(normalizedUrl);
+    if (!listingId) return jsonResponse({ message: 'Unsupported Reverb URL. Use a direct Reverb item URL.' }, 400);
+    const listing = await fetchReverbListingById(listingId, env);
+    if (!listing) return jsonResponse({ message: 'Unable to load Reverb listing from API.' }, 500);
+
+    const runId = generateRunId();
+    await env.LISTING_JOBS.put(runId, existing.id);
+    await dbUpdateListing(existing.id, { status: 'queued' }, env);
+    try {
+      await processDirectListing(existing.id, runId, listing, env, { isMulti: false });
+      return jsonResponse({ ok: true, runId, recordId: existing.id });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to process Reverb listing.';
+      return jsonResponse({ ok: false, runId, recordId: existing.id, error: message }, 500);
+    }
+  }
 
   const runId = await startApifyRun(normalizedUrl, source as ListingSource, env);
   if (!runId) return jsonResponse({ message: 'Unable to start scraper run.' }, 500);
@@ -6355,7 +6586,7 @@ async function getIsMultiFromRecord(recordId: string, env: Env): Promise<boolean
   return isMultiValue(record?.fields?.IsMulti);
 }
 
-type ListingSource = 'facebook' | 'craigslist';
+type ListingSource = 'facebook' | 'craigslist' | 'reverb';
 
 type ListingData = {
   title: string;
@@ -7613,7 +7844,20 @@ function detectSource(url: string): ListingSource | null {
     const parsed = new URL(url);
     if (parsed.hostname.endsWith('craigslist.org')) return 'craigslist';
     if (parsed.hostname.includes('facebook.com')) return 'facebook';
+    if (parsed.hostname === 'reverb.com' || parsed.hostname.endsWith('.reverb.com')) return 'reverb';
     return null;
+  } catch {
+    return null;
+  }
+}
+
+function extractReverbListingId(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    if (!(host === 'reverb.com' || host.endsWith('.reverb.com'))) return null;
+    const match = parsed.pathname.match(/^\/item\/(\d+)(?:[-/]|$)/i);
+    return match?.[1] || null;
   } catch {
     return null;
   }
@@ -7631,6 +7875,10 @@ function isSupportedListingUrl(url: string): boolean {
 
     if (host.endsWith('craigslist.org')) {
       return path.includes('/d/') || path.startsWith('/msg/');
+    }
+
+    if (host === 'reverb.com' || host.endsWith('.reverb.com')) {
+      return /^\/item\/\d+(?:[-/]|$)/.test(path);
     }
 
     return false;
@@ -7769,10 +8017,15 @@ function normalizeQueuedListingUrl(url: string): string | null {
   if (source === 'facebook') {
     return normalizeFacebookItemUrl(normalized);
   }
+  if (source === 'reverb') {
+    const listingId = extractReverbListingId(normalized);
+    return listingId ? `https://reverb.com/item/${listingId}` : normalized;
+  }
   return normalized;
 }
 
 async function startApifyRun(url: string, source: ListingSource, env: Env): Promise<string | null> {
+  if (source === 'reverb') return null;
   const actorId = source === 'facebook' ? env.APIFY_FACEBOOK_ACTOR : env.APIFY_CRAIGSLIST_ACTOR;
   const baseUrl = env.SITE_BASE_URL || 'https://www.coalcreekguitars.com';
   const webhookUrl = env.WEBHOOK_SECRET
@@ -7864,7 +8117,7 @@ async function fetchApifyDataset(datasetId: string, env: Env): Promise<any[]> {
   return await response.json();
 }
 
-async function insertQueuedRow(url: string, source: ListingSource, runId: string, isMulti: boolean, env: Env): Promise<void> {
+async function insertQueuedRow(url: string, source: ListingSource, runId: string, isMulti: boolean, env: Env): Promise<string | null> {
   const timestamp = new Date().toISOString();
   const fields = {
     submitted_at: timestamp,
@@ -7879,9 +8132,11 @@ async function insertQueuedRow(url: string, source: ListingSource, runId: string
     if (recordId) {
       await env.LISTING_JOBS.put(runId, recordId);
     }
+    return recordId;
   } catch (error) {
     console.error('D1 create failed', { error });
   }
+  return null;
 }
 
 async function updateRowByRunId(runId: string, updates: {
@@ -8700,7 +8955,9 @@ function clampScore(value: number): number {
 }
 
 function formatSourceLabel(source: ListingSource): string {
-  return source === 'facebook' ? 'FBM' : 'CG';
+  if (source === 'facebook') return 'FBM';
+  if (source === 'craigslist') return 'CG';
+  return 'R';
 }
 
 function generateRunId(): string {

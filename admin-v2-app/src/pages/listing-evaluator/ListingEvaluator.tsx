@@ -55,7 +55,7 @@ function normalizeUrl(raw: string): string | null {
     }
   }
 
-  if (/^(www\.|facebook\.com|m\.facebook\.com|craigslist\.)/i.test(trimmed)) {
+  if (/^(www\.|facebook\.com|m\.facebook\.com|craigslist\.|reverb\.com)/i.test(trimmed)) {
     try {
       return new URL(`https://${trimmed}`).toString();
     } catch {
@@ -90,9 +90,26 @@ function isSupportedListingUrl(url: string): boolean {
       return path.includes('/d/') || path.startsWith('/msg/');
     }
 
+    if (host === 'reverb.com' || host.endsWith('.reverb.com')) {
+      return /^\/item\/\d+(?:[-/]|$)/.test(path);
+    }
+
     return false;
   } catch {
     return false;
+  }
+}
+
+function detectSource(url: string): 'facebook' | 'craigslist' | 'reverb' | null {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    if (host.includes('facebook.com')) return 'facebook';
+    if (host.endsWith('craigslist.org')) return 'craigslist';
+    if (host === 'reverb.com' || host.endsWith('.reverb.com')) return 'reverb';
+    return null;
+  } catch {
+    return null;
   }
 }
 
@@ -197,7 +214,16 @@ const ListingEvaluator = () => {
 
     const firstUrl = extractUrls(rawValue)[0];
     if (!firstUrl || !isSupportedListingUrl(firstUrl)) {
-      const message = 'Please paste a valid Craigslist or Facebook Marketplace item URL.';
+      const message = 'Please paste a valid Craigslist, Facebook Marketplace, or single Reverb item URL.';
+      setErrorMessage(message);
+      enqueueSnackbar(message, { variant: 'error', autoHideDuration: 3500 });
+      clearUrlFields();
+      return;
+    }
+
+    const source = detectSource(firstUrl);
+    if (mode === 'multi' && source === 'reverb') {
+      const message = 'Reverb URLs are supported only in single-item mode.';
       setErrorMessage(message);
       enqueueSnackbar(message, { variant: 'error', autoHideDuration: 3500 });
       clearUrlFields();
