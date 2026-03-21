@@ -1,9 +1,10 @@
-const CACHE_VERSION = 'ccg-admin-v2-20260302a';
+const CACHE_VERSION = 'ccg-admin-v2-20260321a';
 const SHELL_ASSETS = [
   '/admin/',
   '/admin/index.html',
   '/admin/admin-v2.webmanifest',
   '/admin/aurora.svg',
+  '/admin/images/reverb-icon.svg',
   '/images/favicon/apple-touch-icon.png',
   '/images/favicon/favicon-32x32.png',
   '/images/favicon/favicon-16x16.png',
@@ -39,6 +40,7 @@ function shouldHandle(request) {
 
   return (
     url.pathname.startsWith('/admin/') ||
+    url.pathname.startsWith('/admin/images/') ||
     url.pathname.startsWith('/images/favicon/')
   );
 }
