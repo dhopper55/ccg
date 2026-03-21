@@ -126,7 +126,7 @@ function buildSourceMeta(source?: string): { label: string; imageSrc: string | n
     return { label: 'CL', imageSrc: '/images/cl.png', icon: null };
   }
   if (normalized === 'reverb' || normalized === 'r' || normalized.includes('reverb')) {
-    return { label: 'Reverb', imageSrc: '/images/reverb-icon.svg', icon: null };
+    return { label: 'Reverb', imageSrc: '/admin/images/reverb-icon.svg', icon: null };
   }
   if (normalized === 'custom') {
     return {
