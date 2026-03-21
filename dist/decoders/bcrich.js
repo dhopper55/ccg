@@ -171,7 +171,10 @@ function decodeClassAxeBC(serial) {
     const info = {
         brand: 'B.C. Rich',
         serialNumber: serial,
-        notes: 'BC-prefixed bolt-on/Class Axe era serial (1989–1993). These generally do not encode a reliable year.',
+        year: '1990s-early 2000s (estimated)',
+        factory: 'Import production (Class Axe / post-Class Axe era)',
+        country: 'South Korea / China',
+        notes: 'BC-prefixed bolt-on/import serial commonly seen on Class Axe-era and later budget B.C. Rich models. These generally do not encode a precise build date, so treat the 1990s-early 2000s range as an estimate and confirm with country-of-origin stickers, neck plate markings, and model-era features.',
     };
     return { success: true, info };
 }

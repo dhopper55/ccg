@@ -10,6 +10,14 @@ The Listing Evaluator is a static site + Cloudflare Worker backend that:
 6) Receives serial decoder tracking events from public decoder pages and stores them in D1
 7) Stores reusable serial-pattern metadata/content for decoder context rendering
 
+Important decoder/deploy distinction:
+- Public serial decoder pages are static frontend pages.
+- The actual decode decision for live users is server-side at `POST /api/decode`.
+- That endpoint is implemented in the Cloudflare Worker at `workers/listing-evaluator/src/index.ts`.
+- The worker imports and runs `src/serial-decode-service.ts`, which calls the brand decoders in `src/decoders/*.ts`.
+- Because of that, a change to a decoder file can require a worker deploy even if the decoder page UI itself did not change.
+- Pages deploys update static HTML/JS/CSS. Worker deploys update live `/api/*` behavior.
+
 ## Admin
 Admin is served from `/admin` and built from the Aurora-based app.
 
@@ -80,6 +88,32 @@ All `/api/*` endpoints require auth except:
 ## Cloudflare Worker
 - Location: `workers/listing-evaluator/src/index.ts`
 - Wrangler config: `workers/listing-evaluator/wrangler.toml`
+- Route: `https://www.coalcreekguitars.com/api/*`
+
+### Serial decoding flow
+The serial decoder feature spans both the static site and the worker:
+
+1. Decoder page UI
+   - Static page JS in `src/main.ts`
+   - Collects `brand`, `serial`, `pagePath`, `userAgent`, and `clientTimestamp`
+   - Sends them to `POST /api/decode`
+
+2. Server-side decode
+   - Worker handler: `handleDecodeRequest(...)` in `workers/listing-evaluator/src/index.ts`
+   - Calls `decodeSerialForBackend(...)` from `src/serial-decode-service.ts`
+   - `decodeSerialForBackend(...)` selects the brand decoder from `src/decoders/*.ts`
+   - Backend can still reject a brand-decoder match if the result is too ambiguous for server acceptance
+   - Worker may optionally try AI fallback if rule-based decoding fails
+
+3. Persistence/context
+   - Worker logs decode attempts to `serial_decode_events`
+   - On successful decodes, worker derives pattern keys and upserts `serial_decode_pattern_lookup`
+   - Rich text from `serial_decode_pattern_lookup` can be returned as additional decoder context
+
+Practical rule:
+- If you change `src/decoders/*.ts` or `src/serial-decode-service.ts`, assume `/api/decode` behavior changed and deploy the worker.
+- If you change decoder page markup, styling, or browser-side UX in `src/main.ts` / templates, deploy Pages.
+- Some changes touch both and require both deploy paths.
 
 ### Endpoints
 - `POST /api/login`

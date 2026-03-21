@@ -19,11 +19,11 @@ import { decodeErnieBall } from './decoders/ernieball.js?version=707110';
 import { decodeGuild } from './decoders/guild.js?version=441239';
 import { decodeAlvarez } from './decoders/alvarez.js?version=638619';
 import { decodeGodin } from './decoders/godin.js?version=247017';
-import { decodeOvation } from './decoders/ovation.js?version=246115';
+import { decodeOvation } from './decoders/ovation.js?version=195798';
 import { decodeCharvel } from './decoders/charvel.js?version=406459';
 import { decodeRickenbacker } from './decoders/rickenbacker.js?version=961802';
 import { decodeKramer } from './decoders/kramer.js?version=926703';
-import { decodeBCRich } from './decoders/bcrich.js?version=951387';
+import { decodeBCRich } from './decoders/bcrich.js?version=982980';
 const DECODER_MAP = {
     gibson: decodeGibson,
     epiphone: decodeEpiphone,

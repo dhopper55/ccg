@@ -59,8 +59,8 @@ export function decodeOvation(serial: string): DecodeResult {
     return decodeImport(normalized);
   }
 
-  // Import with letter prefix (factory codes)
-  if (/^[A-Z]{1,2}\d{6,10}$/.test(normalized)) {
+  // Import with letter prefix (factory/model codes)
+  if (/^[A-Z]{1,3}\d{6,10}$/.test(normalized)) {
     return decodeImportWithPrefix(normalized);
   }
 
@@ -380,7 +380,10 @@ function decodeImportWithPrefix(serial: string): DecodeResult {
   let prefix: string;
   let digits: string;
 
-  if (/^[A-Z]{2}\d/.test(serial)) {
+  if (/^[A-Z]{3}\d/.test(serial)) {
+    prefix = serial.substring(0, 3);
+    digits = serial.substring(3);
+  } else if (/^[A-Z]{2}\d/.test(serial)) {
     prefix = serial.substring(0, 2);
     digits = serial.substring(2);
   } else {
@@ -389,10 +392,11 @@ function decodeImportWithPrefix(serial: string): DecodeResult {
   }
 
   // Known factory prefixes
-  const factoryPrefixes: Record<string, { factory: string; country: string }> = {
+  const factoryPrefixes: Record<string, { factory: string; country: string; modelHint?: string }> = {
     'US': { factory: 'Un Sung', country: 'South Korea' },
     'E': { factory: 'World', country: 'South Korea' },
     'Y': { factory: 'Yoojin', country: 'China' },
+    'CCV': { factory: 'Import Celebrity production', country: 'China / South Korea', modelHint: 'Celebrity' },
   };
 
   const factoryInfo = factoryPrefixes[prefix] || { factory: 'Unknown', country: 'Import (Korea/China)' };
@@ -420,7 +424,8 @@ function decodeImportWithPrefix(serial: string): DecodeResult {
     year: yearMonth || 'Check label',
     factory: factoryInfo.factory,
     country: factoryInfo.country,
-    notes: `Import model with "${prefix}" prefix indicating ${factoryInfo.factory} factory in ${factoryInfo.country}. ${yearMonth ? `Estimated date: ${yearMonth}.` : ''} Check the label inside the soundhole for exact country and model information.`,
+    model: factoryInfo.modelHint,
+    notes: `Import model with "${prefix}" prefix indicating ${factoryInfo.factory} in ${factoryInfo.country}.${factoryInfo.modelHint ? ` Commonly associated with ${factoryInfo.modelHint} series instruments.` : ''} ${yearMonth ? `Estimated date: ${yearMonth}.` : ''} Check the label inside the soundhole for exact country and model information.`,
   };
 
   return { success: true, info };
