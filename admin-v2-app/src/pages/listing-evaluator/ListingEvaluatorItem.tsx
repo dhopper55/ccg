@@ -185,7 +185,7 @@ function buildSourceImage(source?: string): string | null {
     return '/images/cl.png';
   }
   if (normalized === 'reverb' || normalized === 'r' || normalized.includes('reverb')) {
-    return '/images/favicon/favicon-32x32.png';
+    return '/images/reverb-icon.svg';
   }
   return null;
 }
