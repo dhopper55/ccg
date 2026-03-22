@@ -3119,7 +3119,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
 
   const sourceListingId = parseOptionalPositiveInt(body.sourceListingId);
   const imageUrl = normalizeText(body.imageUrl, '');
-  const imageUrls = normalizeInventoryImageUrls(imageUrl, body.imageUrls);
+  const imageCandidates = normalizeInventoryImageCandidates(imageUrl, body.imageUrls);
   const title = normalizeText(body.title, '').slice(0, 240);
   const category = normalizeText(body.category, '').slice(0, 120);
   const brand = normalizeText(body.brand, '').slice(0, 120);
@@ -3158,6 +3158,16 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const soldAmount = parseCurrencyAmount(body.soldAmount);
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
   const qty = parseBoundedInt(body.qty, 1, 1, 100);
+
+  let imageUrls: string[];
+  try {
+    imageUrls = await ensureInventoryHostedImageUrls(imageCandidates, env);
+  } catch (error) {
+    return jsonResponse({
+      message:
+        error instanceof Error ? `Unable to import inventory image: ${error.message}` : 'Unable to import inventory image.',
+    }, 400);
+  }
 
   if (!title) return jsonResponse({ message: 'Title is required.' }, 400);
   if (imageUrls.length < 1) return jsonResponse({ message: 'At least one image is required.' }, 400);
@@ -3385,7 +3395,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
 
   const sourceListingId = parseOptionalPositiveInt(body.sourceListingId);
   const imageUrl = normalizeText(body.imageUrl, '');
-  const imageUrls = normalizeInventoryImageUrls(imageUrl, body.imageUrls);
+  const imageCandidates = normalizeInventoryImageCandidates(imageUrl, body.imageUrls);
   const title = normalizeText(body.title, '').slice(0, 240);
   const category = normalizeText(body.category, '').slice(0, 120);
   const brand = normalizeText(body.brand, '').slice(0, 120);
@@ -3423,6 +3433,16 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const fbmListingPrice = fbmListingPriceRaw;
   const soldAmount = parseCurrencyAmount(body.soldAmount);
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
+
+  let imageUrls: string[];
+  try {
+    imageUrls = await ensureInventoryHostedImageUrls(imageCandidates, env);
+  } catch (error) {
+    return jsonResponse({
+      message:
+        error instanceof Error ? `Unable to import inventory image: ${error.message}` : 'Unable to import inventory image.',
+    }, 400);
+  }
 
   if (!title) return jsonResponse({ message: 'Title is required.' }, 400);
   if (!purchasedDate) return jsonResponse({ message: 'Purchased date is required.' }, 400);
@@ -8642,6 +8662,60 @@ function normalizeInventoryImageUrls(primaryImageUrl: string, rawInput: unknown)
 
   const seed = primaryImageUrl ? [primaryImageUrl.trim(), ...fromInput] : [...fromInput];
   return Array.from(new Set(seed.filter((url) => isInventoryImageUrl(url)))).slice(0, INVENTORY_MAX_IMAGES);
+}
+
+function normalizeInventoryImageCandidates(primaryImageUrl: string, rawInput: unknown): string[] {
+  const fromInput: string[] = [];
+  if (Array.isArray(rawInput)) {
+    rawInput.forEach((entry) => {
+      if (typeof entry === 'string' && entry.trim()) fromInput.push(entry.trim());
+    });
+  } else if (typeof rawInput === 'string') {
+    const trimmed = rawInput.trim();
+    if (trimmed) {
+      try {
+        const parsed = JSON.parse(trimmed) as unknown;
+        if (Array.isArray(parsed)) {
+          parsed.forEach((entry) => {
+            if (typeof entry === 'string' && entry.trim()) fromInput.push(entry.trim());
+          });
+        } else {
+          trimmed.split(/\r?\n/).forEach((entry) => {
+            if (entry.trim()) fromInput.push(entry.trim());
+          });
+        }
+      } catch {
+        trimmed.split(/\r?\n/).forEach((entry) => {
+          if (entry.trim()) fromInput.push(entry.trim());
+        });
+      }
+    }
+  }
+
+  const seed = primaryImageUrl ? [primaryImageUrl.trim(), ...fromInput] : [...fromInput];
+  return Array.from(
+    new Set(
+      seed
+        .map((url) => normalizeInventoryOrExternalImageUrl(url))
+        .filter((url): url is string => Boolean(url)),
+    ),
+  ).slice(0, INVENTORY_MAX_IMAGES);
+}
+
+async function ensureInventoryHostedImageUrls(urls: string[], env: Env): Promise<string[]> {
+  const normalized = Array.from(new Set(urls.map((url) => url.trim()).filter(Boolean))).slice(
+    0,
+    INVENTORY_MAX_IMAGES,
+  );
+  const hostedUrls: string[] = [];
+  for (const url of normalized) {
+    if (isInventoryImageUrl(url)) {
+      hostedUrls.push(url);
+      continue;
+    }
+    hostedUrls.push(await importExternalImageToInventory(url, env));
+  }
+  return Array.from(new Set(hostedUrls)).slice(0, INVENTORY_MAX_IMAGES);
 }
 
 async function importExternalImageToInventory(sourceUrl: string, env: Env): Promise<string> {
