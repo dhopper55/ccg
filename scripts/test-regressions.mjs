@@ -190,6 +190,21 @@ function assertIbanezNumericOnly8DigitAmbiguous(serialInput, expectedYear, expec
   );
 }
 
+function assertIbanezNumericOnly8DigitLate1900s(serialInput, expectedYear, expectedMonth) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'Likely Korean import factory (possibly Cort)',
+    `Expected likely Korean factory note for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'South Korea', `Expected country South Korea for ${serialInput}, got ${info.country}`);
+}
+
 function assertIbanezNumericOnly7Digit(serialInput, expectedYear, expectedMonth) {
   const result = decodeIbanez(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -914,6 +929,7 @@ assertIbanezNumericOnly9DigitAmbiguous('311717707', '2003', 'November');
 assertIbanezNumericOnly9Digit('141209632', '2014', 'December');
 assertIbanezNumericOnly9Digit('02010903', '2002', 'January');
 assertIbanezNumericOnly8DigitAmbiguous('40800605', '2004', 'August');
+assertIbanezNumericOnly8DigitLate1900s('92120182', '1992', 'December');
 assertIbanezNumericOnly7Digit('4120210', '2014', 'December');
 assertIbanezNumericOnly10DigitFactoryLeading('5230401406', '2023', 'April');
 assertIbanezModelCodeFallback('SR305EDX');

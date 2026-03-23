@@ -10215,6 +10215,7 @@ const PDF_LABEL_HEIGHT = 2 * PDF_POINTS_PER_INCH;
 const PDF_LABEL_COLUMNS = 2;
 const PDF_LABEL_ROWS = 5;
 const PDF_LABELS_PER_PAGE = PDF_LABEL_COLUMNS * PDF_LABEL_ROWS;
+const PDF_UNIQUE_LABEL_ITEMS_PER_PAGE = PDF_LABEL_ROWS;
 // Avery 5163: 10-up, 2" x 4" labels on US Letter.
 const PDF_LABEL_MARGIN_X = 0.1875 * PDF_POINTS_PER_INCH;
 const PDF_LABEL_MARGIN_Y = 0.5 * PDF_POINTS_PER_INCH;
@@ -10247,7 +10248,9 @@ const PDF_LABEL_CONTENT_ROW_FINE_TUNE: readonly number[] = [0, 0, 0, -0.8, -2.2]
 const PDF_LABEL_IMAGE_ROW_FINE_TUNE: readonly number[] = [0, 0, 0, -1.2, -18];
 
 async function buildInventoryLabelsPdf(rows: InventoryLabelPdfRow[], env: Env): Promise<Uint8Array> {
-  const pages = chunkArray(rows, PDF_LABELS_PER_PAGE);
+  const pages = chunkArray(rows, PDF_UNIQUE_LABEL_ITEMS_PER_PAGE).map((pageRows) =>
+    pageRows.flatMap((row) => [row, row]),
+  );
   const pageDefinitions: PdfPageDefinition[] = [];
   let nextObjectNumber = 6;
 

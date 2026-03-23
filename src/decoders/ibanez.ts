@@ -1006,21 +1006,27 @@ function decodeNumeric9DigitModern(serial: string): DecodeResult {
 
 // Numeric-only modern import variant: YYMM + sequence (8 digits)
 function decodeNumeric8DigitModern(serial: string): DecodeResult {
-  const yyYear = parseInt(serial.substring(0, 2), 10) + 2000;
+  const yy = parseInt(serial.substring(0, 2), 10);
+  const yyYear = yy >= 80 ? 1900 + yy : 2000 + yy;
   const yyMonth = parseInt(serial.substring(2, 4), 10);
   const yySequence = serial.substring(4);
 
   // Primary interpretation: YYMM + sequence.
   // Fallback interpretation: YMM + sequence when YYMM produces an invalid month.
   if (yyMonth >= 1 && yyMonth <= 12) {
+    const likelyKorean90s = yy >= 80;
     const info: GuitarInfo = {
       brand: 'Ibanez',
       serialNumber: serial,
       year: yyYear.toString(),
       month: getMonthName(yyMonth),
-      factory: 'Unknown import factory (numeric-only format)',
-      country: 'China or Indonesia',
-      notes: `Sequence: ${yySequence}. Numeric-only 8-digit pattern interpreted as YYMM + production sequence.`
+      factory: likelyKorean90s
+        ? 'Likely Korean import factory (possibly Cort)'
+        : 'Unknown import factory (numeric-only format)',
+      country: likelyKorean90s ? 'South Korea' : 'China or Indonesia',
+      notes: likelyKorean90s
+        ? `Sequence: ${yySequence}. Numeric-only 8-digit pattern interpreted as YYMM + production sequence. For 80-99 year prefixes, this decoder treats the serial as a late-1900s import format; 92 12 reads as December 1992.`
+        : `Sequence: ${yySequence}. Numeric-only 8-digit pattern interpreted as YYMM + production sequence.`
     };
 
     return { success: true, info };
