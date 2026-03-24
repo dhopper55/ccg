@@ -405,6 +405,87 @@ const InventoryItem = () => {
     setImageUrls(normalizeImageUrls(urls));
   };
 
+  const createSavePayload = (urls: string[]) => ({
+    sourceListingId,
+    qty: editId ? 1 : form.qty,
+    imageUrl: urls[0],
+    imageUrls: [...urls],
+    title: form.title.trim(),
+    category: form.category.trim(),
+    brand: form.brand.trim(),
+    yearRange: form.yearRange.trim(),
+    model: form.model.trim(),
+    finish: form.finish.trim(),
+    repairNotes: form.repairNotes.trim(),
+    originalListingDesc: form.originalListingDesc.trim(),
+    purchasedDate: form.purchasedDate.trim(),
+    purchasePrice: form.purchasePrice.trim(),
+    privatePartyValue: form.privatePartyValue.trim() || '0',
+    purchaseNotes: form.purchaseNotes.trim(),
+    isActive: form.isActive,
+    isMarked: form.isMarked,
+    needsRepair: form.needsRepair,
+    forSale: form.forSale,
+    fbmListing: form.fbmListing,
+    fbmTitle: form.fbmTitle.trim(),
+    fbmUrl: form.fbmUrl.trim(),
+    fbmImageUrl: form.fbmImageUrl.trim(),
+    fbmListingPrice: form.fbmListingPrice.trim(),
+    isSold: form.isSold,
+    serialNumber: form.serialNumber.trim(),
+    weightLbs: form.weightLbs.trim(),
+    neckProfile: form.neckProfile.trim(),
+    neckThickness: form.neckThickness.trim(),
+    nutWidth: form.nutWidth.trim(),
+    width12Fret: form.width12Fret.trim(),
+    fretboardRadius: form.fretboardRadius.trim(),
+    twelveFretAction: form.twelveFretAction.trim(),
+    soldAmount: form.soldAmount.trim(),
+    sellNotes: form.sellNotes.trim(),
+    isPersonal: form.isPersonal,
+  });
+
+  const handlePromoteImage = async (index: number) => {
+    if (index <= 0 || index >= imageUrls.length) return;
+
+    const previousUrls = [...imageUrls];
+    const nextUrls = [...imageUrls];
+    const [selected] = nextUrls.splice(index, 1);
+    nextUrls.unshift(selected);
+    updateImageUrls(nextUrls);
+
+    if (!editId) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    setMessage(null);
+
+    try {
+      const response = await fetch(`/api/inventory/${encodeURIComponent(editId)}/update`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(createSavePayload(nextUrls)),
+        credentials: 'same-origin',
+      });
+
+      const data = (await response.json().catch(() => ({}))) as SaveResponse;
+      if (!response.ok || !data.ok) {
+        throw new Error(data.message || 'Unable to update inventory item.');
+      }
+
+      enqueueSnackbar('Primary image updated. Reloading…', { variant: 'success' });
+      window.location.reload();
+    } catch (error) {
+      updateImageUrls(previousUrls);
+      const text = error instanceof Error ? error.message : 'Unable to update inventory item.';
+      setMessage({ severity: 'error', text });
+      enqueueSnackbar(text, { variant: 'error' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const uploadImage = async (file: File): Promise<string> => {
     const formData = new FormData();
     formData.set('image', file);
@@ -546,46 +627,6 @@ const InventoryItem = () => {
     setMessage(null);
 
     try {
-      const payload = {
-        sourceListingId,
-        qty: editId ? 1 : form.qty,
-        imageUrl: imageUrls[0],
-        imageUrls: [...imageUrls],
-        title: form.title.trim(),
-        category: form.category.trim(),
-        brand: form.brand.trim(),
-        yearRange: form.yearRange.trim(),
-        model: form.model.trim(),
-        finish: form.finish.trim(),
-        repairNotes: form.repairNotes.trim(),
-        originalListingDesc: form.originalListingDesc.trim(),
-        purchasedDate: form.purchasedDate.trim(),
-        purchasePrice: form.purchasePrice.trim(),
-        privatePartyValue: form.privatePartyValue.trim() || '0',
-        purchaseNotes: form.purchaseNotes.trim(),
-        isActive: form.isActive,
-        isMarked: form.isMarked,
-        needsRepair: form.needsRepair,
-        forSale: form.forSale,
-        fbmListing: form.fbmListing,
-        fbmTitle: form.fbmTitle.trim(),
-        fbmUrl: form.fbmUrl.trim(),
-        fbmImageUrl: form.fbmImageUrl.trim(),
-        fbmListingPrice: form.fbmListingPrice.trim(),
-        isSold: form.isSold,
-        serialNumber: form.serialNumber.trim(),
-        weightLbs: form.weightLbs.trim(),
-        neckProfile: form.neckProfile.trim(),
-        neckThickness: form.neckThickness.trim(),
-        nutWidth: form.nutWidth.trim(),
-        width12Fret: form.width12Fret.trim(),
-        fretboardRadius: form.fretboardRadius.trim(),
-        twelveFretAction: form.twelveFretAction.trim(),
-        soldAmount: form.soldAmount.trim(),
-        sellNotes: form.sellNotes.trim(),
-        isPersonal: form.isPersonal,
-      };
-
       const endpoint = editId
         ? `/api/inventory/${encodeURIComponent(editId)}/update`
         : '/api/inventory';
@@ -593,7 +634,7 @@ const InventoryItem = () => {
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(createSavePayload(imageUrls)),
         credentials: 'same-origin',
       });
 
@@ -777,6 +818,10 @@ const InventoryItem = () => {
                             width: 240,
                             borderRadius: 3,
                             bgcolor: 'background.default',
+                            '&:hover .inventory-image-promote': {
+                              opacity: 1,
+                              transform: 'translateY(0)',
+                            },
                           }}
                         >
                           <Stack spacing={1}>
@@ -792,6 +837,38 @@ const InventoryItem = () => {
                               }}
                               onClick={() => setPreviewImage(url)}
                             >
+                              {index > 0 ? (
+                                <Tooltip title="Make primary">
+                                  <IconButton
+                                    className="inventory-image-promote"
+                                    size="small"
+                                    aria-label="Make primary image"
+                                    disabled={isSubmitting}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      void handlePromoteImage(index);
+                                    }}
+                                    sx={{
+                                      position: 'absolute',
+                                      top: 8,
+                                      right: 8,
+                                      zIndex: 1,
+                                      bgcolor: 'rgba(15, 23, 42, 0.78)',
+                                      color: 'warning.main',
+                                      border: 1,
+                                      borderColor: 'rgba(255,255,255,0.12)',
+                                      opacity: 0,
+                                      transform: 'translateY(-4px)',
+                                      transition: 'opacity 160ms ease, transform 160ms ease, background-color 160ms ease',
+                                      '&:hover': {
+                                        bgcolor: 'rgba(15, 23, 42, 0.92)',
+                                      },
+                                    }}
+                                  >
+                                    <IconifyIcon icon="material-symbols:star-rounded" fontSize={18} />
+                                  </IconButton>
+                                </Tooltip>
+                              ) : null}
                               <Box
                                 component="img"
                                 src={url}
