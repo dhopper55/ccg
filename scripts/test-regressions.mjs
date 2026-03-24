@@ -599,6 +599,21 @@ function assertIbanezNumeric6DigitPreLetter(serialInput, expectedYear, expectedM
   );
 }
 
+function assertIbanezNumeric6DigitOmittedPrefixJapan(serialInput, expectedYear, expectedMonth) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'Terada Musical Instrument Co., Nagoya (possible omitted-prefix format)',
+    `Expected Terada omitted-prefix factory note for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'Japan', `Expected country Japan for ${serialInput}, got ${info.country}`);
+}
+
 function assertBCRichIShortImport(serialInput, expectedYear, expectedMonth) {
   const result = decodeBCRich(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -904,6 +919,7 @@ assertIbanezJapanMonthLetterExtended('H83020056', '1983', 'August');
 assertIbanezCompactAlphaSuffix('00906B', '2000', 'September');
 assertIbanezLegacyNumericLate80s('881865', '1988');
 assertIbanezNumeric6DigitYYMM('041195', '2004', 'November');
+assertIbanezNumeric6DigitOmittedPrefixJapan('510192', '1995 or 2005', 'October');
 assertIbanezNumeric6DigitPreLetter('402989', '1974', 'February');
 assertIbanezIndonesiaI('I110626774', '2011', 'June');
 assertIbanezIndonesiaExtended10('I1161207864', '2011', 'December');

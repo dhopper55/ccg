@@ -1393,6 +1393,24 @@ function decodeCompactAlphaSuffix(serial) {
 function decodeLegacyNumericLate80s(serial) {
     const yy = parseInt(serial.substring(0, 2), 10);
     const monthCandidate = parseInt(serial.substring(2, 4), 10);
+    const yearDigit = parseInt(serial[0], 10);
+    const ymmMonth = parseInt(serial.substring(1, 3), 10);
+    // Narrow omitted-prefix Japan interpretation seen on some 6-digit serials
+    // beginning with 5, where the leading digit behaves like a year-in-decade
+    // and the expected Japan factory prefix is absent.
+    if (serial[0] === '5' && ymmMonth >= 1 && ymmMonth <= 12) {
+        const sequence = serial.substring(3);
+        const info = {
+            brand: 'Ibanez',
+            serialNumber: serial,
+            year: `199${yearDigit} or 200${yearDigit}`,
+            month: getMonthName(ymmMonth),
+            factory: 'Terada Musical Instrument Co., Nagoya (possible omitted-prefix format)',
+            country: 'Japan',
+            notes: `Sequence: ${sequence}. 6-digit numeric serial beginning with 5 is interpreted here as a compact omitted-prefix Japan format (YMMNNN). For 510192, this reads as October with a likely 1995 or 2005 build date rather than a future-dated YYMM parse.`
+        };
+        return { success: true, info };
+    }
     // If middle digits form a valid month, prefer YYMMSS interpretation.
     if (monthCandidate >= 1 && monthCandidate <= 12) {
         const sequence = serial.substring(4);
@@ -1411,8 +1429,6 @@ function decodeLegacyNumericLate80s(serial) {
     }
     // Pre-letter-era interpretation (commonly cited for early 1970s):
     // YMMNNN, where Y is year-in-decade and MM is month.
-    const yearDigit = parseInt(serial[0], 10);
-    const ymmMonth = parseInt(serial.substring(1, 3), 10);
     if (ymmMonth >= 1 && ymmMonth <= 12) {
         const sequence = serial.substring(3);
         const preLetterYear = 1970 + yearDigit;
