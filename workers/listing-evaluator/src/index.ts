@@ -2218,6 +2218,7 @@ type InventoryItemRow = {
   is_active: number | null;
   is_marked: number | null;
   is_personal: number | null;
+  is_rented: number | null;
   needs_repair: number | null;
   for_sale: number | null;
   for_sale_date: string | null;
@@ -2982,6 +2983,7 @@ async function handleAdminV2InventoryMergeMarked(env: Env): Promise<Response> {
     is_active: 1,
     is_marked: 0,
     is_personal: 0,
+    is_rented: 0,
     needs_repair: 0,
     for_sale: 0,
     for_sale_date: null,
@@ -3072,6 +3074,7 @@ async function handleInventoryPackageCreate(env: Env): Promise<Response> {
     is_active: 1,
     is_marked: 0,
     is_personal: 0,
+    is_rented: 0,
     for_sale: 0,
     for_sale_date: null,
     fbm_listing: 0,
@@ -3143,6 +3146,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const isActive = toBooleanInput(body.isActive, true);
   const isMarked = toBooleanInput(body.isMarked, false);
   const isPersonal = toBooleanInput(body.isPersonal, false);
+  const isRented = toBooleanInput(body.isRented, false);
   const needsRepair = toBooleanInput(body.needsRepair, false);
   const isSold = toBooleanInput(body.isSold, false);
   const forSaleRaw = toBooleanInput(body.forSale, false);
@@ -3266,6 +3270,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     is_active: isActive ? 1 : 0,
     is_marked: isMarked ? 1 : 0,
     is_personal: isPersonal ? 1 : 0,
+    is_rented: isRented ? 1 : 0,
     needs_repair: needsRepair ? 1 : 0,
     for_sale: forSale ? 1 : 0,
     for_sale_date: forSale ? new Date().toISOString() : null,
@@ -3419,6 +3424,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const isActive = toBooleanInput(body.isActive, true);
   const isMarked = toBooleanInput(body.isMarked, false);
   const isPersonal = toBooleanInput(body.isPersonal, false);
+  const isRented = toBooleanInput(body.isRented, false);
   const needsRepair = toBooleanInput(body.needsRepair, false);
   const isSold = toBooleanInput(body.isSold, false);
   const forSaleRaw = toBooleanInput(body.forSale, false);
@@ -3529,6 +3535,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     is_active: isActive ? 1 : 0,
     is_marked: isMarked ? 1 : 0,
     is_personal: isPersonal ? 1 : 0,
+    is_rented: isRented ? 1 : 0,
     needs_repair: needsRepair ? 1 : 0,
     for_sale: forSale ? 1 : 0,
     for_sale_date: resolveToggleTimestamp({
@@ -4548,6 +4555,7 @@ function mapInventoryRow(
     isActive: Boolean(row.is_active),
     isMarked: Boolean(row.is_marked),
     isPersonal: Boolean(row.is_personal),
+    isRented: Boolean(row.is_rented),
     needsRepair: Boolean(row.needs_repair),
     forSale: Boolean(row.for_sale),
     forSaleDate: row.for_sale_date || null,
@@ -4728,6 +4736,7 @@ async function dbListInventoryItemsGrouped(
        i.is_active,
        i.is_marked,
        i.is_personal,
+       i.is_rented,
        i.needs_repair,
        i.for_sale,
        i.for_sale_date,
@@ -4832,6 +4841,7 @@ async function dbListInventoryItemsByCcgNumber(
       i.is_active,
       i.is_marked,
       i.is_personal,
+      i.is_rented,
       i.needs_repair,
       i.for_sale,
       i.for_sale_date,
@@ -4910,6 +4920,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.is_active,
       i.is_marked,
       i.is_personal,
+      i.is_rented,
       i.needs_repair,
       i.for_sale,
       i.for_sale_date,
@@ -4962,6 +4973,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     isActive: Boolean(row.is_active),
     isMarked: Boolean(row.is_marked),
     isPersonal: Boolean(row.is_personal),
+    isRented: Boolean(row.is_rented),
     needsRepair: Boolean(row.needs_repair),
     forSale: Boolean(row.for_sale),
     forSaleDate: row.for_sale_date || null,
@@ -5086,6 +5098,7 @@ async function dbCreateInventoryItems(
     is_active: number;
     is_marked: number;
     is_personal: number;
+    is_rented: number;
     needs_repair: number;
     for_sale: number;
     for_sale_date: string | null;
@@ -5109,11 +5122,11 @@ async function dbCreateInventoryItems(
         image_urls,
         repair_notes, original_listing_desc, purchased_date, purchase_price, private_party_value, purchase_notes, serial_number,
         weight_lbs, neck_profile, neck_thickness, nut_width, width_12_fret, fretboard_radius, twelve_fret_action,
-        is_active, is_marked, is_personal, needs_repair, for_sale, for_sale_date,
+        is_active, is_marked, is_personal, is_rented, needs_repair, for_sale, for_sale_date,
         fbm_listing, fbm_title, fbm_url, fbm_image_url, fbm_listing_price,
         is_sold, sold_date, sold_amount, sell_notes
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const statements = Array.from({ length: qty }, (_, index) =>
       env.DB.prepare(statement).bind(
@@ -5144,6 +5157,7 @@ async function dbCreateInventoryItems(
         fields.is_active,
         fields.is_marked,
         fields.is_personal,
+        fields.is_rented,
         fields.needs_repair,
         fields.for_sale,
         fields.for_sale_date,
@@ -5244,6 +5258,7 @@ async function dbUpdateInventoryRowsByCcgNumber(
     is_active: number;
     is_marked: number;
     is_personal: number;
+    is_rented: number;
     needs_repair: number;
     for_sale: number;
     for_sale_date: string | null;
@@ -5260,7 +5275,7 @@ async function dbUpdateInventoryRowsByCcgNumber(
     await env.DB.prepare(
       `UPDATE ccg_inventory_items
        SET
-         is_active = ?, is_marked = ?, is_personal = ?, needs_repair = ?, for_sale = ?, for_sale_date = ?,
+         is_active = ?, is_marked = ?, is_personal = ?, is_rented = ?, needs_repair = ?, for_sale = ?, for_sale_date = ?,
          fbm_listing = ?, fbm_title = ?, fbm_url = ?, fbm_image_url = ?, fbm_listing_price = ?,
          updated_at = CURRENT_TIMESTAMP
        WHERE ccg_number = ?`
@@ -5268,6 +5283,7 @@ async function dbUpdateInventoryRowsByCcgNumber(
       fields.is_active,
       fields.is_marked,
       fields.is_personal,
+      fields.is_rented,
       fields.needs_repair,
       fields.for_sale,
       fields.for_sale_date,
@@ -8846,6 +8862,7 @@ function buildMergedPackagePurchaseNotes(rows: InventoryItemRow[]): string {
       `How Much Paid: ${paid}`,
       `Private Party Value: ${privateParty}`,
       `Serial Number: ${normalizeText(row.serial_number, '') || 'N/A'}`,
+      `Repair Notes: ${normalizeText(row.repair_notes, '') || 'N/A'}`,
     ];
     return itemLines.join('\n');
   }).join('\n\n');

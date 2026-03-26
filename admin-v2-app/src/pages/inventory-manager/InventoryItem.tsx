@@ -53,6 +53,7 @@ type InventoryItemRecord = {
   isActive?: boolean;
   isMarked?: boolean;
   isPersonal?: boolean;
+  isRented?: boolean;
   needsRepair?: boolean;
   forSale?: boolean;
   forSaleDate?: string | null;
@@ -123,6 +124,7 @@ type FormState = {
   isActive: boolean;
   isMarked: boolean;
   isPersonal: boolean;
+  isRented: boolean;
   needsRepair: boolean;
   forSale: boolean;
   fbmListing: boolean;
@@ -197,6 +199,7 @@ const DEFAULT_FORM: FormState = {
   isActive: true,
   isMarked: false,
   isPersonal: false,
+  isRented: false,
   needsRepair: false,
   forSale: false,
   fbmListing: false,
@@ -300,6 +303,7 @@ const InventoryItem = () => {
             isActive: Boolean(record.isActive),
             isMarked: Boolean(record.isMarked),
             isPersonal: Boolean(record.isPersonal),
+            isRented: Boolean(record.isRented),
             needsRepair: Boolean(record.needsRepair),
             forSale: Boolean(record.forSale),
             fbmListing: Boolean(record.fbmListing),
@@ -424,6 +428,8 @@ const InventoryItem = () => {
     purchaseNotes: form.purchaseNotes.trim(),
     isActive: form.isActive,
     isMarked: form.isMarked,
+    isPersonal: form.isPersonal,
+    isRented: form.isRented,
     needsRepair: form.needsRepair,
     forSale: form.forSale,
     fbmListing: form.fbmListing,
@@ -442,7 +448,6 @@ const InventoryItem = () => {
     twelveFretAction: form.twelveFretAction.trim(),
     soldAmount: form.soldAmount.trim(),
     sellNotes: form.sellNotes.trim(),
-    isPersonal: form.isPersonal,
   });
 
   const handlePromoteImage = async (index: number) => {
@@ -1070,6 +1075,15 @@ const InventoryItem = () => {
                         />
                       }
                       label="Is Personal"
+                    />
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={form.isRented}
+                          onChange={(event) => setField('isRented', event.target.checked)}
+                        />
+                      }
+                      label="Is Rented"
                     />
                     <FormControlLabel
                       control={
