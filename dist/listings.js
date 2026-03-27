@@ -79,7 +79,7 @@ function createListingCard(listing) {
     title.textContent = listing.title || 'Untitled listing';
     const source = document.createElement('span');
     source.className = `listing-source listing-source--${listing.source}`;
-    source.textContent = listing.source === 'facebook' ? 'Facebook' : 'R';
+    source.textContent = listing.source === 'facebook' ? 'Facebook' : 'Reverb';
     const priceGroup = document.createElement('div');
     priceGroup.className = 'listing-price-group';
     const price = document.createElement('p');

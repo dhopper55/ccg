@@ -2,7 +2,7 @@ export function decodeIbanez(serial) {
     const cleaned = serial.trim().toUpperCase();
     const normalized = cleaned.replace(/[\s-]/g, '');
     // Known model-code fallback (not a serial number)
-    if (normalized === 'SR305EDX' || normalized === 'GRG170DX') {
+    if (normalized === 'SR305EDX' || normalized === 'GRG170DX' || normalized === '684BK') {
         return decodeKnownModelCode(normalized);
     }
     // Check for compound serial numbers with model prefix + actual serial
@@ -287,6 +287,18 @@ export function decodeIbanez(serial) {
     };
 }
 function decodeKnownModelCode(modelCode) {
+    if (modelCode === '684BK') {
+        const info = {
+            brand: 'Ibanez',
+            serialNumber: modelCode,
+            model: 'Concord 684 BK',
+            year: '1974-1978',
+            country: 'Japan',
+            factory: 'Terada / FujiGen',
+            notes: '684BK is an Ibanez model code, not the stamped serial number. "684" identifies a Concord-series acoustic and "BK" indicates the black finish. This model is associated with 1970s Japanese production; exact dating still requires the separate serial number, usually found on the paper label, neck block, or back of the headstock.'
+        };
+        return { success: true, info };
+    }
     if (modelCode === 'GRG170DX') {
         const info = {
             brand: 'Ibanez',
