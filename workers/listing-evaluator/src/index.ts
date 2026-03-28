@@ -2205,6 +2205,11 @@ type InventoryItemRow = {
   finish: string | null;
   repair_notes: string | null;
   original_listing_desc: string | null;
+  video_url: string | null;
+  sale_title: string | null;
+  sale_price: number | null;
+  condition: string | null;
+  sale_description: string | null;
   purchased_date: string | null;
   purchase_price: number | null;
   private_party_value: number | null;
@@ -3136,6 +3141,11 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const finish = normalizeText(body.finish, '').slice(0, 120);
   const repairNotes = normalizeText(body.repairNotes, '').slice(0, 12000);
   const originalListingDesc = normalizeText(body.originalListingDesc, '').slice(0, 12000);
+  const videoUrl = normalizeUrl(normalizeText(body.videoUrl, '')).slice(0, 200);
+  const saleTitle = normalizeText(body.saleTitle, '').slice(0, 200);
+  const salePrice = parseCurrencyAmount(body.salePrice);
+  const condition = normalizeText(body.condition, '').slice(0, 50);
+  const saleDescription = normalizeText(body.saleDescription, '').slice(0, 12000);
   const purchasedDate = normalizeInventoryDate(body.purchasedDate) || currentDateYmd();
   const purchasePrice = parseCurrencyAmount(body.purchasePrice);
   const privatePartyValue = parseCurrencyAmount(body.privatePartyValue) ?? 0;
@@ -3231,6 +3241,11 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     finish: finish || null,
     repair_notes: repairNotes || null,
     original_listing_desc: originalListingDesc || null,
+    video_url: videoUrl || null,
+    sale_title: saleTitle || null,
+    sale_price: salePrice,
+    condition: condition || null,
+    sale_description: saleDescription || null,
     purchased_date: purchasedDate,
     purchase_price: purchasePrice,
     private_party_value: privatePartyValue,
@@ -3380,6 +3395,11 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const finish = normalizeText(body.finish, '').slice(0, 120);
   const repairNotes = normalizeText(body.repairNotes, '').slice(0, 12000);
   const originalListingDesc = normalizeText(body.originalListingDesc, '').slice(0, 12000);
+  const videoUrl = normalizeUrl(normalizeText(body.videoUrl, '')).slice(0, 200);
+  const saleTitle = normalizeText(body.saleTitle, '').slice(0, 200);
+  const salePrice = parseCurrencyAmount(body.salePrice);
+  const condition = normalizeText(body.condition, '').slice(0, 50);
+  const saleDescription = normalizeText(body.saleDescription, '').slice(0, 12000);
   const purchasedDate = normalizeInventoryDate(body.purchasedDate);
   const purchasePrice = parseCurrencyAmount(body.purchasePrice);
   const privatePartyValue = parseCurrencyAmount(body.privatePartyValue) ?? 0;
@@ -3490,6 +3510,11 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
 
   const selectedRowSaleOk = await dbUpdateInventorySaleById(recordId, {
     source_listing_id: sourceListingId,
+    video_url: videoUrl || null,
+    sale_title: saleTitle || null,
+    sale_price: salePrice,
+    condition: condition || null,
+    sale_description: saleDescription || null,
     is_sold: isSold ? 1 : 0,
     sold_date: resolveToggleTimestamp({
       previousOn: previousIsSold,
@@ -4443,6 +4468,11 @@ function mapInventoryRow(
     finish: row.finish || '',
     repairNotes: row.repair_notes || '',
     originalListingDesc: row.original_listing_desc || '',
+    videoUrl: row.video_url || '',
+    saleTitle: row.sale_title || '',
+    salePrice: row.sale_price,
+    condition: row.condition || '',
+    saleDescription: row.sale_description || '',
     purchasedDate: row.purchased_date || '',
     purchasePrice: row.purchase_price,
     privatePartyValue: row.private_party_value,
@@ -4732,6 +4762,11 @@ async function dbListInventoryItemsByCcgNumber(
       i.finish,
       i.repair_notes,
       i.original_listing_desc,
+      i.video_url,
+      i.sale_title,
+      i.sale_price,
+      i.condition,
+      i.sale_description,
       i.purchased_date,
       i.purchase_price,
       i.private_party_value,
@@ -4800,6 +4835,11 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.finish,
       i.repair_notes,
       i.original_listing_desc,
+      i.video_url,
+      i.sale_title,
+      i.sale_price,
+      i.condition,
+      i.sale_description,
       i.purchased_date,
       i.purchase_price,
       i.private_party_value,
@@ -4851,6 +4891,11 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     finish: row.finish || '',
     repairNotes: row.repair_notes || '',
     originalListingDesc: row.original_listing_desc || '',
+    videoUrl: row.video_url || '',
+    saleTitle: row.sale_title || '',
+    salePrice: row.sale_price,
+    condition: row.condition || '',
+    saleDescription: row.sale_description || '',
     purchasedDate: row.purchased_date || '',
     purchasePrice: row.purchase_price,
     privatePartyValue: row.private_party_value,
@@ -5004,6 +5049,11 @@ async function dbCreateInventoryItems(
     finish: string | null;
     repair_notes: string | null;
     original_listing_desc: string | null;
+    video_url: string | null;
+    sale_title: string | null;
+    sale_price: number | null;
+    condition: string | null;
+    sale_description: string | null;
     purchased_date: string;
     purchase_price: number | null;
     private_party_value: number;
@@ -5036,12 +5086,13 @@ async function dbCreateInventoryItems(
       (
         source_listing_id, ccg_number, image_url, title, category_id, brand, year_range, model, finish,
         image_urls,
-        repair_notes, original_listing_desc, purchased_date, purchase_price, private_party_value, purchase_notes, serial_number,
+        repair_notes, original_listing_desc, video_url, sale_title, sale_price, condition, sale_description,
+        purchased_date, purchase_price, private_party_value, purchase_notes, serial_number,
         weight_lbs, neck_profile, neck_thickness, nut_width, width_12_fret, fretboard_radius, twelve_fret_action,
         is_active, is_marked, is_personal, is_rented, needs_repair, for_sale, for_sale_date,
         is_sold, sold_date, sold_amount, sell_notes
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const statements = Array.from({ length: qty }, (_, index) =>
       env.DB.prepare(statement).bind(
@@ -5057,6 +5108,11 @@ async function dbCreateInventoryItems(
         fields.image_urls,
         fields.repair_notes,
         fields.original_listing_desc,
+        fields.video_url,
+        fields.sale_title,
+        fields.sale_price,
+        fields.condition,
+        fields.sale_description,
         fields.purchased_date,
         fields.purchase_price,
         fields.private_party_value,
@@ -5204,6 +5260,11 @@ async function dbUpdateInventorySaleById(
   recordId: string,
   fields: {
     source_listing_id: number | null;
+    video_url: string | null;
+    sale_title: string | null;
+    sale_price: number | null;
+    condition: string | null;
+    sale_description: string | null;
     is_sold: number;
     sold_date: string | null;
     sold_amount: number | null;
@@ -5217,11 +5278,17 @@ async function dbUpdateInventorySaleById(
     await env.DB.prepare(
       `UPDATE ccg_inventory_items
        SET
-         source_listing_id = ?, is_sold = ?, sold_date = ?, sold_amount = ?, sell_notes = ?,
+         source_listing_id = ?, video_url = ?, sale_title = ?, sale_price = ?, condition = ?, sale_description = ?,
+         is_sold = ?, sold_date = ?, sold_amount = ?, sell_notes = ?,
          updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
     ).bind(
       fields.source_listing_id,
+      fields.video_url,
+      fields.sale_title,
+      fields.sale_price,
+      fields.condition,
+      fields.sale_description,
       fields.is_sold,
       fields.sold_date,
       fields.sold_amount,

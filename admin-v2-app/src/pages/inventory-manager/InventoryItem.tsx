@@ -30,6 +30,7 @@ type InventoryItemRecord = {
   ccgNumber: string;
   imageUrl: string;
   imageUrls?: string[];
+  videoUrl?: string;
   title: string;
   categoryId?: number | null;
   categoryName?: string;
@@ -98,6 +99,7 @@ type SaveResponse = {
 type FormState = {
   qty: number;
   ccgNumber: string;
+  videoUrl: string;
   title: string;
   categoryId: string;
   brand: string;
@@ -175,6 +177,7 @@ function normalizeImageUrls(urls: string[]): string[] {
 const DEFAULT_FORM: FormState = {
   qty: 1,
   ccgNumber: 'Auto-generated on save',
+  videoUrl: '',
   title: '',
   categoryId: '',
   brand: '',
@@ -317,6 +320,7 @@ const InventoryItem = () => {
           setForm({
             qty: 1,
             ccgNumber: record.ccgNumber || '',
+            videoUrl: record.videoUrl || '',
             title: record.title || '',
             categoryId: record.categoryId != null ? String(record.categoryId) : '',
             brand: record.brand || '',
@@ -447,6 +451,7 @@ const InventoryItem = () => {
     qty: editId ? 1 : form.qty,
     imageUrl: urls[0],
     imageUrls: [...urls],
+    videoUrl: form.videoUrl.trim(),
     title: form.title.trim(),
     categoryId: form.categoryId,
     brand: form.brand.trim(),
@@ -1006,6 +1011,16 @@ const InventoryItem = () => {
                   </Grid>
                 </Grid>
               ) : null}
+
+              <Grid size={12}>
+                <TextField
+                  fullWidth
+                  label="YouTube Url"
+                  value={form.videoUrl}
+                  onChange={(event) => setField('videoUrl', event.target.value)}
+                  inputProps={{ maxLength: 200 }}
+                />
+              </Grid>
 
               <Grid size={12}>
                 <Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: 0.6 }}>
