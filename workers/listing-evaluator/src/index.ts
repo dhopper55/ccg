@@ -2189,18 +2189,6 @@ type UnifiedForSaleItem = {
   createdAt: string;
 };
 
-type InventoryFbmForSaleRow = {
-  id: number;
-  title: string;
-  image_url: string | null;
-  fbm_title: string | null;
-  fbm_url: string | null;
-  fbm_image_url: string | null;
-  fbm_listing_price: number | null;
-  created_at: string | null;
-  updated_at: string | null;
-};
-
 type InventoryItemRow = {
   id: number;
   source_listing_id: number | null;
@@ -2229,11 +2217,6 @@ type InventoryItemRow = {
   needs_repair: number | null;
   for_sale: number | null;
   for_sale_date: string | null;
-  fbm_listing: number | null;
-  fbm_title: string | null;
-  fbm_url: string | null;
-  fbm_image_url: string | null;
-  fbm_listing_price: number | null;
   is_sold: number | null;
   sold_date: string | null;
   sold_amount: number | null;
@@ -2425,16 +2408,8 @@ async function handleMapsConfig(env: Env): Promise<Response> {
 }
 
 async function handleForSaleFeed(env: Env): Promise<Response> {
-  const [reverbListings, inventoryFbmListings] = await Promise.all([
-    fetchReverbListings(env),
-    dbListInventoryFacebookForSale(env),
-  ]);
-
-  const unified: UnifiedForSaleItem[] = [];
-  unified.push(...reverbListings.map((listing) => normalizeReverbForSale(listing)));
-  unified.push(...inventoryFbmListings.map((listing) => normalizeInventoryFacebookForSale(listing)));
-
-  const merged = unified
+  const merged = (await fetchReverbListings(env))
+    .map((listing) => normalizeReverbForSale(listing))
     .filter((listing) => listing.title && listing.listingUrl && Number.isFinite(listing.priceDollars))
     .sort((a, b) => b.priceDollars - a.priceDollars);
 
@@ -3023,11 +2998,6 @@ async function handleAdminV2InventoryMergeMarked(env: Env): Promise<Response> {
     needs_repair: 0,
     for_sale: 0,
     for_sale_date: null,
-    fbm_listing: 0,
-    fbm_title: null,
-    fbm_url: null,
-    fbm_image_url: null,
-    fbm_listing_price: null,
     is_sold: 0,
     sold_date: null,
     sold_amount: 0,
@@ -3117,11 +3087,6 @@ async function handleInventoryPackageCreate(env: Env): Promise<Response> {
     is_rented: 0,
     for_sale: 0,
     for_sale_date: null,
-    fbm_listing: 0,
-    fbm_title: null,
-    fbm_url: null,
-    fbm_image_url: null,
-    fbm_listing_price: null,
     is_sold: 0,
     sold_date: null,
     sold_amount: 0,
@@ -3191,14 +3156,6 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const isSold = toBooleanInput(body.isSold, false);
   const forSaleRaw = toBooleanInput(body.forSale, false);
   const forSale = isSold ? false : forSaleRaw;
-  const fbmListing = toBooleanInput(body.fbmListing, false);
-  const fbmTitle = normalizeText(body.fbmTitle, '').slice(0, 240);
-  const fbmUrlRaw = normalizeText(body.fbmUrl, '');
-  const fbmImageUrlRaw = normalizeText(body.fbmImageUrl, '');
-  const fbmListingPriceRaw = parseCurrencyAmount(body.fbmListingPrice);
-  const fbmUrl = normalizeUrl(fbmUrlRaw);
-  let fbmImageUrl = normalizeInventoryOrExternalImageUrl(fbmImageUrlRaw);
-  const fbmListingPrice = fbmListingPriceRaw;
   const soldAmount = parseCurrencyAmount(body.soldAmount);
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
   const qty = parseBoundedInt(body.qty, 1, 1, 100);
@@ -3221,31 +3178,6 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   }
   if (!(await dbInventoryCategoryExists(categoryId, env))) {
     return jsonResponse({ message: 'Category ID is invalid.' }, 400);
-  }
-  if (fbmListing) {
-    if (!fbmTitle) {
-      return jsonResponse({ message: 'FBM title is required when FBM Listing is enabled.' }, 400);
-    }
-    if (!fbmUrl || !fbmUrl.includes('facebook.com/marketplace')) {
-      return jsonResponse({ message: 'FBM URL must be a valid Facebook Marketplace URL.' }, 400);
-    }
-    if (!fbmImageUrl) {
-      return jsonResponse({ message: 'FBM image URL is required when FBM Listing is enabled.' }, 400);
-    }
-    if (fbmListingPrice == null || !Number.isFinite(fbmListingPrice) || fbmListingPrice <= 0) {
-      return jsonResponse({ message: 'FBM listing price must be greater than 0.' }, 400);
-    }
-    if (fbmImageUrl && !isInventoryImageUrl(fbmImageUrl)) {
-      try {
-        fbmImageUrl = await importExternalImageToInventory(fbmImageUrl, env);
-      } catch (error) {
-        return jsonResponse({
-          message: error instanceof Error
-            ? `Unable to import Facebook Marketplace image: ${error.message}`
-            : 'Unable to import Facebook Marketplace image.',
-        }, 400);
-      }
-    }
   }
 
   if (sourceListingId != null) {
@@ -3318,11 +3250,6 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     needs_repair: needsRepair ? 1 : 0,
     for_sale: forSale ? 1 : 0,
     for_sale_date: forSale ? new Date().toISOString() : null,
-    fbm_listing: fbmListing ? 1 : 0,
-    fbm_title: fbmTitle || null,
-    fbm_url: fbmUrl,
-    fbm_image_url: fbmImageUrl,
-    fbm_listing_price: fbmListingPrice,
     is_sold: isSold ? 1 : 0,
     sold_date: isSold ? new Date().toISOString() : null,
     sold_amount: soldAmount,
@@ -3473,14 +3400,6 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const isSold = toBooleanInput(body.isSold, false);
   const forSaleRaw = toBooleanInput(body.forSale, false);
   const forSale = isSold ? false : forSaleRaw;
-  const fbmListing = toBooleanInput(body.fbmListing, false);
-  const fbmTitle = normalizeText(body.fbmTitle, '').slice(0, 240);
-  const fbmUrlRaw = normalizeText(body.fbmUrl, '');
-  const fbmImageUrlRaw = normalizeText(body.fbmImageUrl, '');
-  const fbmListingPriceRaw = parseCurrencyAmount(body.fbmListingPrice);
-  const fbmUrl = normalizeUrl(fbmUrlRaw);
-  let fbmImageUrl = normalizeInventoryOrExternalImageUrl(fbmImageUrlRaw);
-  const fbmListingPrice = fbmListingPriceRaw;
   const soldAmount = parseCurrencyAmount(body.soldAmount);
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
 
@@ -3503,31 +3422,6 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   }
   if (!(await dbInventoryCategoryExists(categoryId, env))) {
     return jsonResponse({ message: 'Category ID is invalid.' }, 400);
-  }
-  if (fbmListing) {
-    if (!fbmTitle) {
-      return jsonResponse({ message: 'FBM title is required when FBM Listing is enabled.' }, 400);
-    }
-    if (!fbmUrl || !fbmUrl.includes('facebook.com/marketplace')) {
-      return jsonResponse({ message: 'FBM URL must be a valid Facebook Marketplace URL.' }, 400);
-    }
-    if (!fbmImageUrl) {
-      return jsonResponse({ message: 'FBM image URL is required when FBM Listing is enabled.' }, 400);
-    }
-    if (fbmListingPrice == null || !Number.isFinite(fbmListingPrice) || fbmListingPrice <= 0) {
-      return jsonResponse({ message: 'FBM listing price must be greater than 0.' }, 400);
-    }
-    if (fbmImageUrl && !isInventoryImageUrl(fbmImageUrl)) {
-      try {
-        fbmImageUrl = await importExternalImageToInventory(fbmImageUrl, env);
-      } catch (error) {
-        return jsonResponse({
-          message: error instanceof Error
-            ? `Unable to import Facebook Marketplace image: ${error.message}`
-            : 'Unable to import Facebook Marketplace image.',
-        }, 400);
-      }
-    }
   }
 
   const current = await dbGetInventoryItem(recordId, env);
@@ -3591,11 +3485,6 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       nextOn: forSale,
       previousTimestamp: previousForSaleDate,
     }),
-    fbm_listing: fbmListing ? 1 : 0,
-    fbm_title: fbmTitle || null,
-    fbm_url: fbmUrl,
-    fbm_image_url: fbmImageUrl,
-    fbm_listing_price: fbmListingPrice,
   }, env);
   if (!rowSpecificOk) return jsonResponse({ message: 'Unable to update inventory items.' }, 500);
 
@@ -3776,19 +3665,6 @@ function normalizeReverbForSale(listing: ReverbApiListing): UnifiedForSaleItem {
     imageUrl,
     listingUrl: normalizeText(listing._links?.web?.href, ''),
     createdAt: '',
-  };
-}
-
-function normalizeInventoryFacebookForSale(row: InventoryFbmForSaleRow): UnifiedForSaleItem {
-  return {
-    id: `inventory-fbm-${row.id}`,
-    source: 'facebook',
-    title: normalizeText(row.fbm_title || row.title, 'Untitled listing'),
-    priceDollars: Number.isFinite(row.fbm_listing_price) ? Number(row.fbm_listing_price) : 0,
-    currency: 'USD',
-    imageUrl: row.fbm_image_url || row.image_url || '',
-    listingUrl: row.fbm_url || '',
-    createdAt: row.updated_at || row.created_at || '',
   };
 }
 
@@ -4544,36 +4420,6 @@ async function dbSetListingArchived(recordId: string, archived: boolean, env: En
   return true;
 }
 
-async function dbListInventoryFacebookForSale(env: Env): Promise<InventoryFbmForSaleRow[]> {
-  const result = await env.DB.prepare(
-    `SELECT
-      i.id,
-      i.title,
-      i.image_url,
-      i.fbm_title,
-      i.fbm_url,
-      i.fbm_image_url,
-      i.fbm_listing_price,
-      i.created_at,
-      i.updated_at
-     FROM ccg_inventory_items i
-     WHERE COALESCE(i.fbm_listing, 0) = 1
-       AND COALESCE(i.is_active, 1) = 1
-       AND COALESCE(i.is_sold, 0) = 0
-       AND TRIM(COALESCE(i.fbm_url, '')) <> ''
-       AND i.fbm_listing_price IS NOT NULL
-     ORDER BY i.updated_at DESC, i.id DESC`
-  ).all<InventoryFbmForSaleRow>();
-
-  const dedupedByUrl = new Map<string, InventoryFbmForSaleRow>();
-  for (const row of result.results ?? []) {
-    const key = normalizeText(row.fbm_url, '').toLowerCase();
-    if (!key || dedupedByUrl.has(key)) continue;
-    dedupedByUrl.set(key, row);
-  }
-  return Array.from(dedupedByUrl.values());
-}
-
 function mapInventoryRow(
   row: InventoryItemRow & {
     source_listing_price_asking?: number | null;
@@ -4609,11 +4455,6 @@ function mapInventoryRow(
     needsRepair: Boolean(row.needs_repair),
     forSale: Boolean(row.for_sale),
     forSaleDate: row.for_sale_date || null,
-    fbmListing: Boolean(row.fbm_listing),
-    fbmTitle: row.fbm_title || '',
-    fbmUrl: row.fbm_url || '',
-    fbmImageUrl: row.fbm_image_url || '',
-    fbmListingPrice: row.fbm_listing_price,
     isSold: Boolean(row.is_sold),
     soldDate: row.sold_date || null,
     soldAmount: row.sold_amount,
@@ -4802,11 +4643,6 @@ async function dbListInventoryItemsGrouped(
        i.needs_repair,
        i.for_sale,
        i.for_sale_date,
-       i.fbm_listing,
-       i.fbm_title,
-       i.fbm_url,
-       i.fbm_image_url,
-       i.fbm_listing_price,
        i.is_sold,
        i.sold_date,
        i.sold_amount,
@@ -4908,11 +4744,6 @@ async function dbListInventoryItemsByCcgNumber(
       i.needs_repair,
       i.for_sale,
       i.for_sale_date,
-      i.fbm_listing,
-      i.fbm_title,
-      i.fbm_url,
-      i.fbm_image_url,
-      i.fbm_listing_price,
       i.is_sold,
       i.sold_date,
       i.sold_amount,
@@ -4988,11 +4819,6 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.needs_repair,
       i.for_sale,
       i.for_sale_date,
-      i.fbm_listing,
-      i.fbm_title,
-      i.fbm_url,
-      i.fbm_image_url,
-      i.fbm_listing_price,
       i.is_sold,
       i.sold_date,
       i.sold_amount,
@@ -5044,11 +4870,6 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     needsRepair: Boolean(row.needs_repair),
     forSale: Boolean(row.for_sale),
     forSaleDate: row.for_sale_date || null,
-    fbmListing: Boolean(row.fbm_listing),
-    fbmTitle: row.fbm_title || '',
-    fbmUrl: row.fbm_url || '',
-    fbmImageUrl: row.fbm_image_url || '',
-    fbmListingPrice: row.fbm_listing_price,
     groupCount: Number(row.group_count ?? 1),
     isSold: Boolean(row.is_sold),
     soldDate: row.sold_date || null,
@@ -5202,11 +5023,6 @@ async function dbCreateInventoryItems(
     needs_repair: number;
     for_sale: number;
     for_sale_date: string | null;
-    fbm_listing: number;
-    fbm_title: string | null;
-    fbm_url: string | null;
-    fbm_image_url: string | null;
-    fbm_listing_price: number | null;
     is_sold: number;
     sold_date: string | null;
     sold_amount: number | null;
@@ -5223,10 +5039,9 @@ async function dbCreateInventoryItems(
         repair_notes, original_listing_desc, purchased_date, purchase_price, private_party_value, purchase_notes, serial_number,
         weight_lbs, neck_profile, neck_thickness, nut_width, width_12_fret, fretboard_radius, twelve_fret_action,
         is_active, is_marked, is_personal, is_rented, needs_repair, for_sale, for_sale_date,
-        fbm_listing, fbm_title, fbm_url, fbm_image_url, fbm_listing_price,
         is_sold, sold_date, sold_amount, sell_notes
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const statements = Array.from({ length: qty }, (_, index) =>
       env.DB.prepare(statement).bind(
@@ -5261,11 +5076,6 @@ async function dbCreateInventoryItems(
         fields.needs_repair,
         fields.for_sale,
         fields.for_sale_date,
-        fields.fbm_listing,
-        fields.fbm_title,
-        fields.fbm_url,
-        fields.fbm_image_url,
-        fields.fbm_listing_price,
         fields.is_sold,
         fields.sold_date,
         fields.sold_amount,
@@ -5362,11 +5172,6 @@ async function dbUpdateInventoryRowsByCcgNumber(
     needs_repair: number;
     for_sale: number;
     for_sale_date: string | null;
-    fbm_listing: number;
-    fbm_title: string | null;
-    fbm_url: string | null;
-    fbm_image_url: string | null;
-    fbm_listing_price: number | null;
   },
   env: Env
 ): Promise<boolean> {
@@ -5376,7 +5181,6 @@ async function dbUpdateInventoryRowsByCcgNumber(
       `UPDATE ccg_inventory_items
        SET
          is_active = ?, is_marked = ?, is_personal = ?, is_rented = ?, needs_repair = ?, for_sale = ?, for_sale_date = ?,
-         fbm_listing = ?, fbm_title = ?, fbm_url = ?, fbm_image_url = ?, fbm_listing_price = ?,
          updated_at = CURRENT_TIMESTAMP
        WHERE ccg_number = ?`
     ).bind(
@@ -5387,11 +5191,6 @@ async function dbUpdateInventoryRowsByCcgNumber(
       fields.needs_repair,
       fields.for_sale,
       fields.for_sale_date,
-      fields.fbm_listing,
-      fields.fbm_title,
-      fields.fbm_url,
-      fields.fbm_image_url,
-      fields.fbm_listing_price,
       ccgNumber
     ).run();
     return true;
@@ -5533,11 +5332,6 @@ async function dbListMarkedInventoryRowsForPackage(env: Env): Promise<InventoryI
       i.is_personal,
       i.for_sale,
       i.for_sale_date,
-      i.fbm_listing,
-      i.fbm_title,
-      i.fbm_url,
-      i.fbm_image_url,
-      i.fbm_listing_price,
       i.is_sold,
       i.sold_date,
       i.sold_amount,

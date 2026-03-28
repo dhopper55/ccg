@@ -59,11 +59,6 @@ type InventoryItemRecord = {
   needsRepair?: boolean;
   forSale?: boolean;
   forSaleDate?: string | null;
-  fbmListing?: boolean;
-  fbmTitle?: string;
-  fbmUrl?: string;
-  fbmImageUrl?: string;
-  fbmListingPrice?: number | null;
   groupCount?: number | null;
   isSold?: boolean;
   soldDate?: string | null;
@@ -129,11 +124,6 @@ type FormState = {
   isRented: boolean;
   needsRepair: boolean;
   forSale: boolean;
-  fbmListing: boolean;
-  fbmTitle: string;
-  fbmUrl: string;
-  fbmImageUrl: string;
-  fbmListingPrice: string;
   isSold: boolean;
   soldAmount: string;
   sellNotes: string;
@@ -211,11 +201,6 @@ const DEFAULT_FORM: FormState = {
   isRented: false,
   needsRepair: false,
   forSale: false,
-  fbmListing: false,
-  fbmTitle: '',
-  fbmUrl: '',
-  fbmImageUrl: '',
-  fbmListingPrice: '',
   isSold: false,
   soldAmount: '',
   sellNotes: '',
@@ -360,12 +345,6 @@ const InventoryItem = () => {
             isRented: Boolean(record.isRented),
             needsRepair: Boolean(record.needsRepair),
             forSale: Boolean(record.forSale),
-            fbmListing: Boolean(record.fbmListing),
-            fbmTitle: record.fbmTitle || '',
-            fbmUrl: record.fbmUrl || '',
-            fbmImageUrl: record.fbmImageUrl || '',
-            fbmListingPrice:
-              record.fbmListingPrice != null ? String(record.fbmListingPrice) : '',
             isSold: Boolean(record.isSold),
             soldAmount: record.soldAmount != null ? String(record.soldAmount) : '',
             sellNotes: record.sellNotes || '',
@@ -486,11 +465,6 @@ const InventoryItem = () => {
     isRented: form.isRented,
     needsRepair: form.needsRepair,
     forSale: form.forSale,
-    fbmListing: form.fbmListing,
-    fbmTitle: form.fbmTitle.trim(),
-    fbmUrl: form.fbmUrl.trim(),
-    fbmImageUrl: form.fbmImageUrl.trim(),
-    fbmListingPrice: form.fbmListingPrice.trim(),
     isSold: form.isSold,
     serialNumber: form.serialNumber.trim(),
     weightLbs: form.weightLbs.trim(),
@@ -706,25 +680,6 @@ const InventoryItem = () => {
         return;
       }
     }
-    if (form.fbmListing) {
-      if (!form.fbmTitle.trim()) {
-        setMessage({ severity: 'error', text: 'Facebook Marketplace title is required when FBM Listing is enabled.' });
-        return;
-      }
-      if (!form.fbmUrl.trim()) {
-        setMessage({ severity: 'error', text: 'Facebook Marketplace URL is required when FBM Listing is enabled.' });
-        return;
-      }
-      if (!form.fbmImageUrl.trim()) {
-        setMessage({ severity: 'error', text: 'Facebook Marketplace image URL is required when FBM Listing is enabled.' });
-        return;
-      }
-      if (!form.fbmListingPrice.trim()) {
-        setMessage({ severity: 'error', text: 'Facebook Marketplace listing price is required when FBM Listing is enabled.' });
-        return;
-      }
-    }
-
     setIsSubmitting(true);
     setMessage(null);
 
@@ -1250,65 +1205,8 @@ const InventoryItem = () => {
                       }
                       label="For Sale"
                     />
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={form.fbmListing}
-                          onChange={(event) => setField('fbmListing', event.target.checked)}
-                        />
-                      }
-                      label="FBM Listing"
-                    />
                   </Stack>
                 </Paper>
-              </Grid>
-
-              <Grid size={{ xs: 12, md: 4 }}>
-                <TextField
-                  fullWidth
-                  label="FBM Title"
-                  value={form.fbmTitle}
-                  onChange={(event) => setField('fbmTitle', event.target.value)}
-                  disabled={!form.fbmListing}
-                  required={form.fbmListing}
-                  inputProps={{ maxLength: 240 }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, md: 4 }}>
-                <TextField
-                  fullWidth
-                  label="FBM URL"
-                  value={form.fbmUrl}
-                  onChange={(event) => setField('fbmUrl', event.target.value)}
-                  disabled={!form.fbmListing}
-                  required={form.fbmListing}
-                  placeholder="https://www.facebook.com/marketplace/item/..."
-                  inputProps={{ maxLength: 2048 }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, md: 4 }}>
-                <TextField
-                  fullWidth
-                  label="FBM Image URL"
-                  value={form.fbmImageUrl}
-                  onChange={(event) => setField('fbmImageUrl', event.target.value)}
-                  disabled={!form.fbmListing}
-                  required={form.fbmListing}
-                  placeholder="https://..."
-                  inputProps={{ maxLength: 2048 }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, md: 4 }}>
-                <TextField
-                  fullWidth
-                  label="FBM Listing Price"
-                  type="number"
-                  value={form.fbmListingPrice}
-                  onChange={(event) => setField('fbmListingPrice', event.target.value)}
-                  disabled={!form.fbmListing}
-                  required={form.fbmListing}
-                  inputProps={{ min: 0, step: 0.01 }}
-                />
               </Grid>
 
               {GUITAR_CATEGORY_NAMES.has(selectedCategoryName) ? (
