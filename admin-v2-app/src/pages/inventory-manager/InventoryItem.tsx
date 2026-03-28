@@ -139,7 +139,7 @@ type FormState = {
   sellNotes: string;
 };
 
-const INVENTORY_MAX_IMAGES = 10;
+const INVENTORY_MAX_IMAGES = 20;
 const GUITAR_CATEGORY_NAMES = new Set([
   'Acoustic Bass',
   'Acoustic Guitars',
@@ -832,7 +832,11 @@ const InventoryItem = () => {
               <Grid size={12}>
                 <Stack spacing={1.5}>
                   <Typography variant="subtitle2">Images</Typography>
-                  <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }}>
+                  <Stack
+                    direction={{ xs: 'column', md: 'row' }}
+                    spacing={1.5}
+                    sx={{ flexWrap: 'wrap', alignItems: { md: 'center' }, width: 1 }}
+                  >
                     <Button
                       variant="outlined"
                       color="inherit"
@@ -868,98 +872,98 @@ const InventoryItem = () => {
                     onChange={handleFileChange}
                   />
                   <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                    Upload 1 primary image plus up to 9 additional images.
+                    Upload 1 primary image plus up to 19 additional images.
                   </Typography>
 
                   {imageUrls.length ? (
-                    <Stack direction="row" sx={{ gap: 2, flexWrap: 'wrap' }}>
+                    <Grid container spacing={2} sx={{ width: 1 }}>
                       {imageUrls.map((url, index) => (
-                        <Paper
-                          key={url}
-                          variant="outlined"
-                          sx={{
-                            p: 1,
-                            width: 240,
-                            borderRadius: 3,
-                            bgcolor: 'background.default',
-                            '&:hover .inventory-image-promote': {
-                              opacity: 1,
-                              transform: 'translateY(0)',
-                            },
-                          }}
-                        >
-                          <Stack spacing={1}>
-                            <Box
-                              sx={{
-                                position: 'relative',
-                                width: '100%',
-                                aspectRatio: '1 / 1',
-                                borderRadius: 2,
-                                overflow: 'hidden',
-                                bgcolor: 'background.elevation1',
-                                cursor: 'pointer',
-                              }}
-                              onClick={() => setPreviewImage(url)}
-                            >
-                              {index > 0 ? (
-                                <Tooltip title="Make primary">
-                                  <IconButton
-                                    className="inventory-image-promote"
-                                    size="small"
-                                    aria-label="Make primary image"
-                                    disabled={isSubmitting}
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      void handlePromoteImage(index);
-                                    }}
-                                    sx={{
-                                      position: 'absolute',
-                                      top: 8,
-                                      right: 8,
-                                      zIndex: 1,
-                                      bgcolor: 'rgba(15, 23, 42, 0.78)',
-                                      color: 'warning.main',
-                                      border: 1,
-                                      borderColor: 'rgba(255,255,255,0.12)',
-                                      opacity: 0,
-                                      transform: 'translateY(-4px)',
-                                      transition: 'opacity 160ms ease, transform 160ms ease, background-color 160ms ease',
-                                      '&:hover': {
-                                        bgcolor: 'rgba(15, 23, 42, 0.92)',
-                                      },
-                                    }}
-                                  >
-                                    <IconifyIcon icon="material-symbols:star-rounded" fontSize={18} />
-                                  </IconButton>
-                                </Tooltip>
-                              ) : null}
+                        <Grid key={url} size={{ xs: 12, sm: 6, xl: 4 }}>
+                          <Paper
+                            variant="outlined"
+                            sx={{
+                              p: 1,
+                              borderRadius: 3,
+                              bgcolor: 'background.default',
+                              '&:hover .inventory-image-promote': {
+                                opacity: 1,
+                                transform: 'translateY(0)',
+                              },
+                            }}
+                          >
+                            <Stack spacing={1}>
                               <Box
-                                component="img"
-                                src={url}
-                                alt={`Inventory image ${index + 1}`}
-                                sx={{ width: 1, height: 1, objectFit: 'cover' }}
-                              />
-                            </Box>
-
-                            <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                              {index === 0 ? (
-                                <Chip label="Primary" size="small" color="warning" variant="soft" />
-                              ) : (
-                                <Box />
-                              )}
-                              <IconButton
-                                size="small"
-                                aria-label="Remove image"
-                                disabled={imageUrls.length <= 1 || isSubmitting}
-                                onClick={() => updateImageUrls(imageUrls.filter((_, i) => i !== index))}
+                                sx={{
+                                  position: 'relative',
+                                  width: '100%',
+                                  aspectRatio: '1 / 1',
+                                  borderRadius: 2,
+                                  overflow: 'hidden',
+                                  bgcolor: 'background.elevation1',
+                                  cursor: 'pointer',
+                                }}
+                                onClick={() => setPreviewImage(url)}
                               >
-                                <IconifyIcon icon="material-symbols:delete-outline-rounded" fontSize={18} />
-                              </IconButton>
+                                {index > 0 ? (
+                                  <Tooltip title="Make primary">
+                                    <IconButton
+                                      className="inventory-image-promote"
+                                      size="small"
+                                      aria-label="Make primary image"
+                                      disabled={isSubmitting}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        void handlePromoteImage(index);
+                                      }}
+                                      sx={{
+                                        position: 'absolute',
+                                        top: 8,
+                                        right: 8,
+                                        zIndex: 1,
+                                        bgcolor: 'rgba(15, 23, 42, 0.78)',
+                                        color: 'warning.main',
+                                        border: 1,
+                                        borderColor: 'rgba(255,255,255,0.12)',
+                                        opacity: 0,
+                                        transform: 'translateY(-4px)',
+                                        transition: 'opacity 160ms ease, transform 160ms ease, background-color 160ms ease',
+                                        '&:hover': {
+                                          bgcolor: 'rgba(15, 23, 42, 0.92)',
+                                        },
+                                      }}
+                                    >
+                                      <IconifyIcon icon="material-symbols:star-rounded" fontSize={18} />
+                                    </IconButton>
+                                  </Tooltip>
+                                ) : null}
+                                <Box
+                                  component="img"
+                                  src={url}
+                                  alt={`Inventory image ${index + 1}`}
+                                  sx={{ width: 1, height: 1, objectFit: 'cover' }}
+                                />
+                              </Box>
+
+                              <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                                {index === 0 ? (
+                                  <Chip label="Primary" size="small" color="warning" variant="soft" />
+                                ) : (
+                                  <Box />
+                                )}
+                                <IconButton
+                                  size="small"
+                                  aria-label="Remove image"
+                                  disabled={imageUrls.length <= 1 || isSubmitting}
+                                  onClick={() => updateImageUrls(imageUrls.filter((_, i) => i !== index))}
+                                >
+                                  <IconifyIcon icon="material-symbols:delete-outline-rounded" fontSize={18} />
+                                </IconButton>
+                              </Stack>
                             </Stack>
-                          </Stack>
-                        </Paper>
+                          </Paper>
+                        </Grid>
                       ))}
-                    </Stack>
+                    </Grid>
                   ) : null}
                 </Stack>
               </Grid>
