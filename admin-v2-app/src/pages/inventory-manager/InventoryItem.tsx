@@ -31,6 +31,10 @@ type InventoryItemRecord = {
   imageUrl: string;
   imageUrls?: string[];
   videoUrl?: string;
+  saleTitle?: string;
+  salePrice?: number | null;
+  condition?: string;
+  saleDescription?: string;
   title: string;
   categoryId?: number | null;
   categoryName?: string;
@@ -100,6 +104,10 @@ type FormState = {
   qty: number;
   ccgNumber: string;
   videoUrl: string;
+  saleTitle: string;
+  salePrice: string;
+  condition: string;
+  saleDescription: string;
   title: string;
   categoryId: string;
   brand: string;
@@ -178,6 +186,10 @@ const DEFAULT_FORM: FormState = {
   qty: 1,
   ccgNumber: 'Auto-generated on save',
   videoUrl: '',
+  saleTitle: '',
+  salePrice: '',
+  condition: '',
+  saleDescription: '',
   title: '',
   categoryId: '',
   brand: '',
@@ -321,6 +333,10 @@ const InventoryItem = () => {
             qty: 1,
             ccgNumber: record.ccgNumber || '',
             videoUrl: record.videoUrl || '',
+            saleTitle: record.saleTitle || '',
+            salePrice: record.salePrice != null ? String(record.salePrice) : '',
+            condition: record.condition || '',
+            saleDescription: record.saleDescription || '',
             title: record.title || '',
             categoryId: record.categoryId != null ? String(record.categoryId) : '',
             brand: record.brand || '',
@@ -452,6 +468,10 @@ const InventoryItem = () => {
     imageUrl: urls[0],
     imageUrls: [...urls],
     videoUrl: form.videoUrl.trim(),
+    saleTitle: form.saleTitle.trim(),
+    salePrice: form.salePrice.trim(),
+    condition: form.condition.trim(),
+    saleDescription: form.saleDescription.trim(),
     title: form.title.trim(),
     categoryId: form.categoryId,
     brand: form.brand.trim(),
@@ -1223,6 +1243,61 @@ const InventoryItem = () => {
                   </Stack>
                 </Paper>
               </Grid>
+
+              {form.forSale ? (
+                <Grid size={12}>
+                  <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, bgcolor: 'background.default' }}>
+                    <Grid container spacing={3}>
+                      <Grid size={12}>
+                        <Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: 0.6 }}>
+                          Sale Details
+                        </Typography>
+                      </Grid>
+                      <Grid size={12}>
+                        <TextField
+                          fullWidth
+                          label="Title"
+                          value={form.saleTitle}
+                          onChange={(event) => setField('saleTitle', event.target.value)}
+                          inputProps={{ maxLength: 200 }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 6 }}>
+                        <TextField
+                          fullWidth
+                          label="Price"
+                          type="number"
+                          value={form.salePrice}
+                          onChange={(event) => setField('salePrice', event.target.value)}
+                          inputProps={{ min: 0, step: 0.01 }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 6 }}>
+                        <TextField
+                          fullWidth
+                          label="Condition"
+                          value={form.condition}
+                          onChange={(event) => setField('condition', event.target.value)}
+                          inputProps={{ maxLength: 50 }}
+                        />
+                      </Grid>
+                      <Grid size={12}>
+                        <TextField
+                          fullWidth
+                          multiline
+                          minRows={4}
+                          maxRows={8}
+                          label="Description"
+                          value={form.saleDescription}
+                          onChange={(event) => setField('saleDescription', event.target.value)}
+                          inputProps={{ maxLength: 12000 }}
+                          sx={notesFieldSx}
+                        />
+                      </Grid>
+                    </Grid>
+                  </Paper>
+                </Grid>
+              ) : null}
 
               {GUITAR_CATEGORY_NAMES.has(selectedCategoryName) ? (
                 <>
