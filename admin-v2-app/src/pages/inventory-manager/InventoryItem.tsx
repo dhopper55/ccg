@@ -31,7 +31,9 @@ type InventoryItemRecord = {
   imageUrl: string;
   imageUrls?: string[];
   title: string;
-  category?: string;
+  categoryId?: number | null;
+  categoryName?: string;
+  categoryPath?: string;
   brand?: string;
   yearRange?: string;
   model?: string;
@@ -102,7 +104,7 @@ type FormState = {
   qty: number;
   ccgNumber: string;
   title: string;
-  category: string;
+  categoryId: string;
   brand: string;
   yearRange: string;
   model: string;
@@ -138,26 +140,33 @@ type FormState = {
 };
 
 const INVENTORY_MAX_IMAGES = 10;
-const GUITAR_CATEGORIES = new Set([
+const GUITAR_CATEGORY_NAMES = new Set([
   'Acoustic Bass',
   'Acoustic Guitars',
   'Electric Bass',
   'Electric Guitars',
 ]);
 
-const CATEGORY_OPTIONS = [
-  'Accessories',
-  'Acoustic Bass',
-  'Acoustic Guitars',
-  'Amplification',
-  'Cases & Bags',
-  'Effects Pedals',
-  'Electric Bass',
-  'Electric Guitars',
-  'Keyboards & Synthesizers',
-  'Packages',
-  'Pro Audio',
-];
+type InventoryCategoryNode = {
+  id: number;
+  name: string;
+  parentId: number | null;
+  order: number;
+  depth: number;
+  path: string;
+  children: InventoryCategoryNode[];
+};
+
+type InventoryCategoriesResponse = {
+  tree?: InventoryCategoryNode[];
+  message?: string;
+};
+
+type InventoryCategoryOption = {
+  id: string;
+  name: string;
+  label: string;
+};
 
 function todayYmd(): string {
   return new Date().toISOString().slice(0, 10);
@@ -177,7 +186,7 @@ const DEFAULT_FORM: FormState = {
   qty: 1,
   ccgNumber: 'Auto-generated on save',
   title: '',
-  category: '',
+  categoryId: '',
   brand: '',
   yearRange: '',
   model: '',
@@ -241,6 +250,7 @@ const InventoryItem = () => {
     null,
   );
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [categoryOptions, setCategoryOptions] = useState<InventoryCategoryOption[]>([]);
 
   const mode = editId ? 'edit' : 'add';
   const pageTitle = mode === 'edit' ? 'Edit Inventory Item' : 'Add Inventory Item';
@@ -249,6 +259,50 @@ const InventoryItem = () => {
   useEffect(() => {
     document.title = `CCG Admin | ${pageTitle}`;
   }, [pageTitle]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const flattenCategoryTree = (
+      nodes: InventoryCategoryNode[],
+      depth = 0,
+    ): InventoryCategoryOption[] =>
+      nodes.flatMap((node) => [
+        {
+          id: String(node.id),
+          name: node.name,
+          label: `${depth > 0 ? `${'---'.repeat(depth)} ` : ''}${node.name}`,
+        },
+        ...flattenCategoryTree(Array.isArray(node.children) ? node.children : [], depth + 1),
+      ]);
+
+    const loadCategories = async () => {
+      try {
+        const response = await fetch('/api/admin-v2/inventory/categories', {
+          method: 'GET',
+          credentials: 'same-origin',
+        });
+        const data = (await response.json()) as InventoryCategoriesResponse;
+        if (!response.ok) {
+          throw new Error(data.message || 'Unable to load inventory categories.');
+        }
+        if (cancelled) return;
+        setCategoryOptions(flattenCategoryTree(Array.isArray(data.tree) ? data.tree : []));
+      } catch (error) {
+        if (cancelled) return;
+        setMessage({
+          severity: 'error',
+          text: error instanceof Error ? error.message : 'Unable to load inventory categories.',
+        });
+      }
+    };
+
+    void loadCategories();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -279,7 +333,7 @@ const InventoryItem = () => {
             qty: 1,
             ccgNumber: record.ccgNumber || '',
             title: record.title || '',
-            category: record.category || '',
+            categoryId: record.categoryId != null ? String(record.categoryId) : '',
             brand: record.brand || '',
             yearRange: record.yearRange || '',
             model: record.model || '',
@@ -359,7 +413,7 @@ const InventoryItem = () => {
           setForm((current) => ({
             ...current,
             title: concatTitle || (fields.title || '').trim(),
-            category: (fields.category || '').trim(),
+            categoryId: '',
             brand,
             yearRange: year,
             model,
@@ -415,7 +469,7 @@ const InventoryItem = () => {
     imageUrl: urls[0],
     imageUrls: [...urls],
     title: form.title.trim(),
-    category: form.category.trim(),
+    categoryId: form.categoryId,
     brand: form.brand.trim(),
     yearRange: form.yearRange.trim(),
     model: form.model.trim(),
@@ -595,7 +649,7 @@ const InventoryItem = () => {
       setMessage({ severity: 'error', text: 'Purchased date is required.' });
       return;
     }
-    if (!form.category.trim()) {
+    if (!form.categoryId.trim()) {
       setMessage({ severity: 'error', text: 'Category is required.' });
       return;
     }
@@ -671,6 +725,11 @@ const InventoryItem = () => {
     if (isUploading) return 'Uploading...';
     return imageUrls.length > 0 ? 'Add Images' : 'Upload Images';
   }, [imageUrls.length, isUploading]);
+
+  const selectedCategoryName = useMemo(
+    () => categoryOptions.find((option) => option.id === form.categoryId)?.name || '',
+    [categoryOptions, form.categoryId],
+  );
 
   return (
     <Stack direction="column" height={1} gap={3} sx={{ minWidth: 0 }}>
@@ -936,12 +995,12 @@ const InventoryItem = () => {
                   select
                   fullWidth
                   label="Category"
-                  value={form.category}
-                  onChange={(event) => setField('category', event.target.value)}
+                  value={form.categoryId}
+                  onChange={(event) => setField('categoryId', event.target.value)}
                 >
-                  {CATEGORY_OPTIONS.map((option) => (
-                    <MenuItem key={option} value={option}>
-                      {option}
+                  {categoryOptions.map((option) => (
+                    <MenuItem key={option.id} value={option.id}>
+                      {option.label}
                     </MenuItem>
                   ))}
                 </TextField>
@@ -1164,7 +1223,7 @@ const InventoryItem = () => {
                 />
               </Grid>
 
-              {GUITAR_CATEGORIES.has(form.category) ? (
+              {GUITAR_CATEGORY_NAMES.has(selectedCategoryName) ? (
                 <>
                   <Grid size={12}>
                     <Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: 0.6 }}>
