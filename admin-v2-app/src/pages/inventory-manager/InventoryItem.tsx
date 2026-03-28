@@ -147,6 +147,14 @@ const GUITAR_CATEGORY_NAMES = new Set([
   'Electric Guitars',
 ]);
 
+const SALE_CONDITION_OPTIONS = [
+  '',
+  'New',
+  'Used - Like New',
+  'Used - Good',
+  'Used - Fair',
+];
+
 type InventoryCategoryNode = {
   id: number;
   name: string;
@@ -1274,12 +1282,18 @@ const InventoryItem = () => {
                       </Grid>
                       <Grid size={{ xs: 12, md: 6 }}>
                         <TextField
+                          select
                           fullWidth
                           label="Condition"
                           value={form.condition}
                           onChange={(event) => setField('condition', event.target.value)}
-                          inputProps={{ maxLength: 50 }}
-                        />
+                        >
+                          {SALE_CONDITION_OPTIONS.map((option) => (
+                            <MenuItem key={option || 'blank'} value={option}>
+                              {option || ' '}
+                            </MenuItem>
+                          ))}
+                        </TextField>
                       </Grid>
                       <Grid size={12}>
                         <TextField
