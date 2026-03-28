@@ -3141,7 +3141,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const finish = normalizeText(body.finish, '').slice(0, 120);
   const repairNotes = normalizeText(body.repairNotes, '').slice(0, 12000);
   const originalListingDesc = normalizeText(body.originalListingDesc, '').slice(0, 12000);
-  const videoUrl = normalizeUrl(normalizeText(body.videoUrl, '')).slice(0, 200);
+  const videoUrl = (normalizeUrl(normalizeText(body.videoUrl, '')) || '').slice(0, 200);
   const saleTitle = normalizeText(body.saleTitle, '').slice(0, 200);
   const salePrice = parseCurrencyAmount(body.salePrice);
   const condition = normalizeText(body.condition, '').slice(0, 50);
@@ -3395,7 +3395,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const finish = normalizeText(body.finish, '').slice(0, 120);
   const repairNotes = normalizeText(body.repairNotes, '').slice(0, 12000);
   const originalListingDesc = normalizeText(body.originalListingDesc, '').slice(0, 12000);
-  const videoUrl = normalizeUrl(normalizeText(body.videoUrl, '')).slice(0, 200);
+  const videoUrl = (normalizeUrl(normalizeText(body.videoUrl, '')) || '').slice(0, 200);
   const saleTitle = normalizeText(body.saleTitle, '').slice(0, 200);
   const salePrice = parseCurrencyAmount(body.salePrice);
   const condition = normalizeText(body.condition, '').slice(0, 50);
@@ -4765,7 +4765,7 @@ async function dbListInventoryItemsByCcgNumber(
       i.video_url,
       i.sale_title,
       i.sale_price,
-      i.condition,
+      i."condition",
       i.sale_description,
       i.purchased_date,
       i.purchase_price,
@@ -4838,7 +4838,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.video_url,
       i.sale_title,
       i.sale_price,
-      i.condition,
+      i."condition",
       i.sale_description,
       i.purchased_date,
       i.purchase_price,
@@ -5086,7 +5086,7 @@ async function dbCreateInventoryItems(
       (
         source_listing_id, ccg_number, image_url, title, category_id, brand, year_range, model, finish,
         image_urls,
-        repair_notes, original_listing_desc, video_url, sale_title, sale_price, condition, sale_description,
+        repair_notes, original_listing_desc, video_url, sale_title, sale_price, "condition", sale_description,
         purchased_date, purchase_price, private_party_value, purchase_notes, serial_number,
         weight_lbs, neck_profile, neck_thickness, nut_width, width_12_fret, fretboard_radius, twelve_fret_action,
         is_active, is_marked, is_personal, is_rented, needs_repair, for_sale, for_sale_date,
@@ -5278,7 +5278,7 @@ async function dbUpdateInventorySaleById(
     await env.DB.prepare(
       `UPDATE ccg_inventory_items
        SET
-         source_listing_id = ?, video_url = ?, sale_title = ?, sale_price = ?, condition = ?, sale_description = ?,
+         source_listing_id = ?, video_url = ?, sale_title = ?, sale_price = ?, "condition" = ?, sale_description = ?,
          is_sold = ?, sold_date = ?, sold_amount = ?, sell_notes = ?,
          updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
