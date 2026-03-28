@@ -545,6 +545,49 @@ const InventoryItem = () => {
     }
   };
 
+  const handleMoveImage = async (index: number, direction: 'left' | 'right') => {
+    if (index < 0 || index >= imageUrls.length) return;
+    const targetIndex = direction === 'left' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= imageUrls.length) return;
+
+    const previousUrls = [...imageUrls];
+    const nextUrls = [...imageUrls];
+    const [selected] = nextUrls.splice(index, 1);
+    nextUrls.splice(targetIndex, 0, selected);
+    updateImageUrls(nextUrls);
+
+    if (!editId) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    setMessage(null);
+
+    try {
+      const response = await fetch(`/api/inventory/${encodeURIComponent(editId)}/update`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(createSavePayload(nextUrls)),
+        credentials: 'same-origin',
+      });
+
+      const data = (await response.json().catch(() => ({}))) as SaveResponse;
+      if (!response.ok || !data.ok) {
+        throw new Error(data.message || 'Unable to reorder inventory images.');
+      }
+
+      enqueueSnackbar('Image order updated. Reloading…', { variant: 'success' });
+      window.location.reload();
+    } catch (error) {
+      updateImageUrls(previousUrls);
+      const text = error instanceof Error ? error.message : 'Unable to reorder inventory images.';
+      setMessage({ severity: 'error', text });
+      enqueueSnackbar(text, { variant: 'error' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const uploadImage = async (file: File): Promise<string> => {
     const formData = new FormData();
     formData.set('image', file);
@@ -887,7 +930,7 @@ const InventoryItem = () => {
                 <Grid size={12}>
                   <Grid container spacing={2}>
                     {imageUrls.map((url, index) => (
-                      <Grid key={url} size={{ xs: 12, sm: 6, xl: 4 }}>
+                      <Grid key={url} size={{ xs: 12, sm: 6, md: 3 }}>
                         <Paper
                           variant="outlined"
                           sx={{
@@ -914,36 +957,69 @@ const InventoryItem = () => {
                               onClick={() => setPreviewImage(url)}
                             >
                               {index > 0 ? (
-                                <Tooltip title="Make primary">
-                                  <IconButton
-                                    className="inventory-image-promote"
-                                    size="small"
-                                    aria-label="Make primary image"
-                                    disabled={isSubmitting}
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      void handlePromoteImage(index);
-                                    }}
-                                    sx={{
-                                      position: 'absolute',
-                                      top: 8,
-                                      right: 8,
-                                      zIndex: 1,
-                                      bgcolor: 'rgba(15, 23, 42, 0.78)',
-                                      color: 'warning.main',
-                                      border: 1,
-                                      borderColor: 'rgba(255,255,255,0.12)',
-                                      opacity: 0,
-                                      transform: 'translateY(-4px)',
-                                      transition: 'opacity 160ms ease, transform 160ms ease, background-color 160ms ease',
-                                      '&:hover': {
-                                        bgcolor: 'rgba(15, 23, 42, 0.92)',
-                                      },
-                                    }}
-                                  >
-                                    <IconifyIcon icon="material-symbols:star-rounded" fontSize={18} />
-                                  </IconButton>
-                                </Tooltip>
+                                <Stack
+                                  direction="row"
+                                  spacing={1}
+                                  className="inventory-image-promote"
+                                  sx={{
+                                    position: 'absolute',
+                                    top: 8,
+                                    right: 8,
+                                    zIndex: 1,
+                                    opacity: 0,
+                                    transform: 'translateY(-4px)',
+                                    transition: 'opacity 160ms ease, transform 160ms ease',
+                                  }}
+                                >
+                                  {index > 0 ? (
+                                    <Tooltip title="Move left">
+                                      <IconButton
+                                        size="small"
+                                        aria-label="Move image left"
+                                        disabled={isSubmitting}
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          void handleMoveImage(index, 'left');
+                                        }}
+                                        sx={{
+                                          bgcolor: 'rgba(15, 23, 42, 0.78)',
+                                          color: 'common.white',
+                                          border: 1,
+                                          borderColor: 'rgba(255,255,255,0.12)',
+                                          '&:hover': {
+                                            bgcolor: 'rgba(15, 23, 42, 0.92)',
+                                          },
+                                        }}
+                                      >
+                                        <IconifyIcon icon="material-symbols:arrow-back-rounded" fontSize={18} />
+                                      </IconButton>
+                                    </Tooltip>
+                                  ) : null}
+                                  {index < imageUrls.length - 1 ? (
+                                    <Tooltip title="Move right">
+                                      <IconButton
+                                        size="small"
+                                        aria-label="Move image right"
+                                        disabled={isSubmitting}
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          void handleMoveImage(index, 'right');
+                                        }}
+                                        sx={{
+                                          bgcolor: 'rgba(15, 23, 42, 0.78)',
+                                          color: 'common.white',
+                                          border: 1,
+                                          borderColor: 'rgba(255,255,255,0.12)',
+                                          '&:hover': {
+                                            bgcolor: 'rgba(15, 23, 42, 0.92)',
+                                          },
+                                        }}
+                                      >
+                                        <IconifyIcon icon="material-symbols:arrow-forward-rounded" fontSize={18} />
+                                      </IconButton>
+                                    </Tooltip>
+                                  ) : null}
+                                </Stack>
                               ) : null}
                               <Box
                                 component="img"
