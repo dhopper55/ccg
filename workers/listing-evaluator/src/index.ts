@@ -499,6 +499,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/inventory/categories' && request.method === 'GET') {
+      const response = await handleAdminV2InventoryCategories(env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/admin-v2/inventory/unmark-all' && request.method === 'POST') {
       const response = await handleAdminV2InventoryUnmarkAll(env);
       return withCors(response, request, env);
@@ -2203,7 +2208,9 @@ type InventoryItemRow = {
   image_url: string;
   image_urls: string | null;
   title: string;
-  category: string | null;
+  category_id: number | null;
+  category_name: string | null;
+  category_path: string | null;
   brand: string | null;
   year_range: string | null;
   model: string | null;
@@ -2317,6 +2324,23 @@ type AdminV2OldestInventoryRow = {
   source: string | null;
 };
 
+type InventoryCategoryRow = {
+  id: number;
+  name: string;
+  parent_id: number | null;
+  order: number;
+};
+
+type InventoryCategoryNode = {
+  id: number;
+  name: string;
+  parentId: number | null;
+  order: number;
+  depth: number;
+  path: string;
+  children: InventoryCategoryNode[];
+};
+
 type AdminV2SerialDecodeRow = {
   id: number;
   eventTimeUtc: string | null;
@@ -2427,7 +2451,7 @@ async function handleInventoryList(request: Request, env: Env): Promise<Response
   const url = new URL(request.url);
   const limit = parseBoundedInt(url.searchParams.get('limit'), 20, 1, 100);
   const page = parseBoundedInt(url.searchParams.get('page'), 1, 1, 1_000_000);
-  const category = normalizeText(url.searchParams.get('category'), '').slice(0, 120);
+  const categoryId = parseOptionalPositiveInt(url.searchParams.get('categoryId'));
   const brand = normalizeText(url.searchParams.get('brand'), '').slice(0, 120);
   const sold = url.searchParams.get('sold') === '1';
   const active = url.searchParams.get('active') !== '0';
@@ -2462,10 +2486,10 @@ async function handleInventoryList(request: Request, env: Env): Promise<Response
     });
   }
 
-  const availableBrands = await dbListInventoryBrands({ category, sold, active, onlyMarked, onlyPersonal, onlyRepair }, env);
+  const availableBrands = await dbListInventoryBrands({ categoryId, sold, active, onlyMarked, onlyPersonal, onlyRepair }, env);
 
   const result = await dbListInventoryItemsGrouped({
-    category,
+    categoryId,
     brand,
     sold,
     active,
@@ -2493,6 +2517,14 @@ async function handleInventoryList(request: Request, env: Env): Promise<Response
 async function handleInventorySummary(env: Env): Promise<Response> {
   const totals = await dbGetInventorySummary(env);
   return jsonResponse(totals);
+}
+
+async function handleAdminV2InventoryCategories(env: Env): Promise<Response> {
+  const records = await dbListInventoryCategories(env);
+  return jsonResponse({
+    records,
+    tree: buildInventoryCategoryTree(records),
+  });
 }
 
 async function handleAdminV2DashboardSummary(env: Env): Promise<Response> {
@@ -2954,6 +2986,10 @@ async function handleAdminV2InventoryMergeMarked(env: Env): Promise<Response> {
   if (!ccgNumber) {
     return jsonResponse({ message: 'Unable to generate CCG Number. Please try again.' }, 500);
   }
+  const packageCategoryId = await dbFindTopLevelPackageCategoryId(env);
+  if (packageCategoryId == null) {
+    return jsonResponse({ message: 'No top-level package category was found.' }, 400);
+  }
 
   const inserted = await dbCreateInventoryItems({
     source_listing_id: null,
@@ -2961,7 +2997,7 @@ async function handleAdminV2InventoryMergeMarked(env: Env): Promise<Response> {
     image_url: packageImageUrls[0],
     image_urls: packageImageUrls.join('\n'),
     title: 'New Package (needs edit)',
-    category: 'Packages',
+    category_id: packageCategoryId,
     brand: 'CCG',
     year_range: String(new Date().getFullYear()),
     model: 'TBD',
@@ -3053,6 +3089,10 @@ async function handleInventoryPackageCreate(env: Env): Promise<Response> {
   if (!ccgNumber) {
     return jsonResponse({ message: 'Unable to generate CCG Number. Please try again.' }, 500);
   }
+  const packageCategoryId = await dbFindTopLevelPackageCategoryId(env);
+  if (packageCategoryId == null) {
+    return jsonResponse({ message: 'No top-level package category was found.' }, 400);
+  }
 
   const inserted = await dbCreateInventoryItems({
     source_listing_id: null,
@@ -3060,7 +3100,7 @@ async function handleInventoryPackageCreate(env: Env): Promise<Response> {
     image_url: packageImageUrls[0],
     image_urls: packageImageUrls.join('\n'),
     title: 'PACKAGE DEAL - TBD',
-    category: 'Packages',
+    category_id: packageCategoryId,
     brand: 'TBD',
     year_range: 'TBD',
     model: 'TBD',
@@ -3124,7 +3164,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const imageUrl = normalizeText(body.imageUrl, '');
   const imageCandidates = normalizeInventoryImageCandidates(imageUrl, body.imageUrls);
   const title = normalizeText(body.title, '').slice(0, 240);
-  const category = normalizeText(body.category, '').slice(0, 120);
+  const categoryId = parseOptionalPositiveInt(body.categoryId);
   const brand = normalizeText(body.brand, '').slice(0, 120);
   const yearRange = normalizeText(body.yearRange, '').slice(0, 120);
   const model = normalizeText(body.model, '').slice(0, 180);
@@ -3174,9 +3214,13 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   }
 
   if (!title) return jsonResponse({ message: 'Title is required.' }, 400);
+  if (categoryId == null) return jsonResponse({ message: 'Category ID is required.' }, 400);
   if (imageUrls.length < 1) return jsonResponse({ message: 'At least one image is required.' }, 400);
   if (imageUrls.length > INVENTORY_MAX_IMAGES) {
     return jsonResponse({ message: `You can upload up to ${INVENTORY_MAX_IMAGES} images.` }, 400);
+  }
+  if (!(await dbInventoryCategoryExists(categoryId, env))) {
+    return jsonResponse({ message: 'Category ID is invalid.' }, 400);
   }
   if (fbmListing) {
     if (!fbmTitle) {
@@ -3222,7 +3266,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
       source_listing_id: sourceListingId,
       image_url: primaryImageUrl,
       title,
-      category: category || null,
+      category_id: categoryId,
       brand: brand || null,
       year_range: yearRange || null,
       model: model || null,
@@ -3248,7 +3292,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     image_url: primaryImageUrl,
     image_urls: imageUrls.join('\n'),
     title,
-    category: category || null,
+    category_id: categoryId,
     brand: brand || null,
     year_range: yearRange || null,
     model: model || null,
@@ -3402,7 +3446,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const imageUrl = normalizeText(body.imageUrl, '');
   const imageCandidates = normalizeInventoryImageCandidates(imageUrl, body.imageUrls);
   const title = normalizeText(body.title, '').slice(0, 240);
-  const category = normalizeText(body.category, '').slice(0, 120);
+  const categoryId = parseOptionalPositiveInt(body.categoryId);
   const brand = normalizeText(body.brand, '').slice(0, 120);
   const yearRange = normalizeText(body.yearRange, '').slice(0, 120);
   const model = normalizeText(body.model, '').slice(0, 180);
@@ -3451,10 +3495,14 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   }
 
   if (!title) return jsonResponse({ message: 'Title is required.' }, 400);
+  if (categoryId == null) return jsonResponse({ message: 'Category ID is required.' }, 400);
   if (!purchasedDate) return jsonResponse({ message: 'Purchased date is required.' }, 400);
   if (imageUrls.length < 1) return jsonResponse({ message: 'At least one image is required.' }, 400);
   if (imageUrls.length > INVENTORY_MAX_IMAGES) {
     return jsonResponse({ message: `You can upload up to ${INVENTORY_MAX_IMAGES} images.` }, 400);
+  }
+  if (!(await dbInventoryCategoryExists(categoryId, env))) {
+    return jsonResponse({ message: 'Category ID is invalid.' }, 400);
   }
   if (fbmListing) {
     if (!fbmTitle) {
@@ -3509,7 +3557,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     image_url: primaryImageUrl,
     image_urls: imageUrls.join('\n'),
     title,
-    category: category || null,
+    category_id: categoryId,
     brand: brand || null,
     year_range: yearRange || null,
     model: model || null,
@@ -4540,7 +4588,9 @@ function mapInventoryRow(
     imageUrl: row.image_url,
     imageUrls: parseStoredInventoryImageUrls(row.image_urls, row.image_url),
     title: row.title,
-    category: row.category || '',
+    categoryId: row.category_id,
+    categoryName: row.category_name || '',
+    categoryPath: row.category_path || row.category_name || '',
     brand: row.brand || '',
     yearRange: row.year_range || '',
     model: row.model || '',
@@ -4577,7 +4627,7 @@ function mapInventoryRow(
 }
 
 type InventoryGroupedFilters = {
-  category: string;
+  categoryId: number | null;
   brand: string;
   sold: boolean;
   active: boolean;
@@ -4615,6 +4665,18 @@ function parseInventorySortDir(input: string | null): InventorySortDir {
   return (input || '').trim().toLowerCase() === 'desc' ? 'desc' : 'asc';
 }
 
+const INVENTORY_CATEGORY_SELECT_SQL = `i.category_id,
+       c.name AS category_name,
+       CASE
+         WHEN gp.id IS NOT NULL THEN gp.name || ' > ' || p.name || ' > ' || c.name
+         WHEN p.id IS NOT NULL THEN p.name || ' > ' || c.name
+         ELSE c.name
+       END AS category_path`;
+
+const INVENTORY_CATEGORY_JOIN_SQL = `INNER JOIN ccg_inventory_categories c ON c.id = i.category_id
+     LEFT JOIN ccg_inventory_categories p ON p.id = c.parent_id
+     LEFT JOIN ccg_inventory_categories gp ON gp.id = p.parent_id`;
+
 function inventoryOrderBySql(sortBy: InventorySortKey, sortDir: InventorySortDir): string {
   const dir = sortDir === 'desc' ? 'DESC' : 'ASC';
   switch (sortBy) {
@@ -4634,7 +4696,7 @@ function inventoryOrderBySql(sortBy: InventorySortKey, sortDir: InventorySortDir
   }
 }
 
-function inventoryFilterClause(filters: Pick<InventoryGroupedFilters, 'category' | 'brand' | 'sold' | 'active' | 'onlyMarked' | 'onlyPersonal' | 'onlyRepair'>): { sql: string; binds: unknown[] } {
+function inventoryFilterClause(filters: Pick<InventoryGroupedFilters, 'categoryId' | 'brand' | 'sold' | 'active' | 'onlyMarked' | 'onlyPersonal' | 'onlyRepair'>): { sql: string; binds: unknown[] } {
   const clauses: string[] = [
     'i.is_sold = ?',
     'i.is_active = ?',
@@ -4644,9 +4706,9 @@ function inventoryFilterClause(filters: Pick<InventoryGroupedFilters, 'category'
     filters.active ? 1 : 0,
   ];
 
-  if (filters.category) {
-    clauses.push('LOWER(COALESCE(i.category, \'\')) = LOWER(?)');
-    binds.push(filters.category);
+  if (filters.categoryId != null) {
+    clauses.push('i.category_id = ?');
+    binds.push(filters.categoryId);
   }
   if (filters.brand) {
     clauses.push('LOWER(COALESCE(i.brand, \'\')) = LOWER(?)');
@@ -4721,7 +4783,7 @@ async function dbListInventoryItemsGrouped(
        i.image_url,
        i.image_urls,
        i.title,
-       i.category,
+       ${INVENTORY_CATEGORY_SELECT_SQL},
        i.brand,
        i.year_range,
        i.model,
@@ -4756,6 +4818,7 @@ async function dbListInventoryItemsGrouped(
        gc.total_rows
      FROM first_rows fr
      INNER JOIN ccg_inventory_items i ON i.id = fr.first_id
+     ${INVENTORY_CATEGORY_JOIN_SQL}
      LEFT JOIN listings l ON l.id = i.source_listing_id
      LEFT JOIN group_counts gc ON gc.ccg_number = i.ccg_number
      ORDER BY ${orderBy}
@@ -4776,7 +4839,7 @@ async function dbListInventoryItemsGrouped(
 }
 
 async function dbListInventoryBrands(
-  filters: Pick<InventoryGroupedFilters, 'category' | 'sold' | 'active' | 'onlyMarked' | 'onlyPersonal' | 'onlyRepair'>,
+  filters: Pick<InventoryGroupedFilters, 'categoryId' | 'sold' | 'active' | 'onlyMarked' | 'onlyPersonal' | 'onlyRepair'>,
   env: Env,
 ): Promise<string[]> {
   const clause = inventoryFilterClause({ ...filters, brand: '' });
@@ -4826,7 +4889,7 @@ async function dbListInventoryItemsByCcgNumber(
       i.image_url,
       i.image_urls,
       i.title,
-      i.category,
+      ${INVENTORY_CATEGORY_SELECT_SQL},
       i.brand,
       i.year_range,
       i.model,
@@ -4868,6 +4931,7 @@ async function dbListInventoryItemsByCcgNumber(
         WHERE g.ccg_number = i.ccg_number${extraSql.replaceAll('COALESCE(is_', 'COALESCE(g.is_')}
       ) AS total_rows
      FROM ccg_inventory_items i
+     ${INVENTORY_CATEGORY_JOIN_SQL}
      LEFT JOIN listings l ON l.id = i.source_listing_id
      WHERE i.ccg_number = ?${extraSql.replaceAll('COALESCE(is_', 'COALESCE(i.is_')}
      ORDER BY ${orderBy}
@@ -4898,7 +4962,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.image_url,
       i.image_urls,
       i.title,
-      i.category,
+      ${INVENTORY_CATEGORY_SELECT_SQL},
       i.brand,
       i.year_range,
       i.model,
@@ -4941,6 +5005,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
         WHERE g.ccg_number = i.ccg_number
       ) AS group_count
      FROM ccg_inventory_items i
+     ${INVENTORY_CATEGORY_JOIN_SQL}
      WHERE i.id = ?`
   ).bind(idValue).first<InventoryItemRow>();
   if (!row) return null;
@@ -4951,7 +5016,9 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     imageUrl: row.image_url,
     imageUrls: parseStoredInventoryImageUrls(row.image_urls, row.image_url),
     title: row.title,
-    category: row.category || '',
+    categoryId: row.category_id,
+    categoryName: row.category_name || '',
+    categoryPath: row.category_path || row.category_name || '',
     brand: row.brand || '',
     yearRange: row.year_range || '',
     model: row.model || '',
@@ -5004,7 +5071,7 @@ async function dbFindRecentDuplicateInventoryCreate(
     source_listing_id: number | null;
     image_url: string;
     title: string;
-    category: string | null;
+    category_id: number;
     brand: string | null;
     year_range: string | null;
     model: string | null;
@@ -5027,7 +5094,7 @@ async function dbFindRecentDuplicateInventoryCreate(
      WHERE source_listing_id IS NULL
        AND title = ?
        AND image_url = ?
-       AND IFNULL(category, '') = ?
+       AND category_id = ?
        AND IFNULL(brand, '') = ?
        AND IFNULL(year_range, '') = ?
        AND IFNULL(model, '') = ?
@@ -5040,7 +5107,7 @@ async function dbFindRecentDuplicateInventoryCreate(
   ).bind(
     fields.title,
     fields.image_url,
-    fields.category || '',
+    fields.category_id,
     fields.brand || '',
     fields.year_range || '',
     fields.model || '',
@@ -5057,6 +5124,39 @@ async function dbCcgNumberExists(ccgNumber: string, env: Env): Promise<boolean> 
     'SELECT id FROM ccg_inventory_items WHERE ccg_number = ? LIMIT 1'
   ).bind(ccgNumber).first<{ id: number }>();
   return Boolean(row?.id);
+}
+
+async function dbInventoryCategoryExists(categoryId: number, env: Env): Promise<boolean> {
+  const row = await env.DB.prepare(
+    'SELECT id FROM ccg_inventory_categories WHERE id = ? LIMIT 1'
+  ).bind(categoryId).first<{ id: number }>();
+  return Boolean(row?.id);
+}
+
+async function dbFindTopLevelPackageCategoryId(env: Env): Promise<number | null> {
+  const row = await env.DB.prepare(
+    `SELECT id
+     FROM ccg_inventory_categories
+     WHERE parent_id IS NULL
+       AND LOWER(name) LIKE ?
+     ORDER BY "order" ASC, LOWER(name) ASC, id ASC
+     LIMIT 1`
+  ).bind('%package%').first<{ id: number }>();
+  return row?.id ?? null;
+}
+
+async function dbListInventoryCategories(env: Env): Promise<InventoryCategoryRow[]> {
+  const result = await env.DB.prepare(
+    `SELECT id, name, parent_id, "order"
+     FROM ccg_inventory_categories
+     ORDER BY
+       CASE WHEN parent_id IS NULL THEN 0 ELSE 1 END ASC,
+       COALESCE(parent_id, id) ASC,
+       "order" ASC,
+       LOWER(name) ASC,
+       id ASC`
+  ).all<InventoryCategoryRow>();
+  return result.results ?? [];
 }
 
 async function generateUniqueCcgNumber(env: Env): Promise<string | null> {
@@ -5076,7 +5176,7 @@ async function dbCreateInventoryItems(
     image_url: string;
     image_urls: string;
     title: string;
-    category: string | null;
+    category_id: number;
     brand: string | null;
     year_range: string | null;
     model: string | null;
@@ -5118,7 +5218,7 @@ async function dbCreateInventoryItems(
   try {
     const statement = `INSERT INTO ccg_inventory_items
       (
-        source_listing_id, ccg_number, image_url, title, category, brand, year_range, model, finish,
+        source_listing_id, ccg_number, image_url, title, category_id, brand, year_range, model, finish,
         image_urls,
         repair_notes, original_listing_desc, purchased_date, purchase_price, private_party_value, purchase_notes, serial_number,
         weight_lbs, neck_profile, neck_thickness, nut_width, width_12_fret, fretboard_radius, twelve_fret_action,
@@ -5134,7 +5234,7 @@ async function dbCreateInventoryItems(
         fields.ccg_number,
         fields.image_url,
         fields.title,
-        fields.category,
+        fields.category_id,
         fields.brand,
         fields.year_range,
         fields.model,
@@ -5189,7 +5289,7 @@ async function dbUpdateInventorySharedByCcgNumber(
     image_url: string;
     image_urls: string;
     title: string;
-    category: string | null;
+    category_id: number;
     brand: string | null;
     year_range: string | null;
     model: string | null;
@@ -5215,7 +5315,7 @@ async function dbUpdateInventorySharedByCcgNumber(
     await env.DB.prepare(
       `UPDATE ccg_inventory_items
        SET
-         image_url = ?, title = ?, category = ?, brand = ?, year_range = ?, model = ?, finish = ?, image_urls = ?,
+         image_url = ?, title = ?, category_id = ?, brand = ?, year_range = ?, model = ?, finish = ?, image_urls = ?,
          repair_notes = ?, original_listing_desc = ?, purchased_date = ?, purchase_price = ?, private_party_value = ?, purchase_notes = ?,
          serial_number = ?, weight_lbs = ?, neck_profile = ?, neck_thickness = ?, nut_width = ?, width_12_fret = ?, fretboard_radius = ?, twelve_fret_action = ?,
          updated_at = CURRENT_TIMESTAMP
@@ -5223,7 +5323,7 @@ async function dbUpdateInventorySharedByCcgNumber(
     ).bind(
       fields.image_url,
       fields.title,
-      fields.category,
+      fields.category_id,
       fields.brand,
       fields.year_range,
       fields.model,
@@ -5417,7 +5517,7 @@ async function dbListMarkedInventoryRowsForPackage(env: Env): Promise<InventoryI
       i.image_url,
       i.image_urls,
       i.title,
-      i.category,
+      ${INVENTORY_CATEGORY_SELECT_SQL},
       i.brand,
       i.year_range,
       i.model,
@@ -5445,6 +5545,7 @@ async function dbListMarkedInventoryRowsForPackage(env: Env): Promise<InventoryI
       i.created_at,
       i.updated_at
      FROM ccg_inventory_items i
+     ${INVENTORY_CATEGORY_JOIN_SQL}
      WHERE COALESCE(i.is_marked, 0) = 1
      ORDER BY i.created_at ASC, i.id ASC`
   ).all<InventoryItemRow>();
@@ -5722,11 +5823,18 @@ async function dbGetAdminV2InventoryAging(env: Env): Promise<AdminV2InventoryAgi
 async function dbGetAdminV2InventoryByCategory(env: Env): Promise<AdminV2InventoryCategoryBucket[]> {
   const rows = await env.DB.prepare(
     `SELECT
-      COALESCE(NULLIF(TRIM(i.category), ''), 'Uncategorized') AS category,
+      CASE
+        WHEN gp.id IS NOT NULL THEN gp.name || ' > ' || p.name || ' > ' || c.name
+        WHEN p.id IS NOT NULL THEN p.name || ' > ' || c.name
+        ELSE c.name
+      END AS category,
       COUNT(*) AS item_count
      FROM ccg_inventory_items i
+     INNER JOIN ccg_inventory_categories c ON c.id = i.category_id
+     LEFT JOIN ccg_inventory_categories p ON p.id = c.parent_id
+     LEFT JOIN ccg_inventory_categories gp ON gp.id = p.parent_id
      WHERE COALESCE(i.is_active, 0) = 1
-     GROUP BY COALESCE(NULLIF(TRIM(i.category), ''), 'Uncategorized')
+     GROUP BY i.category_id
      ORDER BY item_count DESC, category ASC`
   ).all<{
     category: string | null;
@@ -5746,7 +5854,11 @@ async function dbGetAdminV2RecentSales(limit: number, env: Env): Promise<AdminV2
       i.ccg_number,
       i.title,
       i.image_url,
-      i.category,
+      CASE
+        WHEN gp.id IS NOT NULL THEN gp.name || ' > ' || p.name || ' > ' || c.name
+        WHEN p.id IS NOT NULL THEN p.name || ' > ' || c.name
+        ELSE c.name
+      END AS category,
       i.brand,
       i.sold_date,
       i.purchase_price,
@@ -5758,6 +5870,9 @@ async function dbGetAdminV2RecentSales(limit: number, env: Env): Promise<AdminV2
         ELSE NULL
       END AS days_held
      FROM ccg_inventory_items i
+     INNER JOIN ccg_inventory_categories c ON c.id = i.category_id
+     LEFT JOIN ccg_inventory_categories p ON p.id = c.parent_id
+     LEFT JOIN ccg_inventory_categories gp ON gp.id = p.parent_id
      WHERE COALESCE(i.is_sold, 0) = 1
      ORDER BY COALESCE(i.sold_date, i.updated_at, i.created_at) DESC, i.id DESC
      LIMIT ?`
@@ -5797,7 +5912,11 @@ async function dbGetAdminV2OldestInventory(limit: number, env: Env): Promise<Adm
       i.ccg_number,
       i.title,
       i.image_url,
-      i.category,
+      CASE
+        WHEN gp.id IS NOT NULL THEN gp.name || ' > ' || p.name || ' > ' || c.name
+        WHEN p.id IS NOT NULL THEN p.name || ' > ' || c.name
+        ELSE c.name
+      END AS category,
       i.brand,
       i.purchased_date,
       CASE
@@ -5811,6 +5930,9 @@ async function dbGetAdminV2OldestInventory(limit: number, env: Env): Promise<Adm
       COALESCE(i.for_sale, 0) AS for_sale,
       l.source AS source
      FROM ccg_inventory_items i
+     INNER JOIN ccg_inventory_categories c ON c.id = i.category_id
+     LEFT JOIN ccg_inventory_categories p ON p.id = c.parent_id
+     LEFT JOIN ccg_inventory_categories gp ON gp.id = p.parent_id
      LEFT JOIN listings l ON l.id = i.source_listing_id
      WHERE i.is_active = 1
        AND COALESCE(i.is_sold, 0) = 0
@@ -8557,6 +8679,59 @@ function parseOptionalPositiveInt(input: unknown): number | null {
   return null;
 }
 
+function getInventoryCategoryLabel(row: Pick<InventoryItemRow, 'category_path' | 'category_name'>): string {
+  return normalizeText(row.category_path, '') || normalizeText(row.category_name, '');
+}
+
+function buildInventoryCategoryTree(rows: InventoryCategoryRow[]): InventoryCategoryNode[] {
+  const byId = new Map<number, InventoryCategoryNode>();
+  for (const row of rows) {
+    byId.set(row.id, {
+      id: row.id,
+      name: row.name,
+      parentId: row.parent_id,
+      order: Number(row.order || 0),
+      depth: 1,
+      path: row.name,
+      children: [],
+    });
+  }
+
+  const roots: InventoryCategoryNode[] = [];
+  for (const node of byId.values()) {
+    if (node.parentId == null) {
+      roots.push(node);
+      continue;
+    }
+    const parent = byId.get(node.parentId);
+    if (!parent) {
+      roots.push(node);
+      continue;
+    }
+    parent.children.push(node);
+  }
+
+  const assignDepth = (node: InventoryCategoryNode, parentPath: string, depth: number): void => {
+    node.depth = depth;
+    node.path = parentPath ? `${parentPath} > ${node.name}` : node.name;
+    for (const child of node.children) {
+      assignDepth(child, node.path, depth + 1);
+    }
+  };
+
+  const sortNodes = (a: InventoryCategoryNode, b: InventoryCategoryNode): number =>
+    a.order - b.order || a.name.localeCompare(b.name) || a.id - b.id;
+
+  for (const node of byId.values()) {
+    node.children.sort(sortNodes);
+  }
+  roots.sort(sortNodes);
+  for (const root of roots) {
+    assignDepth(root, '', 1);
+  }
+  return roots;
+}
+
 function parseCurrencyAmount(input: unknown): number | null {
   if (input == null) return null;
   if (typeof input === 'number' && Number.isFinite(input)) return input;
@@ -8793,7 +8968,7 @@ function buildPackagePurchaseNotes(rows: InventoryItemRow[]): string {
     if (title) lines.push(title);
 
     const detailsLine = [
-      normalizeText(row.category, ''),
+      getInventoryCategoryLabel(row),
       normalizeText(row.brand, ''),
       normalizeText(row.year_range, ''),
       normalizeText(row.model, ''),
@@ -8854,7 +9029,7 @@ function buildMergedPackagePurchaseNotes(rows: InventoryItemRow[]): string {
     const privateParty = formatOptionalMoneyForPackageNotes(row.private_party_value) || '$0';
     const itemLines = [
       `${index + 1}. ${normalizeText(row.ccg_number, 'N/A')} | ${normalizeText(row.title, 'Untitled')}`,
-      `Category: ${normalizeText(row.category, '') || 'N/A'}`,
+      `Category: ${getInventoryCategoryLabel(row) || 'N/A'}`,
       `Brand: ${normalizeText(row.brand, '') || 'N/A'}`,
       `Year: ${normalizeText(row.year_range, '') || 'N/A'}`,
       `Model: ${normalizeText(row.model, '') || 'N/A'}`,

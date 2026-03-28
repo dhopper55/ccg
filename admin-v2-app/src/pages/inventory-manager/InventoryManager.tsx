@@ -39,7 +39,9 @@ type InventoryRecord = {
   ccgNumber: string;
   title: string;
   imageUrl?: string | null;
-  category?: string;
+  categoryId?: number | null;
+  categoryName?: string;
+  categoryPath?: string;
   brand?: string;
   repairNotes?: string;
   isMarked?: boolean;
@@ -68,7 +70,7 @@ type InventoryListResponse = {
 };
 
 type InventoryFilters = {
-  category: string;
+  categoryId: string;
   brand: string;
   sold: boolean;
   active: boolean;
@@ -77,23 +79,30 @@ type InventoryFilters = {
   onlyRepair: boolean;
 };
 
+type InventoryCategoryNode = {
+  id: number;
+  name: string;
+  parentId: number | null;
+  order: number;
+  depth: number;
+  path: string;
+  children: InventoryCategoryNode[];
+};
+
+type InventoryCategoriesResponse = {
+  tree?: InventoryCategoryNode[];
+  message?: string;
+};
+
+type InventoryCategoryOption = {
+  id: string;
+  label: string;
+};
+
 const PAGE_SIZE = 20;
-const CATEGORY_OPTIONS = [
-  'Accessories',
-  'Acoustic Bass',
-  'Acoustic Guitars',
-  'Amplification',
-  'Cases & Bags',
-  'Effects Pedals',
-  'Electric Bass',
-  'Electric Guitars',
-  'Keyboards & Synthesizers',
-  'Packages',
-  'Pro Audio',
-];
 
 const DEFAULT_FILTERS: InventoryFilters = {
-  category: '',
+  categoryId: '',
   brand: '',
   sold: false,
   active: true,
@@ -135,6 +144,7 @@ const InventoryManager = () => {
   const [sortDir, setSortDir] = useState<InventorySortDir>('desc');
   const [records, setRecords] = useState<InventoryRecord[]>([]);
   const [availableBrands, setAvailableBrands] = useState<string[]>([]);
+  const [categoryOptions, setCategoryOptions] = useState<InventoryCategoryOption[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
@@ -148,6 +158,52 @@ const InventoryManager = () => {
 
   useEffect(() => {
     document.title = 'CCG Admin | Inventory Manager';
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const flattenCategoryTree = (
+      nodes: InventoryCategoryNode[],
+      depth = 0,
+    ): InventoryCategoryOption[] =>
+      nodes.flatMap((node) => [
+        {
+          id: String(node.id),
+          label: `${depth > 0 ? `${'---'.repeat(depth)} ` : ''}${node.name}`,
+        },
+        ...flattenCategoryTree(Array.isArray(node.children) ? node.children : [], depth + 1),
+      ]);
+
+    const loadCategories = async () => {
+      try {
+        const response = await fetch('/api/admin-v2/inventory/categories', {
+          method: 'GET',
+          credentials: 'same-origin',
+        });
+        const data = (await response.json()) as InventoryCategoriesResponse;
+
+        if (!response.ok) {
+          throw new Error(data.message || 'Unable to load inventory categories.');
+        }
+
+        if (cancelled) return;
+        const tree = Array.isArray(data.tree) ? data.tree : [];
+        setCategoryOptions(flattenCategoryTree(tree));
+      } catch (error) {
+        if (cancelled) return;
+        setCategoryOptions([]);
+        setErrorMessage((current) =>
+          current || (error instanceof Error ? error.message : 'Unable to load inventory categories.'),
+        );
+      }
+    };
+
+    void loadCategories();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -168,7 +224,7 @@ const InventoryManager = () => {
         params.set('onlyMarked', filters.onlyMarked ? '1' : '0');
         params.set('onlyPersonal', filters.onlyPersonal ? '1' : '0');
         params.set('onlyRepair', filters.onlyRepair ? '1' : '0');
-        if (filters.category) params.set('category', filters.category);
+        if (filters.categoryId) params.set('categoryId', filters.categoryId);
         if (filters.brand) params.set('brand', filters.brand);
 
         const response = await fetch(`/api/inventory?${params.toString()}`, {
@@ -228,7 +284,7 @@ const InventoryManager = () => {
     setPage(1);
     setFilters((current) => {
       const next = { ...current, [key]: value };
-      if (key === 'category') next.brand = '';
+      if (key === 'categoryId') next.brand = '';
       return next;
     });
   };
@@ -843,14 +899,14 @@ const InventoryManager = () => {
               <FormControl fullWidth>
                 <Select
                   displayEmpty
-                  value={filters.category}
-                  onChange={(event) => handleFilterChange('category', event.target.value)}
+                  value={filters.categoryId}
+                  onChange={(event) => handleFilterChange('categoryId', event.target.value)}
                   inputProps={{ 'aria-label': 'Category' }}
                 >
                   <MenuItem value="">Category</MenuItem>
-                  {CATEGORY_OPTIONS.map((option) => (
-                    <MenuItem key={option} value={option}>
-                      {option}
+                  {categoryOptions.map((option) => (
+                    <MenuItem key={option.id} value={option.id}>
+                      {option.label}
                     </MenuItem>
                   ))}
                 </Select>
