@@ -3,8 +3,8 @@ import {
   PropsWithChildren,
   SetStateAction,
   createContext,
-  use,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useState,
@@ -123,6 +123,6 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
   );
 };
 
-export const useEcommerce = () => use(EcommerceContext);
+export const useEcommerce = () => useContext(EcommerceContext);
 
 export default EcommerceProvider;

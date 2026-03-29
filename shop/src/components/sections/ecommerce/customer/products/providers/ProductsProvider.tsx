@@ -1,8 +1,8 @@
 import {
   PropsWithChildren,
   createContext,
-  use,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useState,
@@ -129,6 +129,6 @@ const ProductsProvider = ({
   );
 };
 
-export const useProducts = () => use(ProductsContext);
+export const useProducts = () => useContext(ProductsContext);
 
 export default ProductsProvider;

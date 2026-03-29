@@ -1,4 +1,4 @@
-import { PropsWithChildren, use } from "react";
+import { PropsWithChildren, useContext } from "react";
 import AuthJwtProvider, { AuthJwtContext } from "./auth-provider/AuthJwtProvider";
 
 // import Auth0Provider, { Auth0Context } from './auth-provider/Auth0Provider';
@@ -17,6 +17,6 @@ const AuthProvider = ({ children }: PropsWithChildren) => {
   return <AuthMethodProvider>{children}</AuthMethodProvider>;
 };
 
-export const useAuth = () => use(AuthMethodContext);
+export const useAuth = () => useContext(AuthMethodContext);
 
 export default AuthProvider;

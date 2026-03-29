@@ -1,4 +1,4 @@
-import { PropsWithChildren, createContext, use, useMemo } from 'react';
+import { PropsWithChildren, createContext, useContext, useMemo } from 'react';
 import { Breakpoint, Theme, useMediaQuery, useTheme } from '@mui/material';
 
 interface BreakpointContextInterface {
@@ -100,6 +100,6 @@ const BreakpointsProvider = ({ children }: PropsWithChildren) => {
   return <BreakpointContext value={value}>{children}</BreakpointContext>;
 };
 
-export const useBreakpoints = () => use(BreakpointContext);
+export const useBreakpoints = () => useContext(BreakpointContext);
 
 export default BreakpointsProvider;
