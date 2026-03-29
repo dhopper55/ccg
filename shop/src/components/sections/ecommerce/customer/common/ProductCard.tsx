@@ -1,21 +1,13 @@
-import { ChangeEvent, PropsWithChildren, useState } from 'react';
+import { PropsWithChildren } from 'react';
 import {
   Box,
-  Chip,
-  FormControl,
-  FormControlLabel,
   Link,
-  Radio,
-  RadioGroup,
-  Rating,
   Stack,
   SxProps,
   Typography,
 } from '@mui/material';
-import { currencyFormat, kebabCase, kebabToSentenceCase, numberFormat } from 'lib/utils';
-import paths from 'routes/paths';
+import { currencyFormat, kebabCase } from 'lib/utils';
 import { ProductDetails } from 'types/ecommerce';
-import IconifyIcon from 'components/base/IconifyIcon';
 import Image from 'components/base/Image';
 
 interface ProductCardProps {
@@ -24,23 +16,16 @@ interface ProductCardProps {
 }
 
 const ProductCard = ({ product, sx, children }: PropsWithChildren<ProductCardProps>) => {
-  const [image, setImage] = useState<string>(product.images[0].src);
-  const [productColor, setProductColor] = useState<string>(product.images[0].color || '');
-
-  const handleColorChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const selectedColor = event.target.value;
-    setProductColor(selectedColor);
-
-    const imageObject = product.images.find((img) => img.color === selectedColor);
-    if (imageObject) {
-      setImage(imageObject.src);
-    }
-  };
+  const image = product.images[0]?.src || '';
+  const regularPrice = Number(product.price.regular || 0);
+  const displayPrice = Number(product.price.discounted || 0);
+  const isOnSale = displayPrice > 0 && regularPrice > displayPrice;
+  const savingsPercent = isOnSale ? Math.round(((regularPrice - displayPrice) / regularPrice) * 100) : 0;
 
   return (
     <Stack
       component={Link}
-      href={paths.productDetails(String(product.id))}
+      href="#"
       underline="none"
       direction="column"
       sx={{
@@ -64,89 +49,6 @@ const ProductCard = ({ product, sx, children }: PropsWithChildren<ProductCardPro
             alt={kebabCase(product.name)}
             sx={{ objectFit: 'contain', height: 1, width: 1 }}
           />
-          <Stack
-            sx={{
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: 1,
-            }}
-          >
-            {!product.availability?.includes('in-stock') ? (
-              <Chip
-                variant="soft"
-                color="error"
-                label={kebabToSentenceCase(product.availability[0])}
-              />
-            ) : (
-              <div />
-            )}
-            {product.images.length > 1 && (
-              <FormControl component="fieldset">
-                <RadioGroup
-                  name="product-color"
-                  aria-labelledby="product-color-radio-buttons-group"
-                  value={productColor}
-                  onChange={handleColorChange}
-                  row
-                  sx={{ gap: 1 }}
-                >
-                  {product.images.map(({ color }) => (
-                    <FormControlLabel
-                      key={color}
-                      value={color}
-                      control={
-                        <Radio
-                          disableRipple
-                          sx={{ p: 0 }}
-                          icon={
-                            <Box
-                              sx={{
-                                width: 16,
-                                height: 16,
-                                border: 1,
-                                borderColor: 'dividerLight',
-                                borderRadius: 0.5,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                bgcolor: color,
-                              }}
-                            />
-                          }
-                          checkedIcon={
-                            <Box
-                              sx={{
-                                width: 16,
-                                height: 16,
-                                border: 1,
-                                borderColor: 'dividerLight',
-                                borderRadius: 0.5,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                bgcolor: color,
-                              }}
-                            >
-                              <IconifyIcon
-                                icon="material-symbols:check"
-                                sx={{ fontSize: 14, color: 'common.white' }}
-                              />
-                            </Box>
-                          }
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      }
-                      label=""
-                      sx={{ color, mr: 1, '&:last-child': { mr: 0 } }}
-                    />
-                  ))}
-                </RadioGroup>
-              </FormControl>
-            )}
-          </Stack>
         </Box>
         <Typography
           variant="subtitle1"
@@ -158,50 +60,11 @@ const ProductCard = ({ product, sx, children }: PropsWithChildren<ProductCardPro
         >
           {product.name}
         </Typography>
-        <Stack
-          sx={{
-            gap: 0.5,
-            justifyContent: 'center',
-          }}
-        >
-          {product.tags.map((tag: string) => (
-            <Chip key={kebabCase(tag)} variant="soft" label={tag} />
-          ))}
-        </Stack>
+        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+          {product.categoryLabel || ''}
+        </Typography>
       </Box>
       <div>
-        {product.stock <= 2 && product.stock > 0 && (
-          <Typography
-            variant="caption"
-            sx={{
-              color: 'error',
-              display: 'inline-block',
-              fontWeight: 'medium',
-              mb: 1.5,
-            }}
-          >
-            Only {product.stock} left in stock (more on the way)
-          </Typography>
-        )}
-        <Stack
-          sx={{
-            gap: 0.5,
-            alignItems: 'center',
-            justifyContent: 'center',
-            mb: 1,
-          }}
-        >
-          <Rating size="small" value={product.ratings} readOnly />
-          <Typography
-            variant="caption"
-            sx={{
-              color: 'text.secondary',
-              fontWeight: 500,
-            }}
-          >
-            ({numberFormat(product.sold)} sold)
-          </Typography>
-        </Stack>
         <Typography
           variant="h4"
           sx={{
@@ -209,26 +72,30 @@ const ProductCard = ({ product, sx, children }: PropsWithChildren<ProductCardPro
             mb: 0.5,
           }}
         >
-          {currencyFormat(product.price.discounted)}
+          {currencyFormat(displayPrice)}
         </Typography>
-        <Stack
-          sx={{
-            gap: 0.5,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Typography
-            variant="subtitle1"
+        {isOnSale ? (
+          <Stack
             sx={{
-              color: 'text.secondary',
-              textDecoration: 'line-through',
+              gap: 0.5,
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
-            {currencyFormat(product.price.regular)}
-          </Typography>
-          <Chip variant="soft" color="success" label="Save 50%" />
-        </Stack>
+            <Typography
+              variant="subtitle1"
+              sx={{
+                color: 'text.secondary',
+                textDecoration: 'line-through',
+              }}
+            >
+              {currencyFormat(regularPrice)}
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'success.main', fontWeight: 600 }}>
+              Save {savingsPercent}%
+            </Typography>
+          </Stack>
+        ) : null}
         {children}
       </div>
     </Stack>

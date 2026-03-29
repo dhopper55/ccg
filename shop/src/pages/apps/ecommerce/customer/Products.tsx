@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Paper, Stack } from '@mui/material';
 import Grid from '@mui/material/Grid';
-import { defaultProductFilterOptions, products } from 'data/e-commerce/products';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
+import { ProductDetails } from 'types/ecommerce';
 import FilterDrawer from 'components/sections/ecommerce/customer/products/FilterDrawer';
 import ProductTopSection from 'components/sections/ecommerce/customer/products/ProductTopSection';
 import ProductsGrid from 'components/sections/ecommerce/customer/products/ProductsGrid';
@@ -13,11 +13,81 @@ import ProductsProvider, {
 
 const filterDrawerWidth = 320;
 
-const index = () => (
-  <ProductsProvider products={products}>
-    <Products />
-  </ProductsProvider>
-);
+type ShopProductResponse = {
+  id: string;
+  mainImage: string;
+  saleTitle: string;
+  saleUrl: string | null;
+  saleCondition: string;
+  regularPrice: number | null;
+  salePrice: number;
+  category: string;
+  isSold: boolean;
+};
+
+const defaultProductFilterOptions = {
+  priceRange: [0, 5000],
+  category: [],
+  material: [],
+  sale: [],
+};
+
+const mapShopProductToProductDetails = (product: ShopProductResponse): ProductDetails => {
+  const regularPrice = Number(product.regularPrice || 0);
+  const salePrice = Number(product.salePrice || 0);
+  const discounted = salePrice > 0 ? salePrice : regularPrice;
+
+  return {
+    id: Number(product.id),
+    name: product.saleTitle || 'Untitled Product',
+    categoryLabel: product.category || '',
+    saleUrl: product.saleUrl,
+    images: [{ src: product.mainImage || '' }],
+    tags: [],
+    ratings: 0,
+    reviews: 0,
+    price: {
+      regular: regularPrice,
+      discounted,
+    },
+    vat: 0,
+    sold: 0,
+    stock: 99,
+    availability: ['in-stock'],
+  };
+};
+
+const index = () => {
+  const [products, setProducts] = useState<ProductDetails[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    void (async () => {
+      try {
+        const response = await fetch('/api/shop/products?showSold=0', {
+          credentials: 'same-origin',
+        });
+        if (!response.ok) return;
+        const payload = (await response.json()) as { records?: ShopProductResponse[] };
+        if (!isMounted || !Array.isArray(payload.records)) return;
+        setProducts(payload.records.map(mapShopProductToProductDetails));
+      } catch {
+        if (isMounted) setProducts([]);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  return (
+    <ProductsProvider products={products}>
+      <Products />
+    </ProductsProvider>
+  );
+};
 
 const Products = () => {
   const { up } = useBreakpoints();

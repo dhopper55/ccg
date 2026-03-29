@@ -22,6 +22,8 @@ export interface ProductDetails {
   id: number;
   name: string;
   images: Image[];
+  categoryLabel?: string;
+  saleUrl?: string | null;
   variants?: {
     label: string;
     value: string;

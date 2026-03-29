@@ -109,6 +109,10 @@ const ProductsProvider = ({
   };
 
   useEffect(() => {
+    setVisibleProducts(products);
+  }, [products]);
+
+  useEffect(() => {
     const subscription = watch(() => handleSubmit(onSubmit));
 
     return () => subscription.unsubscribe();
