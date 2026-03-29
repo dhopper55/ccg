@@ -1054,28 +1054,6 @@ const InventoryItem = () => {
                                       </IconButton>
                                     </Tooltip>
                                   ) : null}
-                                  <Tooltip title={image.isPrivate ? 'Private image' : 'Public image'}>
-                                    <IconButton
-                                      size="small"
-                                      aria-label={image.isPrivate ? 'Mark image public' : 'Mark image private'}
-                                      disabled={isSubmitting}
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        void handleToggleImagePrivate(index);
-                                      }}
-                                      sx={{
-                                        bgcolor: 'rgba(15, 23, 42, 0.78)',
-                                        color: image.isPrivate ? 'warning.main' : 'common.white',
-                                        border: 1,
-                                        borderColor: 'rgba(255,255,255,0.12)',
-                                        '&:hover': {
-                                          bgcolor: 'rgba(15, 23, 42, 0.92)',
-                                        },
-                                      }}
-                                    >
-                                      <LockToggleIcon filled={image.isPrivate} />
-                                    </IconButton>
-                                  </Tooltip>
                                   {index < images.length - 1 ? (
                                     <Tooltip title="Move right">
                                       <IconButton
@@ -1114,7 +1092,21 @@ const InventoryItem = () => {
                               {index === 0 ? (
                                 <Chip label="Primary" size="small" color="warning" variant="soft" />
                               ) : (
-                                <Box />
+                                <Tooltip title={image.isPrivate ? 'Private image' : 'Public image'}>
+                                  <IconButton
+                                    size="small"
+                                    aria-label={image.isPrivate ? 'Mark image public' : 'Mark image private'}
+                                    disabled={isSubmitting}
+                                    onClick={() => {
+                                      void handleToggleImagePrivate(index);
+                                    }}
+                                    sx={{
+                                      color: image.isPrivate ? 'warning.main' : 'text.secondary',
+                                    }}
+                                  >
+                                    <LockToggleIcon filled={image.isPrivate} />
+                                  </IconButton>
+                                </Tooltip>
                               )}
                               <IconButton
                                 size="small"
