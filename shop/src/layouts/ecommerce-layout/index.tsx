@@ -1,5 +1,5 @@
 import { PropsWithChildren, useEffect, useRef } from 'react';
-import { Box, Stack, Toolbar } from '@mui/material';
+import { Box, Stack } from '@mui/material';
 import useSettingsPanelMountEffect from 'hooks/useSettingsPanelMountEffect';
 import Footer from 'layouts/main-layout/footer';
 import EcommerceProvider from 'providers/EcommerceProvider';
@@ -52,11 +52,6 @@ const EcommerceLayout = ({ children }: PropsWithChildren) => {
         >
           <EcommerceAppbar />
           <Stack direction="column" component="main" sx={{ flex: 1 }}>
-            <Toolbar
-              sx={{
-                minHeight: (theme) => theme.mixins.ecommerceTopbar,
-              }}
-            />
             {children}
           </Stack>
           <EcommerceFooter />
