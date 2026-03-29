@@ -1,6 +1,6 @@
 'use client';
 
-import { MouseEvent, useRef, useState } from 'react';
+import { MouseEvent, useEffect, useRef, useState } from 'react';
 import {
   Box,
   Button,
@@ -29,15 +29,50 @@ import CategoryPopover from './CategoryPopover';
 
 const searchCategories = ['All', 'Popular', 'New', 'Discounted', 'Top Rated', 'Featured'];
 
+export interface ShopCategoryNode {
+  id: number;
+  name: string;
+  parentId: number | null;
+  order: number;
+  depth: number;
+  path: string;
+  children: ShopCategoryNode[];
+}
+
 const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
   const categoryBtnRef = useRef<HTMLButtonElement | null>(null);
   const [openCartDrawer, setOpenCartDrawer] = useState(false);
   const [openItem, setOpenItem] = useState(0);
   const [searchMenuAnchorEl, setSearchMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [selectedCategory, setSelectedCategory] = useState(searchCategories[0]);
+  const [shopCategories, setShopCategories] = useState<ShopCategoryNode[]>([]);
   const { up, currentBreakpoint } = useBreakpoints();
 
   const { cartItems } = useEcommerce();
+
+  useEffect(() => {
+    let isMounted = true;
+
+    void (async () => {
+      try {
+        const response = await fetch('/api/shop/categories', {
+          credentials: 'same-origin',
+        });
+        if (!response.ok) return;
+        const payload = (await response.json()) as { tree?: ShopCategoryNode[] };
+        if (!isMounted || !Array.isArray(payload.tree)) return;
+        setShopCategories(payload.tree);
+      } catch {
+        if (isMounted) {
+          setShopCategories([]);
+        }
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleSearchMenuClick = (event: MouseEvent<HTMLElement>) => {
     setSearchMenuAnchorEl(event.currentTarget);
@@ -64,7 +99,7 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
           }}
         >
           <Grid size="auto">
-            <Logo showName={up('sm')} />
+            <Logo showName={up('sm')} href="https://www.coalcreekguitars.com/" />
           </Grid>
           <Grid
             sx={{
@@ -150,6 +185,7 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
 
               <CategoryPopover
                 anchorEl={categoryBtnRef.current}
+                categories={shopCategories}
                 openItem={openItem}
                 setOpenItem={setOpenItem}
                 handleClose={() => {

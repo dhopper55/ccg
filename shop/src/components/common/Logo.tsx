@@ -3,12 +3,13 @@ import { rootPaths } from 'routes/paths';
 
 interface LogoProps extends SvgIconProps {
   showName?: boolean;
+  href?: string;
 }
 
-const Logo = ({ sx, showName = true }: LogoProps) => {
+const Logo = ({ sx, showName = true, href = rootPaths.root }: LogoProps) => {
   return (
     <Link
-      href={rootPaths.root}
+      href={href}
       underline="none"
       sx={{
         display: 'flex',
@@ -18,7 +19,7 @@ const Logo = ({ sx, showName = true }: LogoProps) => {
     >
       <img
         src="/images/coal-creek-logo.png"
-        alt="Coal Creek Guitars"
+        alt="Coal Creek Products"
         style={{
           width: 32,
           height: 32,
@@ -37,7 +38,7 @@ const Logo = ({ sx, showName = true }: LogoProps) => {
             ...sx,
           }}
         >
-          Coal Creek Guitars
+          Coal Creek Products
         </Typography>
       )}
     </Link>

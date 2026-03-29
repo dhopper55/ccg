@@ -312,11 +312,17 @@ export default {
       return withCors(response, request, env);
     }
 
-    if (path.startsWith('/api/')) {
+    if (path.startsWith('/api/') && !isPublicApiPath(path)) {
       const authResponse = await requireAuth(request, env, path);
       if (authResponse) {
         return withCors(authResponse, request, env);
       }
+    }
+
+    // Public shop endpoints
+    if (path === '/api/shop/categories' && request.method === 'GET') {
+      const response = await handleShopCategories(env);
+      return withCors(response, request, env);
     }
 
     if (path === '/api/listings/submit' && request.method === 'POST') {
@@ -2500,6 +2506,14 @@ async function handleInventorySummary(env: Env): Promise<Response> {
 }
 
 async function handleAdminV2InventoryCategories(env: Env): Promise<Response> {
+  const records = await dbListInventoryCategories(env);
+  return jsonResponse({
+    records,
+    tree: buildInventoryCategoryTree(records),
+  });
+}
+
+async function handleShopCategories(env: Env): Promise<Response> {
   const records = await dbListInventoryCategories(env);
   return jsonResponse({
     records,
@@ -8605,6 +8619,10 @@ function parseCurrencyAmount(input: unknown): number | null {
 
 function currentDateYmd(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function isPublicApiPath(path: string): boolean {
+  return path.startsWith('/api/shop/');
 }
 
 function formatMonthLabel(month: string): string {

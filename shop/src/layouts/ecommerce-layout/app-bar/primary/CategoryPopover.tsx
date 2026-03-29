@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { MouseEvent, useEffect, useRef, useState } from 'react';
 import {
   Box,
   Button,
@@ -6,119 +6,104 @@ import {
   List,
   ListItemButton,
   ListItemText,
-  ListSubheader,
   Popover,
   Stack,
   Typography,
   popoverClasses,
   useTheme,
 } from '@mui/material';
-import { categories } from 'data/e-commerce/homepage';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
-import { Category } from 'types/ecommerce';
 import IconifyIcon from 'components/base/IconifyIcon';
 import SimpleBar from 'components/base/SimpleBar';
+import { ShopCategoryNode } from './index';
 
 interface CategoryPopoverProps {
   anchorEl: HTMLButtonElement | null;
+  categories: ShopCategoryNode[];
   handleClose: () => void;
   openItem: number;
   setOpenItem: React.Dispatch<React.SetStateAction<number>>;
 }
 
+interface SubmenuState {
+  anchorEl: HTMLElement | null;
+  category: ShopCategoryNode | null;
+}
+
 interface CategoryListProps {
-  categories: Category[];
-  anchorEl: any;
-  level: number;
-  openItem: number;
+  categories: ShopCategoryNode[];
   setOpenItem: React.Dispatch<React.SetStateAction<number>>;
 }
 
-const CategoryList = ({
-  categories,
-  anchorEl,
-  level,
-  openItem,
-  setOpenItem,
-}: CategoryListProps) => {
-  const ref = useRef(null);
+const CategoryList = ({ categories, setOpenItem }: CategoryListProps) => {
   const { direction } = useTheme();
   const { up, down } = useBreakpoints();
   const upMd = up('md');
   const downMd = down('md');
-  const [selectedCategory, setSetselectedCategory] = useState<Category | null>(null);
+  const [submenu, setSubmenu] = useState<SubmenuState>({ anchorEl: null, category: null });
+
+  useEffect(() => {
+    if (categories.length === 0) {
+      setSubmenu({ anchorEl: null, category: null });
+    }
+  }, [categories]);
+
+  const openSubmenu = (event: MouseEvent<HTMLElement>, category: ShopCategoryNode) => {
+    if (!category.children.length) return;
+    setSubmenu({
+      anchorEl: event.currentTarget,
+      category,
+    });
+    setOpenItem(2);
+  };
+
+  const closeSubmenu = () => {
+    setSubmenu({ anchorEl: null, category: null });
+    setOpenItem(1);
+  };
 
   return (
     <>
-      <Stack
-        direction="column"
-        sx={{
-          gap: 3,
-        }}
-      >
-        {categories.map((category) => (
-          <List
-            key={category.id}
-            component="nav"
-            dense
-            disablePadding
-            aria-labelledby="category-list"
-            subheader={
-              category.label ? (
-                <ListSubheader
-                  component="div"
-                  id="nested-list-subheader"
-                  sx={{
-                    color: 'text.primary',
-                    typography: 'overline',
-                    fontWeight: 'bold',
-                    mb: 1,
-                    bgcolor: 'background.menu',
-                  }}
-                >
-                  {category.label}
-                </ListSubheader>
-              ) : undefined
-            }
-          >
-            {category.items?.map((item) => (
-              <ListItemButton
-                key={item.id}
-                component={item.items ? 'div' : Link}
-                href={item.items ? undefined : item.url}
-                onClick={() => {
-                  if (item.items) {
-                    setOpenItem(level + 1);
-                    setSetselectedCategory(item);
-                  } else {
-                    setOpenItem(0);
-                  }
-                }}
-                sx={{
-                  borderRadius: 0,
-                  backgroundImage: 'none',
-                }}
-              >
-                <ListItemText primary={item.title} />
+      <List component="nav" dense disablePadding aria-labelledby="category-list">
+        {categories.map((category) => {
+          const hasChildren = category.children.length > 0;
+          return (
+            <ListItemButton
+              key={category.id}
+              component={hasChildren ? 'div' : Link}
+              href={hasChildren ? undefined : '#'}
+              onMouseEnter={(event) => {
+                if (hasChildren) openSubmenu(event, category);
+              }}
+              onClick={(event) => {
+                if (hasChildren) {
+                  openSubmenu(event, category);
+                  return;
+                }
+                setOpenItem(0);
+              }}
+              sx={{
+                borderRadius: 0,
+                backgroundImage: 'none',
+              }}
+            >
+              <ListItemText primary={category.name} />
 
-                {item.items && (
-                  <IconifyIcon
-                    icon="material-symbols-light:keyboard-arrow-right"
-                    sx={{ fontSize: 20 }}
-                  />
-                )}
-              </ListItemButton>
-            ))}
-          </List>
-        ))}
-      </Stack>
+              {hasChildren && (
+                <IconifyIcon
+                  icon="material-symbols-light:keyboard-arrow-right"
+                  sx={{ fontSize: 20 }}
+                />
+              )}
+            </ListItemButton>
+          );
+        })}
+      </List>
       <Popover
-        open={openItem >= level + 1}
-        anchorEl={anchorEl}
-        onClose={() => {
-          setSetselectedCategory(null);
-        }}
-        container={anchorEl}
+        open={Boolean(submenu.anchorEl && submenu.category)}
+        anchorEl={submenu.anchorEl}
+        onClose={closeSubmenu}
+        container={submenu.anchorEl}
         hideBackdrop
         anchorOrigin={
           upMd
@@ -137,11 +122,11 @@ const CategoryList = ({
         }}
         slotProps={{
           paper: {
-            sx: [
-              openItem > level + 1 && {
+              sx: [
+              openItem > 2 && {
                 borderRadius: 0,
               },
-              openItem === level + 1 && {
+              openItem === 2 && {
                 borderRadius: '0 8px 8px 0',
               },
             ],
@@ -171,7 +156,6 @@ const CategoryList = ({
         ]}
       >
         <Box
-          ref={ref}
           sx={{
             overflow: 'hidden',
             py: 2,
@@ -188,10 +172,7 @@ const CategoryList = ({
               shape="circle"
               variant="soft"
               color="neutral"
-              onClick={() => {
-                setOpenItem(level);
-                setSetselectedCategory(null);
-              }}
+              onClick={closeSubmenu}
             >
               <IconifyIcon icon="material-symbols:arrow-back-rounded" sx={{ fontSize: 20 }} />
             </Button>
@@ -199,22 +180,37 @@ const CategoryList = ({
               shape="circle"
               variant="soft"
               color="neutral"
-              onClick={() => {
-                setOpenItem(level);
-                setSetselectedCategory(null);
-              }}
+              onClick={closeSubmenu}
             >
               <IconifyIcon icon="material-symbols:close-rounded" sx={{ fontSize: 20 }} />
             </Button>
           </Stack>
           <SimpleBar disableHorizontal sx={{ height: '100%' }}>
-            <CategoryList
-              categories={selectedCategory ? [selectedCategory] : []}
-              anchorEl={ref.current}
-              level={level + 1}
-              openItem={openItem}
-              setOpenItem={setOpenItem}
-            />
+            <List component="nav" dense disablePadding aria-labelledby="category-submenu">
+              <ListItemButton
+                component={Link}
+                href="#"
+                onClick={() => {
+                  setOpenItem(0);
+                }}
+                sx={{ borderRadius: 0, backgroundImage: 'none' }}
+              >
+                <ListItemText primary={`All ${submenu.category?.name ?? ''}`.trim()} />
+              </ListItemButton>
+              {submenu.category?.children.map((child) => (
+                <ListItemButton
+                  key={child.id}
+                  component={Link}
+                  href="#"
+                  onClick={() => {
+                    setOpenItem(0);
+                  }}
+                  sx={{ borderRadius: 0, backgroundImage: 'none' }}
+                >
+                  <ListItemText primary={child.name} />
+                </ListItemButton>
+              ))}
+            </List>
           </SimpleBar>
         </Box>
       </Popover>
@@ -224,6 +220,7 @@ const CategoryList = ({
 
 const CategoryPopover = ({
   anchorEl,
+  categories,
   openItem,
   setOpenItem,
   handleClose,
@@ -297,13 +294,7 @@ const CategoryPopover = ({
           </Button>
         </Stack>
         <SimpleBar disableHorizontal sx={{ height: '100%' }}>
-          <CategoryList
-            categories={categories}
-            anchorEl={ref.current}
-            level={1}
-            openItem={openItem}
-            setOpenItem={setOpenItem}
-          />
+          <CategoryList categories={categories} setOpenItem={setOpenItem} />
         </SimpleBar>
       </Box>
     </Popover>
