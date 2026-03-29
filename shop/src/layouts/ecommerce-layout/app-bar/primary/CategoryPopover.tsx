@@ -122,11 +122,11 @@ const CategoryList = ({ categories, setOpenItem }: CategoryListProps) => {
         }}
         slotProps={{
           paper: {
-              sx: [
-              openItem > 2 && {
+            sx: [
+              submenu.category && {
                 borderRadius: 0,
               },
-              openItem === 2 && {
+              submenu.category && {
                 borderRadius: '0 8px 8px 0',
               },
             ],
