@@ -32,6 +32,7 @@ type InventoryItemRecord = {
   imageUrls?: string[];
   videoUrl?: string;
   saleTitle?: string;
+  regularPrice?: number | null;
   salePrice?: number | null;
   condition?: string;
   saleDescription?: string;
@@ -105,6 +106,7 @@ type FormState = {
   ccgNumber: string;
   videoUrl: string;
   saleTitle: string;
+  regularPrice: string;
   salePrice: string;
   condition: string;
   saleDescription: string;
@@ -195,7 +197,8 @@ const DEFAULT_FORM: FormState = {
   ccgNumber: 'Auto-generated on save',
   videoUrl: '',
   saleTitle: '',
-  salePrice: '',
+  regularPrice: '',
+  salePrice: '0',
   condition: '',
   saleDescription: '',
   title: '',
@@ -342,7 +345,8 @@ const InventoryItem = () => {
             ccgNumber: record.ccgNumber || '',
             videoUrl: record.videoUrl || '',
             saleTitle: record.saleTitle || '',
-            salePrice: record.salePrice != null ? String(record.salePrice) : '',
+            regularPrice: record.regularPrice != null ? String(record.regularPrice) : '',
+            salePrice: record.salePrice != null ? String(record.salePrice) : '0',
             condition: record.condition || '',
             saleDescription: record.saleDescription || '',
             title: record.title || '',
@@ -477,6 +481,7 @@ const InventoryItem = () => {
     imageUrls: [...urls],
     videoUrl: form.videoUrl.trim(),
     saleTitle: form.saleTitle.trim(),
+    regularPrice: form.regularPrice.trim(),
     salePrice: form.salePrice.trim(),
     condition: form.condition.trim(),
     saleDescription: form.saleDescription.trim(),
@@ -1270,17 +1275,27 @@ const InventoryItem = () => {
                           inputProps={{ maxLength: 200 }}
                         />
                       </Grid>
-                      <Grid size={{ xs: 12, md: 6 }}>
+                      <Grid size={{ xs: 12, md: 4 }}>
                         <TextField
                           fullWidth
-                          label="Price"
+                          label="Regular Price"
+                          type="number"
+                          value={form.regularPrice}
+                          onChange={(event) => setField('regularPrice', event.target.value)}
+                          inputProps={{ min: 0, step: 0.01 }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 4 }}>
+                        <TextField
+                          fullWidth
+                          label="Sale Price"
                           type="number"
                           value={form.salePrice}
                           onChange={(event) => setField('salePrice', event.target.value)}
                           inputProps={{ min: 0, step: 0.01 }}
                         />
                       </Grid>
-                      <Grid size={{ xs: 12, md: 6 }}>
+                      <Grid size={{ xs: 12, md: 4 }}>
                         <TextField
                           select
                           fullWidth

@@ -2213,6 +2213,7 @@ type InventoryItemRow = {
   original_listing_desc: string | null;
   video_url: string | null;
   sale_title: string | null;
+  regular_price: number | null;
   sale_price: number | null;
   condition: string | null;
   sale_description: string | null;
@@ -2998,6 +2999,12 @@ async function handleAdminV2InventoryMergeMarked(env: Env): Promise<Response> {
     finish: 'TBD',
     repair_notes: null,
     original_listing_desc: null,
+    video_url: null,
+    sale_title: null,
+    regular_price: null,
+    sale_price: 0,
+    condition: null,
+    sale_description: null,
     purchased_date: currentDateYmd(),
     purchase_price: purchasePriceTotal,
     private_party_value: privatePartyValueTotal,
@@ -3095,6 +3102,12 @@ async function handleInventoryPackageCreate(env: Env): Promise<Response> {
     model: 'TBD',
     finish: 'TBD',
     original_listing_desc: null,
+    video_url: null,
+    sale_title: null,
+    regular_price: null,
+    sale_price: 0,
+    condition: null,
+    sale_description: null,
     purchased_date: currentDateYmd(),
     purchase_price: purchasePriceTotal,
     private_party_value: privatePartyValueTotal,
@@ -3157,7 +3170,8 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const originalListingDesc = normalizeText(body.originalListingDesc, '').slice(0, 12000);
   const videoUrl = (normalizeUrl(normalizeText(body.videoUrl, '')) || '').slice(0, 200);
   const saleTitle = normalizeText(body.saleTitle, '').slice(0, 200);
-  const salePrice = parseCurrencyAmount(body.salePrice);
+  const regularPrice = parseCurrencyAmount(body.regularPrice);
+  const salePrice = parseCurrencyAmount(body.salePrice) ?? 0;
   const condition = normalizeText(body.condition, '').slice(0, 50);
   const saleDescription = normalizeText(body.saleDescription, '').slice(0, 12000);
   const purchasedDate = normalizeInventoryDate(body.purchasedDate) || currentDateYmd();
@@ -3257,6 +3271,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     original_listing_desc: originalListingDesc || null,
     video_url: videoUrl || null,
     sale_title: saleTitle || null,
+    regular_price: regularPrice,
     sale_price: salePrice,
     condition: condition || null,
     sale_description: saleDescription || null,
@@ -3411,7 +3426,8 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const originalListingDesc = normalizeText(body.originalListingDesc, '').slice(0, 12000);
   const videoUrl = (normalizeUrl(normalizeText(body.videoUrl, '')) || '').slice(0, 200);
   const saleTitle = normalizeText(body.saleTitle, '').slice(0, 200);
-  const salePrice = parseCurrencyAmount(body.salePrice);
+  const regularPrice = parseCurrencyAmount(body.regularPrice);
+  const salePrice = parseCurrencyAmount(body.salePrice) ?? 0;
   const condition = normalizeText(body.condition, '').slice(0, 50);
   const saleDescription = normalizeText(body.saleDescription, '').slice(0, 12000);
   const purchasedDate = normalizeInventoryDate(body.purchasedDate);
@@ -3526,6 +3542,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     source_listing_id: sourceListingId,
     video_url: videoUrl || null,
     sale_title: saleTitle || null,
+    regular_price: regularPrice,
     sale_price: salePrice,
     condition: condition || null,
     sale_description: saleDescription || null,
@@ -4484,7 +4501,8 @@ function mapInventoryRow(
     originalListingDesc: row.original_listing_desc || '',
     videoUrl: row.video_url || '',
     saleTitle: row.sale_title || '',
-    salePrice: row.sale_price,
+    regularPrice: row.regular_price ?? null,
+    salePrice: row.sale_price ?? 0,
     condition: row.condition || '',
     saleDescription: row.sale_description || '',
     purchasedDate: row.purchased_date || '',
@@ -4778,6 +4796,7 @@ async function dbListInventoryItemsByCcgNumber(
       i.original_listing_desc,
       i.video_url,
       i.sale_title,
+      i.regular_price,
       i.sale_price,
       i."condition",
       i.sale_description,
@@ -4851,6 +4870,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.original_listing_desc,
       i.video_url,
       i.sale_title,
+      i.regular_price,
       i.sale_price,
       i."condition",
       i.sale_description,
@@ -4907,7 +4927,8 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     originalListingDesc: row.original_listing_desc || '',
     videoUrl: row.video_url || '',
     saleTitle: row.sale_title || '',
-    salePrice: row.sale_price,
+    regularPrice: row.regular_price ?? null,
+    salePrice: row.sale_price ?? 0,
     condition: row.condition || '',
     saleDescription: row.sale_description || '',
     purchasedDate: row.purchased_date || '',
@@ -5065,6 +5086,7 @@ async function dbCreateInventoryItems(
     original_listing_desc: string | null;
     video_url: string | null;
     sale_title: string | null;
+    regular_price: number | null;
     sale_price: number | null;
     condition: string | null;
     sale_description: string | null;
@@ -5100,13 +5122,13 @@ async function dbCreateInventoryItems(
       (
         source_listing_id, ccg_number, image_url, title, category_id, brand, year_range, model, finish,
         image_urls,
-        repair_notes, original_listing_desc, video_url, sale_title, sale_price, "condition", sale_description,
+        repair_notes, original_listing_desc, video_url, sale_title, regular_price, sale_price, "condition", sale_description,
         purchased_date, purchase_price, private_party_value, purchase_notes, serial_number,
         weight_lbs, neck_profile, neck_thickness, nut_width, width_12_fret, fretboard_radius, twelve_fret_action,
         is_active, is_marked, is_personal, is_rented, needs_repair, for_sale, for_sale_date,
         is_sold, sold_date, sold_amount, sell_notes
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const statements = Array.from({ length: qty }, (_, index) =>
       env.DB.prepare(statement).bind(
@@ -5124,6 +5146,7 @@ async function dbCreateInventoryItems(
         fields.original_listing_desc,
         fields.video_url,
         fields.sale_title,
+        fields.regular_price,
         fields.sale_price,
         fields.condition,
         fields.sale_description,
@@ -5276,6 +5299,7 @@ async function dbUpdateInventorySaleById(
     source_listing_id: number | null;
     video_url: string | null;
     sale_title: string | null;
+    regular_price: number | null;
     sale_price: number | null;
     condition: string | null;
     sale_description: string | null;
@@ -5292,7 +5316,7 @@ async function dbUpdateInventorySaleById(
     await env.DB.prepare(
       `UPDATE ccg_inventory_items
        SET
-         source_listing_id = ?, video_url = ?, sale_title = ?, sale_price = ?, "condition" = ?, sale_description = ?,
+         source_listing_id = ?, video_url = ?, sale_title = ?, regular_price = ?, sale_price = ?, "condition" = ?, sale_description = ?,
          is_sold = ?, sold_date = ?, sold_amount = ?, sell_notes = ?,
          updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
@@ -5300,6 +5324,7 @@ async function dbUpdateInventorySaleById(
       fields.source_listing_id,
       fields.video_url,
       fields.sale_title,
+      fields.regular_price,
       fields.sale_price,
       fields.condition,
       fields.sale_description,
