@@ -2,12 +2,24 @@
 /admin/assets/*
   Cache-Control: public, max-age=31536000, immutable
 
+/shop-preview/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
 # Never cache the admin SPA entry points so new JS bundles are always picked up
 /admin/index.html
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/shop-preview/index.html
   Cache-Control: no-cache, no-store, must-revalidate
 
 /admin
   Cache-Control: no-cache, no-store, must-revalidate
 
+/shop-preview
+  Cache-Control: no-cache, no-store, must-revalidate
+
 /admin/*
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/shop-preview/*
   Cache-Control: no-cache, no-store, must-revalidate

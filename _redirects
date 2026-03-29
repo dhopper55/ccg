@@ -1,5 +1,7 @@
 /admin /admin/index.html 200
 /admin/* /admin/index.html 200
+/shop-preview /shop-preview/index.html 200
+/shop-preview/* /shop-preview/index.html 200
 /admin-v2 /admin 301
 /admin-v2/* /admin/:splat 301
 /listing-evaluator* /admin/listing-evaluator 302

@@ -1,0 +1,26 @@
+import { PropsWithChildren } from 'react';
+import { Box } from '@mui/material';
+import ShowcaseFooter from './footer';
+import ShowcaseHeader from './header';
+import HeaderBlur from './header/HeaderBlur';
+
+const ShowcaseLayout = ({ children }: PropsWithChildren) => {
+  return (
+    <Box
+      sx={{
+        position: 'relative',
+        overflow: 'hidden',
+        bgcolor: (theme) => theme.palette.grey[950],
+      }}
+    >
+      <HeaderBlur />
+      <ShowcaseHeader />
+
+      {children}
+
+      <ShowcaseFooter />
+    </Box>
+  );
+};
+
+export default ShowcaseLayout;
