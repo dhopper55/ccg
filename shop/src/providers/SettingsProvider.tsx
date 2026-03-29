@@ -32,13 +32,8 @@ interface SettingsContextInterFace {
 export const SettingsContext = createContext({} as SettingsContextInterFace);
 
 const SettingsProvider = ({ children }: PropsWithChildren) => {
-  const storedPrimaryColor = getItemFromStore('primaryColor', undefined);
-  let primaryColor: string | null | undefined =
-    typeof storedPrimaryColor === 'string' ? storedPrimaryColor : null;
-
-  const storedThemePreset = getItemFromStore('themePreset', initialConfig.themePreset);
-  const themePreset =
-    typeof storedThemePreset === 'string' ? storedThemePreset : initialConfig.themePreset;
+  let primaryColor: string | null | undefined = null;
+  const themePreset = 'default-dark' as Config['themePreset'];
 
   if (!primaryColor && themePreset) {
     const colorGroup = COLOR_GROUPS.find((group) => group.key === themePreset);

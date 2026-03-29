@@ -52,7 +52,7 @@ export const initialConfig: Config = {
   openNavbarDrawer: false,
   drawerWidth: mainDrawerWidth.full,
   locale: 'en-US',
-  themePreset: 'default-light',
+  themePreset: 'default-dark',
   primaryColor: null,
   fontFamily: fontFamilies[0],
   fontSize: 16,

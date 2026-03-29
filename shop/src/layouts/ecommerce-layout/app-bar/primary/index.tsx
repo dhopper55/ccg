@@ -1,6 +1,6 @@
 'use client';
 
-import { MouseEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, MouseEvent, useEffect, useRef, useState } from 'react';
 import {
   Box,
   Button,
@@ -15,8 +15,6 @@ import {
 } from '@mui/material';
 import MuiAppBar from '@mui/material/AppBar';
 import Grid from '@mui/material/Grid';
-import LanguageMenu from 'layouts/main-layout/common/LanguageMenu';
-import ThemeToggler from 'layouts/main-layout/common/ThemeToggler';
 import SearchTextField from 'layouts/main-layout/common/search-box/SearchTextField';
 import { kebabCase } from 'lib/utils';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
@@ -82,6 +80,10 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
     setSearchMenuAnchorEl(null);
   };
 
+  const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+  };
+
   return (
     <MuiAppBar>
       <Toolbar
@@ -106,18 +108,16 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
               order: { md: 1 },
             }}
             size="auto"
-          >
-            <Stack
-              sx={{
-                alignItems: 'center',
-                gap: 1,
-              }}
             >
-              <LanguageMenu />
-              <ThemeToggler />
-              <OutlinedBadge color="error" overlap="circular" badgeContent={cartItems.length}>
-                <Button
-                  color="neutral"
+              <Stack
+                sx={{
+                  alignItems: 'center',
+                  gap: 1,
+                }}
+              >
+                <OutlinedBadge color="error" overlap="circular" badgeContent={cartItems.length}>
+                  <Button
+                    color="neutral"
                   variant="soft"
                   shape="circle"
                   onClick={() => setOpenCartDrawer(true)}
@@ -273,6 +273,7 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
                   </Menu>
                   <SearchTextField
                     component="form"
+                    onSubmit={handleSearchSubmit}
                     sx={{
                       flexGrow: 1,
                       [`& .${inputBaseClasses.root}`]: {
