@@ -15,6 +15,7 @@ import {
   MenuItem,
   Paper,
   Stack,
+  SvgIcon,
   TextField,
   Tooltip,
   Typography,
@@ -261,6 +262,37 @@ const notesFieldSx = {
     lineHeight: 1.5,
   },
 };
+
+const LockToggleIcon = ({ filled }: { filled: boolean }) => (
+  <SvgIcon sx={{ fontSize: 18 }} viewBox="0 0 24 24">
+    <path
+      d="M7 10V8a5 5 0 0 1 10 0v2"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <rect
+      x="5.5"
+      y="10"
+      width="13"
+      height="10"
+      rx="2.25"
+      fill={filled ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      strokeWidth="1.8"
+    />
+    {filled ? (
+      <path
+        d="M12 13.2a1.8 1.8 0 0 1 .9 3.36V18a.9.9 0 1 1-1.8 0v-1.44a1.8 1.8 0 0 1 .9-3.36Z"
+        fill="rgba(0,0,0,0.55)"
+      />
+    ) : (
+      <circle cx="12" cy="15" r="1.35" fill="currentColor" />
+    )}
+  </SvgIcon>
+);
 
 const InventoryItem = () => {
   const navigate = useNavigate();
@@ -1041,14 +1073,7 @@ const InventoryItem = () => {
                                         },
                                       }}
                                     >
-                                      <IconifyIcon
-                                        icon={
-                                          image.isPrivate
-                                            ? 'material-symbols:lock-rounded'
-                                            : 'material-symbols:lock-outline-rounded'
-                                        }
-                                        fontSize={18}
-                                      />
+                                      <LockToggleIcon filled={image.isPrivate} />
                                     </IconButton>
                                   </Tooltip>
                                   {index < images.length - 1 ? (
