@@ -1,12 +1,7 @@
 import { Outlet } from 'react-router';
-import AuthProvider from 'providers/AuthProvider';
 
 const App = () => {
-  return (
-    <AuthProvider>
-      <Outlet />
-    </AuthProvider>
-  );
+  return <Outlet />;
 };
 
 export default App;

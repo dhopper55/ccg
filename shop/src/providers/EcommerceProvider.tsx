@@ -103,7 +103,7 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
   }, [cartSubTotal]);
 
   return (
-    <EcommerceContext
+    <EcommerceContext.Provider
       value={{
         product,
         setProduct,
@@ -119,7 +119,7 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
       }}
     >
       {children}
-    </EcommerceContext>
+    </EcommerceContext.Provider>
   );
 };
 

@@ -1,4 +1,4 @@
-import { PropsWithChildren, createContext, use, useState } from 'react';
+import { PropsWithChildren, createContext, useContext, useState } from 'react';
 
 export interface SettingsPanelConfig {
   showSettingPanelButton: boolean;
@@ -34,17 +34,17 @@ const SettingsPanelProvider = ({ children }: PropsWithChildren) => {
   };
 
   return (
-    <SettingsPanelContext
+    <SettingsPanelContext.Provider
       value={{
         settingsPanelConfig,
         setSettingsPanelConfig: updateSettingsPanelConfig,
       }}
     >
       {children}
-    </SettingsPanelContext>
+    </SettingsPanelContext.Provider>
   );
 };
 
 export default SettingsPanelProvider;
 
-export const useSettingsPanelContext = () => use(SettingsPanelContext);
+export const useSettingsPanelContext = () => useContext(SettingsPanelContext);

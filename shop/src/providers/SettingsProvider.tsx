@@ -101,7 +101,7 @@ const SettingsProvider = ({ children }: PropsWithChildren) => {
   }, [config.locale]);
 
   return (
-    <SettingsContext
+    <SettingsContext.Provider
       value={{
         config,
         configDispatch,
@@ -112,7 +112,7 @@ const SettingsProvider = ({ children }: PropsWithChildren) => {
       }}
     >
       {children}
-    </SettingsContext>
+    </SettingsContext.Provider>
   );
 };
 

@@ -97,7 +97,7 @@ const BreakpointsProvider = ({ children }: PropsWithChildren) => {
     };
   }, [matches, theme]);
 
-  return <BreakpointContext value={value}>{children}</BreakpointContext>;
+  return <BreakpointContext.Provider value={value}>{children}</BreakpointContext.Provider>;
 };
 
 export const useBreakpoints = () => useContext(BreakpointContext);
