@@ -325,6 +325,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/shop/products' && request.method === 'GET') {
+      const response = await handleShopProducts(request, env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/listings/submit' && request.method === 'POST') {
       const response = await handleSubmit(request, env, ctx);
       return withCors(response, request, env);
@@ -2336,6 +2341,34 @@ type InventoryCategoryNode = {
   children: InventoryCategoryNode[];
 };
 
+type ShopProductRow = {
+  id: number;
+  image_url: string | null;
+  title: string | null;
+  sale_title: string | null;
+  regular_price: number | null;
+  sale_price: number | null;
+  condition: string | null;
+  category_id: number | null;
+  category_name: string | null;
+  category_path: string | null;
+  source_listing_url: string | null;
+  is_sold: number | null;
+};
+
+type InventoryItemImageRow = {
+  id: number;
+  inventory_item_id: number;
+  image_url: string;
+  display_order: number;
+  is_private: number;
+};
+
+type InventoryImageInput = {
+  url: string;
+  isPrivate: boolean;
+};
+
 type AdminV2SerialDecodeRow = {
   id: number;
   eventTimeUtc: string | null;
@@ -2519,6 +2552,38 @@ async function handleShopCategories(env: Env): Promise<Response> {
   return jsonResponse({
     records,
     tree: buildInventoryCategoryTree(records),
+  });
+}
+
+async function handleShopProducts(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const categoryIds = parseShopCategoryIds(url);
+  const search = normalizeText(url.searchParams.get('search'), '').slice(0, 200);
+  const showSold = url.searchParams.get('showSold') === '1';
+  const priceMin = parseCurrencyAmount(url.searchParams.get('priceMin')) ?? 0;
+  const priceMax = parseCurrencyAmount(url.searchParams.get('priceMax')) ?? 0;
+  const conditionInput = normalizeText(url.searchParams.get('condition'), 'All').slice(0, 50);
+  const condition = conditionInput && conditionInput !== 'All' ? conditionInput : '';
+
+  const records = await dbListShopProducts({
+    categoryIds,
+    search,
+    showSold,
+    priceMin,
+    priceMax,
+    condition,
+  }, env);
+
+  return jsonResponse({
+    records,
+    filters: {
+      categoryIds,
+      search,
+      showSold: showSold ? 1 : 0,
+      priceMin,
+      priceMax,
+      condition: condition || 'All',
+    },
   });
 }
 
@@ -3033,6 +3098,13 @@ async function handleAdminV2InventoryMergeMarked(env: Env): Promise<Response> {
   if (!inserted?.firstId) {
     return jsonResponse({ message: 'Unable to create merged inventory item.' }, 500);
   }
+  if (!(await dbReplaceInventoryImagesByItemIds(
+    inserted.createdIds,
+    packageImageUrls.map((url) => ({ url, isPrivate: false })),
+    env,
+  ))) {
+    return jsonResponse({ message: 'Merged inventory item was created, but its image records failed to save.' }, 500);
+  }
 
   const sourceIds = activeUnsoldMarkedRows.map((row) => row.id);
   const sourceListingIds = Array.from(new Set(
@@ -3128,6 +3200,13 @@ async function handleInventoryPackageCreate(env: Env): Promise<Response> {
   if (!inserted?.firstId) {
     return jsonResponse({ message: 'Unable to create package inventory item.' }, 500);
   }
+  if (!(await dbReplaceInventoryImagesByItemIds(
+    inserted.createdIds,
+    packageImageUrls.map((url) => ({ url, isPrivate: false })),
+    env,
+  ))) {
+    return jsonResponse({ message: 'Package item was created, but its image records failed to save.' }, 500);
+  }
 
   const sourceIds = markedRows.map((row) => row.id);
   const deletedCount = await dbDeleteInventoryItemsByIds(sourceIds, env);
@@ -3159,7 +3238,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
 
   const sourceListingId = parseOptionalPositiveInt(body.sourceListingId);
   const imageUrl = normalizeText(body.imageUrl, '');
-  const imageCandidates = normalizeInventoryImageCandidates(imageUrl, body.imageUrls);
+  const imageEntriesInput = normalizeInventoryImageEntries(imageUrl, body.images, body.imageUrls);
   const title = normalizeText(body.title, '').slice(0, 240);
   const categoryId = parseOptionalPositiveInt(body.categoryId);
   const brand = normalizeText(body.brand, '').slice(0, 120);
@@ -3200,7 +3279,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
 
   let imageUrls: string[];
   try {
-    imageUrls = await ensureInventoryHostedImageUrls(imageCandidates, env);
+    imageUrls = await ensureInventoryHostedImageUrls(imageEntriesInput.map((entry) => entry.url), env);
   } catch (error) {
     return jsonResponse({
       message:
@@ -3229,8 +3308,12 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   if (!ccgNumber) {
     return jsonResponse({ message: 'Unable to generate CCG Number. Please try again.' }, 500);
   }
-
   const primaryImageUrl = imageUrls[0];
+  const privacyByUrl = new Map(imageEntriesInput.map((entry) => [entry.url, entry.isPrivate]));
+  const imageEntries = imageUrls.map((url, index) => ({
+    url,
+    isPrivate: index === 0 ? false : Boolean(privacyByUrl.get(url)),
+  }));
   const duplicate = qty === 1
     ? await dbFindRecentDuplicateInventoryCreate({
       source_listing_id: sourceListingId,
@@ -3302,6 +3385,9 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
 
   if (!inserted) {
     return jsonResponse({ message: 'Unable to create inventory item(s).' }, 500);
+  }
+  if (!(await dbReplaceInventoryImagesByItemIds(inserted.createdIds, imageEntries, env))) {
+    return jsonResponse({ message: 'Inventory item was created, but its image records failed to save.' }, 500);
   }
 
   await insertActivityLogBestEffort(env, {
@@ -3415,7 +3501,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
 
   const sourceListingId = parseOptionalPositiveInt(body.sourceListingId);
   const imageUrl = normalizeText(body.imageUrl, '');
-  const imageCandidates = normalizeInventoryImageCandidates(imageUrl, body.imageUrls);
+  const imageEntriesInput = normalizeInventoryImageEntries(imageUrl, body.images, body.imageUrls);
   const title = normalizeText(body.title, '').slice(0, 240);
   const categoryId = parseOptionalPositiveInt(body.categoryId);
   const brand = normalizeText(body.brand, '').slice(0, 120);
@@ -3455,7 +3541,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
 
   let imageUrls: string[];
   try {
-    imageUrls = await ensureInventoryHostedImageUrls(imageCandidates, env);
+    imageUrls = await ensureInventoryHostedImageUrls(imageEntriesInput.map((entry) => entry.url), env);
   } catch (error) {
     return jsonResponse({
       message:
@@ -3487,6 +3573,11 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   }
 
   const primaryImageUrl = imageUrls[0];
+  const privacyByUrl = new Map(imageEntriesInput.map((entry) => [entry.url, entry.isPrivate]));
+  const imageEntries = imageUrls.map((url, index) => ({
+    url,
+    isPrivate: index === 0 ? false : Boolean(privacyByUrl.get(url)),
+  }));
   const previousForSale = Boolean((current as { forSale?: boolean }).forSale);
   const previousForSaleDate = typeof (current as { forSaleDate?: unknown }).forSaleDate === 'string'
     ? ((current as { forSaleDate?: string }).forSaleDate || null)
@@ -3522,6 +3613,10 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     twelve_fret_action: twelveFretAction || null,
   }, env);
   if (!sharedUpdateOk) return jsonResponse({ message: 'Unable to update inventory items.' }, 500);
+  const itemIds = await dbListInventoryItemIdsByCcgNumber(currentCcgNumber, env);
+  if (!(await dbReplaceInventoryImagesByItemIds(itemIds, imageEntries, env))) {
+    return jsonResponse({ message: 'Unable to update inventory item images.' }, 500);
+  }
 
   const rowSpecificOk = await dbUpdateInventoryRowsByCcgNumber(currentCcgNumber, {
     is_active: isActive ? 1 : 0,
@@ -4909,12 +5004,18 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
      WHERE i.id = ?`
   ).bind(idValue).first<InventoryItemRow>();
   if (!row) return null;
+  const storedImages = await dbListInventoryImagesForItemIds([row.id], env);
+  const imageDetails = storedImages.get(row.id) ?? [];
+  const imageUrls = imageDetails.length > 0
+    ? imageDetails.map((image) => image.url)
+    : parseStoredInventoryImageUrls(row.image_urls, row.image_url);
   return {
     id: String(row.id),
     sourceListingId: row.source_listing_id != null ? String(row.source_listing_id) : null,
     ccgNumber: row.ccg_number,
-    imageUrl: row.image_url,
-    imageUrls: parseStoredInventoryImageUrls(row.image_urls, row.image_url),
+    imageUrl: imageUrls[0] ?? row.image_url,
+    imageUrls,
+    images: imageDetails,
     title: row.title,
     categoryId: row.category_id,
     categoryName: row.category_name || '',
@@ -5060,6 +5161,91 @@ async function dbListInventoryCategories(env: Env): Promise<InventoryCategoryRow
   return result.results ?? [];
 }
 
+async function dbListShopProducts(
+  filters: {
+    categoryIds: number[];
+    search: string;
+    showSold: boolean;
+    priceMin: number;
+    priceMax: number;
+    condition: string;
+  },
+  env: Env,
+): Promise<Array<Record<string, unknown>>> {
+  const categoryRows = await dbListInventoryCategories(env);
+  const allowedCategoryIds = expandInventoryCategoryIds(filters.categoryIds, categoryRows);
+
+  const clauses: string[] = [
+    'COALESCE(i.is_active, 0) = 1',
+    filters.showSold ? 'COALESCE(i.is_sold, 0) = 1' : 'COALESCE(i.is_sold, 0) = 0',
+  ];
+  const binds: unknown[] = [];
+
+  if (!filters.showSold) {
+    clauses.push('COALESCE(i.for_sale, 0) = 1');
+  }
+
+  if (allowedCategoryIds.length > 0) {
+    clauses.push(`i.category_id IN (${allowedCategoryIds.map(() => '?').join(', ')})`);
+    binds.push(...allowedCategoryIds);
+  }
+
+  if (filters.search) {
+    clauses.push(`(
+      LOWER(COALESCE(i.sale_title, '')) LIKE ?
+      OR LOWER(COALESCE(i.title, '')) LIKE ?
+      OR LOWER(COALESCE(i.sale_description, '')) LIKE ?
+    )`);
+    const term = `%${filters.search.toLowerCase()}%`;
+    binds.push(term, term, term);
+  }
+
+  if (filters.condition) {
+    clauses.push('LOWER(COALESCE(i."condition", \'\')) = LOWER(?)');
+    binds.push(filters.condition);
+  }
+
+  if (!(filters.priceMin === 0 && filters.priceMax === 0)) {
+    clauses.push('COALESCE(i.sale_price, 0) >= ? AND COALESCE(i.sale_price, 0) <= ?');
+    binds.push(filters.priceMin, filters.priceMax > 0 ? filters.priceMax : Number.MAX_SAFE_INTEGER);
+  }
+
+  const whereSql = clauses.join(' AND ');
+  const result = await env.DB.prepare(
+    `SELECT
+       i.id,
+       i.image_url,
+       i.title,
+       i.sale_title,
+       i.regular_price,
+       i.sale_price,
+       i."condition",
+       ${INVENTORY_CATEGORY_SELECT_SQL},
+       l.url AS source_listing_url,
+       i.is_sold
+     FROM ccg_inventory_items i
+     ${INVENTORY_CATEGORY_JOIN_SQL}
+     LEFT JOIN listings l ON l.id = i.source_listing_id
+     WHERE ${whereSql}
+     ORDER BY
+       c."order" ASC,
+       LOWER(COALESCE(i.sale_title, i.title, '')) ASC,
+       i.id DESC`
+  ).bind(...binds).all<ShopProductRow>();
+
+  return (result.results ?? []).map((row) => ({
+    id: String(row.id),
+    mainImage: row.image_url || '',
+    saleTitle: normalizeText(row.sale_title, '') || normalizeText(row.title, ''),
+    saleUrl: row.source_listing_url || null,
+    saleCondition: row.condition || '',
+    regularPrice: row.regular_price,
+    salePrice: row.sale_price ?? 0,
+    category: getInventoryCategoryLabel(row),
+    isSold: Boolean(row.is_sold),
+  }));
+}
+
 async function generateUniqueCcgNumber(env: Env): Promise<string | null> {
   for (let attempt = 0; attempt < CCG_NUMBER_ATTEMPTS; attempt += 1) {
     const value = randomIntInRange(CCG_NUMBER_MIN, CCG_NUMBER_MAX);
@@ -5116,7 +5302,7 @@ async function dbCreateInventoryItems(
   },
   qty: number,
   env: Env
-): Promise<{ firstId: string; ccgNumber: string; createdCount: number } | null> {
+): Promise<{ firstId: string; ccgNumber: string; createdCount: number; createdIds: number[] } | null> {
   try {
     const statement = `INSERT INTO ccg_inventory_items
       (
@@ -5177,9 +5363,12 @@ async function dbCreateInventoryItems(
     );
 
     const results = await env.DB.batch(statements);
-    const firstId = results[0]?.meta?.last_row_id ? String(results[0].meta.last_row_id) : null;
+    const createdIds = results
+      .map((result) => Number(result?.meta?.last_row_id || 0))
+      .filter((id) => Number.isFinite(id) && id > 0);
+    const firstId = createdIds[0] ? String(createdIds[0]) : null;
     if (!firstId) return null;
-    return { firstId, ccgNumber: fields.ccg_number, createdCount: results.length };
+    return { firstId, ccgNumber: fields.ccg_number, createdCount: results.length, createdIds };
   } catch (error) {
     console.error('Inventory insert failed', { error });
     return null;
@@ -5361,6 +5550,7 @@ async function dbDeleteInventoryItemById(recordId: string, env: Env): Promise<nu
   const idValue = Number.parseInt(recordId, 10);
   if (!Number.isFinite(idValue)) return 0;
   try {
+    await dbDeleteInventoryImagesByItemIds([idValue], env);
     const result = await env.DB.prepare(
       'DELETE FROM ccg_inventory_items WHERE id = ?'
     ).bind(idValue).run();
@@ -5375,6 +5565,7 @@ async function dbDeleteInventoryItemsByIds(ids: number[], env: Env): Promise<num
   const normalizedIds = ids.filter((id) => Number.isFinite(id) && id > 0);
   if (normalizedIds.length === 0) return 0;
   try {
+    await dbDeleteInventoryImagesByItemIds(normalizedIds, env);
     const placeholders = normalizedIds.map(() => '?').join(', ');
     const result = await env.DB.prepare(
       `DELETE FROM ccg_inventory_items WHERE id IN (${placeholders})`
@@ -5388,6 +5579,8 @@ async function dbDeleteInventoryItemsByIds(ids: number[], env: Env): Promise<num
 
 async function dbDeleteInventoryItemsByCcgNumber(ccgNumber: string, env: Env): Promise<number> {
   try {
+    const itemIds = await dbListInventoryItemIdsByCcgNumber(ccgNumber, env);
+    await dbDeleteInventoryImagesByItemIds(itemIds, env);
     const result = await env.DB.prepare(
       'DELETE FROM ccg_inventory_items WHERE ccg_number = ?'
     ).bind(ccgNumber).run();
@@ -5482,10 +5675,100 @@ async function dbListMarkedInventoryLabelRows(
 }
 
 async function dbListAllInventoryImageRefs(env: Env): Promise<Array<{ image_url: string | null; image_urls: string | null }>> {
+  const [legacyResult, childResult] = await Promise.all([
+    env.DB.prepare('SELECT image_url, image_urls FROM ccg_inventory_items')
+      .all<{ image_url: string | null; image_urls: string | null }>(),
+    env.DB.prepare(
+      `SELECT NULL AS image_url, GROUP_CONCAT(image_url, char(10)) AS image_urls
+       FROM (
+         SELECT inventory_item_id, image_url
+         FROM ccg_inventory_item_images
+         ORDER BY inventory_item_id ASC, display_order ASC, id ASC
+       )
+       GROUP BY inventory_item_id`
+    ).all<{ image_url: string | null; image_urls: string | null }>(),
+  ]);
+  return [...(legacyResult.results ?? []), ...(childResult.results ?? [])];
+}
+
+async function dbListInventoryImagesForItemIds(
+  itemIds: number[],
+  env: Env,
+): Promise<Map<number, Array<{ id: string; url: string; order: number; isPrivate: boolean }>>> {
+  const normalizedIds = Array.from(new Set(itemIds.filter((id) => Number.isFinite(id) && id > 0)));
+  const output = new Map<number, Array<{ id: string; url: string; order: number; isPrivate: boolean }>>();
+  if (normalizedIds.length === 0) return output;
+  try {
+    const placeholders = normalizedIds.map(() => '?').join(', ');
+    const result = await env.DB.prepare(
+      `SELECT id, inventory_item_id, image_url, display_order, is_private
+       FROM ccg_inventory_item_images
+       WHERE inventory_item_id IN (${placeholders})
+       ORDER BY inventory_item_id ASC, display_order ASC, id ASC`
+    ).bind(...normalizedIds).all<InventoryItemImageRow>();
+    for (const row of result.results ?? []) {
+      const key = Number(row.inventory_item_id);
+      if (!output.has(key)) output.set(key, []);
+      output.get(key)?.push({
+        id: String(row.id),
+        url: normalizeText(row.image_url, ''),
+        order: Number(row.display_order || 0),
+        isPrivate: Boolean(row.is_private),
+      });
+    }
+  } catch (error) {
+    console.warn('Inventory image child lookup failed; falling back to legacy image columns.', { error });
+  }
+  return output;
+}
+
+async function dbReplaceInventoryImagesByItemIds(
+  itemIds: number[],
+  images: InventoryImageInput[],
+  env: Env,
+): Promise<boolean> {
+  const normalizedIds = Array.from(new Set(itemIds.filter((id) => Number.isFinite(id) && id > 0)));
+  if (normalizedIds.length === 0) return true;
+  try {
+    await dbDeleteInventoryImagesByItemIds(normalizedIds, env);
+    if (images.length === 0) return true;
+    const statements = normalizedIds.flatMap((inventoryItemId) =>
+      images.map((image, index) =>
+        env.DB.prepare(
+          `INSERT INTO ccg_inventory_item_images (inventory_item_id, image_url, display_order, is_private)
+           VALUES (?, ?, ?, ?)`
+        ).bind(inventoryItemId, image.url, index + 1, image.isPrivate ? 1 : 0),
+      ),
+    );
+    await env.DB.batch(statements);
+    return true;
+  } catch (error) {
+    console.error('Inventory image child replace failed', { error });
+    return false;
+  }
+}
+
+async function dbDeleteInventoryImagesByItemIds(itemIds: number[], env: Env): Promise<void> {
+  const normalizedIds = Array.from(new Set(itemIds.filter((id) => Number.isFinite(id) && id > 0)));
+  if (normalizedIds.length === 0) return;
+  try {
+    const placeholders = normalizedIds.map(() => '?').join(', ');
+    await env.DB.prepare(
+      `DELETE FROM ccg_inventory_item_images WHERE inventory_item_id IN (${placeholders})`
+    ).bind(...normalizedIds).run();
+  } catch (error) {
+    console.warn('Inventory image child delete skipped', { error });
+  }
+}
+
+async function dbListInventoryItemIdsByCcgNumber(ccgNumber: string, env: Env): Promise<number[]> {
+  if (!ccgNumber) return [];
   const result = await env.DB.prepare(
-    'SELECT image_url, image_urls FROM ccg_inventory_items'
-  ).all<{ image_url: string | null; image_urls: string | null }>();
-  return result.results ?? [];
+    'SELECT id FROM ccg_inventory_items WHERE ccg_number = ? ORDER BY id ASC'
+  ).bind(ccgNumber).all<{ id: number }>();
+  return (result.results ?? [])
+    .map((row) => Number(row.id || 0))
+    .filter((id) => Number.isFinite(id) && id > 0);
 }
 
 async function dbGetInventorySummary(env: Env): Promise<InventorySummaryTotals> {
@@ -8632,6 +8915,48 @@ function buildInventoryCategoryTree(rows: InventoryCategoryRow[]): InventoryCate
   return roots;
 }
 
+function parseShopCategoryIds(url: URL): number[] {
+  const rawValues = [
+    ...url.searchParams.getAll('categoryId'),
+    ...url.searchParams.getAll('categoryIds'),
+  ];
+  const csv = normalizeText(url.searchParams.get('categories'), '');
+  if (csv) rawValues.push(...csv.split(','));
+
+  return Array.from(
+    new Set(
+      rawValues
+        .flatMap((value) => String(value).split(','))
+        .map((value) => parseOptionalPositiveInt(value))
+        .filter((value): value is number => value != null),
+    ),
+  );
+}
+
+function expandInventoryCategoryIds(selectedIds: number[], rows: InventoryCategoryRow[]): number[] {
+  if (selectedIds.length === 0) return [];
+
+  const childrenByParent = new Map<number, number[]>();
+  for (const row of rows) {
+    if (row.parent_id == null) continue;
+    const siblings = childrenByParent.get(row.parent_id) ?? [];
+    siblings.push(row.id);
+    childrenByParent.set(row.parent_id, siblings);
+  }
+
+  const expanded = new Set<number>();
+  const stack = [...selectedIds];
+  while (stack.length > 0) {
+    const currentId = stack.pop();
+    if (currentId == null || expanded.has(currentId)) continue;
+    expanded.add(currentId);
+    const children = childrenByParent.get(currentId) ?? [];
+    children.forEach((childId) => stack.push(childId));
+  }
+
+  return Array.from(expanded);
+}
+
 function parseCurrencyAmount(input: unknown): number | null {
   if (input == null) return null;
   if (typeof input === 'number' && Number.isFinite(input)) return input;
@@ -8795,6 +9120,46 @@ function normalizeInventoryImageCandidates(primaryImageUrl: string, rawInput: un
         .filter((url): url is string => Boolean(url)),
     ),
   ).slice(0, INVENTORY_MAX_IMAGES);
+}
+
+function normalizeInventoryImageEntries(
+  primaryImageUrl: string,
+  rawImages: unknown,
+  rawInput: unknown,
+): InventoryImageInput[] {
+  const entries: InventoryImageInput[] = [];
+  const seen = new Set<string>();
+
+  const pushEntry = (urlValue: unknown, isPrivateValue: unknown) => {
+    const normalizedUrl = normalizeInventoryOrExternalImageUrl(typeof urlValue === 'string' ? urlValue : '');
+    if (!normalizedUrl || seen.has(normalizedUrl)) return;
+    seen.add(normalizedUrl);
+    entries.push({
+      url: normalizedUrl,
+      isPrivate: Boolean(isPrivateValue),
+    });
+  };
+
+  if (Array.isArray(rawImages)) {
+    rawImages.forEach((entry) => {
+      if (typeof entry === 'string') {
+        pushEntry(entry, false);
+        return;
+      }
+      if (entry && typeof entry === 'object') {
+        const candidate = entry as { url?: unknown; imageUrl?: unknown; isPrivate?: unknown };
+        pushEntry(candidate.url ?? candidate.imageUrl, candidate.isPrivate);
+      }
+    });
+  }
+
+  normalizeInventoryImageCandidates(primaryImageUrl, rawInput).forEach((url) => pushEntry(url, false));
+
+  if (entries.length > 0) {
+    entries[0] = { ...entries[0], isPrivate: false };
+  }
+
+  return entries.slice(0, INVENTORY_MAX_IMAGES);
 }
 
 async function ensureInventoryHostedImageUrls(urls: string[], env: Env): Promise<string[]> {

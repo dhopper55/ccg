@@ -30,6 +30,7 @@ type InventoryItemRecord = {
   ccgNumber: string;
   imageUrl: string;
   imageUrls?: string[];
+  images?: InventoryImageRecord[];
   videoUrl?: string;
   saleTitle?: string;
   regularPrice?: number | null;
@@ -178,18 +179,37 @@ type InventoryCategoryOption = {
   label: string;
 };
 
+type InventoryImageRecord = {
+  id?: string;
+  url: string;
+  isPrivate: boolean;
+};
+
 function todayYmd(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function normalizeImageUrls(urls: string[]): string[] {
-  return Array.from(
-    new Set(
-      urls
-        .map((url) => (typeof url === 'string' ? url.trim() : ''))
-        .filter(Boolean),
-    ),
-  ).slice(0, INVENTORY_MAX_IMAGES);
+function normalizeImages(images: InventoryImageRecord[]): InventoryImageRecord[] {
+  const seen = new Set<string>();
+  const normalized = images
+    .map((image) => ({
+      id: image.id,
+      url: typeof image.url === 'string' ? image.url.trim() : '',
+      isPrivate: Boolean(image.isPrivate),
+    }))
+    .filter((image) => image.url)
+    .filter((image) => {
+      if (seen.has(image.url)) return false;
+      seen.add(image.url);
+      return true;
+    })
+    .slice(0, INVENTORY_MAX_IMAGES);
+
+  if (normalized.length > 0) {
+    normalized[0] = { ...normalized[0], isPrivate: false };
+  }
+
+  return normalized;
 }
 
 const DEFAULT_FORM: FormState = {
@@ -252,7 +272,7 @@ const InventoryItem = () => {
   const [sourceListingId, setSourceListingId] = useState<string | null>(null);
   const [sourceImageUrl, setSourceImageUrl] = useState<string | null>(null);
   const [groupCount, setGroupCount] = useState(1);
-  const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [images, setImages] = useState<InventoryImageRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -382,13 +402,20 @@ const InventoryItem = () => {
             sellNotes: record.sellNotes || '',
           });
 
-          const existingImages =
-            Array.isArray(record.imageUrls) && record.imageUrls.length
-              ? record.imageUrls
-              : record.imageUrl
-                ? [record.imageUrl]
-                : [];
-          setImageUrls(normalizeImageUrls(existingImages));
+          const existingImages = Array.isArray(record.images) && record.images.length
+            ? record.images.map((image) => ({
+              id: image.id,
+              url: image.url,
+              isPrivate: Boolean(image.isPrivate),
+            }))
+            : (
+              Array.isArray(record.imageUrls) && record.imageUrls.length
+                ? record.imageUrls
+                : record.imageUrl
+                  ? [record.imageUrl]
+                  : []
+            ).map((url) => ({ url, isPrivate: false }));
+          setImages(normalizeImages(existingImages));
           return;
         }
 
@@ -414,7 +441,7 @@ const InventoryItem = () => {
           const allImages = Array.from(new Set([...photoCandidates, singleImage].filter(Boolean)));
           setSourceImageUrl(singleImage || null);
           if (allImages.length > 0) {
-            setImageUrls(normalizeImageUrls(allImages));
+            setImages(normalizeImages(allImages.map((url) => ({ url, isPrivate: false }))));
           }
           const year = (fields.year || '').trim();
           const brand = (fields.brand || '').trim();
@@ -470,15 +497,16 @@ const InventoryItem = () => {
     setMessage(null);
   };
 
-  const updateImageUrls = (urls: string[]) => {
-    setImageUrls(normalizeImageUrls(urls));
+  const updateImages = (nextImages: InventoryImageRecord[]) => {
+    setImages(normalizeImages(nextImages));
   };
 
-  const createSavePayload = (urls: string[]) => ({
+  const createSavePayload = (nextImages: InventoryImageRecord[]) => ({
     sourceListingId,
     qty: editId ? 1 : form.qty,
-    imageUrl: urls[0],
-    imageUrls: [...urls],
+    imageUrl: nextImages[0]?.url,
+    imageUrls: nextImages.map((image) => image.url),
+    images: nextImages.map((image) => ({ url: image.url, isPrivate: image.isPrivate })),
     videoUrl: form.videoUrl.trim(),
     saleTitle: form.saleTitle.trim(),
     regularPrice: form.regularPrice.trim(),
@@ -516,18 +544,13 @@ const InventoryItem = () => {
     sellNotes: form.sellNotes.trim(),
   });
 
-  const handlePromoteImage = async (index: number) => {
-    if (index <= 0 || index >= imageUrls.length) return;
-
-    const previousUrls = [...imageUrls];
-    const nextUrls = [...imageUrls];
-    const [selected] = nextUrls.splice(index, 1);
-    nextUrls.unshift(selected);
-    updateImageUrls(nextUrls);
-
-    if (!editId) {
-      return;
-    }
+  const persistImages = async (
+    nextImages: InventoryImageRecord[],
+    previousImages: InventoryImageRecord[],
+    successMessage: string,
+    failureMessage: string,
+  ) => {
+    if (!editId) return;
 
     setIsSubmitting(true);
     setMessage(null);
@@ -536,20 +559,19 @@ const InventoryItem = () => {
       const response = await fetch(`/api/inventory/${encodeURIComponent(editId)}/update`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(createSavePayload(nextUrls)),
+        body: JSON.stringify(createSavePayload(nextImages)),
         credentials: 'same-origin',
       });
 
       const data = (await response.json().catch(() => ({}))) as SaveResponse;
       if (!response.ok || !data.ok) {
-        throw new Error(data.message || 'Unable to update inventory item.');
+        throw new Error(data.message || failureMessage);
       }
 
-      enqueueSnackbar('Primary image updated. Reloading…', { variant: 'success' });
-      window.location.reload();
+      enqueueSnackbar(successMessage, { variant: 'success' });
     } catch (error) {
-      updateImageUrls(previousUrls);
-      const text = error instanceof Error ? error.message : 'Unable to update inventory item.';
+      updateImages(previousImages);
+      const text = error instanceof Error ? error.message : failureMessage;
       setMessage({ severity: 'error', text });
       enqueueSnackbar(text, { variant: 'error' });
     } finally {
@@ -557,47 +579,59 @@ const InventoryItem = () => {
     }
   };
 
-  const handleMoveImage = async (index: number, direction: 'left' | 'right') => {
-    if (index < 0 || index >= imageUrls.length) return;
-    const targetIndex = direction === 'left' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= imageUrls.length) return;
+  const handlePromoteImage = async (index: number) => {
+    if (index <= 0 || index >= images.length) return;
 
-    const previousUrls = [...imageUrls];
-    const nextUrls = [...imageUrls];
-    const [selected] = nextUrls.splice(index, 1);
-    nextUrls.splice(targetIndex, 0, selected);
-    updateImageUrls(nextUrls);
+    const previousImages = [...images];
+    const nextImages = [...images];
+    const [selected] = nextImages.splice(index, 1);
+    nextImages.unshift({ ...selected, isPrivate: false });
+    updateImages(nextImages);
+
+    if (!editId) {
+      return;
+    }
+    await persistImages(nextImages, previousImages, 'Primary image updated.', 'Unable to update inventory item.');
+  };
+
+  const handleMoveImage = async (index: number, direction: 'left' | 'right') => {
+    if (index < 0 || index >= images.length) return;
+    const targetIndex = direction === 'left' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= images.length) return;
+
+    const previousImages = [...images];
+    const nextImages = [...images];
+    const [selected] = nextImages.splice(index, 1);
+    nextImages.splice(targetIndex, 0, selected);
+    updateImages(nextImages);
+
+    if (!editId) {
+      return;
+    }
+    await persistImages(nextImages, previousImages, 'Image order updated.', 'Unable to reorder inventory images.');
+  };
+
+  const handleToggleImagePrivate = async (index: number) => {
+    if (index <= 0 || index >= images.length) return;
+
+    const previousImages = [...images];
+    const nextImages = [...images];
+    nextImages[index] = {
+      ...nextImages[index],
+      isPrivate: !nextImages[index].isPrivate,
+    };
+    updateImages(nextImages);
 
     if (!editId) {
       return;
     }
 
-    setIsSubmitting(true);
-    setMessage(null);
-
-    try {
-      const response = await fetch(`/api/inventory/${encodeURIComponent(editId)}/update`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(createSavePayload(nextUrls)),
-        credentials: 'same-origin',
-      });
-
-      const data = (await response.json().catch(() => ({}))) as SaveResponse;
-      if (!response.ok || !data.ok) {
-        throw new Error(data.message || 'Unable to reorder inventory images.');
-      }
-
-      enqueueSnackbar('Image order updated. Reloading…', { variant: 'success' });
-      window.location.reload();
-    } catch (error) {
-      updateImageUrls(previousUrls);
-      const text = error instanceof Error ? error.message : 'Unable to reorder inventory images.';
-      setMessage({ severity: 'error', text });
-      enqueueSnackbar(text, { variant: 'error' });
-    } finally {
-      setIsSubmitting(false);
-    }
+    await persistImages(
+      nextImages,
+      previousImages,
+      nextImages[index].isPrivate ? 'Image marked private.' : 'Image marked public.',
+      'Unable to update image privacy.',
+    );
   };
 
   const uploadImage = async (file: File): Promise<string> => {
@@ -632,7 +666,7 @@ const InventoryItem = () => {
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     if (!files.length) return;
-    if (imageUrls.length >= INVENTORY_MAX_IMAGES) {
+    if (images.length >= INVENTORY_MAX_IMAGES) {
       const text = `You can upload up to ${INVENTORY_MAX_IMAGES} images.`;
       setMessage({ severity: 'error', text });
       enqueueSnackbar(text, { variant: 'error' });
@@ -644,15 +678,15 @@ const InventoryItem = () => {
     setMessage(null);
 
     try {
-      let nextUrls = [...imageUrls];
+      let nextImages = [...images];
       let uploadedCount = 0;
 
       for (const file of files) {
-        if (nextUrls.length >= INVENTORY_MAX_IMAGES) break;
+        if (nextImages.length >= INVENTORY_MAX_IMAGES) break;
         const imageUrl = await uploadImage(file);
-        nextUrls = normalizeImageUrls([...nextUrls, imageUrl]);
+        nextImages = normalizeImages([...nextImages, { url: imageUrl, isPrivate: false }]);
         uploadedCount += 1;
-        setImageUrls(nextUrls);
+        setImages(nextImages);
       }
 
       const text =
@@ -671,7 +705,7 @@ const InventoryItem = () => {
 
   const handleImportSourceImage = async () => {
     if (!sourceImageUrl) return;
-    if (imageUrls.length >= INVENTORY_MAX_IMAGES) {
+    if (images.length >= INVENTORY_MAX_IMAGES) {
       const text = `You can upload up to ${INVENTORY_MAX_IMAGES} images.`;
       setMessage({ severity: 'error', text });
       enqueueSnackbar(text, { variant: 'error' });
@@ -682,7 +716,7 @@ const InventoryItem = () => {
     setMessage(null);
     try {
       const importedUrl = await importSourceImage(sourceImageUrl);
-      updateImageUrls([...imageUrls, importedUrl]);
+      updateImages([...images, { url: importedUrl, isPrivate: false }]);
       setMessage({ severity: 'success', text: 'Source image imported.' });
       enqueueSnackbar('Source image imported.', { variant: 'success' });
     } catch (error) {
@@ -708,7 +742,7 @@ const InventoryItem = () => {
       setMessage({ severity: 'error', text: 'Category is required.' });
       return;
     }
-    if (imageUrls.length < 1) {
+    if (images.length < 1) {
       setMessage({ severity: 'error', text: 'Please upload at least one image before saving.' });
       return;
     }
@@ -729,7 +763,7 @@ const InventoryItem = () => {
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(createSavePayload(imageUrls)),
+        body: JSON.stringify(createSavePayload(images)),
         credentials: 'same-origin',
       });
 
@@ -759,8 +793,8 @@ const InventoryItem = () => {
 
   const uploadButtonLabel = useMemo(() => {
     if (isUploading) return 'Uploading...';
-    return imageUrls.length > 0 ? 'Add Images' : 'Upload Images';
-  }, [imageUrls.length, isUploading]);
+    return images.length > 0 ? 'Add Images' : 'Upload Images';
+  }, [images.length, isUploading]);
 
   const selectedCategoryName = useMemo(
     () => categoryOptions.find((option) => option.id === form.categoryId)?.name || '',
@@ -907,7 +941,7 @@ const InventoryItem = () => {
                       </Button>
                     ) : null}
                     <Chip
-                      label={`${imageUrls.length}/${INVENTORY_MAX_IMAGES} images`}
+                      label={`${images.length}/${INVENTORY_MAX_IMAGES} images`}
                       color="primary"
                       variant="soft"
                     />
@@ -919,11 +953,11 @@ const InventoryItem = () => {
                 </Stack>
               </Grid>
 
-              {imageUrls.length ? (
+              {images.length ? (
                 <Grid size={12}>
                   <Grid container spacing={2}>
-                    {imageUrls.map((url, index) => (
-                      <Grid key={url} size={{ xs: 12, sm: 6, md: 3 }}>
+                    {images.map((image, index) => (
+                      <Grid key={`${image.url}-${index}`} size={{ xs: 12, sm: 6, md: 3 }}>
                         <Paper
                           variant="outlined"
                           sx={{
@@ -947,7 +981,7 @@ const InventoryItem = () => {
                                 bgcolor: 'background.elevation1',
                                 cursor: 'pointer',
                               }}
-                              onClick={() => setPreviewImage(url)}
+                              onClick={() => setPreviewImage(image.url)}
                             >
                               {index > 0 ? (
                                 <Stack
@@ -988,7 +1022,7 @@ const InventoryItem = () => {
                                       </IconButton>
                                     </Tooltip>
                                   ) : null}
-                                  {index < imageUrls.length - 1 ? (
+                                  {index < images.length - 1 ? (
                                     <Tooltip title="Move right">
                                       <IconButton
                                         size="small"
@@ -1016,7 +1050,7 @@ const InventoryItem = () => {
                               ) : null}
                               <Box
                                 component="img"
-                                src={url}
+                                src={image.url}
                                 alt={`Inventory image ${index + 1}`}
                                 sx={{ width: 1, height: 1, objectFit: 'cover' }}
                               />
@@ -1026,13 +1060,31 @@ const InventoryItem = () => {
                               {index === 0 ? (
                                 <Chip label="Primary" size="small" color="warning" variant="soft" />
                               ) : (
-                                <Box />
+                                <Tooltip title={image.isPrivate ? 'Private image' : 'Public image'}>
+                                  <IconButton
+                                    size="small"
+                                    aria-label={image.isPrivate ? 'Mark image public' : 'Mark image private'}
+                                    disabled={isSubmitting}
+                                    onClick={() => {
+                                      void handleToggleImagePrivate(index);
+                                    }}
+                                  >
+                                    <IconifyIcon
+                                      icon={
+                                        image.isPrivate
+                                          ? 'material-symbols:lock-rounded'
+                                          : 'material-symbols:lock-outline-rounded'
+                                      }
+                                      fontSize={18}
+                                    />
+                                  </IconButton>
+                                </Tooltip>
                               )}
                               <IconButton
                                 size="small"
                                 aria-label="Remove image"
-                                disabled={imageUrls.length <= 1 || isSubmitting}
-                                onClick={() => updateImageUrls(imageUrls.filter((_, i) => i !== index))}
+                                disabled={images.length <= 1 || isSubmitting}
+                                onClick={() => updateImages(images.filter((_, i) => i !== index))}
                               >
                                 <IconifyIcon icon="material-symbols:delete-outline-rounded" fontSize={18} />
                               </IconButton>
