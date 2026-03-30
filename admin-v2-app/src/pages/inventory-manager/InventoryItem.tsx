@@ -592,8 +592,10 @@ const InventoryItem = () => {
 
     const previousImages = [...images];
     const nextImages = [...images];
-    const [selected] = nextImages.splice(index, 1);
-    nextImages.unshift({ ...selected, isPrivate: false });
+    const primaryImage = nextImages[0];
+    const selectedImage = nextImages[index];
+    nextImages[0] = { ...selectedImage, isPrivate: false };
+    nextImages[index] = primaryImage;
     updateImages(nextImages);
 
     if (!editId) {
@@ -603,14 +605,15 @@ const InventoryItem = () => {
   };
 
   const handleMoveImage = async (index: number, direction: 'left' | 'right') => {
-    if (index < 0 || index >= images.length) return;
+    if (index <= 0 || index >= images.length) return;
     const targetIndex = direction === 'left' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= images.length) return;
+    if (targetIndex <= 0 || targetIndex >= images.length) return;
 
     const previousImages = [...images];
     const nextImages = [...images];
-    const [selected] = nextImages.splice(index, 1);
-    nextImages.splice(targetIndex, 0, selected);
+    const selectedImage = nextImages[index];
+    nextImages[index] = nextImages[targetIndex];
+    nextImages[targetIndex] = selectedImage;
     updateImages(nextImages);
 
     if (!editId) {
@@ -1020,15 +1023,15 @@ const InventoryItem = () => {
                                     transition: 'opacity 160ms ease, transform 160ms ease',
                                   }}
                                 >
-                                  {index > 0 ? (
-                                    <Tooltip title="Make primary">
+                                  {index > 1 ? (
+                                    <Tooltip title="Move left">
                                       <IconButton
                                         size="small"
-                                        aria-label="Make image primary"
+                                        aria-label="Move image left"
                                         disabled={isSubmitting}
                                         onClick={(event) => {
                                           event.stopPropagation();
-                                          void handlePromoteImage(index);
+                                          void handleMoveImage(index, 'left');
                                         }}
                                         sx={{
                                           bgcolor: 'rgba(15, 23, 42, 0.78)',
@@ -1082,28 +1085,43 @@ const InventoryItem = () => {
                               {index === 0 ? (
                                 <Chip label="Primary" size="small" color="warning" variant="soft" />
                               ) : (
-                                <Tooltip title={image.isPrivate ? 'Private image' : 'Public image'}>
-                                  <IconButton
-                                    size="small"
-                                    aria-label={image.isPrivate ? 'Mark image public' : 'Mark image private'}
-                                    disabled={isSubmitting}
-                                    onClick={() => {
-                                      void handleToggleImagePrivate(index);
-                                    }}
-                                    sx={{
-                                      color: image.isPrivate ? 'warning.main' : 'text.secondary',
-                                    }}
-                                  >
-                                    <IconifyIcon
-                                      icon={
-                                        image.isPrivate
-                                          ? 'material-symbols:lock-rounded'
-                                          : 'material-symbols:lock-outline-rounded'
-                                      }
-                                      fontSize={18}
-                                    />
-                                  </IconButton>
-                                </Tooltip>
+                                <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+                                  <Tooltip title="Make primary image">
+                                    <IconButton
+                                      size="small"
+                                      aria-label="Make image primary"
+                                      disabled={isSubmitting}
+                                      onClick={() => {
+                                        void handlePromoteImage(index);
+                                      }}
+                                      sx={{ color: 'warning.main' }}
+                                    >
+                                      <IconifyIcon icon="material-symbols:star-outline-rounded" fontSize={18} />
+                                    </IconButton>
+                                  </Tooltip>
+                                  <Tooltip title={image.isPrivate ? 'Private image' : 'Public image'}>
+                                    <IconButton
+                                      size="small"
+                                      aria-label={image.isPrivate ? 'Mark image public' : 'Mark image private'}
+                                      disabled={isSubmitting}
+                                      onClick={() => {
+                                        void handleToggleImagePrivate(index);
+                                      }}
+                                      sx={{
+                                        color: image.isPrivate ? 'warning.main' : 'text.secondary',
+                                      }}
+                                    >
+                                      <IconifyIcon
+                                        icon={
+                                          image.isPrivate
+                                            ? 'material-symbols:lock-rounded'
+                                            : 'material-symbols:lock-outline-rounded'
+                                        }
+                                        fontSize={18}
+                                      />
+                                    </IconButton>
+                                  </Tooltip>
+                                </Stack>
                               )}
                               <IconButton
                                 size="small"
