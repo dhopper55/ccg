@@ -2,6 +2,7 @@ import { Divider, Stack } from '@mui/material';
 import { ProductFilterOptions } from 'types/ecommerce';
 import FilterSection from './FilterSection';
 import PriceFilterSection from './PriceFilterSection';
+import SaleFilterSection from './SaleFilterSection';
 
 interface FilterPanelProps {
   filterOptions: ProductFilterOptions;
@@ -18,25 +19,7 @@ const FilterPanel = ({ filterOptions }: FilterPanelProps) => {
           name="availability"
         />
       )}
-      {filterOptions.sale && (
-        <FilterSection defaultOpen title="Sale" options={filterOptions.sale} name="sale" />
-      )}
-      {filterOptions.material && (
-        <FilterSection
-          defaultOpen
-          options={filterOptions.material}
-          name="material"
-          title="Material"
-        />
-      )}
-      {filterOptions.category && (
-        <FilterSection
-          defaultOpen
-          title="Category"
-          options={filterOptions.category}
-          name="category"
-        />
-      )}
+      {filterOptions.sale && <SaleFilterSection defaultOpen />}
       {filterOptions.price && (
         <PriceFilterSection defaultOpen defaultValue={filterOptions.price || [0, 5000]} />
       )}
