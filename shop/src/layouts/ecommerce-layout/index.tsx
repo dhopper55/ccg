@@ -1,7 +1,6 @@
 import { PropsWithChildren, useEffect, useRef } from 'react';
 import { Box, Stack } from '@mui/material';
 import useSettingsPanelMountEffect from 'hooks/useSettingsPanelMountEffect';
-import Footer from 'layouts/main-layout/footer';
 import EcommerceProvider from 'providers/EcommerceProvider';
 import { useSettingsContext } from 'providers/SettingsProvider';
 import { mutate } from 'swr';
@@ -55,7 +54,6 @@ const EcommerceLayout = ({ children }: PropsWithChildren) => {
             {children}
           </Stack>
           <EcommerceFooter />
-          <Footer />
         </Stack>
       </Box>
     </EcommerceProvider>
