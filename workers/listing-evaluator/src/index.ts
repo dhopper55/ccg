@@ -5277,8 +5277,12 @@ async function dbListShopProducts(
   }
 
   if (allowedCategoryIds.length > 0) {
-    clauses.push(`i.category_id IN (${allowedCategoryIds.map(() => '?').join(', ')})`);
-    binds.push(...allowedCategoryIds);
+    const placeholders = allowedCategoryIds.map(() => '?').join(', ');
+    clauses.push(`(
+      i.category_id IN (${placeholders})
+      OR COALESCE(i.secondary_category_id, 0) IN (${placeholders})
+    )`);
+    binds.push(...allowedCategoryIds, ...allowedCategoryIds);
   }
 
   if (filters.search) {
