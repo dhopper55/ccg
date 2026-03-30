@@ -1,23 +1,18 @@
 'use client';
 
-import { FormEvent, MouseEvent, useEffect, useRef, useState } from 'react';
+import { FocusEvent, FormEvent, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import {
   Box,
   Button,
   InputAdornment,
-  ListItemText,
-  Menu,
-  MenuItem,
   Stack,
   Toolbar,
   inputBaseClasses,
-  listClasses,
 } from '@mui/material';
 import MuiAppBar from '@mui/material/AppBar';
 import Grid from '@mui/material/Grid';
 import SearchTextField from 'layouts/main-layout/common/search-box/SearchTextField';
-import { kebabCase } from 'lib/utils';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
 import { useEcommerce } from 'providers/EcommerceProvider';
 import IconifyIcon from 'components/base/IconifyIcon';
@@ -26,8 +21,6 @@ import OutlinedBadge from 'components/styled/OutlinedBadge';
 import paths from 'routes/paths';
 import CartDrawer from './CartDrawer';
 import CategoryPopover from './CategoryPopover';
-
-const searchCategories = ['All', 'Popular', 'New', 'Discounted', 'Top Rated', 'Featured'];
 
 export interface ShopCategoryNode {
   id: number;
@@ -43,8 +36,6 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
   const categoryBtnRef = useRef<HTMLButtonElement | null>(null);
   const [openCartDrawer, setOpenCartDrawer] = useState(false);
   const [openItem, setOpenItem] = useState(0);
-  const [searchMenuAnchorEl, setSearchMenuAnchorEl] = useState<null | HTMLElement>(null);
-  const [selectedCategory, setSelectedCategory] = useState(searchCategories[0]);
   const [shopCategories, setShopCategories] = useState<ShopCategoryNode[]>([]);
   const [searchValue, setSearchValue] = useState('');
   const { up, currentBreakpoint } = useBreakpoints();
@@ -77,14 +68,6 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
     };
   }, []);
 
-  const handleSearchMenuClick = (event: MouseEvent<HTMLElement>) => {
-    setSearchMenuAnchorEl(event.currentTarget);
-  };
-
-  const handleSearchMenuClose = () => {
-    setSearchMenuAnchorEl(null);
-  };
-
   useEffect(() => {
     setSearchValue(searchParams.get('search') ?? '');
   }, [searchParams]);
@@ -98,18 +81,23 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
   };
 
   const handleCategorySelect = (category: ShopCategoryNode | null) => {
-    const params = new URLSearchParams();
+    const params = new URLSearchParams(searchParams);
     if (category) {
       params.set('categoryId', String(category.id));
+    } else {
+      params.delete('categoryId');
     }
-    setSearchValue('');
     navigateToProducts(params);
     setOpenItem(0);
   };
 
-  const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const nextSearch = searchValue.trim();
+  const applySearch = (nextRawSearch: string) => {
+    const currentSearch = searchParams.get('search') ?? '';
+    const nextSearch = nextRawSearch.trim();
+    if (nextSearch === currentSearch.trim()) {
+      return;
+    }
+
     const params = new URLSearchParams(searchParams);
 
     if (nextSearch) {
@@ -119,6 +107,19 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
     }
 
     navigateToProducts(params);
+  };
+
+  const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    applySearch(searchValue);
+  };
+
+  const handleSearchBlur = (event: FocusEvent<HTMLFormElement>) => {
+    const nextFocused = event.relatedTarget;
+    if (nextFocused instanceof Node && event.currentTarget.contains(nextFocused)) {
+      return;
+    }
+    applySearch(searchValue);
   };
 
   return (
@@ -244,74 +245,17 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
                     border: '1px solid transparent',
                     '&:has(form:hover):not(:has(form:focus-within))': {
                       backgroundColor: 'background.elevation3',
-                      '& > button': {
-                        bgcolor: vars.palette.background.elevation3,
-                      },
                     },
                     [`&:has(.${inputBaseClasses.root}.${inputBaseClasses.focused})`]: {
                       backgroundColor: 'primary.lighter',
                       borderColor: 'primary.main',
-                      '& > button': {
-                        bgcolor: 'primary.lighter',
-                      },
                     },
                   })}
                 >
-                  <Button
-                    disableRipple
-                    color="neutral"
-                    variant="text"
-                    onClick={handleSearchMenuClick}
-                    sx={({ vars }) => ({
-                      flexShrink: 0,
-                      pr: 0.5,
-                      py: 1,
-                      borderRadius: 0,
-                      minWidth: 'auto',
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: 'text.secondary',
-                      display: { xs: 'none', md: 'flex' },
-                      transition: 'color 0.2s ease, background-color 0.2s ease',
-                      bgcolor: vars.palette.background.elevation2,
-                      '&:hover': {
-                        color: vars.palette.text.primary,
-                      },
-                    })}
-                  >
-                    {selectedCategory}
-                    <IconifyIcon
-                      icon="material-symbols:expand-more-rounded"
-                      sx={{ fontSize: 18, ml: 0.5 }}
-                    />
-                  </Button>
-                  <Menu
-                    anchorEl={searchMenuAnchorEl}
-                    open={Boolean(searchMenuAnchorEl)}
-                    onClose={handleSearchMenuClose}
-                    onClick={handleSearchMenuClose}
-                    transformOrigin={{ horizontal: 'left', vertical: 'top' }}
-                    anchorOrigin={{ horizontal: 'left', vertical: 'bottom' }}
-                    sx={{
-                      [`& .${listClasses.root}`]: {
-                        minWidth: 160,
-                      },
-                    }}
-                  >
-                    {searchCategories.map((category) => (
-                      <MenuItem
-                        key={kebabCase(category)}
-                        onClick={() => {
-                          setSelectedCategory(category);
-                        }}
-                      >
-                        <ListItemText primary={category} />
-                      </MenuItem>
-                    ))}
-                  </Menu>
                   <SearchTextField
                     component="form"
                     onSubmit={handleSearchSubmit}
+                    onBlur={handleSearchBlur}
                     value={searchValue}
                     onChange={(event) => setSearchValue(event.target.value)}
                     sx={{
@@ -334,7 +278,7 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
                         },
                       },
                       [`& .${inputBaseClasses.input}`]: {
-                        pl: { xs: '16px !important', md: '8px !important' },
+                        pl: '16px !important',
                       },
                     }}
                     placeholder="Search product"
