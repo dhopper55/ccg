@@ -14,6 +14,7 @@ interface FilterDrawerProps {
 const FilterDrawer = ({ open, handleClose, drawerWidth, filterOptions }: FilterDrawerProps) => {
   const { up } = useBreakpoints();
   const upMd = up('md');
+  const desktopTopOffset = 12;
 
   return (
     <>
@@ -27,11 +28,11 @@ const FilterDrawer = ({ open, handleClose, drawerWidth, filterOptions }: FilterD
             [`& .${drawerClasses.paper}`]: {
               position: 'sticky',
               zIndex: 'unset',
-              top: theme.mixins.ecommerceTopbar,
+              top: theme.mixins.topOffset(theme.mixins.ecommerceTopbar, desktopTopOffset),
               border: 0,
               overflowY: 'auto',
               width: drawerWidth,
-              height: theme.mixins.contentHeight(theme.mixins.ecommerceTopbar),
+              height: theme.mixins.contentHeight(theme.mixins.ecommerceTopbar, desktopTopOffset),
               outline: `1px solid ${theme.vars.palette.divider}`,
               bgcolor: theme.vars.palette.background.elevation1,
             },
