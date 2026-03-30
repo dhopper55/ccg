@@ -150,15 +150,17 @@ const Products = ({ isLoading }: { isLoading: boolean }) => {
 
   return (
     <Grid container>
-      <Grid size={12}>
-        <ProductTopSection
-          isDrawerOpen={isDrawerOpen}
-          toggleDrawer={toggleDrawer}
-          resultCount={visibleProducts.length}
-          resultLabel={resultLabel}
-          resetKey={queryKey}
-        />
-      </Grid>
+      {!upMd && (
+        <Grid size={12}>
+          <ProductTopSection
+            isDrawerOpen={isDrawerOpen}
+            toggleDrawer={toggleDrawer}
+            resultCount={visibleProducts.length}
+            resultLabel={resultLabel}
+            resetKey={queryKey}
+          />
+        </Grid>
+      )}
       <Grid size={12}>
         <Stack>
           <FilterDrawer
