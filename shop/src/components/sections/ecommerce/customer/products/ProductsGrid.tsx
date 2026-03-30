@@ -1,4 +1,4 @@
-import { Box, Pagination, Stack, Typography } from '@mui/material';
+import { Box, CircularProgress, Pagination, Stack, Typography } from '@mui/material';
 import illustrationDark from 'assets/images/illustrations/1-dark.webp';
 import illustration from 'assets/images/illustrations/1.webp';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
@@ -8,16 +8,32 @@ import ProductCard from '../common/ProductCard';
 
 interface ProductsGridProps {
   products: ProductDetails[];
+  isLoading?: boolean;
 }
 
-const ProductsGrid = ({ products }: ProductsGridProps) => {
+const ProductsGrid = ({ products, isLoading = false }: ProductsGridProps) => {
   const { up } = useBreakpoints();
   const upSm = up('sm');
 
   return (
     <>
       <Box sx={{ flex: 1 }}>
-        {products.length > 0 ? (
+        {isLoading ? (
+          <Stack
+            direction="column"
+            sx={{
+              minHeight: 520,
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: 2,
+              textAlign: 'center',
+              p: 5,
+              bgcolor: 'transparent',
+            }}
+          >
+            <CircularProgress size={40} thickness={4} />
+          </Stack>
+        ) : products.length > 0 ? (
           <Box
             sx={{
               p: 2,

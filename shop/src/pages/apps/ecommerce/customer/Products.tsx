@@ -61,6 +61,7 @@ const mapShopProductToProductDetails = (product: ShopProductResponse): ProductDe
 
 const index = () => {
   const [products, setProducts] = useState<ProductDetails[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
@@ -70,12 +71,27 @@ const index = () => {
         const response = await fetch('/api/shop/products?showSold=0', {
           credentials: 'same-origin',
         });
-        if (!response.ok) return;
+        if (!response.ok) {
+          if (isMounted) {
+            setProducts([]);
+            setIsLoading(false);
+          }
+          return;
+        }
         const payload = (await response.json()) as { records?: ShopProductResponse[] };
-        if (!isMounted || !Array.isArray(payload.records)) return;
+        if (!isMounted) return;
+        if (!Array.isArray(payload.records)) {
+          setProducts([]);
+          setIsLoading(false);
+          return;
+        }
         setProducts(payload.records.map(mapShopProductToProductDetails));
+        setIsLoading(false);
       } catch {
-        if (isMounted) setProducts([]);
+        if (isMounted) {
+          setProducts([]);
+          setIsLoading(false);
+        }
       }
     })();
 
@@ -86,12 +102,12 @@ const index = () => {
 
   return (
     <ProductsProvider products={products}>
-      <Products />
+      <Products isLoading={isLoading} />
     </ProductsProvider>
   );
 };
 
-const Products = () => {
+const Products = ({ isLoading }: { isLoading: boolean }) => {
   const { up } = useBreakpoints();
   const upMd = up('md');
   const [isDrawerOpen, setIsDrawerOpen] = useState(upMd ? true : false);
@@ -142,7 +158,7 @@ const Products = () => {
             })}
           >
             {filterItems.length > 0 && <ActiveFilters />}
-            <ProductsGrid products={visibleProducts} />
+            <ProductsGrid products={visibleProducts} isLoading={isLoading} />
           </Paper>
         </Stack>
       </Grid>
