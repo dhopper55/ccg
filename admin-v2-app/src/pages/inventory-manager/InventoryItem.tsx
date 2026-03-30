@@ -41,6 +41,9 @@ type InventoryItemRecord = {
   categoryId?: number | null;
   categoryName?: string;
   categoryPath?: string;
+  secondaryCategoryId?: number | null;
+  secondaryCategoryName?: string;
+  secondaryCategoryPath?: string;
   brand?: string;
   yearRange?: string;
   model?: string;
@@ -113,6 +116,7 @@ type FormState = {
   saleDescription: string;
   title: string;
   categoryId: string;
+  secondaryCategoryId: string;
   brand: string;
   yearRange: string;
   model: string;
@@ -223,6 +227,7 @@ const DEFAULT_FORM: FormState = {
   saleDescription: '',
   title: '',
   categoryId: '',
+  secondaryCategoryId: '',
   brand: '',
   yearRange: '',
   model: '',
@@ -371,6 +376,8 @@ const InventoryItem = () => {
             saleDescription: record.saleDescription || '',
             title: record.title || '',
             categoryId: record.categoryId != null ? String(record.categoryId) : '',
+            secondaryCategoryId:
+              record.secondaryCategoryId != null ? String(record.secondaryCategoryId) : '',
             brand: record.brand || '',
             yearRange: record.yearRange || '',
             model: record.model || '',
@@ -515,6 +522,7 @@ const InventoryItem = () => {
     saleDescription: form.saleDescription.trim(),
     title: form.title.trim(),
     categoryId: form.categoryId,
+    secondaryCategoryId: form.secondaryCategoryId || null,
     brand: form.brand.trim(),
     yearRange: form.yearRange.trim(),
     model: form.model.trim(),
@@ -1152,7 +1160,7 @@ const InventoryItem = () => {
                 />
               </Grid>
 
-              <Grid size={{ xs: 12, md: 6 }}>
+              <Grid size={{ xs: 12, md: 4 }}>
                 <TextField
                   select
                   fullWidth
@@ -1168,7 +1176,24 @@ const InventoryItem = () => {
                 </TextField>
               </Grid>
 
-              <Grid size={{ xs: 12, md: 6 }}>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <TextField
+                  select
+                  fullWidth
+                  label="Secondary Category"
+                  value={form.secondaryCategoryId}
+                  onChange={(event) => setField('secondaryCategoryId', event.target.value)}
+                >
+                  <MenuItem value="">None</MenuItem>
+                  {categoryOptions.map((option) => (
+                    <MenuItem key={`secondary-${option.id}`} value={option.id}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+
+              <Grid size={{ xs: 12, md: 4 }}>
                 <TextField
                   fullWidth
                   label="Brand"

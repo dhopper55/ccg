@@ -23,6 +23,7 @@ export interface ProductDetails {
   name: string;
   images: Image[];
   categoryLabel?: string;
+  categoryLabels?: string[];
   saleUrl?: string | null;
   variants?: {
     label: string;

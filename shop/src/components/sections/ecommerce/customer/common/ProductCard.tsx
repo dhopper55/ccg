@@ -1,6 +1,7 @@
 import { PropsWithChildren } from 'react';
 import {
   Box,
+  Chip,
   Link,
   Stack,
   SxProps,
@@ -21,6 +22,11 @@ const ProductCard = ({ product, sx, children }: PropsWithChildren<ProductCardPro
   const displayPrice = Number(product.price.discounted || 0);
   const isOnSale = displayPrice > 0 && regularPrice > displayPrice;
   const savingsPercent = isOnSale ? Math.round(((regularPrice - displayPrice) / regularPrice) * 100) : 0;
+  const categoryLabels = (product.categoryLabels && product.categoryLabels.length > 0
+    ? product.categoryLabels
+    : product.categoryLabel
+      ? [product.categoryLabel]
+      : []).filter(Boolean);
 
   return (
     <Stack
@@ -60,9 +66,31 @@ const ProductCard = ({ product, sx, children }: PropsWithChildren<ProductCardPro
         >
           {product.name}
         </Typography>
-        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-          {product.categoryLabel || ''}
-        </Typography>
+        {categoryLabels.length ? (
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', rowGap: 1 }}
+          >
+            {categoryLabels.map((label) => (
+              <Chip
+                key={label}
+                label={label}
+                size="small"
+                variant="outlined"
+                sx={{
+                  color: 'text.secondary',
+                  borderColor: 'divider',
+                  bgcolor: 'background.elevation1',
+                  borderRadius: 999,
+                  '& .MuiChip-label': {
+                    px: 1.25,
+                  },
+                }}
+              />
+            ))}
+          </Stack>
+        ) : null}
       </Box>
       <div>
         <Typography
@@ -91,7 +119,19 @@ const ProductCard = ({ product, sx, children }: PropsWithChildren<ProductCardPro
             >
               {currencyFormat(regularPrice)}
             </Typography>
-            <Typography variant="body2" sx={{ color: 'success.main', fontWeight: 600 }}>
+            <Typography
+              variant="body2"
+              sx={{
+                color: 'success.main',
+                fontWeight: 600,
+                px: 1.25,
+                py: 0.375,
+                borderRadius: 999,
+                border: 1,
+                borderColor: 'rgba(37, 208, 167, 0.35)',
+                bgcolor: 'rgba(37, 208, 167, 0.12)',
+              }}
+            >
               Save {savingsPercent}%
             </Typography>
           </Stack>

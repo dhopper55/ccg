@@ -22,6 +22,7 @@ type ShopProductResponse = {
   regularPrice: number | null;
   salePrice: number;
   category: string;
+  secondaryCategory?: string;
   isSold: boolean;
 };
 
@@ -41,6 +42,7 @@ const mapShopProductToProductDetails = (product: ShopProductResponse): ProductDe
     id: Number(product.id),
     name: product.saleTitle || 'Untitled Product',
     categoryLabel: product.category || '',
+    categoryLabels: [product.category, product.secondaryCategory || ''].filter(Boolean),
     saleUrl: product.saleUrl,
     images: [{ src: product.mainImage || '' }],
     tags: [],
