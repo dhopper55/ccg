@@ -23,11 +23,10 @@ const EcommerceFooter = () => {
   return (
     <Paper background={1} sx={{ px: { xs: 3, md: 5 }, py: { xs: 3, md: 3.5 } }}>
       <Stack
-        direction={{ xs: 'column', lg: 'row' }}
-        spacing={{ xs: 2.5, lg: 4 }}
+        direction="row"
         sx={{
-          alignItems: { xs: 'flex-start', lg: 'center' },
-          justifyContent: 'space-between',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
       >
         <Stack
@@ -37,6 +36,7 @@ const EcommerceFooter = () => {
             alignItems: 'center',
             columnGap: 2,
             rowGap: 1.25,
+            justifyContent: 'center',
           }}
         >
           {siteLinks.map(({ label, url }, index) => (
@@ -65,9 +65,14 @@ const EcommerceFooter = () => {
               ) : null}
             </Box>
           ))}
-        </Stack>
-
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexShrink: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Typography component="span" variant="subtitle2" sx={{ color: 'text.disabled', mr: 1.25 }}>
+              |
+            </Typography>
+            <Typography variant="subtitle2" sx={{ color: 'text.secondary', fontWeight: 500, mr: 1.25 }}>
+              Follow us
+            </Typography>
+          </Box>
           <IconButton
             component="a"
             href="https://www.facebook.com/profile.php?id=61587059786524"
@@ -77,6 +82,7 @@ const EcommerceFooter = () => {
             color="neutral"
             variant="soft"
             size="small"
+            sx={{ ml: 0.25 }}
           >
             <IconifyIcon icon="eva:facebook-fill" fontSize={18} />
           </IconButton>
