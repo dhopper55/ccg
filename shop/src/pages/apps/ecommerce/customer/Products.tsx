@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Paper, Stack } from '@mui/material';
+import { Box, Paper, Stack } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import { useSearchParams } from 'react-router';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
@@ -162,7 +162,7 @@ const Products = ({ isLoading }: { isLoading: boolean }) => {
         </Grid>
       )}
       <Grid size={12}>
-        <Stack>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', width: 1 }}>
           <FilterDrawer
             handleClose={closeDrawer}
             open={isDrawerOpen}
@@ -191,7 +191,7 @@ const Products = ({ isLoading }: { isLoading: boolean }) => {
             {filterItems.length > 0 && <ActiveFilters />}
             <ProductsGrid products={visibleProducts} isLoading={isLoading} />
           </Paper>
-        </Stack>
+        </Box>
       </Grid>
     </Grid>
   );
