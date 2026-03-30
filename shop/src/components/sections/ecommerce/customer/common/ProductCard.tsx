@@ -79,12 +79,14 @@ const ProductCard = ({ product, sx, children }: PropsWithChildren<ProductCardPro
                 size="small"
                 variant="outlined"
                 sx={{
-                  color: 'text.secondary',
-                  borderColor: 'divider',
-                  bgcolor: 'background.elevation1',
+                  color: 'primary.light',
+                  borderColor: 'rgba(117, 181, 255, 0.35)',
+                  bgcolor: 'rgba(117, 181, 255, 0.12)',
                   borderRadius: 999,
+                  boxShadow: 'inset 0 0 0 1px rgba(117, 181, 255, 0.08)',
                   '& .MuiChip-label': {
                     px: 1.25,
+                    fontWeight: 600,
                   },
                 }}
               />
