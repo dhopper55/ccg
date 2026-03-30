@@ -13,6 +13,7 @@ import ProductsProvider, {
 } from 'components/sections/ecommerce/customer/products/providers/ProductsProvider';
 
 const filterDrawerWidth = 320;
+const PRODUCTS_PER_PAGE = 15;
 
 type ShopProductResponse = {
   id: string;
@@ -130,12 +131,15 @@ const Products = ({ isLoading }: { isLoading: boolean }) => {
   const upMd = up('md');
   const [searchParams] = useSearchParams();
   const [isDrawerOpen, setIsDrawerOpen] = useState(upMd ? true : false);
+  const [page, setPage] = useState(1);
 
   const { filterItems, visibleProducts } = useProducts();
   const queryKey = searchParams.toString();
   const search = searchParams.get('search')?.trim() ?? '';
   const categoryId = searchParams.get('categoryId');
   const resultLabel = search ? `results for "${search}"` : categoryId ? 'selected category' : 'all products';
+  const pageCount = Math.max(1, Math.ceil(visibleProducts.length / PRODUCTS_PER_PAGE));
+  const pagedProducts = visibleProducts.slice((page - 1) * PRODUCTS_PER_PAGE, page * PRODUCTS_PER_PAGE);
 
   const closeDrawer = () => setIsDrawerOpen(false);
   const toggleDrawer = () => setIsDrawerOpen((prev) => !prev);
@@ -147,6 +151,16 @@ const Products = ({ isLoading }: { isLoading: boolean }) => {
       setIsDrawerOpen(false);
     }
   }, [upMd]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [queryKey, filterItems.length, visibleProducts.length]);
+
+  useEffect(() => {
+    if (page > pageCount) {
+      setPage(pageCount);
+    }
+  }, [page, pageCount]);
 
   return (
     <Grid container>
@@ -190,7 +204,13 @@ const Products = ({ isLoading }: { isLoading: boolean }) => {
             })}
           >
             {filterItems.length > 0 && <ActiveFilters />}
-            <ProductsGrid products={visibleProducts} isLoading={isLoading} />
+            <ProductsGrid
+              products={pagedProducts}
+              isLoading={isLoading}
+              page={page}
+              pageCount={pageCount}
+              onPageChange={setPage}
+            />
           </Paper>
         </Box>
       </Grid>

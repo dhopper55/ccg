@@ -1,6 +1,7 @@
 import { Box, CircularProgress, Pagination, Stack, Typography } from '@mui/material';
 import illustrationDark from 'assets/images/illustrations/1-dark.webp';
 import illustration from 'assets/images/illustrations/1.webp';
+import { ChangeEvent } from 'react';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
 import { ProductDetails } from 'types/ecommerce';
 import Image from 'components/base/Image';
@@ -9,9 +10,18 @@ import ProductCard from '../common/ProductCard';
 interface ProductsGridProps {
   products: ProductDetails[];
   isLoading?: boolean;
+  page: number;
+  pageCount: number;
+  onPageChange: (page: number) => void;
 }
 
-const ProductsGrid = ({ products, isLoading = false }: ProductsGridProps) => {
+const ProductsGrid = ({
+  products,
+  isLoading = false,
+  page,
+  pageCount,
+  onPageChange,
+}: ProductsGridProps) => {
   const { up } = useBreakpoints();
   const upSm = up('sm');
 
@@ -38,7 +48,7 @@ const ProductsGrid = ({ products, isLoading = false }: ProductsGridProps) => {
             sx={{
               px: 2,
               pb: 2,
-              pt: 2.5,
+              pt: 5,
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
             }}
@@ -76,21 +86,25 @@ const ProductsGrid = ({ products, isLoading = false }: ProductsGridProps) => {
         )}
       </Box>
 
-      <Stack
-        sx={{
-          justifyContent: 'center',
-          py: 4,
-        }}
-      >
-        <Pagination
-          variant="solid"
-          color="primary"
-          showFirstButton
-          showLastButton
-          count={10}
-          siblingCount={upSm ? 1 : 0}
-        />
-      </Stack>
+      {pageCount > 1 ? (
+        <Stack
+          sx={{
+            justifyContent: 'center',
+            py: 4,
+          }}
+        >
+          <Pagination
+            variant="solid"
+            color="primary"
+            showFirstButton
+            showLastButton
+            count={pageCount}
+            page={page}
+            onChange={(_event: ChangeEvent<unknown>, value: number) => onPageChange(value)}
+            siblingCount={upSm ? 1 : 0}
+          />
+        </Stack>
+      ) : null}
     </>
   );
 };
