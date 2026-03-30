@@ -1,14 +1,21 @@
 # Listing Evaluator Architecture
 
 ## Overview
-The Listing Evaluator is a static site + Cloudflare Worker backend that:
+The repo now has three active surfaces plus one shared Cloudflare Worker backend:
+1) Legacy static public site at the repo root
+2) Admin V2 Aurora app served from `/admin`
+3) Shop preview Aurora storefront served from `/shop-preview`
+4) Cloudflare Worker backend that powers all `/api/*` routes
+
+The Worker currently:
 1) Accepts Craigslist/Facebook Marketplace URLs for evaluation
-2) Starts Apify scraper runs and processes webhooks.
+2) Starts Apify scraper runs and processes webhooks
 3) Calls OpenAI to summarize listings and estimate pricing
-4) Writes results to D1 (SQLite) and exposes them via a listing results UI
-5) Protects `/api/*` with a simple username/password login (HttpOnly cookie)
+4) Writes results to D1 (SQLite) and exposes them via listing/admin/shop APIs
+5) Protects admin/private `/api/*` with a simple username/password login (HttpOnly cookie)
 6) Receives serial decoder tracking events from public decoder pages and stores them in D1
 7) Stores reusable serial-pattern metadata/content for decoder context rendering
+8) Powers inventory, Admin V2, and shop preview product/category/image endpoints
 
 Important decoder/deploy distinction:
 - Public serial decoder pages are static frontend pages.
@@ -24,7 +31,7 @@ Admin is served from `/admin` and built from the Aurora-based app.
 Layout:
 - Source app: `admin-v2-app/`
 - Deployed static output: `admin/`
-- Build command from repo root: `npm run build` (builds legacy + admin)
+- Build command: `npm --prefix admin-v2-app run build:ccg`
 
 ### Aurora
 Admin V2 is based on the Aurora admin template.
@@ -45,6 +52,23 @@ Going forward, the rule is:
 - In admin, always use Aurora patterns, Aurora page structure, Aurora spacing, and Aurora composition primitives first.
 - If a screen needs a new arrangement, find the closest Aurora example and adapt it instead of inventing a custom layout.
 - If admin needs different backend payloads, add endpoints under `/api/admin-v2/*` rather than changing legacy endpoint contracts.
+
+## Shop Preview
+There is now a separate Aurora-based storefront app that is intentionally isolated from the main public site navigation and sitemap.
+
+Layout:
+- Source app: `shop/`
+- Deployed static preview output: `shop-preview/`
+- Preview route: `/shop-preview`
+- Build command: `npm --prefix shop run build`
+
+Implementation notes:
+- This is a standalone Aurora app, not a route inside Admin V2.
+- It is public and not gated by admin auth.
+- It currently uses public Worker endpoints under `/api/shop/*`.
+- The current default route is Aurora’s customer products page adapted to Coal Creek inventory data.
+- Do not wire it into the main site nav/sitemap until explicitly requested.
+- Keep storefront-specific Worker contracts under `/api/shop/*` so they stay clearly separated from Admin V2 and legacy admin contracts.
 
 ### Auth and backend
 - Admin uses the same worker auth model:
@@ -69,6 +93,7 @@ The public site and the admin surfaces do not use the same access model.
 
 - Public-facing pages on the main site are not gated by the admin login flow.
 - `/admin` is the protected admin application.
+- `/shop-preview` is public.
 
 Shared admin login flow:
 - `POST /api/login` with `{ username, password }`
@@ -84,6 +109,8 @@ All `/api/*` endpoints require auth except:
 - `/api/session`
 - `/api/listings/webhook` (Apify webhook)
 - `/api/serial-decodes` (public decoder tracking ingest)
+- `/api/shop/*` (public shop preview endpoints)
+- `/api/inventory-image` (public inventory image streaming for non-private inventory images)
 
 ## Cloudflare Worker
 - Location: `workers/listing-evaluator/src/index.ts`
@@ -166,12 +193,36 @@ Practical rule:
 - `POST /api/listings/reprocess`
   - Re-run AI processing for a listing
 - `GET /api/for-sale`
-  - Public feed that merges Reverb listings with inventory-managed Facebook Marketplace listings
+  - Public feed that now returns Reverb listings only
 
 - `GET /api/inventory`
   - Legacy inventory admin list
+- `POST /api/inventory`
+  - Create inventory item(s)
 - `GET /api/inventory/summary`
   - Legacy inventory summary totals
+- `GET /api/inventory/:id`
+  - Inventory detail payload used by Admin V2 inventory item page
+- `POST /api/inventory/:id/update`
+  - Update inventory item
+- `POST /api/inventory/:id/delete`
+  - Delete inventory item
+- `POST /api/inventory/package-create`
+  - Create a package inventory item from currently marked rows
+- `GET /api/inventory-image`
+  - Streams inventory images from R2
+  - Public, but only returns non-private inventory images
+- `POST /api/inventory/upload-image`
+  - Upload inventory image to R2
+- `POST /api/inventory/import-image`
+  - Import external inventory image into R2
+
+- `GET /api/shop/categories`
+  - Public shop category tree ordered from `ccg_inventory_categories`
+- `GET /api/shop/products`
+  - Public product feed for shop preview
+  - Supports categories, text search, sold toggle, price range, and condition filters
+  - Returns storefront-ready fields such as main image, title, listing URL, category labels, and prices
 
 - `GET /api/admin-v2/dashboard/summary`
   - Dashboard KPI totals for Admin V2 home page
@@ -210,6 +261,10 @@ Practical rule:
   - Unmark all inventory rows in DB
 - `GET /api/admin-v2/inventory/labels.pdf`
   - Generate labels PDF from currently marked inventory and then clear marked state
+- `GET /api/admin-v2/inventory/categories`
+  - Admin V2 category tree endpoint for inventory forms and filters
+- `POST /api/admin-v2/inventory/merge-marked`
+  - Merge marked inventory rows into one new inventory item
 
 ## Apify
 - Craigslist actor: `ivanvs/craigslist-scraper`
@@ -227,7 +282,37 @@ Cookies refresh instructions live in:
 Tables:
 - `listings`
 - `ccg_inventory_items`
-  - Includes FBM fields: `fbm_listing`, `fbm_title`, `fbm_url`, `fbm_image_url`, `fbm_listing_price`
+  - Inventory source-of-truth row table
+  - Primary category: `category_id` (`NOT NULL`)
+  - Secondary category: `secondary_category_id` (`NULLABLE`)
+  - Sale/detail fields include:
+    - `video_url`
+    - `sale_title`
+    - `regular_price`
+    - `sale_price`
+    - `"condition"`
+    - `sale_description`
+  - FBM fields are no longer part of the active model/contracts
+- `ccg_inventory_categories`
+  - Inventory/shop category lookup table
+  - Fields:
+    - `id`
+    - `name`
+    - `parent_id`
+    - `"order"`
+  - Supports nested categories up to 3 levels deep
+  - `"order"` is sibling-local ordering and resets inside each parent group
+- `ccg_inventory_item_images`
+  - Child table for ordered inventory images
+  - Fields:
+    - `id`
+    - `inventory_item_id`
+    - `image_url`
+    - `display_order`
+    - `is_private`
+  - `is_private` is `INTEGER NOT NULL DEFAULT 0`
+  - This is now the authoritative ordered image model
+  - Worker still keeps `ccg_inventory_items.image_url` and `image_urls` synchronized for compatibility
 - `serial_decode_events`
   - Stores decoder tracking rows from `/api/serial-decodes`
   - Core fields: `brand`, `serial`, `success`, `year`, `factory`, `country`, `error`
@@ -245,6 +330,13 @@ Tables:
 
 The live D1 database is the source of truth for schema.
 
+Inventory model notes:
+- Primary inventory category is required.
+- Secondary inventory category is optional.
+- Package creation finds the first top-level category whose name matches `%package%`; if none exists, package creation fails.
+- Shop/public category navigation comes from `ccg_inventory_categories`, not hardcoded demo categories.
+- Public shop images should resolve from non-private rows in `ccg_inventory_item_images`.
+
 D1 workflow rules:
 - Schema changes are forward-only.
 - Assume all prior schema changes have already been run in the live database.
@@ -254,7 +346,7 @@ D1 workflow rules:
 
 ## OpenAI
 - Models: `gpt-4o` and `gpt-4o-mini` (see worker for task-specific usage)
-- Up to `MAX_IMAGES` images (default 10)
+- Up to `MAX_IMAGES` images (default 20 for inventory/custom flows)
 - AI prompt includes:
   - "Asking price (from listing text): $X"
   - "Typical private‑party value: $X–$Y"
@@ -310,3 +402,10 @@ From `workers/listing-evaluator/`:
 
 From repo root:
 - `npm run build`
+  - Builds the legacy site only
+
+Admin build:
+- `npm --prefix admin-v2-app run build:ccg`
+
+Shop preview build:
+- `npm --prefix shop run build`

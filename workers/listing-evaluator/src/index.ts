@@ -1946,6 +1946,12 @@ async function handleInventoryImage(request: Request, env: Env): Promise<Respons
     return jsonResponse({ message: 'Missing or invalid image key.' }, 400);
   }
 
+  const imageUrl = buildInventoryImageUrl(key);
+  const isPublic = await dbIsInventoryImagePublic(imageUrl, env);
+  if (!isPublic) {
+    return jsonResponse({ message: 'Image not found.' }, 404);
+  }
+
   const object = await env.CUSTOM_ITEMS_BUCKET.get(key);
   if (!object || !object.body) {
     return jsonResponse({ message: 'Image not found.' }, 404);
@@ -1959,6 +1965,43 @@ async function handleInventoryImage(request: Request, env: Env): Promise<Respons
     headers.set('content-type', 'application/octet-stream');
   }
   return new Response(object.body, { headers });
+}
+
+async function dbIsInventoryImagePublic(imageUrl: string, env: Env): Promise<boolean> {
+  try {
+    const normalized = normalizeText(imageUrl, '');
+    if (!normalized) return false;
+
+    const result = await env.DB.prepare(
+      `SELECT
+         CASE
+           WHEN EXISTS (
+             SELECT 1
+             FROM ccg_inventory_item_images
+             WHERE image_url = ?
+           ) THEN CASE
+             WHEN EXISTS (
+               SELECT 1
+               FROM ccg_inventory_item_images
+               WHERE image_url = ?
+                 AND COALESCE(is_private, 0) = 0
+             ) THEN 1
+             ELSE 0
+           END
+           WHEN EXISTS (
+             SELECT 1
+             FROM ccg_inventory_items
+             WHERE image_url = ?
+           ) THEN 1
+           ELSE 0
+         END AS is_public`
+    ).bind(normalized, normalized, normalized).first<{ is_public?: number }>();
+
+    return Number(result?.is_public || 0) === 1;
+  } catch (error) {
+    console.error('Inventory image visibility lookup failed', { error, imageUrl });
+    return false;
+  }
 }
 
 type ApifyRunResult = {
@@ -5262,7 +5305,21 @@ async function dbListShopProducts(
   const result = await env.DB.prepare(
     `SELECT
        i.id,
-       i.image_url,
+       CASE
+         WHEN EXISTS (
+           SELECT 1
+           FROM ccg_inventory_item_images sii_exists
+           WHERE sii_exists.inventory_item_id = i.id
+         ) THEN COALESCE((
+           SELECT sii.image_url
+           FROM ccg_inventory_item_images sii
+           WHERE sii.inventory_item_id = i.id
+             AND COALESCE(sii.is_private, 0) = 0
+           ORDER BY sii.display_order ASC, sii.id ASC
+           LIMIT 1
+         ), '')
+         ELSE i.image_url
+       END AS image_url,
        i.title,
        i.sale_title,
        i.regular_price,
@@ -9027,7 +9084,7 @@ function currentDateYmd(): string {
 }
 
 function isPublicApiPath(path: string): boolean {
-  return path.startsWith('/api/shop/');
+  return path.startsWith('/api/shop/') || path === '/api/inventory-image';
 }
 
 function formatMonthLabel(month: string): string {
