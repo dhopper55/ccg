@@ -1687,6 +1687,25 @@ function decodeLegacyNumericLate80s(serial: string): DecodeResult {
     return { success: true, info };
   }
 
+  // Vintage Japan numeric format seen on some mid/late-1970s instruments:
+  // YYMMSS where YY is a 1970s year, MM is month, SS is short sequence.
+  if (yy >= 70 && yy <= 79 && monthCandidate >= 1 && monthCandidate <= 12) {
+    const sequence = serial.substring(4);
+    const year = 1900 + yy;
+
+    const info: GuitarInfo = {
+      brand: 'Ibanez',
+      serialNumber: serial,
+      year: year.toString(),
+      month: getMonthName(monthCandidate),
+      factory: 'Japan pre-letter numeric format (likely FujiGen)',
+      country: 'Japan',
+      notes: `Sequence: ${sequence}. 6-digit numeric format interpreted as vintage YYMMSS. This covers serials such as 760311, which read as March ${year}. Exact factory attribution should still be confirmed from the label or headstock markings.`
+    };
+
+    return { success: true, info };
+  }
+
   // If middle digits form a valid month, prefer YYMMSS interpretation.
   if (monthCandidate >= 1 && monthCandidate <= 12) {
     const sequence = serial.substring(4);

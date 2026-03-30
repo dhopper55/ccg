@@ -22,6 +22,7 @@ interface CategoryPopoverProps {
   categories: ShopCategoryNode[];
   handleClose: () => void;
   openItem: number;
+  onSelectCategory: (category: ShopCategoryNode | null) => void;
   setOpenItem: React.Dispatch<React.SetStateAction<number>>;
 }
 
@@ -32,10 +33,11 @@ interface SubmenuState {
 
 interface CategoryListProps {
   categories: ShopCategoryNode[];
+  onSelectCategory: (category: ShopCategoryNode | null) => void;
   setOpenItem: React.Dispatch<React.SetStateAction<number>>;
 }
 
-const CategoryList = ({ categories, setOpenItem }: CategoryListProps) => {
+const CategoryList = ({ categories, onSelectCategory, setOpenItem }: CategoryListProps) => {
   const { direction } = useTheme();
   const { up, down } = useBreakpoints();
   const upMd = up('md');
@@ -65,6 +67,21 @@ const CategoryList = ({ categories, setOpenItem }: CategoryListProps) => {
   return (
     <>
       <List component="nav" dense disablePadding aria-labelledby="category-list">
+        <ListItemButton
+          component={Link}
+          href="#"
+          onClick={(event) => {
+            event.preventDefault();
+            onSelectCategory(null);
+            setOpenItem(0);
+          }}
+          sx={{
+            borderRadius: 0,
+            backgroundImage: 'none',
+          }}
+        >
+          <ListItemText primary="All" />
+        </ListItemButton>
         {categories.map((category) => {
           const hasChildren = category.children.length > 0;
           return (
@@ -80,6 +97,8 @@ const CategoryList = ({ categories, setOpenItem }: CategoryListProps) => {
                   openSubmenu(event, category);
                   return;
                 }
+                event.preventDefault();
+                onSelectCategory(category);
                 setOpenItem(0);
               }}
               sx={{
@@ -190,7 +209,11 @@ const CategoryList = ({ categories, setOpenItem }: CategoryListProps) => {
               <ListItemButton
                 component={Link}
                 href="#"
-                onClick={() => {
+                onClick={(event) => {
+                  event.preventDefault();
+                  if (submenu.category) {
+                    onSelectCategory(submenu.category);
+                  }
                   setOpenItem(0);
                 }}
                 sx={{ borderRadius: 0, backgroundImage: 'none' }}
@@ -202,7 +225,9 @@ const CategoryList = ({ categories, setOpenItem }: CategoryListProps) => {
                   key={child.id}
                   component={Link}
                   href="#"
-                  onClick={() => {
+                  onClick={(event) => {
+                    event.preventDefault();
+                    onSelectCategory(child);
                     setOpenItem(0);
                   }}
                   sx={{ borderRadius: 0, backgroundImage: 'none' }}
@@ -222,6 +247,7 @@ const CategoryPopover = ({
   anchorEl,
   categories,
   openItem,
+  onSelectCategory,
   setOpenItem,
   handleClose,
 }: CategoryPopoverProps) => {
@@ -294,7 +320,11 @@ const CategoryPopover = ({
           </Button>
         </Stack>
         <SimpleBar disableHorizontal sx={{ height: '100%' }}>
-          <CategoryList categories={categories} setOpenItem={setOpenItem} />
+          <CategoryList
+            categories={categories}
+            onSelectCategory={onSelectCategory}
+            setOpenItem={setOpenItem}
+          />
         </SimpleBar>
       </Box>
     </Popover>

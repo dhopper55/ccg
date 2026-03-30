@@ -11,6 +11,7 @@ import { DecodeResult, GuitarInfo } from '../types.js';
  * - Modern Japan MIJ (2009-2012): JC + year + production
  * - USA Pro-Mod (2009+): 6-digit production numbers
  * - Mexican production (2013+): MC/CM prefix
+ * - Indonesian Samick imports (2013+): ISC + YY + 4-digit sequence
  * - Indonesian/Chinese imports (2013+): 10-digit alphanumeric
  *
  * Note: Charvel was founded by Wayne Charvel in 1974, sold to Grover Jackson
@@ -44,6 +45,11 @@ export function decodeCharvel(serial: string): DecodeResult {
   // Mexican early 2013: CM prefix
   if (/^CM\d{6,8}$/.test(normalized)) {
     return decodeMexicoCM(normalized);
+  }
+
+  // Indonesian Samick modern import: ISC + YY + ####
+  if (/^ISC\d{6}$/.test(normalized)) {
+    return decodeIndonesiaSamickISC(normalized);
   }
 
   // Modern import: 10-digit alphanumeric (ICJ, ISJ, IWJ, CYJ, etc.)
@@ -96,7 +102,7 @@ export function decodeCharvel(serial: string): DecodeResult {
 
   return {
     success: false,
-    error: 'Unable to decode this Charvel serial number. Common formats include: 4 digits (San Dimas USA 1981-1986), C + digit + numbers (Japan neck-through 1986-1991), 6 digits (Japan bolt-on), JC + numbers (Modern MIJ), MC + numbers (Mexico), or 10-character codes (modern imports). Note: Pre-1981 San Dimas guitars have no serial numbers.',
+    error: 'Unable to decode this Charvel serial number. Common formats include: 4 digits (San Dimas USA 1981-1986), C + digit + numbers (Japan neck-through 1986-1991), 6 digits (Japan bolt-on), JC + numbers (Modern MIJ), MC + numbers (Mexico), ISC + YY + #### (modern Indonesia), or 10-character codes (modern imports). Note: Pre-1981 San Dimas guitars have no serial numbers.',
   };
 }
 
@@ -300,6 +306,24 @@ function decodeMexicoCM(serial: string): DecodeResult {
     country: 'Mexico',
     model: 'Pro-Mod Series',
     notes: `Early 2013 Mexican production. "CM" prefix was used on early 2013 neckplates. Production number: ${production}. Made at Fender's Ensenada facility.`,
+  };
+
+  return { success: true, info };
+}
+
+// Indonesian Samick modern import: ISC + YY + ####
+function decodeIndonesiaSamickISC(serial: string): DecodeResult {
+  const yearDigits = serial.substring(3, 5);
+  const production = serial.substring(5);
+  const year = `20${yearDigits}`;
+
+  const info: GuitarInfo = {
+    brand: 'Charvel',
+    serialNumber: serial,
+    year,
+    factory: 'Samick Indonesia',
+    country: 'Indonesia',
+    notes: `Modern Indonesian Charvel import. "ISC" is interpreted as Indonesia/Samick/Charvel. Year: ${year}. Production number: ${production}. Verify with the headstock or neck-plate country-of-origin marking if exact factory attribution matters.`,
   };
 
   return { success: true, info };

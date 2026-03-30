@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, MouseEvent, useEffect, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router';
 import {
   Box,
   Button,
@@ -22,6 +23,7 @@ import { useEcommerce } from 'providers/EcommerceProvider';
 import IconifyIcon from 'components/base/IconifyIcon';
 import Logo from 'components/common/Logo';
 import OutlinedBadge from 'components/styled/OutlinedBadge';
+import paths from 'routes/paths';
 import CartDrawer from './CartDrawer';
 import CategoryPopover from './CategoryPopover';
 
@@ -44,7 +46,10 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
   const [searchMenuAnchorEl, setSearchMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [selectedCategory, setSelectedCategory] = useState(searchCategories[0]);
   const [shopCategories, setShopCategories] = useState<ShopCategoryNode[]>([]);
+  const [searchValue, setSearchValue] = useState('');
   const { up, currentBreakpoint } = useBreakpoints();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const { cartItems } = useEcommerce();
 
@@ -80,8 +85,40 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
     setSearchMenuAnchorEl(null);
   };
 
+  useEffect(() => {
+    setSearchValue(searchParams.get('search') ?? '');
+  }, [searchParams]);
+
+  const navigateToProducts = (params: URLSearchParams) => {
+    const query = params.toString();
+    navigate({
+      pathname: paths.ecommerceHomepage,
+      search: query ? `?${query}` : '',
+    });
+  };
+
+  const handleCategorySelect = (category: ShopCategoryNode | null) => {
+    const params = new URLSearchParams();
+    if (category) {
+      params.set('categoryId', String(category.id));
+    }
+    setSearchValue('');
+    navigateToProducts(params);
+    setOpenItem(0);
+  };
+
   const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const nextSearch = searchValue.trim();
+    const params = new URLSearchParams(searchParams);
+
+    if (nextSearch) {
+      params.set('search', nextSearch);
+    } else {
+      params.delete('search');
+    }
+
+    navigateToProducts(params);
   };
 
   return (
@@ -186,6 +223,7 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
               <CategoryPopover
                 anchorEl={categoryBtnRef.current}
                 categories={shopCategories}
+                onSelectCategory={handleCategorySelect}
                 openItem={openItem}
                 setOpenItem={setOpenItem}
                 handleClose={() => {
@@ -274,6 +312,8 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
                   <SearchTextField
                     component="form"
                     onSubmit={handleSearchSubmit}
+                    value={searchValue}
+                    onChange={(event) => setSearchValue(event.target.value)}
                     sx={{
                       flexGrow: 1,
                       [`& .${inputBaseClasses.root}`]: {

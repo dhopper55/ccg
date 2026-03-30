@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Paper, Stack } from '@mui/material';
 import Grid from '@mui/material/Grid';
+import { useSearchParams } from 'react-router';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
 import { ProductDetails } from 'types/ecommerce';
 import FilterDrawer from 'components/sections/ecommerce/customer/products/FilterDrawer';
@@ -62,13 +63,30 @@ const mapShopProductToProductDetails = (product: ShopProductResponse): ProductDe
 const index = () => {
   const [products, setProducts] = useState<ProductDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchParams] = useSearchParams();
+  const queryKey = searchParams.toString();
 
   useEffect(() => {
     let isMounted = true;
+    const params = new URLSearchParams();
+    params.set('showSold', '0');
+
+    const categoryId = searchParams.get('categoryId');
+    const search = searchParams.get('search');
+
+    if (categoryId) {
+      params.set('categoryId', categoryId);
+    }
+
+    if (search?.trim()) {
+      params.set('search', search.trim());
+    }
+
+    setIsLoading(true);
 
     void (async () => {
       try {
-        const response = await fetch('/api/shop/products?showSold=0', {
+        const response = await fetch(`/api/shop/products?${params.toString()}`, {
           credentials: 'same-origin',
         });
         if (!response.ok) {
@@ -98,10 +116,10 @@ const index = () => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [searchParams]);
 
   return (
-    <ProductsProvider products={products}>
+    <ProductsProvider key={queryKey || 'default'} products={products}>
       <Products isLoading={isLoading} />
     </ProductsProvider>
   );
@@ -110,9 +128,14 @@ const index = () => {
 const Products = ({ isLoading }: { isLoading: boolean }) => {
   const { up } = useBreakpoints();
   const upMd = up('md');
+  const [searchParams] = useSearchParams();
   const [isDrawerOpen, setIsDrawerOpen] = useState(upMd ? true : false);
 
   const { filterItems, visibleProducts } = useProducts();
+  const queryKey = searchParams.toString();
+  const search = searchParams.get('search')?.trim() ?? '';
+  const categoryId = searchParams.get('categoryId');
+  const resultLabel = search ? `results for "${search}"` : categoryId ? 'selected category' : 'all products';
 
   const closeDrawer = () => setIsDrawerOpen(false);
   const toggleDrawer = () => setIsDrawerOpen((prev) => !prev);
@@ -128,7 +151,13 @@ const Products = ({ isLoading }: { isLoading: boolean }) => {
   return (
     <Grid container>
       <Grid size={12}>
-        <ProductTopSection isDrawerOpen={isDrawerOpen} toggleDrawer={toggleDrawer} />
+        <ProductTopSection
+          isDrawerOpen={isDrawerOpen}
+          toggleDrawer={toggleDrawer}
+          resultCount={visibleProducts.length}
+          resultLabel={resultLabel}
+          resetKey={queryKey}
+        />
       </Grid>
       <Grid size={12}>
         <Stack>

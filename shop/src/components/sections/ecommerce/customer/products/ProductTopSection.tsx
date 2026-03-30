@@ -1,15 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Box, Button, FormControl, MenuItem, Paper, Stack, Typography } from '@mui/material';
 import Grid from '@mui/material/Grid';
-import paths from 'routes/paths';
 import IconifyIcon from 'components/base/IconifyIcon';
-import PageBreadcrumb from 'components/sections/common/PageBreadcrumb';
 import StyledTextField from 'components/styled/StyledTextField';
 import { useProducts } from './providers/ProductsProvider';
 
 interface FilterHeadProps {
   toggleDrawer: () => void;
   isDrawerOpen: boolean;
+  resultLabel: string;
+  resultCount: number;
+  resetKey: string;
 }
 
 const sortByOptions = [
@@ -19,21 +20,23 @@ const sortByOptions = [
   { value: 'highestRated', label: 'Highest rated' },
 ];
 
-const ProductTopSection = ({ isDrawerOpen, toggleDrawer }: FilterHeadProps) => {
+const ProductTopSection = ({
+  isDrawerOpen,
+  toggleDrawer,
+  resultLabel,
+  resultCount,
+  resetKey,
+}: FilterHeadProps) => {
   const [sortBy, setSortBy] = useState('recommended');
 
   const { handleProductsSort } = useProducts();
 
+  useEffect(() => {
+    setSortBy('recommended');
+  }, [resetKey]);
+
   return (
     <Paper sx={{ p: { xs: 3, md: 5 } }}>
-      <PageBreadcrumb
-        items={[
-          { label: 'Home', url: paths.ecommerceHomepage },
-          { label: 'Living room', url: '#!' },
-          { label: 'Armchair', active: true },
-        ]}
-        sx={{ mb: 4 }}
-      />
       <Grid
         container
         spacing={2}
@@ -51,7 +54,7 @@ const ProductTopSection = ({ isDrawerOpen, toggleDrawer }: FilterHeadProps) => {
           }}
         >
           <Typography variant="h6">
-            Searched for
+            Showing
             <Box
               component="span"
               sx={{
@@ -59,7 +62,7 @@ const ProductTopSection = ({ isDrawerOpen, toggleDrawer }: FilterHeadProps) => {
                 ml: 1.5,
               }}
             >
-              ‘Armchair’
+              {resultLabel}
             </Box>
           </Typography>
         </Grid>
@@ -107,7 +110,7 @@ const ProductTopSection = ({ isDrawerOpen, toggleDrawer }: FilterHeadProps) => {
                 display: { xs: 'none', sm: 'block' },
               }}
             >
-              85 results
+              {resultCount} results
             </Typography>
             <FormControl sx={{ maxWidth: 160, width: 1 }}>
               <StyledTextField
