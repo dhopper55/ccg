@@ -174,7 +174,7 @@ const Products = ({ isLoading }: { isLoading: boolean }) => {
               display: 'flex',
               flexDirection: 'column',
               flexGrow: 1,
-              mt: { md: 3 },
+              mt: { md: 5 },
               marginLeft: { md: `-${filterDrawerWidth}px` },
               transition: theme.transitions.create('margin', {
                 easing: theme.transitions.easing.sharp,

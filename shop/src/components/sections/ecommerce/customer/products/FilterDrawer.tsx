@@ -37,7 +37,7 @@ const FilterDrawer = ({ open, handleClose, drawerWidth, filterOptions }: FilterD
             },
           })}
         >
-          <Box sx={{ px: { xs: 3, md: 5 }, pt: 7, pb: 3 }}>
+          <Box sx={{ px: { xs: 3, md: 5 }, pt: 10, pb: 3 }}>
             <FilterPanel filterOptions={filterOptions} />
           </Box>
         </Drawer>
