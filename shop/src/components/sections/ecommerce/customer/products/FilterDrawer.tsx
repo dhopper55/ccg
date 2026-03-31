@@ -27,11 +27,11 @@ const FilterDrawer = ({ open, handleClose, drawerWidth, filterOptions }: FilterD
             [`& .${drawerClasses.paper}`]: {
               position: 'sticky',
               zIndex: 'unset',
-              top: theme.mixins.ecommerceTopbar,
+              top: theme.mixins.topbar.default,
               border: 0,
               overflowY: 'auto',
               width: drawerWidth,
-              height: theme.mixins.contentHeight(theme.mixins.ecommerceTopbar),
+              height: theme.mixins.contentHeight(theme.mixins.topbar.default),
               outline: `1px solid ${theme.vars.palette.divider}`,
               bgcolor: theme.vars.palette.background.elevation1,
             },
