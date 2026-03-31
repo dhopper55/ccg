@@ -46,9 +46,7 @@ const ProductsGrid = ({
         ) : products.length > 0 ? (
           <Box
             sx={{
-              px: 2,
-              pb: 2,
-              pt: 5,
+              p: 2,
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
             }}
