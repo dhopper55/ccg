@@ -67,6 +67,10 @@ Implementation notes:
 - It is public and not gated by admin auth.
 - It currently uses public Worker endpoints under `/api/shop/*`.
 - The current default route is Aurora’s customer products page adapted to Coal Creek inventory data.
+- The shop UI should treat the Worker as the source of truth for category tree + product feed data.
+- Current Worker contracts used by the shopping view:
+  - `GET /api/shop/categories`
+  - `GET /api/shop/products`
 - Do not wire it into the main site nav/sitemap until explicitly requested.
 - Keep storefront-specific Worker contracts under `/api/shop/*` so they stay clearly separated from Admin V2 and legacy admin contracts.
 
@@ -219,9 +223,16 @@ Practical rule:
 
 - `GET /api/shop/categories`
   - Public shop category tree ordered from `ccg_inventory_categories`
+  - Returns both flat `records` and nested `tree`
 - `GET /api/shop/products`
   - Public product feed for shop preview
   - Supports categories, text search, sold toggle, price range, and condition filters
+  - Category query params accepted by the Worker:
+    - `categoryId`
+    - `categoryIds`
+    - `categories` (CSV)
+  - Category filtering expands selected parent categories to include descendants
+  - Category filtering matches when either the primary category (`category_id`) or secondary category (`secondary_category_id`) is in the expanded category set
   - Returns storefront-ready fields such as main image, title, listing URL, category labels, and prices
 
 - `GET /api/admin-v2/dashboard/summary`
