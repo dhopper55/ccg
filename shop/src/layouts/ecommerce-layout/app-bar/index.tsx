@@ -1,5 +1,6 @@
 import { Box } from '@mui/material';
 import PrimaryAppbar from './primary';
+import SecondaryAppbar from './secondary';
 
 const EcommerceAppbar = () => {
   return (
@@ -9,6 +10,7 @@ const EcommerceAppbar = () => {
       }}
     >
       <PrimaryAppbar>
+        <SecondaryAppbar />
       </PrimaryAppbar>
     </Box>
   );
