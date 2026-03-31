@@ -48,7 +48,7 @@ function buildSessionUser(username: string): SessionUser {
 
 const AuthJwtProvider = ({ children }: PropsWithChildren) => {
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
   const setSession = useCallback(
     (user: SessionUser | null) => {
@@ -58,71 +58,19 @@ const AuthJwtProvider = ({ children }: PropsWithChildren) => {
   );
 
   const refreshSession = useCallback(async (): Promise<SessionUser | null> => {
-    try {
-      const response = await fetch("/api/session", {
-        method: "GET",
-        credentials: "same-origin",
-      });
-      if (!response.ok) {
-        setSessionUser(null);
-        return null;
-      }
-      const data = (await response.json()) as SessionResponse;
-      if (!data.ok || !data.user) {
-        setSessionUser(null);
-        return null;
-      }
-      const nextUser = buildSessionUser(data.user);
-      setSessionUser(nextUser);
-      return nextUser;
-    } catch {
-      setSessionUser(null);
-      return null;
-    }
+    return null;
   }, []);
 
   const login = useCallback(
-    async ({ email, password }: { email: string; password: string }) => {
-      const response = await fetch("/api/login", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({
-          username: email.trim(),
-          password,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Invalid credentials. Try again.");
-      }
-
-      const nextUser = await refreshSession();
-      if (!nextUser) {
-        throw new Error("Authenticated session was not established.");
-      }
+    async (_credentials: { email: string; password: string }) => {
+      // No-op for public shop
     },
-    [refreshSession],
+    [],
   );
 
   const signout = useCallback(() => {
     setSessionUser(null);
   }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    void (async () => {
-      await refreshSession();
-      if (isMounted) {
-        setIsLoading(false);
-      }
-    })();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [refreshSession]);
 
   return (
     <AuthJwtContext
