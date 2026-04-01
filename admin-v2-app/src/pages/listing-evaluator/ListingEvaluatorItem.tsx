@@ -1,4 +1,4 @@
-import { Fragment, ReactNode, useEffect, useMemo, useState } from 'react';
+import { Fragment, ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import {
   Alert,
@@ -8,9 +8,11 @@ import {
   CircularProgress,
   Container,
   Divider,
+  IconButton,
   Link,
   Paper,
   Stack,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
@@ -252,6 +254,34 @@ function formatYearRangeToken(value: string): string {
   const match = value.match(/(\d{4})s?\s*(?:[-–—]|to)\s*(\d{4})s?/i);
   if (!match) return value;
   return `${match[1]}-${match[2]}'s`;
+}
+
+function buildAiQueryText(fields: Record<string, unknown>, imageUrls: string[]): string {
+  if (imageUrls.length === 0) return '';
+
+  let text = `What is this and what's it worth? ${imageUrls.join(', ')}.`;
+
+  const rawBrand = typeof fields.brand === 'string' ? fields.brand.trim() : '';
+  const rawModel = typeof fields.model === 'string' ? fields.model.trim() : '';
+
+  const isDefinitiveBrand =
+    rawBrand !== '' &&
+    !/\(NOT DEFINITIVE\)/i.test(rawBrand) &&
+    !/^Unknown$/i.test(rawBrand) &&
+    !/^Guess:/i.test(rawBrand);
+  const isDefinitiveModel =
+    rawModel !== '' &&
+    !/\(NOT DEFINITIVE\)/i.test(rawModel) &&
+    !/^Unknown$/i.test(rawModel) &&
+    !/^Guess:/i.test(rawModel);
+
+  if (isDefinitiveBrand && isDefinitiveModel) {
+    const brand = rawBrand.replace(/\s+/g, ' ').trim();
+    const model = rawModel.replace(/\s+/g, ' ').trim();
+    text += ` I think it is a ${brand} ${model}, but I could be wrong.`;
+  }
+
+  return text;
 }
 
 function buildDoubleCheckQuery(
@@ -641,6 +671,16 @@ const ListingEvaluatorItem = () => {
   const saved = isTruthyFlag(fields.saved);
   const archived = isTruthyFlag(fields.archived);
   const isMulti = isTruthyFlag(fields.IsMulti);
+  const aiQueryText = useMemo(() => buildAiQueryText(fields, imageCandidates), [fields, imageCandidates]);
+  const [aiCopied, setAiCopied] = useState(false);
+  const handleAiQueryCopy = useCallback(() => {
+    if (!aiQueryText) return;
+    void navigator.clipboard.writeText(aiQueryText).then(() => {
+      setAiCopied(true);
+      setTimeout(() => setAiCopied(false), 2000);
+    });
+  }, [aiQueryText]);
+
   const googleQuery = buildDoubleCheckQuery(fields);
   const googleGuitarQuery = buildDoubleCheckQuery(fields, { includeGuitar: true });
   const normalizedLists = record?.normalizedLists || {};
@@ -701,8 +741,25 @@ const ListingEvaluatorItem = () => {
       { label: 'Pricing Source', value: normalizeValue(fields.pricing_source) },
       { label: 'Pricing Confidence', value: normalizeValue(fields.pricing_confidence) },
       { label: 'Pricing Comp Count', value: normalizeValue(fields.pricing_comp_count) },
+      ...(aiQueryText
+        ? [
+            {
+              label: 'AI Query Copy',
+              value: (
+                <Tooltip title={aiCopied ? 'Copied!' : 'Copy AI query to clipboard'}>
+                  <IconButton size="small" onClick={handleAiQueryCopy} sx={{ ml: -1 }}>
+                    <IconifyIcon
+                      icon={aiCopied ? 'material-symbols:check-rounded' : 'material-symbols:content-copy-outline-rounded'}
+                      sx={{ fontSize: 18, color: aiCopied ? 'success.main' : 'text.secondary' }}
+                    />
+                  </IconButton>
+                </Tooltip>
+              ),
+            },
+          ]
+        : []),
     ],
-    [askingPrice, fields.pricing_comp_count, fields.pricing_confidence, fields.pricing_source, idealPrice, privateRange],
+    [aiCopied, aiQueryText, askingPrice, fields.pricing_comp_count, fields.pricing_confidence, fields.pricing_source, handleAiQueryCopy, idealPrice, privateRange],
   );
 
   const singleDetailItems = useMemo<DetailItem[]>(() => {
