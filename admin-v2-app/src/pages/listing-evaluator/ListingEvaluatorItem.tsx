@@ -256,10 +256,18 @@ function formatYearRangeToken(value: string): string {
   return `${match[1]}-${match[2]}'s`;
 }
 
+function toAbsolutePublicUrl(url: string): string {
+  if (url.startsWith('/api/')) {
+    return `https://www.coalcreekguitars.com${url}`;
+  }
+  return url;
+}
+
 function buildAiQueryText(fields: Record<string, unknown>, imageUrls: string[]): string {
   if (imageUrls.length === 0) return '';
 
-  let text = `What is this and what's it worth? ${imageUrls.join(', ')}.`;
+  const publicUrls = imageUrls.map(toAbsolutePublicUrl);
+  let text = `What is this and what's it worth? ${publicUrls.join(', ')}.`;
 
   const rawBrand = typeof fields.brand === 'string' ? fields.brand.trim() : '';
   const rawModel = typeof fields.model === 'string' ? fields.model.trim() : '';
@@ -667,10 +675,19 @@ const ListingEvaluatorItem = () => {
       ? fields.url.trim()
       : '';
   const imageCandidates = useMemo(() => getImageCandidates(fields), [fields]);
-  const imageUrl = imageCandidates.length > 0 ? buildImageSrc(imageCandidates[0], listingUrl) : '';
   const saved = isTruthyFlag(fields.saved);
   const archived = isTruthyFlag(fields.archived);
   const isMulti = isTruthyFlag(fields.IsMulti);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const currentImageUrl = imageCandidates.length > 0 ? buildImageSrc(imageCandidates[currentImageIndex] || imageCandidates[0], listingUrl) : '';
+  const hasMultipleImages = imageCandidates.length > 1;
+  const handlePrevImage = useCallback(() => {
+    setCurrentImageIndex((prev) => (prev > 0 ? prev - 1 : imageCandidates.length - 1));
+  }, [imageCandidates.length]);
+  const handleNextImage = useCallback(() => {
+    setCurrentImageIndex((prev) => (prev < imageCandidates.length - 1 ? prev + 1 : 0));
+  }, [imageCandidates.length]);
+
   const aiQueryText = useMemo(() => buildAiQueryText(fields, imageCandidates), [fields, imageCandidates]);
   const [aiCopied, setAiCopied] = useState(false);
   const handleAiQueryCopy = useCallback(() => {
@@ -1075,26 +1092,49 @@ const ListingEvaluatorItem = () => {
                           lineHeight: 0,
                         }}
                       >
-                        {imageUrl ? (
-                          <Link
-                            href={imageUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            underline="none"
-                            sx={{ display: 'block', lineHeight: 0 }}
-                          >
-                            <Box
-                              component="img"
-                              src={imageUrl}
-                              alt={title}
-                              sx={{
-                                display: 'block',
-                                width: { xs: '100%', lg: 270 },
-                                maxWidth: '100%',
-                                height: 'auto',
-                              }}
-                            />
-                          </Link>
+                        {currentImageUrl ? (
+                          <Box sx={{ position: 'relative' }}>
+                            <Link
+                              href={currentImageUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              underline="none"
+                              sx={{ display: 'block', lineHeight: 0 }}
+                            >
+                              <Box
+                                component="img"
+                                src={currentImageUrl}
+                                alt={title}
+                                sx={{
+                                  display: 'block',
+                                  width: { xs: '100%', lg: 270 },
+                                  maxWidth: '100%',
+                                  height: 'auto',
+                                }}
+                              />
+                            </Link>
+                            {hasMultipleImages && (
+                              <Stack
+                                direction="row"
+                                sx={{
+                                  justifyContent: 'center',
+                                  alignItems: 'center',
+                                  gap: 1,
+                                  mt: 1,
+                                }}
+                              >
+                                <IconButton size="small" onClick={handlePrevImage}>
+                                  <IconifyIcon icon="material-symbols:chevron-left-rounded" sx={{ fontSize: 20 }} />
+                                </IconButton>
+                                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                                  {currentImageIndex + 1} / {imageCandidates.length}
+                                </Typography>
+                                <IconButton size="small" onClick={handleNextImage}>
+                                  <IconifyIcon icon="material-symbols:chevron-right-rounded" sx={{ fontSize: 20 }} />
+                                </IconButton>
+                              </Stack>
+                            )}
+                          </Box>
                         ) : (
                           <Stack
                             spacing={1.5}

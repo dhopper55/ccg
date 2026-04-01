@@ -530,6 +530,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/listings/purge-old' && request.method === 'POST') {
+      const response = await handlePurgeOldListings(env);
+      return withCors(response, request, env);
+    }
+
     if (path.startsWith('/api/admin-v2/listings/') && request.method === 'GET') {
       const response = await handleAdminV2GetListing(env, path);
       return withCors(response, request, env);
@@ -542,6 +547,11 @@ export default {
 
     if (path === '/api/inventory-image' && request.method === 'GET') {
       const response = await handleInventoryImage(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/listing-image' && request.method === 'GET') {
+      const response = await handleListingImage(request, env);
       return withCors(response, request, env);
     }
 
@@ -1660,6 +1670,12 @@ function buildCustomImageUrl(key: string): string {
   return `/api/listings/custom-image?${params.toString()}`;
 }
 
+function buildListingImageUrl(key: string): string {
+  const params = new URLSearchParams();
+  params.set('key', key);
+  return `/api/listing-image?${params.toString()}`;
+}
+
 function buildInventoryImageUrl(key: string): string {
   const params = new URLSearchParams();
   params.set('key', key);
@@ -1917,6 +1933,32 @@ async function handleCustomImage(request: Request, env: Env): Promise<Response> 
   const url = new URL(request.url);
   const key = url.searchParams.get('key');
   if (!key || !key.startsWith('custom-items/')) {
+    return jsonResponse({ message: 'Missing or invalid image key.' }, 400);
+  }
+
+  const object = await env.CUSTOM_ITEMS_BUCKET.get(key);
+  if (!object || !object.body) {
+    return jsonResponse({ message: 'Image not found.' }, 404);
+  }
+
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+  headers.set('etag', object.httpEtag);
+  headers.set('cache-control', 'public, max-age=86400');
+  if (!headers.get('content-type')) {
+    headers.set('content-type', 'application/octet-stream');
+  }
+  return new Response(object.body, { headers });
+}
+
+async function handleListingImage(request: Request, env: Env): Promise<Response> {
+  if (!env.CUSTOM_ITEMS_BUCKET) {
+    return jsonResponse({ message: 'Image storage is not configured.' }, 500);
+  }
+
+  const url = new URL(request.url);
+  const key = url.searchParams.get('key');
+  if (!key || !key.startsWith('listing-images/')) {
     return jsonResponse({ message: 'Missing or invalid image key.' }, 400);
   }
 
@@ -4021,6 +4063,115 @@ function buildAdminV2ListingRecord(record: { id: string; fields: Record<string, 
   };
 }
 
+function extractR2KeyFromImageUrl(imageUrl: string): { key: string; prefix: string } | null {
+  try {
+    const listingMatch = imageUrl.match(/\/api\/listing-image\?key=(listing-images\/[^\s&]+)/);
+    if (listingMatch) return { key: decodeURIComponent(listingMatch[1]), prefix: 'listing-images' };
+    const customMatch = imageUrl.match(/\/api\/listings\/custom-image\?key=(custom-items\/[^\s&]+)/);
+    if (customMatch) return { key: decodeURIComponent(customMatch[1]), prefix: 'custom-items' };
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function deleteR2ImagesForListing(
+  listingId: string,
+  photos: string,
+  imageUrl: string,
+  env: Env,
+): Promise<number> {
+  if (!env.CUSTOM_ITEMS_BUCKET) return 0;
+  let deleted = 0;
+
+  // Delete by known photo URLs in DB
+  const allUrls = [
+    ...photos.split(/\r?\n/).map((l) => l.trim()).filter(Boolean),
+    imageUrl.trim(),
+  ].filter(Boolean);
+
+  const keysToDelete = new Set<string>();
+  for (const url of allUrls) {
+    const parsed = extractR2KeyFromImageUrl(url);
+    if (parsed) keysToDelete.add(parsed.key);
+  }
+
+  // Also list all objects under the listing-images/{id}/ prefix to catch stragglers
+  try {
+    let cursor: string | undefined;
+    do {
+      const listed = await env.CUSTOM_ITEMS_BUCKET.list({
+        prefix: `listing-images/${listingId}/`,
+        cursor,
+      });
+      for (const obj of listed.objects) {
+        keysToDelete.add(obj.key);
+      }
+      cursor = listed.truncated ? listed.cursor : undefined;
+    } while (cursor);
+  } catch { /* best effort */ }
+
+  for (const key of keysToDelete) {
+    try {
+      await env.CUSTOM_ITEMS_BUCKET.delete(key);
+      deleted++;
+    } catch { /* best effort */ }
+  }
+  return deleted;
+}
+
+async function handlePurgeOldListings(env: Env): Promise<Response> {
+  const TWO_WEEKS_AGO_SQL = "datetime('now', '-14 days')";
+
+  // Find archived listings older than 2 weeks
+  const candidates = await env.DB.prepare(
+    `SELECT id, photos, image_url FROM listings
+     WHERE archived = 1 AND created_at <= ${TWO_WEEKS_AGO_SQL}`
+  ).all<{ id: number; photos: string | null; image_url: string | null }>();
+
+  if (!candidates.results || candidates.results.length === 0) {
+    return jsonResponse({ ok: true, deleted: 0, imagesDeleted: 0, skippedInventory: 0 });
+  }
+
+  const candidateIds = candidates.results.map((r) => r.id);
+
+  // Exclude any listings referenced by inventory items
+  const inventoryRefs = new Set<number>();
+  const batchSize = 50;
+  for (let i = 0; i < candidateIds.length; i += batchSize) {
+    const batch = candidateIds.slice(i, i + batchSize);
+    const placeholders = batch.map(() => '?').join(', ');
+    const refs = await env.DB.prepare(
+      `SELECT DISTINCT source_listing_id FROM ccg_inventory_items
+       WHERE source_listing_id IN (${placeholders})`
+    ).bind(...batch).all<{ source_listing_id: number }>();
+    for (const row of refs.results || []) {
+      inventoryRefs.add(row.source_listing_id);
+    }
+  }
+
+  const toPurge = candidates.results.filter((r) => !inventoryRefs.has(r.id));
+  const skippedInventory = candidateIds.length - toPurge.length;
+
+  if (toPurge.length === 0) {
+    return jsonResponse({ ok: true, deleted: 0, imagesDeleted: 0, skippedInventory });
+  }
+
+  // Delete R2 images for each listing
+  let totalImagesDeleted = 0;
+  for (const row of toPurge) {
+    const photos = typeof row.photos === 'string' ? row.photos : '';
+    const imageUrl = typeof row.image_url === 'string' ? row.image_url : '';
+    totalImagesDeleted += await deleteR2ImagesForListing(String(row.id), photos, imageUrl, env);
+  }
+
+  // Delete DB rows
+  const idsToDelete = toPurge.map((r) => r.id);
+  const deleted = await dbDeleteListingsByIds(idsToDelete, env);
+
+  return jsonResponse({ ok: true, deleted, imagesDeleted: totalImagesDeleted, skippedInventory });
+}
+
 async function handleAdminV2GetListing(env: Env, path: string): Promise<Response> {
   const parts = path.split('/').filter(Boolean);
   const id = parts[parts.length - 1];
@@ -4266,6 +4417,11 @@ async function processRun(runId: string, resource: any, eventType: string | unde
     }
   }
 
+  let finalImages = listing.images;
+  if (recordId && env.CUSTOM_ITEMS_BUCKET && listing.images.length > 0) {
+    finalImages = await persistListingImagesToR2(recordId, listing.images, env);
+  }
+
   await updateRowByRunId(runId, {
     runId,
     status: 'complete',
@@ -4274,8 +4430,8 @@ async function processRun(runId: string, resource: any, eventType: string | unde
     location: listing.location,
     condition: listing.condition,
     description: listing.description,
-    photos: listing.images.join('\n'),
-    image_url: listing.images[0] ?? '',
+    photos: finalImages.join('\n'),
+    image_url: finalImages[0] ?? '',
     aiSummary,
     aiData,
     notes: listing.notes,
@@ -4309,6 +4465,37 @@ async function processRun(runId: string, resource: any, eventType: string | unde
       sourceUrl: listingUrl,
     },
   });
+}
+
+async function persistListingImagesToR2(
+  listingId: string,
+  imageUrls: string[],
+  env: Env,
+): Promise<string[]> {
+  if (!env.CUSTOM_ITEMS_BUCKET || imageUrls.length === 0) return imageUrls;
+
+  const results: string[] = [];
+  for (let i = 0; i < imageUrls.length; i++) {
+    const sourceUrl = imageUrls[i];
+    try {
+      const response = await fetch(sourceUrl, { redirect: 'follow' });
+      if (!response.ok || !response.body) {
+        results.push(sourceUrl);
+        continue;
+      }
+      const contentType = response.headers.get('content-type') || 'image/jpeg';
+      const ext = extensionFromContentType(contentType);
+      const key = `listing-images/${listingId}/${i}.${ext}`;
+      const body = await response.arrayBuffer();
+      await env.CUSTOM_ITEMS_BUCKET.put(key, body, {
+        httpMetadata: { contentType },
+      });
+      results.push(buildListingImageUrl(key));
+    } catch {
+      results.push(sourceUrl);
+    }
+  }
+  return results;
 }
 
 function hasOwnField(fields: Record<string, unknown>, key: string): boolean {
@@ -9088,7 +9275,7 @@ function currentDateYmd(): string {
 }
 
 function isPublicApiPath(path: string): boolean {
-  return path.startsWith('/api/shop/') || path === '/api/inventory-image';
+  return path.startsWith('/api/shop/') || path === '/api/inventory-image' || path === '/api/listing-image';
 }
 
 function formatMonthLabel(month: string): string {

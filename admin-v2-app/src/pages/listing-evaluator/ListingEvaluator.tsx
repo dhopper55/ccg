@@ -5,6 +5,11 @@ import {
   Button,
   CircularProgress,
   Container,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   Divider,
   IconButton,
   InputAdornment,
@@ -170,6 +175,33 @@ const ListingEvaluator = () => {
   useEffect(() => {
     document.title = 'CCG Admin | Listing Evaluator';
   }, []);
+
+  const [purgeOpen, setPurgeOpen] = useState(false);
+  const [purging, setPurging] = useState(false);
+
+  const handlePurge = async () => {
+    setPurging(true);
+    try {
+      const res = await fetch('/api/admin-v2/listings/purge-old', {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+      const data = await res.json() as { ok?: boolean; deleted?: number; imagesDeleted?: number; skippedInventory?: number; message?: string };
+      if (data.ok) {
+        enqueueSnackbar(
+          `Purged ${data.deleted ?? 0} listing(s), ${data.imagesDeleted ?? 0} image(s) deleted.${data.skippedInventory ? ` ${data.skippedInventory} skipped (linked to inventory).` : ''}`,
+          { variant: 'success' },
+        );
+      } else {
+        enqueueSnackbar(data.message || 'Purge failed.', { variant: 'error' });
+      }
+    } catch {
+      enqueueSnackbar('Purge request failed.', { variant: 'error' });
+    } finally {
+      setPurging(false);
+      setPurgeOpen(false);
+    }
+  };
 
   const resultsAction = useMemo(
     () => (
@@ -500,7 +532,41 @@ const ListingEvaluator = () => {
             <Typography variant="h4">Listing Evaluator</Typography>
             <Stack direction="row" sx={{ gap: 1, alignItems: 'center' }}>
               {resultsAction}
+              <Tooltip title="Purge two-week-old eval results">
+                <IconButton
+                  aria-label="Purge two-week-old eval results"
+                  onClick={() => setPurgeOpen(true)}
+                  sx={{
+                    width: 40,
+                    height: 40,
+                    border: 1,
+                    borderColor: 'divider',
+                    bgcolor: 'background.elevation1',
+                    color: 'text.primary',
+                    '&:hover': {
+                      bgcolor: 'background.elevation2',
+                    },
+                  }}
+                >
+                  <IconifyIcon icon="material-symbols:delete-outline-rounded" fontSize={20} />
+                </IconButton>
+              </Tooltip>
             </Stack>
+            <Dialog open={purgeOpen} onClose={() => setPurgeOpen(false)}>
+              <DialogTitle>Purge old eval results</DialogTitle>
+              <DialogContent>
+                <DialogContentText>
+                  This will permanently delete all archived listing evaluations older than two weeks,
+                  along with their scraped images. Listings linked to inventory items will be skipped.
+                </DialogContentText>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setPurgeOpen(false)} disabled={purging}>Cancel</Button>
+                <Button onClick={handlePurge} color="error" variant="contained" disabled={purging}>
+                  {purging ? 'Purging…' : 'Purge'}
+                </Button>
+              </DialogActions>
+            </Dialog>
           </Stack>
         </Paper>
       </Grid>
