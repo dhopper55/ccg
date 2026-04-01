@@ -6,6 +6,11 @@ import {
   Button,
   CircularProgress,
   Container,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   MenuItem,
   Paper,
   Select,
@@ -35,6 +40,8 @@ const InventoryLabels = () => {
   const [printCounts, setPrintCounts] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [isUnmarking, setIsUnmarking] = useState(false);
+  const [unmarkConfirmOpen, setUnmarkConfirmOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
@@ -90,6 +97,22 @@ const InventoryLabels = () => {
     () => records.reduce((sum, r) => sum + (printCounts[r.id] || 1), 0),
     [records, printCounts],
   );
+
+  const handleUnmarkAll = async () => {
+    setIsUnmarking(true);
+    try {
+      await fetch('/api/admin-v2/inventory/unmark-all', {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+      navigate(paths.inventoryManager);
+    } catch {
+      setErrorMessage('Unable to unmark items.');
+    } finally {
+      setIsUnmarking(false);
+      setUnmarkConfirmOpen(false);
+    }
+  };
 
   const handlePrint = async () => {
     setIsPrinting(true);
@@ -269,20 +292,51 @@ const InventoryLabels = () => {
                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                   {records.length} item{records.length !== 1 ? 's' : ''} · {totalLabels} label{totalLabels !== 1 ? 's' : ''} · {Math.ceil(totalLabels / 10)} page{Math.ceil(totalLabels / 10) !== 1 ? 's' : ''}
                 </Typography>
-                <Button
-                  variant="contained"
-                  onClick={handlePrint}
-                  disabled={isPrinting || records.length === 0}
-                  startIcon={
-                    isPrinting ? (
-                      <CircularProgress color="inherit" size={16} />
-                    ) : (
-                      <IconifyIcon icon="material-symbols:print-outline-rounded" />
-                    )
-                  }
-                >
-                  {isPrinting ? 'Generating…' : 'Print Labels'}
-                </Button>
+                <Stack direction="row" sx={{ gap: 1.5 }}>
+                  <Button
+                    variant="contained"
+                    color="warning"
+                    onClick={() => setUnmarkConfirmOpen(true)}
+                    disabled={isUnmarking || isPrinting || records.length === 0}
+                    startIcon={
+                      isUnmarking ? (
+                        <CircularProgress color="inherit" size={16} />
+                      ) : (
+                        <IconifyIcon icon="material-symbols:bookmark-remove-outline-rounded" />
+                      )
+                    }
+                  >
+                    {isUnmarking ? 'Unmarking…' : 'Unmark All'}
+                  </Button>
+                  <Button
+                    variant="contained"
+                    onClick={handlePrint}
+                    disabled={isPrinting || isUnmarking || records.length === 0}
+                    startIcon={
+                      isPrinting ? (
+                        <CircularProgress color="inherit" size={16} />
+                      ) : (
+                        <IconifyIcon icon="material-symbols:print-outline-rounded" />
+                      )
+                    }
+                  >
+                    {isPrinting ? 'Generating…' : 'Print Labels'}
+                  </Button>
+                </Stack>
+                <Dialog open={unmarkConfirmOpen} onClose={() => setUnmarkConfirmOpen(false)}>
+                  <DialogTitle>Unmark all items</DialogTitle>
+                  <DialogContent>
+                    <DialogContentText>
+                      This will unmark all {records.length} item{records.length !== 1 ? 's' : ''} and return to Inventory Manager.
+                    </DialogContentText>
+                  </DialogContent>
+                  <DialogActions>
+                    <Button onClick={() => setUnmarkConfirmOpen(false)} disabled={isUnmarking}>Cancel</Button>
+                    <Button onClick={handleUnmarkAll} color="warning" variant="contained" disabled={isUnmarking}>
+                      {isUnmarking ? 'Unmarking…' : 'Unmark All'}
+                    </Button>
+                  </DialogActions>
+                </Dialog>
               </Stack>
             </Paper>
           )}

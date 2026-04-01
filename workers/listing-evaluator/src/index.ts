@@ -4207,7 +4207,7 @@ async function handlePurgeOldListings(env: Env): Promise<Response> {
   // Find archived listings older than 2 weeks
   const candidates = await env.DB.prepare(
     `SELECT id, photos, image_url FROM listings
-     WHERE archived = 1 AND created_at <= ${TWO_WEEKS_AGO_SQL}`
+     WHERE archived = 1 AND COALESCE(submitted_at, created_at) <= ${TWO_WEEKS_AGO_SQL}`
   ).all<{ id: number; photos: string | null; image_url: string | null }>();
 
   if (!candidates.results || candidates.results.length === 0) {
