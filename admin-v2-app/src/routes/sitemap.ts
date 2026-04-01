@@ -64,6 +64,14 @@ const sitemap: MenuItem[] = [
         active: true,
       },
       {
+        name: 'Inventory Labels',
+        key: 'inventory_labels',
+        path: paths.inventoryLabels,
+        pathName: 'inventory-labels',
+        icon: 'material-symbols:picture-as-pdf-outline-rounded',
+        active: true,
+      },
+      {
         name: 'Serial Decodes',
         key: 'serial_decodes',
         path: paths.serialDecodes,

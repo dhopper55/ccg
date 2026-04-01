@@ -510,6 +510,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/inventory/labels.pdf' && request.method === 'POST') {
+      const response = await handleAdminV2InventoryLabelsPdfPost(request, env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/admin-v2/inventory/categories' && request.method === 'GET') {
       const response = await handleAdminV2InventoryCategories(env);
       return withCors(response, request, env);
@@ -3060,6 +3065,82 @@ async function handleAdminV2InventoryLabelsPdf(env: Env): Promise<Response> {
   if (unmarkedCount < 1) {
     return jsonResponse({ message: 'Labels were generated, but marked items could not be cleared.' }, 500);
   }
+
+  return new Response(pdfBytes, {
+    headers: {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="ccg-labels-${currentDateYmd()}.pdf"`,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
+async function handleAdminV2InventoryLabelsPdfPost(request: Request, env: Env): Promise<Response> {
+  let body: Record<string, unknown> = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  const rawItems = Array.isArray(body.items) ? body.items : [];
+  if (rawItems.length === 0) {
+    return jsonResponse({ message: 'No items provided.' }, 400);
+  }
+
+  const itemCounts = new Map<string, number>();
+  for (const item of rawItems) {
+    const id = typeof item === 'object' && item != null && 'id' in item ? String((item as { id: unknown }).id) : '';
+    const count = typeof item === 'object' && item != null && 'count' in item ? Number((item as { count: unknown }).count) : 1;
+    if (id && count > 0 && count <= 10) {
+      itemCounts.set(id, count);
+    }
+  }
+
+  if (itemCounts.size === 0) {
+    return jsonResponse({ message: 'No valid items provided.' }, 400);
+  }
+
+  const ids = Array.from(itemCounts.keys());
+  const placeholders = ids.map(() => '?').join(', ');
+  const dbResult = await env.DB.prepare(
+    `SELECT id, ccg_number, title, image_url
+     FROM ccg_inventory_items
+     WHERE id IN (${placeholders})
+     ORDER BY created_at ASC, id ASC`
+  ).bind(...ids.map(Number)).all<{
+    id: number;
+    ccg_number: string | null;
+    title: string | null;
+    image_url: string | null;
+  }>();
+
+  const rows = (dbResult.results ?? [])
+    .map((row) => ({
+      ccgNumber: normalizeText(row.ccg_number, ''),
+      title: normalizeText(row.title, 'Untitled') || 'Untitled',
+      imageUrl: normalizeText(row.image_url, ''),
+      count: itemCounts.get(String(row.id)) || 1,
+    }))
+    .filter((row) => row.ccgNumber);
+
+  if (rows.length < 1) {
+    return jsonResponse({ message: 'No valid inventory items with a CCG number were found.' }, 400);
+  }
+
+  // Expand rows by their print counts (grouped)
+  const expandedRows: InventoryLabelPdfRow[] = [];
+  for (const row of rows) {
+    for (let i = 0; i < row.count; i++) {
+      expandedRows.push({
+        ccgNumber: row.ccgNumber,
+        title: row.title,
+        imageUrl: row.imageUrl,
+      });
+    }
+  }
+
+  const pdfBytes = await buildInventoryLabelsPdfFromExpanded(expandedRows, env);
 
   return new Response(pdfBytes, {
     headers: {
@@ -11015,6 +11096,85 @@ async function buildInventoryLabelsPdf(rows: InventoryLabelPdfRow[], env: Env): 
   const pages = chunkArray(rows, PDF_UNIQUE_LABEL_ITEMS_PER_PAGE).map((pageRows) =>
     pageRows.flatMap((row) => [row, row]),
   );
+  const pageDefinitions: PdfPageDefinition[] = [];
+  let nextObjectNumber = 6;
+
+  for (const pageRows of pages) {
+    const images: PdfPageDefinition['images'] = [];
+    for (let index = 0; index < pageRows.length; index += 1) {
+      const asset = await fetchPdfImageAsset(pageRows[index].imageUrl, env);
+      if (!asset) continue;
+      images.push({
+        name: `Im${index + 1}`,
+        objectNumber: nextObjectNumber,
+        asset,
+      });
+      nextObjectNumber += 1;
+    }
+
+    pageDefinitions.push({
+      pageObjectNumber: nextObjectNumber,
+      contentObjectNumber: nextObjectNumber + 1,
+      images,
+      rows: pageRows,
+    });
+    nextObjectNumber += 2;
+  }
+
+  const objectMap = new Map<number, Uint8Array>();
+  const encoder = new TextEncoder();
+  objectMap.set(1, encoder.encode('<< /Type /Catalog /Pages 2 0 R >>'));
+  objectMap.set(
+    2,
+    encoder.encode(
+      `<< /Type /Pages /Count ${pageDefinitions.length} /Kids [${pageDefinitions.map((page) => `${page.pageObjectNumber} 0 R`).join(' ')}] >>`,
+    ),
+  );
+  objectMap.set(3, encoder.encode('<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>'));
+  objectMap.set(4, encoder.encode('<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold >>'));
+  objectMap.set(5, encoder.encode('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'));
+
+  for (const page of pageDefinitions) {
+    for (const image of page.images) {
+      objectMap.set(image.objectNumber, buildPdfImageObject(image.asset));
+    }
+
+    const contentBytes = encoder.encode(buildInventoryLabelsPageContent(page.rows, page.images));
+    const xObjectSection = page.images.length
+      ? ` /XObject << ${page.images.map((image) => `/${image.name} ${image.objectNumber} 0 R`).join(' ')} >>`
+      : '';
+
+    objectMap.set(
+      page.pageObjectNumber,
+      encoder.encode(
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PDF_LETTER_WIDTH} ${PDF_LETTER_HEIGHT}] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >>${xObjectSection} >> /Contents ${page.contentObjectNumber} 0 R >>`,
+      ),
+    );
+    objectMap.set(
+      page.contentObjectNumber,
+      concatenatePdfParts([
+        encoder.encode(`<< /Length ${contentBytes.length} >>\nstream\n`),
+        contentBytes,
+        encoder.encode('\nendstream'),
+      ]),
+    );
+  }
+
+  const totalObjects = Math.max(...objectMap.keys());
+  const objects: Uint8Array[] = [];
+  for (let index = 1; index <= totalObjects; index += 1) {
+    const objectBytes = objectMap.get(index);
+    if (!objectBytes) {
+      throw new Error(`Missing PDF object ${index}`);
+    }
+    objects.push(objectBytes);
+  }
+
+  return assemblePdf(objects);
+}
+
+async function buildInventoryLabelsPdfFromExpanded(rows: InventoryLabelPdfRow[], env: Env): Promise<Uint8Array> {
+  const pages = chunkArray(rows, PDF_LABELS_PER_PAGE);
   const pageDefinitions: PdfPageDefinition[] = [];
   let nextObjectNumber = 6;
 
