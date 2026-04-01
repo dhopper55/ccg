@@ -257,6 +257,11 @@ function formatYearRangeToken(value: string): string {
 }
 
 function toAbsolutePublicUrl(url: string): string {
+  // Convert R2-backed listing image URLs to the public R2 domain (bypasses Cloudflare bot protection)
+  const listingImageMatch = url.match(/\/api\/listing-image\?key=(.+)/);
+  if (listingImageMatch) {
+    return `https://images.coalcreekguitars.com/${decodeURIComponent(listingImageMatch[1])}`;
+  }
   if (url.startsWith('/api/')) {
     return `https://www.coalcreekguitars.com${url}`;
   }

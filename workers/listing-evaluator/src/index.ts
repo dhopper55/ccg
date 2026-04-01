@@ -1,9 +1,6 @@
 import { decodeSerialForBackend, normalizeBrandKey } from '../../../src/serial-decode-service.js';
 import {
   buildMainUserPrompt,
-  buildMultiPricingPrompt,
-  buildSinglePricingPrompt,
-  buildSpecificsPrompt,
   buildSystemPrompt,
 } from './prompts.js';
 import {
@@ -275,18 +272,6 @@ const DEFAULT_TEXT = {
   seller_fixes_add_value_or_waste: 'Minor setup and cleaning can help; major repairs may not pay off.',
   seller_as_is_notes: 'Sell as-is if repair costs exceed value gains.',
 };
-
-const SPECIFIC_FIELDS = [
-  'known_weak_points',
-  'typical_repair_needs',
-  'buyers_worry',
-  'og_specs_common_mods',
-  'buyer_what_to_check',
-  'buyer_common_misrepresent',
-  'seller_how_to_price_realistic',
-  'seller_fixes_add_value_or_waste',
-  'seller_as_is_notes',
-] as const;
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -2194,34 +2179,6 @@ type ReverbApiResponse = {
   listings?: ReverbApiListing[];
 };
 
-type ReverbSearchListing = {
-  id?: number | string;
-  title?: string;
-  condition?: { display_name?: string } | string;
-  price?: {
-    amount?: string | number;
-    currency?: string;
-    symbol?: string;
-  };
-  shipping?: {
-    amount?: string | number;
-  };
-  photos?: Array<{
-    _links?: {
-      large_crop?: { href?: string };
-      small_crop?: { href?: string };
-      full?: { href?: string };
-    };
-  }>;
-  _links?: {
-    web?: { href?: string };
-  };
-};
-
-type ReverbSearchResponse = {
-  listings?: ReverbSearchListing[];
-};
-
 type ReverbItemResponse = {
   id?: number | string;
   title?: string;
@@ -2253,30 +2210,6 @@ type ReverbItemResponse = {
     region?: string;
     country_code?: string;
   } | string;
-};
-
-type ReverbComp = {
-  title: string;
-  price: number;
-  condition: string;
-  url: string;
-};
-
-type ReverbPricingAttempt = {
-  label: string;
-  query: string;
-  rawCount: number;
-  pickedCount: number;
-  strongCount: number;
-};
-
-type ReverbPricingContext = {
-  ok: boolean;
-  query: string;
-  comps: ReverbComp[];
-  baseComps?: ReverbComp[];
-  attempts?: ReverbPricingAttempt[];
-  error?: string;
 };
 
 type UnifiedForSaleItem = {
@@ -4204,53 +4137,49 @@ async function deleteR2ImagesForListing(
 async function handlePurgeOldListings(env: Env): Promise<Response> {
   const TWO_WEEKS_AGO_SQL = "datetime('now', '-14 days')";
 
-  // Find archived listings older than 2 weeks
-  const candidates = await env.DB.prepare(
-    `SELECT id, photos, image_url FROM listings
-     WHERE archived = 1 AND COALESCE(submitted_at, created_at) <= ${TWO_WEEKS_AGO_SQL}`
-  ).all<{ id: number; photos: string | null; image_url: string | null }>();
+  // Get IDs of archived listings referenced by inventory (to exclude)
+  const inventoryRefResult = await env.DB.prepare(
+    `SELECT DISTINCT source_listing_id FROM ccg_inventory_items WHERE source_listing_id IS NOT NULL`
+  ).all<{ source_listing_id: number }>();
+  const inventoryRefs = new Set((inventoryRefResult.results ?? []).map((r) => r.source_listing_id));
 
-  if (!candidates.results || candidates.results.length === 0) {
-    return jsonResponse({ ok: true, deleted: 0, imagesDeleted: 0, skippedInventory: 0 });
-  }
-
-  const candidateIds = candidates.results.map((r) => r.id);
-
-  // Exclude any listings referenced by inventory items
-  const inventoryRefs = new Set<number>();
-  const batchSize = 50;
-  for (let i = 0; i < candidateIds.length; i += batchSize) {
-    const batch = candidateIds.slice(i, i + batchSize);
-    const placeholders = batch.map(() => '?').join(', ');
-    const refs = await env.DB.prepare(
-      `SELECT DISTINCT source_listing_id FROM ccg_inventory_items
-       WHERE source_listing_id IN (${placeholders})`
-    ).bind(...batch).all<{ source_listing_id: number }>();
-    for (const row of refs.results || []) {
-      inventoryRefs.add(row.source_listing_id);
-    }
-  }
-
-  const toPurge = candidates.results.filter((r) => !inventoryRefs.has(r.id));
-  const skippedInventory = candidateIds.length - toPurge.length;
-
-  if (toPurge.length === 0) {
-    return jsonResponse({ ok: true, deleted: 0, imagesDeleted: 0, skippedInventory });
-  }
-
-  // Delete R2 images for each listing
+  // Delete in batches directly — avoids loading all candidates into memory
+  let totalDeleted = 0;
   let totalImagesDeleted = 0;
-  for (const row of toPurge) {
-    const photos = typeof row.photos === 'string' ? row.photos : '';
-    const imageUrl = typeof row.image_url === 'string' ? row.image_url : '';
-    totalImagesDeleted += await deleteR2ImagesForListing(String(row.id), photos, imageUrl, env);
+  let skippedInventory = 0;
+  const deleteBatchSize = 50;
+
+  // Loop until no more candidates
+  for (let pass = 0; pass < 20; pass++) {
+    const candidates = await env.DB.prepare(
+      `SELECT id, photos, image_url FROM listings
+       WHERE archived = 1 AND COALESCE(submitted_at, created_at) <= ${TWO_WEEKS_AGO_SQL}
+       LIMIT ${deleteBatchSize}`
+    ).all<{ id: number; photos: string | null; image_url: string | null }>();
+
+    const rows = candidates.results ?? [];
+    if (rows.length === 0) break;
+
+    const toPurge = rows.filter((r) => !inventoryRefs.has(r.id));
+    skippedInventory += rows.length - toPurge.length;
+
+    if (toPurge.length === 0) break; // remaining are all inventory-linked, stop
+
+    // Delete R2 images only for listings that have R2-backed URLs
+    for (const row of toPurge) {
+      const photos = typeof row.photos === 'string' ? row.photos : '';
+      const imageUrl = typeof row.image_url === 'string' ? row.image_url : '';
+      if (photos.includes('/api/listing-image') || photos.includes('/api/listings/custom-image') || imageUrl.includes('/api/listing-image') || imageUrl.includes('/api/listings/custom-image')) {
+        totalImagesDeleted += await deleteR2ImagesForListing(String(row.id), photos, imageUrl, env);
+      }
+    }
+
+    // Delete DB rows
+    const deleted = await dbDeleteListingsByIds(toPurge.map((r) => r.id), env);
+    totalDeleted += deleted;
   }
 
-  // Delete DB rows
-  const idsToDelete = toPurge.map((r) => r.id);
-  const deleted = await dbDeleteListingsByIds(idsToDelete, env);
-
-  return jsonResponse({ ok: true, deleted, imagesDeleted: totalImagesDeleted, skippedInventory });
+  return jsonResponse({ ok: true, deleted: totalDeleted, imagesDeleted: totalImagesDeleted, skippedInventory });
 }
 
 async function handleAdminV2GetListing(env: Env, path: string): Promise<Response> {
@@ -4482,21 +4411,6 @@ async function processRun(runId: string, resource: any, eventType: string | unde
   const aiResult = await runOpenAI(listing, env, { isMulti });
   let aiSummary = aiResult.kind === 'multi' ? ensureMultiTotals(aiResult.summary) : '';
   let aiData = aiResult.kind === 'single' ? aiResult.data : undefined;
-
-  if (aiResult.kind === 'single' && aiData) {
-    aiData = clearPrivatePartyPricingFields(aiData);
-    const pricing = await getRealisticPrivatePartyPricing(aiData, env);
-    if (pricing) {
-      aiData = { ...aiData, ...pricing };
-    }
-  }
-
-  if (aiResult.kind === 'multi') {
-    const pricing = await runOpenAIMultiRangePricing(listing, aiSummary, env);
-    if (pricing) {
-      aiSummary = applyMultiRangeToSummary(aiSummary, pricing.low, pricing.high);
-    }
-  }
 
   let finalImages = listing.images;
   if (recordId && env.CUSTOM_ITEMS_BUCKET && listing.images.length > 0) {
@@ -8468,11 +8382,6 @@ function isMostlyGeneric(text: string): boolean {
   return hitCount >= 3;
 }
 
-function needsSpecificity(aiData: SingleAiResult | undefined): boolean {
-  if (!aiData) return false;
-  return SPECIFIC_FIELDS.some((field) => isMostlyGeneric(normalizeText(aiData[field], '')));
-}
-
 function isUnknownish(value: string): boolean {
   const normalized = value.trim().toLowerCase();
   if (!normalized) return true;
@@ -8889,25 +8798,14 @@ async function updateRowByRunId(runId: string, updates: {
     const existingFields = existingRecord?.fields || {};
     const isCustomSource = normalizeText(existingFields.source, '').toLowerCase() === 'custom';
     const isMulti = options?.isMulti ?? await getIsMultiFromRecord(recordId, env);
-    const privateParty = updates.aiSummary
-      ? (isMulti ? extractMultiPrivatePartyRange(updates.aiSummary) : extractPrivatePartyRange(updates.aiSummary))
-      : null;
     const aiAskingData = normalizeMoneyValue(updates.aiData?.asking_price);
     const listedPrice = updates.price ? parseMoney(updates.price) : null;
     const listedPriceOrAi = listedPrice ?? aiAskingData;
     const aiAsking = updates.aiSummary
       ? (isMulti ? extractMultiAskingTotal(updates.aiSummary) : extractAskingFromSummary(updates.aiSummary))
       : null;
-    const aiScore = updates.aiSummary ? extractScoreFromSummary(updates.aiSummary) : null;
     const asking = chooseAskingPrice(listedPriceOrAi, aiAsking, updates.description ?? '', updates.aiSummary ?? '', isMulti);
-    const ideal = updates.aiSummary
-      ? (isMulti
-          ? (privateParty?.low != null ? Math.round(privateParty.low * 0.8) : extractMultiIdealTotal(updates.aiSummary))
-          : (privateParty?.low != null ? Math.round(privateParty.low * 0.8) : null))
-      : null;
-    const singleAiSummary = !isMulti ? buildSingleAiSummary(updates.aiData, { ideal, privateParty }) : '';
-    const computedScore = privateParty && asking != null ? computeScore(asking, privateParty.low, privateParty.high) : null;
-    const score = aiScore ?? computedScore;
+    const singleAiSummary = !isMulti ? buildSingleAiSummary(updates.aiData, { ideal: null, privateParty: null }) : '';
     const fullSummary = updates.aiSummary ?? singleAiSummary;
     const summaryChunks = splitAiSummary(fullSummary || null);
     if (fullSummary) {
@@ -8992,12 +8890,7 @@ async function updateRowByRunId(runId: string, updates: {
       ai_summary8: isMulti ? summaryChunks[7] ?? null : null,
       ai_summary9: isMulti ? summaryChunks[8] ?? null : null,
       ai_summary10: isMulti ? summaryChunks[9] ?? null : null,
-      price_private_party: privateParty ? formatRange(privateParty.low, privateParty.high) : null,
-      price_ideal: ideal ?? null,
     };
-    if (score !== null) {
-      fields.score = score;
-    }
     await dbUpdateListing(recordId, fields, env);
     if (aiFields && !isMulti) {
       await dbUpdateListing(recordId, aiFields, env);
@@ -9850,24 +9743,6 @@ function buildSingleAiSummary(
   return lines.join('\n').trim();
 }
 
-function computeScore(asking: number, low: number, high: number): number {
-  if (asking <= low) {
-    const margin = (low - asking) / low;
-    const score = 8 + Math.min(2, margin * 4);
-    return clampScore(score);
-  }
-
-  if (asking <= high) {
-    const position = (asking - low) / Math.max(1, high - low);
-    const score = 7 - position * 2;
-    return clampScore(score);
-  }
-
-  const over = (asking - high) / high;
-  const score = 5 - Math.min(4, over * 6);
-  return clampScore(score);
-}
-
 function clampScore(value: number): number {
   const rounded = Math.round(value);
   return Math.max(1, Math.min(10, rounded));
@@ -10097,9 +9972,6 @@ async function runOpenAI(listing: ListingData, env: Env, options?: { isMulti?: b
     if (needsModelDisambiguation(parsed)) {
       parsed = await runOpenAIModelDisambiguation(listing, parsed, env);
     }
-    if (needsSpecificity(parsed)) {
-      parsed = await runOpenAISpecifics(listing, parsed, env);
-    }
     return { kind: 'single', data: parsed };
   } catch (error) {
     console.error('OpenAI JSON parse failed', { error, text: text?.slice(0, 200) });
@@ -10215,64 +10087,6 @@ async function runOpenAIModelDisambiguation(
   }
 }
 
-async function runOpenAISpecifics(listing: ListingData, base: SingleAiResult, env: Env): Promise<SingleAiResult> {
-  if (!env.OPENAI_API_KEY) return base;
-  const prompt = buildSpecificsPrompt(listing, base, SPECIFIC_FIELDS, DEFAULT_TEXT);
-
-  const response = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o',
-      input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }],
-      temperature: 0.2,
-      max_output_tokens: 1200,
-      text: {
-        format: {
-          type: 'json_schema',
-          name: 'specific_fields',
-          schema: {
-            type: 'object',
-            additionalProperties: false,
-            properties: {
-              ...SPECIFIC_FIELDS.reduce((acc, key) => {
-                acc[key] = { type: 'string' };
-                return acc;
-              }, {} as Record<string, { type: 'string' }>),
-              og_specs_pickups: { type: 'string' },
-              og_specs_tuners: { type: 'string' },
-            },
-            required: [...SPECIFIC_FIELDS, 'og_specs_pickups', 'og_specs_tuners'],
-          },
-        },
-      },
-    }),
-  });
-
-  if (!response.ok) return base;
-  const data = await response.json();
-  const text = extractOpenAIText(data);
-  try {
-    const refined = JSON.parse(text) as Partial<SingleAiResult>;
-    const refinedPickups =
-      typeof refined.og_specs_pickups === 'string' ? refined.og_specs_pickups.trim() : '';
-    if (!refinedPickups || refinedPickups.toLowerCase() === 'unknown') {
-      refined.og_specs_pickups = base.og_specs_pickups || 'Unknown';
-    }
-    const refinedTuners =
-      typeof refined.og_specs_tuners === 'string' ? refined.og_specs_tuners.trim() : '';
-    if (!refinedTuners || refinedTuners.toLowerCase() === 'unknown') {
-      refined.og_specs_tuners = base.og_specs_tuners || 'Unknown';
-    }
-    return { ...base, ...refined };
-  } catch {
-    return base;
-  }
-}
-
 function stripEmptyFallback(fallback: Partial<SingleAiResult>): Partial<SingleAiResult> {
   const cleaned: Partial<SingleAiResult> = {};
   for (const [key, value] of Object.entries(fallback)) {
@@ -10281,22 +10095,6 @@ function stripEmptyFallback(fallback: Partial<SingleAiResult>): Partial<SingleAi
     (cleaned as Record<string, unknown>)[key] = value;
   }
   return cleaned;
-}
-
-function clearPrivatePartyPricingFields(base: SingleAiResult): SingleAiResult {
-  return {
-    ...base,
-    value_private_party_low: null,
-    value_private_party_low_notes: '',
-    value_private_party_medium: null,
-    value_private_party_medium_notes: '',
-    value_private_party_high: null,
-    value_private_party_high_notes: '',
-    pricing_source: '',
-    pricing_confidence: '',
-    pricing_comp_count: null,
-    pricing_notes: '',
-  };
 }
 
 function normalizePrivatePartyPricing(parsed: Partial<SingleAiResult>): Partial<SingleAiResult> | null {
@@ -10464,15 +10262,6 @@ function scoreReverbCompMatch(comp: ReverbComp, base: SingleAiResult): number {
   return score;
 }
 
-function scoredReverbComps(raw: ReverbSearchListing[], base: SingleAiResult): Array<{ comp: ReverbComp; score: number }> {
-  return raw
-    .map(normalizeReverbComp)
-    .filter((comp): comp is ReverbComp => Boolean(comp))
-    .filter((comp) => comp.price >= 100 && comp.price <= 20000)
-    .map((comp) => ({ comp, score: scoreReverbCompMatch(comp, base) }))
-    .sort((a, b) => b.score - a.score || a.comp.price - b.comp.price);
-}
-
 function pickReverbComps(raw: ReverbSearchListing[], base: SingleAiResult, minScore = 1): ReverbComp[] {
   return scoredReverbComps(raw, base)
     .filter((entry) => entry.score >= minScore)
@@ -10550,83 +10339,6 @@ function summarizeReverbComps(comps: ReverbComp[]): string {
     .join('\n');
 }
 
-async function fetchReverbPricingContext(base: SingleAiResult, env: Env): Promise<ReverbPricingContext> {
-  const queryEntries = buildReverbPricingQueries(base);
-  const attempts: ReverbPricingAttempt[] = [];
-  let primaryComps: ReverbComp[] = [];
-  let baseFloorComps: ReverbComp[] = [];
-  let firstError: string | undefined;
-
-  try {
-    for (const entry of queryEntries) {
-      const params = new URLSearchParams();
-      params.set('query', entry.query);
-      params.set('per_page', String(REVERB_PRICING_SEARCH_LIMIT));
-      const url = `${REVERB_SEARCH_API_URL}?${params.toString()}`;
-
-      const response = await fetch(url, { method: 'GET', headers: reverbRequestHeaders(env) });
-      if (!response.ok) {
-        const body = await response.text();
-        firstError ||= `Reverb API error ${response.status}: ${body.slice(0, 160)}`;
-        attempts.push({
-          label: entry.label,
-          query: entry.query,
-          rawCount: 0,
-          pickedCount: 0,
-          strongCount: 0,
-        });
-        continue;
-      }
-
-      const data = await response.json() as ReverbSearchResponse;
-      const rawListings = Array.isArray(data.listings) ? data.listings : [];
-      const scored = scoredReverbComps(rawListings, base);
-      const minStrongScore = isNicheElectronicsListing(base) ? 2 : 1;
-      const picked = scored.filter((item) => item.score >= 1).slice(0, REVERB_PRICING_SEARCH_LIMIT);
-      const strong = scored.filter((item) => item.score >= minStrongScore).slice(0, REVERB_PRICING_SEARCH_LIMIT);
-      const pickedComps = picked.map((item) => item.comp);
-      const strongComps = strong.map((item) => item.comp);
-
-      attempts.push({
-        label: entry.label,
-        query: entry.query,
-        rawCount: rawListings.length,
-        pickedCount: pickedComps.length,
-        strongCount: strongComps.length,
-      });
-
-      if (entry.label === 'base-floor') {
-        baseFloorComps = dedupeReverbComps([...baseFloorComps, ...pickedComps]).slice(0, REVERB_PRICING_SEARCH_LIMIT);
-      } else {
-        primaryComps = dedupeReverbComps([...primaryComps, ...strongComps]).slice(0, REVERB_PRICING_SEARCH_LIMIT);
-      }
-
-      if (primaryComps.length >= 3 && entry.label !== 'base-floor') break;
-    }
-
-    const finalComps = primaryComps.length > 0 ? primaryComps : [];
-    const ok = attempts.some((attempt) => attempt.rawCount > 0) || attempts.length > 0;
-
-    return {
-      ok,
-      query: attempts.map((attempt) => `${attempt.label}:${attempt.query}`).join(' | ') || buildReverbPricingQuery(base),
-      comps: finalComps,
-      baseComps: baseFloorComps,
-      attempts,
-      error: !ok ? (firstError || 'No Reverb responses') : undefined,
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      query: queryEntries.map((entry) => `${entry.label}:${entry.query}`).join(' | ') || buildReverbPricingQuery(base),
-      comps: [],
-      baseComps: [],
-      attempts,
-      error: error instanceof Error ? error.message : 'Reverb request failed',
-    };
-  }
-}
-
 function clampRangeToCap(
   range: { low: number; medium: number; high: number },
   cap: { low: number; medium: number; high: number }
@@ -10690,285 +10402,6 @@ function clampFallbackPricingForWeakReverb(
     value_private_party_medium_notes: `${normalizeText(normalized.value_private_party_medium_notes, '')} Conservative clamp applied for weak Reverb support on Roland/MIDI-style premium.`.trim(),
     value_private_party_high_notes: `${normalizeText(normalized.value_private_party_high_notes, '')} High-end premium capped without verified functionality.`.trim(),
   };
-}
-
-async function runOpenAIPrivatePartyPricingWithContext(
-  base: SingleAiResult,
-  env: Env,
-  reverb: ReverbPricingContext
-): Promise<Partial<SingleAiResult> | null> {
-  if (!env.OPENAI_API_KEY) return null;
-
-  const subject = [normalizeText(base.year, ''), normalizeText(base.brand, ''), normalizeText(base.model, ''), normalizeText(base.finish, '')]
-    .filter(Boolean)
-    .join(' ')
-    .trim() || 'used guitar';
-  const compSummary = summarizeReverbComps(reverb.comps);
-  const prompt = [
-    'You are an expert used guitar buyer focused on realistic PRIVATE-PARTY values (not retail, not optimistic asking prices).',
-    'Return JSON only using the schema.',
-    '',
-    `Item: ${subject}`,
-    `Condition: ${normalizeText(base.condition, 'Unknown')}`,
-    `Reverb query used: ${reverb.query}`,
-    `Reverb status: ${reverb.ok ? 'ok' : 'error'}`,
-    reverb.error ? `Reverb error: ${reverb.error}` : '',
-    'Reverb listing context (usually active listing asks; do NOT treat as sold prices):',
-    compSummary,
-    '',
-    'Rules:',
-    '- Reverb active prices must be discounted to realistic local private-party value.',
-    '- Be conservative for niche/slow-mover features (e.g., Roland/MIDI) unless functionality is explicitly verified.',
-    '- If serial is missing or exact model is uncertain, apply an uncertainty discount.',
-    '- Prefer realistic numbers over round numbers.',
-    '- Ensure low <= medium <= high.',
-    '- If Reverb is unavailable or weak, estimate conservatively from comparable models.',
-  ].filter(Boolean).join('\n');
-
-  const response = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o',
-      input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }],
-      temperature: 0.2,
-      max_output_tokens: 900,
-      text: {
-        format: {
-          type: 'json_schema',
-          name: 'private_party_reverb_context',
-          schema: {
-            type: 'object',
-            additionalProperties: false,
-            properties: {
-              value_private_party_low: { type: ['number', 'string', 'null'] },
-              value_private_party_low_notes: { type: 'string' },
-              value_private_party_medium: { type: ['number', 'string', 'null'] },
-              value_private_party_medium_notes: { type: 'string' },
-              value_private_party_high: { type: ['number', 'string', 'null'] },
-              value_private_party_high_notes: { type: 'string' },
-              pricing_confidence: { type: 'string' },
-              pricing_notes: { type: 'string' },
-            },
-            required: [
-              'value_private_party_low',
-              'value_private_party_low_notes',
-              'value_private_party_medium',
-              'value_private_party_medium_notes',
-              'value_private_party_high',
-              'value_private_party_high_notes',
-              'pricing_confidence',
-              'pricing_notes',
-            ],
-          },
-        },
-      },
-    }),
-  });
-
-  if (!response.ok) return null;
-  const data = await response.json();
-  const text = extractOpenAIText(data);
-  try {
-    const parsed = JSON.parse(text) as Partial<SingleAiResult>;
-    return normalizePrivatePartyPricing(parsed);
-  } catch {
-    return null;
-  }
-}
-
-function blendPricingRanges(
-  primary: { low: number; medium: number; high: number },
-  secondary: { low: number; medium: number; high: number },
-  primaryWeight = 0.65
-): { low: number; medium: number; high: number } {
-  const secondaryWeight = 1 - primaryWeight;
-  const low = Math.round(primary.low * primaryWeight + secondary.low * secondaryWeight);
-  const medium = Math.round(primary.medium * primaryWeight + secondary.medium * secondaryWeight);
-  const high = Math.round(primary.high * primaryWeight + secondary.high * secondaryWeight);
-  return {
-    low: Math.min(low, high),
-    medium: Math.min(Math.max(medium, Math.min(low, high)), Math.max(low, high)),
-    high: Math.max(low, high),
-  };
-}
-
-async function getRealisticPrivatePartyPricing(
-  base: SingleAiResult,
-  env: Env
-): Promise<Partial<SingleAiResult> | null> {
-  const reverb = await fetchReverbPricingContext(base, env);
-  const reverbRange = reverb.ok ? rangeFromReverbComps(reverb.comps, base) : null;
-
-  if (reverbRange) {
-    const aiContextRange = await runOpenAIPrivatePartyPricingWithContext(base, env, reverb);
-    const aiLow = normalizeMoneyValue(aiContextRange?.value_private_party_low);
-    const aiMedium = normalizeMoneyValue(aiContextRange?.value_private_party_medium);
-    const aiHigh = normalizeMoneyValue(aiContextRange?.value_private_party_high);
-    const merged = (aiLow != null && aiMedium != null && aiHigh != null)
-      ? blendPricingRanges(reverbRange, { low: aiLow, medium: aiMedium, high: aiHigh }, 0.7)
-      : reverbRange;
-
-    return {
-      value_private_party_low: merged.low,
-      value_private_party_low_notes: `Reverb-backed low estimate from ${reverb.comps.length} matched listings.`,
-      value_private_party_medium: merged.medium,
-      value_private_party_medium_notes: `Conservative private-party midpoint derived from Reverb context${aiContextRange ? ' + AI normalization' : ''}.`,
-      value_private_party_high: merged.high,
-      value_private_party_high_notes: `Upper end for private-party sale, not retail ask; assumes condition/functionality as represented.`,
-      pricing_source: `Reverb${aiContextRange ? ' + AI' : ''}`,
-      pricing_confidence: reverbRange.confidence,
-      pricing_comp_count: reverb.comps.length,
-      pricing_notes: `${reverbRange.notes} Queries: "${reverb.query}". Matches: ${summarizeReverbMatchesInline(reverb.comps)}${reverb.baseComps?.length ? ` Base-floor matches: ${summarizeReverbMatchesInline(reverb.baseComps)}` : ''}.`,
-      value_online_notes: `Reverb queries: "${reverb.query}". Matches used for context: ${reverb.comps.length}. Active listing prices were discounted for local private-party realism, plus uncertainty/liquidity risk. ${reverb.attempts?.length ? `Attempts: ${reverb.attempts.map((a) => `${a.label} raw:${a.rawCount} picked:${a.pickedCount} strong:${a.strongCount}`).join('; ')}.` : ''}`,
-    };
-  }
-
-  const fallbackRaw = await runOpenAIPrivatePartyPricing(base, env);
-  const fallback = fallbackRaw ? clampFallbackPricingForWeakReverb(fallbackRaw, base, reverb) : null;
-  if (!fallback) return null;
-  return {
-    ...fallback,
-    pricing_source: reverb.ok ? 'Reverb attempted + AI fallback' : 'AI fallback (Reverb error)',
-    pricing_confidence: reverb.ok ? 'Low' : 'Low',
-    pricing_comp_count: reverb.comps.length,
-    pricing_notes: reverb.ok
-      ? `Reverb queries "${reverb.query}" returned no strong matches; used conservative AI fallback${isNicheElectronicsListing(base) ? ' with niche-feature cap' : ''}. ${reverb.baseComps?.length ? `Base-floor matches: ${summarizeReverbMatchesInline(reverb.baseComps)}.` : ''} ${reverb.attempts?.length ? `Attempts: ${reverb.attempts.map((a) => `${a.label} raw:${a.rawCount} picked:${a.pickedCount} strong:${a.strongCount}`).join('; ')}.` : ''}`.trim()
-      : `Reverb failed (${reverb.error || 'unknown error'}); used conservative AI fallback.`,
-    value_online_notes: `Reverb ${reverb.ok ? 'returned weak/insufficient matches' : `error: ${reverb.error || 'unknown error'}`}. Fallback is AI estimate and should be treated as lower confidence.`,
-  };
-}
-
-async function runOpenAIPrivatePartyPricing(
-  base: SingleAiResult,
-  env: Env
-): Promise<Partial<SingleAiResult> | null> {
-  if (!env.OPENAI_API_KEY) return null;
-  const prompt = buildSinglePricingPrompt(base);
-
-  const content: any[] = [{ type: 'input_text', text: prompt }];
-
-  const response = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o',
-      input: [{ role: 'user', content }],
-      temperature: 0.2,
-      max_output_tokens: 800,
-      text: {
-        format: {
-          type: 'json_schema',
-          name: 'private_party_fallback',
-          schema: {
-            type: 'object',
-            additionalProperties: false,
-            properties: {
-              value_private_party_low: { type: ['number', 'string', 'null'] },
-              value_private_party_low_notes: { type: 'string' },
-              value_private_party_medium: { type: ['number', 'string', 'null'] },
-              value_private_party_medium_notes: { type: 'string' },
-              value_private_party_high: { type: ['number', 'string', 'null'] },
-              value_private_party_high_notes: { type: 'string' },
-            },
-            required: [
-              'value_private_party_low',
-              'value_private_party_low_notes',
-              'value_private_party_medium',
-              'value_private_party_medium_notes',
-              'value_private_party_high',
-              'value_private_party_high_notes',
-            ],
-          },
-        },
-      },
-    }),
-  });
-
-  if (!response.ok) return null;
-  const data = await response.json();
-  const text = extractOpenAIText(data);
-  try {
-    const parsed = JSON.parse(text) as Partial<SingleAiResult>;
-    return normalizePrivatePartyPricing(parsed);
-  } catch {
-    return null;
-  }
-}
-
-async function runOpenAIMultiRangePricing(
-  listing: ListingData,
-  aiSummary: string,
-  env: Env
-): Promise<{ low: number; high: number } | null> {
-  if (!env.OPENAI_API_KEY) return null;
-
-  const redactedListing: ListingData = {
-    title: redactPricingInput(listing.title || ''),
-    description: redactPricingInput(listing.description || ''),
-    location: listing.location || '',
-  };
-  const redactedSummary = redactPricingInput(aiSummary || '');
-  const prompt = buildMultiPricingPrompt(redactedListing, redactedSummary);
-
-  const content: any[] = [{ type: 'input_text', text: prompt }];
-
-  const response = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o',
-      input: [{ role: 'user', content }],
-      temperature: 0.2,
-      max_output_tokens: 600,
-      text: {
-        format: {
-          type: 'json_schema',
-          name: 'multi_range_pricing',
-          schema: {
-            type: 'object',
-            additionalProperties: false,
-            properties: {
-              used_market_low_total: { type: ['number', 'string', 'null'] },
-              used_market_high_total: { type: ['number', 'string', 'null'] },
-            },
-            required: ['used_market_low_total', 'used_market_high_total'],
-          },
-        },
-      },
-    }),
-  });
-
-  if (!response.ok) return null;
-  const data = await response.json();
-  const text = extractOpenAIText(data);
-  try {
-    const parsed = JSON.parse(text) as { used_market_low_total?: unknown; used_market_high_total?: unknown };
-    const low = normalizeMoneyValue(parsed.used_market_low_total);
-    const high = normalizeMoneyValue(parsed.used_market_high_total);
-    if (low == null || high == null) return null;
-    return low <= high ? { low, high } : { low: high, high: low };
-  } catch {
-    return null;
-  }
-}
-
-function applyMultiRangeToSummary(aiSummary: string, low: number, high: number): string {
-  const withTotals = ensureMultiTotals(aiSummary);
-  const line = `- Used market range for all: ${formatCurrency(low)} to ${formatCurrency(high)}`;
-  if (/- Used market range for all:[^\n]*/i.test(withTotals)) {
-    return withTotals.replace(/- Used market range for all:[^\n]*/i, line);
-  }
-  return `${withTotals.trim()}\n${line}`.trim();
 }
 
 function redactPriceSignals(input: string): string {
