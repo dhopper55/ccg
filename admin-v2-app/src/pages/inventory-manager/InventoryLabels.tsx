@@ -53,8 +53,7 @@ const InventoryLabels = () => {
         params.set('sortBy', 'created_at');
         params.set('sortDir', 'asc');
         params.set('onlyMarked', '1');
-        params.set('active', '0');
-        params.set('sold', '0');
+        params.set('active', '1');
 
         const response = await fetch(`/api/inventory?${params.toString()}`, {
           method: 'GET',
