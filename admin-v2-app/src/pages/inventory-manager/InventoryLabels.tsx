@@ -78,7 +78,7 @@ const InventoryLabels = () => {
         const posDefaults: Record<string, number> = {};
         for (const item of items) {
           defaults[item.id] = 1;
-          posDefaults[item.id] = 1;
+          posDefaults[item.id] = 0;
         }
         setPrintCounts(defaults);
         setFirstPositions(posDefaults);
@@ -288,10 +288,11 @@ const InventoryLabels = () => {
                   <Box sx={{ width: 90, display: 'flex', justifyContent: 'center' }}>
                     <Select
                       size="small"
-                      value={firstPositions[record.id] || 1}
+                      value={firstPositions[record.id] ?? 0}
                       onChange={(e) => setFirstPositions((prev) => ({ ...prev, [record.id]: Number(e.target.value) }))}
                       sx={{ minWidth: 60 }}
                     >
+                      <MenuItem value={0}>Auto</MenuItem>
                       {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
                         <MenuItem key={n} value={n}>{n}</MenuItem>
                       ))}
@@ -301,10 +302,11 @@ const InventoryLabels = () => {
                     {(printCounts[record.id] || 1) >= 2 ? (
                       <Select
                         size="small"
-                        value={secondPositions[record.id] || 1}
+                        value={secondPositions[record.id] ?? 0}
                         onChange={(e) => setSecondPositions((prev) => ({ ...prev, [record.id]: Number(e.target.value) }))}
                         sx={{ minWidth: 60 }}
                       >
+                        <MenuItem value={0}>Auto</MenuItem>
                         {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
                           <MenuItem key={n} value={n}>{n}</MenuItem>
                         ))}
