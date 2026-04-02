@@ -268,11 +268,14 @@ function toAbsolutePublicUrl(url: string): string {
   return url;
 }
 
-function buildAiQueryText(fields: Record<string, unknown>, imageUrls: string[]): string {
-  if (imageUrls.length === 0) return '';
+function buildAiQueryTexts(fields: Record<string, unknown>, imageUrls: string[]): string[] {
+  if (imageUrls.length === 0) return [];
 
-  const publicUrls = imageUrls.map(toAbsolutePublicUrl);
-  let text = `What is this and what's it worth? ${publicUrls.join(', ')}.`;
+  const publicUrls = imageUrls.slice(0, 9).map(toAbsolutePublicUrl);
+  const chunks: string[][] = [];
+  for (let i = 0; i < publicUrls.length; i += 3) {
+    chunks.push(publicUrls.slice(i, i + 3));
+  }
 
   const rawBrand = typeof fields.brand === 'string' ? fields.brand.trim() : '';
   const rawModel = typeof fields.model === 'string' ? fields.model.trim() : '';
@@ -288,13 +291,19 @@ function buildAiQueryText(fields: Record<string, unknown>, imageUrls: string[]):
     !/^Unknown$/i.test(rawModel) &&
     !/^Guess:/i.test(rawModel);
 
+  let brandSuffix = '';
   if (isDefinitiveBrand && isDefinitiveModel) {
     const brand = rawBrand.replace(/\s+/g, ' ').trim();
     const model = rawModel.replace(/\s+/g, ' ').trim();
-    text += ` I think it is a ${brand} ${model}, but I could be wrong.`;
+    brandSuffix = ` I think it is a ${brand} ${model}, but I could be wrong.`;
   }
 
-  return text;
+  const texts: string[] = [];
+  texts.push(`What is this and what's it worth? ${chunks[0].join(', ')}.${brandSuffix}`);
+  for (let i = 1; i < chunks.length; i++) {
+    texts.push(`Here are some additional images: ${chunks[i].join(', ')}.`);
+  }
+  return texts;
 }
 
 function buildDoubleCheckQuery(
@@ -693,15 +702,16 @@ const ListingEvaluatorItem = () => {
     setCurrentImageIndex((prev) => (prev < imageCandidates.length - 1 ? prev + 1 : 0));
   }, [imageCandidates.length]);
 
-  const aiQueryText = useMemo(() => buildAiQueryText(fields, imageCandidates), [fields, imageCandidates]);
-  const [aiCopied, setAiCopied] = useState(false);
-  const handleAiQueryCopy = useCallback(() => {
-    if (!aiQueryText) return;
-    void navigator.clipboard.writeText(aiQueryText).then(() => {
-      setAiCopied(true);
-      setTimeout(() => setAiCopied(false), 2000);
+  const aiQueryTexts = useMemo(() => buildAiQueryTexts(fields, imageCandidates), [fields, imageCandidates]);
+  const [aiCopiedIndex, setAiCopiedIndex] = useState<number | null>(null);
+  const handleAiQueryCopy = useCallback((index: number) => {
+    const text = aiQueryTexts[index];
+    if (!text) return;
+    void navigator.clipboard.writeText(text).then(() => {
+      setAiCopiedIndex(index);
+      setTimeout(() => setAiCopiedIndex(null), 2000);
     });
-  }, [aiQueryText]);
+  }, [aiQueryTexts]);
 
   const googleQuery = buildDoubleCheckQuery(fields);
   const googleGuitarQuery = buildDoubleCheckQuery(fields, { includeGuitar: true });
@@ -763,25 +773,21 @@ const ListingEvaluatorItem = () => {
       { label: 'Pricing Source', value: normalizeValue(fields.pricing_source) },
       { label: 'Pricing Confidence', value: normalizeValue(fields.pricing_confidence) },
       { label: 'Pricing Comp Count', value: normalizeValue(fields.pricing_comp_count) },
-      ...(aiQueryText
-        ? [
-            {
-              label: 'AI Query Copy',
-              value: (
-                <Tooltip title={aiCopied ? 'Copied!' : 'Copy AI query to clipboard'}>
-                  <IconButton size="small" onClick={handleAiQueryCopy} sx={{ ml: -1 }}>
-                    <IconifyIcon
-                      icon={aiCopied ? 'material-symbols:check-rounded' : 'material-symbols:content-copy-outline-rounded'}
-                      sx={{ fontSize: 18, color: aiCopied ? 'success.main' : 'text.secondary' }}
-                    />
-                  </IconButton>
-                </Tooltip>
-              ),
-            },
-          ]
-        : []),
+      ...aiQueryTexts.map((_, index) => ({
+        label: index === 0 ? 'AI Query Copy' : `AI Query Copy ${index + 1}`,
+        value: (
+          <Tooltip title={aiCopiedIndex === index ? 'Copied!' : 'Copy AI query to clipboard'}>
+            <IconButton size="small" onClick={() => handleAiQueryCopy(index)} sx={{ ml: -1 }}>
+              <IconifyIcon
+                icon={aiCopiedIndex === index ? 'material-symbols:check-rounded' : 'material-symbols:content-copy-outline-rounded'}
+                sx={{ fontSize: 18, color: aiCopiedIndex === index ? 'success.main' : 'text.secondary' }}
+              />
+            </IconButton>
+          </Tooltip>
+        ),
+      })),
     ],
-    [aiCopied, aiQueryText, askingPrice, fields.pricing_comp_count, fields.pricing_confidence, fields.pricing_source, handleAiQueryCopy, idealPrice, privateRange],
+    [aiCopiedIndex, aiQueryTexts, askingPrice, fields.pricing_comp_count, fields.pricing_confidence, fields.pricing_source, handleAiQueryCopy, idealPrice, privateRange],
   );
 
   const singleDetailItems = useMemo<DetailItem[]>(() => {
