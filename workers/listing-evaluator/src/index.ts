@@ -2270,6 +2270,10 @@ type InventoryItemRow = {
   sold_amount: number | null;
   sell_notes: string | null;
   subscription_id: number | null;
+  sale_url: string | null;
+  sale_zip: string | null;
+  storage_location: string | null;
+  sold_channel: string | null;
   created_at: string | null;
   updated_at: string | null;
   group_count?: number | null;
@@ -3684,6 +3688,10 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const soldAmount = parseCurrencyAmount(body.soldAmount);
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
   const subscriptionId = parseOptionalPositiveInt(body.subscriptionId);
+  const saleUrl = normalizeText(body.saleUrl, '').slice(0, 150);
+  const saleZip = normalizeText(body.saleZip, '').slice(0, 10);
+  const storageLocation = normalizeText(body.storageLocation, '').slice(0, 100);
+  const soldChannel = normalizeText(body.soldChannel, '').slice(0, 100);
 
   let imageUrls: string[];
   try {
@@ -3761,6 +3769,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     width_12_fret: width12Fret || null,
     fretboard_radius: fretboardRadius || null,
     twelve_fret_action: twelveFretAction || null,
+    storage_location: storageLocation || null,
   }, env);
   if (!sharedUpdateOk) return jsonResponse({ message: 'Unable to update inventory items.' }, 500);
   const itemIds = await dbListInventoryItemIdsByCcgNumber(currentCcgNumber, env);
@@ -3800,6 +3809,9 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     sold_amount: soldAmount,
     sell_notes: sellNotes || null,
     subscription_id: subscriptionId ?? null,
+    sale_url: saleUrl || null,
+    sale_zip: saleZip || null,
+    sold_channel: soldChannel || null,
   }, env);
   if (!selectedRowSaleOk) return jsonResponse({ message: 'Unable to update selected inventory unit.' }, 500);
 
@@ -5283,6 +5295,10 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.sold_amount,
       i.sell_notes,
       i.subscription_id,
+      i.sale_url,
+      i.sale_zip,
+      i.storage_location,
+      i.sold_channel,
       i.created_at,
       i.updated_at,
       (
@@ -5351,6 +5367,10 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     soldAmount: row.sold_amount,
     sellNotes: row.sell_notes || '',
     subscriptionId: row.subscription_id ?? null,
+    saleUrl: row.sale_url || '',
+    saleZip: row.sale_zip || '',
+    storageLocation: row.storage_location || '',
+    soldChannel: row.sold_channel || '',
     createdAt: row.created_at || '',
     updatedAt: row.updated_at || '',
   };
@@ -5722,6 +5742,7 @@ async function dbUpdateInventorySharedByCcgNumber(
     width_12_fret: string | null;
     fretboard_radius: string | null;
     twelve_fret_action: string | null;
+    storage_location: string | null;
   },
   env: Env
 ): Promise<boolean> {
@@ -5733,6 +5754,7 @@ async function dbUpdateInventorySharedByCcgNumber(
          secondary_category_id = ?,
          repair_notes = ?, original_listing_desc = ?, purchased_date = ?, purchase_price = ?, private_party_value = ?, purchase_notes = ?,
          serial_number = ?, weight_lbs = ?, neck_profile = ?, neck_thickness = ?, nut_width = ?, width_12_fret = ?, fretboard_radius = ?, twelve_fret_action = ?,
+         storage_location = ?,
          updated_at = CURRENT_TIMESTAMP
        WHERE ccg_number = ?`
     ).bind(
@@ -5759,6 +5781,7 @@ async function dbUpdateInventorySharedByCcgNumber(
       fields.width_12_fret,
       fields.fretboard_radius,
       fields.twelve_fret_action,
+      fields.storage_location,
       ccgNumber,
     ).run();
     return true;
@@ -5821,6 +5844,9 @@ async function dbUpdateInventorySaleById(
     sold_amount: number | null;
     sell_notes: string | null;
     subscription_id: number | null;
+    sale_url: string | null;
+    sale_zip: string | null;
+    sold_channel: string | null;
   },
   env: Env,
 ): Promise<boolean> {
@@ -5832,6 +5858,7 @@ async function dbUpdateInventorySaleById(
        SET
          source_listing_id = ?, video_url = ?, sale_title = ?, regular_price = ?, sale_price = ?, "condition" = ?, sale_description = ?,
          is_sold = ?, sold_date = ?, sold_amount = ?, sell_notes = ?, subscription_id = ?,
+         sale_url = ?, sale_zip = ?, sold_channel = ?,
          updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
     ).bind(
@@ -5847,6 +5874,9 @@ async function dbUpdateInventorySaleById(
       fields.sold_amount,
       fields.sell_notes,
       fields.subscription_id,
+      fields.sale_url,
+      fields.sale_zip,
+      fields.sold_channel,
       idValue,
     ).run();
     return true;

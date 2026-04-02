@@ -145,6 +145,10 @@ type FormState = {
   soldAmount: string;
   sellNotes: string;
   subscriptionId: string;
+  saleUrl: string;
+  saleZip: string;
+  storageLocation: string;
+  soldChannel: string;
 };
 
 const INVENTORY_MAX_IMAGES = 20;
@@ -257,6 +261,10 @@ const DEFAULT_FORM: FormState = {
   soldAmount: '',
   sellNotes: '',
   subscriptionId: '',
+  saleUrl: '',
+  saleZip: '',
+  storageLocation: '',
+  soldChannel: '',
 };
 
 const notesFieldSx = {
@@ -426,6 +434,10 @@ const InventoryItem = () => {
             soldAmount: record.soldAmount != null ? String(record.soldAmount) : '',
             sellNotes: record.sellNotes || '',
             subscriptionId: record.subscriptionId != null ? String(record.subscriptionId) : '',
+            saleUrl: record.saleUrl || '',
+            saleZip: record.saleZip || '',
+            storageLocation: record.storageLocation || '',
+            soldChannel: record.soldChannel || '',
           });
 
           const existingImages = Array.isArray(record.images) && record.images.length
@@ -570,6 +582,10 @@ const InventoryItem = () => {
     soldAmount: form.soldAmount.trim(),
     sellNotes: form.sellNotes.trim(),
     subscriptionId: form.subscriptionId || null,
+    saleUrl: form.saleUrl.trim(),
+    saleZip: form.saleZip.trim(),
+    storageLocation: form.storageLocation || null,
+    soldChannel: form.soldChannel || null,
   });
 
   const persistImages = async (
@@ -1181,16 +1197,6 @@ const InventoryItem = () => {
               <Grid size={12}>
                 <TextField
                   fullWidth
-                  label="Serial Number"
-                  value={form.serialNumber}
-                  onChange={(event) => setField('serialNumber', event.target.value)}
-                  inputProps={{ maxLength: 180 }}
-                />
-              </Grid>
-
-              <Grid size={12}>
-                <TextField
-                  fullWidth
                   label="Title"
                   value={form.title}
                   onChange={(event) => setField('title', event.target.value)}
@@ -1267,6 +1273,30 @@ const InventoryItem = () => {
                   onChange={(event) => setField('finish', event.target.value)}
                   inputProps={{ maxLength: 120 }}
                 />
+              </Grid>
+
+              <Grid size={{ xs: 12, md: 6 }}>
+                <TextField
+                  fullWidth
+                  label="Serial Number"
+                  value={form.serialNumber}
+                  onChange={(event) => setField('serialNumber', event.target.value)}
+                  inputProps={{ maxLength: 180 }}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <TextField
+                  select
+                  fullWidth
+                  label="Storage Location"
+                  value={form.storageLocation}
+                  onChange={(event) => setField('storageLocation', event.target.value)}
+                >
+                  <MenuItem value=""><em>None</em></MenuItem>
+                  <MenuItem value="Extra Space 23225">Extra Space 23225</MenuItem>
+                  <MenuItem value="Cellar">Cellar</MenuItem>
+                  <MenuItem value="Garage">Garage</MenuItem>
+                </TextField>
               </Grid>
 
               <Grid size={12}>
@@ -1475,6 +1505,24 @@ const InventoryItem = () => {
                           sx={notesFieldSx}
                         />
                       </Grid>
+                      <Grid size={{ xs: 12, md: 8 }}>
+                        <TextField
+                          fullWidth
+                          label="Sale URL"
+                          value={form.saleUrl}
+                          onChange={(event) => setField('saleUrl', event.target.value)}
+                          inputProps={{ maxLength: 150 }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 4 }}>
+                        <TextField
+                          fullWidth
+                          label="Sale ZIP"
+                          value={form.saleZip}
+                          onChange={(event) => setField('saleZip', event.target.value)}
+                          inputProps={{ maxLength: 10 }}
+                        />
+                      </Grid>
                     </Grid>
                   </Paper>
                 </Grid>
@@ -1587,6 +1635,24 @@ const InventoryItem = () => {
                   onChange={(event) => setField('soldAmount', event.target.value)}
                   inputProps={{ min: 0, step: 0.01 }}
                 />
+              </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <TextField
+                  select
+                  fullWidth
+                  label="Sold Channel"
+                  value={form.soldChannel}
+                  onChange={(event) => setField('soldChannel', event.target.value)}
+                >
+                  <MenuItem value=""><em>None</em></MenuItem>
+                  <MenuItem value="FBM">FBM</MenuItem>
+                  <MenuItem value="CL">CL</MenuItem>
+                  <MenuItem value="CCG">CCG</MenuItem>
+                  <MenuItem value="Reverb">Reverb</MenuItem>
+                  <MenuItem value="Nextdoor">Nextdoor</MenuItem>
+                  <MenuItem value="Sweetwater Gear Exchange">Sweetwater Gear Exchange</MenuItem>
+                  <MenuItem value="Other">Other</MenuItem>
+                </TextField>
               </Grid>
 
               <Grid size={12}>
