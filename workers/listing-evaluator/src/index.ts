@@ -505,6 +505,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/inventory/subscriptions' && request.method === 'GET') {
+      const response = await handleAdminV2InventorySubscriptions(env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/admin-v2/inventory/unmark-all' && request.method === 'POST') {
       const response = await handleAdminV2InventoryUnmarkAll(env);
       return withCors(response, request, env);
@@ -2264,6 +2269,7 @@ type InventoryItemRow = {
   sold_date: string | null;
   sold_amount: number | null;
   sell_notes: string | null;
+  subscription_id: number | null;
   created_at: string | null;
   updated_at: string | null;
   group_count?: number | null;
@@ -2574,6 +2580,22 @@ async function handleAdminV2InventoryCategories(env: Env): Promise<Response> {
     records,
     tree: buildInventoryCategoryTree(records),
   });
+}
+
+async function handleAdminV2InventorySubscriptions(env: Env): Promise<Response> {
+  const result = await env.DB.prepare(
+    `SELECT id, name, email, date_subscribed, date_cancelled
+     FROM ccg_inventory_subscriptions
+     ORDER BY date_subscribed DESC`
+  ).all<{ id: number; name: string; email: string; date_subscribed: string | null; date_cancelled: string | null }>();
+  const records = (result.results ?? []).map((row) => ({
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    dateSubscribed: row.date_subscribed,
+    dateCancelled: row.date_cancelled,
+  }));
+  return jsonResponse({ records });
 }
 
 async function handleShopCategories(env: Env): Promise<Response> {
@@ -3661,6 +3683,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const forSale = isSold ? false : forSaleRaw;
   const soldAmount = parseCurrencyAmount(body.soldAmount);
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
+  const subscriptionId = parseOptionalPositiveInt(body.subscriptionId);
 
   let imageUrls: string[];
   try {
@@ -3776,6 +3799,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     }),
     sold_amount: soldAmount,
     sell_notes: sellNotes || null,
+    subscription_id: subscriptionId ?? null,
   }, env);
   if (!selectedRowSaleOk) return jsonResponse({ message: 'Unable to update selected inventory unit.' }, 500);
 
@@ -5258,6 +5282,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.sold_date,
       i.sold_amount,
       i.sell_notes,
+      i.subscription_id,
       i.created_at,
       i.updated_at,
       (
@@ -5325,6 +5350,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     soldDate: row.sold_date || null,
     soldAmount: row.sold_amount,
     sellNotes: row.sell_notes || '',
+    subscriptionId: row.subscription_id ?? null,
     createdAt: row.created_at || '',
     updatedAt: row.updated_at || '',
   };
@@ -5794,6 +5820,7 @@ async function dbUpdateInventorySaleById(
     sold_date: string | null;
     sold_amount: number | null;
     sell_notes: string | null;
+    subscription_id: number | null;
   },
   env: Env,
 ): Promise<boolean> {
@@ -5804,7 +5831,7 @@ async function dbUpdateInventorySaleById(
       `UPDATE ccg_inventory_items
        SET
          source_listing_id = ?, video_url = ?, sale_title = ?, regular_price = ?, sale_price = ?, "condition" = ?, sale_description = ?,
-         is_sold = ?, sold_date = ?, sold_amount = ?, sell_notes = ?,
+         is_sold = ?, sold_date = ?, sold_amount = ?, sell_notes = ?, subscription_id = ?,
          updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
     ).bind(
@@ -5819,6 +5846,7 @@ async function dbUpdateInventorySaleById(
       fields.sold_date,
       fields.sold_amount,
       fields.sell_notes,
+      fields.subscription_id,
       idValue,
     ).run();
     return true;

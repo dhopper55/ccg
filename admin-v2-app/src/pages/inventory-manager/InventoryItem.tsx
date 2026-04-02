@@ -144,6 +144,7 @@ type FormState = {
   isSold: boolean;
   soldAmount: string;
   sellNotes: string;
+  subscriptionId: string;
 };
 
 const INVENTORY_MAX_IMAGES = 20;
@@ -255,6 +256,7 @@ const DEFAULT_FORM: FormState = {
   isSold: false,
   soldAmount: '',
   sellNotes: '',
+  subscriptionId: '',
 };
 
 const notesFieldSx = {
@@ -287,6 +289,7 @@ const InventoryItem = () => {
   );
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [categoryOptions, setCategoryOptions] = useState<InventoryCategoryOption[]>([]);
+  const [subscriptionOptions, setSubscriptionOptions] = useState<Array<{ id: string; name: string }>>([]);
 
   const mode = editId ? 'edit' : 'add';
   const pageTitle = mode === 'edit' ? 'Edit Inventory Item' : 'Add Inventory Item';
@@ -333,7 +336,22 @@ const InventoryItem = () => {
       }
     };
 
+    const loadSubscriptions = async () => {
+      try {
+        const response = await fetch('/api/admin-v2/inventory/subscriptions', {
+          method: 'GET',
+          credentials: 'same-origin',
+        });
+        const data = (await response.json()) as { records?: Array<{ id: number; name: string }> };
+        if (!response.ok || cancelled) return;
+        setSubscriptionOptions(
+          (data.records ?? []).map((r) => ({ id: String(r.id), name: r.name })),
+        );
+      } catch { /* best effort */ }
+    };
+
     void loadCategories();
+    void loadSubscriptions();
 
     return () => {
       cancelled = true;
@@ -407,6 +425,7 @@ const InventoryItem = () => {
             isSold: Boolean(record.isSold),
             soldAmount: record.soldAmount != null ? String(record.soldAmount) : '',
             sellNotes: record.sellNotes || '',
+            subscriptionId: record.subscriptionId != null ? String(record.subscriptionId) : '',
           });
 
           const existingImages = Array.isArray(record.images) && record.images.length
@@ -550,6 +569,7 @@ const InventoryItem = () => {
     twelveFretAction: form.twelveFretAction.trim(),
     soldAmount: form.soldAmount.trim(),
     sellNotes: form.sellNotes.trim(),
+    subscriptionId: form.subscriptionId || null,
   });
 
   const persistImages = async (
@@ -1368,6 +1388,24 @@ const InventoryItem = () => {
                       label="For Sale"
                     />
                   </Stack>
+
+                  <TextField
+                    select
+                    label="Subscription"
+                    value={form.subscriptionId}
+                    onChange={(event) => setField('subscriptionId', event.target.value)}
+                    size="small"
+                    sx={{ mt: 2, minWidth: 250 }}
+                  >
+                    <MenuItem value="">
+                      <em>None</em>
+                    </MenuItem>
+                    {subscriptionOptions.map((sub) => (
+                      <MenuItem key={sub.id} value={sub.id}>
+                        {sub.name}
+                      </MenuItem>
+                    ))}
+                  </TextField>
                 </Paper>
               </Grid>
 
