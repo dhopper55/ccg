@@ -121,13 +121,59 @@ const InventoryLabels = () => {
   };
 
   const handlePrint = async () => {
-    setIsPrinting(true);
     setErrorMessage('');
 
-    const items = records.map((r) => ({
-      id: r.id,
-      count: printCounts[r.id] || 1,
-    }));
+    // Collect all active position values
+    const allPositions: number[] = [];
+    let anyNonAuto = false;
+    let anyAuto = false;
+
+    for (const r of records) {
+      const count = printCounts[r.id] || 1;
+      const pos1 = firstPositions[r.id] ?? 0;
+      if (pos1 === 0) anyAuto = true; else { anyNonAuto = true; allPositions.push(pos1); }
+      if (count >= 2) {
+        const pos2 = secondPositions[r.id] ?? 0;
+        if (pos2 === 0) anyAuto = true; else { anyNonAuto = true; allPositions.push(pos2); }
+      }
+    }
+
+    // Rule 1: mixed auto and non-auto
+    if (anyAuto && anyNonAuto) {
+      setErrorMessage('Position fields must ALL be auto, or none.');
+      return;
+    }
+
+    // Rule 2: non-auto mode with more than 10 labels
+    if (anyNonAuto && totalLabels > 10) {
+      setErrorMessage('Position mode can only work when there are 10 or less labels.');
+      return;
+    }
+
+    // Rule 3: all positions must be distinct
+    if (anyNonAuto) {
+      const seen = new Set<number>();
+      for (const pos of allPositions) {
+        if (seen.has(pos)) {
+          setErrorMessage('All position values must be distinct — no duplicates allowed.');
+          return;
+        }
+        seen.add(pos);
+      }
+    }
+
+    setIsPrinting(true);
+
+    const items = records.map((r) => {
+      const count = printCounts[r.id] || 1;
+      const pos1 = firstPositions[r.id] ?? 0;
+      const pos2 = count >= 2 ? (secondPositions[r.id] ?? 0) : undefined;
+      return {
+        id: r.id,
+        count,
+        ...(anyNonAuto ? { position1: pos1, position2: pos2 } : {}),
+      };
+    });
 
     try {
       const response = await fetch('/api/admin-v2/inventory/labels.pdf', {

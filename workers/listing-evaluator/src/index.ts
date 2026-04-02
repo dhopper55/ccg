@@ -3047,20 +3047,27 @@ async function handleAdminV2InventoryLabelsPdfPost(request: Request, env: Env): 
     return jsonResponse({ message: 'No items provided.' }, 400);
   }
 
-  const itemCounts = new Map<string, number>();
+  type RawItem = { id?: unknown; count?: unknown; position1?: unknown; position2?: unknown };
+  const itemEntries: Array<{ id: string; count: number; position1: number; position2: number }> = [];
+  let hasPositions = false;
+
   for (const item of rawItems) {
-    const id = typeof item === 'object' && item != null && 'id' in item ? String((item as { id: unknown }).id) : '';
-    const count = typeof item === 'object' && item != null && 'count' in item ? Number((item as { count: unknown }).count) : 1;
-    if (id && count > 0 && count <= 10) {
-      itemCounts.set(id, count);
+    const raw = item as RawItem;
+    const id = raw.id != null ? String(raw.id) : '';
+    const count = Number(raw.count) || 1;
+    const pos1 = Number(raw.position1) || 0;
+    const pos2 = count >= 2 ? (Number(raw.position2) || 0) : 0;
+    if (id && count > 0 && count <= 2) {
+      itemEntries.push({ id, count, position1: pos1, position2: pos2 });
+      if (pos1 > 0 || pos2 > 0) hasPositions = true;
     }
   }
 
-  if (itemCounts.size === 0) {
+  if (itemEntries.length === 0) {
     return jsonResponse({ message: 'No valid items provided.' }, 400);
   }
 
-  const ids = Array.from(itemCounts.keys());
+  const ids = itemEntries.map((e) => e.id);
   const placeholders = ids.map(() => '?').join(', ');
   const dbResult = await env.DB.prepare(
     `SELECT id, ccg_number, title, image_url
@@ -3074,32 +3081,50 @@ async function handleAdminV2InventoryLabelsPdfPost(request: Request, env: Env): 
     image_url: string | null;
   }>();
 
-  const rows = (dbResult.results ?? [])
-    .map((row) => ({
-      ccgNumber: normalizeText(row.ccg_number, ''),
+  const dbRowMap = new Map<string, { ccgNumber: string; title: string; imageUrl: string }>();
+  for (const row of dbResult.results ?? []) {
+    const ccgNumber = normalizeText(row.ccg_number, '');
+    if (!ccgNumber) continue;
+    dbRowMap.set(String(row.id), {
+      ccgNumber,
       title: normalizeText(row.title, 'Untitled') || 'Untitled',
       imageUrl: normalizeText(row.image_url, ''),
-      count: itemCounts.get(String(row.id)) || 1,
-    }))
-    .filter((row) => row.ccgNumber);
+    });
+  }
 
-  if (rows.length < 1) {
+  if (dbRowMap.size < 1) {
     return jsonResponse({ message: 'No valid inventory items with a CCG number were found.' }, 400);
   }
 
-  // Expand rows by their print counts (grouped)
-  const expandedRows: InventoryLabelPdfRow[] = [];
-  for (const row of rows) {
-    for (let i = 0; i < row.count; i++) {
-      expandedRows.push({
-        ccgNumber: row.ccgNumber,
-        title: row.title,
-        imageUrl: row.imageUrl,
-      });
-    }
-  }
+  let pdfBytes: Uint8Array;
 
-  const pdfBytes = await buildInventoryLabelsPdfFromExpanded(expandedRows, env);
+  if (hasPositions) {
+    // Position mode: build a 10-slot page with labels at specific positions
+    const slots: Array<InventoryLabelPdfRow | null> = Array.from({ length: 10 }, () => null);
+    for (const entry of itemEntries) {
+      const dbRow = dbRowMap.get(entry.id);
+      if (!dbRow) continue;
+      const label: InventoryLabelPdfRow = { ccgNumber: dbRow.ccgNumber, title: dbRow.title, imageUrl: dbRow.imageUrl };
+      if (entry.position1 >= 1 && entry.position1 <= 10) {
+        slots[entry.position1 - 1] = label;
+      }
+      if (entry.count >= 2 && entry.position2 >= 1 && entry.position2 <= 10) {
+        slots[entry.position2 - 1] = label;
+      }
+    }
+    pdfBytes = await buildInventoryLabelsPdfPositioned(slots, env);
+  } else {
+    // Auto mode: expand rows by their print counts (grouped)
+    const expandedRows: InventoryLabelPdfRow[] = [];
+    for (const entry of itemEntries) {
+      const dbRow = dbRowMap.get(entry.id);
+      if (!dbRow) continue;
+      for (let i = 0; i < entry.count; i++) {
+        expandedRows.push({ ccgNumber: dbRow.ccgNumber, title: dbRow.title, imageUrl: dbRow.imageUrl });
+      }
+    }
+    pdfBytes = await buildInventoryLabelsPdfFromExpanded(expandedRows, env);
+  }
 
   return new Response(pdfBytes, {
     headers: {
@@ -10664,6 +10689,91 @@ async function buildInventoryLabelsPdf(rows: InventoryLabelPdfRow[], env: Env): 
   return assemblePdf(objects);
 }
 
+async function buildInventoryLabelsPdfPositioned(slots: Array<InventoryLabelPdfRow | null>, env: Env): Promise<Uint8Array> {
+  // Single page with 10 slots; null slots are blank
+  const pageDefinitions: PdfPageDefinition[] = [];
+  let nextObjectNumber = 6;
+
+  const images: PdfPageDefinition['images'] = [];
+  const pageRows: InventoryLabelPdfRow[] = [];
+
+  for (let index = 0; index < PDF_LABELS_PER_PAGE; index++) {
+    const slot = index < slots.length ? slots[index] : null;
+    // Always push a row (blank or real) to maintain position alignment
+    pageRows.push(slot ?? { ccgNumber: '', title: '', imageUrl: '' });
+    if (slot && slot.imageUrl) {
+      const asset = await fetchPdfImageAsset(slot.imageUrl, env);
+      if (asset) {
+        images.push({
+          name: `Im${index + 1}`,
+          objectNumber: nextObjectNumber,
+          asset,
+        });
+        nextObjectNumber += 1;
+      }
+    }
+  }
+
+  pageDefinitions.push({
+    pageObjectNumber: nextObjectNumber,
+    contentObjectNumber: nextObjectNumber + 1,
+    images,
+    rows: pageRows,
+  });
+  nextObjectNumber += 2;
+
+  const objectMap = new Map<number, Uint8Array>();
+  const encoder = new TextEncoder();
+  objectMap.set(1, encoder.encode('<< /Type /Catalog /Pages 2 0 R >>'));
+  objectMap.set(
+    2,
+    encoder.encode(
+      `<< /Type /Pages /Count ${pageDefinitions.length} /Kids [${pageDefinitions.map((page) => `${page.pageObjectNumber} 0 R`).join(' ')}] >>`,
+    ),
+  );
+  objectMap.set(3, encoder.encode('<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>'));
+  objectMap.set(4, encoder.encode('<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold >>'));
+  objectMap.set(5, encoder.encode('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'));
+
+  for (const page of pageDefinitions) {
+    for (const image of page.images) {
+      objectMap.set(image.objectNumber, buildPdfImageObject(image.asset));
+    }
+
+    const contentBytes = encoder.encode(buildInventoryLabelsPageContent(page.rows, page.images));
+    const xObjectSection = page.images.length
+      ? ` /XObject << ${page.images.map((image) => `/${image.name} ${image.objectNumber} 0 R`).join(' ')} >>`
+      : '';
+
+    objectMap.set(
+      page.pageObjectNumber,
+      encoder.encode(
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PDF_LETTER_WIDTH} ${PDF_LETTER_HEIGHT}] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >>${xObjectSection} >> /Contents ${page.contentObjectNumber} 0 R >>`,
+      ),
+    );
+    objectMap.set(
+      page.contentObjectNumber,
+      concatenatePdfParts([
+        encoder.encode(`<< /Length ${contentBytes.length} >>\nstream\n`),
+        contentBytes,
+        encoder.encode('\nendstream'),
+      ]),
+    );
+  }
+
+  const totalObjects = Math.max(...objectMap.keys());
+  const objects: Uint8Array[] = [];
+  for (let index = 1; index <= totalObjects; index += 1) {
+    const objectBytes = objectMap.get(index);
+    if (!objectBytes) {
+      throw new Error(`Missing PDF object ${index}`);
+    }
+    objects.push(objectBytes);
+  }
+
+  return assemblePdf(objects);
+}
+
 async function buildInventoryLabelsPdfFromExpanded(rows: InventoryLabelPdfRow[], env: Env): Promise<Uint8Array> {
   const pages = chunkArray(rows, PDF_LABELS_PER_PAGE);
   const pageDefinitions: PdfPageDefinition[] = [];
@@ -10751,6 +10861,9 @@ function buildInventoryLabelsPageContent(
   const imageByName = new Map(images.map((image) => [image.name, image]));
 
   rows.forEach((row, index) => {
+    // Skip blank slots (positioned mode empty positions)
+    if (!row.ccgNumber) return;
+
     const col = index % PDF_LABEL_COLUMNS;
     const rowIndex = Math.floor(index / PDF_LABEL_COLUMNS);
     const left = PDF_LABEL_MARGIN_X + col * PDF_LABEL_PITCH_X;
