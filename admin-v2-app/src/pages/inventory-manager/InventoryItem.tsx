@@ -1613,7 +1613,7 @@ const InventoryItem = () => {
                   This Unit Only
                 </Typography>
               </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
+              <Grid size={{ xs: 12, md: 4 }}>
                 <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, bgcolor: 'background.default' }}>
                   <FormControlLabel
                     control={
@@ -1626,7 +1626,7 @@ const InventoryItem = () => {
                   />
                 </Paper>
               </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
+              <Grid size={{ xs: 12, md: 4 }}>
                 <TextField
                   fullWidth
                   label="Sold Amount"
@@ -1636,7 +1636,7 @@ const InventoryItem = () => {
                   inputProps={{ min: 0, step: 0.01 }}
                 />
               </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
+              <Grid size={{ xs: 12, md: 4 }}>
                 <TextField
                   select
                   fullWidth

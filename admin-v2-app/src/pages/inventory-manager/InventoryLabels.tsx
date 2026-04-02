@@ -38,6 +38,8 @@ const InventoryLabels = () => {
   const navigate = useNavigate();
   const [records, setRecords] = useState<MarkedRecord[]>([]);
   const [printCounts, setPrintCounts] = useState<Record<string, number>>({});
+  const [firstPositions, setFirstPositions] = useState<Record<string, number>>({});
+  const [secondPositions, setSecondPositions] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isPrinting, setIsPrinting] = useState(false);
   const [isUnmarking, setIsUnmarking] = useState(false);
@@ -73,10 +75,14 @@ const InventoryLabels = () => {
         const items = Array.isArray(data.records) ? data.records : [];
         setRecords(items);
         const defaults: Record<string, number> = {};
+        const posDefaults: Record<string, number> = {};
         for (const item of items) {
           defaults[item.id] = 1;
+          posDefaults[item.id] = 1;
         }
         setPrintCounts(defaults);
+        setFirstPositions(posDefaults);
+        setSecondPositions({ ...posDefaults });
       } catch (error) {
         if (!cancelled) {
           setErrorMessage(error instanceof Error ? error.message : 'Unable to load marked items.');
@@ -198,14 +204,20 @@ const InventoryLabels = () => {
                   borderColor: 'divider',
                 }}
               >
-                <Typography variant="subtitle2" sx={{ width: 160, flexShrink: 0, fontWeight: 'bold' }}>
+                <Typography variant="subtitle2" sx={{ width: 140, flexShrink: 0, fontWeight: 'bold' }}>
                   CCG #
                 </Typography>
                 <Typography variant="subtitle2" sx={{ flex: 1, fontWeight: 'bold' }}>
                   Title
                 </Typography>
-                <Typography variant="subtitle2" sx={{ width: 100, textAlign: 'center', fontWeight: 'bold' }}>
+                <Typography variant="subtitle2" sx={{ width: 90, textAlign: 'center', fontWeight: 'bold' }}>
                   # to Print
+                </Typography>
+                <Typography variant="subtitle2" sx={{ width: 90, textAlign: 'center', fontWeight: 'bold' }}>
+                  1st Position
+                </Typography>
+                <Typography variant="subtitle2" sx={{ width: 90, textAlign: 'center', fontWeight: 'bold' }}>
+                  2nd Position
                 </Typography>
               </Stack>
 
@@ -223,7 +235,7 @@ const InventoryLabels = () => {
                     '&:last-child': { borderBottom: 0 },
                   }}
                 >
-                  <Typography variant="body2" sx={{ width: 160, flexShrink: 0 }}>
+                  <Typography variant="body2" sx={{ width: 140, flexShrink: 0 }}>
                     {record.ccgNumber}
                   </Typography>
                   <Stack direction="row" sx={{ flex: 1, alignItems: 'center', gap: 1.5, minWidth: 0 }}>
@@ -262,17 +274,42 @@ const InventoryLabels = () => {
                       {record.title}
                     </Typography>
                   </Stack>
-                  <Box sx={{ width: 100, display: 'flex', justifyContent: 'center' }}>
+                  <Box sx={{ width: 90, display: 'flex', justifyContent: 'center' }}>
                     <Select
                       size="small"
                       value={printCounts[record.id] || 1}
                       onChange={(e) => handleCountChange(record.id, Number(e.target.value))}
-                      sx={{ minWidth: 70 }}
+                      sx={{ minWidth: 60 }}
+                    >
+                      <MenuItem value={1}>1</MenuItem>
+                      <MenuItem value={2}>2</MenuItem>
+                    </Select>
+                  </Box>
+                  <Box sx={{ width: 90, display: 'flex', justifyContent: 'center' }}>
+                    <Select
+                      size="small"
+                      value={firstPositions[record.id] || 1}
+                      onChange={(e) => setFirstPositions((prev) => ({ ...prev, [record.id]: Number(e.target.value) }))}
+                      sx={{ minWidth: 60 }}
                     >
                       {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
                         <MenuItem key={n} value={n}>{n}</MenuItem>
                       ))}
                     </Select>
+                  </Box>
+                  <Box sx={{ width: 90, display: 'flex', justifyContent: 'center' }}>
+                    {(printCounts[record.id] || 1) >= 2 ? (
+                      <Select
+                        size="small"
+                        value={secondPositions[record.id] || 1}
+                        onChange={(e) => setSecondPositions((prev) => ({ ...prev, [record.id]: Number(e.target.value) }))}
+                        sx={{ minWidth: 60 }}
+                      >
+                        {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                          <MenuItem key={n} value={n}>{n}</MenuItem>
+                        ))}
+                      </Select>
+                    ) : null}
                   </Box>
                 </Stack>
               ))}
