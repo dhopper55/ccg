@@ -260,6 +260,26 @@ function formatYearRangeToken(value: string): string {
   return `${match[1]}-${match[2]}'s`;
 }
 
+const CRC32_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let j = 0; j < 8; j++) {
+      c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+    }
+    table[i] = c;
+  }
+  return table;
+})();
+
+function crc32(data: Uint8Array): number {
+  let crc = 0xFFFFFFFF;
+  for (let i = 0; i < data.length; i++) {
+    crc = CRC32_TABLE[(crc ^ data[i]) & 0xFF] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
 function toAbsolutePublicUrl(url: string): string {
   // Convert R2-backed listing image URLs to the public R2 domain (bypasses Cloudflare bot protection)
   const listingImageMatch = url.match(/\/api\/listing-image\?key=(.+)/);
@@ -706,6 +726,143 @@ const ListingEvaluatorItem = () => {
     setCurrentImageIndex((prev) => (prev < imageCandidates.length - 1 ? prev + 1 : 0));
   }, [imageCandidates.length]);
 
+  const [imageCopied, setImageCopied] = useState(false);
+  const handleCopyImage = useCallback(async () => {
+    if (!currentImageUrl) return;
+    try {
+      const response = await fetch(currentImageUrl);
+      const blob = await response.blob();
+      const pngBlob = blob.type === 'image/png'
+        ? blob
+        : await new Promise<Blob>((resolve) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              canvas.width = img.naturalWidth;
+              canvas.height = img.naturalHeight;
+              canvas.getContext('2d')!.drawImage(img, 0, 0);
+              canvas.toBlob((b) => resolve(b!), 'image/png');
+            };
+            img.src = URL.createObjectURL(blob);
+          });
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': pngBlob }),
+      ]);
+      setImageCopied(true);
+      setTimeout(() => setImageCopied(false), 2000);
+    } catch { /* Clipboard API may not be available */ }
+  }, [currentImageUrl]);
+
+  const [isDownloadingZip, setIsDownloadingZip] = useState(false);
+  const handleDownloadZip = useCallback(async () => {
+    if (imageCandidates.length === 0) return;
+    setIsDownloadingZip(true);
+    try {
+      const files: Array<{ name: string; data: Uint8Array }> = [];
+      for (let i = 0; i < imageCandidates.length; i++) {
+        const url = buildImageSrc(imageCandidates[i], listingUrl);
+        try {
+          const res = await fetch(url);
+          if (!res.ok) continue;
+          const buf = await res.arrayBuffer();
+          const ct = res.headers.get('content-type') || '';
+          const ext = ct.includes('png') ? 'png' : ct.includes('webp') ? 'webp' : 'jpg';
+          files.push({ name: `image-${i + 1}.${ext}`, data: new Uint8Array(buf) });
+        } catch { /* skip failed images */ }
+      }
+      if (files.length === 0) return;
+
+      // Build uncompressed ZIP
+      const encoder = new TextEncoder();
+      const parts: Uint8Array[] = [];
+      const directory: Array<{ offset: number; header: Uint8Array }> = [];
+
+      for (const file of files) {
+        const nameBytes = encoder.encode(file.name);
+        const localHeader = new Uint8Array(30 + nameBytes.length);
+        const view = new DataView(localHeader.buffer);
+        view.setUint32(0, 0x04034b50, true); // local file header signature
+        view.setUint16(4, 20, true); // version needed
+        view.setUint16(6, 0, true); // flags
+        view.setUint16(8, 0, true); // compression: store
+        view.setUint16(10, 0, true); // mod time
+        view.setUint16(12, 0, true); // mod date
+        const crc = crc32(file.data);
+        view.setUint32(14, crc, true);
+        view.setUint32(18, file.data.length, true); // compressed size
+        view.setUint32(22, file.data.length, true); // uncompressed size
+        view.setUint16(26, nameBytes.length, true);
+        view.setUint16(28, 0, true); // extra field length
+        localHeader.set(nameBytes, 30);
+
+        const offset = parts.reduce((s, p) => s + p.length, 0);
+        const centralHeader = new Uint8Array(46 + nameBytes.length);
+        const cView = new DataView(centralHeader.buffer);
+        cView.setUint32(0, 0x02014b50, true);
+        cView.setUint16(4, 20, true);
+        cView.setUint16(6, 20, true);
+        cView.setUint16(8, 0, true);
+        cView.setUint16(10, 0, true);
+        cView.setUint16(12, 0, true);
+        cView.setUint16(14, 0, true);
+        cView.setUint32(16, crc, true);
+        cView.setUint32(20, file.data.length, true);
+        cView.setUint32(24, file.data.length, true);
+        cView.setUint16(28, nameBytes.length, true);
+        cView.setUint16(30, 0, true);
+        cView.setUint16(32, 0, true);
+        cView.setUint16(34, 0, true);
+        cView.setUint16(36, 0, true);
+        cView.setUint32(38, 0, true);
+        cView.setUint32(42, offset, true);
+        centralHeader.set(nameBytes, 46);
+
+        directory.push({ offset, header: centralHeader });
+        parts.push(localHeader);
+        parts.push(file.data);
+      }
+
+      const centralStart = parts.reduce((s, p) => s + p.length, 0);
+      for (const entry of directory) {
+        parts.push(entry.header);
+      }
+      const centralSize = parts.reduce((s, p) => s + p.length, 0) - centralStart;
+
+      const endRecord = new Uint8Array(22);
+      const eView = new DataView(endRecord.buffer);
+      eView.setUint32(0, 0x06054b50, true);
+      eView.setUint16(4, 0, true);
+      eView.setUint16(6, 0, true);
+      eView.setUint16(8, directory.length, true);
+      eView.setUint16(10, directory.length, true);
+      eView.setUint32(12, centralSize, true);
+      eView.setUint32(16, centralStart, true);
+      eView.setUint16(20, 0, true);
+      parts.push(endRecord);
+
+      const totalSize = parts.reduce((s, p) => s + p.length, 0);
+      const zipBuffer = new Uint8Array(totalSize);
+      let pos = 0;
+      for (const part of parts) {
+        zipBuffer.set(part, pos);
+        pos += part.length;
+      }
+
+      const blob = new Blob([zipBuffer], { type: 'application/zip' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `listing-images-${record?.id || 'unknown'}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } finally {
+      setIsDownloadingZip(false);
+    }
+  }, [imageCandidates, listingUrl, record]);
+
   const aiQueryTexts = useMemo(() => buildAiQueryTexts(fields, imageCandidates), [fields, imageCandidates]);
   const [aiCopiedIndex, setAiCopiedIndex] = useState<number | null>(null);
   const handleAiQueryCopy = useCallback((index: number) => {
@@ -1128,6 +1285,51 @@ const ListingEvaluatorItem = () => {
                                 }}
                               />
                             </Link>
+                            <Stack
+                              direction="row"
+                              sx={{
+                                position: 'absolute',
+                                bottom: 8,
+                                right: 8,
+                                gap: 0.5,
+                              }}
+                            >
+                              {imageCandidates.length > 1 && (
+                                <Tooltip title={isDownloadingZip ? 'Downloading…' : 'Download all images as ZIP'}>
+                                  <IconButton
+                                    size="small"
+                                    onClick={handleDownloadZip}
+                                    disabled={isDownloadingZip}
+                                    sx={{
+                                      bgcolor: 'rgba(0,0,0,0.55)',
+                                      color: 'common.white',
+                                      '&:hover': { bgcolor: 'rgba(0,0,0,0.75)' },
+                                    }}
+                                  >
+                                    <IconifyIcon
+                                      icon={isDownloadingZip ? 'material-symbols:hourglass-top-rounded' : 'material-symbols:folder-zip-outline-rounded'}
+                                      sx={{ fontSize: 18 }}
+                                    />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
+                              <Tooltip title={imageCopied ? 'Copied!' : 'Copy image'}>
+                                <IconButton
+                                  size="small"
+                                  onClick={handleCopyImage}
+                                  sx={{
+                                    bgcolor: 'rgba(0,0,0,0.55)',
+                                    color: 'common.white',
+                                    '&:hover': { bgcolor: 'rgba(0,0,0,0.75)' },
+                                  }}
+                                >
+                                  <IconifyIcon
+                                    icon={imageCopied ? 'material-symbols:check-rounded' : 'material-symbols:content-copy-outline-rounded'}
+                                    sx={{ fontSize: 18 }}
+                                  />
+                                </IconButton>
+                              </Tooltip>
+                            </Stack>
                             {hasMultipleImages && (
                               <Stack
                                 direction="row"
