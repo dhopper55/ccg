@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Avatar,
@@ -175,6 +175,38 @@ const ListingEvaluatorResults = () => {
     : savedView
       ? 'Saved Results'
       : 'Listing Evaluator Results';
+
+  const [copiedImageId, setCopiedImageId] = useState<string | null>(null);
+
+  const handleCopyImage = useCallback(async (imageSrc: string, rowId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    event.preventDefault();
+    try {
+      const response = await fetch(imageSrc);
+      const blob = await response.blob();
+      const pngBlob = blob.type === 'image/png'
+        ? blob
+        : await new Promise<Blob>((resolve) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              canvas.width = img.naturalWidth;
+              canvas.height = img.naturalHeight;
+              canvas.getContext('2d')!.drawImage(img, 0, 0);
+              canvas.toBlob((b) => resolve(b!), 'image/png');
+            };
+            img.src = URL.createObjectURL(blob);
+          });
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': pngBlob }),
+      ]);
+      setCopiedImageId(rowId);
+      setTimeout(() => setCopiedImageId(null), 2000);
+    } catch {
+      // Clipboard API may not be available in all contexts
+    }
+  }, []);
 
   useEffect(() => {
     document.title = `CCG Admin | ${currentViewLabel}`;
@@ -363,20 +395,44 @@ const ListingEvaluatorResults = () => {
                 >
                   <Stack direction="column" spacing={2} sx={{ minWidth: 0 }}>
                     <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start', minWidth: 0 }}>
-                      <Avatar
-                        variant="rounded"
-                        src={row.imageSrc || undefined}
-                        alt={row.title}
-                        sx={{
-                          width: 72,
-                          height: 72,
-                          borderRadius: 2.5,
-                          bgcolor: 'background.elevation1',
-                          flexShrink: 0,
-                        }}
-                      >
-                        <IconifyIcon icon="material-symbols:image-outline-rounded" />
-                      </Avatar>
+                      <Box sx={{ position: 'relative', flexShrink: 0 }}>
+                        <Avatar
+                          variant="rounded"
+                          src={row.imageSrc || undefined}
+                          alt={row.title}
+                          sx={{
+                            width: 72,
+                            height: 72,
+                            borderRadius: 2.5,
+                            bgcolor: 'background.elevation1',
+                          }}
+                        >
+                          <IconifyIcon icon="material-symbols:image-outline-rounded" />
+                        </Avatar>
+                        {row.imageSrc && (
+                          <Tooltip title={copiedImageId === row.id ? 'Copied!' : 'Copy image'}>
+                            <IconButton
+                              size="small"
+                              onClick={(e) => handleCopyImage(row.imageSrc!, row.id, e)}
+                              sx={{
+                                position: 'absolute',
+                                bottom: 2,
+                                right: 2,
+                                width: 22,
+                                height: 22,
+                                bgcolor: 'rgba(0,0,0,0.55)',
+                                color: 'common.white',
+                                '&:hover': { bgcolor: 'rgba(0,0,0,0.75)' },
+                              }}
+                            >
+                              <IconifyIcon
+                                icon={copiedImageId === row.id ? 'material-symbols:check-rounded' : 'material-symbols:content-copy-outline-rounded'}
+                                sx={{ fontSize: 14 }}
+                              />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                      </Box>
 
                       <Box sx={{ minWidth: 0, flex: 1 }}>
                             <Link
@@ -495,20 +551,44 @@ const ListingEvaluatorResults = () => {
                     >
                       <TableCell>
                         <Stack direction="row" sx={{ gap: 2, alignItems: 'center', minWidth: 0 }}>
-                          <Avatar
-                            variant="rounded"
-                            src={row.imageSrc || undefined}
-                            alt={row.title}
-                            sx={{
-                              width: 56,
-                              height: 56,
-                              borderRadius: 2.5,
-                              bgcolor: 'background.elevation1',
-                              flexShrink: 0,
-                            }}
-                          >
-                            <IconifyIcon icon="material-symbols:image-outline-rounded" />
-                          </Avatar>
+                          <Box sx={{ position: 'relative', flexShrink: 0 }}>
+                            <Avatar
+                              variant="rounded"
+                              src={row.imageSrc || undefined}
+                              alt={row.title}
+                              sx={{
+                                width: 56,
+                                height: 56,
+                                borderRadius: 2.5,
+                                bgcolor: 'background.elevation1',
+                              }}
+                            >
+                              <IconifyIcon icon="material-symbols:image-outline-rounded" />
+                            </Avatar>
+                            {row.imageSrc && (
+                              <Tooltip title={copiedImageId === row.id ? 'Copied!' : 'Copy image'}>
+                                <IconButton
+                                  size="small"
+                                  onClick={(e) => handleCopyImage(row.imageSrc!, row.id, e)}
+                                  sx={{
+                                    position: 'absolute',
+                                    bottom: 2,
+                                    right: 2,
+                                    width: 20,
+                                    height: 20,
+                                    bgcolor: 'rgba(0,0,0,0.55)',
+                                    color: 'common.white',
+                                    '&:hover': { bgcolor: 'rgba(0,0,0,0.75)' },
+                                  }}
+                                >
+                                  <IconifyIcon
+                                    icon={copiedImageId === row.id ? 'material-symbols:check-rounded' : 'material-symbols:content-copy-outline-rounded'}
+                                    sx={{ fontSize: 12 }}
+                                  />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                          </Box>
 
                           <Box sx={{ minWidth: 0 }}>
                             <Link

@@ -213,6 +213,10 @@ function buildImageSrc(imageUrl: string, referrer?: string): string {
     if (referrer) params.set('ref', referrer);
     return new URL(`/api/image?${params.toString()}`, window.location.origin).toString();
   }
+  // Ensure /api/ paths are absolute to avoid SPA base path prefixing
+  if (cleaned.startsWith('/api/')) {
+    return new URL(cleaned, window.location.origin).toString();
+  }
   return cleaned;
 }
 
