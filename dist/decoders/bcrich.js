@@ -39,6 +39,9 @@ const FACTORY_MAP = {
 export function decodeBCRich(serial) {
     const cleaned = serial.trim().toUpperCase();
     const normalized = cleaned.replace(/[\s-]/g, '');
+    if (/^[SIFN]\d{8}$/.test(normalized)) {
+        return decodeImportLetterPrefix(normalized);
+    }
     if (/^[ACEFGHJKLMNP][0-9]{8}$/.test(normalized)) {
         return decodeMonthFactory(normalized);
     }
@@ -70,6 +73,41 @@ export function decodeBCRich(serial) {
         success: false,
         error: 'Unable to decode this B.C. Rich serial number. Known formats include: 5-digit USA neck-through (YYXXX), F7/F8/F9/F0 import serials, 8-digit date-stamp (e.g., 121XXXXX), month/factory codes like A08140023, NJ series R/P + 6 digits, Class Axe BC/B0 series, or short I-prefix import estimates (I + 5 digits).',
     };
+}
+const IMPORT_PREFIX_MAP = {
+    S: 'S-prefix (factory or series designation)',
+    I: 'I-prefix (import production)',
+    F: 'F-prefix (factory designation)',
+    N: 'N-prefix (NJ Series or import designation)',
+};
+function decodeImportLetterPrefix(serial) {
+    const prefix = serial[0];
+    const yearDigits = serial.slice(1, 3);
+    const yearNum = parseInt(yearDigits, 10);
+    const production = serial.slice(3);
+    const prefixDesc = IMPORT_PREFIX_MAP[prefix] || `${prefix}-prefix`;
+    // Year digits 00-30 map to 2000-2030; higher values could be 1990s
+    let year;
+    let yearNote;
+    if (yearNum <= 30) {
+        year = `${2000 + yearNum}`;
+        yearNote = `Digits "${yearDigits}" interpreted as ${year}`;
+    }
+    else {
+        const year2k = 2000 + yearNum;
+        const year19 = 1900 + yearNum;
+        year = `${year19} or ${year2k}`;
+        yearNote = `Digits "${yearDigits}" could indicate ${year19} or ${year2k}`;
+    }
+    const info = {
+        brand: 'B.C. Rich',
+        serialNumber: serial,
+        year,
+        factory: `Import production (${prefixDesc})`,
+        country: 'South Korea / China',
+        notes: `${prefixDesc} with 8-digit format, typical of Korean or Chinese-made B.C. Rich imports (NJ Series, Platinum Series, or similar). ${yearNote}. Production sequence: ${production}. B.C. Rich serial numbering is inconsistent across eras — confirm with headstock markings, neck pocket stamps, or country-of-origin stickers.`,
+    };
+    return { success: true, info };
 }
 function decodeMonthFactory(serial) {
     const monthCode = serial[0];

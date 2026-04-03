@@ -86,7 +86,10 @@ export function decodeSerialForBackend(brandInput: string, serialInput: string):
     };
   }
 
-  const serial = serialInput.trim();
+  // Normalize fullwidth Unicode characters (U+FF01–U+FF5E) to ASCII equivalents
+  const serial = serialInput.trim().replace(/[\uFF01-\uFF5E]/g, (ch) =>
+    String.fromCharCode(ch.charCodeAt(0) - 0xFEE0),
+  );
   if (!serial) {
     return {
       success: false,

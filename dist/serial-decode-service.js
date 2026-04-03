@@ -23,7 +23,7 @@ import { decodeOvation } from './decoders/ovation.js?version=195798';
 import { decodeCharvel } from './decoders/charvel.js?version=318815';
 import { decodeRickenbacker } from './decoders/rickenbacker.js?version=961802';
 import { decodeKramer } from './decoders/kramer.js?version=926703';
-import { decodeBCRich } from './decoders/bcrich.js?version=982980';
+import { decodeBCRich } from './decoders/bcrich.js?version=192633';
 const DECODER_MAP = {
     gibson: decodeGibson,
     epiphone: decodeEpiphone,
@@ -73,7 +73,8 @@ export function decodeSerialForBackend(brandInput, serialInput) {
             normalizedBrand,
         };
     }
-    const serial = serialInput.trim();
+    // Normalize fullwidth Unicode characters (U+FF01–U+FF5E) to ASCII equivalents
+    const serial = serialInput.trim().replace(/[\uFF01-\uFF5E]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
     if (!serial) {
         return {
             success: false,
