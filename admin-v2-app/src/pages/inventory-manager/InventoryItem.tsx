@@ -1477,20 +1477,27 @@ const InventoryItem = () => {
                       <Grid size={{ xs: 12, md: 4 }}>
                         <TextField
                           fullWidth
-                          label="Regular Price"
+                          label="Sale Price"
                           type="number"
-                          value={form.regularPrice}
-                          onChange={(event) => setField('regularPrice', event.target.value)}
+                          value={form.salePrice}
+                          onChange={(event) => {
+                            const val = event.target.value;
+                            setField('salePrice', val);
+                            const num = parseFloat(val);
+                            if (num > 0 && !form.regularPrice.trim()) {
+                              setField('regularPrice', String(Math.ceil(num * 1.2)));
+                            }
+                          }}
                           inputProps={{ min: 0, step: 0.01 }}
                         />
                       </Grid>
                       <Grid size={{ xs: 12, md: 4 }}>
                         <TextField
                           fullWidth
-                          label="Sale Price"
+                          label="Regular Price"
                           type="number"
-                          value={form.salePrice}
-                          onChange={(event) => setField('salePrice', event.target.value)}
+                          value={form.regularPrice}
+                          onChange={(event) => setField('regularPrice', event.target.value)}
                           inputProps={{ min: 0, step: 0.01 }}
                         />
                       </Grid>
