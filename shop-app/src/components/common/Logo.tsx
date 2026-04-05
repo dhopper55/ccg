@@ -17,7 +17,7 @@ const Logo = ({ sx, showName = true }: LogoProps) => {
       }}
     >
       <img
-        src="/images/coal-creek-logo.png"
+        src="https://www.coalcreekguitars.com/images/coal-creek-logo.png"
         alt="Coal Creek Guitars"
         style={{
           width: 32,
@@ -31,13 +31,14 @@ const Logo = ({ sx, showName = true }: LogoProps) => {
           sx={{
             color: 'text.primary',
             fontWeight: 700,
-            fontSize: 24,
+            fontSize: 20,
             lineHeight: 1,
             letterSpacing: '-0.02em',
+            whiteSpace: 'nowrap',
             ...sx,
           }}
         >
-          CCG Admin
+          Coal Creek Guitars
         </Typography>
       )}
     </Link>

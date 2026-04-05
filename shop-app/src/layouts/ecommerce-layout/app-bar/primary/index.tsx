@@ -1,54 +1,28 @@
 'use client';
 
-import { MouseEvent, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Box,
   Button,
   InputAdornment,
-  ListItemText,
-  Menu,
-  MenuItem,
   Stack,
   Toolbar,
   inputBaseClasses,
-  listClasses,
 } from '@mui/material';
 import MuiAppBar from '@mui/material/AppBar';
 import Grid from '@mui/material/Grid';
-import LanguageMenu from 'layouts/main-layout/common/LanguageMenu';
-import ThemeToggler from 'layouts/main-layout/common/ThemeToggler';
 import SearchTextField from 'layouts/main-layout/common/search-box/SearchTextField';
-import { kebabCase } from 'lib/utils';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
-import { useEcommerce } from 'providers/EcommerceProvider';
 import { useSettingsContext } from 'providers/SettingsProvider';
 import IconifyIcon from 'components/base/IconifyIcon';
 import Logo from 'components/common/Logo';
-import OutlinedBadge from 'components/styled/OutlinedBadge';
-import CartDrawer from './CartDrawer';
 import CategoryPopover from './CategoryPopover';
-import ProfileMenu from './ProfileMenu';
-
-const searchCategories = ['All', 'Popular', 'New', 'Discounted', 'Top Rated', 'Featured'];
 
 const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
   const categoryBtnRef = useRef<HTMLButtonElement | null>(null);
-  const [openCartDrawer, setOpenCartDrawer] = useState(false);
   const [openItem, setOpenItem] = useState(0);
-  const [searchMenuAnchorEl, setSearchMenuAnchorEl] = useState<null | HTMLElement>(null);
-  const [selectedCategory, setSelectedCategory] = useState(searchCategories[0]);
   const { up, currentBreakpoint } = useBreakpoints();
   const { handleDrawerToggle } = useSettingsContext();
-
-  const { cartItems } = useEcommerce();
-
-  const handleSearchMenuClick = (event: MouseEvent<HTMLElement>) => {
-    setSearchMenuAnchorEl(event.currentTarget);
-  };
-
-  const handleSearchMenuClose = () => {
-    setSearchMenuAnchorEl(null);
-  };
 
   return (
     <MuiAppBar>
@@ -81,37 +55,6 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
             </Stack>
           </Grid>
           <Grid
-            sx={{
-              order: { md: 1 },
-            }}
-            size="auto"
-          >
-            <Stack
-              sx={{
-                alignItems: 'center',
-                gap: 1,
-              }}
-            >
-              <LanguageMenu />
-              <ThemeToggler />
-              <OutlinedBadge color="error" overlap="circular" badgeContent={cartItems.length}>
-                <Button
-                  color="neutral"
-                  variant="soft"
-                  shape="circle"
-                  onClick={() => setOpenCartDrawer(true)}
-                >
-                  <IconifyIcon
-                    icon="material-symbols-light:shopping-cart-outline-rounded"
-                    sx={{ fontSize: 22 }}
-                  />
-                </Button>
-              </OutlinedBadge>
-
-              <ProfileMenu />
-            </Stack>
-          </Grid>
-          <Grid
             sx={{ flexGrow: { xs: 1 } }}
             size={{
               xs: 12,
@@ -136,9 +79,7 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
                     : undefined
                 }
                 ref={categoryBtnRef}
-                onClick={() => {
-                  setOpenItem(1);
-                }}
+                onClick={() => setOpenItem(1)}
                 sx={{
                   gap: 1,
                   borderRadius: 7,
@@ -147,18 +88,11 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
               >
                 <IconifyIcon
                   icon="material-symbols:apps"
-                  sx={{
-                    fontSize: 20,
-                    display: 'inline-block',
-                    width: 20,
-                    height: 20,
-                  }}
+                  sx={{ fontSize: 20, display: 'inline-block', width: 20, height: 20 }}
                 />
                 <Box
                   component="span"
-                  sx={{
-                    display: { xs: 'none', lg: 'block' },
-                  }}
+                  sx={{ display: { xs: 'none', lg: 'block' } }}
                 >
                   Category
                 </Box>
@@ -168,9 +102,7 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
                 anchorEl={categoryBtnRef.current}
                 openItem={openItem}
                 setOpenItem={setOpenItem}
-                handleClose={() => {
-                  setOpenItem(0);
-                }}
+                handleClose={() => setOpenItem(0)}
               />
 
               <Stack spacing={0.5} sx={{ width: 1, maxWidth: { lg: 602 } }}>
@@ -186,71 +118,13 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
                     border: '1px solid transparent',
                     '&:has(form:hover):not(:has(form:focus-within))': {
                       backgroundColor: 'background.elevation3',
-                      '& > button': {
-                        bgcolor: vars.palette.background.elevation3,
-                      },
                     },
                     [`&:has(.${inputBaseClasses.root}.${inputBaseClasses.focused})`]: {
                       backgroundColor: 'primary.lighter',
                       borderColor: 'primary.main',
-                      '& > button': {
-                        bgcolor: 'primary.lighter',
-                      },
                     },
                   })}
                 >
-                  <Button
-                    disableRipple
-                    color="neutral"
-                    variant="text"
-                    onClick={handleSearchMenuClick}
-                    sx={({ vars }) => ({
-                      flexShrink: 0,
-                      pr: 0.5,
-                      py: 1,
-                      borderRadius: 0,
-                      minWidth: 'auto',
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: 'text.secondary',
-                      display: { xs: 'none', md: 'flex' },
-                      transition: 'color 0.2s ease, background-color 0.2s ease',
-                      bgcolor: vars.palette.background.elevation2,
-                      '&:hover': {
-                        color: vars.palette.text.primary,
-                      },
-                    })}
-                  >
-                    {selectedCategory}
-                    <IconifyIcon
-                      icon="material-symbols:expand-more-rounded"
-                      sx={{ fontSize: 18, ml: 0.5 }}
-                    />
-                  </Button>
-                  <Menu
-                    anchorEl={searchMenuAnchorEl}
-                    open={Boolean(searchMenuAnchorEl)}
-                    onClose={handleSearchMenuClose}
-                    onClick={handleSearchMenuClose}
-                    transformOrigin={{ horizontal: 'left', vertical: 'top' }}
-                    anchorOrigin={{ horizontal: 'left', vertical: 'bottom' }}
-                    sx={{
-                      [`& .${listClasses.root}`]: {
-                        minWidth: 160,
-                      },
-                    }}
-                  >
-                    {searchCategories.map((category) => (
-                      <MenuItem
-                        key={kebabCase(category)}
-                        onClick={() => {
-                          setSelectedCategory(category);
-                        }}
-                      >
-                        <ListItemText primary={category} />
-                      </MenuItem>
-                    ))}
-                  </Menu>
                   <SearchTextField
                     component="form"
                     sx={{
@@ -259,29 +133,19 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
                         p: 0,
                         borderRadius: 0,
                         border: 'none',
-                        '&:after': {
-                          display: 'none',
-                        },
-                        '&.Mui-focused': {
-                          boxShadow: 'none',
-                        },
-                        '&.Mui-focused:hover': {
-                          bgcolor: 'transparent !important',
-                        },
-                        '&.Mui-active': {
-                          bgcolor: 'transparent !important',
-                        },
+                        '&:after': { display: 'none' },
+                        '&.Mui-focused': { boxShadow: 'none' },
+                        '&.Mui-focused:hover': { bgcolor: 'transparent !important' },
+                        '&.Mui-active': { bgcolor: 'transparent !important' },
                       },
                       [`& .${inputBaseClasses.input}`]: {
-                        pl: { xs: '16px !important', md: '8px !important' },
+                        pl: '16px !important',
                       },
                     }}
                     placeholder="Search product"
                     slotProps={{
                       input: {
-                        inputProps: {
-                          style: { fontSize: 14 },
-                        },
+                        inputProps: { style: { fontSize: 14 } },
                         startAdornment: null,
                         endAdornment: (
                           <InputAdornment position="end" sx={{ mr: 2 }}>
@@ -301,7 +165,6 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
         </Grid>
       </Toolbar>
       {children}
-      <CartDrawer open={openCartDrawer} handleClose={() => setOpenCartDrawer(false)} />
     </MuiAppBar>
   );
 };

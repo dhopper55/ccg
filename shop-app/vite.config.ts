@@ -23,6 +23,13 @@ export default ({ mode }: { mode: string }) => {
     server: {
       host: "0.0.0.0",
       port: Number(process.env.VITE_APP_PORT || 5002),
+      proxy: {
+        '/api': {
+          target: 'https://www.coalcreekguitars.com',
+          changeOrigin: true,
+          secure: true,
+        },
+      },
     },
     base,
   });

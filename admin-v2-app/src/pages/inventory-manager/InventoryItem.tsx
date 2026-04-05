@@ -9,7 +9,10 @@ import {
   Chip,
   CircularProgress,
   Dialog,
+  DialogActions,
   DialogContent,
+  DialogContentText,
+  DialogTitle,
   FormControlLabel,
   IconButton,
   MenuItem,
@@ -296,6 +299,8 @@ const InventoryItem = () => {
     null,
   );
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [wasSoldOnLoad, setWasSoldOnLoad] = useState(false);
+  const [soldConfirmOpen, setSoldConfirmOpen] = useState(false);
   const [categoryOptions, setCategoryOptions] = useState<InventoryCategoryOption[]>([]);
   const [subscriptionOptions, setSubscriptionOptions] = useState<Array<{ id: string; name: string }>>([]);
 
@@ -439,6 +444,7 @@ const InventoryItem = () => {
             storageLocation: record.storageLocation || '',
             soldChannel: record.soldChannel || '',
           });
+          setWasSoldOnLoad(Boolean(record.isSold));
 
           const existingImages = Array.isArray(record.images) && record.images.length
             ? record.images.map((image) => ({
@@ -789,7 +795,18 @@ const InventoryItem = () => {
     }
   };
 
-  const handleSubmit = async () => {
+  const handleSubmitWithSoldCheck = () => {
+    if (isSubmitting) return;
+    // If toggling sold on for the first time, confirm first
+    if (form.isSold && !wasSoldOnLoad) {
+      setSoldConfirmOpen(true);
+      return;
+    }
+    void doSubmit();
+  };
+
+  const doSubmit = async () => {
+    setSoldConfirmOpen(false);
     if (isSubmitting) return;
     if (!form.title.trim()) {
       setMessage({ severity: 'error', text: 'Title is required.' });
@@ -1673,7 +1690,7 @@ const InventoryItem = () => {
                     variant="contained"
                     color="primary"
                     disabled={isSubmitting || isUploading || isImporting}
-                    onClick={handleSubmit}
+                    onClick={handleSubmitWithSoldCheck}
                     startIcon={
                       isSubmitting ? (
                         <CircularProgress color="inherit" size={16} />
@@ -1702,6 +1719,20 @@ const InventoryItem = () => {
             />
           ) : null}
         </DialogContent>
+      </Dialog>
+      <Dialog open={soldConfirmOpen} onClose={() => setSoldConfirmOpen(false)}>
+        <DialogTitle>Mark as sold</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            You are about to mark this item sold. Parts of this process cannot be undone. Proceed?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSoldConfirmOpen(false)}>Cancel</Button>
+          <Button onClick={() => doSubmit()} color="error" variant="contained">
+            Mark Sold & Save
+          </Button>
+        </DialogActions>
       </Dialog>
     </Stack>
   );

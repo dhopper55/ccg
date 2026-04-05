@@ -31,6 +31,7 @@ const breakpointsVisibleLinks = {
 };
 
 const SecondaryAppbar = () => {
+  return null;
   const { currentBreakpoint } = useBreakpoints();
 
   const [visibleLinks, setVisibleLinks] = useState<Link[]>([]);

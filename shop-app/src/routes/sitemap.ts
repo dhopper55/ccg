@@ -1,5 +1,4 @@
 import { SxProps } from '@mui/material';
-import paths, { rootPaths } from './paths';
 
 export interface SubMenuItem {
   name: string;
@@ -15,7 +14,7 @@ export interface SubMenuItem {
 
 export interface MenuItem {
   id: string;
-  key?: string; // used for the locale
+  key?: string;
   subheader: string;
   icon: string;
   iconSx?: SxProps;
@@ -32,51 +31,41 @@ const sitemap: MenuItem[] = [
       {
         name: 'Home',
         key: 'home',
-        path: rootPaths.root,
+        path: 'https://www.coalcreekguitars.com',
         pathName: 'home',
-        icon: 'material-symbols:data-exploration-outline-rounded',
+        icon: 'material-symbols:home-outline-rounded',
         active: true,
       },
       {
-        name: 'Listing Eval Results',
-        key: 'listing_eval_results',
-        path: paths.listingEvaluatorResults,
-        pathName: 'listing-eval-results',
-        selectionPrefix: '/listing-evaluator-item',
-        icon: 'material-symbols:library-add-check-outline-rounded',
+        name: 'Serial Number Decoders',
+        key: 'serial_decoders',
+        path: 'https://www.coalcreekguitars.com/decoders/guitar-serial-decoder-lookup',
+        pathName: 'serial-decoders',
+        icon: 'material-symbols:qr-code-2-rounded',
         active: true,
       },
       {
-        name: 'Listing Eval',
-        key: 'listing_eval',
-        path: paths.listingEvaluator,
-        pathName: 'listing-eval',
-        icon: 'material-symbols:content-copy-outline-rounded',
+        name: 'Repair Videos',
+        key: 'repair_videos',
+        path: 'https://www.coalcreekguitars.com/guitar-repair-demo-lesson-videos',
+        pathName: 'repair-videos',
+        icon: 'material-symbols:play-circle-outline-rounded',
         active: true,
       },
       {
-        name: 'Inventory Manager',
-        key: 'inventory_manager',
-        path: paths.inventoryManager,
-        pathName: 'inventory-manager',
-        selectionPrefix: '/inventory-item',
-        icon: 'material-symbols:sell',
+        name: 'About Us',
+        key: 'about_us',
+        path: 'https://www.coalcreekguitars.com/about-us',
+        pathName: 'about-us',
+        icon: 'material-symbols:info-outline-rounded',
         active: true,
       },
       {
-        name: 'Serial Decodes',
-        key: 'serial_decodes',
-        path: paths.serialDecodes,
-        pathName: 'serial-decodes',
-        icon: 'material-symbols:data-table-outline-rounded',
-        active: true,
-      },
-      {
-        name: 'Serial Pattern Text',
-        key: 'serial_pattern_text',
-        path: paths.serialPatternText,
-        pathName: 'serial-pattern-text',
-        icon: 'material-symbols:notes-rounded',
+        name: 'Contact Us',
+        key: 'contact_us',
+        path: 'https://www.coalcreekguitars.com/contact-us',
+        pathName: 'contact-us',
+        icon: 'material-symbols:mail-outline-rounded',
         active: true,
       },
     ],

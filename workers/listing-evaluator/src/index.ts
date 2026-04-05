@@ -2270,6 +2270,7 @@ type InventoryItemRow = {
   sold_amount: number | null;
   sell_notes: string | null;
   subscription_id: number | null;
+  package_id: number | null;
   sale_url: string | null;
   sale_zip: string | null;
   storage_location: string | null;
@@ -3264,23 +3265,21 @@ async function handleAdminV2InventoryMergeMarked(env: Env): Promise<Response> {
   }
 
   const sourceIds = activeUnsoldMarkedRows.map((row) => row.id);
-  const sourceListingIds = Array.from(new Set(
-    activeUnsoldMarkedRows
-      .map((row) => row.source_listing_id)
-      .filter((value): value is number => Number.isFinite(value) && Number(value) > 0),
-  ));
 
-  const deletedCount = await dbDeleteInventoryItemsByIds(sourceIds, env);
-  if (deletedCount !== sourceIds.length) {
+  // Set package_id on source items and unmark them
+  const packageId = inserted.firstId;
+  try {
+    const placeholders = sourceIds.map(() => '?').join(', ');
+    await env.DB.prepare(
+      `UPDATE ccg_inventory_items SET package_id = ?, is_marked = 0, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`
+    ).bind(packageId, ...sourceIds).run();
+  } catch (error) {
+    console.error('Failed to set package_id on source items', { error });
     return jsonResponse({
-      message: `Merged item was created, but only ${deletedCount} of ${sourceIds.length} source rows were deleted. Resolve manually.`,
+      message: 'Merged item was created, but source items could not be linked. Resolve manually.',
       id: inserted.firstId,
       ccgNumber: inserted.ccgNumber,
     }, 500);
-  }
-
-  if (sourceListingIds.length > 0) {
-    await dbDeleteListingsByIds(sourceListingIds, env);
   }
 
   return jsonResponse({
@@ -3839,6 +3838,43 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     sold_channel: soldChannel || null,
   }, env);
   if (!selectedRowSaleOk) return jsonResponse({ message: 'Unable to update selected inventory unit.' }, 500);
+
+  // Sold cascade logic
+  if (becameSold) {
+    const recordIdNum = Number.parseInt(recordId, 10);
+    const currentRecord = await dbGetInventoryItem(recordId, env);
+    const currentPackageId = (currentRecord as { packageId?: number | null })?.packageId ?? null;
+
+    // Case 1: This item is a package — deactivate children
+    try {
+      await env.DB.prepare(
+        `UPDATE ccg_inventory_items SET is_active = 0, for_sale = 0, updated_at = CURRENT_TIMESTAMP WHERE package_id = ?`
+      ).bind(recordIdNum).run();
+    } catch (error) {
+      console.error('Failed to deactivate package children on sold', { error });
+    }
+
+    // Case 2: This item belongs to a package — handle package and siblings
+    if (currentPackageId != null) {
+      // Mark the package as sold and not for sale (but keep active)
+      try {
+        await env.DB.prepare(
+          `UPDATE ccg_inventory_items SET is_sold = 1, for_sale = 0, sold_date = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND COALESCE(is_sold, 0) = 0`
+        ).bind(currentPackageId).run();
+      } catch (error) {
+        console.error('Failed to mark parent package as sold', { error });
+      }
+
+      // Null out package_id for siblings still for sale, keep them active
+      try {
+        await env.DB.prepare(
+          `UPDATE ccg_inventory_items SET package_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE package_id = ? AND id != ? AND COALESCE(for_sale, 0) = 1`
+        ).bind(currentPackageId, recordIdNum).run();
+      } catch (error) {
+        console.error('Failed to unlink siblings from package', { error });
+      }
+    }
+  }
 
   await insertActivityLogBestEffort(env, {
     eventKey: becameSold ? 'inventory_marked_sold' : 'inventory_updated',
@@ -5320,6 +5356,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.sold_amount,
       i.sell_notes,
       i.subscription_id,
+      i.package_id,
       i.sale_url,
       i.sale_zip,
       i.storage_location,
@@ -5392,6 +5429,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     soldAmount: row.sold_amount,
     sellNotes: row.sell_notes || '',
     subscriptionId: row.subscription_id ?? null,
+    packageId: row.package_id ?? null,
     saleUrl: row.sale_url || '',
     saleZip: row.sale_zip || '',
     storageLocation: row.storage_location || '',

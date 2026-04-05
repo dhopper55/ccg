@@ -115,8 +115,8 @@ const NavItem = ({ item, level }: NavItemProps) => {
     <>
       <ListItem key={item.pathName} disablePadding sx={[isStackedSideNav && { mb: 0.25 }]}>
         <ListItemButton
-          component={item.items ? 'div' : NavLink}
-          to={item.path}
+          component={item.items ? 'div' : item.path?.startsWith('http') ? 'a' : NavLink}
+          {...(item.path?.startsWith('http') ? { href: item.path } : { to: item.path })}
           onClick={toggleCollapseItem}
           onMouseEnter={sidenavCollapsed ? handleMouseEnter : undefined}
           onMouseLeave={sidenavCollapsed ? handleClose : undefined}
