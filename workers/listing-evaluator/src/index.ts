@@ -134,6 +134,7 @@ const CCG_NUMBER_MIN = 100000;
 const CCG_NUMBER_MAX = 999999;
 const CCG_NUMBER_ATTEMPTS = 25;
 const INVENTORY_MAX_IMAGES = 20;
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const SERIAL_DECODE_HOURLY_LIMIT = 60;
 const SERIAL_DECODE_DUPLICATE_WINDOW_HOURS = 24;
 const SERIAL_AI_HOURLY_LIMIT = 20;
@@ -1650,13 +1651,38 @@ function buildCustomListingDescription(input: {
   return lines.join('\n');
 }
 
+function detectContentTypeFromBytes(bytes: Uint8Array): string | null {
+  if (bytes.length < 4) return null;
+  // JPEG: FF D8 FF
+  if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) return 'image/jpeg';
+  // PNG: 89 50 4E 47
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) return 'image/png';
+  // GIF: 47 49 46 38
+  if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38) return 'image/gif';
+  // WebP: 52 49 46 46 ... 57 45 42 50
+  if (bytes.length >= 12 && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) return 'image/webp';
+  // BMP: 42 4D
+  if (bytes[0] === 0x42 && bytes[1] === 0x4D) return 'image/bmp';
+  // HEIC/HEIF: bytes 4-7 = "ftyp", then brand "heic","heix","hevc","mif1" etc.
+  if (bytes.length >= 12 && bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70) {
+    const brand = String.fromCharCode(bytes[8], bytes[9], bytes[10], bytes[11]);
+    if (['heic', 'heix', 'hevc', 'hevx', 'mif1'].includes(brand)) return 'image/heic';
+  }
+  return null;
+}
+
 function extensionFromContentType(contentType: string): string {
   const normalized = contentType.toLowerCase();
   if (normalized.includes('jpeg') || normalized.includes('jpg')) return 'jpg';
   if (normalized.includes('png')) return 'png';
   if (normalized.includes('webp')) return 'webp';
   if (normalized.includes('gif')) return 'gif';
-  return 'bin';
+  if (normalized.includes('bmp')) return 'bmp';
+  if (normalized.includes('heic') || normalized.includes('heif')) return 'heic';
+  if (normalized.includes('avif')) return 'avif';
+  if (normalized.includes('svg')) return 'svg';
+  if (normalized.includes('tiff') || normalized.includes('tif')) return 'tiff';
+  return 'jpg'; // default to jpg instead of bin for image content
 }
 
 function buildCustomImageUrl(key: string): string {
@@ -1936,14 +1962,17 @@ async function handleCustomImage(request: Request, env: Env): Promise<Response> 
     return jsonResponse({ message: 'Image not found.' }, 404);
   }
 
+  const body = await object.arrayBuffer();
   const headers = new Headers();
   object.writeHttpMetadata(headers);
   headers.set('etag', object.httpEtag);
   headers.set('cache-control', 'public, max-age=86400');
-  if (!headers.get('content-type')) {
-    headers.set('content-type', 'application/octet-stream');
+  const ct = headers.get('content-type') || '';
+  if (!ct || ct === 'application/octet-stream' || ct === 'binary/octet-stream') {
+    const detected = detectContentTypeFromBytes(new Uint8Array(body));
+    headers.set('content-type', detected || 'application/octet-stream');
   }
-  return new Response(object.body, { headers });
+  return new Response(body, { headers });
 }
 
 async function handleListingImage(request: Request, env: Env): Promise<Response> {
@@ -1962,14 +1991,17 @@ async function handleListingImage(request: Request, env: Env): Promise<Response>
     return jsonResponse({ message: 'Image not found.' }, 404);
   }
 
+  const body = await object.arrayBuffer();
   const headers = new Headers();
   object.writeHttpMetadata(headers);
   headers.set('etag', object.httpEtag);
   headers.set('cache-control', 'public, max-age=86400');
-  if (!headers.get('content-type')) {
-    headers.set('content-type', 'application/octet-stream');
+  const ct = headers.get('content-type') || '';
+  if (!ct || ct === 'application/octet-stream' || ct === 'binary/octet-stream') {
+    const detected = detectContentTypeFromBytes(new Uint8Array(body));
+    headers.set('content-type', detected || 'application/octet-stream');
   }
-  return new Response(object.body, { headers });
+  return new Response(body, { headers });
 }
 
 async function handleInventoryImage(request: Request, env: Env): Promise<Response> {
@@ -1983,25 +2015,22 @@ async function handleInventoryImage(request: Request, env: Env): Promise<Respons
     return jsonResponse({ message: 'Missing or invalid image key.' }, 400);
   }
 
-  const imageUrl = buildInventoryImageUrl(key);
-  const isPublic = await dbIsInventoryImagePublic(imageUrl, env);
-  if (!isPublic) {
-    return jsonResponse({ message: 'Image not found.' }, 404);
-  }
-
   const object = await env.CUSTOM_ITEMS_BUCKET.get(key);
   if (!object || !object.body) {
     return jsonResponse({ message: 'Image not found.' }, 404);
   }
 
+  const body = await object.arrayBuffer();
   const headers = new Headers();
   object.writeHttpMetadata(headers);
   headers.set('etag', object.httpEtag);
   headers.set('cache-control', 'public, max-age=86400');
-  if (!headers.get('content-type')) {
-    headers.set('content-type', 'application/octet-stream');
+  const ct = headers.get('content-type') || '';
+  if (!ct || ct === 'application/octet-stream' || ct === 'binary/octet-stream') {
+    const detected = detectContentTypeFromBytes(new Uint8Array(body));
+    headers.set('content-type', detected || 'application/octet-stream');
   }
-  return new Response(object.body, { headers });
+  return new Response(body, { headers });
 }
 
 async function dbIsInventoryImagePublic(imageUrl: string, env: Env): Promise<boolean> {
@@ -3184,7 +3213,10 @@ async function handleAdminV2InventoryMergeMarked(env: Env): Promise<Response> {
     }, 400);
   }
 
-  const packageImageUrls = selectMergePackageImageUrls(activeUnsoldMarkedRows);
+  const sourceItemIds = activeUnsoldMarkedRows.map((row) => row.id);
+  const sourceImagesMap = await dbListInventoryImagesForItemIds(sourceItemIds, env);
+  const packageImageEntries = selectMergePackageImageEntries(activeUnsoldMarkedRows, sourceImagesMap);
+  const packageImageUrls = packageImageEntries.map((e) => e.url);
   if (packageImageUrls.length < 1) {
     return jsonResponse({ message: 'Marked items did not contain usable images.' }, 400);
   }
@@ -3258,13 +3290,13 @@ async function handleAdminV2InventoryMergeMarked(env: Env): Promise<Response> {
   }
   if (!(await dbReplaceInventoryImagesByItemIds(
     inserted.createdIds,
-    packageImageUrls.map((url) => ({ url, isPrivate: false })),
+    packageImageEntries,
     env,
   ))) {
     return jsonResponse({ message: 'Merged inventory item was created, but its image records failed to save.' }, 500);
   }
 
-  const sourceIds = activeUnsoldMarkedRows.map((row) => row.id);
+  const sourceIds = sourceItemIds;
 
   // Set package_id on source items and unmark them
   const packageId = inserted.firstId;
@@ -3604,12 +3636,17 @@ async function handleInventoryImageUpload(request: Request, env: Env): Promise<R
     return jsonResponse({ message: 'Only image uploads are supported.' }, 400);
   }
 
-  const ext = extensionFromContentType(file.type);
-  const key = `inventory-items/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${ext}`;
   const body = await file.arrayBuffer();
+  const detectedType = detectContentTypeFromBytes(new Uint8Array(body)) || file.type;
+  if (!ALLOWED_IMAGE_TYPES.includes(detectedType)) {
+    return jsonResponse({ message: `Unsupported image format (${detectedType}). Please upload JPEG, PNG, WebP, or GIF.` }, 400);
+  }
+
+  const ext = extensionFromContentType(detectedType);
+  const key = `inventory-items/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${ext}`;
   await env.CUSTOM_ITEMS_BUCKET.put(key, body, {
     httpMetadata: {
-      contentType: file.type || 'application/octet-stream',
+      contentType: detectedType,
     },
   });
 
@@ -5633,9 +5670,17 @@ async function dbListShopProducts(
        i.id DESC`
   ).bind(...binds).all<ShopProductRow>();
 
-  return (result.results ?? []).map((row) => ({
+  return (result.results ?? []).map((row) => {
+    let mainImage = (row.image_url || '').trim();
+    if (mainImage && !mainImage.startsWith('/api/') && !/^https?:\/\//i.test(mainImage)) {
+      mainImage = buildInventoryImageUrl(mainImage);
+    }
+    if (mainImage && mainImage.startsWith('/api/')) {
+      mainImage = `${ACTIVITY_BASE_URL}${mainImage}`;
+    }
+    return {
     id: String(row.id),
-    mainImage: row.image_url || '',
+    mainImage,
     saleTitle: normalizeText(row.sale_title, '') || normalizeText(row.title, ''),
     saleUrl: row.source_listing_url || null,
     saleCondition: row.condition || '',
@@ -5644,7 +5689,8 @@ async function dbListShopProducts(
     category: getInventoryCategoryLabel(row),
     secondaryCategory: normalizeText(row.secondary_category_name, ''),
     isSold: Boolean(row.is_sold),
-  }));
+    };
+  });
 }
 
 async function generateUniqueCcgNumber(env: Env): Promise<string | null> {
@@ -9595,17 +9641,26 @@ async function importExternalImageToInventory(sourceUrl: string, env: Env): Prom
     throw new Error('Unable to fetch source image.');
   }
 
-  const contentType = sourceResponse.headers.get('content-type') || '';
-  if (!contentType.toLowerCase().startsWith('image/')) {
+  const bodyBytes = await sourceResponse.arrayBuffer();
+  let contentType = sourceResponse.headers.get('content-type') || '';
+
+  // Use magic-byte detection to override unreliable content-type headers
+  const detected = detectContentTypeFromBytes(new Uint8Array(bodyBytes));
+  if (detected) {
+    contentType = detected;
+  } else if (!contentType.toLowerCase().startsWith('image/')) {
     throw new Error('Source URL did not return an image.');
+  }
+
+  if (!ALLOWED_IMAGE_TYPES.includes(contentType)) {
+    throw new Error(`Unsupported image format (${contentType}). Please use JPEG, PNG, WebP, or GIF.`);
   }
 
   const extension = extensionFromContentType(contentType);
   const key = `inventory-items/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${extension}`;
-  const bodyBytes = await sourceResponse.arrayBuffer();
   await env.CUSTOM_ITEMS_BUCKET.put(key, bodyBytes, {
     httpMetadata: {
-      contentType: contentType || 'application/octet-stream',
+      contentType,
     },
   });
 
@@ -9683,6 +9738,45 @@ function selectMergePackageImageUrls(rows: InventoryItemRow[]): string[] {
       if (!imageUrl || seen.has(imageUrl)) continue;
       selected.push(imageUrl);
       seen.add(imageUrl);
+      if (selected.length >= INVENTORY_MAX_IMAGES) return selected;
+    }
+  }
+
+  return selected;
+}
+
+function selectMergePackageImageEntries(
+  rows: InventoryItemRow[],
+  imagesMap: Map<number, Array<{ url: string; isPrivate: boolean }>>,
+): Array<{ url: string; isPrivate: boolean }> {
+  const selected: Array<{ url: string; isPrivate: boolean }> = [];
+  const seen = new Set<string>();
+
+  const perRowImages = rows.map((row) => {
+    const stored = imagesMap.get(row.id);
+    if (stored && stored.length > 0) {
+      return stored.map((img) => ({ url: img.url, isPrivate: img.isPrivate }));
+    }
+    return parseStoredInventoryImageUrls(row.image_urls, row.image_url)
+      .map((url) => ({ url, isPrivate: false }));
+  });
+
+  // First pass: first image from each merged item
+  for (const images of perRowImages) {
+    const first = images[0];
+    if (!first || seen.has(first.url)) continue;
+    selected.push(first);
+    seen.add(first.url);
+    if (selected.length >= INVENTORY_MAX_IMAGES) return selected;
+  }
+
+  // Second pass: remaining images
+  for (const images of perRowImages) {
+    for (let i = 1; i < images.length; i++) {
+      const img = images[i];
+      if (!img || seen.has(img.url)) continue;
+      selected.push(img);
+      seen.add(img.url);
       if (selected.length >= INVENTORY_MAX_IMAGES) return selected;
     }
   }

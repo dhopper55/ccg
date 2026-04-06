@@ -597,7 +597,7 @@ const InventoryItem = () => {
   const persistImages = async (
     nextImages: InventoryImageRecord[],
     previousImages: InventoryImageRecord[],
-    successMessage: string,
+    _successMessage: string,
     failureMessage: string,
   ) => {
     if (!editId) return;
@@ -617,8 +617,6 @@ const InventoryItem = () => {
       if (!response.ok || !data.ok) {
         throw new Error(data.message || failureMessage);
       }
-
-      enqueueSnackbar(successMessage, { variant: 'success' });
     } catch (error) {
       updateImages(previousImages);
       const text = error instanceof Error ? error.message : failureMessage;
@@ -1480,10 +1478,9 @@ const InventoryItem = () => {
                           label="Sale Price"
                           type="number"
                           value={form.salePrice}
-                          onChange={(event) => {
-                            const val = event.target.value;
-                            setField('salePrice', val);
-                            const num = parseFloat(val);
+                          onChange={(event) => setField('salePrice', event.target.value)}
+                          onBlur={() => {
+                            const num = parseFloat(form.salePrice);
                             if (num > 0 && !form.regularPrice.trim()) {
                               setField('regularPrice', String(Math.ceil(num * 1.2)));
                             }

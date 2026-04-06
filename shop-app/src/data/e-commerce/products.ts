@@ -831,9 +831,9 @@ export const featuresFilterOptions = [
 
 export const defaultProductFilterOptions: ProductFilterOptions = {
   availability: availabilityFilterOptions,
-  sale: saleFilterOptions,
-  material: materialFilterOptions,
+  sale: [],
+  material: [],
   category: categoryFilterOptions,
-  features: featuresFilterOptions,
+  features: [],
   price: [0, 1500],
 };

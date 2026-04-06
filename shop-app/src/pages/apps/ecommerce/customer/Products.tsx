@@ -1,20 +1,46 @@
-import { useEffect, useState } from 'react';
-import { Paper, Stack } from '@mui/material';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  CardMedia,
+  Chip,
+  CircularProgress,
+  Link,
+  Paper,
+  Stack,
+  Typography,
+} from '@mui/material';
 import Grid from '@mui/material/Grid';
-import { defaultProductFilterOptions, products } from 'data/e-commerce/products';
+import { defaultProductFilterOptions } from 'data/e-commerce/products';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
 import FilterDrawer from 'components/sections/ecommerce/customer/products/FilterDrawer';
-import ProductTopSection from 'components/sections/ecommerce/customer/products/ProductTopSection';
-import ProductsGrid from 'components/sections/ecommerce/customer/products/ProductsGrid';
-import ActiveFilters from 'components/sections/ecommerce/customer/products/filter-panel/ActiveFilters';
-import ProductsProvider, {
-  useProducts,
-} from 'components/sections/ecommerce/customer/products/providers/ProductsProvider';
+import ProductsProvider from 'components/sections/ecommerce/customer/products/providers/ProductsProvider';
+import IconifyIcon from 'components/base/IconifyIcon';
 
+type ShopProduct = {
+  id: string;
+  mainImage: string;
+  saleTitle: string;
+  saleUrl: string | null;
+  saleCondition: string;
+  regularPrice: number | null;
+  salePrice: number;
+  category: string;
+  secondaryCategory: string;
+  isSold: boolean;
+};
+
+type ShopProductsResponse = {
+  records: ShopProduct[];
+};
+
+const PAGE_SIZE = 20;
 const filterDrawerWidth = 320;
 
 const index = () => (
-  <ProductsProvider products={products}>
+  <ProductsProvider products={[]}>
     <Products />
   </ProductsProvider>
 );
@@ -22,30 +48,47 @@ const index = () => (
 const Products = () => {
   const { up } = useBreakpoints();
   const upMd = up('md');
-  const [isDrawerOpen, setIsDrawerOpen] = useState(upMd ? true : false);
-
-  const { filterItems, visibleProducts } = useProducts();
-
-  const closeDrawer = () => setIsDrawerOpen(false);
-  const toggleDrawer = () => setIsDrawerOpen((prev) => !prev);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(upMd);
+  const [allProducts, setAllProducts] = useState<ShopProduct[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
-    if (upMd) {
-      setIsDrawerOpen(true);
-    } else {
-      setIsDrawerOpen(false);
-    }
+    if (upMd) setIsDrawerOpen(true);
+    else setIsDrawerOpen(false);
   }, [upMd]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setIsLoading(true);
+      try {
+        const res = await fetch('/api/shop/products');
+        const data = (await res.json()) as ShopProductsResponse;
+        if (cancelled) return;
+        setAllProducts(Array.isArray(data.records) ? data.records : []);
+      } catch {
+        if (!cancelled) setAllProducts([]);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, []);
+
+  const totalPages = Math.max(1, Math.ceil(allProducts.length / PAGE_SIZE));
+  const visibleProducts = allProducts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const handlePrev = useCallback(() => setPage((p) => Math.max(1, p - 1)), []);
+  const handleNext = useCallback(() => setPage((p) => Math.min(totalPages, p + 1)), [totalPages]);
 
   return (
     <Grid container>
       <Grid size={12}>
-        <ProductTopSection isDrawerOpen={isDrawerOpen} toggleDrawer={toggleDrawer} />
-      </Grid>
-      <Grid size={12}>
         <Stack>
           <FilterDrawer
-            handleClose={closeDrawer}
+            handleClose={() => setIsDrawerOpen(false)}
             open={isDrawerOpen}
             drawerWidth={filterDrawerWidth}
             filterOptions={defaultProductFilterOptions}
@@ -69,12 +112,174 @@ const Products = () => {
               }),
             })}
           >
-            {filterItems.length > 0 && <ActiveFilters />}
-            <ProductsGrid products={visibleProducts} />
+            {isLoading ? (
+              <Stack sx={{ alignItems: 'center', justifyContent: 'center', py: 12 }}>
+                <CircularProgress />
+              </Stack>
+            ) : allProducts.length === 0 ? (
+              <Box sx={{ p: 6, textAlign: 'center' }}>
+                <Typography sx={{ color: 'text.secondary' }}>No products available.</Typography>
+              </Box>
+            ) : (
+              <Box sx={{ px: { xs: 2, md: 3 }, py: 3 }}>
+                <Grid container spacing={3}>
+                  {visibleProducts.map((product) => (
+                    <Grid key={product.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
+                      <ProductCard product={product} />
+                    </Grid>
+                  ))}
+                </Grid>
+
+                {totalPages > 1 && (
+                  <Stack
+                    direction="row"
+                    sx={{ justifyContent: 'center', alignItems: 'center', gap: 2, mt: 4 }}
+                  >
+                    <Button
+                      variant="outlined"
+                      color="neutral"
+                      size="small"
+                      disabled={page <= 1}
+                      onClick={handlePrev}
+                      startIcon={<IconifyIcon icon="material-symbols:chevron-left-rounded" />}
+                    >
+                      Previous
+                    </Button>
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                      Page {page} of {totalPages}
+                    </Typography>
+                    <Button
+                      variant="outlined"
+                      color="neutral"
+                      size="small"
+                      disabled={page >= totalPages}
+                      onClick={handleNext}
+                      endIcon={<IconifyIcon icon="material-symbols:chevron-right-rounded" />}
+                    >
+                      Next
+                    </Button>
+                  </Stack>
+                )}
+              </Box>
+            )}
           </Paper>
         </Stack>
       </Grid>
     </Grid>
+  );
+};
+
+function formatPrice(amount: number): string {
+  return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+}
+
+function calcDiscount(regular: number, sale: number): number {
+  if (regular <= 0 || sale <= 0 || sale >= regular) return 0;
+  return Math.round(((regular - sale) / regular) * 100);
+}
+
+const ProductCard = ({ product }: { product: ShopProduct }) => {
+  const { mainImage, saleTitle, salePrice, regularPrice, category, secondaryCategory } = product;
+  const hasDiscount = regularPrice != null && regularPrice > 0 && salePrice > 0 && salePrice < regularPrice;
+  const discount = hasDiscount ? calcDiscount(regularPrice!, salePrice) : 0;
+  const displayPrice = salePrice > 0 ? salePrice : (regularPrice ?? 0);
+
+  return (
+    <Card
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        borderRadius: 3,
+        overflow: 'hidden',
+        transition: 'transform 0.2s, box-shadow 0.2s',
+        '&:hover': {
+          transform: 'translateY(-2px)',
+          boxShadow: 4,
+        },
+      }}
+    >
+      <CardMedia
+        component="img"
+        image={mainImage || undefined}
+        alt={saleTitle}
+        sx={{
+          height: 240,
+          objectFit: 'contain',
+          bgcolor: 'background.elevation1',
+          p: 1,
+        }}
+      />
+      <CardContent
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          textAlign: 'center',
+          flexGrow: 1,
+          gap: 1,
+          px: 2,
+          pb: 3,
+        }}
+      >
+        <Typography
+          variant="subtitle1"
+          sx={{
+            fontWeight: 600,
+            lineHeight: 1.4,
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+          }}
+        >
+          {saleTitle}
+        </Typography>
+
+        <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', justifyContent: 'center' }}>
+          {category && <Chip label={category} size="small" variant="outlined" />}
+          {secondaryCategory && <Chip label={secondaryCategory} size="small" variant="outlined" />}
+        </Stack>
+
+        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+          Local pickup only. Please{' '}
+          <a
+            href="https://www.coalcreekguitars.com/contact-us"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: 'inherit', fontWeight: 600 }}
+          >
+            contact us
+          </a>{' '}
+          to purchase.
+        </Typography>
+
+        {displayPrice > 0 && (
+          <Box sx={{ mt: 'auto', pt: 1 }}>
+            <Typography variant="h5" sx={{ fontWeight: 700 }}>
+              {formatPrice(displayPrice)}
+            </Typography>
+            {hasDiscount && (
+              <Stack direction="row" spacing={1} sx={{ justifyContent: 'center', alignItems: 'center', mt: 0.5 }}>
+                <Typography
+                  variant="body2"
+                  sx={{ textDecoration: 'line-through', color: 'text.disabled' }}
+                >
+                  {formatPrice(regularPrice!)}
+                </Typography>
+                <Chip
+                  label={`Save ${discount}%`}
+                  size="small"
+                  color="success"
+                  variant="outlined"
+                  sx={{ fontWeight: 600 }}
+                />
+              </Stack>
+            )}
+          </Box>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 

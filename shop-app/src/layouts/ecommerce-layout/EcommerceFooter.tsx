@@ -8,67 +8,19 @@ const footerLinks = {
   company: [
     {
       label: 'About Us',
-      url: '#!',
-    },
-    {
-      label: 'Press',
-      url: '#!',
-    },
-    {
-      label: 'Sustainability',
-      url: '#!',
-    },
-    {
-      label: 'Request a Catalog',
-      url: '#!',
-    },
-    {
-      label: 'Careers',
-      url: '#!',
-    },
-    {
-      label: 'Blog',
-      url: '#!',
+      url: 'https://www.coalcreekguitars.com/about-us',
     },
   ],
   help: [
     {
-      label: 'Help Center',
-      url: '#!',
-    },
-    {
-      label: 'Track Your Order',
-      url: '#!',
-    },
-    {
-      label: 'Shipping',
-      url: '#!',
-    },
-    {
-      label: 'Information',
-      url: '#!',
-    },
-    {
-      label: 'Return Policy',
-      url: '#!',
-    },
-    {
-      label: 'FAQs',
-      url: '#!',
+      label: 'Serial Decoders',
+      url: 'https://www.coalcreekguitars.com/decoders/guitar-serial-decoder-lookup',
     },
   ],
   contacts: [
     {
       label: 'Contact Us',
-      url: '#!',
-    },
-    {
-      label: 'Shops & Outlets',
-      url: '#!',
-    },
-    {
-      label: 'Feedback',
-      url: '#!',
+      url: 'https://www.coalcreekguitars.com/contact-us',
     },
   ],
 };
@@ -98,17 +50,8 @@ const EcommerceFooter = () => {
                 lineHeight: 1.5,
               }}
             >
-              <Box
-                component="span"
-                sx={{
-                  display: 'block',
-                  mb: 0.5,
-                }}
-              >
-                Thoughtfully designed,
-              </Box>
               <Box component="span" sx={{ display: 'block' }}>
-                Masterfully coded
+                Find Your Sound
               </Box>
             </Typography>
 
@@ -265,7 +208,8 @@ const EcommerceFooter = () => {
                 }}
               >
                 <Button
-                  href="#!"
+                  href="https://www.facebook.com/profile.php?id=61587059786524"
+                  target="_blank"
                   shape="circle"
                   variant="soft"
                   color="neutral"
@@ -279,7 +223,8 @@ const EcommerceFooter = () => {
                   <IconifyIcon icon="eva:facebook-fill" fontSize={16} />
                 </Button>
                 <Button
-                  href="#!"
+                  href="https://www.youtube.com/channel/UCV-kDQjH_cWcsxwg0GZKX3g/"
+                  target="_blank"
                   shape="circle"
                   variant="soft"
                   color="neutral"
@@ -290,49 +235,7 @@ const EcommerceFooter = () => {
                     },
                   }}
                 >
-                  <IconifyIcon icon="ri:twitter-x-fill" fontSize={16} />
-                </Button>
-                <Button
-                  href="#!"
-                  shape="circle"
-                  variant="soft"
-                  color="neutral"
-                  size="small"
-                  sx={{
-                    '&:hover': {
-                      bgcolor: 'background.elevation2',
-                    },
-                  }}
-                >
-                  <IconifyIcon icon="entypo-social:pinterest" fontSize={16} />
-                </Button>
-                <Button
-                  href="#!"
-                  shape="circle"
-                  variant="soft"
-                  color="neutral"
-                  size="small"
-                  sx={{
-                    '&:hover': {
-                      bgcolor: 'background.elevation2',
-                    },
-                  }}
-                >
-                  <IconifyIcon icon="ri:instagram-line" fontSize={16} />
-                </Button>
-                <Button
-                  href="#!"
-                  shape="circle"
-                  variant="soft"
-                  color="neutral"
-                  size="small"
-                  sx={{
-                    '&:hover': {
-                      bgcolor: 'background.elevation2',
-                    },
-                  }}
-                >
-                  <IconifyIcon icon="ic:sharp-tiktok" fontSize={16} />
+                  <IconifyIcon icon="mdi:youtube" fontSize={16} />
                 </Button>
               </Stack>
             </Box>

@@ -33,9 +33,9 @@ const Footer = () => {
           }}
         >
           <Box component="span" whiteSpace="nowrap">
-            Thank you for creating with
+            Thank you for visiting
             <Box component="strong" mx={0.5}>
-              Aurora{' '}
+              ©Coal Creek Guitars
             </Box>
           </Box>
 
@@ -43,14 +43,7 @@ const Footer = () => {
             <Box component="span" display={{ xs: 'none', sm: 'inline' }}>
               |
             </Box>{' '}
-            {dayjs().year()} ©
-            <Link
-              href="https://themewagon.com/"
-              target="_blank"
-              sx={{ textDecoration: 'none', mx: 0.5 }}
-            >
-              ThemeWagon
-            </Link>
+            {dayjs().year()}
           </Box>
         </Typography>
 
@@ -62,7 +55,7 @@ const Footer = () => {
             color: 'text.secondary',
           }}
         >
-          v{import.meta.env.VITE_APP_VERSION}
+          v3.5.1
         </Typography>
       </Stack>
     </>

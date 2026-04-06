@@ -18,10 +18,10 @@ const FilterPanel = ({ filterOptions }: FilterPanelProps) => {
           name="availability"
         />
       )}
-      {filterOptions.sale && (
+      {filterOptions.sale && filterOptions.sale.length > 0 && (
         <FilterSection defaultOpen title="Sale" options={filterOptions.sale} name="sale" />
       )}
-      {filterOptions.material && (
+      {filterOptions.material && filterOptions.material.length > 0 && (
         <FilterSection
           defaultOpen
           options={filterOptions.material}
@@ -40,7 +40,7 @@ const FilterPanel = ({ filterOptions }: FilterPanelProps) => {
       {filterOptions.price && (
         <PriceFilterSection defaultOpen defaultValue={filterOptions.price || [0, 5000]} />
       )}
-      {filterOptions.features && (
+      {filterOptions.features && filterOptions.features.length > 0 && (
         <FilterSection
           defaultOpen
           title="Features"
