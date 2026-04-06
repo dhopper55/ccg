@@ -330,6 +330,34 @@ function buildAiQueryTexts(fields: Record<string, unknown>, imageUrls: string[])
   return texts;
 }
 
+function buildAiEvalText(fields: Record<string, unknown>): string {
+  const rawBrand = typeof fields.brand === 'string' ? fields.brand.trim() : '';
+  const rawModel = typeof fields.model === 'string' ? fields.model.trim() : '';
+  const rawSerial = typeof fields.serial === 'string' ? fields.serial.trim() : '';
+  const rawTitle = typeof fields.title === 'string' ? fields.title.trim() : '';
+
+  const isDefinitiveBrand =
+    rawBrand !== '' &&
+    !/\(NOT DEFINITIVE\)/i.test(rawBrand) &&
+    !/^Unknown$/i.test(rawBrand) &&
+    !/^Guess:/i.test(rawBrand);
+  const isDefinitiveModel =
+    rawModel !== '' &&
+    !/\(NOT DEFINITIVE\)/i.test(rawModel) &&
+    !/^Unknown$/i.test(rawModel) &&
+    !/^Guess:/i.test(rawModel);
+
+  const evalSuffix = 'Give me a concise readout of the following: Reverb sold range, realistic private party value in Denver metro, quick flip buy price (for 30% margin or more), and lastly, is this gear desirable - meaning do listings for this sit for a long time and are there a lot of them, or are they more rare and desirable?';
+
+  if (isDefinitiveBrand || isDefinitiveModel) {
+    const identity = [rawBrand, rawModel].filter(Boolean).join(' ');
+    const serialPart = rawSerial ? ` (serial: ${rawSerial})` : '';
+    return `I think this is a ${identity}${serialPart}. The listing title is ${rawTitle}. But you do your own evaluation on the pictures. ${evalSuffix}`;
+  }
+
+  return `The listing title is ${rawTitle}. Do your own evaluation on this item based on the pictures. ${evalSuffix}`;
+}
+
 function buildDoubleCheckQuery(
   fields: Record<string, unknown>,
   options: { includeGuitar?: boolean } = {},
@@ -865,6 +893,14 @@ const ListingEvaluatorItem = () => {
 
   const aiQueryTexts = useMemo(() => buildAiQueryTexts(fields, imageCandidates), [fields, imageCandidates]);
   const [aiCopiedIndex, setAiCopiedIndex] = useState<number | null>(null);
+  const [evalCopied, setEvalCopied] = useState(false);
+  const handleEvalCopy = useCallback(() => {
+    const text = buildAiEvalText(fields);
+    void navigator.clipboard.writeText(text).then(() => {
+      setEvalCopied(true);
+      setTimeout(() => setEvalCopied(false), 2000);
+    });
+  }, [fields]);
   const handleAiQueryCopy = useCallback((index: number) => {
     const text = aiQueryTexts[index];
     if (!text) return;
@@ -1187,6 +1223,16 @@ const ListingEvaluatorItem = () => {
               >
                 Google Guitar
               </Button>
+              <Tooltip title={evalCopied ? 'Copied!' : 'Copy AI eval prompt to clipboard'}>
+                <Button
+                  variant="soft"
+                  color="neutral"
+                  startIcon={<IconifyIcon icon="material-symbols:content-copy-rounded" />}
+                  onClick={handleEvalCopy}
+                >
+                  {evalCopied ? 'Copied!' : 'AI Eval Text'}
+                </Button>
+              </Tooltip>
               <Button
                 variant="contained"
                 color="primary"
