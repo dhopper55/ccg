@@ -1,4 +1,4 @@
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import {
   Alert,
@@ -389,6 +389,13 @@ const InventoryItem = () => {
     if (!aiAnalysisDialogOpen || !aiAnalysisEditorRef.current) return;
     aiAnalysisEditorRef.current.innerHTML = aiAnalysisDraft || '';
   }, [aiAnalysisDialogOpen, aiAnalysisDraft]);
+
+  const setAiAnalysisEditorNode = useCallback((node: HTMLDivElement | null) => {
+    aiAnalysisEditorRef.current = node;
+    if (node) {
+      node.innerHTML = aiAnalysisDraft || '';
+    }
+  }, [aiAnalysisDraft]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1842,7 +1849,7 @@ const InventoryItem = () => {
             <Box sx={{ width: 1 }}>
               <Typography variant="caption" color="text.secondary">Enter rich text content</Typography>
               <Box
-                ref={aiAnalysisEditorRef}
+                ref={setAiAnalysisEditorNode}
                 contentEditable
                 suppressContentEditableWarning
                 onInput={(event) => {
