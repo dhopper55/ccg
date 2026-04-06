@@ -1,4 +1,4 @@
-import { Fragment, ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import {
   Alert,
@@ -8,6 +8,9 @@ import {
   CircularProgress,
   Container,
   Divider,
+  Dialog,
+  DialogContent,
+  DialogTitle,
   IconButton,
   Link,
   Paper,
@@ -519,6 +522,78 @@ function buildSummaryNode(text: string): ReactNode {
   );
 }
 
+function buildHtmlPreviewNode(html: string, emptyLabel: string, onClick: () => void): ReactNode {
+  const trimmed = html.trim();
+  return (
+    <Box
+      role="button"
+      tabIndex={0}
+      aria-label="Open AI Analysis editor"
+      onClick={onClick}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onClick();
+        }
+      }}
+      sx={{
+        width: 1,
+        minHeight: 120,
+        maxHeight: 120,
+        overflow: 'hidden',
+        borderRadius: 1.5,
+        p: 1.5,
+        border: '1px solid',
+        borderColor: 'divider',
+        bgcolor: 'background.default',
+        color: trimmed ? 'text.primary' : 'text.disabled',
+        cursor: 'pointer',
+        '&:hover': {
+          borderColor: 'primary.main',
+        },
+        '&:focus-visible': {
+          outline: 'none',
+          borderColor: 'primary.main',
+          boxShadow: (theme) => `0 0 0 2px ${theme.palette.primary.main}`,
+        },
+        '& p, & ul, & ol, & blockquote, & h3, & h4': {
+          mt: 0,
+          mb: 1,
+        },
+        '& ul, & ol': {
+          pl: 2.5,
+        },
+        '& a': {
+          color: 'primary.main',
+        },
+      }}
+    >
+      {trimmed ? (
+        <Box
+          sx={{
+            color: 'text.secondary',
+            fontSize: '0.95rem',
+            lineHeight: 1.6,
+            overflowWrap: 'anywhere',
+            wordBreak: 'break-word',
+          }}
+          dangerouslySetInnerHTML={{ __html: trimmed }}
+        />
+      ) : (
+        <Typography
+          variant="body2"
+          sx={{
+            color: 'text.disabled',
+            lineHeight: 1.6,
+          }}
+        >
+          {emptyLabel}
+        </Typography>
+      )}
+    </Box>
+  );
+}
+
 const DetailRow = ({ label, value }: DetailItem) => (
   <Stack
     direction="row"
@@ -669,7 +744,18 @@ const ListingEvaluatorItem = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [isAiAnalysisSaving, setIsAiAnalysisSaving] = useState(false);
   const [message, setMessage] = useState<MessageState | null>(null);
+  const [isAiAnalysisDialogOpen, setIsAiAnalysisDialogOpen] = useState(false);
+  const [aiAnalysisDraft, setAiAnalysisDraft] = useState('');
+  const aiAnalysisEditorRef = useRef<HTMLDivElement | null>(null);
+
+  const setAiAnalysisEditorNode = useCallback((node: HTMLDivElement | null) => {
+    aiAnalysisEditorRef.current = node;
+    if (node) {
+      node.innerHTML = aiAnalysisDraft || '';
+    }
+  }, [aiAnalysisDraft]);
 
   useEffect(() => {
     document.title = 'CCG Admin | Listing Detail';
@@ -896,12 +982,75 @@ const ListingEvaluatorItem = () => {
     }
     return parts.join('\n\n');
   }, [fields]);
+  const aiAnalysisText = useMemo(
+    () => (typeof fields.ai_analysis_text === 'string' ? fields.ai_analysis_text.trim() : ''),
+    [fields.ai_analysis_text],
+  );
+
+  useEffect(() => {
+    if (!isAiAnalysisDialogOpen || !aiAnalysisEditorRef.current) return;
+    aiAnalysisEditorRef.current.innerHTML = aiAnalysisDraft || '';
+  }, [aiAnalysisDraft, isAiAnalysisDialogOpen]);
 
   useEffect(() => {
     if (record) {
       document.title = `CCG Admin | ${title}`;
     }
   }, [record, title]);
+
+  const openAiAnalysisDialog = useCallback(() => {
+    setAiAnalysisDraft(aiAnalysisText);
+    setIsAiAnalysisDialogOpen(true);
+    setMessage(null);
+  }, [aiAnalysisText]);
+
+  const closeAiAnalysisDialog = useCallback(() => {
+    if (isAiAnalysisSaving) return;
+    setIsAiAnalysisDialogOpen(false);
+    setAiAnalysisDraft(aiAnalysisText);
+  }, [aiAnalysisText, isAiAnalysisSaving]);
+
+  const saveAiAnalysis = useCallback(async () => {
+    if (!recordId || !record || isAiAnalysisSaving) return;
+    setIsAiAnalysisSaving(true);
+    setMessage(null);
+
+    try {
+      const response = await fetch(`/api/admin-v2/listings/${encodeURIComponent(recordId)}/ai-analysis`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ aiAnalysisText: aiAnalysisDraft }),
+      });
+      const data = (await response.json()) as { aiAnalysisText?: string; message?: string };
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Unable to save AI analysis.');
+      }
+
+      const nextValue = typeof data.aiAnalysisText === 'string' ? data.aiAnalysisText : aiAnalysisDraft;
+      setRecord({
+        ...record,
+        fields: {
+          ...record.fields,
+          ai_analysis_text: nextValue,
+        },
+      });
+      setAiAnalysisDraft(nextValue);
+      setIsAiAnalysisDialogOpen(false);
+      setMessage({
+        severity: 'success',
+        text: 'AI analysis saved.',
+      });
+    } catch (error) {
+      setMessage({
+        severity: 'error',
+        text: error instanceof Error ? error.message : 'Unable to save AI analysis.',
+      });
+    } finally {
+      setIsAiAnalysisSaving(false);
+    }
+  }, [aiAnalysisDraft, isAiAnalysisSaving, record, recordId]);
 
   const overviewItems = useMemo<DetailItem[]>(
     () => [
@@ -935,8 +1084,16 @@ const ListingEvaluatorItem = () => {
       { label: 'Price 1st Guess', value: idealPrice },
       { label: 'Brand', value: normalizeValue(fields.brand) },
       { label: 'Model', value: normalizeValue(fields.model) },
+      {
+        label: 'AI Analysis',
+        value: buildHtmlPreviewNode(
+          aiAnalysisText,
+          'Click to add AI analysis text.',
+          openAiAnalysisDialog,
+        ),
+      },
     ],
-    [askingPrice, fields.brand, fields.location, fields.model, fields.submitted_at, idealPrice, privateRange, sourceGlyph, sourceImage, sourceLabel, statusLabel],
+    [aiAnalysisText, askingPrice, fields.brand, fields.location, fields.model, fields.submitted_at, idealPrice, openAiAnalysisDialog, privateRange, sourceGlyph, sourceImage, sourceLabel, statusLabel],
   );
 
   const singleDetailItems = useMemo<DetailItem[]>(() => {
@@ -1373,6 +1530,74 @@ const ListingEvaluatorItem = () => {
           </Paper>
         </Container>
       </Grid>
+
+      <Dialog
+        open={isAiAnalysisDialogOpen}
+        onClose={closeAiAnalysisDialog}
+        fullWidth
+        maxWidth="md"
+      >
+        <DialogTitle>AI Analysis</DialogTitle>
+        <DialogContent dividers sx={{ display: 'block' }}>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: '1fr',
+              rowGap: 2,
+              width: 1,
+            }}
+          >
+            <Box sx={{ width: 1 }}>
+              <Typography variant="caption" color="text.secondary">Enter rich text content</Typography>
+              <Box
+                ref={setAiAnalysisEditorNode}
+                contentEditable
+                suppressContentEditableWarning
+                onInput={(event) => {
+                  const html = (event.currentTarget as HTMLDivElement).innerHTML;
+                  setAiAnalysisDraft(html);
+                }}
+                sx={{
+                  mt: 0.75,
+                  minHeight: 320,
+                  maxHeight: 520,
+                  overflowY: 'auto',
+                  width: 1,
+                  borderRadius: 1.5,
+                  p: 1.5,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  bgcolor: 'background.default',
+                  color: 'text.primary',
+                  fontSize: '0.95rem',
+                  lineHeight: 1.6,
+                  '&:focus': {
+                    outline: 'none',
+                    borderColor: 'primary.main',
+                  },
+                  '& p, & ul, & ol, & blockquote, & h3, & h4': {
+                    mt: 0,
+                    mb: 1,
+                  },
+                  '&[contenteditable=\"true\"]:empty:before': {
+                    content: '\"Paste formatted content here\"',
+                    color: 'text.disabled',
+                  },
+                }}
+              />
+            </Box>
+
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', columnGap: 1, width: 1 }}>
+              <Button variant="outlined" disabled={isAiAnalysisSaving} onClick={closeAiAnalysisDialog} sx={{ width: 1 }}>
+                Cancel
+              </Button>
+              <Button variant="contained" disabled={isAiAnalysisSaving} onClick={() => void saveAiAnalysis()} sx={{ width: 1 }}>
+                Save
+              </Button>
+            </Box>
+          </Box>
+        </DialogContent>
+      </Dialog>
     </Grid>
   );
 };

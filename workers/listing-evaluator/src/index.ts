@@ -532,6 +532,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path.endsWith('/ai-analysis') && path.startsWith('/api/admin-v2/listings/') && request.method === 'POST') {
+      const response = await handleAdminV2ListingAiAnalysisSave(request, env, path);
+      return withCors(response, request, env);
+    }
+
     if (path.startsWith('/api/admin-v2/listings/') && request.method === 'GET') {
       const response = await handleAdminV2GetListing(env, path);
       return withCors(response, request, env);
@@ -4363,6 +4368,40 @@ async function handleAdminV2GetListing(env: Env, path: string): Promise<Response
   return jsonResponse(buildAdminV2ListingRecord(record));
 }
 
+async function handleAdminV2ListingAiAnalysisSave(request: Request, env: Env, path: string): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const aiAnalysisIndex = parts.indexOf('ai-analysis');
+  const recordId = aiAnalysisIndex > 0 ? parts[aiAnalysisIndex - 1] : '';
+
+  if (!recordId || recordId === 'listings') {
+    return jsonResponse({ message: 'Missing listing ID.' }, 400);
+  }
+
+  let body: Record<string, unknown> = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  const aiAnalysisText = sanitizePatternLookupHtml(normalizeText(body.aiAnalysisText, '')).slice(0, 20000);
+
+  try {
+    await dbUpdateListing(recordId, { ai_analysis_text: aiAnalysisText || null }, env);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error || '');
+    if (/no such column: ai_analysis_text/i.test(message) || /no column named ai_analysis_text/i.test(message)) {
+      return jsonResponse(
+        { message: 'The listings.ai_analysis_text column does not exist yet. Run the one-off D1 ALTER TABLE command first.' },
+        400,
+      );
+    }
+    throw error;
+  }
+
+  return jsonResponse({ ok: true, aiAnalysisText });
+}
+
 async function handleGetListingDebug(request: Request, env: Env, path: string): Promise<Response> {
   const parts = path.split('/').filter(Boolean);
   const debugIndex = parts.indexOf('debug');
@@ -4700,6 +4739,7 @@ function listingFieldsToColumns(fields: Record<string, unknown>): Record<string,
   assign('ai_summary8');
   assign('ai_summary9');
   assign('ai_summary10');
+  assign('ai_analysis_text');
   assign('price_private_party');
   assign('price_ideal');
   assign('score');
@@ -4787,6 +4827,7 @@ function listingRowToRecord(row: Record<string, any>): { id: string; fields: Rec
       ai_summary8: row.ai_summary8 ?? null,
       ai_summary9: row.ai_summary9 ?? null,
       ai_summary10: row.ai_summary10 ?? null,
+      ai_analysis_text: row.ai_analysis_text ?? null,
       price_private_party: row.price_private_party ?? null,
       price_ideal: row.price_ideal ?? null,
       score: row.score ?? null,
