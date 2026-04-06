@@ -352,10 +352,10 @@ function buildAiEvalText(fields: Record<string, unknown>): string {
   if (isDefinitiveBrand || isDefinitiveModel) {
     const identity = [rawBrand, rawModel].filter(Boolean).join(' ');
     const serialPart = rawSerial ? ` (serial: ${rawSerial})` : '';
-    return `I think this is a ${identity}${serialPart}. The listing title is ${rawTitle}. But you do your own evaluation on the pictures. ${evalSuffix}`;
+    return `I think this is a ${identity}${serialPart}. The listing title is "${rawTitle}". But you do your own evaluation on the pictures. ${evalSuffix}`;
   }
 
-  return `The listing title is ${rawTitle}. Do your own evaluation on this item based on the pictures. ${evalSuffix}`;
+  return `The listing title is "${rawTitle}". Do your own evaluation on this item based on the pictures. ${evalSuffix}`;
 }
 
 function buildDoubleCheckQuery(
@@ -758,11 +758,18 @@ const ListingEvaluatorItem = () => {
   const handleCopyImage = useCallback(async () => {
     if (!currentImageUrl) return;
     try {
-      const response = await fetch(currentImageUrl);
+      // Proxy external images through the worker to avoid CORS/tainted-canvas issues
+      let fetchUrl = currentImageUrl;
+      if (/^https?:\/\//i.test(currentImageUrl) && !currentImageUrl.includes(window.location.host)) {
+        const params = new URLSearchParams();
+        params.set('url', currentImageUrl);
+        fetchUrl = new URL(`/api/image?${params.toString()}`, window.location.origin).toString();
+      }
+      const response = await fetch(fetchUrl);
       const blob = await response.blob();
       const pngBlob = blob.type === 'image/png'
         ? blob
-        : await new Promise<Blob>((resolve) => {
+        : await new Promise<Blob>((resolve, reject) => {
             const img = new Image();
             img.crossOrigin = 'anonymous';
             img.onload = () => {
@@ -770,8 +777,9 @@ const ListingEvaluatorItem = () => {
               canvas.width = img.naturalWidth;
               canvas.height = img.naturalHeight;
               canvas.getContext('2d')!.drawImage(img, 0, 0);
-              canvas.toBlob((b) => resolve(b!), 'image/png');
+              canvas.toBlob((b) => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/png');
             };
+            img.onerror = () => reject(new Error('Image load failed'));
             img.src = URL.createObjectURL(blob);
           });
       await navigator.clipboard.write([
