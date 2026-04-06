@@ -41,6 +41,7 @@ interface QueueResult {
   row?: number;
   recordId?: string;
   unarchived?: boolean;
+  resubmitted?: boolean;
   isMulti?: boolean;
 }
 
@@ -1541,7 +1542,37 @@ async function handleSubmit(request: Request, env: Env, ctx: ExecutionContext): 
           continue;
         }
       }
-      rejected.push({ url: item.url, reason: 'Already queued.' });
+      // Re-submit: un-archive, un-save, refresh timestamp, and re-queue
+      await dbSetListingArchived(existing.id, false, env);
+      await dbUpdateListing(existing.id, { saved: 0, submitted_at: new Date().toISOString(), status: 'queued' }, env);
+      let runId: string | undefined;
+      const source = detectSource(item.url);
+      if (source) {
+        if (source === 'reverb') {
+          const listingId = extractReverbListingId(item.url);
+          if (listingId) {
+            runId = generateRunId();
+            await env.LISTING_JOBS.put(runId, existing.id);
+            ctx.waitUntil((async () => {
+              try {
+                const listing = await fetchReverbListingById(listingId, env);
+                if (!listing) throw new Error('Reverb API returned incomplete listing data.');
+                await processDirectListing(existing.id, runId as string, listing, env, { isMulti: item.isMulti });
+              } catch (error) {
+                console.error('Reverb re-submit processing failed', { url: item.url, error });
+                await updateRowByRunId(runId as string, { runId, status: 'failed' }, env, { recordId: existing.id, isMulti: item.isMulti });
+              }
+            })());
+          }
+        } else {
+          const startedRunId = await startApifyRun(item.url, source as ListingSource, env);
+          if (startedRunId) {
+            runId = startedRunId;
+            await env.LISTING_JOBS.put(startedRunId, existing.id);
+          }
+        }
+      }
+      results.push({ ...item, resubmitted: true, runId });
       continue;
     }
 

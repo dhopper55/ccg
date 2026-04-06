@@ -754,33 +754,6 @@ const ListingEvaluatorItem = () => {
     setCurrentImageIndex((prev) => (prev < imageCandidates.length - 1 ? prev + 1 : 0));
   }, [imageCandidates.length]);
 
-  const [imageCopied, setImageCopied] = useState(false);
-  const handleCopyImage = useCallback(async () => {
-    if (!currentImageUrl) return;
-    try {
-      const response = await fetch(currentImageUrl);
-      const blob = await response.blob();
-      const pngBlob = blob.type === 'image/png'
-        ? blob
-        : await new Promise<Blob>((resolve) => {
-            const img = new Image();
-            img.onload = () => {
-              const canvas = document.createElement('canvas');
-              canvas.width = img.naturalWidth;
-              canvas.height = img.naturalHeight;
-              canvas.getContext('2d')!.drawImage(img, 0, 0);
-              canvas.toBlob((b) => resolve(b!), 'image/png');
-            };
-            img.src = URL.createObjectURL(blob);
-          });
-      await navigator.clipboard.write([
-        new ClipboardItem({ 'image/png': pngBlob }),
-      ]);
-      setImageCopied(true);
-      setTimeout(() => setImageCopied(false), 2000);
-    } catch { /* Clipboard API may not be available */ }
-  }, [currentImageUrl]);
-
   const [isDownloadingZip, setIsDownloadingZip] = useState(false);
   const handleDownloadZip = useCallback(async () => {
     if (imageCandidates.length === 0) return;
@@ -1319,29 +1292,11 @@ const ListingEvaluatorItem = () => {
                                 gap: 0.5,
                               }}
                             >
-                              {imageCandidates.length > 1 && (
-                                <Tooltip title={isDownloadingZip ? 'Downloading…' : 'Download all images as ZIP'}>
-                                  <IconButton
-                                    size="small"
-                                    onClick={handleDownloadZip}
-                                    disabled={isDownloadingZip}
-                                    sx={{
-                                      bgcolor: 'rgba(0,0,0,0.55)',
-                                      color: 'common.white',
-                                      '&:hover': { bgcolor: 'rgba(0,0,0,0.75)' },
-                                    }}
-                                  >
-                                    <IconifyIcon
-                                      icon={isDownloadingZip ? 'material-symbols:hourglass-top-rounded' : 'material-symbols:folder-zip-outline-rounded'}
-                                      sx={{ fontSize: 18 }}
-                                    />
-                                  </IconButton>
-                                </Tooltip>
-                              )}
-                              <Tooltip title={imageCopied ? 'Copied!' : 'Copy image'}>
+                              <Tooltip title={isDownloadingZip ? 'Downloading…' : 'Download all images as ZIP'}>
                                 <IconButton
                                   size="small"
-                                  onClick={handleCopyImage}
+                                  onClick={handleDownloadZip}
+                                  disabled={isDownloadingZip}
                                   sx={{
                                     bgcolor: 'rgba(0,0,0,0.55)',
                                     color: 'common.white',
@@ -1349,33 +1304,39 @@ const ListingEvaluatorItem = () => {
                                   }}
                                 >
                                   <IconifyIcon
-                                    icon={imageCopied ? 'material-symbols:check-rounded' : 'material-symbols:content-copy-outline-rounded'}
+                                    icon={isDownloadingZip ? 'material-symbols:hourglass-top-rounded' : 'material-symbols:folder-zip-outline-rounded'}
                                     sx={{ fontSize: 18 }}
                                   />
                                 </IconButton>
                               </Tooltip>
                             </Stack>
-                            {hasMultipleImages && (
-                              <Stack
-                                direction="row"
-                                sx={{
-                                  justifyContent: 'center',
-                                  alignItems: 'center',
-                                  gap: 1,
-                                  mt: 1,
-                                }}
-                              >
-                                <IconButton size="small" onClick={handlePrevImage}>
-                                  <IconifyIcon icon="material-symbols:chevron-left-rounded" sx={{ fontSize: 20 }} />
-                                </IconButton>
+                            <Stack
+                              direction="row"
+                              sx={{
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                                gap: 1,
+                                mt: 1,
+                              }}
+                            >
+                              {hasMultipleImages ? (
+                                <>
+                                  <IconButton size="small" onClick={handlePrevImage}>
+                                    <IconifyIcon icon="material-symbols:chevron-left-rounded" sx={{ fontSize: 20 }} />
+                                  </IconButton>
+                                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                                    {currentImageIndex + 1} / {imageCandidates.length}
+                                  </Typography>
+                                  <IconButton size="small" onClick={handleNextImage}>
+                                    <IconifyIcon icon="material-symbols:chevron-right-rounded" sx={{ fontSize: 20 }} />
+                                  </IconButton>
+                                </>
+                              ) : (
                                 <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                                  {currentImageIndex + 1} / {imageCandidates.length}
+                                  1
                                 </Typography>
-                                <IconButton size="small" onClick={handleNextImage}>
-                                  <IconifyIcon icon="material-symbols:chevron-right-rounded" sx={{ fontSize: 20 }} />
-                                </IconButton>
-                              </Stack>
-                            )}
+                              )}
+                            </Stack>
                           </Box>
                         ) : (
                           <Stack
