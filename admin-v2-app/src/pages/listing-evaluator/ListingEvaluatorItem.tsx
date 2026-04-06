@@ -758,28 +758,19 @@ const ListingEvaluatorItem = () => {
   const handleCopyImage = useCallback(async () => {
     if (!currentImageUrl) return;
     try {
-      // Proxy external images through the worker to avoid CORS/tainted-canvas issues
-      let fetchUrl = currentImageUrl;
-      if (/^https?:\/\//i.test(currentImageUrl) && !currentImageUrl.includes(window.location.host)) {
-        const params = new URLSearchParams();
-        params.set('url', currentImageUrl);
-        fetchUrl = new URL(`/api/image?${params.toString()}`, window.location.origin).toString();
-      }
-      const response = await fetch(fetchUrl);
+      const response = await fetch(currentImageUrl);
       const blob = await response.blob();
       const pngBlob = blob.type === 'image/png'
         ? blob
-        : await new Promise<Blob>((resolve, reject) => {
+        : await new Promise<Blob>((resolve) => {
             const img = new Image();
-            img.crossOrigin = 'anonymous';
             img.onload = () => {
               const canvas = document.createElement('canvas');
               canvas.width = img.naturalWidth;
               canvas.height = img.naturalHeight;
               canvas.getContext('2d')!.drawImage(img, 0, 0);
-              canvas.toBlob((b) => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/png');
+              canvas.toBlob((b) => resolve(b!), 'image/png');
             };
-            img.onerror = () => reject(new Error('Image load failed'));
             img.src = URL.createObjectURL(blob);
           });
       await navigator.clipboard.write([
