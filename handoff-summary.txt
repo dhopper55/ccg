@@ -3,7 +3,6 @@ I’m working on a static website for Coal Creek Guitars with a TypeScript build
 CORE PAGES / FEATURES
 - Homepage: links to major tools and a grid of brand decoder pages (Gibson, Fender, Kramer, etc.).
 - Serial decoders: brand-specific pages under /decoders/ with JS logic in src/decoders/*. Main lookup uses src/main.ts.
-- Guitars & Gear for Sale: page pulls inventory from Reverb via JS (src/listings.ts). It fetches https://api.reverb.com/api/my/listings and renders cards.
 - Listing Evaluator: user submits listing URLs; results page shows scored listings; item detail page shows full AI summary and metadata.
 
 LISTING EVALUATOR ARCHITECTURE (IMPORTANT)

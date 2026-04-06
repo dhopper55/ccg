@@ -127,7 +127,6 @@ const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
 const CUSTOM_MAX_PHOTOS = 10;
 const CUSTOM_MAX_TEXT_LENGTH = 5000;
-const REVERB_API_URL = 'https://api.reverb.com/api/my/listings?per_page=100';
 const REVERB_SEARCH_API_URL = 'https://api.reverb.com/api/listings';
 const REVERB_API_TOKEN_FALLBACK = '91712608fefe08e6915c2d781519411af3bdd750818a8edc94d94e14a3d7c491';
 const REVERB_PRICING_SEARCH_LIMIT = 12;
@@ -344,11 +343,6 @@ export default {
 
     if (path === '/api/listings/webhook' && request.method === 'POST') {
       const response = await handleWebhook(request, env, ctx);
-      return withCors(response, request, env);
-    }
-
-    if (path === '/api/for-sale' && request.method === 'GET') {
-      const response = await handleForSaleFeed(env);
       return withCors(response, request, env);
     }
 
@@ -654,8 +648,7 @@ async function requireAuth(request: Request, env: Env, path: string): Promise<Re
 function isPublicSiteScopedEndpoint(request: Request, path: string): boolean {
   const method = request.method.toUpperCase();
   return (
-    (path === '/api/for-sale' && method === 'GET')
-    || (path === '/api/decode' && method === 'POST')
+    (path === '/api/decode' && method === 'POST')
     || (path === '/api/serial-decodes' && method === 'POST')
   );
 }
@@ -2225,30 +2218,6 @@ type ListingMapItem = {
   location?: string;
 };
 
-type ReverbApiListing = {
-  id: number;
-  title?: string;
-  price?: {
-    amount?: string;
-    currency?: string;
-    symbol?: string;
-  };
-  photos?: Array<{
-    _links?: {
-      large_crop?: { href?: string };
-      small_crop?: { href?: string };
-      full?: { href?: string };
-    };
-  }>;
-  _links?: {
-    web?: { href?: string };
-  };
-};
-
-type ReverbApiResponse = {
-  listings?: ReverbApiListing[];
-};
-
 type ReverbItemResponse = {
   id?: number | string;
   title?: string;
@@ -2280,17 +2249,6 @@ type ReverbItemResponse = {
     region?: string;
     country_code?: string;
   } | string;
-};
-
-type UnifiedForSaleItem = {
-  id: string;
-  source: 'reverb' | 'facebook';
-  title: string;
-  priceDollars: number;
-  currency: string;
-  imageUrl: string;
-  listingUrl: string;
-  createdAt: string;
 };
 
 type InventoryItemRow = {
@@ -2556,15 +2514,6 @@ async function handleMapsConfig(env: Env): Promise<Response> {
     hasApiKey: Boolean(apiKey),
     apiKey: apiKey || null,
   });
-}
-
-async function handleForSaleFeed(env: Env): Promise<Response> {
-  const merged = (await fetchReverbListings(env))
-    .map((listing) => normalizeReverbForSale(listing))
-    .filter((listing) => listing.title && listing.listingUrl && Number.isFinite(listing.priceDollars))
-    .sort((a, b) => b.priceDollars - a.priceDollars);
-
-  return jsonResponse({ records: merged });
 }
 
 function parseBoundedInt(value: unknown, fallback: number, min: number, max: number): number {
@@ -4005,26 +3954,6 @@ async function handleInventoryDelete(request: Request, path: string, env: Env): 
   return jsonResponse({ ok: true, deletedCount, scope: 'group', ccgNumber });
 }
 
-async function fetchReverbListings(env: Env): Promise<ReverbApiListing[]> {
-  const token = env.REVERB_API_TOKEN || REVERB_API_TOKEN_FALLBACK;
-  const response = await fetch(REVERB_API_URL, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/hal+json',
-      'Accept': 'application/hal+json',
-      'Accept-Version': '3.0',
-      'Authorization': `Bearer ${token}`,
-    },
-  });
-  if (!response.ok) {
-    const body = await response.text();
-    console.error('Reverb fetch failed', { status: response.status, body });
-    return [];
-  }
-  const data = await response.json() as ReverbApiResponse;
-  return Array.isArray(data.listings) ? data.listings : [];
-}
-
 function pickReverbImageUrls(listing: {
   photos?: Array<{
     _links?: {
@@ -4106,21 +4035,6 @@ async function queueAndProcessReverbListing(
   }
 
   return { runId, recordId, listing };
-}
-
-function normalizeReverbForSale(listing: ReverbApiListing): UnifiedForSaleItem {
-  const priceDollars = parseMoney(String(listing.price?.amount || '0')) || 0;
-  const imageUrl = pickReverbImageUrls(listing)[0] || '';
-  return {
-    id: `reverb-${listing.id}`,
-    source: 'reverb',
-    title: normalizeText(listing.title, 'Untitled listing'),
-    priceDollars,
-    currency: normalizeText(listing.price?.currency, 'USD'),
-    imageUrl,
-    listingUrl: normalizeText(listing._links?.web?.href, ''),
-    createdAt: '',
-  };
 }
 
 function isAllowedImageHost(hostname: string): boolean {

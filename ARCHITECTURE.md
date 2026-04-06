@@ -196,9 +196,6 @@ Practical rule:
   - Debug payload for a listing
 - `POST /api/listings/reprocess`
   - Re-run AI processing for a listing
-- `GET /api/for-sale`
-  - Public feed that now returns Reverb listings only
-
 - `GET /api/inventory`
   - Legacy inventory admin list
 - `POST /api/inventory`
