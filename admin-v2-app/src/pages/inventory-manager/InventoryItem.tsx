@@ -57,6 +57,7 @@ type InventoryItemRecord = {
   purchasePrice?: number | null;
   privatePartyValue?: number | null;
   purchaseNotes?: string;
+  aiAnalysisText?: string;
   serialNumber?: string;
   weightLbs?: string;
   neckProfile?: string;
@@ -94,6 +95,7 @@ type ListingRecordResponse = {
     model?: string;
     finish?: string;
     description?: string;
+    ai_analysis_text?: string;
     image_url?: string;
     photos?: string;
   };
@@ -130,6 +132,7 @@ type FormState = {
   purchasePrice: string;
   privatePartyValue: string;
   purchaseNotes: string;
+  aiAnalysisText: string;
   serialNumber: string;
   weightLbs: string;
   neckProfile: string;
@@ -246,6 +249,7 @@ const DEFAULT_FORM: FormState = {
   purchasePrice: '',
   privatePartyValue: '0',
   purchaseNotes: '',
+  aiAnalysisText: '',
   serialNumber: '',
   weightLbs: '',
   neckProfile: '',
@@ -280,11 +284,78 @@ const notesFieldSx = {
   },
 };
 
+function buildHtmlPreviewNode(html: string, emptyLabel: string, onClick: () => void) {
+  const trimmed = html.trim();
+  return (
+    <Box
+      role="button"
+      tabIndex={0}
+      aria-label="Open AI Analysis editor"
+      onClick={onClick}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onClick();
+        }
+      }}
+      sx={{
+        width: 1,
+        minHeight: 120,
+        maxHeight: 120,
+        overflow: 'hidden',
+        borderRadius: 3,
+        p: 2.5,
+        border: '1px solid',
+        borderColor: 'divider',
+        bgcolor: 'background.default',
+        color: trimmed ? 'text.primary' : 'text.disabled',
+        cursor: 'pointer',
+        '&:hover': {
+          borderColor: 'primary.main',
+        },
+        '&:focus-visible': {
+          outline: 'none',
+          borderColor: 'primary.main',
+          boxShadow: (theme) => `0 0 0 2px ${theme.palette.primary.main}`,
+        },
+        '& p, & ul, & ol, & blockquote, & h3, & h4': {
+          mt: 0,
+          mb: 1,
+        },
+        '& ul, & ol': {
+          pl: 2.5,
+        },
+      }}
+    >
+      <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
+        AI Analysis (click to view/edit)
+      </Typography>
+      {trimmed ? (
+        <Box
+          sx={{
+            color: 'text.primary',
+            fontSize: '0.95rem',
+            lineHeight: 1.6,
+            overflowWrap: 'anywhere',
+            wordBreak: 'break-word',
+          }}
+          dangerouslySetInnerHTML={{ __html: trimmed }}
+        />
+      ) : (
+        <Typography variant="body2" sx={{ color: 'text.disabled', lineHeight: 1.6 }}>
+          {emptyLabel}
+        </Typography>
+      )}
+    </Box>
+  );
+}
+
 const InventoryItem = () => {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const [searchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const aiAnalysisEditorRef = useRef<HTMLDivElement | null>(null);
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
   const [editId, setEditId] = useState<string | null>(null);
   const [sourceListingId, setSourceListingId] = useState<string | null>(null);
@@ -299,6 +370,8 @@ const InventoryItem = () => {
     null,
   );
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [aiAnalysisDialogOpen, setAiAnalysisDialogOpen] = useState(false);
+  const [aiAnalysisDraft, setAiAnalysisDraft] = useState('');
   const [wasSoldOnLoad, setWasSoldOnLoad] = useState(false);
   const [soldConfirmOpen, setSoldConfirmOpen] = useState(false);
   const [categoryOptions, setCategoryOptions] = useState<InventoryCategoryOption[]>([]);
@@ -311,6 +384,11 @@ const InventoryItem = () => {
   useEffect(() => {
     document.title = `CCG Admin | ${pageTitle}`;
   }, [pageTitle]);
+
+  useEffect(() => {
+    if (!aiAnalysisDialogOpen || !aiAnalysisEditorRef.current) return;
+    aiAnalysisEditorRef.current.innerHTML = aiAnalysisDraft || '';
+  }, [aiAnalysisDialogOpen, aiAnalysisDraft]);
 
   useEffect(() => {
     let cancelled = false;
@@ -421,6 +499,7 @@ const InventoryItem = () => {
             privatePartyValue:
               record.privatePartyValue != null ? String(record.privatePartyValue) : '0',
             purchaseNotes: record.purchaseNotes || '',
+            aiAnalysisText: record.aiAnalysisText || '',
             serialNumber: record.serialNumber || '',
             weightLbs: record.weightLbs || '',
             neckProfile: record.neckProfile || '',
@@ -501,6 +580,7 @@ const InventoryItem = () => {
             model,
             finish,
             originalListingDesc: (fields.description || '').trim(),
+            aiAnalysisText: (fields.ai_analysis_text || '').trim(),
           }));
           if (allImages.length > 0) {
             setMessage({
@@ -570,6 +650,7 @@ const InventoryItem = () => {
     purchasePrice: form.purchasePrice.trim(),
     privatePartyValue: form.privatePartyValue.trim() || '0',
     purchaseNotes: form.purchaseNotes.trim(),
+    aiAnalysisText: form.aiAnalysisText.trim(),
     isActive: form.isActive,
     isMarked: form.isMarked,
     isPersonal: form.isPersonal,
@@ -876,6 +957,21 @@ const InventoryItem = () => {
     () => categoryOptions.find((option) => option.id === form.categoryId)?.name || '',
     [categoryOptions, form.categoryId],
   );
+
+  const openAiAnalysisDialog = () => {
+    setAiAnalysisDraft(form.aiAnalysisText);
+    setAiAnalysisDialogOpen(true);
+    setMessage(null);
+  };
+
+  const closeAiAnalysisDialog = () => {
+    setAiAnalysisDialogOpen(false);
+  };
+
+  const saveAiAnalysisDraft = () => {
+    setField('aiAnalysisText', aiAnalysisDraft);
+    setAiAnalysisDialogOpen(false);
+  };
 
   return (
     <Stack direction="column" height={1} gap={3} sx={{ minWidth: 0 }}>
@@ -1376,6 +1472,14 @@ const InventoryItem = () => {
               </Grid>
 
               <Grid size={12}>
+                {buildHtmlPreviewNode(
+                  form.aiAnalysisText,
+                  'Click to add AI analysis text.',
+                  openAiAnalysisDialog,
+                )}
+              </Grid>
+
+              <Grid size={12}>
                 <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, bgcolor: 'background.default' }}>
                   <Stack direction="row" sx={{ gap: 3, flexWrap: 'wrap' }}>
                     <FormControlLabel
@@ -1722,6 +1826,67 @@ const InventoryItem = () => {
               sx={{ display: 'block', maxWidth: '90vw', maxHeight: '85vh' }}
             />
           ) : null}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={aiAnalysisDialogOpen} onClose={closeAiAnalysisDialog} fullWidth maxWidth="md">
+        <DialogTitle>AI Analysis</DialogTitle>
+        <DialogContent dividers sx={{ display: 'block' }}>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: '1fr',
+              rowGap: 2,
+              width: 1,
+            }}
+          >
+            <Box sx={{ width: 1 }}>
+              <Typography variant="caption" color="text.secondary">Enter rich text content</Typography>
+              <Box
+                ref={aiAnalysisEditorRef}
+                contentEditable
+                suppressContentEditableWarning
+                onInput={(event) => {
+                  const html = (event.currentTarget as HTMLDivElement).innerHTML;
+                  setAiAnalysisDraft(html);
+                }}
+                sx={{
+                  mt: 0.75,
+                  minHeight: 320,
+                  maxHeight: 520,
+                  overflowY: 'auto',
+                  width: 1,
+                  borderRadius: 1.5,
+                  p: 1.5,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  bgcolor: 'background.default',
+                  color: 'text.primary',
+                  fontSize: '0.95rem',
+                  lineHeight: 1.6,
+                  '&:focus': {
+                    outline: 'none',
+                    borderColor: 'primary.main',
+                  },
+                  '& p, & ul, & ol, & blockquote, & h3, & h4': {
+                    mt: 0,
+                    mb: 1,
+                  },
+                  '&[contenteditable=\"true\"]:empty:before': {
+                    content: '\"Paste formatted content here\"',
+                    color: 'text.disabled',
+                  },
+                }}
+              />
+            </Box>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', columnGap: 1, width: 1 }}>
+              <Button variant="outlined" onClick={closeAiAnalysisDialog} sx={{ width: 1 }}>
+                Cancel
+              </Button>
+              <Button variant="contained" onClick={saveAiAnalysisDraft} sx={{ width: 1 }}>
+                Save
+              </Button>
+            </Box>
+          </Box>
         </DialogContent>
       </Dialog>
       <Dialog open={soldConfirmOpen} onClose={() => setSoldConfirmOpen(false)}>

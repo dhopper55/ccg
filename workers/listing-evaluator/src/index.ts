@@ -2322,6 +2322,7 @@ type InventoryItemRow = {
   purchase_price: number | null;
   private_party_value: number | null;
   purchase_notes: string | null;
+  ai_analysis_text: string | null;
   serial_number: string | null;
   is_active: number | null;
   is_marked: number | null;
@@ -3300,6 +3301,7 @@ async function handleAdminV2InventoryMergeMarked(env: Env): Promise<Response> {
     purchase_price: purchasePriceTotal,
     private_party_value: privatePartyValueTotal,
     purchase_notes: purchaseNotes || null,
+    ai_analysis_text: null,
     serial_number: null,
     weight_lbs: null,
     neck_profile: null,
@@ -3410,6 +3412,7 @@ async function handleInventoryPackageCreate(env: Env): Promise<Response> {
     purchase_price: purchasePriceTotal,
     private_party_value: privatePartyValueTotal,
     purchase_notes: purchaseNotes || null,
+    ai_analysis_text: null,
     serial_number: null,
     weight_lbs: null,
     neck_profile: null,
@@ -3492,6 +3495,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const purchasePrice = parseCurrencyAmount(body.purchasePrice);
   const privatePartyValue = parseCurrencyAmount(body.privatePartyValue) ?? 0;
   const purchaseNotes = normalizeText(body.purchaseNotes, '').slice(0, 4000);
+  const aiAnalysisText = sanitizePatternLookupHtml(normalizeText(body.aiAnalysisText, '')).slice(0, 20000);
   const serialNumber = normalizeText(body.serialNumber, '').slice(0, 180);
   const weightLbs = normalizeText(body.weightLbs, '').slice(0, 10);
   const neckProfile = normalizeText(body.neckProfile, '').slice(0, 100);
@@ -3602,6 +3606,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     purchase_price: purchasePrice,
     private_party_value: privatePartyValue,
     purchase_notes: purchaseNotes || null,
+    ai_analysis_text: aiAnalysisText || null,
     serial_number: serialNumber || null,
     weight_lbs: weightLbs || null,
     neck_profile: neckProfile || null,
@@ -3766,6 +3771,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const purchasePrice = parseCurrencyAmount(body.purchasePrice);
   const privatePartyValue = parseCurrencyAmount(body.privatePartyValue) ?? 0;
   const purchaseNotes = normalizeText(body.purchaseNotes, '').slice(0, 4000);
+  const aiAnalysisText = sanitizePatternLookupHtml(normalizeText(body.aiAnalysisText, '')).slice(0, 20000);
   const serialNumber = normalizeText(body.serialNumber, '').slice(0, 180);
   const weightLbs = normalizeText(body.weightLbs, '').slice(0, 10);
   const neckProfile = normalizeText(body.neckProfile, '').slice(0, 100);
@@ -3858,6 +3864,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     purchase_price: purchasePrice,
     private_party_value: privatePartyValue,
     purchase_notes: purchaseNotes || null,
+    ai_analysis_text: aiAnalysisText || null,
     serial_number: serialNumber || null,
     weight_lbs: weightLbs || null,
     neck_profile: neckProfile || null,
@@ -5066,6 +5073,7 @@ function mapInventoryRow(
     purchasePrice: row.purchase_price,
     privatePartyValue: row.private_party_value,
     purchaseNotes: row.purchase_notes || '',
+    aiAnalysisText: row.ai_analysis_text || '',
     serialNumber: row.serial_number || '',
     isActive: Boolean(row.is_active),
     isMarked: Boolean(row.is_marked),
@@ -5264,6 +5272,7 @@ async function dbListInventoryItemsGrouped(
        i.purchase_price,
        i.private_party_value,
        i.purchase_notes,
+       i.ai_analysis_text,
        i.serial_number,
        i.is_active,
        i.is_marked,
@@ -5371,6 +5380,7 @@ async function dbListInventoryItemsByCcgNumber(
       i.purchase_price,
       i.private_party_value,
       i.purchase_notes,
+      i.ai_analysis_text,
       i.serial_number,
       i.is_active,
       i.is_marked,
@@ -5445,6 +5455,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.purchase_price,
       i.private_party_value,
       i.purchase_notes,
+      i.ai_analysis_text,
       i.serial_number,
       i.weight_lbs,
       i.neck_profile,
@@ -5517,6 +5528,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     purchasePrice: row.purchase_price,
     privatePartyValue: row.private_party_value,
     purchaseNotes: row.purchase_notes || '',
+    aiAnalysisText: row.ai_analysis_text || '',
     serialNumber: row.serial_number || '',
     weightLbs: row.weight_lbs || '',
     neckProfile: row.neck_profile || '',
@@ -5800,6 +5812,7 @@ async function dbCreateInventoryItems(
     purchase_price: number | null;
     private_party_value: number;
     purchase_notes: string | null;
+    ai_analysis_text: string | null;
     serial_number: string | null;
     weight_lbs: string | null;
     neck_profile: string | null;
@@ -5830,12 +5843,12 @@ async function dbCreateInventoryItems(
         secondary_category_id,
         image_urls,
         repair_notes, original_listing_desc, video_url, sale_title, regular_price, sale_price, "condition", sale_description,
-        purchased_date, purchase_price, private_party_value, purchase_notes, serial_number,
+        purchased_date, purchase_price, private_party_value, purchase_notes, ai_analysis_text, serial_number,
         weight_lbs, neck_profile, neck_thickness, nut_width, width_12_fret, fretboard_radius, twelve_fret_action,
         is_active, is_marked, is_personal, is_rented, needs_repair, for_sale, for_sale_date,
         is_sold, sold_date, sold_amount, sell_notes
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const statements = Array.from({ length: qty }, (_, index) =>
       env.DB.prepare(statement).bind(
@@ -5862,6 +5875,7 @@ async function dbCreateInventoryItems(
         fields.purchase_price,
         fields.private_party_value,
         fields.purchase_notes,
+        fields.ai_analysis_text,
         fields.serial_number,
         fields.weight_lbs,
         fields.neck_profile,
@@ -5915,6 +5929,7 @@ async function dbUpdateInventorySharedByCcgNumber(
     purchase_price: number | null;
     private_party_value: number;
     purchase_notes: string | null;
+    ai_analysis_text: string | null;
     serial_number: string | null;
     weight_lbs: string | null;
     neck_profile: string | null;
@@ -5933,7 +5948,7 @@ async function dbUpdateInventorySharedByCcgNumber(
        SET
          image_url = ?, title = ?, category_id = ?, brand = ?, year_range = ?, model = ?, finish = ?, image_urls = ?,
          secondary_category_id = ?,
-         repair_notes = ?, original_listing_desc = ?, purchased_date = ?, purchase_price = ?, private_party_value = ?, purchase_notes = ?,
+         repair_notes = ?, original_listing_desc = ?, purchased_date = ?, purchase_price = ?, private_party_value = ?, purchase_notes = ?, ai_analysis_text = ?,
          serial_number = ?, weight_lbs = ?, neck_profile = ?, neck_thickness = ?, nut_width = ?, width_12_fret = ?, fretboard_radius = ?, twelve_fret_action = ?,
          storage_location = ?,
          updated_at = CURRENT_TIMESTAMP
@@ -5954,6 +5969,7 @@ async function dbUpdateInventorySharedByCcgNumber(
       fields.purchase_price,
       fields.private_party_value,
       fields.purchase_notes,
+      fields.ai_analysis_text,
       fields.serial_number,
       fields.weight_lbs,
       fields.neck_profile,
