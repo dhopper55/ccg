@@ -957,33 +957,13 @@ const ListingEvaluatorItem = () => {
       { label: 'Status', value: statusLabel },
       { label: 'Submitted', value: formatSubmittedAt(fields.submitted_at) },
       { label: 'Location', value: normalizeValue(fields.location) },
-    ],
-    [fields.location, fields.submitted_at, sourceGlyph, sourceImage, sourceLabel, statusLabel],
-  );
-
-  const marketItems = useMemo<DetailItem[]>(
-    () => [
       { label: 'Asking Price', value: askingPrice },
       { label: 'Private Party Range', value: privateRange },
-      { label: 'Ideal Price', value: idealPrice },
-      { label: 'Pricing Source', value: normalizeValue(fields.pricing_source) },
-      { label: 'Pricing Confidence', value: normalizeValue(fields.pricing_confidence) },
-      { label: 'Pricing Comp Count', value: normalizeValue(fields.pricing_comp_count) },
-      ...aiQueryTexts.map((_, index) => ({
-        label: index === 0 ? 'AI Query Copy' : `AI Query Copy ${index + 1}`,
-        value: (
-          <Tooltip title={aiCopiedIndex === index ? 'Copied!' : 'Copy AI query to clipboard'}>
-            <IconButton size="small" onClick={() => handleAiQueryCopy(index)} sx={{ ml: -1 }}>
-              <IconifyIcon
-                icon={aiCopiedIndex === index ? 'material-symbols:check-rounded' : 'material-symbols:content-copy-outline-rounded'}
-                sx={{ fontSize: 18, color: aiCopiedIndex === index ? 'success.main' : 'text.secondary' }}
-              />
-            </IconButton>
-          </Tooltip>
-        ),
-      })),
+      { label: 'Price 1st Guess', value: idealPrice },
+      { label: 'Brand', value: normalizeValue(fields.brand) },
+      { label: 'Model', value: normalizeValue(fields.model) },
     ],
-    [aiCopiedIndex, aiQueryTexts, askingPrice, fields.pricing_comp_count, fields.pricing_confidence, fields.pricing_source, handleAiQueryCopy, idealPrice, privateRange],
+    [askingPrice, fields.brand, fields.location, fields.model, fields.submitted_at, idealPrice, privateRange, sourceGlyph, sourceImage, sourceLabel, statusLabel],
   );
 
   const singleDetailItems = useMemo<DetailItem[]>(() => {
@@ -1415,8 +1395,7 @@ const ListingEvaluatorItem = () => {
                     </Box>
 
                     <Stack direction="column" sx={{ gap: 2.5, flex: 1, minWidth: 0 }}>
-                      <DetailSection title="Listing overview" items={overviewItems} />
-                      <DetailSection title="Market snapshot" items={marketItems} />
+                      <DetailSection title="Listing Data" items={overviewItems} />
                     </Stack>
                   </Stack>
 
