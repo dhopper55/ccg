@@ -71,7 +71,6 @@ type InventoryItemRecord = {
   isMarked?: boolean;
   isPersonal?: boolean;
   isRented?: boolean;
-  needsRepair?: boolean;
   forSale?: boolean;
   forSaleDate?: string | null;
   groupCount?: number | null;
@@ -147,7 +146,6 @@ type FormState = {
   isMarked: boolean;
   isPersonal: boolean;
   isRented: boolean;
-  needsRepair: boolean;
   forSale: boolean;
   isSold: boolean;
   soldAmount: string;
@@ -275,7 +273,6 @@ const DEFAULT_FORM: FormState = {
   isMarked: false,
   isPersonal: false,
   isRented: false,
-  needsRepair: false,
   forSale: false,
   isSold: false,
   soldAmount: '',
@@ -534,7 +531,6 @@ const InventoryItem = () => {
             isMarked: Boolean(record.isMarked),
             isPersonal: Boolean(record.isPersonal),
             isRented: Boolean(record.isRented),
-            needsRepair: Boolean(record.needsRepair),
             forSale: Boolean(record.forSale),
             isSold: Boolean(record.isSold),
             soldAmount: record.soldAmount != null ? String(record.soldAmount) : '',
@@ -687,7 +683,6 @@ const InventoryItem = () => {
     isMarked: form.isMarked,
     isPersonal: form.isPersonal,
     isRented: form.isRented,
-    needsRepair: form.needsRepair,
     forSale: form.forSale,
     isSold: form.isSold,
     serialNumber: form.serialNumber.trim(),
