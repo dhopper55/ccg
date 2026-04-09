@@ -47,7 +47,6 @@ type InventoryRecord = {
   repairNotes?: string;
   isMarked?: boolean;
   isPersonal?: boolean;
-  needsRepair?: boolean;
   forSale?: boolean;
   isSold?: boolean;
   purchasePrice?: number | null;
@@ -78,7 +77,6 @@ type InventoryFilters = {
   active: 'all' | 'yes' | 'no';
   marked: 'all' | 'yes' | 'no';
   personal: 'all' | 'yes' | 'no';
-  repair: 'all' | 'yes' | 'no';
 };
 
 type InventoryCategoryNode = {
@@ -111,7 +109,6 @@ const DEFAULT_FILTERS: InventoryFilters = {
   active: 'yes',
   marked: 'all',
   personal: 'all',
-  repair: 'all',
 };
 
 function formatAddDate(value: string | null | undefined): string {
@@ -180,11 +177,6 @@ const InventoryManager = () => {
       : searchParams.get('personal') === 'no'
         ? 'no'
         : 'all',
-    repair: searchParams.get('repair') === 'yes' || searchParams.get('onlyRepair') === '1'
-      ? 'yes'
-      : searchParams.get('repair') === 'no'
-        ? 'no'
-        : 'all',
   }));
   const [page, setPage] = useState(() => {
     const parsed = Number.parseInt(searchParams.get('page') || '1', 10);
@@ -216,8 +208,6 @@ const InventoryManager = () => {
       || searchParams.get('onlyMarked') === '1'
       || searchParams.get('personal')
       || searchParams.get('onlyPersonal') === '1'
-      || searchParams.get('repair')
-      || searchParams.get('onlyRepair') === '1',
     );
   });
   const [isUnmarkingAll, setIsUnmarkingAll] = useState(false);
@@ -242,7 +232,6 @@ const InventoryManager = () => {
     if (filters.active !== 'yes') nextParams.set('active', filters.active);
     if (filters.marked !== 'all') nextParams.set('marked', filters.marked);
     if (filters.personal !== 'all') nextParams.set('personal', filters.personal);
-    if (filters.repair !== 'all') nextParams.set('repair', filters.repair);
 
     if (nextParams.toString() !== searchParams.toString()) {
       setSearchParams(nextParams, { replace: true });
@@ -312,7 +301,6 @@ const InventoryManager = () => {
         params.set('active', filters.active);
         params.set('marked', filters.marked);
         params.set('personal', filters.personal);
-        params.set('repair', filters.repair);
         if (filters.categoryId) params.set('categoryId', filters.categoryId);
         if (filters.brand) params.set('brand', filters.brand);
         if (filters.queue) params.set('queue', filters.queue);
@@ -697,8 +685,8 @@ const InventoryManager = () => {
                           </Box>
                         </Tooltip>
                       ) : null}
-                      {record.needsRepair ? (
-                        <Tooltip title={record.repairNotes?.trim() || 'Needs repair'}>
+                      {record.queue === 'Repair' ? (
+                        <Tooltip title={record.repairNotes?.trim() || 'Repair queue'}>
                           <Box
                             component="span"
                             sx={{
@@ -798,8 +786,8 @@ const InventoryManager = () => {
                         </Box>
                       </Tooltip>
                     ) : null}
-                    {record.needsRepair ? (
-                      <Tooltip title={record.repairNotes?.trim() || 'Needs repair'}>
+                    {record.queue === 'Repair' ? (
+                      <Tooltip title={record.repairNotes?.trim() || 'Repair queue'}>
                         <Box component="span" sx={{ color: 'error.main', display: 'inline-flex', flexShrink: 0 }}>
                           <IconifyIcon icon="material-symbols:construction-rounded" fontSize={15} />
                         </Box>
@@ -975,7 +963,7 @@ const InventoryManager = () => {
                 </Button>
 
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-                  {filters.categoryId || filters.brand || filters.queue || filters.sold !== 'no' || filters.active !== 'yes' || filters.marked !== 'all' || filters.personal !== 'all' || filters.repair !== 'all' ? (
+                  {filters.categoryId || filters.brand || filters.queue || filters.sold !== 'no' || filters.active !== 'yes' || filters.marked !== 'all' || filters.personal !== 'all' ? (
                     <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                       Filters active
                     </Typography>
@@ -1111,19 +1099,6 @@ const InventoryManager = () => {
                         </FormControl>
                       </Grid>
 
-                      <Grid size={{ xs: 12, md: 'auto' }} sx={{ flexGrow: 0, flexShrink: 0 }}>
-                        <FormControl fullWidth sx={FILTER_CONTROL_SX}>
-                          <Select
-                            value={filters.repair}
-                            onChange={(event) => handleFilterChange('repair', event.target.value as InventoryFilters['repair'])}
-                            inputProps={{ 'aria-label': 'Repair filter' }}
-                          >
-                            <MenuItem value="all">All</MenuItem>
-                            <MenuItem value="yes">Needs Repair</MenuItem>
-                            <MenuItem value="no">No Repair</MenuItem>
-                          </Select>
-                        </FormControl>
-                      </Grid>
                     </Grid>
                   </Grid>
                 </Grid>

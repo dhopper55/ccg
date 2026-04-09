@@ -1568,15 +1568,6 @@ const InventoryItem = () => {
                     <FormControlLabel
                       control={
                         <Checkbox
-                          checked={form.needsRepair}
-                          onChange={(event) => setField('needsRepair', event.target.checked)}
-                        />
-                      }
-                      label="Needs Repair"
-                    />
-                    <FormControlLabel
-                      control={
-                        <Checkbox
                           checked={form.forSale}
                           onChange={(event) => setField('forSale', event.target.checked)}
                         />
