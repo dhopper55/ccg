@@ -5,11 +5,9 @@ import {
   Alert,
   Box,
   Button,
-  Checkbox,
   Collapse,
   CircularProgress,
   FormControl,
-  FormControlLabel,
   Avatar,
   IconButton,
   MenuItem,
@@ -133,6 +131,15 @@ function formatCurrency(value: number | null | undefined): string {
     maximumFractionDigits: 0,
   }).format(value);
 }
+
+const FILTER_CONTROL_SX = {
+  minWidth: { xs: '100%', md: 260 },
+  '& .MuiSelect-select': {
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
+} as const;
 
 const InventoryManager = () => {
   const navigate = useNavigate();
@@ -973,47 +980,47 @@ const InventoryManager = () => {
               </Stack>
 
               <Collapse in={filtersOpen} timeout="auto" unmountOnExit>
-                <Grid container spacing={2} sx={{ alignItems: 'center', pt: 0.5 }}>
-                  <Grid size={{ xs: 12, md: 3 }}>
-                    <FormControl fullWidth>
-                      <Select
-                        displayEmpty
-                        value={filters.categoryId}
-                        onChange={(event) => handleFilterChange('categoryId', event.target.value)}
-                        inputProps={{ 'aria-label': 'Category' }}
-                      >
-                        <MenuItem value="">Category</MenuItem>
-                        {categoryOptions.map((option) => (
-                          <MenuItem key={option.id} value={option.id}>
-                            {option.label}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
+                <Grid container spacing={2} sx={{ alignItems: 'flex-start', pt: 0.5 }}>
+                  <Grid size={{ xs: 12, lg: 3 }}>
+                    <Stack spacing={2}>
+                      <FormControl fullWidth sx={FILTER_CONTROL_SX}>
+                        <Select
+                          displayEmpty
+                          value={filters.categoryId}
+                          onChange={(event) => handleFilterChange('categoryId', event.target.value)}
+                          inputProps={{ 'aria-label': 'Category' }}
+                        >
+                          <MenuItem value="">Category</MenuItem>
+                          {categoryOptions.map((option) => (
+                            <MenuItem key={option.id} value={option.id}>
+                              {option.label}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+
+                      <FormControl fullWidth sx={FILTER_CONTROL_SX}>
+                        <Select
+                          displayEmpty
+                          value={filters.brand}
+                          onChange={(event) => handleFilterChange('brand', event.target.value)}
+                          inputProps={{ 'aria-label': 'Brand' }}
+                        >
+                          <MenuItem value="">Brand</MenuItem>
+                          {availableBrands.map((option) => (
+                            <MenuItem key={option} value={option}>
+                              {option}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Stack>
                   </Grid>
 
-                  <Grid size={{ xs: 12, md: 3 }}>
-                    <FormControl fullWidth>
-                      <Select
-                        displayEmpty
-                        value={filters.brand}
-                        onChange={(event) => handleFilterChange('brand', event.target.value)}
-                        inputProps={{ 'aria-label': 'Brand' }}
-                      >
-                        <MenuItem value="">Brand</MenuItem>
-                        {availableBrands.map((option) => (
-                          <MenuItem key={option} value={option}>
-                            {option}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-
-                  <Grid size={{ xs: 12, md: 6 }}>
-                    <Grid container spacing={2}>
-                      <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
-                        <FormControl fullWidth>
+                  <Grid size={{ xs: 12, lg: 9 }}>
+                    <Grid container spacing={2} sx={{ justifyContent: 'flex-start' }}>
+                      <Grid size={{ xs: 12, sm: 6, xl: 4 }}>
+                        <FormControl fullWidth sx={FILTER_CONTROL_SX}>
                           <Select
                             value={filters.sold}
                             onChange={(event) => handleFilterChange('sold', event.target.value as InventoryFilters['sold'])}
@@ -1026,8 +1033,8 @@ const InventoryManager = () => {
                         </FormControl>
                       </Grid>
 
-                      <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
-                        <FormControl fullWidth>
+                      <Grid size={{ xs: 12, sm: 6, xl: 4 }}>
+                        <FormControl fullWidth sx={FILTER_CONTROL_SX}>
                           <Select
                             value={filters.active}
                             onChange={(event) => handleFilterChange('active', event.target.value as InventoryFilters['active'])}
@@ -1040,8 +1047,8 @@ const InventoryManager = () => {
                         </FormControl>
                       </Grid>
 
-                      <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
-                        <FormControl fullWidth>
+                      <Grid size={{ xs: 12, sm: 6, xl: 4 }}>
+                        <FormControl fullWidth sx={FILTER_CONTROL_SX}>
                           <Select
                             value={filters.marked}
                             onChange={(event) => handleFilterChange('marked', event.target.value as InventoryFilters['marked'])}
@@ -1054,8 +1061,8 @@ const InventoryManager = () => {
                         </FormControl>
                       </Grid>
 
-                      <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
-                        <FormControl fullWidth>
+                      <Grid size={{ xs: 12, sm: 6, xl: 4 }}>
+                        <FormControl fullWidth sx={FILTER_CONTROL_SX}>
                           <Select
                             value={filters.personal}
                             onChange={(event) => handleFilterChange('personal', event.target.value as InventoryFilters['personal'])}
@@ -1068,8 +1075,8 @@ const InventoryManager = () => {
                         </FormControl>
                       </Grid>
 
-                      <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
-                        <FormControl fullWidth>
+                      <Grid size={{ xs: 12, sm: 6, xl: 4 }}>
+                        <FormControl fullWidth sx={FILTER_CONTROL_SX}>
                           <Select
                             value={filters.repair}
                             onChange={(event) => handleFilterChange('repair', event.target.value as InventoryFilters['repair'])}
