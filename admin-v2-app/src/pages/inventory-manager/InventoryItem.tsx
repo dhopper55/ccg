@@ -354,6 +354,7 @@ const InventoryItem = () => {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const [searchParams] = useSearchParams();
+  const inventoryManagerHref = `${paths.inventoryManager}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const aiAnalysisEditorRef = useRef<HTMLDivElement | null>(null);
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
@@ -945,7 +946,7 @@ const InventoryItem = () => {
           ? `Duplicate submit prevented. Using existing item ${data.ccgNumber || ''}.`
           : `Created ${typeof data.createdCount === 'number' ? data.createdCount : 1} inventory item${(data.createdCount || 1) === 1 ? '' : 's'}: ${data.ccgNumber || ''}.`;
       enqueueSnackbar(text, { variant: 'success' });
-      navigate(paths.inventoryManager);
+      navigate(inventoryManagerHref);
     } catch (error) {
       const text = error instanceof Error ? error.message : 'Unable to save inventory item.';
       setMessage({ severity: 'error', text });
@@ -996,7 +997,7 @@ const InventoryItem = () => {
           <Tooltip title="Back">
             <IconButton
               aria-label="Back"
-              onClick={() => navigate(paths.inventoryManager)}
+              onClick={() => navigate(inventoryManagerHref)}
               sx={{
                 width: 40,
                 height: 40,

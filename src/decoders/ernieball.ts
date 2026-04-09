@@ -5,9 +5,10 @@ import { DecodeResult, GuitarInfo } from '../types.js';
  *
  * Supports:
  * - G prefix (1998-2021): Standard production, PDN, BFR
+ * - J prefix (late 1990s-2021): Standard production / overlapping modern prefix usage
  * - H prefix (2021+): Current standard production
  * - D prefix (2021+): Ball Family Reserve (BFR)
- * - M prefix (2016+): Majesty guitars (6-digit)
+ * - M prefix (2016+): Majesty guitars (5-6 digits)
  * - L prefix: Left-handed instruments
  * - F prefix: 7-string Petrucci and special runs
  * - S prefix: Artist signature models (Tosin Abasi, Jason Richardson)
@@ -26,8 +27,8 @@ export function decodeErnieBall(serial: string): DecodeResult {
   const cleaned = serial.trim().toUpperCase();
   const normalized = cleaned.replace(/[\s-]/g, '');
 
-  // Majesty guitars: M + 6 digits (2016+)
-  if (/^M\d{6}$/.test(normalized)) {
+  // Majesty guitars: M + 5-6 digits (2016+)
+  if (/^M\d{5,6}$/.test(normalized)) {
     return decodeMajesty(normalized);
   }
 
@@ -39,6 +40,11 @@ export function decodeErnieBall(serial: string): DecodeResult {
   // G prefix: Standard production (1998-2021)
   if (/^G\d{5}$/.test(normalized)) {
     return decodeGSeries(normalized);
+  }
+
+  // J prefix: Modern production variant / overlapping standard production usage
+  if (/^J\d{5,6}$/.test(normalized)) {
+    return decodeJSeries(normalized);
   }
 
   // D prefix: Ball Family Reserve (2021+)
@@ -98,11 +104,11 @@ export function decodeErnieBall(serial: string): DecodeResult {
 
   return {
     success: false,
-    error: 'Unable to decode this Ernie Ball Music Man serial number. The format was not recognized. Common formats include: G/H/D + 5 digits (USA production), M + 6 digits (Majesty), L prefix (left-handed), or 5-digit numeric (1985-1999). Note: Sterling by Music Man (Indonesian) instruments are not in the EBMM database - contact info@sterlingbymusicman.com for those.',
+    error: 'Unable to decode this Ernie Ball Music Man serial number. The format was not recognized. Common formats include: G/H/D + 5 digits (USA production), M + 5-6 digits (Majesty), L prefix (left-handed), or 5-digit numeric (1985-1999). Note: Sterling by Music Man (Indonesian) instruments are not in the EBMM database - contact info@sterlingbymusicman.com for those.',
   };
 }
 
-// Majesty guitars: M + 6 digits (Oct 2016+)
+// Majesty guitars: M + 5-6 digits (Oct 2016+)
 function decodeMajesty(serial: string): DecodeResult {
   const sequence = serial.substring(1);
 
@@ -146,6 +152,22 @@ function decodeGSeries(serial: string): DecodeResult {
     factory: 'Ernie Ball Music Man',
     country: 'USA (San Luis Obispo, CA)',
     notes: `G-prefix was the default for most guitars from December 1997 through early 2021. Used for regular production, limited editions, Premier Dealer Network (PDN), and Ball Family Reserve (BFR) instruments. Serial numbers are non-sequential. Production sequence: ${sequence}. Use the official EBMM database at music-man.com for exact date.`,
+  };
+
+  return { success: true, info };
+}
+
+// J prefix: Standard production / overlapping modern usage
+function decodeJSeries(serial: string): DecodeResult {
+  const sequence = serial.substring(1);
+
+  const info: GuitarInfo = {
+    brand: 'Ernie Ball Music Man',
+    serialNumber: serial,
+    year: '1998-2021 (approximately)',
+    factory: 'Ernie Ball Music Man',
+    country: 'USA (San Luis Obispo, CA)',
+    notes: `J-prefix appears on valid Ernie Ball Music Man serial numbers from the late G-series / modern era. Exact dating should be confirmed with the official EBMM serial database. Production sequence: ${sequence}.`,
   };
 
   return { success: true, info };

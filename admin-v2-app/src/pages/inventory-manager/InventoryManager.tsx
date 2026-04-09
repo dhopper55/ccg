@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { useSnackbar } from 'notistack';
 import {
   Alert,
   Box,
   Button,
   Checkbox,
+  Collapse,
   CircularProgress,
   FormControl,
   FormControlLabel,
@@ -135,19 +136,50 @@ function formatCurrency(value: number | null | undefined): string {
 
 const InventoryManager = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { enqueueSnackbar } = useSnackbar();
   const { down } = useBreakpoints();
   const downSm = down('sm');
-  const [filters, setFilters] = useState<InventoryFilters>(DEFAULT_FILTERS);
-  const [page, setPage] = useState(1);
-  const [sortBy, setSortBy] = useState<InventorySortKey>('addDate');
-  const [sortDir, setSortDir] = useState<InventorySortDir>('desc');
+  const [filters, setFilters] = useState<InventoryFilters>(() => ({
+    categoryId: searchParams.get('categoryId') || '',
+    brand: searchParams.get('brand') || '',
+    sold: searchParams.get('sold') === '1',
+    active: searchParams.get('active') !== '0',
+    onlyMarked: searchParams.get('onlyMarked') === '1',
+    onlyPersonal: searchParams.get('onlyPersonal') === '1',
+    onlyRepair: searchParams.get('onlyRepair') === '1',
+  }));
+  const [page, setPage] = useState(() => {
+    const parsed = Number.parseInt(searchParams.get('page') || '1', 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+  });
+  const [sortBy, setSortBy] = useState<InventorySortKey>(() => {
+    const value = searchParams.get('sortBy');
+    return value === 'ccgNumber' || value === 'title' || value === 'paid' || value === 'private' || value === 'addDate'
+      ? value
+      : 'addDate';
+  });
+  const [sortDir, setSortDir] = useState<InventorySortDir>(() => (
+    searchParams.get('sortDir') === 'asc' ? 'asc' : 'desc'
+  ));
   const [records, setRecords] = useState<InventoryRecord[]>([]);
   const [availableBrands, setAvailableBrands] = useState<string[]>([]);
   const [categoryOptions, setCategoryOptions] = useState<InventoryCategoryOption[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(() => {
+    return Boolean(
+      searchParams.get('categoryId')
+      || searchParams.get('brand')
+      || searchParams.get('sold') === '1'
+      || searchParams.get('active') === '0'
+      || searchParams.get('onlyMarked') === '1'
+      || searchParams.get('onlyPersonal') === '1'
+      || searchParams.get('onlyRepair') === '1',
+    );
+  });
   const [isUnmarkingAll, setIsUnmarkingAll] = useState(false);
   const [isMergingMarked, setIsMergingMarked] = useState(false);
   const [togglingMarkedIds, setTogglingMarkedIds] = useState<string[]>([]);
@@ -157,6 +189,24 @@ const InventoryManager = () => {
   useEffect(() => {
     document.title = 'CCG Admin | Inventory Manager';
   }, []);
+
+  useEffect(() => {
+    const nextParams = new URLSearchParams();
+    if (page > 1) nextParams.set('page', String(page));
+    if (sortBy !== 'addDate') nextParams.set('sortBy', sortBy);
+    if (sortDir !== 'desc') nextParams.set('sortDir', sortDir);
+    if (filters.categoryId) nextParams.set('categoryId', filters.categoryId);
+    if (filters.brand) nextParams.set('brand', filters.brand);
+    if (filters.sold) nextParams.set('sold', '1');
+    if (!filters.active) nextParams.set('active', '0');
+    if (filters.onlyMarked) nextParams.set('onlyMarked', '1');
+    if (filters.onlyPersonal) nextParams.set('onlyPersonal', '1');
+    if (filters.onlyRepair) nextParams.set('onlyRepair', '1');
+
+    if (nextParams.toString() !== searchParams.toString()) {
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [filters, page, sortBy, sortDir, searchParams, setSearchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -423,6 +473,9 @@ const InventoryManager = () => {
     return `Page ${Math.min(page, totalPages)} of ${totalPages} • ${total} total items`;
   }, [page, total, totalPages]);
 
+  const inventoryItemHref = (recordId: string) =>
+    `${paths.inventoryItemWithId(recordId)}${location.search || ''}`;
+
   const showMarkedCheckboxes = !filters.onlyMarked;
 
   const renderDesktopTable = () => (
@@ -513,10 +566,10 @@ const InventoryManager = () => {
                     <Link
                       underline="none"
                       color="text.primary"
-                      href={paths.inventoryItemWithId(record.id)}
+                      href={inventoryItemHref(record.id)}
                       onClick={(event) => {
                         event.preventDefault();
-                        navigate(paths.inventoryItemWithId(record.id));
+                        navigate(inventoryItemHref(record.id));
                       }}
                       sx={{ fontWeight: 600 }}
                     >
@@ -550,10 +603,10 @@ const InventoryManager = () => {
                     <Link
                       underline="none"
                       color="text.primary"
-                      href={paths.inventoryItemWithId(record.id)}
+                      href={inventoryItemHref(record.id)}
                       onClick={(event) => {
                         event.preventDefault();
-                        navigate(paths.inventoryItemWithId(record.id));
+                        navigate(inventoryItemHref(record.id));
                       }}
                       sx={{
                         display: 'inline',
@@ -647,7 +700,7 @@ const InventoryManager = () => {
           <Paper
             key={record.id}
             variant="outlined"
-            onClick={() => navigate(paths.inventoryItemWithId(record.id))}
+            onClick={() => navigate(inventoryItemHref(record.id))}
             sx={{
               p: 2,
               borderRadius: 3,
@@ -833,115 +886,158 @@ const InventoryManager = () => {
 
       <Box sx={{ flex: 1, p: { xs: 2, md: 5 }, minWidth: 0, overflow: 'hidden' }}>
         <Stack direction="column" spacing={3} sx={{ pt: { xs: 0, md: 1 } }}>
-          <Grid container spacing={2} sx={{ alignItems: 'center' }}>
-            <Grid size={{ xs: 12, md: 2 }}>
-              <FormControl fullWidth>
-                <Select
-                  displayEmpty
-                  value={filters.categoryId}
-                  onChange={(event) => handleFilterChange('categoryId', event.target.value)}
-                  inputProps={{ 'aria-label': 'Category' }}
-                >
-                  <MenuItem value="">Category</MenuItem>
-                  {categoryOptions.map((option) => (
-                    <MenuItem key={option.id} value={option.id}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-
-            <Grid size={{ xs: 12, md: 2 }}>
-              <FormControl fullWidth>
-                <Select
-                  displayEmpty
-                  value={filters.brand}
-                  onChange={(event) => handleFilterChange('brand', event.target.value)}
-                  inputProps={{ 'aria-label': 'Brand' }}
-                >
-                  <MenuItem value="">Brand</MenuItem>
-                  {availableBrands.map((option) => (
-                    <MenuItem key={option} value={option}>
-                      {option}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-
-            <Grid size={{ xs: 12, md: 5 }}>
-              <Stack spacing={0.75} sx={{ minHeight: 56, justifyContent: 'center' }}>
-                <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={filters.sold}
-                        onChange={(event) => handleFilterChange('sold', event.target.checked)}
-                      />
-                    }
-                    sx={{ m: 0, whiteSpace: 'nowrap' }}
-                    label="Sold"
-                  />
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={filters.active}
-                        onChange={(event) => handleFilterChange('active', event.target.checked)}
-                      />
-                    }
-                    sx={{ m: 0, whiteSpace: 'nowrap' }}
-                    label="Active"
-                  />
-                </Stack>
-                <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={filters.onlyMarked}
-                        onChange={(event) => handleFilterChange('onlyMarked', event.target.checked)}
-                      />
-                    }
-                    sx={{ m: 0, whiteSpace: 'nowrap' }}
-                    label="Only Marked"
-                  />
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={filters.onlyPersonal}
-                        onChange={(event) => handleFilterChange('onlyPersonal', event.target.checked)}
-                      />
-                    }
-                    sx={{ m: 0, whiteSpace: 'nowrap' }}
-                    label="Only Personal"
-                  />
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={filters.onlyRepair}
-                        onChange={(event) => handleFilterChange('onlyRepair', event.target.checked)}
-                      />
-                    }
-                    sx={{ m: 0, whiteSpace: 'nowrap' }}
-                    label="Only Repair"
-                  />
-                </Stack>
-              </Stack>
-            </Grid>
-
-            <Grid size={{ xs: 12, md: 3 }}>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ justifyContent: 'flex-end', width: '100%' }}>
+          <Paper
+            variant="outlined"
+            sx={{
+              p: 1.5,
+              borderRadius: 3,
+              bgcolor: 'background.paper',
+            }}
+          >
+            <Stack spacing={1.5}>
+              <Stack
+                direction="row"
+                sx={{
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 1.5,
+                  flexWrap: 'wrap',
+                }}
+              >
                 <Button
-                  variant="outlined"
+                  variant={filtersOpen ? 'contained' : 'outlined'}
                   color="inherit"
-                  onClick={clearFilters}
-                  sx={{ minWidth: { xs: '100%', sm: 160 } }}
+                  onClick={() => setFiltersOpen((current) => !current)}
+                  startIcon={<IconifyIcon icon="material-symbols:filter-list-rounded" />}
+                  endIcon={
+                    <IconifyIcon
+                      icon={filtersOpen ? 'material-symbols:expand-less-rounded' : 'material-symbols:expand-more-rounded'}
+                    />
+                  }
+                  sx={{
+                    minWidth: 132,
+                    justifyContent: 'space-between',
+                    px: 1.75,
+                  }}
                 >
-                  Clear
+                  Filters
                 </Button>
+
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                  {filters.categoryId || filters.brand || filters.sold || !filters.active || filters.onlyMarked || filters.onlyPersonal || filters.onlyRepair ? (
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                      Filters active
+                    </Typography>
+                  ) : null}
+                  <Button
+                    variant="outlined"
+                    color="inherit"
+                    onClick={clearFilters}
+                    sx={{ minWidth: 110 }}
+                  >
+                    Clear
+                  </Button>
+                </Stack>
               </Stack>
-            </Grid>
-          </Grid>
+
+              <Collapse in={filtersOpen} timeout="auto" unmountOnExit>
+                <Grid container spacing={2} sx={{ alignItems: 'center', pt: 0.5 }}>
+                  <Grid size={{ xs: 12, md: 3 }}>
+                    <FormControl fullWidth>
+                      <Select
+                        displayEmpty
+                        value={filters.categoryId}
+                        onChange={(event) => handleFilterChange('categoryId', event.target.value)}
+                        inputProps={{ 'aria-label': 'Category' }}
+                      >
+                        <MenuItem value="">Category</MenuItem>
+                        {categoryOptions.map((option) => (
+                          <MenuItem key={option.id} value={option.id}>
+                            {option.label}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+
+                  <Grid size={{ xs: 12, md: 3 }}>
+                    <FormControl fullWidth>
+                      <Select
+                        displayEmpty
+                        value={filters.brand}
+                        onChange={(event) => handleFilterChange('brand', event.target.value)}
+                        inputProps={{ 'aria-label': 'Brand' }}
+                      >
+                        <MenuItem value="">Brand</MenuItem>
+                        {availableBrands.map((option) => (
+                          <MenuItem key={option} value={option}>
+                            {option}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Stack spacing={0.75} sx={{ minHeight: 56, justifyContent: 'center' }}>
+                      <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={filters.sold}
+                              onChange={(event) => handleFilterChange('sold', event.target.checked)}
+                            />
+                          }
+                          sx={{ m: 0, whiteSpace: 'nowrap' }}
+                          label="Sold"
+                        />
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={filters.active}
+                              onChange={(event) => handleFilterChange('active', event.target.checked)}
+                            />
+                          }
+                          sx={{ m: 0, whiteSpace: 'nowrap' }}
+                          label="Active"
+                        />
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={filters.onlyMarked}
+                              onChange={(event) => handleFilterChange('onlyMarked', event.target.checked)}
+                            />
+                          }
+                          sx={{ m: 0, whiteSpace: 'nowrap' }}
+                          label="Only Marked"
+                        />
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={filters.onlyPersonal}
+                              onChange={(event) => handleFilterChange('onlyPersonal', event.target.checked)}
+                            />
+                          }
+                          sx={{ m: 0, whiteSpace: 'nowrap' }}
+                          label="Only Personal"
+                        />
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={filters.onlyRepair}
+                              onChange={(event) => handleFilterChange('onlyRepair', event.target.checked)}
+                            />
+                          }
+                          sx={{ m: 0, whiteSpace: 'nowrap' }}
+                          label="Only Repair"
+                        />
+                      </Stack>
+                    </Stack>
+                  </Grid>
+                </Grid>
+              </Collapse>
+            </Stack>
+          </Paper>
 
           {downSm ? renderMobileCards() : renderDesktopTable()}
 

@@ -51,8 +51,9 @@ export function decodeIbanez(serial: string): DecodeResult {
   if (monthYearMatch) {
     const monthLetter = monthYearMatch[1];
     const yearDigits = parseInt(monthYearMatch[2], 10);
+    const isLegacyJapanYear = yearDigits >= 75 && yearDigits <= 88;
     const isFactoryCode = monthLetter === 'F' || monthLetter === 'H' || monthLetter === 'I';
-    if (!isFactoryCode || yearDigits <= 86) {
+    if (isLegacyJapanYear && (!isFactoryCode || yearDigits <= 86)) {
       return decodeJapan1975to1988(normalized);
     }
   }
@@ -62,8 +63,9 @@ export function decodeIbanez(serial: string): DecodeResult {
   if (monthYearExtendedMatch) {
     const monthLetter = monthYearExtendedMatch[1];
     const yearDigits = parseInt(monthYearExtendedMatch[2], 10);
+    const isLegacyJapanYear = yearDigits >= 75 && yearDigits <= 88;
     const isFactoryCode = monthLetter === 'F' || monthLetter === 'H' || monthLetter === 'I';
-    if (!isFactoryCode || yearDigits <= 86) {
+    if (isLegacyJapanYear && (!isFactoryCode || yearDigits <= 86)) {
       return decodeJapan1975to1988Extended(normalized);
     }
   }
@@ -501,18 +503,18 @@ function decodeJapan1975to1988(serial: string): DecodeResult {
   const monthNum = monthLetter.charCodeAt(0) - 64; // A=1, B=2, etc.
   const month = getMonthName(monthNum);
 
-  // Parse year - could be 75-88
-  let year = parseInt(yearDigits, 10);
-  if (year >= 75 && year <= 99) {
-    year = 1900 + year;
-  } else if (year >= 0 && year <= 88) {
-    year = 1900 + year;
+  const year = parseInt(yearDigits, 10);
+  if (year < 75 || year > 88) {
+    return {
+      success: false,
+      error: 'This Ibanez serial does not fit the 1975-1988 Japanese month-letter format.',
+    };
   }
 
   const info: GuitarInfo = {
     brand: 'Ibanez',
     serialNumber: serial,
-    year: year.toString(),
+    year: String(1900 + year),
     month,
     factory: 'FujiGen Gakki, Nagano (most likely)',
     country: 'Japan',
@@ -528,10 +530,17 @@ function decodeJapan1975to1988Extended(serial: string): DecodeResult {
   const year = parseInt(serial.substring(1, 3), 10);
   const sequence = serial.substring(3);
 
+  if (year < 75 || year > 88) {
+    return {
+      success: false,
+      error: 'This Ibanez serial does not fit the 1975-1988 Japanese month-letter format.',
+    };
+  }
+
   const monthNum = monthLetter.charCodeAt(0) - 64;
   const month = getMonthName(monthNum);
 
-  const fullYear = year >= 75 ? 1900 + year : 2000 + year;
+  const fullYear = 1900 + year;
 
   const info: GuitarInfo = {
     brand: 'Ibanez',
@@ -1709,17 +1718,22 @@ function decodeLegacyNumericLate80s(serial: string): DecodeResult {
   // If middle digits form a valid month, prefer YYMMSS interpretation.
   if (monthCandidate >= 1 && monthCandidate <= 12) {
     const sequence = serial.substring(4);
-    const year2000s = 2000 + yy;
-    const year1900s = 1990 + yy;
+    const year =
+      yy >= 80 ? 1900 + yy
+      : yy >= 70 ? 1900 + yy
+      : 2000 + yy;
+    const alternateYear = yy >= 80 ? null : 1990 + yy;
 
     const info: GuitarInfo = {
       brand: 'Ibanez',
       serialNumber: serial,
-      year: year2000s.toString(),
+      year: year.toString(),
       month: getMonthName(monthCandidate),
       factory: 'Unknown numeric-only format (likely Korea or China)',
       country: 'South Korea or China',
-      notes: `Sequence: ${sequence}. 6-digit numeric format interpreted as YYMMSS. Alternate vintage interpretation seen in some analyses: ${year1900s} with the same month.`
+      notes: alternateYear
+        ? `Sequence: ${sequence}. 6-digit numeric format interpreted as YYMMSS. Alternate vintage interpretation seen in some analyses: ${alternateYear} with the same month.`
+        : `Sequence: ${sequence}. 6-digit numeric format interpreted as YYMMSS.`
     };
 
     return { success: true, info };
