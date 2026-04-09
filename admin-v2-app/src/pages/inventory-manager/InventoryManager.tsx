@@ -1027,7 +1027,7 @@ const InventoryManager = () => {
                           onChange={(event) => handleFilterChange('queue', event.target.value)}
                           inputProps={{ 'aria-label': 'Queue' }}
                         >
-                          <MenuItem value="">All</MenuItem>
+                          <MenuItem value="">Queue</MenuItem>
                           <MenuItem value="Triage">Triage</MenuItem>
                           <MenuItem value="Repair">Repair</MenuItem>
                           <MenuItem value="To Sell">To Sell</MenuItem>
@@ -1035,6 +1035,7 @@ const InventoryManager = () => {
                           <MenuItem value="Sold">Sold</MenuItem>
                           <MenuItem value="Rented">Rented</MenuItem>
                           <MenuItem value="Parking Lot">Parking Lot</MenuItem>
+                          <MenuItem value="Personal">Personal</MenuItem>
                         </Select>
                       </FormControl>
                     </Grid>

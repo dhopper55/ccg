@@ -5070,6 +5070,7 @@ const INVENTORY_QUEUE_OPTIONS = new Set([
   'Sold',
   'Rented',
   'Parking Lot',
+  'Personal',
 ]);
 
 function normalizeInventoryQueue(input: unknown): string {

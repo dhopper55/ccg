@@ -181,6 +181,7 @@ const INVENTORY_QUEUE_OPTIONS = [
   'Sold',
   'Rented',
   'Parking Lot',
+  'Personal',
 ] as const;
 
 type InventoryCategoryNode = {
@@ -380,6 +381,7 @@ const InventoryItem = () => {
   const [message, setMessage] = useState<{ severity: 'error' | 'success'; text: string } | null>(
     null,
   );
+  const [reloadToken, setReloadToken] = useState(0);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [aiAnalysisDialogOpen, setAiAnalysisDialogOpen] = useState(false);
   const [aiAnalysisDraft, setAiAnalysisDraft] = useState('');
@@ -627,7 +629,7 @@ const InventoryItem = () => {
     return () => {
       cancelled = true;
     };
-  }, [searchParams]);
+  }, [searchParams, reloadToken]);
 
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => {
@@ -964,12 +966,16 @@ const InventoryItem = () => {
       }
 
       const text = editId
-        ? 'Inventory item updated.'
+        ? 'Item Updated'
         : data.duplicateSuppressed
           ? `Duplicate submit prevented. Using existing item ${data.ccgNumber || ''}.`
           : `Created ${typeof data.createdCount === 'number' ? data.createdCount : 1} inventory item${(data.createdCount || 1) === 1 ? '' : 's'}: ${data.ccgNumber || ''}.`;
       enqueueSnackbar(text, { variant: 'success' });
-      navigate(inventoryManagerHref);
+      if (editId) {
+        setReloadToken((current) => current + 1);
+      } else {
+        navigate(inventoryManagerHref);
+      }
     } catch (error) {
       const text = error instanceof Error ? error.message : 'Unable to save inventory item.';
       setMessage({ severity: 'error', text });
