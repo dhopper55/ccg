@@ -48,6 +48,7 @@ type InventoryItemRecord = {
   secondaryCategoryName?: string;
   secondaryCategoryPath?: string;
   brand?: string;
+  queue?: string;
   yearRange?: string;
   model?: string;
   finish?: string;
@@ -123,6 +124,7 @@ type FormState = {
   categoryId: string;
   secondaryCategoryId: string;
   brand: string;
+  queue: string;
   yearRange: string;
   model: string;
   finish: string;
@@ -172,6 +174,16 @@ const SALE_CONDITION_OPTIONS = [
   'Used - Good',
   'Used - Fair',
 ];
+
+const INVENTORY_QUEUE_OPTIONS = [
+  'Triage',
+  'Repair',
+  'To Sell',
+  'For Sale',
+  'Sold',
+  'Rented',
+  'Parking Lot',
+] as const;
 
 type InventoryCategoryNode = {
   id: number;
@@ -240,6 +252,7 @@ const DEFAULT_FORM: FormState = {
   categoryId: '',
   secondaryCategoryId: '',
   brand: '',
+  queue: 'Triage',
   yearRange: '',
   model: '',
   finish: '',
@@ -496,6 +509,7 @@ const InventoryItem = () => {
             secondaryCategoryId:
               record.secondaryCategoryId != null ? String(record.secondaryCategoryId) : '',
             brand: record.brand || '',
+            queue: record.queue || 'Triage',
             yearRange: record.yearRange || '',
             model: record.model || '',
             finish: record.finish || '',
@@ -624,6 +638,15 @@ const InventoryItem = () => {
       if (key === 'isSold' && value === true) {
         return { ...current, isSold: true, forSale: false };
       }
+      if (key === 'forSale') {
+        const nextForSale = Boolean(value);
+        if (!current.forSale && nextForSale) {
+          return { ...current, forSale: true, queue: 'For Sale' };
+        }
+        if (current.forSale && !nextForSale) {
+          return { ...current, forSale: false, queue: 'To Sell' };
+        }
+      }
       return { ...current, [key]: value };
     });
     setMessage(null);
@@ -649,6 +672,7 @@ const InventoryItem = () => {
     categoryId: form.categoryId,
     secondaryCategoryId: form.secondaryCategoryId || null,
     brand: form.brand.trim(),
+    queue: form.queue,
     yearRange: form.yearRange.trim(),
     model: form.model.trim(),
     finish: form.finish.trim(),
@@ -905,6 +929,10 @@ const InventoryItem = () => {
     }
     if (!form.categoryId.trim()) {
       setMessage({ severity: 'error', text: 'Category is required.' });
+      return;
+    }
+    if (!form.queue.trim()) {
+      setMessage({ severity: 'error', text: 'Queue is required.' });
       return;
     }
     if (images.length < 1) {
@@ -1321,6 +1349,22 @@ const InventoryItem = () => {
                   onChange={(event) => setField('title', event.target.value)}
                   inputProps={{ maxLength: 240 }}
                 />
+              </Grid>
+
+              <Grid size={{ xs: 12, md: 4 }}>
+                <TextField
+                  select
+                  fullWidth
+                  label="Queue"
+                  value={form.queue}
+                  onChange={(event) => setField('queue', event.target.value)}
+                >
+                  {INVENTORY_QUEUE_OPTIONS.map((option) => (
+                    <MenuItem key={option} value={option}>
+                      {option}
+                    </MenuItem>
+                  ))}
+                </TextField>
               </Grid>
 
               <Grid size={{ xs: 12, md: 4 }}>

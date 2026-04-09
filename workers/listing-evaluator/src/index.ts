@@ -2265,6 +2265,7 @@ type InventoryItemRow = {
   secondary_category_name: string | null;
   secondary_category_path: string | null;
   brand: string | null;
+  queue: string | null;
   year_range: string | null;
   model: string | null;
   finish: string | null;
@@ -2528,6 +2529,7 @@ async function handleInventoryList(request: Request, env: Env): Promise<Response
   const page = parseBoundedInt(url.searchParams.get('page'), 1, 1, 1_000_000);
   const categoryId = parseOptionalPositiveInt(url.searchParams.get('categoryId'));
   const brand = normalizeText(url.searchParams.get('brand'), '').slice(0, 120);
+  const queue = normalizeInventoryQueue(url.searchParams.get('queue'));
   const sold = parseInventoryTriState(url.searchParams.get('sold'), 'no');
   const active = parseInventoryTriState(url.searchParams.get('active'), 'yes');
   const marked = parseInventoryTriState(url.searchParams.get('marked') ?? url.searchParams.get('onlyMarked'), 'all');
@@ -2547,6 +2549,7 @@ async function handleInventoryList(request: Request, env: Env): Promise<Response
       marked,
       personal,
       repair,
+      queue,
       env,
     );
     return jsonResponse({
@@ -2561,11 +2564,12 @@ async function handleInventoryList(request: Request, env: Env): Promise<Response
     });
   }
 
-  const availableBrands = await dbListInventoryBrands({ categoryId, sold, active, marked, personal, repair }, env);
+  const availableBrands = await dbListInventoryBrands({ categoryId, sold, active, marked, personal, repair, queue }, env);
 
   const result = await dbListInventoryItemsGrouped({
     categoryId,
     brand,
+    queue,
     sold,
     active,
     marked,
@@ -3429,6 +3433,16 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const categoryId = parseOptionalPositiveInt(body.categoryId);
   const secondaryCategoryId = parseOptionalPositiveInt(body.secondaryCategoryId);
   const brand = normalizeText(body.brand, '').slice(0, 120);
+  const isActive = toBooleanInput(body.isActive, true);
+  const isMarked = toBooleanInput(body.isMarked, false);
+  const isPersonal = toBooleanInput(body.isPersonal, false);
+  const isRented = toBooleanInput(body.isRented, false);
+  const needsRepair = toBooleanInput(body.needsRepair, false);
+  const isSold = toBooleanInput(body.isSold, false);
+  const forSaleRaw = toBooleanInput(body.forSale, false);
+  const forSale = isSold ? false : forSaleRaw;
+  const queueInput = normalizeInventoryQueue(body.queue);
+  const queue = queueInput || (forSale ? 'For Sale' : 'Triage');
   const yearRange = normalizeText(body.yearRange, '').slice(0, 120);
   const model = normalizeText(body.model, '').slice(0, 180);
   const finish = normalizeText(body.finish, '').slice(0, 120);
@@ -3453,14 +3467,6 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const width12Fret = normalizeText(body.width12Fret, '').slice(0, 100);
   const fretboardRadius = normalizeText(body.fretboardRadius, '').slice(0, 100);
   const twelveFretAction = normalizeText(body.twelveFretAction, '').slice(0, 100);
-  const isActive = toBooleanInput(body.isActive, true);
-  const isMarked = toBooleanInput(body.isMarked, false);
-  const isPersonal = toBooleanInput(body.isPersonal, false);
-  const isRented = toBooleanInput(body.isRented, false);
-  const needsRepair = toBooleanInput(body.needsRepair, false);
-  const isSold = toBooleanInput(body.isSold, false);
-  const forSaleRaw = toBooleanInput(body.forSale, false);
-  const forSale = isSold ? false : forSaleRaw;
   const soldAmount = parseCurrencyAmount(body.soldAmount);
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
   const qty = parseBoundedInt(body.qty, 1, 1, 100);
@@ -3540,6 +3546,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     category_id: categoryId,
     secondary_category_id: secondaryCategoryId,
     brand: brand || null,
+    queue,
     year_range: yearRange || null,
     model: model || null,
     finish: finish || null,
@@ -3705,6 +3712,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const categoryId = parseOptionalPositiveInt(body.categoryId);
   const secondaryCategoryId = parseOptionalPositiveInt(body.secondaryCategoryId);
   const brand = normalizeText(body.brand, '').slice(0, 120);
+  const queueInput = normalizeInventoryQueue(body.queue);
   const yearRange = normalizeText(body.yearRange, '').slice(0, 120);
   const model = normalizeText(body.model, '').slice(0, 180);
   const finish = normalizeText(body.finish, '').slice(0, 120);
@@ -3788,6 +3796,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     isPrivate: index === 0 ? false : Boolean(privacyByUrl.get(url)),
   }));
   const previousForSale = Boolean((current as { forSale?: boolean }).forSale);
+  const previousQueue = normalizeInventoryQueue((current as { queue?: unknown }).queue) || 'Triage';
   const previousForSaleDate = typeof (current as { forSaleDate?: unknown }).forSaleDate === 'string'
     ? ((current as { forSaleDate?: string }).forSaleDate || null)
     : null;
@@ -3796,6 +3805,11 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     ? ((current as { soldDate?: string }).soldDate || null)
     : null;
   const becameSold = !previousIsSold && isSold;
+  const queue = !previousForSale && forSale
+    ? 'For Sale'
+    : previousForSale && !forSale
+      ? 'To Sell'
+      : (queueInput || previousQueue);
 
   const sharedUpdateOk = await dbUpdateInventorySharedByCcgNumber(currentCcgNumber, {
     image_url: primaryImageUrl,
@@ -3804,6 +3818,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     category_id: categoryId,
     secondary_category_id: secondaryCategoryId,
     brand: brand || null,
+    queue,
     year_range: yearRange || null,
     model: model || null,
     finish: finish || null,
@@ -4972,6 +4987,7 @@ function mapInventoryRow(
     secondaryCategoryName: row.secondary_category_name || '',
     secondaryCategoryPath: row.secondary_category_path || row.secondary_category_name || '',
     brand: row.brand || '',
+    queue: row.queue || 'Triage',
     yearRange: row.year_range || '',
     model: row.model || '',
     finish: row.finish || '',
@@ -5011,6 +5027,7 @@ function mapInventoryRow(
 type InventoryGroupedFilters = {
   categoryId: number | null;
   brand: string;
+  queue: string;
   sold: 'all' | 'yes' | 'no';
   active: 'all' | 'yes' | 'no';
   marked: 'all' | 'yes' | 'no';
@@ -5057,6 +5074,21 @@ function parseInventoryTriState(input: string | null, defaultValue: InventoryTri
   return defaultValue;
 }
 
+const INVENTORY_QUEUE_OPTIONS = new Set([
+  'Triage',
+  'Repair',
+  'To Sell',
+  'For Sale',
+  'Sold',
+  'Rented',
+  'Parking Lot',
+]);
+
+function normalizeInventoryQueue(input: unknown): string {
+  const normalized = normalizeText(input, '').slice(0, 25);
+  return INVENTORY_QUEUE_OPTIONS.has(normalized) ? normalized : '';
+}
+
 const INVENTORY_CATEGORY_SELECT_SQL = `i.category_id,
        c.name AS category_name,
        CASE
@@ -5098,7 +5130,7 @@ function inventoryOrderBySql(sortBy: InventorySortKey, sortDir: InventorySortDir
   }
 }
 
-function inventoryFilterClause(filters: Pick<InventoryGroupedFilters, 'categoryId' | 'brand' | 'sold' | 'active' | 'marked' | 'personal' | 'repair'>): { sql: string; binds: unknown[] } {
+function inventoryFilterClause(filters: Pick<InventoryGroupedFilters, 'categoryId' | 'brand' | 'queue' | 'sold' | 'active' | 'marked' | 'personal' | 'repair'>): { sql: string; binds: unknown[] } {
   const clauses: string[] = ['1 = 1'];
   const binds: unknown[] = [];
 
@@ -5119,6 +5151,10 @@ function inventoryFilterClause(filters: Pick<InventoryGroupedFilters, 'categoryI
   if (filters.brand) {
     clauses.push('LOWER(COALESCE(i.brand, \'\')) = LOWER(?)');
     binds.push(filters.brand);
+  }
+  if (filters.queue) {
+    clauses.push('COALESCE(i.queue, ?) = ?');
+    binds.push('Triage', filters.queue);
   }
   if (filters.marked !== 'all') {
     clauses.push('COALESCE(i.is_marked, 0) = ?');
@@ -5194,6 +5230,7 @@ async function dbListInventoryItemsGrouped(
        i.title,
        ${INVENTORY_CATEGORY_SELECT_SQL},
        i.brand,
+       i.queue,
        i.year_range,
        i.model,
        i.finish,
@@ -5244,7 +5281,7 @@ async function dbListInventoryItemsGrouped(
 }
 
 async function dbListInventoryBrands(
-  filters: Pick<InventoryGroupedFilters, 'categoryId' | 'sold' | 'active' | 'marked' | 'personal' | 'repair'>,
+  filters: Pick<InventoryGroupedFilters, 'categoryId' | 'sold' | 'active' | 'marked' | 'personal' | 'repair' | 'queue'>,
   env: Env,
 ): Promise<string[]> {
   const clause = inventoryFilterClause({ ...filters, brand: '' });
@@ -5269,17 +5306,23 @@ async function dbListInventoryItemsByCcgNumber(
   marked: InventoryTriState,
   personal: InventoryTriState,
   repair: InventoryTriState,
+  queue: string,
   env: Env,
 ): Promise<{ records: Array<Record<string, unknown>>; total: number; page: number; limit: number; totalPages: number }> {
   const orderBy = inventoryOrderBySql(sortBy, sortDir);
   const extraConditions: string[] = [];
+  const extraBinds: unknown[] = [];
   if (marked !== 'all') extraConditions.push(`COALESCE(is_marked, 0) = ${marked === 'yes' ? 1 : 0}`);
   if (personal !== 'all') extraConditions.push(`COALESCE(is_personal, 0) = ${personal === 'yes' ? 1 : 0}`);
   if (repair !== 'all') extraConditions.push(`COALESCE(needs_repair, 0) = ${repair === 'yes' ? 1 : 0}`);
+  if (queue) {
+    extraConditions.push(`COALESCE(queue, ?) = ?`);
+    extraBinds.push('Triage', queue);
+  }
   const extraSql = extraConditions.length > 0 ? ` AND ${extraConditions.join(' AND ')}` : '';
   const countRow = await env.DB.prepare(
     `SELECT COUNT(*) AS total FROM ccg_inventory_items WHERE ccg_number = ?${extraSql}`
-  ).bind(ccgNumber).first<{ total: number | null }>();
+  ).bind(ccgNumber, ...extraBinds).first<{ total: number | null }>();
 
   const total = Number(countRow?.total || 0);
   const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -5296,6 +5339,7 @@ async function dbListInventoryItemsByCcgNumber(
       i.title,
       ${INVENTORY_CATEGORY_SELECT_SQL},
       i.brand,
+      i.queue,
       i.year_range,
       i.model,
       i.finish,
@@ -5343,7 +5387,7 @@ async function dbListInventoryItemsByCcgNumber(
      WHERE i.ccg_number = ?${extraSql.replaceAll('COALESCE(is_', 'COALESCE(i.is_')}
      ORDER BY ${orderBy}
      LIMIT ? OFFSET ?`
-  ).bind(ccgNumber, limit, safeOffset).all<InventoryItemRow & {
+  ).bind(...extraBinds, ...extraBinds, ccgNumber, ...extraBinds, limit, safeOffset).all<InventoryItemRow & {
     source_listing_price_asking: number | null;
     qty_available: number | null;
     total_rows: number | null;
@@ -5371,6 +5415,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.title,
       ${INVENTORY_CATEGORY_SELECT_SQL},
       i.brand,
+      i.queue,
       i.year_range,
       i.model,
       i.finish,
@@ -5444,6 +5489,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     secondaryCategoryName: row.secondary_category_name || '',
     secondaryCategoryPath: row.secondary_category_path || row.secondary_category_name || '',
     brand: row.brand || '',
+    queue: row.queue || 'Triage',
     yearRange: row.year_range || '',
     model: row.model || '',
     finish: row.finish || '',
@@ -5728,6 +5774,7 @@ async function dbCreateInventoryItems(
     category_id: number;
     secondary_category_id: number | null;
     brand: string | null;
+    queue: string;
     year_range: string | null;
     model: string | null;
     finish: string | null;
@@ -5770,7 +5817,7 @@ async function dbCreateInventoryItems(
   try {
     const statement = `INSERT INTO ccg_inventory_items
       (
-        source_listing_id, ccg_number, image_url, title, category_id, brand, year_range, model, finish,
+        source_listing_id, ccg_number, image_url, title, category_id, brand, queue, year_range, model, finish,
         secondary_category_id,
         image_urls,
         repair_notes, original_listing_desc, video_url, sale_title, regular_price, sale_price, "condition", sale_description,
@@ -5779,7 +5826,7 @@ async function dbCreateInventoryItems(
         is_active, is_marked, is_personal, is_rented, needs_repair, for_sale, for_sale_date,
         is_sold, sold_date, sold_amount, sell_notes
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const statements = Array.from({ length: qty }, (_, index) =>
       env.DB.prepare(statement).bind(
@@ -5789,6 +5836,7 @@ async function dbCreateInventoryItems(
         fields.title,
         fields.category_id,
         fields.brand,
+        fields.queue,
         fields.year_range,
         fields.model,
         fields.finish,
@@ -5851,6 +5899,7 @@ async function dbUpdateInventorySharedByCcgNumber(
     category_id: number;
     secondary_category_id: number | null;
     brand: string | null;
+    queue: string;
     year_range: string | null;
     model: string | null;
     finish: string | null;
@@ -5877,7 +5926,7 @@ async function dbUpdateInventorySharedByCcgNumber(
     await env.DB.prepare(
       `UPDATE ccg_inventory_items
        SET
-         image_url = ?, title = ?, category_id = ?, brand = ?, year_range = ?, model = ?, finish = ?, image_urls = ?,
+         image_url = ?, title = ?, category_id = ?, brand = ?, queue = ?, year_range = ?, model = ?, finish = ?, image_urls = ?,
          secondary_category_id = ?,
          repair_notes = ?, original_listing_desc = ?, purchased_date = ?, purchase_price = ?, private_party_value = ?, purchase_notes = ?, ai_analysis_text = ?,
          serial_number = ?, weight_lbs = ?, neck_profile = ?, neck_thickness = ?, nut_width = ?, width_12_fret = ?, fretboard_radius = ?, twelve_fret_action = ?,
@@ -5889,6 +5938,7 @@ async function dbUpdateInventorySharedByCcgNumber(
       fields.title,
       fields.category_id,
       fields.brand,
+      fields.queue,
       fields.year_range,
       fields.model,
       fields.finish,

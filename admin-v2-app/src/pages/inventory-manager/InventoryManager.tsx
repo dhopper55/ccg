@@ -43,6 +43,7 @@ type InventoryRecord = {
   categoryName?: string;
   categoryPath?: string;
   brand?: string;
+  queue?: string;
   repairNotes?: string;
   isMarked?: boolean;
   isPersonal?: boolean;
@@ -72,6 +73,7 @@ type InventoryListResponse = {
 type InventoryFilters = {
   categoryId: string;
   brand: string;
+  queue: string;
   sold: 'all' | 'yes' | 'no';
   active: 'all' | 'yes' | 'no';
   marked: 'all' | 'yes' | 'no';
@@ -104,6 +106,7 @@ const PAGE_SIZE = 20;
 const DEFAULT_FILTERS: InventoryFilters = {
   categoryId: '',
   brand: '',
+  queue: '',
   sold: 'no',
   active: 'yes',
   marked: 'all',
@@ -156,6 +159,7 @@ const InventoryManager = () => {
   const [filters, setFilters] = useState<InventoryFilters>(() => ({
     categoryId: searchParams.get('categoryId') || '',
     brand: searchParams.get('brand') || '',
+    queue: searchParams.get('queue') || '',
     sold: searchParams.get('sold') === 'yes' || searchParams.get('sold') === '1' || searchParams.get('sold') === 'true'
       ? 'yes'
       : searchParams.get('sold') === 'all'
@@ -205,6 +209,7 @@ const InventoryManager = () => {
     return Boolean(
       searchParams.get('categoryId')
       || searchParams.get('brand')
+      || searchParams.get('queue')
       || (searchParams.get('sold') && searchParams.get('sold') !== 'no')
       || (searchParams.get('active') && searchParams.get('active') !== 'yes')
       || searchParams.get('marked')
@@ -232,6 +237,7 @@ const InventoryManager = () => {
     if (sortDir !== 'desc') nextParams.set('sortDir', sortDir);
     if (filters.categoryId) nextParams.set('categoryId', filters.categoryId);
     if (filters.brand) nextParams.set('brand', filters.brand);
+    if (filters.queue) nextParams.set('queue', filters.queue);
     if (filters.sold !== 'no') nextParams.set('sold', filters.sold);
     if (filters.active !== 'yes') nextParams.set('active', filters.active);
     if (filters.marked !== 'all') nextParams.set('marked', filters.marked);
@@ -309,6 +315,7 @@ const InventoryManager = () => {
         params.set('repair', filters.repair);
         if (filters.categoryId) params.set('categoryId', filters.categoryId);
         if (filters.brand) params.set('brand', filters.brand);
+        if (filters.queue) params.set('queue', filters.queue);
 
         const response = await fetch(`/api/inventory?${params.toString()}`, {
           method: 'GET',
@@ -968,7 +975,7 @@ const InventoryManager = () => {
                 </Button>
 
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-                  {filters.categoryId || filters.brand || filters.sold !== 'no' || filters.active !== 'yes' || filters.marked !== 'all' || filters.personal !== 'all' || filters.repair !== 'all' ? (
+                  {filters.categoryId || filters.brand || filters.queue || filters.sold !== 'no' || filters.active !== 'yes' || filters.marked !== 'all' || filters.personal !== 'all' || filters.repair !== 'all' ? (
                     <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                       Filters active
                     </Typography>
@@ -990,7 +997,7 @@ const InventoryManager = () => {
                     <Grid container direction="column" spacing={2}>
                       <Grid size={{ xs: 12 }}>
                         <FormControl fullWidth sx={FILTER_CONTROL_SX}>
-                        <Select
+                          <Select
                           displayEmpty
                           value={filters.categoryId}
                           onChange={(event) => handleFilterChange('categoryId', event.target.value)}
@@ -1021,10 +1028,30 @@ const InventoryManager = () => {
                             </MenuItem>
                           ))}
                         </Select>
-                        </FormControl>
-                      </Grid>
+                      </FormControl>
+                    </Grid>
+
+                    <Grid size={{ xs: 12 }}>
+                      <FormControl fullWidth sx={FILTER_CONTROL_SX}>
+                        <Select
+                          displayEmpty
+                          value={filters.queue}
+                          onChange={(event) => handleFilterChange('queue', event.target.value)}
+                          inputProps={{ 'aria-label': 'Queue' }}
+                        >
+                          <MenuItem value="">All</MenuItem>
+                          <MenuItem value="Triage">Triage</MenuItem>
+                          <MenuItem value="Repair">Repair</MenuItem>
+                          <MenuItem value="To Sell">To Sell</MenuItem>
+                          <MenuItem value="For Sale">For Sale</MenuItem>
+                          <MenuItem value="Sold">Sold</MenuItem>
+                          <MenuItem value="Rented">Rented</MenuItem>
+                          <MenuItem value="Parking Lot">Parking Lot</MenuItem>
+                        </Select>
+                      </FormControl>
                     </Grid>
                   </Grid>
+                </Grid>
 
                   <Grid size={{ xs: 12, md: 'grow' }} sx={{ minWidth: 0 }}>
                     <Grid container spacing={2} sx={{ alignItems: 'flex-start', justifyContent: 'flex-start' }}>
