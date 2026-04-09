@@ -137,7 +137,8 @@ const FILTER_CONTROL_WIDTH = 260;
 
 const FILTER_CONTROL_SX = {
   width: { xs: '100%', md: FILTER_CONTROL_WIDTH },
-  minWidth: 0,
+  minWidth: { xs: '100%', md: FILTER_CONTROL_WIDTH },
+  maxWidth: { xs: '100%', md: FILTER_CONTROL_WIDTH },
   '& .MuiSelect-select': {
     whiteSpace: 'nowrap',
     overflow: 'hidden',
@@ -984,13 +985,11 @@ const InventoryManager = () => {
               </Stack>
 
               <Collapse in={filtersOpen} timeout="auto" unmountOnExit>
-                <Stack
-                  direction={{ xs: 'column', lg: 'row' }}
-                  spacing={2}
-                  sx={{ alignItems: 'flex-start', pt: 0.5 }}
-                >
-                  <Stack spacing={2} sx={{ width: { xs: '100%', md: FILTER_CONTROL_WIDTH }, flexShrink: 0 }}>
-                      <FormControl fullWidth sx={FILTER_CONTROL_SX}>
+                <Grid container spacing={2} sx={{ pt: 0.5, alignItems: 'flex-start' }}>
+                  <Grid size={{ xs: 12, md: 'auto' }} sx={{ flexGrow: 0, flexShrink: 0 }}>
+                    <Grid container direction="column" spacing={2}>
+                      <Grid size={{ xs: 12 }}>
+                        <FormControl fullWidth sx={FILTER_CONTROL_SX}>
                         <Select
                           displayEmpty
                           value={filters.categoryId}
@@ -1004,9 +1003,11 @@ const InventoryManager = () => {
                             </MenuItem>
                           ))}
                         </Select>
-                      </FormControl>
+                        </FormControl>
+                      </Grid>
 
-                      <FormControl fullWidth sx={FILTER_CONTROL_SX}>
+                      <Grid size={{ xs: 12 }}>
+                        <FormControl fullWidth sx={FILTER_CONTROL_SX}>
                         <Select
                           displayEmpty
                           value={filters.brand}
@@ -1020,16 +1021,14 @@ const InventoryManager = () => {
                             </MenuItem>
                           ))}
                         </Select>
-                      </FormControl>
-                  </Stack>
+                        </FormControl>
+                      </Grid>
+                    </Grid>
+                  </Grid>
 
-                  <Stack
-                    direction="row"
-                    spacing={2}
-                    useFlexGap
-                    sx={{ flexWrap: 'wrap', minWidth: 0, flex: 1, alignItems: 'flex-start' }}
-                  >
-                    <Box sx={{ width: { xs: '100%', md: FILTER_CONTROL_WIDTH }, flexShrink: 0 }}>
+                  <Grid size={{ xs: 12, md: 'grow' }} sx={{ minWidth: 0 }}>
+                    <Grid container spacing={2} sx={{ alignItems: 'flex-start', justifyContent: 'flex-start' }}>
+                      <Grid size={{ xs: 12, md: 'auto' }} sx={{ flexGrow: 0, flexShrink: 0 }}>
                         <FormControl fullWidth sx={FILTER_CONTROL_SX}>
                           <Select
                             value={filters.sold}
@@ -1041,9 +1040,9 @@ const InventoryManager = () => {
                             <MenuItem value="no">UnSold</MenuItem>
                           </Select>
                         </FormControl>
-                    </Box>
+                      </Grid>
 
-                    <Box sx={{ width: { xs: '100%', md: FILTER_CONTROL_WIDTH }, flexShrink: 0 }}>
+                      <Grid size={{ xs: 12, md: 'auto' }} sx={{ flexGrow: 0, flexShrink: 0 }}>
                         <FormControl fullWidth sx={FILTER_CONTROL_SX}>
                           <Select
                             value={filters.active}
@@ -1055,9 +1054,9 @@ const InventoryManager = () => {
                             <MenuItem value="no">In-Active</MenuItem>
                           </Select>
                         </FormControl>
-                    </Box>
+                      </Grid>
 
-                    <Box sx={{ width: { xs: '100%', md: FILTER_CONTROL_WIDTH }, flexShrink: 0 }}>
+                      <Grid size={{ xs: 12, md: 'auto' }} sx={{ flexGrow: 0, flexShrink: 0 }}>
                         <FormControl fullWidth sx={FILTER_CONTROL_SX}>
                           <Select
                             value={filters.marked}
@@ -1069,9 +1068,9 @@ const InventoryManager = () => {
                             <MenuItem value="no">UnMarked</MenuItem>
                           </Select>
                         </FormControl>
-                    </Box>
+                      </Grid>
 
-                    <Box sx={{ width: { xs: '100%', md: FILTER_CONTROL_WIDTH }, flexShrink: 0 }}>
+                      <Grid size={{ xs: 12, md: 'auto' }} sx={{ flexGrow: 0, flexShrink: 0 }}>
                         <FormControl fullWidth sx={FILTER_CONTROL_SX}>
                           <Select
                             value={filters.personal}
@@ -1083,9 +1082,9 @@ const InventoryManager = () => {
                             <MenuItem value="no">Not Personal</MenuItem>
                           </Select>
                         </FormControl>
-                    </Box>
+                      </Grid>
 
-                    <Box sx={{ width: { xs: '100%', md: FILTER_CONTROL_WIDTH }, flexShrink: 0 }}>
+                      <Grid size={{ xs: 12, md: 'auto' }} sx={{ flexGrow: 0, flexShrink: 0 }}>
                         <FormControl fullWidth sx={FILTER_CONTROL_SX}>
                           <Select
                             value={filters.repair}
@@ -1097,9 +1096,10 @@ const InventoryManager = () => {
                             <MenuItem value="no">No Repair</MenuItem>
                           </Select>
                         </FormControl>
-                    </Box>
-                  </Stack>
-                </Stack>
+                      </Grid>
+                    </Grid>
+                  </Grid>
+                </Grid>
               </Collapse>
             </Stack>
           </Paper>
