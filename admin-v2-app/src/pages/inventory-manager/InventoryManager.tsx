@@ -73,11 +73,11 @@ type InventoryListResponse = {
 type InventoryFilters = {
   categoryId: string;
   brand: string;
-  sold: boolean;
-  active: boolean;
-  onlyMarked: boolean;
-  onlyPersonal: boolean;
-  onlyRepair: boolean;
+  sold: 'all' | 'yes' | 'no';
+  active: 'all' | 'yes' | 'no';
+  marked: 'all' | 'yes' | 'no';
+  personal: 'all' | 'yes' | 'no';
+  repair: 'all' | 'yes' | 'no';
 };
 
 type InventoryCategoryNode = {
@@ -105,11 +105,11 @@ const PAGE_SIZE = 20;
 const DEFAULT_FILTERS: InventoryFilters = {
   categoryId: '',
   brand: '',
-  sold: false,
-  active: true,
-  onlyMarked: false,
-  onlyPersonal: false,
-  onlyRepair: false,
+  sold: 'no',
+  active: 'yes',
+  marked: 'all',
+  personal: 'all',
+  repair: 'all',
 };
 
 function formatAddDate(value: string | null | undefined): string {
@@ -144,11 +144,31 @@ const InventoryManager = () => {
   const [filters, setFilters] = useState<InventoryFilters>(() => ({
     categoryId: searchParams.get('categoryId') || '',
     brand: searchParams.get('brand') || '',
-    sold: searchParams.get('sold') === '1',
-    active: searchParams.get('active') !== '0',
-    onlyMarked: searchParams.get('onlyMarked') === '1',
-    onlyPersonal: searchParams.get('onlyPersonal') === '1',
-    onlyRepair: searchParams.get('onlyRepair') === '1',
+    sold: searchParams.get('sold') === 'yes' || searchParams.get('sold') === '1' || searchParams.get('sold') === 'true'
+      ? 'yes'
+      : searchParams.get('sold') === 'all'
+        ? 'all'
+        : 'no',
+    active: searchParams.get('active') === 'all'
+      ? 'all'
+      : searchParams.get('active') === 'no' || searchParams.get('active') === '0' || searchParams.get('active') === 'false'
+        ? 'no'
+        : 'yes',
+    marked: searchParams.get('marked') === 'yes' || searchParams.get('onlyMarked') === '1'
+      ? 'yes'
+      : searchParams.get('marked') === 'no'
+        ? 'no'
+        : 'all',
+    personal: searchParams.get('personal') === 'yes' || searchParams.get('onlyPersonal') === '1'
+      ? 'yes'
+      : searchParams.get('personal') === 'no'
+        ? 'no'
+        : 'all',
+    repair: searchParams.get('repair') === 'yes' || searchParams.get('onlyRepair') === '1'
+      ? 'yes'
+      : searchParams.get('repair') === 'no'
+        ? 'no'
+        : 'all',
   }));
   const [page, setPage] = useState(() => {
     const parsed = Number.parseInt(searchParams.get('page') || '1', 10);
@@ -173,10 +193,13 @@ const InventoryManager = () => {
     return Boolean(
       searchParams.get('categoryId')
       || searchParams.get('brand')
-      || searchParams.get('sold') === '1'
-      || searchParams.get('active') === '0'
+      || (searchParams.get('sold') && searchParams.get('sold') !== 'no')
+      || (searchParams.get('active') && searchParams.get('active') !== 'yes')
+      || searchParams.get('marked')
       || searchParams.get('onlyMarked') === '1'
+      || searchParams.get('personal')
       || searchParams.get('onlyPersonal') === '1'
+      || searchParams.get('repair')
       || searchParams.get('onlyRepair') === '1',
     );
   });
@@ -197,11 +220,11 @@ const InventoryManager = () => {
     if (sortDir !== 'desc') nextParams.set('sortDir', sortDir);
     if (filters.categoryId) nextParams.set('categoryId', filters.categoryId);
     if (filters.brand) nextParams.set('brand', filters.brand);
-    if (filters.sold) nextParams.set('sold', '1');
-    if (!filters.active) nextParams.set('active', '0');
-    if (filters.onlyMarked) nextParams.set('onlyMarked', '1');
-    if (filters.onlyPersonal) nextParams.set('onlyPersonal', '1');
-    if (filters.onlyRepair) nextParams.set('onlyRepair', '1');
+    if (filters.sold !== 'no') nextParams.set('sold', filters.sold);
+    if (filters.active !== 'yes') nextParams.set('active', filters.active);
+    if (filters.marked !== 'all') nextParams.set('marked', filters.marked);
+    if (filters.personal !== 'all') nextParams.set('personal', filters.personal);
+    if (filters.repair !== 'all') nextParams.set('repair', filters.repair);
 
     if (nextParams.toString() !== searchParams.toString()) {
       setSearchParams(nextParams, { replace: true });
@@ -267,11 +290,11 @@ const InventoryManager = () => {
         params.set('limit', String(PAGE_SIZE));
         params.set('sortBy', sortBy);
         params.set('sortDir', sortDir);
-        params.set('sold', filters.sold ? '1' : '0');
-        params.set('active', filters.active ? '1' : '0');
-        params.set('onlyMarked', filters.onlyMarked ? '1' : '0');
-        params.set('onlyPersonal', filters.onlyPersonal ? '1' : '0');
-        params.set('onlyRepair', filters.onlyRepair ? '1' : '0');
+        params.set('sold', filters.sold);
+        params.set('active', filters.active);
+        params.set('marked', filters.marked);
+        params.set('personal', filters.personal);
+        params.set('repair', filters.repair);
         if (filters.categoryId) params.set('categoryId', filters.categoryId);
         if (filters.brand) params.set('brand', filters.brand);
 
@@ -476,7 +499,7 @@ const InventoryManager = () => {
   const inventoryItemHref = (recordId: string) =>
     `${paths.inventoryItemWithId(recordId)}${location.search || ''}`;
 
-  const showMarkedCheckboxes = !filters.onlyMarked;
+  const showMarkedCheckboxes = filters.marked !== 'yes';
 
   const renderDesktopTable = () => (
     <TableContainer>
@@ -821,7 +844,7 @@ const InventoryManager = () => {
           <Typography variant="h4">Inventory Manager</Typography>
 
           <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-            {filters.onlyMarked ? (
+            {filters.marked === 'yes' ? (
               <Button
                 variant="outlined"
                 color="inherit"
@@ -839,7 +862,7 @@ const InventoryManager = () => {
               </Button>
             ) : null}
 
-            {filters.onlyMarked ? (
+            {filters.marked === 'yes' ? (
               <Button
                 variant="outlined"
                 color="inherit"
@@ -884,8 +907,17 @@ const InventoryManager = () => {
       {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
       {actionErrorMessage ? <Alert severity="error">{actionErrorMessage}</Alert> : null}
 
-      <Box sx={{ flex: 1, p: { xs: 2, md: 5 }, minWidth: 0, overflow: 'hidden' }}>
-        <Stack direction="column" spacing={3} sx={{ pt: { xs: 0, md: 1 } }}>
+      <Box
+        sx={{
+          flex: 1,
+          px: { xs: 2, md: 5 },
+          pb: { xs: 2, md: 5 },
+          pt: { xs: 1, md: 1.5 },
+          minWidth: 0,
+          overflow: 'hidden',
+        }}
+      >
+        <Stack direction="column" spacing={3}>
           <Paper
             variant="outlined"
             sx={{
@@ -924,7 +956,7 @@ const InventoryManager = () => {
                 </Button>
 
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-                  {filters.categoryId || filters.brand || filters.sold || !filters.active || filters.onlyMarked || filters.onlyPersonal || filters.onlyRepair ? (
+                  {filters.categoryId || filters.brand || filters.sold !== 'no' || filters.active !== 'yes' || filters.marked !== 'all' || filters.personal !== 'all' || filters.repair !== 'all' ? (
                     <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                       Filters active
                     </Typography>
@@ -979,60 +1011,77 @@ const InventoryManager = () => {
                   </Grid>
 
                   <Grid size={{ xs: 12, md: 6 }}>
-                    <Stack spacing={0.75} sx={{ minHeight: 56, justifyContent: 'center' }}>
-                      <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={filters.sold}
-                              onChange={(event) => handleFilterChange('sold', event.target.checked)}
-                            />
-                          }
-                          sx={{ m: 0, whiteSpace: 'nowrap' }}
-                          label="Sold"
-                        />
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={filters.active}
-                              onChange={(event) => handleFilterChange('active', event.target.checked)}
-                            />
-                          }
-                          sx={{ m: 0, whiteSpace: 'nowrap' }}
-                          label="Active"
-                        />
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={filters.onlyMarked}
-                              onChange={(event) => handleFilterChange('onlyMarked', event.target.checked)}
-                            />
-                          }
-                          sx={{ m: 0, whiteSpace: 'nowrap' }}
-                          label="Only Marked"
-                        />
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={filters.onlyPersonal}
-                              onChange={(event) => handleFilterChange('onlyPersonal', event.target.checked)}
-                            />
-                          }
-                          sx={{ m: 0, whiteSpace: 'nowrap' }}
-                          label="Only Personal"
-                        />
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={filters.onlyRepair}
-                              onChange={(event) => handleFilterChange('onlyRepair', event.target.checked)}
-                            />
-                          }
-                          sx={{ m: 0, whiteSpace: 'nowrap' }}
-                          label="Only Repair"
-                        />
-                      </Stack>
-                    </Stack>
+                    <Grid container spacing={2}>
+                      <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+                        <FormControl fullWidth>
+                          <Select
+                            value={filters.sold}
+                            onChange={(event) => handleFilterChange('sold', event.target.value as InventoryFilters['sold'])}
+                            inputProps={{ 'aria-label': 'Sold filter' }}
+                          >
+                            <MenuItem value="all">All</MenuItem>
+                            <MenuItem value="yes">Sold</MenuItem>
+                            <MenuItem value="no">UnSold</MenuItem>
+                          </Select>
+                        </FormControl>
+                      </Grid>
+
+                      <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+                        <FormControl fullWidth>
+                          <Select
+                            value={filters.active}
+                            onChange={(event) => handleFilterChange('active', event.target.value as InventoryFilters['active'])}
+                            inputProps={{ 'aria-label': 'Active filter' }}
+                          >
+                            <MenuItem value="all">All</MenuItem>
+                            <MenuItem value="yes">Active</MenuItem>
+                            <MenuItem value="no">In-Active</MenuItem>
+                          </Select>
+                        </FormControl>
+                      </Grid>
+
+                      <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+                        <FormControl fullWidth>
+                          <Select
+                            value={filters.marked}
+                            onChange={(event) => handleFilterChange('marked', event.target.value as InventoryFilters['marked'])}
+                            inputProps={{ 'aria-label': 'Marked filter' }}
+                          >
+                            <MenuItem value="all">All</MenuItem>
+                            <MenuItem value="yes">Marked</MenuItem>
+                            <MenuItem value="no">UnMarked</MenuItem>
+                          </Select>
+                        </FormControl>
+                      </Grid>
+
+                      <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+                        <FormControl fullWidth>
+                          <Select
+                            value={filters.personal}
+                            onChange={(event) => handleFilterChange('personal', event.target.value as InventoryFilters['personal'])}
+                            inputProps={{ 'aria-label': 'Personal filter' }}
+                          >
+                            <MenuItem value="all">All</MenuItem>
+                            <MenuItem value="yes">Personal</MenuItem>
+                            <MenuItem value="no">Not Personal</MenuItem>
+                          </Select>
+                        </FormControl>
+                      </Grid>
+
+                      <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+                        <FormControl fullWidth>
+                          <Select
+                            value={filters.repair}
+                            onChange={(event) => handleFilterChange('repair', event.target.value as InventoryFilters['repair'])}
+                            inputProps={{ 'aria-label': 'Repair filter' }}
+                          >
+                            <MenuItem value="all">All</MenuItem>
+                            <MenuItem value="yes">Needs Repair</MenuItem>
+                            <MenuItem value="no">No Repair</MenuItem>
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                    </Grid>
                   </Grid>
                 </Grid>
               </Collapse>

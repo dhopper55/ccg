@@ -2528,11 +2528,11 @@ async function handleInventoryList(request: Request, env: Env): Promise<Response
   const page = parseBoundedInt(url.searchParams.get('page'), 1, 1, 1_000_000);
   const categoryId = parseOptionalPositiveInt(url.searchParams.get('categoryId'));
   const brand = normalizeText(url.searchParams.get('brand'), '').slice(0, 120);
-  const sold = url.searchParams.get('sold') === '1';
-  const active = url.searchParams.get('active') !== '0';
-  const onlyMarked = url.searchParams.get('onlyMarked') === '1';
-  const onlyPersonal = url.searchParams.get('onlyPersonal') === '1';
-  const onlyRepair = url.searchParams.get('onlyRepair') === '1';
+  const sold = parseInventoryTriState(url.searchParams.get('sold'), 'no');
+  const active = parseInventoryTriState(url.searchParams.get('active'), 'yes');
+  const marked = parseInventoryTriState(url.searchParams.get('marked') ?? url.searchParams.get('onlyMarked'), 'all');
+  const personal = parseInventoryTriState(url.searchParams.get('personal') ?? url.searchParams.get('onlyPersonal'), 'all');
+  const repair = parseInventoryTriState(url.searchParams.get('repair') ?? url.searchParams.get('onlyRepair'), 'all');
   const drillDownCcgNumber = normalizeText(url.searchParams.get('ccgNumber'), '').slice(0, 32);
   const sortBy = parseInventorySortKey(url.searchParams.get('sortBy'));
   const sortDir = parseInventorySortDir(url.searchParams.get('sortDir'));
@@ -2544,9 +2544,9 @@ async function handleInventoryList(request: Request, env: Env): Promise<Response
       limit,
       sortBy,
       sortDir,
-      onlyMarked,
-      onlyPersonal,
-      onlyRepair,
+      marked,
+      personal,
+      repair,
       env,
     );
     return jsonResponse({
@@ -2561,16 +2561,16 @@ async function handleInventoryList(request: Request, env: Env): Promise<Response
     });
   }
 
-  const availableBrands = await dbListInventoryBrands({ categoryId, sold, active, onlyMarked, onlyPersonal, onlyRepair }, env);
+  const availableBrands = await dbListInventoryBrands({ categoryId, sold, active, marked, personal, repair }, env);
 
   const result = await dbListInventoryItemsGrouped({
     categoryId,
     brand,
     sold,
     active,
-    onlyMarked,
-    onlyPersonal,
-    onlyRepair,
+    marked,
+    personal,
+    repair,
     page,
     limit,
     sortBy,
@@ -5011,16 +5011,18 @@ function mapInventoryRow(
 type InventoryGroupedFilters = {
   categoryId: number | null;
   brand: string;
-  sold: boolean;
-  active: boolean;
-  onlyMarked: boolean;
-  onlyPersonal: boolean;
-  onlyRepair: boolean;
+  sold: 'all' | 'yes' | 'no';
+  active: 'all' | 'yes' | 'no';
+  marked: 'all' | 'yes' | 'no';
+  personal: 'all' | 'yes' | 'no';
+  repair: 'all' | 'yes' | 'no';
   page: number;
   limit: number;
   sortBy: InventorySortKey;
   sortDir: InventorySortDir;
 };
+
+type InventoryTriState = 'all' | 'yes' | 'no';
 
 type InventorySortKey = 'ccgNumber' | 'title' | 'paid' | 'private' | 'soldPrice' | 'addDate';
 type InventorySortDir = 'asc' | 'desc';
@@ -5045,6 +5047,14 @@ function parseInventorySortKey(input: string | null): InventorySortKey {
 
 function parseInventorySortDir(input: string | null): InventorySortDir {
   return (input || '').trim().toLowerCase() === 'desc' ? 'desc' : 'asc';
+}
+
+function parseInventoryTriState(input: string | null, defaultValue: InventoryTriState): InventoryTriState {
+  const normalized = (input || '').trim().toLowerCase();
+  if (normalized === 'yes' || normalized === '1' || normalized === 'true') return 'yes';
+  if (normalized === 'no' || normalized === '0' || normalized === 'false') return 'no';
+  if (normalized === 'all') return 'all';
+  return defaultValue;
 }
 
 const INVENTORY_CATEGORY_SELECT_SQL = `i.category_id,
@@ -5088,15 +5098,19 @@ function inventoryOrderBySql(sortBy: InventorySortKey, sortDir: InventorySortDir
   }
 }
 
-function inventoryFilterClause(filters: Pick<InventoryGroupedFilters, 'categoryId' | 'brand' | 'sold' | 'active' | 'onlyMarked' | 'onlyPersonal' | 'onlyRepair'>): { sql: string; binds: unknown[] } {
-  const clauses: string[] = [
-    'i.is_sold = ?',
-    'i.is_active = ?',
-  ];
-  const binds: unknown[] = [
-    filters.sold ? 1 : 0,
-    filters.active ? 1 : 0,
-  ];
+function inventoryFilterClause(filters: Pick<InventoryGroupedFilters, 'categoryId' | 'brand' | 'sold' | 'active' | 'marked' | 'personal' | 'repair'>): { sql: string; binds: unknown[] } {
+  const clauses: string[] = ['1 = 1'];
+  const binds: unknown[] = [];
+
+  if (filters.sold !== 'all') {
+    clauses.push('COALESCE(i.is_sold, 0) = ?');
+    binds.push(filters.sold === 'yes' ? 1 : 0);
+  }
+
+  if (filters.active !== 'all') {
+    clauses.push('COALESCE(i.is_active, 0) = ?');
+    binds.push(filters.active === 'yes' ? 1 : 0);
+  }
 
   if (filters.categoryId != null) {
     clauses.push('i.category_id = ?');
@@ -5106,14 +5120,17 @@ function inventoryFilterClause(filters: Pick<InventoryGroupedFilters, 'categoryI
     clauses.push('LOWER(COALESCE(i.brand, \'\')) = LOWER(?)');
     binds.push(filters.brand);
   }
-  if (filters.onlyMarked) {
-    clauses.push('COALESCE(i.is_marked, 0) = 1');
+  if (filters.marked !== 'all') {
+    clauses.push('COALESCE(i.is_marked, 0) = ?');
+    binds.push(filters.marked === 'yes' ? 1 : 0);
   }
-  if (filters.onlyPersonal) {
-    clauses.push('COALESCE(i.is_personal, 0) = 1');
+  if (filters.personal !== 'all') {
+    clauses.push('COALESCE(i.is_personal, 0) = ?');
+    binds.push(filters.personal === 'yes' ? 1 : 0);
   }
-  if (filters.onlyRepair) {
-    clauses.push('COALESCE(i.needs_repair, 0) = 1');
+  if (filters.repair !== 'all') {
+    clauses.push('COALESCE(i.needs_repair, 0) = ?');
+    binds.push(filters.repair === 'yes' ? 1 : 0);
   }
 
   return {
@@ -5129,9 +5146,9 @@ async function dbListInventoryItemsGrouped(
   const clause = inventoryFilterClause(filters);
   const orderBy = inventoryOrderBySql(filters.sortBy, filters.sortDir);
   const qtyConditions: string[] = [];
-  if (filters.onlyMarked) qtyConditions.push('COALESCE(g.is_marked, 0) = 1');
-  if (filters.onlyPersonal) qtyConditions.push('COALESCE(g.is_personal, 0) = 1');
-  if (filters.onlyRepair) qtyConditions.push('COALESCE(g.needs_repair, 0) = 1');
+  if (filters.marked !== 'all') qtyConditions.push(`COALESCE(g.is_marked, 0) = ${filters.marked === 'yes' ? 1 : 0}`);
+  if (filters.personal !== 'all') qtyConditions.push(`COALESCE(g.is_personal, 0) = ${filters.personal === 'yes' ? 1 : 0}`);
+  if (filters.repair !== 'all') qtyConditions.push(`COALESCE(g.needs_repair, 0) = ${filters.repair === 'yes' ? 1 : 0}`);
   const qtyConditionSql = qtyConditions.length > 0 ? ` AND ${qtyConditions.join(' AND ')}` : '';
 
   const countRow = await env.DB.prepare(
@@ -5227,7 +5244,7 @@ async function dbListInventoryItemsGrouped(
 }
 
 async function dbListInventoryBrands(
-  filters: Pick<InventoryGroupedFilters, 'categoryId' | 'sold' | 'active' | 'onlyMarked' | 'onlyPersonal' | 'onlyRepair'>,
+  filters: Pick<InventoryGroupedFilters, 'categoryId' | 'sold' | 'active' | 'marked' | 'personal' | 'repair'>,
   env: Env,
 ): Promise<string[]> {
   const clause = inventoryFilterClause({ ...filters, brand: '' });
@@ -5249,16 +5266,16 @@ async function dbListInventoryItemsByCcgNumber(
   limit: number,
   sortBy: InventorySortKey,
   sortDir: InventorySortDir,
-  onlyMarked: boolean,
-  onlyPersonal: boolean,
-  onlyRepair: boolean,
+  marked: InventoryTriState,
+  personal: InventoryTriState,
+  repair: InventoryTriState,
   env: Env,
 ): Promise<{ records: Array<Record<string, unknown>>; total: number; page: number; limit: number; totalPages: number }> {
   const orderBy = inventoryOrderBySql(sortBy, sortDir);
   const extraConditions: string[] = [];
-  if (onlyMarked) extraConditions.push('COALESCE(is_marked, 0) = 1');
-  if (onlyPersonal) extraConditions.push('COALESCE(is_personal, 0) = 1');
-  if (onlyRepair) extraConditions.push('COALESCE(needs_repair, 0) = 1');
+  if (marked !== 'all') extraConditions.push(`COALESCE(is_marked, 0) = ${marked === 'yes' ? 1 : 0}`);
+  if (personal !== 'all') extraConditions.push(`COALESCE(is_personal, 0) = ${personal === 'yes' ? 1 : 0}`);
+  if (repair !== 'all') extraConditions.push(`COALESCE(needs_repair, 0) = ${repair === 'yes' ? 1 : 0}`);
   const extraSql = extraConditions.length > 0 ? ` AND ${extraConditions.join(' AND ')}` : '';
   const countRow = await env.DB.prepare(
     `SELECT COUNT(*) AS total FROM ccg_inventory_items WHERE ccg_number = ?${extraSql}`
