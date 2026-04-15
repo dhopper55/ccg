@@ -24,6 +24,9 @@ import {
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import { useSnackbar } from 'notistack';
+import type { PDFForm, PDFFont } from 'pdf-lib';
+import liberationSansBoldUrl from 'pdfjs-dist/standard_fonts/LiberationSans-Bold.ttf?url';
+import liberationSansRegularUrl from 'pdfjs-dist/standard_fonts/LiberationSans-Regular.ttf?url';
 import IconifyIcon from 'components/base/IconifyIcon';
 import paths from 'routes/paths';
 
@@ -417,6 +420,162 @@ function buildHtmlPreviewNode(html: string, emptyLabel: string, onClick: () => v
   );
 }
 
+type TagTextColor = 'black' | 'red' | 'blue';
+
+const TAG_TEMPLATE_NO_SALE = '/templates/ccg_label_large_no_sale.pdf';
+const TAG_TEMPLATE_ON_SALE = '/templates/ccg_label_large_on_sale.pdf';
+const TAG_TITLE_MAX_WIDTH = 292;
+const TAG_TITLE_FONT_SIZE = 14;
+
+function parseTagPrice(value: string): number | null {
+  const normalized = value.replace(/[^0-9.]/g, '');
+  if (!normalized) return null;
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatTagPrice(value: number | null): string {
+  if (value == null) return '';
+  return `$${Math.round(value).toLocaleString()}`;
+}
+
+function truncateToPdfWidth(text: string, font: PDFFont, fontSize: number, maxWidth: number): string {
+  const normalized = text.trim();
+  if (font.widthOfTextAtSize(normalized, fontSize) <= maxWidth) return normalized;
+
+  let output = '';
+  for (const char of normalized) {
+    const next = `${output}${char}`;
+    if (font.widthOfTextAtSize(`${next}...`, fontSize) > maxWidth) break;
+    output = next;
+  }
+  return output.trimEnd() ? `${output.trimEnd()}...` : '';
+}
+
+function splitTitleForTag(title: string, font: PDFFont): { title1: string; title2: string } {
+  const words = title.trim().split(/\s+/).filter(Boolean);
+  let title1 = '';
+  let index = 0;
+
+  while (index < words.length) {
+    const next = [title1, words[index]].filter(Boolean).join(' ');
+    if (font.widthOfTextAtSize(next, TAG_TITLE_FONT_SIZE) > TAG_TITLE_MAX_WIDTH) break;
+    title1 = next;
+    index += 1;
+  }
+
+  if (!title1 && words[0]) {
+    title1 = truncateToPdfWidth(words[0], font, TAG_TITLE_FONT_SIZE, TAG_TITLE_MAX_WIDTH);
+    index = 1;
+  }
+
+  return {
+    title1,
+    title2: truncateToPdfWidth(words.slice(index).join(' '), font, TAG_TITLE_FONT_SIZE, TAG_TITLE_MAX_WIDTH),
+  };
+}
+
+function bulletTextColor(danger: boolean, highlight: boolean): TagTextColor {
+  if (danger && !highlight) return 'red';
+  if (highlight && !danger) return 'blue';
+  return 'black';
+}
+
+function colorDefaultAppearance(color: TagTextColor): string {
+  if (color === 'red') return '1 0 0 rg';
+  if (color === 'blue') return '0 0.001 0.998 rg';
+  return '0 g';
+}
+
+function setPdfTextField(
+  form: PDFForm,
+  name: string,
+  text: string,
+  font: PDFFont,
+  color: TagTextColor = 'black',
+) {
+  try {
+    const field = form.getTextField(name);
+    field.setText(text);
+    const defaultAppearance = field.acroField.getDefaultAppearance() || '';
+    field.acroField.setDefaultAppearance(`${defaultAppearance}\n${colorDefaultAppearance(color)}`);
+    field.updateAppearances(font);
+  } catch {
+    // The no-sale and on-sale templates intentionally do not have identical fields.
+  }
+}
+
+async function fetchArrayBuffer(url: string): Promise<ArrayBuffer> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('Unable to load inventory tag font.');
+  return response.arrayBuffer();
+}
+
+async function buildInventoryTagPdf(formState: FormState): Promise<Blob> {
+  const salePrice = parseTagPrice(formState.salePrice);
+  const regularPrice = parseTagPrice(formState.regularPrice);
+  const isOnSale = salePrice != null && regularPrice != null && salePrice > 0 && regularPrice > salePrice;
+  const templateUrl = isOnSale ? TAG_TEMPLATE_ON_SALE : TAG_TEMPLATE_NO_SALE;
+  const response = await fetch(templateUrl);
+  if (!response.ok) throw new Error('Unable to load inventory tag template.');
+
+  const [{ PDFDocument }, fontkitModule] = await Promise.all([
+    import('pdf-lib'),
+    import('@pdf-lib/fontkit'),
+  ]);
+  const pdfDoc = await PDFDocument.load(await response.arrayBuffer());
+  const loadedFontkit = 'default' in fontkitModule ? fontkitModule.default : fontkitModule;
+  pdfDoc.registerFontkit(loadedFontkit);
+  const pdfForm = pdfDoc.getForm();
+  const [boldFontBytes, regularFontBytes] = await Promise.all([
+    fetchArrayBuffer(liberationSansBoldUrl),
+    fetchArrayBuffer(liberationSansRegularUrl),
+  ]);
+  const boldFont = await pdfDoc.embedFont(boldFontBytes);
+  const regularFont = await pdfDoc.embedFont(regularFontBytes);
+  const title = splitTitleForTag(formState.saleTitle.trim() || formState.title.trim(), boldFont);
+  const bullets = [
+    [formState.bullet1Text, formState.bullet1Danger, formState.bullet1Highlight],
+    [formState.bullet2Text, formState.bullet2Danger, formState.bullet2Highlight],
+    [formState.bullet3Text, formState.bullet3Danger, formState.bullet3Highlight],
+    [formState.bullet4Text, formState.bullet4Danger, formState.bullet4Highlight],
+    [formState.bullet5Text, formState.bullet5Danger, formState.bullet5Highlight],
+    [formState.bullet6Text, formState.bullet6Danger, formState.bullet6Highlight],
+  ] as const;
+
+  setPdfTextField(pdfForm, 'title_1', title.title1, boldFont);
+  setPdfTextField(pdfForm, 'title_2', title.title2, boldFont);
+  setPdfTextField(pdfForm, 'ccg_num', formState.ccgNumber.trim(), boldFont);
+  setPdfTextField(pdfForm, 'sale_price', formatTagPrice(salePrice), boldFont);
+  setPdfTextField(pdfForm, 'regular_price', formatTagPrice(regularPrice), regularFont);
+  setPdfTextField(pdfForm, 'txt_clearance', formState.clearance ? 'CLEARANCE' : '', boldFont, 'red');
+
+  bullets.forEach(([text, danger, highlight], index) => {
+    const trimmed = text.trim();
+    setPdfTextField(
+      pdfForm,
+      `txt_bullet${index + 1}`,
+      trimmed ? `● ${trimmed}` : '',
+      boldFont,
+      bulletTextColor(danger, highlight),
+    );
+  });
+
+  const bytes = await pdfDoc.save();
+  return new Blob([bytes], { type: 'application/pdf' });
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 const InventoryItem = () => {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
@@ -434,6 +593,7 @@ const InventoryItem = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isGeneratingTag, setIsGeneratingTag] = useState(false);
   const [message, setMessage] = useState<{ severity: 'error' | 'success'; text: string } | null>(
     null,
   );
@@ -1076,6 +1236,25 @@ const InventoryItem = () => {
       enqueueSnackbar(text, { variant: 'error' });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleGenerateLargeTag = async () => {
+    if (isGeneratingTag) return;
+    setIsGeneratingTag(true);
+    setMessage(null);
+
+    try {
+      const blob = await buildInventoryTagPdf(form);
+      const ccgNumber = form.ccgNumber.trim() || 'inventory';
+      downloadBlob(blob, `${ccgNumber}-large-tag.pdf`);
+      enqueueSnackbar('Large tag generated.', { variant: 'success' });
+    } catch (error) {
+      const text = error instanceof Error ? error.message : 'Unable to generate inventory tag.';
+      setMessage({ severity: 'error', text });
+      enqueueSnackbar(text, { variant: 'error' });
+    } finally {
+      setIsGeneratingTag(false);
     }
   };
 
@@ -1982,6 +2161,38 @@ const InventoryItem = () => {
                           }
                           label="Highlight Bullet?"
                         />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <Button
+                          fullWidth
+                          variant="contained"
+                          onClick={handleGenerateLargeTag}
+                          disabled={isGeneratingTag}
+                          startIcon={
+                            isGeneratingTag ? (
+                              <CircularProgress size={16} color="inherit" />
+                            ) : (
+                              <IconifyIcon icon="material-symbols:inventory-2-outline-rounded" fontSize={18} />
+                            )
+                          }
+                        >
+                          Gen. Large Tag
+                        </Button>
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <Button fullWidth variant="contained" disabled>
+                          Future Tag
+                        </Button>
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <Button fullWidth variant="contained" disabled>
+                          Future Tag
+                        </Button>
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <Button fullWidth variant="contained" disabled>
+                          Future Tag
+                        </Button>
                       </Grid>
                     </Grid>
                   </Paper>
