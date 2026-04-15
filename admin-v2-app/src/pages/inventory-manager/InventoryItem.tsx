@@ -494,7 +494,7 @@ function setPdfTextField(
   font: PDFFont,
   color: TagTextColor = 'black',
   visible = true,
-) {
+): boolean {
   try {
     const field = form.getTextField(name);
     field.setText(text);
@@ -505,8 +505,10 @@ function setPdfTextField(
     const defaultAppearance = field.acroField.getDefaultAppearance() || '';
     field.acroField.setDefaultAppearance(`${defaultAppearance}\n${colorDefaultAppearance(color)}`);
     field.updateAppearances(font);
+    return true;
   } catch {
     // The no-sale and on-sale templates intentionally do not have identical fields.
+    return false;
   }
 }
 
@@ -524,7 +526,7 @@ async function buildInventoryTagPdf(formState: FormState): Promise<Blob> {
   const response = await fetch(templateUrl);
   if (!response.ok) throw new Error('Unable to load inventory tag template.');
 
-  const [{ PDFDocument }, fontkitModule] = await Promise.all([
+  const [{ PDFDocument, rgb }, fontkitModule] = await Promise.all([
     import('pdf-lib'),
     import('@pdf-lib/fontkit'),
   ]);
@@ -553,7 +555,23 @@ async function buildInventoryTagPdf(formState: FormState): Promise<Blob> {
   setPdfTextField(pdfForm, 'ccg_num', formState.ccgNumber.trim(), boldFont);
   setPdfTextField(pdfForm, 'sale_price', formatTagPrice(salePrice), boldFont);
   setPdfTextField(pdfForm, 'regular_price', formatTagPrice(regularPrice), regularFont);
-  setPdfTextField(pdfForm, 'txt_clearance', formState.clearance ? 'CLEARANCE' : '', boldFont, 'red');
+  const clearanceFieldFilled = setPdfTextField(
+    pdfForm,
+    'txt_clearance',
+    formState.clearance ? 'CLEARANCE' : '',
+    boldFont,
+    'red',
+    formState.clearance,
+  );
+  if (formState.clearance && !clearanceFieldFilled) {
+    pdfDoc.getPages()[0].drawText('CLEARANCE', {
+      x: 162.692,
+      y: 647.908,
+      size: 14,
+      font: boldFont,
+      color: rgb(1, 0, 0),
+    });
+  }
 
   bullets.forEach(([text, danger, highlight], index) => {
     const trimmed = text.trim();
