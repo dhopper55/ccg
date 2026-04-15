@@ -1,6 +1,8 @@
 import { decodeSerialForBackend, normalizeBrandKey } from '../../../src/serial-decode-service.js';
 import {
+  buildMultiPricingPrompt,
   buildMainUserPrompt,
+  buildSinglePricingPrompt,
   buildSystemPrompt,
 } from './prompts.js';
 import {
@@ -857,20 +859,34 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
 
   if (result.success && result.info && normalizedBrand) {
     const decodedSerial = normalizeText(result.info.serialNumber, serial).slice(0, 180);
-    const patternMeta = deriveSerialPatternMeta(normalizedBrand, decodedSerial);
+    const decoderPatternKey = normalizeText(result.patternKey, '').slice(0, 180);
+    const decoderPatternLabel = normalizeText(result.patternLabel, '').slice(0, 180);
+    const patternMeta = decoderPatternKey
+      ? {
+          patternKey: decoderPatternKey,
+          patternLabel: decoderPatternLabel || decoderPatternKey,
+        }
+      : deriveSerialPatternMeta(normalizedBrand, decodedSerial);
     patternKey = patternMeta.patternKey;
     patternLabel = patternMeta.patternLabel;
-    const contextRow = await dbGetPublishedSerialPatternContext(normalizedBrand, patternMeta.patternKey, env);
-    if (contextRow) {
-      additionalContext = contextRow;
+    if (result.additionalContext) {
+      additionalContext = result.additionalContext;
     } else {
-      needsAdditionalContext = true;
+      const contextRow = await dbGetPublishedSerialPatternContext(normalizedBrand, patternMeta.patternKey, env);
+      if (contextRow) {
+        additionalContext = contextRow;
+      } else {
+        needsAdditionalContext = true;
+      }
     }
+    additionalContextRichText = normalizeText(result.additionalContextRichText, '').slice(0, 12000);
   }
 
   if (patternKey) {
     patternLookupId = await ensureSerialDecodePatternLookup(normalizedBrand, patternKey, env);
-    additionalContextRichText = await getSerialDecodePatternRichText(normalizedBrand, patternKey, env);
+    if (!additionalContextRichText) {
+      additionalContextRichText = await getSerialDecodePatternRichText(normalizedBrand, patternKey, env);
+    }
   }
 
   const eventPayload: SerialDecodeEventInsert = {
@@ -1866,6 +1882,14 @@ async function processDirectListing(
     await updateRowByRunId(runId, {
       runId,
       status: 'failed',
+      title: listing.title,
+      price: listing.price,
+      location: listing.location,
+      condition: listing.condition,
+      description: listing.description,
+      photos: listing.images.join('\n'),
+      image_url: listing.images[0] ?? '',
+      notes: listing.notes,
     }, env, { recordId, isMulti });
     throw error;
   }
@@ -2251,6 +2275,20 @@ type ReverbItemResponse = {
   } | string;
 };
 
+type ReverbSearchListing = ReverbItemResponse;
+
+type ReverbComp = {
+  title: string;
+  price: number;
+  condition: string;
+  url: string;
+};
+
+type ReverbPricingContext = {
+  comps: ReverbComp[];
+  baseComps: ReverbComp[];
+};
+
 type InventoryItemRow = {
   id: number;
   source_listing_id: number | null;
@@ -2277,6 +2315,24 @@ type InventoryItemRow = {
   sale_price: number | null;
   condition: string | null;
   sale_description: string | null;
+  bullet_1_text: string | null;
+  bullet_1_danger: number | null;
+  bullet_1_highlight: number | null;
+  bullet_2_text: string | null;
+  bullet_2_danger: number | null;
+  bullet_2_highlight: number | null;
+  bullet_3_text: string | null;
+  bullet_3_danger: number | null;
+  bullet_3_highlight: number | null;
+  bullet_4_text: string | null;
+  bullet_4_danger: number | null;
+  bullet_4_highlight: number | null;
+  bullet_5_text: string | null;
+  bullet_5_danger: number | null;
+  bullet_5_highlight: number | null;
+  bullet_6_text: string | null;
+  bullet_6_danger: number | null;
+  bullet_6_highlight: number | null;
   purchased_date: string | null;
   purchase_price: number | null;
   private_party_value: number | null;
@@ -3447,6 +3503,24 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const salePrice = parseCurrencyAmount(body.salePrice) ?? 0;
   const condition = normalizeText(body.condition, '').slice(0, 50);
   const saleDescription = normalizeText(body.saleDescription, '').slice(0, 12000);
+  const bullet1Text = normalizeText(body.bullet1Text, '').slice(0, 60);
+  const bullet1Danger = toBooleanInput(body.bullet1Danger, false);
+  const bullet1Highlight = toBooleanInput(body.bullet1Highlight, false);
+  const bullet2Text = normalizeText(body.bullet2Text, '').slice(0, 60);
+  const bullet2Danger = toBooleanInput(body.bullet2Danger, false);
+  const bullet2Highlight = toBooleanInput(body.bullet2Highlight, false);
+  const bullet3Text = normalizeText(body.bullet3Text, '').slice(0, 60);
+  const bullet3Danger = toBooleanInput(body.bullet3Danger, false);
+  const bullet3Highlight = toBooleanInput(body.bullet3Highlight, false);
+  const bullet4Text = normalizeText(body.bullet4Text, '').slice(0, 60);
+  const bullet4Danger = toBooleanInput(body.bullet4Danger, false);
+  const bullet4Highlight = toBooleanInput(body.bullet4Highlight, false);
+  const bullet5Text = normalizeText(body.bullet5Text, '').slice(0, 60);
+  const bullet5Danger = toBooleanInput(body.bullet5Danger, false);
+  const bullet5Highlight = toBooleanInput(body.bullet5Highlight, false);
+  const bullet6Text = normalizeText(body.bullet6Text, '').slice(0, 60);
+  const bullet6Danger = toBooleanInput(body.bullet6Danger, false);
+  const bullet6Highlight = toBooleanInput(body.bullet6Highlight, false);
   const purchasedDate = normalizeInventoryDate(body.purchasedDate) || currentDateYmd();
   const purchasePrice = parseCurrencyAmount(body.purchasePrice);
   const privatePartyValue = parseCurrencyAmount(body.privatePartyValue) ?? 0;
@@ -3551,6 +3625,24 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     sale_price: salePrice,
     condition: condition || null,
     sale_description: saleDescription || null,
+    bullet_1_text: bullet1Text || null,
+    bullet_1_danger: bullet1Danger ? 1 : 0,
+    bullet_1_highlight: bullet1Highlight ? 1 : 0,
+    bullet_2_text: bullet2Text || null,
+    bullet_2_danger: bullet2Danger ? 1 : 0,
+    bullet_2_highlight: bullet2Highlight ? 1 : 0,
+    bullet_3_text: bullet3Text || null,
+    bullet_3_danger: bullet3Danger ? 1 : 0,
+    bullet_3_highlight: bullet3Highlight ? 1 : 0,
+    bullet_4_text: bullet4Text || null,
+    bullet_4_danger: bullet4Danger ? 1 : 0,
+    bullet_4_highlight: bullet4Highlight ? 1 : 0,
+    bullet_5_text: bullet5Text || null,
+    bullet_5_danger: bullet5Danger ? 1 : 0,
+    bullet_5_highlight: bullet5Highlight ? 1 : 0,
+    bullet_6_text: bullet6Text || null,
+    bullet_6_danger: bullet6Danger ? 1 : 0,
+    bullet_6_highlight: bullet6Highlight ? 1 : 0,
     purchased_date: purchasedDate,
     purchase_price: purchasePrice,
     private_party_value: privatePartyValue,
@@ -3716,6 +3808,24 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const salePrice = parseCurrencyAmount(body.salePrice) ?? 0;
   const condition = normalizeText(body.condition, '').slice(0, 50);
   const saleDescription = normalizeText(body.saleDescription, '').slice(0, 12000);
+  const bullet1Text = normalizeText(body.bullet1Text, '').slice(0, 60);
+  const bullet1Danger = toBooleanInput(body.bullet1Danger, false);
+  const bullet1Highlight = toBooleanInput(body.bullet1Highlight, false);
+  const bullet2Text = normalizeText(body.bullet2Text, '').slice(0, 60);
+  const bullet2Danger = toBooleanInput(body.bullet2Danger, false);
+  const bullet2Highlight = toBooleanInput(body.bullet2Highlight, false);
+  const bullet3Text = normalizeText(body.bullet3Text, '').slice(0, 60);
+  const bullet3Danger = toBooleanInput(body.bullet3Danger, false);
+  const bullet3Highlight = toBooleanInput(body.bullet3Highlight, false);
+  const bullet4Text = normalizeText(body.bullet4Text, '').slice(0, 60);
+  const bullet4Danger = toBooleanInput(body.bullet4Danger, false);
+  const bullet4Highlight = toBooleanInput(body.bullet4Highlight, false);
+  const bullet5Text = normalizeText(body.bullet5Text, '').slice(0, 60);
+  const bullet5Danger = toBooleanInput(body.bullet5Danger, false);
+  const bullet5Highlight = toBooleanInput(body.bullet5Highlight, false);
+  const bullet6Text = normalizeText(body.bullet6Text, '').slice(0, 60);
+  const bullet6Danger = toBooleanInput(body.bullet6Danger, false);
+  const bullet6Highlight = toBooleanInput(body.bullet6Highlight, false);
   const purchasedDate = normalizeInventoryDate(body.purchasedDate);
   const purchasePrice = parseCurrencyAmount(body.purchasePrice);
   const privatePartyValue = parseCurrencyAmount(body.privatePartyValue) ?? 0;
@@ -3858,6 +3968,24 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     sale_price: salePrice,
     condition: condition || null,
     sale_description: saleDescription || null,
+    bullet_1_text: bullet1Text || null,
+    bullet_1_danger: bullet1Danger ? 1 : 0,
+    bullet_1_highlight: bullet1Highlight ? 1 : 0,
+    bullet_2_text: bullet2Text || null,
+    bullet_2_danger: bullet2Danger ? 1 : 0,
+    bullet_2_highlight: bullet2Highlight ? 1 : 0,
+    bullet_3_text: bullet3Text || null,
+    bullet_3_danger: bullet3Danger ? 1 : 0,
+    bullet_3_highlight: bullet3Highlight ? 1 : 0,
+    bullet_4_text: bullet4Text || null,
+    bullet_4_danger: bullet4Danger ? 1 : 0,
+    bullet_4_highlight: bullet4Highlight ? 1 : 0,
+    bullet_5_text: bullet5Text || null,
+    bullet_5_danger: bullet5Danger ? 1 : 0,
+    bullet_5_highlight: bullet5Highlight ? 1 : 0,
+    bullet_6_text: bullet6Text || null,
+    bullet_6_danger: bullet6Danger ? 1 : 0,
+    bullet_6_highlight: bullet6Highlight ? 1 : 0,
     is_sold: isSold ? 1 : 0,
     sold_date: resolveToggleTimestamp({
       previousOn: previousIsSold,
@@ -5070,7 +5198,6 @@ const INVENTORY_QUEUE_OPTIONS = new Set([
   'Sold',
   'Rented',
   'Parking Lot',
-  'Personal',
 ]);
 
 function normalizeInventoryQueue(input: unknown): string {
@@ -5331,6 +5458,24 @@ async function dbListInventoryItemsByCcgNumber(
       i.sale_price,
       i."condition",
       i.sale_description,
+      i.bullet_1_text,
+      i.bullet_1_danger,
+      i.bullet_1_highlight,
+      i.bullet_2_text,
+      i.bullet_2_danger,
+      i.bullet_2_highlight,
+      i.bullet_3_text,
+      i.bullet_3_danger,
+      i.bullet_3_highlight,
+      i.bullet_4_text,
+      i.bullet_4_danger,
+      i.bullet_4_highlight,
+      i.bullet_5_text,
+      i.bullet_5_danger,
+      i.bullet_5_highlight,
+      i.bullet_6_text,
+      i.bullet_6_danger,
+      i.bullet_6_highlight,
       i.purchased_date,
       i.purchase_price,
       i.private_party_value,
@@ -5406,6 +5551,24 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.sale_price,
       i."condition",
       i.sale_description,
+      i.bullet_1_text,
+      i.bullet_1_danger,
+      i.bullet_1_highlight,
+      i.bullet_2_text,
+      i.bullet_2_danger,
+      i.bullet_2_highlight,
+      i.bullet_3_text,
+      i.bullet_3_danger,
+      i.bullet_3_highlight,
+      i.bullet_4_text,
+      i.bullet_4_danger,
+      i.bullet_4_highlight,
+      i.bullet_5_text,
+      i.bullet_5_danger,
+      i.bullet_5_highlight,
+      i.bullet_6_text,
+      i.bullet_6_danger,
+      i.bullet_6_highlight,
       i.purchased_date,
       i.purchase_price,
       i.private_party_value,
@@ -5479,6 +5642,24 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     salePrice: row.sale_price ?? 0,
     condition: row.condition || '',
     saleDescription: row.sale_description || '',
+    bullet1Text: row.bullet_1_text || '',
+    bullet1Danger: Boolean(row.bullet_1_danger),
+    bullet1Highlight: Boolean(row.bullet_1_highlight),
+    bullet2Text: row.bullet_2_text || '',
+    bullet2Danger: Boolean(row.bullet_2_danger),
+    bullet2Highlight: Boolean(row.bullet_2_highlight),
+    bullet3Text: row.bullet_3_text || '',
+    bullet3Danger: Boolean(row.bullet_3_danger),
+    bullet3Highlight: Boolean(row.bullet_3_highlight),
+    bullet4Text: row.bullet_4_text || '',
+    bullet4Danger: Boolean(row.bullet_4_danger),
+    bullet4Highlight: Boolean(row.bullet_4_highlight),
+    bullet5Text: row.bullet_5_text || '',
+    bullet5Danger: Boolean(row.bullet_5_danger),
+    bullet5Highlight: Boolean(row.bullet_5_highlight),
+    bullet6Text: row.bullet_6_text || '',
+    bullet6Danger: Boolean(row.bullet_6_danger),
+    bullet6Highlight: Boolean(row.bullet_6_highlight),
     purchasedDate: row.purchased_date || '',
     purchasePrice: row.purchase_price,
     privatePartyValue: row.private_party_value,
@@ -5763,6 +5944,24 @@ async function dbCreateInventoryItems(
     sale_price: number | null;
     condition: string | null;
     sale_description: string | null;
+    bullet_1_text: string | null;
+    bullet_1_danger: number;
+    bullet_1_highlight: number;
+    bullet_2_text: string | null;
+    bullet_2_danger: number;
+    bullet_2_highlight: number;
+    bullet_3_text: string | null;
+    bullet_3_danger: number;
+    bullet_3_highlight: number;
+    bullet_4_text: string | null;
+    bullet_4_danger: number;
+    bullet_4_highlight: number;
+    bullet_5_text: string | null;
+    bullet_5_danger: number;
+    bullet_5_highlight: number;
+    bullet_6_text: string | null;
+    bullet_6_danger: number;
+    bullet_6_highlight: number;
     purchased_date: string;
     purchase_price: number | null;
     private_party_value: number;
@@ -5797,12 +5996,18 @@ async function dbCreateInventoryItems(
         secondary_category_id,
         image_urls,
         repair_notes, original_listing_desc, video_url, sale_title, regular_price, sale_price, "condition", sale_description,
+        bullet_1_text, bullet_1_danger, bullet_1_highlight,
+        bullet_2_text, bullet_2_danger, bullet_2_highlight,
+        bullet_3_text, bullet_3_danger, bullet_3_highlight,
+        bullet_4_text, bullet_4_danger, bullet_4_highlight,
+        bullet_5_text, bullet_5_danger, bullet_5_highlight,
+        bullet_6_text, bullet_6_danger, bullet_6_highlight,
         purchased_date, purchase_price, private_party_value, purchase_notes, ai_analysis_text, serial_number,
         weight_lbs, neck_profile, neck_thickness, nut_width, width_12_fret, fretboard_radius, twelve_fret_action,
         is_active, is_marked, is_personal, is_rented, for_sale, for_sale_date,
         is_sold, sold_date, sold_amount, sell_notes
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const statements = Array.from({ length: qty }, (_, index) =>
       env.DB.prepare(statement).bind(
@@ -5826,6 +6031,24 @@ async function dbCreateInventoryItems(
         fields.sale_price,
         fields.condition,
         fields.sale_description,
+        fields.bullet_1_text,
+        fields.bullet_1_danger,
+        fields.bullet_1_highlight,
+        fields.bullet_2_text,
+        fields.bullet_2_danger,
+        fields.bullet_2_highlight,
+        fields.bullet_3_text,
+        fields.bullet_3_danger,
+        fields.bullet_3_highlight,
+        fields.bullet_4_text,
+        fields.bullet_4_danger,
+        fields.bullet_4_highlight,
+        fields.bullet_5_text,
+        fields.bullet_5_danger,
+        fields.bullet_5_highlight,
+        fields.bullet_6_text,
+        fields.bullet_6_danger,
+        fields.bullet_6_highlight,
         fields.purchased_date,
         fields.purchase_price,
         fields.private_party_value,
@@ -5990,6 +6213,24 @@ async function dbUpdateInventorySaleById(
     sale_price: number | null;
     condition: string | null;
     sale_description: string | null;
+    bullet_1_text: string | null;
+    bullet_1_danger: number;
+    bullet_1_highlight: number;
+    bullet_2_text: string | null;
+    bullet_2_danger: number;
+    bullet_2_highlight: number;
+    bullet_3_text: string | null;
+    bullet_3_danger: number;
+    bullet_3_highlight: number;
+    bullet_4_text: string | null;
+    bullet_4_danger: number;
+    bullet_4_highlight: number;
+    bullet_5_text: string | null;
+    bullet_5_danger: number;
+    bullet_5_highlight: number;
+    bullet_6_text: string | null;
+    bullet_6_danger: number;
+    bullet_6_highlight: number;
     is_sold: number;
     sold_date: string | null;
     sold_amount: number | null;
@@ -6008,6 +6249,12 @@ async function dbUpdateInventorySaleById(
       `UPDATE ccg_inventory_items
        SET
          source_listing_id = ?, video_url = ?, sale_title = ?, regular_price = ?, sale_price = ?, "condition" = ?, sale_description = ?,
+         bullet_1_text = ?, bullet_1_danger = ?, bullet_1_highlight = ?,
+         bullet_2_text = ?, bullet_2_danger = ?, bullet_2_highlight = ?,
+         bullet_3_text = ?, bullet_3_danger = ?, bullet_3_highlight = ?,
+         bullet_4_text = ?, bullet_4_danger = ?, bullet_4_highlight = ?,
+         bullet_5_text = ?, bullet_5_danger = ?, bullet_5_highlight = ?,
+         bullet_6_text = ?, bullet_6_danger = ?, bullet_6_highlight = ?,
          is_sold = ?, sold_date = ?, sold_amount = ?, sell_notes = ?, subscription_id = ?,
          sale_url = ?, sale_zip = ?, sold_channel = ?,
          updated_at = CURRENT_TIMESTAMP
@@ -6020,6 +6267,24 @@ async function dbUpdateInventorySaleById(
       fields.sale_price,
       fields.condition,
       fields.sale_description,
+      fields.bullet_1_text,
+      fields.bullet_1_danger,
+      fields.bullet_1_highlight,
+      fields.bullet_2_text,
+      fields.bullet_2_danger,
+      fields.bullet_2_highlight,
+      fields.bullet_3_text,
+      fields.bullet_3_danger,
+      fields.bullet_3_highlight,
+      fields.bullet_4_text,
+      fields.bullet_4_danger,
+      fields.bullet_4_highlight,
+      fields.bullet_5_text,
+      fields.bullet_5_danger,
+      fields.bullet_5_highlight,
+      fields.bullet_6_text,
+      fields.bullet_6_danger,
+      fields.bullet_6_highlight,
       fields.is_sold,
       fields.sold_date,
       fields.sold_amount,
@@ -10526,6 +10791,14 @@ function pickReverbComps(raw: ReverbSearchListing[], base: SingleAiResult, minSc
     .map((entry) => entry.comp);
 }
 
+function scoredReverbComps(raw: ReverbSearchListing[], base: SingleAiResult): Array<{ comp: ReverbComp; score: number }> {
+  return raw
+    .map((listing) => normalizeReverbComp(listing))
+    .filter((comp): comp is ReverbComp => Boolean(comp))
+    .map((comp) => ({ comp, score: scoreReverbCompMatch(comp, base) }))
+    .sort((a, b) => b.score - a.score || a.comp.price - b.comp.price);
+}
+
 function dedupeReverbComps(comps: ReverbComp[]): ReverbComp[] {
   const seen = new Set<string>();
   const out: ReverbComp[] = [];
@@ -10659,6 +10932,225 @@ function clampFallbackPricingForWeakReverb(
     value_private_party_medium_notes: `${normalizeText(normalized.value_private_party_medium_notes, '')} Conservative clamp applied for weak Reverb support on Roland/MIDI-style premium.`.trim(),
     value_private_party_high_notes: `${normalizeText(normalized.value_private_party_high_notes, '')} High-end premium capped without verified functionality.`.trim(),
   };
+}
+
+function clearPrivatePartyPricingFields(base: SingleAiResult): SingleAiResult {
+  return {
+    ...base,
+    value_private_party_low: null,
+    value_private_party_low_notes: '',
+    value_private_party_medium: null,
+    value_private_party_medium_notes: '',
+    value_private_party_high: null,
+    value_private_party_high_notes: '',
+    pricing_source: '',
+    pricing_confidence: '',
+    pricing_comp_count: null,
+    pricing_notes: '',
+  };
+}
+
+async function fetchReverbPricingListings(query: string, env: Env): Promise<ReverbSearchListing[]> {
+  const url = new URL(REVERB_SEARCH_API_URL);
+  url.searchParams.set('query', query);
+  url.searchParams.set('per_page', String(REVERB_PRICING_SEARCH_LIMIT));
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: reverbRequestHeaders(env),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    console.error('Reverb pricing search failed', { query, status: response.status, body: body.slice(0, 500) });
+    return [];
+  }
+
+  const data = await response.json() as { listings?: ReverbSearchListing[] };
+  return Array.isArray(data.listings) ? data.listings : [];
+}
+
+async function getSinglePricingFromOpenAI(base: SingleAiResult, env: Env): Promise<Partial<SingleAiResult> | null> {
+  if (!env.OPENAI_API_KEY) return null;
+
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      input: [
+        {
+          role: 'user',
+          content: [{ type: 'input_text', text: buildSinglePricingPrompt(base) }],
+        },
+      ],
+      temperature: 0.2,
+      max_output_tokens: 900,
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'single_pricing',
+          schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              value_private_party_low: { type: ['number', 'string', 'null'] },
+              value_private_party_low_notes: { type: 'string' },
+              value_private_party_medium: { type: ['number', 'string', 'null'] },
+              value_private_party_medium_notes: { type: 'string' },
+              value_private_party_high: { type: ['number', 'string', 'null'] },
+              value_private_party_high_notes: { type: 'string' },
+              pricing_source: { type: 'string' },
+              pricing_confidence: { type: 'string' },
+              pricing_comp_count: { type: ['number', 'string', 'null'] },
+              pricing_notes: { type: 'string' },
+            },
+            required: [
+              'value_private_party_low',
+              'value_private_party_low_notes',
+              'value_private_party_medium',
+              'value_private_party_medium_notes',
+              'value_private_party_high',
+              'value_private_party_high_notes',
+              'pricing_source',
+              'pricing_confidence',
+              'pricing_comp_count',
+              'pricing_notes',
+            ],
+          },
+        },
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    console.error('OpenAI pricing response failed', { status: response.status, statusText: response.statusText, body });
+    return null;
+  }
+
+  const data = await response.json();
+  const text = extractOpenAIText(data);
+  try {
+    return JSON.parse(text) as Partial<SingleAiResult>;
+  } catch (error) {
+    console.error('OpenAI pricing JSON parse failed', { error, text: text?.slice(0, 200) });
+    return null;
+  }
+}
+
+async function getRealisticPrivatePartyPricing(base: SingleAiResult, env: Env): Promise<Partial<SingleAiResult> | null> {
+  try {
+    const queries = buildReverbPricingQueries(base);
+    const rawByQuery = await Promise.all(queries.map((entry) => fetchReverbPricingListings(entry.query, env)));
+    const comps = dedupeReverbComps(rawByQuery.flatMap((raw) => pickReverbComps(raw, base, 1)));
+    const baseFloorEntry = queries.find((entry) => entry.label === 'base-floor') ?? queries[0];
+    const baseRaw = baseFloorEntry ? await fetchReverbPricingListings(baseFloorEntry.query, env) : [];
+    const baseComps = dedupeReverbComps(pickReverbComps(baseRaw, {
+      ...base,
+      model: normalizePricingModelText(base) || base.model,
+      og_specs_pickups: '',
+    }, 0));
+    const reverbContext: ReverbPricingContext = { comps, baseComps };
+    const range = rangeFromReverbComps(comps, base);
+
+    if (range) {
+      const notes = [
+        range.notes,
+        summarizeReverbMatchesInline(comps),
+      ].filter(Boolean).join(' ');
+      return {
+        value_private_party_low: range.low,
+        value_private_party_low_notes: notes,
+        value_private_party_medium: range.medium,
+        value_private_party_medium_notes: notes,
+        value_private_party_high: range.high,
+        value_private_party_high_notes: notes,
+        pricing_source: 'Reverb active listings',
+        pricing_confidence: range.confidence,
+        pricing_comp_count: comps.length,
+        pricing_notes: summarizeReverbComps(comps),
+      };
+    }
+
+    const aiFallback = await getSinglePricingFromOpenAI(base, env);
+    if (!aiFallback) return null;
+    return clampFallbackPricingForWeakReverb(aiFallback, base, reverbContext);
+  } catch (error) {
+    console.error('Private-party pricing failed', { error });
+    return null;
+  }
+}
+
+async function runOpenAIMultiRangePricing(
+  listing: ListingData,
+  aiSummary: string,
+  env: Env
+): Promise<{ low: number; high: number } | null> {
+  if (!env.OPENAI_API_KEY) return null;
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        input: [
+          {
+            role: 'user',
+            content: [{ type: 'input_text', text: buildMultiPricingPrompt(listing, aiSummary) }],
+          },
+        ],
+        temperature: 0.2,
+        max_output_tokens: 500,
+        text: {
+          format: {
+            type: 'json_schema',
+            name: 'multi_pricing',
+            schema: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                low: { type: ['number', 'string', 'null'] },
+                high: { type: ['number', 'string', 'null'] },
+              },
+              required: ['low', 'high'],
+            },
+          },
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      console.error('OpenAI multi pricing response failed', { status: response.status, statusText: response.statusText, body });
+      return null;
+    }
+
+    const data = await response.json();
+    const parsed = JSON.parse(extractOpenAIText(data)) as { low?: unknown; high?: unknown };
+    const low = normalizeMoneyValue(parsed.low);
+    const high = normalizeMoneyValue(parsed.high);
+    if (low == null || high == null) return null;
+    return { low: Math.min(low, high), high: Math.max(low, high) };
+  } catch (error) {
+    console.error('OpenAI multi pricing failed', { error });
+    return null;
+  }
+}
+
+function applyMultiRangeToSummary(aiSummary: string, low: number, high: number): string {
+  const rangeText = formatRange(low, high);
+  if (/Used market range for all:\s*[^\n]+/i.test(aiSummary)) {
+    return aiSummary.replace(/Used market range for all:\s*[^\n]+/i, `Used market range for all: ${rangeText}`);
+  }
+  return `${aiSummary.trim()}\n\nTotals\n- Used market range for all: ${rangeText}`.trim();
 }
 
 function redactPriceSignals(input: string): string {

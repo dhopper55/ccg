@@ -1035,7 +1035,6 @@ const InventoryManager = () => {
                           <MenuItem value="Sold">Sold</MenuItem>
                           <MenuItem value="Rented">Rented</MenuItem>
                           <MenuItem value="Parking Lot">Parking Lot</MenuItem>
-                          <MenuItem value="Personal">Personal</MenuItem>
                         </Select>
                       </FormControl>
                     </Grid>

@@ -22,6 +22,10 @@ function decodeCharvel(serialInput) {
   return decodeSerialForBackend('charvel', serialInput);
 }
 
+function decodeTaylor(serialInput) {
+  return decodeSerialForBackend('taylor', serialInput);
+}
+
 function assertIbanezBPrefix(serialInput) {
   const result = decodeIbanez(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -898,6 +902,46 @@ function assertOvationSnPrefixedUsa(serialInput, expectedYear) {
   );
 }
 
+function assertTaylorModernShort9Digit(serialInput, expectedYear, expectedMonth, expectedDay) {
+  const result = decodeTaylor(serialInput);
+  assert(result.success, `Expected decode success for Taylor ${serialInput}`);
+  assert(result.info, `Expected decoded info for Taylor ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(info.day === expectedDay, `Expected day ${expectedDay} for ${serialInput}, got ${info.day}`);
+  assert(info.factory === 'El Cajon, California', `Expected El Cajon factory for ${serialInput}, got ${info.factory}`);
+  assert(info.country === 'USA', `Expected USA country for ${serialInput}, got ${info.country}`);
+  assert(
+    info.notes && info.notes.includes('Shortened modern Taylor format'),
+    `Expected shortened-format note for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    result.patternKey === 'taylor-modern-short-9',
+    `Expected Taylor shortened-modern pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('modern factory/date layout'),
+    `Expected Taylor shortened-modern rich text for ${serialInput}`
+  );
+}
+
+function assertTaylorLegacy9Digit(serialInput, expectedYear, expectedMonth, expectedDay) {
+  const result = decodeTaylor(serialInput);
+  assert(result.success, `Expected decode success for Taylor ${serialInput}`);
+  assert(result.info, `Expected decoded info for Taylor ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(info.day === expectedDay, `Expected day ${expectedDay} for ${serialInput}, got ${info.day}`);
+  assert(
+    info.notes && info.notes.includes('This 9-digit format was used from 1993 to 1999'),
+    `Expected legacy 9-digit note for ${serialInput}, got ${info.notes}`
+  );
+}
+
 assertIbanezBPrefix('B160100231');
 assertIbanezBPrefix('B-160100231');
 assertIbanez5APrefix('5A210401373');
@@ -972,6 +1016,8 @@ assertFenderInternalPartNumber('0060579747');
 assertCharvelNumeric8('05050187', '2005', 'May');
 assertGodinAmbiguous7Digit('4284009');
 assertOvationSnPrefixedUsa('SN487892', '1994');
+assertTaylorModernShort9Digit('111130804', '2018', 'November', '30');
+assertTaylorLegacy9Digit('980311301', '1998', 'March', '11');
 assertDecodeFails('ovation', '123456789');
 
 console.log('Regression tests passed.');

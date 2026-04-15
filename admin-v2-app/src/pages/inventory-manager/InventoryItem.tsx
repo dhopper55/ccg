@@ -40,6 +40,24 @@ type InventoryItemRecord = {
   salePrice?: number | null;
   condition?: string;
   saleDescription?: string;
+  bullet1Text?: string;
+  bullet1Danger?: boolean;
+  bullet1Highlight?: boolean;
+  bullet2Text?: string;
+  bullet2Danger?: boolean;
+  bullet2Highlight?: boolean;
+  bullet3Text?: string;
+  bullet3Danger?: boolean;
+  bullet3Highlight?: boolean;
+  bullet4Text?: string;
+  bullet4Danger?: boolean;
+  bullet4Highlight?: boolean;
+  bullet5Text?: string;
+  bullet5Danger?: boolean;
+  bullet5Highlight?: boolean;
+  bullet6Text?: string;
+  bullet6Danger?: boolean;
+  bullet6Highlight?: boolean;
   title: string;
   categoryId?: number | null;
   categoryName?: string;
@@ -119,6 +137,24 @@ type FormState = {
   salePrice: string;
   condition: string;
   saleDescription: string;
+  bullet1Text: string;
+  bullet1Danger: boolean;
+  bullet1Highlight: boolean;
+  bullet2Text: string;
+  bullet2Danger: boolean;
+  bullet2Highlight: boolean;
+  bullet3Text: string;
+  bullet3Danger: boolean;
+  bullet3Highlight: boolean;
+  bullet4Text: string;
+  bullet4Danger: boolean;
+  bullet4Highlight: boolean;
+  bullet5Text: string;
+  bullet5Danger: boolean;
+  bullet5Highlight: boolean;
+  bullet6Text: string;
+  bullet6Danger: boolean;
+  bullet6Highlight: boolean;
   title: string;
   categoryId: string;
   secondaryCategoryId: string;
@@ -181,7 +217,6 @@ const INVENTORY_QUEUE_OPTIONS = [
   'Sold',
   'Rented',
   'Parking Lot',
-  'Personal',
 ] as const;
 
 type InventoryCategoryNode = {
@@ -247,6 +282,24 @@ const DEFAULT_FORM: FormState = {
   salePrice: '0',
   condition: '',
   saleDescription: '',
+  bullet1Text: '',
+  bullet1Danger: false,
+  bullet1Highlight: false,
+  bullet2Text: '',
+  bullet2Danger: false,
+  bullet2Highlight: false,
+  bullet3Text: '',
+  bullet3Danger: false,
+  bullet3Highlight: false,
+  bullet4Text: '',
+  bullet4Danger: false,
+  bullet4Highlight: false,
+  bullet5Text: '',
+  bullet5Danger: false,
+  bullet5Highlight: false,
+  bullet6Text: '',
+  bullet6Danger: false,
+  bullet6Highlight: false,
   title: '',
   categoryId: '',
   secondaryCategoryId: '',
@@ -503,6 +556,24 @@ const InventoryItem = () => {
             salePrice: record.salePrice != null ? String(record.salePrice) : '0',
             condition: record.condition || '',
             saleDescription: record.saleDescription || '',
+            bullet1Text: record.bullet1Text || '',
+            bullet1Danger: Boolean(record.bullet1Danger),
+            bullet1Highlight: Boolean(record.bullet1Highlight),
+            bullet2Text: record.bullet2Text || '',
+            bullet2Danger: Boolean(record.bullet2Danger),
+            bullet2Highlight: Boolean(record.bullet2Highlight),
+            bullet3Text: record.bullet3Text || '',
+            bullet3Danger: Boolean(record.bullet3Danger),
+            bullet3Highlight: Boolean(record.bullet3Highlight),
+            bullet4Text: record.bullet4Text || '',
+            bullet4Danger: Boolean(record.bullet4Danger),
+            bullet4Highlight: Boolean(record.bullet4Highlight),
+            bullet5Text: record.bullet5Text || '',
+            bullet5Danger: Boolean(record.bullet5Danger),
+            bullet5Highlight: Boolean(record.bullet5Highlight),
+            bullet6Text: record.bullet6Text || '',
+            bullet6Danger: Boolean(record.bullet6Danger),
+            bullet6Highlight: Boolean(record.bullet6Highlight),
             title: record.title || '',
             categoryId: record.categoryId != null ? String(record.categoryId) : '',
             secondaryCategoryId:
@@ -666,6 +737,24 @@ const InventoryItem = () => {
     salePrice: form.salePrice.trim(),
     condition: form.condition.trim(),
     saleDescription: form.saleDescription.trim(),
+    bullet1Text: form.bullet1Text.trim(),
+    bullet1Danger: form.bullet1Danger,
+    bullet1Highlight: form.bullet1Highlight,
+    bullet2Text: form.bullet2Text.trim(),
+    bullet2Danger: form.bullet2Danger,
+    bullet2Highlight: form.bullet2Highlight,
+    bullet3Text: form.bullet3Text.trim(),
+    bullet3Danger: form.bullet3Danger,
+    bullet3Highlight: form.bullet3Highlight,
+    bullet4Text: form.bullet4Text.trim(),
+    bullet4Danger: form.bullet4Danger,
+    bullet4Highlight: form.bullet4Highlight,
+    bullet5Text: form.bullet5Text.trim(),
+    bullet5Danger: form.bullet5Danger,
+    bullet5Highlight: form.bullet5Highlight,
+    bullet6Text: form.bullet6Text.trim(),
+    bullet6Danger: form.bullet6Danger,
+    bullet6Highlight: form.bullet6Highlight,
     title: form.title.trim(),
     categoryId: form.categoryId,
     secondaryCategoryId: form.secondaryCategoryId || null,
@@ -1690,6 +1779,192 @@ const InventoryItem = () => {
                           value={form.saleZip}
                           onChange={(event) => setField('saleZip', event.target.value)}
                           inputProps={{ maxLength: 10 }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 6 }}>
+                        <TextField
+                          fullWidth
+                          label="Bullet 1 Text"
+                          value={form.bullet1Text}
+                          onChange={(event) => setField('bullet1Text', event.target.value)}
+                          inputProps={{ maxLength: 60 }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={form.bullet1Danger}
+                              onChange={(event) => setField('bullet1Danger', event.target.checked)}
+                            />
+                          }
+                          label="Show in Red?"
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={form.bullet1Highlight}
+                              onChange={(event) => setField('bullet1Highlight', event.target.checked)}
+                            />
+                          }
+                          label="Highlight Bullet?"
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 6 }}>
+                        <TextField
+                          fullWidth
+                          label="Bullet 2 Text"
+                          value={form.bullet2Text}
+                          onChange={(event) => setField('bullet2Text', event.target.value)}
+                          inputProps={{ maxLength: 60 }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={form.bullet2Danger}
+                              onChange={(event) => setField('bullet2Danger', event.target.checked)}
+                            />
+                          }
+                          label="Show in Red?"
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={form.bullet2Highlight}
+                              onChange={(event) => setField('bullet2Highlight', event.target.checked)}
+                            />
+                          }
+                          label="Highlight Bullet?"
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 6 }}>
+                        <TextField
+                          fullWidth
+                          label="Bullet 3 Text"
+                          value={form.bullet3Text}
+                          onChange={(event) => setField('bullet3Text', event.target.value)}
+                          inputProps={{ maxLength: 60 }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={form.bullet3Danger}
+                              onChange={(event) => setField('bullet3Danger', event.target.checked)}
+                            />
+                          }
+                          label="Show in Red?"
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={form.bullet3Highlight}
+                              onChange={(event) => setField('bullet3Highlight', event.target.checked)}
+                            />
+                          }
+                          label="Highlight Bullet?"
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 6 }}>
+                        <TextField
+                          fullWidth
+                          label="Bullet 4 Text"
+                          value={form.bullet4Text}
+                          onChange={(event) => setField('bullet4Text', event.target.value)}
+                          inputProps={{ maxLength: 60 }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={form.bullet4Danger}
+                              onChange={(event) => setField('bullet4Danger', event.target.checked)}
+                            />
+                          }
+                          label="Show in Red?"
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={form.bullet4Highlight}
+                              onChange={(event) => setField('bullet4Highlight', event.target.checked)}
+                            />
+                          }
+                          label="Highlight Bullet?"
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 6 }}>
+                        <TextField
+                          fullWidth
+                          label="Bullet 5 Text"
+                          value={form.bullet5Text}
+                          onChange={(event) => setField('bullet5Text', event.target.value)}
+                          inputProps={{ maxLength: 60 }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={form.bullet5Danger}
+                              onChange={(event) => setField('bullet5Danger', event.target.checked)}
+                            />
+                          }
+                          label="Show in Red?"
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={form.bullet5Highlight}
+                              onChange={(event) => setField('bullet5Highlight', event.target.checked)}
+                            />
+                          }
+                          label="Highlight Bullet?"
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 6 }}>
+                        <TextField
+                          fullWidth
+                          label="Bullet 6 Text"
+                          value={form.bullet6Text}
+                          onChange={(event) => setField('bullet6Text', event.target.value)}
+                          inputProps={{ maxLength: 60 }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={form.bullet6Danger}
+                              onChange={(event) => setField('bullet6Danger', event.target.checked)}
+                            />
+                          }
+                          label="Show in Red?"
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={form.bullet6Highlight}
+                              onChange={(event) => setField('bullet6Highlight', event.target.checked)}
+                            />
+                          }
+                          label="Highlight Bullet?"
                         />
                       </Grid>
                     </Grid>
