@@ -493,10 +493,15 @@ function setPdfTextField(
   text: string,
   font: PDFFont,
   color: TagTextColor = 'black',
+  visible = true,
 ) {
   try {
     const field = form.getTextField(name);
     field.setText(text);
+    field.acroField.getWidgets().forEach((widget) => {
+      widget.setFlagTo(2, !visible);
+      widget.setFlagTo(4, visible);
+    });
     const defaultAppearance = field.acroField.getDefaultAppearance() || '';
     field.acroField.setDefaultAppearance(`${defaultAppearance}\n${colorDefaultAppearance(color)}`);
     field.updateAppearances(font);
@@ -558,6 +563,7 @@ async function buildInventoryTagPdf(formState: FormState): Promise<Blob> {
       trimmed ? `● ${trimmed}` : '',
       boldFont,
       bulletTextColor(danger, highlight),
+      Boolean(trimmed),
     );
   });
 
