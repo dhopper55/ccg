@@ -40,6 +40,7 @@ type InventoryItemRecord = {
   salePrice?: number | null;
   condition?: string;
   saleDescription?: string;
+  clearance?: boolean;
   bullet1Text?: string;
   bullet1Danger?: boolean;
   bullet1Highlight?: boolean;
@@ -137,6 +138,7 @@ type FormState = {
   salePrice: string;
   condition: string;
   saleDescription: string;
+  clearance: boolean;
   bullet1Text: string;
   bullet1Danger: boolean;
   bullet1Highlight: boolean;
@@ -282,6 +284,7 @@ const DEFAULT_FORM: FormState = {
   salePrice: '0',
   condition: '',
   saleDescription: '',
+  clearance: false,
   bullet1Text: '',
   bullet1Danger: false,
   bullet1Highlight: false,
@@ -556,6 +559,7 @@ const InventoryItem = () => {
             salePrice: record.salePrice != null ? String(record.salePrice) : '0',
             condition: record.condition || '',
             saleDescription: record.saleDescription || '',
+            clearance: Boolean(record.clearance),
             bullet1Text: record.bullet1Text || '',
             bullet1Danger: Boolean(record.bullet1Danger),
             bullet1Highlight: Boolean(record.bullet1Highlight),
@@ -737,6 +741,7 @@ const InventoryItem = () => {
     salePrice: form.salePrice.trim(),
     condition: form.condition.trim(),
     saleDescription: form.saleDescription.trim(),
+    clearance: form.clearance,
     bullet1Text: form.bullet1Text.trim(),
     bullet1Danger: form.bullet1Danger,
     bullet1Highlight: form.bullet1Highlight,
@@ -1763,7 +1768,7 @@ const InventoryItem = () => {
                           sx={notesFieldSx}
                         />
                       </Grid>
-                      <Grid size={{ xs: 12, md: 8 }}>
+                      <Grid size={{ xs: 12, md: 6 }}>
                         <TextField
                           fullWidth
                           label="Sale URL"
@@ -1772,13 +1777,24 @@ const InventoryItem = () => {
                           inputProps={{ maxLength: 150 }}
                         />
                       </Grid>
-                      <Grid size={{ xs: 12, md: 4 }}>
+                      <Grid size={{ xs: 12, md: 3 }}>
                         <TextField
                           fullWidth
                           label="Sale ZIP"
                           value={form.saleZip}
                           onChange={(event) => setField('saleZip', event.target.value)}
                           inputProps={{ maxLength: 10 }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={form.clearance}
+                              onChange={(event) => setField('clearance', event.target.checked)}
+                            />
+                          }
+                          label="Clearance"
                         />
                       </Grid>
                       <Grid size={{ xs: 12, md: 6 }}>

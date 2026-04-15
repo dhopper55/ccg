@@ -2315,6 +2315,7 @@ type InventoryItemRow = {
   sale_price: number | null;
   condition: string | null;
   sale_description: string | null;
+  clearance: number | null;
   bullet_1_text: string | null;
   bullet_1_danger: number | null;
   bullet_1_highlight: number | null;
@@ -3302,6 +3303,25 @@ async function handleAdminV2InventoryMergeMarked(env: Env): Promise<Response> {
     sale_price: 0,
     condition: null,
     sale_description: null,
+    clearance: 0,
+    bullet_1_text: null,
+    bullet_1_danger: 0,
+    bullet_1_highlight: 0,
+    bullet_2_text: null,
+    bullet_2_danger: 0,
+    bullet_2_highlight: 0,
+    bullet_3_text: null,
+    bullet_3_danger: 0,
+    bullet_3_highlight: 0,
+    bullet_4_text: null,
+    bullet_4_danger: 0,
+    bullet_4_highlight: 0,
+    bullet_5_text: null,
+    bullet_5_danger: 0,
+    bullet_5_highlight: 0,
+    bullet_6_text: null,
+    bullet_6_danger: 0,
+    bullet_6_highlight: 0,
     purchased_date: currentDateYmd(),
     purchase_price: purchasePriceTotal,
     private_party_value: privatePartyValueTotal,
@@ -3412,6 +3432,25 @@ async function handleInventoryPackageCreate(env: Env): Promise<Response> {
     sale_price: 0,
     condition: null,
     sale_description: null,
+    clearance: 0,
+    bullet_1_text: null,
+    bullet_1_danger: 0,
+    bullet_1_highlight: 0,
+    bullet_2_text: null,
+    bullet_2_danger: 0,
+    bullet_2_highlight: 0,
+    bullet_3_text: null,
+    bullet_3_danger: 0,
+    bullet_3_highlight: 0,
+    bullet_4_text: null,
+    bullet_4_danger: 0,
+    bullet_4_highlight: 0,
+    bullet_5_text: null,
+    bullet_5_danger: 0,
+    bullet_5_highlight: 0,
+    bullet_6_text: null,
+    bullet_6_danger: 0,
+    bullet_6_highlight: 0,
     purchased_date: currentDateYmd(),
     purchase_price: purchasePriceTotal,
     private_party_value: privatePartyValueTotal,
@@ -3503,6 +3542,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const salePrice = parseCurrencyAmount(body.salePrice) ?? 0;
   const condition = normalizeText(body.condition, '').slice(0, 50);
   const saleDescription = normalizeText(body.saleDescription, '').slice(0, 12000);
+  const clearance = toBooleanInput(body.clearance, false);
   const bullet1Text = normalizeText(body.bullet1Text, '').slice(0, 60);
   const bullet1Danger = toBooleanInput(body.bullet1Danger, false);
   const bullet1Highlight = toBooleanInput(body.bullet1Highlight, false);
@@ -3625,6 +3665,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     sale_price: salePrice,
     condition: condition || null,
     sale_description: saleDescription || null,
+    clearance: clearance ? 1 : 0,
     bullet_1_text: bullet1Text || null,
     bullet_1_danger: bullet1Danger ? 1 : 0,
     bullet_1_highlight: bullet1Highlight ? 1 : 0,
@@ -3808,6 +3849,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const salePrice = parseCurrencyAmount(body.salePrice) ?? 0;
   const condition = normalizeText(body.condition, '').slice(0, 50);
   const saleDescription = normalizeText(body.saleDescription, '').slice(0, 12000);
+  const clearance = toBooleanInput(body.clearance, false);
   const bullet1Text = normalizeText(body.bullet1Text, '').slice(0, 60);
   const bullet1Danger = toBooleanInput(body.bullet1Danger, false);
   const bullet1Highlight = toBooleanInput(body.bullet1Highlight, false);
@@ -3968,6 +4010,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     sale_price: salePrice,
     condition: condition || null,
     sale_description: saleDescription || null,
+    clearance: clearance ? 1 : 0,
     bullet_1_text: bullet1Text || null,
     bullet_1_danger: bullet1Danger ? 1 : 0,
     bullet_1_highlight: bullet1Highlight ? 1 : 0,
@@ -5458,6 +5501,7 @@ async function dbListInventoryItemsByCcgNumber(
       i.sale_price,
       i."condition",
       i.sale_description,
+      i.clearance,
       i.bullet_1_text,
       i.bullet_1_danger,
       i.bullet_1_highlight,
@@ -5551,6 +5595,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.sale_price,
       i."condition",
       i.sale_description,
+      i.clearance,
       i.bullet_1_text,
       i.bullet_1_danger,
       i.bullet_1_highlight,
@@ -5642,6 +5687,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     salePrice: row.sale_price ?? 0,
     condition: row.condition || '',
     saleDescription: row.sale_description || '',
+    clearance: Boolean(row.clearance),
     bullet1Text: row.bullet_1_text || '',
     bullet1Danger: Boolean(row.bullet_1_danger),
     bullet1Highlight: Boolean(row.bullet_1_highlight),
@@ -5944,6 +5990,7 @@ async function dbCreateInventoryItems(
     sale_price: number | null;
     condition: string | null;
     sale_description: string | null;
+    clearance: number;
     bullet_1_text: string | null;
     bullet_1_danger: number;
     bullet_1_highlight: number;
@@ -5995,7 +6042,7 @@ async function dbCreateInventoryItems(
         source_listing_id, ccg_number, image_url, title, category_id, brand, queue, year_range, model, finish,
         secondary_category_id,
         image_urls,
-        repair_notes, original_listing_desc, video_url, sale_title, regular_price, sale_price, "condition", sale_description,
+        repair_notes, original_listing_desc, video_url, sale_title, regular_price, sale_price, "condition", sale_description, clearance,
         bullet_1_text, bullet_1_danger, bullet_1_highlight,
         bullet_2_text, bullet_2_danger, bullet_2_highlight,
         bullet_3_text, bullet_3_danger, bullet_3_highlight,
@@ -6007,7 +6054,7 @@ async function dbCreateInventoryItems(
         is_active, is_marked, is_personal, is_rented, for_sale, for_sale_date,
         is_sold, sold_date, sold_amount, sell_notes
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const statements = Array.from({ length: qty }, (_, index) =>
       env.DB.prepare(statement).bind(
@@ -6031,6 +6078,7 @@ async function dbCreateInventoryItems(
         fields.sale_price,
         fields.condition,
         fields.sale_description,
+        fields.clearance,
         fields.bullet_1_text,
         fields.bullet_1_danger,
         fields.bullet_1_highlight,
@@ -6213,6 +6261,7 @@ async function dbUpdateInventorySaleById(
     sale_price: number | null;
     condition: string | null;
     sale_description: string | null;
+    clearance: number;
     bullet_1_text: string | null;
     bullet_1_danger: number;
     bullet_1_highlight: number;
@@ -6249,6 +6298,7 @@ async function dbUpdateInventorySaleById(
       `UPDATE ccg_inventory_items
        SET
          source_listing_id = ?, video_url = ?, sale_title = ?, regular_price = ?, sale_price = ?, "condition" = ?, sale_description = ?,
+         clearance = ?,
          bullet_1_text = ?, bullet_1_danger = ?, bullet_1_highlight = ?,
          bullet_2_text = ?, bullet_2_danger = ?, bullet_2_highlight = ?,
          bullet_3_text = ?, bullet_3_danger = ?, bullet_3_highlight = ?,
@@ -6267,6 +6317,7 @@ async function dbUpdateInventorySaleById(
       fields.sale_price,
       fields.condition,
       fields.sale_description,
+      fields.clearance,
       fields.bullet_1_text,
       fields.bullet_1_danger,
       fields.bullet_1_highlight,
