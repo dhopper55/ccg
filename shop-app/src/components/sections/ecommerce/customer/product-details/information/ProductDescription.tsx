@@ -11,14 +11,6 @@ const ProductDescription = ({ descriptions = [], description }: ProductDescripti
 
   return (
     <div>
-      <Typography
-        variant="h6"
-        sx={{
-          mb: 3,
-        }}
-      >
-        Description
-      </Typography>
       {text ? (
         <Typography
           variant="body2"
