@@ -1,6 +1,8 @@
-import { Box, Button, Link, Paper, Stack, Typography } from '@mui/material';
+import { FormEvent, useState } from 'react';
+import { Box, Button, CircularProgress, Link, Paper, Stack, Typography } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import { kebabCase } from 'lib/utils';
+import { useSnackbar } from 'notistack';
 import IconifyIcon from 'components/base/IconifyIcon';
 import StyledTextField from 'components/styled/StyledTextField';
 
@@ -26,6 +28,38 @@ const footerLinks = {
 };
 
 const EcommerceFooter = () => {
+  const { enqueueSnackbar } = useSnackbar();
+  const [email, setEmail] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleNewsletterSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const value = email.trim();
+    if (!value) {
+      enqueueSnackbar('Enter your email address.', { variant: 'warning' });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch('/api/shop/newsletter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: value }),
+      });
+      const data = (await response.json()) as { message?: string };
+      if (!response.ok) throw new Error(data.message || 'Unable to subscribe.');
+      enqueueSnackbar(data.message || 'You are subscribed.', { variant: 'success' });
+      setEmail('');
+    } catch (error) {
+      enqueueSnackbar(error instanceof Error ? error.message : 'Unable to subscribe.', {
+        variant: 'error',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <Paper background={1} sx={{ position: 'relative', px: { xs: 3, md: 5 }, py: { xs: 5, md: 7 } }}>
       <Grid container columnSpacing={1}>
@@ -51,14 +85,14 @@ const EcommerceFooter = () => {
               }}
             >
               <Box component="span" sx={{ display: 'block' }}>
-                Find Your Sound
+                Coal Creek Guitars
               </Box>
             </Typography>
 
             <Box
               component="form"
               noValidate
-              onSubmit={(e) => e.preventDefault()}
+              onSubmit={handleNewsletterSubmit}
               sx={{
                 textAlign: { md: 'right', lg: 'left' },
               }}
@@ -75,6 +109,9 @@ const EcommerceFooter = () => {
                   type="email"
                   placeholder="Your email"
                   variant="filled"
+                  value={email}
+                  disabled={isSubmitting}
+                  onChange={(event) => setEmail(event.target.value)}
                   sx={{
                     maxWidth: 260,
                     width: 1,
@@ -84,10 +121,17 @@ const EcommerceFooter = () => {
                   type="submit"
                   variant="contained"
                   color="neutral"
+                  disabled={isSubmitting}
                   sx={{
                     flexShrink: 0,
                   }}
-                  endIcon={<IconifyIcon icon="material-symbols:arrow-right-alt-rounded" />}
+                  endIcon={
+                    isSubmitting ? (
+                      <CircularProgress color="inherit" size={16} />
+                    ) : (
+                      <IconifyIcon icon="material-symbols:arrow-right-alt-rounded" />
+                    )
+                  }
                 >
                   Subscribe
                 </Button>

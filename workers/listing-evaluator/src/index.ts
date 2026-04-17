@@ -318,6 +318,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/shop/newsletter' && request.method === 'POST') {
+      const response = await handleShopNewsletterSubscribe(request, env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/listings/submit' && request.method === 'POST') {
       const response = await handleSubmit(request, env, ctx);
       return withCors(response, request, env);
@@ -2788,6 +2793,27 @@ async function handleShopProducts(request: Request, env: Env): Promise<Response>
       priceMax,
       condition: condition || 'All',
     },
+  });
+}
+
+async function handleShopNewsletterSubscribe(request: Request, env: Env): Promise<Response> {
+  let body: any;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  const email = normalizeEmailAddress(body?.email);
+  if (!email) {
+    return jsonResponse({ message: 'Enter a valid email address.' }, 400);
+  }
+
+  const inserted = await dbCreateNewsletterSubscriber(email, env);
+  return jsonResponse({
+    ok: true,
+    duplicate: !inserted,
+    message: inserted ? 'You are subscribed.' : 'You are already subscribed.',
   });
 }
 
@@ -6245,6 +6271,14 @@ async function dbListShopProducts(
   });
 }
 
+async function dbCreateNewsletterSubscriber(email: string, env: Env): Promise<boolean> {
+  const result = await env.DB.prepare(
+    `INSERT OR IGNORE INTO email_newsletter (email)
+     VALUES (?)`
+  ).bind(email).run();
+  return Number((result as any)?.meta?.changes || 0) > 0;
+}
+
 async function generateUniqueCcgNumber(env: Env): Promise<string | null> {
   for (let attempt = 0; attempt < CCG_NUMBER_ATTEMPTS; attempt += 1) {
     const value = randomIntInRange(CCG_NUMBER_MIN, CCG_NUMBER_MAX);
@@ -8162,6 +8196,14 @@ function normalizeText(value: unknown, fallback = ''): string {
     return String(value);
   }
   return fallback;
+}
+
+function normalizeEmailAddress(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const email = value.trim().toLowerCase();
+  if (email.length > 254) return '';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return '';
+  return email;
 }
 
 function sanitizePatternLookupHtml(input: string): string {
