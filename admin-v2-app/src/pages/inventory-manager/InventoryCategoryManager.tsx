@@ -201,109 +201,155 @@ const InventoryCategoryManager = () => {
   };
 
   return (
-    <Box sx={{ p: { xs: 2, md: 5 }, width: 1 }}>
-      <Stack spacing={3}>
+    <Stack direction="column" height={1} gap={3} sx={{ minWidth: 0 }}>
+      <Paper sx={{ px: { xs: 3, md: 5 }, py: 3 }}>
         <Stack
-          direction={{ xs: 'column', md: 'row' }}
-          spacing={2}
-          sx={{ justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' } }}
+          direction={{ xs: 'column', sm: 'row' }}
+          sx={{
+            gap: 2,
+            alignItems: { sm: 'center' },
+            justifyContent: 'space-between',
+          }}
         >
-          <Typography variant="h4">Catagory Manager</Typography>
-          <Stack direction="row" spacing={1}>
-            <Button
-              variant="outlined"
-              color="inherit"
-              onClick={() => void loadCategories()}
-              disabled={isLoading || isSaving}
-              startIcon={<IconifyIcon icon="material-symbols:refresh-rounded" />}
-            >
-              Refresh
-            </Button>
-            <Button
-              variant="contained"
+          <Typography variant="h4">Category Manager</Typography>
+          <Tooltip title="Add">
+            <IconButton
+              aria-label="Add"
               onClick={() => openCreateDialog(null)}
-              startIcon={<IconifyIcon icon="material-symbols:add-rounded" />}
+              color="success"
+              sx={{
+                width: 40,
+                height: 40,
+                border: 1,
+                borderColor: 'success.main',
+                bgcolor: 'success.main',
+                color: 'common.white',
+                '&:hover': {
+                  bgcolor: 'success.dark',
+                },
+              }}
             >
-              Add Category
-            </Button>
-          </Stack>
+              <IconifyIcon icon="material-symbols:add-rounded" fontSize={20} />
+            </IconButton>
+          </Tooltip>
         </Stack>
+      </Paper>
 
-        {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
+      {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
 
-        <Paper variant="outlined" sx={{ width: 1, borderRadius: 3, overflow: 'hidden', bgcolor: 'background.paper' }}>
-          {isLoading ? (
-            <Stack sx={{ alignItems: 'center', py: 8 }} spacing={2}>
-              <CircularProgress size={28} />
-              <Typography sx={{ color: 'text.secondary' }}>Loading categories...</Typography>
-            </Stack>
-          ) : flatCategories.length === 0 ? (
-            <Stack sx={{ alignItems: 'center', py: 8 }} spacing={2}>
-              <IconifyIcon icon="material-symbols:data-table-outline-rounded" fontSize={40} />
-              <Typography sx={{ color: 'text.secondary' }}>No categories yet.</Typography>
-              <Button variant="contained" onClick={() => openCreateDialog(null)}>
+      <Box
+        sx={{
+          flex: 1,
+          px: { xs: 2, md: 5 },
+          pb: { xs: 2, md: 5 },
+          pt: { xs: 1, md: 1.5 },
+          minWidth: 0,
+          overflow: 'hidden',
+        }}
+      >
+        <Stack direction="column" spacing={3}>
+          <Paper
+            variant="outlined"
+            sx={{
+              p: 1.5,
+              borderRadius: 3,
+              bgcolor: 'background.paper',
+            }}
+          >
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+              <Button
+                variant="outlined"
+                color="inherit"
+                onClick={() => void loadCategories()}
+                disabled={isLoading || isSaving}
+                startIcon={<IconifyIcon icon="material-symbols:refresh-rounded" />}
+              >
+                Refresh
+              </Button>
+              <Button
+                variant="contained"
+                onClick={() => openCreateDialog(null)}
+                startIcon={<IconifyIcon icon="material-symbols:add-rounded" />}
+              >
                 Add Category
               </Button>
             </Stack>
-          ) : (
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Name</TableCell>
-                    <TableCell>Parent</TableCell>
-                    <TableCell align="right">Order</TableCell>
-                    <TableCell align="right">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {flatCategories.map((node) => (
-                    <TableRow key={node.id} hover>
-                      <TableCell>
-                        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                          <Box sx={{ width: Math.max(0, node.depth - 1) * 18, flexShrink: 0 }} />
-                          {node.depth > 1 ? (
-                            <IconifyIcon icon="material-symbols:subdirectory-arrow-right-rounded" fontSize={18} />
-                          ) : null}
-                          <Box>
-                            <Typography variant="subtitle2">{node.name}</Typography>
-                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                              {node.path}
-                            </Typography>
-                          </Box>
-                        </Stack>
-                      </TableCell>
-                      <TableCell>
-                        {node.parentId == null
-                          ? 'Top level'
-                          : records.find((record) => record.id === node.parentId)?.name || 'Unknown'}
-                      </TableCell>
-                      <TableCell align="right">{node.order || 0}</TableCell>
-                      <TableCell align="right">
-                        <Tooltip title="Add child">
-                          <IconButton color="primary" onClick={() => openCreateDialog(node.id)}>
-                            <IconifyIcon icon="material-symbols:add-rounded" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Edit">
-                          <IconButton color="inherit" onClick={() => openEditDialog(node)}>
-                            <IconifyIcon icon="material-symbols:edit-outline-rounded" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete">
-                          <IconButton color="error" onClick={() => setDeleteTarget(node)}>
-                            <IconifyIcon icon="material-symbols:delete-outline-rounded" />
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
+          </Paper>
+
+          <Paper variant="outlined" sx={{ borderRadius: 3, overflow: 'hidden', bgcolor: 'background.paper' }}>
+            {isLoading ? (
+              <Stack sx={{ alignItems: 'center', py: 8 }} spacing={2}>
+                <CircularProgress size={28} />
+                <Typography sx={{ color: 'text.secondary' }}>Loading categories...</Typography>
+              </Stack>
+            ) : flatCategories.length === 0 ? (
+              <Stack sx={{ alignItems: 'center', py: 8 }} spacing={2}>
+                <IconifyIcon icon="material-symbols:data-table-outline-rounded" fontSize={40} />
+                <Typography sx={{ color: 'text.secondary' }}>No categories yet.</Typography>
+                <Button variant="contained" onClick={() => openCreateDialog(null)}>
+                  Add Category
+                </Button>
+              </Stack>
+            ) : (
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Name</TableCell>
+                      <TableCell>Parent</TableCell>
+                      <TableCell align="right">Order</TableCell>
+                      <TableCell align="right">Actions</TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-        </Paper>
-      </Stack>
+                  </TableHead>
+                  <TableBody>
+                    {flatCategories.map((node) => (
+                      <TableRow key={node.id} hover>
+                        <TableCell>
+                          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                            <Box sx={{ width: Math.max(0, node.depth - 1) * 18, flexShrink: 0 }} />
+                            {node.depth > 1 ? (
+                              <IconifyIcon icon="material-symbols:subdirectory-arrow-right-rounded" fontSize={18} />
+                            ) : null}
+                            <Box>
+                              <Typography variant="subtitle2">{node.name}</Typography>
+                              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                                {node.path}
+                              </Typography>
+                            </Box>
+                          </Stack>
+                        </TableCell>
+                        <TableCell>
+                          {node.parentId == null
+                            ? 'Top level'
+                            : records.find((record) => record.id === node.parentId)?.name || 'Unknown'}
+                        </TableCell>
+                        <TableCell align="right">{node.order || 0}</TableCell>
+                        <TableCell align="right">
+                          <Tooltip title="Add child">
+                            <IconButton color="primary" onClick={() => openCreateDialog(node.id)}>
+                              <IconifyIcon icon="material-symbols:add-rounded" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Edit">
+                            <IconButton color="inherit" onClick={() => openEditDialog(node)}>
+                              <IconifyIcon icon="material-symbols:edit-outline-rounded" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Delete">
+                            <IconButton color="error" onClick={() => setDeleteTarget(node)}>
+                              <IconifyIcon icon="material-symbols:delete-outline-rounded" />
+                            </IconButton>
+                          </Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </Paper>
+        </Stack>
+      </Box>
 
       <Dialog open={formOpen} onClose={() => setFormOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>{form.id ? 'Edit Category' : 'Add Category'}</DialogTitle>
@@ -375,7 +421,7 @@ const InventoryCategoryManager = () => {
           </Button>
         </DialogActions>
       </Dialog>
-    </Box>
+    </Stack>
   );
 };
 
