@@ -425,6 +425,7 @@ type TagTextColor = 'black' | 'red' | 'blue';
 const TAG_TEMPLATE_NO_SALE = '/templates/ccg_label_large_no_sale.pdf';
 const TAG_TEMPLATE_ON_SALE = '/templates/ccg_label_large_on_sale.pdf';
 const GUITAR_LISTING_TEMPLATE_URL = '/templates/guitar-listing-template.txt';
+const GUITAR_PACKAGE_TEMPLATE_URL = '/templates/guitar-package-template.txt';
 const TAG_TITLE_MAX_WIDTH = 292;
 const TAG_TITLE_FONT_SIZE = 14;
 
@@ -440,9 +441,14 @@ function formatTagPrice(value: number | null): string {
   return `$${Math.round(value).toLocaleString()}`;
 }
 
-function formatTemplatePrice(value: string): string {
+function replaceTemplatePrice(template: string, value: string): string {
   const price = parseTagPrice(value);
-  return price == null ? '' : `$${Math.round(price).toLocaleString()}`;
+  if (price == null) return template.replaceAll('$<PRICE>', '').replaceAll('<PRICE>', '');
+
+  const numberText = Math.round(price).toLocaleString();
+  return template
+    .replaceAll('$<PRICE>', `$${numberText}`)
+    .replaceAll('<PRICE>', `$${numberText}`);
 }
 
 function escapeRegExp(value: string): string {
@@ -1306,31 +1312,48 @@ const InventoryItem = () => {
 
   const handleGenerateSaleDescription = async () => {
     try {
-      const response = await fetch(GUITAR_LISTING_TEMPLATE_URL);
-      if (!response.ok) throw new Error('Unable to load guitar listing template.');
-
-      let text = await response.text();
-      text = text.replaceAll('<ITEM_TEXT>', form.saleTitle.trim());
-      text = text.replaceAll('<PRICE>', formatTemplatePrice(form.salePrice));
-
-      [
-        ['<BULLET1>', form.bullet1Text],
-        ['<BULLET2>', form.bullet2Text],
-        ['<BULLET3>', form.bullet3Text],
-        ['<BULLET4>', form.bullet4Text],
-        ['<BULLET5>', form.bullet5Text],
-        ['<BULLET6>', form.bullet6Text],
-      ].forEach(([placeholder, value]) => {
-        text = replaceLinePlaceholder(text, placeholder, buildListingBulletText(value));
-      });
-
-      setField('saleDescription', text.trim());
+      const text = await buildSaleDescriptionFromTemplate(GUITAR_LISTING_TEMPLATE_URL, 'listing');
+      setField('saleDescription', text);
       enqueueSnackbar('Sale description generated.', { variant: 'success' });
     } catch (error) {
       const text = error instanceof Error ? error.message : 'Unable to generate sale description.';
       setMessage({ severity: 'error', text });
       enqueueSnackbar(text, { variant: 'error' });
     }
+  };
+
+  const handleGeneratePackageDescription = async () => {
+    try {
+      const text = await buildSaleDescriptionFromTemplate(GUITAR_PACKAGE_TEMPLATE_URL, 'package');
+      setField('saleDescription', text);
+      enqueueSnackbar('Package description generated.', { variant: 'success' });
+    } catch (error) {
+      const text = error instanceof Error ? error.message : 'Unable to generate package description.';
+      setMessage({ severity: 'error', text });
+      enqueueSnackbar(text, { variant: 'error' });
+    }
+  };
+
+  const buildSaleDescriptionFromTemplate = async (templateUrl: string, templateName: string) => {
+    const response = await fetch(templateUrl);
+    if (!response.ok) throw new Error(`Unable to load guitar ${templateName} template.`);
+
+    let text = await response.text();
+    text = text.replaceAll('<ITEM_TEXT>', form.saleTitle.trim());
+    text = replaceTemplatePrice(text, form.salePrice);
+
+    [
+      ['<BULLET1>', form.bullet1Text],
+      ['<BULLET2>', form.bullet2Text],
+      ['<BULLET3>', form.bullet3Text],
+      ['<BULLET4>', form.bullet4Text],
+      ['<BULLET5>', form.bullet5Text],
+      ['<BULLET6>', form.bullet6Text],
+    ].forEach(([placeholder, value]) => {
+      text = replaceLinePlaceholder(text, placeholder, buildListingBulletText(value));
+    });
+
+    return text.trim();
   };
 
   const uploadButtonLabel = useMemo(() => {
@@ -2036,7 +2059,7 @@ const InventoryItem = () => {
                           <Button
                             fullWidth
                             variant="contained"
-                            disabled
+                            onClick={handleGeneratePackageDescription}
                             startIcon={<IconifyIcon icon="material-symbols:attach-money-rounded" fontSize={18} />}
                             sx={{ flex: 1, minHeight: 56 }}
                           >

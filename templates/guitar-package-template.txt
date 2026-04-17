@@ -15,6 +15,16 @@ What’s included:
  • Hal Leonard Guitar Book 1
  • Acoustic Guitar Humidifier
 
+ ⸻
+
+✨ Highlights:
+<BULLET1>
+<BULLET2>
+<BULLET3>
+<BULLET4>
+<BULLET5>
+<BULLET6>
+
 ⸻
 
 Why this package stands out:
@@ -54,7 +64,7 @@ Rental requires card on file (no cash option for monthly plans)
 ⸻
 
 Option B – Buy It Now:
-$XXX total
+$<PRICE> total
 Own the full package today with no monthly payments
 
 💳 Payment options:
