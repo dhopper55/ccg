@@ -248,34 +248,6 @@ const InventoryCategoryManager = () => {
         }}
       >
         <Stack direction="column" spacing={3}>
-          <Paper
-            variant="outlined"
-            sx={{
-              p: 1.5,
-              borderRadius: 3,
-              bgcolor: 'background.paper',
-            }}
-          >
-            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-              <Button
-                variant="outlined"
-                color="inherit"
-                onClick={() => void loadCategories()}
-                disabled={isLoading || isSaving}
-                startIcon={<IconifyIcon icon="material-symbols:refresh-rounded" />}
-              >
-                Refresh
-              </Button>
-              <Button
-                variant="contained"
-                onClick={() => openCreateDialog(null)}
-                startIcon={<IconifyIcon icon="material-symbols:add-rounded" />}
-              >
-                Add Category
-              </Button>
-            </Stack>
-          </Paper>
-
           <Paper variant="outlined" sx={{ borderRadius: 3, overflow: 'hidden', bgcolor: 'background.paper' }}>
             {isLoading ? (
               <Stack sx={{ alignItems: 'center', py: 8 }} spacing={2}>
