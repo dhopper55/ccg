@@ -64,6 +64,14 @@ const sitemap: MenuItem[] = [
         active: true,
       },
       {
+        name: 'Category Manager',
+        key: 'category_manager',
+        path: paths.inventoryCategoryManager,
+        pathName: 'inventory-category-manager',
+        icon: 'material-symbols:data-table-outline-rounded',
+        active: true,
+      },
+      {
         name: 'Inventory Labels',
         key: 'inventory_labels',
         path: paths.inventoryLabels,

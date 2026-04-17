@@ -14,6 +14,7 @@ import ListingEvaluatorItem from 'pages/listing-evaluator/ListingEvaluatorItem';
 import ListingEvaluatorResults from 'pages/listing-evaluator/ListingEvaluatorResults';
 import InventoryManager from 'pages/inventory-manager/InventoryManager';
 import InventoryItem from 'pages/inventory-manager/InventoryItem';
+import InventoryCategoryManager from 'pages/inventory-manager/InventoryCategoryManager';
 import InventoryLabels from 'pages/inventory-manager/InventoryLabels';
 import SerialDecodes from 'pages/serial-decodes/SerialDecodes';
 import SerialPatternText from 'pages/serial-pattern-text/SerialPatternText';
@@ -67,6 +68,10 @@ export const routes: RouteObject[] = [
           {
             path: paths.inventoryManager,
             element: <InventoryManager />,
+          },
+          {
+            path: paths.inventoryCategoryManager,
+            element: <InventoryCategoryManager />,
           },
           {
             path: paths.inventoryLabels,
