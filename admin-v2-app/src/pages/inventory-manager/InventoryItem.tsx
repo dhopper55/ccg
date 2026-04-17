@@ -441,6 +441,24 @@ function parseTagPrice(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function getForSaleValidationError(formState: FormState): string | null {
+  if (!formState.forSale) return null;
+  if (!formState.saleTitle.trim()) return 'Sale Details Title is required when For Sale is checked.';
+  if ((parseTagPrice(formState.salePrice) ?? 0) <= 0) {
+    return 'Sale Details Sale Price is required when For Sale is checked.';
+  }
+  if ((parseTagPrice(formState.regularPrice) ?? 0) <= 0) {
+    return 'Sale Details Regular Price is required when For Sale is checked.';
+  }
+  if (!formState.condition.trim()) return 'Sale Details Condition is required when For Sale is checked.';
+  if (!formState.saleDescription.trim()) {
+    return 'Sale Details Description is required when For Sale is checked.';
+  }
+  if (!formState.saleUrl.trim()) return 'Sale Details URL is required when For Sale is checked.';
+  if (!formState.saleZip.trim()) return 'Sale Details ZIP is required when For Sale is checked.';
+  return null;
+}
+
 function formatTagPrice(value: number | null): string {
   if (value == null) return '';
   return `$${Math.round(value).toLocaleString()}`;
@@ -1260,6 +1278,12 @@ const InventoryItem = () => {
       setMessage({ severity: 'error', text: 'Please upload at least one image before saving.' });
       return;
     }
+    const forSaleValidationError = getForSaleValidationError(form);
+    if (forSaleValidationError) {
+      setMessage({ severity: 'error', text: forSaleValidationError });
+      enqueueSnackbar(forSaleValidationError, { variant: 'error' });
+      return;
+    }
     if (!Number.isInteger(form.quantity) || form.quantity < 0) {
       setMessage({ severity: 'error', text: 'Qty must be a whole number greater than or equal to 0.' });
       return;
@@ -2000,6 +2024,7 @@ const InventoryItem = () => {
                       <Grid size={12}>
                         <TextField
                           fullWidth
+                          required
                           label="Title"
                           value={form.saleTitle}
                           onChange={(event) => setField('saleTitle', event.target.value)}
@@ -2009,6 +2034,7 @@ const InventoryItem = () => {
                       <Grid size={{ xs: 12, md: 4 }}>
                         <TextField
                           fullWidth
+                          required
                           label="Sale Price"
                           type="number"
                           value={form.salePrice}
@@ -2025,6 +2051,7 @@ const InventoryItem = () => {
                       <Grid size={{ xs: 12, md: 4 }}>
                         <TextField
                           fullWidth
+                          required
                           label="Regular Price"
                           type="number"
                           value={form.regularPrice}
@@ -2036,6 +2063,7 @@ const InventoryItem = () => {
                         <TextField
                           select
                           fullWidth
+                          required
                           label="Condition"
                           value={form.condition}
                           onChange={(event) => setField('condition', event.target.value)}
@@ -2050,6 +2078,7 @@ const InventoryItem = () => {
                       <Grid size={{ xs: 12, md: 9.6 }}>
                         <TextField
                           fullWidth
+                          required
                           multiline
                           minRows={4}
                           maxRows={8}
@@ -2085,6 +2114,7 @@ const InventoryItem = () => {
                       <Grid size={{ xs: 12, md: 6 }}>
                         <TextField
                           fullWidth
+                          required
                           label="Sale URL"
                           value={form.saleUrl}
                           onChange={(event) => setField('saleUrl', event.target.value)}
@@ -2094,6 +2124,7 @@ const InventoryItem = () => {
                       <Grid size={{ xs: 12, md: 3 }}>
                         <TextField
                           fullWidth
+                          required
                           label="Sale ZIP"
                           value={form.saleZip}
                           onChange={(event) => setField('saleZip', event.target.value)}

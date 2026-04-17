@@ -2519,9 +2519,13 @@ type ShopProductRow = {
   secondary_category_name: string | null;
   secondary_category_path: string | null;
   source_listing_url: string | null;
-  og_specs_pickups?: string | null;
-  og_specs_tuners?: string | null;
-  og_specs_common_mods?: string | null;
+  weight_lbs?: string | null;
+  neck_profile?: string | null;
+  neck_thickness?: string | null;
+  nut_width?: string | null;
+  width_12_fret?: string | null;
+  fretboard_radius?: string | null;
+  twelve_fret_action?: string | null;
   is_sold: number | null;
 };
 
@@ -3731,6 +3735,8 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const twelveFretAction = normalizeText(body.twelveFretAction, '').slice(0, 100);
   const soldAmount = parseCurrencyAmount(body.soldAmount);
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
+  const saleUrl = normalizeText(body.saleUrl, '').slice(0, 150);
+  const saleZip = normalizeText(body.saleZip, '').slice(0, 10);
 
   let imageUrls: string[];
   try {
@@ -3745,6 +3751,17 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   if (!title) return jsonResponse({ message: 'Title is required.' }, 400);
   if (categoryId == null) return jsonResponse({ message: 'Category ID is required.' }, 400);
   if (imageUrls.length < 1) return jsonResponse({ message: 'At least one image is required.' }, 400);
+  const forSaleValidationError = validateForSaleInventoryFields({
+    forSale,
+    saleTitle,
+    salePrice,
+    regularPrice,
+    condition,
+    saleDescription,
+    saleUrl,
+    saleZip,
+  });
+  if (forSaleValidationError) return jsonResponse({ message: forSaleValidationError }, 400);
   if (imageUrls.length > INVENTORY_MAX_IMAGES) {
     return jsonResponse({ message: `You can upload up to ${INVENTORY_MAX_IMAGES} images.` }, 400);
   }
@@ -3864,6 +3881,8 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     sold_date: isSold ? new Date().toISOString() : null,
     sold_amount: soldAmount,
     sell_notes: sellNotes || null,
+    sale_url: saleUrl || null,
+    sale_zip: saleZip || null,
   }, env);
 
   if (!inserted) {
@@ -4070,6 +4089,17 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   if (isSold && quantity < 1) return jsonResponse({ message: 'Qty must be at least 1 when marking an item sold.' }, 400);
   if (isSold && qtySold > quantity) return jsonResponse({ message: 'Qty Sold cannot be greater than Qty.' }, 400);
   if (imageUrls.length < 1) return jsonResponse({ message: 'At least one image is required.' }, 400);
+  const forSaleValidationError = validateForSaleInventoryFields({
+    forSale,
+    saleTitle,
+    salePrice,
+    regularPrice,
+    condition,
+    saleDescription,
+    saleUrl,
+    saleZip,
+  });
+  if (forSaleValidationError) return jsonResponse({ message: forSaleValidationError }, 400);
   if (imageUrls.length > INVENTORY_MAX_IMAGES) {
     return jsonResponse({ message: `You can upload up to ${INVENTORY_MAX_IMAGES} images.` }, 400);
   }
@@ -6325,15 +6355,19 @@ async function dbGetShopProductDetail(id: number, env: Env): Promise<Record<stri
        i.brand,
        i.model,
        i.finish,
+       i.weight_lbs,
+       i.neck_profile,
+       i.neck_thickness,
+       i.nut_width,
+       i.width_12_fret,
+       i.fretboard_radius,
+       i.twelve_fret_action,
        i.regular_price,
        i.sale_price,
        i."condition",
        i.sale_description,
        ${INVENTORY_CATEGORY_SELECT_SQL},
        l.url AS source_listing_url,
-       l.og_specs_pickups,
-       l.og_specs_tuners,
-       l.og_specs_common_mods,
        i.is_sold
      FROM ccg_inventory_items i
      ${INVENTORY_CATEGORY_JOIN_SQL}
@@ -6381,9 +6415,13 @@ async function dbGetShopProductDetail(id: number, env: Env): Promise<Record<stri
     category: getInventoryCategoryLabel(row),
     secondaryCategory: normalizeText(row.secondary_category_name, ''),
     guitarSpecs: [
-      { label: 'Original Pickups', value: normalizeText(row.og_specs_pickups, '') },
-      { label: 'Original Tuners', value: normalizeText(row.og_specs_tuners, '') },
-      { label: 'Common Mods', value: normalizeText(row.og_specs_common_mods, '') },
+      { label: 'Weight (lbs)', value: normalizeText(row.weight_lbs, '') },
+      { label: 'Neck Profile', value: normalizeText(row.neck_profile, '') },
+      { label: 'Neck Thickness', value: normalizeText(row.neck_thickness, '') },
+      { label: 'Nut Width', value: normalizeText(row.nut_width, '') },
+      { label: 'Neck Width (12th Fret)', value: normalizeText(row.width_12_fret, '') },
+      { label: 'Fretboard Radius', value: normalizeText(row.fretboard_radius, '') },
+      { label: '12th Fret Action', value: normalizeText(row.twelve_fret_action, '') },
     ].filter((item) => item.value && item.value.toLowerCase() !== 'unknown'),
     isSold: Boolean(row.is_sold),
   };
@@ -6465,6 +6503,8 @@ async function dbCreateInventoryItems(
     sold_date: string | null;
     sold_amount: number | null;
     sell_notes: string | null;
+    sale_url: string | null;
+    sale_zip: string | null;
   },
   env: Env
 ): Promise<{ firstId: string; ccgNumber: string } | null> {
@@ -6484,9 +6524,9 @@ async function dbCreateInventoryItems(
         purchased_date, purchase_price, private_party_value, purchase_notes, ai_analysis_text, serial_number,
         weight_lbs, neck_profile, neck_thickness, nut_width, width_12_fret, fretboard_radius, twelve_fret_action,
         is_active, is_marked, is_personal, is_rented, for_sale, only_in_store, for_sale_date,
-        is_sold, sold_date, sold_amount, sell_notes
+        is_sold, sold_date, sold_amount, sell_notes, sale_url, sale_zip
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const result = await env.DB.prepare(statement).bind(
       fields.source_listing_id,
@@ -6553,6 +6593,8 @@ async function dbCreateInventoryItems(
       fields.sold_date,
       fields.sold_amount,
       fields.sell_notes,
+      fields.sale_url,
+      fields.sale_zip,
     ).run();
     const firstId = result.meta?.last_row_id ? String(result.meta.last_row_id) : null;
     if (!firstId) return null;
@@ -10137,6 +10179,31 @@ function parseCurrencyAmount(input: unknown): number | null {
     const parsed = parseMoney(input);
     return parsed != null ? parsed : null;
   }
+  return null;
+}
+
+function validateForSaleInventoryFields(input: {
+  forSale: boolean;
+  saleTitle: string;
+  salePrice: number | null;
+  regularPrice: number | null;
+  condition: string;
+  saleDescription: string;
+  saleUrl: string;
+  saleZip: string;
+}): string | null {
+  if (!input.forSale) return null;
+  if (!input.saleTitle.trim()) return 'Sale Details Title is required when For Sale is checked.';
+  if ((input.salePrice ?? 0) <= 0) return 'Sale Details Sale Price is required when For Sale is checked.';
+  if ((input.regularPrice ?? 0) <= 0) {
+    return 'Sale Details Regular Price is required when For Sale is checked.';
+  }
+  if (!input.condition.trim()) return 'Sale Details Condition is required when For Sale is checked.';
+  if (!input.saleDescription.trim()) {
+    return 'Sale Details Description is required when For Sale is checked.';
+  }
+  if (!input.saleUrl.trim()) return 'Sale Details URL is required when For Sale is checked.';
+  if (!input.saleZip.trim()) return 'Sale Details ZIP is required when For Sale is checked.';
   return null;
 }
 
