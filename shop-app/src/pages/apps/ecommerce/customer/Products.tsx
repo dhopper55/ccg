@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useFormContext, useWatch } from 'react-hook-form';
 import {
   Box,
   Button,
@@ -13,11 +14,11 @@ import {
   Typography,
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
-import { defaultProductFilterOptions } from 'data/e-commerce/products';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
 import FilterDrawer from 'components/sections/ecommerce/customer/products/FilterDrawer';
 import ProductsProvider from 'components/sections/ecommerce/customer/products/providers/ProductsProvider';
 import IconifyIcon from 'components/base/IconifyIcon';
+import { ProductFilterOptions } from 'types/ecommerce';
 
 type ShopProduct = {
   id: string;
@@ -36,6 +37,17 @@ type ShopProductsResponse = {
   records: ShopProduct[];
 };
 
+type ShopCategoryNode = {
+  id: number;
+  name: string;
+  path?: string;
+  children?: ShopCategoryNode[];
+};
+
+type ShopCategoriesResponse = {
+  tree?: ShopCategoryNode[];
+};
+
 const PAGE_SIZE = 20;
 const filterDrawerWidth = 320;
 
@@ -50,8 +62,14 @@ const Products = () => {
   const upMd = up('md');
   const [isDrawerOpen, setIsDrawerOpen] = useState(upMd);
   const [allProducts, setAllProducts] = useState<ShopProduct[]>([]);
+  const [categories, setCategories] = useState<ShopCategoryNode[]>([]);
+  const [maxPrice, setMaxPrice] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const { control, setValue } = useFormContext();
+  const priceRange = useWatch({ control, name: 'priceRange' }) as number[] | undefined;
+  const selectedCategoryIds = useWatch({ control, name: 'category', defaultValue: [] }) as string[];
+  const didInitializePriceRange = useRef(false);
 
   useEffect(() => {
     if (upMd) setIsDrawerOpen(true);
@@ -61,12 +79,60 @@ const Products = () => {
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
+      try {
+        const res = await fetch('/api/shop/categories');
+        const data = (await res.json()) as ShopCategoriesResponse;
+        if (!cancelled) setCategories(Array.isArray(data.tree) ? data.tree : []);
+      } catch {
+        if (!cancelled) setCategories([]);
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, []);
+
+  const filterOptions = useMemo<ProductFilterOptions>(() => {
+    return {
+      category: flattenCategoryOptions(categories),
+      price: [0, Math.max(maxPrice, 1)],
+    };
+  }, [categories, maxPrice]);
+
+  useEffect(() => {
+    if (!didInitializePriceRange.current && maxPrice > 0) {
+      didInitializePriceRange.current = true;
+      setValue('priceRange', [0, maxPrice]);
+    }
+  }, [maxPrice, setValue]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
       setIsLoading(true);
       try {
-        const res = await fetch('/api/shop/products');
+        const params = new URLSearchParams();
+        for (const categoryId of selectedCategoryIds || []) {
+          params.append('categoryIds', categoryId);
+        }
+
+        if (Array.isArray(priceRange) && priceRange.length === 2) {
+          const [min, max] = priceRange;
+          if (min > 0 || (maxPrice > 0 && max < maxPrice)) {
+            params.set('priceMin', String(min || 0));
+            params.set('priceMax', String(max || 0));
+          }
+        }
+
+        const query = params.toString();
+        const res = await fetch(`/api/shop/products${query ? `?${query}` : ''}`);
         const data = (await res.json()) as ShopProductsResponse;
         if (cancelled) return;
-        setAllProducts(Array.isArray(data.records) ? data.records : []);
+        const records = Array.isArray(data.records) ? data.records : [];
+        setAllProducts(records);
+        if (maxPrice === 0 && (!selectedCategoryIds || selectedCategoryIds.length === 0)) {
+          setMaxPrice(getHighestProductPrice(records));
+        }
+        setPage(1);
       } catch {
         if (!cancelled) setAllProducts([]);
       } finally {
@@ -75,7 +141,7 @@ const Products = () => {
     };
     void load();
     return () => { cancelled = true; };
-  }, []);
+  }, [maxPrice, priceRange, selectedCategoryIds]);
 
   const totalPages = Math.max(1, Math.ceil(allProducts.length / PAGE_SIZE));
   const visibleProducts = allProducts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -91,7 +157,7 @@ const Products = () => {
             handleClose={() => setIsDrawerOpen(false)}
             open={isDrawerOpen}
             drawerWidth={filterDrawerWidth}
-            filterOptions={defaultProductFilterOptions}
+            filterOptions={filterOptions}
           />
           <Paper
             sx={(theme) => ({
@@ -168,6 +234,23 @@ const Products = () => {
     </Grid>
   );
 };
+
+function flattenCategoryOptions(nodes: ShopCategoryNode[], depth = 0): { label: string; value: string }[] {
+  return nodes.flatMap((node) => [
+    {
+      label: node.path || `${depth > 0 ? `${'  '.repeat(depth)}- ` : ''}${node.name}`,
+      value: String(node.id),
+    },
+    ...flattenCategoryOptions(Array.isArray(node.children) ? node.children : [], depth + 1),
+  ]);
+}
+
+function getHighestProductPrice(products: ShopProduct[]): number {
+  return products.reduce((max, product) => {
+    const price = product.salePrice > 0 ? product.salePrice : (product.regularPrice ?? 0);
+    return Math.max(max, price);
+  }, 0);
+}
 
 function formatPrice(amount: number): string {
   return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;

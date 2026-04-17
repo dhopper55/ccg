@@ -6172,7 +6172,17 @@ async function dbListShopProducts(
   }
 
   if (!(filters.priceMin === 0 && filters.priceMax === 0)) {
-    clauses.push('COALESCE(i.sale_price, 0) >= ? AND COALESCE(i.sale_price, 0) <= ?');
+    clauses.push(`(
+      CASE
+        WHEN COALESCE(i.sale_price, 0) > 0 THEN COALESCE(i.sale_price, 0)
+        ELSE COALESCE(i.regular_price, 0)
+      END
+    ) >= ? AND (
+      CASE
+        WHEN COALESCE(i.sale_price, 0) > 0 THEN COALESCE(i.sale_price, 0)
+        ELSE COALESCE(i.regular_price, 0)
+      END
+    ) <= ?`);
     binds.push(filters.priceMin, filters.priceMax > 0 ? filters.priceMax : Number.MAX_SAFE_INTEGER);
   }
 
