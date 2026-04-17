@@ -2358,7 +2358,6 @@ type InventoryItemRow = {
   sold_channel: string | null;
   created_at: string | null;
   updated_at: string | null;
-  group_count?: number | null;
 };
 
 type InventorySummaryTotals = {
@@ -2590,37 +2589,12 @@ async function handleInventoryList(request: Request, env: Env): Promise<Response
   const active = parseInventoryTriState(url.searchParams.get('active'), 'yes');
   const marked = parseInventoryTriState(url.searchParams.get('marked') ?? url.searchParams.get('onlyMarked'), 'all');
   const personal = parseInventoryTriState(url.searchParams.get('personal') ?? url.searchParams.get('onlyPersonal'), 'all');
-  const drillDownCcgNumber = normalizeText(url.searchParams.get('ccgNumber'), '').slice(0, 32);
   const sortBy = parseInventorySortKey(url.searchParams.get('sortBy'));
   const sortDir = parseInventorySortDir(url.searchParams.get('sortDir'));
 
-  if (drillDownCcgNumber) {
-    const result = await dbListInventoryItemsByCcgNumber(
-      drillDownCcgNumber,
-      page,
-      limit,
-      sortBy,
-      sortDir,
-      marked,
-      personal,
-      queue,
-      env,
-    );
-    return jsonResponse({
-      records: result.records,
-      page: result.page,
-      limit: result.limit,
-      total: result.total,
-      totalPages: result.totalPages,
-      grouped: false,
-      drillDownCcgNumber,
-      availableBrands: [],
-    });
-  }
-
   const availableBrands = await dbListInventoryBrands({ categoryId, sold, active, marked, personal, queue }, env);
 
-  const result = await dbListInventoryItemsGrouped({
+  const result = await dbListInventoryItems({
     categoryId,
     brand,
     queue,
@@ -2640,8 +2614,6 @@ async function handleInventoryList(request: Request, env: Env): Promise<Response
     limit: result.limit,
     total: result.total,
     totalPages: result.totalPages,
-    grouped: true,
-    drillDownCcgNumber: null,
     availableBrands,
   });
 }
@@ -3345,13 +3317,13 @@ async function handleAdminV2InventoryMergeMarked(env: Env): Promise<Response> {
     sold_date: null,
     sold_amount: 0,
     sell_notes: '',
-  }, 1, env);
+  }, env);
 
   if (!inserted?.firstId) {
     return jsonResponse({ message: 'Unable to create merged inventory item.' }, 500);
   }
   if (!(await dbReplaceInventoryImagesByItemIds(
-    inserted.createdIds,
+    [Number(inserted.firstId)],
     packageImageEntries,
     env,
   ))) {
@@ -3474,13 +3446,13 @@ async function handleInventoryPackageCreate(env: Env): Promise<Response> {
     sold_date: null,
     sold_amount: 0,
     sell_notes: '',
-  }, 1, env);
+  }, env);
 
   if (!inserted?.firstId) {
     return jsonResponse({ message: 'Unable to create package inventory item.' }, 500);
   }
   if (!(await dbReplaceInventoryImagesByItemIds(
-    inserted.createdIds,
+    [Number(inserted.firstId)],
     packageImageUrls.map((url) => ({ url, isPrivate: false })),
     env,
   ))) {
@@ -3576,7 +3548,6 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const twelveFretAction = normalizeText(body.twelveFretAction, '').slice(0, 100);
   const soldAmount = parseCurrencyAmount(body.soldAmount);
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
-  const qty = parseBoundedInt(body.qty, 1, 1, 100);
 
   let imageUrls: string[];
   try {
@@ -3618,27 +3589,24 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     url,
     isPrivate: index === 0 ? false : Boolean(privacyByUrl.get(url)),
   }));
-  const duplicate = qty === 1
-    ? await dbFindRecentDuplicateInventoryCreate({
-      source_listing_id: sourceListingId,
-      image_url: primaryImageUrl,
-      title,
-      category_id: categoryId,
-      secondary_category_id: secondaryCategoryId,
-      brand: brand || null,
-      year_range: yearRange || null,
-      model: model || null,
-      finish: finish || null,
-      purchased_date: purchasedDate,
-      purchase_price: purchasePrice,
-    }, env)
-    : null;
+  const duplicate = await dbFindRecentDuplicateInventoryCreate({
+    source_listing_id: sourceListingId,
+    image_url: primaryImageUrl,
+    title,
+    category_id: categoryId,
+    secondary_category_id: secondaryCategoryId,
+    brand: brand || null,
+    year_range: yearRange || null,
+    model: model || null,
+    finish: finish || null,
+    purchased_date: purchasedDate,
+    purchase_price: purchasePrice,
+  }, env);
   if (duplicate) {
     return jsonResponse({
       ok: true,
       id: String(duplicate.id),
       ccgNumber: duplicate.ccg_number,
-      createdCount: 0,
       duplicateSuppressed: true,
       message: 'Duplicate submit prevented.',
     });
@@ -3707,12 +3675,12 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     sold_date: isSold ? new Date().toISOString() : null,
     sold_amount: soldAmount,
     sell_notes: sellNotes || null,
-  }, qty, env);
+  }, env);
 
   if (!inserted) {
-    return jsonResponse({ message: 'Unable to create inventory item(s).' }, 500);
+    return jsonResponse({ message: 'Unable to create inventory item.' }, 500);
   }
-  if (!(await dbReplaceInventoryImagesByItemIds(inserted.createdIds, imageEntries, env))) {
+  if (!(await dbReplaceInventoryImagesByItemIds([Number(inserted.firstId)], imageEntries, env))) {
     return jsonResponse({ message: 'Inventory item was created, but its image records failed to save.' }, 500);
   }
 
@@ -3725,7 +3693,6 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     entityId: inserted.firstId,
     metadata: {
       ccgNumber: inserted.ccgNumber,
-      createdCount: inserted.createdCount,
       title,
     },
   });
@@ -3734,7 +3701,6 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     ok: true,
     id: inserted.firstId,
     ccgNumber: inserted.ccgNumber,
-    createdCount: inserted.createdCount,
   });
 }
 
@@ -3922,8 +3888,6 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
 
   const current = await dbGetInventoryItem(recordId, env);
   if (!current) return jsonResponse({ message: 'Inventory item not found.' }, 404);
-  const currentCcgNumber = normalizeText((current as { ccgNumber?: string }).ccgNumber, '');
-  if (!currentCcgNumber) return jsonResponse({ message: 'Inventory item CCG Number is missing.' }, 500);
 
   if (sourceListingId != null) {
     const alreadyLinked = await dbFindInventoryBySourceListingId(sourceListingId, env);
@@ -3954,7 +3918,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       ? 'To Sell'
       : (queueInput || previousQueue);
 
-  const sharedUpdateOk = await dbUpdateInventorySharedByCcgNumber(currentCcgNumber, {
+  const updateOk = await dbUpdateInventoryById(recordId, {
     image_url: primaryImageUrl,
     image_urls: imageUrls.join('\n'),
     title,
@@ -3981,14 +3945,6 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     fretboard_radius: fretboardRadius || null,
     twelve_fret_action: twelveFretAction || null,
     storage_location: storageLocation || null,
-  }, env);
-  if (!sharedUpdateOk) return jsonResponse({ message: 'Unable to update inventory items.' }, 500);
-  const itemIds = await dbListInventoryItemIdsByCcgNumber(currentCcgNumber, env);
-  if (!(await dbReplaceInventoryImagesByItemIds(itemIds, imageEntries, env))) {
-    return jsonResponse({ message: 'Unable to update inventory item images.' }, 500);
-  }
-
-  const rowSpecificOk = await dbUpdateInventoryRowsByCcgNumber(currentCcgNumber, {
     is_active: isActive ? 1 : 0,
     is_marked: isMarked ? 1 : 0,
     is_personal: isPersonal ? 1 : 0,
@@ -3999,10 +3955,6 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       nextOn: forSale,
       previousTimestamp: previousForSaleDate,
     }),
-  }, env);
-  if (!rowSpecificOk) return jsonResponse({ message: 'Unable to update inventory items.' }, 500);
-
-  const selectedRowSaleOk = await dbUpdateInventorySaleById(recordId, {
     source_listing_id: sourceListingId,
     video_url: videoUrl || null,
     sale_title: saleTitle || null,
@@ -4042,7 +3994,10 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     sale_zip: saleZip || null,
     sold_channel: soldChannel || null,
   }, env);
-  if (!selectedRowSaleOk) return jsonResponse({ message: 'Unable to update selected inventory unit.' }, 500);
+  if (!updateOk) return jsonResponse({ message: 'Unable to update inventory item.' }, 500);
+  if (!(await dbReplaceInventoryImagesByItemIds([Number.parseInt(recordId, 10)], imageEntries, env))) {
+    return jsonResponse({ message: 'Unable to update inventory item images.' }, 500);
+  }
 
   // Sold cascade logic
   if (becameSold) {
@@ -4100,34 +4055,15 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   return jsonResponse({ ok: true });
 }
 
-async function handleInventoryDelete(request: Request, path: string, env: Env): Promise<Response> {
+async function handleInventoryDelete(_request: Request, path: string, env: Env): Promise<Response> {
   const parts = path.split('/').filter(Boolean);
   const deleteIndex = parts.indexOf('delete');
   const recordId = deleteIndex > 0 ? parts[deleteIndex - 1] : '';
   if (!recordId) return jsonResponse({ message: 'Missing inventory ID.' }, 400);
 
-  let scope: 'group' | 'single' = 'group';
-  try {
-    const body = await request.json() as { scope?: string };
-    if (body?.scope === 'single') scope = 'single';
-  } catch {
-    scope = 'group';
-  }
-
-  if (scope === 'single') {
-    const deletedCount = await dbDeleteInventoryItemById(recordId, env);
-    if (deletedCount < 1) return jsonResponse({ message: 'Inventory item not found.' }, 404);
-    return jsonResponse({ ok: true, deletedCount, scope });
-  }
-
-  const current = await dbGetInventoryItem(recordId, env);
-  if (!current) return jsonResponse({ message: 'Inventory item not found.' }, 404);
-  const ccgNumber = normalizeText((current as { ccgNumber?: string }).ccgNumber, '');
-  if (!ccgNumber) return jsonResponse({ message: 'Inventory item CCG Number is missing.' }, 500);
-
-  const deletedCount = await dbDeleteInventoryItemsByCcgNumber(ccgNumber, env);
-  if (deletedCount < 1) return jsonResponse({ message: 'Inventory item not found.' }, 404);
-  return jsonResponse({ ok: true, deletedCount, scope: 'group', ccgNumber });
+  const updatedCount = await dbDeactivateInventoryItemById(recordId, env);
+  if (updatedCount < 1) return jsonResponse({ message: 'Inventory item not found.' }, 404);
+  return jsonResponse({ ok: true, updatedCount });
 }
 
 function pickReverbImageUrls(listing: {
@@ -5128,11 +5064,7 @@ async function dbSetListingArchived(recordId: string, archived: boolean, env: En
 }
 
 function mapInventoryRow(
-  row: InventoryItemRow & {
-    source_listing_price_asking?: number | null;
-    qty_available?: number | null;
-    total_rows?: number | null;
-  },
+  row: InventoryItemRow & { source_listing_price_asking?: number | null },
 ): Record<string, unknown> {
   return {
     id: String(row.id),
@@ -5179,12 +5111,10 @@ function mapInventoryRow(
     createdAt: row.created_at || '',
     updatedAt: row.updated_at || '',
     sourceListingPriceAsking: row.source_listing_price_asking ?? null,
-    qtyAvailable: Number(row.qty_available ?? 1),
-    groupCount: Number(row.total_rows ?? 1),
   };
 }
 
-type InventoryGroupedFilters = {
+type InventoryListFilters = {
   categoryId: number | null;
   brand: string;
   queue: string;
@@ -5289,7 +5219,7 @@ function inventoryOrderBySql(sortBy: InventorySortKey, sortDir: InventorySortDir
   }
 }
 
-function inventoryFilterClause(filters: Pick<InventoryGroupedFilters, 'categoryId' | 'brand' | 'queue' | 'sold' | 'active' | 'marked' | 'personal'>): { sql: string; binds: unknown[] } {
+function inventoryFilterClause(filters: Pick<InventoryListFilters, 'categoryId' | 'brand' | 'queue' | 'sold' | 'active' | 'marked' | 'personal'>): { sql: string; binds: unknown[] } {
   const clauses: string[] = ['1 = 1'];
   const binds: unknown[] = [];
 
@@ -5329,25 +5259,17 @@ function inventoryFilterClause(filters: Pick<InventoryGroupedFilters, 'categoryI
   };
 }
 
-async function dbListInventoryItemsGrouped(
-  filters: InventoryGroupedFilters,
+async function dbListInventoryItems(
+  filters: InventoryListFilters,
   env: Env,
 ): Promise<{ records: Array<Record<string, unknown>>; total: number; page: number; limit: number; totalPages: number }> {
   const clause = inventoryFilterClause(filters);
   const orderBy = inventoryOrderBySql(filters.sortBy, filters.sortDir);
-  const qtyConditions: string[] = [];
-  if (filters.marked !== 'all') qtyConditions.push(`COALESCE(g.is_marked, 0) = ${filters.marked === 'yes' ? 1 : 0}`);
-  if (filters.personal !== 'all') qtyConditions.push(`COALESCE(g.is_personal, 0) = ${filters.personal === 'yes' ? 1 : 0}`);
-  const qtyConditionSql = qtyConditions.length > 0 ? ` AND ${qtyConditions.join(' AND ')}` : '';
 
   const countRow = await env.DB.prepare(
     `SELECT COUNT(*) AS total
-     FROM (
-       SELECT i.ccg_number
-       FROM ccg_inventory_items i
-       WHERE ${clause.sql}
-       GROUP BY i.ccg_number
-     ) grouped`
+     FROM ccg_inventory_items i
+     WHERE ${clause.sql}`
   ).bind(...clause.binds).first<{ total: number | null }>();
 
   const total = Number(countRow?.total || 0);
@@ -5356,25 +5278,7 @@ async function dbListInventoryItemsGrouped(
   const safeOffset = (safePage - 1) * filters.limit;
 
   const result = await env.DB.prepare(
-    `WITH filtered AS (
-       SELECT i.id, i.ccg_number
-       FROM ccg_inventory_items i
-       WHERE ${clause.sql}
-     ),
-     first_rows AS (
-       SELECT f.ccg_number, MIN(f.id) AS first_id
-       FROM filtered f
-       GROUP BY f.ccg_number
-     ),
-     group_counts AS (
-       SELECT
-         g.ccg_number,
-         SUM(CASE WHEN g.is_active = 1 AND g.is_sold = 0${qtyConditionSql} THEN 1 ELSE 0 END) AS qty_available,
-         SUM(CASE WHEN 1 = 1${qtyConditionSql} THEN 1 ELSE 0 END) AS total_rows
-       FROM ccg_inventory_items g
-       GROUP BY g.ccg_number
-     )
-     SELECT
+    `SELECT
        i.id,
        i.source_listing_id,
        i.ccg_number,
@@ -5407,20 +5311,15 @@ async function dbListInventoryItemsGrouped(
        i.sell_notes,
        i.created_at,
        i.updated_at,
-       l.price_asking AS source_listing_price_asking,
-       gc.qty_available,
-       gc.total_rows
-     FROM first_rows fr
-     INNER JOIN ccg_inventory_items i ON i.id = fr.first_id
+       l.price_asking AS source_listing_price_asking
+     FROM ccg_inventory_items i
      ${INVENTORY_CATEGORY_JOIN_SQL}
      LEFT JOIN listings l ON l.id = i.source_listing_id
-     LEFT JOIN group_counts gc ON gc.ccg_number = i.ccg_number
+     WHERE ${clause.sql}
      ORDER BY ${orderBy}
      LIMIT ? OFFSET ?`
   ).bind(...clause.binds, filters.limit, safeOffset).all<InventoryItemRow & {
     source_listing_price_asking: number | null;
-    qty_available: number | null;
-    total_rows: number | null;
   }>();
 
   return {
@@ -5433,7 +5332,7 @@ async function dbListInventoryItemsGrouped(
 }
 
 async function dbListInventoryBrands(
-  filters: Pick<InventoryGroupedFilters, 'categoryId' | 'sold' | 'active' | 'marked' | 'personal' | 'queue'>,
+  filters: Pick<InventoryListFilters, 'categoryId' | 'sold' | 'active' | 'marked' | 'personal' | 'queue'>,
   env: Env,
 ): Promise<string[]> {
   const clause = inventoryFilterClause({ ...filters, brand: '' });
@@ -5447,127 +5346,6 @@ async function dbListInventoryBrands(
   return (result.results ?? [])
     .map((row) => String(row.brand || '').trim())
     .filter(Boolean);
-}
-
-async function dbListInventoryItemsByCcgNumber(
-  ccgNumber: string,
-  page: number,
-  limit: number,
-  sortBy: InventorySortKey,
-  sortDir: InventorySortDir,
-  marked: InventoryTriState,
-  personal: InventoryTriState,
-  queue: string,
-  env: Env,
-): Promise<{ records: Array<Record<string, unknown>>; total: number; page: number; limit: number; totalPages: number }> {
-  const orderBy = inventoryOrderBySql(sortBy, sortDir);
-  const extraConditions: string[] = [];
-  const extraBinds: unknown[] = [];
-  if (marked !== 'all') extraConditions.push(`COALESCE(is_marked, 0) = ${marked === 'yes' ? 1 : 0}`);
-  if (personal !== 'all') extraConditions.push(`COALESCE(is_personal, 0) = ${personal === 'yes' ? 1 : 0}`);
-  if (queue) {
-    extraConditions.push(`COALESCE(queue, ?) = ?`);
-    extraBinds.push('Triage', queue);
-  }
-  const extraSql = extraConditions.length > 0 ? ` AND ${extraConditions.join(' AND ')}` : '';
-  const countRow = await env.DB.prepare(
-    `SELECT COUNT(*) AS total FROM ccg_inventory_items WHERE ccg_number = ?${extraSql}`
-  ).bind(ccgNumber, ...extraBinds).first<{ total: number | null }>();
-
-  const total = Number(countRow?.total || 0);
-  const totalPages = Math.max(1, Math.ceil(total / limit));
-  const safePage = Math.min(page, totalPages);
-  const safeOffset = (safePage - 1) * limit;
-
-  const result = await env.DB.prepare(
-    `SELECT
-      i.id,
-      i.source_listing_id,
-      i.ccg_number,
-      i.image_url,
-      i.image_urls,
-      i.title,
-      ${INVENTORY_CATEGORY_SELECT_SQL},
-      i.brand,
-      i.queue,
-      i.year_range,
-      i.model,
-      i.finish,
-      i.repair_notes,
-      i.original_listing_desc,
-      i.video_url,
-      i.sale_title,
-      i.regular_price,
-      i.sale_price,
-      i."condition",
-      i.sale_description,
-      i.clearance,
-      i.bullet_1_text,
-      i.bullet_1_danger,
-      i.bullet_1_highlight,
-      i.bullet_2_text,
-      i.bullet_2_danger,
-      i.bullet_2_highlight,
-      i.bullet_3_text,
-      i.bullet_3_danger,
-      i.bullet_3_highlight,
-      i.bullet_4_text,
-      i.bullet_4_danger,
-      i.bullet_4_highlight,
-      i.bullet_5_text,
-      i.bullet_5_danger,
-      i.bullet_5_highlight,
-      i.bullet_6_text,
-      i.bullet_6_danger,
-      i.bullet_6_highlight,
-      i.purchased_date,
-      i.purchase_price,
-      i.private_party_value,
-      i.purchase_notes,
-      i.ai_analysis_text,
-      i.serial_number,
-      i.is_active,
-      i.is_marked,
-      i.is_personal,
-      i.is_rented,
-      i.for_sale,
-      i.for_sale_date,
-      i.is_sold,
-      i.sold_date,
-      i.sold_amount,
-      i.sell_notes,
-      i.created_at,
-      i.updated_at,
-      l.price_asking AS source_listing_price_asking,
-      (
-        SELECT SUM(CASE WHEN g.is_active = 1 AND g.is_sold = 0 THEN 1 ELSE 0 END)
-        FROM ccg_inventory_items g
-        WHERE g.ccg_number = i.ccg_number${extraSql.replaceAll('COALESCE(is_', 'COALESCE(g.is_')}
-      ) AS qty_available,
-      (
-        SELECT COUNT(*)
-        FROM ccg_inventory_items g
-        WHERE g.ccg_number = i.ccg_number${extraSql.replaceAll('COALESCE(is_', 'COALESCE(g.is_')}
-      ) AS total_rows
-     FROM ccg_inventory_items i
-     ${INVENTORY_CATEGORY_JOIN_SQL}
-     LEFT JOIN listings l ON l.id = i.source_listing_id
-     WHERE i.ccg_number = ?${extraSql.replaceAll('COALESCE(is_', 'COALESCE(i.is_')}
-     ORDER BY ${orderBy}
-     LIMIT ? OFFSET ?`
-  ).bind(...extraBinds, ...extraBinds, ccgNumber, ...extraBinds, limit, safeOffset).all<InventoryItemRow & {
-    source_listing_price_asking: number | null;
-    qty_available: number | null;
-    total_rows: number | null;
-  }>();
-
-  return {
-    records: (result.results ?? []).map((row) => mapInventoryRow(row)),
-    total,
-    page: safePage,
-    limit,
-    totalPages,
-  };
 }
 
 async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<string, unknown> | null> {
@@ -5644,12 +5422,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.storage_location,
       i.sold_channel,
       i.created_at,
-      i.updated_at,
-      (
-        SELECT COUNT(*)
-        FROM ccg_inventory_items g
-        WHERE g.ccg_number = i.ccg_number
-      ) AS group_count
+      i.updated_at
      FROM ccg_inventory_items i
      ${INVENTORY_CATEGORY_JOIN_SQL}
      WHERE i.id = ?`
@@ -5725,7 +5498,6 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     isRented: Boolean(row.is_rented),
     forSale: Boolean(row.for_sale),
     forSaleDate: row.for_sale_date || null,
-    groupCount: Number(row.group_count ?? 1),
     isSold: Boolean(row.is_sold),
     soldDate: row.sold_date || null,
     soldAmount: row.sold_amount,
@@ -6033,9 +5805,8 @@ async function dbCreateInventoryItems(
     sold_amount: number | null;
     sell_notes: string | null;
   },
-  qty: number,
   env: Env
-): Promise<{ firstId: string; ccgNumber: string; createdCount: number; createdIds: number[] } | null> {
+): Promise<{ firstId: string; ccgNumber: string } | null> {
   try {
     const statement = `INSERT INTO ccg_inventory_items
       (
@@ -6056,88 +5827,81 @@ async function dbCreateInventoryItems(
       )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
-    const statements = Array.from({ length: qty }, (_, index) =>
-      env.DB.prepare(statement).bind(
-        index === 0 ? fields.source_listing_id : null,
-        fields.ccg_number,
-        fields.image_url,
-        fields.title,
-        fields.category_id,
-        fields.brand,
-        fields.queue,
-        fields.year_range,
-        fields.model,
-        fields.finish,
-        fields.secondary_category_id,
-        fields.image_urls,
-        fields.repair_notes,
-        fields.original_listing_desc,
-        fields.video_url,
-        fields.sale_title,
-        fields.regular_price,
-        fields.sale_price,
-        fields.condition,
-        fields.sale_description,
-        fields.clearance,
-        fields.bullet_1_text,
-        fields.bullet_1_danger,
-        fields.bullet_1_highlight,
-        fields.bullet_2_text,
-        fields.bullet_2_danger,
-        fields.bullet_2_highlight,
-        fields.bullet_3_text,
-        fields.bullet_3_danger,
-        fields.bullet_3_highlight,
-        fields.bullet_4_text,
-        fields.bullet_4_danger,
-        fields.bullet_4_highlight,
-        fields.bullet_5_text,
-        fields.bullet_5_danger,
-        fields.bullet_5_highlight,
-        fields.bullet_6_text,
-        fields.bullet_6_danger,
-        fields.bullet_6_highlight,
-        fields.purchased_date,
-        fields.purchase_price,
-        fields.private_party_value,
-        fields.purchase_notes,
-        fields.ai_analysis_text,
-        fields.serial_number,
-        fields.weight_lbs,
-        fields.neck_profile,
-        fields.neck_thickness,
-        fields.nut_width,
-        fields.width_12_fret,
-        fields.fretboard_radius,
-        fields.twelve_fret_action,
-        fields.is_active,
-        fields.is_marked,
-        fields.is_personal,
-        fields.is_rented,
-        fields.for_sale,
-        fields.for_sale_date,
-        fields.is_sold,
-        fields.sold_date,
-        fields.sold_amount,
-        fields.sell_notes,
-      ),
-    );
-
-    const results = await env.DB.batch(statements);
-    const createdIds = results
-      .map((result) => Number(result?.meta?.last_row_id || 0))
-      .filter((id) => Number.isFinite(id) && id > 0);
-    const firstId = createdIds[0] ? String(createdIds[0]) : null;
+    const result = await env.DB.prepare(statement).bind(
+      fields.source_listing_id,
+      fields.ccg_number,
+      fields.image_url,
+      fields.title,
+      fields.category_id,
+      fields.brand,
+      fields.queue,
+      fields.year_range,
+      fields.model,
+      fields.finish,
+      fields.secondary_category_id,
+      fields.image_urls,
+      fields.repair_notes,
+      fields.original_listing_desc,
+      fields.video_url,
+      fields.sale_title,
+      fields.regular_price,
+      fields.sale_price,
+      fields.condition,
+      fields.sale_description,
+      fields.clearance,
+      fields.bullet_1_text,
+      fields.bullet_1_danger,
+      fields.bullet_1_highlight,
+      fields.bullet_2_text,
+      fields.bullet_2_danger,
+      fields.bullet_2_highlight,
+      fields.bullet_3_text,
+      fields.bullet_3_danger,
+      fields.bullet_3_highlight,
+      fields.bullet_4_text,
+      fields.bullet_4_danger,
+      fields.bullet_4_highlight,
+      fields.bullet_5_text,
+      fields.bullet_5_danger,
+      fields.bullet_5_highlight,
+      fields.bullet_6_text,
+      fields.bullet_6_danger,
+      fields.bullet_6_highlight,
+      fields.purchased_date,
+      fields.purchase_price,
+      fields.private_party_value,
+      fields.purchase_notes,
+      fields.ai_analysis_text,
+      fields.serial_number,
+      fields.weight_lbs,
+      fields.neck_profile,
+      fields.neck_thickness,
+      fields.nut_width,
+      fields.width_12_fret,
+      fields.fretboard_radius,
+      fields.twelve_fret_action,
+      fields.is_active,
+      fields.is_marked,
+      fields.is_personal,
+      fields.is_rented,
+      fields.for_sale,
+      fields.for_sale_date,
+      fields.is_sold,
+      fields.sold_date,
+      fields.sold_amount,
+      fields.sell_notes,
+    ).run();
+    const firstId = result.meta?.last_row_id ? String(result.meta.last_row_id) : null;
     if (!firstId) return null;
-    return { firstId, ccgNumber: fields.ccg_number, createdCount: results.length, createdIds };
+    return { firstId, ccgNumber: fields.ccg_number };
   } catch (error) {
     console.error('Inventory insert failed', { error });
     return null;
   }
 }
 
-async function dbUpdateInventorySharedByCcgNumber(
-  ccgNumber: string,
+async function dbUpdateInventoryById(
+  recordId: string,
   fields: {
     image_url: string;
     image_urls: string;
@@ -6165,95 +5929,12 @@ async function dbUpdateInventorySharedByCcgNumber(
     fretboard_radius: string | null;
     twelve_fret_action: string | null;
     storage_location: string | null;
-  },
-  env: Env
-): Promise<boolean> {
-  try {
-    await env.DB.prepare(
-      `UPDATE ccg_inventory_items
-       SET
-         image_url = ?, title = ?, category_id = ?, brand = ?, queue = ?, year_range = ?, model = ?, finish = ?, image_urls = ?,
-         secondary_category_id = ?,
-         repair_notes = ?, original_listing_desc = ?, purchased_date = ?, purchase_price = ?, private_party_value = ?, purchase_notes = ?, ai_analysis_text = ?,
-         serial_number = ?, weight_lbs = ?, neck_profile = ?, neck_thickness = ?, nut_width = ?, width_12_fret = ?, fretboard_radius = ?, twelve_fret_action = ?,
-         storage_location = ?,
-         updated_at = CURRENT_TIMESTAMP
-       WHERE ccg_number = ?`
-    ).bind(
-      fields.image_url,
-      fields.title,
-      fields.category_id,
-      fields.brand,
-      fields.queue,
-      fields.year_range,
-      fields.model,
-      fields.finish,
-      fields.image_urls,
-      fields.secondary_category_id,
-      fields.repair_notes,
-      fields.original_listing_desc,
-      fields.purchased_date,
-      fields.purchase_price,
-      fields.private_party_value,
-      fields.purchase_notes,
-      fields.ai_analysis_text,
-      fields.serial_number,
-      fields.weight_lbs,
-      fields.neck_profile,
-      fields.neck_thickness,
-      fields.nut_width,
-      fields.width_12_fret,
-      fields.fretboard_radius,
-      fields.twelve_fret_action,
-      fields.storage_location,
-      ccgNumber,
-    ).run();
-    return true;
-  } catch (error) {
-    console.error('Inventory shared update failed', { error });
-    return false;
-  }
-}
-
-async function dbUpdateInventoryRowsByCcgNumber(
-  ccgNumber: string,
-  fields: {
     is_active: number;
     is_marked: number;
     is_personal: number;
     is_rented: number;
     for_sale: number;
     for_sale_date: string | null;
-  },
-  env: Env
-): Promise<boolean> {
-  if (!ccgNumber) return false;
-  try {
-    await env.DB.prepare(
-      `UPDATE ccg_inventory_items
-       SET
-         is_active = ?, is_marked = ?, is_personal = ?, is_rented = ?, for_sale = ?, for_sale_date = ?,
-         updated_at = CURRENT_TIMESTAMP
-       WHERE ccg_number = ?`
-    ).bind(
-      fields.is_active,
-      fields.is_marked,
-      fields.is_personal,
-      fields.is_rented,
-      fields.for_sale,
-      fields.for_sale_date,
-      ccgNumber
-    ).run();
-    return true;
-  } catch (error) {
-    console.error('Inventory update failed', { error });
-    return false;
-  }
-}
-
-async function dbUpdateInventorySaleById(
-  recordId: string,
-  fields: {
     source_listing_id: number | null;
     video_url: string | null;
     sale_title: string | null;
@@ -6297,6 +5978,13 @@ async function dbUpdateInventorySaleById(
     await env.DB.prepare(
       `UPDATE ccg_inventory_items
        SET
+         image_url = ?, image_urls = ?, title = ?, category_id = ?, secondary_category_id = ?,
+         brand = ?, queue = ?, year_range = ?, model = ?, finish = ?,
+         repair_notes = ?, original_listing_desc = ?, purchased_date = ?, purchase_price = ?,
+         private_party_value = ?, purchase_notes = ?, ai_analysis_text = ?, serial_number = ?,
+         weight_lbs = ?, neck_profile = ?, neck_thickness = ?, nut_width = ?, width_12_fret = ?,
+         fretboard_radius = ?, twelve_fret_action = ?, storage_location = ?,
+         is_active = ?, is_marked = ?, is_personal = ?, is_rented = ?, for_sale = ?, for_sale_date = ?,
          source_listing_id = ?, video_url = ?, sale_title = ?, regular_price = ?, sale_price = ?, "condition" = ?, sale_description = ?,
          clearance = ?,
          bullet_1_text = ?, bullet_1_danger = ?, bullet_1_highlight = ?,
@@ -6310,6 +5998,38 @@ async function dbUpdateInventorySaleById(
          updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
     ).bind(
+      fields.image_url,
+      fields.image_urls,
+      fields.title,
+      fields.category_id,
+      fields.secondary_category_id,
+      fields.brand,
+      fields.queue,
+      fields.year_range,
+      fields.model,
+      fields.finish,
+      fields.repair_notes,
+      fields.original_listing_desc,
+      fields.purchased_date,
+      fields.purchase_price,
+      fields.private_party_value,
+      fields.purchase_notes,
+      fields.ai_analysis_text,
+      fields.serial_number,
+      fields.weight_lbs,
+      fields.neck_profile,
+      fields.neck_thickness,
+      fields.nut_width,
+      fields.width_12_fret,
+      fields.fretboard_radius,
+      fields.twelve_fret_action,
+      fields.storage_location,
+      fields.is_active,
+      fields.is_marked,
+      fields.is_personal,
+      fields.is_rented,
+      fields.for_sale,
+      fields.for_sale_date,
       fields.source_listing_id,
       fields.video_url,
       fields.sale_title,
@@ -6348,7 +6068,7 @@ async function dbUpdateInventorySaleById(
     ).run();
     return true;
   } catch (error) {
-    console.error('Inventory selected-row sale update failed', { error });
+    console.error('Inventory row update failed', { error });
     return false;
   }
 }
@@ -6369,17 +6089,16 @@ async function dbSetInventoryMarked(recordId: string, isMarked: boolean, env: En
   }
 }
 
-async function dbDeleteInventoryItemById(recordId: string, env: Env): Promise<number> {
+async function dbDeactivateInventoryItemById(recordId: string, env: Env): Promise<number> {
   const idValue = Number.parseInt(recordId, 10);
   if (!Number.isFinite(idValue)) return 0;
   try {
-    await dbDeleteInventoryImagesByItemIds([idValue], env);
     const result = await env.DB.prepare(
-      'DELETE FROM ccg_inventory_items WHERE id = ?'
+      'UPDATE ccg_inventory_items SET is_active = 0, for_sale = 0, is_marked = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
     ).bind(idValue).run();
     return Number(result.meta?.changes || 0);
   } catch (error) {
-    console.error('Inventory single delete failed', { error });
+    console.error('Inventory deactivate failed', { error });
     return 0;
   }
 }
@@ -6396,20 +6115,6 @@ async function dbDeleteInventoryItemsByIds(ids: number[], env: Env): Promise<num
     return Number(result.meta?.changes || 0);
   } catch (error) {
     console.error('Inventory bulk delete failed', { error });
-    return 0;
-  }
-}
-
-async function dbDeleteInventoryItemsByCcgNumber(ccgNumber: string, env: Env): Promise<number> {
-  try {
-    const itemIds = await dbListInventoryItemIdsByCcgNumber(ccgNumber, env);
-    await dbDeleteInventoryImagesByItemIds(itemIds, env);
-    const result = await env.DB.prepare(
-      'DELETE FROM ccg_inventory_items WHERE ccg_number = ?'
-    ).bind(ccgNumber).run();
-    return Number(result.meta?.changes || 0);
-  } catch (error) {
-    console.error('Inventory grouped delete failed', { error });
     return 0;
   }
 }
@@ -6582,16 +6287,6 @@ async function dbDeleteInventoryImagesByItemIds(itemIds: number[], env: Env): Pr
   } catch (error) {
     console.warn('Inventory image child delete skipped', { error });
   }
-}
-
-async function dbListInventoryItemIdsByCcgNumber(ccgNumber: string, env: Env): Promise<number[]> {
-  if (!ccgNumber) return [];
-  const result = await env.DB.prepare(
-    'SELECT id FROM ccg_inventory_items WHERE ccg_number = ? ORDER BY id ASC'
-  ).bind(ccgNumber).all<{ id: number }>();
-  return (result.results ?? [])
-    .map((row) => Number(row.id || 0))
-    .filter((id) => Number.isFinite(id) && id > 0);
 }
 
 async function dbGetInventorySummary(env: Env): Promise<InventorySummaryTotals> {

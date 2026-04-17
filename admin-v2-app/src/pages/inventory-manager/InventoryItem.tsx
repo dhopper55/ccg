@@ -95,7 +95,6 @@ type InventoryItemRecord = {
   isRented?: boolean;
   forSale?: boolean;
   forSaleDate?: string | null;
-  groupCount?: number | null;
   isSold?: boolean;
   soldDate?: string | null;
   soldAmount?: number | null;
@@ -128,12 +127,10 @@ type SaveResponse = {
   ok?: boolean;
   ccgNumber?: string;
   message?: string;
-  createdCount?: number;
   duplicateSuppressed?: boolean;
 };
 
 type FormState = {
-  qty: number;
   ccgNumber: string;
   videoUrl: string;
   saleTitle: string;
@@ -279,7 +276,6 @@ function normalizeImages(images: InventoryImageRecord[]): InventoryImageRecord[]
 }
 
 const DEFAULT_FORM: FormState = {
-  qty: 1,
   ccgNumber: 'Auto-generated on save',
   videoUrl: '',
   saleTitle: '',
@@ -639,7 +635,6 @@ const InventoryItem = () => {
   const [editId, setEditId] = useState<string | null>(null);
   const [sourceListingId, setSourceListingId] = useState<string | null>(null);
   const [sourceImageUrl, setSourceImageUrl] = useState<string | null>(null);
-  const [groupCount, setGroupCount] = useState(1);
   const [images, setImages] = useState<InventoryImageRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -761,9 +756,7 @@ const InventoryItem = () => {
           const record = data.record;
           setEditId(record.id);
           setSourceListingId(record.sourceListingId || null);
-          setGroupCount(Math.max(1, Number(record.groupCount || 1)));
           setForm({
-            qty: 1,
             ccgNumber: record.ccgNumber || '',
             videoUrl: record.videoUrl || '',
             saleTitle: record.saleTitle || '',
@@ -862,7 +855,6 @@ const InventoryItem = () => {
 
           const fields = data.fields || {};
           setSourceListingId(fromListingId);
-          setGroupCount(1);
           const photoCandidates = (fields.photos || '')
             .split(/\r?\n/)
             .map((u: string) => u.trim())
@@ -905,7 +897,6 @@ const InventoryItem = () => {
         }
       } finally {
         if (!cancelled) {
-          if (!id && !fromListingId) setGroupCount(1);
           setIsLoading(false);
         }
       }
@@ -943,7 +934,6 @@ const InventoryItem = () => {
 
   const createSavePayload = (nextImages: InventoryImageRecord[]) => ({
     sourceListingId,
-    qty: editId ? 1 : form.qty,
     imageUrl: nextImages[0]?.url,
     imageUrls: nextImages.map((image) => image.url),
     images: nextImages.map((image) => ({ url: image.url, isPrivate: image.isPrivate })),
@@ -1242,12 +1232,6 @@ const InventoryItem = () => {
       setMessage({ severity: 'error', text: 'Please upload at least one image before saving.' });
       return;
     }
-    if (!editId) {
-      if (!Number.isInteger(form.qty) || form.qty < 1 || form.qty > 100) {
-        setMessage({ severity: 'error', text: 'Quantity must be a whole number between 1 and 100.' });
-        return;
-      }
-    }
     setIsSubmitting(true);
     setMessage(null);
 
@@ -1275,7 +1259,7 @@ const InventoryItem = () => {
         ? 'Item Updated'
         : data.duplicateSuppressed
           ? `Duplicate submit prevented. Using existing item ${data.ccgNumber || ''}.`
-          : `Created ${typeof data.createdCount === 'number' ? data.createdCount : 1} inventory item${(data.createdCount || 1) === 1 ? '' : 's'}: ${data.ccgNumber || ''}.`;
+          : `Created inventory item: ${data.ccgNumber || ''}.`;
       enqueueSnackbar(text, { variant: 'success' });
       if (editId) {
         setReloadToken((current) => current + 1);
@@ -1414,24 +1398,6 @@ const InventoryItem = () => {
             </IconButton>
           </Tooltip>
         </Stack>
-        {editId && groupCount > 1 ? (
-          <Paper
-            variant="outlined"
-            sx={{
-              mt: 2,
-              width: 1,
-              p: 1.5,
-              borderRadius: 2,
-              borderColor: 'info.main',
-              bgcolor: 'info.lighter',
-            }}
-          >
-            <Typography variant="body2" sx={{ color: 'info.darker', fontWeight: 600 }}>
-              Unit edit: Unit ID {editId} of {form.ccgNumber} (Qty {groupCount}). Shared fields
-              update all units with this CCG#. Sold fields update only this unit.
-            </Typography>
-          </Paper>
-        ) : null}
       </Paper>
 
       {message ? <Alert severity={message.severity}>{message.text}</Alert> : null}
@@ -1453,7 +1419,7 @@ const InventoryItem = () => {
                   InputProps={{ readOnly: true }}
                 />
               </Grid>
-              <Grid size={{ xs: 12, md: editId ? 6 : 3 }}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
                   label="Purchased Date"
@@ -1463,21 +1429,6 @@ const InventoryItem = () => {
                   slotProps={{ inputLabel: { shrink: true } }}
                 />
               </Grid>
-              {!editId ? (
-                <Grid size={{ xs: 12, md: 3 }}>
-                  <TextField
-                    fullWidth
-                    label="Qty"
-                    type="number"
-                    value={form.qty}
-                    onChange={(event) => {
-                      const parsed = Number.parseInt(event.target.value, 10);
-                      setField('qty', Number.isFinite(parsed) ? parsed : 1);
-                    }}
-                    inputProps={{ min: 1, max: 100, step: 1 }}
-                  />
-                </Grid>
-              ) : null}
 
               <Grid size={12}>
                 <Stack spacing={1.5}>
@@ -1709,7 +1660,7 @@ const InventoryItem = () => {
 
               <Grid size={12}>
                 <Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: 0.6 }}>
-                  Shared Across Qty
+                  Inventory Details
                 </Typography>
               </Grid>
 

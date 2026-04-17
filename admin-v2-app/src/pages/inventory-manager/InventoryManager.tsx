@@ -53,8 +53,6 @@ type InventoryRecord = {
   privatePartyValue?: number | null;
   soldAmount?: number | null;
   createdAt?: string | null;
-  qtyAvailable?: number | null;
-  groupCount?: number | null;
 };
 
 type InventoryListResponse = {
@@ -63,8 +61,6 @@ type InventoryListResponse = {
   limit: number;
   total: number;
   totalPages: number;
-  grouped: boolean;
-  drillDownCcgNumber?: string | null;
   availableBrands?: string[];
   message?: string;
 };
@@ -646,30 +642,6 @@ const InventoryManager = () => {
                       }}
                     >
                       <Box component="span">{record.title || '—'}</Box>
-                      {Number(record.qtyAvailable || record.groupCount || 0) > 1 ? (
-                        <Box
-                          component="span"
-                          sx={{
-                            ml: 1,
-                            px: 0.75,
-                            py: 0.125,
-                            borderRadius: 999,
-                            fontSize: '0.7rem',
-                            fontWeight: 700,
-                            letterSpacing: 0.2,
-                            color: 'primary.dark',
-                            bgcolor: 'primary.lighter',
-                            border: 1,
-                            borderColor: 'primary.light',
-                            verticalAlign: 'middle',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            lineHeight: 1.2,
-                          }}
-                        >
-                          Qty {Number(record.qtyAvailable || record.groupCount || 0)}
-                        </Box>
-                      ) : null}
                       {record.forSale && !record.isSold ? (
                         <Tooltip title="For sale">
                           <Box
@@ -757,28 +729,6 @@ const InventoryManager = () => {
                 <Box>
                   <Stack direction="row" sx={{ alignItems: 'center', gap: 0.75, minWidth: 0 }}>
                     <Typography variant="subtitle2">{record.title || '—'}</Typography>
-                    {Number(record.qtyAvailable || record.groupCount || 0) > 1 ? (
-                      <Box
-                        component="span"
-                        sx={{
-                          ml: 0.25,
-                          px: 0.75,
-                          py: 0.125,
-                          borderRadius: 999,
-                          fontSize: '0.68rem',
-                          fontWeight: 700,
-                          color: 'primary.dark',
-                          bgcolor: 'primary.lighter',
-                          border: 1,
-                          borderColor: 'primary.light',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          lineHeight: 1.2,
-                        }}
-                      >
-                        Qty {Number(record.qtyAvailable || record.groupCount || 0)}
-                      </Box>
-                    ) : null}
                     {record.forSale && !record.isSold ? (
                       <Tooltip title="For sale">
                         <Box component="span" sx={{ color: '#3b82f6', display: 'inline-flex', flexShrink: 0 }}>
