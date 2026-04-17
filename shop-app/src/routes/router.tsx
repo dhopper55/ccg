@@ -1,4 +1,4 @@
-import { RouteObject, createBrowserRouter } from 'react-router';
+import { RouteObject, createHashRouter } from 'react-router';
 import App from 'App';
 import EcommerceLayout from 'layouts/ecommerce-layout';
 import ProductDetails from 'pages/apps/ecommerce/customer/ProductDetails';
@@ -34,8 +34,8 @@ export const routes: RouteObject[] = [
   },
 ];
 
-const router = createBrowserRouter(routes, {
-  basename: import.meta.env.VITE_BASENAME || '/',
+const router = createHashRouter(routes, {
+  basename: '/',
 });
 
 export default router;

@@ -1,13 +1,13 @@
 import { Box, Divider, Paper, Tab, Tabs, Toolbar } from '@mui/material';
-import { productSpecifications } from 'data/e-commerce/products';
 import ProductDescription from './ProductDescription';
 import ProductSpecification from './ProductSpecification';
 
 interface ProductInformationProps {
   description?: string;
+  specifications: { label: string; value?: string; values?: string[] }[];
 }
 
-const ProductInformation = ({ description }: ProductInformationProps) => {
+const ProductInformation = ({ description, specifications }: ProductInformationProps) => {
   return (
     <Paper sx={{ p: { xs: 3, md: 5 } }}>
       <Box
@@ -27,7 +27,7 @@ const ProductInformation = ({ description }: ProductInformationProps) => {
       <Toolbar sx={{ minHeight: { xs: 40 } }} />
       <ProductDescription description={description} />
       <Divider sx={{ my: 5 }} />
-      <ProductSpecification specifications={productSpecifications} />
+      <ProductSpecification specifications={specifications} />
     </Paper>
   );
 };

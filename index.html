@@ -1,6 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script>
+  (function() {
+    const shopBase = '/guitars-and-gear-for-sale';
+    const path = window.location.pathname;
+    if (path.startsWith(shopBase + '/')) {
+      const appPath = path.slice(shopBase.length) || '/';
+      window.location.replace(shopBase + '/#' + appPath + window.location.search);
+    }
+  })();
+</script>
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-CZRGM23PJ9"></script>
 <script>

@@ -2505,6 +2505,9 @@ type ShopProductRow = {
   image_urls?: string | null;
   title: string | null;
   sale_title: string | null;
+  brand?: string | null;
+  model?: string | null;
+  finish?: string | null;
   regular_price: number | null;
   sale_price: number | null;
   condition: string | null;
@@ -2516,6 +2519,9 @@ type ShopProductRow = {
   secondary_category_name: string | null;
   secondary_category_path: string | null;
   source_listing_url: string | null;
+  og_specs_pickups?: string | null;
+  og_specs_tuners?: string | null;
+  og_specs_common_mods?: string | null;
   is_sold: number | null;
 };
 
@@ -6316,12 +6322,18 @@ async function dbGetShopProductDetail(id: number, env: Env): Promise<Record<stri
        i.image_urls,
        i.title,
        i.sale_title,
+       i.brand,
+       i.model,
+       i.finish,
        i.regular_price,
        i.sale_price,
        i."condition",
        i.sale_description,
        ${INVENTORY_CATEGORY_SELECT_SQL},
        l.url AS source_listing_url,
+       l.og_specs_pickups,
+       l.og_specs_tuners,
+       l.og_specs_common_mods,
        i.is_sold
      FROM ccg_inventory_items i
      ${INVENTORY_CATEGORY_JOIN_SQL}
@@ -6361,10 +6373,18 @@ async function dbGetShopProductDetail(id: number, env: Env): Promise<Record<stri
     saleUrl: row.source_listing_url || null,
     saleCondition: row.condition || '',
     saleDescription: row.sale_description || '',
+    brand: normalizeText(row.brand, ''),
+    model: normalizeText(row.model, ''),
+    finish: normalizeText(row.finish, ''),
     regularPrice: row.regular_price,
     salePrice: row.sale_price ?? 0,
     category: getInventoryCategoryLabel(row),
     secondaryCategory: normalizeText(row.secondary_category_name, ''),
+    guitarSpecs: [
+      { label: 'Original Pickups', value: normalizeText(row.og_specs_pickups, '') },
+      { label: 'Original Tuners', value: normalizeText(row.og_specs_tuners, '') },
+      { label: 'Common Mods', value: normalizeText(row.og_specs_common_mods, '') },
+    ].filter((item) => item.value && item.value.toLowerCase() !== 'unknown'),
     isSold: Boolean(row.is_sold),
   };
 }

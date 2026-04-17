@@ -19,14 +19,24 @@ type ShopProduct = {
   images: string[];
   saleTitle: string;
   saleDescription: string;
+  brand: string;
+  model: string;
+  finish: string;
   regularPrice: number | null;
   salePrice: number;
   category: string;
   secondaryCategory: string;
+  guitarSpecs: { label: string; value: string }[];
 };
 
 type ShopProductResponse = {
   record?: ShopProduct;
+};
+
+const normalizeSpecValue = (value?: string | null) => {
+  const text = String(value || '').trim();
+  if (!text || /^unknown$/i.test(text)) return '';
+  return text;
 };
 
 const ProductDetails = () => {
@@ -67,6 +77,30 @@ const ProductDetails = () => {
       ? shopProduct.salePrice
       : (shopProduct.regularPrice ?? 0)
     : 0;
+  const specifications = useMemo(() => {
+    const categoryValues = [
+      normalizeSpecValue(shopProduct?.category),
+      normalizeSpecValue(shopProduct?.secondaryCategory),
+    ].filter(Boolean);
+    const baseSpecs = [
+      categoryValues.length > 0 ? { label: 'Category', values: categoryValues } : null,
+      normalizeSpecValue(shopProduct?.brand)
+        ? { label: 'Brand', value: normalizeSpecValue(shopProduct?.brand) }
+        : null,
+      normalizeSpecValue(shopProduct?.model)
+        ? { label: 'Model', value: normalizeSpecValue(shopProduct?.model) }
+        : null,
+      normalizeSpecValue(shopProduct?.finish)
+        ? { label: 'Finish', value: normalizeSpecValue(shopProduct?.finish) }
+        : null,
+    ].filter(Boolean) as { label: string; value?: string; values?: string[] }[];
+
+    const guitarSpecs = (shopProduct?.guitarSpecs || [])
+      .map((item) => ({ label: item.label, value: normalizeSpecValue(item.value) }))
+      .filter((item) => item.value);
+
+    return [...baseSpecs, ...guitarSpecs];
+  }, [shopProduct]);
 
   if (!product) {
     return null;
@@ -112,7 +146,10 @@ const ProductDetails = () => {
         />
       </Grid>
       <Grid size={12}>
-        <ProductInformation description={shopProduct?.saleDescription} />
+        <ProductInformation
+          description={shopProduct?.saleDescription}
+          specifications={specifications}
+        />
       </Grid>
       <Grid sx={{ position: 'sticky', zIndex: 999, width: 1, bottom: 0 }} size={12}>
         <PricingBottomBar

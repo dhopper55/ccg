@@ -1,9 +1,9 @@
-import { ListItem, ListItemText, Stack, Typography } from '@mui/material';
+import { Chip, ListItem, ListItemText, Stack, Typography } from '@mui/material';
 import { List } from '@mui/material';
 import { kebabCase } from 'lib/utils';
 
 interface ProductSpecificationProps {
-  specifications: { label: string; value: string }[];
+  specifications: { label: string; value?: string; values?: string[] }[];
 }
 
 const ProductSpecification = ({ specifications }: ProductSpecificationProps) => {
@@ -18,7 +18,7 @@ const ProductSpecification = ({ specifications }: ProductSpecificationProps) => 
         Specification
       </Typography>
       <List dense disablePadding>
-        {specifications.map(({ label, value }) => (
+        {specifications.map(({ label, value, values }) => (
           <ListItem
             key={kebabCase(label)}
             disablePadding
@@ -44,12 +44,21 @@ const ProductSpecification = ({ specifications }: ProductSpecificationProps) => 
                     {label}
                   </Typography>
                   <Typography
+                    component="div"
                     variant="body2"
                     sx={{
                       color: 'text.secondary',
                     }}
                   >
-                    {value}
+                    {values?.length ? (
+                      <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+                        {values.map((item) => (
+                          <Chip key={item} size="small" variant="outlined" label={item} />
+                        ))}
+                      </Stack>
+                    ) : (
+                      value
+                    )}
                   </Typography>
                 </Stack>
               }
