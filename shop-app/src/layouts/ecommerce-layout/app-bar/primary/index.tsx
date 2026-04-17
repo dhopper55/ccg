@@ -2,6 +2,7 @@
 
 import { ChangeEvent } from 'react';
 import {
+  Badge,
   Box,
   Button,
   InputAdornment,
@@ -138,6 +139,20 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
                 </Box>
               </Stack>
             </Stack>
+          </Grid>
+          <Grid size="auto">
+            <Badge color="error" badgeContent={0} invisible>
+              <Button
+                color="neutral"
+                variant="soft"
+                shape="circle"
+                aria-label="cart"
+                tabIndex={-1}
+                sx={{ pointerEvents: 'none' }}
+              >
+                <IconifyIcon icon="material-symbols:shopping-cart-outline-rounded" sx={{ fontSize: 20 }} />
+              </Button>
+            </Badge>
           </Grid>
         </Grid>
       </Toolbar>

@@ -1,8 +1,10 @@
 import { RouteObject, createBrowserRouter } from 'react-router';
 import App from 'App';
 import EcommerceLayout from 'layouts/ecommerce-layout';
+import ProductDetails from 'pages/apps/ecommerce/customer/ProductDetails';
 import Products from 'pages/apps/ecommerce/customer/Products';
 import Page404 from 'pages/errors/Page404';
+import paths from './paths';
 
 export const routes: RouteObject[] = [
   {
@@ -13,6 +15,14 @@ export const routes: RouteObject[] = [
         element: (
           <EcommerceLayout>
             <Products />
+          </EcommerceLayout>
+        ),
+      },
+      {
+        path: paths.productDetails(':id'),
+        element: (
+          <EcommerceLayout>
+            <ProductDetails />
           </EcommerceLayout>
         ),
       },

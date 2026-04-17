@@ -1,15 +1,13 @@
-import { useMemo, useState } from 'react';
-import { Navigate, useParams } from 'react-router';
+import { useEffect, useMemo, useState } from 'react';
 import { Box, Paper } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import {
   featuredProducts,
+  products,
   productColorVariants,
   suggestedProducts,
 } from 'data/e-commerce/products';
 import { useEcommerce } from 'providers/EcommerceProvider';
-import paths from 'routes/paths';
-import { useGetProduct } from 'services/swr/api-hooks/useProductApi';
 import SuggestedProducts from 'components/sections/ecommerce/customer/common/SuggestedProducts';
 import GeneralInfo from 'components/sections/ecommerce/customer/product-details/GeneralInfo';
 import PricingBottomBar from 'components/sections/ecommerce/customer/product-details/PricingBottomBar';
@@ -19,17 +17,11 @@ import ProductGallery from 'components/sections/ecommerce/customer/product-detai
 import ProductInformation from 'components/sections/ecommerce/customer/product-details/information';
 
 const ProductDetails = () => {
-  const { id } = useParams();
-
   const { setProduct, product } = useEcommerce();
 
-  useGetProduct(id || '1', {
-    onSuccess: (data) => {
-      if (data) {
-        setProduct({ ...data, quantity: 1, selected: false });
-      }
-    },
-  });
+  useEffect(() => {
+    setProduct({ ...products[0], quantity: 1, selected: false });
+  }, [setProduct]);
 
   const [selectedVariantKey, setSelectedVariantKey] = useState('satin-linen');
 
@@ -40,7 +32,7 @@ const ProductDetails = () => {
   const handleSelectedVariantKey = (value: string) => setSelectedVariantKey(value);
 
   if (!product) {
-    return <Navigate to={paths[404]} />;
+    return null;
   }
 
   return (

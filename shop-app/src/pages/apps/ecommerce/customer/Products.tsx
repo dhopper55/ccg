@@ -8,14 +8,14 @@ import {
   CardMedia,
   Chip,
   CircularProgress,
-  Link,
   Paper,
   Stack,
   Typography,
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
-import { useSearchParams } from 'react-router';
+import { Link as RouterLink, useSearchParams } from 'react-router';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
+import paths from 'routes/paths';
 import FilterDrawer from 'components/sections/ecommerce/customer/products/FilterDrawer';
 import ProductsProvider from 'components/sections/ecommerce/customer/products/providers/ProductsProvider';
 import IconifyIcon from 'components/base/IconifyIcon';
@@ -285,12 +285,16 @@ const ProductCard = ({ product }: { product: ShopProduct }) => {
 
   return (
     <Card
+      component={RouterLink}
+      to={paths.productDetails(product.id)}
       sx={{
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
         borderRadius: 3,
         overflow: 'hidden',
+        color: 'inherit',
+        textDecoration: 'none',
         transition: 'transform 0.2s, box-shadow 0.2s',
         '&:hover': {
           transform: 'translateY(-2px)',
