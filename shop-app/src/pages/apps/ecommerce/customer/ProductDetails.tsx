@@ -57,7 +57,7 @@ const ProductDetails = () => {
     return () => { cancelled = true; };
   }, [id]);
 
-  const [selectedVariantKey, setSelectedVariantKey] = useState('satin-linen');
+  const [selectedVariantKey] = useState('satin-linen');
 
   const selectedVariant = useMemo(() => {
     return productColorVariants.find((variant) => variant.id === selectedVariantKey);
@@ -70,8 +70,6 @@ const ProductDetails = () => {
       ? shopProduct.salePrice
       : (shopProduct.regularPrice ?? 0)
     : 0;
-
-  const handleSelectedVariantKey = (value: string) => setSelectedVariantKey(value);
 
   if (!product) {
     return null;
@@ -112,8 +110,8 @@ const ProductDetails = () => {
         }}
       >
         <ProductDetailsAside
-          selectedVariantKey={selectedVariantKey}
-          handleSelectedVariantKey={handleSelectedVariantKey}
+          regularPrice={shopProduct?.regularPrice}
+          salePrice={shopProduct?.salePrice}
         />
       </Grid>
       <Grid

@@ -7,6 +7,7 @@ interface QuantityButtonsProps {
   size?: 'large' | 'medium' | 'small';
   sx?: SxProps;
   defaultValue?: number;
+  disabled?: boolean;
   handleChange: (value: number) => void;
 }
 
@@ -14,6 +15,7 @@ const QuantityButtons = ({
   size = 'medium',
   sx,
   defaultValue = 1,
+  disabled = false,
   handleChange,
 }: QuantityButtonsProps) => {
   const [quantity, setQuantity] = useState(defaultValue);
@@ -49,7 +51,7 @@ const QuantityButtons = ({
         color="neutral"
         variant="soft"
         shape="square"
-        disabled={quantity <= 1}
+        disabled={disabled || quantity <= 1}
         size={size}
         onClick={handleDecrease}
       >
@@ -65,9 +67,17 @@ const QuantityButtons = ({
           },
         }}
         value={quantity}
+        disabled={disabled}
         onChange={handleQuantityChange}
       />
-      <Button color="neutral" variant="soft" shape="square" size={size} onClick={handleIncrease}>
+      <Button
+        color="neutral"
+        variant="soft"
+        shape="square"
+        size={size}
+        disabled={disabled}
+        onClick={handleIncrease}
+      >
         <IconifyIcon icon="material-symbols:add-rounded" fontSize={20} />
       </Button>
     </Stack>

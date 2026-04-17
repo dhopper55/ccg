@@ -1,10 +1,7 @@
-import { Link, Paper, SxProps, Typography } from '@mui/material';
-import { useEcommerce } from 'providers/EcommerceProvider';
+import { Paper, SxProps, Typography } from '@mui/material';
 import QuantityButtons from '../../common/QuantityButtons';
 
 const Quantity = ({ sx }: { sx: SxProps }) => {
-  const { product, setProduct } = useEcommerce();
-
   return (
     <Paper sx={{ p: { xs: 3, md: 5 }, ...sx }}>
       <Typography
@@ -17,16 +14,10 @@ const Quantity = ({ sx }: { sx: SxProps }) => {
       </Typography>
       <QuantityButtons
         defaultValue={1}
-        handleChange={(quantity) => {
-          if (product) {
-            setProduct({ ...product, quantity: quantity });
-          }
-        }}
+        disabled
+        handleChange={() => undefined}
         sx={{ mb: 0.5 }}
       />
-      <Link variant="caption" href="#!">
-        Check availability
-      </Link>
     </Paper>
   );
 };

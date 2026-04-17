@@ -1,22 +1,17 @@
 import { Link, Paper, Stack, Typography } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import IconifyIcon from 'components/base/IconifyIcon';
-import Colors from './Colors';
-import Materials from './Materials';
 import OrderCustomization from './OrderCustomization';
 import Price from './Price';
 import PurchaseDetails from './PurchaseDetails';
 import Quantity from './Quantity';
 
 interface ProductDetailsAsideProps {
-  selectedVariantKey: string;
-  handleSelectedVariantKey: (value: string) => void;
+  regularPrice?: number | null;
+  salePrice?: number;
 }
 
-const ProductDetailsAside = ({
-  selectedVariantKey,
-  handleSelectedVariantKey,
-}: ProductDetailsAsideProps) => {
+const ProductDetailsAside = ({ regularPrice, salePrice }: ProductDetailsAsideProps) => {
   return (
     <Paper>
       <Grid container>
@@ -29,7 +24,7 @@ const ProductDetailsAside = ({
             xl: 6,
           }}
         >
-          <Price sx={{ height: 1 }} />
+          <Price sx={{ height: 1 }} regularPrice={regularPrice} salePrice={salePrice} />
         </Grid>
         <Grid
           size={{
@@ -41,22 +36,6 @@ const ProductDetailsAside = ({
           }}
         >
           <Quantity sx={{ height: 1 }} />
-        </Grid>
-        <Grid
-          size={{
-            xs: 12,
-            md: 4,
-            lg: 12,
-          }}
-        >
-          <Colors
-            sx={{ height: 1 }}
-            selectedVariantKey={selectedVariantKey}
-            handleSelectedVariantKey={handleSelectedVariantKey}
-          />
-        </Grid>
-        <Grid size={12}>
-          <Materials />
         </Grid>
         <Grid
           size={{

@@ -1,17 +1,25 @@
 import { useMemo } from 'react';
 import { Chip, Paper, Stack, SxProps, Typography } from '@mui/material';
 import useNumberFormat from 'hooks/useNumberFormat';
-import { useEcommerce } from 'providers/EcommerceProvider';
 
-const Price = ({ sx }: { sx?: SxProps }) => {
-  const { product } = useEcommerce();
+interface PriceProps {
+  sx?: SxProps;
+  regularPrice?: number | null;
+  salePrice?: number;
+}
+
+const Price = ({ sx, regularPrice = 0, salePrice = 0 }: PriceProps) => {
   const { currencyFormat } = useNumberFormat();
+  const displayPrice = salePrice > 0 ? salePrice : (regularPrice ?? 0);
+  const hasDiscount =
+    salePrice > 0 && regularPrice != null && regularPrice > salePrice && regularPrice !== salePrice;
+  const savings = hasDiscount ? regularPrice - salePrice : 0;
 
   const discountPrice = useMemo(() => {
-    const formattedPrice = currencyFormat(product?.price.discounted || 0);
+    const formattedPrice = currencyFormat(displayPrice);
 
     return [formattedPrice.slice(0, 1), formattedPrice.slice(1, -3), formattedPrice.slice(-3)];
-  }, [product, currencyFormat]);
+  }, [currencyFormat, displayPrice]);
 
   return (
     <Paper
@@ -32,28 +40,26 @@ const Price = ({ sx }: { sx?: SxProps }) => {
           {discountPrice[2]}
         </Typography>
       </Typography>
-      <Stack
-        sx={{
-          gap: 2,
-          alignItems: 'center',
-        }}
-      >
-        <Chip
-          label={`Save $${Number(product?.price.regular) - Number(product?.price.discounted)}`}
-          color="success"
-          variant="filled"
-        />
-        <Typography
-          variant="h6"
+      {hasDiscount && (
+        <Stack
           sx={{
-            color: 'error.main',
-            fontWeight: 'medium',
-            textDecoration: 'line-through',
+            gap: 2,
+            alignItems: 'center',
           }}
         >
-          {currencyFormat(product?.price.regular || 0)}
-        </Typography>
-      </Stack>
+          <Chip label={`Save $${savings}`} color="success" variant="filled" />
+          <Typography
+            variant="h6"
+            sx={{
+              color: 'error.main',
+              fontWeight: 'medium',
+              textDecoration: 'line-through',
+            }}
+          >
+            {currencyFormat(regularPrice)}
+          </Typography>
+        </Stack>
+      )}
     </Paper>
   );
 };
