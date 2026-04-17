@@ -14,6 +14,7 @@ import {
   Typography,
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
+import { useSearchParams } from 'react-router';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
 import FilterDrawer from 'components/sections/ecommerce/customer/products/FilterDrawer';
 import ProductsProvider from 'components/sections/ecommerce/customer/products/providers/ProductsProvider';
@@ -67,9 +68,12 @@ const Products = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);
   const { control, setValue } = useFormContext();
+  const [searchParams] = useSearchParams();
+  const searchTerm = (searchParams.get('search') ?? '').trim();
   const priceRange = useWatch({ control, name: 'priceRange' }) as number[] | undefined;
   const selectedCategoryIds = useWatch({ control, name: 'category', defaultValue: [] }) as string[];
   const didInitializePriceRange = useRef(false);
+  const previousSearchTerm = useRef(searchTerm);
 
   useEffect(() => {
     if (upMd) setIsDrawerOpen(true);
@@ -106,11 +110,23 @@ const Products = () => {
   }, [maxPrice, setValue]);
 
   useEffect(() => {
+    if (previousSearchTerm.current === searchTerm) return;
+    previousSearchTerm.current = searchTerm;
+    setValue('category', []);
+    if (maxPrice > 0) {
+      setValue('priceRange', [0, maxPrice]);
+    }
+  }, [maxPrice, searchTerm, setValue]);
+
+  useEffect(() => {
     let cancelled = false;
     const load = async () => {
       setIsLoading(true);
       try {
         const params = new URLSearchParams();
+        if (searchTerm) {
+          params.set('search', searchTerm);
+        }
         for (const categoryId of selectedCategoryIds || []) {
           params.append('categoryIds', categoryId);
         }
@@ -141,7 +157,7 @@ const Products = () => {
     };
     void load();
     return () => { cancelled = true; };
-  }, [maxPrice, priceRange, selectedCategoryIds]);
+  }, [maxPrice, priceRange, searchTerm, selectedCategoryIds]);
 
   const totalPages = Math.max(1, Math.ceil(allProducts.length / PAGE_SIZE));
   const visibleProducts = allProducts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);

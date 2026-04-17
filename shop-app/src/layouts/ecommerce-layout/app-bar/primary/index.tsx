@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { ChangeEvent } from 'react';
 import {
   Box,
   Button,
@@ -11,18 +11,29 @@ import {
 } from '@mui/material';
 import MuiAppBar from '@mui/material/AppBar';
 import Grid from '@mui/material/Grid';
+import { useSearchParams } from 'react-router';
 import SearchTextField from 'layouts/main-layout/common/search-box/SearchTextField';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
 import { useSettingsContext } from 'providers/SettingsProvider';
 import IconifyIcon from 'components/base/IconifyIcon';
 import Logo from 'components/common/Logo';
-import CategoryPopover from './CategoryPopover';
 
 const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
-  const categoryBtnRef = useRef<HTMLButtonElement | null>(null);
-  const [openItem, setOpenItem] = useState(0);
-  const { up, currentBreakpoint } = useBreakpoints();
+  const { up } = useBreakpoints();
   const { handleDrawerToggle } = useSettingsContext();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchValue = searchParams.get('search') ?? '';
+
+  const handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextSearchParams = new URLSearchParams(searchParams);
+    const value = event.target.value;
+    if (value.trim()) {
+      nextSearchParams.set('search', value);
+    } else {
+      nextSearchParams.delete('search');
+    }
+    setSearchParams(nextSearchParams, { replace: true });
+  };
 
   return (
     <MuiAppBar>
@@ -68,43 +79,6 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
                 justifyContent: 'center',
               }}
             >
-              <Button
-                color="neutral"
-                variant="text"
-                shape={
-                  currentBreakpoint === 'xs' ||
-                  currentBreakpoint === 'sm' ||
-                  currentBreakpoint === 'md'
-                    ? 'circle'
-                    : undefined
-                }
-                ref={categoryBtnRef}
-                onClick={() => setOpenItem(1)}
-                sx={{
-                  gap: 1,
-                  borderRadius: 7,
-                  flexShrink: 0,
-                }}
-              >
-                <IconifyIcon
-                  icon="material-symbols:apps"
-                  sx={{ fontSize: 20, display: 'inline-block', width: 20, height: 20 }}
-                />
-                <Box
-                  component="span"
-                  sx={{ display: { xs: 'none', lg: 'block' } }}
-                >
-                  Category
-                </Box>
-              </Button>
-
-              <CategoryPopover
-                anchorEl={categoryBtnRef.current}
-                openItem={openItem}
-                setOpenItem={setOpenItem}
-                handleClose={() => setOpenItem(0)}
-              />
-
               <Stack spacing={0.5} sx={{ width: 1, maxWidth: { lg: 602 } }}>
                 <Box
                   sx={({ vars }) => ({
@@ -127,6 +101,9 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
                 >
                   <SearchTextField
                     component="form"
+                    value={searchValue}
+                    onChange={handleSearchChange}
+                    onSubmit={(event) => event.preventDefault()}
                     sx={{
                       flexGrow: 1,
                       [`& .${inputBaseClasses.root}`]: {

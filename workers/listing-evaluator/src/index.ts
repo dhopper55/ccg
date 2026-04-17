@@ -6160,10 +6160,9 @@ async function dbListShopProducts(
     clauses.push(`(
       LOWER(COALESCE(i.sale_title, '')) LIKE ?
       OR LOWER(COALESCE(i.title, '')) LIKE ?
-      OR LOWER(COALESCE(i.sale_description, '')) LIKE ?
     )`);
     const term = `%${filters.search.toLowerCase()}%`;
-    binds.push(term, term, term);
+    binds.push(term, term);
   }
 
   if (filters.condition) {
