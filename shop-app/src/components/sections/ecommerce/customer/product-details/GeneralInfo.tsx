@@ -1,26 +1,37 @@
-import { Box, Chip, Rating, Stack, SxProps, Typography, ratingClasses } from '@mui/material';
-import useNumberFormat from 'hooks/useNumberFormat';
+import { Box, Stack, SxProps, Typography } from '@mui/material';
 import { useEcommerce } from 'providers/EcommerceProvider';
-import paths from 'routes/paths';
-import IconifyIcon from 'components/base/IconifyIcon';
 import PageBreadcrumb from '../../../common/PageBreadcrumb';
 
 interface GeneralInfoProps {
   sx?: SxProps;
+  category?: string;
+  secondaryCategory?: string;
+  title?: string;
 }
 
-const GeneralInfo = ({ sx }: GeneralInfoProps) => {
+const GeneralInfo = ({ sx, category, secondaryCategory, title }: GeneralInfoProps) => {
   const { product } = useEcommerce();
-  const { numberFormat } = useNumberFormat();
+  const breadcrumbItems = [
+    { label: 'Home', url: '/' },
+    category
+      ? {
+          label: category,
+          url: '#!',
+          active: !secondaryCategory,
+        }
+      : null,
+    secondaryCategory
+      ? {
+          label: secondaryCategory,
+          active: true,
+        }
+      : null,
+  ].filter((item): item is { label: string; url?: string; active?: boolean } => Boolean(item));
 
   return (
     <Box sx={{ ...sx }}>
       <PageBreadcrumb
-        items={[
-          { label: 'Home', url: paths.ecommerceHomepage },
-          { label: 'Living room', url: '#!' },
-          { label: 'Armchair', active: true },
-        ]}
+        items={breadcrumbItems}
         sx={{ mb: { xl: 5, xs: 3 } }}
       />
       <Stack
@@ -31,51 +42,8 @@ const GeneralInfo = ({ sx }: GeneralInfoProps) => {
         }}
       >
         <Typography variant="h1" sx={{ fontSize: 'h5.fontSize' }}>
-          {product?.name}
+          {title || product?.name}
         </Typography>
-        <Stack
-          direction={{ xs: 'row', lg: 'column', xl: 'row' }}
-          sx={{
-            rowGap: 1,
-            columnGap: 3,
-            alignItems: { xs: 'center', lg: 'flex-end', xl: 'center' },
-          }}
-        >
-          <Chip
-            variant="soft"
-            color="warning"
-            label="Top Seller"
-            icon={<IconifyIcon icon="material-symbols:stars-rounded" fontSize={16} />}
-          />
-          <Stack
-            sx={{
-              gap: 1,
-              alignItems: 'center',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            <Rating
-              name="product-rating"
-              color="warning"
-              value={product?.ratings}
-              readOnly
-              icon={<IconifyIcon icon="material-symbols:star-rounded" />}
-              sx={{
-                [`& .${ratingClasses.iconFilled}`]: {
-                  color: 'warning.main',
-                },
-              }}
-            />
-            <Typography
-              variant="subtitle2"
-              sx={{
-                color: 'text.secondary',
-              }}
-            >
-              ({numberFormat(product?.reviews || 0)} reviews)
-            </Typography>
-          </Stack>
-        </Stack>
       </Stack>
     </Box>
   );
