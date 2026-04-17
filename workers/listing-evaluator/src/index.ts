@@ -318,6 +318,12 @@ export default {
       return withCors(response, request, env);
     }
 
+    const shopProductDetailMatch = path.match(/^\/api\/shop\/products\/(\d+)$/);
+    if (shopProductDetailMatch && request.method === 'GET') {
+      const response = await handleShopProductDetail(Number(shopProductDetailMatch[1]), env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/shop/newsletter' && request.method === 'POST') {
       const response = await handleShopNewsletterSubscribe(request, env);
       return withCors(response, request, env);
@@ -1768,6 +1774,19 @@ function buildInventoryImageUrl(key: string): string {
   return `/api/inventory-image?${params.toString()}`;
 }
 
+function toPublicShopImageUrl(value: unknown): string {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  if (!raw) return '';
+  let imageUrl = raw;
+  if (!imageUrl.startsWith('/api/') && !/^https?:\/\//i.test(imageUrl)) {
+    imageUrl = buildInventoryImageUrl(imageUrl);
+  }
+  if (imageUrl.startsWith('/api/')) {
+    imageUrl = `${ACTIVITY_BASE_URL}${imageUrl}`;
+  }
+  return imageUrl;
+}
+
 function photoListFromRecord(fields: Record<string, unknown>): string[] {
   const photos = typeof fields.photos === 'string'
     ? fields.photos.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
@@ -2483,6 +2502,7 @@ type InventoryCategoryNode = {
 type ShopProductRow = {
   id: number;
   image_url: string | null;
+  image_urls?: string | null;
   title: string | null;
   sale_title: string | null;
   regular_price: number | null;
@@ -2794,6 +2814,12 @@ async function handleShopProducts(request: Request, env: Env): Promise<Response>
       condition: condition || 'All',
     },
   });
+}
+
+async function handleShopProductDetail(id: number, env: Env): Promise<Response> {
+  const record = await dbGetShopProductDetail(id, env);
+  if (!record) return jsonResponse({ message: 'Product not found.' }, 404);
+  return jsonResponse({ record });
 }
 
 async function handleShopNewsletterSubscribe(request: Request, env: Env): Promise<Response> {
@@ -6277,6 +6303,65 @@ async function dbCreateNewsletterSubscriber(email: string, env: Env): Promise<bo
      VALUES (?)`
   ).bind(email).run();
   return Number((result as any)?.meta?.changes || 0) > 0;
+}
+
+async function dbGetShopProductDetail(id: number, env: Env): Promise<Record<string, unknown> | null> {
+  const row = await env.DB.prepare(
+    `SELECT
+       i.id,
+       i.image_url,
+       i.image_urls,
+       i.title,
+       i.sale_title,
+       i.regular_price,
+       i.sale_price,
+       i."condition",
+       ${INVENTORY_CATEGORY_SELECT_SQL},
+       l.url AS source_listing_url,
+       i.is_sold
+     FROM ccg_inventory_items i
+     ${INVENTORY_CATEGORY_JOIN_SQL}
+     LEFT JOIN listings l ON l.id = i.source_listing_id
+     WHERE i.id = ?
+       AND COALESCE(i.is_active, 0) = 1
+       AND COALESCE(i.is_sold, 0) = 0
+       AND COALESCE(i.for_sale, 0) = 1
+       AND COALESCE(i.only_in_store, 0) = 0
+       AND COALESCE(i.is_rented, 0) = 0
+     LIMIT 1`
+  ).bind(id).first<ShopProductRow>();
+
+  if (!row) return null;
+
+  const imageRows = await env.DB.prepare(
+    `SELECT image_url
+     FROM ccg_inventory_item_images
+     WHERE inventory_item_id = ?
+       AND COALESCE(is_private, 0) = 0
+     ORDER BY display_order ASC, id ASC`
+  ).bind(id).all<{ image_url: string | null }>();
+
+  const images = Array.from(new Set([
+    ...(imageRows.results ?? []).map((imageRow) => toPublicShopImageUrl(imageRow.image_url)),
+    ...parseStoredInventoryImageUrls(row.image_urls || null, row.image_url || null).map(toPublicShopImageUrl),
+    toPublicShopImageUrl(row.image_url),
+  ].filter(Boolean)));
+
+  const mainImage = images[0] || '';
+
+  return {
+    id: String(row.id),
+    mainImage,
+    images,
+    saleTitle: normalizeText(row.sale_title, '') || normalizeText(row.title, ''),
+    saleUrl: row.source_listing_url || null,
+    saleCondition: row.condition || '',
+    regularPrice: row.regular_price,
+    salePrice: row.sale_price ?? 0,
+    category: getInventoryCategoryLabel(row),
+    secondaryCategory: normalizeText(row.secondary_category_name, ''),
+    isSold: Boolean(row.is_sold),
+  };
 }
 
 async function generateUniqueCcgNumber(env: Env): Promise<string | null> {

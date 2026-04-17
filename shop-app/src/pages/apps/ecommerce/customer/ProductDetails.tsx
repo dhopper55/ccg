@@ -19,13 +19,17 @@ import ProductInformation from 'components/sections/ecommerce/customer/product-d
 
 type ShopProduct = {
   id: string;
+  mainImage: string;
+  images: string[];
   saleTitle: string;
+  regularPrice: number | null;
+  salePrice: number;
   category: string;
   secondaryCategory: string;
 };
 
-type ShopProductsResponse = {
-  records: ShopProduct[];
+type ShopProductResponse = {
+  record?: ShopProduct;
 };
 
 const ProductDetails = () => {
@@ -42,12 +46,9 @@ const ProductDetails = () => {
     const loadProduct = async () => {
       if (!id) return;
       try {
-        const response = await fetch('/api/shop/products');
-        const data = (await response.json()) as ShopProductsResponse;
-        const record = Array.isArray(data.records)
-          ? data.records.find((item) => item.id === id)
-          : null;
-        if (!cancelled) setShopProduct(record || null);
+        const response = await fetch(`/api/shop/products/${encodeURIComponent(id)}`);
+        const data = (await response.json()) as ShopProductResponse;
+        if (!cancelled) setShopProduct(data.record || null);
       } catch {
         if (!cancelled) setShopProduct(null);
       }
@@ -61,6 +62,14 @@ const ProductDetails = () => {
   const selectedVariant = useMemo(() => {
     return productColorVariants.find((variant) => variant.id === selectedVariantKey);
   }, [selectedVariantKey]);
+  const galleryImages = shopProduct?.images?.length
+    ? shopProduct.images
+    : (selectedVariant?.images || []);
+  const displayPrice = shopProduct
+    ? shopProduct.salePrice > 0
+      ? shopProduct.salePrice
+      : (shopProduct.regularPrice ?? 0)
+    : 0;
 
   const handleSelectedVariantKey = (value: string) => setSelectedVariantKey(value);
 
@@ -93,7 +102,7 @@ const ProductDetails = () => {
             secondaryCategory={shopProduct?.secondaryCategory}
             title={shopProduct?.saleTitle}
           />
-          {selectedVariant && <ProductGallery images={selectedVariant.images} />}
+          {galleryImages.length > 0 && <ProductGallery images={galleryImages} />}
         </Paper>
       </Grid>
       <Grid
@@ -132,7 +141,11 @@ const ProductDetails = () => {
         </Box>
       </Grid>
       <Grid sx={{ position: 'sticky', zIndex: 999, width: 1, bottom: 0 }} size={12}>
-        <PricingBottomBar />
+        <PricingBottomBar
+          imageUrl={shopProduct?.mainImage || galleryImages[0]}
+          title={shopProduct?.saleTitle}
+          price={displayPrice}
+        />
       </Grid>
       <Grid size={12}>
         <Paper sx={{ p: { xs: 3, md: 5 } }}>

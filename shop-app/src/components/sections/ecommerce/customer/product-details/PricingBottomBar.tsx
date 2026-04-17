@@ -2,11 +2,15 @@ import { Box, Button, Paper, Stack, Typography } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import useNumberFormat from 'hooks/useNumberFormat';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
-import { useEcommerce } from 'providers/EcommerceProvider';
 import Image from 'components/base/Image';
 
-const PricingBottomBar = () => {
-  const { product, addItemToCart } = useEcommerce();
+interface PricingBottomBarProps {
+  imageUrl?: string;
+  title?: string;
+  price?: number;
+}
+
+const PricingBottomBar = ({ imageUrl, title, price = 0 }: PricingBottomBarProps) => {
   const { currencyFormat } = useNumberFormat();
   const { up } = useBreakpoints();
   const upLg = up('lg');
@@ -55,18 +59,18 @@ const PricingBottomBar = () => {
                   }}
                 >
                   <Image
-                    src={product?.images[0].src}
+                    src={imageUrl}
                     alt=""
                     sx={{ width: 1, display: 'block', objectFit: 'contain' }}
                   />
                 </Box>
                 <Typography variant="subtitle2" sx={{ lineClamp: 1, maxWidth: 'sm' }}>
-                  {product?.name}
+                  {title}
                 </Typography>
               </Stack>
             )}
             <Typography sx={{ typography: { xs: 'h5', sm: 'h4' } }}>
-              {currencyFormat(product!.price.discounted * product!.quantity)}
+              {currencyFormat(price)}
             </Typography>
           </Stack>
         </Grid>
@@ -89,21 +93,10 @@ const PricingBottomBar = () => {
             <Button
               color="neutral"
               variant="contained"
+              disabled
               sx={{ flex: 1, flexShrink: 0, whiteSpace: 'nowrap', maxWidth: 275 }}
-              onClick={() => {
-                if (product) {
-                  addItemToCart(product);
-                }
-              }}
             >
               Add to Cart
-            </Button>
-            <Button
-              color="primary"
-              variant="contained"
-              sx={{ flex: 1, flexShrink: 0, whiteSpace: 'nowrap', maxWidth: 275 }}
-            >
-              Buy now
             </Button>
           </Stack>
         </Grid>

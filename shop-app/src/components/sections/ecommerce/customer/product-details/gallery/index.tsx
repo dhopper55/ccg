@@ -7,7 +7,6 @@ import { SwiperClass, SwiperSlide } from 'swiper/react';
 import IconifyIcon from 'components/base/IconifyIcon';
 import Image from 'components/base/Image';
 import Swiper from 'components/base/Swiper';
-import QRPopover from './QRPopover';
 
 const ProductGallery = ({ images }: { images: string[] }) => {
   const navigationPrevRef = useRef(null);
@@ -122,7 +121,6 @@ const ProductGallery = ({ images }: { images: string[] }) => {
                     position: 'relative',
                   }}
                 >
-                  <QRPopover />
                   <Image
                     src={image}
                     alt=""
