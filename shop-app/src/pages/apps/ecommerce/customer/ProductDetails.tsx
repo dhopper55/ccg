@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import { Paper } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import {
@@ -7,6 +7,8 @@ import {
   productColorVariants,
 } from 'data/e-commerce/products';
 import { useEcommerce } from 'providers/EcommerceProvider';
+import { slugifyCategory } from 'lib/utils';
+import paths from 'routes/paths';
 import GeneralInfo from 'components/sections/ecommerce/customer/product-details/GeneralInfo';
 import PricingBottomBar from 'components/sections/ecommerce/customer/product-details/PricingBottomBar';
 import ProductDetailsAside from 'components/sections/ecommerce/customer/product-details/aside';
@@ -18,6 +20,7 @@ type ShopProduct = {
   mainImage: string;
   images: string[];
   saleTitle: string;
+  saleUrlSlug: string;
   saleDescription: string;
   brand: string;
   model: string;
@@ -25,6 +28,7 @@ type ShopProduct = {
   regularPrice: number | null;
   salePrice: number;
   category: string;
+  primaryCategoryName: string;
   secondaryCategory: string;
   guitarSpecs: { label: string; value: string }[];
 };
@@ -40,7 +44,8 @@ const normalizeSpecValue = (value?: string | null) => {
 };
 
 const ProductDetails = () => {
-  const { id } = useParams();
+  const { category: categoryParam, slug: slugParam } = useParams();
+  const navigate = useNavigate();
   const { setProduct, product } = useEcommerce();
   const [shopProduct, setShopProduct] = useState<ShopProduct | null>(null);
 
@@ -51,9 +56,9 @@ const ProductDetails = () => {
   useEffect(() => {
     let cancelled = false;
     const loadProduct = async () => {
-      if (!id) return;
+      if (!slugParam) return;
       try {
-        const response = await fetch(`/api/shop/products/${encodeURIComponent(id)}`);
+        const response = await fetch(`/api/shop/products/by-slug/${encodeURIComponent(slugParam)}`);
         const data = (await response.json()) as ShopProductResponse;
         if (!cancelled) setShopProduct(data.record || null);
       } catch {
@@ -62,7 +67,17 @@ const ProductDetails = () => {
     };
     void loadProduct();
     return () => { cancelled = true; };
-  }, [id]);
+  }, [slugParam]);
+
+  useEffect(() => {
+    if (!shopProduct) return;
+    const canonicalCategory = slugifyCategory(shopProduct.primaryCategoryName);
+    const canonicalSlug = shopProduct.saleUrlSlug.trim();
+    if (!canonicalCategory || !canonicalSlug) return;
+    if (categoryParam !== canonicalCategory || slugParam !== canonicalSlug) {
+      navigate(paths.productDetails(canonicalCategory, canonicalSlug), { replace: true });
+    }
+  }, [shopProduct, categoryParam, slugParam, navigate]);
 
   const [selectedVariantKey] = useState('satin-linen');
 

@@ -318,6 +318,13 @@ export default {
       return withCors(response, request, env);
     }
 
+    const shopProductBySlugMatch = path.match(/^\/api\/shop\/products\/by-slug\/([^/]+)$/);
+    if (shopProductBySlugMatch && request.method === 'GET') {
+      const slug = decodeURIComponent(shopProductBySlugMatch[1]);
+      const response = await handleShopProductDetailBySlug(slug, env);
+      return withCors(response, request, env);
+    }
+
     const shopProductDetailMatch = path.match(/^\/api\/shop\/products\/(\d+)$/);
     if (shopProductDetailMatch && request.method === 'GET') {
       const response = await handleShopProductDetail(Number(shopProductDetailMatch[1]), env);
@@ -2505,6 +2512,7 @@ type ShopProductRow = {
   image_urls?: string | null;
   title: string | null;
   sale_title: string | null;
+  sale_url: string | null;
   brand?: string | null;
   model?: string | null;
   finish?: string | null;
@@ -2518,7 +2526,6 @@ type ShopProductRow = {
   secondary_category_id: number | null;
   secondary_category_name: string | null;
   secondary_category_path: string | null;
-  source_listing_url: string | null;
   weight_lbs?: string | null;
   neck_profile?: string | null;
   neck_thickness?: string | null;
@@ -2828,7 +2835,15 @@ async function handleShopProducts(request: Request, env: Env): Promise<Response>
 }
 
 async function handleShopProductDetail(id: number, env: Env): Promise<Response> {
-  const record = await dbGetShopProductDetail(id, env);
+  const record = await dbGetShopProductDetail({ id }, env);
+  if (!record) return jsonResponse({ message: 'Product not found.' }, 404);
+  return jsonResponse({ record });
+}
+
+async function handleShopProductDetailBySlug(slug: string, env: Env): Promise<Response> {
+  const trimmed = slug.trim();
+  if (!trimmed) return jsonResponse({ message: 'Product not found.' }, 404);
+  const record = await dbGetShopProductDetail({ slug: trimmed }, env);
   if (!record) return jsonResponse({ message: 'Product not found.' }, 404);
   return jsonResponse({ record });
 }
@@ -6295,16 +6310,15 @@ async function dbListShopProducts(
        END AS image_url,
        i.title,
        i.sale_title,
+       i.sale_url,
        i.regular_price,
        i.sale_price,
        i."condition",
        i.sale_description,
        ${INVENTORY_CATEGORY_SELECT_SQL},
-       l.url AS source_listing_url,
        i.is_sold
      FROM ccg_inventory_items i
      ${INVENTORY_CATEGORY_JOIN_SQL}
-     LEFT JOIN listings l ON l.id = i.source_listing_id
      WHERE ${whereSql}
      ORDER BY
        c."order" ASC,
@@ -6324,12 +6338,13 @@ async function dbListShopProducts(
     id: String(row.id),
     mainImage,
     saleTitle: normalizeText(row.sale_title, '') || normalizeText(row.title, ''),
-    saleUrl: row.source_listing_url || null,
+    saleUrlSlug: normalizeText(row.sale_url, ''),
     saleCondition: row.condition || '',
     saleDescription: row.sale_description || '',
     regularPrice: row.regular_price,
     salePrice: row.sale_price ?? 0,
     category: getInventoryCategoryLabel(row),
+    primaryCategoryName: normalizeText(row.category_name, ''),
     secondaryCategory: normalizeText(row.secondary_category_name, ''),
     isSold: Boolean(row.is_sold),
     };
@@ -6344,7 +6359,12 @@ async function dbCreateNewsletterSubscriber(email: string, env: Env): Promise<bo
   return Number((result as any)?.meta?.changes || 0) > 0;
 }
 
-async function dbGetShopProductDetail(id: number, env: Env): Promise<Record<string, unknown> | null> {
+async function dbGetShopProductDetail(
+  lookup: { id: number } | { slug: string },
+  env: Env,
+): Promise<Record<string, unknown> | null> {
+  const lookupClause = 'id' in lookup ? 'i.id = ?' : 'LOWER(i.sale_url) = LOWER(?)';
+  const lookupValue = 'id' in lookup ? lookup.id : lookup.slug;
   const row = await env.DB.prepare(
     `SELECT
        i.id,
@@ -6352,6 +6372,7 @@ async function dbGetShopProductDetail(id: number, env: Env): Promise<Record<stri
        i.image_urls,
        i.title,
        i.sale_title,
+       i.sale_url,
        i.brand,
        i.model,
        i.finish,
@@ -6367,19 +6388,17 @@ async function dbGetShopProductDetail(id: number, env: Env): Promise<Record<stri
        i."condition",
        i.sale_description,
        ${INVENTORY_CATEGORY_SELECT_SQL},
-       l.url AS source_listing_url,
        i.is_sold
      FROM ccg_inventory_items i
      ${INVENTORY_CATEGORY_JOIN_SQL}
-     LEFT JOIN listings l ON l.id = i.source_listing_id
-     WHERE i.id = ?
+     WHERE ${lookupClause}
        AND COALESCE(i.is_active, 0) = 1
        AND COALESCE(i.is_sold, 0) = 0
        AND COALESCE(i.for_sale, 0) = 1
        AND COALESCE(i.only_in_store, 0) = 0
        AND COALESCE(i.is_rented, 0) = 0
      LIMIT 1`
-  ).bind(id).first<ShopProductRow>();
+  ).bind(lookupValue).first<ShopProductRow>();
 
   if (!row) return null;
 
@@ -6404,7 +6423,7 @@ async function dbGetShopProductDetail(id: number, env: Env): Promise<Record<stri
     mainImage,
     images,
     saleTitle: normalizeText(row.sale_title, '') || normalizeText(row.title, ''),
-    saleUrl: row.source_listing_url || null,
+    saleUrlSlug: normalizeText(row.sale_url, ''),
     saleCondition: row.condition || '',
     saleDescription: row.sale_description || '',
     brand: normalizeText(row.brand, ''),
@@ -6413,6 +6432,7 @@ async function dbGetShopProductDetail(id: number, env: Env): Promise<Record<stri
     regularPrice: row.regular_price,
     salePrice: row.sale_price ?? 0,
     category: getInventoryCategoryLabel(row),
+    primaryCategoryName: normalizeText(row.category_name, ''),
     secondaryCategory: normalizeText(row.secondary_category_name, ''),
     guitarSpecs: [
       { label: 'Weight (lbs)', value: normalizeText(row.weight_lbs, '') },

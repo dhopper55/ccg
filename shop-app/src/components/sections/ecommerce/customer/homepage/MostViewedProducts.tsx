@@ -87,7 +87,7 @@ const MostViewedProducts = ({ products }: MostViewedProductsProps) => {
           {products.map(({ id, name, images }) => (
             <SwiperSlide key={id}>
               <Link
-                href={paths.productDetails(String(id))}
+                href="/"
                 underline="none"
                 sx={{
                   width: 200,

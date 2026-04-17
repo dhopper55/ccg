@@ -454,7 +454,7 @@ function getForSaleValidationError(formState: FormState): string | null {
   if (!formState.saleDescription.trim()) {
     return 'Sale Details Description is required when For Sale is checked.';
   }
-  if (!formState.saleUrl.trim()) return 'Sale Details URL is required when For Sale is checked.';
+  if (!formState.saleUrl.trim()) return 'Sale URL Slug is required when For Sale is checked.';
   if (!formState.saleZip.trim()) return 'Sale Details ZIP is required when For Sale is checked.';
   return null;
 }
@@ -2115,10 +2115,11 @@ const InventoryItem = () => {
                         <TextField
                           fullWidth
                           required
-                          label="Sale URL"
+                          label="Sale URL Slug"
                           value={form.saleUrl}
                           onChange={(event) => setField('saleUrl', event.target.value)}
                           inputProps={{ maxLength: 150 }}
+                          helperText="URL segment used in the shop product URL, e.g. ovation-guitar-crate-amp-package"
                         />
                       </Grid>
                       <Grid size={{ xs: 12, md: 3 }}>

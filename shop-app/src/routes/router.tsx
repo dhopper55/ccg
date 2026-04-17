@@ -1,10 +1,9 @@
-import { RouteObject, createHashRouter } from 'react-router';
+import { RouteObject, createBrowserRouter } from 'react-router';
 import App from 'App';
 import EcommerceLayout from 'layouts/ecommerce-layout';
 import ProductDetails from 'pages/apps/ecommerce/customer/ProductDetails';
 import Products from 'pages/apps/ecommerce/customer/Products';
 import Page404 from 'pages/errors/Page404';
-import paths from './paths';
 
 export const routes: RouteObject[] = [
   {
@@ -19,7 +18,7 @@ export const routes: RouteObject[] = [
         ),
       },
       {
-        path: paths.productDetails(':id'),
+        path: '/:category/:slug',
         element: (
           <EcommerceLayout>
             <ProductDetails />
@@ -34,8 +33,11 @@ export const routes: RouteObject[] = [
   },
 ];
 
-const router = createHashRouter(routes, {
-  basename: '/',
+const rawBase = import.meta.env.VITE_BASENAME || '/';
+const routerBasename = rawBase.length > 1 && rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
+
+const router = createBrowserRouter(routes, {
+  basename: routerBasename,
 });
 
 export default router;

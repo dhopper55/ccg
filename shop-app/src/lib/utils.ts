@@ -165,6 +165,13 @@ export const kebabCase = (string: string) =>
     .replace(/[\s_]+/g, '-')
     .toLowerCase();
 
+export const slugifyCategory = (value: string): string =>
+  value
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
 export const kebabToSentenceCase = (str: string) => {
   return str
     .toLowerCase()

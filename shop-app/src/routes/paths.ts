@@ -50,7 +50,8 @@ const paths = {
   pricingColumn: `/${rootPaths.pricingRoot}/column`,
   notifications: `/${rootPaths.pagesRoot}/notifications`, //? update path
 
-  productDetails: (id: string) => `/${rootPaths.appsRoot}/${rootPaths.ecommerceRoot}/${rootPaths.ecommerceCustomerRoot}/product-details/${id}`,
+  productDetails: (categorySlug: string, productSlug: string) =>
+    `/${encodeURIComponent(categorySlug)}/${encodeURIComponent(productSlug)}`,
   products: `/${rootPaths.appsRoot}/${rootPaths.ecommerceRoot}/${rootPaths.ecommerceCustomerRoot}/products`,
   cart: `/${rootPaths.appsRoot}/${rootPaths.ecommerceRoot}/${rootPaths.ecommerceCustomerRoot}/cart`,
   checkout: `/${rootPaths.appsRoot}/${rootPaths.ecommerceRoot}/${rootPaths.ecommerceCustomerRoot}/checkout`,

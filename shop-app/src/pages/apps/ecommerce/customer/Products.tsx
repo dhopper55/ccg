@@ -16,6 +16,7 @@ import Grid from '@mui/material/Grid';
 import { Link as RouterLink, useSearchParams } from 'react-router';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
 import paths from 'routes/paths';
+import { slugifyCategory } from 'lib/utils';
 import FilterDrawer from 'components/sections/ecommerce/customer/products/FilterDrawer';
 import ProductsProvider from 'components/sections/ecommerce/customer/products/providers/ProductsProvider';
 import IconifyIcon from 'components/base/IconifyIcon';
@@ -25,11 +26,12 @@ type ShopProduct = {
   id: string;
   mainImage: string;
   saleTitle: string;
-  saleUrl: string | null;
+  saleUrlSlug: string;
   saleCondition: string;
   regularPrice: number | null;
   salePrice: number;
   category: string;
+  primaryCategoryName: string;
   secondaryCategory: string;
   isSold: boolean;
 };
@@ -283,10 +285,15 @@ const ProductCard = ({ product }: { product: ShopProduct }) => {
   const discount = hasDiscount ? calcDiscount(regularPrice!, salePrice) : 0;
   const displayPrice = salePrice > 0 ? salePrice : (regularPrice ?? 0);
 
+  const categorySlug = slugifyCategory(product.primaryCategoryName);
+  const productSlug = product.saleUrlSlug.trim();
+  const productUrl =
+    categorySlug && productSlug ? paths.productDetails(categorySlug, productSlug) : '#';
+
   return (
     <Card
       component={RouterLink}
-      to={paths.productDetails(product.id)}
+      to={productUrl}
       sx={{
         display: 'flex',
         flexDirection: 'column',

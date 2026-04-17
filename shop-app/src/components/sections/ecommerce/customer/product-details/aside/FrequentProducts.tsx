@@ -83,7 +83,7 @@ const FrequentProducts = ({ frequentProducts }: { frequentProducts: ProductDetai
                   }}
                 >
                   <Link
-                    href={paths.productDetails(String(id))}
+                    href="/"
                     sx={{
                       color: 'currentcolor',
                     }}

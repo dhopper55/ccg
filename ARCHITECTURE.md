@@ -4,7 +4,7 @@
 The repo now has three active surfaces plus one shared Cloudflare Worker backend:
 1) Legacy static public site at the repo root
 2) Admin V2 Aurora app served from `/admin`
-3) Shop preview Aurora storefront served from `/shop-preview`
+3) Shop Aurora storefront served from `/guitars-and-gear-for-sale/`
 4) Cloudflare Worker backend that powers all `/api/*` routes
 
 The Worker currently:
@@ -53,25 +53,37 @@ Going forward, the rule is:
 - If a screen needs a new arrangement, find the closest Aurora example and adapt it instead of inventing a custom layout.
 - If admin needs different backend payloads, add endpoints under `/api/admin-v2/*` rather than changing legacy endpoint contracts.
 
-## Shop Preview
-There is now a separate Aurora-based storefront app that is intentionally isolated from the main public site navigation and sitemap.
+## Shop
+There is a separate Aurora-based storefront app deployed at `/guitars-and-gear-for-sale/`.
 
 Layout:
-- Source app: `shop/`
-- Deployed static preview output: `shop-preview/`
-- Preview route: `/shop-preview`
-- Build command: `npm --prefix shop run build`
+- Source app: `shop-app/`
+- Deployed static output: `guitars-and-gear-for-sale/` (sibling of repo root; controlled by `VITE_OUT_DIR` in `shop-app/.env.production`)
+- Public URL: `https://www.coalcreekguitars.com/guitars-and-gear-for-sale/`
+- Build command: `npm --prefix shop-app run build`
+- Base path: `VITE_BASENAME=/guitars-and-gear-for-sale/` (used by both Vite and React Router)
+
+Routing:
+- Uses `createBrowserRouter` with basename `/guitars-and-gear-for-sale` (trailing slash stripped).
+- Product grid at `/` (inside the basename).
+- Product detail at `/:category/:slug` — e.g. `/guitars-and-gear-for-sale/packages/ovation-guitar-crate-amp-package`.
+- SPA fallback is handled by the `_redirects` rule `/guitars-and-gear-for-sale/* /guitars-and-gear-for-sale/index.html 200` so deep-link URLs resolve correctly.
+
+Clean URL convention:
+- First path segment = primary category name, slugified via `slugifyCategory()` in `shop-app/src/lib/utils.ts` (lowercase, `&` → `and`, non-alphanumerics → `-`, trimmed dashes).
+- Second path segment = the inventory item's `sale_url` column (manually entered in admin; treated as a slug; required when `for_sale=1`; expected to be globally unique).
+- Primary category is assumed to always be a top-level category (enforced upstream; never a sub-category).
+- On product detail load, if the slugified canonical category doesn't match the URL's category segment, the client replaces the URL with the canonical form.
 
 Implementation notes:
-- This is a standalone Aurora app, not a route inside Admin V2.
-- It is public and not gated by admin auth.
-- It currently uses public Worker endpoints under `/api/shop/*`.
-- The current default route is Aurora’s customer products page adapted to Coal Creek inventory data.
-- The shop UI should treat the Worker as the source of truth for category tree + product feed data.
+- Standalone Aurora app, not a route inside Admin V2.
+- Public; not gated by admin auth.
+- Uses public Worker endpoints under `/api/shop/*`.
 - Current Worker contracts used by the shopping view:
   - `GET /api/shop/categories`
   - `GET /api/shop/products`
-- Do not wire it into the main site nav/sitemap until explicitly requested.
+  - `GET /api/shop/products/by-slug/:slug`
+  - `GET /api/shop/products/:id` (legacy numeric lookup; still available)
 - Keep storefront-specific Worker contracts under `/api/shop/*` so they stay clearly separated from Admin V2 and legacy admin contracts.
 
 ### Auth and backend
@@ -97,7 +109,7 @@ The public site and the admin surfaces do not use the same access model.
 
 - Public-facing pages on the main site are not gated by the admin login flow.
 - `/admin` is the protected admin application.
-- `/shop-preview` is public.
+- `/guitars-and-gear-for-sale/` is public.
 
 Shared admin login flow:
 - `POST /api/login` with `{ username, password }`
@@ -222,7 +234,7 @@ Practical rule:
   - Public shop category tree ordered from `ccg_inventory_categories`
   - Returns both flat `records` and nested `tree`
 - `GET /api/shop/products`
-  - Public product feed for shop preview
+  - Public product feed for the shop
   - Supports categories, text search, sold toggle, price range, and condition filters
   - Category query params accepted by the Worker:
     - `categoryId`
@@ -230,7 +242,12 @@ Practical rule:
     - `categories` (CSV)
   - Category filtering expands selected parent categories to include descendants
   - Category filtering matches when either the primary category (`category_id`) or secondary category (`secondary_category_id`) is in the expanded category set
-  - Returns storefront-ready fields such as main image, title, listing URL, category labels, and prices
+  - Returns storefront-ready fields: main image, title, `saleUrlSlug` (from `sale_url`), `primaryCategoryName`, category labels, prices
+
+- `GET /api/shop/products/by-slug/:slug`
+  - Public product detail lookup by `sale_url` slug
+  - Slug is matched case-insensitively against `ccg_inventory_items.sale_url`
+  - Returns the same shape as `GET /api/shop/products/:id`, including `saleUrlSlug` and `primaryCategoryName` for canonical URL resolution
 
 - `GET /api/admin-v2/dashboard/summary`
   - Dashboard KPI totals for Admin V2 home page
@@ -291,11 +308,12 @@ Tables:
 - `listings`
 - `ccg_inventory_items`
   - Inventory source-of-truth row table
-  - Primary category: `category_id` (`NOT NULL`)
+  - Primary category: `category_id` (`NOT NULL`); assumed to be a top-level category (never a sub-category)
   - Secondary category: `secondary_category_id` (`NULLABLE`)
   - Sale/detail fields include:
     - `video_url`
     - `sale_title`
+    - `sale_url` — slug used in the public shop URL path segment for the product (e.g. `ovation-guitar-crate-amp-package`); required when `for_sale=1`; expected to be globally unique; `VARCHAR(150)`
     - `regular_price`
     - `sale_price`
     - `"condition"`
@@ -415,5 +433,5 @@ From repo root:
 Admin build:
 - `npm --prefix admin-v2-app run build:ccg`
 
-Shop preview build:
-- `npm --prefix shop run build`
+Shop build:
+- `npm --prefix shop-app run build`
