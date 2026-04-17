@@ -1,4 +1,4 @@
-import { Box, Link, Paper, Stack, SxProps, Typography } from '@mui/material';
+import { Box, Paper, Stack, SxProps, Typography } from '@mui/material';
 import IconifyIcon from 'components/base/IconifyIcon';
 
 const PurchaseDetails = ({ sx }: { sx?: SxProps }) => {
@@ -28,7 +28,7 @@ const PurchaseDetails = ({ sx }: { sx?: SxProps }) => {
             color: 'text.secondary',
           }}
         >
-          Home delivery and store pickup
+          Store pickup in Englewood & local delivery
           <Box
             sx={{
               display: 'block',
@@ -57,8 +57,7 @@ const PurchaseDetails = ({ sx }: { sx?: SxProps }) => {
               color: 'text.secondary',
             }}
           >
-            <strong>Eligible for refund within 30 days</strong> of receiving products.{' '}
-            <Link href="#!">View details.</Link>
+            Eligible for refund within 7 days of product pickup.
           </Typography>
         </div>
       </Stack>

@@ -10,7 +10,7 @@ const OrderCustomization = ({ sx }: { sx?: SxProps }) => {
           mb: 2,
         }}
       >
-        Need customization?
+        Want this item setup to your specifications?
       </Typography>
       <Typography
         variant="body2"
@@ -19,13 +19,13 @@ const OrderCustomization = ({ sx }: { sx?: SxProps }) => {
           mb: 3,
         }}
       >
-        Have this product modified to your specifications, or have unique, personalized designs made
-        according to your specifications.
+        Contact us and we will talk through the details.
       </Typography>
       <Button
         variant="soft"
         color="neutral"
         fullWidth
+        href="https://www.coalcreekguitars.com/contact-us"
         startIcon={
           <IconifyIcon icon="material-symbols:handyman-outline" fontSize="20px !important" />
         }

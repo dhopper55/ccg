@@ -1,6 +1,5 @@
-import { Link, Paper, Stack, Typography } from '@mui/material';
+import { Paper } from '@mui/material';
 import Grid from '@mui/material/Grid';
-import IconifyIcon from 'components/base/IconifyIcon';
 import OrderCustomization from './OrderCustomization';
 import Price from './Price';
 import PurchaseDetails from './PurchaseDetails';
@@ -54,34 +53,6 @@ const ProductDetailsAside = ({ regularPrice, salePrice }: ProductDetailsAsidePro
           }}
         >
           <OrderCustomization sx={{ height: 1 }} />
-        </Grid>
-        <Grid size={12}>
-          <Paper sx={{ p: { xs: 3, md: 5 } }}>
-            <Stack
-              sx={{
-                gap: 3,
-              }}
-            >
-              <IconifyIcon
-                icon="material-symbols:verified-user-outline-rounded"
-                sx={{ fontSize: 32, color: 'success.main' }}
-              />
-              <div>
-                <Typography
-                  variant="subtitle2"
-                  sx={{
-                    fontWeight: 700,
-                    mb: 0.5,
-                  }}
-                >
-                  10 year limited warranty
-                </Typography>
-                <Link href="#!" variant="subtitle2">
-                  Terms and conditions applicable
-                </Link>
-              </div>
-            </Stack>
-          </Paper>
         </Grid>
       </Grid>
     </Paper>

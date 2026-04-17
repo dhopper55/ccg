@@ -1,11 +1,14 @@
-import { Box, Typography } from '@mui/material';
+import { Typography } from '@mui/material';
 import { kebabCase } from 'lib/utils';
 
 interface ProductDescriptionsProps {
-  descriptions: { title: string; description: string }[];
+  descriptions?: { title: string; description: string }[];
+  description?: string;
 }
 
-const ProductDescription = ({ descriptions }: ProductDescriptionsProps) => {
+const ProductDescription = ({ descriptions = [], description }: ProductDescriptionsProps) => {
+  const text = description?.trim();
+
   return (
     <div>
       <Typography
@@ -16,12 +19,21 @@ const ProductDescription = ({ descriptions }: ProductDescriptionsProps) => {
       >
         Description
       </Typography>
-      {descriptions.map(({ title, description }) => (
-        <Box
-          key={kebabCase(title)}
+      {text ? (
+        <Typography
+          variant="body2"
           sx={{
-            mb: 2,
+            color: 'text.secondary',
+            whiteSpace: 'pre-line',
           }}
+        >
+          {text}
+        </Typography>
+      ) : null}
+      {descriptions.map(({ title, description }) => (
+        <div
+          key={kebabCase(title)}
+          style={{ marginBottom: 16 }}
         >
           <Typography
             variant="subtitle2"
@@ -42,7 +54,7 @@ const ProductDescription = ({ descriptions }: ProductDescriptionsProps) => {
           >
             {description}
           </Typography>
-        </Box>
+        </div>
       ))}
     </div>
   );

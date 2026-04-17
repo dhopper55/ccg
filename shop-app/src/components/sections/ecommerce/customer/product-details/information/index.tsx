@@ -1,31 +1,27 @@
 import { SyntheticEvent, useEffect, useRef, useState } from 'react';
 import { Box, Divider, Paper, Tab, Tabs, Toolbar } from '@mui/material';
-import { productDescriptions, productSpecifications } from 'data/e-commerce/products';
-import ProductFeedback from '../feedback';
+import { productSpecifications } from 'data/e-commerce/products';
 import ProductDescription from './ProductDescription';
 import ProductSpecification from './ProductSpecification';
 
-const ProductInformation = () => {
+interface ProductInformationProps {
+  description?: string;
+}
+
+const ProductInformation = ({ description }: ProductInformationProps) => {
   const [activeTab, setActiveTab] = useState('desc');
 
   const refs = {
     desc: useRef<HTMLDivElement | null>(null),
     specs: useRef<HTMLDivElement | null>(null),
-    feedback: useRef<HTMLDivElement | null>(null),
   };
   const tabsRef = useRef<HTMLDivElement | null>(null);
 
   const handleScroll = () => {
     const tabBottom = tabsRef.current?.getBoundingClientRect().bottom || 0;
     const scrollPos = window.scrollY + tabBottom + 40;
-    const offsets = {
-      desc: refs.desc.current?.offsetTop || 0,
-      specs: refs.specs.current?.offsetTop || 0,
-      feedback: refs.feedback.current?.offsetTop || 0,
-    };
-    setActiveTab(
-      scrollPos >= offsets.feedback ? 'feedback' : scrollPos >= offsets.specs ? 'specs' : 'desc',
-    );
+    const specsOffset = refs.specs.current?.offsetTop || 0;
+    setActiveTab(scrollPos >= specsOffset ? 'specs' : 'desc');
   };
 
   useEffect(() => {
@@ -59,20 +55,15 @@ const ProductInformation = () => {
         <Tabs value={activeTab} onChange={handleTabChange} aria-label="product information tabs">
           <Tab value="desc" label="Description" />
           <Tab value="specs" label="Specification" />
-          <Tab value="feedback" label="Ratings & Reviews" />
         </Tabs>
       </Box>
       <Toolbar sx={{ minHeight: { xs: 40 } }} />
       <div ref={refs.desc}>
-        <ProductDescription descriptions={productDescriptions} />
+        <ProductDescription description={description} />
       </div>
       <Divider sx={{ my: 5 }} />
       <div ref={refs.specs}>
         <ProductSpecification specifications={productSpecifications} />
-      </div>
-      <Divider sx={{ my: 5 }} />
-      <div ref={refs.feedback}>
-        <ProductFeedback />
       </div>
     </Paper>
   );

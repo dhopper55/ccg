@@ -2508,6 +2508,7 @@ type ShopProductRow = {
   regular_price: number | null;
   sale_price: number | null;
   condition: string | null;
+  sale_description?: string | null;
   category_id: number | null;
   category_name: string | null;
   category_path: string | null;
@@ -6261,6 +6262,7 @@ async function dbListShopProducts(
        i.regular_price,
        i.sale_price,
        i."condition",
+       i.sale_description,
        ${INVENTORY_CATEGORY_SELECT_SQL},
        l.url AS source_listing_url,
        i.is_sold
@@ -6288,6 +6290,7 @@ async function dbListShopProducts(
     saleTitle: normalizeText(row.sale_title, '') || normalizeText(row.title, ''),
     saleUrl: row.source_listing_url || null,
     saleCondition: row.condition || '',
+    saleDescription: row.sale_description || '',
     regularPrice: row.regular_price,
     salePrice: row.sale_price ?? 0,
     category: getInventoryCategoryLabel(row),

@@ -1,19 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router';
-import { Box, Paper } from '@mui/material';
+import { Paper } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import {
-  featuredProducts,
   products,
   productColorVariants,
-  suggestedProducts,
 } from 'data/e-commerce/products';
 import { useEcommerce } from 'providers/EcommerceProvider';
-import SuggestedProducts from 'components/sections/ecommerce/customer/common/SuggestedProducts';
 import GeneralInfo from 'components/sections/ecommerce/customer/product-details/GeneralInfo';
 import PricingBottomBar from 'components/sections/ecommerce/customer/product-details/PricingBottomBar';
 import ProductDetailsAside from 'components/sections/ecommerce/customer/product-details/aside';
-import FrequentProducts from 'components/sections/ecommerce/customer/product-details/aside/FrequentProducts';
 import ProductGallery from 'components/sections/ecommerce/customer/product-details/gallery';
 import ProductInformation from 'components/sections/ecommerce/customer/product-details/information';
 
@@ -22,6 +18,7 @@ type ShopProduct = {
   mainImage: string;
   images: string[];
   saleTitle: string;
+  saleDescription: string;
   regularPrice: number | null;
   salePrice: number;
   category: string;
@@ -114,29 +111,8 @@ const ProductDetails = () => {
           salePrice={shopProduct?.salePrice}
         />
       </Grid>
-      <Grid
-        size={{
-          xs: 12,
-          lg: 8,
-        }}
-      >
-        <ProductInformation />
-      </Grid>
-      <Grid
-        size={{
-          xs: 12,
-          lg: 4,
-        }}
-      >
-        <Box
-          sx={(theme) => ({
-            position: 'sticky',
-            top: theme.mixins.ecommerceTopbar,
-            p: { xs: 3, md: 5 },
-          })}
-        >
-          <FrequentProducts frequentProducts={featuredProducts} />
-        </Box>
+      <Grid size={12}>
+        <ProductInformation description={shopProduct?.saleDescription} />
       </Grid>
       <Grid sx={{ position: 'sticky', zIndex: 999, width: 1, bottom: 0 }} size={12}>
         <PricingBottomBar
@@ -144,11 +120,6 @@ const ProductDetails = () => {
           title={shopProduct?.saleTitle}
           price={displayPrice}
         />
-      </Grid>
-      <Grid size={12}>
-        <Paper sx={{ p: { xs: 3, md: 5 } }}>
-          <SuggestedProducts products={suggestedProducts} />
-        </Paper>
       </Grid>
     </Grid>
   );
