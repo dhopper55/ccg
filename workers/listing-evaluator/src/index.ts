@@ -2296,6 +2296,7 @@ type InventoryItemRow = {
   image_url: string;
   image_urls: string | null;
   title: string;
+  quantity: number | null;
   category_id: number | null;
   category_name: string | null;
   category_path: string | null;
@@ -3261,6 +3262,7 @@ async function handleAdminV2InventoryMergeMarked(env: Env): Promise<Response> {
     image_url: packageImageUrls[0],
     image_urls: packageImageUrls.join('\n'),
     title: 'New Package (needs edit)',
+    quantity: 1,
     category_id: packageCategoryId,
     secondary_category_id: null,
     brand: 'CCG',
@@ -3390,6 +3392,7 @@ async function handleInventoryPackageCreate(env: Env): Promise<Response> {
     image_url: packageImageUrls[0],
     image_urls: packageImageUrls.join('\n'),
     title: 'PACKAGE DEAL - TBD',
+    quantity: 1,
     category_id: packageCategoryId,
     secondary_category_id: null,
     brand: 'TBD',
@@ -3491,6 +3494,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const imageUrl = normalizeText(body.imageUrl, '');
   const imageEntriesInput = normalizeInventoryImageEntries(imageUrl, body.images, body.imageUrls);
   const title = normalizeText(body.title, '').slice(0, 240);
+  const quantity = parseBoundedInt(body.quantity ?? body.qty, 1, 0, 1_000_000);
   const categoryId = parseOptionalPositiveInt(body.categoryId);
   const secondaryCategoryId = parseOptionalPositiveInt(body.secondaryCategoryId);
   const brand = normalizeText(body.brand, '').slice(0, 120);
@@ -3618,6 +3622,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     image_url: primaryImageUrl,
     image_urls: imageUrls.join('\n'),
     title,
+    quantity,
     category_id: categoryId,
     secondary_category_id: secondaryCategoryId,
     brand: brand || null,
@@ -3800,6 +3805,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const imageUrl = normalizeText(body.imageUrl, '');
   const imageEntriesInput = normalizeInventoryImageEntries(imageUrl, body.images, body.imageUrls);
   const title = normalizeText(body.title, '').slice(0, 240);
+  const quantity = parseBoundedInt(body.quantity ?? body.qty, 1, 0, 1_000_000);
   const categoryId = parseOptionalPositiveInt(body.categoryId);
   const secondaryCategoryId = parseOptionalPositiveInt(body.secondaryCategoryId);
   const brand = normalizeText(body.brand, '').slice(0, 120);
@@ -3922,6 +3928,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     image_url: primaryImageUrl,
     image_urls: imageUrls.join('\n'),
     title,
+    quantity,
     category_id: categoryId,
     secondary_category_id: secondaryCategoryId,
     brand: brand || null,
@@ -5073,6 +5080,7 @@ function mapInventoryRow(
     imageUrl: row.image_url,
     imageUrls: parseStoredInventoryImageUrls(row.image_urls, row.image_url),
     title: row.title,
+    quantity: Number(row.quantity ?? 1),
     categoryId: row.category_id,
     categoryName: row.category_name || '',
     categoryPath: row.category_path || row.category_name || '',
@@ -5285,6 +5293,7 @@ async function dbListInventoryItems(
        i.image_url,
        i.image_urls,
        i.title,
+       i.quantity,
        ${INVENTORY_CATEGORY_SELECT_SQL},
        i.brand,
        i.queue,
@@ -5359,6 +5368,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.image_url,
       i.image_urls,
       i.title,
+      i.quantity,
       ${INVENTORY_CATEGORY_SELECT_SQL},
       i.brand,
       i.queue,
@@ -5441,6 +5451,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     imageUrls,
     images: imageDetails,
     title: row.title,
+    quantity: Number(row.quantity ?? 1),
     categoryId: row.category_id,
     categoryName: row.category_name || '',
     categoryPath: row.category_path || row.category_name || '',
@@ -5747,6 +5758,7 @@ async function dbCreateInventoryItems(
     image_url: string;
     image_urls: string;
     title: string;
+    quantity: number;
     category_id: number;
     secondary_category_id: number | null;
     brand: string | null;
@@ -5810,7 +5822,7 @@ async function dbCreateInventoryItems(
   try {
     const statement = `INSERT INTO ccg_inventory_items
       (
-        source_listing_id, ccg_number, image_url, title, category_id, brand, queue, year_range, model, finish,
+        source_listing_id, ccg_number, image_url, title, quantity, category_id, brand, queue, year_range, model, finish,
         secondary_category_id,
         image_urls,
         repair_notes, original_listing_desc, video_url, sale_title, regular_price, sale_price, "condition", sale_description, clearance,
@@ -5825,13 +5837,14 @@ async function dbCreateInventoryItems(
         is_active, is_marked, is_personal, is_rented, for_sale, for_sale_date,
         is_sold, sold_date, sold_amount, sell_notes
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const result = await env.DB.prepare(statement).bind(
       fields.source_listing_id,
       fields.ccg_number,
       fields.image_url,
       fields.title,
+      fields.quantity,
       fields.category_id,
       fields.brand,
       fields.queue,
@@ -5906,6 +5919,7 @@ async function dbUpdateInventoryById(
     image_url: string;
     image_urls: string;
     title: string;
+    quantity: number;
     category_id: number;
     secondary_category_id: number | null;
     brand: string | null;
@@ -5978,7 +5992,7 @@ async function dbUpdateInventoryById(
     await env.DB.prepare(
       `UPDATE ccg_inventory_items
        SET
-         image_url = ?, image_urls = ?, title = ?, category_id = ?, secondary_category_id = ?,
+         image_url = ?, image_urls = ?, title = ?, quantity = ?, category_id = ?, secondary_category_id = ?,
          brand = ?, queue = ?, year_range = ?, model = ?, finish = ?,
          repair_notes = ?, original_listing_desc = ?, purchased_date = ?, purchase_price = ?,
          private_party_value = ?, purchase_notes = ?, ai_analysis_text = ?, serial_number = ?,
@@ -6001,6 +6015,7 @@ async function dbUpdateInventoryById(
       fields.image_url,
       fields.image_urls,
       fields.title,
+      fields.quantity,
       fields.category_id,
       fields.secondary_category_id,
       fields.brand,

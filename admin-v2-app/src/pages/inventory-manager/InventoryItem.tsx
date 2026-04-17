@@ -77,6 +77,7 @@ type InventoryItemRecord = {
   repairNotes?: string;
   originalListingDesc?: string;
   purchasedDate?: string;
+  quantity?: number | null;
   purchasePrice?: number | null;
   privatePartyValue?: number | null;
   purchaseNotes?: string;
@@ -132,6 +133,7 @@ type SaveResponse = {
 
 type FormState = {
   ccgNumber: string;
+  quantity: number;
   videoUrl: string;
   saleTitle: string;
   regularPrice: string;
@@ -277,6 +279,7 @@ function normalizeImages(images: InventoryImageRecord[]): InventoryImageRecord[]
 
 const DEFAULT_FORM: FormState = {
   ccgNumber: 'Auto-generated on save',
+  quantity: 1,
   videoUrl: '',
   saleTitle: '',
   regularPrice: '',
@@ -758,6 +761,7 @@ const InventoryItem = () => {
           setSourceListingId(record.sourceListingId || null);
           setForm({
             ccgNumber: record.ccgNumber || '',
+            quantity: Math.max(0, Number(record.quantity ?? 1)),
             videoUrl: record.videoUrl || '',
             saleTitle: record.saleTitle || '',
             regularPrice: record.regularPrice != null ? String(record.regularPrice) : '',
@@ -934,6 +938,7 @@ const InventoryItem = () => {
 
   const createSavePayload = (nextImages: InventoryImageRecord[]) => ({
     sourceListingId,
+    quantity: form.quantity,
     imageUrl: nextImages[0]?.url,
     imageUrls: nextImages.map((image) => image.url),
     images: nextImages.map((image) => ({ url: image.url, isPrivate: image.isPrivate })),
@@ -1232,6 +1237,10 @@ const InventoryItem = () => {
       setMessage({ severity: 'error', text: 'Please upload at least one image before saving.' });
       return;
     }
+    if (!Number.isInteger(form.quantity) || form.quantity < 0) {
+      setMessage({ severity: 'error', text: 'Qty must be a whole number greater than or equal to 0.' });
+      return;
+    }
     setIsSubmitting(true);
     setMessage(null);
 
@@ -1419,7 +1428,7 @@ const InventoryItem = () => {
                   InputProps={{ readOnly: true }}
                 />
               </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
+              <Grid size={{ xs: 12, md: 3 }}>
                 <TextField
                   fullWidth
                   label="Purchased Date"
@@ -1427,6 +1436,19 @@ const InventoryItem = () => {
                   value={form.purchasedDate}
                   onChange={(event) => setField('purchasedDate', event.target.value)}
                   slotProps={{ inputLabel: { shrink: true } }}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 3 }}>
+                <TextField
+                  fullWidth
+                  label="Qty"
+                  type="number"
+                  value={form.quantity}
+                  onChange={(event) => {
+                    const parsed = Number.parseInt(event.target.value, 10);
+                    setField('quantity', Number.isFinite(parsed) ? parsed : 0);
+                  }}
+                  inputProps={{ min: 0, step: 1 }}
                 />
               </Grid>
 
