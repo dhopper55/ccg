@@ -98,6 +98,7 @@ type InventoryItemRecord = {
   onlyInStore?: boolean;
   forSaleDate?: string | null;
   isSold?: boolean;
+  qtySold?: number | null;
   soldDate?: string | null;
   soldAmount?: number | null;
   sellNotes?: string;
@@ -190,6 +191,7 @@ type FormState = {
   forSale: boolean;
   onlyInStore: boolean;
   isSold: boolean;
+  qtySold: number;
   soldAmount: string;
   sellNotes: string;
   subscriptionId: string;
@@ -337,6 +339,7 @@ const DEFAULT_FORM: FormState = {
   forSale: false,
   onlyInStore: false,
   isSold: false,
+  qtySold: 1,
   soldAmount: '',
   sellNotes: '',
   subscriptionId: '',
@@ -823,6 +826,7 @@ const InventoryItem = () => {
             forSale: Boolean(record.forSale),
             onlyInStore: Boolean(record.onlyInStore),
             isSold: Boolean(record.isSold),
+            qtySold: Math.max(1, Number(record.qtySold ?? (record.isSold ? record.quantity : 1) ?? 1)),
             soldAmount: record.soldAmount != null ? String(record.soldAmount) : '',
             sellNotes: record.sellNotes || '',
             subscriptionId: record.subscriptionId != null ? String(record.subscriptionId) : '',
@@ -920,7 +924,20 @@ const InventoryItem = () => {
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => {
       if (key === 'isSold' && value === true) {
-        return { ...current, isSold: true, forSale: false };
+        return {
+          ...current,
+          isSold: true,
+          forSale: false,
+          qtySold: Math.min(Math.max(1, current.qtySold), Math.max(1, current.quantity)),
+        };
+      }
+      if (key === 'quantity') {
+        const nextQuantity = Number(value);
+        return {
+          ...current,
+          quantity: value as FormState['quantity'],
+          qtySold: Math.min(Math.max(1, current.qtySold), Math.max(1, nextQuantity || 1)),
+        };
       }
       if (key === 'forSale') {
         const nextForSale = Boolean(value);
@@ -993,6 +1010,7 @@ const InventoryItem = () => {
     forSale: form.forSale,
     onlyInStore: form.onlyInStore,
     isSold: form.isSold,
+    qtySold: form.qtySold,
     serialNumber: form.serialNumber.trim(),
     weightLbs: form.weightLbs.trim(),
     neckProfile: form.neckProfile.trim(),
@@ -1245,6 +1263,16 @@ const InventoryItem = () => {
     if (!Number.isInteger(form.quantity) || form.quantity < 0) {
       setMessage({ severity: 'error', text: 'Qty must be a whole number greater than or equal to 0.' });
       return;
+    }
+    if (form.isSold) {
+      if (!Number.isInteger(form.qtySold) || form.qtySold < 1) {
+        setMessage({ severity: 'error', text: 'Qty Sold must be at least 1.' });
+        return;
+      }
+      if (form.qtySold > form.quantity) {
+        setMessage({ severity: 'error', text: 'Qty Sold cannot be greater than Qty.' });
+        return;
+      }
     }
     setIsSubmitting(true);
     setMessage(null);
@@ -2414,6 +2442,25 @@ const InventoryItem = () => {
                   inputProps={{ min: 0, step: 0.01 }}
                 />
               </Grid>
+              {form.isSold ? (
+                <Grid size={{ xs: 12, md: 4 }}>
+                  <TextField
+                    fullWidth
+                    label="Qty Sold"
+                    type="number"
+                    value={form.qtySold}
+                    disabled={form.quantity <= 1}
+                    onChange={(event) => {
+                      const parsed = Number.parseInt(event.target.value, 10);
+                      const nextValue = Number.isFinite(parsed)
+                        ? Math.min(Math.max(1, parsed), Math.max(1, form.quantity))
+                        : 1;
+                      setField('qtySold', nextValue);
+                    }}
+                    inputProps={{ min: 1, max: Math.max(1, form.quantity), step: 1 }}
+                  />
+                </Grid>
+              ) : null}
               <Grid size={{ xs: 12, md: 4 }}>
                 <TextField
                   select

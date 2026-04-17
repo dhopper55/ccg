@@ -3229,6 +3229,13 @@ async function handleAdminV2InventoryMergeMarked(env: Env): Promise<Response> {
       message: 'At least 2 active unsold marked inventory items are required to merge.',
     }, 400);
   }
+  const invalidQuantityRows = activeUnsoldMarkedRows.filter((row) => Number(row.quantity ?? 1) !== 1);
+  if (invalidQuantityRows.length > 0) {
+    return jsonResponse({
+      message: 'Package items must have Qty 1 before they can be merged.',
+      invalidQuantityCount: invalidQuantityRows.length,
+    }, 400);
+  }
 
   const sourceItemIds = activeUnsoldMarkedRows.map((row) => row.id);
   const sourceImagesMap = await dbListInventoryImagesForItemIds(sourceItemIds, env);
@@ -3368,6 +3375,13 @@ async function handleInventoryPackageCreate(env: Env): Promise<Response> {
   const markedRows = await dbListMarkedInventoryRowsForPackage(env);
   if (markedRows.length < 2) {
     return jsonResponse({ message: 'At least 2 marked inventory items are required to create a package.' }, 400);
+  }
+  const invalidQuantityRows = markedRows.filter((row) => Number(row.quantity ?? 1) !== 1);
+  if (invalidQuantityRows.length > 0) {
+    return jsonResponse({
+      message: 'Package items must have Qty 1 before they can be merged.',
+      invalidQuantityCount: invalidQuantityRows.length,
+    }, 400);
   }
 
   const packageImageUrls = await clonePackageImagesFromMarkedRows(markedRows, env);
@@ -3578,6 +3592,10 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   }
   if (secondaryCategoryId != null && !(await dbInventoryCategoryExists(secondaryCategoryId, env))) {
     return jsonResponse({ message: 'Secondary Category ID is invalid.' }, 400);
+  }
+  const packageCategoryId = await dbFindTopLevelPackageCategoryId(env);
+  if (quantity > 1 && packageCategoryId != null && categoryId === packageCategoryId) {
+    return jsonResponse({ message: 'Packages must have Qty 1.' }, 400);
   }
 
   if (sourceListingId != null) {
@@ -3867,6 +3885,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const forSale = isSold ? false : forSaleRaw;
   const onlyInStore = toBooleanInput(body.onlyInStore, false);
   const soldAmount = parseCurrencyAmount(body.soldAmount);
+  const qtySold = parseBoundedInt(body.qtySold, 1, 1, 1_000_000);
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
   const subscriptionId = parseOptionalPositiveInt(body.subscriptionId);
   const saleUrl = normalizeText(body.saleUrl, '').slice(0, 150);
@@ -3887,6 +3906,8 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   if (!title) return jsonResponse({ message: 'Title is required.' }, 400);
   if (categoryId == null) return jsonResponse({ message: 'Category ID is required.' }, 400);
   if (!purchasedDate) return jsonResponse({ message: 'Purchased date is required.' }, 400);
+  if (isSold && quantity < 1) return jsonResponse({ message: 'Qty must be at least 1 when marking an item sold.' }, 400);
+  if (isSold && qtySold > quantity) return jsonResponse({ message: 'Qty Sold cannot be greater than Qty.' }, 400);
   if (imageUrls.length < 1) return jsonResponse({ message: 'At least one image is required.' }, 400);
   if (imageUrls.length > INVENTORY_MAX_IMAGES) {
     return jsonResponse({ message: `You can upload up to ${INVENTORY_MAX_IMAGES} images.` }, 400);
@@ -3924,11 +3945,275 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     ? ((current as { soldDate?: string }).soldDate || null)
     : null;
   const becameSold = !previousIsSold && isSold;
+  const recordIdNum = Number.parseInt(recordId, 10);
+  const currentPackageId = (current as { packageId?: number | null })?.packageId ?? null;
+  const hasPackageChildren = await dbInventoryItemHasPackageChildren(recordIdNum, env);
+  const packageCategoryId = await dbFindTopLevelPackageCategoryId(env);
+  const isPackageRow = packageCategoryId != null && categoryId === packageCategoryId;
+  if (quantity > 1 && (currentPackageId != null || hasPackageChildren || isPackageRow)) {
+    return jsonResponse({ message: 'Packages and package items must have Qty 1.' }, 400);
+  }
   const queue = !previousForSale && forSale
     ? 'For Sale'
     : previousForSale && !forSale
       ? 'To Sell'
       : (queueInput || previousQueue);
+
+  if (becameSold && qtySold < quantity) {
+    if (currentPackageId != null || hasPackageChildren) {
+      return jsonResponse({ message: 'Package inventory cannot be partially sold by quantity.' }, 400);
+    }
+    const remainingQuantity = quantity - qtySold;
+    const remainingForSaleDate = resolveToggleTimestamp({
+      previousOn: previousForSale,
+      nextOn: true,
+      previousTimestamp: previousForSaleDate,
+    });
+    const remainingUpdateOk = await dbUpdateInventoryById(recordId, {
+      image_url: primaryImageUrl,
+      image_urls: imageUrls.join('\n'),
+      title,
+      quantity: remainingQuantity,
+      category_id: categoryId,
+      secondary_category_id: secondaryCategoryId,
+      brand: brand || null,
+      queue: 'For Sale',
+      year_range: yearRange || null,
+      model: model || null,
+      finish: finish || null,
+      repair_notes: repairNotes || null,
+      original_listing_desc: originalListingDesc || null,
+      purchased_date: purchasedDate,
+      purchase_price: purchasePrice,
+      private_party_value: privatePartyValue,
+      purchase_notes: purchaseNotes || null,
+      ai_analysis_text: aiAnalysisText || null,
+      serial_number: serialNumber || null,
+      weight_lbs: weightLbs || null,
+      neck_profile: neckProfile || null,
+      neck_thickness: neckThickness || null,
+      nut_width: nutWidth || null,
+      width_12_fret: width12Fret || null,
+      fretboard_radius: fretboardRadius || null,
+      twelve_fret_action: twelveFretAction || null,
+      storage_location: storageLocation || null,
+      is_active: isActive ? 1 : 0,
+      is_marked: isMarked ? 1 : 0,
+      is_personal: isPersonal ? 1 : 0,
+      is_rented: isRented ? 1 : 0,
+      for_sale: 1,
+      only_in_store: onlyInStore ? 1 : 0,
+      for_sale_date: remainingForSaleDate,
+      source_listing_id: sourceListingId,
+      video_url: videoUrl || null,
+      sale_title: saleTitle || null,
+      regular_price: regularPrice,
+      sale_price: salePrice,
+      condition: condition || null,
+      sale_description: saleDescription || null,
+      clearance: clearance ? 1 : 0,
+      bullet_1_text: bullet1Text || null,
+      bullet_1_danger: bullet1Danger ? 1 : 0,
+      bullet_1_highlight: bullet1Highlight ? 1 : 0,
+      bullet_2_text: bullet2Text || null,
+      bullet_2_danger: bullet2Danger ? 1 : 0,
+      bullet_2_highlight: bullet2Highlight ? 1 : 0,
+      bullet_3_text: bullet3Text || null,
+      bullet_3_danger: bullet3Danger ? 1 : 0,
+      bullet_3_highlight: bullet3Highlight ? 1 : 0,
+      bullet_4_text: bullet4Text || null,
+      bullet_4_danger: bullet4Danger ? 1 : 0,
+      bullet_4_highlight: bullet4Highlight ? 1 : 0,
+      bullet_5_text: bullet5Text || null,
+      bullet_5_danger: bullet5Danger ? 1 : 0,
+      bullet_5_highlight: bullet5Highlight ? 1 : 0,
+      bullet_6_text: bullet6Text || null,
+      bullet_6_danger: bullet6Danger ? 1 : 0,
+      bullet_6_highlight: bullet6Highlight ? 1 : 0,
+      is_sold: 0,
+      sold_date: null,
+      sold_amount: null,
+      sell_notes: null,
+      subscription_id: subscriptionId ?? null,
+      sale_url: saleUrl || null,
+      sale_zip: saleZip || null,
+      sold_channel: null,
+    }, env);
+    if (!remainingUpdateOk) return jsonResponse({ message: 'Unable to update remaining inventory item.' }, 500);
+    if (!(await dbReplaceInventoryImagesByItemIds([recordIdNum], imageEntries, env))) {
+      return jsonResponse({ message: 'Unable to update remaining inventory item images.' }, 500);
+    }
+
+    const soldCcgNumber = await generateUniqueCcgNumber(env);
+    if (!soldCcgNumber) return jsonResponse({ message: 'Unable to generate sold item CCG Number. Please try again.' }, 500);
+    const soldDate = new Date().toISOString();
+    const soldInsert = await dbCreateInventoryItems({
+      source_listing_id: null,
+      ccg_number: soldCcgNumber,
+      image_url: primaryImageUrl,
+      image_urls: imageUrls.join('\n'),
+      title,
+      quantity: qtySold,
+      category_id: categoryId,
+      secondary_category_id: secondaryCategoryId,
+      brand: brand || null,
+      queue,
+      year_range: yearRange || null,
+      model: model || null,
+      finish: finish || null,
+      repair_notes: repairNotes || null,
+      original_listing_desc: originalListingDesc || null,
+      video_url: videoUrl || null,
+      sale_title: saleTitle || null,
+      regular_price: regularPrice,
+      sale_price: salePrice,
+      condition: condition || null,
+      sale_description: saleDescription || null,
+      clearance: clearance ? 1 : 0,
+      bullet_1_text: bullet1Text || null,
+      bullet_1_danger: bullet1Danger ? 1 : 0,
+      bullet_1_highlight: bullet1Highlight ? 1 : 0,
+      bullet_2_text: bullet2Text || null,
+      bullet_2_danger: bullet2Danger ? 1 : 0,
+      bullet_2_highlight: bullet2Highlight ? 1 : 0,
+      bullet_3_text: bullet3Text || null,
+      bullet_3_danger: bullet3Danger ? 1 : 0,
+      bullet_3_highlight: bullet3Highlight ? 1 : 0,
+      bullet_4_text: bullet4Text || null,
+      bullet_4_danger: bullet4Danger ? 1 : 0,
+      bullet_4_highlight: bullet4Highlight ? 1 : 0,
+      bullet_5_text: bullet5Text || null,
+      bullet_5_danger: bullet5Danger ? 1 : 0,
+      bullet_5_highlight: bullet5Highlight ? 1 : 0,
+      bullet_6_text: bullet6Text || null,
+      bullet_6_danger: bullet6Danger ? 1 : 0,
+      bullet_6_highlight: bullet6Highlight ? 1 : 0,
+      purchased_date: purchasedDate,
+      purchase_price: purchasePrice,
+      private_party_value: privatePartyValue,
+      purchase_notes: purchaseNotes || null,
+      ai_analysis_text: aiAnalysisText || null,
+      serial_number: serialNumber || null,
+      weight_lbs: weightLbs || null,
+      neck_profile: neckProfile || null,
+      neck_thickness: neckThickness || null,
+      nut_width: nutWidth || null,
+      width_12_fret: width12Fret || null,
+      fretboard_radius: fretboardRadius || null,
+      twelve_fret_action: twelveFretAction || null,
+      is_active: isActive ? 1 : 0,
+      is_marked: 0,
+      is_personal: isPersonal ? 1 : 0,
+      is_rented: isRented ? 1 : 0,
+      for_sale: 0,
+      only_in_store: onlyInStore ? 1 : 0,
+      for_sale_date: null,
+      is_sold: 1,
+      sold_date: soldDate,
+      sold_amount: soldAmount,
+      sell_notes: sellNotes || null,
+    }, env);
+    if (!soldInsert?.firstId) return jsonResponse({ message: 'Unable to create sold inventory item.' }, 500);
+    const soldCloneOk = await dbUpdateInventoryById(soldInsert.firstId, {
+      image_url: primaryImageUrl,
+      image_urls: imageUrls.join('\n'),
+      title,
+      quantity: qtySold,
+      category_id: categoryId,
+      secondary_category_id: secondaryCategoryId,
+      brand: brand || null,
+      queue,
+      year_range: yearRange || null,
+      model: model || null,
+      finish: finish || null,
+      repair_notes: repairNotes || null,
+      original_listing_desc: originalListingDesc || null,
+      purchased_date: purchasedDate,
+      purchase_price: purchasePrice,
+      private_party_value: privatePartyValue,
+      purchase_notes: purchaseNotes || null,
+      ai_analysis_text: aiAnalysisText || null,
+      serial_number: serialNumber || null,
+      weight_lbs: weightLbs || null,
+      neck_profile: neckProfile || null,
+      neck_thickness: neckThickness || null,
+      nut_width: nutWidth || null,
+      width_12_fret: width12Fret || null,
+      fretboard_radius: fretboardRadius || null,
+      twelve_fret_action: twelveFretAction || null,
+      storage_location: storageLocation || null,
+      is_active: isActive ? 1 : 0,
+      is_marked: 0,
+      is_personal: isPersonal ? 1 : 0,
+      is_rented: isRented ? 1 : 0,
+      for_sale: 0,
+      only_in_store: onlyInStore ? 1 : 0,
+      for_sale_date: null,
+      source_listing_id: null,
+      video_url: videoUrl || null,
+      sale_title: saleTitle || null,
+      regular_price: regularPrice,
+      sale_price: salePrice,
+      condition: condition || null,
+      sale_description: saleDescription || null,
+      clearance: clearance ? 1 : 0,
+      bullet_1_text: bullet1Text || null,
+      bullet_1_danger: bullet1Danger ? 1 : 0,
+      bullet_1_highlight: bullet1Highlight ? 1 : 0,
+      bullet_2_text: bullet2Text || null,
+      bullet_2_danger: bullet2Danger ? 1 : 0,
+      bullet_2_highlight: bullet2Highlight ? 1 : 0,
+      bullet_3_text: bullet3Text || null,
+      bullet_3_danger: bullet3Danger ? 1 : 0,
+      bullet_3_highlight: bullet3Highlight ? 1 : 0,
+      bullet_4_text: bullet4Text || null,
+      bullet_4_danger: bullet4Danger ? 1 : 0,
+      bullet_4_highlight: bullet4Highlight ? 1 : 0,
+      bullet_5_text: bullet5Text || null,
+      bullet_5_danger: bullet5Danger ? 1 : 0,
+      bullet_5_highlight: bullet5Highlight ? 1 : 0,
+      bullet_6_text: bullet6Text || null,
+      bullet_6_danger: bullet6Danger ? 1 : 0,
+      bullet_6_highlight: bullet6Highlight ? 1 : 0,
+      is_sold: 1,
+      sold_date: soldDate,
+      sold_amount: soldAmount,
+      sell_notes: sellNotes || null,
+      subscription_id: subscriptionId ?? null,
+      sale_url: saleUrl || null,
+      sale_zip: saleZip || null,
+      sold_channel: soldChannel || null,
+    }, env);
+    if (!soldCloneOk) return jsonResponse({ message: 'Unable to update sold inventory item.' }, 500);
+    if (!(await dbReplaceInventoryImagesByItemIds([Number(soldInsert.firstId)], imageEntries, env))) {
+      return jsonResponse({ message: 'Sold inventory item was created, but its image records failed to save.' }, 500);
+    }
+
+    await insertActivityLogBestEffort(env, {
+      eventKey: 'inventory_marked_sold',
+      eventText: `Inventory item ${title} partially sold`,
+      eventUrl: buildAdminInventoryItemUrl(soldInsert.firstId),
+      imageUrl: toAbsoluteSiteUrl(primaryImageUrl),
+      entityType: 'inventory_item',
+      entityId: soldInsert.firstId,
+      metadata: {
+        title,
+        sourceInventoryId: recordId,
+        quantitySold: qtySold,
+        quantityRemaining: remainingQuantity,
+        soldCcgNumber,
+      },
+    });
+
+    return jsonResponse({
+      ok: true,
+      splitSale: true,
+      soldId: soldInsert.firstId,
+      soldCcgNumber,
+      quantitySold: qtySold,
+      quantityRemaining: remainingQuantity,
+    });
+  }
 
   const updateOk = await dbUpdateInventoryById(recordId, {
     image_url: primaryImageUrl,
@@ -5606,6 +5891,14 @@ async function dbCcgNumberExists(ccgNumber: string, env: Env): Promise<boolean> 
   return Boolean(row?.id);
 }
 
+async function dbInventoryItemHasPackageChildren(recordId: number, env: Env): Promise<boolean> {
+  if (!Number.isFinite(recordId) || recordId <= 0) return false;
+  const row = await env.DB.prepare(
+    'SELECT id FROM ccg_inventory_items WHERE package_id = ? LIMIT 1'
+  ).bind(recordId).first<{ id: number }>();
+  return Boolean(row?.id);
+}
+
 async function dbInventoryCategoryExists(categoryId: number, env: Env): Promise<boolean> {
   const row = await env.DB.prepare(
     'SELECT id FROM ccg_inventory_categories WHERE id = ? LIMIT 1'
@@ -6175,6 +6468,7 @@ async function dbListMarkedInventoryRowsForPackage(env: Env): Promise<InventoryI
       i.image_url,
       i.image_urls,
       i.title,
+      i.quantity,
       ${INVENTORY_CATEGORY_SELECT_SQL},
       i.brand,
       i.year_range,
