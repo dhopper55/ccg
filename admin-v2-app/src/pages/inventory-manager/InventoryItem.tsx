@@ -95,6 +95,7 @@ type InventoryItemRecord = {
   isPersonal?: boolean;
   isRented?: boolean;
   forSale?: boolean;
+  onlyInStore?: boolean;
   forSaleDate?: string | null;
   isSold?: boolean;
   soldDate?: string | null;
@@ -187,6 +188,7 @@ type FormState = {
   isPersonal: boolean;
   isRented: boolean;
   forSale: boolean;
+  onlyInStore: boolean;
   isSold: boolean;
   soldAmount: string;
   sellNotes: string;
@@ -333,6 +335,7 @@ const DEFAULT_FORM: FormState = {
   isPersonal: false,
   isRented: false,
   forSale: false,
+  onlyInStore: false,
   isSold: false,
   soldAmount: '',
   sellNotes: '',
@@ -818,6 +821,7 @@ const InventoryItem = () => {
             isPersonal: Boolean(record.isPersonal),
             isRented: Boolean(record.isRented),
             forSale: Boolean(record.forSale),
+            onlyInStore: Boolean(record.onlyInStore),
             isSold: Boolean(record.isSold),
             soldAmount: record.soldAmount != null ? String(record.soldAmount) : '',
             sellNotes: record.sellNotes || '',
@@ -987,6 +991,7 @@ const InventoryItem = () => {
     isPersonal: form.isPersonal,
     isRented: form.isRented,
     forSale: form.forSale,
+    onlyInStore: form.onlyInStore,
     isSold: form.isSold,
     serialNumber: form.serialNumber.trim(),
     weightLbs: form.weightLbs.trim(),
@@ -1923,6 +1928,15 @@ const InventoryItem = () => {
                         />
                       }
                       label="For Sale"
+                    />
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={form.onlyInStore}
+                          onChange={(event) => setField('onlyInStore', event.target.checked)}
+                        />
+                      }
+                      label="Only in-store"
                     />
                   </Stack>
 

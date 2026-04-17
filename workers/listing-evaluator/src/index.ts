@@ -2346,6 +2346,7 @@ type InventoryItemRow = {
   is_personal: number | null;
   is_rented: number | null;
   for_sale: number | null;
+  only_in_store: number | null;
   for_sale_date: string | null;
   is_sold: number | null;
   sold_date: string | null;
@@ -3314,6 +3315,7 @@ async function handleAdminV2InventoryMergeMarked(env: Env): Promise<Response> {
     is_personal: 0,
     is_rented: 0,
     for_sale: 0,
+    only_in_store: 0,
     for_sale_date: null,
     is_sold: 0,
     sold_date: null,
@@ -3444,6 +3446,7 @@ async function handleInventoryPackageCreate(env: Env): Promise<Response> {
     is_personal: 0,
     is_rented: 0,
     for_sale: 0,
+    only_in_store: 0,
     for_sale_date: null,
     is_sold: 0,
     sold_date: null,
@@ -3505,6 +3508,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const isSold = toBooleanInput(body.isSold, false);
   const forSaleRaw = toBooleanInput(body.forSale, false);
   const forSale = isSold ? false : forSaleRaw;
+  const onlyInStore = toBooleanInput(body.onlyInStore, false);
   const queueInput = normalizeInventoryQueue(body.queue);
   const queue = queueInput || (forSale ? 'For Sale' : 'Triage');
   const yearRange = normalizeText(body.yearRange, '').slice(0, 120);
@@ -3675,6 +3679,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     is_personal: isPersonal ? 1 : 0,
     is_rented: isRented ? 1 : 0,
     for_sale: forSale ? 1 : 0,
+    only_in_store: onlyInStore ? 1 : 0,
     for_sale_date: forSale ? new Date().toISOString() : null,
     is_sold: isSold ? 1 : 0,
     sold_date: isSold ? new Date().toISOString() : null,
@@ -3860,6 +3865,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const isSold = toBooleanInput(body.isSold, false);
   const forSaleRaw = toBooleanInput(body.forSale, false);
   const forSale = isSold ? false : forSaleRaw;
+  const onlyInStore = toBooleanInput(body.onlyInStore, false);
   const soldAmount = parseCurrencyAmount(body.soldAmount);
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
   const subscriptionId = parseOptionalPositiveInt(body.subscriptionId);
@@ -3957,6 +3963,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     is_personal: isPersonal ? 1 : 0,
     is_rented: isRented ? 1 : 0,
     for_sale: forSale ? 1 : 0,
+    only_in_store: onlyInStore ? 1 : 0,
     for_sale_date: resolveToggleTimestamp({
       previousOn: previousForSale,
       nextOn: forSale,
@@ -5111,6 +5118,7 @@ function mapInventoryRow(
     isPersonal: Boolean(row.is_personal),
     isRented: Boolean(row.is_rented),
     forSale: Boolean(row.for_sale),
+    onlyInStore: Boolean(row.only_in_store),
     forSaleDate: row.for_sale_date || null,
     isSold: Boolean(row.is_sold),
     soldDate: row.sold_date || null,
@@ -5313,6 +5321,7 @@ async function dbListInventoryItems(
        i.is_personal,
        i.is_rented,
        i.for_sale,
+       i.only_in_store,
        i.for_sale_date,
        i.is_sold,
        i.sold_date,
@@ -5420,6 +5429,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.is_personal,
       i.is_rented,
       i.for_sale,
+      i.only_in_store,
       i.for_sale_date,
       i.is_sold,
       i.sold_date,
@@ -5508,6 +5518,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     isPersonal: Boolean(row.is_personal),
     isRented: Boolean(row.is_rented),
     forSale: Boolean(row.for_sale),
+    onlyInStore: Boolean(row.only_in_store),
     forSaleDate: row.for_sale_date || null,
     isSold: Boolean(row.is_sold),
     soldDate: row.sold_date || null,
@@ -5651,6 +5662,8 @@ async function dbListShopProducts(
   if (!filters.showSold) {
     clauses.push('COALESCE(i.for_sale, 0) = 1');
   }
+  clauses.push('COALESCE(i.only_in_store, 0) = 0');
+  clauses.push('COALESCE(i.is_rented, 0) = 0');
 
   if (allowedCategoryIds.length > 0) {
     const placeholders = allowedCategoryIds.map(() => '?').join(', ');
@@ -5811,6 +5824,7 @@ async function dbCreateInventoryItems(
     is_personal: number;
     is_rented: number;
     for_sale: number;
+    only_in_store: number;
     for_sale_date: string | null;
     is_sold: number;
     sold_date: string | null;
@@ -5834,10 +5848,10 @@ async function dbCreateInventoryItems(
         bullet_6_text, bullet_6_danger, bullet_6_highlight,
         purchased_date, purchase_price, private_party_value, purchase_notes, ai_analysis_text, serial_number,
         weight_lbs, neck_profile, neck_thickness, nut_width, width_12_fret, fretboard_radius, twelve_fret_action,
-        is_active, is_marked, is_personal, is_rented, for_sale, for_sale_date,
+        is_active, is_marked, is_personal, is_rented, for_sale, only_in_store, for_sale_date,
         is_sold, sold_date, sold_amount, sell_notes
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const result = await env.DB.prepare(statement).bind(
       fields.source_listing_id,
@@ -5898,6 +5912,7 @@ async function dbCreateInventoryItems(
       fields.is_personal,
       fields.is_rented,
       fields.for_sale,
+      fields.only_in_store,
       fields.for_sale_date,
       fields.is_sold,
       fields.sold_date,
@@ -5948,6 +5963,7 @@ async function dbUpdateInventoryById(
     is_personal: number;
     is_rented: number;
     for_sale: number;
+    only_in_store: number;
     for_sale_date: string | null;
     source_listing_id: number | null;
     video_url: string | null;
@@ -5998,7 +6014,7 @@ async function dbUpdateInventoryById(
          private_party_value = ?, purchase_notes = ?, ai_analysis_text = ?, serial_number = ?,
          weight_lbs = ?, neck_profile = ?, neck_thickness = ?, nut_width = ?, width_12_fret = ?,
          fretboard_radius = ?, twelve_fret_action = ?, storage_location = ?,
-         is_active = ?, is_marked = ?, is_personal = ?, is_rented = ?, for_sale = ?, for_sale_date = ?,
+         is_active = ?, is_marked = ?, is_personal = ?, is_rented = ?, for_sale = ?, only_in_store = ?, for_sale_date = ?,
          source_listing_id = ?, video_url = ?, sale_title = ?, regular_price = ?, sale_price = ?, "condition" = ?, sale_description = ?,
          clearance = ?,
          bullet_1_text = ?, bullet_1_danger = ?, bullet_1_highlight = ?,
@@ -6044,6 +6060,7 @@ async function dbUpdateInventoryById(
       fields.is_personal,
       fields.is_rented,
       fields.for_sale,
+      fields.only_in_store,
       fields.for_sale_date,
       fields.source_listing_id,
       fields.video_url,
