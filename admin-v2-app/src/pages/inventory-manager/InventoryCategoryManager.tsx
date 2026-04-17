@@ -203,49 +203,35 @@ const InventoryCategoryManager = () => {
   return (
     <Box sx={{ p: { xs: 2, md: 5 }, width: 1 }}>
       <Stack spacing={3}>
-        <Paper
-          variant="outlined"
-          sx={{
-            p: { xs: 2, md: 3 },
-            borderRadius: 3,
-            bgcolor: 'background.paper',
-          }}
+        <Stack
+          direction={{ xs: 'column', md: 'row' }}
+          spacing={2}
+          sx={{ justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' } }}
         >
-          <Stack
-            direction={{ xs: 'column', md: 'row' }}
-            spacing={2}
-            sx={{ justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' } }}
-          >
-            <Box>
-              <Typography variant="h4">Category Manager</Typography>
-              <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-                Manage inventory parent and child categories.
-              </Typography>
-            </Box>
-            <Stack direction="row" spacing={1}>
-              <Button
-                variant="outlined"
-                color="inherit"
-                onClick={() => void loadCategories()}
-                disabled={isLoading || isSaving}
-                startIcon={<IconifyIcon icon="material-symbols:refresh-rounded" />}
-              >
-                Refresh
-              </Button>
-              <Button
-                variant="contained"
-                onClick={() => openCreateDialog(null)}
-                startIcon={<IconifyIcon icon="material-symbols:add-rounded" />}
-              >
-                Add Category
-              </Button>
-            </Stack>
+          <Typography variant="h4">Catagory Manager</Typography>
+          <Stack direction="row" spacing={1}>
+            <Button
+              variant="outlined"
+              color="inherit"
+              onClick={() => void loadCategories()}
+              disabled={isLoading || isSaving}
+              startIcon={<IconifyIcon icon="material-symbols:refresh-rounded" />}
+            >
+              Refresh
+            </Button>
+            <Button
+              variant="contained"
+              onClick={() => openCreateDialog(null)}
+              startIcon={<IconifyIcon icon="material-symbols:add-rounded" />}
+            >
+              Add Category
+            </Button>
           </Stack>
-        </Paper>
+        </Stack>
 
         {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
 
-        <Paper variant="outlined" sx={{ borderRadius: 3, overflow: 'hidden', bgcolor: 'background.paper' }}>
+        <Paper variant="outlined" sx={{ width: 1, borderRadius: 3, overflow: 'hidden', bgcolor: 'background.paper' }}>
           {isLoading ? (
             <Stack sx={{ alignItems: 'center', py: 8 }} spacing={2}>
               <CircularProgress size={28} />
