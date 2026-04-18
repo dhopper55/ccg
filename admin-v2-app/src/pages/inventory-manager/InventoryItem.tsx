@@ -698,7 +698,6 @@ const InventoryItem = () => {
   const [aiAnalysisDialogOpen, setAiAnalysisDialogOpen] = useState(false);
   const [aiAnalysisDraft, setAiAnalysisDraft] = useState('');
   const [wasSoldOnLoad, setWasSoldOnLoad] = useState(false);
-  const [isSaleUrlLocked, setIsSaleUrlLocked] = useState(false);
   const [soldConfirmOpen, setSoldConfirmOpen] = useState(false);
   const [categoryOptions, setCategoryOptions] = useState<InventoryCategoryOption[]>([]);
   const [subscriptionOptions, setSubscriptionOptions] = useState<Array<{ id: string; name: string }>>([]);
@@ -807,7 +806,6 @@ const InventoryItem = () => {
           const record = data.record;
           setEditId(record.id);
           setSourceListingId(record.sourceListingId || null);
-          setIsSaleUrlLocked(Boolean((record.saleUrl || '').trim()));
           setForm({
             ccgNumber: record.ccgNumber || '',
             quantity: Math.max(0, Number(record.quantity ?? 1)),
@@ -910,7 +908,6 @@ const InventoryItem = () => {
 
           const fields = data.fields || {};
           setSourceListingId(fromListingId);
-          setIsSaleUrlLocked(false);
           const photoCandidates = (fields.photos || '')
             .split(/\r?\n/)
             .map((u: string) => u.trim())
@@ -943,8 +940,6 @@ const InventoryItem = () => {
               text: `Prefilled from listing with ${allImages.length} image(s).`,
             });
           }
-        } else {
-          setIsSaleUrlLocked(false);
         }
       } catch (error) {
         if (!cancelled) {
@@ -2175,13 +2170,8 @@ const InventoryItem = () => {
                           label="Sale URL Slug"
                           value={form.saleUrl}
                           onChange={(event) => setField('saleUrl', sanitizeSaleUrlSlug(event.target.value))}
-                          disabled={isSaleUrlLocked}
                           inputProps={{ maxLength: 150 }}
-                          helperText={
-                            isSaleUrlLocked
-                              ? 'Locked after creation. Change directly in the database if needed.'
-                              : 'URL segment used in the shop product URL, e.g. ovation-guitar-crate-amp-package'
-                          }
+                          helperText="URL segment used in the shop product URL, e.g. ovation-guitar-crate-amp-package"
                         />
                       </Grid>
                       <Grid size={{ xs: 12, md: 3 }}>
