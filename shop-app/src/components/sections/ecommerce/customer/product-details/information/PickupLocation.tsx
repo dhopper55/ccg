@@ -5,7 +5,7 @@ interface PickupLocationProps {
 }
 
 const ZIP_MAP_CENTERS: Record<string, { lat: number; lng: number; label: string }> = {
-  '80113': { lat: 39.6478, lng: -104.9878, label: 'Englewood, CO 80113' },
+  '80113': { lat: 39.6478, lng: -104.9878, label: 'Englewood, CO' },
 };
 
 const PickupLocation = ({ zip }: PickupLocationProps) => {
@@ -28,7 +28,7 @@ const PickupLocation = ({ zip }: PickupLocationProps) => {
   return (
     <Box>
       <Typography variant="h6" sx={{ mb: 3 }}>
-        Pickup location
+        Pickup location ({locationLabel})
       </Typography>
       <Box
         sx={{
