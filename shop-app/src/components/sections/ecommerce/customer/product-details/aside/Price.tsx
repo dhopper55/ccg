@@ -61,7 +61,15 @@ const Price = ({
               variant="filled"
               sx={{
                 alignSelf: 'flex-start',
-                fontWeight: 800,
+                height: 48,
+                px: 1.5,
+                '& .MuiChip-label': {
+                  fontSize: 24,
+                  fontWeight: 900,
+                  lineHeight: 1,
+                  letterSpacing: 0,
+                  px: 1,
+                },
               }}
             />
           )}
