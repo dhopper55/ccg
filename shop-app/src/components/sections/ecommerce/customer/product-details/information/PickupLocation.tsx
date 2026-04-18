@@ -6,7 +6,12 @@ interface PickupLocationProps {
 
 const PickupLocation = ({ zip }: PickupLocationProps) => {
   const cleanZip = zip.trim();
-  const mapSrc = `https://www.google.com/maps?q=${encodeURIComponent(`${cleanZip}, USA`)}&z=11&output=embed`;
+  const mapParams = new URLSearchParams({
+    q: `${cleanZip} United States`,
+    z: '12',
+    output: 'embed',
+  });
+  const mapSrc = `https://maps.google.com/maps?${mapParams.toString()}`;
 
   return (
     <Box>

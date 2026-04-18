@@ -2021,9 +2021,8 @@ const InventoryItem = () => {
                 </Paper>
               </Grid>
 
-              {form.forSale ? (
-                <Grid size={12}>
-                  <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, bgcolor: 'background.default' }}>
+              <Grid size={12}>
+                <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, bgcolor: 'background.default' }}>
                     <Grid container spacing={3}>
                       <Grid size={12}>
                         <Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: 0.6 }}>
@@ -2371,9 +2370,8 @@ const InventoryItem = () => {
                         </Button>
                       </Grid>
                     </Grid>
-                  </Paper>
-                </Grid>
-              ) : null}
+                </Paper>
+              </Grid>
 
               {GUITAR_CATEGORY_NAMES.has(selectedCategoryName) ? (
                 <>
