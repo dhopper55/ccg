@@ -6,10 +6,17 @@ interface PriceProps {
   sx?: SxProps;
   regularPrice?: number | null;
   salePrice?: number;
+  clearance?: boolean;
   isUnavailable?: boolean;
 }
 
-const Price = ({ sx, regularPrice = 0, salePrice = 0, isUnavailable = false }: PriceProps) => {
+const Price = ({
+  sx,
+  regularPrice = 0,
+  salePrice = 0,
+  clearance = false,
+  isUnavailable = false,
+}: PriceProps) => {
   const { currencyFormat } = useNumberFormat();
   const displayPrice = salePrice > 0 ? salePrice : (regularPrice ?? 0);
   const hasDiscount =
@@ -47,35 +54,46 @@ const Price = ({ sx, regularPrice = 0, salePrice = 0, isUnavailable = false }: P
         </Typography>
       ) : (
         <>
-      <Typography variant="h2" sx={{ fontSize: 'h1.fontSize' }}>
-        <Typography variant="h5" component="span">
-          {discountPrice[0]}
-        </Typography>
-        {discountPrice[1]}
-        <Typography variant="h5" component="span">
-          {discountPrice[2]}
-        </Typography>
-      </Typography>
-      {hasDiscount && (
-        <Stack
-          sx={{
-            gap: 2,
-            alignItems: 'center',
-          }}
-        >
-          <Chip label={`Save ${savingsPercentage}%`} color="success" variant="filled" />
-          <Typography
-            variant="h6"
-            sx={{
-              color: 'error.main',
-              fontWeight: 'medium',
-              textDecoration: 'line-through',
-            }}
-          >
-            {currencyFormat(regularPrice)}
+          {clearance && (
+            <Chip
+              label="CLEARANCE"
+              color="warning"
+              variant="filled"
+              sx={{
+                alignSelf: 'flex-start',
+                fontWeight: 800,
+              }}
+            />
+          )}
+          <Typography variant="h2" sx={{ fontSize: 'h1.fontSize' }}>
+            <Typography variant="h5" component="span">
+              {discountPrice[0]}
+            </Typography>
+            {discountPrice[1]}
+            <Typography variant="h5" component="span">
+              {discountPrice[2]}
+            </Typography>
           </Typography>
-        </Stack>
-      )}
+          {hasDiscount && (
+            <Stack
+              sx={{
+                gap: 2,
+                alignItems: 'center',
+              }}
+            >
+              <Chip label={`Save ${savingsPercentage}%`} color="success" variant="filled" />
+              <Typography
+                variant="h6"
+                sx={{
+                  color: 'error.main',
+                  fontWeight: 'medium',
+                  textDecoration: 'line-through',
+                }}
+              >
+                {currencyFormat(regularPrice)}
+              </Typography>
+            </Stack>
+          )}
         </>
       )}
     </Paper>

@@ -97,7 +97,7 @@ const ProductGallery = ({ images }: { images: string[] }) => {
             loop={hasMultipleImages}
             spaceBetween={10}
             thumbs={{
-              swiper: thumbsSwiper && !thumbsSwiper.destroyed ? thumbsSwiper : null,
+              swiper: hasMultipleImages && thumbsSwiper && !thumbsSwiper.destroyed ? thumbsSwiper : null,
             }}
             modules={[FreeMode, Navigation, Thumbs]}
             navigation={hasMultipleImages ? {
@@ -144,62 +144,64 @@ const ProductGallery = ({ images }: { images: string[] }) => {
           </Swiper>
         </Stack>
       </Grid>
-      <Grid
-        size={{
-          xs: 12,
-          lg: 'auto',
-        }}
-      >
-        <Swiper
-          navigation={false}
-          direction={upLg ? 'vertical' : 'horizontal'}
-          onInit={setThumbsSwiper}
-          spaceBetween={8}
-          slidesPerView="auto"
-          freeMode={true}
-          watchSlidesProgress={true}
-          modules={[FreeMode, Thumbs]}
-          sx={{
-            height: 1,
-            flexShrink: 0,
-            '& .swiper': {
-              height: 1,
-              '& .swiper-wrapper': {
-                justifyContent: { sm: 'center', lg: 'unset' },
-                '.swiper-slide': {
-                  width: 'auto',
-                  height: 'auto',
-                },
-              },
-            },
+      {hasMultipleImages && (
+        <Grid
+          size={{
+            xs: 12,
+            lg: 'auto',
           }}
         >
-          {images.map((image, index) => (
-            <SwiperSlide key={`slide-${index}`}>
-              <Box
-                sx={{
-                  flexShrink: 0,
-                  cursor: 'grab',
-                  width: { xs: 80, md: 104, xl: 120 },
-                  borderRadius: 2,
-                  overflow: 'hidden',
-                  bgcolor: 'background.elevation1',
-                  border: '2px solid transparent',
-                  '.swiper-slide-thumb-active &': {
-                    borderColor: 'primary.main',
+          <Swiper
+            navigation={false}
+            direction={upLg ? 'vertical' : 'horizontal'}
+            onInit={setThumbsSwiper}
+            spaceBetween={8}
+            slidesPerView="auto"
+            freeMode={true}
+            watchSlidesProgress={true}
+            modules={[FreeMode, Thumbs]}
+            sx={{
+              height: 1,
+              flexShrink: 0,
+              '& .swiper': {
+                height: 1,
+                '& .swiper-wrapper': {
+                  justifyContent: { sm: 'center', lg: 'unset' },
+                  '.swiper-slide': {
+                    width: 'auto',
+                    height: 'auto',
                   },
-                }}
-              >
-                <Image
-                  src={image}
-                  alt=""
-                  sx={{ width: 1, objectFit: 'contain', display: 'block', pointerEvents: 'none' }}
-                />
-              </Box>
-            </SwiperSlide>
-          ))}
-        </Swiper>
-      </Grid>
+                },
+              },
+            }}
+          >
+            {images.map((image, index) => (
+              <SwiperSlide key={`slide-${index}`}>
+                <Box
+                  sx={{
+                    flexShrink: 0,
+                    cursor: 'grab',
+                    width: { xs: 80, md: 104, xl: 120 },
+                    borderRadius: 2,
+                    overflow: 'hidden',
+                    bgcolor: 'background.elevation1',
+                    border: '2px solid transparent',
+                    '.swiper-slide-thumb-active &': {
+                      borderColor: 'primary.main',
+                    },
+                  }}
+                >
+                  <Image
+                    src={image}
+                    alt=""
+                    sx={{ width: 1, objectFit: 'contain', display: 'block', pointerEvents: 'none' }}
+                  />
+                </Box>
+              </SwiperSlide>
+            ))}
+          </Swiper>
+        </Grid>
+      )}
     </Grid>
   );
 };

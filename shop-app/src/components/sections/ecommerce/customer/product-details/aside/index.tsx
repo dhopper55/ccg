@@ -8,6 +8,7 @@ import PurchaseDetails from './PurchaseDetails';
 interface ProductDetailsAsideProps {
   regularPrice?: number | null;
   salePrice?: number;
+  clearance?: boolean;
   highlights: ProductHighlight[];
   isUnavailable?: boolean;
 }
@@ -15,6 +16,7 @@ interface ProductDetailsAsideProps {
 const ProductDetailsAside = ({
   regularPrice,
   salePrice,
+  clearance = false,
   highlights,
   isUnavailable = false,
 }: ProductDetailsAsideProps) => {
@@ -34,6 +36,7 @@ const ProductDetailsAside = ({
             sx={{ height: 1 }}
             regularPrice={regularPrice}
             salePrice={salePrice}
+            clearance={clearance}
             isUnavailable={isUnavailable}
           />
         </Grid>

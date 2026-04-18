@@ -23,6 +23,7 @@ type ShopProduct = {
   finish: string;
   regularPrice: number | null;
   salePrice: number;
+  clearance: boolean;
   category: string;
   primaryCategoryName: string;
   secondaryCategory: string;
@@ -153,6 +154,7 @@ const ProductDetails = () => {
         <ProductDetailsAside
           regularPrice={shopProduct?.regularPrice}
           salePrice={shopProduct?.salePrice}
+          clearance={Boolean(shopProduct?.clearance)}
           highlights={shopProduct?.highlights || []}
           isUnavailable={isUnavailable}
         />
