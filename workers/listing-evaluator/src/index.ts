@@ -2552,6 +2552,7 @@ type ShopProductRow = {
   width_12_fret?: string | null;
   fretboard_radius?: string | null;
   twelve_fret_action?: string | null;
+  for_sale?: number | null;
   is_sold: number | null;
 };
 
@@ -6428,13 +6429,12 @@ async function dbGetShopProductDetail(
        i.bullet_6_danger,
        i.bullet_6_highlight,
        ${INVENTORY_CATEGORY_SELECT_SQL},
+       i.for_sale,
        i.is_sold
      FROM ccg_inventory_items i
      ${INVENTORY_CATEGORY_JOIN_SQL}
      WHERE ${lookupClause}
        AND COALESCE(i.is_active, 0) = 1
-       AND COALESCE(i.is_sold, 0) = 0
-       AND COALESCE(i.for_sale, 0) = 1
        AND COALESCE(i.only_in_store, 0) = 0
        AND COALESCE(i.is_rented, 0) = 0
      LIMIT 1`
@@ -6484,6 +6484,7 @@ async function dbGetShopProductDetail(
     category: getInventoryCategoryLabel(row),
     primaryCategoryName: normalizeText(row.category_name, ''),
     secondaryCategory: normalizeText(row.secondary_category_name, ''),
+    forSale: Boolean(row.for_sale),
     guitarSpecs: [
       { label: 'Weight (lbs)', value: normalizeText(row.weight_lbs, '') },
       { label: 'Neck Profile', value: normalizeText(row.neck_profile, '') },

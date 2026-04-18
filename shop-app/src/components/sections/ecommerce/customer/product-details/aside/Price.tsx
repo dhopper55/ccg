@@ -6,9 +6,10 @@ interface PriceProps {
   sx?: SxProps;
   regularPrice?: number | null;
   salePrice?: number;
+  isUnavailable?: boolean;
 }
 
-const Price = ({ sx, regularPrice = 0, salePrice = 0 }: PriceProps) => {
+const Price = ({ sx, regularPrice = 0, salePrice = 0, isUnavailable = false }: PriceProps) => {
   const { currencyFormat } = useNumberFormat();
   const displayPrice = salePrice > 0 ? salePrice : (regularPrice ?? 0);
   const hasDiscount =
@@ -32,6 +33,20 @@ const Price = ({ sx, regularPrice = 0, salePrice = 0 }: PriceProps) => {
         ...sx,
       }}
     >
+      {isUnavailable ? (
+        <Typography
+          variant="h2"
+          sx={{
+            color: 'error.main',
+            fontSize: { xs: 'h3.fontSize', md: 'h2.fontSize' },
+            fontWeight: 800,
+            letterSpacing: 0,
+          }}
+        >
+          SOLD
+        </Typography>
+      ) : (
+        <>
       <Typography variant="h2" sx={{ fontSize: 'h1.fontSize' }}>
         <Typography variant="h5" component="span">
           {discountPrice[0]}
@@ -60,6 +75,8 @@ const Price = ({ sx, regularPrice = 0, salePrice = 0 }: PriceProps) => {
             {currencyFormat(regularPrice)}
           </Typography>
         </Stack>
+      )}
+        </>
       )}
     </Paper>
   );

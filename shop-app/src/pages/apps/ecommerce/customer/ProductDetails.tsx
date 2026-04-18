@@ -26,6 +26,8 @@ type ShopProduct = {
   category: string;
   primaryCategoryName: string;
   secondaryCategory: string;
+  forSale: boolean;
+  isSold: boolean;
   highlights: { text: string; danger?: boolean; highlight?: boolean }[];
   guitarSpecs: { label: string; value: string }[];
 };
@@ -79,6 +81,7 @@ const ProductDetails = () => {
   }, [shopProduct, categoryParam, slugParam, navigate]);
 
   const galleryImages = shopProduct?.images || [];
+  const isUnavailable = Boolean(shopProduct?.isSold || !shopProduct?.forSale);
   const displayPrice = shopProduct
     ? shopProduct.salePrice > 0
       ? shopProduct.salePrice
@@ -151,6 +154,7 @@ const ProductDetails = () => {
           regularPrice={shopProduct?.regularPrice}
           salePrice={shopProduct?.salePrice}
           highlights={shopProduct?.highlights || []}
+          isUnavailable={isUnavailable}
         />
       </Grid>
       <Grid size={12}>

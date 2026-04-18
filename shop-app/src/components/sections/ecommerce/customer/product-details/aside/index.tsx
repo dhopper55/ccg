@@ -9,9 +9,15 @@ interface ProductDetailsAsideProps {
   regularPrice?: number | null;
   salePrice?: number;
   highlights: ProductHighlight[];
+  isUnavailable?: boolean;
 }
 
-const ProductDetailsAside = ({ regularPrice, salePrice, highlights }: ProductDetailsAsideProps) => {
+const ProductDetailsAside = ({
+  regularPrice,
+  salePrice,
+  highlights,
+  isUnavailable = false,
+}: ProductDetailsAsideProps) => {
   return (
     <Paper>
       <Grid container>
@@ -24,7 +30,12 @@ const ProductDetailsAside = ({ regularPrice, salePrice, highlights }: ProductDet
             xl: 6,
           }}
         >
-          <Price sx={{ height: 1 }} regularPrice={regularPrice} salePrice={salePrice} />
+          <Price
+            sx={{ height: 1 }}
+            regularPrice={regularPrice}
+            salePrice={salePrice}
+            isUnavailable={isUnavailable}
+          />
         </Grid>
         <Grid
           size={{

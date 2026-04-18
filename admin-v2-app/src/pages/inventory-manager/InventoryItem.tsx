@@ -245,6 +245,7 @@ type InventoryCategoriesResponse = {
 type InventoryCategoryOption = {
   id: string;
   name: string;
+  parentId: number | null;
   label: string;
 };
 
@@ -720,6 +721,7 @@ const InventoryItem = () => {
         {
           id: String(node.id),
           name: node.name,
+          parentId: node.parentId,
           label: `${depth > 0 ? `${'---'.repeat(depth)} ` : ''}${node.name}`,
         },
         ...flattenCategoryTree(Array.isArray(node.children) ? node.children : [], depth + 1),
@@ -965,6 +967,9 @@ const InventoryItem = () => {
           quantity: value as FormState['quantity'],
           qtySold: Math.min(Math.max(1, current.qtySold), Math.max(1, nextQuantity || 1)),
         };
+      }
+      if (key === 'categoryId') {
+        return { ...current, categoryId: value as FormState['categoryId'], secondaryCategoryId: '' };
       }
       if (key === 'forSale') {
         const nextForSale = Boolean(value);
@@ -1424,6 +1429,25 @@ const InventoryItem = () => {
     () => categoryOptions.find((option) => option.id === form.categoryId)?.name || '',
     [categoryOptions, form.categoryId],
   );
+  const parentCategoryOptions = useMemo(
+    () => categoryOptions.filter((option) => option.parentId == null),
+    [categoryOptions],
+  );
+  const secondaryCategoryOptions = useMemo(() => {
+    const parentId = Number(form.categoryId);
+    if (!Number.isFinite(parentId) || parentId <= 0) return [];
+    return categoryOptions.filter((option) => option.parentId === parentId);
+  }, [categoryOptions, form.categoryId]);
+  const secondaryCategoryDisabled = !form.categoryId || secondaryCategoryOptions.length === 0;
+
+  useEffect(() => {
+    if (!form.secondaryCategoryId || categoryOptions.length === 0) return;
+    if (!form.categoryId || !secondaryCategoryOptions.some((option) => option.id === form.secondaryCategoryId)) {
+      setForm((current) => (
+        current.secondaryCategoryId ? { ...current, secondaryCategoryId: '' } : current
+      ));
+    }
+  }, [categoryOptions.length, form.categoryId, form.secondaryCategoryId, secondaryCategoryOptions]);
 
   const openAiAnalysisDialog = () => {
     setAiAnalysisDraft(form.aiAnalysisText);
@@ -1786,7 +1810,7 @@ const InventoryItem = () => {
                   value={form.categoryId}
                   onChange={(event) => setField('categoryId', event.target.value)}
                 >
-                  {categoryOptions.map((option) => (
+                  {parentCategoryOptions.map((option) => (
                     <MenuItem key={option.id} value={option.id}>
                       {option.label}
                     </MenuItem>
@@ -1801,11 +1825,19 @@ const InventoryItem = () => {
                   label="Secondary Category"
                   value={form.secondaryCategoryId}
                   onChange={(event) => setField('secondaryCategoryId', event.target.value)}
+                  disabled={secondaryCategoryDisabled}
+                  helperText={
+                    !form.categoryId
+                      ? 'Select a category first.'
+                      : secondaryCategoryOptions.length === 0
+                        ? 'No child categories available.'
+                        : undefined
+                  }
                 >
                   <MenuItem value="">None</MenuItem>
-                  {categoryOptions.map((option) => (
+                  {secondaryCategoryOptions.map((option) => (
                     <MenuItem key={`secondary-${option.id}`} value={option.id}>
-                      {option.label}
+                      {option.name}
                     </MenuItem>
                   ))}
                 </TextField>

@@ -11,6 +11,7 @@ import Swiper from 'components/base/Swiper';
 const ProductGallery = ({ images }: { images: string[] }) => {
   const navigationPrevRef = useRef(null);
   const navigationNextRef = useRef(null);
+  const hasMultipleImages = images.length > 1;
 
   const [thumbsSwiper, setThumbsSwiper] = useState<SwiperClass | null>(null);
 
@@ -51,54 +52,58 @@ const ProductGallery = ({ images }: { images: string[] }) => {
             aspectRatio: { lg: 1 },
           }}
         >
-          <Button
-            ref={navigationPrevRef}
-            color="neutral"
-            shape="circle"
-            variant="soft"
-            sx={{
-              p: 1,
-              minWidth: 0,
-              flexShrink: 0,
-              position: 'absolute',
-              left: 24,
-              zIndex: 10,
-            }}
-          >
-            <IconifyIcon
-              icon="material-symbols:chevron-left-rounded"
-              sx={(theme) => ({
-                fontSize: 20,
-                transform: theme.direction === 'rtl' ? 'rotate(180deg)' : 'none',
-              })}
-            />
-          </Button>
-          <Button
-            ref={navigationNextRef}
-            color="neutral"
-            shape="circle"
-            variant="soft"
-            sx={{ p: 1, minWidth: 0, flexShrink: 0, position: 'absolute', zIndex: 10, right: 24 }}
-          >
-            <IconifyIcon
-              icon="material-symbols:chevron-right-rounded"
-              sx={(theme) => ({
-                fontSize: 20,
-                transform: theme.direction === 'rtl' ? 'rotate(180deg)' : 'none',
-              })}
-            />
-          </Button>
+          {hasMultipleImages && (
+            <>
+              <Button
+                ref={navigationPrevRef}
+                color="neutral"
+                shape="circle"
+                variant="soft"
+                sx={{
+                  p: 1,
+                  minWidth: 0,
+                  flexShrink: 0,
+                  position: 'absolute',
+                  left: 24,
+                  zIndex: 10,
+                }}
+              >
+                <IconifyIcon
+                  icon="material-symbols:chevron-left-rounded"
+                  sx={(theme) => ({
+                    fontSize: 20,
+                    transform: theme.direction === 'rtl' ? 'rotate(180deg)' : 'none',
+                  })}
+                />
+              </Button>
+              <Button
+                ref={navigationNextRef}
+                color="neutral"
+                shape="circle"
+                variant="soft"
+                sx={{ p: 1, minWidth: 0, flexShrink: 0, position: 'absolute', zIndex: 10, right: 24 }}
+              >
+                <IconifyIcon
+                  icon="material-symbols:chevron-right-rounded"
+                  sx={(theme) => ({
+                    fontSize: 20,
+                    transform: theme.direction === 'rtl' ? 'rotate(180deg)' : 'none',
+                  })}
+                />
+              </Button>
+            </>
+          )}
           <Swiper
-            loop={true}
+            loop={hasMultipleImages}
             spaceBetween={10}
             thumbs={{
               swiper: thumbsSwiper && !thumbsSwiper.destroyed ? thumbsSwiper : null,
             }}
             modules={[FreeMode, Navigation, Thumbs]}
-            navigation={{
+            navigation={hasMultipleImages ? {
               nextEl: navigationNextRef,
               prevEl: navigationPrevRef,
-            }}
+            } : false}
             sx={{
               position: 'relative',
               overflow: 'hidden',
