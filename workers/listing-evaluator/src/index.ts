@@ -3819,6 +3819,13 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     }
   }
 
+  const duplicateSaleUrl = await dbFindInventoryBySaleUrl(saleUrl, env);
+  if (duplicateSaleUrl) {
+    return jsonResponse({
+      message: `Sale URL Slug is already used by ${duplicateSaleUrl.ccg_number || `inventory item ${duplicateSaleUrl.id}`}.`,
+    }, 400);
+  }
+
   const ccgNumber = await generateUniqueCcgNumber(env);
   if (!ccgNumber) {
     return jsonResponse({ message: 'Unable to generate CCG Number. Please try again.' }, 500);
@@ -4155,6 +4162,13 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     if (alreadyLinked && String(alreadyLinked.id) !== recordId) {
       return jsonResponse({ message: 'This listing is already in inventory.' }, 400);
     }
+  }
+
+  const duplicateSaleUrl = await dbFindInventoryBySaleUrl(saleUrl, env, recordId);
+  if (duplicateSaleUrl) {
+    return jsonResponse({
+      message: `Sale URL Slug is already used by ${duplicateSaleUrl.ccg_number || `inventory item ${duplicateSaleUrl.id}`}.`,
+    }, 400);
   }
 
   const primaryImageUrl = imageUrls[0];
@@ -6059,6 +6073,35 @@ async function dbFindInventoryBySourceListingId(sourceListingId: number, env: En
   const row = await env.DB.prepare(
     'SELECT id FROM ccg_inventory_items WHERE source_listing_id = ? LIMIT 1'
   ).bind(sourceListingId).first<{ id: number }>();
+  return row || null;
+}
+
+async function dbFindInventoryBySaleUrl(
+  saleUrl: string,
+  env: Env,
+  excludeId?: string,
+): Promise<{ id: number; ccg_number: string | null; title: string | null } | null> {
+  const normalizedSaleUrl = saleUrl.trim();
+  if (!normalizedSaleUrl) return null;
+
+  const excludeRecordId = Number(excludeId || 0);
+  if (Number.isFinite(excludeRecordId) && excludeRecordId > 0) {
+    const row = await env.DB.prepare(
+      `SELECT id, ccg_number, title
+       FROM ccg_inventory_items
+       WHERE LOWER(sale_url) = LOWER(?)
+         AND id != ?
+       LIMIT 1`
+    ).bind(normalizedSaleUrl, excludeRecordId).first<{ id: number; ccg_number: string | null; title: string | null }>();
+    return row || null;
+  }
+
+  const row = await env.DB.prepare(
+    `SELECT id, ccg_number, title
+     FROM ccg_inventory_items
+     WHERE LOWER(sale_url) = LOWER(?)
+     LIMIT 1`
+  ).bind(normalizedSaleUrl).first<{ id: number; ccg_number: string | null; title: string | null }>();
   return row || null;
 }
 
