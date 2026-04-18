@@ -4,14 +4,26 @@ interface PickupLocationProps {
   zip: string;
 }
 
+const ZIP_MAP_CENTERS: Record<string, { lat: number; lng: number; label: string }> = {
+  '80113': { lat: 39.6478, lng: -104.9878, label: 'Englewood, CO 80113' },
+};
+
 const PickupLocation = ({ zip }: PickupLocationProps) => {
   const cleanZip = zip.trim();
-  const mapParams = new URLSearchParams({
-    q: `${cleanZip} United States`,
-    z: '12',
-    output: 'embed',
-  });
+  const mapCenter = ZIP_MAP_CENTERS[cleanZip];
+  const mapParams = mapCenter
+    ? new URLSearchParams({
+        q: `loc:${mapCenter.lat},${mapCenter.lng}`,
+        z: '13',
+        output: 'embed',
+      })
+    : new URLSearchParams({
+        q: `${cleanZip} United States`,
+        z: '13',
+        output: 'embed',
+      });
   const mapSrc = `https://maps.google.com/maps?${mapParams.toString()}`;
+  const locationLabel = mapCenter?.label || cleanZip;
 
   return (
     <Box>
@@ -26,7 +38,7 @@ const PickupLocation = ({ zip }: PickupLocationProps) => {
       >
         <Box
           component="iframe"
-          title={`Pickup location near ${cleanZip}`}
+          title={`Pickup location near ${locationLabel}`}
           src={mapSrc}
           loading="lazy"
           referrerPolicy="no-referrer-when-downgrade"

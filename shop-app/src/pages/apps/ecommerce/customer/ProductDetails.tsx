@@ -2,11 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { Paper } from '@mui/material';
 import Grid from '@mui/material/Grid';
-import {
-  products,
-  productColorVariants,
-} from 'data/e-commerce/products';
-import { useEcommerce } from 'providers/EcommerceProvider';
 import { slugifyCategory } from 'lib/utils';
 import paths from 'routes/paths';
 import GeneralInfo from 'components/sections/ecommerce/customer/product-details/GeneralInfo';
@@ -48,23 +43,25 @@ const normalizeSpecValue = (value?: string | null) => {
 const ProductDetails = () => {
   const { category: categoryParam, slug: slugParam } = useParams();
   const navigate = useNavigate();
-  const { setProduct, product } = useEcommerce();
   const [shopProduct, setShopProduct] = useState<ShopProduct | null>(null);
-
-  useEffect(() => {
-    setProduct({ ...products[0], quantity: 1, selected: false });
-  }, [setProduct]);
+  const [isLoadingProduct, setIsLoadingProduct] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     const loadProduct = async () => {
-      if (!slugParam) return;
+      if (!slugParam) {
+        setIsLoadingProduct(false);
+        return;
+      }
+      setIsLoadingProduct(true);
       try {
         const response = await fetch(`/api/shop/products/by-slug/${encodeURIComponent(slugParam)}`);
         const data = (await response.json()) as ShopProductResponse;
         if (!cancelled) setShopProduct(data.record || null);
       } catch {
         if (!cancelled) setShopProduct(null);
+      } finally {
+        if (!cancelled) setIsLoadingProduct(false);
       }
     };
     void loadProduct();
@@ -81,14 +78,7 @@ const ProductDetails = () => {
     }
   }, [shopProduct, categoryParam, slugParam, navigate]);
 
-  const [selectedVariantKey] = useState('satin-linen');
-
-  const selectedVariant = useMemo(() => {
-    return productColorVariants.find((variant) => variant.id === selectedVariantKey);
-  }, [selectedVariantKey]);
-  const galleryImages = shopProduct?.images?.length
-    ? shopProduct.images
-    : (selectedVariant?.images || []);
+  const galleryImages = shopProduct?.images || [];
   const displayPrice = shopProduct
     ? shopProduct.salePrice > 0
       ? shopProduct.salePrice
@@ -119,7 +109,7 @@ const ProductDetails = () => {
     return [...baseSpecs, ...guitarSpecs];
   }, [shopProduct]);
 
-  if (!product) {
+  if (isLoadingProduct || !shopProduct) {
     return null;
   }
 
