@@ -318,6 +318,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/shop/sitemap-products' && request.method === 'GET') {
+      const response = await handleShopSitemapProducts(env);
+      return withCors(response, request, env);
+    }
+
     const shopProductBySlugMatch = path.match(/^\/api\/shop\/products\/by-slug\/([^/]+)$/);
     if (shopProductBySlugMatch && request.method === 'GET') {
       const slug = decodeURIComponent(shopProductBySlugMatch[1]);
@@ -2852,6 +2857,11 @@ async function handleShopProducts(request: Request, env: Env): Promise<Response>
       condition: condition || 'All',
     },
   });
+}
+
+async function handleShopSitemapProducts(env: Env): Promise<Response> {
+  const records = await dbListShopSitemapProducts(env);
+  return jsonResponse({ records });
 }
 
 async function handleShopProductDetail(id: number, env: Env): Promise<Response> {
@@ -5721,6 +5731,18 @@ function normalizeInventoryQueue(input: unknown): string {
   return INVENTORY_QUEUE_OPTIONS.has(normalized) ? normalized : '';
 }
 
+function slugifyShopCategory(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function isValidSaleUrlSlug(value: string): boolean {
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.trim());
+}
+
 function parseAdminV2InventoryCategoryId(path: string): number | null {
   const parts = path.split('/').filter(Boolean);
   const categoriesIndex = parts.indexOf('categories');
@@ -6414,6 +6436,43 @@ async function dbListShopProducts(
     isSold: Boolean(row.is_sold),
     };
   });
+}
+
+async function dbListShopSitemapProducts(env: Env): Promise<Array<Record<string, unknown>>> {
+  const result = await env.DB.prepare(
+    `SELECT
+       i.id,
+       i.sale_url,
+       i.updated_at,
+       i.for_sale,
+       i.is_sold,
+       ${INVENTORY_CATEGORY_SELECT_SQL}
+     FROM ccg_inventory_items i
+     ${INVENTORY_CATEGORY_JOIN_SQL}
+     WHERE COALESCE(i.is_active, 0) = 1
+       AND COALESCE(i.only_in_store, 0) = 0
+       AND COALESCE(i.is_rented, 0) = 0
+       AND TRIM(COALESCE(i.sale_url, '')) != ''
+     ORDER BY
+       c."order" ASC,
+       LOWER(COALESCE(i.sale_title, i.title, '')) ASC,
+       i.id DESC`
+  ).all<ShopProductRow & { updated_at: string | null }>();
+
+  return (result.results ?? []).map((row) => {
+    const categorySlug = slugifyShopCategory(normalizeText(row.category_name, ''));
+    const productSlug = normalizeText(row.sale_url, '');
+    if (!isValidSaleUrlSlug(productSlug)) return null;
+    return {
+      id: String(row.id),
+      urlPath: categorySlug && productSlug
+        ? `/guitars-and-gear-for-sale/${categorySlug}/${productSlug}`
+        : '',
+      updatedAt: normalizeText(row.updated_at, ''),
+      forSale: Boolean(row.for_sale),
+      isSold: Boolean(row.is_sold),
+    };
+  }).filter((record): record is Record<string, unknown> => Boolean(record?.urlPath));
 }
 
 async function dbCreateNewsletterSubscriber(email: string, env: Env): Promise<boolean> {
@@ -10321,6 +10380,9 @@ function validateForSaleInventoryFields(input: {
     return 'At least one Sale Details bullet is required when For Sale is checked.';
   }
   if (!input.saleUrl.trim()) return 'Sale Details URL is required when For Sale is checked.';
+  if (!isValidSaleUrlSlug(input.saleUrl)) {
+    return 'Sale Details URL must use only lowercase letters, numbers, and hyphens.';
+  }
   if (!input.saleZip.trim()) return 'Sale Details ZIP is required when For Sale is checked.';
   return null;
 }

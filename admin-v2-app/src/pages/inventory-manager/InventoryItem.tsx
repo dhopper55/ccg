@@ -465,6 +465,9 @@ function getForSaleValidationError(formState: FormState): string | null {
   ].some((bulletText) => bulletText.trim());
   if (!hasSaleBullet) return 'At least one Sale Details bullet is required when For Sale is checked.';
   if (!formState.saleUrl.trim()) return 'Sale URL Slug is required when For Sale is checked.';
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(formState.saleUrl.trim())) {
+    return 'Sale URL Slug can only use lowercase letters, numbers, and hyphens.';
+  }
   if (!formState.saleZip.trim()) return 'Sale Details ZIP is required when For Sale is checked.';
   return null;
 }
