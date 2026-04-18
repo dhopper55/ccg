@@ -101,8 +101,8 @@ const darkText = generatePaletteChannel({
   disabled: grey[500],
 });
 const darkBackground = generatePaletteChannel({
-  default: '#0d0d0a',
-  paper: '#0d0d0a',
+  default: '#151811',
+  paper: '#151811',
   elevation1: grey[900],
   elevation2: grey[800],
   elevation3: grey[700],
