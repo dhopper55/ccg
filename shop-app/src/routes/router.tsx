@@ -36,6 +36,19 @@ export const routes: RouteObject[] = [
 const rawBase = import.meta.env.VITE_BASENAME || '/';
 const routerBasename = rawBase.length > 1 && rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
 
+if (typeof window !== 'undefined') {
+  const isShopRoot =
+    window.location.pathname === routerBasename ||
+    window.location.pathname === `${routerBasename}/`;
+  if (routerBasename !== '/' && isShopRoot && window.location.hash.startsWith('#/')) {
+    window.history.replaceState(
+      null,
+      '',
+      `${routerBasename}${window.location.hash.slice(1)}${window.location.search}`,
+    );
+  }
+}
+
 const router = createBrowserRouter(routes, {
   basename: routerBasename,
 });
