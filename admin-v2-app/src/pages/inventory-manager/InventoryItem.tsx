@@ -454,6 +454,15 @@ function getForSaleValidationError(formState: FormState): string | null {
   if (!formState.saleDescription.trim()) {
     return 'Sale Details Description is required when For Sale is checked.';
   }
+  const hasSaleBullet = [
+    formState.bullet1Text,
+    formState.bullet2Text,
+    formState.bullet3Text,
+    formState.bullet4Text,
+    formState.bullet5Text,
+    formState.bullet6Text,
+  ].some((bulletText) => bulletText.trim());
+  if (!hasSaleBullet) return 'At least one Sale Details bullet is required when For Sale is checked.';
   if (!formState.saleUrl.trim()) return 'Sale URL Slug is required when For Sale is checked.';
   if (!formState.saleZip.trim()) return 'Sale Details ZIP is required when For Sale is checked.';
   return null;

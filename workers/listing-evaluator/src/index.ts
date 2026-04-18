@@ -2513,6 +2513,7 @@ type ShopProductRow = {
   title: string | null;
   sale_title: string | null;
   sale_url: string | null;
+  sale_zip?: string | null;
   brand?: string | null;
   model?: string | null;
   finish?: string | null;
@@ -3791,6 +3792,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     regularPrice,
     condition,
     saleDescription,
+    bulletTexts: [bullet1Text, bullet2Text, bullet3Text, bullet4Text, bullet5Text, bullet6Text],
     saleUrl,
     saleZip,
   });
@@ -4129,6 +4131,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     regularPrice,
     condition,
     saleDescription,
+    bulletTexts: [bullet1Text, bullet2Text, bullet3Text, bullet4Text, bullet5Text, bullet6Text],
     saleUrl,
     saleZip,
   });
@@ -6391,6 +6394,7 @@ async function dbGetShopProductDetail(
        i.title,
        i.sale_title,
        i.sale_url,
+       i.sale_zip,
        i.brand,
        i.model,
        i.finish,
@@ -6468,6 +6472,7 @@ async function dbGetShopProductDetail(
     images,
     saleTitle: normalizeText(row.sale_title, '') || normalizeText(row.title, ''),
     saleUrlSlug: normalizeText(row.sale_url, ''),
+    saleZip: normalizeText(row.sale_zip, ''),
     saleCondition: row.condition || '',
     saleDescription: row.sale_description || '',
     highlights,
@@ -10254,6 +10259,7 @@ function validateForSaleInventoryFields(input: {
   regularPrice: number | null;
   condition: string;
   saleDescription: string;
+  bulletTexts: string[];
   saleUrl: string;
   saleZip: string;
 }): string | null {
@@ -10266,6 +10272,9 @@ function validateForSaleInventoryFields(input: {
   if (!input.condition.trim()) return 'Sale Details Condition is required when For Sale is checked.';
   if (!input.saleDescription.trim()) {
     return 'Sale Details Description is required when For Sale is checked.';
+  }
+  if (!input.bulletTexts.some((bulletText) => bulletText.trim())) {
+    return 'At least one Sale Details bullet is required when For Sale is checked.';
   }
   if (!input.saleUrl.trim()) return 'Sale Details URL is required when For Sale is checked.';
   if (!input.saleZip.trim()) return 'Sale Details ZIP is required when For Sale is checked.';

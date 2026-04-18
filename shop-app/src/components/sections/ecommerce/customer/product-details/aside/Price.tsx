@@ -14,6 +14,7 @@ const Price = ({ sx, regularPrice = 0, salePrice = 0 }: PriceProps) => {
   const hasDiscount =
     salePrice > 0 && regularPrice != null && regularPrice > salePrice && regularPrice !== salePrice;
   const savings = hasDiscount ? regularPrice - salePrice : 0;
+  const savingsPercentage = hasDiscount ? Math.ceil((savings / regularPrice) * 100) : 0;
 
   const discountPrice = useMemo(() => {
     const formattedPrice = currencyFormat(displayPrice);
@@ -47,7 +48,7 @@ const Price = ({ sx, regularPrice = 0, salePrice = 0 }: PriceProps) => {
             alignItems: 'center',
           }}
         >
-          <Chip label={`Save $${savings}`} color="success" variant="filled" />
+          <Chip label={`Save ${savingsPercentage}%`} color="success" variant="filled" />
           <Typography
             variant="h6"
             sx={{

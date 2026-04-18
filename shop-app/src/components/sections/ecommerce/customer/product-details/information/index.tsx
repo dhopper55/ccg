@@ -1,13 +1,17 @@
 import { Box, Divider, Paper, Tab, Tabs, Toolbar } from '@mui/material';
+import PickupLocation from './PickupLocation';
 import ProductDescription from './ProductDescription';
 import ProductSpecification from './ProductSpecification';
 
 interface ProductInformationProps {
   description?: string;
   specifications: { label: string; value?: string; values?: string[] }[];
+  pickupZip?: string;
 }
 
-const ProductInformation = ({ description, specifications }: ProductInformationProps) => {
+const ProductInformation = ({ description, specifications, pickupZip }: ProductInformationProps) => {
+  const cleanPickupZip = pickupZip?.trim() || '';
+
   return (
     <Paper sx={{ p: { xs: 3, md: 5 } }}>
       <Box
@@ -28,6 +32,12 @@ const ProductInformation = ({ description, specifications }: ProductInformationP
       <ProductDescription description={description} />
       <Divider sx={{ my: 5 }} />
       <ProductSpecification specifications={specifications} />
+      {cleanPickupZip && (
+        <>
+          <Divider sx={{ my: 5 }} />
+          <PickupLocation zip={cleanPickupZip} />
+        </>
+      )}
     </Paper>
   );
 };

@@ -21,6 +21,7 @@ type ShopProduct = {
   images: string[];
   saleTitle: string;
   saleUrlSlug: string;
+  saleZip: string;
   saleDescription: string;
   brand: string;
   model: string;
@@ -166,6 +167,7 @@ const ProductDetails = () => {
         <ProductInformation
           description={shopProduct?.saleDescription}
           specifications={specifications}
+          pickupZip={shopProduct?.saleZip}
         />
       </Grid>
       <Grid sx={{ position: 'sticky', zIndex: 999, width: 1, bottom: 0 }} size={12}>
