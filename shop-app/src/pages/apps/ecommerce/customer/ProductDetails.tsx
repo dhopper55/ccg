@@ -30,6 +30,7 @@ type ShopProduct = {
   category: string;
   primaryCategoryName: string;
   secondaryCategory: string;
+  highlights: { text: string; danger?: boolean; highlight?: boolean }[];
   guitarSpecs: { label: string; value: string }[];
 };
 
@@ -158,6 +159,7 @@ const ProductDetails = () => {
         <ProductDetailsAside
           regularPrice={shopProduct?.regularPrice}
           salePrice={shopProduct?.salePrice}
+          highlights={shopProduct?.highlights || []}
         />
       </Grid>
       <Grid size={12}>

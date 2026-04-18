@@ -2520,6 +2520,24 @@ type ShopProductRow = {
   sale_price: number | null;
   condition: string | null;
   sale_description?: string | null;
+  bullet_1_text?: string | null;
+  bullet_1_danger?: number | null;
+  bullet_1_highlight?: number | null;
+  bullet_2_text?: string | null;
+  bullet_2_danger?: number | null;
+  bullet_2_highlight?: number | null;
+  bullet_3_text?: string | null;
+  bullet_3_danger?: number | null;
+  bullet_3_highlight?: number | null;
+  bullet_4_text?: string | null;
+  bullet_4_danger?: number | null;
+  bullet_4_highlight?: number | null;
+  bullet_5_text?: string | null;
+  bullet_5_danger?: number | null;
+  bullet_5_highlight?: number | null;
+  bullet_6_text?: string | null;
+  bullet_6_danger?: number | null;
+  bullet_6_highlight?: number | null;
   category_id: number | null;
   category_name: string | null;
   category_path: string | null;
@@ -6387,6 +6405,24 @@ async function dbGetShopProductDetail(
        i.sale_price,
        i."condition",
        i.sale_description,
+       i.bullet_1_text,
+       i.bullet_1_danger,
+       i.bullet_1_highlight,
+       i.bullet_2_text,
+       i.bullet_2_danger,
+       i.bullet_2_highlight,
+       i.bullet_3_text,
+       i.bullet_3_danger,
+       i.bullet_3_highlight,
+       i.bullet_4_text,
+       i.bullet_4_danger,
+       i.bullet_4_highlight,
+       i.bullet_5_text,
+       i.bullet_5_danger,
+       i.bullet_5_highlight,
+       i.bullet_6_text,
+       i.bullet_6_danger,
+       i.bullet_6_highlight,
        ${INVENTORY_CATEGORY_SELECT_SQL},
        i.is_sold
      FROM ccg_inventory_items i
@@ -6417,6 +6453,14 @@ async function dbGetShopProductDetail(
   ].filter(Boolean)));
 
   const mainImage = images[0] || '';
+  const highlights = [
+    { text: normalizeText(row.bullet_1_text, ''), danger: Boolean(row.bullet_1_danger), highlight: Boolean(row.bullet_1_highlight) },
+    { text: normalizeText(row.bullet_2_text, ''), danger: Boolean(row.bullet_2_danger), highlight: Boolean(row.bullet_2_highlight) },
+    { text: normalizeText(row.bullet_3_text, ''), danger: Boolean(row.bullet_3_danger), highlight: Boolean(row.bullet_3_highlight) },
+    { text: normalizeText(row.bullet_4_text, ''), danger: Boolean(row.bullet_4_danger), highlight: Boolean(row.bullet_4_highlight) },
+    { text: normalizeText(row.bullet_5_text, ''), danger: Boolean(row.bullet_5_danger), highlight: Boolean(row.bullet_5_highlight) },
+    { text: normalizeText(row.bullet_6_text, ''), danger: Boolean(row.bullet_6_danger), highlight: Boolean(row.bullet_6_highlight) },
+  ].filter((item) => item.text);
 
   return {
     id: String(row.id),
@@ -6426,6 +6470,7 @@ async function dbGetShopProductDetail(
     saleUrlSlug: normalizeText(row.sale_url, ''),
     saleCondition: row.condition || '',
     saleDescription: row.sale_description || '',
+    highlights,
     brand: normalizeText(row.brand, ''),
     model: normalizeText(row.model, ''),
     finish: normalizeText(row.finish, ''),

@@ -1,16 +1,17 @@
 import { Paper } from '@mui/material';
 import Grid from '@mui/material/Grid';
+import Highlights, { ProductHighlight } from './Highlights';
 import OrderCustomization from './OrderCustomization';
 import Price from './Price';
 import PurchaseDetails from './PurchaseDetails';
-import Quantity from './Quantity';
 
 interface ProductDetailsAsideProps {
   regularPrice?: number | null;
   salePrice?: number;
+  highlights: ProductHighlight[];
 }
 
-const ProductDetailsAside = ({ regularPrice, salePrice }: ProductDetailsAsideProps) => {
+const ProductDetailsAside = ({ regularPrice, salePrice, highlights }: ProductDetailsAsideProps) => {
   return (
     <Paper>
       <Grid container>
@@ -34,7 +35,7 @@ const ProductDetailsAside = ({ regularPrice, salePrice }: ProductDetailsAsidePro
             xl: 6,
           }}
         >
-          <Quantity sx={{ height: 1 }} />
+          <Highlights sx={{ height: 1 }} highlights={highlights} />
         </Grid>
         <Grid
           size={{
