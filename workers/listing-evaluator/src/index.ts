@@ -6408,7 +6408,7 @@ async function dbGetShopProductDetail(
      WHERE inventory_item_id = ?
        AND COALESCE(is_private, 0) = 0
      ORDER BY display_order ASC, id ASC`
-  ).bind(id).all<{ image_url: string | null }>();
+  ).bind(row.id).all<{ image_url: string | null }>();
 
   const images = Array.from(new Set([
     ...(imageRows.results ?? []).map((imageRow) => toPublicShopImageUrl(imageRow.image_url)),
