@@ -442,6 +442,15 @@ function parseTagPrice(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function sanitizeSaleUrlSlug(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 function getForSaleValidationError(formState: FormState): string | null {
   if (!formState.forSale) return null;
   if (!formState.saleTitle.trim()) return 'Sale Details Title is required when For Sale is checked.';
@@ -2165,7 +2174,7 @@ const InventoryItem = () => {
                           required
                           label="Sale URL Slug"
                           value={form.saleUrl}
-                          onChange={(event) => setField('saleUrl', event.target.value)}
+                          onChange={(event) => setField('saleUrl', sanitizeSaleUrlSlug(event.target.value))}
                           disabled={isSaleUrlLocked}
                           inputProps={{ maxLength: 150 }}
                           helperText={
