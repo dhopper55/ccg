@@ -1,11 +1,8 @@
-import { useState } from 'react';
 import {
   Box,
   Button,
   Checkbox,
   Chip,
-  FormControl,
-  FormControlLabel,
   Link,
   List,
   Stack,
@@ -21,15 +18,12 @@ import IconifyIcon from 'components/base/IconifyIcon';
 import Image from 'components/base/Image';
 import ProductVariantListItem from '../../admin/common/ProductVariantListItem';
 import QuantityButtons from '../common/QuantityButtons';
-import ProductGiftDialogue from './ProductGiftDialogue';
 
 interface CartItemProps {
   item: CartItemType;
 }
 
 const CartItem = ({ item }: CartItemProps) => {
-  const [sendAsGift, setSendAsGift] = useState(false);
-  const [openGiftDialog, setOpenGiftDialog] = useState(false);
   const { updateCartItem, removeItemFromCart } = useEcommerce();
   const { currencyFormat } = useNumberFormat();
   const { up } = useBreakpoints();
@@ -138,42 +132,6 @@ const CartItem = ({ item }: CartItemProps) => {
                       ))}
                     </List>
                   )}
-                  <Stack
-                    sx={{
-                      alignItems: 'center',
-                      flexWrap: 'wrap',
-                      columnGap: 1,
-                    }}
-                  >
-                    <FormControl component="fieldset">
-                      <FormControlLabel
-                        sx={{ m: 0, ml: '-9px' }}
-                        control={
-                          <Checkbox
-                            checked={sendAsGift}
-                            onChange={(e) => {
-                              setSendAsGift(e.target.checked);
-                            }}
-                          />
-                        }
-                        label="Send as a gift"
-                      />
-                    </FormControl>
-                    <ProductGiftDialogue
-                      open={openGiftDialog}
-                      cartItem={item}
-                      handleClose={() => setOpenGiftDialog(false)}
-                    />
-                    <Button
-                      size="small"
-                      variant="text"
-                      color="neutral"
-                      disabled={!sendAsGift}
-                      onClick={() => setOpenGiftDialog(true)}
-                    >
-                      Details
-                    </Button>
-                  </Stack>
                 </Stack>
               </Stack>
             </div>

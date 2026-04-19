@@ -1,5 +1,6 @@
 import { Box, Stack, SxProps, Typography } from '@mui/material';
 import { useEcommerce } from 'providers/EcommerceProvider';
+import paths from 'routes/paths';
 import PageBreadcrumb from '../../../common/PageBreadcrumb';
 
 interface GeneralInfoProps {
@@ -16,7 +17,7 @@ const GeneralInfo = ({ sx, category, secondaryCategory, title }: GeneralInfoProp
     category
       ? {
           label: category,
-          url: '#!',
+          url: `${paths.products}?category=${encodeURIComponent(category)}`,
           active: !secondaryCategory,
         }
       : null,

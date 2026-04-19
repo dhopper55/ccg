@@ -75,6 +75,7 @@ const Products = () => {
   const { control, setValue } = useFormContext();
   const [searchParams] = useSearchParams();
   const searchTerm = (searchParams.get('search') ?? '').trim();
+  const categoryParam = (searchParams.get('category') ?? '').trim();
   const priceRange = useWatch({ control, name: 'priceRange' }) as number[] | undefined;
   const selectedCategoryIds = useWatch({ control, name: 'category', defaultValue: [] }) as string[];
   const didInitializePriceRange = useRef(false);
@@ -122,6 +123,19 @@ const Products = () => {
       setValue('priceRange', [0, maxPrice]);
     }
   }, [maxPrice, searchTerm, setValue]);
+
+  useEffect(() => {
+    if (!categoryParam || categories.length === 0) return;
+    const normalizedParam = normalizeCategoryQuery(categoryParam);
+    const matchedCategory = flattenCategoryNodes(categories).find((node) => {
+      return (
+        normalizeCategoryQuery(node.name) === normalizedParam ||
+        normalizeCategoryQuery(node.path || '') === normalizedParam
+      );
+    });
+    if (!matchedCategory) return;
+    setValue('category', [String(matchedCategory.id)]);
+  }, [categories, categoryParam, setValue]);
 
   useEffect(() => {
     didInitializePriceRange.current = false;
@@ -285,6 +299,17 @@ function flattenCategoryOptions(nodes: ShopCategoryNode[], depth = 0): { label: 
     },
     ...flattenCategoryOptions(Array.isArray(node.children) ? node.children : [], depth + 1),
   ]);
+}
+
+function flattenCategoryNodes(nodes: ShopCategoryNode[]): ShopCategoryNode[] {
+  return nodes.flatMap((node) => [
+    node,
+    ...flattenCategoryNodes(Array.isArray(node.children) ? node.children : []),
+  ]);
+}
+
+function normalizeCategoryQuery(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
 function getHighestProductPrice(products: ShopProduct[]): number {
