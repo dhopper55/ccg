@@ -60,6 +60,7 @@ const CartBottomBar = () => {
             color="primary"
             variant="contained"
             href={paths.checkout}
+            disabled
             sx={{
               flexShrink: 0,
               whiteSpace: 'nowrap',

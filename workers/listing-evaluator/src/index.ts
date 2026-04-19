@@ -27,6 +27,7 @@ interface Env {
   AUTH_USER: string;
   AUTH_PASS: string;
   AUTH_SECRET: string;
+  ASSOCIATE_MODE_TOKEN?: string;
   WEBHOOK_SECRET?: string;
   LISTING_JOBS: KVNamespace;
   GOOGLE_MAPS_API_KEY?: string;
@@ -73,6 +74,8 @@ const SITEMAP_STATIC_URLS = [
 ];
 const SHOP_BASE_PATH = '/guitars-and-gear-for-sale';
 const SHOP_STATIC_ORIGIN = 'https://ccg-2k1.pages.dev';
+const ASSOCIATE_COOKIE_NAME = 'ccg_associate';
+const ASSOCIATE_COOKIE_VALUE = 'associate';
 
 interface SubmitPayload {
   urls: Array<string | { url: string; isMulti?: boolean }>;
@@ -365,6 +368,21 @@ export default {
     }
 
     // Public shop endpoints
+    if (path === '/api/shop/associate-mode' && request.method === 'GET') {
+      const response = await handleShopAssociateModeStatus(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/shop/associate-mode' && request.method === 'POST') {
+      const response = await handleShopAssociateModeEnable(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/shop/associate-mode' && request.method === 'DELETE') {
+      const response = handleShopAssociateModeDisable();
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/shop/categories' && request.method === 'GET') {
       const response = await handleShopCategories(env);
       return withCors(response, request, env);
@@ -383,13 +401,13 @@ export default {
     const shopProductBySlugMatch = path.match(/^\/api\/shop\/products\/by-slug\/([^/]+)$/);
     if (shopProductBySlugMatch && request.method === 'GET') {
       const slug = decodeURIComponent(shopProductBySlugMatch[1]);
-      const response = await handleShopProductDetailBySlug(slug, env);
+      const response = await handleShopProductDetailBySlug(slug, request, env);
       return withCors(response, request, env);
     }
 
     const shopProductDetailMatch = path.match(/^\/api\/shop\/products\/(\d+)$/);
     if (shopProductDetailMatch && request.method === 'GET') {
-      const response = await handleShopProductDetail(Number(shopProductDetailMatch[1]), env);
+      const response = await handleShopProductDetail(Number(shopProductDetailMatch[1]), request, env);
       return withCors(response, request, env);
     }
 
@@ -691,7 +709,7 @@ function withCors(response: Response, request: Request, env: Env): Response {
     headers.set('Access-Control-Allow-Origin', env.SITE_BASE_URL || SUPPORTED_ORIGINS[0]);
   }
 
-  headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  headers.set('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
   headers.set('Access-Control-Allow-Headers', 'Content-Type');
   headers.set('Access-Control-Max-Age', '86400');
 
@@ -2581,6 +2599,7 @@ type ShopProductRow = {
   finish?: string | null;
   regular_price: number | null;
   sale_price: number | null;
+  clearance?: number | null;
   condition: string | null;
   sale_description?: string | null;
   bullet_1_text?: string | null;
@@ -2615,6 +2634,7 @@ type ShopProductRow = {
   fretboard_radius?: string | null;
   twelve_fret_action?: string | null;
   for_sale?: number | null;
+  only_in_store?: number | null;
   is_sold: number | null;
 };
 
@@ -2884,11 +2904,52 @@ async function handleShopCategories(env: Env): Promise<Response> {
   });
 }
 
+async function handleShopAssociateModeStatus(request: Request, env: Env): Promise<Response> {
+  const associateMode = await isAssociateModeRequest(request, env);
+  return jsonResponse({ associateMode });
+}
+
+async function handleShopAssociateModeEnable(request: Request, env: Env): Promise<Response> {
+  let token = '';
+  try {
+    const body = await request.json<Record<string, unknown>>();
+    token = normalizeText(body?.token, '');
+  } catch {
+    token = '';
+  }
+
+  if (!isValidAssociateToken(token, env)) {
+    return jsonResponse({ associateMode: false, message: 'Associate mode token is invalid.' }, 401);
+  }
+
+  const cookie = await buildAssociateModeCookie(env);
+  return jsonResponse(
+    { associateMode: true },
+    200,
+    {
+      'Set-Cookie': cookie,
+    },
+  );
+}
+
+function handleShopAssociateModeDisable(): Response {
+  return jsonResponse(
+    { associateMode: false },
+    200,
+    {
+      'Set-Cookie': clearAssociateModeCookie(),
+    },
+  );
+}
+
 async function handleShopProducts(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const categoryIds = parseShopCategoryIds(url);
   const search = normalizeText(url.searchParams.get('search'), '').slice(0, 200);
   const showSold = url.searchParams.get('showSold') === '1';
+  const associateMode = url.searchParams.get('associate') === '1'
+    ? await isAssociateModeRequest(request, env)
+    : false;
   const priceMin = parseCurrencyAmount(url.searchParams.get('priceMin')) ?? 0;
   const priceMax = parseCurrencyAmount(url.searchParams.get('priceMax')) ?? 0;
   const conditionInput = normalizeText(url.searchParams.get('condition'), 'All').slice(0, 50);
@@ -2898,6 +2959,7 @@ async function handleShopProducts(request: Request, env: Env): Promise<Response>
     categoryIds,
     search,
     showSold,
+    associateMode,
     priceMin,
     priceMax,
     condition,
@@ -2909,6 +2971,7 @@ async function handleShopProducts(request: Request, env: Env): Promise<Response>
       categoryIds,
       search,
       showSold: showSold ? 1 : 0,
+      associateMode: associateMode ? 1 : 0,
       priceMin,
       priceMax,
       condition: condition || 'All',
@@ -2993,7 +3056,11 @@ async function handleShopPageRequest(request: Request, env: Env): Promise<Respon
   const slug = getShopProductSlug(path);
   if (!slug) return appResponse;
 
-  const product = await dbGetShopProductDetail({ slug }, env);
+  const product = await dbGetShopProductDetail(
+    { slug },
+    env,
+    { includeInStoreOnly: await isAssociateModeRequest(request, env) },
+  );
   if (!product) return appResponse;
 
   const html = await appResponse.text();
@@ -3262,16 +3329,22 @@ function escapeXml(value: unknown): string {
     .replace(/'/g, '&apos;');
 }
 
-async function handleShopProductDetail(id: number, env: Env): Promise<Response> {
-  const record = await dbGetShopProductDetail({ id }, env);
+async function handleShopProductDetail(id: number, request: Request, env: Env): Promise<Response> {
+  const includeInStoreOnly = new URL(request.url).searchParams.get('associate') === '1'
+    ? await isAssociateModeRequest(request, env)
+    : false;
+  const record = await dbGetShopProductDetail({ id }, env, { includeInStoreOnly });
   if (!record) return jsonResponse({ message: 'Product not found.' }, 404);
   return jsonResponse({ record });
 }
 
-async function handleShopProductDetailBySlug(slug: string, env: Env): Promise<Response> {
+async function handleShopProductDetailBySlug(slug: string, request: Request, env: Env): Promise<Response> {
   const trimmed = slug.trim();
   if (!trimmed) return jsonResponse({ message: 'Product not found.' }, 404);
-  const record = await dbGetShopProductDetail({ slug: trimmed }, env);
+  const includeInStoreOnly = new URL(request.url).searchParams.get('associate') === '1'
+    ? await isAssociateModeRequest(request, env)
+    : false;
+  const record = await dbGetShopProductDetail({ slug: trimmed }, env, { includeInStoreOnly });
   if (!record) return jsonResponse({ message: 'Product not found.' }, 404);
   return jsonResponse({ record });
 }
@@ -6715,6 +6788,7 @@ async function dbListShopProducts(
     categoryIds: number[];
     search: string;
     showSold: boolean;
+    associateMode: boolean;
     priceMin: number;
     priceMax: number;
     condition: string;
@@ -6733,7 +6807,9 @@ async function dbListShopProducts(
   if (!filters.showSold) {
     clauses.push('COALESCE(i.for_sale, 0) = 1');
   }
-  clauses.push('COALESCE(i.only_in_store, 0) = 0');
+  if (!filters.associateMode) {
+    clauses.push('COALESCE(i.only_in_store, 0) = 0');
+  }
   clauses.push('COALESCE(i.is_rented, 0) = 0');
 
   if (allowedCategoryIds.length > 0) {
@@ -6799,6 +6875,7 @@ async function dbListShopProducts(
        i.regular_price,
        i.sale_price,
        i.clearance,
+       i.only_in_store,
        i."condition",
        i.sale_description,
        ${INVENTORY_CATEGORY_SELECT_SQL},
@@ -6833,6 +6910,7 @@ async function dbListShopProducts(
     category: getInventoryCategoryLabel(row),
     primaryCategoryName: normalizeText(row.category_name, ''),
     secondaryCategory: normalizeText(row.secondary_category_name, ''),
+    onlyInStore: Boolean(row.only_in_store),
     isSold: Boolean(row.is_sold),
     };
   });
@@ -6886,6 +6964,7 @@ async function dbCreateNewsletterSubscriber(email: string, env: Env): Promise<bo
 async function dbGetShopProductDetail(
   lookup: { id: number } | { slug: string },
   env: Env,
+  options: { includeInStoreOnly?: boolean } = {},
 ): Promise<Record<string, unknown> | null> {
   const lookupClause = 'id' in lookup ? 'i.id = ?' : 'LOWER(i.sale_url) = LOWER(?)';
   const lookupValue = 'id' in lookup ? lookup.id : lookup.slug;
@@ -6895,6 +6974,7 @@ async function dbGetShopProductDetail(
        i.image_url,
        i.image_urls,
        i.title,
+       i.quantity,
        i.sale_title,
        i.sale_url,
        i.sale_zip,
@@ -6911,6 +6991,7 @@ async function dbGetShopProductDetail(
        i.regular_price,
        i.sale_price,
        i.clearance,
+       i.only_in_store,
        i."condition",
        i.sale_description,
        i.bullet_1_text,
@@ -6938,7 +7019,7 @@ async function dbGetShopProductDetail(
      ${INVENTORY_CATEGORY_JOIN_SQL}
      WHERE ${lookupClause}
        AND COALESCE(i.is_active, 0) = 1
-       AND COALESCE(i.only_in_store, 0) = 0
+       ${options.includeInStoreOnly ? '' : 'AND COALESCE(i.only_in_store, 0) = 0'}
        AND COALESCE(i.is_rented, 0) = 0
      LIMIT 1`
   ).bind(lookupValue).first<ShopProductRow>();
@@ -6974,6 +7055,7 @@ async function dbGetShopProductDetail(
     mainImage,
     images,
     saleTitle: normalizeText(row.sale_title, '') || normalizeText(row.title, ''),
+    quantity: Number(row.quantity ?? 1),
     saleUrlSlug: normalizeText(row.sale_url, ''),
     saleZip: normalizeText(row.sale_zip, ''),
     saleCondition: row.condition || '',
@@ -6985,6 +7067,7 @@ async function dbGetShopProductDetail(
     regularPrice: row.regular_price,
     salePrice: row.sale_price ?? 0,
     clearance: Boolean(row.clearance),
+    onlyInStore: Boolean(row.only_in_store),
     category: getInventoryCategoryLabel(row),
     primaryCategoryName: normalizeText(row.category_name, ''),
     secondaryCategory: normalizeText(row.secondary_category_name, ''),
@@ -10789,6 +10872,33 @@ function validateForSaleInventoryFields(input: {
   return null;
 }
 
+function isValidAssociateToken(token: string, env: Env): boolean {
+  const expected = normalizeText(env.ASSOCIATE_MODE_TOKEN, '');
+  return Boolean(expected && token === expected);
+}
+
+async function isAssociateModeRequest(request: Request, env: Env): Promise<boolean> {
+  const secret = normalizeText(env.AUTH_SECRET, '');
+  if (!secret) return false;
+
+  const cookies = parseCookie(request.headers.get('Cookie'));
+  const rawCookie = cookies.get(ASSOCIATE_COOKIE_NAME) || '';
+  const [value, signature] = rawCookie.split('.');
+  if (value !== ASSOCIATE_COOKIE_VALUE || !signature) return false;
+
+  return verifyAuth(value, secret, signature);
+}
+
+async function buildAssociateModeCookie(env: Env): Promise<string> {
+  const signature = await signAuth(ASSOCIATE_COOKIE_VALUE, env.AUTH_SECRET);
+  const maxAge = 60 * 60 * 24 * 90;
+  return `${ASSOCIATE_COOKIE_NAME}=${ASSOCIATE_COOKIE_VALUE}.${signature}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`;
+}
+
+function clearAssociateModeCookie(): string {
+  return `${ASSOCIATE_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`;
+}
+
 function currentDateYmd(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -12273,11 +12383,12 @@ function extractOpenAIText(response: any): string {
   return '';
 }
 
-function jsonResponse(body: any, status = 200): Response {
+function jsonResponse(body: any, status = 200, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       'Content-Type': 'application/json',
+      ...headers,
     },
   });
 }

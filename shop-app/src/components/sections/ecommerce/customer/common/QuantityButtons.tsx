@@ -7,6 +7,7 @@ interface QuantityButtonsProps {
   size?: 'large' | 'medium' | 'small';
   sx?: SxProps;
   defaultValue?: number;
+  max?: number;
   disabled?: boolean;
   handleChange: (value: number) => void;
 }
@@ -15,13 +16,15 @@ const QuantityButtons = ({
   size = 'medium',
   sx,
   defaultValue = 1,
+  max,
   disabled = false,
   handleChange,
 }: QuantityButtonsProps) => {
   const [quantity, setQuantity] = useState(defaultValue);
+  const maxQuantity = Number.isFinite(max) && Number(max) > 0 ? Number(max) : undefined;
 
   const handleIncrease = () => {
-    setQuantity(quantity + 1);
+    setQuantity(maxQuantity ? Math.min(quantity + 1, maxQuantity) : quantity + 1);
   };
 
   const handleDecrease = () => {
@@ -31,8 +34,8 @@ const QuantityButtons = ({
   };
 
   const handleQuantityChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const value = Number(e.target.value);
-    setQuantity(value);
+    const value = Math.max(1, Number(e.target.value) || 1);
+    setQuantity(maxQuantity ? Math.min(value, maxQuantity) : value);
   };
 
   useEffect(() => {
@@ -75,7 +78,7 @@ const QuantityButtons = ({
         variant="soft"
         shape="square"
         size={size}
-        disabled={disabled}
+        disabled={disabled || (maxQuantity != null && quantity >= maxQuantity)}
         onClick={handleIncrease}
       >
         <IconifyIcon icon="material-symbols:add-rounded" fontSize={20} />

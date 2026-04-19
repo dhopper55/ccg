@@ -1,5 +1,5 @@
 import { PropsWithChildren } from 'react';
-import { Box, Button, ButtonBase, Paper, Stack, SxProps, Typography } from '@mui/material';
+import { Box, ButtonBase, Paper, Stack, SxProps, Typography } from '@mui/material';
 import { cssVarRgba } from 'lib/utils';
 import { useSettingsContext } from 'providers/SettingsProvider';
 import paths from 'routes/paths';
@@ -48,7 +48,7 @@ const PageHeader = ({
           <Typography variant="h4">{title}</Typography>
         </Box>
 
-        {userLoggedIn ? (
+        {userLoggedIn === true && (
           <ButtonBase
             href={paths.products}
             sx={{
@@ -115,69 +115,6 @@ const PageHeader = ({
               />
             </Stack>
           </ButtonBase>
-        ) : (
-          <Box
-            sx={{
-              bgcolor: 'primary.lighter',
-              borderRadius: 6,
-              py: 2,
-              px: 3,
-            }}
-          >
-            <Stack
-              direction={{ xs: 'column', sm: 'row' }}
-              sx={{
-                columnGap: 5,
-                rowGap: 3,
-                height: 1,
-                alignItems: { sm: 'center' },
-                justifyContent: 'space-between',
-              }}
-            >
-              <Stack
-                direction={{ xs: 'column', xl: 'row' }}
-                sx={{
-                  gap: 1,
-                  alignItems: { xl: 'center' },
-                }}
-              >
-                <Typography variant="h6">Already a member? </Typography>
-                <Typography
-                  component="p"
-                  variant="subtitle1"
-                  sx={{
-                    color: 'text.secondary',
-                  }}
-                >
-                  Log in for a <strong>faster checkout process</strong>
-                </Typography>
-              </Stack>
-              <Stack
-                direction={{ xs: 'column', lg: 'row' }}
-                sx={{
-                  gap: 1,
-                  alignItems: { xs: 'stretch', lg: 'center' },
-                }}
-              >
-                <Button
-                  variant="contained"
-                  color="neutral"
-                  sx={{ whiteSpace: 'nowrap' }}
-                  href={paths.defaultJwtLogin}
-                >
-                  Login to checkout
-                </Button>
-                <Button
-                  variant="text"
-                  color="neutral"
-                  sx={{ whiteSpace: 'nowrap' }}
-                  href={paths.defaultJwtSignup}
-                >
-                  Create a new account
-                </Button>
-              </Stack>
-            </Stack>
-          </Box>
         )}
       </Stack>
     </Paper>

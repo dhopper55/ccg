@@ -51,7 +51,11 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
     (product: ProductDetails, quantity = 1) => {
       const existingItem = cartItems.find((item) => item.id === product.id);
       const addQuantity = Math.max(1, Math.floor(quantity));
-      const newQuantity = existingItem ? existingItem.quantity + addQuantity : addQuantity;
+      const maxQuantity = Math.max(1, Number(product.stock || 1));
+      const newQuantity = Math.min(
+        existingItem ? existingItem.quantity + addQuantity : addQuantity,
+        maxQuantity,
+      );
 
       if (existingItem) {
         setCartItems((prev) =>
@@ -75,7 +79,15 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
   const updateCartItem = useCallback(
     (itemId: number, updatedData: Partial<CartItem>) => {
       const updatedItems = cartItems.map((item) =>
-        item.id === itemId ? { ...item, ...updatedData } : item,
+        item.id === itemId
+          ? {
+              ...item,
+              ...updatedData,
+              quantity: updatedData.quantity
+                ? Math.min(Math.max(1, updatedData.quantity), Math.max(1, Number(item.stock || 1)))
+                : item.quantity,
+            }
+          : item,
       );
       setCartItems(updatedItems);
     },

@@ -4,7 +4,6 @@ import {
   Button,
   Checkbox,
   Chip,
-  Divider,
   FormControl,
   FormControlLabel,
   Link,
@@ -40,7 +39,7 @@ const CartItem = ({ item }: CartItemProps) => {
   const { id, name, images, price, stock, quantity } = item;
 
   const handleQuantityChange = (quantity: number) => {
-    updateCartItem(item.id, { quantity });
+    updateCartItem(item.id, { quantity: Math.min(quantity, Math.max(1, Number(stock || 1))) });
   };
 
   return (
@@ -260,7 +259,11 @@ const CartItem = ({ item }: CartItemProps) => {
                 >
                   Quantity :
                 </Typography>
-                <QuantityButtons defaultValue={quantity} handleChange={handleQuantityChange} />
+                <QuantityButtons
+                  defaultValue={quantity}
+                  max={Math.max(1, Number(stock || 1))}
+                  handleChange={handleQuantityChange}
+                />
               </Stack>
             </Stack>
           </Stack>
@@ -273,25 +276,6 @@ const CartItem = ({ item }: CartItemProps) => {
               justifyContent: 'space-between',
             }}
           >
-            <Stack
-              divider={<Divider orientation="vertical" flexItem />}
-              sx={{
-                gap: { xs: 1, sm: 1.5 },
-              }}
-            >
-              <Button
-                variant="text"
-                color="neutral"
-                size="small"
-                sx={{ whiteSpace: 'nowrap', minWidth: 0 }}
-              >
-                Edit
-              </Button>
-              <Button variant="text" color="neutral" size="small" sx={{ whiteSpace: 'nowrap' }}>
-                Move to wishlist
-              </Button>
-            </Stack>
-
             <Button
               variant="text"
               color="error"

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router';
 import { Paper } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import { slugifyCategory } from 'lib/utils';
+import { useAssociateMode } from 'providers/AssociateModeProvider';
 import { useEcommerce } from 'providers/EcommerceProvider';
 import paths from 'routes/paths';
 import { ProductDetails as CartProductDetails } from 'types/ecommerce';
@@ -26,9 +27,11 @@ type ShopProduct = {
   regularPrice: number | null;
   salePrice: number;
   clearance: boolean;
+  onlyInStore: boolean;
   category: string;
   primaryCategoryName: string;
   secondaryCategory: string;
+  quantity: number;
   forSale: boolean;
   isSold: boolean;
   highlights: { text: string; danger?: boolean; highlight?: boolean }[];
@@ -49,6 +52,7 @@ const ProductDetails = () => {
   const { category: categoryParam, slug: slugParam } = useParams();
   const navigate = useNavigate();
   const { addItemToCart } = useEcommerce();
+  const { isAssociateMode, isCheckingAssociateMode } = useAssociateMode();
   const [shopProduct, setShopProduct] = useState<ShopProduct | null>(null);
   const [isLoadingProduct, setIsLoadingProduct] = useState(true);
   const [quantity, setQuantity] = useState(1);
@@ -56,13 +60,18 @@ const ProductDetails = () => {
   useEffect(() => {
     let cancelled = false;
     const loadProduct = async () => {
+      if (isCheckingAssociateMode) {
+        setIsLoadingProduct(true);
+        return;
+      }
       if (!slugParam) {
         setIsLoadingProduct(false);
         return;
       }
       setIsLoadingProduct(true);
       try {
-        const response = await fetch(`/api/shop/products/by-slug/${encodeURIComponent(slugParam)}`);
+        const query = isAssociateMode ? '?associate=1' : '';
+        const response = await fetch(`/api/shop/products/by-slug/${encodeURIComponent(slugParam)}${query}`);
         const data = (await response.json()) as ShopProductResponse;
         if (!cancelled) setShopProduct(data.record || null);
       } catch {
@@ -73,7 +82,7 @@ const ProductDetails = () => {
     };
     void loadProduct();
     return () => { cancelled = true; };
-  }, [slugParam]);
+  }, [isAssociateMode, isCheckingAssociateMode, slugParam]);
 
   useEffect(() => {
     if (!shopProduct) return;
@@ -87,6 +96,7 @@ const ProductDetails = () => {
 
   const galleryImages = shopProduct?.images || [];
   const isUnavailable = Boolean(shopProduct?.isSold || !shopProduct?.forSale);
+  const availableQuantity = shopProduct ? Math.max(1, Number(shopProduct.quantity || 1)) : 1;
   const displayPrice = shopProduct
     ? shopProduct.salePrice > 0
       ? shopProduct.salePrice
@@ -145,16 +155,16 @@ const ProductDetails = () => {
       },
       vat: 0,
       sold: 0,
-      stock: isUnavailable ? 0 : 1,
-      availability: isUnavailable ? ['Sold'] : ['In stock'],
+      stock: isUnavailable ? 0 : availableQuantity,
+      availability: isUnavailable ? ['Sold'] : [shopProduct.onlyInStore ? 'In store only' : 'In stock'],
       category: [shopProduct.category, shopProduct.secondaryCategory].filter(Boolean),
       features: shopProduct.highlights.map((highlight) => highlight.text).filter(Boolean),
     };
-  }, [displayPrice, galleryImages, isUnavailable, shopProduct]);
+  }, [availableQuantity, displayPrice, galleryImages, isUnavailable, shopProduct]);
 
   const handleAddToCart = () => {
     if (!cartProduct || isUnavailable) return;
-    addItemToCart(cartProduct, quantity);
+    addItemToCart(cartProduct, Math.min(quantity, availableQuantity));
   };
 
   if (isLoadingProduct || !shopProduct) {
@@ -202,7 +212,8 @@ const ProductDetails = () => {
           highlights={shopProduct?.highlights || []}
           isUnavailable={isUnavailable}
           quantity={quantity}
-          onQuantityChange={setQuantity}
+          maxQuantity={availableQuantity}
+          onQuantityChange={(nextQuantity) => setQuantity(Math.min(nextQuantity, availableQuantity))}
         />
       </Grid>
       <Grid size={12}>

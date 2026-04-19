@@ -23,15 +23,6 @@ const ActionButtons = ({ sx }: { sx?: SxProps }) => (
     >
       Continue shopping
     </Button>
-    <Button
-      variant="soft"
-      color="neutral"
-      startIcon={
-        <IconifyIcon icon="material-symbols:favorite-outline-rounded" fontSize="20px !important" />
-      }
-    >
-      Move all items into wishlist
-    </Button>
   </Stack>
 );
 

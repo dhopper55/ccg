@@ -16,6 +16,7 @@ APIFY_FACEBOOK_ACTOR = "apify/facebook-marketplace-scraper"
 APIFY_CRAIGSLIST_ACTOR = "ivanvs/craigslist-scraper"
 SITE_BASE_URL = "https://www.coalcreekguitars.com"
 MAX_IMAGES = "10"
+ASSOCIATE_MODE_TOKEN = "ccg_worker"
 
 [[kv_namespaces]]
 binding = "LISTING_JOBS"

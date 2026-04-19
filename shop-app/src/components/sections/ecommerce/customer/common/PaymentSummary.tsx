@@ -173,7 +173,7 @@ const PaymentSummary = () => {
                 color: 'text.secondary',
               }}
             >
-              TBA
+              N/A
             </Typography>
           </Stack>
 
@@ -183,16 +183,9 @@ const PaymentSummary = () => {
               color: 'text.secondary',
             }}
           >
-            You are only{' '}
-            <Box
-              component="span"
-              sx={{
-                color: 'success.main',
-              }}
-            >
-              $20 away
-            </Box>{' '}
-            from free shipping
+            Local pickup in Englewood, CO.
+            <br />
+            Contact us for dropoff options.
           </Typography>
         </div>
 

@@ -1,13 +1,16 @@
 import { Outlet } from 'react-router';
 import AuthProvider from 'providers/AuthProvider';
+import AssociateModeProvider from 'providers/AssociateModeProvider';
 import EcommerceProvider from 'providers/EcommerceProvider';
 
 const App = () => {
   return (
     <AuthProvider>
-      <EcommerceProvider>
-        <Outlet />
-      </EcommerceProvider>
+      <AssociateModeProvider>
+        <EcommerceProvider>
+          <Outlet />
+        </EcommerceProvider>
+      </AssociateModeProvider>
     </AuthProvider>
   );
 };

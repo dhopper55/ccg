@@ -4,11 +4,12 @@ import QuantityButtons from '../../common/QuantityButtons';
 interface QuantityProps {
   sx: SxProps;
   quantity: number;
+  max?: number;
   disabled?: boolean;
   onChange: (quantity: number) => void;
 }
 
-const Quantity = ({ sx, quantity, disabled = false, onChange }: QuantityProps) => {
+const Quantity = ({ sx, quantity, max, disabled = false, onChange }: QuantityProps) => {
   return (
     <Paper sx={{ p: { xs: 3, md: 5 }, ...sx }}>
       <Typography
@@ -21,6 +22,7 @@ const Quantity = ({ sx, quantity, disabled = false, onChange }: QuantityProps) =
       </Typography>
       <QuantityButtons
         defaultValue={quantity}
+        max={max}
         disabled={disabled}
         handleChange={onChange}
         sx={{ mb: 0.5 }}

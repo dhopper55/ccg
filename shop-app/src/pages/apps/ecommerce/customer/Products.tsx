@@ -15,6 +15,7 @@ import {
 import Grid from '@mui/material/Grid';
 import { Link as RouterLink, useSearchParams } from 'react-router';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
+import { useAssociateMode } from 'providers/AssociateModeProvider';
 import paths from 'routes/paths';
 import { slugifyCategory } from 'lib/utils';
 import FilterDrawer from 'components/sections/ecommerce/customer/products/FilterDrawer';
@@ -33,6 +34,7 @@ type ShopProduct = {
   category: string;
   primaryCategoryName: string;
   secondaryCategory: string;
+  onlyInStore: boolean;
   isSold: boolean;
 };
 
@@ -63,6 +65,7 @@ const index = () => (
 const Products = () => {
   const { up } = useBreakpoints();
   const upMd = up('md');
+  const { isAssociateMode, isCheckingAssociateMode } = useAssociateMode();
   const [isDrawerOpen, setIsDrawerOpen] = useState(upMd);
   const [allProducts, setAllProducts] = useState<ShopProduct[]>([]);
   const [categories, setCategories] = useState<ShopCategoryNode[]>([]);
@@ -121,11 +124,24 @@ const Products = () => {
   }, [maxPrice, searchTerm, setValue]);
 
   useEffect(() => {
+    didInitializePriceRange.current = false;
+    setMaxPrice(0);
+    setValue('priceRange', [0, 0]);
+  }, [isAssociateMode, setValue]);
+
+  useEffect(() => {
     let cancelled = false;
     const load = async () => {
+      if (isCheckingAssociateMode) {
+        setIsLoading(true);
+        return;
+      }
       setIsLoading(true);
       try {
         const params = new URLSearchParams();
+        if (isAssociateMode) {
+          params.set('associate', '1');
+        }
         if (searchTerm) {
           params.set('search', searchTerm);
         }
@@ -159,7 +175,7 @@ const Products = () => {
     };
     void load();
     return () => { cancelled = true; };
-  }, [maxPrice, priceRange, searchTerm, selectedCategoryIds]);
+  }, [isAssociateMode, isCheckingAssociateMode, maxPrice, priceRange, searchTerm, selectedCategoryIds]);
 
   const totalPages = Math.max(1, Math.ceil(allProducts.length / PAGE_SIZE));
   const visibleProducts = allProducts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -206,6 +222,14 @@ const Products = () => {
               </Box>
             ) : (
               <Box sx={{ px: { xs: 2, md: 3 }, py: 3 }}>
+                {isAssociateMode && (
+                  <Chip
+                    label="Associate mode: in-store inventory included"
+                    color="info"
+                    variant="outlined"
+                    sx={{ mb: 3, fontWeight: 600 }}
+                  />
+                )}
                 <Grid container spacing={3}>
                   {visibleProducts.map((product) => (
                     <Grid key={product.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
@@ -280,7 +304,7 @@ function calcDiscount(regular: number, sale: number): number {
 }
 
 const ProductCard = ({ product }: { product: ShopProduct }) => {
-  const { mainImage, saleTitle, salePrice, regularPrice, category, secondaryCategory } = product;
+  const { mainImage, saleTitle, salePrice, regularPrice, category, secondaryCategory, onlyInStore } = product;
   const hasDiscount = regularPrice != null && regularPrice > 0 && salePrice > 0 && salePrice < regularPrice;
   const discount = hasDiscount ? calcDiscount(regularPrice!, salePrice) : 0;
   const displayPrice = salePrice > 0 ? salePrice : (regularPrice ?? 0);
@@ -347,6 +371,7 @@ const ProductCard = ({ product }: { product: ShopProduct }) => {
         </Typography>
 
         <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', justifyContent: 'center' }}>
+          {onlyInStore && <Chip label="In store only" color="warning" size="small" />}
           {category && <Chip label={category} size="small" variant="outlined" />}
           {secondaryCategory && <Chip label={secondaryCategory} size="small" variant="outlined" />}
         </Stack>

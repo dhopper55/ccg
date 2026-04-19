@@ -13,6 +13,7 @@ interface ProductDetailsAsideProps {
   highlights: ProductHighlight[];
   isUnavailable?: boolean;
   quantity: number;
+  maxQuantity?: number;
   onQuantityChange: (quantity: number) => void;
 }
 
@@ -23,6 +24,7 @@ const ProductDetailsAside = ({
   highlights,
   isUnavailable = false,
   quantity,
+  maxQuantity,
   onQuantityChange,
 }: ProductDetailsAsideProps) => {
   return (
@@ -69,6 +71,7 @@ const ProductDetailsAside = ({
             <Quantity
               sx={{ height: 1 }}
               quantity={quantity}
+              max={maxQuantity}
               disabled={isUnavailable}
               onChange={onQuantityChange}
             />
