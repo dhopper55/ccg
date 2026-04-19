@@ -2,6 +2,7 @@ import { RouteObject, createBrowserRouter } from 'react-router';
 import App from 'App';
 import EcommerceLayout from 'layouts/ecommerce-layout';
 import Cart from 'pages/apps/ecommerce/customer/Cart';
+import CheckoutSuccess from 'pages/apps/ecommerce/customer/CheckoutSuccess';
 import ProductDetails from 'pages/apps/ecommerce/customer/ProductDetails';
 import Products from 'pages/apps/ecommerce/customer/Products';
 import Page404 from 'pages/errors/Page404';
@@ -23,6 +24,14 @@ export const routes: RouteObject[] = [
         element: (
           <EcommerceLayout>
             <Cart />
+          </EcommerceLayout>
+        ),
+      },
+      {
+        path: '/checkout/success',
+        element: (
+          <EcommerceLayout>
+            <CheckoutSuccess />
           </EcommerceLayout>
         ),
       },

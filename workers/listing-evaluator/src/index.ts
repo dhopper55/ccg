@@ -28,6 +28,7 @@ interface Env {
   AUTH_PASS: string;
   AUTH_SECRET: string;
   ASSOCIATE_MODE_TOKEN?: string;
+  STRIPE_SECRET_KEY?: string;
   WEBHOOK_SECRET?: string;
   LISTING_JOBS: KVNamespace;
   GOOGLE_MAPS_API_KEY?: string;
@@ -116,6 +117,35 @@ interface DecodeRequestPayload {
   pagePath?: unknown;
   userAgent?: unknown;
   clientTimestamp?: unknown;
+}
+
+interface ShopCheckoutRequestPayload {
+  fulfillmentType?: unknown;
+  items?: Array<{
+    inventoryItemId?: unknown;
+    quantity?: unknown;
+  }>;
+}
+
+interface ShopCheckoutInventoryRow {
+  id: number;
+  title: string | null;
+  sale_title: string | null;
+  brand: string | null;
+  model: string | null;
+  condition: string | null;
+  image_url: string | null;
+  regular_price: number | null;
+  sale_price: number | null;
+  quantity: number | null;
+  for_sale: number | null;
+  only_in_store: number | null;
+  is_sold: number | null;
+  is_active: number | null;
+  is_rented: number | null;
+  availability_status: string | null;
+  active_order_id: string | null;
+  reserved_until: string | null;
 }
 
 interface AiSerialDecodeParsed {
@@ -413,6 +443,11 @@ export default {
 
     if (path === '/api/shop/newsletter' && request.method === 'POST') {
       const response = await handleShopNewsletterSubscribe(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/shop/orders/create-checkout-session' && request.method === 'POST') {
+      const response = await handleShopCreateCheckoutSession(request, env);
       return withCors(response, request, env);
     }
 
@@ -3368,6 +3403,127 @@ async function handleShopNewsletterSubscribe(request: Request, env: Env): Promis
     duplicate: !inserted,
     message: inserted ? 'You are subscribed.' : 'You are already subscribed.',
   });
+}
+
+async function handleShopCreateCheckoutSession(request: Request, env: Env): Promise<Response> {
+  const stripeSecretKey = normalizeText(env.STRIPE_SECRET_KEY, '');
+  if (!stripeSecretKey) {
+    return jsonResponse({ message: 'Stripe checkout is not configured.' }, 503);
+  }
+
+  let body: ShopCheckoutRequestPayload;
+  try {
+    body = await request.json<ShopCheckoutRequestPayload>();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  const requestedItems = normalizeCheckoutItems(body?.items);
+  if (requestedItems.length === 0) {
+    return jsonResponse({ message: 'Your cart is empty.' }, 400);
+  }
+
+  const fulfillmentType = normalizeText(body?.fulfillmentType, 'pickup') === 'pickup'
+    ? 'pickup'
+    : 'pickup';
+  const includeInStoreOnly = await isAssociateModeRequest(request, env);
+  const inventoryRows = await dbListCheckoutInventoryItems(
+    requestedItems.map((item) => item.inventoryItemId),
+    env,
+  );
+  const byId = new Map(inventoryRows.map((row) => [row.id, row]));
+
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const reserveExpiresAt = new Date(now.getTime() + 30 * 60 * 1000).toISOString();
+  const checkoutItems: Array<{
+    inventoryItemId: number;
+    quantity: number;
+    row: ShopCheckoutInventoryRow;
+    title: string;
+    unitAmountCents: number;
+    imageUrl: string;
+  }> = [];
+
+  for (const requestedItem of requestedItems) {
+    const row = byId.get(requestedItem.inventoryItemId);
+    if (!row) {
+      return jsonResponse({ message: 'One of the cart items is no longer available.' }, 400);
+    }
+    const unavailableReason = getCheckoutInventoryUnavailableReason(row, {
+      includeInStoreOnly,
+      nowIso,
+      requestedQuantity: requestedItem.quantity,
+    });
+    if (unavailableReason) {
+      return jsonResponse({ message: unavailableReason }, 409);
+    }
+    const price = Number(row.sale_price || row.regular_price || 0);
+    const unitAmountCents = Math.round(price * 100);
+    if (!Number.isFinite(unitAmountCents) || unitAmountCents <= 0) {
+      return jsonResponse({ message: `${getCheckoutItemTitle(row)} is missing a checkout price.` }, 409);
+    }
+    checkoutItems.push({
+      inventoryItemId: requestedItem.inventoryItemId,
+      quantity: requestedItem.quantity,
+      row,
+      title: getCheckoutItemTitle(row),
+      unitAmountCents,
+      imageUrl: toPublicShopImageUrl(row.image_url),
+    });
+  }
+
+  const orderId = crypto.randomUUID();
+  const orderNumber = buildOrderNumber();
+  const subtotalCents = checkoutItems.reduce(
+    (sum, item) => sum + item.unitAmountCents * item.quantity,
+    0,
+  );
+  const totalCents = subtotalCents;
+  const baseUrl = normalizeText(env.SITE_BASE_URL, ACTIVITY_BASE_URL).replace(/\/+$/, '');
+  const successUrl = `${baseUrl}${SHOP_BASE_PATH}/checkout/success?order=${encodeURIComponent(orderId)}`;
+  const cancelUrl = `${baseUrl}${SHOP_BASE_PATH}/cart`;
+  const channel = includeInStoreOnly ? 'in_store' : 'online';
+
+  try {
+    await dbCreateCheckoutOrder({
+      orderId,
+      orderNumber,
+      status: 'checkout_open',
+      channel,
+      fulfillmentType,
+      subtotalCents,
+      totalCents,
+      reserveExpiresAt,
+      successUrl,
+      cancelUrl,
+      createdAt: nowIso,
+      items: checkoutItems,
+    }, env);
+
+    const stripeSession = await createStripeCheckoutSession({
+      stripeSecretKey,
+      orderId,
+      orderNumber,
+      successUrl,
+      cancelUrl,
+      items: checkoutItems,
+    });
+
+    await dbAttachStripeCheckoutSession(orderId, stripeSession.id, env);
+
+    return jsonResponse({
+      orderId,
+      orderNumber,
+      url: stripeSession.url,
+    });
+  } catch (error) {
+    console.error('Stripe checkout session creation failed', { error });
+    await dbCancelFailedCheckoutOrder(orderId, env);
+    return jsonResponse({
+      message: error instanceof Error ? error.message : 'Unable to start checkout.',
+    }, 500);
+  }
 }
 
 async function handleAdminV2DashboardSummary(env: Env): Promise<Response> {
@@ -7083,6 +7239,203 @@ async function dbGetShopProductDetail(
     ].filter((item) => item.value && item.value.toLowerCase() !== 'unknown'),
     isSold: Boolean(row.is_sold),
   };
+}
+
+async function dbListCheckoutInventoryItems(
+  itemIds: number[],
+  env: Env,
+): Promise<ShopCheckoutInventoryRow[]> {
+  const uniqueIds = Array.from(new Set(itemIds)).filter((id) => Number.isInteger(id) && id > 0);
+  if (uniqueIds.length === 0) return [];
+  const placeholders = uniqueIds.map(() => '?').join(', ');
+  const result = await env.DB.prepare(
+    `SELECT
+       id,
+       title,
+       sale_title,
+       brand,
+       model,
+       "condition",
+       image_url,
+       regular_price,
+       sale_price,
+       quantity,
+       for_sale,
+       only_in_store,
+       is_sold,
+       is_active,
+       is_rented,
+       availability_status,
+       active_order_id,
+       reserved_until
+     FROM ccg_inventory_items
+     WHERE id IN (${placeholders})`
+  ).bind(...uniqueIds).all<ShopCheckoutInventoryRow>();
+  return result.results ?? [];
+}
+
+async function dbCreateCheckoutOrder(
+  input: {
+    orderId: string;
+    orderNumber: string;
+    status: string;
+    channel: string;
+    fulfillmentType: string;
+    subtotalCents: number;
+    totalCents: number;
+    reserveExpiresAt: string;
+    successUrl: string;
+    cancelUrl: string;
+    createdAt: string;
+    items: Array<{
+      inventoryItemId: number;
+      quantity: number;
+      row: ShopCheckoutInventoryRow;
+      title: string;
+      unitAmountCents: number;
+      imageUrl: string;
+    }>;
+  },
+  env: Env,
+): Promise<void> {
+  await env.DB.prepare(
+    `INSERT INTO orders (
+       id,
+       order_number,
+       status,
+       channel,
+       checkout_provider,
+       checkout_mode,
+       fulfillment_type,
+       subtotal_cents,
+       tax_cents,
+       shipping_cents,
+       discount_cents,
+       total_cents,
+       currency,
+       reserve_expires_at,
+       checkout_started_at,
+       success_url,
+       cancel_url,
+       created_at,
+       updated_at
+     ) VALUES (?, ?, ?, ?, 'stripe', 'hosted_checkout', ?, ?, 0, 0, 0, ?, 'usd', ?, ?, ?, ?, ?, ?)`
+  ).bind(
+    input.orderId,
+    input.orderNumber,
+    input.status,
+    input.channel,
+    input.fulfillmentType,
+    input.subtotalCents,
+    input.totalCents,
+    input.reserveExpiresAt,
+    input.createdAt,
+    input.successUrl,
+    input.cancelUrl,
+    input.createdAt,
+    input.createdAt,
+  ).run();
+
+  for (const item of input.items) {
+    const reserveResult = await env.DB.prepare(
+      `UPDATE ccg_inventory_items
+       SET availability_status = 'checkout_open',
+           active_order_id = ?,
+           reserved_until = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?
+         AND COALESCE(is_sold, 0) = 0
+         AND (
+           active_order_id IS NULL
+           OR active_order_id = ''
+           OR reserved_until IS NULL
+           OR reserved_until < ?
+         )`
+    ).bind(input.orderId, input.reserveExpiresAt, item.inventoryItemId, input.createdAt).run();
+
+    if (!reserveResult.success || Number(reserveResult.meta?.changes || 0) < 1) {
+      throw new Error(`${item.title} is already reserved.`);
+    }
+
+    await env.DB.prepare(
+      `INSERT INTO order_items (
+         id,
+         order_id,
+         inventory_item_id,
+         quantity,
+         item_title_snapshot,
+         item_brand_snapshot,
+         item_model_snapshot,
+         item_condition_snapshot,
+         item_image_url_snapshot,
+         unit_price_cents,
+         subtotal_cents,
+         created_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      crypto.randomUUID(),
+      input.orderId,
+      item.inventoryItemId,
+      item.quantity,
+      item.title,
+      item.row.brand || '',
+      item.row.model || '',
+      item.row.condition || '',
+      item.imageUrl,
+      item.unitAmountCents,
+      item.unitAmountCents * item.quantity,
+      input.createdAt,
+    ).run();
+  }
+
+  await env.DB.prepare(
+    `INSERT INTO order_events (
+       order_id,
+       event_type,
+       from_status,
+       to_status,
+       source,
+       source_id,
+       message,
+       created_at
+     ) VALUES (?, 'checkout_created', NULL, 'checkout_open', 'public_site', NULL, ?, ?)`
+  ).bind(input.orderId, 'Stripe Checkout started from cart.', input.createdAt).run();
+}
+
+async function dbAttachStripeCheckoutSession(
+  orderId: string,
+  checkoutSessionId: string,
+  env: Env,
+): Promise<void> {
+  await env.DB.prepare(
+    `UPDATE orders
+     SET stripe_checkout_session_id = ?,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?`
+  ).bind(checkoutSessionId, orderId).run();
+}
+
+async function dbCancelFailedCheckoutOrder(orderId: string, env: Env): Promise<void> {
+  try {
+    await env.DB.prepare(
+      `UPDATE ccg_inventory_items
+       SET availability_status = 'available',
+           active_order_id = NULL,
+           reserved_until = NULL,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE active_order_id = ?`
+    ).bind(orderId).run();
+    await env.DB.prepare(
+      `UPDATE orders
+       SET status = 'cancelled',
+           cancelled_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?
+         AND status != 'paid'`
+    ).bind(orderId).run();
+  } catch (error) {
+    console.error('Failed to cancel checkout order after Stripe error', { orderId, error });
+  }
 }
 
 async function generateUniqueCcgNumber(env: Env): Promise<string | null> {
@@ -10838,6 +11191,114 @@ function parseCurrencyAmount(input: unknown): number | null {
     return parsed != null ? parsed : null;
   }
   return null;
+}
+
+function normalizeCheckoutItems(input: unknown): Array<{ inventoryItemId: number; quantity: number }> {
+  if (!Array.isArray(input)) return [];
+
+  const byInventoryItemId = new Map<number, number>();
+  for (const item of input) {
+    const inventoryItemId = parseOptionalPositiveInt((item as any)?.inventoryItemId);
+    if (!inventoryItemId) continue;
+    const quantityValue = Number((item as any)?.quantity ?? 1);
+    const quantity = Math.max(1, Math.min(99, Math.floor(Number.isFinite(quantityValue) ? quantityValue : 1)));
+    byInventoryItemId.set(inventoryItemId, (byInventoryItemId.get(inventoryItemId) || 0) + quantity);
+  }
+
+  return Array.from(byInventoryItemId.entries()).map(([inventoryItemId, quantity]) => ({
+    inventoryItemId,
+    quantity,
+  }));
+}
+
+function getCheckoutItemTitle(row: ShopCheckoutInventoryRow): string {
+  return normalizeText(row.sale_title, '') || normalizeText(row.title, '') || `Inventory item ${row.id}`;
+}
+
+function getCheckoutInventoryUnavailableReason(
+  row: ShopCheckoutInventoryRow,
+  input: { includeInStoreOnly: boolean; nowIso: string; requestedQuantity: number },
+): string | null {
+  const title = getCheckoutItemTitle(row);
+  if (Number(row.is_active || 0) !== 1) return `${title} is no longer available.`;
+  if (Number(row.is_sold || 0) === 1) return `${title} has already sold.`;
+  if (Number(row.is_rented || 0) === 1) return `${title} is not available for checkout.`;
+  if (Number(row.for_sale || 0) !== 1) return `${title} is not available for checkout.`;
+  if (Number(row.only_in_store || 0) === 1 && !input.includeInStoreOnly) {
+    return `${title} is only available in store.`;
+  }
+  const availableQuantity = Math.max(1, Number(row.quantity || 1));
+  if (input.requestedQuantity > availableQuantity) {
+    return `${title} has only ${availableQuantity} available.`;
+  }
+  const availability = normalizeText(row.availability_status, 'available');
+  const hasActiveReservation = Boolean(
+    normalizeText(row.active_order_id, '') &&
+    normalizeText(row.reserved_until, '') &&
+    normalizeText(row.reserved_until, '') >= input.nowIso,
+  );
+  if (availability === 'sold') return `${title} has already sold.`;
+  if (hasActiveReservation) return `${title} is already reserved for another checkout.`;
+  return null;
+}
+
+function buildOrderNumber(): string {
+  const stamp = new Date().toISOString().replace(/\D/g, '').slice(0, 14);
+  const suffix = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `CCG-${stamp}-${suffix}`;
+}
+
+async function createStripeCheckoutSession(input: {
+  stripeSecretKey: string;
+  orderId: string;
+  orderNumber: string;
+  successUrl: string;
+  cancelUrl: string;
+  items: Array<{
+    inventoryItemId: number;
+    quantity: number;
+    title: string;
+    unitAmountCents: number;
+    imageUrl: string;
+  }>;
+}): Promise<{ id: string; url: string }> {
+  const form = new URLSearchParams();
+  form.set('mode', 'payment');
+  form.set('success_url', input.successUrl);
+  form.set('cancel_url', input.cancelUrl);
+  form.set('client_reference_id', input.orderId);
+  form.set('metadata[order_id]', input.orderId);
+  form.set('metadata[order_number]', input.orderNumber);
+  form.set('metadata[inventory_item_ids]', input.items.map((item) => String(item.inventoryItemId)).join(','));
+
+  input.items.forEach((item, index) => {
+    const prefix = `line_items[${index}]`;
+    form.set(`${prefix}[quantity]`, String(item.quantity));
+    form.set(`${prefix}[price_data][currency]`, 'usd');
+    form.set(`${prefix}[price_data][unit_amount]`, String(item.unitAmountCents));
+    form.set(`${prefix}[price_data][product_data][name]`, item.title);
+    form.set(`${prefix}[price_data][product_data][metadata][inventory_item_id]`, String(item.inventoryItemId));
+    if (item.imageUrl) {
+      form.set(`${prefix}[price_data][product_data][images][0]`, item.imageUrl);
+    }
+  });
+
+  const response = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${input.stripeSecretKey}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: form,
+  });
+  const data = await response.json<any>();
+  if (!response.ok) {
+    throw new Error(normalizeText(data?.error?.message, 'Stripe rejected the checkout request.'));
+  }
+  const id = normalizeText(data?.id, '');
+  const url = normalizeText(data?.url, '');
+  if (!id || !url) throw new Error('Stripe did not return a checkout URL.');
+  return { id, url };
 }
 
 function validateForSaleInventoryFields(input: {

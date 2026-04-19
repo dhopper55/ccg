@@ -1,58 +1,95 @@
 # Order Processing Proposal
 
 ## Goal
-Add a first-class order model to support:
+Add first-class checkout/order tracking for direct purchase inventory sales.
 
-- In-store staff-assisted checkout
-- Future online product-page checkout
-- Stripe-hosted checkout for card and financing flows
-- Inventory reservations for one-of-a-kind items
-- Reliable sold-state transitions driven by payment success
+Phase 1 scope:
 
-This proposal keeps `ccg_inventory_items` as the inventory source of truth and introduces `orders` as the sale-attempt source of truth.
+- Stripe-hosted checkout from the existing cart
+- Online and in-store assisted checkout using the same customer cart flow
+- Pickup-only fulfillment
+- Order records created only when checkout starts
+- Reliable sold-state transitions driven by Stripe payment success
+
+Out of scope for Phase 1:
+
+- Rent-to-own / rental flows
+- Cash, Venmo, Zelle, CashApp, PayPal manual checkout
+- Payment links sent to customer phones
+- Shipping and local delivery
+- Stripe Terminal
+
+## Confirmed Checkout Flow
+
+### Cart ownership
+- Online: the customer builds the cart.
+- In store: staff uses associate mode, builds the cart from the public shop, and can include in-store-only items.
+- At payment time, the customer uses the same cart checkout flow, even in store.
+- Staff does not create orders manually for the Stripe flow.
+
+### Order creation timing
+- No order row exists while the cart is being built.
+- Clicking the cart `Checkout` button creates the order and Stripe Checkout Session.
+- The cart `Checkout` button starts the Stripe-hosted checkout flow.
+- A separate `Checkout cash` button is shown but disabled for now.
+
+### Payment method split
+- `Checkout`: Stripe-hosted checkout for cards and Stripe-enabled financing.
+- `Checkout cash`: future manual/offline payment flow for cash, Venmo, Zelle, CashApp, PayPal, etc.
 
 ## Recommended Architecture
 
 ### System of record
-- Inventory data remains in `ccg_inventory_items`
-- Sale attempts and payment lifecycle state live in `orders`
-- Stripe is the payment processor, not the source of truth for catalog/inventory state
-- Stripe webhooks are authoritative for payment success
+- Inventory data remains in `ccg_inventory_items`.
+- Sale attempts and payment lifecycle state live in `orders`.
+- Purchased inventory snapshots live in `order_items`.
+- Stripe is the payment processor, not the catalog or inventory source of truth.
+- Stripe webhooks are authoritative for payment success.
 
 ### Core principle
-Use a Stripe Checkout Session per purchase attempt rather than creating durable Stripe product records for every inventory item.
+Use a Stripe Checkout Session per cart checkout attempt rather than creating durable Stripe product records for every inventory item.
 
 Why:
-- Inventory items are unique and often one-off
-- Prices and terms can change at the moment of sale
-- Avoids catalog drift between D1 and Stripe
-- Avoids cleanup burden for sold or removed items
+- Inventory items are unique and often one-off.
+- Associate mode can include in-store-only inventory in the same cart flow.
+- Prices and terms can change at the moment of sale.
+- Avoids catalog drift between D1 and Stripe.
+- Avoids cleanup burden for sold or removed items.
+
+## Availability States
+
+Recommended `ccg_inventory_items.availability_status` values:
+
+- `available`: item can be added to cart and checked out.
+- `checkout_open`: item is reserved by an active Stripe Checkout Session.
+- `sold`: payment succeeded and the item is no longer available.
+- `unavailable`: item should not be offered for checkout, but is not sold.
+
+Existing flags still matter:
+
+- `is_active = 1`
+- `is_sold = 0`
+- `for_sale = 1`
+- `is_rented = 0`
+- `only_in_store = 1` requires associate mode.
 
 ## Proposed D1 Schema
 
 ### `orders`
 ```sql
-CREATE TABLE orders (
-  id TEXT PRIMARY KEY, -- UUID
+CREATE TABLE IF NOT EXISTS orders (
+  id TEXT PRIMARY KEY,
   order_number TEXT NOT NULL UNIQUE,
 
-  inventory_item_id INTEGER NOT NULL,
-  status TEXT NOT NULL, -- draft, reserved, checkout_open, payment_processing, paid, expired, cancelled, payment_failed, refunded, partially_refunded
-
-  channel TEXT NOT NULL, -- online, in_store, admin_remote, phone
+  status TEXT NOT NULL,
+  channel TEXT NOT NULL,
   checkout_provider TEXT NOT NULL DEFAULT 'stripe',
-  checkout_mode TEXT NOT NULL, -- hosted_checkout, payment_link, terminal, manual
-  fulfillment_type TEXT NOT NULL DEFAULT 'pickup', -- pickup, shipping, local_delivery
+  checkout_mode TEXT NOT NULL,
+  fulfillment_type TEXT NOT NULL DEFAULT 'pickup',
 
   customer_name TEXT,
   customer_email TEXT,
   customer_phone TEXT,
-
-  item_title_snapshot TEXT NOT NULL,
-  item_brand_snapshot TEXT,
-  item_model_snapshot TEXT,
-  item_condition_snapshot TEXT,
-  item_image_url_snapshot TEXT,
 
   subtotal_cents INTEGER NOT NULL,
   tax_cents INTEGER NOT NULL DEFAULT 0,
@@ -82,46 +119,172 @@ CREATE TABLE orders (
 );
 ```
 
-### `order_events`
+### `order_items`
 ```sql
-CREATE TABLE order_events (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+CREATE TABLE IF NOT EXISTS order_items (
+  id TEXT PRIMARY KEY,
   order_id TEXT NOT NULL,
-  event_type TEXT NOT NULL, -- created, reserved, checkout_created, checkout_opened, checkout_completed, payment_succeeded, payment_failed, expired, cancelled, refunded
-  from_status TEXT,
-  to_status TEXT,
-  source TEXT NOT NULL, -- admin_ui, public_site, stripe_webhook, system
-  source_id TEXT, -- webhook event id, checkout session id, etc.
-  message TEXT,
-  payload_json TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  inventory_item_id INTEGER NOT NULL,
+  quantity INTEGER NOT NULL DEFAULT 1,
+
+  item_title_snapshot TEXT NOT NULL,
+  item_brand_snapshot TEXT,
+  item_model_snapshot TEXT,
+  item_condition_snapshot TEXT,
+  item_image_url_snapshot TEXT,
+
+  unit_price_cents INTEGER NOT NULL,
+  subtotal_cents INTEGER NOT NULL,
+
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  FOREIGN KEY (order_id) REFERENCES orders(id)
 );
 ```
 
-### Suggested additions to `ccg_inventory_items`
+### `order_events`
+```sql
+CREATE TABLE IF NOT EXISTS order_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  from_status TEXT,
+  to_status TEXT,
+  source TEXT NOT NULL,
+  source_id TEXT,
+  message TEXT,
+  payload_json TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  FOREIGN KEY (order_id) REFERENCES orders(id)
+);
+```
+
+### Additions to `ccg_inventory_items`
 ```sql
 ALTER TABLE ccg_inventory_items ADD COLUMN availability_status TEXT DEFAULT 'available';
 ALTER TABLE ccg_inventory_items ADD COLUMN active_order_id TEXT;
 ALTER TABLE ccg_inventory_items ADD COLUMN reserved_until TEXT;
 ```
 
-### Suggested indexes
-```sql
-CREATE INDEX idx_orders_inventory_item_id ON orders(inventory_item_id);
-CREATE INDEX idx_orders_status ON orders(status);
-CREATE INDEX idx_orders_created_at ON orders(created_at);
-CREATE INDEX idx_orders_reserve_expires_at ON orders(reserve_expires_at);
-CREATE INDEX idx_order_events_order_id ON order_events(order_id);
+## D1 Scripts
+
+Run from `workers/listing-evaluator/`.
+
+### Create order tables
+```bash
+npx wrangler d1 execute listing_evaluator --remote --command="
+CREATE TABLE IF NOT EXISTS orders (
+  id TEXT PRIMARY KEY,
+  order_number TEXT NOT NULL UNIQUE,
+  status TEXT NOT NULL,
+  channel TEXT NOT NULL,
+  checkout_provider TEXT NOT NULL DEFAULT 'stripe',
+  checkout_mode TEXT NOT NULL,
+  fulfillment_type TEXT NOT NULL DEFAULT 'pickup',
+  customer_name TEXT,
+  customer_email TEXT,
+  customer_phone TEXT,
+  subtotal_cents INTEGER NOT NULL,
+  tax_cents INTEGER NOT NULL DEFAULT 0,
+  shipping_cents INTEGER NOT NULL DEFAULT 0,
+  discount_cents INTEGER NOT NULL DEFAULT 0,
+  total_cents INTEGER NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'usd',
+  reserve_expires_at TEXT,
+  checkout_started_at TEXT,
+  paid_at TEXT,
+  cancelled_at TEXT,
+  stripe_checkout_session_id TEXT UNIQUE,
+  stripe_payment_intent_id TEXT,
+  stripe_customer_id TEXT,
+  stripe_payment_status TEXT,
+  success_url TEXT,
+  cancel_url TEXT,
+  created_by_admin_username TEXT,
+  notes TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS order_items (
+  id TEXT PRIMARY KEY,
+  order_id TEXT NOT NULL,
+  inventory_item_id INTEGER NOT NULL,
+  quantity INTEGER NOT NULL DEFAULT 1,
+  item_title_snapshot TEXT NOT NULL,
+  item_brand_snapshot TEXT,
+  item_model_snapshot TEXT,
+  item_condition_snapshot TEXT,
+  item_image_url_snapshot TEXT,
+  unit_price_cents INTEGER NOT NULL,
+  subtotal_cents INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (order_id) REFERENCES orders(id)
+);
+
+CREATE TABLE IF NOT EXISTS order_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  from_status TEXT,
+  to_status TEXT,
+  source TEXT NOT NULL,
+  source_id TEXT,
+  message TEXT,
+  payload_json TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (order_id) REFERENCES orders(id)
+);
+"
+```
+
+### Add inventory reservation columns
+Run each command separately. SQLite/D1 will fail an `ADD COLUMN` if the column already exists.
+
+```bash
+npx wrangler d1 execute listing_evaluator --remote --command="ALTER TABLE ccg_inventory_items ADD COLUMN availability_status TEXT DEFAULT 'available';"
+npx wrangler d1 execute listing_evaluator --remote --command="ALTER TABLE ccg_inventory_items ADD COLUMN active_order_id TEXT;"
+npx wrangler d1 execute listing_evaluator --remote --command="ALTER TABLE ccg_inventory_items ADD COLUMN reserved_until TEXT;"
+```
+
+### Backfill availability
+```bash
+npx wrangler d1 execute listing_evaluator --remote --command="
+UPDATE ccg_inventory_items
+SET availability_status = CASE
+  WHEN COALESCE(is_sold, 0) = 1 THEN 'sold'
+  WHEN COALESCE(is_active, 0) = 1
+   AND COALESCE(is_sold, 0) = 0
+   AND COALESCE(for_sale, 0) = 1
+   AND COALESCE(is_rented, 0) = 0 THEN 'available'
+  ELSE 'unavailable'
+END
+WHERE availability_status IS NULL
+   OR availability_status = '';
+"
+```
+
+### Add indexes
+```bash
+npx wrangler d1 execute listing_evaluator --remote --command="
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);
+CREATE INDEX IF NOT EXISTS idx_orders_reserve_expires_at ON orders(reserve_expires_at);
+CREATE INDEX IF NOT EXISTS idx_orders_stripe_checkout_session_id ON orders(stripe_checkout_session_id);
+CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_order_items_inventory_item_id ON order_items(inventory_item_id);
+CREATE INDEX IF NOT EXISTS idx_order_events_order_id ON order_events(order_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_active_order_id ON ccg_inventory_items(active_order_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_availability_status ON ccg_inventory_items(availability_status);
+"
 ```
 
 ## Order Status Model
 
-Recommended order statuses:
+Phase 1 statuses:
 
-- `draft`
-- `reserved`
 - `checkout_open`
-- `payment_processing`
 - `paid`
 - `payment_failed`
 - `expired`
@@ -129,131 +292,83 @@ Recommended order statuses:
 - `refunded`
 - `partially_refunded`
 
-### Status meanings
-- `draft`: order row exists but checkout session not created yet
-- `reserved`: item is held and should not be sold elsewhere
-- `checkout_open`: Stripe Checkout Session exists and is active
-- `payment_processing`: payment is still settling or awaiting async confirmation
-- `paid`: webhook-confirmed success
-- `payment_failed`: checkout attempt failed
-- `expired`: checkout session or reservation timed out
-- `cancelled`: manually cancelled by staff or released before payment
-- `refunded`: order fully refunded after payment
-- `partially_refunded`: order partially refunded after payment
+Status meanings:
+
+- `checkout_open`: order row exists, Stripe Checkout Session exists or is being created, and item reservations are active.
+- `paid`: webhook-confirmed payment success.
+- `payment_failed`: Stripe asynchronous payment failed.
+- `expired`: Stripe Checkout Session or reservation timed out.
+- `cancelled`: checkout attempt was cancelled or released before payment.
+- `refunded`: order fully refunded after payment.
+- `partially_refunded`: order partially refunded after payment.
 
 ## Business Rules
 
-- Only one open order may exist per inventory item at a time
-- Open means `draft`, `reserved`, `checkout_open`, or `payment_processing`
-- Once an order becomes `paid`, the inventory item becomes sold
-- Expired, cancelled, or failed orders release the inventory item back to available state
-- Stripe webhook events are authoritative for payment success
-- Redirect pages are for customer UX only and must not be treated as fulfillment success
+- Only one active checkout order may reserve an inventory item at a time.
+- Active checkout means `checkout_open` and `reserve_expires_at` is in the future.
+- Once an order becomes `paid`, every `order_items.inventory_item_id` becomes sold.
+- Expired, cancelled, or failed orders release their inventory items back to available state.
+- Stripe webhook events are authoritative for payment success.
+- Redirect pages are customer UX only and must not be treated as fulfillment success.
+- Public online users cannot checkout `only_in_store` items.
+- Associate mode can include `only_in_store` items in the same Stripe checkout flow.
 
-## Repo-Specific Flow
+## Public Endpoints
 
-### In-store admin checkout flow
-1. Staff opens an inventory item in Admin V2
-2. Staff clicks `Start Checkout`
-3. Worker verifies the inventory item is available
-4. Worker creates an `orders` row with item snapshots and `status = 'reserved'`
-5. Worker sets inventory row fields:
-   - `availability_status = 'reserved'`
-   - `active_order_id = order.id`
-   - `reserved_until = now + 30 minutes`
-6. Worker creates a Stripe Checkout Session with metadata:
-   - `order_id`
-   - `inventory_item_id`
-   - `channel = in_store`
-7. Worker stores `stripe_checkout_session_id`, sets order status to `checkout_open`, and returns the Checkout URL
-8. Admin opens Stripe Checkout in a new tab and hands the device to the customer
-9. Stripe redirects to a thank-you page on the site
-10. Stripe webhook confirms payment and marks the order `paid`
-11. Worker marks the inventory row sold
-
-### Future public product-page checkout flow
-Use the same core order pipeline:
-
-- product page requests a Checkout Session from the Worker
-- Worker reserves the item and creates an order
-- Stripe Checkout handles payment and financing options
-- webhook marks the order paid and inventory sold
-
-## Worker Endpoints
-
-### Admin endpoints
-- `POST /api/admin-v2/orders/create-checkout-session`
-  - Input: `inventoryItemId`, optional `channel`, optional customer stub
-  - Creates reservation, order, and Stripe Checkout Session
-- `POST /api/admin-v2/orders/:id/cancel`
-  - Releases reservation if order is not paid
-- `GET /api/admin-v2/orders/:id`
-  - Returns order detail for admin drilldown
-- `GET /api/admin-v2/orders`
-  - Returns paged admin order list
-
-### Public endpoints
 - `POST /api/shop/orders/create-checkout-session`
-  - Creates order and Stripe Checkout Session for public site checkout
+  - Accepts selected cart item IDs and quantities.
+  - Loads item/pricing details from D1.
+  - Creates `orders` and `order_items`.
+  - Reserves each inventory item.
+  - Creates a Stripe Checkout Session.
+  - Returns the Stripe Checkout URL.
+
 - `GET /api/shop/orders/:id/status`
-  - Returns current backend order status for thank-you page and polling
+  - Future thank-you page endpoint.
+  - Returns current backend order status for polling.
 
-### Stripe webhook endpoint
+## Stripe Webhook Endpoint
+
 - `POST /api/stripe/webhook`
-  - Verifies webhook signature
-  - Processes payment and checkout lifecycle events idempotently
+  - Verifies webhook signature.
+  - Processes payment and checkout lifecycle events idempotently.
 
-## Stripe Object Strategy
-
-Do not create durable Stripe product records for each inventory item by default.
-
-Instead:
-- create one Checkout Session per sale attempt
-- pass item title and pricing as the current sale snapshot
-- attach internal metadata such as `order_id` and `inventory_item_id`
-
-This fits one-off inventory better than maintaining a mirrored Stripe catalog.
-
-## Webhook State Machine
-
-Recommended Stripe events to handle:
+Recommended Stripe events:
 
 - `checkout.session.completed`
-  - If payment is complete, mark order `paid`
-  - Mark inventory item sold
+  - If payment is complete, mark order `paid`.
+  - Mark each inventory item in `order_items` sold.
 - `checkout.session.async_payment_succeeded`
-  - Mark order `paid`
+  - Mark order `paid`.
 - `checkout.session.async_payment_failed`
-  - Mark order `payment_failed`
-  - Release inventory reservation
+  - Mark order `payment_failed`.
+  - Release inventory reservations.
 - `checkout.session.expired`
-  - Mark order `expired`
-  - Release inventory reservation
+  - Mark order `expired`.
+  - Release inventory reservations.
 - refund-related Stripe events
-  - Mark order `refunded` or `partially_refunded`
+  - Mark order `refunded` or `partially_refunded`.
 
 Webhook handling must be idempotent.
 
 ## Reservation Expiration
 
-Recommended reservation behavior:
+Recommended behavior:
 
-- reserve the item for 30 minutes when checkout begins
-- if `reserve_expires_at < now` and the order is not paid, release the reservation
-- run expiration checks:
+- Reserve cart items for 30 minutes when Stripe checkout starts.
+- If `reserved_until < now` and the order is not paid, release the reservation.
+- Run expiration checks:
   - when a new checkout starts for the same item
   - when admin loads item/order state
   - optionally in a scheduled cleanup later
 
-This avoids blocked inventory caused by abandoned checkouts.
-
 ## Thank-You Page
 
-Use a site page such as:
+Use:
 
-- `/checkout/success?order=UUID`
+- `/guitars-and-gear-for-sale/checkout/success?order=UUID`
 
-This page should call a backend endpoint such as:
+The page should call:
 
 - `GET /api/shop/orders/:id/status`
 
@@ -264,57 +379,27 @@ Possible backend statuses:
 - `expired`
 - `not_found`
 
-If redirect lands before webhook processing finishes, the page should show a pending confirmation state instead of assuming payment is final.
+If the redirect lands before webhook processing finishes, show a pending confirmation state instead of assuming payment is final.
 
-## Admin UX Proposal
+## Implementation Phases
 
-On the Admin V2 inventory item page, add:
+### Phase 1A
+- Enable existing cart `Checkout` button.
+- Add disabled `Checkout cash` button.
+- Add `POST /api/shop/orders/create-checkout-session`.
+- Add `orders`, `order_items`, and `order_events`.
+- Add inventory reservation fields.
+- Create Stripe Checkout Session from cart.
 
-- `Start Checkout`
-- `Open Active Checkout`
-- `Cancel Reservation`
-- availability badge: `Available`, `Reserved`, `Sold`
-- reservation countdown if the item is currently reserved
+### Phase 1B
+- Implement Stripe webhook processing.
+- Mark paid orders sold.
+- Release failed/expired reservations.
+- Add thank-you page status endpoint.
 
-For sold items, show:
-
-- order number
-- Stripe payment reference
-- paid timestamp
-
-## Why This Fits The Current Repo
-
-This proposal fits the existing architecture because:
-
-- D1 is already the source of truth for application data
-- the Cloudflare Worker already owns API and business logic
-- Admin V2 already consumes Worker endpoints
-- shop preview already treats the Worker as the source of truth
-- inventory is primarily one-off and unique, which favors reservation-based checkout
-
-## Recommended Implementation Phases
-
-### Phase 1
-- Add `orders` and `order_events`
-- Add inventory availability fields
-- Implement admin-only in-store checkout
-- Implement Stripe Checkout Session creation
-- Implement Stripe webhook processing
-- Add thank-you page status endpoint
-
-### Phase 2
-- Reuse the same order flow for public product pages
-- Add admin order list/reporting
-- Add refund synchronization and admin visibility
-
-## Summary
-
-Recommended direction:
-
-- Keep inventory in D1 as the source of truth
-- Introduce `orders` as the source of truth for sale attempts
-- Use Stripe Checkout Sessions per attempt
-- Use webhooks, not redirects, as the authoritative payment-success signal
-- Reserve one-of-a-kind inventory while checkout is open
-
-This provides a clean path for both in-store and online checkout without forcing Stripe to become the catalog or inventory system of record.
+### Later
+- Cash/manual checkout.
+- Admin order management.
+- Refund handling UI.
+- Rentals/rent-to-own.
+- Shipping/local delivery.
