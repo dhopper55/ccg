@@ -7,6 +7,7 @@ account_id = "29c0b8377a7d6c5259e8b5cc977e2aaf"
 routes = [
   { pattern = "https://www.coalcreekguitars.com/api/*", zone_name = "coalcreekguitars.com" },
   { pattern = "https://www.coalcreekguitars.com/sitemap.xml", zone_name = "coalcreekguitars.com" },
+  { pattern = "https://www.coalcreekguitars.com/robots.txt", zone_name = "coalcreekguitars.com" },
   { pattern = "https://www.coalcreekguitars.com/guitars-and-gear-for-sale/*", zone_name = "coalcreekguitars.com" },
 ]
 

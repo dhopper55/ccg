@@ -19,6 +19,7 @@ export async function onRequest(context) {
         headers: {
           ...Object.fromEntries(assetResponse.headers.entries()),
           'content-type': 'text/html; charset=UTF-8',
+          'x-robots-tag': 'noindex, nofollow',
         },
       });
     }
@@ -69,6 +70,7 @@ function injectShopCartSeo(html, requestUrl, siteOrigin) {
 
   let output = html
     .replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(title)}</title>`)
+    .replace('</head>', `    ${meta('name', 'robots', 'noindex, nofollow')}\n  </head>`)
     .replace(/<meta\s+name="description"[\s\S]*?>/i, meta('name', 'description', description))
     .replace(/<link\s+rel="canonical"[\s\S]*?>/i, `<link rel="canonical" href="${escapeAttr(canonicalUrl)}" />`)
     .replace(/<meta\s+property="og:type"[\s\S]*?>/i, meta('property', 'og:type', 'website'))

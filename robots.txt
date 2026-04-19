@@ -1,5 +1,6 @@
 User-agent: *
 Allow: /
 Disallow: /admin/
+Disallow: /guitars-and-gear-for-sale/cart
 
 Sitemap: https://www.coalcreekguitars.com/sitemap.xml

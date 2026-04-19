@@ -327,11 +327,18 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '') || '/';
 
-    if (path === '/sitemap.xml' && request.method === 'GET') {
+    if (path === '/sitemap.xml' && (request.method === 'GET' || request.method === 'HEAD')) {
       return handleSitemap(env);
     }
 
-    if (path.startsWith(`${SHOP_BASE_PATH}/`) && (request.method === 'GET' || request.method === 'HEAD')) {
+    if (path === '/robots.txt' && (request.method === 'GET' || request.method === 'HEAD')) {
+      return handleRobotsTxt();
+    }
+
+    if (
+      (path === SHOP_BASE_PATH || path.startsWith(`${SHOP_BASE_PATH}/`)) &&
+      (request.method === 'GET' || request.method === 'HEAD')
+    ) {
       return handleShopPageRequest(request, env);
     }
 
@@ -2941,6 +2948,26 @@ async function handleSitemap(env: Env): Promise<Response> {
   });
 }
 
+function handleRobotsTxt(): Response {
+  return new Response(
+    [
+      'User-agent: *',
+      'Allow: /',
+      'Disallow: /admin/',
+      `Disallow: ${SHOP_BASE_PATH}/cart`,
+      '',
+      'Sitemap: https://www.coalcreekguitars.com/sitemap.xml',
+      '',
+    ].join('\n'),
+    {
+      headers: {
+        'content-type': 'text/plain; charset=UTF-8',
+        'cache-control': 'no-store, max-age=0',
+      },
+    },
+  );
+}
+
 async function handleShopPageRequest(request: Request, env: Env): Promise<Response> {
   const requestUrl = new URL(request.url);
   const path = requestUrl.pathname.replace(/\/+$/, '') || '/';
@@ -2952,9 +2979,15 @@ async function handleShopPageRequest(request: Request, env: Env): Promise<Respon
   const appResponse = await fetchShopAppShell(request);
   if (!appResponse.ok) return appResponse;
 
+  if (path === SHOP_BASE_PATH) {
+    return appResponse;
+  }
+
   if (path === `${SHOP_BASE_PATH}/cart`) {
     const html = await appResponse.text();
-    return htmlResponse(injectShopCartSeo(html, env));
+    return htmlResponse(injectShopCartSeo(html, env), {
+      'x-robots-tag': 'noindex, nofollow',
+    });
   }
 
   const slug = getShopProductSlug(path);
@@ -2978,11 +3011,12 @@ function fetchShopAppShell(request: Request): Promise<Response> {
   return fetch(new Request(shellUrl.toString(), { method: request.method }));
 }
 
-function htmlResponse(html: string): Response {
+function htmlResponse(html: string, extraHeaders: Record<string, string> = {}): Response {
   return new Response(html, {
     headers: {
       'content-type': 'text/html; charset=UTF-8',
       'cache-control': 'no-cache, no-store, must-revalidate',
+      ...extraHeaders,
     },
   });
 }
@@ -3019,6 +3053,7 @@ function injectShopCartSeo(html: string, env: Env): string {
     imageUrl,
     ogType: 'website',
     jsonLd,
+    robots: 'noindex, nofollow',
   });
 }
 
@@ -3078,9 +3113,10 @@ function injectShopSeoTags(
     imageUrl: string;
     ogType: string;
     jsonLd: Record<string, unknown>;
+    robots?: string;
   },
 ): string {
-  const output = html
+  let output = html
     .replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtmlText(data.title)}</title>`)
     .replace(/<meta\s+name="description"[\s\S]*?>/i, metaTag('name', 'description', data.description))
     .replace(/<link\s+rel="canonical"[\s\S]*?>/i, `<link rel="canonical" href="${escapeHtmlAttribute(data.canonicalUrl)}" />`)
@@ -3093,6 +3129,10 @@ function injectShopSeoTags(
     .replace(/<meta\s+name="twitter:title"[\s\S]*?>/i, metaTag('name', 'twitter:title', data.title))
     .replace(/<meta\s+name="twitter:description"[\s\S]*?>/i, metaTag('name', 'twitter:description', data.description))
     .replace(/<meta\s+name="twitter:image"[\s\S]*?>/i, metaTag('name', 'twitter:image', data.imageUrl));
+
+  if (data.robots) {
+    output = output.replace('</head>', `    ${metaTag('name', 'robots', data.robots)}\n  </head>`);
+  }
 
   return output.replace(
     '</head>',
