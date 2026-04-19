@@ -82,7 +82,7 @@ const CartItem = ({ item }: CartItemProps) => {
                 }}
               >
                 <Link
-                  href={paths.productDetails(String(item.id))}
+                  href={item.productUrl || paths.products}
                   sx={{
                     color: 'currentcolor',
                   }}

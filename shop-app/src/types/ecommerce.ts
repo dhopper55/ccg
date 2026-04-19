@@ -21,6 +21,7 @@ interface Image {
 export interface ProductDetails {
   id: number;
   name: string;
+  productUrl?: string;
   images: Image[];
   variants?: {
     label: string;

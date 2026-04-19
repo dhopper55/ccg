@@ -50,10 +50,13 @@ const paths = {
   pricingColumn: `/${rootPaths.pricingRoot}/column`,
   notifications: `/${rootPaths.pagesRoot}/notifications`, //? update path
 
-  productDetails: (categorySlug: string, productSlug: string) =>
-    `/${encodeURIComponent(categorySlug)}/${encodeURIComponent(productSlug)}`,
-  products: `/${rootPaths.appsRoot}/${rootPaths.ecommerceRoot}/${rootPaths.ecommerceCustomerRoot}/products`,
-  cart: `/${rootPaths.appsRoot}/${rootPaths.ecommerceRoot}/${rootPaths.ecommerceCustomerRoot}/cart`,
+  productDetails: (categorySlug: string, productSlug?: string) =>
+    productSlug
+      ? `/${encodeURIComponent(categorySlug)}/${encodeURIComponent(productSlug)}`
+      : '/',
+  products: '/',
+  cart: '/cart',
+  ecommerceHomepage: '/',
   checkout: `/${rootPaths.appsRoot}/${rootPaths.ecommerceRoot}/${rootPaths.ecommerceCustomerRoot}/checkout`,
   wishlist: `/${rootPaths.appsRoot}/${rootPaths.ecommerceRoot}/${rootPaths.ecommerceCustomerRoot}/wishlist`,
   homepage: `/${rootPaths.appsRoot}/${rootPaths.ecommerceRoot}/${rootPaths.ecommerceCustomerRoot}/homepage`,

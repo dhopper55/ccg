@@ -9,13 +9,17 @@ import {
 import MuiAppBar from '@mui/material/AppBar';
 import Grid from '@mui/material/Grid';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
+import { useEcommerce } from 'providers/EcommerceProvider';
 import { useSettingsContext } from 'providers/SettingsProvider';
+import paths from 'routes/paths';
 import IconifyIcon from 'components/base/IconifyIcon';
 import Logo from 'components/common/Logo';
 
 const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
   const { up } = useBreakpoints();
   const { handleDrawerToggle } = useSettingsContext();
+  const { cartItems } = useEcommerce();
+  const cartItemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
     <MuiAppBar>
@@ -48,14 +52,13 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
             </Stack>
           </Grid>
           <Grid size="auto">
-            <Badge color="error" badgeContent={0} invisible>
+            <Badge color="error" badgeContent={cartItemCount} invisible={cartItemCount === 0}>
               <Button
                 color="neutral"
                 variant="soft"
                 shape="circle"
                 aria-label="cart"
-                tabIndex={-1}
-                sx={{ pointerEvents: 'none' }}
+                href={paths.cart}
               >
                 <IconifyIcon icon="material-symbols:shopping-cart-outline-rounded" sx={{ fontSize: 20 }} />
               </Button>

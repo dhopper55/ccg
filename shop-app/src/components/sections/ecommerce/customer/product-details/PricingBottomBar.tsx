@@ -8,9 +8,17 @@ interface PricingBottomBarProps {
   imageUrl?: string;
   title?: string;
   price?: number;
+  disabled?: boolean;
+  onAddToCart?: () => void;
 }
 
-const PricingBottomBar = ({ imageUrl, title, price = 0 }: PricingBottomBarProps) => {
+const PricingBottomBar = ({
+  imageUrl,
+  title,
+  price = 0,
+  disabled = false,
+  onAddToCart,
+}: PricingBottomBarProps) => {
   const { currencyFormat } = useNumberFormat();
   const { up } = useBreakpoints();
   const upLg = up('lg');
@@ -93,7 +101,8 @@ const PricingBottomBar = ({ imageUrl, title, price = 0 }: PricingBottomBarProps)
             <Button
               color="neutral"
               variant="contained"
-              disabled
+              disabled={disabled}
+              onClick={onAddToCart}
               sx={{ flex: 1, flexShrink: 0, whiteSpace: 'nowrap', maxWidth: 275 }}
             >
               Add to Cart

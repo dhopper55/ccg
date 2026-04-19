@@ -9,7 +9,6 @@ import {
   useMemo,
   useState,
 } from 'react';
-import { ecomCoupons, products } from 'data/e-commerce/products';
 import { useSnackbar } from 'notistack';
 import { CartItem, Coupon, ProductDetails } from 'types/ecommerce';
 
@@ -18,7 +17,7 @@ interface EcommerceContextInterface {
   setProduct: Dispatch<SetStateAction<CartItem | null>>;
   cartItems: CartItem[];
   setCartItems: Dispatch<SetStateAction<CartItem[]>>;
-  addItemToCart: (product: ProductDetails) => void;
+  addItemToCart: (product: ProductDetails, quantity?: number) => void;
   removeItemFromCart: (productId: number) => void;
   updateCartItem: (itemId: number, updatedData: Partial<CartItem>) => void;
   appliedCoupon: Coupon | null;
@@ -29,21 +28,30 @@ interface EcommerceContextInterface {
 
 export const EcommerceContext = createContext({} as EcommerceContextInterface);
 
-const initialCartItems = products
-  .slice(0, 2)
-  .map((product) => ({ ...product, quantity: 1, selected: true }));
+const cartStorageKey = 'ccg-shop-cart';
+
+const getInitialCartItems = (): CartItem[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(cartStorageKey) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
 
 const EcommerceProvider = ({ children }: PropsWithChildren) => {
   const { enqueueSnackbar } = useSnackbar();
 
   const [product, setProduct] = useState<CartItem | null>(null);
-  const [cartItems, setCartItems] = useState<CartItem[]>(initialCartItems);
-  const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(ecomCoupons[0]);
+  const [cartItems, setCartItems] = useState<CartItem[]>(getInitialCartItems);
+  const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
 
   const addItemToCart = useCallback(
-    (product: ProductDetails) => {
+    (product: ProductDetails, quantity = 1) => {
       const existingItem = cartItems.find((item) => item.id === product.id);
-      const newQuantity = existingItem ? existingItem.quantity + 1 : 1;
+      const addQuantity = Math.max(1, Math.floor(quantity));
+      const newQuantity = existingItem ? existingItem.quantity + addQuantity : addQuantity;
 
       if (existingItem) {
         setCartItems((prev) =>
@@ -101,6 +109,10 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
         : prevCoupon,
     );
   }, [cartSubTotal]);
+
+  useEffect(() => {
+    window.localStorage.setItem(cartStorageKey, JSON.stringify(cartItems));
+  }, [cartItems]);
 
   return (
     <EcommerceContext

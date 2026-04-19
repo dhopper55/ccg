@@ -53,7 +53,8 @@ export async function onRequest() {
   return new Response(xml, {
     headers: {
       'content-type': 'application/xml; charset=UTF-8',
-      'cache-control': 'public, max-age=900',
+      'cache-control': 'no-store, max-age=0',
+      'x-ccg-sitemap-product-count': String(productUrls.length),
     },
   });
 }

@@ -3,7 +3,9 @@ import { useNavigate, useParams } from 'react-router';
 import { Paper } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import { slugifyCategory } from 'lib/utils';
+import { useEcommerce } from 'providers/EcommerceProvider';
 import paths from 'routes/paths';
+import { ProductDetails as CartProductDetails } from 'types/ecommerce';
 import GeneralInfo from 'components/sections/ecommerce/customer/product-details/GeneralInfo';
 import PricingBottomBar from 'components/sections/ecommerce/customer/product-details/PricingBottomBar';
 import ProductDetailsAside from 'components/sections/ecommerce/customer/product-details/aside';
@@ -46,8 +48,10 @@ const normalizeSpecValue = (value?: string | null) => {
 const ProductDetails = () => {
   const { category: categoryParam, slug: slugParam } = useParams();
   const navigate = useNavigate();
+  const { addItemToCart } = useEcommerce();
   const [shopProduct, setShopProduct] = useState<ShopProduct | null>(null);
   const [isLoadingProduct, setIsLoadingProduct] = useState(true);
+  const [quantity, setQuantity] = useState(1);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,6 +117,46 @@ const ProductDetails = () => {
     return [...baseSpecs, ...guitarSpecs];
   }, [shopProduct]);
 
+  const cartProduct = useMemo<CartProductDetails | null>(() => {
+    if (!shopProduct) return null;
+    const categorySlug = slugifyCategory(shopProduct.primaryCategoryName);
+    const productSlug = shopProduct.saleUrlSlug.trim();
+    const regularPrice = shopProduct.regularPrice ?? shopProduct.salePrice;
+    const productUrl =
+      categorySlug && productSlug ? paths.productDetails(categorySlug, productSlug) : paths.products;
+
+    return {
+      id: Number(shopProduct.id),
+      name: shopProduct.saleTitle,
+      productUrl,
+      images: (galleryImages.length > 0 ? galleryImages : [shopProduct.mainImage])
+        .filter(Boolean)
+        .map((src) => ({ src })),
+      tags: [],
+      ratings: 0,
+      reviews: 0,
+      price: {
+        regular: regularPrice,
+        discounted: displayPrice,
+        offer:
+          regularPrice > displayPrice && regularPrice > 0
+            ? `${Math.ceil(((regularPrice - displayPrice) / regularPrice) * 100)}%`
+            : undefined,
+      },
+      vat: 0,
+      sold: 0,
+      stock: isUnavailable ? 0 : 1,
+      availability: isUnavailable ? ['Sold'] : ['In stock'],
+      category: [shopProduct.category, shopProduct.secondaryCategory].filter(Boolean),
+      features: shopProduct.highlights.map((highlight) => highlight.text).filter(Boolean),
+    };
+  }, [displayPrice, galleryImages, isUnavailable, shopProduct]);
+
+  const handleAddToCart = () => {
+    if (!cartProduct || isUnavailable) return;
+    addItemToCart(cartProduct, quantity);
+  };
+
   if (isLoadingProduct || !shopProduct) {
     return null;
   }
@@ -157,6 +201,8 @@ const ProductDetails = () => {
           clearance={Boolean(shopProduct?.clearance)}
           highlights={shopProduct?.highlights || []}
           isUnavailable={isUnavailable}
+          quantity={quantity}
+          onQuantityChange={setQuantity}
         />
       </Grid>
       <Grid size={12}>
@@ -171,6 +217,8 @@ const ProductDetails = () => {
           imageUrl={shopProduct?.mainImage || galleryImages[0]}
           title={shopProduct?.saleTitle}
           price={displayPrice}
+          disabled={isUnavailable}
+          onAddToCart={handleAddToCart}
         />
       </Grid>
     </Grid>

@@ -1,7 +1,14 @@
 import { Paper, SxProps, Typography } from '@mui/material';
 import QuantityButtons from '../../common/QuantityButtons';
 
-const Quantity = ({ sx }: { sx: SxProps }) => {
+interface QuantityProps {
+  sx: SxProps;
+  quantity: number;
+  disabled?: boolean;
+  onChange: (quantity: number) => void;
+}
+
+const Quantity = ({ sx, quantity, disabled = false, onChange }: QuantityProps) => {
   return (
     <Paper sx={{ p: { xs: 3, md: 5 }, ...sx }}>
       <Typography
@@ -13,9 +20,9 @@ const Quantity = ({ sx }: { sx: SxProps }) => {
         Quantity
       </Typography>
       <QuantityButtons
-        defaultValue={1}
-        disabled
-        handleChange={() => undefined}
+        defaultValue={quantity}
+        disabled={disabled}
+        handleChange={onChange}
         sx={{ mb: 0.5 }}
       />
     </Paper>

@@ -4,6 +4,7 @@ import Highlights, { ProductHighlight } from './Highlights';
 import OrderCustomization from './OrderCustomization';
 import Price from './Price';
 import PurchaseDetails from './PurchaseDetails';
+import Quantity from './Quantity';
 
 interface ProductDetailsAsideProps {
   regularPrice?: number | null;
@@ -11,6 +12,8 @@ interface ProductDetailsAsideProps {
   clearance?: boolean;
   highlights: ProductHighlight[];
   isUnavailable?: boolean;
+  quantity: number;
+  onQuantityChange: (quantity: number) => void;
 }
 
 const ProductDetailsAside = ({
@@ -19,6 +22,8 @@ const ProductDetailsAside = ({
   clearance = false,
   highlights,
   isUnavailable = false,
+  quantity,
+  onQuantityChange,
 }: ProductDetailsAsideProps) => {
   return (
     <Paper>
@@ -51,6 +56,24 @@ const ProductDetailsAside = ({
         >
           <Highlights sx={{ height: 1 }} highlights={highlights} />
         </Grid>
+        {!isUnavailable && (
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6,
+              md: 4,
+              lg: 12,
+              xl: 6,
+            }}
+          >
+            <Quantity
+              sx={{ height: 1 }}
+              quantity={quantity}
+              disabled={isUnavailable}
+              onChange={onQuantityChange}
+            />
+          </Grid>
+        )}
         <Grid
           size={{
             xs: 12,

@@ -11,6 +11,18 @@ export async function onRequest(context) {
     const assetUrl = new URL(context.request.url);
     assetUrl.pathname = `${shopBase}/`;
     const assetResponse = await context.env.ASSETS.fetch(new Request(assetUrl, context.request));
+    if (url.pathname === `${shopBase}/cart`) {
+      if (!assetResponse.ok) return assetResponse;
+      const html = await assetResponse.text();
+      return new Response(injectShopCartSeo(html, url, siteOrigin), {
+        status: assetResponse.status,
+        headers: {
+          ...Object.fromEntries(assetResponse.headers.entries()),
+          'content-type': 'text/html; charset=UTF-8',
+        },
+      });
+    }
+
     const productSlug = getShopProductSlug(url.pathname, shopBase);
     if (!productSlug || !assetResponse.ok) return assetResponse;
 
@@ -35,6 +47,44 @@ export async function onRequest(context) {
   }
 
   return context.next();
+}
+
+function injectShopCartSeo(html, requestUrl, siteOrigin) {
+  const title = 'Cart | Coal Creek Guitars';
+  const canonicalUrl = `${siteOrigin}/guitars-and-gear-for-sale/cart`;
+  const description = 'Review selected guitars and gear from Coal Creek Guitars before checkout.';
+  const imageUrl = 'https://www.coalcreekguitars.com/images/coal-creek-logo.png';
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    name: title,
+    url: canonicalUrl,
+    description,
+    isPartOf: {
+      '@type': 'WebSite',
+      name: 'Coal Creek Guitars',
+      url: siteOrigin,
+    },
+  };
+
+  let output = html
+    .replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(title)}</title>`)
+    .replace(/<meta\s+name="description"[\s\S]*?>/i, meta('name', 'description', description))
+    .replace(/<link\s+rel="canonical"[\s\S]*?>/i, `<link rel="canonical" href="${escapeAttr(canonicalUrl)}" />`)
+    .replace(/<meta\s+property="og:type"[\s\S]*?>/i, meta('property', 'og:type', 'website'))
+    .replace(/<meta\s+property="og:url"[\s\S]*?>/i, meta('property', 'og:url', canonicalUrl))
+    .replace(/<meta\s+property="og:title"[\s\S]*?>/i, meta('property', 'og:title', title))
+    .replace(/<meta\s+property="og:description"[\s\S]*?>/i, meta('property', 'og:description', description))
+    .replace(/<meta\s+property="og:image"[\s\S]*?>/i, meta('property', 'og:image', imageUrl))
+    .replace(/<meta\s+name="twitter:url"[\s\S]*?>/i, meta('name', 'twitter:url', canonicalUrl))
+    .replace(/<meta\s+name="twitter:title"[\s\S]*?>/i, meta('name', 'twitter:title', title))
+    .replace(/<meta\s+name="twitter:description"[\s\S]*?>/i, meta('name', 'twitter:description', description))
+    .replace(/<meta\s+name="twitter:image"[\s\S]*?>/i, meta('name', 'twitter:image', imageUrl));
+
+  return output.replace(
+    '</head>',
+    `    <script type="application/ld+json">${escapeJsonScript(JSON.stringify(jsonLd))}</script>\n  </head>`,
+  );
 }
 
 function getShopProductSlug(pathname, shopBase) {

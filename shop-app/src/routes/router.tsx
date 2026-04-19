@@ -1,6 +1,7 @@
 import { RouteObject, createBrowserRouter } from 'react-router';
 import App from 'App';
 import EcommerceLayout from 'layouts/ecommerce-layout';
+import Cart from 'pages/apps/ecommerce/customer/Cart';
 import ProductDetails from 'pages/apps/ecommerce/customer/ProductDetails';
 import Products from 'pages/apps/ecommerce/customer/Products';
 import Page404 from 'pages/errors/Page404';
@@ -14,6 +15,14 @@ export const routes: RouteObject[] = [
         element: (
           <EcommerceLayout>
             <Products />
+          </EcommerceLayout>
+        ),
+      },
+      {
+        path: '/cart',
+        element: (
+          <EcommerceLayout>
+            <Cart />
           </EcommerceLayout>
         ),
       },

@@ -32,6 +32,48 @@ interface Env {
   GOOGLE_MAPS_API_KEY?: string;
 }
 
+const SITEMAP_STATIC_URLS = [
+  { loc: '/', changefreq: 'weekly', priority: '1.0' },
+  { loc: '/decoders/guitar-serial-decoder-lookup.html', changefreq: 'monthly', priority: '0.9' },
+  { loc: '/decoders/gibson-guitar-serial-number-decoder.html', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/decoders/kramer-guitar-serial-number-decoder.html', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/decoders/bc-rich-guitar-serial-number-decoder.html', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/decoders/fender-guitar-serial-number-decoder.html', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/decoders/squier-guitar-serial-number-decoder.html', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/decoders/epiphone-guitar-serial-number-decoder.html', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/decoders/taylor-guitar-serial-number-decoder.html', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/decoders/martin-guitar-serial-number-decoder.html', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/decoders/ibanez-guitar-serial-number-decoder.html', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/decoders/yamaha-guitar-serial-number-decoder.html', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/decoders/prs-guitar-serial-number-decoder.html', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/decoders/esp-guitar-serial-number-decoder.html', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/decoders/schecter-guitar-serial-number-decoder.html', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/decoders/gretsch-guitar-serial-number-decoder.html', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/decoders/jackson-guitar-serial-number-decoder.html', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/decoders/cort-guitar-serial-number-decoder.html', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/decoders/takamine-guitar-serial-number-decoder.html', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/decoders/washburn-guitar-serial-number-decoder.html', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/decoders/dean-guitar-serial-number-decoder.html', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/decoders/ernieball-guitar-serial-number-decoder.html', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/decoders/guild-guitar-serial-number-decoder.html', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/decoders/alvarez-guitar-serial-number-decoder.html', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/decoders/godin-guitar-serial-number-decoder.html', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/decoders/ovation-guitar-serial-number-decoder.html', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/decoders/charvel-guitar-serial-number-decoder.html', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/decoders/rickenbacker-guitar-serial-number-decoder.html', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/guitars-and-gear-for-sale', changefreq: 'daily', priority: '0.9' },
+  { loc: '/about-us.html', changefreq: 'monthly', priority: '0.6' },
+  { loc: '/how-to-value-a-used-guitar.html', changefreq: 'monthly', priority: '0.7' },
+  { loc: '/how-to-list-a-guitar-for-sale.html', changefreq: 'monthly', priority: '0.7' },
+  { loc: '/new-guitarist-practice-resources', changefreq: 'monthly', priority: '0.7' },
+  { loc: '/contact-us.html', changefreq: 'monthly', priority: '0.6' },
+  { loc: '/privacy-policy.html', changefreq: 'monthly', priority: '0.3' },
+  { loc: '/terms-conditions.html', changefreq: 'monthly', priority: '0.3' },
+  { loc: '/guitar-repair-demo-lesson-videos.html', priority: '0.6' },
+];
+const SHOP_BASE_PATH = '/guitars-and-gear-for-sale';
+const SHOP_STATIC_ORIGIN = 'https://ccg-2k1.pages.dev';
+
 interface SubmitPayload {
   urls: Array<string | { url: string; isMulti?: boolean }>;
 }
@@ -284,6 +326,14 @@ export default {
 
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '') || '/';
+
+    if (path === '/sitemap.xml' && request.method === 'GET') {
+      return handleSitemap(env);
+    }
+
+    if (path.startsWith(`${SHOP_BASE_PATH}/`) && (request.method === 'GET' || request.method === 'HEAD')) {
+      return handleShopPageRequest(request, env);
+    }
 
     if (path === '/api/login' && request.method === 'POST') {
       const response = await handleLogin(request, env);
@@ -2862,6 +2912,314 @@ async function handleShopProducts(request: Request, env: Env): Promise<Response>
 async function handleShopSitemapProducts(env: Env): Promise<Response> {
   const records = await dbListShopSitemapProducts(env);
   return jsonResponse({ records });
+}
+
+async function handleSitemap(env: Env): Promise<Response> {
+  const baseUrl = normalizeText(env.SITE_BASE_URL, 'https://www.coalcreekguitars.com').replace(/\/+$/, '');
+  const productRecords = await dbListShopSitemapProducts(env);
+  const productUrls = productRecords.map((record) => ({
+    loc: normalizeText(record.urlPath, ''),
+    lastmod: toSitemapDate(record.updatedAt),
+    changefreq: record.isSold || !record.forSale ? 'monthly' : 'daily',
+    priority: record.isSold || !record.forSale ? '0.5' : '0.8',
+  }));
+  const urls = [...SITEMAP_STATIC_URLS, ...productUrls];
+  const xml = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ...urls.map((entry) => renderSitemapUrl(entry, baseUrl)),
+    '</urlset>',
+  ].join('\n');
+
+  return new Response(xml, {
+    headers: {
+      'content-type': 'application/xml; charset=UTF-8',
+      'cache-control': 'no-store, max-age=0',
+      'x-ccg-sitemap-source': 'worker',
+      'x-ccg-sitemap-product-count': String(productUrls.length),
+    },
+  });
+}
+
+async function handleShopPageRequest(request: Request, env: Env): Promise<Response> {
+  const requestUrl = new URL(request.url);
+  const path = requestUrl.pathname.replace(/\/+$/, '') || '/';
+
+  if (path.startsWith(`${SHOP_BASE_PATH}/assets/`)) {
+    return fetchShopStaticAsset(request);
+  }
+
+  const appResponse = await fetchShopAppShell(request);
+  if (!appResponse.ok) return appResponse;
+
+  if (path === `${SHOP_BASE_PATH}/cart`) {
+    const html = await appResponse.text();
+    return htmlResponse(injectShopCartSeo(html, env));
+  }
+
+  const slug = getShopProductSlug(path);
+  if (!slug) return appResponse;
+
+  const product = await dbGetShopProductDetail({ slug }, env);
+  if (!product) return appResponse;
+
+  const html = await appResponse.text();
+  return htmlResponse(injectShopProductSeo(html, product, env, requestUrl));
+}
+
+function fetchShopStaticAsset(request: Request): Promise<Response> {
+  const requestUrl = new URL(request.url);
+  const assetUrl = new URL(requestUrl.pathname + requestUrl.search, SHOP_STATIC_ORIGIN);
+  return fetch(new Request(assetUrl.toString(), { method: request.method }));
+}
+
+function fetchShopAppShell(request: Request): Promise<Response> {
+  const shellUrl = new URL(`${SHOP_BASE_PATH}/`, SHOP_STATIC_ORIGIN);
+  return fetch(new Request(shellUrl.toString(), { method: request.method }));
+}
+
+function htmlResponse(html: string): Response {
+  return new Response(html, {
+    headers: {
+      'content-type': 'text/html; charset=UTF-8',
+      'cache-control': 'no-cache, no-store, must-revalidate',
+    },
+  });
+}
+
+function getShopProductSlug(pathname: string): string {
+  const remainder = pathname.slice(SHOP_BASE_PATH.length).replace(/^\/+|\/+$/g, '');
+  const parts = remainder.split('/').filter(Boolean);
+  return parts.length >= 2 ? decodeURIComponent(parts[parts.length - 1]) : '';
+}
+
+function injectShopCartSeo(html: string, env: Env): string {
+  const baseUrl = normalizeText(env.SITE_BASE_URL, 'https://www.coalcreekguitars.com').replace(/\/+$/, '');
+  const title = 'Cart | Coal Creek Guitars';
+  const canonicalUrl = `${baseUrl}${SHOP_BASE_PATH}/cart`;
+  const description = 'Review selected guitars and gear from Coal Creek Guitars before checkout.';
+  const imageUrl = `${baseUrl}/images/coal-creek-logo.png`;
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    name: title,
+    url: canonicalUrl,
+    description,
+    isPartOf: {
+      '@type': 'WebSite',
+      name: 'Coal Creek Guitars',
+      url: baseUrl,
+    },
+  };
+
+  return injectShopSeoTags(html, {
+    title,
+    description,
+    canonicalUrl,
+    imageUrl,
+    ogType: 'website',
+    jsonLd,
+  });
+}
+
+function injectShopProductSeo(
+  html: string,
+  product: Record<string, unknown>,
+  env: Env,
+  requestUrl: URL,
+): string {
+  const baseUrl = normalizeText(env.SITE_BASE_URL, 'https://www.coalcreekguitars.com').replace(/\/+$/, '');
+  const title = `${normalizeText(product.saleTitle, 'Guitars and Gear for Sale')} | Coal Creek Guitars`;
+  const categorySlug = slugifyShopCategory(normalizeText(product.primaryCategoryName, ''));
+  const productSlug = normalizeText(product.saleUrlSlug, '');
+  const canonicalPath = categorySlug && productSlug
+    ? `${SHOP_BASE_PATH}/${categorySlug}/${productSlug}`
+    : requestUrl.pathname;
+  const canonicalUrl = `${baseUrl}${canonicalPath}`;
+  const productImages = Array.isArray(product.images) ? product.images.map((image) => normalizeText(image, '')) : [];
+  const imageUrl =
+    absolutizeShopUrl(normalizeText(product.mainImage, '') || productImages[0] || '', baseUrl) ||
+    `${baseUrl}/images/coal-creek-logo.png`;
+  const description = buildShopProductDescription(product);
+  const price = Number(product.salePrice || product.regularPrice || 0);
+  const isUnavailable = Boolean(product.isSold || !product.forSale);
+  const jsonLd = buildShopProductJsonLd(product, {
+    canonicalUrl,
+    imageUrl,
+    description,
+    price,
+    isUnavailable,
+    baseUrl,
+  });
+
+  const productMeta = [
+    price > 0 ? metaTag('property', 'product:price:amount', price.toFixed(2)) : '',
+    price > 0 ? metaTag('property', 'product:price:currency', 'USD') : '',
+  ].filter(Boolean).join('\n    ');
+
+  const output = injectShopSeoTags(html, {
+    title,
+    description,
+    canonicalUrl,
+    imageUrl,
+    ogType: 'product',
+    jsonLd,
+  });
+
+  return productMeta ? output.replace('</head>', `    ${productMeta}\n  </head>`) : output;
+}
+
+function injectShopSeoTags(
+  html: string,
+  data: {
+    title: string;
+    description: string;
+    canonicalUrl: string;
+    imageUrl: string;
+    ogType: string;
+    jsonLd: Record<string, unknown>;
+  },
+): string {
+  const output = html
+    .replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtmlText(data.title)}</title>`)
+    .replace(/<meta\s+name="description"[\s\S]*?>/i, metaTag('name', 'description', data.description))
+    .replace(/<link\s+rel="canonical"[\s\S]*?>/i, `<link rel="canonical" href="${escapeHtmlAttribute(data.canonicalUrl)}" />`)
+    .replace(/<meta\s+property="og:type"[\s\S]*?>/i, metaTag('property', 'og:type', data.ogType))
+    .replace(/<meta\s+property="og:url"[\s\S]*?>/i, metaTag('property', 'og:url', data.canonicalUrl))
+    .replace(/<meta\s+property="og:title"[\s\S]*?>/i, metaTag('property', 'og:title', data.title))
+    .replace(/<meta\s+property="og:description"[\s\S]*?>/i, metaTag('property', 'og:description', data.description))
+    .replace(/<meta\s+property="og:image"[\s\S]*?>/i, metaTag('property', 'og:image', data.imageUrl))
+    .replace(/<meta\s+name="twitter:url"[\s\S]*?>/i, metaTag('name', 'twitter:url', data.canonicalUrl))
+    .replace(/<meta\s+name="twitter:title"[\s\S]*?>/i, metaTag('name', 'twitter:title', data.title))
+    .replace(/<meta\s+name="twitter:description"[\s\S]*?>/i, metaTag('name', 'twitter:description', data.description))
+    .replace(/<meta\s+name="twitter:image"[\s\S]*?>/i, metaTag('name', 'twitter:image', data.imageUrl));
+
+  return output.replace(
+    '</head>',
+    `    <script type="application/ld+json">${escapeJsonScript(JSON.stringify(data.jsonLd))}</script>\n  </head>`,
+  );
+}
+
+function buildShopProductDescription(product: Record<string, unknown>): string {
+  const highlights = Array.isArray(product.highlights)
+    ? product.highlights
+        .map((item) => normalizeText((item as Record<string, unknown>)?.text, ''))
+        .filter(Boolean)
+    : [];
+  const parts = [
+    normalizeText(product.saleTitle, ''),
+    ...highlights,
+    normalizeText(product.saleDescription, ''),
+  ].filter(Boolean);
+  const text = parts.join('. ').replace(/\s+/g, ' ').trim();
+  if (text.length <= 160) return text;
+  return `${text.slice(0, 157).replace(/\s+\S*$/, '')}...`;
+}
+
+function buildShopProductJsonLd(
+  product: Record<string, unknown>,
+  context: {
+    canonicalUrl: string;
+    imageUrl: string;
+    description: string;
+    price: number;
+    isUnavailable: boolean;
+    baseUrl: string;
+  },
+): Record<string, unknown> {
+  const highlights = Array.isArray(product.highlights)
+    ? product.highlights
+        .map((item) => normalizeText((item as Record<string, unknown>)?.text, ''))
+        .filter(Boolean)
+    : [];
+  const productImages = Array.isArray(product.images)
+    ? product.images.map((image) => absolutizeShopUrl(normalizeText(image, ''), context.baseUrl))
+    : [];
+  const images = Array.from(new Set([context.imageUrl, ...productImages].filter(Boolean)));
+
+  return removeUndefined({
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: normalizeText(product.saleTitle, 'Guitars and Gear for Sale'),
+    image: images,
+    description: context.description,
+    category: product.category || product.primaryCategoryName || undefined,
+    brand: product.brand ? { '@type': 'Brand', name: product.brand } : undefined,
+    model: product.model || undefined,
+    offers: {
+      '@type': 'Offer',
+      url: context.canonicalUrl,
+      priceCurrency: 'USD',
+      price: context.price > 0 ? context.price.toFixed(2) : undefined,
+      availability: context.isUnavailable ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock',
+      itemCondition: 'https://schema.org/UsedCondition',
+    },
+    positiveNotes: highlights.length > 0 ? {
+      '@type': 'ItemList',
+      itemListElement: highlights.map((text, index) => ({
+        '@type': 'ListItem',
+        position: index + 1,
+        name: text,
+      })),
+    } : undefined,
+  });
+}
+
+function removeUndefined(value: unknown): Record<string, unknown> | unknown[] | unknown {
+  if (Array.isArray(value)) return value.map(removeUndefined);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, entryValue]) => entryValue !== undefined && entryValue !== '')
+        .map(([key, entryValue]) => [key, removeUndefined(entryValue)]),
+    );
+  }
+  return value;
+}
+
+function absolutizeShopUrl(value: string, origin: string): string {
+  const text = normalizeText(value, '');
+  if (!text) return '';
+  if (/^https?:\/\//i.test(text)) return text;
+  return `${origin}${text.startsWith('/') ? text : `/${text}`}`;
+}
+
+function metaTag(attributeName: string, key: string, content: string): string {
+  return `<meta ${attributeName}="${escapeHtmlAttribute(key)}" content="${escapeHtmlAttribute(content)}" />`;
+}
+
+function escapeJsonScript(value: string): string {
+  return String(value || '').replace(/</g, '\\u003c');
+}
+
+function renderSitemapUrl(
+  entry: { loc: string; lastmod?: string; changefreq?: string; priority?: string },
+  baseUrl: string,
+): string {
+  const loc = entry.loc.startsWith('http') ? entry.loc : `${baseUrl}${entry.loc}`;
+  return [
+    '  <url>',
+    `    <loc>${escapeXml(loc)}</loc>`,
+    entry.lastmod ? `    <lastmod>${escapeXml(entry.lastmod)}</lastmod>` : '',
+    entry.changefreq ? `    <changefreq>${escapeXml(entry.changefreq)}</changefreq>` : '',
+    entry.priority ? `    <priority>${escapeXml(entry.priority)}</priority>` : '',
+    '  </url>',
+  ].filter(Boolean).join('\n');
+}
+
+function toSitemapDate(value: unknown): string {
+  const text = normalizeText(value, '');
+  const match = text.match(/^\d{4}-\d{2}-\d{2}/);
+  return match ? match[0] : '';
+}
+
+function escapeXml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 }
 
 async function handleShopProductDetail(id: number, env: Env): Promise<Response> {
