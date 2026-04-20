@@ -8,7 +8,7 @@ import { useEcommerce } from 'providers/EcommerceProvider';
 const PaymentSummary = () => {
   const [coupon, setCoupon] = useState('');
   const [couponError, setCouponError] = useState(false);
-  const { appliedCoupon, setAppliedCoupon, cartSubTotal, cartTotal } = useEcommerce();
+  const { appliedCoupon, setAppliedCoupon, cartSubTotal, cartTax, cartTotal } = useEcommerce();
   const { enqueueSnackbar } = useSnackbar();
   const { currencyFormat } = useNumberFormat();
   const appliedDiscount = appliedCoupon?.appliedDiscount || 0;
@@ -118,6 +118,44 @@ const PaymentSummary = () => {
         >
           Summary
         </Typography>
+
+        <Divider sx={{ my: 3 }} />
+
+        <Stack
+          sx={{
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <Box>
+            <Typography
+              variant="subtitle1"
+              sx={{
+                fontWeight: 700,
+                color: 'text.secondary',
+              }}
+            >
+              Tax
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{
+                color: 'text.secondary',
+              }}
+            >
+              State, city, county taxes
+            </Typography>
+          </Box>
+          <Typography
+            variant="subtitle1"
+            sx={{
+              fontWeight: 700,
+              color: 'text.secondary',
+            }}
+          >
+            {currencyFormat(cartTax)}
+          </Typography>
+        </Stack>
 
         <Divider sx={{ my: 3 }} />
 

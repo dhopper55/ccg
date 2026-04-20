@@ -359,6 +359,7 @@ Status meanings:
 - Partial sales create a new sold `ccg_inventory_items` row cloned from the original row, with the sold quantity, copied images, and sold metadata.
 - If a purchase exhausts the original quantity, the original row is set to quantity `0` and marked sold; no clone is created.
 - Expired, cancelled, or failed orders update order status only; inventory is unchanged.
+- Sales tax is a fixed 7.75% for the pickup-only flow. Tax is calculated on the after-coupon amount. The cart may display this estimate, but the Worker validates coupons, recalculates tax server-side, and passes discount/tax details to Stripe.
 - Stripe webhook events are authoritative for payment success.
 - Redirect pages are customer UX only and must not be treated as fulfillment success.
 - Public online users cannot checkout `only_in_store` items.
@@ -370,7 +371,7 @@ Status meanings:
   - Accepts selected cart item IDs and quantities.
   - Loads item/pricing details from D1.
   - Creates `orders` and `order_items`.
-  - Reserves each inventory item.
+  - Validates coupon code, then calculates fixed 7.75% sales tax on the after-coupon amount.
   - Creates a Stripe Checkout Session.
   - Returns the Stripe Checkout URL.
 

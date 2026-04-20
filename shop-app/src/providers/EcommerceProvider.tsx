@@ -23,12 +23,15 @@ interface EcommerceContextInterface {
   appliedCoupon: Coupon | null;
   setAppliedCoupon: Dispatch<SetStateAction<Coupon | null>>;
   cartSubTotal: number;
+  cartTax: number;
+  cartTaxRate: number;
   cartTotal: number;
 }
 
 export const EcommerceContext = createContext({} as EcommerceContextInterface);
 
 const cartStorageKey = 'ccg-shop-cart';
+const salesTaxRate = 0.0775;
 
 const getInitialCartItems = (): CartItem[] => {
   if (typeof window === 'undefined') return [];
@@ -106,9 +109,14 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
     [cartItems],
   );
 
-  const cartTotal = useMemo(() => {
-    return cartSubTotal - (appliedCoupon?.appliedDiscount || 0);
+  const cartTax = useMemo(() => {
+    const taxableTotal = Math.max(0, cartSubTotal - (appliedCoupon?.appliedDiscount || 0));
+    return Math.round(taxableTotal * salesTaxRate * 100) / 100;
   }, [cartSubTotal, appliedCoupon]);
+
+  const cartTotal = useMemo(() => {
+    return Math.max(0, cartSubTotal - (appliedCoupon?.appliedDiscount || 0)) + cartTax;
+  }, [cartSubTotal, appliedCoupon, cartTax]);
 
   useEffect(() => {
     setAppliedCoupon((prevCoupon) =>
@@ -116,7 +124,7 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
         ? {
             ...prevCoupon,
             appliedDiscount:
-              (appliedCoupon?.appliedDiscount || 0) > cartSubTotal ? 0 : prevCoupon.discount,
+              cartSubTotal > 0 ? Math.min(prevCoupon.discount, cartSubTotal) : 0,
           }
         : prevCoupon,
     );
@@ -139,6 +147,8 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
         appliedCoupon,
         setAppliedCoupon,
         cartSubTotal,
+        cartTax,
+        cartTaxRate: salesTaxRate,
         cartTotal,
       }}
     >

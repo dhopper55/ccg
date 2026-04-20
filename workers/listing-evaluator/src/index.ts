@@ -78,6 +78,10 @@ const SHOP_BASE_PATH = '/guitars-and-gear-for-sale';
 const SHOP_STATIC_ORIGIN = 'https://ccg-2k1.pages.dev';
 const ASSOCIATE_COOKIE_NAME = 'ccg_associate';
 const ASSOCIATE_COOKIE_VALUE = 'associate';
+const SHOP_SALES_TAX_RATE = 0.0775;
+const SHOP_COUPONS = new Map<string, { amountOffCents: number }>([
+  ['TAKE100', { amountOffCents: 10000 }],
+]);
 
 interface SubmitPayload {
   urls: Array<string | { url: string; isMulti?: boolean }>;
@@ -122,6 +126,7 @@ interface DecodeRequestPayload {
 
 interface ShopCheckoutRequestPayload {
   fulfillmentType?: unknown;
+  couponCode?: unknown;
   items?: Array<{
     inventoryItemId?: unknown;
     quantity?: unknown;
@@ -3481,7 +3486,15 @@ async function handleShopCreateCheckoutSession(request: Request, env: Env): Prom
     (sum, item) => sum + item.unitAmountCents * item.quantity,
     0,
   );
-  const totalCents = subtotalCents;
+  const couponCode = normalizeText(body?.couponCode, '').toUpperCase();
+  const coupon = couponCode ? SHOP_COUPONS.get(couponCode) : null;
+  if (couponCode && !coupon) {
+    return jsonResponse({ message: 'Coupon is no longer valid.' }, 400);
+  }
+  const discountCents = coupon ? Math.min(coupon.amountOffCents, subtotalCents) : 0;
+  const taxableCents = Math.max(0, subtotalCents - discountCents);
+  const taxCents = Math.round(taxableCents * SHOP_SALES_TAX_RATE);
+  const totalCents = taxableCents + taxCents;
   const baseUrl = normalizeText(env.SITE_BASE_URL, ACTIVITY_BASE_URL).replace(/\/+$/, '');
   const successUrl = `${baseUrl}${SHOP_BASE_PATH}/checkout/success?order=${encodeURIComponent(orderId)}`;
   const cancelUrl = `${baseUrl}${SHOP_BASE_PATH}/cart`;
@@ -3495,6 +3508,9 @@ async function handleShopCreateCheckoutSession(request: Request, env: Env): Prom
       channel,
       fulfillmentType,
       subtotalCents,
+      discountCents,
+      couponCode: coupon ? couponCode : null,
+      taxCents,
       totalCents,
       successUrl,
       cancelUrl,
@@ -3509,6 +3525,9 @@ async function handleShopCreateCheckoutSession(request: Request, env: Env): Prom
       successUrl,
       cancelUrl,
       items: checkoutItems,
+      couponCode: coupon ? couponCode : null,
+      discountCents,
+      taxCents,
     });
 
     await dbAttachStripeCheckoutSession(orderId, stripeSession.id, env);
@@ -7343,6 +7362,9 @@ async function dbCreateCheckoutOrder(
     channel: string;
     fulfillmentType: string;
     subtotalCents: number;
+    discountCents: number;
+    couponCode: string | null;
+    taxCents: number;
     totalCents: number;
     successUrl: string;
     cancelUrl: string;
@@ -7379,9 +7401,10 @@ async function dbCreateCheckoutOrder(
     ['item_condition_snapshot', firstItem.row.condition || ''],
     ['item_image_url_snapshot', firstItem.imageUrl],
     ['subtotal_cents', input.subtotalCents],
-    ['tax_cents', 0],
+    ['tax_cents', input.taxCents],
     ['shipping_cents', 0],
-    ['discount_cents', 0],
+    ['discount_cents', input.discountCents],
+    ['coupon_code', input.couponCode],
     ['total_cents', input.totalCents],
     ['currency', 'usd'],
     ['reserve_expires_at', null],
@@ -11743,6 +11766,9 @@ async function createStripeCheckoutSession(input: {
   orderNumber: string;
   successUrl: string;
   cancelUrl: string;
+  couponCode: string | null;
+  discountCents: number;
+  taxCents: number;
   items: Array<{
     inventoryItemId: number;
     quantity: number;
@@ -11759,6 +11785,19 @@ async function createStripeCheckoutSession(input: {
   form.set('metadata[order_id]', input.orderId);
   form.set('metadata[order_number]', input.orderNumber);
   form.set('metadata[inventory_item_ids]', input.items.map((item) => String(item.inventoryItemId)).join(','));
+  form.set('metadata[discount_cents]', String(input.discountCents));
+  form.set('metadata[tax_cents]', String(input.taxCents));
+
+  if (input.discountCents > 0) {
+    const couponId = await createStripeAmountOffCoupon({
+      stripeSecretKey: input.stripeSecretKey,
+      orderId: input.orderId,
+      orderNumber: input.orderNumber,
+      couponCode: input.couponCode,
+      amountOffCents: input.discountCents,
+    });
+    form.set('discounts[0][coupon]', couponId);
+  }
 
   input.items.forEach((item, index) => {
     const prefix = `line_items[${index}]`;
@@ -11771,6 +11810,15 @@ async function createStripeCheckoutSession(input: {
       form.set(`${prefix}[price_data][product_data][images][0]`, item.imageUrl);
     }
   });
+
+  if (input.taxCents > 0) {
+    const prefix = `line_items[${input.items.length}]`;
+    form.set(`${prefix}[quantity]`, '1');
+    form.set(`${prefix}[price_data][currency]`, 'usd');
+    form.set(`${prefix}[price_data][unit_amount]`, String(input.taxCents));
+    form.set(`${prefix}[price_data][product_data][name]`, 'Sales tax');
+    form.set(`${prefix}[price_data][product_data][description]`, 'State, city, county taxes');
+  }
 
   const response = await fetch('https://api.stripe.com/v1/checkout/sessions', {
     method: 'POST',
@@ -11788,6 +11836,41 @@ async function createStripeCheckoutSession(input: {
   const url = normalizeText(data?.url, '');
   if (!id || !url) throw new Error('Stripe did not return a checkout URL.');
   return { id, url };
+}
+
+async function createStripeAmountOffCoupon(input: {
+  stripeSecretKey: string;
+  orderId: string;
+  orderNumber: string;
+  couponCode: string | null;
+  amountOffCents: number;
+}): Promise<string> {
+  const form = new URLSearchParams();
+  form.set('amount_off', String(input.amountOffCents));
+  form.set('currency', 'usd');
+  form.set('duration', 'once');
+  form.set('name', input.couponCode || `Discount for ${input.orderNumber}`);
+  form.set('metadata[order_id]', input.orderId);
+  form.set('metadata[order_number]', input.orderNumber);
+  if (input.couponCode) {
+    form.set('metadata[coupon_code]', input.couponCode);
+  }
+
+  const response = await fetch('https://api.stripe.com/v1/coupons', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${input.stripeSecretKey}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: form,
+  });
+  const data = await response.json<any>();
+  if (!response.ok) {
+    throw new Error(normalizeText(data?.error?.message, 'Stripe rejected the discount request.'));
+  }
+  const id = normalizeText(data?.id, '');
+  if (!id) throw new Error('Stripe did not return a discount coupon.');
+  return id;
 }
 
 function parseStripeInventoryItemIds(session: any): number[] {

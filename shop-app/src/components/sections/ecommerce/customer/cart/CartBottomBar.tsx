@@ -6,7 +6,7 @@ import { useBreakpoints } from 'providers/BreakpointsProvider';
 import { useEcommerce } from 'providers/EcommerceProvider';
 
 const CartBottomBar = () => {
-  const { cartItems, cartTotal } = useEcommerce();
+  const { appliedCoupon, cartItems, cartTotal } = useEcommerce();
   const { up } = useBreakpoints();
   const { currencyFormat } = useNumberFormat();
   const { enqueueSnackbar } = useSnackbar();
@@ -25,6 +25,7 @@ const CartBottomBar = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fulfillmentType: 'pickup',
+          couponCode: appliedCoupon?.code || undefined,
           items: selectedCartItems.map((item) => ({
             inventoryItemId: item.id,
             quantity: item.quantity,
