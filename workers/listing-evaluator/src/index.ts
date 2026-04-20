@@ -3580,6 +3580,11 @@ async function handleShopCreateCashOrder(request: Request, env: Env): Promise<Re
       provider: 'cash',
       paidAt: nowIso,
       taxIncluded: draft.taxIncluded,
+      items: draft.items.map((item) => ({
+        inventoryItemId: item.inventoryItemId,
+        quantity: item.quantity,
+        subtotalCents: item.unitAmountCents * item.quantity,
+      })),
     }, env);
 
     return jsonResponse({
@@ -7673,7 +7678,12 @@ async function dbMarkStripeCheckoutOrderPaid(orderId: string, session: any, env:
 
 async function dbMarkManualCheckoutOrderPaid(
   orderId: string,
-  input: { provider: string; paidAt: string; taxIncluded: boolean },
+  input: {
+    provider: string;
+    paidAt: string;
+    taxIncluded: boolean;
+    items: Array<{ inventoryItemId: number; quantity: number; subtotalCents: number }>;
+  },
   env: Env,
 ): Promise<void> {
   const currentStatus = await dbGetOrderStatus(orderId, env);
@@ -7684,7 +7694,7 @@ async function dbMarkManualCheckoutOrderPaid(
     payment_status: 'paid',
     id: `${input.provider}:${orderId}`,
   };
-  await dbApplyPaidOrderInventoryAdjustments(orderId, [], session, env);
+  await dbApplyPaidInventoryItems(orderId, input.items, session, env);
 
   await dbUpdateTableById('orders', orderId, {
     status: 'paid',
@@ -7773,6 +7783,15 @@ async function dbApplyPaidOrderInventoryAdjustments(
       subtotalCents: 0,
     }));
 
+  await dbApplyPaidInventoryItems(orderId, items, session, env);
+}
+
+async function dbApplyPaidInventoryItems(
+  orderId: string,
+  items: Array<{ inventoryItemId: number; quantity: number; subtotalCents: number }>,
+  session: any,
+  env: Env,
+): Promise<void> {
   for (const item of items) {
     await dbApplyPaidInventoryItemAdjustment(orderId, item, session, env);
   }
@@ -7957,6 +7976,7 @@ async function dbCreateSoldInventoryCloneFromSource(input: {
     ['sold_channel', paidChannel],
     ['is_marked', 0],
     ['source_listing_id', null],
+    ['sale_url_slug', null],
     ['for_sale_date', null],
     ['created_at', input.soldDate],
     ['updated_at', input.soldDate],

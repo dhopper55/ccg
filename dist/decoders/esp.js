@@ -46,6 +46,10 @@ export function decodeESP(serial) {
     if (/^\d{6,8}$/.test(normalized)) {
         return decodePre2000(normalized);
     }
+    // Older Japanese neck-plate numeric format: 5 digits
+    if (/^\d{5}$/.test(normalized)) {
+        return decodeVintageJapan5Digit(normalized);
+    }
     return {
         success: false,
         error: 'Unable to decode this ESP serial number. The format was not recognized. Please check the serial number and try again.'
@@ -321,6 +325,45 @@ function decodePre2000(serial) {
         notes: `Pre-2000 format. Production #${parseInt(productionNum, 10)} on this date. Note: Year could be ${possibleYears} - check model history to confirm decade.`
     };
     return { success: true, info };
+}
+function decodeVintageJapan5Digit(serial) {
+    const sequence = parseInt(serial, 10);
+    const info = {
+        brand: 'ESP',
+        serialNumber: serial,
+        year: 'late 1980s to early 1990s (estimated)',
+        factory: 'ESP Japan (Sado or Takada factory likely)',
+        country: 'Japan',
+        model: 'Traditional / 400 Series or early Custom Shop',
+        notes: `Older ESP 5-digit numeric serial, commonly seen on Japanese-made Traditional, 400 Series, Original Series, or early Custom Shop instruments. Sequence: ${sequence}. ESP serial records from this era are not consistently date-coded, so confirm the exact date from neck-heel or neck-pocket markings when possible.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'esp-vintage-japan-5-digit',
+        patternLabel: 'ESP vintage Japan 5-digit',
+        additionalContext: {
+            title: 'ESP vintage Japan 5-digit serial',
+            summary: 'This serial matches an older Japanese ESP 5-digit numeric format seen on late-1980s and early-1990s instruments.',
+            highlights: [
+                'Five-digit numeric serials are commonly seen on older ESP Japan neck plates.',
+                'The likely era is late 1980s to early 1990s.',
+                'Common matches include Traditional, 400 Series, Original Series, or early Custom Shop instruments.',
+                `The digits are best treated as sequence ${sequence}, not a reliable date code.`,
+            ],
+            caveats: [
+                'ESP historical records from this era are incomplete and often not public-facing.',
+                'The serial alone usually cannot confirm an exact month or day.',
+                'Factory attribution should be verified from physical markings and model details.',
+            ],
+            verificationTips: [
+                'Check whether the serial is stamped into a metal neck plate.',
+                'Inspect the neck heel or neck pocket for a handwritten or stamped production date.',
+                'Contact ESP customer service with clear photos of the serial, headstock, neck plate, and bridge if authenticity matters.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches an older Japanese ESP 5-digit numeric format seen on late-1980s and early-1990s instruments.</p><h3>How This Pattern Is Typically Read</h3><p>Five-digit numeric serials are commonly seen on older ESP Japan neck plates. The likely era is late 1980s to early 1990s. Common matches include Traditional, 400 Series, Original Series, or early Custom Shop instruments. The digits are best treated as sequence ${sequence}, not a reliable date code.</p><h3>What To Verify</h3><ul><li>ESP historical records from this era are incomplete and often not public-facing.</li><li>The serial alone usually cannot confirm an exact month or day.</li><li>Factory attribution should be verified from physical markings and model details.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a vintage Japan ESP decode, then confirm with the neck plate, neck-heel or neck-pocket date markings, and ESP support when authenticity matters.</p>`,
+    };
 }
 function parseLTDDigits(digits) {
     // LTD format: YYMM + remaining digits for production number

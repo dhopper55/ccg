@@ -18,6 +18,22 @@ function decodeKramer(serialInput) {
   return decodeSerialForBackend('kramer', serialInput);
 }
 
+function decodeJackson(serialInput) {
+  return decodeSerialForBackend('jackson', serialInput);
+}
+
+function decodeESP(serialInput) {
+  return decodeSerialForBackend('esp', serialInput);
+}
+
+function decodeSchecter(serialInput) {
+  return decodeSerialForBackend('schecter', serialInput);
+}
+
+function decodeWashburn(serialInput) {
+  return decodeSerialForBackend('washburn', serialInput);
+}
+
 function decodeCharvel(serialInput) {
   return decodeSerialForBackend('charvel', serialInput);
 }
@@ -263,6 +279,28 @@ function assertIbanezModelCodeFallbackGRG(serialInput) {
   assert(
     info.notes && info.notes.includes('model code, not a stamped serial number'),
     `Expected model-code note for ${serialInput}, got ${info.notes}`
+  );
+}
+
+function assertIbanezKnownProductCode(serialInput) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.model === 'JEM7V Steve Vai Signature', `Expected JEM7V model for ${serialInput}, got ${info.model}`);
+  assert(info.country === 'Japan', `Expected country Japan for ${serialInput}, got ${info.country}`);
+  assert(
+    info.notes && info.notes.includes('GTIN/UPC retail product barcode'),
+    `Expected UPC/GTIN note for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    info.notes && info.notes.includes('not the stamped instrument serial number'),
+    `Expected not-serial note for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    result.patternKey === 'ibanez-known-upc-jem7v',
+    `Expected Ibanez UPC pattern key for ${serialInput}, got ${result.patternKey}`
   );
 }
 
@@ -769,6 +807,46 @@ function assertCortIEPrefix(serialInput, expectedYear, expectedMonth) {
   assert(info.country === 'Indonesia', `Expected country Indonesia for ${serialInput}, got ${info.country}`);
 }
 
+function assertCortAIPrefix(serialInput, expectedYear, expectedMonth) {
+  const result = decodeSerialForBackend('cort', serialInput);
+  assert(result.success, `Expected decode success for cort:${serialInput}`);
+  assert(result.info, `Expected decoded info for cort:${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'PT. Cort Indonesia, Mojokerto',
+    `Expected PT. Cort Indonesia, Mojokerto for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'Indonesia', `Expected country Indonesia for ${serialInput}, got ${info.country}`);
+  assert(
+    result.patternKey === 'cort-ai-indonesia-yymm-sequence',
+    `Expected Cort AI pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('production year 2020'),
+    `Expected Cort AI rich text for ${serialInput}`
+  );
+}
+
+function assertCortYearSequence7Digit(serialInput) {
+  const result = decodeSerialForBackend('cort', serialInput);
+  assert(result.success, `Expected decode success for cort:${serialInput}`);
+  assert(result.info, `Expected decoded info for cort:${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '2000', `Expected year 2000 for ${serialInput}, got ${info.year}`);
+  assert(
+    info.notes && info.notes.includes('production sequence 400'),
+    `Expected production sequence 400 for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    result.patternKey === 'cort-year-sequence-7-digit',
+    `Expected Cort year-sequence pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
 function assertCharvelCFPrefix(serialInput, expectedYear) {
   const result = decodeSerialForBackend('charvel', serialInput);
   assert(result.success, `Expected decode success for charvel:${serialInput}`);
@@ -914,15 +992,19 @@ function assertTaylorModernShort9Digit(serialInput, expectedYear, expectedMonth,
   assert(info.factory === 'El Cajon, California', `Expected El Cajon factory for ${serialInput}, got ${info.factory}`);
   assert(info.country === 'USA', `Expected USA country for ${serialInput}, got ${info.country}`);
   assert(
-    info.notes && info.notes.includes('Shortened modern Taylor format'),
+    info.notes && info.notes.includes('Modern Taylor 9-digit variant'),
     `Expected shortened-format note for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    info.notes && info.notes.includes('production sequence #4'),
+    `Expected Taylor production sequence #4 note for ${serialInput}, got ${info.notes}`
   );
   assert(
     result.patternKey === 'taylor-modern-short-9',
     `Expected Taylor shortened-modern pattern key for ${serialInput}, got ${result.patternKey}`
   );
   assert(
-    result.additionalContextRichText && result.additionalContextRichText.includes('modern factory/date layout'),
+    result.additionalContextRichText && result.additionalContextRichText.includes('production sequence #4'),
     `Expected Taylor shortened-modern rich text for ${serialInput}`
   );
 }
@@ -939,6 +1021,154 @@ function assertTaylorLegacy9Digit(serialInput, expectedYear, expectedMonth, expe
   assert(
     info.notes && info.notes.includes('This 9-digit format was used from 1993 to 1999'),
     `Expected legacy 9-digit note for ${serialInput}, got ${info.notes}`
+  );
+}
+
+function assertJacksonMij1996Transition(serialInput) {
+  const result = decodeJackson(serialInput);
+  assert(result.success, `Expected decode success for Jackson ${serialInput}`);
+  assert(result.info, `Expected decoded info for Jackson ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '1996', `Expected year 1996 for ${serialInput}, got ${info.year}`);
+  assert(info.factory === 'Chushin Gakki', `Expected Chushin Gakki factory for ${serialInput}, got ${info.factory}`);
+  assert(info.country === 'Japan', `Expected Japan country for ${serialInput}, got ${info.country}`);
+  assert(
+    info.notes && info.notes.includes('1996 transition period'),
+    `Expected 1996 transition note for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    info.notes && info.notes.includes(`production sequence ${parseInt(serialInput.substring(1), 10)}`),
+    `Expected production sequence note for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    result.patternKey === 'jackson-mij-6-digit-1996-transition',
+    `Expected Jackson MIJ transition pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('Chushin Gakki'),
+    `Expected Jackson MIJ transition rich text for ${serialInput}`
+  );
+}
+
+function assertJacksonUSAUSeries(serialInput, expectedYear = 'early to mid-2000s (estimated)') {
+  const result = decodeJackson(serialInput);
+  assert(result.success, `Expected decode success for Jackson ${serialInput}`);
+  assert(result.info, `Expected decoded info for Jackson ${serialInput}`);
+
+  const info = result.info;
+  assert(
+    info.year === expectedYear,
+    `Expected ${expectedYear} estimate for ${serialInput}, got ${info.year}`
+  );
+  assert(info.factory === 'Jackson USA', `Expected Jackson USA factory for ${serialInput}, got ${info.factory}`);
+  assert(info.country === 'USA', `Expected USA country for ${serialInput}, got ${info.country}`);
+  assert(
+    info.notes && info.notes.includes('USA U-series serial'),
+    `Expected USA U-series note for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    result.patternKey === 'jackson-usa-u-series',
+    `Expected Jackson USA U-series pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes(`numeric sequence is ${parseInt(serialInput.substring(1), 10)}`),
+    `Expected Jackson USA U-series rich text for ${serialInput}`
+  );
+}
+
+function assertJacksonTaiwanJSSeries(serialInput) {
+  const result = decodeJackson(serialInput);
+  assert(result.success, `Expected decode success for Jackson ${serialInput}`);
+  assert(result.info, `Expected decoded info for Jackson ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '1996', `Expected year 1996 for ${serialInput}, got ${info.year}`);
+  assert(info.model === 'JS20', `Expected JS20 model for ${serialInput}, got ${info.model}`);
+  assert(info.factory === 'MIT Taiwan factory', `Expected MIT Taiwan factory for ${serialInput}, got ${info.factory}`);
+  assert(info.country === 'Taiwan', `Expected Taiwan country for ${serialInput}, got ${info.country}`);
+  assert(
+    result.patternKey === 'jackson-taiwan-js-series-1996',
+    `Expected Jackson Taiwan JS-series pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('production sequence 50010694'),
+    `Expected Jackson Taiwan JS-series rich text for ${serialInput}`
+  );
+}
+
+function assertESPVintageJapan5Digit(serialInput) {
+  const result = decodeESP(serialInput);
+  assert(result.success, `Expected decode success for ESP ${serialInput}`);
+  assert(result.info, `Expected decoded info for ESP ${serialInput}`);
+
+  const info = result.info;
+  assert(
+    info.year === 'late 1980s to early 1990s (estimated)',
+    `Expected late 1980s to early 1990s estimate for ${serialInput}, got ${info.year}`
+  );
+  assert(
+    info.factory === 'ESP Japan (Sado or Takada factory likely)',
+    `Expected ESP Japan factory estimate for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'Japan', `Expected Japan country for ${serialInput}, got ${info.country}`);
+  assert(
+    info.model === 'Traditional / 400 Series or early Custom Shop',
+    `Expected vintage ESP model guidance for ${serialInput}, got ${info.model}`
+  );
+  assert(
+    result.patternKey === 'esp-vintage-japan-5-digit',
+    `Expected ESP vintage Japan 5-digit pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes(`sequence ${parseInt(serialInput, 10)}`),
+    `Expected ESP vintage Japan rich text for ${serialInput}`
+  );
+}
+
+function assertSchecterCAPrefix(serialInput) {
+  const result = decodeSchecter(serialInput);
+  assert(result.success, `Expected decode success for Schecter ${serialInput}`);
+  assert(result.info, `Expected decoded info for Schecter ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '2024', `Expected year 2024 for ${serialInput}, got ${info.year}`);
+  assert(info.month === 'January', `Expected month January for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'China import factory / newer production partner',
+    `Expected China import factory guidance for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'China', `Expected China country for ${serialInput}, got ${info.country}`);
+  assert(info.model === 'Diamond Series import', `Expected Diamond Series import model for ${serialInput}, got ${info.model}`);
+  assert(
+    result.patternKey === 'schecter-ca-yymm-sequence',
+    `Expected Schecter CA pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('production sequence 5'),
+    `Expected Schecter CA rich text for ${serialInput}`
+  );
+}
+
+function assertWashburnIndonesiaYearLetter(serialInput) {
+  const result = decodeWashburn(serialInput);
+  assert(result.success, `Expected decode success for Washburn ${serialInput}`);
+  assert(result.info, `Expected decoded info for Washburn ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '1998 or 2008', `Expected ambiguous 1998 or 2008 year for ${serialInput}, got ${info.year}`);
+  assert(
+    info.factory === 'Indonesia (Samick or PT Cort facility)',
+    `Expected Indonesian Washburn factory guidance for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'Indonesia', `Expected Indonesia country for ${serialInput}, got ${info.country}`);
+  assert(
+    result.patternKey === 'washburn-indonesia-i-year-letter-sequence',
+    `Expected Washburn Indonesian pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('production sequence 112846'),
+    `Expected Washburn Indonesian rich text for ${serialInput}`
   );
 }
 
@@ -994,6 +1224,7 @@ assertIbanezNumericOnly7Digit('4120210', '2014', 'December');
 assertIbanezNumericOnly10DigitFactoryLeading('5230401406', '2023', 'April');
 assertIbanezModelCodeFallback('SR305EDX');
 assertIbanezModelCodeFallbackGRG('GRG170DX');
+assertIbanezKnownProductCode('0606559014521');
 assertIbanezExistingSamples();
 assertBCRichIShortImport('i50311', '2005', 'March');
 assertBCRichUSA5DigitOffset('36642', '1982-1983 (estimated)');
@@ -1008,6 +1239,8 @@ assertDeanHPrefixIndia('H22020 143', '2022', 'February');
 assertDeanHPrefixIndia('H22020143', '2022', 'February');
 assertDeanHPrefixIndia('H22020', '2022', 'February');
 assertCortIEPrefix('ie220403666', '2022', 'April');
+assertCortAIPrefix('AI200750591', '2020', 'July');
+assertCortYearSequence7Digit('0000400');
 assertCharvelCFPrefix('CF22271', '2022');
 assertFenderTrailingFTypoCorrection('E528104f', 'E5281043', '1985');
 assertFenderJDPrefix('JD13006111', '2013');
@@ -1018,6 +1251,15 @@ assertGodinAmbiguous7Digit('4284009');
 assertOvationSnPrefixedUsa('SN487892', '1994');
 assertTaylorModernShort9Digit('111130804', '2018', 'November', '30');
 assertTaylorLegacy9Digit('980311301', '1998', 'March', '11');
+assertJacksonMij1996Transition('600503');
+assertJacksonMij1996Transition('600327');
+assertJacksonUSAUSeries('U15648');
+assertJacksonUSAUSeries('u17072', '2006-2007 (estimated)');
+assertJacksonTaiwanJSSeries('650010694');
+assertESPVintageJapan5Digit('22944');
+assertESPVintageJapan5Digit('29290');
+assertSchecterCAPrefix('CA24010005');
+assertWashburnIndonesiaYearLetter('I8C112846');
 assertDecodeFails('ovation', '123456789');
 
 console.log('Regression tests passed.');

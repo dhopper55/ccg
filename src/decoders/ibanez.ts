@@ -4,6 +4,11 @@ export function decodeIbanez(serial: string): DecodeResult {
   const cleaned = serial.trim().toUpperCase();
   const normalized = cleaned.replace(/[\s-]/g, '');
 
+  // Known retail/product UPC/GTIN codes (not stamped instrument serials)
+  if (normalized === '0606559014521') {
+    return decodeKnownProductCode(normalized);
+  }
+
   // Known model-code fallback (not a serial number)
   if (normalized === 'SR305EDX' || normalized === 'GRG170DX' || normalized === '684BK') {
     return decodeKnownModelCode(normalized);
@@ -349,6 +354,44 @@ export function decodeIbanez(serial: string): DecodeResult {
   return {
     success: false,
     error: 'Unrecognized Ibanez serial number format. Ibanez has used many different serial number systems across factories in Japan, Korea, Indonesia, and China. Common formats include: F + 7 digits (Japan), letter + 6-10 digits (various factories), numeric 6-10 digits (legacy or modern date/sequence variants), compact/legacy alpha suffix variants, or factory prefix + digits.'
+  };
+}
+
+function decodeKnownProductCode(productCode: string): DecodeResult {
+  const info: GuitarInfo = {
+    brand: 'Ibanez',
+    serialNumber: productCode,
+    model: 'JEM7V Steve Vai Signature',
+    country: 'Japan',
+    factory: 'FujiGen (actual serial needed to confirm)',
+    notes: `${productCode} is a GTIN/UPC retail product barcode for an Ibanez JEM7V Steve Vai Signature model, not the stamped instrument serial number. It can identify the model family, but it cannot date or authenticate a specific guitar. For a Japanese Prestige/JEM instrument, look for the actual serial number on the back of the headstock; it commonly starts with F followed by digits for FujiGen production.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'ibanez-known-upc-jem7v',
+    patternLabel: 'Ibanez known UPC/GTIN product code',
+    additionalContext: {
+      title: 'Ibanez UPC/GTIN product code',
+      summary: 'This code is a retail product identifier for an Ibanez JEM7V Steve Vai Signature model, not the stamped instrument serial number.',
+      highlights: [
+        '0606559014521 is a GTIN/UPC barcode used by retailers.',
+        'The product code identifies an Ibanez JEM7V Steve Vai Signature model.',
+        'A UPC/GTIN does not encode the individual instrument manufacture date.',
+      ],
+      caveats: [
+        'Do not use this code to authenticate or date the specific guitar.',
+        'The actual serial number must be read from the instrument itself.',
+        'For Japanese JEM/Prestige instruments, the serial is commonly on the back of the headstock and may start with F followed by digits.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock for the stamped serial number.',
+        'Use the model features and hardware to confirm that the guitar matches JEM7V specifications.',
+        'If authenticity matters, compare the serial, headstock, neck joint, pickups, tremolo, and case paperwork.',
+      ],
+    },
+    additionalContextRichText: '<h3>Overview</h3><p>This code is a retail product identifier for an Ibanez JEM7V Steve Vai Signature model, not the stamped instrument serial number.</p><h3>How This Code Is Typically Read</h3><p>0606559014521 is a GTIN/UPC barcode used by retailers. The product code identifies an Ibanez JEM7V Steve Vai Signature model. A UPC/GTIN does not encode the individual instrument manufacture date.</p><h3>What To Verify</h3><ul><li>Do not use this code to authenticate or date the specific guitar.</li><li>The actual serial number must be read from the instrument itself.</li><li>For Japanese JEM/Prestige instruments, the serial is commonly on the back of the headstock and may start with F followed by digits.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as model-identification guidance only, then decode the actual stamped serial number from the guitar for production details.</p>',
   };
 }
 

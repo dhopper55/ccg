@@ -25,6 +25,10 @@ export function decodeWashburn(serial) {
     if (/^S\d{7,9}$/.test(normalized)) {
         return decodeSamickKorea(normalized);
     }
+    // Indonesian: I + year digit + factory/batch letter + sequence
+    if (/^I\d[A-Z]\d{6}$/.test(normalized)) {
+        return decodeIndonesiaYearFactorySequence(normalized);
+    }
     // Indonesian: I prefix (non-SI)
     if (/^I\d{7,9}$/.test(normalized)) {
         return decodeIndonesia(normalized);
@@ -68,6 +72,47 @@ export function decodeWashburn(serial) {
     return {
         success: false,
         error: 'Unable to decode this Washburn serial number. The format was not recognized. Washburn has used many serial number formats over the years (4-12 characters). Common formats include: letter prefix + digits (S, SI, I, G, C), or numeric formats where the first 1-2 digits indicate the year. For pre-1978 instruments, no reliable serial number records exist.',
+    };
+}
+function decodeIndonesiaYearFactorySequence(serial) {
+    const yearDigit = serial[1];
+    const factoryCode = serial[2];
+    const sequence = serial.substring(3);
+    const possibleYears = getSingleDigitImportYears(parseInt(yearDigit, 10));
+    const info = {
+        brand: 'Washburn',
+        serialNumber: serial,
+        year: possibleYears,
+        factory: 'Indonesia (Samick or PT Cort facility)',
+        country: 'Indonesia',
+        notes: `I prefix indicates Indonesian Washburn production. Parsed as I + single-digit year code (${yearDigit}) + factory/batch code ${factoryCode} + sequence ${sequence}. The year digit can indicate ${possibleYears} depending on the model era; verify the exact decade from the instrument model, label, and hardware.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'washburn-indonesia-i-year-letter-sequence',
+        patternLabel: 'Washburn Indonesia I year-letter sequence',
+        additionalContext: {
+            title: 'Washburn Indonesian I-prefix serial',
+            summary: 'This serial matches an Indonesian Washburn I-prefix import format with a single-digit year code, a factory or batch letter, and a production sequence.',
+            highlights: [
+                'I indicates Indonesian production.',
+                `The year digit ${yearDigit} can point to ${possibleYears}, depending on model era.`,
+                `The letter ${factoryCode} is treated as a factory or batch code.`,
+                `The remaining digits are production sequence ${sequence}.`,
+            ],
+            caveats: [
+                'Washburn serial systems varied significantly by factory and model era.',
+                'The single year digit is ambiguous between decades without model context.',
+                'The serial does not encode the exact model name.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock or soundhole label for country-of-origin markings.',
+                'Use the model name and specs to decide whether the year digit fits 1998 or 2008.',
+                'Contact Washburn support with clear photos when exact identification matters.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches an Indonesian Washburn I-prefix import format with a single-digit year code, a factory or batch letter, and a production sequence.</p><h3>How This Pattern Is Typically Read</h3><p>I indicates Indonesian production. The year digit ${yearDigit} can point to ${possibleYears}, depending on model era. The letter ${factoryCode} is treated as a factory or batch code. The remaining digits are production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>Washburn serial systems varied significantly by factory and model era.</li><li>The single year digit is ambiguous between decades without model context.</li><li>The serial does not encode the exact model name.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as an Indonesian Washburn decode, then confirm the decade and model from the headstock, soundhole label, hardware, and Washburn support if needed.</p>`,
     };
 }
 // Samick Indonesia: SI prefix
@@ -419,4 +464,9 @@ function getMonthName(month) {
         'July', 'August', 'September', 'October', 'November', 'December'
     ];
     return months[month - 1] || 'Unknown';
+}
+function getSingleDigitImportYears(yearDigit) {
+    if (Number.isNaN(yearDigit))
+        return 'Unknown';
+    return `199${yearDigit} or 200${yearDigit}`;
 }

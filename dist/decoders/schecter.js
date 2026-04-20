@@ -26,6 +26,10 @@ export function decodeSchecter(serial) {
     if (/^C\d{7,8}$/.test(normalized)) {
         return decodeKoreaC(normalized);
     }
+    // China/newer import CA prefix: CA + YYMM + sequence
+    if (/^CA\d{8}$/.test(normalized)) {
+        return decodeChinaCA(normalized);
+    }
     // Korea H prefix: H + 7-8 digits
     if (/^H\d{7,8}$/.test(normalized)) {
         return decodeKoreaH(normalized);
@@ -154,6 +158,53 @@ function decodeKoreaC(serial) {
         notes: `C prefix = Cort Korea. Older Korean production. Sequence: ${sequence}.`
     };
     return { success: true, info };
+}
+function decodeChinaCA(serial) {
+    const digits = serial.substring(2);
+    const { year, month, sequence } = parseStandardDigits(digits);
+    if (!month) {
+        return {
+            success: false,
+            error: 'Unable to decode this Schecter CA serial number. The month field appears invalid.',
+        };
+    }
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Schecter',
+        serialNumber: serial,
+        year,
+        month,
+        factory: 'China import factory / newer production partner',
+        country: 'China',
+        model: 'Diamond Series import',
+        notes: `CA prefix indicates a Schecter import production run, commonly associated with newer China factory partners. Parsed as CA + YYMM + sequence. Sequence: ${sequence}. This is commonly a Diamond Series import format; verify the exact model from the headstock, truss rod cover, or label.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'schecter-ca-yymm-sequence',
+        patternLabel: 'Schecter CA YYMM sequence',
+        additionalContext: {
+            title: 'Schecter CA serial',
+            summary: 'This serial matches a Schecter CA-prefix import format parsed as factory prefix plus YYMM production date and sequence.',
+            highlights: [
+                'CA indicates a Schecter import production run, commonly associated with newer China factory partners.',
+                `The digits ${digits.substring(0, 2)} decode as production year ${year}.`,
+                `The digits ${digits.substring(2, 4)} decode as ${month}.`,
+                `The final four digits decode as production sequence ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'This format identifies production date and factory family, not the exact model name.',
+                'Most CA-prefix examples are import/Diamond Series instruments rather than USA Custom Shop guitars.',
+                'Factory-code usage can vary by production run, so confirm with physical markings when provenance matters.',
+            ],
+            verificationTips: [
+                'Check the headstock, truss rod cover, or label for the model name.',
+                'Contact Schecter support with photos of the serial and full instrument if exact factory confirmation is needed.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Schecter CA-prefix import format parsed as factory prefix plus YYMM production date and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>CA indicates a Schecter import production run, commonly associated with newer China factory partners. The digits ${digits.substring(0, 2)} decode as production year ${year}. The digits ${digits.substring(2, 4)} decode as ${month}. The final four digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This format identifies production date and factory family, not the exact model name.</li><li>Most CA-prefix examples are import/Diamond Series instruments rather than USA Custom Shop guitars.</li><li>Factory-code usage can vary by production run, so confirm with physical markings when provenance matters.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a practical import production decode, then verify the exact model from the headstock, truss rod cover, label, or Schecter support.</p>`,
+    };
 }
 function decodeKoreaH(serial) {
     const digits = serial.substring(1);

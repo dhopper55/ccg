@@ -54,11 +54,10 @@ function decode10Digit(serial) {
             error: `Invalid month: ${month}. Expected 01-12.`
         };
     }
-    // Validate day (basic check)
-    if (day < 1 || day > 31) {
+    if (!isValidMonthDay(month, day, parseInt(year, 10))) {
         return {
             success: false,
-            error: `Invalid day: ${day}. Expected 01-31.`
+            error: `Invalid date: ${month}/${day}/${year}.`
         };
     }
     // Determine factory
@@ -89,7 +88,7 @@ function decode10Digit(serial) {
         day: day.toString(),
         factory,
         country,
-        notes: `Production sequence #${parseInt(sequence, 10) + 1} for that day. This 10-digit format has been used since November 2009.`
+        notes: `Production sequence #${parseInt(sequence, 10)} for that day. This 10-digit format has been used since November 2009.`
     };
     return { success: true, info };
 }
@@ -120,11 +119,10 @@ function decode11Digit(serial) {
             error: `Invalid month: ${month}. Expected 01-12.`
         };
     }
-    // Validate day
-    if (day < 1 || day > 31) {
+    if (!isValidMonthDay(month, day, yearNum)) {
         return {
             success: false,
-            error: `Invalid day: ${day}. Expected 01-31.`
+            error: `Invalid date: ${month}/${day}/${year}.`
         };
     }
     // Series codes indicate different model lines
@@ -184,11 +182,10 @@ function decode9Digit(serial) {
             error: `Invalid month: ${month}. Expected 01-12.`
         };
     }
-    // Validate day
-    if (day < 1 || day > 31) {
+    if (!isValidMonthDay(month, day, yearNum)) {
         return {
             success: false,
-            error: `Invalid day: ${day}. Expected 01-31.`
+            error: `Invalid date: ${month}/${day}/${year}.`
         };
     }
     const seriesNames = {
@@ -230,7 +227,8 @@ function decodeModernShort9Digit(serial) {
     // Position 8-9: Shortened production sequence
     //
     // Taylor's official current format uses three final sequence digits. This
-    // accepts otherwise-valid labels where that sequence is shown as two digits.
+    // accepts otherwise-valid labels where that day's production sequence is
+    // shown as two digits, as seen on some labels and user-submitted examples.
     const factoryCode = serial[0];
     if (factoryCode !== '1' && factoryCode !== '2') {
         return {
@@ -263,10 +261,10 @@ function decodeModernShort9Digit(serial) {
             error: `Invalid month: ${month}. Expected 01-12.`
         };
     }
-    if (day < 1 || day > 31) {
+    if (!isValidMonthDay(month, day, yearNum)) {
         return {
             success: false,
-            error: `Invalid day: ${day}. Expected 01-31.`
+            error: `Invalid date: ${month}/${day}/${year}.`
         };
     }
     let factory;
@@ -296,23 +294,23 @@ function decodeModernShort9Digit(serial) {
         day: day.toString(),
         factory,
         country,
-        notes: `Shortened modern Taylor format: factory/date fields match the current Taylor 10-digit system, but the production sequence is two digits (${sequence}) instead of the official three digits. Verify the printed label if possible.`
+        notes: `Modern Taylor 9-digit variant: factory/date fields match the current Taylor 10-digit system, and the final two digits indicate production sequence #${parseInt(sequence, 10)} for that day. Taylor officially documents the current format with three final sequence digits, so verify the printed label if possible.`
     };
     return {
         success: true,
         info,
         patternKey: 'taylor-modern-short-9',
-        patternLabel: 'Taylor shortened modern 9-digit',
+        patternLabel: 'Taylor modern 9-digit variant',
         additionalContext: {
-            title: 'Taylor shortened modern 9-digit serial',
-            summary: 'This serial matches Taylor\'s modern factory/date layout, but with a two-digit final sequence rather than the official three-digit sequence used on the current 10-digit system.',
+            title: 'Taylor modern 9-digit variant serial',
+            summary: 'This serial matches Taylor\'s modern factory/date layout, but with a two-digit final day-sequence field rather than the three-digit sequence commonly documented for the current 10-digit system.',
             highlights: [
                 'Factory code 1 indicates El Cajon, California.',
                 'The date fields decode as November 30, 2018.',
-                'The final two digits appear to be a shortened production sequence.',
+                `The final two digits decode as production sequence #${parseInt(sequence, 10)} for that day.`,
             ],
             caveats: [
-                'Taylor officially documents the current format as 10 digits, so verify the printed label for a missing or faint final sequence digit.',
+                'Taylor officially documents the current format as 10 digits, so verify the full printed label if possible.',
                 'Do not read this as the older 1993-1999 9-digit format because that would imply year 1911/2011 and does not fit that system.',
             ],
             verificationTips: [
@@ -320,8 +318,16 @@ function decodeModernShort9Digit(serial) {
                 'If authenticity matters, contact Taylor support with photos of the full label and headstock.',
             ],
         },
-        additionalContextRichText: '<h3>Overview</h3><p>This serial matches Taylor&#39;s modern factory/date layout, but with a two-digit final sequence rather than the official three-digit sequence used on the current 10-digit system.</p><h3>How This Pattern Is Typically Read</h3><p>Factory code 1 indicates El Cajon, California. The date fields decode as November 30, 2018. The final two digits appear to be a shortened production sequence.</p><h3>What To Verify</h3><ul><li>Taylor officially documents the current format as 10 digits, so verify the printed label for a missing or faint final sequence digit.</li><li>Do not read this as the older 1993-1999 9-digit format because that would imply year 1911/2011 and does not fit that system.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a practical decode, then confirm with the full label, model text, and Taylor support if authenticity matters.</p>',
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches Taylor&#39;s modern factory/date layout, but with a two-digit final day-sequence field rather than the three-digit sequence commonly documented for the current 10-digit system.</p><h3>How This Pattern Is Typically Read</h3><p>Factory code 1 indicates El Cajon, California. The date fields decode as November 30, 2018. The final two digits decode as production sequence #${parseInt(sequence, 10)} for that day.</p><h3>What To Verify</h3><ul><li>Taylor officially documents the current format as 10 digits, so verify the full printed label if possible.</li><li>Do not read this as the older 1993-1999 9-digit format because that would imply year 1911/2011 and does not fit that system.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a practical decode, then confirm with the full label, model text, and Taylor support if authenticity matters.</p>`,
     };
+}
+function isValidMonthDay(month, day, year) {
+    if (month < 1 || month > 12 || day < 1)
+        return false;
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return (date.getUTCFullYear() === year &&
+        date.getUTCMonth() === month - 1 &&
+        date.getUTCDate() === day);
 }
 function decodeEarlyTaylor(serial) {
     const num = parseInt(serial, 10);

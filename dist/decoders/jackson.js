@@ -5,17 +5,19 @@
  * - USA Custom Shop Neck-Through (J prefix, 1983-present)
  * - USA Randy Rhoads (RR prefix, 1983-1990)
  * - USA Production (U0/UO prefix, 1990-present)
+ * - USA U-series (U + 4-5 digits, late 1990s-2000s)
  * - USA Bolt-On Custom Shop (4-digit, 1986-1997)
  * - USA Bolt-On Production (6-digit 00xxxx, 1990+)
  * - Jackson Junior (JJ suffix, 1994-2000)
  * - Japan Professional (6-digit, 1990-1995)
+ * - Japan Professional transition (6-digit, 1996)
  * - Japan Fusion (6-digit 90-95 prefix, 1990-1995)
  * - Japan 1996+ (7-digit, 96+ prefix)
  * - Indonesia (I prefix with factory codes)
  * - China (C prefix with factory codes)
  * - India (N prefix or 8-10 digit numeric)
  * - Korea (7-digit starting with 1)
- * - Taiwan (8-digit starting with 6)
+ * - Taiwan (8-9 digits starting with 6)
  * - Modern 10-digit alphanumeric (2013+)
  */
 // USA Neck-Through serial ranges (U0/UO prefix)
@@ -88,6 +90,10 @@ export function decodeJackson(serial) {
     if (/^U[O0]\d{4,5}$/i.test(normalized)) {
         return decodeUSANeckThrough(normalized);
     }
+    // USA U-series sequential format (U + 4-5 digits)
+    if (/^U\d{4,5}$/i.test(normalized)) {
+        return decodeUSAUSeries(normalized);
+    }
     // Jackson Junior (JJ suffix)
     if (/^\d{4}JJ$/i.test(normalized)) {
         return decodeJacksonJunior(normalized);
@@ -116,6 +122,10 @@ export function decodeJackson(serial) {
     if (/^[0-5]\d{5}$/.test(normalized) && normalized.length === 6) {
         return decodeJapanProfessional(normalized);
     }
+    // Japan Professional transition 6-digit (1996, first digit 6)
+    if (/^6\d{5}$/.test(normalized) && normalized.length === 6) {
+        return decodeJapanProfessionalTransition1996(normalized);
+    }
     // Japan Fusion 6-digit (90-95 prefix)
     if (/^9[0-5]\d{4}$/.test(normalized) && normalized.length === 6) {
         return decodeJapanFusion(normalized);
@@ -136,8 +146,8 @@ export function decodeJackson(serial) {
     if (/^1\d{6}$/.test(normalized) && normalized.length === 7) {
         return decodeKorea(normalized);
     }
-    // Taiwan 8-digit (starts with 6)
-    if (/^6\d{7}$/.test(normalized) && normalized.length === 8) {
+    // Taiwan 8-9 digit JS-series format (starts with 6)
+    if (/^6\d{7,8}$/.test(normalized) && (normalized.length === 8 || normalized.length === 9)) {
         return decodeTaiwan(normalized);
     }
     // USA Bolt-On Production (00xxxx format, 6 digits starting with 00)
@@ -213,6 +223,54 @@ function decodeUSANeckThrough(serial) {
         info.year = '2013 or later';
     }
     return { success: true, info };
+}
+function decodeUSAUSeries(serial) {
+    const sequence = parseInt(serial.substring(1), 10);
+    let estimatedEra = 'late 1990s to 2000s (estimated)';
+    if (sequence >= 17000) {
+        estimatedEra = '2006-2007 (estimated)';
+    }
+    else if (sequence >= 15000) {
+        estimatedEra = 'early to mid-2000s (estimated)';
+    }
+    else if (sequence >= 10000) {
+        estimatedEra = 'late 1990s to early 2000s (estimated)';
+    }
+    const info = {
+        brand: 'Jackson',
+        serialNumber: serial,
+        year: estimatedEra,
+        factory: 'Jackson USA',
+        country: 'USA',
+        notes: `USA U-series serial. These are largely sequential rather than strict date codes. Sequence ${sequence} falls in the ${estimatedEra} range and is commonly associated with USA production or Custom Shop instruments such as Soloist, Rhoads, Kelly, and Warrior models. Verify with Made in USA headstock marking, neck-pocket stamps, and model features.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'jackson-usa-u-series',
+        patternLabel: 'Jackson USA U-series',
+        additionalContext: {
+            title: 'Jackson USA U-series serial',
+            summary: 'This serial matches a Jackson USA U-series sequential format used on USA production and Custom Shop instruments.',
+            highlights: [
+                'The U prefix indicates Jackson USA series usage.',
+                `The numeric sequence is ${sequence}.`,
+                `This sequence range points to the ${estimatedEra} era.`,
+                'The serial is sequential rather than a month/day production code.',
+            ],
+            caveats: [
+                'Jackson U-series serials are not strict date codes, so the year is an estimate.',
+                'Factory location may be Ontario/San Dimas for earlier examples or Corona, California after the Fender acquisition.',
+                'The exact model should be verified from the headstock, body style, hardware, and neck-pocket markings.',
+            ],
+            verificationTips: [
+                'Look for a Made in USA headstock stamp or marking.',
+                'Check the neck pocket for a date stamp or builder initials when exact dating matters.',
+                'Use the official Jackson lookup where available, but expect many older records to be incomplete.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Jackson USA U-series sequential format used on USA production and Custom Shop instruments.</p><h3>How This Pattern Is Typically Read</h3><p>The U prefix indicates Jackson USA series usage. The numeric sequence is ${sequence}. This sequence range points to the ${estimatedEra} era. The serial is sequential rather than a month/day production code.</p><h3>What To Verify</h3><ul><li>Jackson U-series serials are not strict date codes, so the year is an estimate.</li><li>Factory location may be Ontario/San Dimas for earlier examples or Corona, California after the Fender acquisition.</li><li>The exact model should be verified from the headstock, body style, hardware, and neck-pocket markings.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a USA-series decode, then confirm with Made in USA markings, neck-pocket stamps, and model features.</p>`,
+    };
 }
 function decodeUSABoltOnProduction(serial) {
     const num = parseInt(serial, 10);
@@ -292,6 +350,43 @@ function decodeJapanProfessional(serial) {
         notes: 'Made in Japan Professional series. High-quality import models produced 1990-1995.',
     };
     return { success: true, info };
+}
+function decodeJapanProfessionalTransition1996(serial) {
+    const sequence = serial.substring(1);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Jackson',
+        serialNumber: serial,
+        year: '1996',
+        factory: 'Chushin Gakki',
+        country: 'Japan',
+        notes: `Likely made in Japan Professional Series or no-S-series bolt-on model from the 1996 transition period. The first digit indicates 1996 and the remaining five digits are production sequence ${sequenceNumber}. Jackson moved many Japanese serials to a 7-digit 96xxxxx format around this time, but some 6-digit serials beginning with 6 are associated with early/mid-1996 MIJ production. Verify with neck-pocket or heel stamps when possible; a small number of similar 6-prefix instruments may be Taiwan-made.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'jackson-mij-6-digit-1996-transition',
+        patternLabel: 'Jackson MIJ 6-digit 1996 transition',
+        additionalContext: {
+            title: 'Jackson MIJ 6-digit 1996 transition serial',
+            summary: 'This 6-digit serial beginning with 6 fits a mid-1990s Jackson Japanese bolt-on pattern, commonly associated with Professional Series or no-S-series instruments around the 1996 transition.',
+            highlights: [
+                'The first digit points to 1996 in the 1990s Japanese 6-digit sequence.',
+                'These instruments are commonly associated with Chushin Gakki production in Japan.',
+                `The remaining digits decode as production sequence ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'Jackson serial records from this era are incomplete, and the official lookup may not include many pre-2002 instruments.',
+                'Some 1996 Japanese models moved to a 7-digit 96xxxxx format, so this 6-digit interpretation should be verified against physical markings.',
+                'A small number of similar 6-prefix bolt-ons have been linked to Taiwan production.',
+            ],
+            verificationTips: [
+                'Check the neck plate for the absence of a USA address and compare the model to MIJ Professional or no-S-series specs.',
+                'If possible, remove the neck and inspect the neck pocket or heel stamp for model and date markings.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This 6-digit serial beginning with 6 fits a mid-1990s Jackson Japanese bolt-on pattern, commonly associated with Professional Series or no-S-series instruments around the 1996 transition.</p><h3>How This Pattern Is Typically Read</h3><p>The first digit points to 1996 in the 1990s Japanese 6-digit sequence. These instruments are commonly associated with Chushin Gakki production in Japan. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Jackson serial records from this era are incomplete, and the official lookup may not include many pre-2002 instruments.</li><li>Some 1996 Japanese models moved to a 7-digit 96xxxxx format, so this 6-digit interpretation should be verified against physical markings.</li><li>A small number of similar 6-prefix bolt-ons have been linked to Taiwan production.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a practical decode, then confirm with the neck plate, model features, and neck-pocket or heel stamps when possible.</p>`,
+    };
 }
 function decodeJapanFusion(serial) {
     const yearDigits = serial.substring(0, 2);
@@ -446,15 +541,41 @@ function decodeKorea(serial) {
     return { success: true, info };
 }
 function decodeTaiwan(serial) {
+    const sequence = serial.substring(1);
     const info = {
         brand: 'Jackson',
         serialNumber: serial,
         year: '1996',
         model: 'JS20',
+        factory: 'MIT Taiwan factory',
         country: 'Taiwan',
-        notes: 'Made in Taiwan JS20. Limited production during 1996 only.',
+        notes: `Made in Taiwan JS-series format, most commonly associated with the JS20 Dinky during the short 1996 Taiwan production period. The first digit indicates 1996; remaining digits are production sequence ${sequence}. Verify with a Made in Taiwan sticker or neck-pocket markings when possible.`,
     };
-    return { success: true, info };
+    return {
+        success: true,
+        info,
+        patternKey: 'jackson-taiwan-js-series-1996',
+        patternLabel: 'Jackson Taiwan JS-series 1996',
+        additionalContext: {
+            title: 'Jackson Taiwan JS-series serial',
+            summary: 'This serial matches a mid-1990s Jackson Taiwan JS-series numeric format, most commonly associated with JS20 Dinky instruments.',
+            highlights: [
+                'The leading 6 points to 1996 in this Taiwan JS-series pattern.',
+                'The format is commonly associated with the JS20 Dinky and related entry-level Jackson imports.',
+                `The remaining digits are production sequence ${sequence}.`,
+            ],
+            caveats: [
+                'Official Jackson lookup coverage for this era is incomplete and mostly focused on later instruments.',
+                'These mid-1990s import models used numeric sequences that varied by factory partner.',
+                'Exact model confirmation should come from physical markings and specs, not the serial alone.',
+            ],
+            verificationTips: [
+                'Check for a Made in Taiwan sticker or marking on the back of the headstock.',
+                'Inspect the neck pocket if exact production confirmation matters.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a mid-1990s Jackson Taiwan JS-series numeric format, most commonly associated with JS20 Dinky instruments.</p><h3>How This Pattern Is Typically Read</h3><p>The leading 6 points to 1996 in this Taiwan JS-series pattern. The format is commonly associated with the JS20 Dinky and related entry-level Jackson imports. The remaining digits are production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>Official Jackson lookup coverage for this era is incomplete and mostly focused on later instruments.</li><li>These mid-1990s import models used numeric sequences that varied by factory partner.</li><li>Exact model confirmation should come from physical markings and specs, not the serial alone.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a practical Taiwan JS-series decode, then confirm with Made in Taiwan markings, model specs, or neck-pocket stamps.</p>`,
+    };
 }
 function decodeModern(serial) {
     // Modern 10-digit alphanumeric format (2013+)
