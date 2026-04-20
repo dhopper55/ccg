@@ -61,7 +61,6 @@ Why:
 Recommended `ccg_inventory_items.availability_status` values:
 
 - `available`: item can be added to cart and checked out.
-- `checkout_open`: item is reserved by an active Stripe Checkout Session.
 - `sold`: payment succeeded and the item is no longer available.
 - `unavailable`: item should not be offered for checkout, but is not sold.
 
@@ -83,6 +82,7 @@ CREATE TABLE IF NOT EXISTS orders (
 
   status TEXT NOT NULL,
   channel TEXT NOT NULL,
+  checkout_type TEXT NOT NULL DEFAULT 'stripe',
   checkout_provider TEXT NOT NULL DEFAULT 'stripe',
   checkout_mode TEXT NOT NULL,
   fulfillment_type TEXT NOT NULL DEFAULT 'pickup',
@@ -163,9 +163,9 @@ CREATE TABLE IF NOT EXISTS order_events (
 ### Additions to `ccg_inventory_items`
 ```sql
 ALTER TABLE ccg_inventory_items ADD COLUMN availability_status TEXT DEFAULT 'available';
-ALTER TABLE ccg_inventory_items ADD COLUMN active_order_id TEXT;
-ALTER TABLE ccg_inventory_items ADD COLUMN reserved_until TEXT;
 ```
+
+`active_order_id` and `reserved_until` may exist from earlier checkout testing, but they are no longer part of the checkout model.
 
 ## D1 Scripts
 
@@ -179,6 +179,7 @@ CREATE TABLE IF NOT EXISTS orders (
   order_number TEXT NOT NULL UNIQUE,
   status TEXT NOT NULL,
   channel TEXT NOT NULL,
+  checkout_type TEXT NOT NULL DEFAULT 'stripe',
   checkout_provider TEXT NOT NULL DEFAULT 'stripe',
   checkout_mode TEXT NOT NULL,
   fulfillment_type TEXT NOT NULL DEFAULT 'pickup',
@@ -239,13 +240,63 @@ CREATE TABLE IF NOT EXISTS order_events (
 "
 ```
 
-### Add inventory reservation columns
-Run each command separately. SQLite/D1 will fail an `ADD COLUMN` if the column already exists.
+### Patch an existing `orders` table
+If `orders` already existed, `CREATE TABLE IF NOT EXISTS orders (...)` does not add missing columns.
+Check the existing columns first:
+
+```sql
+PRAGMA table_info(orders);
+```
+
+Then run only the missing columns one at a time. If a command reports `duplicate column name`, that column already exists and you can skip it.
+
+```sql
+ALTER TABLE orders ADD COLUMN checkout_provider TEXT NOT NULL DEFAULT 'stripe';
+ALTER TABLE orders ADD COLUMN checkout_type TEXT NOT NULL DEFAULT 'stripe';
+ALTER TABLE orders ADD COLUMN checkout_mode TEXT NOT NULL DEFAULT 'hosted_checkout';
+ALTER TABLE orders ADD COLUMN fulfillment_type TEXT NOT NULL DEFAULT 'pickup';
+ALTER TABLE orders ADD COLUMN customer_name TEXT;
+ALTER TABLE orders ADD COLUMN customer_email TEXT;
+ALTER TABLE orders ADD COLUMN customer_phone TEXT;
+ALTER TABLE orders ADD COLUMN tax_cents INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE orders ADD COLUMN shipping_cents INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE orders ADD COLUMN discount_cents INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE orders ADD COLUMN currency TEXT NOT NULL DEFAULT 'usd';
+ALTER TABLE orders ADD COLUMN reserve_expires_at TEXT;
+ALTER TABLE orders ADD COLUMN checkout_started_at TEXT;
+ALTER TABLE orders ADD COLUMN paid_at TEXT;
+ALTER TABLE orders ADD COLUMN cancelled_at TEXT;
+ALTER TABLE orders ADD COLUMN stripe_checkout_session_id TEXT;
+ALTER TABLE orders ADD COLUMN stripe_payment_intent_id TEXT;
+ALTER TABLE orders ADD COLUMN stripe_customer_id TEXT;
+ALTER TABLE orders ADD COLUMN stripe_payment_status TEXT;
+ALTER TABLE orders ADD COLUMN success_url TEXT;
+ALTER TABLE orders ADD COLUMN cancel_url TEXT;
+ALTER TABLE orders ADD COLUMN created_by_admin_username TEXT;
+ALTER TABLE orders ADD COLUMN notes TEXT;
+ALTER TABLE orders ADD COLUMN updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP;
+```
+
+After patching, create the Stripe Checkout Session uniqueness index if it does not already exist:
+
+```sql
+CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_stripe_checkout_session_id_unique
+ON orders(stripe_checkout_session_id)
+WHERE stripe_checkout_session_id IS NOT NULL;
+```
+
+### Add inventory availability column
+SQLite/D1 will fail an `ADD COLUMN` if the column already exists.
+If Cloudflare Studio reports `duplicate column name`, that specific column is already done; remove that line and continue with the remaining columns.
+
+To check which columns already exist:
+
+```sql
+PRAGMA table_info(ccg_inventory_items);
+```
 
 ```bash
 npx wrangler d1 execute listing_evaluator --remote --command="ALTER TABLE ccg_inventory_items ADD COLUMN availability_status TEXT DEFAULT 'available';"
-npx wrangler d1 execute listing_evaluator --remote --command="ALTER TABLE ccg_inventory_items ADD COLUMN active_order_id TEXT;"
-npx wrangler d1 execute listing_evaluator --remote --command="ALTER TABLE ccg_inventory_items ADD COLUMN reserved_until TEXT;"
 ```
 
 ### Backfill availability
@@ -270,12 +321,10 @@ WHERE availability_status IS NULL
 npx wrangler d1 execute listing_evaluator --remote --command="
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);
-CREATE INDEX IF NOT EXISTS idx_orders_reserve_expires_at ON orders(reserve_expires_at);
 CREATE INDEX IF NOT EXISTS idx_orders_stripe_checkout_session_id ON orders(stripe_checkout_session_id);
 CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_order_items_inventory_item_id ON order_items(inventory_item_id);
 CREATE INDEX IF NOT EXISTS idx_order_events_order_id ON order_events(order_id);
-CREATE INDEX IF NOT EXISTS idx_inventory_active_order_id ON ccg_inventory_items(active_order_id);
 CREATE INDEX IF NOT EXISTS idx_inventory_availability_status ON ccg_inventory_items(availability_status);
 "
 ```
@@ -294,20 +343,22 @@ Phase 1 statuses:
 
 Status meanings:
 
-- `checkout_open`: order row exists, Stripe Checkout Session exists or is being created, and item reservations are active.
+- `checkout_open`: order row exists and Stripe Checkout Session exists or is being created.
 - `paid`: webhook-confirmed payment success.
 - `payment_failed`: Stripe asynchronous payment failed.
-- `expired`: Stripe Checkout Session or reservation timed out.
+- `expired`: Stripe Checkout Session timed out.
 - `cancelled`: checkout attempt was cancelled or released before payment.
 - `refunded`: order fully refunded after payment.
 - `partially_refunded`: order partially refunded after payment.
 
 ## Business Rules
 
-- Only one active checkout order may reserve an inventory item at a time.
-- Active checkout means `checkout_open` and `reserve_expires_at` is in the future.
-- Once an order becomes `paid`, every `order_items.inventory_item_id` becomes sold.
-- Expired, cancelled, or failed orders release their inventory items back to available state.
+- Checkout does not reserve inventory. Multiple customers can start checkout for the same item.
+- Once an order becomes `paid`, inventory quantity is adjusted from `order_items.quantity`.
+- If a purchase partially sells a multi-quantity item, the original inventory row remains available with the remaining quantity.
+- Partial sales create a new sold `ccg_inventory_items` row cloned from the original row, with the sold quantity, copied images, and sold metadata.
+- If a purchase exhausts the original quantity, the original row is set to quantity `0` and marked sold; no clone is created.
+- Expired, cancelled, or failed orders update order status only; inventory is unchanged.
 - Stripe webhook events are authoritative for payment success.
 - Redirect pages are customer UX only and must not be treated as fulfillment success.
 - Public online users cannot checkout `only_in_store` items.
@@ -333,6 +384,27 @@ Status meanings:
   - Verifies webhook signature.
   - Processes payment and checkout lifecycle events idempotently.
 
+### Stripe Dashboard setup
+
+Create a webhook endpoint in Stripe test mode:
+
+- Endpoint URL: `https://www.coalcreekguitars.com/api/stripe/webhook`
+- Events:
+  - `checkout.session.completed`
+  - `checkout.session.async_payment_succeeded`
+  - `checkout.session.async_payment_failed`
+  - `checkout.session.expired`
+
+Set the webhook signing secret on the Worker:
+
+```bash
+cd workers/listing-evaluator
+npx wrangler secret put STRIPE_WEBHOOK_SECRET
+npx wrangler deploy
+```
+
+Use the `whsec_...` signing secret from the Stripe webhook endpoint details.
+
 Recommended Stripe events:
 
 - `checkout.session.completed`
@@ -342,25 +414,12 @@ Recommended Stripe events:
   - Mark order `paid`.
 - `checkout.session.async_payment_failed`
   - Mark order `payment_failed`.
-  - Release inventory reservations.
 - `checkout.session.expired`
   - Mark order `expired`.
-  - Release inventory reservations.
 - refund-related Stripe events
   - Mark order `refunded` or `partially_refunded`.
 
 Webhook handling must be idempotent.
-
-## Reservation Expiration
-
-Recommended behavior:
-
-- Reserve cart items for 30 minutes when Stripe checkout starts.
-- If `reserved_until < now` and the order is not paid, release the reservation.
-- Run expiration checks:
-  - when a new checkout starts for the same item
-  - when admin loads item/order state
-  - optionally in a scheduled cleanup later
 
 ## Thank-You Page
 

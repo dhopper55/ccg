@@ -29,6 +29,7 @@ interface Env {
   AUTH_SECRET: string;
   ASSOCIATE_MODE_TOKEN?: string;
   STRIPE_SECRET_KEY?: string;
+  STRIPE_WEBHOOK_SECRET?: string;
   WEBHOOK_SECRET?: string;
   LISTING_JOBS: KVNamespace;
   GOOGLE_MAPS_API_KEY?: string;
@@ -388,6 +389,10 @@ export default {
     if (path === '/api/logout' && request.method === 'POST') {
       const response = await handleLogout();
       return withCors(response, request, env);
+    }
+
+    if (path === '/api/stripe/webhook' && request.method === 'POST') {
+      return handleStripeWebhook(request, env);
     }
 
     if (path.startsWith('/api/') && !isPublicApiPath(path)) {
@@ -3433,9 +3438,7 @@ async function handleShopCreateCheckoutSession(request: Request, env: Env): Prom
   );
   const byId = new Map(inventoryRows.map((row) => [row.id, row]));
 
-  const now = new Date();
-  const nowIso = now.toISOString();
-  const reserveExpiresAt = new Date(now.getTime() + 30 * 60 * 1000).toISOString();
+  const nowIso = new Date().toISOString();
   const checkoutItems: Array<{
     inventoryItemId: number;
     quantity: number;
@@ -3452,7 +3455,6 @@ async function handleShopCreateCheckoutSession(request: Request, env: Env): Prom
     }
     const unavailableReason = getCheckoutInventoryUnavailableReason(row, {
       includeInStoreOnly,
-      nowIso,
       requestedQuantity: requestedItem.quantity,
     });
     if (unavailableReason) {
@@ -3494,7 +3496,6 @@ async function handleShopCreateCheckoutSession(request: Request, env: Env): Prom
       fulfillmentType,
       subtotalCents,
       totalCents,
-      reserveExpiresAt,
       successUrl,
       cancelUrl,
       createdAt: nowIso,
@@ -3524,6 +3525,50 @@ async function handleShopCreateCheckoutSession(request: Request, env: Env): Prom
       message: error instanceof Error ? error.message : 'Unable to start checkout.',
     }, 500);
   }
+}
+
+async function handleStripeWebhook(request: Request, env: Env): Promise<Response> {
+  const webhookSecret = normalizeText(env.STRIPE_WEBHOOK_SECRET, '');
+  if (!webhookSecret) {
+    return jsonResponse({ message: 'Stripe webhook is not configured.' }, 503);
+  }
+
+  const signature = normalizeText(request.headers.get('Stripe-Signature'), '');
+  const payload = await request.text();
+  const verified = await verifyStripeWebhookSignature(payload, signature, webhookSecret);
+  if (!verified) {
+    return jsonResponse({ message: 'Invalid Stripe webhook signature.' }, 400);
+  }
+
+  let event: any;
+  try {
+    event = JSON.parse(payload);
+  } catch {
+    return jsonResponse({ message: 'Invalid Stripe webhook payload.' }, 400);
+  }
+
+  const eventType = normalizeText(event?.type, '');
+  const session = event?.data?.object;
+  const orderId = normalizeText(session?.metadata?.order_id, '') || normalizeText(session?.client_reference_id, '');
+  if (!orderId) {
+    return jsonResponse({ received: true, ignored: true, message: 'No order_id metadata.' });
+  }
+
+  if (eventType === 'checkout.session.completed') {
+    if (normalizeText(session?.payment_status, '') === 'paid') {
+      await dbMarkStripeCheckoutOrderPaid(orderId, session, env);
+    } else {
+      await dbUpdateStripeOrderStatus(orderId, 'payment_processing', session, env);
+    }
+  } else if (eventType === 'checkout.session.async_payment_succeeded') {
+    await dbMarkStripeCheckoutOrderPaid(orderId, session, env);
+  } else if (eventType === 'checkout.session.async_payment_failed') {
+    await dbReleaseStripeCheckoutOrder(orderId, 'payment_failed', session, env);
+  } else if (eventType === 'checkout.session.expired') {
+    await dbReleaseStripeCheckoutOrder(orderId, 'expired', session, env);
+  }
+
+  return jsonResponse({ received: true });
 }
 
 async function handleAdminV2DashboardSummary(env: Env): Promise<Response> {
@@ -7274,6 +7319,22 @@ async function dbListCheckoutInventoryItems(
   return result.results ?? [];
 }
 
+async function dbGetTableColumns(
+  tableName: string,
+  env: Env,
+): Promise<Array<{ name: string; type: string | null; notnull: number | null; dflt_value: string | null; pk: number | null }>> {
+  const safeTableName = tableName.replace(/[^a-zA-Z0-9_]/g, '');
+  if (!safeTableName) return [];
+  const result = await env.DB.prepare(`PRAGMA table_info(${safeTableName})`).all<{
+    name: string;
+    type: string | null;
+    notnull: number | null;
+    dflt_value: string | null;
+    pk: number | null;
+  }>();
+  return result.results ?? [];
+}
+
 async function dbCreateCheckoutOrder(
   input: {
     orderId: string;
@@ -7283,7 +7344,6 @@ async function dbCreateCheckoutOrder(
     fulfillmentType: string;
     subtotalCents: number;
     totalCents: number;
-    reserveExpiresAt: string;
     successUrl: string;
     cancelUrl: string;
     createdAt: string;
@@ -7298,94 +7358,103 @@ async function dbCreateCheckoutOrder(
   },
   env: Env,
 ): Promise<void> {
+  const orderColumns = await dbGetTableColumns('orders', env);
+  const firstItem = input.items[0];
+  const orderTitleSnapshot = input.items.length === 1
+    ? firstItem.title
+    : `${firstItem.title} + ${input.items.length - 1} more`;
+  const orderValueByColumn = new Map<string, unknown>([
+    ['id', input.orderId],
+    ['order_number', input.orderNumber],
+    ['inventory_item_id', firstItem.inventoryItemId],
+    ['status', input.status],
+    ['channel', input.channel],
+    ['checkout_type', 'stripe'],
+    ['checkout_provider', 'stripe'],
+    ['checkout_mode', 'hosted_checkout'],
+    ['fulfillment_type', input.fulfillmentType],
+    ['item_title_snapshot', orderTitleSnapshot],
+    ['item_brand_snapshot', firstItem.row.brand || ''],
+    ['item_model_snapshot', firstItem.row.model || ''],
+    ['item_condition_snapshot', firstItem.row.condition || ''],
+    ['item_image_url_snapshot', firstItem.imageUrl],
+    ['subtotal_cents', input.subtotalCents],
+    ['tax_cents', 0],
+    ['shipping_cents', 0],
+    ['discount_cents', 0],
+    ['total_cents', input.totalCents],
+    ['currency', 'usd'],
+    ['reserve_expires_at', null],
+    ['checkout_started_at', input.createdAt],
+    ['success_url', input.successUrl],
+    ['cancel_url', input.cancelUrl],
+    ['created_at', input.createdAt],
+    ['updated_at', input.createdAt],
+  ]);
+  const insertColumns = orderColumns
+    .filter((column) =>
+      (orderValueByColumn.has(column.name) && !isAutoIntegerPrimaryKey(column))
+      || isRequiredInsertColumn(column)
+    )
+    .map((column) => column.name);
+  const insertValues = insertColumns.map((columnName) =>
+    orderValueByColumn.has(columnName)
+      ? orderValueByColumn.get(columnName)
+      : getRequiredOrderFallback(columnName, firstItem, input.createdAt)
+  );
+  const placeholders = insertColumns.map(() => '?').join(', ');
+
   await env.DB.prepare(
-    `INSERT INTO orders (
-       id,
-       order_number,
-       status,
-       channel,
-       checkout_provider,
-       checkout_mode,
-       fulfillment_type,
-       subtotal_cents,
-       tax_cents,
-       shipping_cents,
-       discount_cents,
-       total_cents,
-       currency,
-       reserve_expires_at,
-       checkout_started_at,
-       success_url,
-       cancel_url,
-       created_at,
-       updated_at
-     ) VALUES (?, ?, ?, ?, 'stripe', 'hosted_checkout', ?, ?, 0, 0, 0, ?, 'usd', ?, ?, ?, ?, ?, ?)`
-  ).bind(
-    input.orderId,
-    input.orderNumber,
-    input.status,
-    input.channel,
-    input.fulfillmentType,
-    input.subtotalCents,
-    input.totalCents,
-    input.reserveExpiresAt,
-    input.createdAt,
-    input.successUrl,
-    input.cancelUrl,
-    input.createdAt,
-    input.createdAt,
-  ).run();
+    `INSERT INTO orders (${insertColumns.join(', ')}) VALUES (${placeholders})`
+  ).bind(...insertValues).run();
 
+  const orderItemColumns = await dbGetTableColumns('order_items', env);
   for (const item of input.items) {
-    const reserveResult = await env.DB.prepare(
-      `UPDATE ccg_inventory_items
-       SET availability_status = 'checkout_open',
-           active_order_id = ?,
-           reserved_until = ?,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?
-         AND COALESCE(is_sold, 0) = 0
-         AND (
-           active_order_id IS NULL
-           OR active_order_id = ''
-           OR reserved_until IS NULL
-           OR reserved_until < ?
-         )`
-    ).bind(input.orderId, input.reserveExpiresAt, item.inventoryItemId, input.createdAt).run();
-
-    if (!reserveResult.success || Number(reserveResult.meta?.changes || 0) < 1) {
-      throw new Error(`${item.title} is already reserved.`);
-    }
+    const orderItemValueByColumn = new Map<string, unknown>([
+      ['id', crypto.randomUUID()],
+      ['order_id', input.orderId],
+      ['inventory_item_id', item.inventoryItemId],
+      ['quantity', item.quantity],
+      ['item_title_snapshot', item.title],
+      ['title_snapshot', item.title],
+      ['item_title', item.title],
+      ['title', item.title],
+      ['item_brand_snapshot', item.row.brand || ''],
+      ['brand_snapshot', item.row.brand || ''],
+      ['brand', item.row.brand || ''],
+      ['item_model_snapshot', item.row.model || ''],
+      ['model_snapshot', item.row.model || ''],
+      ['model', item.row.model || ''],
+      ['item_condition_snapshot', item.row.condition || ''],
+      ['condition_snapshot', item.row.condition || ''],
+      ['condition', item.row.condition || ''],
+      ['item_image_url_snapshot', item.imageUrl],
+      ['image_url_snapshot', item.imageUrl],
+      ['image_url', item.imageUrl],
+      ['unit_price_cents', item.unitAmountCents],
+      ['price_cents', item.unitAmountCents],
+      ['unit_amount_cents', item.unitAmountCents],
+      ['subtotal_cents', item.unitAmountCents * item.quantity],
+      ['total_cents', item.unitAmountCents * item.quantity],
+      ['created_at', input.createdAt],
+      ['updated_at', input.createdAt],
+    ]);
+    const orderItemInsertColumns = orderItemColumns
+      .filter((column) =>
+        (orderItemValueByColumn.has(column.name) && !isAutoIntegerPrimaryKey(column))
+        || isRequiredInsertColumn(column)
+      )
+      .map((column) => column.name);
+    const orderItemInsertValues = orderItemInsertColumns.map((columnName) =>
+      orderItemValueByColumn.has(columnName)
+        ? orderItemValueByColumn.get(columnName)
+        : getRequiredOrderItemFallback(columnName, item, input.createdAt)
+    );
+    const orderItemPlaceholders = orderItemInsertColumns.map(() => '?').join(', ');
 
     await env.DB.prepare(
-      `INSERT INTO order_items (
-         id,
-         order_id,
-         inventory_item_id,
-         quantity,
-         item_title_snapshot,
-         item_brand_snapshot,
-         item_model_snapshot,
-         item_condition_snapshot,
-         item_image_url_snapshot,
-         unit_price_cents,
-         subtotal_cents,
-         created_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(
-      crypto.randomUUID(),
-      input.orderId,
-      item.inventoryItemId,
-      item.quantity,
-      item.title,
-      item.row.brand || '',
-      item.row.model || '',
-      item.row.condition || '',
-      item.imageUrl,
-      item.unitAmountCents,
-      item.unitAmountCents * item.quantity,
-      input.createdAt,
-    ).run();
+      `INSERT INTO order_items (${orderItemInsertColumns.join(', ')}) VALUES (${orderItemPlaceholders})`
+    ).bind(...orderItemInsertValues).run();
   }
 
   await env.DB.prepare(
@@ -7418,14 +7487,6 @@ async function dbAttachStripeCheckoutSession(
 async function dbCancelFailedCheckoutOrder(orderId: string, env: Env): Promise<void> {
   try {
     await env.DB.prepare(
-      `UPDATE ccg_inventory_items
-       SET availability_status = 'available',
-           active_order_id = NULL,
-           reserved_until = NULL,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE active_order_id = ?`
-    ).bind(orderId).run();
-    await env.DB.prepare(
       `UPDATE orders
        SET status = 'cancelled',
            cancelled_at = CURRENT_TIMESTAMP,
@@ -7436,6 +7497,441 @@ async function dbCancelFailedCheckoutOrder(orderId: string, env: Env): Promise<v
   } catch (error) {
     console.error('Failed to cancel checkout order after Stripe error', { orderId, error });
   }
+}
+
+async function dbMarkStripeCheckoutOrderPaid(orderId: string, session: any, env: Env): Promise<void> {
+  const currentStatus = await dbGetOrderStatus(orderId, env);
+  if (currentStatus === 'paid') return;
+
+  const inventoryItemIds = parseStripeInventoryItemIds(session);
+  await dbApplyPaidOrderInventoryAdjustments(orderId, inventoryItemIds, session, env);
+
+  await dbUpdateStripeOrderStatus(orderId, 'paid', session, env, {
+    paid_at: new Date().toISOString(),
+  });
+
+  await dbRecordOrderEvent(orderId, {
+    eventType: 'payment_succeeded',
+    fromStatus: null,
+    toStatus: 'paid',
+    source: 'stripe_webhook',
+    sourceId: normalizeText(session?.id, ''),
+    message: 'Stripe Checkout payment succeeded.',
+    payloadJson: JSON.stringify({
+      checkoutSessionId: normalizeText(session?.id, ''),
+      paymentIntentId: normalizeText(session?.payment_intent, ''),
+      paymentStatus: normalizeText(session?.payment_status, ''),
+    }),
+  }, env);
+}
+
+async function dbReleaseStripeCheckoutOrder(
+  orderId: string,
+  status: string,
+  session: any,
+  env: Env,
+): Promise<void> {
+  await dbUpdateStripeOrderStatus(orderId, status, session, env, {
+    cancelled_at: new Date().toISOString(),
+  });
+
+  await dbRecordOrderEvent(orderId, {
+    eventType: status,
+    fromStatus: null,
+    toStatus: status,
+    source: 'stripe_webhook',
+    sourceId: normalizeText(session?.id, ''),
+    message: `Stripe Checkout ${status}.`,
+    payloadJson: JSON.stringify({
+      checkoutSessionId: normalizeText(session?.id, ''),
+      paymentIntentId: normalizeText(session?.payment_intent, ''),
+      paymentStatus: normalizeText(session?.payment_status, ''),
+    }),
+  }, env);
+}
+
+async function dbUpdateStripeOrderStatus(
+  orderId: string,
+  status: string,
+  session: any,
+  env: Env,
+  extraValues: Record<string, unknown> = {},
+): Promise<void> {
+  await dbUpdateTableById('orders', orderId, {
+    status,
+    stripe_checkout_session_id: normalizeText(session?.id, ''),
+    stripe_payment_intent_id: normalizeText(session?.payment_intent, ''),
+    stripe_customer_id: normalizeText(session?.customer, ''),
+    stripe_payment_status: normalizeText(session?.payment_status, ''),
+    updated_at: new Date().toISOString(),
+    ...extraValues,
+  }, env);
+}
+
+async function dbGetOrderStatus(orderId: string, env: Env): Promise<string | null> {
+  const row = await env.DB.prepare(
+    'SELECT status FROM orders WHERE id = ? LIMIT 1'
+  ).bind(orderId).first<{ status: string | null }>();
+  return normalizeText(row?.status, '') || null;
+}
+
+async function dbApplyPaidOrderInventoryAdjustments(
+  orderId: string,
+  fallbackInventoryItemIds: number[],
+  session: any,
+  env: Env,
+): Promise<void> {
+  const orderItems = await dbListOrderInventoryQuantities(orderId, env);
+  const items = orderItems.length > 0
+    ? orderItems
+    : fallbackInventoryItemIds.map((inventoryItemId) => ({
+      inventoryItemId,
+      quantity: 1,
+      subtotalCents: 0,
+    }));
+
+  for (const item of items) {
+    await dbApplyPaidInventoryItemAdjustment(orderId, item, session, env);
+  }
+}
+
+async function dbListOrderInventoryQuantities(
+  orderId: string,
+  env: Env,
+): Promise<Array<{ inventoryItemId: number; quantity: number; subtotalCents: number }>> {
+  const columns = await dbGetTableColumns('order_items', env);
+  const names = new Set(columns.map((column) => column.name));
+  if (!names.has('order_id')) return [];
+
+  const result = await env.DB.prepare(
+    'SELECT * FROM order_items WHERE order_id = ?'
+  ).bind(orderId).all<Record<string, unknown>>();
+
+  return (result.results ?? [])
+    .map((row) => {
+      const inventoryItemId = parseOptionalPositiveInt(
+        row.inventory_item_id ?? row.item_id ?? row.inventory_id,
+      );
+      if (!inventoryItemId) return null;
+      const quantity = parseOptionalPositiveInt(row.quantity ?? row.qty) ?? 1;
+      const subtotalCents = Number(row.subtotal_cents ?? row.total_cents ?? 0);
+      return {
+        inventoryItemId,
+        quantity,
+        subtotalCents: Number.isFinite(subtotalCents) ? subtotalCents : 0,
+      };
+    })
+    .filter((item): item is { inventoryItemId: number; quantity: number; subtotalCents: number } => item != null);
+}
+
+async function dbApplyPaidInventoryItemAdjustment(
+  orderId: string,
+  item: { inventoryItemId: number; quantity: number; subtotalCents: number },
+  session: any,
+  env: Env,
+): Promise<void> {
+  const row = await env.DB.prepare(
+    'SELECT * FROM ccg_inventory_items WHERE id = ? LIMIT 1'
+  ).bind(item.inventoryItemId).first<Record<string, unknown>>();
+  if (!row) return;
+
+  const purchasedQuantity = Math.max(1, item.quantity);
+  const currentQuantity = Math.max(0, Number(row.quantity ?? 1));
+  const remainingQuantity = Math.max(0, currentQuantity - purchasedQuantity);
+  const soldDate = new Date().toISOString();
+  const soldAmount = item.subtotalCents > 0
+    ? item.subtotalCents / 100
+    : Number(row.sale_price || row.regular_price || 0) * purchasedQuantity;
+
+  if (remainingQuantity > 0) {
+    await dbUpdateOriginalInventoryAfterPartialSale(
+      item.inventoryItemId,
+      remainingQuantity,
+      orderId,
+      env,
+    );
+    await dbCreateSoldInventoryCloneFromSource({
+      sourceRow: row,
+      soldQuantity: purchasedQuantity,
+      soldAmount,
+      soldDate,
+      orderId,
+      session,
+      env,
+    });
+    return;
+  }
+
+  await dbUpdateOriginalInventoryAfterFullSale(
+    item.inventoryItemId,
+    orderId,
+    soldAmount,
+    soldDate,
+    session,
+    env,
+  );
+}
+
+async function dbUpdateOriginalInventoryAfterPartialSale(
+  inventoryItemId: number,
+  remainingQuantity: number,
+  orderId: string,
+  env: Env,
+): Promise<void> {
+  const columns = await dbGetTableColumns('ccg_inventory_items', env);
+  const columnNames = new Set(columns.map((column) => column.name));
+  const values = new Map<string, unknown>([
+    ['quantity', remainingQuantity],
+    ['is_sold', 0],
+    ['for_sale', 1],
+    ['availability_status', 'available'],
+    ['active_order_id', null],
+    ['reserved_until', null],
+    ['sold_date', null],
+    ['sold_amount', null],
+    ['sell_notes', null],
+    ['updated_at', new Date().toISOString()],
+  ]);
+  await dbUpdateInventoryColumns(inventoryItemId, orderId, values, columnNames, env);
+}
+
+async function dbUpdateOriginalInventoryAfterFullSale(
+  inventoryItemId: number,
+  orderId: string,
+  soldAmount: number,
+  soldDate: string,
+  session: any,
+  env: Env,
+): Promise<void> {
+  const columns = await dbGetTableColumns('ccg_inventory_items', env);
+  const columnNames = new Set(columns.map((column) => column.name));
+  const values = new Map<string, unknown>([
+    ['quantity', 0],
+    ['is_sold', 1],
+    ['for_sale', 0],
+    ['availability_status', 'sold'],
+    ['active_order_id', null],
+    ['reserved_until', null],
+    ['sold_date', soldDate],
+    ['sold_amount', soldAmount],
+    ['sell_notes', `Stripe checkout ${normalizeText(session?.id, '')}`.trim()],
+    ['sold_channel', 'stripe'],
+    ['updated_at', new Date().toISOString()],
+  ]);
+  await dbUpdateInventoryColumns(inventoryItemId, orderId, values, columnNames, env);
+}
+
+async function dbUpdateInventoryColumns(
+  inventoryItemId: number,
+  orderId: string,
+  values: Map<string, unknown>,
+  columnNames: Set<string>,
+  env: Env,
+): Promise<void> {
+  const setColumns = Array.from(values.keys()).filter((columnName) => columnNames.has(columnName));
+  if (setColumns.length === 0) return;
+  const bindValues = setColumns.map((columnName) => values.get(columnName));
+  bindValues.push(inventoryItemId);
+  await env.DB.prepare(
+    `UPDATE ccg_inventory_items
+     SET ${setColumns.map((columnName) => `${columnName} = ?`).join(', ')}
+     WHERE id = ?`
+  ).bind(...bindValues).run();
+}
+
+async function dbCreateSoldInventoryCloneFromSource(input: {
+  sourceRow: Record<string, unknown>;
+  soldQuantity: number;
+  soldAmount: number;
+  soldDate: string;
+  orderId: string;
+  session: any;
+  env: Env;
+}): Promise<number | null> {
+  const sourceId = Number(input.sourceRow.id);
+  if (!Number.isFinite(sourceId) || sourceId <= 0) return null;
+
+  const ccgNumber = await generateUniqueCcgNumber(input.env);
+  if (!ccgNumber) return null;
+
+  const columns = await dbGetTableColumns('ccg_inventory_items', input.env);
+  const sourceValues = new Map(Object.entries(input.sourceRow));
+  const overrideValues = new Map<string, unknown>([
+    ['ccg_number', ccgNumber],
+    ['quantity', input.soldQuantity],
+    ['is_sold', 1],
+    ['for_sale', 0],
+    ['availability_status', 'sold'],
+    ['active_order_id', null],
+    ['reserved_until', null],
+    ['sold_date', input.soldDate],
+    ['sold_amount', input.soldAmount],
+    ['sell_notes', `Stripe checkout ${normalizeText(input.session?.id, '')}`.trim()],
+    ['sold_channel', 'stripe'],
+    ['is_marked', 0],
+    ['source_listing_id', null],
+    ['for_sale_date', null],
+    ['created_at', input.soldDate],
+    ['updated_at', input.soldDate],
+  ]);
+  const insertColumns = columns
+    .filter((column) => !isAutoIntegerPrimaryKey(column))
+    .map((column) => column.name)
+    .filter((columnName) => overrideValues.has(columnName) || sourceValues.has(columnName));
+  const insertValues = insertColumns.map((columnName) =>
+    overrideValues.has(columnName) ? overrideValues.get(columnName) : sourceValues.get(columnName)
+  );
+
+  const result = await input.env.DB.prepare(
+    `INSERT INTO ccg_inventory_items (${insertColumns.join(', ')})
+     VALUES (${insertColumns.map(() => '?').join(', ')})`
+  ).bind(...insertValues).run();
+  const cloneId = Number(result.meta?.last_row_id || 0);
+  if (!Number.isFinite(cloneId) || cloneId <= 0) return null;
+
+  await dbCopyInventoryImages(sourceId, cloneId, input.env);
+  return cloneId;
+}
+
+async function dbCopyInventoryImages(
+  sourceInventoryItemId: number,
+  targetInventoryItemId: number,
+  env: Env,
+): Promise<void> {
+  try {
+    await env.DB.prepare(
+      `INSERT INTO ccg_inventory_item_images (inventory_item_id, image_url, display_order, is_private)
+       SELECT ?, image_url, display_order, is_private
+       FROM ccg_inventory_item_images
+       WHERE inventory_item_id = ?
+       ORDER BY display_order ASC, id ASC`
+    ).bind(targetInventoryItemId, sourceInventoryItemId).run();
+  } catch (error) {
+    console.warn('Sold clone image copy skipped', { sourceInventoryItemId, targetInventoryItemId, error });
+  }
+}
+
+async function dbUpdateTableById(
+  tableName: string,
+  id: string,
+  values: Record<string, unknown>,
+  env: Env,
+): Promise<void> {
+  const columns = await dbGetTableColumns(tableName, env);
+  const columnNames = new Set(columns.map((column) => column.name));
+  const setColumns = Object.keys(values).filter((columnName) => columnNames.has(columnName));
+  if (setColumns.length === 0 || !columnNames.has('id')) return;
+  await env.DB.prepare(
+    `UPDATE ${tableName}
+     SET ${setColumns.map((columnName) => `${columnName} = ?`).join(', ')}
+     WHERE id = ?`
+  ).bind(...setColumns.map((columnName) => values[columnName]), id).run();
+}
+
+async function dbRecordOrderEvent(
+  orderId: string,
+  event: {
+    eventType: string;
+    fromStatus: string | null;
+    toStatus: string;
+    source: string;
+    sourceId: string;
+    message: string;
+    payloadJson: string;
+  },
+  env: Env,
+): Promise<void> {
+  try {
+    const columns = await dbGetTableColumns('order_events', env);
+    const values = new Map<string, unknown>([
+      ['order_id', orderId],
+      ['event_type', event.eventType],
+      ['from_status', event.fromStatus],
+      ['to_status', event.toStatus],
+      ['source', event.source],
+      ['source_id', event.sourceId],
+      ['message', event.message],
+      ['payload_json', event.payloadJson],
+      ['created_at', new Date().toISOString()],
+    ]);
+    const insertColumns = columns
+      .filter((column) => values.has(column.name) && !isAutoIntegerPrimaryKey(column))
+      .map((column) => column.name);
+    if (insertColumns.length === 0) return;
+    await env.DB.prepare(
+      `INSERT INTO order_events (${insertColumns.join(', ')})
+       VALUES (${insertColumns.map(() => '?').join(', ')})`
+    ).bind(...insertColumns.map((columnName) => values.get(columnName))).run();
+  } catch (error) {
+    console.error('Failed to record order event', { orderId, error });
+  }
+}
+
+function isRequiredInsertColumn(column: {
+  name: string;
+  notnull: number | null;
+  dflt_value: string | null;
+  pk: number | null;
+}): boolean {
+  return Number(column.notnull || 0) === 1
+    && Number(column.pk || 0) === 0
+    && column.dflt_value == null;
+}
+
+function isAutoIntegerPrimaryKey(column: {
+  name: string;
+  type: string | null;
+  pk: number | null;
+}): boolean {
+  return Number(column.pk || 0) > 0 && /int/i.test(String(column.type || ''));
+}
+
+function getRequiredOrderFallback(
+  columnName: string,
+  item: {
+    inventoryItemId: number;
+    quantity: number;
+    row: ShopCheckoutInventoryRow;
+    title: string;
+    unitAmountCents: number;
+    imageUrl: string;
+  },
+  createdAt: string,
+): unknown {
+  const name = columnName.toLowerCase();
+  if (name.includes('inventory') && name.includes('id')) return item.inventoryItemId;
+  if (name.includes('quantity')) return item.quantity;
+  if (name.includes('title') || name.includes('name')) return item.title;
+  if (name.includes('brand')) return item.row.brand || '';
+  if (name.includes('model')) return item.row.model || '';
+  if (name.includes('condition')) return item.row.condition || '';
+  if (name.includes('image')) return item.imageUrl;
+  if (name.includes('checkout') || name.includes('provider') || name.includes('type')) return 'stripe';
+  if (name.includes('mode')) return 'hosted_checkout';
+  if (name.includes('fulfillment')) return 'pickup';
+  if (name.includes('channel')) return 'online';
+  if (name.includes('status')) return 'checkout_open';
+  if (name.includes('currency')) return 'usd';
+  if (name.includes('price') || name.includes('amount')) return item.unitAmountCents;
+  if (name.includes('subtotal') || name.includes('total')) return item.unitAmountCents * item.quantity;
+  if (name.includes('tax') || name.includes('shipping') || name.includes('discount')) return 0;
+  if (name.includes('date') || name.includes('time') || name.endsWith('_at')) return createdAt;
+  return '';
+}
+
+function getRequiredOrderItemFallback(
+  columnName: string,
+  item: {
+    inventoryItemId: number;
+    quantity: number;
+    row: ShopCheckoutInventoryRow;
+    title: string;
+    unitAmountCents: number;
+    imageUrl: string;
+  },
+  createdAt: string,
+): unknown {
+  return getRequiredOrderFallback(columnName, item, createdAt);
 }
 
 async function generateUniqueCcgNumber(env: Env): Promise<string | null> {
@@ -11217,7 +11713,7 @@ function getCheckoutItemTitle(row: ShopCheckoutInventoryRow): string {
 
 function getCheckoutInventoryUnavailableReason(
   row: ShopCheckoutInventoryRow,
-  input: { includeInStoreOnly: boolean; nowIso: string; requestedQuantity: number },
+  input: { includeInStoreOnly: boolean; requestedQuantity: number },
 ): string | null {
   const title = getCheckoutItemTitle(row);
   if (Number(row.is_active || 0) !== 1) return `${title} is no longer available.`;
@@ -11231,14 +11727,7 @@ function getCheckoutInventoryUnavailableReason(
   if (input.requestedQuantity > availableQuantity) {
     return `${title} has only ${availableQuantity} available.`;
   }
-  const availability = normalizeText(row.availability_status, 'available');
-  const hasActiveReservation = Boolean(
-    normalizeText(row.active_order_id, '') &&
-    normalizeText(row.reserved_until, '') &&
-    normalizeText(row.reserved_until, '') >= input.nowIso,
-  );
-  if (availability === 'sold') return `${title} has already sold.`;
-  if (hasActiveReservation) return `${title} is already reserved for another checkout.`;
+  if (normalizeText(row.availability_status, 'available') === 'sold') return `${title} has already sold.`;
   return null;
 }
 
@@ -11299,6 +11788,62 @@ async function createStripeCheckoutSession(input: {
   const url = normalizeText(data?.url, '');
   if (!id || !url) throw new Error('Stripe did not return a checkout URL.');
   return { id, url };
+}
+
+function parseStripeInventoryItemIds(session: any): number[] {
+  const raw = normalizeText(session?.metadata?.inventory_item_ids, '');
+  if (!raw) return [];
+  return Array.from(
+    new Set(
+      raw
+        .split(',')
+        .map((value) => parseOptionalPositiveInt(value.trim()))
+        .filter((value): value is number => value != null),
+    ),
+  );
+}
+
+async function verifyStripeWebhookSignature(
+  payload: string,
+  signatureHeader: string,
+  webhookSecret: string,
+): Promise<boolean> {
+  const parts = signatureHeader.split(',').map((part) => part.trim());
+  const timestamp = parts.find((part) => part.startsWith('t='))?.slice(2) || '';
+  const signatures = parts
+    .filter((part) => part.startsWith('v1='))
+    .map((part) => part.slice(3))
+    .filter(Boolean);
+  if (!timestamp || signatures.length === 0) return false;
+
+  const timestampMs = Number(timestamp) * 1000;
+  if (!Number.isFinite(timestampMs)) return false;
+  if (Math.abs(Date.now() - timestampMs) > 5 * 60 * 1000) return false;
+
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(webhookSecret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const digest = await crypto.subtle.sign('HMAC', key, encoder.encode(`${timestamp}.${payload}`));
+  const expected = bytesToHex(new Uint8Array(digest));
+  return signatures.some((signature) => timingSafeEqualHex(signature, expected));
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function timingSafeEqualHex(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
 }
 
 function validateForSaleInventoryFields(input: {
