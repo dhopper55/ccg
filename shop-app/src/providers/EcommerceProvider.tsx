@@ -22,6 +22,8 @@ interface EcommerceContextInterface {
   updateCartItem: (itemId: number, updatedData: Partial<CartItem>) => void;
   appliedCoupon: Coupon | null;
   setAppliedCoupon: Dispatch<SetStateAction<Coupon | null>>;
+  taxIncluded: boolean;
+  setTaxIncluded: Dispatch<SetStateAction<boolean>>;
   cartSubTotal: number;
   cartTax: number;
   cartTaxRate: number;
@@ -49,6 +51,7 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
   const [product, setProduct] = useState<CartItem | null>(null);
   const [cartItems, setCartItems] = useState<CartItem[]>(getInitialCartItems);
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
+  const [taxIncluded, setTaxIncluded] = useState(false);
 
   const addItemToCart = useCallback(
     (product: ProductDetails, quantity = 1) => {
@@ -110,9 +113,10 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
   );
 
   const cartTax = useMemo(() => {
+    if (taxIncluded) return 0;
     const taxableTotal = Math.max(0, cartSubTotal - (appliedCoupon?.appliedDiscount || 0));
     return Math.round(taxableTotal * salesTaxRate * 100) / 100;
-  }, [cartSubTotal, appliedCoupon]);
+  }, [cartSubTotal, appliedCoupon, taxIncluded]);
 
   const cartTotal = useMemo(() => {
     return Math.max(0, cartSubTotal - (appliedCoupon?.appliedDiscount || 0)) + cartTax;
@@ -146,6 +150,8 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
         updateCartItem,
         appliedCoupon,
         setAppliedCoupon,
+        taxIncluded,
+        setTaxIncluded,
         cartSubTotal,
         cartTax,
         cartTaxRate: salesTaxRate,

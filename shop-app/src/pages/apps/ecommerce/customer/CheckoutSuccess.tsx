@@ -32,7 +32,7 @@ const CheckoutSuccess = () => {
       >
         <Typography variant="h2">Thanks for your order.</Typography>
         <Typography variant="h6" sx={{ color: 'text.secondary', fontWeight: 400 }}>
-          We are confirming your payment with Stripe. Pickup is at our Englewood shop.
+          Your payment is confirmed. Pickup is at our Englewood shop.
         </Typography>
         <Typography sx={{ color: 'text.secondary' }}>
           Bring your receipt when you come in. Call or text (303) 376-9214 with any pickup

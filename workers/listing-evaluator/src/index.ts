@@ -127,11 +127,31 @@ interface DecodeRequestPayload {
 interface ShopCheckoutRequestPayload {
   fulfillmentType?: unknown;
   couponCode?: unknown;
+  taxIncluded?: unknown;
   items?: Array<{
     inventoryItemId?: unknown;
     quantity?: unknown;
   }>;
 }
+
+type ShopCheckoutLineItem = {
+  inventoryItemId: number;
+  quantity: number;
+  row: ShopCheckoutInventoryRow;
+  title: string;
+  unitAmountCents: number;
+  imageUrl: string;
+};
+
+type ShopCheckoutDraft = {
+  items: ShopCheckoutLineItem[];
+  subtotalCents: number;
+  discountCents: number;
+  couponCode: string | null;
+  taxIncluded: boolean;
+  taxCents: number;
+  totalCents: number;
+};
 
 interface ShopCheckoutInventoryRow {
   id: number;
@@ -458,6 +478,11 @@ export default {
 
     if (path === '/api/shop/orders/create-checkout-session' && request.method === 'POST') {
       const response = await handleShopCreateCheckoutSession(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/shop/orders/create-cash-order' && request.method === 'POST') {
+      const response = await handleShopCreateCashOrder(request, env);
       return withCors(response, request, env);
     }
 
@@ -3428,38 +3453,173 @@ async function handleShopCreateCheckoutSession(request: Request, env: Env): Prom
     return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
   }
 
-  const requestedItems = normalizeCheckoutItems(body?.items);
-  if (requestedItems.length === 0) {
-    return jsonResponse({ message: 'Your cart is empty.' }, 400);
+  const fulfillmentType = normalizeText(body?.fulfillmentType, 'pickup') === 'pickup'
+    ? 'pickup'
+    : 'pickup';
+  const includeInStoreOnly = await isAssociateModeRequest(request, env);
+  const draftResult = await buildShopCheckoutDraft(body, {
+    includeInStoreOnly,
+    allowTaxIncluded: includeInStoreOnly,
+  }, env);
+  if (draftResult instanceof Response) {
+    return draftResult;
+  }
+  const draft = draftResult;
+
+  const nowIso = new Date().toISOString();
+  const orderId = crypto.randomUUID();
+  const orderNumber = buildOrderNumber();
+  const baseUrl = normalizeText(env.SITE_BASE_URL, ACTIVITY_BASE_URL).replace(/\/+$/, '');
+  const successUrl = `${baseUrl}${SHOP_BASE_PATH}/checkout/success?order=${encodeURIComponent(orderId)}`;
+  const cancelUrl = `${baseUrl}${SHOP_BASE_PATH}/cart`;
+  const channel = includeInStoreOnly ? 'in_store' : 'online';
+
+  try {
+    await dbCreateCheckoutOrder({
+      orderId,
+      orderNumber,
+      status: 'checkout_open',
+      channel,
+      fulfillmentType,
+      checkoutType: 'stripe',
+      checkoutProvider: 'stripe',
+      checkoutMode: 'hosted_checkout',
+      subtotalCents: draft.subtotalCents,
+      discountCents: draft.discountCents,
+      couponCode: draft.couponCode,
+      taxCents: draft.taxCents,
+      totalCents: draft.totalCents,
+      successUrl,
+      cancelUrl,
+      createdAt: nowIso,
+      items: draft.items,
+    }, env);
+
+    const stripeSession = await createStripeCheckoutSession({
+      stripeSecretKey,
+      orderId,
+      orderNumber,
+      successUrl,
+      cancelUrl,
+      items: draft.items,
+      couponCode: draft.couponCode,
+      discountCents: draft.discountCents,
+      taxCents: draft.taxCents,
+    });
+
+    await dbAttachStripeCheckoutSession(orderId, stripeSession.id, env);
+
+    return jsonResponse({
+      orderId,
+      orderNumber,
+      url: stripeSession.url,
+    });
+  } catch (error) {
+    console.error('Stripe checkout session creation failed', { error });
+    await dbCancelFailedCheckoutOrder(orderId, env);
+    return jsonResponse({
+      message: error instanceof Error ? error.message : 'Unable to start checkout.',
+    }, 500);
+  }
+}
+
+async function handleShopCreateCashOrder(request: Request, env: Env): Promise<Response> {
+  const includeInStoreOnly = await isAssociateModeRequest(request, env);
+  if (!includeInStoreOnly) {
+    return jsonResponse({ message: 'Cash checkout is only available in associate mode.' }, 403);
+  }
+
+  let body: ShopCheckoutRequestPayload;
+  try {
+    body = await request.json<ShopCheckoutRequestPayload>();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
   }
 
   const fulfillmentType = normalizeText(body?.fulfillmentType, 'pickup') === 'pickup'
     ? 'pickup'
     : 'pickup';
-  const includeInStoreOnly = await isAssociateModeRequest(request, env);
+  const draftResult = await buildShopCheckoutDraft(body, {
+    includeInStoreOnly,
+    allowTaxIncluded: true,
+  }, env);
+  if (draftResult instanceof Response) {
+    return draftResult;
+  }
+  const draft = draftResult;
+
+  const nowIso = new Date().toISOString();
+  const orderId = crypto.randomUUID();
+  const orderNumber = buildOrderNumber();
+  const baseUrl = normalizeText(env.SITE_BASE_URL, ACTIVITY_BASE_URL).replace(/\/+$/, '');
+  const successUrl = `${baseUrl}${SHOP_BASE_PATH}/checkout/success?order=${encodeURIComponent(orderId)}`;
+  const cancelUrl = `${baseUrl}${SHOP_BASE_PATH}/cart`;
+
+  try {
+    await dbCreateCheckoutOrder({
+      orderId,
+      orderNumber,
+      status: 'checkout_open',
+      channel: 'in_store',
+      fulfillmentType,
+      checkoutType: 'cash',
+      checkoutProvider: 'cash',
+      checkoutMode: 'associate_checkout',
+      subtotalCents: draft.subtotalCents,
+      discountCents: draft.discountCents,
+      couponCode: draft.couponCode,
+      taxCents: draft.taxCents,
+      totalCents: draft.totalCents,
+      successUrl,
+      cancelUrl,
+      createdAt: nowIso,
+      items: draft.items,
+    }, env);
+
+    await dbMarkManualCheckoutOrderPaid(orderId, {
+      provider: 'cash',
+      paidAt: nowIso,
+      taxIncluded: draft.taxIncluded,
+    }, env);
+
+    return jsonResponse({
+      orderId,
+      orderNumber,
+      url: successUrl,
+    });
+  } catch (error) {
+    console.error('Cash checkout order creation failed', { error });
+    await dbCancelFailedCheckoutOrder(orderId, env);
+    return jsonResponse({
+      message: error instanceof Error ? error.message : 'Unable to record cash checkout.',
+    }, 500);
+  }
+}
+
+async function buildShopCheckoutDraft(
+  body: ShopCheckoutRequestPayload,
+  options: { includeInStoreOnly: boolean; allowTaxIncluded: boolean },
+  env: Env,
+): Promise<ShopCheckoutDraft | Response> {
+  const requestedItems = normalizeCheckoutItems(body?.items);
+  if (requestedItems.length === 0) {
+    return jsonResponse({ message: 'Your cart is empty.' }, 400);
+  }
+
   const inventoryRows = await dbListCheckoutInventoryItems(
     requestedItems.map((item) => item.inventoryItemId),
     env,
   );
   const byId = new Map(inventoryRows.map((row) => [row.id, row]));
 
-  const nowIso = new Date().toISOString();
-  const checkoutItems: Array<{
-    inventoryItemId: number;
-    quantity: number;
-    row: ShopCheckoutInventoryRow;
-    title: string;
-    unitAmountCents: number;
-    imageUrl: string;
-  }> = [];
-
+  const checkoutItems: ShopCheckoutLineItem[] = [];
   for (const requestedItem of requestedItems) {
     const row = byId.get(requestedItem.inventoryItemId);
     if (!row) {
       return jsonResponse({ message: 'One of the cart items is no longer available.' }, 400);
     }
     const unavailableReason = getCheckoutInventoryUnavailableReason(row, {
-      includeInStoreOnly,
+      includeInStoreOnly: options.includeInStoreOnly,
       requestedQuantity: requestedItem.quantity,
     });
     if (unavailableReason) {
@@ -3480,8 +3640,6 @@ async function handleShopCreateCheckoutSession(request: Request, env: Env): Prom
     });
   }
 
-  const orderId = crypto.randomUUID();
-  const orderNumber = buildOrderNumber();
   const subtotalCents = checkoutItems.reduce(
     (sum, item) => sum + item.unitAmountCents * item.quantity,
     0,
@@ -3493,57 +3651,19 @@ async function handleShopCreateCheckoutSession(request: Request, env: Env): Prom
   }
   const discountCents = coupon ? Math.min(coupon.amountOffCents, subtotalCents) : 0;
   const taxableCents = Math.max(0, subtotalCents - discountCents);
-  const taxCents = Math.round(taxableCents * SHOP_SALES_TAX_RATE);
+  const taxIncluded = options.allowTaxIncluded && body?.taxIncluded === true;
+  const taxCents = taxIncluded ? 0 : Math.round(taxableCents * SHOP_SALES_TAX_RATE);
   const totalCents = taxableCents + taxCents;
-  const baseUrl = normalizeText(env.SITE_BASE_URL, ACTIVITY_BASE_URL).replace(/\/+$/, '');
-  const successUrl = `${baseUrl}${SHOP_BASE_PATH}/checkout/success?order=${encodeURIComponent(orderId)}`;
-  const cancelUrl = `${baseUrl}${SHOP_BASE_PATH}/cart`;
-  const channel = includeInStoreOnly ? 'in_store' : 'online';
 
-  try {
-    await dbCreateCheckoutOrder({
-      orderId,
-      orderNumber,
-      status: 'checkout_open',
-      channel,
-      fulfillmentType,
-      subtotalCents,
-      discountCents,
-      couponCode: coupon ? couponCode : null,
-      taxCents,
-      totalCents,
-      successUrl,
-      cancelUrl,
-      createdAt: nowIso,
-      items: checkoutItems,
-    }, env);
-
-    const stripeSession = await createStripeCheckoutSession({
-      stripeSecretKey,
-      orderId,
-      orderNumber,
-      successUrl,
-      cancelUrl,
-      items: checkoutItems,
-      couponCode: coupon ? couponCode : null,
-      discountCents,
-      taxCents,
-    });
-
-    await dbAttachStripeCheckoutSession(orderId, stripeSession.id, env);
-
-    return jsonResponse({
-      orderId,
-      orderNumber,
-      url: stripeSession.url,
-    });
-  } catch (error) {
-    console.error('Stripe checkout session creation failed', { error });
-    await dbCancelFailedCheckoutOrder(orderId, env);
-    return jsonResponse({
-      message: error instanceof Error ? error.message : 'Unable to start checkout.',
-    }, 500);
-  }
+  return {
+    items: checkoutItems,
+    subtotalCents,
+    discountCents,
+    couponCode: coupon ? couponCode : null,
+    taxIncluded,
+    taxCents,
+    totalCents,
+  };
 }
 
 async function handleStripeWebhook(request: Request, env: Env): Promise<Response> {
@@ -7361,6 +7481,9 @@ async function dbCreateCheckoutOrder(
     status: string;
     channel: string;
     fulfillmentType: string;
+    checkoutType: string;
+    checkoutProvider: string;
+    checkoutMode: string;
     subtotalCents: number;
     discountCents: number;
     couponCode: string | null;
@@ -7391,9 +7514,9 @@ async function dbCreateCheckoutOrder(
     ['inventory_item_id', firstItem.inventoryItemId],
     ['status', input.status],
     ['channel', input.channel],
-    ['checkout_type', 'stripe'],
-    ['checkout_provider', 'stripe'],
-    ['checkout_mode', 'hosted_checkout'],
+    ['checkout_type', input.checkoutType],
+    ['checkout_provider', input.checkoutProvider],
+    ['checkout_mode', input.checkoutMode],
     ['fulfillment_type', input.fulfillmentType],
     ['item_title_snapshot', orderTitleSnapshot],
     ['item_brand_snapshot', firstItem.row.brand || ''],
@@ -7491,7 +7614,7 @@ async function dbCreateCheckoutOrder(
        message,
        created_at
      ) VALUES (?, 'checkout_created', NULL, 'checkout_open', 'public_site', NULL, ?, ?)`
-  ).bind(input.orderId, 'Stripe Checkout started from cart.', input.createdAt).run();
+  ).bind(input.orderId, `${input.checkoutProvider === 'cash' ? 'Cash checkout' : 'Stripe Checkout'} started from cart.`, input.createdAt).run();
 }
 
 async function dbAttachStripeCheckoutSession(
@@ -7544,6 +7667,43 @@ async function dbMarkStripeCheckoutOrderPaid(orderId: string, session: any, env:
       checkoutSessionId: normalizeText(session?.id, ''),
       paymentIntentId: normalizeText(session?.payment_intent, ''),
       paymentStatus: normalizeText(session?.payment_status, ''),
+    }),
+  }, env);
+}
+
+async function dbMarkManualCheckoutOrderPaid(
+  orderId: string,
+  input: { provider: string; paidAt: string; taxIncluded: boolean },
+  env: Env,
+): Promise<void> {
+  const currentStatus = await dbGetOrderStatus(orderId, env);
+  if (currentStatus === 'paid') return;
+
+  const session = {
+    manual_provider: input.provider,
+    payment_status: 'paid',
+    id: `${input.provider}:${orderId}`,
+  };
+  await dbApplyPaidOrderInventoryAdjustments(orderId, [], session, env);
+
+  await dbUpdateTableById('orders', orderId, {
+    status: 'paid',
+    paid_at: input.paidAt,
+    stripe_payment_status: 'not_applicable',
+    tax_included: input.taxIncluded ? 1 : 0,
+    updated_at: input.paidAt,
+  }, env);
+
+  await dbRecordOrderEvent(orderId, {
+    eventType: 'payment_succeeded',
+    fromStatus: null,
+    toStatus: 'paid',
+    source: 'associate_checkout',
+    sourceId: input.provider,
+    message: 'Cash payment confirmed paid in full.',
+    payloadJson: JSON.stringify({
+      provider: input.provider,
+      taxIncluded: input.taxIncluded,
     }),
   }, env);
 }
@@ -7728,6 +7888,8 @@ async function dbUpdateOriginalInventoryAfterFullSale(
 ): Promise<void> {
   const columns = await dbGetTableColumns('ccg_inventory_items', env);
   const columnNames = new Set(columns.map((column) => column.name));
+  const paidChannel = getPaidInventoryChannel(session);
+  const paidNote = getPaidInventorySellNote(session);
   const values = new Map<string, unknown>([
     ['quantity', 0],
     ['is_sold', 1],
@@ -7737,8 +7899,8 @@ async function dbUpdateOriginalInventoryAfterFullSale(
     ['reserved_until', null],
     ['sold_date', soldDate],
     ['sold_amount', soldAmount],
-    ['sell_notes', `Stripe checkout ${normalizeText(session?.id, '')}`.trim()],
-    ['sold_channel', 'stripe'],
+    ['sell_notes', paidNote],
+    ['sold_channel', paidChannel],
     ['updated_at', new Date().toISOString()],
   ]);
   await dbUpdateInventoryColumns(inventoryItemId, orderId, values, columnNames, env);
@@ -7779,6 +7941,8 @@ async function dbCreateSoldInventoryCloneFromSource(input: {
 
   const columns = await dbGetTableColumns('ccg_inventory_items', input.env);
   const sourceValues = new Map(Object.entries(input.sourceRow));
+  const paidChannel = getPaidInventoryChannel(input.session);
+  const paidNote = getPaidInventorySellNote(input.session);
   const overrideValues = new Map<string, unknown>([
     ['ccg_number', ccgNumber],
     ['quantity', input.soldQuantity],
@@ -7789,8 +7953,8 @@ async function dbCreateSoldInventoryCloneFromSource(input: {
     ['reserved_until', null],
     ['sold_date', input.soldDate],
     ['sold_amount', input.soldAmount],
-    ['sell_notes', `Stripe checkout ${normalizeText(input.session?.id, '')}`.trim()],
-    ['sold_channel', 'stripe'],
+    ['sell_notes', paidNote],
+    ['sold_channel', paidChannel],
     ['is_marked', 0],
     ['source_listing_id', null],
     ['for_sale_date', null],
@@ -7814,6 +7978,17 @@ async function dbCreateSoldInventoryCloneFromSource(input: {
 
   await dbCopyInventoryImages(sourceId, cloneId, input.env);
   return cloneId;
+}
+
+function getPaidInventoryChannel(session: any): string {
+  const manualProvider = normalizeText(session?.manual_provider, '');
+  return manualProvider || 'stripe';
+}
+
+function getPaidInventorySellNote(session: any): string {
+  const manualProvider = normalizeText(session?.manual_provider, '');
+  if (manualProvider === 'cash') return 'Cash checkout';
+  return `Stripe checkout ${normalizeText(session?.id, '')}`.trim();
 }
 
 async function dbCopyInventoryImages(

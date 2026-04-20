@@ -1,16 +1,20 @@
 import { useMemo, useState } from 'react';
-import { Button, Paper, Stack, Typography } from '@mui/material';
+import { Button, Dialog, DialogActions, DialogTitle, Paper, Stack, Typography } from '@mui/material';
 import useNumberFormat from 'hooks/useNumberFormat';
 import { useSnackbar } from 'notistack';
+import { useAssociateMode } from 'providers/AssociateModeProvider';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
 import { useEcommerce } from 'providers/EcommerceProvider';
 
 const CartBottomBar = () => {
-  const { appliedCoupon, cartItems, cartTotal } = useEcommerce();
+  const { appliedCoupon, cartItems, cartTotal, taxIncluded } = useEcommerce();
+  const { isAssociateMode } = useAssociateMode();
   const { up } = useBreakpoints();
   const { currencyFormat } = useNumberFormat();
   const { enqueueSnackbar } = useSnackbar();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [isCashCheckingOut, setIsCashCheckingOut] = useState(false);
+  const [cashConfirmOpen, setCashConfirmOpen] = useState(false);
   const upSm = up('sm');
   const selectedCartItems = useMemo(() => cartItems.filter((item) => item.selected), [cartItems]);
 
@@ -26,6 +30,7 @@ const CartBottomBar = () => {
         body: JSON.stringify({
           fulfillmentType: 'pickup',
           couponCode: appliedCoupon?.code || undefined,
+          taxIncluded,
           items: selectedCartItems.map((item) => ({
             inventoryItemId: item.id,
             quantity: item.quantity,
@@ -47,7 +52,43 @@ const CartBottomBar = () => {
     }
   };
 
+  const handleCashCheckout = async () => {
+    if (selectedCartItems.length === 0 || isCashCheckingOut) return;
+
+    setIsCashCheckingOut(true);
+    try {
+      const response = await fetch('/api/shop/orders/create-cash-order', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fulfillmentType: 'pickup',
+          couponCode: appliedCoupon?.code || undefined,
+          taxIncluded,
+          items: selectedCartItems.map((item) => ({
+            inventoryItemId: item.id,
+            quantity: item.quantity,
+          })),
+        }),
+      });
+      const data = (await response.json()) as { url?: string; message?: string };
+
+      if (!response.ok || !data.url) {
+        throw new Error(data.message || 'Unable to record cash checkout.');
+      }
+
+      window.location.assign(data.url);
+    } catch (error) {
+      enqueueSnackbar(error instanceof Error ? error.message : 'Unable to record cash checkout.', {
+        variant: 'error',
+      });
+      setIsCashCheckingOut(false);
+      setCashConfirmOpen(false);
+    }
+  };
+
   return (
+    <>
     <Paper background={2} sx={{ py: 1, px: { xs: 3, md: 5 } }}>
       <Stack
         sx={{
@@ -114,21 +155,42 @@ const CartBottomBar = () => {
             >
               Checkout
             </Button>
-            <Button
-              color="neutral"
-              variant="soft"
-              disabled
-              sx={{
-                whiteSpace: 'nowrap',
-                px: { xs: 3, sm: 4 },
-              }}
-            >
-              Checkout cash
-            </Button>
+            {isAssociateMode && (
+              <Button
+                color="neutral"
+                variant="soft"
+                loading={isCashCheckingOut}
+                disabled={selectedCartItems.length === 0}
+                onClick={() => setCashConfirmOpen(true)}
+                sx={{
+                  whiteSpace: 'nowrap',
+                  px: { xs: 3, sm: 4 },
+                }}
+              >
+                Checkout cash
+              </Button>
+            )}
           </Stack>
         </Stack>
       </Stack>
     </Paper>
+    <Dialog open={cashConfirmOpen} onClose={() => setCashConfirmOpen(false)}>
+      <DialogTitle>Confirm cash paid in full?</DialogTitle>
+      <DialogActions>
+        <Button
+          color="neutral"
+          variant="soft"
+          onClick={() => setCashConfirmOpen(false)}
+          disabled={isCashCheckingOut}
+        >
+          Cancel
+        </Button>
+        <Button variant="contained" loading={isCashCheckingOut} onClick={handleCashCheckout}>
+          Confirm
+        </Button>
+      </DialogActions>
+    </Dialog>
+    </>
   );
 };
 

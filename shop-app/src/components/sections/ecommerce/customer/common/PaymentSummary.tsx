@@ -1,14 +1,37 @@
 import { useState } from 'react';
-import { Box, Button, Chip, Divider, Stack, TextField, Typography } from '@mui/material';
+import {
+  Box,
+  Button,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  Link,
+  Stack,
+  TextField,
+  Typography,
+} from '@mui/material';
 import { ecomCoupons } from 'data/e-commerce/products';
 import useNumberFormat from 'hooks/useNumberFormat';
+import { useAssociateMode } from 'providers/AssociateModeProvider';
 import { useSnackbar } from 'notistack';
 import { useEcommerce } from 'providers/EcommerceProvider';
 
 const PaymentSummary = () => {
   const [coupon, setCoupon] = useState('');
   const [couponError, setCouponError] = useState(false);
-  const { appliedCoupon, setAppliedCoupon, cartSubTotal, cartTax, cartTotal } = useEcommerce();
+  const [taxOptionsOpen, setTaxOptionsOpen] = useState(false);
+  const { isAssociateMode } = useAssociateMode();
+  const {
+    appliedCoupon,
+    setAppliedCoupon,
+    cartSubTotal,
+    cartTax,
+    cartTotal,
+    setTaxIncluded,
+  } = useEcommerce();
   const { enqueueSnackbar } = useSnackbar();
   const { currencyFormat } = useNumberFormat();
   const appliedDiscount = appliedCoupon?.appliedDiscount || 0;
@@ -145,6 +168,19 @@ const PaymentSummary = () => {
             >
               State, city, county taxes
             </Typography>
+            {isAssociateMode && (
+              <Box>
+                <Link
+                  component="button"
+                  type="button"
+                  variant="caption"
+                  onClick={() => setTaxOptionsOpen(true)}
+                  sx={{ mt: 0.5 }}
+                >
+                  options
+                </Link>
+              </Box>
+            )}
           </Box>
           <Typography
             variant="subtitle1"
@@ -284,6 +320,35 @@ const PaymentSummary = () => {
           />
         </Box>
       </div>
+      <Dialog open={taxOptionsOpen} onClose={() => setTaxOptionsOpen(false)}>
+        <DialogTitle>Tax Included?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+            Choose whether this associate checkout should add sales tax separately.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            color="neutral"
+            variant="soft"
+            onClick={() => {
+              setTaxIncluded(false);
+              setTaxOptionsOpen(false);
+            }}
+          >
+            No
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setTaxIncluded(true);
+              setTaxOptionsOpen(false);
+            }}
+          >
+            Yes
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 };

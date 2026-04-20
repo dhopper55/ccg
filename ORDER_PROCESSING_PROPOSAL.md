@@ -31,11 +31,11 @@ Out of scope for Phase 1:
 - No order row exists while the cart is being built.
 - Clicking the cart `Checkout` button creates the order and Stripe Checkout Session.
 - The cart `Checkout` button starts the Stripe-hosted checkout flow.
-- A separate `Checkout cash` button is shown but disabled for now.
+- In associate mode only, `Checkout cash` confirms payment in full and creates a paid cash order without visiting Stripe.
 
 ### Payment method split
 - `Checkout`: Stripe-hosted checkout for cards and Stripe-enabled financing.
-- `Checkout cash`: future manual/offline payment flow for cash, Venmo, Zelle, CashApp, PayPal, etc.
+- `Checkout cash`: associate-only manual/offline flow. Cash is supported first; Venmo, Zelle, CashApp, PayPal, etc. can be added later.
 
 ## Recommended Architecture
 
@@ -359,7 +359,7 @@ Status meanings:
 - Partial sales create a new sold `ccg_inventory_items` row cloned from the original row, with the sold quantity, copied images, and sold metadata.
 - If a purchase exhausts the original quantity, the original row is set to quantity `0` and marked sold; no clone is created.
 - Expired, cancelled, or failed orders update order status only; inventory is unchanged.
-- Sales tax is a fixed 7.75% for the pickup-only flow. Tax is calculated on the after-coupon amount. The cart may display this estimate, but the Worker validates coupons, recalculates tax server-side, and passes discount/tax details to Stripe.
+- Sales tax is a fixed 7.75% for the pickup-only flow. Tax is calculated on the after-coupon amount unless an associate marks tax as included, in which case tax is 0%. The cart may display this estimate, but the Worker validates coupons and recalculates tax server-side.
 - Stripe webhook events are authoritative for payment success.
 - Redirect pages are customer UX only and must not be treated as fulfillment success.
 - Public online users cannot checkout `only_in_store` items.
@@ -374,6 +374,15 @@ Status meanings:
   - Validates coupon code, then calculates fixed 7.75% sales tax on the after-coupon amount.
   - Creates a Stripe Checkout Session.
   - Returns the Stripe Checkout URL.
+
+- `POST /api/shop/orders/create-cash-order`
+  - Associate mode only.
+  - Accepts selected cart item IDs, quantities, coupon code, and tax-included flag.
+  - Loads item/pricing details from D1.
+  - Creates `orders` and `order_items`.
+  - Marks the order `paid` with `checkout_type = cash`, `checkout_provider = cash`, and `checkout_mode = associate_checkout`.
+  - Applies the same paid-order inventory quantity adjustments used by Stripe webhook success.
+  - Returns the local checkout success URL.
 
 - `GET /api/shop/orders/:id/status`
   - Future thank-you page endpoint.
@@ -445,20 +454,19 @@ If the redirect lands before webhook processing finishes, show a pending confirm
 
 ### Phase 1A
 - Enable existing cart `Checkout` button.
-- Add disabled `Checkout cash` button.
+- Add associate-only `Checkout cash` button.
 - Add `POST /api/shop/orders/create-checkout-session`.
 - Add `orders`, `order_items`, and `order_events`.
-- Add inventory reservation fields.
 - Create Stripe Checkout Session from cart.
 
 ### Phase 1B
 - Implement Stripe webhook processing.
 - Mark paid orders sold.
-- Release failed/expired reservations.
 - Add thank-you page status endpoint.
+- Add associate cash checkout.
 
 ### Later
-- Cash/manual checkout.
+- Additional manual payment providers.
 - Admin order management.
 - Refund handling UI.
 - Rentals/rent-to-own.
