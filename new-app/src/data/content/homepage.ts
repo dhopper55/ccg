@@ -32,7 +32,7 @@ export const contentList: ContentItem[] = [
   },
   {
     id: 3,
-    title: 'Wanderlust Diaries: Stories from Around the World',
+    title: 'Guitar Brand Serial Number Decoders',
     category: 'Travel',
     key: 'travel',
     author: 'Sara Phillips',

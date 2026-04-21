@@ -24,6 +24,8 @@ interface ContentCardProps {
 const ContentCard = ({ item }: ContentCardProps) => {
   const navigate = useNavigate();
   const isForSaleFeature = item.id === 1 && item.variant === 'featured';
+  const isSerialDecoderFeature = item.id === 3;
+  const isCleanFeatureCard = isForSaleFeature || isSerialDecoderFeature;
   const {
     config: { assetsDir },
   } = useSettingsContext();
@@ -31,6 +33,10 @@ const ContentCard = ({ item }: ContentCardProps) => {
   const handleCardClick = () => {
     if (isForSaleFeature) {
       window.location.href = 'https://www.coalcreekguitars.com/guitars-and-gear-for-sale/';
+      return;
+    }
+    if (isSerialDecoderFeature) {
+      window.location.href = 'https://www.coalcreekguitars.com/decoders/guitar-serial-decoder-lookup';
       return;
     }
 
@@ -115,7 +121,7 @@ const ContentCard = ({ item }: ContentCardProps) => {
       />
 
       <CardContent sx={{ position: 'absolute', bottom: 0, left: 0, width: 1, p: 3 }}>
-        {!isForSaleFeature && (
+        {!isCleanFeatureCard && (
           <Stack alignItems="center" gap={2} mb={1}>
             <Chip size="small" label={item.category} />
             <Typography variant="caption" color="white" fontWeight={600}>
@@ -128,7 +134,7 @@ const ContentCard = ({ item }: ContentCardProps) => {
           {item.title}
         </Typography>
 
-        {!isForSaleFeature && (
+        {!isCleanFeatureCard && (
           <Stack alignItems="center" justifyContent="space-between" width={1}>
             <Box>
               <Typography variant="subtitle2" color="white" fontWeight={600} mb={0.5}>
@@ -143,7 +149,7 @@ const ContentCard = ({ item }: ContentCardProps) => {
         )}
       </CardContent>
 
-      {!isForSaleFeature && (
+      {!isCleanFeatureCard && (
         <Badge
           overlap="circular"
           badgeContent={
