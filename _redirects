@@ -3,6 +3,8 @@
 /guitars-and-gear-for-sale.html /guitars-and-gear-for-sale 301
 /guitars-and-gear-for-sale /guitars-and-gear-for-sale/index.html 200
 /guitars-and-gear-for-sale/* /guitars-and-gear-for-sale/index.html 200
+/new /new/index.html 200
+/new/* /new/index.html 200
 /admin-v2 /admin 301
 /admin-v2/* /admin/:splat 301
 /listing-evaluator* /admin/listing-evaluator 302
