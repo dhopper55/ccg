@@ -60,9 +60,7 @@ const ContentCard = ({ item }: ContentCardProps) => {
         overflow: 'hidden',
         cursor: 'pointer',
         height: { xs: 327, sm: 280, md: 334, lg: item.variant === 'featured' ? 576 : 280 },
-        gridColumn: {
-          lg: ['featured', 'highlight'].includes(item.variant) ? 'span 2' : 'span 1',
-        },
+        gridColumn: { lg: 'span 1' },
         gridRow: { lg: item.variant === 'featured' ? 'span 2' : 'span 1' },
 
         [`&:hover .${cardMediaClasses.img}`]: { transform: 'scale(1.05)', filter: 'brightness(1)' },
