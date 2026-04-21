@@ -29,7 +29,10 @@ const ContentCard = ({ item }: ContentCardProps) => {
   } = useSettingsContext();
 
   const handleCardClick = () => {
-    if (isForSaleFeature) return;
+    if (isForSaleFeature) {
+      window.location.href = 'https://www.coalcreekguitars.com/guitars-and-gear-for-sale/';
+      return;
+    }
 
     const typeToPath =
       {
