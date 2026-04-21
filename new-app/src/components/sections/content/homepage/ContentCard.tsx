@@ -23,11 +23,14 @@ interface ContentCardProps {
 
 const ContentCard = ({ item }: ContentCardProps) => {
   const navigate = useNavigate();
+  const isForSaleFeature = item.id === 1 && item.variant === 'featured';
   const {
     config: { assetsDir },
   } = useSettingsContext();
 
   const handleCardClick = () => {
+    if (isForSaleFeature) return;
+
     const typeToPath =
       {
         blog: paths.blogDetails,
@@ -111,50 +114,56 @@ const ContentCard = ({ item }: ContentCardProps) => {
       />
 
       <CardContent sx={{ position: 'absolute', bottom: 0, left: 0, width: 1, p: 3 }}>
-        <Stack alignItems="center" gap={2} mb={1}>
-          <Chip size="small" label={item.category} />
-          <Typography variant="caption" color="white" fontWeight={600}>
-            {item.requiredTime}
-          </Typography>
-        </Stack>
+        {!isForSaleFeature && (
+          <Stack alignItems="center" gap={2} mb={1}>
+            <Chip size="small" label={item.category} />
+            <Typography variant="caption" color="white" fontWeight={600}>
+              {item.requiredTime}
+            </Typography>
+          </Stack>
+        )}
 
         <Typography variant="h6" color="white" mb={2} sx={{ lineClamp: 2 }}>
           {item.title}
         </Typography>
 
-        <Stack alignItems="center" justifyContent="space-between" width={1}>
-          <Box>
-            <Typography variant="subtitle2" color="white" fontWeight={600} mb={0.5}>
-              {item.author}
-            </Typography>
-            <Typography variant="caption" color="white">
-              {dayjs(item.date).format('DD MMM, YYYY')}
-            </Typography>
-          </Box>
-          <BookmarkButton iconColor="white" />
-        </Stack>
+        {!isForSaleFeature && (
+          <Stack alignItems="center" justifyContent="space-between" width={1}>
+            <Box>
+              <Typography variant="subtitle2" color="white" fontWeight={600} mb={0.5}>
+                {item.author}
+              </Typography>
+              <Typography variant="caption" color="white">
+                {dayjs(item.date).format('DD MMM, YYYY')}
+              </Typography>
+            </Box>
+            <BookmarkButton iconColor="white" />
+          </Stack>
+        )}
       </CardContent>
 
-      <Badge
-        overlap="circular"
-        badgeContent={
-          <Box
-            sx={{
-              width: 40,
-              height: 40,
-              borderRadius: '50%',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              bgcolor: 'neutral.main',
-              color: 'neutral.contrastText',
-            }}
-          >
-            <IconifyIcon icon={iconMap[item.type]} fontSize={24} />
-          </Box>
-        }
-        sx={{ position: 'absolute', top: 44, left: 44 }}
-      />
+      {!isForSaleFeature && (
+        <Badge
+          overlap="circular"
+          badgeContent={
+            <Box
+              sx={{
+                width: 40,
+                height: 40,
+                borderRadius: '50%',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                bgcolor: 'neutral.main',
+                color: 'neutral.contrastText',
+              }}
+            >
+              <IconifyIcon icon={iconMap[item.type]} fontSize={24} />
+            </Box>
+          }
+          sx={{ position: 'absolute', top: 44, left: 44 }}
+        />
+      )}
     </Card>
   );
 };

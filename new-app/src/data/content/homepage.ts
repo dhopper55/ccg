@@ -3,17 +3,18 @@ import { users } from 'data/users';
 import { CommentItemType, ContentItem } from 'types/content';
 
 const content = (index: number) => `${initialConfig.assetsDir}/images/content/list/${index}.webp`;
+const localContent = (name: string) => `${import.meta.env.BASE_URL}images/content/${name}`;
 
 export const contentList: ContentItem[] = [
   {
     id: 1,
-    title: '10 Simple Time Management Hacks to Skyrocket Your Productivity',
+    title: 'Guitars and Gear for Sale',
     category: 'Time Management',
     key: 'time-management',
     author: 'Jane Warwick',
     date: '2024-12-22',
     requiredTime: '17 min read',
-    image: content(1),
+    image: localContent('for-sale.png'),
     type: 'blog',
     variant: 'featured',
   },
