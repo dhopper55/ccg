@@ -16,9 +16,11 @@ const getUniqueCategories = () => [
 const ContentMain = () => {
   const [category, setCategory] = useState('all');
   const contentCategories = getUniqueCategories();
+  const topCard = contentList.find((content) => content.id === 3);
 
   const filteredItems =
     category === 'all' ? contentList : contentList.filter((content) => content.key === category);
+  const gridItems = filteredItems.filter((content) => content.id !== topCard?.id);
 
   const handleCategory = (_: SyntheticEvent, newValue: string) => setCategory(newValue);
 
@@ -26,29 +28,29 @@ const ContentMain = () => {
     <TabContext value={category}>
       <Box
         sx={{
-          display: 'flex',
-          justifyContent: 'center',
-          mb: { xs: 3, md: 4 },
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', lg: '1fr 420px' },
+          gap: 2,
+          alignItems: 'center',
+          mb: { xs: 3, md: 5 },
         }}
       >
-        <Box
-          component="img"
-          src={`${import.meta.env.BASE_URL}images/coal-creek-logo.png`}
-          alt="Coal Creek Guitars"
-          sx={{
-            width: { xs: 240, sm: 300 },
-            maxWidth: '60vw',
-            height: 'auto',
-            display: 'block',
-          }}
-        />
-      </Box>
+        <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
+          <Box
+            component="img"
+            src={`${import.meta.env.BASE_URL}images/coal-creek-logo.png`}
+            alt="Coal Creek Guitars"
+            sx={{
+              width: { xs: 240, sm: 300 },
+              maxWidth: '60vw',
+              height: 'auto',
+              display: 'block',
+            }}
+          />
+        </Box>
 
-      <CategoryTabList
-        value={category}
-        handleChange={handleCategory}
-        contentCategories={contentCategories}
-      />
+        {topCard && <ContentCard item={topCard} />}
+      </Box>
 
       {contentCategories.map(({ key }) => (
         <TabPanel key={key} value={key} sx={{ p: 0 }}>
@@ -65,12 +67,20 @@ const ContentMain = () => {
               gap: 2,
             }}
           >
-            {filteredItems.map((item) => (
+            {gridItems.map((item) => (
               <ContentCard key={item.id} item={item} />
             ))}
           </Box>
         </TabPanel>
       ))}
+
+      <Box sx={{ mt: { xs: 3, md: 5 } }}>
+        <CategoryTabList
+          value={category}
+          handleChange={handleCategory}
+          contentCategories={contentCategories}
+        />
+      </Box>
     </TabContext>
   );
 };
