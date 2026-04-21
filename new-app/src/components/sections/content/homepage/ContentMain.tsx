@@ -24,6 +24,26 @@ const ContentMain = () => {
 
   return (
     <TabContext value={category}>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'center',
+          mb: { xs: 3, md: 4 },
+        }}
+      >
+        <Box
+          component="img"
+          src={`${import.meta.env.BASE_URL}images/coal-creek-logo.png`}
+          alt="Coal Creek Guitars"
+          sx={{
+            width: { xs: 240, sm: 300 },
+            maxWidth: '60vw',
+            height: 'auto',
+            display: 'block',
+          }}
+        />
+      </Box>
+
       <CategoryTabList
         value={category}
         handleChange={handleCategory}
