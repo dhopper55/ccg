@@ -29,8 +29,8 @@ const ContentMain = () => {
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: { xs: '1fr', lg: '1fr 420px' },
-          gap: 2,
+          gridTemplateColumns: { xs: '1fr', lg: '1fr 3fr' },
+          gap: { xs: 2, lg: 3 },
           alignItems: 'center',
           mb: { xs: 3, md: 5 },
         }}
@@ -49,7 +49,11 @@ const ContentMain = () => {
           />
         </Box>
 
-        {topCard && <ContentCard item={topCard} />}
+        {topCard && (
+          <Box sx={{ minWidth: 0, width: 1 }}>
+            <ContentCard item={topCard} />
+          </Box>
+        )}
       </Box>
 
       {contentCategories.map(({ key }) => (
