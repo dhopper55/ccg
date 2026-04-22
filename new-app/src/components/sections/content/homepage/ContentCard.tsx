@@ -23,20 +23,25 @@ interface ContentCardProps {
 
 const ContentCard = ({ item }: ContentCardProps) => {
   const navigate = useNavigate();
-  const isForSaleFeature = item.id === 1 && item.variant === 'featured';
-  const isSerialDecoderFeature = item.id === 3;
-  const isCleanFeatureCard = isForSaleFeature || isSerialDecoderFeature;
+  const isForSaleCard = item.id === 3;
+  const isSerialDecoderCard = item.id === 1 && item.variant === 'featured';
+  const isVideoFeatureCard = item.id === 2;
+  const isCleanFeatureCard = isForSaleCard || isSerialDecoderCard;
   const {
     config: { assetsDir },
   } = useSettingsContext();
 
   const handleCardClick = () => {
-    if (isForSaleFeature) {
+    if (isForSaleCard) {
       window.location.href = 'https://www.coalcreekguitars.com/guitars-and-gear-for-sale/';
       return;
     }
-    if (isSerialDecoderFeature) {
+    if (isSerialDecoderCard) {
       window.location.href = 'https://www.coalcreekguitars.com/decoders/guitar-serial-decoder-lookup';
+      return;
+    }
+    if (isVideoFeatureCard) {
+      window.location.href = 'https://www.coalcreekguitars.com/guitar-repair-demo-lesson-videos';
       return;
     }
 
