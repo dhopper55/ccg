@@ -37,7 +37,7 @@ export const contentList: ContentItem[] = [
     key: 'travel',
     author: 'Sara Phillips',
     date: '2024-12-22',
-    image: content(3),
+    image: localContent('serial-decoders.png'),
     type: 'podcast',
     requiredTime: '16 min listen',
     variant: 'regular',
