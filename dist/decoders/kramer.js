@@ -95,6 +95,43 @@ export function decodeKramer(serial) {
     }
     // Musicyo reissue style (e.g., 04xxxx)
     if (/^\d{5,}$/.test(normalized)) {
+        // 5-digit numeric plate serials are commonly seen on 1980s Neptune, NJ
+        // neck-plate-era instruments and related import/USA-associated runs.
+        if (/^\d{5}$/.test(normalized)) {
+            const info = {
+                brand: 'Kramer',
+                serialNumber: cleaned,
+                year: '1980s (estimated)',
+                factory: 'Neptune, NJ plate-era production',
+                country: 'USA or Japan',
+                notes: `5-digit numeric serials are commonly seen on Kramer neck plates from the 1980s Neptune, NJ era. These plate numbers were not always chronological and can appear on American- and Japanese-associated production runs. Sequence: ${normalized}. Confirm with neck-plate text, headstock style, and hardware details for more precise dating.`,
+            };
+            return {
+                success: true,
+                info,
+                patternKey: 'kramer-vintage-5-digit-plate',
+                patternLabel: 'Kramer vintage 5-digit plate serial',
+                additionalContext: {
+                    title: 'Kramer vintage 5-digit plate serial',
+                    summary: 'This serial matches a 5-digit numeric Kramer neck-plate pattern commonly associated with 1980s Neptune, NJ era instruments.',
+                    highlights: [
+                        'Five-digit numeric plate serials are commonly associated with 1980s Kramer neck-plate usage.',
+                        `The plate sequence here is ${parseInt(normalized, 10)}.`,
+                        'This pattern is useful for era attribution, but not as a precise chronological date code.',
+                    ],
+                    caveats: [
+                        'Kramer vintage serial records are incomplete and plate numbers were not always assigned in strict order.',
+                        'The serial alone does not cleanly distinguish all USA versus Japanese-associated production.',
+                        'Exact model and production period should be verified from neck-plate wording, headstock style, and hardware.',
+                    ],
+                    verificationTips: [
+                        'Check whether the neck plate references Neptune, NJ.',
+                        'Compare the logo, body shape, and hardware to known 1980s Kramer catalog examples.',
+                    ],
+                },
+                additionalContextRichText: `<h3>Overview</h3><p>This serial matches a 5-digit numeric Kramer neck-plate pattern commonly associated with 1980s Neptune, NJ era instruments.</p><h3>How This Pattern Is Typically Read</h3><p>Five-digit numeric plate serials are commonly associated with 1980s Kramer neck-plate usage. The plate sequence here is ${parseInt(normalized, 10)}. This pattern is useful for era attribution, but not as a precise chronological date code.</p><h3>What To Verify</h3><ul><li>Kramer vintage serial records are incomplete and plate numbers were not always assigned in strict order.</li><li>The serial alone does not cleanly distinguish all USA versus Japanese-associated production.</li><li>Exact model and production period should be verified from neck-plate wording, headstock style, and hardware.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a practical 1980s Kramer plate-era decode, then confirm the exact model and provenance from physical instrument details.</p>`,
+            };
+        }
         // 7-digit numeric serials beginning with 5 are commonly tied to
         // late-1980s/early-1990s Korean import-era runs (often Striker/Focus-adjacent).
         if (/^5\d{6}$/.test(normalized)) {

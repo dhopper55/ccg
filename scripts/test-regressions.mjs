@@ -744,6 +744,28 @@ function assertKramerNumeric5Prefix(serialInput, expectedYearRange) {
   assert(info.country === 'South Korea', `Expected South Korea for ${serialInput}, got ${info.country}`);
 }
 
+function assertKramerVintage5Digit(serialInput) {
+  const result = decodeKramer(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '1980s (estimated)', `Expected 1980s estimate for ${serialInput}, got ${info.year}`);
+  assert(
+    info.factory === 'Neptune, NJ plate-era production',
+    `Expected Neptune, NJ plate-era production for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'USA or Japan', `Expected USA or Japan for ${serialInput}, got ${info.country}`);
+  assert(
+    result.patternKey === 'kramer-vintage-5-digit-plate',
+    `Expected Kramer vintage 5-digit pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('plate sequence here is 70630'),
+    `Expected Kramer vintage 5-digit rich text for ${serialInput}`
+  );
+}
+
 function assertYamahaLetterZeroLetter(serialInput) {
   const result = decodeSerialForBackend('yamaha', serialInput);
   assert(result.success, `Expected decode success for yamaha:${serialInput}`);
@@ -844,6 +866,29 @@ function assertCortYearSequence7Digit(serialInput) {
   assert(
     result.patternKey === 'cort-year-sequence-7-digit',
     `Expected Cort year-sequence pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
+function assertCortLate1990s8Digit(serialInput) {
+  const result = decodeSerialForBackend('cort', serialInput);
+  assert(result.success, `Expected decode success for cort:${serialInput}`);
+  assert(result.info, `Expected decoded info for cort:${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '1999', `Expected year 1999 for ${serialInput}, got ${info.year}`);
+  assert(info.month === 'December', `Expected month December for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'Cort Korea (Incheon or Daejeon)',
+    `Expected Cort Korea (Incheon or Daejeon) for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'South Korea', `Expected South Korea for ${serialInput}, got ${info.country}`);
+  assert(
+    result.patternKey === 'cort-late-1990s-8-digit-yymm-sequence',
+    `Expected Cort late-1990s 8-digit pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('production sequence 2466'),
+    `Expected Cort late-1990s 8-digit rich text for ${serialInput}`
   );
 }
 
@@ -1097,6 +1142,29 @@ function assertJacksonTaiwanJSSeries(serialInput) {
   );
 }
 
+function assertJacksonMij200C(serialInput) {
+  const result = decodeJackson(serialInput);
+  assert(result.success, `Expected decode success for Jackson ${serialInput}`);
+  assert(result.info, `Expected decoded info for Jackson ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '2002-2006 (estimated)', `Expected estimated 2002-2006 year for ${serialInput}, got ${info.year}`);
+  assert(info.factory === 'Chushin Gakki', `Expected Chushin Gakki factory for ${serialInput}, got ${info.factory}`);
+  assert(info.country === 'Japan', `Expected Japan country for ${serialInput}, got ${info.country}`);
+  assert(
+    info.notes && info.notes.includes('200C + 5 digits'),
+    `Expected 200C pattern note for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    result.patternKey === 'jackson-mij-200c-chushin',
+    `Expected Jackson 200C pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('production sequence 541'),
+    `Expected Jackson 200C rich text for ${serialInput}`
+  );
+}
+
 function assertESPVintageJapan5Digit(serialInput) {
   const result = decodeESP(serialInput);
   assert(result.success, `Expected decode success for ESP ${serialInput}`);
@@ -1147,6 +1215,33 @@ function assertSchecterCAPrefix(serialInput) {
   assert(
     result.additionalContextRichText && result.additionalContextRichText.includes('production sequence 5'),
     `Expected Schecter CA rich text for ${serialInput}`
+  );
+}
+
+function assertSchecterLegacy6Digit(serialInput) {
+  const result = decodeSchecter(serialInput);
+  assert(result.success, `Expected decode success for Schecter ${serialInput}`);
+  assert(result.info, `Expected decoded info for Schecter ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '2005', `Expected year 2005 for ${serialInput}, got ${info.year}`);
+  assert(info.factory === 'Korea Factory', `Expected Korea factory guidance for ${serialInput}, got ${info.factory}`);
+  assert(info.country === 'South Korea', `Expected South Korea country for ${serialInput}, got ${info.country}`);
+  assert(
+    info.model === 'Diamond Series or similar import',
+    `Expected Diamond Series or similar import model for ${serialInput}, got ${info.model}`
+  );
+  assert(
+    info.notes && info.notes.includes('legacy Korean import format'),
+    `Expected legacy Korean import note for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    result.patternKey === 'schecter-korea-legacy-6-digit',
+    `Expected Schecter legacy 6-digit pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('production sequence 27007'),
+    `Expected Schecter legacy 6-digit rich text for ${serialInput}`
   );
 }
 
@@ -1256,6 +1351,7 @@ assertBCRichUSA5DigitOffset('36642', '1982-1983 (estimated)');
 assertKramerModernS('S106020848', '2010', 'June');
 assertKramerVPrefix('V9954', 'mid-to-late 1980s (estimated)');
 assertKramerCFPrefix('CF22271', '1985-1989 (estimated)');
+assertKramerVintage5Digit('70630');
 assertKramerNumeric5Prefix('5062786', '1987-1991 (estimated)');
 assertYamahaLetterZeroLetter('IOL033214');
 assertYamahaLetterZeroLetter('I0L033214');
@@ -1266,6 +1362,7 @@ assertDeanHPrefixIndia('H22020', '2022', 'February');
 assertCortIEPrefix('ie220403666', '2022', 'April');
 assertCortAIPrefix('AI200750591', '2020', 'July');
 assertCortYearSequence7Digit('0000400');
+assertCortLate1990s8Digit('99122466');
 assertCharvelCFPrefix('CF22271', '2022');
 assertFenderTrailingFTypoCorrection('E528104f', 'E5281043', '1985');
 assertFenderJDPrefix('JD13006111', '2013');
@@ -1281,9 +1378,11 @@ assertJacksonMij1996Transition('600327');
 assertJacksonUSAUSeries('U15648');
 assertJacksonUSAUSeries('u17072', '2006-2007 (estimated)');
 assertJacksonTaiwanJSSeries('650010694');
+assertJacksonMij200C('200C00541');
 assertESPVintageJapan5Digit('22944');
 assertESPVintageJapan5Digit('29290');
 assertSchecterCAPrefix('CA24010005');
+assertSchecterLegacy6Digit('527007');
 assertWashburnIndonesiaYearLetter('I8C112846');
 assertWashburnLegacyJapan6Digit('298093');
 assertDecodeFails('ovation', '123456789');

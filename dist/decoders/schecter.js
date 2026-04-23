@@ -51,6 +51,11 @@ export function decodeSchecter(serial) {
     if (/^\d{7,9}$/.test(normalized)) {
         return decodeNumeric(normalized);
     }
+    // Pure numeric legacy 6-digit: early/mid-2000s Korean import
+    // Commonly treated as Y + sequence rather than a full YYMM code
+    if (/^\d{6}$/.test(normalized)) {
+        return decodeNumericLegacy6(normalized);
+    }
     return {
         success: false,
         error: 'Unable to decode this Schecter serial number. The format was not recognized. Please check the serial number and try again.'
@@ -314,6 +319,45 @@ function decodeNumeric(serial) {
         notes: `Numeric-only serial indicates Korean manufacture (typically early 2000s or late 1990s). Sequence: ${sequence}.`
     };
     return { success: true, info };
+}
+function decodeNumericLegacy6(serial) {
+    const yearDigit = parseInt(serial[0], 10);
+    const year = (2000 + yearDigit).toString();
+    const sequence = serial.substring(1);
+    const info = {
+        brand: 'Schecter',
+        serialNumber: serial,
+        year,
+        factory: 'Korea Factory',
+        country: 'South Korea',
+        model: 'Diamond Series or similar import',
+        notes: `This 6-digit numeric Schecter serial fits a legacy Korean import format seen on some early-to-mid 2000s instruments. The leading digit is treated as the production year within the 2000s, so ${serial[0]} maps to ${year}. The remaining digits are best treated as sequence ${sequence} rather than a reliable month/week code. Verify the exact model and factory details from the headstock, hardware, and any country-of-origin markings when possible.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'schecter-korea-legacy-6-digit',
+        patternLabel: 'Schecter Korea legacy 6-digit',
+        additionalContext: {
+            title: 'Schecter legacy 6-digit serial',
+            summary: 'This serial matches a legacy 6-digit numeric Schecter import pattern commonly associated with Korean Diamond Series era production.',
+            highlights: [
+                `The leading digit ${serial[0]} is treated as production year ${year} within the 2000s.`,
+                `The remaining digits decode as production sequence ${parseInt(sequence, 10)}.`,
+                'This is best used as an era/date estimate rather than an exact calendar-date decode.',
+            ],
+            caveats: [
+                'Schecter legacy import serial formats were not always fully standardized across factories and runs.',
+                'This pattern supports a practical year estimate, but not exact month/week dating.',
+                'Model identity and exact factory should be confirmed from physical markings and specs.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for Made in Korea wording or factory-related markings.',
+                'Compare the instrument to Diamond Series catalogs/specs from the estimated production era.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a legacy 6-digit numeric Schecter import pattern commonly associated with Korean Diamond Series era production.</p><h3>How This Pattern Is Typically Read</h3><p>The leading digit ${serial[0]} is treated as production year ${year} within the 2000s. The remaining digits decode as production sequence ${parseInt(sequence, 10)}. This is best used as an era/date estimate rather than an exact calendar-date decode.</p><h3>What To Verify</h3><ul><li>Schecter legacy import serial formats were not always fully standardized across factories and runs.</li><li>This pattern supports a practical year estimate, but not exact month or week dating.</li><li>Model identity and exact factory should be confirmed from physical markings and specs.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a practical early-to-mid 2000s Korean Schecter decode, then confirm the exact model and provenance from the instrument itself.</p>`,
+    };
 }
 function parseStandardDigits(digits) {
     // Standard format: YYMM + sequence

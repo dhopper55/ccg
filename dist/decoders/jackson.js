@@ -13,6 +13,7 @@
  * - Japan Professional transition (6-digit, 1996)
  * - Japan Fusion (6-digit 90-95 prefix, 1990-1995)
  * - Japan 1996+ (7-digit, 96+ prefix)
+ * - Japan Chushin 200C import format (early-mid 2000s)
  * - Indonesia (I prefix with factory codes)
  * - China (C prefix with factory codes)
  * - India (N prefix or 8-10 digit numeric)
@@ -129,6 +130,10 @@ export function decodeJackson(serial) {
     // Japan Fusion 6-digit (90-95 prefix)
     if (/^9[0-5]\d{4}$/.test(normalized) && normalized.length === 6) {
         return decodeJapanFusion(normalized);
+    }
+    // Japan Chushin import format (200C + 5 digits, early-mid 2000s)
+    if (/^200C\d{5}$/i.test(normalized)) {
+        return decodeJapanChushin200C(normalized);
     }
     // India 8-digit (JS20/X series, 96-04 prefix)
     if (/^(9[6-9]|0[0-4])\d{6}$/.test(normalized) && normalized.length === 8) {
@@ -419,6 +424,42 @@ function decodeJapan1996Plus(serial) {
         notes: 'Made in Japan (1996 or later). Includes JS, Stars, and other import series.',
     };
     return { success: true, info };
+}
+function decodeJapanChushin200C(serial) {
+    const sequence = parseInt(serial.substring(4), 10);
+    const info = {
+        brand: 'Jackson',
+        serialNumber: serial,
+        year: '2002-2006 (estimated)',
+        factory: 'Chushin Gakki',
+        country: 'Japan',
+        notes: `This serial matches a Jackson MIJ import format seen as 200C + 5 digits. The C is commonly associated with Chushin Gakki, and sequence ${sequence} fits the early-to-mid 2000s Japanese import era. This is a sequential import format rather than a precise year code, so exact dating should be confirmed from model specs, neck-pocket stamps, or other instrument markings when possible.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'jackson-mij-200c-chushin',
+        patternLabel: 'Jackson MIJ 200C Chushin format',
+        additionalContext: {
+            title: 'Jackson MIJ 200C serial',
+            summary: 'This serial matches a Jackson Japanese import pattern seen as 200C plus a 5-digit sequence, commonly associated with Chushin Gakki production in the early-to-mid 2000s.',
+            highlights: [
+                'The 200C prefix is treated as a Japanese import-era identifier rather than a strict year code.',
+                'The C is commonly associated with Chushin Gakki production.',
+                `The remaining digits decode as production sequence ${sequence}.`,
+            ],
+            caveats: [
+                'Jackson import serial records from this era are incomplete, and official lookup coverage is limited.',
+                'This pattern supports era/factory attribution more confidently than an exact calendar year.',
+                'Exact model confirmation should come from physical markings, specs, and neck-pocket or heel stamps.',
+            ],
+            verificationTips: [
+                'Check for Made in Japan marking and compare the model to early-2000s Jackson Pro or X-series specs.',
+                'Inspect neck-pocket, heel, or body cavity stamps if exact dating matters.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Jackson Japanese import pattern seen as 200C plus a 5-digit sequence, commonly associated with Chushin Gakki production in the early-to-mid 2000s.</p><h3>How This Pattern Is Typically Read</h3><p>The 200C prefix is treated as a Japanese import-era identifier rather than a strict year code. The C is commonly associated with Chushin Gakki production. The remaining digits decode as production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>Jackson import serial records from this era are incomplete, and official lookup coverage is limited.</li><li>This pattern supports era/factory attribution more confidently than an exact calendar year.</li><li>Exact model confirmation should come from physical markings, specs, and neck-pocket or heel stamps.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as an early-to-mid 2000s MIJ Jackson decode, then confirm the exact model and production details from the instrument itself.</p>`,
+    };
 }
 function decodeIndonesia(serial) {
     // Format: I + factory + optional J + year(2) + month(2) + sequence

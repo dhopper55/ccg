@@ -6,6 +6,7 @@ import { DecodeResult, GuitarInfo } from '../types.js';
  * Supports:
  * - Modern format: YYMMXXXX (2000-2004)
  * - Modern format extended: YYMMXXXXX (2005-present)
+ * - Late 1990s format: YYMMXXXX (1990-1999)
  * - 1990s format: YMMXXXX (early 1990s-1999)
  * - W.O. prefix: 1970s-1980s Korean production
  * - Indonesian production: Various prefixes (AI, I, IC, ICS, etc.)
@@ -61,6 +62,11 @@ export function decodeCort(serial: string): DecodeResult {
   // Modern format with 9 digits: YYMMXXXXX (2005-present)
   if (/^\d{9}$/.test(normalized)) {
     return decodeModern9Digit(normalized);
+  }
+
+  // Late 1990s format with 8 digits: YYMMXXXX (1990-1999)
+  if (/^9\d{7}$/.test(normalized)) {
+    return decodeLate1990s8Digit(normalized);
   }
 
   // Modern format with 8 digits: YYMMXXXX (2000-2004)
@@ -309,6 +315,59 @@ function decodeModern9Digit(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+// Late 1990s 8-digit format: YYMMXXXX (1990-1999)
+function decodeLate1990s8Digit(serial: string): DecodeResult {
+  const yearDigits = serial.substring(0, 2);
+  const monthDigits = serial.substring(2, 4);
+  const sequence = serial.substring(4);
+
+  const year = 1900 + parseInt(yearDigits, 10);
+  const month = parseInt(monthDigits, 10);
+
+  if (month < 1 || month > 12) {
+    return {
+      success: false,
+      error: `Invalid month "${monthDigits}" in serial number. Month should be 01-12.`,
+    };
+  }
+
+  const info: GuitarInfo = {
+    brand: 'Cort',
+    serialNumber: serial,
+    year: year.toString(),
+    month: getMonthName(month),
+    factory: 'Cort Korea (Incheon or Daejeon)',
+    country: 'South Korea',
+    notes: `Late-1990s Cort 8-digit numeric format. The first two digits (${yearDigits}) indicate production year ${year}; the next two digits (${monthDigits}) indicate ${getMonthName(month)}; the remaining digits are production sequence ${parseInt(sequence, 10)}. Cort serials identify production date more reliably than exact model, so verify the model from the headstock, label, or other physical markings.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'cort-late-1990s-8-digit-yymm-sequence',
+    patternLabel: 'Cort late-1990s 8-digit YYMM sequence',
+    additionalContext: {
+      title: 'Cort late-1990s 8-digit serial',
+      summary: 'This serial matches a late-1990s Cort numeric format where the first four digits identify production year and month.',
+      highlights: [
+        `The digits ${yearDigits} decode as production year ${year}.`,
+        `The digits ${monthDigits} decode as ${getMonthName(month)}.`,
+        `The remaining digits decode as production sequence ${parseInt(sequence, 10)}.`,
+      ],
+      caveats: [
+        'Cort serials usually identify production date more reliably than exact model identity.',
+        'Factory attribution for late-1990s examples is commonly Korean, but physical country-of-origin markings remain the best confirmation.',
+        'Model identification still requires the headstock, label, or other instrument markings.',
+      ],
+      verificationTips: [
+        'Look for Made in Korea markings on the headstock, neck plate, or label.',
+        'Compare the instrument against Cort catalog specs from the decoded year.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a late-1990s Cort numeric format where the first four digits identify production year and month.</p><h3>How This Pattern Is Typically Read</h3><p>The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} decode as ${getMonthName(month)}. The remaining digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Cort serials usually identify production date more reliably than exact model identity.</li><li>Factory attribution for late-1990s examples is commonly Korean, but physical country-of-origin markings remain the best confirmation.</li><li>Model identification still requires the headstock, label, or other instrument markings.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a practical late-1990s Cort date decode, then verify the exact model from physical markings and catalog specs.</p>`,
+  };
 }
 
 // Modern 8-digit format: YYMMXXXX (2000-2004)
