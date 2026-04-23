@@ -38,7 +38,7 @@ type MessageState = {
   text: string;
 };
 
-type ArchiveReason = 'Overpriced' | 'Not Desirable' | 'Repair Needs' | 'Too Far' | 'Other';
+type ArchiveReason = 'Overpriced' | 'Not Desirable' | 'Repair Needs' | 'Too Far' | 'Old/Stale' | 'Other';
 
 type DetailItem = {
   label: string;
@@ -81,7 +81,7 @@ const SINGLE_FIELDS: FieldConfig[] = [
 ];
 
 const INLINE_DETAIL_KEYS = new Set(['category', 'brand', 'model', 'finish', 'year', 'condition']);
-const ARCHIVE_REASONS: ArchiveReason[] = ['Overpriced', 'Not Desirable', 'Repair Needs', 'Too Far', 'Other'];
+const ARCHIVE_REASONS: ArchiveReason[] = ['Overpriced', 'Not Desirable', 'Repair Needs', 'Too Far', 'Old/Stale', 'Other'];
 
 function normalizeValue(value: unknown): string {
   if (value == null) return '—';
@@ -1060,8 +1060,15 @@ const ListingEvaluatorItem = () => {
     }
   }, [aiAnalysisDraft, isAiAnalysisSaving, record, recordId]);
 
-  const overviewItems = useMemo<DetailItem[]>(
-    () => [
+  const overviewItems = useMemo<DetailItem[]>(() => {
+    const items: DetailItem[] = [];
+    const archiveReason = normalizeValue(fields.archive_reason);
+
+    if (archived && archiveReason !== '—') {
+      items.push({ label: 'Archive Reason', value: archiveReason });
+    }
+
+    items.push(
       {
         label: 'Source',
         value: sourceImage || sourceGlyph ? (
@@ -1100,9 +1107,26 @@ const ListingEvaluatorItem = () => {
           openAiAnalysisDialog,
         ),
       },
-    ],
-    [aiAnalysisText, askingPrice, fields.brand, fields.location, fields.model, fields.submitted_at, idealPrice, openAiAnalysisDialog, privateRange, sourceGlyph, sourceImage, sourceLabel, statusLabel],
-  );
+    );
+
+    return items;
+  }, [
+    aiAnalysisText,
+    archived,
+    askingPrice,
+    fields.archive_reason,
+    fields.brand,
+    fields.location,
+    fields.model,
+    fields.submitted_at,
+    idealPrice,
+    openAiAnalysisDialog,
+    privateRange,
+    sourceGlyph,
+    sourceImage,
+    sourceLabel,
+    statusLabel,
+  ]);
 
   const singleDetailItems = useMemo<DetailItem[]>(() => {
     if (isMulti) return [];

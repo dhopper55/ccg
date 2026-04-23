@@ -60,7 +60,7 @@ type ListingGridRow = {
 };
 
 const PAGE_SIZE = 20;
-const ARCHIVE_REASON_OPTIONS = ['Overpriced', 'Not Desirable', 'Repair Needs', 'Too Far', 'Other'] as const;
+const ARCHIVE_REASON_OPTIONS = ['Overpriced', 'Not Desirable', 'Repair Needs', 'Too Far', 'Old/Stale', 'Other'] as const;
 const headerActions = [
   { label: 'Results', icon: 'material-symbols:list-alt-rounded', color: 'default' as const },
   {

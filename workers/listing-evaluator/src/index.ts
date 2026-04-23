@@ -110,6 +110,7 @@ const ALLOWED_ARCHIVE_REASONS = new Set([
   'Not Desirable',
   'Repair Needs',
   'Too Far',
+  'Old/Stale',
   'Other',
 ]);
 
@@ -5636,7 +5637,7 @@ async function deleteR2ImagesForListing(
 }
 
 async function handlePurgeOldListings(env: Env): Promise<Response> {
-  const TWO_WEEKS_AGO_SQL = "datetime('now', '-14 days')";
+  const FOUR_WEEKS_AGO_SQL = "datetime('now', '-28 days')";
 
   // Get IDs of archived listings referenced by inventory (to exclude)
   const inventoryRefResult = await env.DB.prepare(
@@ -5654,7 +5655,7 @@ async function handlePurgeOldListings(env: Env): Promise<Response> {
   for (let pass = 0; pass < 20; pass++) {
     const candidates = await env.DB.prepare(
       `SELECT id, photos, image_url FROM listings
-       WHERE archived = 1 AND COALESCE(submitted_at, created_at) <= ${TWO_WEEKS_AGO_SQL}
+       WHERE archived = 1 AND COALESCE(submitted_at, created_at) <= ${FOUR_WEEKS_AGO_SQL}
        LIMIT ${deleteBatchSize}`
     ).all<{ id: number; photos: string | null; image_url: string | null }>();
 

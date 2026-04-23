@@ -556,7 +556,7 @@ const ListingEvaluator = () => {
               <DialogTitle>Purge old eval results</DialogTitle>
               <DialogContent>
                 <DialogContentText>
-                  This will permanently delete all archived listing evaluations older than two weeks,
+                  This will permanently delete all archived listing evaluations older than four weeks,
                   along with their scraped images. Listings linked to inventory items will be skipped.
                 </DialogContentText>
               </DialogContent>
