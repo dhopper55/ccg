@@ -15,7 +15,12 @@ if (!fs.existsSync(sourceHtml)) {
   throw new Error(`Missing built new-app entry: ${sourceHtml}`);
 }
 
-const html = fs.readFileSync(sourceHtml, 'utf8');
+const buildStamp = Date.now().toString();
+const rawHtml = fs.readFileSync(sourceHtml, 'utf8');
+const html = rawHtml
+  .replace(/(\/new\/assets\/[^"'?]+\.(?:js|css))(?!\?v=)/g, `$1?v=${buildStamp}`);
+
+fs.writeFileSync(sourceHtml, html);
 
 for (const routeDir of routeDirs) {
   const targetDir = path.join(newRoot, routeDir);
@@ -23,4 +28,4 @@ for (const routeDir of routeDirs) {
   fs.writeFileSync(path.join(targetDir, 'index.html'), html);
 }
 
-console.log(`Synced ${routeDirs.length} new-app decoder route entries.`);
+console.log(`Synced ${routeDirs.length} new-app decoder route entries with build stamp ${buildStamp}.`);
