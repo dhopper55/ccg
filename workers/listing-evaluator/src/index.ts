@@ -1014,34 +1014,9 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
   let aiAttemptedAt = '';
   let aiLogText = normalizeText(result.error, '').slice(0, 1200);
 
-  if (shouldAttemptAiFallback(result) && normalizedBrand && normalizedSerial) {
-    const cached = await getAiSerialDecodeCache(env, normalizedBrand, normalizedSerial);
-    if (cached) {
-      aiCacheHit = true;
-      aiModel = normalizeText(cached.ai_model, '').slice(0, 80);
-      aiResponseJson = normalizeText(cached.ai_response_json, '').slice(0, 12000);
-      result = mapCachedAiRowToDecodeResult(cached, normalizedBrand);
-      aiLogText = normalizeText(cached.error, '').slice(0, 1200);
-    } else {
-      usedAi = true;
-      aiAttemptedAt = new Date().toISOString();
-      const rateLimited = await isAiSerialDecodeRateLimited(env, ipAddress);
-      if (rateLimited) {
-        result = {
-          success: false,
-          error: 'Unable to decode this serial number.',
-          normalizedBrand,
-        };
-        aiLogText = 'AI fallback skipped due to per-IP rate limit.';
-      } else {
-        const aiParsed = await runOpenAISerialDecodeFallback(brand, serial, env);
-        aiModel = aiParsed.model.slice(0, 80);
-        aiResponseJson = aiParsed.rawResponseJson.slice(0, 12000);
-        aiLogText = aiParsed.logText.slice(0, 1200);
-        result = mapAiParsedToDecodeResult(aiParsed.payload, brand, serial, normalizedBrand);
-      }
-    }
-  }
+  // AI serial decode fallback is intentionally disabled.
+  // We want rule-based failures to remain visible so decoder support can be
+  // added explicitly instead of masking gaps with an AI-assisted guess.
 
   let patternKey = '';
   let patternLabel = '';

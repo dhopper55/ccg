@@ -852,6 +852,30 @@ function assertCortAIPrefix(serialInput, expectedYear, expectedMonth) {
   );
 }
 
+function assertCortIATransposedPrefix(serialInput, expectedCorrected, expectedYear, expectedMonth) {
+  const result = decodeSerialForBackend('cort', serialInput);
+  assert(result.success, `Expected decode success for cort:${serialInput}`);
+  assert(result.info, `Expected decoded info for cort:${serialInput}`);
+  assert(
+    result.correctedSerial === expectedCorrected,
+    `Expected corrected serial ${expectedCorrected} for ${serialInput}, got ${result.correctedSerial}`
+  );
+
+  const info = result.info;
+  assert(info.serialNumber === expectedCorrected, `Expected corrected serialNumber ${expectedCorrected}, got ${info.serialNumber}`);
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'PT. Cort Indonesia, Mojokerto',
+    `Expected PT. Cort Indonesia, Mojokerto for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'Indonesia', `Expected country Indonesia for ${serialInput}, got ${info.country}`);
+  assert(
+    info.notes && info.notes.includes(`corrected from ${serialInput} to ${expectedCorrected}`),
+    `Expected correction note for ${serialInput}, got ${info.notes}`
+  );
+}
+
 function assertCortYearSequence7Digit(serialInput) {
   const result = decodeSerialForBackend('cort', serialInput);
   assert(result.success, `Expected decode success for cort:${serialInput}`);
@@ -1361,6 +1385,7 @@ assertDeanHPrefixIndia('H22020143', '2022', 'February');
 assertDeanHPrefixIndia('H22020', '2022', 'February');
 assertCortIEPrefix('ie220403666', '2022', 'April');
 assertCortAIPrefix('AI200750591', '2020', 'July');
+assertCortIATransposedPrefix('IA200750591', 'AI200750591', '2020', 'July');
 assertCortYearSequence7Digit('0000400');
 assertCortLate1990s8Digit('99122466');
 assertCharvelCFPrefix('CF22271', '2022');

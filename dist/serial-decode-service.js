@@ -180,6 +180,17 @@ function buildRetrySerials(serial, normalizedBrand) {
             addCandidate(lastPartAlnumUpper.slice(0, -1) + '3');
         }
     }
+    if (normalizedBrand === 'cort') {
+        const alnumUpper = serial.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+        // Common transposition on Cort Indonesia AI-prefix serials: IA instead of AI.
+        if (/^IA\d{9}$/.test(alnumUpper)) {
+            addCandidate(`AI${alnumUpper.slice(2)}`);
+        }
+        const lastPartAlnumUpper = lastSpaceSeparatedPart.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+        if (/^IA\d{9}$/.test(lastPartAlnumUpper)) {
+            addCandidate(`AI${lastPartAlnumUpper.slice(2)}`);
+        }
+    }
     return candidates;
 }
 function isFutureYearResult(info) {
