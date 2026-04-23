@@ -1172,6 +1172,31 @@ function assertWashburnIndonesiaYearLetter(serialInput) {
   );
 }
 
+function assertWashburnLegacyJapan6Digit(serialInput) {
+  const result = decodeWashburn(serialInput);
+  assert(result.success, `Expected decode success for Washburn ${serialInput}`);
+  assert(result.info, `Expected decoded info for Washburn ${serialInput}`);
+
+  const info = result.info;
+  assert(
+    info.year === 'late 1970s-early 1980s (estimated)',
+    `Expected legacy Washburn era guidance for ${serialInput}, got ${info.year}`
+  );
+  assert(
+    info.factory === 'Japan (often Yamaki or another Japanese partner)',
+    `Expected Japan legacy Washburn factory guidance for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'Japan', `Expected Japan country for ${serialInput}, got ${info.country}`);
+  assert(
+    result.patternKey === 'washburn-legacy-japan-6-digit',
+    `Expected Washburn legacy Japan pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes(`Serial ${serialInput} is best treated as a late-1970s to early-1980s Washburn sequence`),
+    `Expected Washburn legacy Japan rich text for ${serialInput}`
+  );
+}
+
 assertIbanezBPrefix('B160100231');
 assertIbanezBPrefix('B-160100231');
 assertIbanez5APrefix('5A210401373');
@@ -1260,6 +1285,7 @@ assertESPVintageJapan5Digit('22944');
 assertESPVintageJapan5Digit('29290');
 assertSchecterCAPrefix('CA24010005');
 assertWashburnIndonesiaYearLetter('I8C112846');
+assertWashburnLegacyJapan6Digit('298093');
 assertDecodeFails('ovation', '123456789');
 
 console.log('Regression tests passed.');

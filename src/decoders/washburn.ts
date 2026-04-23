@@ -447,19 +447,61 @@ function decode6Digit(serial: string): DecodeResult {
   const firstTwo = serial.substring(0, 2);
   const yearNum = parseInt(firstTwo, 10);
 
-  let year: string;
   if (yearNum >= 80 && yearNum <= 99) {
-    year = `19${firstTwo}`;
-  } else if (yearNum >= 0 && yearNum <= 30) {
-    year = `Possibly 19${firstTwo} or 20${firstTwo}`;
-  } else {
-    year = `Unknown (first digits: ${firstTwo})`;
+    const info: GuitarInfo = {
+      brand: 'Washburn',
+      serialNumber: serial,
+      year: `19${firstTwo}`,
+      factory: 'Various',
+      country: 'Japan or South Korea',
+      notes: `6-digit serial number. For 1980s instruments, the first two digits (${firstTwo}) typically indicate year of manufacture. Production location may be Japan or Korea depending on the model and label markings.`,
+    };
+
+    return { success: true, info };
+  }
+
+  if (yearNum >= 0 && yearNum <= 30) {
+    const info: GuitarInfo = {
+      brand: 'Washburn',
+      serialNumber: serial,
+      year: 'late 1970s-early 1980s (estimated)',
+      factory: 'Japan (often Yamaki or another Japanese partner)',
+      country: 'Japan',
+      notes: `Short 6-digit numeric serials without a letter prefix are commonly associated with late-1970s to early-1980s Washburn production in Japan. Serial ${serial} fits that legacy import pattern better than later date-coded formats. Use the headstock logo, label, and hardware to narrow the exact year.`,
+    };
+
+    return {
+      success: true,
+      info,
+      patternKey: 'washburn-legacy-japan-6-digit',
+      patternLabel: 'Washburn legacy Japan 6-digit numeric',
+      additionalContext: {
+        title: 'Washburn legacy 6-digit numeric serial',
+        summary: 'This short all-numeric serial aligns with an older Washburn Japan-era numbering style rather than a later modern date-coded import format.',
+        highlights: [
+          'Commonly seen on late-1970s to early-1980s Washburns.',
+          'Often associated with Japanese production partners such as Yamaki.',
+          `Serial ${serial} should be treated as a legacy sequence, not a precise YYMM date code.`,
+        ],
+        caveats: [
+          'Washburn did not maintain a single consistent serial system across these early runs.',
+          'The serial alone usually does not identify the exact model.',
+          'The exact production year is typically estimated from physical features.',
+        ],
+        verificationTips: [
+          'Check for a Made in Japan marking on the headstock, neck plate, or interior label.',
+          'Compare the logo style, hardware, and model details against early-1980s Washburn catalogs.',
+          'Use this decode as era guidance rather than an exact birthday.',
+        ],
+      },
+      additionalContextRichText: `<h3>Overview</h3><p>This short 6-digit all-numeric serial aligns with an older Washburn Japan-era numbering style rather than a later date-coded import format.</p><h3>Likely Era</h3><p>Serial ${serial} is best treated as a late-1970s to early-1980s Washburn sequence, often linked to Japanese production partners such as Yamaki.</p><h3>What To Verify</h3><ul><li>Look for a Made in Japan marking on the headstock, neck plate, or interior label.</li><li>Compare the logo style, hardware, and model details against early-1980s Washburn catalogs.</li><li>Use the serial as era guidance, not an exact day-or-month decode.</li></ul><h3>Coal Creek Guitars Note</h3><p>For these early numeric Washburns, model features are usually more reliable than the serial alone for exact dating.</p>`,
+    };
   }
 
   const info: GuitarInfo = {
     brand: 'Washburn',
     serialNumber: serial,
-    year: year,
+    year: `Unknown (first digits: ${firstTwo})`,
     factory: 'Various',
     country: 'Japan, Korea, or USA',
     notes: `6-digit serial number. For 1980s instruments, the first two digits (${firstTwo}) typically indicate year of manufacture. Production location may be Japan (1970s-1980s), Korea (1980s+), or USA Custom Shop. Check the headstock label or body sticker for "Made in" location.`,
