@@ -3,9 +3,8 @@ import Grid from '@mui/material/Grid';
 import ActiveUsers from 'components/sections/dashboards/crm/active-users/ActiveUsers';
 import CRMGreeting from 'components/sections/dashboards/crm/CRMGreeting';
 import CRMGeneratedRevenue from 'components/sections/dashboards/crm/generated-revenue/CRMGeneratedRevenue';
-import CRMKPIs from 'components/sections/dashboards/crm/kpi/CRMKPIs';
 import DecoderPreviewLayout from 'layouts/decoder-layout/DecoderPreviewLayout';
-import { dealsData, kpisData } from 'data/crm/dashboard';
+import { dealsData } from 'data/crm/dashboard';
 
 const IbanezDecoder = () => {
   useEffect(() => {
@@ -26,17 +25,11 @@ const IbanezDecoder = () => {
         </Grid>
 
         <Grid container size={12}>
-          <Grid container size={{ xs: 12, lg: 5, xl: 6 }}>
-            <CRMKPIs data={kpisData} />
+          <Grid size={{ xs: 12, lg: 5, xl: 6 }}>
+            <ActiveUsers />
           </Grid>
           <Grid size={{ xs: 12, lg: 7, xl: 6 }}>
             <CRMGeneratedRevenue />
-          </Grid>
-        </Grid>
-
-        <Grid container size={12}>
-          <Grid size={{ xs: 12, md: 6, xl: 4 }}>
-            <ActiveUsers />
           </Grid>
         </Grid>
       </Grid>

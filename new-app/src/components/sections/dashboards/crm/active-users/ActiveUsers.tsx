@@ -14,7 +14,7 @@ const ActiveUsers = () => {
         flexDirection: 'column',
       }}
     >
-      <SectionHeader title="Number to decode" sx={{ mb: { xs: 2, md: 4 } }} />
+      <SectionHeader title="Ibanez Number to Decode" sx={{ mb: { xs: 2, md: 4 } }} />
 
       <Stack sx={{ gap: 2.5, maxWidth: 420 }}>
         <StyledTextField fullWidth placeholder="Enter serial number" autoFocus />
