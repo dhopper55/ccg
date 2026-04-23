@@ -74,14 +74,13 @@ const DecoderPreviewLayout = ({ children }: PropsWithChildren) => {
           <Stack direction="row" sx={{ alignItems: 'center', gap: 1.5 }}>
             <Box
               component="img"
-              src="/images/brand-logos/Ibanez_guitars_logo.webp"
-              alt="Ibanez"
+              src="/images/coal-creek-logo.png"
+              alt="Coal Creek Guitars"
               sx={{
-                width: 88,
-                height: 40,
+                width: 32,
+                height: 32,
                 objectFit: 'contain',
                 display: 'block',
-                filter: 'invert(1)',
               }}
             />
             <Typography
@@ -204,17 +203,33 @@ const DecoderPreviewLayout = ({ children }: PropsWithChildren) => {
                 <IconifyIcon icon="material-symbols:menu-rounded" />
               </IconButton>
 
-              <Box
-                component="img"
-                src="/images/brand-logos/Ibanez_guitars_logo.webp"
-                alt="Ibanez"
-                sx={{
-                  width: 88,
-                  height: 40,
-                  objectFit: 'contain',
-                  display: 'block',
-                }}
-              />
+              <Stack direction="row" sx={{ alignItems: 'center', gap: 2, minWidth: 0 }}>
+                <Box
+                  component="img"
+                  src="/images/brand-logos/Ibanez_guitars_logo.webp"
+                  alt="Ibanez"
+                  sx={{
+                    width: 120,
+                    height: 54,
+                    objectFit: 'contain',
+                    display: 'block',
+                    filter: 'invert(1)',
+                    flexShrink: 0,
+                  }}
+                />
+                <Typography
+                  component="h1"
+                  sx={{
+                    color: 'text.primary',
+                    fontWeight: 700,
+                    fontSize: { xs: 20, md: 30 },
+                    lineHeight: 1.1,
+                    letterSpacing: '-0.02em',
+                  }}
+                >
+                  Ibanez Guitar Serial Number Lookup/Decoder
+                </Typography>
+              </Stack>
             </Stack>
 
             <Button
