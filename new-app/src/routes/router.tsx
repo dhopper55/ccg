@@ -1,6 +1,7 @@
 import { RouteObject, createBrowserRouter } from 'react-router';
 import App from 'App';
 import Content from 'pages/apps/content';
+import IbanezDecoder from 'pages/decoders/IbanezDecoder';
 import Page404 from 'pages/errors/Page404';
 
 export const routes: RouteObject[] = [
@@ -10,6 +11,10 @@ export const routes: RouteObject[] = [
       {
         path: '/',
         element: <Content />,
+      },
+      {
+        path: '/decoders/ibanez-guitar-serial-number-decoder',
+        element: <IbanezDecoder />,
       },
       {
         path: '*',
