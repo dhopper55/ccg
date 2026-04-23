@@ -2,9 +2,9 @@ import { useEffect } from 'react';
 import Grid from '@mui/material/Grid';
 import ActiveUsers from 'components/sections/dashboards/crm/active-users/ActiveUsers';
 import CRMGreeting from 'components/sections/dashboards/crm/CRMGreeting';
-import CRMGeneratedRevenue from 'components/sections/dashboards/crm/generated-revenue/CRMGeneratedRevenue';
 import DecoderPreviewLayout from 'layouts/decoder-layout/DecoderPreviewLayout';
 import { dealsData } from 'data/crm/dashboard';
+import IbanezHowToPanel from './IbanezHowToPanel';
 
 const IbanezDecoder = () => {
   useEffect(() => {
@@ -20,7 +20,6 @@ const IbanezDecoder = () => {
             singleColumn
             title="Ibanez Guitar Serial Number Lookup/Decoder"
             subtitle='Founded in 1908 as Hoshino Gakki, a Japanese bookstore chain that began importing Spanish guitars, Ibanez has evolved into a premier manufacturer of guitars, basses, and amplifiers. Known for high-performance instruments favored by rock and metal artists, the company is renowned for its "lawsuit era" copies in the 1970s, which led to iconic original designs like the JEM, RG, and S series.'
-            ctaLabel="How to decode an Ibanez serial #"
           />
         </Grid>
 
@@ -29,7 +28,7 @@ const IbanezDecoder = () => {
             <ActiveUsers />
           </Grid>
           <Grid size={{ xs: 12, lg: 7, xl: 6 }}>
-            <CRMGeneratedRevenue />
+            <IbanezHowToPanel />
           </Grid>
         </Grid>
       </Grid>
