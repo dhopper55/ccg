@@ -26,7 +26,7 @@ const ContentCard = ({ item }: ContentCardProps) => {
   const isForSaleCard = item.id === 3;
   const isSerialDecoderCard = item.id === 1 && item.variant === 'featured';
   const isVideoFeatureCard = item.id === 2;
-  const isCleanFeatureCard = isForSaleCard || isSerialDecoderCard;
+  const hideTopLeftIcon = isForSaleCard || isSerialDecoderCard;
   const {
     config: { assetsDir },
   } = useSettingsContext();
@@ -126,7 +126,7 @@ const ContentCard = ({ item }: ContentCardProps) => {
       />
 
       <CardContent sx={{ position: 'absolute', bottom: 0, left: 0, width: 1, p: 3 }}>
-        {!isCleanFeatureCard && (
+        {(isForSaleCard || !hideTopLeftIcon) && (
           <Stack alignItems="center" gap={2} mb={1}>
             <Chip size="small" label={item.category} />
             <Typography variant="caption" color="white" fontWeight={600}>
@@ -139,22 +139,24 @@ const ContentCard = ({ item }: ContentCardProps) => {
           {item.title}
         </Typography>
 
-        {!isCleanFeatureCard && (
+        {(isForSaleCard || !hideTopLeftIcon) && (
           <Stack alignItems="center" justifyContent="space-between" width={1}>
             <Box>
               <Typography variant="subtitle2" color="white" fontWeight={600} mb={0.5}>
                 {item.author}
               </Typography>
-              <Typography variant="caption" color="white">
-                {dayjs(item.date).format('DD MMM, YYYY')}
-              </Typography>
+              {!isSerialDecoderCard && !isForSaleCard && (
+                <Typography variant="caption" color="white">
+                  {dayjs(isVideoFeatureCard ? undefined : item.date).format('DD MMM, YYYY')}
+                </Typography>
+              )}
             </Box>
-            <BookmarkButton iconColor="white" />
+            {!isVideoFeatureCard && !isSerialDecoderCard && <BookmarkButton iconColor="white" />}
           </Stack>
         )}
       </CardContent>
 
-      {!isCleanFeatureCard && (
+      {!hideTopLeftIcon && (
         <Badge
           overlap="circular"
           badgeContent={

@@ -94,6 +94,8 @@ interface QueueResult {
   row?: number;
   recordId?: string;
   unarchived?: boolean;
+  unsaved?: boolean;
+  existing?: boolean;
   resubmitted?: boolean;
   isMulti?: boolean;
 }
@@ -102,6 +104,14 @@ interface RejectResult {
   url: string;
   reason: string;
 }
+
+const ALLOWED_ARCHIVE_REASONS = new Set([
+  'Overpriced',
+  'Not Desirable',
+  'Repair Needs',
+  'Too Far',
+  'Other',
+]);
 
 interface SerialDecodeEventPayload {
   brand?: unknown;
@@ -1701,75 +1711,19 @@ async function handleSubmit(request: Request, env: Env, ctx: ExecutionContext): 
     const existing = await dbFindListingByUrl(item.url, env);
     if (existing) {
       const archived = isArchivedValue(existing.fields?.archived);
-      if (archived) {
-        const restored = await dbSetListingArchived(existing.id, false, env);
-        if (restored) {
-          let runId: string | undefined;
-          const source = detectSource(item.url);
-          if (source) {
-            if (source === 'reverb') {
-              const listingId = extractReverbListingId(item.url);
-              if (!listingId) {
-                rejected.push({ url: item.url, reason: 'Unsupported Reverb URL. Use a direct Reverb item URL.' });
-                continue;
-              }
-              runId = generateRunId();
-              await env.LISTING_JOBS.put(runId, existing.id);
-              await dbUpdateListing(existing.id, { status: 'queued' }, env);
-              ctx.waitUntil((async () => {
-                try {
-                  const listing = await fetchReverbListingById(listingId, env);
-                  if (!listing) throw new Error('Reverb API returned incomplete listing data.');
-                  await processDirectListing(existing.id, runId as string, listing, env, { isMulti: item.isMulti });
-                } catch (error) {
-                  console.error('Reverb restore processing failed', { url: item.url, error });
-                  await updateRowByRunId(runId as string, { runId, status: 'failed' }, env, { recordId: existing.id, isMulti: item.isMulti });
-                }
-              })());
-            } else {
-              const startedRunId = await startApifyRun(item.url, source as ListingSource, env);
-              if (startedRunId) {
-                runId = startedRunId;
-                await env.LISTING_JOBS.put(startedRunId, existing.id);
-                await dbUpdateListing(existing.id, { status: 'queued' }, env);
-              }
-            }
-          }
-          results.push({ ...item, unarchived: true, runId });
-          continue;
-        }
+      const saved = isArchivedValue(existing.fields?.saved);
+
+      if (archived || saved) {
+        await dbUpdateListing(existing.id, { archived: false, archive_reason: null, saved: false }, env);
       }
-      // Re-submit: un-archive, un-save, refresh timestamp, and re-queue
-      await dbSetListingArchived(existing.id, false, env);
-      await dbUpdateListing(existing.id, { saved: 0, submitted_at: new Date().toISOString(), status: 'queued' }, env);
-      let runId: string | undefined;
-      const source = detectSource(item.url);
-      if (source) {
-        if (source === 'reverb') {
-          const listingId = extractReverbListingId(item.url);
-          if (listingId) {
-            runId = generateRunId();
-            await env.LISTING_JOBS.put(runId, existing.id);
-            ctx.waitUntil((async () => {
-              try {
-                const listing = await fetchReverbListingById(listingId, env);
-                if (!listing) throw new Error('Reverb API returned incomplete listing data.');
-                await processDirectListing(existing.id, runId as string, listing, env, { isMulti: item.isMulti });
-              } catch (error) {
-                console.error('Reverb re-submit processing failed', { url: item.url, error });
-                await updateRowByRunId(runId as string, { runId, status: 'failed' }, env, { recordId: existing.id, isMulti: item.isMulti });
-              }
-            })());
-          }
-        } else {
-          const startedRunId = await startApifyRun(item.url, source as ListingSource, env);
-          if (startedRunId) {
-            runId = startedRunId;
-            await env.LISTING_JOBS.put(startedRunId, existing.id);
-          }
-        }
-      }
-      results.push({ ...item, resubmitted: true, runId });
+
+      results.push({
+        ...item,
+        recordId: existing.id,
+        existing: true,
+        unarchived: archived,
+        unsaved: saved,
+      });
       continue;
     }
 
@@ -5919,21 +5873,34 @@ async function handleArchiveListing(request: Request, env: Env, path: string): P
   }
 
   let archivedValue = true;
+  let archiveReason: string | null = null;
   try {
     const body = await request.json();
     if (typeof body?.archived === 'boolean') {
       archivedValue = body.archived;
     }
+    if (typeof body?.archiveReason === 'string') {
+      const trimmedReason = body.archiveReason.trim();
+      archiveReason = trimmedReason || null;
+    }
   } catch {
     archivedValue = true;
   }
 
-  const updated = await dbSetListingArchived(recordId, archivedValue, env);
+  if (archivedValue) {
+    if (!archiveReason || !ALLOWED_ARCHIVE_REASONS.has(archiveReason)) {
+      return jsonResponse({ message: 'Missing or invalid archive reason.' }, 400);
+    }
+  } else {
+    archiveReason = null;
+  }
+
+  const updated = await dbSetListingArchived(recordId, archivedValue, archiveReason, env);
   if (!updated) {
     return jsonResponse({ message: 'Unable to archive listing.' }, 500);
   }
 
-  return jsonResponse({ ok: true, archived: archivedValue });
+  return jsonResponse({ ok: true, archived: archivedValue, archiveReason });
 }
 
 async function handleSaveListing(request: Request, env: Env, path: string): Promise<Response> {
@@ -6177,6 +6144,7 @@ function listingFieldsToColumns(fields: Record<string, unknown>): Record<string,
   assign('seller_fixes_add_value_or_waste');
   assign('seller_as_is_notes');
   assign('archived', 'archived', toDbBoolean);
+  assign('archive_reason');
   assign('saved', 'saved', toDbBoolean);
   assign('IsMulti', 'is_multi', toDbMulti);
 
@@ -6232,6 +6200,7 @@ function listingRowToRecord(row: Record<string, any>): { id: string; fields: Rec
       price_ideal: row.price_ideal ?? null,
       score: row.score ?? null,
       archived: row.archived ? true : false,
+      archive_reason: row.archive_reason ?? null,
       saved: row.saved ? true : false,
       IsMulti: row.is_multi ? true : false,
       category: row.category ?? null,
@@ -6419,13 +6388,18 @@ async function dbUpdateListing(recordId: string, fields: Record<string, unknown>
   await env.DB.prepare(update.sql).bind(...update.values, idValue).run();
 }
 
-async function dbSetListingArchived(recordId: string, archived: boolean, env: Env): Promise<boolean> {
+async function dbSetListingArchived(
+  recordId: string,
+  archived: boolean,
+  archiveReason: string | null,
+  env: Env,
+): Promise<boolean> {
   const idValue = Number.parseInt(recordId, 10);
   if (!Number.isFinite(idValue)) return false;
   await env.DB.prepare(
-    'UPDATE listings SET archived = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    'UPDATE listings SET archived = ?, archive_reason = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
   )
-    .bind(archived ? 1 : 0, idValue)
+    .bind(archived ? 1 : 0, archiveReason, idValue)
     .run();
   return true;
 }

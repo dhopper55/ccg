@@ -27,6 +27,12 @@ import paths from 'routes/paths';
 
 type SubmitResponse = {
   accepted?: number;
+  queued?: Array<{
+    recordId?: string;
+    existing?: boolean;
+    unarchived?: boolean;
+    unsaved?: boolean;
+  }>;
   rejected?: Array<{ url: string; reason: string }>;
   message?: string;
 };
@@ -293,7 +299,18 @@ const ListingEvaluator = () => {
         return;
       }
 
-      enqueueSnackbar('URL submitted', { variant: 'success', autoHideDuration: 3000 });
+      const queuedItem = data.queued?.[0];
+      const recordId = queuedItem?.recordId;
+      const successMessage = queuedItem?.existing
+        ? 'Opened existing evaluation'
+        : 'URL submitted';
+
+      enqueueSnackbar(successMessage, { variant: 'success', autoHideDuration: 3000 });
+
+      if (recordId) {
+        navigate(paths.listingEvaluatorItemWithId(recordId));
+        return;
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to queue listing.';
       setErrorMessage(message);

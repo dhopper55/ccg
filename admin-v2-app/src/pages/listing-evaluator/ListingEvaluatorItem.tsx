@@ -9,11 +9,15 @@ import {
   Container,
   Divider,
   Dialog,
+  DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
   IconButton,
   Link,
   Paper,
+  Radio,
+  RadioGroup,
   Stack,
   Tooltip,
   Typography,
@@ -33,6 +37,8 @@ type MessageState = {
   severity: 'success' | 'error';
   text: string;
 };
+
+type ArchiveReason = 'Overpriced' | 'Not Desirable' | 'Repair Needs' | 'Too Far' | 'Other';
 
 type DetailItem = {
   label: string;
@@ -75,6 +81,7 @@ const SINGLE_FIELDS: FieldConfig[] = [
 ];
 
 const INLINE_DETAIL_KEYS = new Set(['category', 'brand', 'model', 'finish', 'year', 'condition']);
+const ARCHIVE_REASONS: ArchiveReason[] = ['Overpriced', 'Not Desirable', 'Repair Needs', 'Too Far', 'Other'];
 
 function normalizeValue(value: unknown): string {
   if (value == null) return '—';
@@ -830,6 +837,7 @@ const ListingEvaluatorItem = () => {
   const saved = isTruthyFlag(fields.saved);
   const archived = isTruthyFlag(fields.archived);
   const isMulti = isTruthyFlag(fields.IsMulti);
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const currentImageUrl = imageCandidates.length > 0 ? buildImageSrc(imageCandidates[currentImageIndex] || imageCandidates[0], listingUrl) : '';
   const hasMultipleImages = imageCandidates.length > 1;
@@ -1223,19 +1231,20 @@ const ListingEvaluatorItem = () => {
     }
   };
 
-  const toggleArchive = async () => {
+  const submitArchive = async (nextArchived: boolean, archiveReason?: ArchiveReason) => {
     if (!recordId || !record || isArchiving) return;
     setIsArchiving(true);
     setMessage(null);
-
-    const nextArchived = !archived;
 
     try {
       const response = await fetch(`/api/listings/${encodeURIComponent(recordId)}/archive`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ archived: nextArchived }),
+        body: JSON.stringify({
+          archived: nextArchived,
+          archiveReason: nextArchived ? archiveReason : null,
+        }),
       });
       const data = (await response.json()) as ListingRecordResponse;
 
@@ -1251,6 +1260,22 @@ const ListingEvaluatorItem = () => {
       });
       setIsArchiving(false);
     }
+  };
+
+  const toggleArchive = async () => {
+    if (!recordId || !record || isArchiving) return;
+
+    if (!archived) {
+      setArchiveDialogOpen(true);
+      return;
+    }
+
+    await submitArchive(false);
+  };
+
+  const handleArchiveReasonSelect = async (reason: ArchiveReason) => {
+    setArchiveDialogOpen(false);
+    await submitArchive(true, reason);
   };
 
   if (isLoading) {
@@ -1597,6 +1622,43 @@ const ListingEvaluatorItem = () => {
             </Box>
           </Box>
         </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={archiveDialogOpen}
+        onClose={() => {
+          if (!isArchiving) setArchiveDialogOpen(false);
+        }}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>Archive Reason</DialogTitle>
+        <DialogContent>
+          <RadioGroup name="archive-reason" value="">
+            {ARCHIVE_REASONS.map((reason) => (
+              <FormControlLabel
+                key={reason}
+                value={reason}
+                control={<Radio />}
+                label={reason}
+                disabled={isArchiving}
+                onChange={() => {
+                  void handleArchiveReasonSelect(reason);
+                }}
+              />
+            ))}
+          </RadioGroup>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button
+            variant="outlined"
+            color="inherit"
+            disabled={isArchiving}
+            onClick={() => setArchiveDialogOpen(false)}
+          >
+            Cancel
+          </Button>
+        </DialogActions>
       </Dialog>
     </Grid>
   );
