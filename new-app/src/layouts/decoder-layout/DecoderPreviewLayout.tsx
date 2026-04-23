@@ -1,5 +1,4 @@
-import { PropsWithChildren, useMemo, useState } from 'react';
-import { NavLink, useLocation } from 'react-router';
+import { PropsWithChildren, useState } from 'react';
 import {
   Box,
   Button,
@@ -11,18 +10,29 @@ import {
   ListItemText,
   Paper,
   Stack,
+  Typography,
 } from '@mui/material';
 import IconifyIcon from 'components/base/IconifyIcon';
-import Logo from 'components/common/Logo';
-import sitemap from 'routes/sitemap';
 
 const SIDEBAR_WIDTH = 280;
 
+const decoderItems = [
+  {
+    name: 'Ibanez',
+    logo: '/images/brand-logos/Ibanez_guitars_logo.webp',
+  },
+  {
+    name: 'Gibson',
+    logo: '/images/brand-logos/Gibson-logo.png',
+  },
+  {
+    name: 'Fender',
+    logo: '/images/brand-logos/Fender-logo.jpg',
+  },
+] as const;
+
 const DecoderPreviewLayout = ({ children }: PropsWithChildren) => {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const { pathname } = useLocation();
-
-  const navItems = useMemo(() => sitemap.flatMap((section) => section.items), []);
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -61,25 +71,40 @@ const DecoderPreviewLayout = ({ children }: PropsWithChildren) => {
         }}
       >
         <Box sx={{ px: 3, py: 4 }}>
-          <Logo />
+          <Stack direction="row" sx={{ alignItems: 'center', gap: 1.5 }}>
+            <Box
+              component="img"
+              src="/images/coal-creek-logo.png"
+              alt="Coal Creek Guitars"
+              sx={{
+                width: 32,
+                height: 32,
+                objectFit: 'contain',
+                display: 'block',
+              }}
+            />
+            <Typography
+              sx={{
+                color: 'text.primary',
+                fontWeight: 700,
+                fontSize: 24,
+                lineHeight: 1,
+                letterSpacing: '-0.02em',
+              }}
+            >
+              Serial Decoders
+            </Typography>
+          </Stack>
         </Box>
         <Divider />
         <Box sx={{ flex: 1, overflowY: 'auto', px: 1.5, py: 3 }}>
           <List dense sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            {navItems.map((item) => {
-              const isDisabled = item.path === '#';
-              const isActive =
-                !isDisabled &&
-                (pathname === item.path ||
-                  (item.selectionPrefix && pathname.includes(item.selectionPrefix)));
-
+            {decoderItems.map((item, index) => {
               return (
                 <ListItemButton
-                  key={item.pathName}
-                  component={isDisabled ? 'div' : NavLink}
-                  to={isDisabled ? undefined : item.path}
+                  key={item.name}
                   onClick={() => setMobileNavOpen(false)}
-                  selected={isActive}
+                  selected={index === 0}
                   sx={{
                     minHeight: 48,
                     borderRadius: 2,
@@ -121,7 +146,17 @@ const DecoderPreviewLayout = ({ children }: PropsWithChildren) => {
                   }}
                 >
                   <ListItemIcon sx={{ minWidth: 32, color: 'inherit' }}>
-                    <IconifyIcon icon={item.icon || 'material-symbols:circle-outline'} />
+                    <Box
+                      component="img"
+                      src={item.logo}
+                      alt={item.name}
+                      sx={{
+                        width: 18,
+                        height: 18,
+                        objectFit: 'contain',
+                        display: 'block',
+                      }}
+                    />
                   </ListItemIcon>
                   <ListItemText
                     primary={item.name}
