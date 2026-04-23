@@ -74,13 +74,14 @@ const DecoderPreviewLayout = ({ children }: PropsWithChildren) => {
           <Stack direction="row" sx={{ alignItems: 'center', gap: 1.5 }}>
             <Box
               component="img"
-              src="/images/coal-creek-logo.png"
-              alt="Coal Creek Guitars"
+              src="/images/brand-logos/Ibanez_guitars_logo.webp"
+              alt="Ibanez"
               sx={{
-                width: 32,
-                height: 32,
+                width: 88,
+                height: 40,
                 objectFit: 'contain',
                 display: 'block',
+                filter: 'invert(1)',
               }}
             />
             <Typography
@@ -152,6 +153,7 @@ const DecoderPreviewLayout = ({ children }: PropsWithChildren) => {
                           height: 'auto',
                           objectFit: 'contain',
                           display: 'block',
+                          filter: 'invert(1)',
                         }}
                       />
                     </Box>
