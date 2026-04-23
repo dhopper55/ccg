@@ -71,7 +71,7 @@ const DecoderPreviewLayout = ({ children }: PropsWithChildren) => {
         }}
       >
         <Box sx={{ px: 3, py: 4 }}>
-          <Stack direction="row" sx={{ alignItems: 'center', gap: 1.5 }}>
+          <Stack direction="row" sx={{ alignItems: 'flex-start', gap: 1.5 }}>
             <Box
               component="img"
               src="/images/coal-creek-logo.png"
@@ -84,15 +84,35 @@ const DecoderPreviewLayout = ({ children }: PropsWithChildren) => {
               }}
             />
             <Typography
-              sx={{
-                color: 'text.primary',
-                fontWeight: 700,
-                fontSize: 24,
-                lineHeight: 1,
-                letterSpacing: '-0.02em',
-              }}
+              component="div"
+              sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}
             >
-              Serial Decoders
+              <Box
+                component="span"
+                sx={{
+                  color: 'text.primary',
+                  fontWeight: 700,
+                  fontSize: 24,
+                  lineHeight: 1,
+                  letterSpacing: '-0.02em',
+                  display: 'block',
+                }}
+              >
+                Serial Decoders
+              </Box>
+              <Box
+                component="span"
+                sx={{
+                  color: 'text.secondary',
+                  fontWeight: 600,
+                  fontSize: 10,
+                  lineHeight: 1.2,
+                  letterSpacing: '0.18em',
+                  display: 'block',
+                }}
+              >
+                COAL CREEK GUITARS
+              </Box>
             </Typography>
           </Stack>
         </Box>
@@ -222,7 +242,7 @@ const DecoderPreviewLayout = ({ children }: PropsWithChildren) => {
                   sx={{
                     color: 'text.primary',
                     fontWeight: 700,
-                    fontSize: { xs: 20, md: 30 },
+                    fontSize: { xs: 18, md: 26 },
                     lineHeight: 1.1,
                     letterSpacing: '-0.02em',
                   }}
