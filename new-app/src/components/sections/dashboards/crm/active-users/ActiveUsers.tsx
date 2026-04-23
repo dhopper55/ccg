@@ -1,8 +1,7 @@
-import { Box, Paper } from '@mui/material';
-import { activeUsersData } from 'data/crm/dashboard';
-import DashboardSelectMenu from 'components/common/DashboardSelectMenu';
+import { Button, Paper, Stack } from '@mui/material';
+import IconifyIcon from 'components/base/IconifyIcon';
 import SectionHeader from 'components/common/SectionHeader';
-import ActiveUsersChart from './ActiveUsersChart';
+import StyledTextField from 'components/styled/StyledTextField';
 
 const ActiveUsers = () => {
   return (
@@ -15,39 +14,20 @@ const ActiveUsers = () => {
         flexDirection: 'column',
       }}
     >
-      <SectionHeader
-        title="Monthly Active Users"
-        subTitle="Product categories occupying warehouse space"
-        sx={{ mb: { xs: 2, md: 4 } }}
-        actionComponent={
-          <DashboardSelectMenu
-            options={[
-              {
-                value: 15,
-                label: 'Last 15 days',
-              },
-              {
-                value: 7,
-                label: 'Last 7 days',
-              },
-              {
-                value: 30,
-                label: 'Last 30 days',
-              },
-            ]}
-            defaultValue={15}
-            sx={{ minWidth: 0 }}
-          />
-        }
-      />
+      <SectionHeader title="Number to decode" sx={{ mb: { xs: 2, md: 4 } }} />
 
-      <Box
-        sx={{
-          overflowX: 'auto',
-        }}
-      >
-        <ActiveUsersChart data={activeUsersData} sx={{ minHeight: 380, minWidth: 800, width: 1 }} />
-      </Box>
+      <Stack sx={{ gap: 2.5, maxWidth: 420 }}>
+        <StyledTextField fullWidth placeholder="Enter serial number" autoFocus />
+        <Button
+          variant="soft"
+          color="warning"
+          startIcon={<IconifyIcon icon="material-symbols:psychology-alt-rounded" />}
+          onClick={() => {}}
+          sx={{ alignSelf: 'flex-start', fontWeight: 700 }}
+        >
+          Decode
+        </Button>
+      </Stack>
     </Paper>
   );
 };

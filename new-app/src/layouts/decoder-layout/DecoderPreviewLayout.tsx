@@ -237,18 +237,6 @@ const DecoderPreviewLayout = ({ children }: PropsWithChildren) => {
                     flexShrink: 0,
                   }}
                 />
-                <Typography
-                  component="h1"
-                  sx={{
-                    color: 'text.primary',
-                    fontWeight: 700,
-                    fontSize: { xs: 18, md: 26 },
-                    lineHeight: 1.1,
-                    letterSpacing: '-0.02em',
-                  }}
-                >
-                  Ibanez Guitar Serial Number Lookup/Decoder
-                </Typography>
               </Stack>
             </Stack>
 
