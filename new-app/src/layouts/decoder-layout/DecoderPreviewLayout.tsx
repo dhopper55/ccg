@@ -106,63 +106,62 @@ const DecoderPreviewLayout = ({ children }: PropsWithChildren) => {
                   onClick={() => setMobileNavOpen(false)}
                   selected={index === 0}
                   sx={{
-                    minHeight: 48,
+                    minHeight: 56,
                     borderRadius: 2,
                     px: 1.5,
-                    '&.active': {
-                      bgcolor: 'primary.dark',
-                      color: 'common.black',
-                      '& .MuiListItemIcon-root': {
-                        color: 'common.black',
-                      },
-                      '& .MuiListItemText-primary': {
-                        color: 'common.black',
-                      },
-                    },
+                    border: '1px solid transparent',
+                    bgcolor: 'transparent',
+                    color: 'text.secondary',
+                    transition: 'border-color 160ms ease, background-color 160ms ease, color 160ms ease',
                     '&:hover': {
-                      bgcolor: 'primary.dark',
-                      color: 'common.black',
-                      '& .MuiListItemIcon-root': {
-                        color: 'common.black',
-                      },
-                      '& .MuiListItemText-primary': {
-                        color: 'common.black',
-                      },
+                      bgcolor: 'transparent',
+                      borderColor: 'rgba(224, 212, 189, 0.32)',
+                      color: 'text.primary',
                     },
                     '&.Mui-selected': {
-                      bgcolor: 'primary.dark',
-                      color: 'common.black',
-                      '& .MuiListItemIcon-root': {
-                        color: 'common.black',
-                      },
-                      '& .MuiListItemText-primary': {
-                        color: 'common.black',
-                      },
+                      bgcolor: 'transparent',
+                      borderColor: 'rgba(224, 212, 189, 0.5)',
+                      color: 'text.primary',
                       '&:hover': {
-                        bgcolor: 'primary.dark',
-                        color: 'common.black',
+                        bgcolor: 'transparent',
+                        borderColor: 'rgba(224, 212, 189, 0.6)',
+                        color: 'text.primary',
                       },
                     },
                   }}
                 >
-                  <ListItemIcon sx={{ minWidth: 32, color: 'inherit' }}>
+                  <ListItemIcon sx={{ minWidth: 44, color: 'inherit' }}>
                     <Box
-                      component="img"
-                      src={item.logo}
-                      alt={item.name}
                       sx={{
-                        width: 18,
-                        height: 18,
-                        objectFit: 'contain',
-                        display: 'block',
+                        width: 28,
+                        height: 20,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        bgcolor: 'transparent',
                       }}
-                    />
+                    >
+                      <Box
+                        component="img"
+                        src={item.logo}
+                        alt={item.name}
+                        sx={{
+                          maxWidth: '100%',
+                          maxHeight: '100%',
+                          width: 'auto',
+                          height: 'auto',
+                          objectFit: 'contain',
+                          display: 'block',
+                        }}
+                      />
+                    </Box>
                   </ListItemIcon>
                   <ListItemText
                     primary={item.name}
                     primaryTypographyProps={{
                       fontSize: 16,
                       fontWeight: 500,
+                      color: 'inherit',
                     }}
                   />
                 </ListItemButton>
@@ -205,11 +204,11 @@ const DecoderPreviewLayout = ({ children }: PropsWithChildren) => {
 
               <Box
                 component="img"
-                src="/images/coal-creek-logo.png"
-                alt="Coal Creek Guitars"
+                src="/images/brand-logos/Ibanez_guitars_logo.webp"
+                alt="Ibanez"
                 sx={{
-                  width: 32,
-                  height: 32,
+                  width: 88,
+                  height: 40,
                   objectFit: 'contain',
                   display: 'block',
                 }}
