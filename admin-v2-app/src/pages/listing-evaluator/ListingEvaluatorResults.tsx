@@ -10,6 +10,8 @@ import {
   IconButton,
   Link,
   Paper,
+  Select,
+  MenuItem,
   Stack,
   Table,
   TableBody,
@@ -17,6 +19,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
@@ -31,6 +34,7 @@ type ListingListItem = {
   source?: string;
   status?: string;
   title?: string;
+  archiveReason?: string | null;
   askingPrice?: number | string;
   imageUrl?: string | null;
 };
@@ -56,6 +60,7 @@ type ListingGridRow = {
 };
 
 const PAGE_SIZE = 20;
+const ARCHIVE_REASON_OPTIONS = ['Overpriced', 'Not Desirable', 'Repair Needs', 'Too Far', 'Other'] as const;
 const headerActions = [
   { label: 'Results', icon: 'material-symbols:list-alt-rounded', color: 'default' as const },
   {
@@ -167,6 +172,8 @@ const ListingEvaluatorResults = () => {
   const savedView = searchParams.get('saved') === '1';
   const archivedView = !savedView && searchParams.get('archived') === '1';
   const page = Math.max(1, Number.parseInt(searchParams.get('page') || '1', 10) || 1);
+  const titleSearch = archivedView ? searchParams.get('titleSearch') || '' : '';
+  const archiveReason = archivedView ? searchParams.get('archiveReason') || '' : '';
   const currentOffset = (page - 1) * PAGE_SIZE;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -190,6 +197,8 @@ const ListingEvaluatorResults = () => {
       params.set('offset', String(currentOffset));
       if (savedView) params.set('showSaved', '1');
       if (archivedView) params.set('showArchived', '1');
+      if (archivedView && titleSearch.trim()) params.set('titleSearch', titleSearch.trim());
+      if (archivedView && archiveReason) params.set('archiveReason', archiveReason);
       const response = await fetch(`/api/listings?${params.toString()}`, {
         method: 'GET',
         credentials: 'same-origin',
@@ -217,7 +226,7 @@ const ListingEvaluatorResults = () => {
 
   useEffect(() => {
     void loadListings();
-  }, [archivedView, currentOffset, savedView]);
+  }, [archivedView, archiveReason, currentOffset, savedView, titleSearch]);
 
   const updateView = (view: 'results' | 'saved' | 'archived') => {
     const params = new URLSearchParams();
@@ -233,6 +242,22 @@ const ListingEvaluatorResults = () => {
     } else {
       params.set('page', String(nextPage));
     }
+    setSearchParams(params);
+  };
+
+  const updateArchivedFilters = (nextTitleSearch: string, nextArchiveReason: string) => {
+    const params = new URLSearchParams(searchParams);
+    if (nextTitleSearch.trim()) {
+      params.set('titleSearch', nextTitleSearch);
+    } else {
+      params.delete('titleSearch');
+    }
+    if (nextArchiveReason) {
+      params.set('archiveReason', nextArchiveReason);
+    } else {
+      params.delete('archiveReason');
+    }
+    params.delete('page');
     setSearchParams(params);
   };
 
@@ -259,70 +284,101 @@ const ListingEvaluatorResults = () => {
   return (
     <Stack direction="column" height={1} gap={3} sx={{ minWidth: 0 }}>
       <Paper sx={{ px: { xs: 3, md: 5 }, py: 3 }}>
-        <Stack
-          direction={{ xs: 'column', sm: 'row' }}
-          sx={{
-            gap: 2,
-            alignItems: { sm: 'center' },
-            justifyContent: 'space-between',
-          }}
-        >
-          <Typography variant="h4">{currentViewLabel}</Typography>
-
+        <Stack spacing={2}>
           <Stack
-            direction="row"
+            direction={{ xs: 'column', sm: 'row' }}
             sx={{
-              gap: 1,
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              justifyContent: { xs: 'flex-start', sm: 'flex-end' },
+              gap: 2,
+              alignItems: { sm: 'center' },
+              justifyContent: 'space-between',
             }}
           >
-            {headerActions.map((action) => (
-              <Tooltip key={action.label} title={action.label}>
-                <IconButton
-                  aria-label={action.label}
-                  onClick={() => {
-                    if (action.label === 'Results') {
-                      updateView('results');
-                      return;
-                    }
-                    if (action.label === 'Saved Results') {
-                      updateView('saved');
-                      return;
-                    }
-                    if (action.label === 'Archived Results') {
-                      updateView('archived');
-                      return;
-                    }
-                    if (action.label === 'Refresh') {
-                      void loadListings();
-                    }
-                  }}
-                  sx={{
-                    width: 40,
-                    height: 40,
-                    border: 1,
-                    borderColor:
-                      action.color === 'default' ? 'divider' : `${action.color}.main`,
-                    bgcolor:
-                      action.color === 'default'
-                        ? 'background.elevation1'
-                        : `${action.color}.main`,
-                    color: action.color === 'default' ? 'text.primary' : 'common.white',
-                    '&:hover': {
+            <Typography variant="h4">{currentViewLabel}</Typography>
+
+            <Stack
+              direction="row"
+              sx={{
+                gap: 1,
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                justifyContent: { xs: 'flex-start', sm: 'flex-end' },
+              }}
+            >
+              {headerActions.map((action) => (
+                <Tooltip key={action.label} title={action.label}>
+                  <IconButton
+                    aria-label={action.label}
+                    onClick={() => {
+                      if (action.label === 'Results') {
+                        updateView('results');
+                        return;
+                      }
+                      if (action.label === 'Saved Results') {
+                        updateView('saved');
+                        return;
+                      }
+                      if (action.label === 'Archived Results') {
+                        updateView('archived');
+                        return;
+                      }
+                      if (action.label === 'Refresh') {
+                        void loadListings();
+                      }
+                    }}
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      border: 1,
+                      borderColor:
+                        action.color === 'default' ? 'divider' : `${action.color}.main`,
                       bgcolor:
                         action.color === 'default'
-                          ? 'background.elevation2'
-                          : `${action.color}.dark`,
-                    },
-                  }}
-                >
-                  <IconifyIcon icon={action.icon} fontSize={20} />
-                </IconButton>
-              </Tooltip>
-            ))}
+                          ? 'background.elevation1'
+                          : `${action.color}.main`,
+                      color: action.color === 'default' ? 'text.primary' : 'common.white',
+                      '&:hover': {
+                        bgcolor:
+                          action.color === 'default'
+                            ? 'background.elevation2'
+                            : `${action.color}.dark`,
+                      },
+                    }}
+                  >
+                    <IconifyIcon icon={action.icon} fontSize={20} />
+                  </IconButton>
+                </Tooltip>
+              ))}
+            </Stack>
           </Stack>
+
+          {archivedView ? (
+            <Stack spacing={1.5} sx={{ maxWidth: 420 }}>
+              <TextField
+                value={titleSearch}
+                onChange={(event) => updateArchivedFilters(event.target.value, archiveReason)}
+                placeholder="Search by title"
+                size="small"
+                fullWidth
+              />
+              <Select
+                value={archiveReason}
+                onChange={(event) => updateArchivedFilters(titleSearch, String(event.target.value))}
+                size="small"
+                displayEmpty
+                fullWidth
+                renderValue={(value) =>
+                  value ? String(value) : <Box sx={{ color: 'text.disabled' }}>Archive Reason</Box>
+                }
+              >
+                <MenuItem value="">Archive Reason</MenuItem>
+                {ARCHIVE_REASON_OPTIONS.map((reason) => (
+                  <MenuItem key={reason} value={reason}>
+                    {reason}
+                  </MenuItem>
+                ))}
+              </Select>
+            </Stack>
+          ) : null}
         </Stack>
       </Paper>
 

@@ -2722,6 +2722,8 @@ async function handleList(request: Request, env: Env): Promise<Response> {
   const offset = url.searchParams.get('offset') || undefined;
   const showSaved = url.searchParams.get('showSaved') === '1';
   const showArchived = url.searchParams.get('showArchived') === '1';
+  const titleSearch = normalizeText(url.searchParams.get('titleSearch'), '').trim();
+  const archiveReason = normalizeText(url.searchParams.get('archiveReason'), '').trim();
 
   let limit = DEFAULT_PAGE_SIZE;
   if (limitParam) {
@@ -2732,7 +2734,7 @@ async function handleList(request: Request, env: Env): Promise<Response> {
   }
 
   const mode: 'default' | 'saved' | 'archived' = showSaved ? 'saved' : (showArchived ? 'archived' : 'default');
-  const data = await dbListListings(limit, offset, mode, env);
+  const data = await dbListListings(limit, offset, mode, titleSearch, archiveReason, env);
   if (!data) {
     return jsonResponse({ message: 'Unable to fetch listings.' }, 500);
   }
@@ -6244,18 +6246,33 @@ async function dbListListings(
   limit: number,
   offset: string | undefined,
   mode: 'default' | 'saved' | 'archived',
+  titleSearch: string,
+  archiveReason: string,
   env: Env
 ): Promise<{ records: ListingListItem[]; nextOffset?: string | null; total?: number } | null> {
   const offsetValue = offset ? Math.max(0, Number.parseInt(offset, 10) || 0) : 0;
-  let whereClause = 'WHERE (l.archived IS NULL OR l.archived = 0) AND (l.saved IS NULL OR l.saved = 0)';
+  const whereParts = ['(l.archived IS NULL OR l.archived = 0)', '(l.saved IS NULL OR l.saved = 0)'];
   if (mode === 'saved') {
-    whereClause = 'WHERE (l.archived IS NULL OR l.archived = 0) AND l.saved = 1';
+    whereParts.length = 0;
+    whereParts.push('(l.archived IS NULL OR l.archived = 0)', 'l.saved = 1');
   } else if (mode === 'archived') {
-    whereClause = 'WHERE l.archived = 1';
+    whereParts.length = 0;
+    whereParts.push('l.archived = 1');
   }
+
+  const queryBindings: unknown[] = [];
+  if (titleSearch) {
+    whereParts.push('LOWER(COALESCE(l.title, \'\')) LIKE ?');
+    queryBindings.push(`%${titleSearch.toLowerCase()}%`);
+  }
+  if (mode === 'archived' && archiveReason) {
+    whereParts.push('l.archive_reason = ?');
+    queryBindings.push(archiveReason);
+  }
+  const whereClause = `WHERE ${whereParts.join(' AND ')}`;
   const totalResult = await env.DB.prepare(
     `SELECT COUNT(*) as total FROM listings l ${whereClause}`
-  ).first<{ total: number }>();
+  ).bind(...queryBindings).first<{ total: number }>();
   const total = typeof totalResult?.total === 'number' ? totalResult.total : 0;
   const result = await env.DB.prepare(
     `SELECT
@@ -6264,6 +6281,7 @@ async function dbListListings(
        l.source,
        l.status,
        l.title,
+       l.archive_reason,
        l.price_asking,
        l.score,
        l.saved,
@@ -6279,13 +6297,14 @@ async function dbListListings(
        l.id DESC
      LIMIT ? OFFSET ?`
   )
-    .bind(limit, offsetValue)
+    .bind(...queryBindings, limit, offsetValue)
     .all<{
       id: number;
       url: string | null;
       source: string | null;
       status: string | null;
       title: string | null;
+      archive_reason: string | null;
       price_asking: number | string | null;
       score: number | string | null;
       saved: number | null;
@@ -6299,6 +6318,7 @@ async function dbListListings(
     source: row.source ?? '',
     status: row.status ?? '',
     title: row.title ?? '',
+    archiveReason: row.archive_reason ?? null,
     askingPrice: row.price_asking ?? null,
     score: row.score ?? null,
     saved: row.saved ? true : false,
