@@ -307,7 +307,7 @@ const ListingEvaluator = () => {
 
       enqueueSnackbar(successMessage, { variant: 'success', autoHideDuration: 3000 });
 
-      if (recordId) {
+      if (queuedItem?.existing && recordId) {
         navigate(paths.listingEvaluatorItemWithId(recordId));
         return;
       }
