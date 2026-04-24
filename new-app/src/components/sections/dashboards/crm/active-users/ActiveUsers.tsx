@@ -75,6 +75,23 @@ const ActiveUsers = () => {
           onChange={(event) => setSerial(event.target.value)}
           onKeyDown={handleKeyDown}
           disabled={isLoading}
+          sx={{
+            '& .MuiInputBase-root': {
+              bgcolor: 'transparent',
+            },
+            '& .MuiOutlinedInput-notchedOutline': {
+              borderColor: 'rgba(224, 212, 189, 0.55)',
+            },
+            '& .MuiInputBase-root:hover .MuiOutlinedInput-notchedOutline': {
+              borderColor: 'rgba(224, 212, 189, 0.7)',
+            },
+            '& .MuiInputBase-root.Mui-focused': {
+              bgcolor: 'transparent',
+            },
+            '& .MuiInputBase-root.Mui-focused .MuiOutlinedInput-notchedOutline': {
+              borderColor: 'rgba(224, 212, 189, 0.7)',
+            },
+          }}
         />
         <Button
           variant="soft"

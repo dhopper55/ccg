@@ -4,6 +4,7 @@ import ActiveUsers from 'components/sections/dashboards/crm/active-users/ActiveU
 import CRMGreeting from 'components/sections/dashboards/crm/CRMGreeting';
 import DecoderPreviewLayout from 'layouts/decoder-layout/DecoderPreviewLayout';
 import { dealsData } from 'data/crm/dashboard';
+import IbanezFaqPanel from './IbanezFaqPanel';
 import IbanezHowToPanel from './IbanezHowToPanel';
 
 const IbanezDecoder = () => {
@@ -28,7 +29,14 @@ const IbanezDecoder = () => {
             <ActiveUsers />
           </Grid>
           <Grid size={{ xs: 12, lg: 7, xl: 6 }}>
-            <IbanezHowToPanel />
+            <Grid container direction="column" rowSpacing={3}>
+              <Grid size={12}>
+                <IbanezFaqPanel />
+              </Grid>
+              <Grid size={12}>
+                <IbanezHowToPanel />
+              </Grid>
+            </Grid>
           </Grid>
         </Grid>
       </Grid>
