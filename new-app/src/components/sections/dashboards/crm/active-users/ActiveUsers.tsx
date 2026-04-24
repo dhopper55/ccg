@@ -1,5 +1,5 @@
 import { KeyboardEvent, useMemo, useState } from 'react';
-import { Box, Button, Paper, Stack, Typography } from '@mui/material';
+import { Box, Button, Divider, Paper, Stack, Typography } from '@mui/material';
 import IconifyIcon from 'components/base/IconifyIcon';
 import SectionHeader from 'components/common/SectionHeader';
 import StyledTextField from 'components/styled/StyledTextField';
@@ -177,32 +177,72 @@ const ActiveUsers = ({ onAdditionalInfoChange }: ActiveUsersProps) => {
         )}
 
         {resultFields.length > 0 && (
-          <Stack sx={{ gap: 1.35, pt: 2, width: 1 }}>
-            {resultFields.map((field) => (
-              <Stack key={field.label} direction="row" sx={{ alignItems: 'flex-start', gap: 2, width: 1 }}>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    minWidth: 108,
-                    color: 'text.primary',
-                    fontWeight: 600,
-                  }}
-                >
-                  {field.label}
-                </Typography>
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{
-                    whiteSpace: 'pre-wrap',
-                    lineHeight: 1.7,
-                  }}
-                >
-                  {field.value}
-                </Typography>
-              </Stack>
-            ))}
-          </Stack>
+          <Paper
+            variant="outlined"
+            sx={{
+              mt: 2,
+              width: 1,
+              overflow: 'hidden',
+              bgcolor: 'transparent',
+              borderColor: 'rgba(224, 212, 189, 0.22)',
+              borderRadius: 3,
+              p: { xs: 2.5, md: 3 },
+            }}
+          >
+            <Typography
+              variant="h5"
+              sx={{
+                mb: 2.5,
+                color: 'text.primary',
+                fontWeight: 700,
+              }}
+            >
+              Ibanez Guitar Info
+            </Typography>
+
+            <Stack sx={{ width: 1 }}>
+              {resultFields.map((field, index) => (
+                <Box key={field.label}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      justifyContent: 'space-between',
+                      gap: 3,
+                      py: 1.8,
+                    }}
+                  >
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        color: 'text.secondary',
+                        fontWeight: 700,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {field.label}
+                    </Typography>
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        color: 'text.primary',
+                        fontWeight: 700,
+                        textAlign: 'right',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        maxWidth: '70%',
+                      }}
+                    >
+                      {field.value}
+                    </Typography>
+                  </Box>
+                  {index < resultFields.length - 1 && (
+                    <Divider sx={{ borderColor: 'rgba(224, 212, 189, 0.14)' }} />
+                  )}
+                </Box>
+              ))}
+            </Stack>
+          </Paper>
         )}
       </Stack>
     </Paper>
