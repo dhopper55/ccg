@@ -42,6 +42,7 @@ const IbanezDecoder = () => {
                   contact us
                 </Box>
                 {' and let us know so we can check the number and fix the decoder. '}
+                <br />
                 <Box
                   component="span"
                   sx={{

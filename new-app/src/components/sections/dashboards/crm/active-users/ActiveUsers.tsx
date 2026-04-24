@@ -68,6 +68,7 @@ const ActiveUsers = () => {
 
       <Stack sx={{ gap: 2.5, maxWidth: 420 }}>
         <StyledTextField
+          variant="outlined"
           fullWidth
           placeholder="Enter serial number"
           autoFocus
@@ -76,20 +77,25 @@ const ActiveUsers = () => {
           onKeyDown={handleKeyDown}
           disabled={isLoading}
           sx={{
-            '& .MuiInputBase-root': {
-              bgcolor: 'transparent',
+            '& .MuiOutlinedInput-root': {
+              bgcolor: 'transparent !important',
+              borderRadius: 2,
             },
-            '& .MuiOutlinedInput-notchedOutline': {
-              borderColor: 'rgba(224, 212, 189, 0.55)',
+            '& .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline': {
+              borderColor: 'rgba(224, 212, 189, 0.55) !important',
+              borderWidth: '1px !important',
             },
-            '& .MuiInputBase-root:hover .MuiOutlinedInput-notchedOutline': {
-              borderColor: 'rgba(224, 212, 189, 0.7)',
+            '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': {
+              borderColor: 'rgba(224, 212, 189, 0.7) !important',
             },
-            '& .MuiInputBase-root.Mui-focused': {
-              bgcolor: 'transparent',
+            '& .MuiOutlinedInput-root.Mui-focused': {
+              bgcolor: 'transparent !important',
             },
-            '& .MuiInputBase-root.Mui-focused .MuiOutlinedInput-notchedOutline': {
-              borderColor: 'rgba(224, 212, 189, 0.7)',
+            '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': {
+              borderColor: 'rgba(224, 212, 189, 0.7) !important',
+            },
+            '& .MuiOutlinedInput-input::placeholder': {
+              opacity: 1,
             },
           }}
         />
