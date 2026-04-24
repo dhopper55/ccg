@@ -61,6 +61,9 @@ const routeConfigs = [
             <li>Month-letter variants use B plus 9 digits where the leading letter can indicate the month.</li>
             <li>Numeric-only import variants use 8 to 10 digits with date plus sequence patterns.</li>
             <li>World short WK format uses WK plus 4 digits and can have more than one plausible interpretation.</li>
+            <li>Korea, China, and other imports often use a factory prefix followed by year-month style digits, but exact rules vary by plant and era.</li>
+            <li>Older pre-1976 models often have no serial number at all.</li>
+            <li>Some pedals use a 4-digit serial where the first digit typically represents the last digit of the year.</li>
           </ul>
           <h3>Key Identification Clues</h3>
           <ul>
@@ -68,7 +71,13 @@ const routeConfigs = [
             <li>First two digits in modern formats represent the year.</li>
             <li>Input cleanup often helps with spaces, hyphens, and common character misreads.</li>
             <li>Model names are not serial numbers and do not provide exact dating without the stamped serial.</li>
+            <li>The Ibanez Wiki is often a useful secondary reference for obscure variants.</li>
           </ul>
+          <p>If the serial number is missing or the guitar is from the mid-1970s, it may be necessary to check potentiometer codes or neck pocket stamps, as Ibanez did not consistently use serial numbers until 1976.</p>
+          <figure>
+            <img src="https://www.coalcreekguitars.com/images/serial-number-examples/ibanez-serial-example.jpg" alt="Ibanez headstock back with serial number" />
+            <figcaption>Example: headstock serial number.</figcaption>
+          </figure>
         </section>
       </main>
     `,
@@ -115,13 +124,49 @@ const routeConfigs = [
         </section>
         <section>
           <h2>How to decode a Gibson serial number</h2>
-          <p>Gibson serial numbers have changed over time, but most modern Gibson USA, Gibson Acoustic, and Gibson Memphis instruments use an 8-digit stamp on the back of the headstock. If your serial does not match the standard pattern, it may be from a different era, model line, or special run.</p>
+          <p>Gibson serial numbers have changed over time, but most modern Gibson USA, Gibson Acoustic, and Gibson Memphis instruments use an 8-digit stamp on the back of the headstock. If your serial does not match the standard pattern, it may be from a different era, model line, or special run. Use the decoder or the official Gibson guide to confirm difficult cases.</p>
           <ol>
             <li>Find the serial number on the back of the headstock. Many Gibsons also include MADE IN USA below the stamp.</li>
             <li>Check the 8-digit 1977 to present format YDDDYRRR. The first and fifth digits indicate the year, the middle three digits are the day of the year, and the last three digits are the factory ranking or plant designation for that day.</li>
             <li>Watch for 1975 to 1977 decals. In that period, Gibson used an 8-digit decal where the first two digits indicate the year, such as 99 for 1975, 00 for 1976, and 06 for 1977.</li>
           </ol>
           <p>Gibson has multiple exceptions and model-specific formats, so the official Gibson serial number guide remains the best reference for tricky cases.</p>
+          <p><a href="https://www.gibson.com/pages/serial-number-search">Gibson Serial Number Guide</a></p>
+          <figure>
+            <img src="https://www.coalcreekguitars.com/images/serial-number-examples/gibson-sg-serial-1984.jpg" alt="Gibson SG Standard headstock back with stamped serial number" />
+            <figcaption>Electric example: headstock stamp.</figcaption>
+          </figure>
+          <figure>
+            <img src="https://www.coalcreekguitars.com/images/serial-number-examples/gibson-les-paul-deluxe-serial.jpg" alt="Gibson Les Paul Deluxe serial number detail" />
+            <figcaption>Electric example: serial number detail.</figcaption>
+          </figure>
+          <figure>
+            <img src="https://www.coalcreekguitars.com/images/serial-number-examples/gibson-j200-soundhole-label.jpg" alt="Gibson acoustic soundhole label with serial number" />
+            <figcaption>Acoustic example: soundhole label serial number.</figcaption>
+          </figure>
+        </section>
+        <section>
+          <h2>Related Brand Decoders</h2>
+          <ul>
+            <li><a href="https://www.coalcreekguitars.com/decoders/epiphone-guitar-serial-number-decoder.html">Epiphone Decoder</a></li>
+          </ul>
+        </section>
+        <section>
+          <h2>Popular Gibson Guitars</h2>
+          <ul>
+            <li>Les Paul</li>
+            <li>SG</li>
+            <li>ES-335</li>
+            <li>ES-355</li>
+            <li>ES-175</li>
+            <li>Explorer</li>
+            <li>Flying V</li>
+            <li>Firebird</li>
+            <li>J-45</li>
+            <li>Hummingbird</li>
+            <li>SJ-200</li>
+            <li>L-00</li>
+          </ul>
         </section>
       </main>
     `,
@@ -178,8 +223,28 @@ const routeConfigs = [
             <li>Mexico serials use M-prefixed forms such as MN, MZ, and MX.</li>
             <li>Indonesia serials often use prefixes like IC, IS, and ICS, with the first two digits after the prefix indicating the year.</li>
             <li>Japan serials often use MIJ, CIJ, or JD-related formats depending on era.</li>
+            <li>Some 10-digit numeric IDs are internal Fender product identifiers rather than date-coded guitar serials.</li>
+            <li>If one character appears wrong due to a typo or OCR issue, try common lookalike swaps such as O to 0.</li>
           </ul>
           <p>Fender production overlaps are common, so logo style, neck heel stamps, pot codes, and other features should be used to confirm the result.</p>
+          <p><a href="https://reverb.com/news/how-to-date-a-fender">How to Date a Fender</a></p>
+          <figure>
+            <img src="https://www.coalcreekguitars.com/images/serial-number-examples/fender-us-tele.jpeg" alt="Fender USA Telecaster serial number" />
+            <figcaption>Electric example: neck plate serial number.</figcaption>
+          </figure>
+          <figure>
+            <img src="https://www.coalcreekguitars.com/images/serial-number-examples/fender-california-label-closeup.jpg" alt="Fender acoustic soundhole label with serial number" />
+            <figcaption>Acoustic example: soundhole label serial number.</figcaption>
+          </figure>
+        </section>
+        <section>
+          <h2>Related Brand Decoders</h2>
+          <ul>
+            <li><a href="https://www.coalcreekguitars.com/decoders/squier-guitar-serial-number-decoder.html">Squier Decoder</a></li>
+            <li><a href="https://www.coalcreekguitars.com/decoders/jackson-guitar-serial-number-decoder.html">Jackson Decoder</a></li>
+            <li><a href="https://www.coalcreekguitars.com/decoders/charvel-guitar-serial-number-decoder.html">Charvel Decoder</a></li>
+            <li><a href="https://www.coalcreekguitars.com/decoders/gretsch-guitar-serial-number-decoder.html">Gretsch Decoder</a></li>
+          </ul>
         </section>
       </main>
     `,
