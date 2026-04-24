@@ -1,5 +1,5 @@
 import { KeyboardEvent, useMemo, useState } from 'react';
-import { Box, Button, Divider, Paper, Stack, Typography } from '@mui/material';
+import { Box, Button, Divider, Link, Paper, Stack, Typography } from '@mui/material';
 import IconifyIcon from 'components/base/IconifyIcon';
 import SectionHeader from 'components/common/SectionHeader';
 import StyledTextField from 'components/styled/StyledTextField';
@@ -117,63 +117,82 @@ const ActiveUsers = ({ onAdditionalInfoChange }: ActiveUsersProps) => {
         flexDirection: 'column',
       }}
     >
-      <SectionHeader title="Ibanez Number to Decode" sx={{ mb: { xs: 2, md: 4 } }} />
+      {!decodedInfo ? (
+        <SectionHeader title="Ibanez Number to Decode" sx={{ mb: { xs: 2, md: 4 } }} />
+      ) : (
+        <Box sx={{ mb: { xs: 2, md: 4 } }}>
+          <Link
+            component="button"
+            type="button"
+            onClick={() => window.location.reload()}
+            underline="hover"
+            color="warning.main"
+            sx={{ fontSize: 13, fontWeight: 600 }}
+          >
+            Start Over..
+          </Link>
+        </Box>
+      )}
 
       <Box sx={{ width: 1 }}>
-        <Box sx={{ maxWidth: 540 }}>
-          <StyledTextField
-            variant="outlined"
-            fullWidth
-            placeholder="Enter serial number"
-            autoFocus
-            value={serial}
-            onChange={(event) => {
-              setSerial(event.target.value);
-              if (!event.target.value.trim()) {
-                clearDecodeOutput();
-              }
-            }}
-            onKeyDown={handleKeyDown}
-            disabled={isLoading}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                bgcolor: 'rgba(17, 14, 10, 0.68) !important',
-                borderRadius: 2,
-              },
-              '& .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline': {
-                borderColor: 'rgba(224, 212, 189, 0.55) !important',
-                borderWidth: '1px !important',
-              },
-              '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': {
-                borderColor: 'rgba(224, 212, 189, 0.7) !important',
-              },
-              '& .MuiOutlinedInput-root.Mui-focused': {
-                bgcolor: 'rgba(17, 14, 10, 0.68) !important',
-              },
-              '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                borderColor: 'rgba(224, 212, 189, 0.7) !important',
-              },
-              '& .MuiOutlinedInput-input::placeholder': {
-                opacity: 1,
-              },
-            }}
-          />
-        </Box>
+        {!decodedInfo && (
+          <>
+            <Box sx={{ maxWidth: 540 }}>
+              <StyledTextField
+                variant="outlined"
+                fullWidth
+                placeholder="Enter serial number"
+                autoFocus
+                value={serial}
+                onChange={(event) => {
+                  setSerial(event.target.value);
+                  if (!event.target.value.trim()) {
+                    clearDecodeOutput();
+                  }
+                }}
+                onKeyDown={handleKeyDown}
+                disabled={isLoading}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    bgcolor: 'rgba(17, 14, 10, 0.68) !important',
+                    borderRadius: 2,
+                  },
+                  '& .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline': {
+                    borderColor: 'rgba(224, 212, 189, 0.55) !important',
+                    borderWidth: '1px !important',
+                  },
+                  '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': {
+                    borderColor: 'rgba(224, 212, 189, 0.7) !important',
+                  },
+                  '& .MuiOutlinedInput-root.Mui-focused': {
+                    bgcolor: 'rgba(17, 14, 10, 0.68) !important',
+                  },
+                  '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    borderColor: 'rgba(224, 212, 189, 0.7) !important',
+                  },
+                  '& .MuiOutlinedInput-input::placeholder': {
+                    opacity: 1,
+                  },
+                }}
+              />
+            </Box>
 
-        <Box sx={{ mt: 2.5 }}>
-          <Button
-            variant="soft"
-            color="warning"
-            startIcon={<IconifyIcon icon="material-symbols:psychology-alt-rounded" />}
-            onClick={() => {
-              void handleDecode();
-            }}
-            disabled={isLoading}
-            sx={{ fontWeight: 700 }}
-          >
-            {isLoading ? 'Decoding...' : 'Decode'}
-          </Button>
-        </Box>
+            <Box sx={{ mt: 2.5 }}>
+              <Button
+                variant="soft"
+                color="warning"
+                startIcon={<IconifyIcon icon="material-symbols:psychology-alt-rounded" />}
+                onClick={() => {
+                  void handleDecode();
+                }}
+                disabled={isLoading}
+                sx={{ fontWeight: 700 }}
+              >
+                {isLoading ? 'Decoding...' : 'Decode'}
+              </Button>
+            </Box>
+          </>
+        )}
 
         {errorMessage && (
           <Typography variant="body2" sx={{ color: 'warning.main', fontWeight: 600, mt: 2.5 }}>
@@ -184,8 +203,8 @@ const ActiveUsers = ({ onAdditionalInfoChange }: ActiveUsersProps) => {
         {resultFields.length > 0 && (
           <Box sx={{ width: 1, mt: 3 }}>
             <Divider sx={{ borderColor: 'dividerLight', opacity: 0.59 }} />
-            <Typography variant="h5" sx={{ color: 'text.primary', fontWeight: 700, mt: 2.5, mb: 1 }}>
-              Ibanez Guitar Info
+            <Typography variant="h6" sx={{ color: 'text.primary', fontWeight: 700, mt: 2.5, mb: 1 }}>
+              Ibanez Serial: {decodedInfo?.serialNumber} Decoder Results
             </Typography>
             <Stack direction="column" divider={<Divider sx={{ borderColor: 'dividerLight', opacity: 0.59 }} />}>
               {resultFields.map((field) => (
