@@ -1,3 +1,4 @@
+import { ReactNode } from 'react';
 import {
   Avatar,
   Button,
@@ -24,6 +25,7 @@ interface CRMGreetingProps {
   subtitle?: string;
   ctaLabel?: string;
   singleColumn?: boolean;
+  noteContent?: ReactNode;
 }
 
 const CRMGreeting = ({
@@ -32,6 +34,7 @@ const CRMGreeting = ({
   subtitle = "See what's happening in real-time",
   ctaLabel,
   singleColumn = false,
+  noteContent,
 }: CRMGreetingProps) => {
   return (
     <Paper background={1} sx={{ px: { xs: 3, md: 5 }, py: 3 }}>
@@ -50,6 +53,11 @@ const CRMGreeting = ({
           <Typography variant="subtitle1" color="text.secondary" sx={{ pb: 1 }}>
             {subtitle}
           </Typography>
+          {noteContent && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontSize: 13, lineHeight: 1.6 }}>
+              {noteContent}
+            </Typography>
+          )}
           {ctaLabel && (
             <Button variant="soft" color="warning" onClick={() => {}} sx={{ mt: 2, fontWeight: 700 }}>
               {ctaLabel}
