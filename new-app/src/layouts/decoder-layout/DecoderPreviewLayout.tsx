@@ -30,7 +30,7 @@ const decoderItems = [
   {
     name: 'Fender',
     logo: '/images/brand-logos/Fender-logo.jpg',
-    href: '#',
+    href: '/new/decoders/fender-guitar-serial-number-decoder/',
   },
 ] as const;
 

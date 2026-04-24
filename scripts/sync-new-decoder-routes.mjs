@@ -126,6 +126,64 @@ const routeConfigs = [
       </main>
     `,
   },
+  {
+    routeDir: 'decoders/fender-guitar-serial-number-decoder',
+    routePath: '/new/decoders/fender-guitar-serial-number-decoder/',
+    title: 'Fender Guitar Serial Number Lookup/Decoder | Coal Creek Guitars',
+    description:
+      'Free Fender guitar serial number lookup/decoder. Find the year, factory location, and production details of your Fender guitar. Works with Stratocaster, Telecaster, Jazz Bass, and all Fender models.',
+    ogDescription:
+      'Free Fender serial number lookup/decoder. Find the year, factory location, and production details of your Fender guitar.',
+    pageName: 'Fender Guitar Serial Number Lookup/Decoder',
+    brandName: 'Fender',
+    faqJson: [
+      {
+        question: 'Where can I find the Fender serial number?',
+        answer:
+          'Most Fender guitars list the serial number on the back of the headstock. Some acoustics place it inside the soundhole on a paper label, and older instruments may use a neck plate or stamped marking. If you cannot find it, check the headstock back and the neck joint first.',
+      },
+      {
+        question: 'What can this Fender serial number lookup/decoder tell me?',
+        answer:
+          'It typically identifies the production year, factory or plant code, and country of origin. Some serial formats also hint at model lines or production sequence, but that varies by era.',
+      },
+      {
+        question: "Why won't my Fender serial number decode?",
+        answer:
+          'Serial formats change over time, and limited runs or custom shop instruments can deviate from standard patterns. Try removing spaces or hyphens, and if it still fails, reach out so we can review it and improve the decoder.',
+      },
+    ],
+    seoBody: `
+      <main class="seo-snapshot">
+        <h1>Fender Guitar Serial Number Lookup/Decoder</h1>
+        <p>Founded in 1946 by Leo Fender in Fullerton, California, Fender Musical Instruments Corporation is the world's leading manufacturer of stringed instruments, amplifiers, and accessories. Renowned for creating the first mass-produced solid-body electric guitars, including the Telecaster and Stratocaster, Fender has defined iconic sounds for decades.</p>
+        <section>
+          <h2>Fender Serial Number Lookup/Decoder FAQs</h2>
+          <h3>Where can I find the Fender serial number?</h3>
+          <p>Most Fender guitars list the serial number on the back of the headstock. Some acoustics place it inside the soundhole on a paper label, and older instruments may use a neck plate or stamped marking. If you cannot find it, check the headstock back and the neck joint first.</p>
+          <h3>What can this Fender serial number lookup/decoder tell me?</h3>
+          <p>It typically identifies the production year, factory or plant code, and country of origin. Some serial formats also hint at model lines or production sequence, but that varies by era.</p>
+          <h3>Why won't my Fender serial number decode?</h3>
+          <p>Serial formats change over time, and limited runs or custom shop instruments can deviate from standard patterns. Try removing spaces or hyphens, and if it still fails, reach out so we can review it and improve the decoder.</p>
+        </section>
+        <section>
+          <h2>How to decode a Fender serial number</h2>
+          <p>Fender serial formats have changed many times and can vary by factory, model line, and era. Use the serial location, prefix, and numbering pattern to narrow down the date and origin, then cross-check with hardware and specs.</p>
+          <ul>
+            <li>1950 to 1954 serials are often stamped on the bridge plate.</li>
+            <li>1954 to 1963 serials typically move to the neck plate with no letter prefix.</li>
+            <li>1963 to 1965 instruments often use the L-series neck plate prefix.</li>
+            <li>1965 to 1976 models commonly use the Big F neck plate with six-digit serials.</li>
+            <li>Post-1976 USA guitars usually move to the headstock and use decade letters such as S, E, N, and Z, or later US prefixes with two year digits.</li>
+            <li>Mexico serials use M-prefixed forms such as MN, MZ, and MX.</li>
+            <li>Indonesia serials often use prefixes like IC, IS, and ICS, with the first two digits after the prefix indicating the year.</li>
+            <li>Japan serials often use MIJ, CIJ, or JD-related formats depending on era.</li>
+          </ul>
+          <p>Fender production overlaps are common, so logo style, neck heel stamps, pot codes, and other features should be used to confirm the result.</p>
+        </section>
+      </main>
+    `,
+  },
 ];
 
 if (!fs.existsSync(sourceHtml)) {
