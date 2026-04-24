@@ -12,6 +12,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
+import { useNavigate } from 'react-router';
 import IconifyIcon from 'components/base/IconifyIcon';
 import decoderConfigs from 'pages/decoders/decoder-configs.json';
 
@@ -30,6 +31,7 @@ const DecoderPreviewLayout = ({
   children,
 }: DecoderPreviewLayoutProps) => {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const navigate = useNavigate();
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -243,7 +245,7 @@ const DecoderPreviewLayout = ({
               variant="soft"
               color="neutral"
               startIcon={<IconifyIcon icon="material-symbols:arrow-left-alt-rounded" />}
-              onClick={() => {}}
+              onClick={() => navigate('/decoders/guitar-serial-decoder-lookup')}
             >
               Back
             </Button>
