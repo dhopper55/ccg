@@ -119,66 +119,70 @@ const ActiveUsers = ({ onAdditionalInfoChange }: ActiveUsersProps) => {
     >
       <SectionHeader title="Ibanez Number to Decode" sx={{ mb: { xs: 2, md: 4 } }} />
 
-      <Stack sx={{ gap: 2.5, width: 1 }}>
-        <StyledTextField
-          variant="outlined"
-          fullWidth
-          placeholder="Enter serial number"
-          autoFocus
-          value={serial}
-          onChange={(event) => {
-            setSerial(event.target.value);
-            if (!event.target.value.trim()) {
-              clearDecodeOutput();
-            }
-          }}
-          onKeyDown={handleKeyDown}
-          disabled={isLoading}
-          sx={{
-            maxWidth: 540,
-            '& .MuiOutlinedInput-root': {
-              bgcolor: 'rgba(17, 14, 10, 0.68) !important',
-              borderRadius: 2,
-            },
-            '& .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline': {
-              borderColor: 'rgba(224, 212, 189, 0.55) !important',
-              borderWidth: '1px !important',
-            },
-            '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': {
-              borderColor: 'rgba(224, 212, 189, 0.7) !important',
-            },
-            '& .MuiOutlinedInput-root.Mui-focused': {
-              bgcolor: 'rgba(17, 14, 10, 0.68) !important',
-            },
-            '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': {
-              borderColor: 'rgba(224, 212, 189, 0.7) !important',
-            },
-            '& .MuiOutlinedInput-input::placeholder': {
-              opacity: 1,
-            },
-          }}
-        />
-        <Button
-          variant="soft"
-          color="warning"
-          startIcon={<IconifyIcon icon="material-symbols:psychology-alt-rounded" />}
-          onClick={() => {
-            void handleDecode();
-          }}
-          disabled={isLoading}
-          sx={{ alignSelf: 'flex-start', fontWeight: 700 }}
-        >
-          {isLoading ? 'Decoding...' : 'Decode'}
-        </Button>
+      <Box sx={{ width: 1 }}>
+        <Box sx={{ maxWidth: 540 }}>
+          <StyledTextField
+            variant="outlined"
+            fullWidth
+            placeholder="Enter serial number"
+            autoFocus
+            value={serial}
+            onChange={(event) => {
+              setSerial(event.target.value);
+              if (!event.target.value.trim()) {
+                clearDecodeOutput();
+              }
+            }}
+            onKeyDown={handleKeyDown}
+            disabled={isLoading}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                bgcolor: 'rgba(17, 14, 10, 0.68) !important',
+                borderRadius: 2,
+              },
+              '& .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline': {
+                borderColor: 'rgba(224, 212, 189, 0.55) !important',
+                borderWidth: '1px !important',
+              },
+              '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': {
+                borderColor: 'rgba(224, 212, 189, 0.7) !important',
+              },
+              '& .MuiOutlinedInput-root.Mui-focused': {
+                bgcolor: 'rgba(17, 14, 10, 0.68) !important',
+              },
+              '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                borderColor: 'rgba(224, 212, 189, 0.7) !important',
+              },
+              '& .MuiOutlinedInput-input::placeholder': {
+                opacity: 1,
+              },
+            }}
+          />
+        </Box>
+
+        <Box sx={{ mt: 2.5 }}>
+          <Button
+            variant="soft"
+            color="warning"
+            startIcon={<IconifyIcon icon="material-symbols:psychology-alt-rounded" />}
+            onClick={() => {
+              void handleDecode();
+            }}
+            disabled={isLoading}
+            sx={{ fontWeight: 700 }}
+          >
+            {isLoading ? 'Decoding...' : 'Decode'}
+          </Button>
+        </Box>
 
         {errorMessage && (
-          <Typography variant="body2" sx={{ color: 'warning.main', fontWeight: 600 }}>
+          <Typography variant="body2" sx={{ color: 'warning.main', fontWeight: 600, mt: 2.5 }}>
             {errorMessage}
           </Typography>
         )}
 
         {resultFields.length > 0 && (
-          <Box sx={{ width: 1, pt: 2 }}>
+          <Box sx={{ width: 1, mt: 3 }}>
             <Divider sx={{ borderColor: 'dividerLight', opacity: 0.59 }} />
             <Typography variant="h5" sx={{ color: 'text.primary', fontWeight: 700, mt: 2.5, mb: 1 }}>
               Ibanez Guitar Info
@@ -224,7 +228,7 @@ const ActiveUsers = ({ onAdditionalInfoChange }: ActiveUsersProps) => {
             </Stack>
           </Box>
         )}
-      </Stack>
+      </Box>
     </Paper>
   );
 };
