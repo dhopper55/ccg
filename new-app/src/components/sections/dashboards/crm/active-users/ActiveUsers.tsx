@@ -1,5 +1,6 @@
-import { KeyboardEvent, useMemo, useState } from 'react';
+import { KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Button, Divider, Link, Paper, Stack, Typography } from '@mui/material';
+import { useSearchParams } from 'react-router';
 import IconifyIcon from 'components/base/IconifyIcon';
 import SectionHeader from 'components/common/SectionHeader';
 import StyledTextField from 'components/styled/StyledTextField';
@@ -31,10 +32,13 @@ interface ActiveUsersProps {
 }
 
 const ActiveUsers = ({ brand, brandDisplayName, onAdditionalInfoChange }: ActiveUsersProps) => {
+  const [searchParams] = useSearchParams();
   const [serial, setSerial] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [decodedInfo, setDecodedInfo] = useState<GuitarInfo | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const initialSerial = searchParams.get('serial')?.trim() || '';
+  const hasAutoDecodedRef = useRef(false);
 
   const resultFields = useMemo(
     () =>
@@ -57,8 +61,8 @@ const ActiveUsers = ({ brand, brandDisplayName, onAdditionalInfoChange }: Active
     onAdditionalInfoChange('');
   };
 
-  const handleDecode = async () => {
-    const trimmed = serial.trim();
+  const handleDecode = async (serialOverride?: string) => {
+    const trimmed = (serialOverride ?? serial).trim();
     if (!trimmed || isLoading) return;
 
     setIsLoading(true);
@@ -108,6 +112,18 @@ const ActiveUsers = ({ brand, brandDisplayName, onAdditionalInfoChange }: Active
       void handleDecode();
     }
   };
+
+  useEffect(() => {
+    if (initialSerial && !serial) {
+      setSerial(initialSerial);
+    }
+  }, [initialSerial, serial]);
+
+  useEffect(() => {
+    if (!initialSerial || hasAutoDecodedRef.current || decodedInfo || errorMessage || isLoading) return;
+    hasAutoDecodedRef.current = true;
+    void handleDecode(initialSerial);
+  }, [decodedInfo, errorMessage, initialSerial, isLoading]);
 
   return (
     <Paper

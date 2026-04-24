@@ -37,7 +37,7 @@ const ContentCard = ({ item }: ContentCardProps) => {
       return;
     }
     if (isSerialDecoderCard) {
-      window.location.href = 'https://www.coalcreekguitars.com/decoders/guitar-serial-decoder-lookup';
+      window.location.href = 'https://www.coalcreekguitars.com/new/decoders/guitar-serial-decoder-lookup/';
       return;
     }
     if (isVideoFeatureCard) {

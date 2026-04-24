@@ -1,6 +1,7 @@
 import { RouteObject, createBrowserRouter } from 'react-router';
 import App from 'App';
 import Content from 'pages/apps/content';
+import DecoderLandingPage from 'pages/decoders/DecoderLandingPage';
 import DecoderPage, { DecoderConfig } from 'pages/decoders/DecoderPage';
 import decoderConfigs from 'pages/decoders/decoder-configs.json';
 import Page404 from 'pages/errors/Page404';
@@ -17,6 +18,10 @@ export const routes: RouteObject[] = [
       {
         path: '/',
         element: <Content />,
+      },
+      {
+        path: '/decoders/guitar-serial-decoder-lookup',
+        element: <DecoderLandingPage />,
       },
       ...decoderRoutes,
       {
