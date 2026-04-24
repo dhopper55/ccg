@@ -177,72 +177,50 @@ const ActiveUsers = ({ onAdditionalInfoChange }: ActiveUsersProps) => {
         )}
 
         {resultFields.length > 0 && (
-          <Paper
-            variant="outlined"
-            sx={{
-              mt: 2,
-              width: 1,
-              overflow: 'hidden',
-              bgcolor: 'transparent',
-              borderColor: 'rgba(224, 212, 189, 0.22)',
-              borderRadius: 3,
-              p: { xs: 2.5, md: 3 },
-            }}
-          >
-            <Typography
-              variant="h5"
-              sx={{
-                mb: 2.5,
-                color: 'text.primary',
-                fontWeight: 700,
-              }}
-            >
+          <>
+            <Divider sx={{ borderColor: 'dividerLight', mt: 2, opacity: 0.59 }} />
+            <Typography variant="h5" sx={{ color: 'text.primary', fontWeight: 700 }}>
               Ibanez Guitar Info
             </Typography>
-
-            <Stack sx={{ width: 1 }}>
-              {resultFields.map((field, index) => (
-                <Box key={field.label}>
-                  <Box
+            <Stack direction="column" divider={<Divider sx={{ borderColor: 'dividerLight', opacity: 0.59 }} />}>
+              {resultFields.map((field) => (
+                <Stack
+                  key={field.label}
+                  direction="row"
+                  sx={{
+                    alignItems: 'flex-start',
+                    justifyContent: 'space-between',
+                    gap: 3,
+                    py: 1.5,
+                  }}
+                >
+                  <Typography
+                    variant="h6"
                     sx={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      justifyContent: 'space-between',
-                      gap: 3,
-                      py: 1.8,
+                      color: 'text.secondary',
+                      fontWeight: 700,
+                      flexShrink: 0,
                     }}
                   >
-                    <Typography
-                      variant="h6"
-                      sx={{
-                        color: 'text.secondary',
-                        fontWeight: 700,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {field.label}
-                    </Typography>
-                    <Typography
-                      variant="h6"
-                      sx={{
-                        color: 'text.primary',
-                        fontWeight: 700,
-                        textAlign: 'right',
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word',
-                        maxWidth: '70%',
-                      }}
-                    >
-                      {field.value}
-                    </Typography>
-                  </Box>
-                  {index < resultFields.length - 1 && (
-                    <Divider sx={{ borderColor: 'rgba(224, 212, 189, 0.14)' }} />
-                  )}
-                </Box>
+                    {field.label}
+                  </Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      color: 'text.primary',
+                      fontWeight: 700,
+                      textAlign: 'right',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      maxWidth: '70%',
+                    }}
+                  >
+                    {field.value}
+                  </Typography>
+                </Stack>
               ))}
             </Stack>
-          </Paper>
+          </>
         )}
       </Stack>
     </Paper>
