@@ -13,29 +13,12 @@ import {
   Typography,
 } from '@mui/material';
 import IconifyIcon from 'components/base/IconifyIcon';
+import decoderConfigs from 'pages/decoders/decoder-configs.json';
 
 const SIDEBAR_WIDTH = 280;
 
-const decoderItems = [
-  {
-    name: 'Ibanez',
-    logo: '/images/brand-logos/Ibanez_guitars_logo.webp',
-    href: '/new/decoders/ibanez-guitar-serial-number-decoder/',
-  },
-  {
-    name: 'Gibson',
-    logo: '/images/brand-logos/Gibson-logo.png',
-    href: '/new/decoders/gibson-guitar-serial-number-decoder/',
-  },
-  {
-    name: 'Fender',
-    logo: '/images/brand-logos/Fender-logo.jpg',
-    href: '/new/decoders/fender-guitar-serial-number-decoder/',
-  },
-] as const;
-
 interface DecoderPreviewLayoutProps extends PropsWithChildren {
-  activeDecoderName: (typeof decoderItems)[number]['name'];
+  activeDecoderName: string;
   headerLogoSrc: string;
   headerLogoAlt: string;
 }
@@ -133,14 +116,14 @@ const DecoderPreviewLayout = ({
         <Divider />
         <Box sx={{ flex: 1, overflowY: 'auto', px: 1.5, py: 3 }}>
           <List dense sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            {decoderItems.map((item, index) => {
+            {decoderConfigs.map((item) => {
               return (
                 <ListItemButton
-                  key={item.name}
+                  key={item.brandKey}
                   component="a"
-                  href={item.href}
+                  href={item.publicUrl}
                   onClick={() => setMobileNavOpen(false)}
-                  selected={item.name === activeDecoderName}
+                  selected={item.brandName === activeDecoderName}
                   sx={{
                     minHeight: 56,
                     borderRadius: 2,
@@ -179,8 +162,8 @@ const DecoderPreviewLayout = ({
                     >
                       <Box
                         component="img"
-                        src={item.logo}
-                        alt={item.name}
+                        src={item.logoSrc}
+                        alt={item.brandName}
                         sx={{
                           maxWidth: '100%',
                           maxHeight: '100%',
@@ -194,7 +177,7 @@ const DecoderPreviewLayout = ({
                     </Box>
                   </ListItemIcon>
                   <ListItemText
-                    primary={item.name}
+                    primary={item.brandName}
                     primaryTypographyProps={{
                       fontSize: 16,
                       fontWeight: 500,

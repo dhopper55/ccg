@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "NODE_OPTIONS='--max-old-space-size=8192' vite",
     "build": "NODE_OPTIONS='--max-old-space-size=8192' vite build",
-    "build:ccg": "NODE_OPTIONS='--max-old-space-size=8192' vite build --mode production && node ../scripts/sync-new-decoder-routes.mjs",
+    "build:ccg": "node ../scripts/generate-decoder-configs.mjs && NODE_OPTIONS='--max-old-space-size=8192' vite build --mode production && node ../scripts/sync-new-decoder-routes.mjs",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "pretty": "prettier --write ."

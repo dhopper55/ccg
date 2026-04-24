@@ -1,10 +1,14 @@
 import { RouteObject, createBrowserRouter } from 'react-router';
 import App from 'App';
 import Content from 'pages/apps/content';
-import FenderDecoder from 'pages/decoders/FenderDecoder';
-import GibsonDecoder from 'pages/decoders/GibsonDecoder';
-import IbanezDecoder from 'pages/decoders/IbanezDecoder';
+import DecoderPage, { DecoderConfig } from 'pages/decoders/DecoderPage';
+import decoderConfigs from 'pages/decoders/decoder-configs.json';
 import Page404 from 'pages/errors/Page404';
+
+const decoderRoutes: RouteObject[] = (decoderConfigs as DecoderConfig[]).map((config) => ({
+  path: config.routePath,
+  element: <DecoderPage config={config} />,
+}));
 
 export const routes: RouteObject[] = [
   {
@@ -14,18 +18,7 @@ export const routes: RouteObject[] = [
         path: '/',
         element: <Content />,
       },
-      {
-        path: '/decoders/ibanez-guitar-serial-number-decoder',
-        element: <IbanezDecoder />,
-      },
-      {
-        path: '/decoders/gibson-guitar-serial-number-decoder',
-        element: <GibsonDecoder />,
-      },
-      {
-        path: '/decoders/fender-guitar-serial-number-decoder',
-        element: <FenderDecoder />,
-      },
+      ...decoderRoutes,
       {
         path: '*',
         element: <Page404 />,
