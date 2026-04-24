@@ -119,7 +119,7 @@ const ActiveUsers = ({ onAdditionalInfoChange }: ActiveUsersProps) => {
     >
       <SectionHeader title="Ibanez Number to Decode" sx={{ mb: { xs: 2, md: 4 } }} />
 
-      <Stack sx={{ gap: 2.5, maxWidth: 540, width: 1 }}>
+      <Stack sx={{ gap: 2.5, width: 1 }}>
         <StyledTextField
           variant="outlined"
           fullWidth
@@ -135,6 +135,7 @@ const ActiveUsers = ({ onAdditionalInfoChange }: ActiveUsersProps) => {
           onKeyDown={handleKeyDown}
           disabled={isLoading}
           sx={{
+            maxWidth: 540,
             '& .MuiOutlinedInput-root': {
               bgcolor: 'rgba(17, 14, 10, 0.68) !important',
               borderRadius: 2,
@@ -177,9 +178,9 @@ const ActiveUsers = ({ onAdditionalInfoChange }: ActiveUsersProps) => {
         )}
 
         {resultFields.length > 0 && (
-          <>
-            <Divider sx={{ borderColor: 'dividerLight', mt: 2, opacity: 0.59 }} />
-            <Typography variant="h5" sx={{ color: 'text.primary', fontWeight: 700 }}>
+          <Box sx={{ width: 1, pt: 2 }}>
+            <Divider sx={{ borderColor: 'dividerLight', opacity: 0.59 }} />
+            <Typography variant="h5" sx={{ color: 'text.primary', fontWeight: 700, mt: 2.5, mb: 1 }}>
               Ibanez Guitar Info
             </Typography>
             <Stack direction="column" divider={<Divider sx={{ borderColor: 'dividerLight', opacity: 0.59 }} />}>
@@ -192,6 +193,7 @@ const ActiveUsers = ({ onAdditionalInfoChange }: ActiveUsersProps) => {
                     justifyContent: 'space-between',
                     gap: 3,
                     py: 1.5,
+                    width: 1,
                   }}
                 >
                   <Typography
@@ -212,7 +214,7 @@ const ActiveUsers = ({ onAdditionalInfoChange }: ActiveUsersProps) => {
                       textAlign: 'right',
                       whiteSpace: 'pre-wrap',
                       wordBreak: 'break-word',
-                      maxWidth: '70%',
+                      maxWidth: { xs: '60%', md: '70%' },
                     }}
                   >
                     {field.value}
@@ -220,7 +222,7 @@ const ActiveUsers = ({ onAdditionalInfoChange }: ActiveUsersProps) => {
                 </Stack>
               ))}
             </Stack>
-          </>
+          </Box>
         )}
       </Stack>
     </Paper>
