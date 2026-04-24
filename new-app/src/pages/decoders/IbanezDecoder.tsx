@@ -1,14 +1,16 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Box } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import ActiveUsers from 'components/sections/dashboards/crm/active-users/ActiveUsers';
 import CRMGreeting from 'components/sections/dashboards/crm/CRMGreeting';
 import DecoderPreviewLayout from 'layouts/decoder-layout/DecoderPreviewLayout';
 import { dealsData } from 'data/crm/dashboard';
+import IbanezAdditionalInfoPanel from './IbanezAdditionalInfoPanel';
 import IbanezFaqPanel from './IbanezFaqPanel';
 import IbanezHowToPanel from './IbanezHowToPanel';
 
 const IbanezDecoder = () => {
+  const [additionalInfoRichText, setAdditionalInfoRichText] = useState('');
   const now = new Date();
   const currentAsOf = `${now.toLocaleString('en-US', { month: 'short' })}/${now.getFullYear()}`;
 
@@ -59,10 +61,15 @@ const IbanezDecoder = () => {
 
         <Grid container size={12}>
           <Grid size={{ xs: 12, lg: 5, xl: 6 }}>
-            <ActiveUsers />
+            <ActiveUsers onAdditionalInfoChange={setAdditionalInfoRichText} />
           </Grid>
           <Grid size={{ xs: 12, lg: 7, xl: 6 }}>
             <Grid container direction="column" rowSpacing={3}>
+              {additionalInfoRichText && (
+                <Grid size={12}>
+                  <IbanezAdditionalInfoPanel richText={additionalInfoRichText} />
+                </Grid>
+              )}
               <Grid size={12}>
                 <IbanezFaqPanel />
               </Grid>
