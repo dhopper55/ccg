@@ -117,21 +117,8 @@ const ActiveUsers = ({ onAdditionalInfoChange }: ActiveUsersProps) => {
         flexDirection: 'column',
       }}
     >
-      {!decodedInfo ? (
+      {!decodedInfo && (
         <SectionHeader title="Ibanez Number to Decode" sx={{ mb: { xs: 2, md: 4 } }} />
-      ) : (
-        <Box sx={{ mb: { xs: 2, md: 4 } }}>
-          <Link
-            component="button"
-            type="button"
-            onClick={() => window.location.reload()}
-            underline="hover"
-            color="warning.main"
-            sx={{ fontSize: 13, fontWeight: 600 }}
-          >
-            Start Over..
-          </Link>
-        </Box>
       )}
 
       <Box sx={{ width: 1 }}>
@@ -203,9 +190,31 @@ const ActiveUsers = ({ onAdditionalInfoChange }: ActiveUsersProps) => {
         {resultFields.length > 0 && (
           <Box sx={{ width: 1, mt: 3 }}>
             <Divider sx={{ borderColor: 'dividerLight', opacity: 0.59 }} />
-            <Typography variant="h6" sx={{ color: 'text.primary', fontWeight: 700, mt: 2.5, mb: 1 }}>
-              Ibanez Serial: {decodedInfo?.serialNumber} Decoder Results
-            </Typography>
+            <Stack
+              direction="row"
+              sx={{
+                alignItems: 'baseline',
+                justifyContent: 'space-between',
+                gap: 2,
+                mt: 2.5,
+                mb: 1,
+                flexWrap: 'wrap',
+              }}
+            >
+              <Typography variant="h6" sx={{ color: 'text.primary', fontWeight: 700 }}>
+                Decoder Results
+              </Typography>
+              <Link
+                component="button"
+                type="button"
+                onClick={() => window.location.reload()}
+                underline="hover"
+                color="warning.main"
+                sx={{ fontSize: 12, fontWeight: 600 }}
+              >
+                Start Over..
+              </Link>
+            </Stack>
             <Stack direction="column" divider={<Divider sx={{ borderColor: 'dividerLight', opacity: 0.59 }} />}>
               {resultFields.map((field) => (
                 <Stack
