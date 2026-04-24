@@ -119,60 +119,56 @@ const ActiveUsers = ({ onAdditionalInfoChange }: ActiveUsersProps) => {
     >
       <SectionHeader title="Ibanez Number to Decode" sx={{ mb: { xs: 2, md: 4 } }} />
 
-      <Stack sx={{ gap: 2.5, maxWidth: 540 }}>
-        <Stack direction="row" sx={{ alignItems: 'flex-start', gap: 2, flexWrap: 'wrap' }}>
-          <StyledTextField
-            variant="outlined"
-            fullWidth
-            placeholder="Enter serial number"
-            autoFocus
-            value={serial}
-            onChange={(event) => {
-              setSerial(event.target.value);
-              if (!event.target.value.trim()) {
-                clearDecodeOutput();
-              }
-            }}
-            onKeyDown={handleKeyDown}
-            disabled={isLoading}
-            sx={{
-              flex: 1,
-              minWidth: 280,
-              '& .MuiOutlinedInput-root': {
-                bgcolor: 'rgba(17, 14, 10, 0.68) !important',
-                borderRadius: 2,
-              },
-              '& .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline': {
-                borderColor: 'rgba(224, 212, 189, 0.55) !important',
-                borderWidth: '1px !important',
-              },
-              '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': {
-                borderColor: 'rgba(224, 212, 189, 0.7) !important',
-              },
-              '& .MuiOutlinedInput-root.Mui-focused': {
-                bgcolor: 'rgba(17, 14, 10, 0.68) !important',
-              },
-              '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                borderColor: 'rgba(224, 212, 189, 0.7) !important',
-              },
-              '& .MuiOutlinedInput-input::placeholder': {
-                opacity: 1,
-              },
-            }}
-          />
-          <Button
-            variant="soft"
-            color="warning"
-            startIcon={<IconifyIcon icon="material-symbols:psychology-alt-rounded" />}
-            onClick={() => {
-              void handleDecode();
-            }}
-            disabled={isLoading}
-            sx={{ alignSelf: 'flex-start', fontWeight: 700 }}
-          >
-            {isLoading ? 'Decoding...' : 'Decode'}
-          </Button>
-        </Stack>
+      <Stack sx={{ gap: 2.5, maxWidth: 540, width: 1 }}>
+        <StyledTextField
+          variant="outlined"
+          fullWidth
+          placeholder="Enter serial number"
+          autoFocus
+          value={serial}
+          onChange={(event) => {
+            setSerial(event.target.value);
+            if (!event.target.value.trim()) {
+              clearDecodeOutput();
+            }
+          }}
+          onKeyDown={handleKeyDown}
+          disabled={isLoading}
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              bgcolor: 'rgba(17, 14, 10, 0.68) !important',
+              borderRadius: 2,
+            },
+            '& .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline': {
+              borderColor: 'rgba(224, 212, 189, 0.55) !important',
+              borderWidth: '1px !important',
+            },
+            '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': {
+              borderColor: 'rgba(224, 212, 189, 0.7) !important',
+            },
+            '& .MuiOutlinedInput-root.Mui-focused': {
+              bgcolor: 'rgba(17, 14, 10, 0.68) !important',
+            },
+            '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': {
+              borderColor: 'rgba(224, 212, 189, 0.7) !important',
+            },
+            '& .MuiOutlinedInput-input::placeholder': {
+              opacity: 1,
+            },
+          }}
+        />
+        <Button
+          variant="soft"
+          color="warning"
+          startIcon={<IconifyIcon icon="material-symbols:psychology-alt-rounded" />}
+          onClick={() => {
+            void handleDecode();
+          }}
+          disabled={isLoading}
+          sx={{ alignSelf: 'flex-start', fontWeight: 700 }}
+        >
+          {isLoading ? 'Decoding...' : 'Decode'}
+        </Button>
 
         {errorMessage && (
           <Typography variant="body2" sx={{ color: 'warning.main', fontWeight: 600 }}>
@@ -181,9 +177,9 @@ const ActiveUsers = ({ onAdditionalInfoChange }: ActiveUsersProps) => {
         )}
 
         {resultFields.length > 0 && (
-          <Stack sx={{ gap: 1.35, pt: 1 }}>
+          <Stack sx={{ gap: 1.35, pt: 2, width: 1 }}>
             {resultFields.map((field) => (
-              <Stack key={field.label} direction="row" sx={{ alignItems: 'flex-start', gap: 2 }}>
+              <Stack key={field.label} direction="row" sx={{ alignItems: 'flex-start', gap: 2, width: 1 }}>
                 <Typography
                   variant="body2"
                   sx={{
