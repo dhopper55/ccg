@@ -25,10 +25,12 @@ interface DecodeResponse {
 }
 
 interface ActiveUsersProps {
+  brand: string;
+  brandDisplayName: string;
   onAdditionalInfoChange: (richText: string) => void;
 }
 
-const ActiveUsers = ({ onAdditionalInfoChange }: ActiveUsersProps) => {
+const ActiveUsers = ({ brand, brandDisplayName, onAdditionalInfoChange }: ActiveUsersProps) => {
   const [serial, setSerial] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [decodedInfo, setDecodedInfo] = useState<GuitarInfo | null>(null);
@@ -68,7 +70,7 @@ const ActiveUsers = ({ onAdditionalInfoChange }: ActiveUsersProps) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          brand: 'ibanez',
+          brand,
           serial: trimmed,
           pagePath: window.location.pathname,
           userAgent: navigator.userAgent,
@@ -118,7 +120,7 @@ const ActiveUsers = ({ onAdditionalInfoChange }: ActiveUsersProps) => {
       }}
     >
       {!decodedInfo && (
-        <SectionHeader title="Ibanez Number to Decode" sx={{ mb: { xs: 2, md: 4 } }} />
+        <SectionHeader title={`${brandDisplayName} Number to Decode`} sx={{ mb: { xs: 2, md: 4 } }} />
       )}
 
       <Box sx={{ width: 1 }}>
@@ -128,7 +130,7 @@ const ActiveUsers = ({ onAdditionalInfoChange }: ActiveUsersProps) => {
               <StyledTextField
                 variant="outlined"
                 fullWidth
-                placeholder="Enter serial number"
+                placeholder={`Enter ${brandDisplayName} serial number`}
                 autoFocus
                 value={serial}
                 onChange={(event) => {

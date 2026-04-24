@@ -20,18 +20,32 @@ const decoderItems = [
   {
     name: 'Ibanez',
     logo: '/images/brand-logos/Ibanez_guitars_logo.webp',
+    href: '/new/decoders/ibanez-guitar-serial-number-decoder/',
   },
   {
     name: 'Gibson',
     logo: '/images/brand-logos/Gibson-logo.png',
+    href: '/new/decoders/gibson-guitar-serial-number-decoder/',
   },
   {
     name: 'Fender',
     logo: '/images/brand-logos/Fender-logo.jpg',
+    href: '#',
   },
 ] as const;
 
-const DecoderPreviewLayout = ({ children }: PropsWithChildren) => {
+interface DecoderPreviewLayoutProps extends PropsWithChildren {
+  activeDecoderName: (typeof decoderItems)[number]['name'];
+  headerLogoSrc: string;
+  headerLogoAlt: string;
+}
+
+const DecoderPreviewLayout = ({
+  activeDecoderName,
+  headerLogoAlt,
+  headerLogoSrc,
+  children,
+}: DecoderPreviewLayoutProps) => {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
@@ -123,8 +137,10 @@ const DecoderPreviewLayout = ({ children }: PropsWithChildren) => {
               return (
                 <ListItemButton
                   key={item.name}
+                  component="a"
+                  href={item.href}
                   onClick={() => setMobileNavOpen(false)}
-                  selected={index === 0}
+                  selected={item.name === activeDecoderName}
                   sx={{
                     minHeight: 56,
                     borderRadius: 2,
@@ -226,8 +242,8 @@ const DecoderPreviewLayout = ({ children }: PropsWithChildren) => {
               <Stack direction="row" sx={{ alignItems: 'center', gap: 2, minWidth: 0 }}>
                 <Box
                   component="img"
-                  src="/images/brand-logos/Ibanez_guitars_logo.webp"
-                  alt="Ibanez"
+                  src={headerLogoSrc}
+                  alt={headerLogoAlt}
                   sx={{
                     width: 120,
                     height: 54,

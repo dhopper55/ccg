@@ -6,31 +6,31 @@ import CRMGreeting from 'components/sections/dashboards/crm/CRMGreeting';
 import DecoderPreviewLayout from 'layouts/decoder-layout/DecoderPreviewLayout';
 import { dealsData } from 'data/crm/dashboard';
 import IbanezAdditionalInfoPanel from './IbanezAdditionalInfoPanel';
-import IbanezFaqPanel from './IbanezFaqPanel';
-import IbanezHowToPanel from './IbanezHowToPanel';
+import GibsonFaqPanel from './GibsonFaqPanel';
+import GibsonHowToPanel from './GibsonHowToPanel';
 
-const IbanezDecoder = () => {
+const GibsonDecoder = () => {
   const [additionalInfoRichText, setAdditionalInfoRichText] = useState('');
   const now = new Date();
   const currentAsOf = `${now.toLocaleString('en-US', { month: 'short' })}/${now.getFullYear()}`;
 
   useEffect(() => {
-    document.title = 'Ibanez Guitar Serial Number Decoder';
+    document.title = 'Gibson Guitar Serial Number Decoder';
   }, []);
 
   return (
     <DecoderPreviewLayout
-      activeDecoderName="Ibanez"
-      headerLogoSrc="/images/brand-logos/Ibanez_guitars_logo.webp"
-      headerLogoAlt="Ibanez"
+      activeDecoderName="Gibson"
+      headerLogoSrc="/images/brand-logos/Gibson-logo.png"
+      headerLogoAlt="Gibson"
     >
       <Grid container>
         <Grid size={12}>
           <CRMGreeting
             data={dealsData}
             singleColumn
-            title="Ibanez Guitar Serial Number Lookup/Decoder"
-            subtitle='Founded in 1908 as Hoshino Gakki, a Japanese bookstore chain that began importing Spanish guitars, Ibanez has evolved into a premier manufacturer of guitars, basses, and amplifiers. Known for high-performance instruments favored by rock and metal artists, the company is renowned for its "lawsuit era" copies in the 1970s, which led to iconic original designs like the JEM, RG, and S series.'
+            title="Gibson Guitar Serial Number Lookup/Decoder"
+            subtitle="The Gibson Guitar Corporation (now known as Gibson Brands, Inc.) is an iconic American manufacturer of musical instruments, best known for its influential electric and acoustic guitars like the Les Paul model. Founded in 1894 and headquartered in Nashville, Tennessee, the company has a long history of craftsmanship and musical innovation."
             noteContent={
               <>
                 {'Note: If you try a serial number and the decoder is not able to decode it, please '}
@@ -66,8 +66,8 @@ const IbanezDecoder = () => {
         <Grid container size={12}>
           <Grid size={{ xs: 12, lg: 5, xl: 6 }}>
             <ActiveUsers
-              brand="ibanez"
-              brandDisplayName="Ibanez"
+              brand="gibson"
+              brandDisplayName="Gibson"
               onAdditionalInfoChange={setAdditionalInfoRichText}
             />
           </Grid>
@@ -79,10 +79,10 @@ const IbanezDecoder = () => {
                 </Grid>
               )}
               <Grid size={12}>
-                <IbanezFaqPanel />
+                <GibsonFaqPanel />
               </Grid>
               <Grid size={12}>
-                <IbanezHowToPanel />
+                <GibsonHowToPanel />
               </Grid>
             </Grid>
           </Grid>
@@ -92,4 +92,4 @@ const IbanezDecoder = () => {
   );
 };
 
-export default IbanezDecoder;
+export default GibsonDecoder;

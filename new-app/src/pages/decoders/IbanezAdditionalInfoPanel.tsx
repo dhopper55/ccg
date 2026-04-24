@@ -93,7 +93,7 @@ const IbanezAdditionalInfoPanel = ({ richText }: IbanezAdditionalInfoPanelProps)
   return (
     <Paper sx={{ p: { xs: 3, md: 5 } }}>
       <Typography variant="h6" sx={{ mb: 3, color: 'warning.main' }}>
-        Additional Info. from decoder
+        Additional decoded information
       </Typography>
 
       <Box
