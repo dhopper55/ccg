@@ -45,7 +45,7 @@ const IbanezHowToPanel = () => {
           '& h3': { mt: 4, mb: 2, color: 'text.primary', typography: 'h6' },
           '& ul': { mt: 0, mb: 2.5, pl: 3 },
           '& li': { mb: 1.5, typography: 'body2', lineHeight: 1.7 },
-          '& strong': { color: 'text.primary', fontWeight: 700 },
+          '& strong': { color: 'text.primary', fontWeight: 600, opacity: 0.9 },
         }}
         dangerouslySetInnerHTML={{ __html: howToHtml }}
       />
