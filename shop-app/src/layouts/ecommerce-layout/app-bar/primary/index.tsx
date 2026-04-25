@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import {
   Badge,
   Button,
@@ -14,11 +15,13 @@ import { useSettingsContext } from 'providers/SettingsProvider';
 import paths from 'routes/paths';
 import IconifyIcon from 'components/base/IconifyIcon';
 import Logo from 'components/common/Logo';
+import ShopCategoryDrawer from './ShopCategoryDrawer';
 
 const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
   const { up } = useBreakpoints();
   const { handleDrawerToggle } = useSettingsContext();
   const { cartItems } = useEcommerce();
+  const [shopDrawerOpen, setShopDrawerOpen] = useState(false);
   const cartItemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
@@ -48,6 +51,20 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
               >
                 <IconifyIcon icon="material-symbols:menu-rounded" sx={{ fontSize: 20 }} />
               </Button>
+              <Button
+                color="neutral"
+                variant="soft"
+                onClick={() => setShopDrawerOpen(true)}
+                startIcon={<IconifyIcon icon="material-symbols:storefront-outline-rounded" sx={{ fontSize: 18 }} />}
+                sx={{
+                  display: { xs: 'inline-flex', md: 'none' },
+                  minWidth: 0,
+                  px: 1.5,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Shop
+              </Button>
               <Logo showName={up('sm')} />
             </Stack>
           </Grid>
@@ -66,6 +83,7 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
           </Grid>
         </Grid>
       </Toolbar>
+      <ShopCategoryDrawer open={shopDrawerOpen} onClose={() => setShopDrawerOpen(false)} />
       {children}
     </MuiAppBar>
   );
