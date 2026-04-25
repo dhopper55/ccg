@@ -1,16 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Box,
-  Button,
-  Divider,
-  Drawer,
-  List,
-  ListItemButton,
-  ListItemText,
-  Stack,
-  Typography,
-  drawerClasses,
-} from '@mui/material';
+import { Box, Button, Drawer, List, ListItemButton, ListItemText, Stack, drawerClasses } from '@mui/material';
 import { Link as RouterLink, useLocation } from 'react-router';
 import paths from 'routes/paths';
 import IconifyIcon from 'components/base/IconifyIcon';
@@ -144,26 +133,16 @@ const ShopCategoryDrawer = ({ open, onClose }: ShopCategoryDrawerProps) => {
         <Stack
           direction="row"
           sx={{
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            px: 3,
-            py: 2.5,
+            justifyContent: 'flex-end',
+            px: 2,
+            pt: 2,
           }}
         >
-          <Box>
-            <Typography variant="h6" sx={{ fontSize: '1.05rem' }}>
-              Shop
-            </Typography>
-            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-              Browse categories
-            </Typography>
-          </Box>
           <Button shape="circle" variant="soft" color="neutral" onClick={onClose}>
             <IconifyIcon icon="material-symbols:close-rounded" sx={{ fontSize: 20 }} />
           </Button>
         </Stack>
-        <Divider />
-        <Box sx={{ overflowY: 'auto', flex: 1, py: 1.5 }}>
+        <Box sx={{ overflowY: 'auto', flex: 1, py: 1 }}>
           <List disablePadding>
             <ListItemButton
               component={RouterLink}
