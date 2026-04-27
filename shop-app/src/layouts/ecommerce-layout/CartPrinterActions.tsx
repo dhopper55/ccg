@@ -68,15 +68,7 @@ const CartPrinterActions = () => {
       }
       return existing;
     }
-
-    const entered = window.prompt('Enter the Star webPRNT endpoint URL for this printer:');
-    const nextUrl = entered?.trim() || '';
-    if (!nextUrl) {
-      throw new Error('A Star webPRNT endpoint URL is required.');
-    }
-
-    window.localStorage.setItem(printerUrlStorageKey, nextUrl);
-    return nextUrl;
+    throw new Error('No Star webPRNT endpoint URL is configured.');
   };
 
   const sendToTrader = async (url: string, request: string) => {
@@ -115,17 +107,7 @@ const CartPrinterActions = () => {
         lastError = error instanceof Error ? error : new Error(String(error));
       }
     }
-
-    const entered = window.prompt('Enter the Star webPRNT endpoint URL for this printer:', initialUrl);
-    const nextUrl = entered?.trim() || '';
-    if (!nextUrl) {
-      throw lastError || new Error('A Star webPRNT endpoint URL is required.');
-    }
-
-    window.localStorage.setItem(printerUrlStorageKey, nextUrl);
-    await sendToTrader(nextUrl, request);
-
-    enqueueSnackbar(successMessage, { variant: 'success' });
+    throw lastError || new Error('Unable to reach the Star webPRNT endpoint.');
   };
 
   const handleOpenDrawer = async () => {
@@ -138,7 +120,7 @@ const CartPrinterActions = () => {
         throw new Error('Star webPRNT is not available in this browser context.');
       }
       const builder = new window.StarWebPrintBuilder();
-      const request = `<root>${builder.createPeripheralElement({ channel: 1, on: 200, off: 200 })}</root>`;
+      const request = builder.createPeripheralElement({ channel: 1, on: 200, off: 200 });
       await runRequest(request, 'Cash drawer command sent.');
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to open cash drawer.');
@@ -158,7 +140,7 @@ const CartPrinterActions = () => {
       }
       const builder = new window.StarWebPrintBuilder();
       const logo = await loadReceiptLogo();
-      const request = `<root>${
+      const request =
         builder.createInitializationElement({ reset: false, print: false }) +
         builder.createAlignmentElement({ position: 'center' }) +
         builder.createBitImageElement({
@@ -183,8 +165,7 @@ const CartPrinterActions = () => {
           data: 'Hello World\nLine 2\n',
         }) +
         builder.createFeedElement({ line: 3, unit: 0 }) +
-        builder.createCutPaperElement({ feed: true, type: 'partial' })
-      }</root>`;
+        builder.createCutPaperElement({ feed: true, type: 'partial' });
 
       await runRequest(request, 'Receipt print command sent.');
     } catch (error) {
