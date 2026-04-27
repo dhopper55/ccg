@@ -111,6 +111,9 @@ const ALLOWED_ARCHIVE_REASONS = new Set([
   'Repair Needs',
   'Too Far',
   'Old/Stale',
+  'I bought it',
+  'It sold',
+  'Unresponsive',
   'Other',
 ]);
 
