@@ -38,7 +38,16 @@ type MessageState = {
   text: string;
 };
 
-type ArchiveReason = 'Overpriced' | 'Not Desirable' | 'Repair Needs' | 'Too Far' | 'Old/Stale' | 'Other';
+type ArchiveReason =
+  | 'Overpriced'
+  | 'Not Desirable'
+  | 'Repair Needs'
+  | 'Too Far'
+  | 'Old/Stale'
+  | 'I bought it'
+  | 'It sold'
+  | 'Unresponsive'
+  | 'Other';
 
 type DetailItem = {
   label: string;
@@ -81,7 +90,17 @@ const SINGLE_FIELDS: FieldConfig[] = [
 ];
 
 const INLINE_DETAIL_KEYS = new Set(['category', 'brand', 'model', 'finish', 'year', 'condition']);
-const ARCHIVE_REASONS: ArchiveReason[] = ['Overpriced', 'Not Desirable', 'Repair Needs', 'Too Far', 'Old/Stale', 'Other'];
+const ARCHIVE_REASONS: ArchiveReason[] = [
+  'Overpriced',
+  'Not Desirable',
+  'Repair Needs',
+  'Too Far',
+  'Old/Stale',
+  'I bought it',
+  'It sold',
+  'Unresponsive',
+  'Other',
+];
 
 function normalizeValue(value: unknown): string {
   if (value == null) return '—';

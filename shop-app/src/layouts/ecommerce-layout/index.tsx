@@ -10,6 +10,7 @@ import { useSettingsContext } from 'providers/SettingsProvider';
 import { mutate } from 'swr';
 import { sidenavVibrantStyle } from 'theme/styles/vibrantNav';
 import VibrantBackground from 'components/common/VibrantBackground';
+import CartPrinterActions from './CartPrinterActions';
 import EcommerceFooter from './EcommerceFooter';
 import EcommerceAppbar from './app-bar';
 
@@ -95,6 +96,7 @@ const EcommerceLayout = ({ children }: PropsWithChildren) => {
             </Stack>
             <EcommerceFooter />
             <Footer />
+            <CartPrinterActions />
           </Stack>
         </Box>
       </NavProvider>
