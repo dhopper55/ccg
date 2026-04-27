@@ -200,9 +200,9 @@ class StarWebPrintTraderShim {
 
     const lowerUrl = url.toLowerCase();
     const userAgent = navigator.userAgent || '';
+    const isLocalStarEndpoint = /^https?:\/\/(localhost|127\.0\.0\.1):8001\//.test(lowerUrl);
     const hasMessageHandlerSupport =
-      /webPRNTSupportMessageHandler/.test(userAgent) &&
-      /^https?:\/\/(localhost|127\.0\.0\.1):8001\//.test(lowerUrl) &&
+      isLocalStarEndpoint &&
       typeof window.webkit !== 'undefined' &&
       Boolean(window.webkit?.messageHandlers?.sendMessageHandler);
 

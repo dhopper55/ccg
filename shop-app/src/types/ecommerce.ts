@@ -20,6 +20,7 @@ interface Image {
 
 export interface ProductDetails {
   id: number;
+  ccgNumber?: string;
   name: string;
   productUrl?: string;
   images: Image[];

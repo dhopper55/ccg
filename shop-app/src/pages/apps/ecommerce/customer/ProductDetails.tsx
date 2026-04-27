@@ -15,6 +15,7 @@ import ProductInformation from 'components/sections/ecommerce/customer/product-d
 
 type ShopProduct = {
   id: string;
+  ccgNumber?: string;
   mainImage: string;
   images: string[];
   saleTitle: string;
@@ -137,6 +138,7 @@ const ProductDetails = () => {
 
     return {
       id: Number(shopProduct.id),
+      ccgNumber: shopProduct.ccgNumber,
       name: shopProduct.saleTitle,
       productUrl,
       images: (galleryImages.length > 0 ? galleryImages : [shopProduct.mainImage])

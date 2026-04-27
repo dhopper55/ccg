@@ -469,6 +469,13 @@ export default {
       return withCors(response, request, env);
     }
 
+    const shopReceiptTemplateMatch = path.match(/^\/api\/shop\/receipt-templates\/([^/]+)$/);
+    if (shopReceiptTemplateMatch && request.method === 'GET') {
+      const templateCode = decodeURIComponent(shopReceiptTemplateMatch[1]);
+      const response = await handleShopReceiptTemplate(templateCode, env);
+      return withCors(response, request, env);
+    }
+
     const shopProductBySlugMatch = path.match(/^\/api\/shop\/products\/by-slug\/([^/]+)$/);
     if (shopProductBySlugMatch && request.method === 'GET') {
       const slug = decodeURIComponent(shopProductBySlugMatch[1]);
@@ -2588,6 +2595,7 @@ type InventoryCategoryNode = {
 
 type ShopProductRow = {
   id: number;
+  ccg_number?: string | null;
   image_url: string | null;
   image_urls?: string | null;
   title: string | null;
@@ -2984,6 +2992,34 @@ async function handleShopProducts(request: Request, env: Env): Promise<Response>
 async function handleShopSitemapProducts(env: Env): Promise<Response> {
   const records = await dbListShopSitemapProducts(env);
   return jsonResponse({ records });
+}
+
+async function handleShopReceiptTemplate(templateCode: string, env: Env): Promise<Response> {
+  const code = normalizeText(templateCode, '').slice(0, 100);
+  if (!/^[a-z0-9_-]+$/i.test(code)) {
+    return jsonResponse({ message: 'Receipt template not found.' }, 404);
+  }
+
+  const record = await env.DB.prepare(
+    `SELECT id, template_code, template_text
+     FROM receipt_templates
+     WHERE template_code = ?
+     LIMIT 1`
+  ).bind(code).first<{
+    id: number;
+    template_code: string;
+    template_text: string;
+  }>();
+
+  if (!record) return jsonResponse({ message: 'Receipt template not found.' }, 404);
+
+  return jsonResponse({
+    record: {
+      id: record.id,
+      templateCode: record.template_code,
+      templateText: record.template_text,
+    },
+  });
 }
 
 async function handleSitemap(env: Env): Promise<Response> {
@@ -7169,6 +7205,7 @@ async function dbListShopProducts(
   const result = await env.DB.prepare(
     `SELECT
        i.id,
+       i.ccg_number,
        CASE
          WHEN EXISTS (
            SELECT 1
@@ -7214,6 +7251,7 @@ async function dbListShopProducts(
     }
     return {
     id: String(row.id),
+    ccgNumber: normalizeText(row.ccg_number, ''),
     mainImage,
     saleTitle: normalizeText(row.sale_title, '') || normalizeText(row.title, ''),
     saleUrlSlug: normalizeText(row.sale_url, ''),
@@ -7286,6 +7324,7 @@ async function dbGetShopProductDetail(
   const row = await env.DB.prepare(
     `SELECT
        i.id,
+       i.ccg_number,
        i.image_url,
        i.image_urls,
        i.title,
@@ -7367,6 +7406,7 @@ async function dbGetShopProductDetail(
 
   return {
     id: String(row.id),
+    ccgNumber: normalizeText(row.ccg_number, ''),
     mainImage,
     images,
     saleTitle: normalizeText(row.sale_title, '') || normalizeText(row.title, ''),
