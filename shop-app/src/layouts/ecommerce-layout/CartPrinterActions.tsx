@@ -12,7 +12,7 @@ const printerUrlStorageKey = 'ccg-star-webprnt-url';
 const receiptLogoUrl = 'https://www.coalcreekguitars.com/images/ccg_bnw.bmp';
 const receiptTemplateCode = 'base_cash_receipt';
 const maxLogoWidth = 384;
-const receiptLineWidth = 42;
+const receiptLineWidth = 32;
 const defaultStarEndpoints = [
   'https://localhost:8001/StarWebPRNT/SendMessage',
   'http://localhost:8001/StarWebPRNT/SendMessage',
@@ -183,6 +183,7 @@ const CartPrinterActions = () => {
     );
 
     return replaceTemplateVariables(withItems, {
+      itemHeader: padReceiptColumns('SKU / DESC', 'PRICE'),
       subtotal: formatMoney(cartSubTotal),
       salesTax: formatMoney(salesTax),
       total: formatMoney(total),
@@ -221,7 +222,8 @@ const CartPrinterActions = () => {
       );
     };
 
-    const tokenPattern = /{{logo}}|{{hr}}|{{text\s+([^}]*)}}([\s\S]*?){{\/text}}/g;
+    const tokenPattern =
+      /{{logo}}|{{hr}}|{{center}}([\s\S]*?){{\/center}}|{{text\s+([^}]*)}}([\s\S]*?){{\/text}}/g;
     let cursor = 0;
     for (const match of renderedTemplate.matchAll(tokenPattern)) {
       appendText(renderedTemplate.slice(cursor, match.index));
@@ -240,10 +242,14 @@ const CartPrinterActions = () => {
         );
       } else if (token === '{{hr}}') {
         appendText(`${'-'.repeat(receiptLineWidth)}\n`);
+      } else if (token.startsWith('{{center}}')) {
+        parts.push(builder.createAlignmentElement({ position: 'center' }));
+        appendText(match[1] || '');
+        parts.push(builder.createAlignmentElement({ position: 'left' }));
       } else {
-        const attrs = parseTextDirectiveAttributes(match[1] || '');
+        const attrs = parseTextDirectiveAttributes(match[2] || '');
         const size = Math.max(1, Math.min(4, Number(attrs.size || 1)));
-        appendText(match[2] || '', {
+        appendText(match[3] || '', {
           emphasis: attrs.bold === 'true',
           width: size,
           height: size,
