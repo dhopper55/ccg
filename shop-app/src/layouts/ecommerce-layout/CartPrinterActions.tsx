@@ -9,6 +9,7 @@ import IconifyIcon from 'components/base/IconifyIcon';
 declare global { interface Window { __STAR_WEBPRNT_URL__?: string; } }
 
 const printerUrlStorageKey = 'ccg-star-webprnt-url';
+const cashOrderNumberStorageKey = 'ccg-last-cash-order-number';
 const receiptLogoUrl = 'https://www.coalcreekguitars.com/images/ccg_bnw.bmp';
 const receiptTemplateCode = 'base_cash_receipt';
 const maxLogoWidth = 384;
@@ -196,6 +197,7 @@ const CartPrinterActions = () => {
       dateLine: padReceiptColumns(`Date:${receiptDate}`, `Time:${receiptTime}`),
       receiptDate,
       receiptTime,
+      orderNumber: window.localStorage.getItem(cashOrderNumberStorageKey) || '',
       itemHeader: padReceiptColumns('SKU / DESC', 'PRICE'),
       subtotal: formatMoney(cartSubTotal),
       salesTax: formatMoney(salesTax),

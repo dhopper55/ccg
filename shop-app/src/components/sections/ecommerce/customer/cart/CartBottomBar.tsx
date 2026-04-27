@@ -6,6 +6,8 @@ import { useAssociateMode } from 'providers/AssociateModeProvider';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
 import { useEcommerce } from 'providers/EcommerceProvider';
 
+const cashOrderNumberStorageKey = 'ccg-last-cash-order-number';
+
 const CartBottomBar = () => {
   const { appliedCoupon, cartItems, cartTotal, taxIncluded } = useEcommerce();
   const { isAssociateMode } = useAssociateMode();
@@ -37,7 +39,7 @@ const CartBottomBar = () => {
           })),
         }),
       });
-      const data = (await response.json()) as { url?: string; message?: string };
+      const data = (await response.json()) as { url?: string; orderNumber?: string; message?: string };
 
       if (!response.ok || !data.url) {
         throw new Error(data.message || 'Unable to start checkout.');
@@ -77,6 +79,9 @@ const CartBottomBar = () => {
         throw new Error(data.message || 'Unable to record cash checkout.');
       }
 
+      if (data.orderNumber) {
+        window.localStorage.setItem(cashOrderNumberStorageKey, data.orderNumber);
+      }
       window.location.assign(data.url);
     } catch (error) {
       enqueueSnackbar(error instanceof Error ? error.message : 'Unable to record cash checkout.', {
