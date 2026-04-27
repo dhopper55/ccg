@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Box, Button, Stack } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import { useLocation } from 'react-router';
@@ -45,6 +45,10 @@ const CartPrinterActions = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const isCartRoute = useMemo(() => location.pathname === paths.cart, [location.pathname]);
+
+  useEffect(() => {
+    ensureStarWebPrntGlobals();
+  }, []);
 
   if (!isCartRoute) return null;
 
@@ -94,15 +98,14 @@ const CartPrinterActions = () => {
   };
 
   const handleOpenDrawer = async () => {
-    if (!window.StarWebPrintBuilder) {
-      setErrorMessage('Star webPRNT is not available in this browser context.');
-      return;
-    }
-
     setIsSubmitting(true);
     setErrorMessage(null);
 
     try {
+      ensureStarWebPrntGlobals();
+      if (!window.StarWebPrintBuilder) {
+        throw new Error('Star webPRNT is not available in this browser context.');
+      }
       const builder = new window.StarWebPrintBuilder();
       const request = `<root>${builder.createPeripheralElement({ channel: 1, on: 200, off: 200 })}</root>`;
       await runRequest(request, 'Cash drawer command sent.');
@@ -114,15 +117,14 @@ const CartPrinterActions = () => {
   };
 
   const handlePrintReceipt = async () => {
-    if (!window.StarWebPrintBuilder) {
-      setErrorMessage('Star webPRNT is not available in this browser context.');
-      return;
-    }
-
     setIsSubmitting(true);
     setErrorMessage(null);
 
     try {
+      ensureStarWebPrntGlobals();
+      if (!window.StarWebPrintBuilder) {
+        throw new Error('Star webPRNT is not available in this browser context.');
+      }
       const builder = new window.StarWebPrintBuilder();
       const logo = await loadReceiptLogo();
       const request = `<root>${
