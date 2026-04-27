@@ -2,40 +2,10 @@ import { useMemo, useState } from 'react';
 import { Alert, Box, Button, Stack } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import { useLocation } from 'react-router';
+import { ensureStarWebPrntGlobals } from 'lib/starWebPrntShim';
 import paths from 'routes/paths';
 import IconifyIcon from 'components/base/IconifyIcon';
-
-declare global {
-  interface Window {
-    StarWebPrintBuilder?: new () => {
-      createInitializationElement: (args?: Record<string, unknown>) => string;
-      createAlignmentElement: (args?: Record<string, unknown>) => string;
-      createBitImageElement: (args: {
-        context: CanvasRenderingContext2D;
-        x: number;
-        y: number;
-        width: number;
-        height: number;
-      }) => string;
-      createPeripheralElement: (args?: Record<string, unknown>) => string;
-      createFeedElement: (args?: Record<string, unknown>) => string;
-      createCutPaperElement: (args?: Record<string, unknown>) => string;
-      createTextElement: (args?: Record<string, unknown>) => string;
-    };
-    StarWebPrintTrader?: new (args?: {
-      url?: string;
-      checkedblock?: boolean;
-      papertype?: string;
-      timeout?: number;
-      holdprint_timeout?: number;
-    }) => {
-      onReceive?: (response: { status?: number; responseText?: string; traderStatus?: string }) => void;
-      onError?: (response: { status?: number; responseText?: string }) => void;
-      sendMessage: (args: { request: string; url?: string }) => void;
-    };
-    __STAR_WEBPRNT_URL__?: string;
-  }
-}
+declare global { interface Window { __STAR_WEBPRNT_URL__?: string; } }
 
 const printerUrlStorageKey = 'ccg-star-webprnt-url';
 const receiptLogoUrl = 'https://www.coalcreekguitars.com/images/ccg_bnw.png';
@@ -102,6 +72,7 @@ const CartPrinterActions = () => {
   };
 
   const runRequest = async (request: string, successMessage: string) => {
+    ensureStarWebPrntGlobals();
     if (!window.StarWebPrintBuilder || !window.StarWebPrintTrader) {
       throw new Error('Star webPRNT scripts are not available in this browser context.');
     }
