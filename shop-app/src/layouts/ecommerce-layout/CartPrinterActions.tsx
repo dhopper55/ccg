@@ -161,6 +161,16 @@ const CartPrinterActions = () => {
     const selectedCartItems = cartItems.filter((item) => item.selected);
     const salesTax = Math.round(cartSubTotal * 0.075 * 100) / 100;
     const total = cartSubTotal + salesTax;
+    const now = new Date();
+    const receiptDate = now.toLocaleDateString('en-US', {
+      month: '2-digit',
+      day: '2-digit',
+      year: 'numeric',
+    });
+    const receiptTime = now.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
     const itemRows = selectedCartItems.map((item) => {
       const sku = item.ccgNumber || `CCG-${item.id}`;
       const description = item.name;
@@ -183,6 +193,9 @@ const CartPrinterActions = () => {
     );
 
     return replaceTemplateVariables(withItems, {
+      dateLine: padReceiptColumns(`Date:${receiptDate}`, `Time:${receiptTime}`),
+      receiptDate,
+      receiptTime,
       itemHeader: padReceiptColumns('SKU / DESC', 'PRICE'),
       subtotal: formatMoney(cartSubTotal),
       salesTax: formatMoney(salesTax),
