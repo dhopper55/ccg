@@ -8,8 +8,12 @@ import IconifyIcon from 'components/base/IconifyIcon';
 declare global { interface Window { __STAR_WEBPRNT_URL__?: string; } }
 
 const printerUrlStorageKey = 'ccg-star-webprnt-url';
-const receiptLogoUrl = 'https://www.coalcreekguitars.com/images/ccg_bnw.png';
+const receiptLogoUrl = 'https://www.coalcreekguitars.com/images/ccg_bnw.bmp';
 const maxLogoWidth = 384;
+const defaultStarEndpoints = [
+  'https://localhost:8001/StarWebPRNT/SendMessage',
+  'http://localhost:8001/StarWebPRNT/SendMessage',
+];
 
 const loadReceiptLogo = async () => {
   const image = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -56,7 +60,7 @@ const CartPrinterActions = () => {
     const searchUrl = new URLSearchParams(window.location.search).get('starWebPrntUrl');
     const runtimeUrl = window.__STAR_WEBPRNT_URL__;
     const storedUrl = window.localStorage.getItem(printerUrlStorageKey) || '';
-    const existing = searchUrl || runtimeUrl || storedUrl;
+    const existing = searchUrl || runtimeUrl || storedUrl || defaultStarEndpoints[0];
 
     if (existing) {
       if (!storedUrl && existing) {
@@ -75,13 +79,11 @@ const CartPrinterActions = () => {
     return nextUrl;
   };
 
-  const runRequest = async (request: string, successMessage: string) => {
+  const sendToTrader = async (url: string, request: string) => {
     ensureStarWebPrntGlobals();
     if (!window.StarWebPrintBuilder || !window.StarWebPrintTrader) {
       throw new Error('Star webPRNT scripts are not available in this browser context.');
     }
-
-    const url = resolvePrinterUrl();
 
     await new Promise<void>((resolve, reject) => {
       const trader = new window.StarWebPrintTrader!({ url, timeout: 90000 });
@@ -93,6 +95,35 @@ const CartPrinterActions = () => {
 
       trader.sendMessage({ request });
     });
+  };
+
+  const runRequest = async (request: string, successMessage: string) => {
+    const initialUrl = resolvePrinterUrl();
+    const candidateUrls = [initialUrl, ...defaultStarEndpoints].filter(
+      (url, index, all) => url && all.indexOf(url) === index,
+    );
+
+    let lastError: Error | null = null;
+
+    for (const url of candidateUrls) {
+      try {
+        await sendToTrader(url, request);
+        window.localStorage.setItem(printerUrlStorageKey, url);
+        enqueueSnackbar(successMessage, { variant: 'success' });
+        return;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+      }
+    }
+
+    const entered = window.prompt('Enter the Star webPRNT endpoint URL for this printer:', initialUrl);
+    const nextUrl = entered?.trim() || '';
+    if (!nextUrl) {
+      throw lastError || new Error('A Star webPRNT endpoint URL is required.');
+    }
+
+    window.localStorage.setItem(printerUrlStorageKey, nextUrl);
+    await sendToTrader(nextUrl, request);
 
     enqueueSnackbar(successMessage, { variant: 'success' });
   };
