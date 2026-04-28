@@ -10,7 +10,11 @@ const receiptLogoUrl = 'https://www.coalcreekguitars.com/images/ccg_bnw.bmp';
 const receiptTemplateCode = 'base_credit_receipt';
 const receiptLineWidth = 32;
 const maxLogoWidth = 384;
-const defaultStarEndpoint = 'https://localhost:8001/StarWebPRNT/SendMessage';
+const printerUrlStorageKey = 'ccg-star-webprnt-url';
+const defaultStarEndpoints = [
+  'https://localhost:8001/StarWebPRNT/SendMessage',
+  'http://localhost:8001/StarWebPRNT/SendMessage',
+];
 
 type ReceiptItem = {
   ccgNumber?: string;
@@ -58,7 +62,12 @@ const parseTextDirectiveAttributes = (value: string) => {
 
 const isWebPrntBrowser = () =>
   typeof window !== 'undefined' &&
-  Boolean(window.webkit?.messageHandlers?.sendMessageHandler);
+  (
+    Boolean(window.webkit?.messageHandlers?.sendMessageHandler) ||
+    window.localStorage.getItem(printerUrlStorageKey) === defaultStarEndpoints[0] ||
+    window.localStorage.getItem(printerUrlStorageKey) === defaultStarEndpoints[1] ||
+    Boolean(window.__STAR_WEBPRNT_URL__)
+  );
 
 const loadReceiptLogo = async () => {
   const image = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -217,12 +226,29 @@ const buildReceiptRequest = async (renderedTemplate: string) => {
 const sendToWebPrnt = async (request: string) => {
   ensureStarWebPrntGlobals();
   if (!window.StarWebPrintTrader) throw new Error('Star webPRNT is not available.');
-  await new Promise<void>((resolve, reject) => {
-    const trader = new window.StarWebPrintTrader!({ url: defaultStarEndpoint, timeout: 90000 });
-    trader.onReceive = () => resolve();
-    trader.onError = (response) => reject(new Error(response.responseText || 'Star webPRNT request failed.'));
-    trader.sendMessage({ request });
-  });
+  const storedUrl = window.localStorage.getItem(printerUrlStorageKey) || '';
+  const runtimeUrl = window.__STAR_WEBPRNT_URL__ || '';
+  const candidateUrls = [runtimeUrl, storedUrl, ...defaultStarEndpoints].filter(
+    (url, index, all) => url && all.indexOf(url) === index,
+  );
+  let lastError: Error | null = null;
+
+  for (const url of candidateUrls) {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const trader = new window.StarWebPrintTrader!({ url, timeout: 90000 });
+        trader.onReceive = () => resolve();
+        trader.onError = (response) => reject(new Error(response.responseText || 'Star webPRNT request failed.'));
+        trader.sendMessage({ request });
+      });
+      window.localStorage.setItem(printerUrlStorageKey, url);
+      return;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+    }
+  }
+
+  throw lastError || new Error('Unable to reach the Star webPRNT endpoint.');
 };
 
 const CheckoutSuccess = () => {
