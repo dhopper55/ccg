@@ -3590,11 +3590,13 @@ async function handleShopOrderReceipt(orderId: string, request: Request, env: En
 
   const order = await dbGetOrderReceipt(normalizedOrderId, env);
   if (!order) return jsonResponse({ message: 'Order not found.' }, 404);
-  if (order.checkoutProvider !== 'stripe') {
-    return jsonResponse({ message: 'Only Stripe receipts are available here.' }, 400);
-  }
 
-  const paymentMethodLabel = await resolveStripePaymentMethodLabel(order.stripePaymentIntentId, env);
+  const checkoutProvider = normalizeText(order.checkoutProvider, '');
+  const paymentMethodLabel = checkoutProvider === 'stripe'
+    ? await resolveStripePaymentMethodLabel(normalizeText(order.stripePaymentIntentId, ''), env)
+    : checkoutProvider === 'cash'
+      ? 'Paid by cash'
+      : `Payment method: ${toDisplayPaymentMethodName(checkoutProvider || 'Stripe')}`;
 
   return jsonResponse({
     record: {

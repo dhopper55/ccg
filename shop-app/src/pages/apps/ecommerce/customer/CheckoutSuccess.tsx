@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Alert, Button, Paper, Stack, Typography } from '@mui/material';
+import { useEffect, useRef } from 'react';
+import { Button, Paper, Stack, Typography } from '@mui/material';
 import { ensureStarWebPrntGlobals } from 'lib/starWebPrntShim';
 import { useAssociateMode } from 'providers/AssociateModeProvider';
 import { useEcommerce } from 'providers/EcommerceProvider';
@@ -7,7 +7,6 @@ import { useLocation } from 'react-router';
 import paths from 'routes/paths';
 
 const receiptLogoUrl = 'https://www.coalcreekguitars.com/images/ccg_bnw.bmp';
-const receiptTemplateCode = 'base_credit_receipt';
 const receiptLineWidth = 32;
 const maxLogoWidth = 384;
 const printerUrlStorageKey = 'ccg-star-webprnt-url';
@@ -25,6 +24,7 @@ type ReceiptItem = {
 
 type ReceiptRecord = {
   orderNumber: string;
+  checkoutProvider: string;
   subtotalCents: number;
   taxCents: number;
   totalCents: number;
@@ -91,8 +91,8 @@ const loadReceiptLogo = async () => {
   return { context, width: targetWidth, height: targetHeight };
 };
 
-const fetchReceiptTemplate = async () => {
-  const response = await fetch(`/api/shop/receipt-templates/${receiptTemplateCode}`, {
+const fetchReceiptTemplate = async (templateCode: string) => {
+  const response = await fetch(`/api/shop/receipt-templates/${templateCode}`, {
     headers: { Accept: 'application/json' },
   });
   if (!response.ok) {
@@ -262,11 +262,6 @@ const CheckoutSuccess = () => {
   const { isAssociateMode, isCheckingAssociateMode } = useAssociateMode();
   const location = useLocation();
   const receiptAttemptedRef = useRef(false);
-  const [receiptDebug, setReceiptDebug] = useState<string[]>([]);
-
-  const appendReceiptDebug = (message: string) => {
-    setReceiptDebug((prev) => [...prev, `${new Date().toLocaleTimeString()}: ${message}`].slice(-12));
-  };
 
   useEffect(() => {
     setCartItems([]);
@@ -274,37 +269,20 @@ const CheckoutSuccess = () => {
 
   useEffect(() => {
     if (receiptAttemptedRef.current) return;
-    if (isCheckingAssociateMode) {
-      appendReceiptDebug('Waiting for associate mode check.');
-      return;
-    }
-    if (!isAssociateMode) {
-      appendReceiptDebug('Skipped: associate mode is not active.');
-      return;
-    }
-    if (!isWebPrntBrowser()) {
-      appendReceiptDebug('Skipped: WebPRNT environment not detected.');
-      return;
-    }
+    if (isCheckingAssociateMode || !isAssociateMode || !isWebPrntBrowser()) return;
     const orderId = new URLSearchParams(location.search).get('order') || '';
-    if (!orderId) {
-      appendReceiptDebug('Skipped: no order query param on success URL.');
-      return;
-    }
+    if (!orderId) return;
 
     receiptAttemptedRef.current = true;
     const printReceipt = async () => {
       try {
-        appendReceiptDebug(`Loading receipt for order ${orderId}.`);
-        const [template, record] = await Promise.all([
-          fetchReceiptTemplate(),
-          fetchReceiptRecord(orderId),
-        ]);
-        appendReceiptDebug(`Loaded template and order ${record.orderNumber || '(no order number)'}.`);
+        const record = await fetchReceiptRecord(orderId);
+        const templateCode = record.checkoutProvider === 'cash'
+          ? 'base_cash_receipt'
+          : 'base_credit_receipt';
+        const template = await fetchReceiptTemplate(templateCode);
         await sendToWebPrnt(await buildReceiptRequest(renderReceiptTemplate(template, record)));
-        appendReceiptDebug('Receipt print command sent.');
       } catch (error) {
-        appendReceiptDebug(`Receipt print failed: ${error instanceof Error ? error.message : String(error)}`);
         console.warn('Stripe receipt print skipped', error);
       }
     };
@@ -342,18 +320,6 @@ const CheckoutSuccess = () => {
         <Button variant="contained" href={paths.products}>
           Back to shop
         </Button>
-        {isAssociateMode && receiptDebug.length > 0 && (
-          <Alert severity="info" sx={{ mt: 2, textAlign: 'left', width: 1 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>
-              Receipt debug
-            </Typography>
-            {receiptDebug.map((line) => (
-              <Typography key={line} variant="caption" component="div" sx={{ fontFamily: 'monospace' }}>
-                {line}
-              </Typography>
-            ))}
-          </Alert>
-        )}
       </Stack>
     </Paper>
   );
