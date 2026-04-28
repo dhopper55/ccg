@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
-import { Button, Paper, Stack, Typography } from '@mui/material';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Button, Paper, Stack, Typography } from '@mui/material';
 import { ensureStarWebPrntGlobals } from 'lib/starWebPrntShim';
 import { useAssociateMode } from 'providers/AssociateModeProvider';
 import { useEcommerce } from 'providers/EcommerceProvider';
@@ -256,25 +256,49 @@ const CheckoutSuccess = () => {
   const { isAssociateMode, isCheckingAssociateMode } = useAssociateMode();
   const location = useLocation();
   const receiptAttemptedRef = useRef(false);
+  const [receiptDebug, setReceiptDebug] = useState<string[]>([]);
+
+  const appendReceiptDebug = (message: string) => {
+    setReceiptDebug((prev) => [...prev, `${new Date().toLocaleTimeString()}: ${message}`].slice(-12));
+  };
 
   useEffect(() => {
     setCartItems([]);
   }, [setCartItems]);
 
   useEffect(() => {
-    if (receiptAttemptedRef.current || isCheckingAssociateMode || !isAssociateMode || !isWebPrntBrowser()) return;
+    if (receiptAttemptedRef.current) return;
+    if (isCheckingAssociateMode) {
+      appendReceiptDebug('Waiting for associate mode check.');
+      return;
+    }
+    if (!isAssociateMode) {
+      appendReceiptDebug('Skipped: associate mode is not active.');
+      return;
+    }
+    if (!isWebPrntBrowser()) {
+      appendReceiptDebug('Skipped: WebPRNT environment not detected.');
+      return;
+    }
     const orderId = new URLSearchParams(location.search).get('order') || '';
-    if (!orderId) return;
+    if (!orderId) {
+      appendReceiptDebug('Skipped: no order query param on success URL.');
+      return;
+    }
 
     receiptAttemptedRef.current = true;
     const printReceipt = async () => {
       try {
+        appendReceiptDebug(`Loading receipt for order ${orderId}.`);
         const [template, record] = await Promise.all([
           fetchReceiptTemplate(),
           fetchReceiptRecord(orderId),
         ]);
+        appendReceiptDebug(`Loaded template and order ${record.orderNumber || '(no order number)'}.`);
         await sendToWebPrnt(await buildReceiptRequest(renderReceiptTemplate(template, record)));
+        appendReceiptDebug('Receipt print command sent.');
       } catch (error) {
+        appendReceiptDebug(`Receipt print failed: ${error instanceof Error ? error.message : String(error)}`);
         console.warn('Stripe receipt print skipped', error);
       }
     };
@@ -312,6 +336,18 @@ const CheckoutSuccess = () => {
         <Button variant="contained" href={paths.products}>
           Back to shop
         </Button>
+        {isAssociateMode && receiptDebug.length > 0 && (
+          <Alert severity="info" sx={{ mt: 2, textAlign: 'left', width: 1 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>
+              Receipt debug
+            </Typography>
+            {receiptDebug.map((line) => (
+              <Typography key={line} variant="caption" component="div" sx={{ fontFamily: 'monospace' }}>
+                {line}
+              </Typography>
+            ))}
+          </Alert>
+        )}
       </Stack>
     </Paper>
   );
