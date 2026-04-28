@@ -7820,27 +7820,43 @@ async function dbGetOrderReceipt(orderId: string, env: Env): Promise<Record<stri
   if (!order) return null;
 
   const itemRows = await env.DB.prepare(
-    `SELECT
-       oi.*,
-       i.ccg_number AS inventory_ccg_number,
-       i.title AS inventory_title,
-       i.sale_title AS inventory_sale_title
-     FROM order_items oi
-     LEFT JOIN ccg_inventory_items i ON i.id = oi.inventory_item_id
-     WHERE oi.order_id = ?
-     ORDER BY COALESCE(oi.created_at, ''), oi.rowid`
+    'SELECT * FROM order_items WHERE order_id = ?'
   ).bind(orderId).all<Record<string, unknown>>();
+
+  const inventoryItemIds = Array.from(new Set(
+    (itemRows.results ?? [])
+      .map((row) => parseOptionalPositiveInt(row.inventory_item_id ?? row.item_id ?? row.inventory_id))
+      .filter((value): value is number => value != null),
+  ));
+  const inventoryById = new Map<number, { ccg_number: string | null; title: string | null; sale_title: string | null }>();
+  if (inventoryItemIds.length > 0) {
+    const placeholders = inventoryItemIds.map(() => '?').join(', ');
+    const inventoryRows = await env.DB.prepare(
+      `SELECT id, ccg_number, title, sale_title
+       FROM ccg_inventory_items
+       WHERE id IN (${placeholders})`
+    ).bind(...inventoryItemIds).all<{
+      id: number;
+      ccg_number: string | null;
+      title: string | null;
+      sale_title: string | null;
+    }>();
+    for (const row of inventoryRows.results ?? []) {
+      inventoryById.set(Number(row.id), row);
+    }
+  }
 
   const items = (itemRows.results ?? []).map((row) => {
     const inventoryItemId = parseOptionalPositiveInt(row.inventory_item_id ?? row.item_id ?? row.inventory_id) ?? 0;
+    const inventory = inventoryById.get(inventoryItemId);
     const quantity = parseOptionalPositiveInt(row.quantity ?? row.qty) ?? 1;
     const unitAmountCents = Number(row.unit_amount_cents ?? row.unit_price_cents ?? row.price_cents ?? 0);
     const subtotalCents = Number(row.subtotal_cents ?? row.total_cents ?? (Number.isFinite(unitAmountCents) ? unitAmountCents * quantity : 0));
     return {
       inventoryItemId,
-      ccgNumber: normalizeText(row.inventory_ccg_number, '') || (inventoryItemId ? `CCG-${inventoryItemId}` : ''),
+      ccgNumber: normalizeText(inventory?.ccg_number, '') || (inventoryItemId ? `CCG-${inventoryItemId}` : ''),
       title: normalizeText(
-        row.item_title_snapshot ?? row.title_snapshot ?? row.item_title ?? row.title ?? row.inventory_sale_title ?? row.inventory_title,
+        row.item_title_snapshot ?? row.title_snapshot ?? row.item_title ?? row.title ?? inventory?.sale_title ?? inventory?.title,
         'Item',
       ),
       quantity,
@@ -7853,7 +7869,7 @@ async function dbGetOrderReceipt(orderId: string, env: Env): Promise<Record<stri
     orderId: normalizeText(order.id, orderId),
     orderNumber: normalizeText(order.order_number, ''),
     status: normalizeText(order.status, ''),
-    checkoutProvider: normalizeText(order.checkout_provider, ''),
+    checkoutProvider: normalizeText(order.checkout_provider, '') || (normalizeText(order.stripe_checkout_session_id, '') ? 'stripe' : ''),
     stripePaymentIntentId: normalizeText(order.stripe_payment_intent_id, ''),
     subtotalCents: Number(order.subtotal_cents ?? 0) || 0,
     taxCents: Number(order.tax_cents ?? 0) || 0,

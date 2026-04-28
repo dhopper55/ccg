@@ -95,7 +95,10 @@ const fetchReceiptTemplate = async () => {
   const response = await fetch(`/api/shop/receipt-templates/${receiptTemplateCode}`, {
     headers: { Accept: 'application/json' },
   });
-  if (!response.ok) throw new Error('Unable to load receipt template.');
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Unable to load receipt template (${response.status}): ${body.slice(0, 160)}`);
+  }
   const payload = (await response.json()) as { record?: { templateText?: string } };
   if (!payload.record?.templateText) throw new Error('Receipt template is empty.');
   return payload.record.templateText;
@@ -106,7 +109,10 @@ const fetchReceiptRecord = async (orderId: string) => {
     headers: { Accept: 'application/json' },
     credentials: 'same-origin',
   });
-  if (!response.ok) throw new Error('Unable to load order receipt.');
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Unable to load order receipt (${response.status}): ${body.slice(0, 160)}`);
+  }
   const payload = (await response.json()) as { record?: ReceiptRecord };
   if (!payload.record) throw new Error('Order receipt is empty.');
   return payload.record;
