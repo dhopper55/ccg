@@ -507,6 +507,13 @@ export default {
       return withCors(response, request, env);
     }
 
+    const shopOrderReceiptMatch = path.match(/^\/api\/shop\/orders\/([^/]+)\/receipt$/);
+    if (shopOrderReceiptMatch && request.method === 'GET') {
+      const orderId = decodeURIComponent(shopOrderReceiptMatch[1]);
+      const response = await handleShopOrderReceipt(orderId, request, env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/listings/submit' && request.method === 'POST') {
       const response = await handleSubmit(request, env, ctx);
       return withCors(response, request, env);
@@ -3570,6 +3577,31 @@ async function handleShopCreateCashOrder(request: Request, env: Env): Promise<Re
       message: error instanceof Error ? error.message : 'Unable to record cash checkout.',
     }, 500);
   }
+}
+
+async function handleShopOrderReceipt(orderId: string, request: Request, env: Env): Promise<Response> {
+  const includeInStoreOnly = await isAssociateModeRequest(request, env);
+  if (!includeInStoreOnly) {
+    return jsonResponse({ message: 'Order receipt is only available in associate mode.' }, 403);
+  }
+
+  const normalizedOrderId = normalizeText(orderId, '').slice(0, 100);
+  if (!normalizedOrderId) return jsonResponse({ message: 'Order not found.' }, 404);
+
+  const order = await dbGetOrderReceipt(normalizedOrderId, env);
+  if (!order) return jsonResponse({ message: 'Order not found.' }, 404);
+  if (order.checkoutProvider !== 'stripe') {
+    return jsonResponse({ message: 'Only Stripe receipts are available here.' }, 400);
+  }
+
+  const paymentMethodLabel = await resolveStripePaymentMethodLabel(order.stripePaymentIntentId, env);
+
+  return jsonResponse({
+    record: {
+      ...order,
+      paymentMethodLabel,
+    },
+  });
 }
 
 async function buildShopCheckoutDraft(
@@ -7779,6 +7811,101 @@ async function dbGetOrderStatus(orderId: string, env: Env): Promise<string | nul
     'SELECT status FROM orders WHERE id = ? LIMIT 1'
   ).bind(orderId).first<{ status: string | null }>();
   return normalizeText(row?.status, '') || null;
+}
+
+async function dbGetOrderReceipt(orderId: string, env: Env): Promise<Record<string, unknown> | null> {
+  const order = await env.DB.prepare(
+    'SELECT * FROM orders WHERE id = ? LIMIT 1'
+  ).bind(orderId).first<Record<string, unknown>>();
+  if (!order) return null;
+
+  const itemRows = await env.DB.prepare(
+    `SELECT
+       oi.*,
+       i.ccg_number AS inventory_ccg_number,
+       i.title AS inventory_title,
+       i.sale_title AS inventory_sale_title
+     FROM order_items oi
+     LEFT JOIN ccg_inventory_items i ON i.id = oi.inventory_item_id
+     WHERE oi.order_id = ?
+     ORDER BY COALESCE(oi.created_at, ''), oi.rowid`
+  ).bind(orderId).all<Record<string, unknown>>();
+
+  const items = (itemRows.results ?? []).map((row) => {
+    const inventoryItemId = parseOptionalPositiveInt(row.inventory_item_id ?? row.item_id ?? row.inventory_id) ?? 0;
+    const quantity = parseOptionalPositiveInt(row.quantity ?? row.qty) ?? 1;
+    const unitAmountCents = Number(row.unit_amount_cents ?? row.unit_price_cents ?? row.price_cents ?? 0);
+    const subtotalCents = Number(row.subtotal_cents ?? row.total_cents ?? (Number.isFinite(unitAmountCents) ? unitAmountCents * quantity : 0));
+    return {
+      inventoryItemId,
+      ccgNumber: normalizeText(row.inventory_ccg_number, '') || (inventoryItemId ? `CCG-${inventoryItemId}` : ''),
+      title: normalizeText(
+        row.item_title_snapshot ?? row.title_snapshot ?? row.item_title ?? row.title ?? row.inventory_sale_title ?? row.inventory_title,
+        'Item',
+      ),
+      quantity,
+      unitAmountCents: Number.isFinite(unitAmountCents) ? unitAmountCents : 0,
+      subtotalCents: Number.isFinite(subtotalCents) ? subtotalCents : 0,
+    };
+  });
+
+  return {
+    orderId: normalizeText(order.id, orderId),
+    orderNumber: normalizeText(order.order_number, ''),
+    status: normalizeText(order.status, ''),
+    checkoutProvider: normalizeText(order.checkout_provider, ''),
+    stripePaymentIntentId: normalizeText(order.stripe_payment_intent_id, ''),
+    subtotalCents: Number(order.subtotal_cents ?? 0) || 0,
+    taxCents: Number(order.tax_cents ?? 0) || 0,
+    discountCents: Number(order.discount_cents ?? 0) || 0,
+    totalCents: Number(order.total_cents ?? 0) || 0,
+    createdAt: normalizeText(order.created_at ?? order.checkout_started_at, ''),
+    paidAt: normalizeText(order.paid_at, ''),
+    items,
+  };
+}
+
+async function resolveStripePaymentMethodLabel(paymentIntentId: string, env: Env): Promise<string> {
+  const stripeSecretKey = normalizeText(env.STRIPE_SECRET_KEY, '');
+  const id = normalizeText(paymentIntentId, '');
+  if (!stripeSecretKey || !id) return 'Payment method: Stripe';
+
+  try {
+    const response = await fetch(
+      `https://api.stripe.com/v1/payment_intents/${encodeURIComponent(id)}?expand[]=latest_charge`,
+      {
+        headers: {
+          Authorization: `Bearer ${stripeSecretKey}`,
+        },
+      },
+    );
+    const data = await response.json<any>();
+    if (!response.ok) {
+      console.warn('Stripe payment method lookup failed', { paymentIntentId: id, status: response.status });
+      return 'Payment method: Stripe';
+    }
+
+    const details = data?.latest_charge?.payment_method_details;
+    const type = normalizeText(details?.type, normalizeText(data?.payment_method_types?.[0], 'stripe'));
+    if (type === 'card') {
+      const brand = toDisplayPaymentMethodName(details?.card?.brand || 'Card');
+      const last4 = normalizeText(details?.card?.last4, '');
+      return last4 ? `${brand} XXXX XXXX XXXX ${last4}` : brand;
+    }
+    return `Payment method: ${toDisplayPaymentMethodName(type)}`;
+  } catch (error) {
+    console.warn('Stripe payment method lookup failed', { paymentIntentId: id, error });
+    return 'Payment method: Stripe';
+  }
+}
+
+function toDisplayPaymentMethodName(input: unknown): string {
+  const normalized = normalizeText(input, '').replace(/_/g, ' ').trim();
+  if (!normalized) return 'Stripe';
+  const lower = normalized.toLowerCase();
+  if (lower === 'amex') return 'American Express';
+  if (lower === 'afterpay clearpay') return 'Afterpay/Clearpay';
+  return lower.replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 async function dbApplyPaidOrderInventoryAdjustments(
