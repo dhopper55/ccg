@@ -685,6 +685,12 @@ export default {
       return withCors(response, request, env);
     }
 
+    const adminV2OrderRefundMatch = path.match(/^\/api\/admin-v2\/orders\/([^/]+)\/refund$/);
+    if (adminV2OrderRefundMatch && request.method === 'POST') {
+      const response = await handleAdminV2OrderRefund(decodeURIComponent(adminV2OrderRefundMatch[1]), env);
+      return withCors(response, request, env);
+    }
+
     if (path.endsWith('/evaluated') && path.startsWith('/api/admin-v2/serial-decodes/') && request.method === 'POST') {
       const response = await handleAdminV2SerialDecodeEvaluatedUpdate(request, path, env);
       return withCors(response, request, env);
@@ -2966,14 +2972,126 @@ async function handleAdminV2OrderDetail(orderId: string, env: Env): Promise<Resp
     .first<Record<string, unknown>>();
   const stripeCustomer = rawOrder ? await resolveOrderStripeCustomer(rawOrder, env) : null;
   const events = await dbListOrderEvents(normalizedOrderId, env);
+  const provider = normalizeText(order.checkoutProvider, '') || (normalizeText(rawOrder?.stripe_checkout_session_id, '') ? 'stripe' : 'cash');
+  const paymentMethodLabel = provider === 'cash'
+    ? 'Cash'
+    : await resolveStripePaymentMethodLabel(normalizeText(order.stripePaymentIntentId, ''), env);
 
   return jsonResponse({
     record: {
       ...order,
+      paymentMethodLabel,
       customer: buildAdminOrderCustomer(rawOrder || {}, stripeCustomer),
       events,
     },
   });
+}
+
+async function handleAdminV2OrderRefund(orderId: string, env: Env): Promise<Response> {
+  const normalizedOrderId = normalizeText(orderId, '').slice(0, 100);
+  if (!normalizedOrderId) return jsonResponse({ message: 'Order not found.' }, 404);
+
+  const order = await env.DB.prepare('SELECT * FROM orders WHERE id = ? LIMIT 1')
+    .bind(normalizedOrderId)
+    .first<Record<string, unknown>>();
+  if (!order) return jsonResponse({ message: 'Order not found.' }, 404);
+
+  const status = normalizeText(order.status, '');
+  if (status !== 'paid') {
+    return jsonResponse({ message: 'Only paid orders can be refunded.' }, 409);
+  }
+
+  const provider = normalizeText(order.checkout_provider, '') || (normalizeText(order.stripe_checkout_session_id, '') ? 'stripe' : 'cash');
+  const totalCents = Number(order.total_cents ?? 0) || 0;
+  const now = new Date().toISOString();
+  let stripeRefundId = '';
+
+  if (provider !== 'cash') {
+    const paymentIntentId = normalizeText(order.stripe_payment_intent_id, '');
+    if (!paymentIntentId) {
+      return jsonResponse({ message: 'Stripe payment intent is missing for this order.' }, 400);
+    }
+    const stripeRefund = await createStripeFullRefund(paymentIntentId, normalizedOrderId, env);
+    if (!stripeRefund.ok) {
+      await dbRecordOrderEvent(normalizedOrderId, {
+        eventType: 'refund_failed',
+        fromStatus: 'paid',
+        toStatus: 'paid',
+        source: 'admin_v2',
+        sourceId: paymentIntentId,
+        message: stripeRefund.message,
+        payloadJson: JSON.stringify({ provider, paymentIntentId, status: stripeRefund.status }),
+      }, env);
+      return jsonResponse({ message: stripeRefund.message }, stripeRefund.status || 502);
+    }
+    stripeRefundId = stripeRefund.refundId;
+  }
+
+  await dbUnwindRefundedOrderInventory(normalizedOrderId, order, env);
+
+  await dbUpdateTableById('orders', normalizedOrderId, {
+    status: 'refunded',
+    refunded_at: now,
+    cancelled_at: now,
+    stripe_payment_status: provider === 'cash' ? 'not_applicable' : 'refunded',
+    stripe_refund_id: stripeRefundId,
+    updated_at: now,
+  }, env);
+
+  await dbRecordOrderEvent(normalizedOrderId, {
+    eventType: 'refund_succeeded',
+    fromStatus: 'paid',
+    toStatus: 'refunded',
+    source: 'admin_v2',
+    sourceId: stripeRefundId || provider,
+    message: provider === 'cash'
+      ? 'Cash order refunded. Inventory was restored.'
+      : 'Stripe order refunded. Inventory was restored.',
+    payloadJson: JSON.stringify({ provider, totalCents, stripeRefundId }),
+  }, env);
+
+  return jsonResponse({
+    message: provider === 'cash' ? 'Cash order refunded.' : 'Stripe order refunded.',
+    provider,
+    stripeRefundId,
+  });
+}
+
+async function createStripeFullRefund(
+  paymentIntentId: string,
+  orderId: string,
+  env: Env,
+): Promise<{ ok: true; refundId: string } | { ok: false; message: string; status: number }> {
+  const stripeSecretKey = normalizeText(env.STRIPE_SECRET_KEY, '');
+  if (!stripeSecretKey) return { ok: false, message: 'Stripe secret key is not configured.', status: 500 };
+
+  try {
+    const body = new URLSearchParams({ payment_intent: paymentIntentId });
+    const response = await fetch('https://api.stripe.com/v1/refunds', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${stripeSecretKey}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Idempotency-Key': `ccg-order-refund-${orderId}`,
+      },
+      body,
+    });
+    const data = await response.json<any>();
+    if (!response.ok) {
+      return {
+        ok: false,
+        message: normalizeText(data?.error?.message, 'Stripe refund failed.'),
+        status: response.status || 502,
+      };
+    }
+    return { ok: true, refundId: normalizeText(data?.id, '') };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : 'Stripe refund failed.',
+      status: 502,
+    };
+  }
 }
 
 async function dbCountOrderItems(orderIds: string[], env: Env): Promise<Map<string, number>> {
@@ -8169,6 +8287,111 @@ async function dbListOrderInventoryQuantities(
       };
     })
     .filter((item): item is { inventoryItemId: number; quantity: number; subtotalCents: number } => item != null);
+}
+
+async function dbUnwindRefundedOrderInventory(
+  orderId: string,
+  order: Record<string, unknown>,
+  env: Env,
+): Promise<void> {
+  const items = await dbListOrderInventoryQuantities(orderId, env);
+  const provider = normalizeText(order.checkout_provider, '') || (normalizeText(order.stripe_checkout_session_id, '') ? 'stripe' : 'cash');
+  const paidAt = normalizeText(order.paid_at ?? order.updated_at ?? order.created_at, '');
+  const checkoutSessionId = normalizeText(order.stripe_checkout_session_id, '');
+
+  for (const item of items) {
+    const row = await env.DB.prepare(
+      'SELECT * FROM ccg_inventory_items WHERE id = ? LIMIT 1'
+    ).bind(item.inventoryItemId).first<Record<string, unknown>>();
+    if (!row) continue;
+
+    const purchasedQuantity = Math.max(1, item.quantity);
+    const currentQuantity = Math.max(0, Number(row.quantity ?? 0));
+    const wasPartialSale = Number(row.is_sold || 0) === 0 && currentQuantity > 0;
+    const restoredQuantity = currentQuantity + purchasedQuantity;
+    const columns = await dbGetTableColumns('ccg_inventory_items', env);
+    const columnNames = new Set(columns.map((column) => column.name));
+    const values = new Map<string, unknown>([
+      ['quantity', restoredQuantity],
+      ['is_sold', 0],
+      ['for_sale', 1],
+      ['availability_status', 'available'],
+      ['active_order_id', null],
+      ['reserved_until', null],
+      ['sold_date', null],
+      ['sold_amount', null],
+      ['sell_notes', null],
+      ['sold_channel', null],
+      ['updated_at', new Date().toISOString()],
+    ]);
+    await dbUpdateInventoryColumns(item.inventoryItemId, orderId, values, columnNames, env);
+
+    if (wasPartialSale) {
+      await dbDeactivateRefundedPartialSaleClone({
+        sourceRow: row,
+        item,
+        provider,
+        paidAt,
+        checkoutSessionId,
+        orderId,
+        env,
+      });
+    }
+  }
+}
+
+async function dbDeactivateRefundedPartialSaleClone(input: {
+  sourceRow: Record<string, unknown>;
+  item: { inventoryItemId: number; quantity: number; subtotalCents: number };
+  provider: string;
+  paidAt: string;
+  checkoutSessionId: string;
+  orderId: string;
+  env: Env;
+}): Promise<void> {
+  const sourceId = Number(input.sourceRow.id);
+  const title = normalizeText(input.sourceRow.sale_title ?? input.sourceRow.title, '');
+  const soldAmount = input.item.subtotalCents > 0
+    ? input.item.subtotalCents / 100
+    : Number(input.sourceRow.sale_price || input.sourceRow.regular_price || 0) * Math.max(1, input.item.quantity);
+  const sellNote = input.provider === 'cash'
+    ? 'Cash checkout'
+    : `Stripe checkout ${input.checkoutSessionId}`.trim();
+  if (!sourceId || !title) return;
+
+  const clone = await input.env.DB.prepare(
+    `SELECT id
+     FROM ccg_inventory_items
+     WHERE id != ?
+       AND COALESCE(is_sold, 0) = 1
+       AND COALESCE(sold_channel, '') = ?
+       AND COALESCE(sold_amount, 0) = ?
+       AND (COALESCE(sale_title, '') = ? OR COALESCE(title, '') = ?)
+       AND (
+         COALESCE(sell_notes, '') = ?
+         OR (? = 'Cash checkout' AND ABS((julianday(COALESCE(sold_date, created_at, updated_at)) - julianday(?)) * 86400) <= 300)
+       )
+     ORDER BY COALESCE(sold_date, created_at, updated_at) DESC, id DESC
+     LIMIT 1`
+  ).bind(sourceId, input.provider, soldAmount, title, title, sellNote, sellNote, input.paidAt).first<{ id: number | null }>();
+  const cloneId = Number(clone?.id || 0);
+  if (!Number.isFinite(cloneId) || cloneId <= 0) return;
+
+  const columns = await dbGetTableColumns('ccg_inventory_items', input.env);
+  const columnNames = new Set(columns.map((column) => column.name));
+  await dbUpdateInventoryColumns(cloneId, input.orderId, new Map<string, unknown>([
+    ['quantity', 0],
+    ['is_active', 0],
+    ['is_sold', 0],
+    ['for_sale', 0],
+    ['availability_status', 'refunded'],
+    ['active_order_id', null],
+    ['reserved_until', null],
+    ['sold_date', null],
+    ['sold_amount', null],
+    ['sell_notes', `Refunded order ${normalizeText(input.orderId, '')}`],
+    ['updated_at', new Date().toISOString()],
+  ]), columnNames, input.env);
 }
 
 async function dbApplyPaidInventoryItemAdjustment(

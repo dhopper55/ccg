@@ -1,10 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   Avatar,
   Box,
+  Button,
   Chip,
   Container,
   Divider,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Link,
   Paper,
   Stack,
@@ -13,6 +19,7 @@ import {
 import Grid from '@mui/material/Grid';
 import dayjs from 'dayjs';
 import useNumberFormat from 'hooks/useNumberFormat';
+import { ensureStarWebPrntGlobals } from 'lib/starWebPrntShim';
 import { useSearchParams } from 'react-router';
 import paths from 'routes/paths';
 import IconifyIcon from 'components/base/IconifyIcon';
@@ -60,44 +67,271 @@ type OrderDetailResponse = {
 const paymentIcon = (provider: string) =>
   provider === 'cash' ? 'material-symbols:payments-outline-rounded' : 'material-symbols:credit-card-outline';
 
+const printerUrlStorageKey = 'ccg-star-webprnt-url';
+const receiptLogoUrl = 'https://www.coalcreekguitars.com/images/ccg_bnw.bmp';
+const refundReceiptTemplateCode = 'base_refund_receipt';
+const maxLogoWidth = 384;
+const receiptLineWidth = 32;
+const defaultStarEndpoints = [
+  'https://localhost:8001/StarWebPRNT/SendMessage',
+  'http://localhost:8001/StarWebPRNT/SendMessage',
+];
+
+const moneyFormat = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+
+const padReceiptColumns = (left: string, right: string, width = receiptLineWidth) => {
+  const cleanLeft = left.replace(/\s+/g, ' ').trim();
+  const cleanRight = right.trim();
+  const maxLeftLength = Math.max(1, width - cleanRight.length - 1);
+  const visibleLeft = cleanLeft.length > maxLeftLength ? cleanLeft.slice(0, maxLeftLength) : cleanLeft;
+  return `${visibleLeft}${' '.repeat(Math.max(1, width - visibleLeft.length - cleanRight.length))}${cleanRight}`;
+};
+
+const replaceTemplateVariables = (template: string, values: Record<string, string>) =>
+  template.replace(/{{\s*([a-zA-Z0-9_]+)\s*}}/g, (match, key: string) => values[key] ?? match);
+
+const parseTextDirectiveAttributes = (value: string) => {
+  const attrs: Record<string, string> = {};
+  value.replace(/([a-zA-Z0-9_-]+)="([^"]*)"/g, (_, key: string, attrValue: string) => {
+    attrs[key] = attrValue;
+    return '';
+  });
+  return attrs;
+};
+
+const loadReceiptLogo = async () => {
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const nextImage = new Image();
+    nextImage.onload = () => resolve(nextImage);
+    nextImage.onerror = () => reject(new Error('Unable to load receipt logo image.'));
+    nextImage.src = receiptLogoUrl;
+  });
+  const targetWidth = Math.min(maxLogoWidth, image.naturalWidth || maxLogoWidth);
+  const scale = targetWidth / (image.naturalWidth || targetWidth);
+  const targetHeight = Math.max(1, Math.round((image.naturalHeight || 1) * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Unable to create receipt logo canvas.');
+  context.fillStyle = '#ffffff';
+  context.fillRect(0, 0, targetWidth, targetHeight);
+  context.drawImage(image, 0, 0, targetWidth, targetHeight);
+  return { context, width: targetWidth, height: targetHeight };
+};
+
 const OrderManagerItem = () => {
   const [searchParams] = useSearchParams();
   const { currencyFormat } = useNumberFormat();
   const [order, setOrder] = useState<AdminOrderDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [resultOpen, setResultOpen] = useState(false);
+  const [result, setResult] = useState<{ severity: 'success' | 'error'; message: string } | null>(null);
+  const [isRefunding, setIsRefunding] = useState(false);
   const orderId = searchParams.get('id') || '';
 
-  useEffect(() => {
-    let cancelled = false;
-    const loadOrder = async () => {
-      if (!orderId) {
-        setIsLoading(false);
-        return;
-      }
-      setIsLoading(true);
-      try {
-        const response = await fetch(`/api/admin-v2/orders/${encodeURIComponent(orderId)}`, {
-          credentials: 'same-origin',
-        });
-        const payload = (await response.json()) as OrderDetailResponse;
-        if (!response.ok || !payload.record) throw new Error('Unable to load order.');
-        if (!cancelled) setOrder(payload.record);
-      } catch {
-        if (!cancelled) setOrder(null);
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    };
-    void loadOrder();
-    return () => {
-      cancelled = true;
-    };
+  const loadOrder = useCallback(async (options: { silent?: boolean } = {}) => {
+    if (!orderId) {
+      setIsLoading(false);
+      return null;
+    }
+    if (!options.silent) setIsLoading(true);
+    try {
+      const response = await fetch(`/api/admin-v2/orders/${encodeURIComponent(orderId)}`, {
+        credentials: 'same-origin',
+      });
+      const payload = (await response.json()) as OrderDetailResponse;
+      if (!response.ok || !payload.record) throw new Error('Unable to load order.');
+      setOrder(payload.record);
+      return payload.record;
+    } catch {
+      setOrder(null);
+      return null;
+    } finally {
+      if (!options.silent) setIsLoading(false);
+    }
   }, [orderId]);
+
+  useEffect(() => {
+    void loadOrder();
+  }, [loadOrder]);
+
+  useEffect(() => {
+    ensureStarWebPrntGlobals();
+  }, []);
+
+  const resolvePrinterUrl = () => {
+    const runtimeUrl = window.__STAR_WEBPRNT_URL__;
+    const storedUrl = window.localStorage.getItem(printerUrlStorageKey) || '';
+    return runtimeUrl || storedUrl || defaultStarEndpoints[0];
+  };
+
+  const sendToPrinter = async (request: string) => {
+    ensureStarWebPrntGlobals();
+    if (!window.StarWebPrintTrader) throw new Error('Star webPRNT is not available in this browser context.');
+    const initialUrl = resolvePrinterUrl();
+    const candidateUrls = [initialUrl, ...defaultStarEndpoints].filter(
+      (url, index, all) => url && all.indexOf(url) === index,
+    );
+    let lastError: Error | null = null;
+    for (const url of candidateUrls) {
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const trader = new window.StarWebPrintTrader!({ url, timeout: 90000 });
+          trader.onReceive = () => resolve();
+          trader.onError = (response) => reject(new Error(response.responseText || 'Star webPRNT request failed.'));
+          trader.sendMessage({ request });
+        });
+        window.localStorage.setItem(printerUrlStorageKey, url);
+        return;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+      }
+    }
+    throw lastError || new Error('Unable to reach the Star webPRNT endpoint.');
+  };
+
+  const fetchRefundTemplate = async () => {
+    const response = await fetch(`/api/shop/receipt-templates/${refundReceiptTemplateCode}`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (!response.ok) throw new Error('Unable to load refund receipt template.');
+    const payload = (await response.json()) as { record?: { templateText?: string } };
+    if (!payload.record?.templateText) throw new Error('Refund receipt template is empty.');
+    return payload.record.templateText;
+  };
+
+  const renderRefundReceiptTemplate = (template: string, record: AdminOrderDetail) => {
+    const now = new Date();
+    const receiptDate = now.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+    const receiptTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const itemRows = record.items.map((item) => ({
+      line: padReceiptColumns(
+        `${item.quantity > 1 ? `${item.quantity}x ` : ''}${item.ccgNumber || `CCG-${item.inventoryItemId}`} ${item.title}`,
+        `-${moneyFormat.format(item.subtotalCents / 100)}`,
+      ),
+    }));
+    const withItems = template.replace(
+      /{{#items}}([\s\S]*?){{\/items}}/g,
+      (_, itemTemplate: string) => itemRows.map((item) => replaceTemplateVariables(itemTemplate, item)).join(''),
+    );
+    return replaceTemplateVariables(withItems, {
+      dateLine: padReceiptColumns(`Date:${receiptDate}`, `Time:${receiptTime}`),
+      receiptDate,
+      receiptTime,
+      orderNumber: record.orderNumber,
+      itemHeader: padReceiptColumns('SKU / DESC', 'REFUND'),
+      subtotal: `-${moneyFormat.format(record.subtotalCents / 100)}`,
+      salesTax: `-${moneyFormat.format(record.taxCents / 100)}`,
+      total: `-${moneyFormat.format(record.totalCents / 100)}`,
+      salesTaxRate: '7.5%',
+      paymentMethodLabel: record.checkoutProvider === 'cash' ? 'Refunded by cash' : record.paymentMethodLabel,
+    });
+  };
+
+  const buildRefundReceiptRequest = async (record: AdminOrderDetail) => {
+    ensureStarWebPrntGlobals();
+    if (!window.StarWebPrintBuilder) throw new Error('Star webPRNT is not available in this browser context.');
+    const builder = new window.StarWebPrintBuilder();
+    const logo = await loadReceiptLogo();
+    const renderedTemplate = renderRefundReceiptTemplate(await fetchRefundTemplate(), record);
+    const parts: string[] = [builder.createInitializationElement({ reset: false, print: false })];
+    const appendText = (data: string, options: Record<string, unknown> = {}) => {
+      if (!data) return;
+      parts.push(
+        builder.createTextElement({
+          codepage: 'utf8',
+          international: 'usa',
+          characterspace: 0,
+          emphasis: false,
+          invert: false,
+          linespace: 32,
+          width: 1,
+          height: 1,
+          font: 'font_a',
+          underline: false,
+          data,
+          ...options,
+        }),
+      );
+    };
+    const tokenPattern = /{{logo}}|{{hr}}|{{center}}([\s\S]*?){{\/center}}|{{text\s+([^}]*)}}([\s\S]*?){{\/text}}/g;
+    let cursor = 0;
+    for (const match of renderedTemplate.matchAll(tokenPattern)) {
+      appendText(renderedTemplate.slice(cursor, match.index));
+      const token = match[0];
+      if (token === '{{logo}}') {
+        parts.push(
+          builder.createAlignmentElement({ position: 'center' }),
+          builder.createBitImageElement({ context: logo.context, x: 0, y: 0, width: logo.width, height: logo.height }),
+          builder.createAlignmentElement({ position: 'left' }),
+        );
+      } else if (token === '{{hr}}') {
+        appendText(`${'-'.repeat(receiptLineWidth)}\n`);
+      } else if (token.startsWith('{{center}}')) {
+        parts.push(builder.createAlignmentElement({ position: 'center' }));
+        appendText(match[1] || '');
+        parts.push(builder.createAlignmentElement({ position: 'left' }));
+      } else {
+        const attrs = parseTextDirectiveAttributes(match[2] || '');
+        const size = Math.max(1, Math.min(4, Number(attrs.size || 1)));
+        appendText(match[3] || '', { emphasis: attrs.bold === 'true', width: size, height: size });
+      }
+      cursor = (match.index || 0) + token.length;
+    }
+    appendText(renderedTemplate.slice(cursor));
+    parts.push(builder.createFeedElement({ line: 3, unit: 0 }), builder.createCutPaperElement({ feed: true, type: 'partial' }));
+    return parts.join('');
+  };
+
+  const handleConfirmRefund = async () => {
+    if (!order) return;
+    setIsRefunding(true);
+    setConfirmOpen(false);
+    try {
+      const response = await fetch(`/api/admin-v2/orders/${encodeURIComponent(order.orderId)}/refund`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      });
+      const payload = (await response.json()) as { message?: string; provider?: string };
+      if (!response.ok) throw new Error(payload.message || 'Refund failed.');
+      const refreshedOrder = await loadOrder({ silent: true });
+      const recordForReceipt = refreshedOrder || { ...order, status: 'refunded' };
+      const localResults = await Promise.allSettled([
+        buildRefundReceiptRequest(recordForReceipt).then((request) => sendToPrinter(request)),
+        payload.provider === 'cash'
+          ? (async () => {
+              if (!window.StarWebPrintBuilder) throw new Error('Star webPRNT is not available.');
+              const builder = new window.StarWebPrintBuilder();
+              await sendToPrinter(builder.createPeripheralElement({ channel: 1, on: 200, off: 200 }));
+            })()
+          : Promise.resolve(),
+      ]);
+      const localErrors = localResults
+        .filter((nextResult): nextResult is PromiseRejectedResult => nextResult.status === 'rejected')
+        .map((nextResult) => nextResult.reason instanceof Error ? nextResult.reason.message : String(nextResult.reason));
+      setResult({
+        severity: 'success',
+        message: localErrors.length > 0
+          ? `${payload.message || 'Order refunded.'} Local mPOP command failed: ${localErrors.join(' ')}`
+          : payload.message || 'Order refunded.',
+      });
+    } catch (error) {
+      await loadOrder({ silent: true });
+      setResult({ severity: 'error', message: error instanceof Error ? error.message : 'Refund failed.' });
+    } finally {
+      setIsRefunding(false);
+      setResultOpen(true);
+    }
+  };
 
   const itemCount = useMemo(
     () => order?.items.reduce((sum, item) => sum + item.quantity, 0) || 0,
     [order?.items],
   );
+  const canRefund = order?.status === 'paid';
 
   if (isLoading) {
     return (
@@ -116,6 +350,7 @@ const OrderManagerItem = () => {
   }
 
   return (
+    <>
     <Grid container>
       <Grid size={{ xs: 12, md: 8, xl: 9 }}>
         <Stack direction="column">
@@ -142,19 +377,32 @@ const OrderManagerItem = () => {
                   />
                 </Stack>
               </Box>
-              <Typography variant="body2" sx={{ color: 'text.secondary', textAlign: { sm: 'end' }, mt: 'auto' }}>
-                <Box component="span" whiteSpace="nowrap">
-                  Placed on <strong>{dayjs(order.createdAt || order.paidAt).format('MMM D, YYYY')}</strong>
-                </Box>
-                <br />
-                <Box component="span" whiteSpace="nowrap">
-                  at <strong>{dayjs(order.createdAt || order.paidAt).format('h:mm A')},</strong>{' '}
-                  <strong>
-                    {itemCount} item{itemCount === 1 ? '' : 's'}
-                  </strong>{' '}
-                  in total
-                </Box>
-              </Typography>
+              <Stack direction="column" sx={{ alignItems: { sm: 'flex-end' }, gap: 3 }}>
+                <Stack sx={{ gap: 1 }}>
+                  <Button
+                    variant="soft"
+                    color="error"
+                    disabled={!canRefund || isRefunding}
+                    onClick={() => setConfirmOpen(true)}
+                    startIcon={<IconifyIcon icon="material-symbols:currency-exchange-rounded" />}
+                  >
+                    Cancel/Refund
+                  </Button>
+                </Stack>
+                <Typography variant="body2" sx={{ color: 'text.secondary', textAlign: { sm: 'end' }, mt: 'auto' }}>
+                  <Box component="span" whiteSpace="nowrap">
+                    Placed on <strong>{dayjs(order.createdAt || order.paidAt).format('MMM D, YYYY')}</strong>
+                  </Box>
+                  <br />
+                  <Box component="span" whiteSpace="nowrap">
+                    at <strong>{dayjs(order.createdAt || order.paidAt).format('h:mm A')},</strong>{' '}
+                    <strong>
+                      {itemCount} item{itemCount === 1 ? '' : 's'}
+                    </strong>{' '}
+                    in total
+                  </Box>
+                </Typography>
+              </Stack>
             </Stack>
           </Paper>
 
@@ -283,6 +531,32 @@ const OrderManagerItem = () => {
         </Paper>
       </Grid>
     </Grid>
+    <Dialog open={confirmOpen} onClose={() => !isRefunding && setConfirmOpen(false)}>
+      <DialogTitle>Cancel/refund order</DialogTitle>
+      <DialogContent>
+        <Typography>Are you sure you want to cancel/refund this order?</Typography>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setConfirmOpen(false)} disabled={isRefunding}>
+          Cancel
+        </Button>
+        <Button variant="contained" color="error" onClick={() => void handleConfirmRefund()} disabled={isRefunding}>
+          Yes, refund
+        </Button>
+      </DialogActions>
+    </Dialog>
+    <Dialog open={resultOpen} onClose={() => setResultOpen(false)}>
+      <DialogTitle>{result?.severity === 'success' ? 'Refund complete' : 'Refund failed'}</DialogTitle>
+      <DialogContent>
+        {result && <Alert severity={result.severity}>{result.message}</Alert>}
+      </DialogContent>
+      <DialogActions>
+        <Button variant="contained" onClick={() => setResultOpen(false)}>
+          OK
+        </Button>
+      </DialogActions>
+    </Dialog>
+    </>
   );
 };
 
