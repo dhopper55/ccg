@@ -12,6 +12,8 @@ const routeDirs = [
   'inventory-category-manager',
   'inventory-item',
   'inventory-labels',
+  'order-manager',
+  'order-manager-item',
   'listing-evaluator',
   'listing-evaluator-results',
   'listing-evaluator-item',

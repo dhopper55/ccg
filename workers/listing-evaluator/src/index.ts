@@ -674,6 +674,17 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/orders' && request.method === 'GET') {
+      const response = await handleAdminV2Orders(request, env);
+      return withCors(response, request, env);
+    }
+
+    const adminV2OrderMatch = path.match(/^\/api\/admin-v2\/orders\/([^/]+)$/);
+    if (adminV2OrderMatch && request.method === 'GET') {
+      const response = await handleAdminV2OrderDetail(decodeURIComponent(adminV2OrderMatch[1]), env);
+      return withCors(response, request, env);
+    }
+
     if (path.endsWith('/evaluated') && path.startsWith('/api/admin-v2/serial-decodes/') && request.method === 'POST') {
       const response = await handleAdminV2SerialDecodeEvaluatedUpdate(request, path, env);
       return withCors(response, request, env);
@@ -2914,6 +2925,176 @@ async function handleAdminV2InventorySubscriptions(env: Env): Promise<Response> 
     dateCancelled: row.date_cancelled,
   }));
   return jsonResponse({ records });
+}
+
+async function handleAdminV2Orders(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '50', 10) || 50, 1), 100);
+  const orderColumns = await dbGetTableColumns('orders', env);
+  const orderColumnNames = new Set(orderColumns.map((column) => column.name));
+  if (!orderColumnNames.has('id')) return jsonResponse({ records: [] });
+
+  const dateColumn = ['paid_at', 'checkout_started_at', 'created_at']
+    .find((columnName) => orderColumnNames.has(columnName)) || 'id';
+  const result = await env.DB.prepare(
+    `SELECT *
+     FROM orders
+     ORDER BY ${dateColumn} DESC
+     LIMIT ?`
+  ).bind(limit).all<Record<string, unknown>>();
+
+  const records = result.results ?? [];
+  const itemCounts = await dbCountOrderItems(records.map((row) => normalizeText(row.id, '')).filter(Boolean), env);
+  const enriched = await Promise.all(records.map(async (row) => {
+    const stripeCustomer = await resolveOrderStripeCustomer(row, env);
+    const orderId = normalizeText(row.id, '');
+    return mapAdminOrderSummary(row, itemCounts.get(orderId) || 0, stripeCustomer);
+  }));
+
+  return jsonResponse({ records: enriched });
+}
+
+async function handleAdminV2OrderDetail(orderId: string, env: Env): Promise<Response> {
+  const normalizedOrderId = normalizeText(orderId, '').slice(0, 100);
+  if (!normalizedOrderId) return jsonResponse({ message: 'Order not found.' }, 404);
+
+  const order = await dbGetOrderReceipt(normalizedOrderId, env);
+  if (!order) return jsonResponse({ message: 'Order not found.' }, 404);
+
+  const rawOrder = await env.DB.prepare('SELECT * FROM orders WHERE id = ? LIMIT 1')
+    .bind(normalizedOrderId)
+    .first<Record<string, unknown>>();
+  const stripeCustomer = rawOrder ? await resolveOrderStripeCustomer(rawOrder, env) : null;
+  const events = await dbListOrderEvents(normalizedOrderId, env);
+
+  return jsonResponse({
+    record: {
+      ...order,
+      customer: buildAdminOrderCustomer(rawOrder || {}, stripeCustomer),
+      events,
+    },
+  });
+}
+
+async function dbCountOrderItems(orderIds: string[], env: Env): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (orderIds.length === 0) return counts;
+  try {
+    const placeholders = orderIds.map(() => '?').join(', ');
+    const result = await env.DB.prepare(
+      `SELECT order_id, COUNT(*) AS item_count
+       FROM order_items
+       WHERE order_id IN (${placeholders})
+       GROUP BY order_id`
+    ).bind(...orderIds).all<{ order_id: string | null; item_count: number | null }>();
+    for (const row of result.results ?? []) {
+      const id = normalizeText(row.order_id, '');
+      if (id) counts.set(id, Number(row.item_count || 0));
+    }
+  } catch (error) {
+    console.warn('Order item count lookup failed', { error });
+  }
+  return counts;
+}
+
+async function dbListOrderEvents(orderId: string, env: Env): Promise<Array<Record<string, unknown>>> {
+  try {
+    const columns = await dbGetTableColumns('order_events', env);
+    if (!columns.some((column) => column.name === 'order_id')) return [];
+    const result = await env.DB.prepare(
+      `SELECT *
+       FROM order_events
+       WHERE order_id = ?
+       ORDER BY COALESCE(created_at, '') DESC`
+    ).bind(orderId).all<Record<string, unknown>>();
+    return (result.results ?? []).map((row, index) => ({
+      id: normalizeText(row.id, '') || index + 1,
+      eventType: normalizeText(row.event_type, ''),
+      fromStatus: normalizeText(row.from_status, ''),
+      toStatus: normalizeText(row.to_status, ''),
+      message: normalizeText(row.message, ''),
+      createdAt: normalizeText(row.created_at, ''),
+    }));
+  } catch (error) {
+    console.warn('Order events lookup failed', { orderId, error });
+    return [];
+  }
+}
+
+function mapAdminOrderSummary(
+  row: Record<string, unknown>,
+  itemCount: number,
+  stripeCustomer: { name: string; email: string; phone: string } | null,
+): Record<string, unknown> {
+  const id = normalizeText(row.id, '');
+  const orderNumber = normalizeText(row.order_number, id);
+  const provider = normalizeText(row.checkout_provider, '') || (normalizeText(row.stripe_checkout_session_id, '') ? 'stripe' : 'cash');
+  const status = normalizeText(row.status, 'checkout_open');
+  const totalCents = Number(row.total_cents ?? 0) || 0;
+  const customer = buildAdminOrderCustomer(row, stripeCustomer);
+  return {
+    id,
+    orderNumber,
+    date: normalizeText(row.paid_at ?? row.checkout_started_at ?? row.created_at, ''),
+    customerName: customer.name,
+    customerEmail: customer.email,
+    itemTitle: normalizeText(row.item_title_snapshot, ''),
+    itemCount,
+    totalCents,
+    paymentStatus: status,
+    fulfillmentStatus: normalizeText(row.fulfillment_status ?? row.fulfillment_type, 'pickup'),
+    checkoutProvider: provider,
+    checkoutType: normalizeText(row.checkout_type, provider),
+    checkoutMode: normalizeText(row.checkout_mode, ''),
+    paymentMethodLabel: provider === 'cash' ? 'Cash' : 'Stripe',
+  };
+}
+
+function buildAdminOrderCustomer(
+  row: Record<string, unknown>,
+  stripeCustomer: { name: string; email: string; phone: string } | null,
+): { name: string; email: string; phone: string } {
+  const name = normalizeText(
+    row.customer_name ?? row.stripe_customer_name ?? row.billing_name ?? row.shipping_name,
+    '',
+  ) || stripeCustomer?.name || 'Customer';
+  const email = normalizeText(
+    row.customer_email ?? row.stripe_customer_email ?? row.billing_email ?? row.email,
+    '',
+  ) || stripeCustomer?.email || '';
+  const phone = normalizeText(
+    row.customer_phone ?? row.stripe_customer_phone ?? row.billing_phone ?? row.phone,
+    '',
+  ) || stripeCustomer?.phone || '';
+  return { name, email, phone };
+}
+
+async function resolveOrderStripeCustomer(
+  row: Record<string, unknown>,
+  env: Env,
+): Promise<{ name: string; email: string; phone: string } | null> {
+  const localCustomer = buildAdminOrderCustomer(row, null);
+  if (localCustomer.email || localCustomer.name !== 'Customer') return localCustomer;
+
+  const stripeSecretKey = normalizeText(env.STRIPE_SECRET_KEY, '');
+  const sessionId = normalizeText(row.stripe_checkout_session_id, '');
+  if (!stripeSecretKey || !sessionId) return null;
+
+  try {
+    const response = await fetch(`https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(sessionId)}`, {
+      headers: { Authorization: `Bearer ${stripeSecretKey}` },
+    });
+    const data = await response.json<any>();
+    if (!response.ok) return null;
+    return {
+      name: normalizeText(data?.customer_details?.name, ''),
+      email: normalizeText(data?.customer_details?.email, ''),
+      phone: normalizeText(data?.customer_details?.phone, ''),
+    };
+  } catch (error) {
+    console.warn('Stripe checkout customer lookup failed', { sessionId, error });
+    return null;
+  }
 }
 
 async function handleShopCategories(env: Env): Promise<Response> {
@@ -7802,6 +7983,12 @@ async function dbUpdateStripeOrderStatus(
     stripe_checkout_session_id: normalizeText(session?.id, ''),
     stripe_payment_intent_id: normalizeText(session?.payment_intent, ''),
     stripe_customer_id: normalizeText(session?.customer, ''),
+    customer_name: normalizeText(session?.customer_details?.name, ''),
+    customer_email: normalizeText(session?.customer_details?.email, ''),
+    customer_phone: normalizeText(session?.customer_details?.phone, ''),
+    stripe_customer_name: normalizeText(session?.customer_details?.name, ''),
+    stripe_customer_email: normalizeText(session?.customer_details?.email, ''),
+    stripe_customer_phone: normalizeText(session?.customer_details?.phone, ''),
     stripe_payment_status: normalizeText(session?.payment_status, ''),
     updated_at: new Date().toISOString(),
     ...extraValues,

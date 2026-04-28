@@ -64,6 +64,15 @@ const sitemap: MenuItem[] = [
         active: true,
       },
       {
+        name: 'Order Manager',
+        key: 'order_manager',
+        path: paths.orderManager,
+        pathName: 'order-manager',
+        selectionPrefix: '/order-manager-item',
+        icon: 'material-symbols:orders-outline-rounded',
+        active: true,
+      },
+      {
         name: 'Category Manager',
         key: 'category_manager',
         path: paths.inventoryCategoryManager,

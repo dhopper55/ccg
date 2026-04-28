@@ -16,6 +16,8 @@ import InventoryManager from 'pages/inventory-manager/InventoryManager';
 import InventoryItem from 'pages/inventory-manager/InventoryItem';
 import InventoryCategoryManager from 'pages/inventory-manager/InventoryCategoryManager';
 import InventoryLabels from 'pages/inventory-manager/InventoryLabels';
+import OrderManager from 'pages/order-manager/OrderManager';
+import OrderManagerItem from 'pages/order-manager/OrderManagerItem';
 import SerialDecodes from 'pages/serial-decodes/SerialDecodes';
 import SerialPatternText from 'pages/serial-pattern-text/SerialPatternText';
 import LoggedOut from 'pages/authentication/default/LoggedOut';
@@ -68,6 +70,14 @@ export const routes: RouteObject[] = [
           {
             path: paths.inventoryManager,
             element: <InventoryManager />,
+          },
+          {
+            path: paths.orderManager,
+            element: <OrderManager />,
+          },
+          {
+            path: paths.orderManagerItem,
+            element: <OrderManagerItem />,
           },
           {
             path: paths.inventoryCategoryManager,
