@@ -5,6 +5,7 @@
  * - USA-made guitars (7-digit format, 1977-1985 and 1996+)
  * - UnSung Korea (US prefix, 2006+)
  * - World Korea (E prefix, WK prefix)
+ * - Legacy Korea E-prefix import line (E + Y + 5 digits)
  * - YooJin China (Y prefix, 2006+)
  * - Indonesia (CT, IW prefixes)
  * - Samick Korea (S prefix, 1993-1996)
@@ -24,6 +25,10 @@ export function decodeDean(serial) {
     // World Korea: WK prefix (newer format)
     if (/^WK\d{8}$/.test(normalized)) {
         return decodeWorldKoreaWK(normalized);
+    }
+    // Legacy Korea E-prefix import line: E + single year digit + 5-digit sequence
+    if (/^E[7-9]\d{5}$/.test(normalized)) {
+        return decodeLegacyKoreaESingleYearDigit(normalized);
     }
     // World Korea: E prefix (older format)
     if (/^E\d{6,8}$/.test(normalized)) {
@@ -150,6 +155,47 @@ function decodeWorldKoreaE(serial) {
         notes: `E prefix indicates World factory in Korea (older designation, primarily 2000-2015). Production sequence: ${sequence}. Note: Some E-prefix serials from early 2000s may have inconsistent year coding.`,
     };
     return { success: true, info };
+}
+// Legacy Korea E-prefix import line: E + Y + 5-digit sequence
+function decodeLegacyKoreaESingleYearDigit(serial) {
+    const yearDigit = serial[1];
+    const sequence = serial.substring(2);
+    const firstCandidate = `199${yearDigit}`;
+    const secondCandidate = `200${yearDigit}`;
+    const info = {
+        brand: 'Dean',
+        serialNumber: serial,
+        year: `${firstCandidate} or ${secondCandidate} (estimated)`,
+        factory: 'Korean import production line',
+        country: 'South Korea',
+        notes: `E prefix is seen on Korean-made Dean imports. In this shorter E-prefix format, the first digit after E is commonly treated as a year digit, so ${yearDigit} may indicate ${firstCandidate} or ${secondCandidate}; the remaining digits are production sequence ${parseInt(sequence, 10)}. Verify with a Made in Korea headstock stamp, model features, and Dean support when exact dating matters.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'dean-legacy-korea-e-single-year-digit',
+        patternLabel: 'Dean legacy Korea E-prefix single-year-digit format',
+        additionalContext: {
+            title: 'Dean legacy Korea E-prefix serial',
+            summary: 'This serial matches a shorter E-prefix format seen on Korean-made Dean imports.',
+            highlights: [
+                'The E prefix is associated with Korean import production on many Dean guitars.',
+                `The first digit after E is treated as a year digit, giving likely candidates of ${firstCandidate} or ${secondCandidate}.`,
+                `The remaining digits decode as production sequence ${parseInt(sequence, 10)}.`,
+            ],
+            caveats: [
+                'Dean import serials can be inconsistent, especially across older Korean production runs.',
+                'This decode identifies a likely country and era, not an exact model.',
+                'The same year digit can overlap decades, so physical markings matter.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for a Made in Korea stamp.',
+                'Compare the guitar to Korean Dean models from the likely era, such as Icon, Vendetta, or Cadillac variants.',
+                'Contact Dean support if a definitive production record is needed.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a shorter E-prefix format seen on Korean-made Dean imports.</p><h3>How This Pattern Is Typically Read</h3><p>The E prefix is associated with Korean import production on many Dean guitars. The first digit after E is treated as a year digit, giving likely candidates of ${firstCandidate} or ${secondCandidate}. The remaining digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Dean import serials can be inconsistent, especially across older Korean production runs.</li><li>This decode identifies a likely country and era, not an exact model.</li><li>The same year digit can overlap decades, so physical markings matter.</li></ul><h3>Coal Creek Guitars Note</h3><p>Check for a Made in Korea headstock stamp, compare the model to Korean Dean specs from the likely era, and contact Dean support if exact dating is required.</p>`,
+    };
 }
 // YooJin China: Y prefix (2006+)
 function decodeYooJinChina(serial) {

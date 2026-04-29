@@ -60,6 +60,16 @@ export function decodeKramer(serial: string): DecodeResult {
     return { success: true, info };
   }
 
+  // SC-prefix: Japanese overseas Focus/Striker-era plate serials
+  if (/^SC\d{4}$/.test(normalized)) {
+    return decodeJapanSC(normalized, cleaned);
+  }
+
+  // SE-prefix: Samick Korea overseas models, commonly late-1980s Striker/Aerostar/Focus era
+  if (/^SE\d{4}$/.test(normalized)) {
+    return decodeSamickKoreaSE(normalized, cleaned);
+  }
+
   // Two-letter overseas prefixes (e.g., FA, FB, CF)
   if (/^[A-Z]{2}\d+$/.test(normalized)) {
     const prefix = normalized.substring(0, 2);
@@ -185,6 +195,88 @@ export function decodeKramer(serial: string): DecodeResult {
   return {
     success: false,
     error: 'Unable to decode this Kramer serial number. Kramer serials vary by era, and many vintage records were lost. Try the Vintage Kramer registry or HTPG serial search for additional context.',
+  };
+}
+
+function decodeJapanSC(normalized: string, cleaned: string): DecodeResult {
+  const sequence = parseInt(normalized.substring(2), 10);
+
+  const info: GuitarInfo = {
+    brand: 'Kramer',
+    serialNumber: cleaned,
+    year: 'mid-to-late 1980s (estimated)',
+    factory: 'ESP Japan-associated overseas production',
+    country: 'Japan',
+    model: 'Overseas import model, commonly Focus or Striker family',
+    notes: `SC-prefix Kramer plate serials are commonly associated with Japanese-made overseas models from the mid-to-late 1980s, especially Focus and Striker-family instruments. Sequence: ${sequence}. These vintage import serials are generally arbitrary sequence numbers rather than exact date codes. Confirm the model and era from the neck plate style, headstock shape, logo, and hardware.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'kramer-sc-japan-focus-striker-4-digit',
+    patternLabel: 'Kramer SC Japan Focus/Striker 4-digit',
+    additionalContext: {
+      title: 'Kramer SC import serial',
+      summary: 'This serial matches a Kramer SC-prefix overseas plate format commonly associated with Japanese-made Focus and Striker-era instruments.',
+      highlights: [
+        'SC-prefix plate serials are commonly associated with overseas Kramer models from the mid-to-late 1980s.',
+        'This pattern is often linked to Japanese-made Focus and Striker-family instruments.',
+        `The four digits after SC are best treated as production sequence ${sequence}.`,
+      ],
+      caveats: [
+        'This pattern supports an estimated import era, not an exact production date.',
+        'Kramer vintage records are incomplete, and plate sequences were not always chronological.',
+        'The serial alone does not identify the exact model or body construction.',
+      ],
+      verificationTips: [
+        'Check whether the guitar has a smaller overseas-style die-cast neck plate.',
+        'Compare the headstock shape, logo style, pickups, and tremolo to Focus and Striker examples.',
+        'Use the Vintage Kramer registry and physical features for tighter model identification.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Kramer SC-prefix overseas plate format commonly associated with Japanese-made Focus and Striker-era instruments.</p><h3>How This Pattern Is Typically Read</h3><p>SC-prefix plate serials are commonly associated with overseas Kramer models from the mid-to-late 1980s. This pattern is often linked to Japanese-made Focus and Striker-family instruments. The four digits after SC are best treated as production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>This pattern supports an estimated import era, not an exact production date.</li><li>Kramer vintage records are incomplete, and plate sequences were not always chronological.</li><li>The serial alone does not identify the exact model or body construction.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as Japanese import-era evidence, then verify the exact model from neck plate style, headstock shape, logo, pickups, tremolo, and registry examples.</p>`,
+  };
+}
+
+function decodeSamickKoreaSE(normalized: string, cleaned: string): DecodeResult {
+  const sequence = parseInt(normalized.substring(2), 10);
+
+  const info: GuitarInfo = {
+    brand: 'Kramer',
+    serialNumber: cleaned,
+    year: 'late 1980s to early 1990s (estimated)',
+    factory: 'Samick',
+    country: 'South Korea',
+    model: 'Overseas import model, commonly Striker, Aerostar, or Focus family',
+    notes: `SE-prefix serials are commonly associated with Korean-made Kramer overseas models from the late 1980s to early 1990s, often from Samick production. Sequence: ${sequence}. This format is generally seen on import lines such as Striker, Aerostar, and Focus rather than USA-made Kramer models. Confirm the exact model from the headstock, neck plate, body construction, and hardware.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'kramer-se-samick-korea-4-digit',
+    patternLabel: 'Kramer SE Samick Korea 4-digit',
+    additionalContext: {
+      title: 'Kramer SE import serial',
+      summary: 'This serial matches a Korean-made Kramer SE-prefix import format commonly associated with late-1980s to early-1990s Samick production.',
+      highlights: [
+        'SE-prefix serials are commonly associated with Korean-made Kramer overseas models.',
+        'The format appears on import-era models such as Striker, Aerostar, and Focus-family instruments.',
+        `The four digits after SE are best treated as production sequence ${sequence}.`,
+      ],
+      caveats: [
+        'This pattern supports an estimated import era, not an exact production date.',
+        'Kramer records from this period are incomplete, so physical feature checks matter.',
+        'Some late-1980s overseas models used plywood or laminated bodies, so construction should be verified directly.',
+      ],
+      verificationTips: [
+        'Check headstock logo style, neck-plate markings, and country-of-origin text.',
+        'Compare pickup layout, tremolo, and body construction against Striker, Aerostar, and Focus examples.',
+        'Use the serial as era evidence, then verify the exact model from physical features.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Korean-made Kramer SE-prefix import format commonly associated with late-1980s to early-1990s Samick production.</p><h3>How This Pattern Is Typically Read</h3><p>SE-prefix serials are commonly associated with Korean-made Kramer overseas models. The format appears on import-era models such as Striker, Aerostar, and Focus-family instruments. The four digits after SE are best treated as production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>This pattern supports an estimated import era, not an exact production date.</li><li>Kramer records from this period are incomplete, so physical feature checks matter.</li><li>Some late-1980s overseas models used plywood or laminated bodies, so construction should be verified directly.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as Korean import-era evidence, then verify the exact model from headstock logo, neck-plate markings, hardware, and body construction.</p>`,
   };
 }
 

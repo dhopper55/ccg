@@ -7,6 +7,7 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | Serial Number | Expected Result |
 |---------------|-----------------|
 | F0712345 | Japan (FujiGen), 2007 |
+| F22011214 | Japan (FujiGen), 2022, February (modern post-2004 F + YY + 6-digit sequence) |
 | F523456 | Japan (FujiGen), 1995 |
 | C03071234 | Korea (Cort), 2003, July |
 | C8016949 | Korea (Cort), 1998, January (7-digit Korean 1990s variant: C + YMM + sequence) |
@@ -179,6 +180,7 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | Serial Number | Expected Result |
 |---------------|-----------------|
 | 62500 | USA Set-Neck, 2002 (based on sequential range) |
+| 7126922 | USA Core set-neck, 2007, sequence 126922 |
 | 1050000 | USA Set-Neck, 2010 (2-digit year prefix) |
 | S2005000 | S2 Series, USA, 2014-2015 |
 | K12345 | SE Series, Korea, 2010 |
@@ -213,6 +215,7 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | IW21061234 | Indonesia (WMI), 2021, June |
 | IC19031234 | Indonesia (Cort), 2019, March |
 | N11072675 | Indonesia, 2011, July |
+| RN24100948 | Indonesia (PT. Roxy Music), 2024, October |
 | C08051234 | Korea (Cort), 2008, May |
 | 0236758 | Korea, 2002 |
 | A1234 | USA Custom Shop |
@@ -249,7 +252,9 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | 2500 | USA Custom Shop Bolt-On, 1986-1989 |
 | 0250JJ | Jackson Junior, 1996-1998 |
 | 312345 | Japan Professional, 1993 |
-| 9312345 | Japan Fusion, 1993 |
+| 9405251 | Japan MIJ Chushin Gakki, 1994 (mid-1990s 7-digit format) |
+| 9312345 | Japan MIJ Chushin Gakki, 1993 (mid-1990s 7-digit format) |
+| 702728 | Japan MIJ import, late 1990s-late 2000s estimated (6-digit 7-prefix sequence) |
 | 9812345 | Japan 1996+, 1998 |
 | ISJ1720250 | Indonesia (Samick), 2017 |
 | ICJ1500001 | Indonesia (Cort), 2015 |
@@ -269,6 +274,8 @@ Sample serial numbers for testing the guitar serial decoder locally.
 |---------------|-----------------|
 | S106020848 | Modern S-prefix import format, 2010, June (Samick Korea; S + YYMM + sequence) |
 | SI05070297 | Samick Indonesia SI-prefix format, 2005, July (SI + YYMM + sequence) |
+| SC9117 | Japanese overseas Focus/Striker-era plate serial, mid-to-late 1980s estimated |
+| SE8280 | Samick Korea SE-prefix import format, late 1980s to early 1990s estimated |
 | V9954 | V-prefix vintage/import plate serial, estimated mid-to-late 1980s (non-chronological plate numbering) |
 
 ## B.C. Rich
@@ -378,6 +385,7 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | US14061234 | UnSung Korea, 2014, June |
 | WK17081234 | World Korea (new), 2017, August |
 | Y10031234 | YooJin China, 2010, March |
+| E805978 | Korean import E-prefix, 1998 or 2008 (estimated) |
 | E010001 | World Korea (old), 2001 |
 | E14051234 | World Korea (old), 2014 |
 | IW19070289 | Indonesia (IW), 2019, July |
@@ -505,6 +513,7 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | 0500 | Adamas, 1978 (separate Adamas numbering) |
 | 5000 | Adamas, 1990 (separate Adamas numbering) |
 | 10000 | Adamas, 1995-1996 (separate Adamas numbering) |
+| 2121282 | Korean import, post-1989 estimated (Celebrity/Elite import/AX style 7-digit format) |
 | 1234567 | Import (7-digit, Korea/China) |
 | 123456789 | Unable to decode (insufficient/conflicting format evidence) |
 | US12051234 | Import, Un Sung Korea, 2012, May |

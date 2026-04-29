@@ -30,6 +30,10 @@ export function decodeSchecter(serial) {
     if (/^CA\d{8}$/.test(normalized)) {
         return decodeChinaCA(normalized);
     }
+    // Indonesia newer import RN prefix: RN + YYMM + sequence
+    if (/^RN\d{8}$/.test(normalized)) {
+        return decodeIndonesiaRN(normalized);
+    }
     // Korea H prefix: H + 7-8 digits
     if (/^H\d{7,8}$/.test(normalized)) {
         return decodeKoreaH(normalized);
@@ -209,6 +213,53 @@ function decodeChinaCA(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Schecter CA-prefix import format parsed as factory prefix plus YYMM production date and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>CA indicates a Schecter import production run, commonly associated with newer China factory partners. The digits ${digits.substring(0, 2)} decode as production year ${year}. The digits ${digits.substring(2, 4)} decode as ${month}. The final four digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This format identifies production date and factory family, not the exact model name.</li><li>Most CA-prefix examples are import/Diamond Series instruments rather than USA Custom Shop guitars.</li><li>Factory-code usage can vary by production run, so confirm with physical markings when provenance matters.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a practical import production decode, then verify the exact model from the headstock, truss rod cover, label, or Schecter support.</p>`,
+    };
+}
+function decodeIndonesiaRN(serial) {
+    const digits = serial.substring(2);
+    const { year, month, sequence } = parseStandardDigits(digits);
+    if (!month) {
+        return {
+            success: false,
+            error: 'Unable to decode this Schecter RN serial number. The month field appears invalid.',
+        };
+    }
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Schecter',
+        serialNumber: serial,
+        year,
+        month,
+        factory: 'PT. Roxy Music',
+        country: 'Indonesia',
+        model: 'Diamond Series import',
+        notes: `RN prefix indicates newer Schecter Indonesian production, commonly attributed to PT. Roxy Music. Parsed as RN + YYMM + sequence. Sequence: ${sequence}. This format appears on newer Indonesian-made Schecter models; verify the exact model from the headstock, truss rod cover, or label.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'schecter-rn-yymm-sequence',
+        patternLabel: 'Schecter RN YYMM sequence',
+        additionalContext: {
+            title: 'Schecter RN serial',
+            summary: 'This serial matches a Schecter RN-prefix Indonesian import format parsed as factory prefix plus YYMM production date and sequence.',
+            highlights: [
+                'RN indicates newer Schecter Indonesian production, commonly attributed to PT. Roxy Music.',
+                `The digits ${digits.substring(0, 2)} decode as production year ${year}.`,
+                `The digits ${digits.substring(2, 4)} decode as ${month}.`,
+                `The final four digits decode as production sequence ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'This format identifies production date and factory family, not the exact model name.',
+                'RN-prefix examples are import/Diamond Series instruments rather than USA Custom Shop guitars.',
+                'Factory-code usage can vary by production run, so confirm with physical markings when provenance matters.',
+            ],
+            verificationTips: [
+                'Check the headstock, truss rod cover, or label for the model name and country marking.',
+                'Contact Schecter support with photos of the serial and full instrument if exact factory confirmation is needed.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Schecter RN-prefix Indonesian import format parsed as factory prefix plus YYMM production date and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>RN indicates newer Schecter Indonesian production, commonly attributed to PT. Roxy Music. The digits ${digits.substring(0, 2)} decode as production year ${year}. The digits ${digits.substring(2, 4)} decode as ${month}. The final four digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This format identifies production date and factory family, not the exact model name.</li><li>RN-prefix examples are import/Diamond Series instruments rather than USA Custom Shop guitars.</li><li>Factory-code usage can vary by production run, so confirm with physical markings when provenance matters.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a practical Indonesian Schecter production decode, then verify the exact model from the headstock, truss rod cover, label, or Schecter support.</p>`,
     };
 }
 function decodeKoreaH(serial) {

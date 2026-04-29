@@ -2,7 +2,7 @@ import { DecodeResult, GuitarInfo } from '../types.js';
 
 export function decodePRS(serial: string): DecodeResult {
   const cleaned = serial.trim().toUpperCase();
-  const normalized = cleaned.replace(/[\s-]/g, '');
+  const normalized = cleaned.replace(/[^A-Z0-9]/g, '');
 
   // S2 Series: S2 + 6 digits (2013+)
   if (/^S2\d{6}$/.test(normalized)) {
@@ -47,7 +47,7 @@ export function decodePRS(serial: string): DecodeResult {
   // USA Set-Neck with 2-digit year prefix: 08+, 09+, 10+, etc. (2008+)
   // Require at least 7 digits total (YY + 5+ sequence) to avoid misreading
   // older single-digit prefixes that are often entered without a space (e.g., "2 15107" -> "215107").
-  if (/^(0[89]|[1-9]\d)\d{5,}$/.test(normalized)) {
+  if (/^(0[89]|[1-4]\d)\d{5,}$/.test(normalized)) {
     return decodeUSASetNeck2008Plus(normalized);
   }
 
@@ -125,6 +125,57 @@ function getSEYear(letter: string): number {
 
 function decodeUSASetNeck(serial: string): DecodeResult {
   const num = parseInt(serial, 10);
+
+  // Later pre-2008 Core/set-neck examples can be written as a single year digit
+  // followed by the six-digit production sequence, e.g. 7 126922 = 2007.
+  if (/^\d{7}$/.test(serial)) {
+    const yearDigit = parseInt(serial[0], 10);
+    const sequence = parseInt(serial.substring(1), 10);
+    const matchingRange = USA_SERIAL_RANGES.find((range) =>
+      sequence >= range.start &&
+      sequence <= range.end &&
+      range.year % 10 === yearDigit
+    );
+
+    if (matchingRange) {
+      const info: GuitarInfo = {
+        brand: 'PRS',
+        serialNumber: serial,
+        year: matchingRange.year.toString(),
+        factory: 'PRS Factory, Stevensville, Maryland',
+        country: 'USA',
+        model: 'Core set-neck model',
+        notes: `USA-made PRS Core/set-neck guitar. First digit ${yearDigit} indicates ${matchingRange.year}; production sequence ${sequence}. Core model serial numbers are typically written on the back of the headstock and identify year and production order, not the exact model name.`,
+      };
+
+      return {
+        success: true,
+        info,
+        patternKey: 'prs-usa-core-single-year-digit-six-sequence',
+        patternLabel: 'PRS USA Core year digit + six-digit sequence',
+        additionalContext: {
+          title: 'PRS USA Core serial',
+          summary: 'This serial matches a PRS USA Core/set-neck format using a single year digit followed by a six-digit production sequence.',
+          highlights: [
+            `The first digit ${yearDigit} decodes as production year ${matchingRange.year}.`,
+            `The remaining digits decode as production sequence ${sequence}.`,
+            'This format is associated with USA-made Core/set-neck instruments before PRS moved to two-digit year prefixes.',
+          ],
+          caveats: [
+            'The serial identifies year and production order, not the exact model name.',
+            'A 2007 Core serial should normally be written on the back of the headstock rather than printed on a sticker.',
+            'Model identification should be confirmed from the guitar itself, case paperwork, hang tag, or PRS support.',
+          ],
+          verificationTips: [
+            'Check the back of the headstock for the handwritten or stamped serial.',
+            'Compare the model features against PRS Core specifications from the estimated year.',
+            'Contact PRS support with photos if exact model confirmation matters.',
+          ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a PRS USA Core/set-neck format using a single year digit followed by a six-digit production sequence.</p><h3>How This Pattern Is Typically Read</h3><p>The first digit ${yearDigit} decodes as production year ${matchingRange.year}. The remaining digits decode as production sequence ${sequence}. This format is associated with USA-made Core/set-neck instruments before PRS moved to two-digit year prefixes.</p><h3>What To Verify</h3><ul><li>The serial identifies year and production order, not the exact model name.</li><li>A 2007 Core serial should normally be written on the back of the headstock rather than printed on a sticker.</li><li>Model identification should be confirmed from the guitar itself, case paperwork, hang tag, or PRS support.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a USA Core production decode, then verify the exact model from physical features, paperwork, or PRS support.</p>`,
+      };
+    }
+  }
 
   // Try to find year from sequential ranges
   for (const range of USA_SERIAL_RANGES) {

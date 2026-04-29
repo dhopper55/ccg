@@ -32,6 +32,10 @@ export function decodeIbanez(serial) {
         return result;
     }
     // Try each format in order of specificity
+    // Japan: F + 8 digits (modern FujiGen post-2004, F + YY + 6-digit sequence)
+    if (/^F\d{8}$/.test(normalized)) {
+        return decodeFujiGenPost2004EightDigit(normalized);
+    }
     // Japan: F + 7 digits (1997-present, FujiGen)
     if (/^F\d{7}$/.test(normalized)) {
         return decodeFujiGenModern(normalized);
@@ -383,6 +387,29 @@ function decodeFujiGenModern(serial) {
         notes: `Production number: ${productionNum}. FujiGen is Ibanez's premium Japanese factory, known for high-quality Prestige and J-Custom models.`
     };
     return { success: true, info };
+}
+// Japan FujiGen post-2004: F + YY + 6-digit production sequence
+function decodeFujiGenPost2004EightDigit(serial) {
+    const year = parseInt(serial.substring(1, 3), 10);
+    const productionNum = parseInt(serial.substring(3), 10);
+    const fullYear = 2000 + year;
+    const monthNum = Math.min(12, Math.max(1, Math.floor(productionNum / 3000) - 1));
+    const month = getMonthName(monthNum);
+    const info = {
+        brand: 'Ibanez',
+        serialNumber: serial,
+        year: fullYear.toString(),
+        month,
+        factory: 'FujiGen Gakki, Nagano',
+        country: 'Japan',
+        notes: `Production sequence: ${productionNum}. Modern FujiGen F-prefix serials use the two digits after F as the year; post-2004 production sequences increment monthly by roughly 3,000, so this sequence points to ${month} ${fullYear}. FujiGen builds high-end Japanese Ibanez lines such as Prestige, Genesis, and J-Custom. Serial numbers identify production timing and factory, not the exact model.`
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'ibanez-fujigen-post-2004-f-yy-sequence',
+        patternLabel: 'Ibanez FujiGen post-2004 F + YY + sequence',
+    };
 }
 // Japan FujiGen variant: FD + 7 digits
 function decodeFujiGenFD(serial) {

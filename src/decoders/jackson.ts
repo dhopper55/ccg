@@ -13,7 +13,9 @@ import { DecodeResult, GuitarInfo } from '../types.js';
  * - Jackson Junior (JJ suffix, 1994-2000)
  * - Japan Professional (6-digit, 1990-1995)
  * - Japan Professional transition (6-digit, 1996)
+ * - Japan MIJ import numeric sequence (6-digit 7 prefix, late 1990s-2000s estimated)
  * - Japan Fusion (6-digit 90-95 prefix, 1990-1995)
+ * - Japan mid-1990s MIJ (7-digit, 90-95 prefix)
  * - Japan 1996+ (7-digit, 96+ prefix)
  * - Japan Chushin 200C import format (early-mid 2000s)
  * - Indonesia (I prefix with factory codes)
@@ -133,6 +135,11 @@ export function decodeJackson(serial: string): DecodeResult {
     return decodeModern(normalized);
   }
 
+  // Japan mid-1990s MIJ 7-digit (90-95 prefix, commonly Professional/Performer)
+  if (/^9[0-5]\d{5}$/.test(normalized) && normalized.length === 7) {
+    return decodeJapanMij1990to1995SevenDigit(normalized);
+  }
+
   // Japan 7-digit (1996+, starts with 96-99 or 0x for 2000s)
   if (/^(9[6-9]|0[0-9]|1[0-9]|2[0-5])\d{5}$/i.test(normalized) && normalized.length === 7) {
     return decodeJapan1996Plus(normalized);
@@ -146,6 +153,11 @@ export function decodeJackson(serial: string): DecodeResult {
   // Japan Professional transition 6-digit (1996, first digit 6)
   if (/^6\d{5}$/.test(normalized) && normalized.length === 6) {
     return decodeJapanProfessionalTransition1996(normalized);
+  }
+
+  // Japan MIJ import numeric sequence (6-digit 7 prefix, late 1990s-2000s estimated)
+  if (/^7\d{5}$/.test(normalized) && normalized.length === 6) {
+    return decodeJapanMijSevenPrefixSixDigit(normalized);
   }
 
   // Japan Fusion 6-digit (90-95 prefix)
@@ -445,6 +457,87 @@ function decodeJapanProfessionalTransition1996(serial: string): DecodeResult {
       ],
     },
     additionalContextRichText: `<h3>Overview</h3><p>This 6-digit serial beginning with 6 fits a mid-1990s Jackson Japanese bolt-on pattern, commonly associated with Professional Series or no-S-series instruments around the 1996 transition.</p><h3>How This Pattern Is Typically Read</h3><p>The first digit points to 1996 in the 1990s Japanese 6-digit sequence. These instruments are commonly associated with Chushin Gakki production in Japan. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Jackson serial records from this era are incomplete, and the official lookup may not include many pre-2002 instruments.</li><li>Some 1996 Japanese models moved to a 7-digit 96xxxxx format, so this 6-digit interpretation should be verified against physical markings.</li><li>A small number of similar 6-prefix bolt-ons have been linked to Taiwan production.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a practical decode, then confirm with the neck plate, model features, and neck-pocket or heel stamps when possible.</p>`,
+  };
+}
+
+function decodeJapanMijSevenPrefixSixDigit(serial: string): DecodeResult {
+  const sequence = parseInt(serial, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Jackson',
+    serialNumber: serial,
+    year: 'late 1990s to late 2000s (estimated)',
+    factory: 'Japan import production, likely Chushin Gakki',
+    country: 'Japan',
+    notes: `Likely made in Japan. This 6-digit numeric serial beginning with 7 fits a Japanese Jackson import sequence associated with late-1990s to late-2000s bolt-on models such as DKMG, DXMG, DX10, and related MIJ lines. It is treated as production sequence ${sequence}, not an exact date code. Note: many references describe a similar 7-prefix Japanese format as 7 digits; this submitted serial is 6 digits, so verify against the physical instrument.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'jackson-mij-6-digit-7-prefix-import-sequence',
+    patternLabel: 'Jackson MIJ 6-digit 7-prefix import sequence',
+    additionalContext: {
+      title: 'Jackson MIJ 7-prefix import serial',
+      summary: 'This serial matches a 6-digit 7-prefix Japanese Jackson import sequence associated with late-1990s to late-2000s bolt-on models.',
+      highlights: [
+        'The leading 7 points to a Japanese import sequence rather than a precise calendar year.',
+        'This style is commonly associated with MIJ bolt-on Jackson models from the late 1990s through the late 2000s.',
+        `The full number is treated as production sequence ${sequence}.`,
+      ],
+      caveats: [
+        'Exact dating is limited because many Japanese Jackson factory records from this era are incomplete or unavailable.',
+        'Some references describe related 7-prefix MIJ serials as 7-digit numbers; this serial has 6 digits.',
+        'Use this as a likely MIJ era/origin decode, not exact model authentication.',
+      ],
+      verificationTips: [
+        'Check for Made in Japan markings and compare the guitar to DKMG, DXMG, DX10, or related MIJ specs.',
+        'Inspect the neck pocket or neck heel for model/date stamps when exact dating matters.',
+        'Official Jackson lookup coverage may be limited for these Japanese import serials.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a 6-digit 7-prefix Japanese Jackson import sequence associated with late-1990s to late-2000s bolt-on models.</p><h3>How This Pattern Is Typically Read</h3><p>The leading 7 points to a Japanese import sequence rather than a precise calendar year. This style is commonly associated with MIJ bolt-on Jackson models from the late 1990s through the late 2000s. The full number is treated as production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>Exact dating is limited because many Japanese Jackson factory records from this era are incomplete or unavailable.</li><li>Some references describe related 7-prefix MIJ serials as 7-digit numbers; this serial has 6 digits.</li><li>Use this as a likely MIJ era/origin decode, not exact model authentication.</li></ul><h3>Coal Creek Guitars Note</h3><p>Check for Made in Japan markings, compare the guitar to DKMG, DXMG, DX10, or related MIJ specs, and inspect neck-pocket or heel stamps when possible.</p>`,
+  };
+}
+
+function decodeJapanMij1990to1995SevenDigit(serial: string): DecodeResult {
+  const yearDigits = serial.substring(0, 2);
+  const year = 1900 + parseInt(yearDigits, 10);
+  const sequence = parseInt(serial.substring(2), 10);
+
+  const info: GuitarInfo = {
+    brand: 'Jackson',
+    serialNumber: serial,
+    year: year.toString(),
+    factory: 'Chushin Gakki',
+    country: 'Japan',
+    notes: `Likely made in Japan at Chushin Gakki. This 7-digit mid-1990s Jackson import format uses the first two digits as the year (${yearDigits} = ${year}) and the remaining five digits as production sequence ${sequence}. It is commonly seen on Japanese Professional Series, Performer-era, and related MIJ bolt-on models. Exact model identification requires physical verification because Jackson records from this era are incomplete.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'jackson-mij-7-digit-1990-1995-chushin',
+    patternLabel: 'Jackson MIJ 7-digit 1990-1995 Chushin format',
+    additionalContext: {
+      title: 'Jackson MIJ 7-digit mid-1990s serial',
+      summary: 'This serial matches a 7-digit Jackson Japanese import format commonly associated with Chushin Gakki production in the early-to-mid 1990s.',
+      highlights: [
+        `The first two digits point to ${year}.`,
+        'These serials are commonly associated with Japanese Professional Series, Performer-era, and related MIJ bolt-on models.',
+        `The remaining digits decode as production sequence ${sequence}.`,
+      ],
+      caveats: [
+        'Jackson records from this era are incomplete, so the exact model cannot be confirmed from the serial alone.',
+        'Stickered headstock serials from this period can overlap across nearby import series.',
+        'Use this as a production-era and country decode, not a model authentication by itself.',
+      ],
+      verificationTips: [
+        'Check for Made in Japan markings and compare the instrument to mid-1990s Jackson Professional or Performer specs.',
+        'If possible, inspect the neck pocket or neck heel for model/date stamps.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a 7-digit Jackson Japanese import format commonly associated with Chushin Gakki production in the early-to-mid 1990s.</p><h3>How This Pattern Is Typically Read</h3><p>The first two digits point to ${year}. These serials are commonly associated with Japanese Professional Series, Performer-era, and related MIJ bolt-on models. The remaining digits decode as production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>Jackson records from this era are incomplete, so the exact model cannot be confirmed from the serial alone.</li><li>Stickered headstock serials from this period can overlap across nearby import series.</li><li>Use this as a production-era and country decode, not a model authentication by itself.</li></ul><h3>Coal Creek Guitars Note</h3><p>Confirm with Made in Japan markings, model specs, and neck-pocket or heel stamps when possible.</p>`,
   };
 }
 

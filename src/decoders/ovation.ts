@@ -54,6 +54,11 @@ export function decodeOvation(serial: string): DecodeResult {
     return decode6DigitUSA(normalized);
   }
 
+  // Korean import 7-digit numeric format seen on post-1989 Celebrity/AX-style models.
+  if (/^21\d{5}$/.test(normalized)) {
+    return decodeKoreanImport7Digit(normalized);
+  }
+
   // 7+ digit series - typically imports
   if (/^\d{7,10}$/.test(normalized)) {
     return decodeImport(normalized);
@@ -347,6 +352,47 @@ function decodeLetterPrefix(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+function decodeKoreanImport7Digit(serial: string): DecodeResult {
+  const sequence = parseInt(serial, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Ovation / Celebrity',
+    serialNumber: serial,
+    year: 'post-1989 (estimated)',
+    factory: 'Korean import production line',
+    country: 'South Korea',
+    model: 'Celebrity, Elite import, or AX series',
+    notes: `This 7-digit numeric Ovation serial fits a Korean-made import format seen on post-1989 Celebrity, Elite import, and AX-family instruments. Serial ${serial} should be treated as a valid import serial, but it does not encode an exact production year the way documented USA New Hartford serial ranges do. Confirm the model number and country label inside the body and compare it with the stamped headstock serial.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'ovation-korea-7-digit-import',
+    patternLabel: 'Ovation Korea 7-digit import',
+    additionalContext: {
+      title: 'Ovation Korean import serial',
+      summary: 'This serial matches a 7-digit numeric Ovation import format commonly associated with Korean-made Celebrity, Elite import, and AX-family guitars.',
+      highlights: [
+        'A 7-digit numeric serial can be valid on non-USA Ovation import models.',
+        'The leading 21 prefix is seen on Korean-made Ovation import examples.',
+        `The full serial is best treated as import sequence ${sequence}.`,
+      ],
+      caveats: [
+        'This pattern supports a Korean import identification, not an exact production year.',
+        'USA-made Ovation serial ranges do not apply to this import format.',
+        'Model identity should come from the label inside the body, not from the serial alone.',
+      ],
+      verificationTips: [
+        'Look for the model number and country-of-origin label through the soundhole.',
+        'Check whether the stamped headstock serial matches the label or paperwork.',
+        'Celebrity, Elite import, and AX-family instruments are the most likely matches for this format.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a 7-digit numeric Ovation import format commonly associated with Korean-made Celebrity, Elite import, and AX-family guitars.</p><h3>How This Pattern Is Typically Read</h3><p>A 7-digit numeric serial can be valid on non-USA Ovation import models. The leading 21 prefix is seen on Korean-made Ovation import examples. The full serial is best treated as import sequence ${sequence}, not as a USA New Hartford production date.</p><h3>What To Verify</h3><ul><li>This pattern supports a Korean import identification, not an exact production year.</li><li>USA-made Ovation serial ranges do not apply to this import format.</li><li>Model identity should come from the label inside the body, not from the serial alone.</li></ul><h3>Coal Creek Guitars Note</h3><p>Look for the model number and country-of-origin label through the soundhole, then check that the stamped headstock serial matches the label or paperwork.</p>`,
+  };
 }
 
 // Import models (7+ digits without prefix)
