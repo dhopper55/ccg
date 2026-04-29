@@ -142,6 +142,11 @@ interface ShopCheckoutRequestPayload {
   fulfillmentType?: unknown;
   couponCode?: unknown;
   taxIncluded?: unknown;
+  customer?: {
+    firstName?: unknown;
+    lastName?: unknown;
+    email?: unknown;
+  };
   items?: Array<{
     inventoryItemId?: unknown;
     quantity?: unknown;
@@ -3816,6 +3821,24 @@ async function handleShopCreateCashOrder(request: Request, env: Env): Promise<Re
   const fulfillmentType = normalizeText(body?.fulfillmentType, 'pickup') === 'pickup'
     ? 'pickup'
     : 'pickup';
+  const customerFirstName = normalizeText(body?.customer?.firstName, '');
+  const customerLastName = normalizeText(body?.customer?.lastName, '');
+  const customerEmail = normalizeEmailAddress(body?.customer?.email);
+  if (!customerFirstName) {
+    return jsonResponse({ message: 'Customer first name is required.' }, 400);
+  }
+  if (customerFirstName.length > 80) {
+    return jsonResponse({ message: 'Customer first name must be 80 characters or fewer.' }, 400);
+  }
+  if (!customerLastName) {
+    return jsonResponse({ message: 'Customer last name is required.' }, 400);
+  }
+  if (customerLastName.length > 80) {
+    return jsonResponse({ message: 'Customer last name must be 80 characters or fewer.' }, 400);
+  }
+  if (!customerEmail) {
+    return jsonResponse({ message: 'A valid customer email is required.' }, 400);
+  }
   const draftResult = await buildShopCheckoutDraft(body, {
     includeInStoreOnly,
     allowTaxIncluded: true,
@@ -3850,6 +3873,8 @@ async function handleShopCreateCashOrder(request: Request, env: Env): Promise<Re
       successUrl,
       cancelUrl,
       createdAt: nowIso,
+      customerName: `${customerFirstName} ${customerLastName}`,
+      customerEmail,
       items: draft.items,
     }, env);
 
@@ -7843,6 +7868,8 @@ async function dbCreateCheckoutOrder(
     successUrl: string;
     cancelUrl: string;
     createdAt: string;
+    customerName?: string;
+    customerEmail?: string;
     items: Array<{
       inventoryItemId: number;
       quantity: number;
@@ -7885,6 +7912,8 @@ async function dbCreateCheckoutOrder(
     ['checkout_started_at', input.createdAt],
     ['success_url', input.successUrl],
     ['cancel_url', input.cancelUrl],
+    ['customer_name', normalizeText(input.customerName, '')],
+    ['customer_email', normalizeEmailAddress(input.customerEmail)],
     ['created_at', input.createdAt],
     ['updated_at', input.createdAt],
   ]);
@@ -8135,18 +8164,43 @@ async function dbGetOrderReceipt(orderId: string, env: Env): Promise<Record<stri
       .map((row) => parseOptionalPositiveInt(row.inventory_item_id ?? row.item_id ?? row.inventory_id))
       .filter((value): value is number => value != null),
   ));
-  const inventoryById = new Map<number, { ccg_number: string | null; title: string | null; sale_title: string | null }>();
+  const inventoryById = new Map<number, {
+    ccg_number: string | null;
+    title: string | null;
+    sale_title: string | null;
+    image_url: string | null;
+  }>();
   if (inventoryItemIds.length > 0) {
     const placeholders = inventoryItemIds.map(() => '?').join(', ');
     const inventoryRows = await env.DB.prepare(
-      `SELECT id, ccg_number, title, sale_title
-       FROM ccg_inventory_items
-       WHERE id IN (${placeholders})`
+      `SELECT
+         i.id,
+         i.ccg_number,
+         i.title,
+         i.sale_title,
+         CASE
+           WHEN EXISTS (
+             SELECT 1
+             FROM ccg_inventory_item_images sii_exists
+             WHERE sii_exists.inventory_item_id = i.id
+           ) THEN COALESCE((
+             SELECT sii.image_url
+             FROM ccg_inventory_item_images sii
+             WHERE sii.inventory_item_id = i.id
+               AND COALESCE(sii.is_private, 0) = 0
+             ORDER BY sii.display_order ASC, sii.id ASC
+             LIMIT 1
+           ), '')
+           ELSE i.image_url
+         END AS image_url
+       FROM ccg_inventory_items i
+       WHERE i.id IN (${placeholders})`
     ).bind(...inventoryItemIds).all<{
       id: number;
       ccg_number: string | null;
       title: string | null;
       sale_title: string | null;
+      image_url: string | null;
     }>();
     for (const row of inventoryRows.results ?? []) {
       inventoryById.set(Number(row.id), row);
@@ -8166,6 +8220,7 @@ async function dbGetOrderReceipt(orderId: string, env: Env): Promise<Record<stri
         row.item_title_snapshot ?? row.title_snapshot ?? row.item_title ?? row.title ?? inventory?.sale_title ?? inventory?.title,
         'Item',
       ),
+      imageUrl: toPublicShopImageUrl(row.image_url_snapshot ?? row.item_image_url_snapshot ?? row.image_url ?? inventory?.image_url),
       quantity,
       unitAmountCents: Number.isFinite(unitAmountCents) ? unitAmountCents : 0,
       subtotalCents: Number.isFinite(subtotalCents) ? subtotalCents : 0,

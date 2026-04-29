@@ -13,6 +13,7 @@ import {
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
 import dayjs from 'dayjs';
 import useNumberFormat from 'hooks/useNumberFormat';
+import { formatOrderNumber } from 'lib/utils';
 import paths from 'routes/paths';
 import IconifyIcon from 'components/base/IconifyIcon';
 import DataGridPagination from 'components/pagination/DataGridPagination';
@@ -88,6 +89,7 @@ const OrderManager = () => {
     return orders.filter((order) =>
       [
         order.orderNumber,
+        formatOrderNumber(order.orderNumber),
         order.customerName,
         order.customerEmail,
         order.itemTitle,
@@ -109,7 +111,7 @@ const OrderManager = () => {
             href={paths.orderManagerItemWithId(params.row.id)}
             sx={{ fontWeight: 600 }}
           >
-            {params.row.orderNumber}
+            {formatOrderNumber(params.row.orderNumber)}
           </Link>
         ),
       },
@@ -170,7 +172,7 @@ const OrderManager = () => {
         minWidth: 104,
         renderCell: (params) => (
           <Typography variant="body2">
-            {params.row.itemCount || 1} item{(params.row.itemCount || 1) === 1 ? '' : 's'}
+            {params.row.itemCount || 1} ({currencyFormat(params.row.totalCents / 100)})
           </Typography>
         ),
       },

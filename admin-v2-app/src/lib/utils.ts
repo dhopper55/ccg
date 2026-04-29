@@ -3,6 +3,11 @@ import ts, { transpile } from 'typescript';
 
 export const parseRoutePath = (path: string) => path.split('/').pop() || '/';
 
+export const formatOrderNumber = (orderNumber: string) => {
+  const match = orderNumber.trim().match(/^(CCG)-\d{14}-([A-Z0-9]+)$/i);
+  return match ? `${match[1].toUpperCase()}-${match[2].toUpperCase()}` : orderNumber;
+};
+
 export const getItemFromStore = (
   key: string,
   defaultValue?: string | boolean,

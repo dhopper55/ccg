@@ -19,6 +19,7 @@ import {
 import Grid from '@mui/material/Grid';
 import dayjs from 'dayjs';
 import useNumberFormat from 'hooks/useNumberFormat';
+import { formatOrderNumber } from 'lib/utils';
 import { ensureStarWebPrntGlobals } from 'lib/starWebPrntShim';
 import { useSearchParams } from 'react-router';
 import paths from 'routes/paths';
@@ -29,6 +30,7 @@ type AdminOrderItem = {
   inventoryItemId: number;
   ccgNumber: string;
   title: string;
+  imageUrl: string;
   quantity: number;
   unitAmountCents: number;
   subtotalCents: number;
@@ -349,6 +351,8 @@ const OrderManagerItem = () => {
     );
   }
 
+  const displayOrderNumber = formatOrderNumber(order.orderNumber);
+
   return (
     <>
     <Grid container>
@@ -365,7 +369,7 @@ const OrderManagerItem = () => {
                   sx={{ mb: 1, flexWrap: 'nowrap' }}
                 />
                 <Typography variant="h4" sx={{ mb: 2 }}>
-                  Order <Box component="span">{order.orderNumber}</Box>
+                  Order <Box component="span">{displayOrderNumber}</Box>
                 </Typography>
                 <Stack sx={{ gap: 1, alignItems: 'center' }}>
                   <IconifyIcon icon={paymentIcon(order.checkoutProvider)} sx={{ fontSize: 22 }} />
@@ -419,19 +423,33 @@ const OrderManagerItem = () => {
               <Stack direction="column" sx={{ gap: 5 }}>
                 {order.items.map((item) => (
                   <Stack key={`${item.inventoryItemId}-${item.ccgNumber}`} sx={{ gap: 2, alignItems: 'center' }}>
-                    <Avatar
-                      variant="rounded"
-                      sx={{
-                        width: 56,
-                        height: 56,
-                        bgcolor: 'background.elevation2',
-                        borderRadius: 2,
-                      }}
+                    <Link
+                      href={paths.inventoryItemWithId(String(item.inventoryItemId))}
+                      underline="none"
+                      sx={{ flexShrink: 0 }}
                     >
-                      <IconifyIcon icon="material-symbols:inventory-2-outline-rounded" sx={{ fontSize: 24 }} />
-                    </Avatar>
+                      <Avatar
+                        variant="rounded"
+                        src={item.imageUrl || undefined}
+                        alt={item.title}
+                        sx={{
+                          width: 56,
+                          height: 56,
+                          bgcolor: 'background.elevation2',
+                          borderRadius: 2,
+                        }}
+                      >
+                        <IconifyIcon icon="material-symbols:inventory-2-outline-rounded" sx={{ fontSize: 24 }} />
+                      </Avatar>
+                    </Link>
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 700, lineClamp: 1 }}>
+                      <Typography
+                        component={Link}
+                        href={paths.inventoryItemWithId(String(item.inventoryItemId))}
+                        underline="hover"
+                        variant="subtitle1"
+                        sx={{ fontWeight: 700, lineClamp: 1, color: 'text.primary' }}
+                      >
                         {item.title}
                       </Typography>
                       <Typography variant="caption" sx={{ color: 'text.secondary' }}>
