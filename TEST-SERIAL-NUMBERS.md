@@ -140,6 +140,7 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | 2107154123 | 2021, July 15 |
 | 1012104567 | 2010, December 10 |
 | 20051215023 | 11-digit Taylor format, 2005, December 15 |
+| 050913155 | 9-digit Taylor legacy year-code format, 1993, September 13, 500 Series through Presentation Series |
 | 970715423 | 9-digit Taylor format, 1997, July 15 |
 | 12345678 | Early Taylor pre-1993 format |
 

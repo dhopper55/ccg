@@ -1231,6 +1231,29 @@ function assertTaylorLegacy9Digit(serialInput, expectedYear, expectedMonth, expe
   );
 }
 
+function assertTaylorLegacy9DigitYearCode(serialInput, expectedYear, expectedMonth, expectedDay) {
+  const result = decodeTaylor(serialInput);
+  assert(result.success, `Expected decode success for Taylor ${serialInput}`);
+  assert(result.info, `Expected decoded info for Taylor ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(info.day === expectedDay, `Expected day ${expectedDay} for ${serialInput}, got ${info.day}`);
+  assert(
+    info.model === '500 Series through Presentation Series',
+    `Expected 500 Series through Presentation Series for ${serialInput}, got ${info.model}`
+  );
+  assert(
+    result.patternKey === 'taylor-legacy-9-digit-year-code',
+    `Expected Taylor legacy year-code pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('production sequence 55'),
+    `Expected Taylor legacy year-code rich text for ${serialInput}`
+  );
+}
+
 function assertJacksonMij1996Transition(serialInput) {
   const result = decodeJackson(serialInput);
   assert(result.success, `Expected decode success for Jackson ${serialInput}`);
@@ -1614,6 +1637,7 @@ assertOvationSnPrefixedUsa('SN487892', '1994');
 assertOvationKoreanImport7Digit('2121282');
 assertTaylorModernShort9Digit('111130804', '2018', 'November', '30');
 assertTaylorLegacy9Digit('980311301', '1998', 'March', '11');
+assertTaylorLegacy9DigitYearCode('050913155', '1993', 'September', '13');
 assertJacksonMijSevenDigit1990s('9405251', '1994');
 assertJacksonMijSevenPrefixSixDigit('702728');
 assertJacksonMij1996Transition('600503');

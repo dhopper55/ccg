@@ -19,6 +19,10 @@ export function decodeTaylor(serial) {
         if (modernShortResult.success) {
             return modernShortResult;
         }
+        const legacyYearCodeResult = decodeLegacy9DigitYearCode(normalized);
+        if (legacyYearCodeResult.success) {
+            return legacyYearCodeResult;
+        }
         return legacyResult;
     }
     // Early serials (pre-1993) - typically 5-8 digits
@@ -216,6 +220,97 @@ function decode9Digit(serial) {
         notes: `Production sequence: ${sequence}. Series indicator: ${series} (${seriesNames[series] || 'Unknown series'}). This 9-digit format was used from 1993 to 1999.`
     };
     return { success: true, info };
+}
+function decodeLegacy9DigitYearCode(serial) {
+    // Alternate early 9-digit Taylor format:
+    // Position 1-2: Taylor year code (05 = 1993, 06 = 1994, ... 11 = 1999)
+    // Position 3-4: Month
+    // Position 5-6: Day
+    // Position 7: Series group
+    // Position 8-9: Production sequence for that day
+    const yearCode = serial.substring(0, 2);
+    const yearByCode = {
+        '05': '1993',
+        '06': '1994',
+        '07': '1995',
+        '08': '1996',
+        '09': '1997',
+        '10': '1998',
+        '11': '1999',
+    };
+    const year = yearByCode[yearCode];
+    if (!year) {
+        return {
+            success: false,
+            error: `Year code ${yearCode} is outside expected range for Taylor 9-digit legacy year-code format.`,
+        };
+    }
+    const month = parseInt(serial.substring(2, 4), 10);
+    const day = parseInt(serial.substring(4, 6), 10);
+    const series = serial[6];
+    const sequence = serial.substring(7, 9);
+    const yearNum = parseInt(year, 10);
+    if (month < 1 || month > 12) {
+        return {
+            success: false,
+            error: `Invalid month: ${month}. Expected 01-12.`,
+        };
+    }
+    if (!isValidMonthDay(month, day, yearNum)) {
+        return {
+            success: false,
+            error: `Invalid date: ${month}/${day}/${year}.`,
+        };
+    }
+    const seriesNames = {
+        '0': '300 or 400 Series',
+        '1': '500 Series through Presentation Series',
+        '2': 'limited or special production group',
+    };
+    const months = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    const monthName = months[month - 1];
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Taylor',
+        serialNumber: serial,
+        year,
+        month: monthName,
+        day: day.toString(),
+        factory: 'El Cajon, California',
+        country: 'USA',
+        model: seriesNames[series] || `Series group ${series}`,
+        notes: `Taylor 9-digit legacy year-code format. Year code ${yearCode} indicates ${year}; date decodes as ${monthName} ${day}, ${year}. Series indicator ${series} indicates ${seriesNames[series] || 'an unspecified series group'}. Production sequence: ${sequenceNumber}. For this era, confirm the exact model and specifications from the heel-block label or Taylor support.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'taylor-legacy-9-digit-year-code',
+        patternLabel: 'Taylor legacy 9-digit year-code format',
+        additionalContext: {
+            title: 'Taylor legacy 9-digit serial',
+            summary: 'This serial matches Taylor\'s 1993-1999 9-digit legacy year-code format.',
+            highlights: [
+                `Year code ${yearCode} decodes as ${year}.`,
+                `The date fields decode as ${monthName} ${day}, ${year}.`,
+                `Series indicator ${series} maps to ${seriesNames[series] || 'an unspecified series group'}.`,
+                `The final two digits decode as production sequence ${sequenceNumber} for that day.`,
+            ],
+            caveats: [
+                'This serial identifies production date and series group, not the exact model or specifications.',
+                'For 1993-era Taylors, the serial should usually be visible on the heel block through the soundhole.',
+                'Factory records or Taylor support are best for exact model and original specification confirmation.',
+            ],
+            verificationTips: [
+                'Look through the soundhole toward the neck for the heel-block serial.',
+                'Check the label or model stamp for the exact model number.',
+                'Contact Taylor support with the serial and photos if exact factory specs matter.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches Taylor&#39;s 1993-1999 9-digit legacy year-code format.</p><h3>How This Pattern Is Typically Read</h3><p>Year code ${yearCode} decodes as ${year}. The date fields decode as ${monthName} ${day}, ${year}. Series indicator ${series} maps to ${seriesNames[series] || 'an unspecified series group'}. The final two digits decode as production sequence ${sequenceNumber} for that day.</p><h3>What To Verify</h3><ul><li>This serial identifies production date and series group, not the exact model or specifications.</li><li>For 1993-era Taylors, the serial should usually be visible on the heel block through the soundhole.</li><li>Factory records or Taylor support are best for exact model and original specification confirmation.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a production-date decode, then confirm the exact model and original specifications from the heel-block label, model stamp, or Taylor support.</p>`,
+    };
 }
 function decodeModernShort9Digit(serial) {
     // Shortened variant of Taylor's current 10-digit format:
