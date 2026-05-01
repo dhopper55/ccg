@@ -74,7 +74,7 @@ const ProductDetailsAside = ({
             <ProductVideo sx={{ height: 1 }} youtubeUrl={youtubeUrl} />
           </Grid>
         )}
-        {!isUnavailable && (
+        {!isUnavailable && (maxQuantity ?? 1) > 1 && (
           <Grid
             size={{
               xs: 12,

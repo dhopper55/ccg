@@ -22,11 +22,11 @@ const Highlights = ({ sx, highlights }: HighlightsProps) => {
   const visibleHighlights = highlights.slice(0, 6);
 
   return (
-    <Paper sx={{ p: { xs: 3, md: 5 }, ...sx }}>
+    <Paper sx={{ p: { xs: 2.5, md: 3 }, ...sx }}>
       <Typography
         variant="h6"
         sx={{
-          mb: 3,
+          mb: 1.5,
         }}
       >
         Highlights
