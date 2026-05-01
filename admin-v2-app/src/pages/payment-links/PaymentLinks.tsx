@@ -5,6 +5,13 @@ import {
   Button,
   Chip,
   ChipOwnProps,
+  Checkbox,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  FormControlLabel,
   InputAdornment,
   Link,
   Paper,
@@ -35,6 +42,24 @@ type PaymentLinksResponse = {
   message?: string;
 };
 
+type MarkedInventoryItem = {
+  id: string;
+  ccgNumber: string;
+  title: string;
+  price: string;
+  quantity: number;
+  brand: string;
+  category: string;
+  forSale: boolean;
+  isSold: boolean;
+};
+
+type MarkedItemsResponse = {
+  records?: MarkedInventoryItem[];
+  maxItems?: number;
+  message?: string;
+};
+
 const getStatusBadgeColor = (value: StripePaymentLink['status']): ChipOwnProps['color'] =>
   value === 'Active' ? 'success' : 'neutral';
 
@@ -43,6 +68,13 @@ const PaymentLinks = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [markedItems, setMarkedItems] = useState<MarkedInventoryItem[]>([]);
+  const [maxMarkedItems, setMaxMarkedItems] = useState(20);
+  const [isLoadingMarkedItems, setIsLoadingMarkedItems] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
+  const [includeSalesTax, setIncludeSalesTax] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -132,6 +164,53 @@ const PaymentLinks = () => {
     [],
   );
 
+  const openCreateDialog = async () => {
+    setCreateDialogOpen(true);
+    setCreateError('');
+    setIncludeSalesTax(true);
+    setIsLoadingMarkedItems(true);
+    try {
+      const response = await fetch('/api/admin-v2/payment-links/marked-items', {
+        credentials: 'same-origin',
+      });
+      const payload = (await response.json()) as MarkedItemsResponse;
+      if (!response.ok) throw new Error(payload.message || 'Unable to load marked inventory.');
+      setMarkedItems(payload.records || []);
+      setMaxMarkedItems(payload.maxItems || 20);
+    } catch (loadError) {
+      setMarkedItems([]);
+      setCreateError(loadError instanceof Error ? loadError.message : 'Unable to load marked inventory.');
+    } finally {
+      setIsLoadingMarkedItems(false);
+    }
+  };
+
+  const handleCreatePaymentLink = async () => {
+    setIsCreating(true);
+    setCreateError('');
+    try {
+      const response = await fetch('/api/admin-v2/payment-links', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ includeSalesTax }),
+      });
+      const payload = (await response.json()) as PaymentLinksResponse;
+      if (!response.ok) throw new Error(payload.message || 'Unable to create payment link.');
+      if (payload.records) setPaymentLinks(payload.records);
+      setCreateDialogOpen(false);
+    } catch (createLinkError) {
+      setCreateError(
+        createLinkError instanceof Error ? createLinkError.message : 'Unable to create payment link.',
+      );
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const hasMarkedItems = markedItems.length > 0;
+  const markedItemLimitExceeded = markedItems.length > maxMarkedItems;
+
   return (
     <Stack direction="column" height={1}>
       <PageHeader
@@ -144,8 +223,8 @@ const PaymentLinks = () => {
         actionComponent={
           <Button
             variant="contained"
-            disabled
             startIcon={<IconifyIcon icon="material-symbols:add-rounded" />}
+            onClick={openCreateDialog}
           >
             Create payment link
           </Button>
@@ -213,6 +292,90 @@ const PaymentLinks = () => {
           </Box>
         </Stack>
       </Paper>
+      <Dialog
+        open={createDialogOpen}
+        onClose={() => {
+          if (!isCreating) setCreateDialogOpen(false);
+        }}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Create Payment Link</DialogTitle>
+        <DialogContent>
+          <Stack direction="column" sx={{ gap: 2, pt: 1 }}>
+            {createError && <Alert severity="error">{createError}</Alert>}
+            {isLoadingMarkedItems ? (
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                Loading marked items...
+              </Typography>
+            ) : hasMarkedItems ? (
+              <>
+                <Stack direction="column" divider={<Divider flexItem />} sx={{ gap: 1 }}>
+                  {markedItems.map((item) => (
+                    <Stack
+                      key={item.id}
+                      sx={{
+                        py: 1,
+                        gap: 1,
+                        flexDirection: { xs: 'column', sm: 'row' },
+                        alignItems: { sm: 'center' },
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                          {item.title}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                          {[item.ccgNumber, item.brand, item.category].filter(Boolean).join(' • ') || 'Marked item'}
+                        </Typography>
+                      </Box>
+                      <Typography variant="body2" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+                        {item.price} x {item.quantity || 1}
+                      </Typography>
+                    </Stack>
+                  ))}
+                </Stack>
+                {markedItemLimitExceeded && (
+                  <Alert severity="warning">
+                    Stripe payment links support up to {maxMarkedItems} line items. Unmark items and try again.
+                  </Alert>
+                )}
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={includeSalesTax}
+                      onChange={(event) => setIncludeSalesTax(event.target.checked)}
+                    />
+                  }
+                  label="Include 7.5% CO Sales Tax"
+                />
+              </>
+            ) : (
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                no marked items exist
+              </Typography>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            variant="text"
+            color="neutral"
+            disabled={isCreating}
+            onClick={() => setCreateDialogOpen(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            disabled={!hasMarkedItems || markedItemLimitExceeded || isLoadingMarkedItems || isCreating}
+            onClick={handleCreatePaymentLink}
+          >
+            {isCreating ? 'Creating...' : 'Create'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 };

@@ -30,6 +30,7 @@ interface Env {
   ASSOCIATE_MODE_TOKEN?: string;
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
+  STRIPE_CO_SALES_TAX_RATE_ID?: string;
   WEBHOOK_SECRET?: string;
   LISTING_JOBS: KVNamespace;
   GOOGLE_MAPS_API_KEY?: string;
@@ -79,6 +80,7 @@ const SHOP_STATIC_ORIGIN = 'https://ccg-2k1.pages.dev';
 const ASSOCIATE_COOKIE_NAME = 'ccg_associate';
 const ASSOCIATE_COOKIE_VALUE = 'associate';
 const SHOP_SALES_TAX_RATE = 0.0775;
+const DEFAULT_CO_SALES_TAX_RATE_ID = 'txr_1TSEdADCplz62P7p4H6E7YJK';
 const SHOP_COUPONS = new Map<string, { amountOffCents: number }>([
   ['TAKE100', { amountOffCents: 10000 }],
 ]);
@@ -686,6 +688,16 @@ export default {
 
     if (path === '/api/admin-v2/payment-links' && request.method === 'GET') {
       const response = await handleAdminV2PaymentLinks(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/payment-links/marked-items' && request.method === 'GET') {
+      const response = await handleAdminV2PaymentLinkMarkedItems(env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/payment-links' && request.method === 'POST') {
+      const response = await handleAdminV2PaymentLinkCreate(request, env);
       return withCors(response, request, env);
     }
 
@@ -2989,6 +3001,80 @@ async function handleAdminV2PaymentLinks(request: Request, env: Env): Promise<Re
   }
 }
 
+async function handleAdminV2PaymentLinkMarkedItems(env: Env): Promise<Response> {
+  const records = await dbListMarkedInventoryRowsForPaymentLinks(env);
+  return jsonResponse({
+    records: records.map(mapPaymentLinkMarkedInventoryRow),
+    maxItems: 20,
+  });
+}
+
+async function handleAdminV2PaymentLinkCreate(request: Request, env: Env): Promise<Response> {
+  const stripeSecretKey = normalizeText(env.STRIPE_SECRET_KEY, '');
+  if (!stripeSecretKey) {
+    return jsonResponse({ message: 'Stripe secret key is not configured.' }, 503);
+  }
+
+  let body: Record<string, unknown> = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  const includeSalesTax = toBooleanInput(body.includeSalesTax, true);
+  const markedRows = await dbListMarkedInventoryRowsForPaymentLinks(env);
+  if (markedRows.length < 1) {
+    return jsonResponse({ message: 'No marked inventory items exist.' }, 400);
+  }
+  if (markedRows.length > 20) {
+    return jsonResponse({ message: 'Stripe payment links support up to 20 line items. Unmark items and try again.' }, 400);
+  }
+
+  const items = markedRows.map((row) => {
+    const unitAmountCents = getInventoryPaymentLinkPriceCents(row);
+    return {
+      inventoryItemId: row.id,
+      ccgNumber: normalizeText(row.ccg_number, ''),
+      title: getInventoryPaymentLinkTitle(row),
+      description: normalizeText(row.sale_description || row.original_listing_desc || '', '').slice(0, 500),
+      quantity: Math.max(1, Number(row.quantity || 1)),
+      unitAmountCents,
+      imageUrl: toPublicShopImageUrl(row.image_url),
+    };
+  });
+  const invalidItem = items.find((item) => item.unitAmountCents < 1);
+  if (invalidItem) {
+    return jsonResponse({ message: `${invalidItem.title} is missing a usable sale or regular price.` }, 400);
+  }
+
+  const taxRateId = includeSalesTax
+    ? normalizeText(env.STRIPE_CO_SALES_TAX_RATE_ID, DEFAULT_CO_SALES_TAX_RATE_ID)
+    : '';
+  if (includeSalesTax && !taxRateId) {
+    return jsonResponse({ message: 'Colorado sales tax rate is not configured.' }, 503);
+  }
+
+  try {
+    const paymentLink = await createStripePaymentLinkFromInventory({
+      stripeSecretKey,
+      items,
+      includeSalesTax,
+      taxRateId,
+    });
+    const records = await listStripePaymentLinks(stripeSecretKey, 100);
+    return jsonResponse({
+      ok: true,
+      record: paymentLink,
+      records,
+    });
+  } catch (error) {
+    return jsonResponse({
+      message: error instanceof Error ? error.message : 'Unable to create Stripe payment link.',
+    }, 502);
+  }
+}
+
 async function handleAdminV2OrderDetail(orderId: string, env: Env): Promise<Response> {
   const normalizedOrderId = normalizeText(orderId, '').slice(0, 100);
   if (!normalizedOrderId) return jsonResponse({ message: 'Order not found.' }, 404);
@@ -3165,6 +3251,115 @@ async function listStripePaymentLinkLineItems(
     return [];
   }
   return Array.isArray(data?.data) ? data.data : [];
+}
+
+async function createStripePaymentLinkFromInventory(input: {
+  stripeSecretKey: string;
+  items: Array<{
+    inventoryItemId: number;
+    ccgNumber: string;
+    title: string;
+    description: string;
+    quantity: number;
+    unitAmountCents: number;
+    imageUrl: string;
+  }>;
+  includeSalesTax: boolean;
+  taxRateId: string;
+}): Promise<Record<string, unknown>> {
+  const form = new URLSearchParams();
+  form.set('metadata[source]', 'admin_v2_marked_inventory');
+  form.set('metadata[inventory_item_ids]', input.items.map((item) => String(item.inventoryItemId)).join(','));
+  form.set('metadata[include_sales_tax]', input.includeSalesTax ? '1' : '0');
+  if (input.taxRateId) form.set('metadata[tax_rate_id]', input.taxRateId);
+
+  const priceIds: string[] = [];
+  for (const item of input.items) {
+    priceIds.push(await createStripeProductPriceForInventoryItem(input.stripeSecretKey, item));
+  }
+
+  input.items.forEach((item, index) => {
+    const prefix = `line_items[${index}]`;
+    form.set(`${prefix}[quantity]`, String(item.quantity));
+    form.set(`${prefix}[price]`, priceIds[index]);
+    if (input.includeSalesTax && input.taxRateId) {
+      form.set(`${prefix}[tax_rates][0]`, input.taxRateId);
+    }
+  });
+
+  const response = await fetch('https://api.stripe.com/v1/payment_links', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${input.stripeSecretKey}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: form,
+  });
+  const data = await response.json<any>();
+  if (!response.ok) {
+    throw new Error(normalizeText(data?.error?.message, 'Stripe rejected the payment link request.'));
+  }
+  return mapStripePaymentLink(data, []);
+}
+
+async function createStripeProductPriceForInventoryItem(
+  stripeSecretKey: string,
+  item: {
+    inventoryItemId: number;
+    ccgNumber: string;
+    title: string;
+    description: string;
+    unitAmountCents: number;
+    imageUrl: string;
+  },
+): Promise<string> {
+  const productForm = new URLSearchParams();
+  productForm.set('name', item.title);
+  productForm.set('metadata[inventory_item_id]', String(item.inventoryItemId));
+  productForm.set('metadata[source]', 'admin_v2_payment_link');
+  if (item.ccgNumber) productForm.set('metadata[ccg_number]', item.ccgNumber);
+  if (item.description) productForm.set('description', item.description);
+  if (item.imageUrl) productForm.set('images[0]', item.imageUrl);
+
+  const productResponse = await fetch('https://api.stripe.com/v1/products', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${stripeSecretKey}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: productForm,
+  });
+  const productData = await productResponse.json<any>();
+  if (!productResponse.ok) {
+    throw new Error(normalizeText(productData?.error?.message, 'Stripe rejected the product request.'));
+  }
+  const productId = normalizeText(productData?.id, '');
+  if (!productId) throw new Error('Stripe did not return a product id.');
+
+  const priceForm = new URLSearchParams();
+  priceForm.set('currency', 'usd');
+  priceForm.set('unit_amount', String(item.unitAmountCents));
+  priceForm.set('product', productId);
+  priceForm.set('tax_behavior', 'exclusive');
+  priceForm.set('metadata[inventory_item_id]', String(item.inventoryItemId));
+  priceForm.set('metadata[source]', 'admin_v2_payment_link');
+  if (item.ccgNumber) priceForm.set('metadata[ccg_number]', item.ccgNumber);
+
+  const priceResponse = await fetch('https://api.stripe.com/v1/prices', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${stripeSecretKey}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: priceForm,
+  });
+  const priceData = await priceResponse.json<any>();
+  if (!priceResponse.ok) {
+    throw new Error(normalizeText(priceData?.error?.message, 'Stripe rejected the price request.'));
+  }
+  const priceId = normalizeText(priceData?.id, '');
+  if (!priceId) throw new Error('Stripe did not return a price id.');
+  return priceId;
 }
 
 function mapStripePaymentLink(paymentLink: any, lineItems: any[]): Record<string, unknown> {
@@ -9348,6 +9543,83 @@ async function dbListMarkedInventoryRowsForPackage(env: Env): Promise<InventoryI
      ORDER BY i.created_at ASC, i.id ASC`
   ).all<InventoryItemRow>();
   return result.results ?? [];
+}
+
+async function dbListMarkedInventoryRowsForPaymentLinks(env: Env): Promise<InventoryItemRow[]> {
+  const result = await env.DB.prepare(
+    `SELECT
+      i.id,
+      i.ccg_number,
+      CASE
+        WHEN EXISTS (
+          SELECT 1
+          FROM ccg_inventory_item_images sii_exists
+          WHERE sii_exists.inventory_item_id = i.id
+        ) THEN COALESCE((
+          SELECT sii.image_url
+          FROM ccg_inventory_item_images sii
+          WHERE sii.inventory_item_id = i.id
+            AND COALESCE(sii.is_private, 0) = 0
+          ORDER BY sii.display_order ASC, sii.id ASC
+          LIMIT 1
+        ), '')
+        ELSE i.image_url
+      END AS image_url,
+      i.image_urls,
+      i.title,
+      i.quantity,
+      ${INVENTORY_CATEGORY_SELECT_SQL},
+      i.brand,
+      i.model,
+      i.finish,
+      i.original_listing_desc,
+      i.sale_title,
+      i.regular_price,
+      i.sale_price,
+      i.sale_description,
+      i.is_marked,
+      i.for_sale,
+      i.is_sold,
+      i.created_at,
+      i.updated_at
+     FROM ccg_inventory_items i
+     ${INVENTORY_CATEGORY_JOIN_SQL}
+     WHERE COALESCE(i.is_marked, 0) = 1
+     ORDER BY i.created_at ASC, i.id ASC`
+  ).all<InventoryItemRow>();
+  return result.results ?? [];
+}
+
+function mapPaymentLinkMarkedInventoryRow(row: InventoryItemRow): Record<string, unknown> {
+  const unitAmountCents = getInventoryPaymentLinkPriceCents(row);
+  return {
+    id: String(row.id),
+    ccgNumber: normalizeText(row.ccg_number, ''),
+    title: getInventoryPaymentLinkTitle(row),
+    priceCents: unitAmountCents,
+    price: formatCurrencyCents(unitAmountCents),
+    quantity: Math.max(1, Number(row.quantity || 1)),
+    brand: normalizeText(row.brand, ''),
+    category: getInventoryCategoryLabel(row),
+    forSale: Boolean(row.for_sale),
+    isSold: Boolean(row.is_sold),
+  };
+}
+
+function getInventoryPaymentLinkTitle(row: InventoryItemRow): string {
+  return normalizeText(row.sale_title || row.title, 'Untitled item') || 'Untitled item';
+}
+
+function getInventoryPaymentLinkPriceCents(row: InventoryItemRow): number {
+  const price = Number(row.sale_price || row.regular_price || 0);
+  return Number.isFinite(price) ? Math.round(price * 100) : 0;
+}
+
+function formatCurrencyCents(cents: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(cents / 100);
 }
 
 async function dbUnmarkAllInventoryItems(env: Env): Promise<number> {

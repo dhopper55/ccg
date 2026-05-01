@@ -261,6 +261,15 @@ Practical rule:
   - Recent sold inventory rows for Admin V2
 - `GET /api/admin-v2/dashboard/oldest-inventory`
   - Oldest active unsold inventory rows for Admin V2
+- `GET /api/admin-v2/payment-links`
+  - Admin V2 Stripe Payment Links grid
+  - Reads Stripe Payment Links and line items via Stripe API
+- `GET /api/admin-v2/payment-links/marked-items`
+  - Returns compact summary of currently marked inventory rows for Payment Link creation modal
+- `POST /api/admin-v2/payment-links`
+  - Creates a Stripe Payment Link from all currently marked inventory rows
+  - Creates fresh Stripe Product and Price objects for each marked inventory row on every run
+  - Optionally attaches configured Colorado sales tax rate via `line_items.tax_rates`
 - `GET /api/admin-v2/serial-decodes`
   - Admin V2 serial decode grid data
   - Supports query params: `page`, `limit`, `brand`, `onlyErrors`, `unevaluated`, `sortDir`
@@ -392,6 +401,7 @@ D1 workflow rules:
 - `AUTH_SECRET`
 Optional:
 - `REVERB_API_TOKEN`
+- `STRIPE_CO_SALES_TAX_RATE_ID` (currently sandbox default `txr_1TSEdADCplz62P7p4H6E7YJK`; change for production)
 
 ## Decoder Page Templates (Nunjucks)
 All 26 brand decoder HTML pages are generated from Nunjucks templates at build time.
