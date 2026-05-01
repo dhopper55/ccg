@@ -554,6 +554,17 @@ function bulletTextColor(danger: boolean, highlight: boolean): TagTextColor {
   return 'black';
 }
 
+function hasAnySaleBulletText(formState: FormState): boolean {
+  return [
+    formState.bullet1Text,
+    formState.bullet2Text,
+    formState.bullet3Text,
+    formState.bullet4Text,
+    formState.bullet5Text,
+    formState.bullet6Text,
+  ].some((value) => value.trim());
+}
+
 function colorDefaultAppearance(color: TagTextColor): string {
   if (color === 'red') return '1 0 0 rg';
   if (color === 'blue') return '0 0.001 0.998 rg';
@@ -680,6 +691,7 @@ const InventoryItem = () => {
   const inventoryManagerHref = `${paths.inventoryManager}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const aiAnalysisEditorRef = useRef<HTMLDivElement | null>(null);
+  const wasForSaleOnLoadRef = useRef(false);
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
   const [editId, setEditId] = useState<string | null>(null);
   const [sourceListingId, setSourceListingId] = useState<string | null>(null);
@@ -790,6 +802,7 @@ const InventoryItem = () => {
     const initialize = async () => {
       setIsLoading(true);
       setMessage(null);
+      wasForSaleOnLoadRef.current = false;
 
       try {
         if (id) {
@@ -806,6 +819,7 @@ const InventoryItem = () => {
           const record = data.record;
           setEditId(record.id);
           setSourceListingId(record.sourceListingId || null);
+          wasForSaleOnLoadRef.current = Boolean(record.forSale);
           setForm({
             ccgNumber: record.ccgNumber || '',
             quantity: Math.max(0, Number(record.quantity ?? 1)),
@@ -908,6 +922,7 @@ const InventoryItem = () => {
 
           const fields = data.fields || {};
           setSourceListingId(fromListingId);
+          wasForSaleOnLoadRef.current = false;
           const photoCandidates = (fields.photos || '')
             .split(/\r?\n/)
             .map((u: string) => u.trim())
@@ -986,6 +1001,16 @@ const InventoryItem = () => {
       if (key === 'forSale') {
         const nextForSale = Boolean(value);
         if (!current.forSale && nextForSale) {
+          if (!wasForSaleOnLoadRef.current && !hasAnySaleBulletText(current)) {
+            return {
+              ...current,
+              forSale: true,
+              queue: 'For Sale',
+              bullet6Text: 'FINANCING AVAILABLE!',
+              bullet6Danger: false,
+              bullet6Highlight: true,
+            };
+          }
           return { ...current, forSale: true, queue: 'For Sale' };
         }
         if (current.forSale && !nextForSale) {

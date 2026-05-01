@@ -25,6 +25,7 @@ type ShopProduct = {
   brand: string;
   model: string;
   finish: string;
+  youtubeUrl: string;
   regularPrice: number | null;
   salePrice: number;
   clearance: boolean;
@@ -216,6 +217,7 @@ const ProductDetails = () => {
           quantity={quantity}
           maxQuantity={availableQuantity}
           onQuantityChange={(nextQuantity) => setQuantity(Math.min(nextQuantity, availableQuantity))}
+          youtubeUrl={shopProduct?.youtubeUrl}
         />
       </Grid>
       <Grid size={12}>

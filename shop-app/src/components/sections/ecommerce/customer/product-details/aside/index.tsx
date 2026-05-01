@@ -15,6 +15,7 @@ interface ProductDetailsAsideProps {
   quantity: number;
   maxQuantity?: number;
   onQuantityChange: (quantity: number) => void;
+  youtubeUrl?: string;
 }
 
 const ProductDetailsAside = ({
@@ -26,6 +27,7 @@ const ProductDetailsAside = ({
   quantity,
   maxQuantity,
   onQuantityChange,
+  youtubeUrl,
 }: ProductDetailsAsideProps) => {
   return (
     <Paper>
@@ -93,7 +95,7 @@ const ProductDetailsAside = ({
             lg: 12,
           }}
         >
-          <OrderCustomization sx={{ height: 1 }} />
+          <OrderCustomization sx={{ height: 1 }} youtubeUrl={youtubeUrl} />
         </Grid>
       </Grid>
     </Paper>

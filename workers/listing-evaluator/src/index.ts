@@ -3418,7 +3418,7 @@ async function sendBrevoOrderConfirmationTestEmail(
     },
     to: [
       {
-        email: 'customer@example.com',
+        email: 'davidhopper55@gmail.com',
         name: 'John Doe',
       },
     ],
@@ -8450,6 +8450,7 @@ async function dbGetShopProductDetail(
        i.brand,
        i.model,
        i.finish,
+       i.video_url,
        i.weight_lbs,
        i.neck_profile,
        i.neck_thickness,
@@ -8535,6 +8536,7 @@ async function dbGetShopProductDetail(
     brand: normalizeText(row.brand, ''),
     model: normalizeText(row.model, ''),
     finish: normalizeText(row.finish, ''),
+    youtubeUrl: normalizeText(row.video_url, ''),
     regularPrice: row.regular_price,
     salePrice: row.sale_price ?? 0,
     clearance: Boolean(row.clearance),
