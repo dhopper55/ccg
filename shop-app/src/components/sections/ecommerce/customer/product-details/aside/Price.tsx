@@ -33,10 +33,10 @@ const Price = ({
   return (
     <Paper
       sx={{
-        p: { xs: 3, md: 5 },
+        p: { xs: 2.5, md: 3 },
         display: 'flex',
-        gap: 2,
-        flexDirection: 'column',
+        alignItems: 'center',
+        minHeight: 0,
         ...sx,
       }}
     >
@@ -73,35 +73,49 @@ const Price = ({
               }}
             />
           )}
-          <Typography variant="h2" sx={{ fontSize: 'h1.fontSize' }}>
-            <Typography variant="h5" component="span">
-              {discountPrice[0]}
-            </Typography>
-            {discountPrice[1]}
-            <Typography variant="h5" component="span">
-              {discountPrice[2]}
-            </Typography>
-          </Typography>
-          {hasDiscount && (
-            <Stack
-              sx={{
-                gap: 2,
-                alignItems: 'center',
-              }}
+          <Stack
+            direction="row"
+            sx={{
+              alignItems: 'baseline',
+              gap: { xs: 1.5, md: 2 },
+              flexWrap: 'wrap',
+              minWidth: 0,
+            }}
+          >
+            <Typography
+              variant="h2"
+              sx={{ fontSize: { xs: 'h4.fontSize', md: 'h2.fontSize' }, lineHeight: 1 }}
             >
-              <Chip label={`Save ${savingsPercentage}%`} color="success" variant="filled" />
+              <Typography variant="h6" component="span" sx={{ verticalAlign: 'baseline' }}>
+                {discountPrice[0]}
+              </Typography>
+              {discountPrice[1]}
+              <Typography variant="h6" component="span" sx={{ verticalAlign: 'baseline' }}>
+                {discountPrice[2]}
+              </Typography>
+            </Typography>
+            {hasDiscount && (
               <Typography
-                variant="h6"
+                variant="subtitle1"
                 sx={{
                   color: 'error.main',
                   fontWeight: 'medium',
                   textDecoration: 'line-through',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 {currencyFormat(regularPrice)}
               </Typography>
-            </Stack>
-          )}
+            )}
+            {hasDiscount && (
+              <Chip
+                label={`Save ${savingsPercentage}%`}
+                color="success"
+                variant="filled"
+                size="small"
+              />
+            )}
+          </Stack>
         </>
       )}
     </Paper>
