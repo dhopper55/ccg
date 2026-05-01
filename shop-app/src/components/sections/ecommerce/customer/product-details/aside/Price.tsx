@@ -35,7 +35,9 @@ const Price = ({
       sx={{
         p: { xs: 2.5, md: 3 },
         display: 'flex',
-        alignItems: 'center',
+        gap: 1.5,
+        flexDirection: 'column',
+        alignItems: 'flex-start',
         minHeight: 0,
         ...sx,
       }}
@@ -61,14 +63,14 @@ const Price = ({
               variant="filled"
               sx={{
                 alignSelf: 'flex-start',
-                height: 48,
-                px: 1.5,
+                height: 32,
+                px: 0.75,
                 '& .MuiChip-label': {
-                  fontSize: 24,
+                  fontSize: 16,
                   fontWeight: 900,
                   lineHeight: 1,
                   letterSpacing: 0,
-                  px: 1,
+                  px: 0.75,
                 },
               }}
             />
