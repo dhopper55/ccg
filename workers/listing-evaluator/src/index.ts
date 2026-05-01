@@ -684,6 +684,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/payment-links' && request.method === 'GET') {
+      const response = await handleAdminV2PaymentLinks(request, env);
+      return withCors(response, request, env);
+    }
+
     const adminV2OrderMatch = path.match(/^\/api\/admin-v2\/orders\/([^/]+)$/);
     if (adminV2OrderMatch && request.method === 'GET') {
       const response = await handleAdminV2OrderDetail(decodeURIComponent(adminV2OrderMatch[1]), env);
@@ -2965,6 +2970,25 @@ async function handleAdminV2Orders(request: Request, env: Env): Promise<Response
   return jsonResponse({ records: enriched });
 }
 
+async function handleAdminV2PaymentLinks(request: Request, env: Env): Promise<Response> {
+  const stripeSecretKey = normalizeText(env.STRIPE_SECRET_KEY, '');
+  if (!stripeSecretKey) {
+    return jsonResponse({ message: 'Stripe secret key is not configured.' }, 503);
+  }
+
+  const url = new URL(request.url);
+  const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '100', 10) || 100, 1), 100);
+
+  try {
+    const records = await listStripePaymentLinks(stripeSecretKey, limit);
+    return jsonResponse({ records });
+  } catch (error) {
+    return jsonResponse({
+      message: error instanceof Error ? error.message : 'Unable to load Stripe payment links.',
+    }, 502);
+  }
+}
+
 async function handleAdminV2OrderDetail(orderId: string, env: Env): Promise<Response> {
   const normalizedOrderId = normalizeText(orderId, '').slice(0, 100);
   if (!normalizedOrderId) return jsonResponse({ message: 'Order not found.' }, 404);
@@ -3097,6 +3121,100 @@ async function createStripeFullRefund(
       status: 502,
     };
   }
+}
+
+async function listStripePaymentLinks(
+  stripeSecretKey: string,
+  limit: number,
+): Promise<Array<Record<string, unknown>>> {
+  const params = new URLSearchParams();
+  params.set('limit', String(limit));
+  const response = await fetch(`https://api.stripe.com/v1/payment_links?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${stripeSecretKey}` },
+  });
+  const data = await response.json<any>();
+  if (!response.ok) {
+    throw new Error(normalizeText(data?.error?.message, 'Stripe rejected the payment links request.'));
+  }
+
+  const paymentLinks = Array.isArray(data?.data) ? data.data : [];
+  return Promise.all(paymentLinks.map(async (paymentLink) => {
+    const lineItems = await listStripePaymentLinkLineItems(stripeSecretKey, normalizeText(paymentLink?.id, ''));
+    return mapStripePaymentLink(paymentLink, lineItems);
+  }));
+}
+
+async function listStripePaymentLinkLineItems(
+  stripeSecretKey: string,
+  paymentLinkId: string,
+): Promise<any[]> {
+  if (!paymentLinkId) return [];
+  const params = new URLSearchParams();
+  params.set('limit', '100');
+  params.append('expand[]', 'data.price.product');
+  const response = await fetch(
+    `https://api.stripe.com/v1/payment_links/${encodeURIComponent(paymentLinkId)}/line_items?${params.toString()}`,
+    { headers: { Authorization: `Bearer ${stripeSecretKey}` } },
+  );
+  const data = await response.json<any>();
+  if (!response.ok) {
+    console.warn('Stripe payment link line items lookup failed', {
+      paymentLinkId,
+      message: normalizeText(data?.error?.message, ''),
+    });
+    return [];
+  }
+  return Array.isArray(data?.data) ? data.data : [];
+}
+
+function mapStripePaymentLink(paymentLink: any, lineItems: any[]): Record<string, unknown> {
+  const firstLineItem = lineItems[0] || {};
+  const firstProduct = firstLineItem?.price?.product;
+  const name = normalizeText(
+    firstLineItem.description
+      ?? paymentLink?.metadata?.name
+      ?? (typeof firstProduct === 'object' ? firstProduct?.name : '')
+      ?? paymentLink?.id,
+    '',
+  );
+  const created = Number(paymentLink?.created || 0);
+  return {
+    id: normalizeText(paymentLink?.id, ''),
+    name,
+    price: formatStripePaymentLinkPrice(lineItems, paymentLink?.currency),
+    created,
+    createdLabel: created ? new Date(created * 1000).toISOString() : '',
+    status: paymentLink?.active === false ? 'Deactivated' : 'Active',
+    automaticTax: Boolean(paymentLink?.automatic_tax?.enabled),
+    url: normalizeText(paymentLink?.url, ''),
+  };
+}
+
+function formatStripePaymentLinkPrice(lineItems: any[], fallbackCurrency: unknown): string {
+  if (lineItems.length === 0) return '';
+  const currency = normalizeText(lineItems[0]?.currency ?? lineItems[0]?.price?.currency ?? fallbackCurrency, 'usd').toUpperCase();
+  const totalCents = lineItems.reduce((sum, lineItem) => {
+    const quantity = Number(lineItem?.quantity || 1) || 1;
+    const amount = parseStripeAmountCents(lineItem?.amount_total)
+      ?? parseStripeAmountCents(lineItem?.price?.unit_amount)
+      ?? parseStripeAmountCents(lineItem?.price?.unit_amount_decimal);
+    return sum + (amount == null ? 0 : amount * (lineItem?.amount_total == null ? quantity : 1));
+  }, 0);
+  const interval = normalizeText(lineItems[0]?.price?.recurring?.interval, '');
+  const amount = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency,
+  }).format(totalCents / 100);
+  return `${amount} ${currency}${interval ? ` / ${interval}` : ''}`;
+}
+
+function parseStripeAmountCents(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
 }
 
 async function dbCountOrderItems(orderIds: string[], env: Env): Promise<Map<string, number>> {
@@ -7742,18 +7860,19 @@ async function dbGetShopProductDetail(
   if (!row) return null;
 
   const imageRows = await env.DB.prepare(
-    `SELECT image_url
+    `SELECT image_url, is_private
      FROM ccg_inventory_item_images
      WHERE inventory_item_id = ?
-       AND COALESCE(is_private, 0) = 0
      ORDER BY display_order ASC, id ASC`
-  ).bind(row.id).all<{ image_url: string | null }>();
+  ).bind(row.id).all<{ image_url: string | null; is_private: number | null }>();
 
-  const images = Array.from(new Set([
-    ...(imageRows.results ?? []).map((imageRow) => toPublicShopImageUrl(imageRow.image_url)),
-    ...parseStoredInventoryImageUrls(row.image_urls || null, row.image_url || null).map(toPublicShopImageUrl),
-    toPublicShopImageUrl(row.image_url),
-  ].filter(Boolean)));
+  const storedImageRows = imageRows.results ?? [];
+  const sourceImages = storedImageRows.length > 0
+    ? storedImageRows
+      .filter((imageRow) => !imageRow.is_private)
+      .map((imageRow) => imageRow.image_url)
+    : parseStoredInventoryImageUrls(row.image_urls || null, row.image_url || null);
+  const images = Array.from(new Set(sourceImages.map(toPublicShopImageUrl).filter(Boolean)));
 
   const mainImage = images[0] || '';
   const highlights = [

@@ -73,6 +73,14 @@ const sitemap: MenuItem[] = [
         active: true,
       },
       {
+        name: 'Payment Links',
+        key: 'payment_links',
+        path: paths.paymentLinks,
+        pathName: 'payment-links',
+        icon: 'material-symbols:link-rounded',
+        active: true,
+      },
+      {
         name: 'Category Manager',
         key: 'category_manager',
         path: paths.inventoryCategoryManager,

@@ -27,6 +27,7 @@ const paths = {
   listingEvaluatorItemWithId: (id: string) => `/listing-evaluator-item?id=${encodeURIComponent(id)}`,
   inventoryManager: '/inventory-manager',
   orderManager: '/order-manager',
+  paymentLinks: '/payment-links',
   orderManagerItem: '/order-manager-item',
   orderManagerItemWithId: (id: string) => `/order-manager-item?id=${encodeURIComponent(id)}`,
   inventoryCategoryManager: '/inventory-category-manager',
