@@ -33,6 +33,7 @@ type StripePaymentLink = {
   price: string;
   created: number;
   createdLabel: string;
+  createdDisplay: string;
   status: 'Active' | 'Deactivated';
   automaticTax: boolean;
   url: string;
@@ -69,6 +70,8 @@ type StripeConfigResponse = {
 const getStatusBadgeColor = (value: StripePaymentLink['status']): ChipOwnProps['color'] =>
   value === 'Active' ? 'success' : 'neutral';
 
+const truncateTitle = (value: string) => (value.length > 40 ? `${value.slice(0, 40)}...` : value);
+
 const PaymentLinks = () => {
   const [paymentLinks, setPaymentLinks] = useState<StripePaymentLink[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -80,6 +83,7 @@ const PaymentLinks = () => {
   const [maxMarkedItems, setMaxMarkedItems] = useState(20);
   const [isLoadingMarkedItems, setIsLoadingMarkedItems] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [deactivatingId, setDeactivatingId] = useState('');
   const [createError, setCreateError] = useState('');
   const [includeSalesTax, setIncludeSalesTax] = useState(true);
   const [useStripeSandbox, setUseStripeSandbox] = useState(true);
@@ -147,9 +151,10 @@ const PaymentLinks = () => {
               target="_blank"
               rel="noopener noreferrer"
               variant="subtitle2"
+              title={params.row.name || params.row.id}
               sx={{ fontWeight: 700, lineHeight: 1.25 }}
             >
-              {params.row.name || params.row.id}
+              {truncateTitle(params.row.name || params.row.id)}
             </Link>
           </Stack>
         ),
@@ -183,16 +188,37 @@ const PaymentLinks = () => {
         minWidth: 180,
         renderCell: (params) => (
           <Typography variant="body2">
-            {params.row.createdLabel
+            {params.row.createdDisplay || (params.row.createdLabel
               ? dayjs(params.row.createdLabel).format('MMM D, h:mm A')
               : params.row.created
                 ? dayjs.unix(Number(params.row.created)).format('MMM D, h:mm A')
-                : '—'}
+                : '—')}
           </Typography>
         ),
       },
+      {
+        field: 'actions',
+        headerName: '',
+        minWidth: 132,
+        sortable: false,
+        filterable: false,
+        align: 'right',
+        renderCell: (params) => (
+          params.row.status === 'Active' ? (
+            <Button
+              size="small"
+              variant="outlined"
+              color="neutral"
+              disabled={deactivatingId === params.row.id}
+              onClick={() => handleDeactivatePaymentLink(params.row.id)}
+            >
+              Deactivate
+            </Button>
+          ) : null
+        ),
+      },
     ],
-    [],
+    [deactivatingId],
   );
 
   const openCreateDialog = async () => {
@@ -252,6 +278,30 @@ const PaymentLinks = () => {
       setError(loadError instanceof Error ? loadError.message : 'Unable to load payment links.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleDeactivatePaymentLink = async (paymentLinkId: string) => {
+    const confirmed = window.confirm('Deactivate this payment link?');
+    if (!confirmed) return;
+
+    setDeactivatingId(paymentLinkId);
+    setError('');
+    try {
+      const response = await fetch(
+        `/api/admin-v2/payment-links/${encodeURIComponent(paymentLinkId)}/deactivate`,
+        {
+          method: 'POST',
+          credentials: 'same-origin',
+        },
+      );
+      const payload = (await response.json()) as PaymentLinksResponse;
+      if (!response.ok) throw new Error(payload.message || 'Unable to deactivate payment link.');
+      if (payload.records) setPaymentLinks(payload.records);
+    } catch (deactivateError) {
+      setError(deactivateError instanceof Error ? deactivateError.message : 'Unable to deactivate payment link.');
+    } finally {
+      setDeactivatingId('');
     }
   };
 

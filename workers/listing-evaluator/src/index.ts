@@ -711,6 +711,12 @@ export default {
       return withCors(response, request, env);
     }
 
+    const adminV2PaymentLinkDeactivateMatch = path.match(/^\/api\/admin-v2\/payment-links\/([^/]+)\/deactivate$/);
+    if (adminV2PaymentLinkDeactivateMatch && request.method === 'POST') {
+      const response = await handleAdminV2PaymentLinkDeactivate(decodeURIComponent(adminV2PaymentLinkDeactivateMatch[1]), env);
+      return withCors(response, request, env);
+    }
+
     const adminV2OrderMatch = path.match(/^\/api\/admin-v2\/orders\/([^/]+)$/);
     if (adminV2OrderMatch && request.method === 'GET') {
       const response = await handleAdminV2OrderDetail(decodeURIComponent(adminV2OrderMatch[1]), env);
@@ -3123,6 +3129,26 @@ async function handleAdminV2PaymentLinkCreate(request: Request, env: Env): Promi
   }
 }
 
+async function handleAdminV2PaymentLinkDeactivate(paymentLinkId: string, env: Env): Promise<Response> {
+  const stripeConfig = await getStripeRuntimeConfig(env);
+  if (!stripeConfig.secretKey) {
+    return jsonResponse({ message: 'Stripe secret key is not configured.' }, 503);
+  }
+
+  const id = normalizeText(paymentLinkId, '').slice(0, 100);
+  if (!id) return jsonResponse({ message: 'Missing payment link id.' }, 400);
+
+  try {
+    await deactivateStripePaymentLink(stripeConfig.secretKey, id);
+    const records = await listStripePaymentLinks(stripeConfig.secretKey, 100);
+    return jsonResponse({ ok: true, records });
+  } catch (error) {
+    return jsonResponse({
+      message: error instanceof Error ? error.message : 'Unable to deactivate Stripe payment link.',
+    }, 502);
+  }
+}
+
 async function handleAdminV2OrderDetail(orderId: string, env: Env): Promise<Response> {
   const normalizedOrderId = normalizeText(orderId, '').slice(0, 100);
   if (!normalizedOrderId) return jsonResponse({ message: 'Order not found.' }, 404);
@@ -3360,6 +3386,23 @@ async function listStripePaymentLinkLineItems(
   return Array.isArray(data?.data) ? data.data : [];
 }
 
+async function deactivateStripePaymentLink(stripeSecretKey: string, paymentLinkId: string): Promise<void> {
+  const form = new URLSearchParams();
+  form.set('active', 'false');
+  const response = await fetch(`https://api.stripe.com/v1/payment_links/${encodeURIComponent(paymentLinkId)}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${stripeSecretKey}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: form,
+  });
+  const data = await response.json<any>();
+  if (!response.ok) {
+    throw new Error(normalizeText(data?.error?.message, 'Stripe rejected the deactivate request.'));
+  }
+}
+
 async function createStripePaymentLinkFromInventory(input: {
   stripeSecretKey: string;
   items: Array<{
@@ -3556,16 +3599,27 @@ function mapStripePaymentLink(paymentLink: any, lineItems: any[]): Record<string
       ?? paymentLink?.metadata?.created_at
       ?? 0,
   );
+  const createdDate = created ? new Date(created * 1000) : null;
   return {
     id: normalizeText(paymentLink?.id, ''),
     name,
     price: formatStripePaymentLinkPrice(lineItems, paymentLink?.currency),
     created,
-    createdLabel: created ? new Date(created * 1000).toISOString() : '',
+    createdLabel: createdDate ? createdDate.toISOString() : '',
+    createdDisplay: createdDate ? formatStripeCreatedDisplay(createdDate) : '',
     status: paymentLink?.active === false ? 'Deactivated' : 'Active',
     automaticTax: Boolean(paymentLink?.automatic_tax?.enabled),
     url: normalizeText(paymentLink?.url, ''),
   };
+}
+
+function formatStripeCreatedDisplay(date: Date): string {
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date);
 }
 
 function formatStripePaymentLinkPrice(lineItems: any[], fallbackCurrency: unknown): string {
