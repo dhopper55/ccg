@@ -268,8 +268,13 @@ Practical rule:
   - Returns compact summary of currently marked inventory rows for Payment Link creation modal
 - `POST /api/admin-v2/payment-links`
   - Creates a Stripe Payment Link from all currently marked inventory rows
+  - Accepts per-item quantities; quantity `0` omits a marked item from the link
+  - Validates requested quantities against current available inventory before creating Stripe objects
   - Creates fresh Stripe Product and Price objects for each marked inventory row on every run
   - Optionally attaches configured Colorado sales tax rate via `line_items.tax_rates`
+- `POST /api/stripe/webhook`
+  - Handles Stripe Checkout webhooks for normal shop checkout orders
+  - For Admin V2 Payment Links, creates a local order on successful payment and reuses the normal paid-order inventory adjustment flow
 - `GET /api/admin-v2/stripe-config`
   - Reads Stripe sandbox/production mode from `sys_info`
 - `POST /api/admin-v2/stripe-config`

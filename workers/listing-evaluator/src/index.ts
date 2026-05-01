@@ -3083,18 +3083,45 @@ async function handleAdminV2PaymentLinkCreate(request: Request, env: Env): Promi
   if (markedRows.length < 1) {
     return jsonResponse({ message: 'No marked inventory items exist.' }, 400);
   }
-  if (markedRows.length > 20) {
+
+  const quantitySelections = parsePaymentLinkQuantitySelections(body.items);
+  const hasExplicitQuantitySelections = quantitySelections.size > 0 || Array.isArray(body.items);
+  const selectedRows = markedRows
+    .map((row) => {
+      const availableQuantity = Math.max(0, Number(row.quantity ?? 1) || 0);
+      const requestedQuantity = hasExplicitQuantitySelections
+        ? quantitySelections.get(Number(row.id)) ?? 0
+        : Math.min(1, availableQuantity);
+      return {
+        row,
+        availableQuantity,
+        requestedQuantity,
+      };
+    })
+    .filter((selection) => selection.requestedQuantity > 0);
+
+  if (selectedRows.length < 1) {
+    return jsonResponse({ message: 'Select at least one marked inventory item.' }, 400);
+  }
+  if (selectedRows.length > 20) {
     return jsonResponse({ message: 'Stripe payment links support up to 20 line items. Unmark items and try again.' }, 400);
   }
 
-  const items = markedRows.map((row) => {
+  const quantityError = selectedRows.find((selection) => selection.requestedQuantity > selection.availableQuantity);
+  if (quantityError) {
+    return jsonResponse({
+      message: `${getInventoryPaymentLinkTitle(quantityError.row)} only has ${quantityError.availableQuantity} available.`,
+    }, 400);
+  }
+
+  const items = selectedRows.map(({ row, requestedQuantity }) => {
     const unitAmountCents = getInventoryPaymentLinkPriceCents(row);
     return {
       inventoryItemId: row.id,
       ccgNumber: normalizeText(row.ccg_number, ''),
       title: getInventoryPaymentLinkTitle(row),
       description: normalizeText(row.sale_description || row.original_listing_desc || '', '').slice(0, 500),
-      quantity: Math.max(1, Number(row.quantity || 1)),
+      quantity: requestedQuantity,
       unitAmountCents,
       imageUrl: toPublicShopImageUrl(row.image_url),
     };
@@ -3314,6 +3341,39 @@ async function getStripeRuntimeConfig(env: Env): Promise<StripeRuntimeConfig> {
   } catch (error) {
     console.warn('Stripe sys_info lookup failed; using environment fallback.', { error });
     return fallback;
+  }
+}
+
+async function getStripeRuntimeConfigForLivemode(
+  livemode: boolean,
+  env: Env,
+): Promise<StripeRuntimeConfig> {
+  const fallback = await getStripeRuntimeConfig(env);
+  const useSandbox = !livemode;
+
+  try {
+    const columns = await dbGetTableColumns('sys_info', env);
+    const columnNames = new Set(columns.map((column) => column.name));
+    if (!columnNames.has('use_stripe_sandbox')) return { ...fallback, useSandbox };
+
+    const row = await env.DB.prepare('SELECT * FROM sys_info LIMIT 1').first<Record<string, unknown>>();
+    if (!row) return { ...fallback, useSandbox };
+
+    const secretKey = useSandbox
+      ? normalizeText(row.stripe_secret_key_sandbox, fallback.secretKey)
+      : normalizeText(row.stripe_secret_key, fallback.secretKey);
+    const taxRateId = useSandbox
+      ? normalizeText(row.string_tax_id_sandbox, fallback.taxRateId)
+      : normalizeText(row.stripe_tax_id, fallback.taxRateId);
+
+    return {
+      secretKey,
+      taxRateId,
+      useSandbox,
+    };
+  } catch (error) {
+    console.warn('Stripe sys_info livemode lookup failed; using current Stripe fallback.', { livemode, error });
+    return { ...fallback, useSandbox };
   }
 }
 
@@ -4576,25 +4636,41 @@ async function handleStripeWebhook(request: Request, env: Env): Promise<Response
   const eventType = normalizeText(event?.type, '');
   const session = event?.data?.object;
   const orderId = normalizeText(session?.metadata?.order_id, '') || normalizeText(session?.client_reference_id, '');
-  if (!orderId) {
-    return jsonResponse({ received: true, ignored: true, message: 'No order_id metadata.' });
-  }
 
-  if (eventType === 'checkout.session.completed') {
+  if (orderId && eventType === 'checkout.session.completed') {
     if (normalizeText(session?.payment_status, '') === 'paid') {
       await dbMarkStripeCheckoutOrderPaid(orderId, session, env);
     } else {
       await dbUpdateStripeOrderStatus(orderId, 'payment_processing', session, env);
     }
-  } else if (eventType === 'checkout.session.async_payment_succeeded') {
+  } else if (orderId && eventType === 'checkout.session.async_payment_succeeded') {
     await dbMarkStripeCheckoutOrderPaid(orderId, session, env);
-  } else if (eventType === 'checkout.session.async_payment_failed') {
+  } else if (orderId && eventType === 'checkout.session.async_payment_failed') {
     await dbReleaseStripeCheckoutOrder(orderId, 'payment_failed', session, env);
-  } else if (eventType === 'checkout.session.expired') {
+  } else if (orderId && eventType === 'checkout.session.expired') {
     await dbReleaseStripeCheckoutOrder(orderId, 'expired', session, env);
+  } else if (isAdminPaymentLinkCheckoutSession(session)) {
+    if (
+      (eventType === 'checkout.session.completed' && normalizeText(session?.payment_status, '') === 'paid')
+      || eventType === 'checkout.session.async_payment_succeeded'
+    ) {
+      const paymentLinkOrderId = await dbEnsurePaymentLinkCheckoutOrder(session, event, env);
+      await dbMarkStripeCheckoutOrderPaid(paymentLinkOrderId, session, env);
+      return jsonResponse({ received: true, orderId: paymentLinkOrderId });
+    }
+  } else if (!orderId) {
+    return jsonResponse({ received: true, ignored: true, message: 'No order_id metadata.' });
   }
 
   return jsonResponse({ received: true });
+}
+
+function isAdminPaymentLinkCheckoutSession(session: any): boolean {
+  return Boolean(
+    normalizeText(session?.payment_link, '')
+    || normalizeText(session?.metadata?.source, '') === 'admin_v2_marked_inventory'
+    || normalizeText(session?.metadata?.inventory_item_ids, ''),
+  );
 }
 
 async function handleAdminV2DashboardSummary(env: Env): Promise<Response> {
@@ -8388,6 +8464,161 @@ async function dbListCheckoutInventoryItems(
   return result.results ?? [];
 }
 
+async function buildPaymentLinkCheckoutOrderItems(
+  session: any,
+  event: any,
+  env: Env,
+): Promise<ShopCheckoutLineItem[]> {
+  const sessionId = normalizeText(session?.id, '');
+  const fallbackIds = parseStripeInventoryItemIds(session);
+  const stripeLineItems = sessionId
+    ? await listStripeCheckoutSessionLineItems(sessionId, event?.livemode === true, env)
+    : [];
+  const byInventoryId = new Map<number, {
+    quantity: number;
+    subtotalCents: number;
+    title: string;
+  }>();
+
+  for (const lineItem of stripeLineItems) {
+    const inventoryItemId = getStripeLineItemInventoryItemId(lineItem);
+    if (!inventoryItemId) continue;
+    const quantity = parseOptionalPositiveInt(lineItem?.quantity) ?? 1;
+    const subtotalCents = numberOrZero(lineItem?.amount_subtotal)
+      || numberOrZero(lineItem?.amount_total);
+    const existing = byInventoryId.get(inventoryItemId);
+    byInventoryId.set(inventoryItemId, {
+      quantity: (existing?.quantity ?? 0) + quantity,
+      subtotalCents: (existing?.subtotalCents ?? 0) + subtotalCents,
+      title: existing?.title || getStripeLineItemTitle(lineItem),
+    });
+  }
+
+  for (const inventoryItemId of fallbackIds) {
+    if (!byInventoryId.has(inventoryItemId)) {
+      byInventoryId.set(inventoryItemId, {
+        quantity: 1,
+        subtotalCents: 0,
+        title: '',
+      });
+    }
+  }
+
+  const inventoryItemIds = Array.from(byInventoryId.keys());
+  if (inventoryItemIds.length === 0) return [];
+
+  const rows = await dbListCheckoutInventoryItems(inventoryItemIds, env);
+  const rowsById = new Map(rows.map((row) => [Number(row.id), row]));
+
+  return inventoryItemIds.map((inventoryItemId) => {
+    const line = byInventoryId.get(inventoryItemId);
+    const row = rowsById.get(inventoryItemId) || buildMissingPaymentLinkInventoryRow(inventoryItemId, line?.title || 'Item');
+    const quantity = Math.max(1, line?.quantity ?? 1);
+    const lineSubtotalCents = Math.max(0, line?.subtotalCents ?? 0);
+    const currentPriceCents = Math.round(Number(row.sale_price || row.regular_price || 0) * 100);
+    const unitAmountCents = lineSubtotalCents > 0
+      ? Math.round(lineSubtotalCents / quantity)
+      : Number.isFinite(currentPriceCents) && currentPriceCents > 0
+        ? currentPriceCents
+        : 0;
+    return {
+      inventoryItemId,
+      quantity,
+      row,
+      title: line?.title || getCheckoutItemTitle(row),
+      unitAmountCents,
+      imageUrl: toPublicShopImageUrl(row.image_url),
+    };
+  });
+}
+
+async function listStripeCheckoutSessionLineItems(
+  checkoutSessionId: string,
+  livemode: boolean,
+  env: Env,
+): Promise<any[]> {
+  const { secretKey } = await getStripeRuntimeConfigForLivemode(livemode, env);
+  if (!secretKey || !checkoutSessionId) return [];
+
+  const params = new URLSearchParams();
+  params.set('limit', '100');
+  params.append('expand[]', 'data.price.product');
+
+  try {
+    const response = await fetch(
+      `https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(checkoutSessionId)}/line_items?${params.toString()}`,
+      { headers: { Authorization: `Bearer ${secretKey}` } },
+    );
+    const data = await response.json<any>();
+    if (!response.ok) {
+      console.warn('Stripe checkout session line items lookup failed', {
+        checkoutSessionId,
+        status: response.status,
+        message: normalizeText(data?.error?.message, ''),
+      });
+      return [];
+    }
+    return Array.isArray(data?.data) ? data.data : [];
+  } catch (error) {
+    console.warn('Stripe checkout session line items lookup failed', { checkoutSessionId, error });
+    return [];
+  }
+}
+
+function getStripeLineItemInventoryItemId(lineItem: any): number | null {
+  const product = lineItem?.price?.product;
+  return parseOptionalPositiveInt(lineItem?.metadata?.inventory_item_id)
+    ?? parseOptionalPositiveInt(lineItem?.price?.metadata?.inventory_item_id)
+    ?? parseOptionalPositiveInt(typeof product === 'object' ? product?.metadata?.inventory_item_id : null);
+}
+
+function getStripeLineItemTitle(lineItem: any): string {
+  const product = lineItem?.price?.product;
+  return normalizeText(
+    lineItem?.description
+      ?? (typeof product === 'object' ? product?.name : '')
+      ?? lineItem?.price?.nickname,
+    'Item',
+  );
+}
+
+function buildMissingPaymentLinkInventoryRow(
+  inventoryItemId: number,
+  title: string,
+): ShopCheckoutInventoryRow {
+  return {
+    id: inventoryItemId,
+    title,
+    sale_title: title,
+    brand: '',
+    model: '',
+    condition: '',
+    image_url: '',
+    regular_price: 0,
+    sale_price: 0,
+    quantity: 1,
+    for_sale: 0,
+    only_in_store: 0,
+    is_sold: 0,
+    is_active: 0,
+    is_rented: 0,
+    availability_status: '',
+    active_order_id: null,
+    reserved_until: null,
+  };
+}
+
+function numberOrZero(value: unknown): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0;
+}
+
+function stripeTimestampToIso(value: unknown): string {
+  const seconds = Number(value);
+  if (!Number.isFinite(seconds) || seconds <= 0) return '';
+  return new Date(seconds * 1000).toISOString();
+}
+
 async function dbGetTableColumns(
   tableName: string,
   env: Env,
@@ -8548,7 +8779,108 @@ async function dbCreateCheckoutOrder(
        message,
        created_at
      ) VALUES (?, 'checkout_created', NULL, 'checkout_open', 'public_site', NULL, ?, ?)`
-  ).bind(input.orderId, `${input.checkoutProvider === 'cash' ? 'Cash checkout' : 'Stripe Checkout'} started from cart.`, input.createdAt).run();
+  ).bind(
+    input.orderId,
+    input.checkoutMode === 'payment_link'
+      ? 'Stripe Payment Link checkout created from webhook.'
+      : `${input.checkoutProvider === 'cash' ? 'Cash checkout' : 'Stripe Checkout'} started from cart.`,
+    input.createdAt,
+  ).run();
+}
+
+async function dbEnsurePaymentLinkCheckoutOrder(session: any, event: any, env: Env): Promise<string> {
+  const sessionId = normalizeText(session?.id, '');
+  if (!sessionId) throw new Error('Stripe payment link webhook did not include a checkout session id.');
+
+  const existingOrderId = await dbGetOrderIdByStripeCheckoutSessionId(sessionId, env);
+  if (existingOrderId) return existingOrderId;
+
+  const items = await buildPaymentLinkCheckoutOrderItems(session, event, env);
+  if (items.length === 0) {
+    throw new Error('Stripe payment link webhook did not include recognizable inventory items.');
+  }
+
+  const createdAt = stripeTimestampToIso(session?.created) || new Date().toISOString();
+  const orderId = crypto.randomUUID();
+  const orderNumber = buildOrderNumber();
+  const itemSubtotalCents = items.reduce((sum, item) => sum + item.unitAmountCents * item.quantity, 0);
+  const discountCents = numberOrZero(session?.total_details?.amount_discount);
+  const totalCents = numberOrZero(session?.amount_total)
+    || Math.max(0, itemSubtotalCents - discountCents + numberOrZero(session?.total_details?.amount_tax));
+  const taxCents = numberOrZero(session?.total_details?.amount_tax)
+    || Math.max(0, totalCents - itemSubtotalCents + discountCents);
+  const subtotalCents = itemSubtotalCents || Math.max(0, numberOrZero(session?.amount_subtotal) - taxCents);
+  const normalizedTotalCents = totalCents
+    || Math.max(0, subtotalCents - discountCents + taxCents);
+  const baseUrl = normalizeText(env.SITE_BASE_URL, ACTIVITY_BASE_URL).replace(/\/+$/, '');
+  const successUrl = `${baseUrl}${SHOP_BASE_PATH}/checkout/success?order=${encodeURIComponent(orderId)}`;
+  const customerName = normalizeText(session?.customer_details?.name, '');
+  const customerEmail = normalizeEmailAddress(session?.customer_details?.email);
+
+  await dbCreateCheckoutOrder({
+    orderId,
+    orderNumber,
+    status: 'checkout_open',
+    channel: 'online',
+    fulfillmentType: 'pickup',
+    checkoutType: 'stripe',
+    checkoutProvider: 'stripe',
+    checkoutMode: 'payment_link',
+    subtotalCents,
+    discountCents,
+    couponCode: null,
+    taxCents,
+    totalCents: normalizedTotalCents,
+    successUrl,
+    cancelUrl: '',
+    createdAt,
+    customerName,
+    customerEmail,
+    items,
+  }, env);
+
+  await dbAttachStripeCheckoutSession(orderId, sessionId, env);
+  await dbUpdateTableById('orders', orderId, {
+    stripe_payment_intent_id: normalizeText(session?.payment_intent, ''),
+    stripe_customer_id: normalizeText(session?.customer, ''),
+    stripe_customer_name: customerName,
+    stripe_customer_email: customerEmail,
+    stripe_customer_phone: normalizeText(session?.customer_details?.phone, ''),
+    stripe_payment_status: normalizeText(session?.payment_status, ''),
+    updated_at: new Date().toISOString(),
+  }, env);
+
+  await dbRecordOrderEvent(orderId, {
+    eventType: 'payment_link_order_created',
+    fromStatus: null,
+    toStatus: 'checkout_open',
+    source: 'stripe_webhook',
+    sourceId: sessionId,
+    message: 'Order created from Stripe Payment Link payment.',
+    payloadJson: JSON.stringify({
+      checkoutSessionId: sessionId,
+      paymentLinkId: normalizeText(session?.payment_link, ''),
+      livemode: event?.livemode === true,
+      inventoryItemIds: items.map((item) => item.inventoryItemId),
+    }),
+  }, env);
+
+  return orderId;
+}
+
+async function dbGetOrderIdByStripeCheckoutSessionId(
+  checkoutSessionId: string,
+  env: Env,
+): Promise<string | null> {
+  const id = normalizeText(checkoutSessionId, '');
+  if (!id) return null;
+  const columns = await dbGetTableColumns('orders', env);
+  const columnNames = new Set(columns.map((column) => column.name));
+  if (!columnNames.has('stripe_checkout_session_id')) return null;
+  const row = await env.DB.prepare(
+    'SELECT id FROM orders WHERE stripe_checkout_session_id = ? LIMIT 1'
+  ).bind(id).first<{ id: string | null }>();
+  return normalizeText(row?.id, '') || null;
 }
 
 async function dbAttachStripeCheckoutSession(
@@ -13177,6 +13509,21 @@ function normalizeCheckoutItems(input: unknown): Array<{ inventoryItemId: number
     inventoryItemId,
     quantity,
   }));
+}
+
+function parsePaymentLinkQuantitySelections(input: unknown): Map<number, number> {
+  const selections = new Map<number, number>();
+  if (!Array.isArray(input)) return selections;
+
+  for (const item of input) {
+    const inventoryItemId = parseOptionalPositiveInt((item as any)?.inventoryItemId);
+    if (!inventoryItemId) continue;
+    const rawQuantity = Number((item as any)?.quantity ?? 0);
+    const quantity = Math.max(0, Math.min(1_000_000, Math.floor(Number.isFinite(rawQuantity) ? rawQuantity : 0)));
+    selections.set(inventoryItemId, (selections.get(inventoryItemId) || 0) + quantity);
+  }
+
+  return selections;
 }
 
 function getCheckoutItemTitle(row: ShopCheckoutInventoryRow): string {

@@ -12,6 +12,7 @@ import {
   DialogTitle,
   Divider,
   FormControlLabel,
+  IconButton,
   Link,
   Menu,
   MenuItem,
@@ -86,6 +87,7 @@ const PaymentLinks = () => {
   const [deactivatingId, setDeactivatingId] = useState('');
   const [createError, setCreateError] = useState('');
   const [includeSalesTax, setIncludeSalesTax] = useState(true);
+  const [selectedQuantities, setSelectedQuantities] = useState<Record<string, number>>({});
   const [useStripeSandbox, setUseStripeSandbox] = useState(true);
   const [isUpdatingStripeEnv, setIsUpdatingStripeEnv] = useState(false);
 
@@ -226,6 +228,7 @@ const PaymentLinks = () => {
     setCreateDialogOpen(true);
     setCreateError('');
     setIncludeSalesTax(true);
+    setSelectedQuantities({});
     setIsLoadingMarkedItems(true);
     try {
       const response = await fetch('/api/admin-v2/payment-links/marked-items', {
@@ -233,7 +236,11 @@ const PaymentLinks = () => {
       });
       const payload = (await response.json()) as MarkedItemsResponse;
       if (!response.ok) throw new Error(payload.message || 'Unable to load marked inventory.');
-      setMarkedItems(payload.records || []);
+      const records = payload.records || [];
+      setMarkedItems(records);
+      setSelectedQuantities(
+        Object.fromEntries(records.map((item) => [item.id, Math.min(1, Math.max(0, item.quantity || 0))])),
+      );
       setMaxMarkedItems(payload.maxItems || 20);
     } catch (loadError) {
       setMarkedItems([]);
@@ -243,7 +250,23 @@ const PaymentLinks = () => {
     }
   };
 
+  const handleQuantityChange = (item: MarkedInventoryItem, nextQuantity: number) => {
+    const maxQuantity = Math.max(0, item.quantity || 0);
+    const normalizedQuantity = Math.min(Math.max(0, nextQuantity), maxQuantity);
+    setSelectedQuantities((current) => ({
+      ...current,
+      [item.id]: normalizedQuantity,
+    }));
+  };
+
   const handleCreatePaymentLink = async () => {
+    const items = markedItems
+      .map((item) => ({
+        inventoryItemId: Number(item.id),
+        quantity: selectedQuantities[item.id] ?? Math.min(1, Math.max(0, item.quantity || 0)),
+      }))
+      .filter((item) => Number.isFinite(item.inventoryItemId) && item.inventoryItemId > 0 && item.quantity > 0);
+
     setIsCreating(true);
     setCreateError('');
     try {
@@ -251,7 +274,7 @@ const PaymentLinks = () => {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ includeSalesTax }),
+        body: JSON.stringify({ includeSalesTax, items }),
       });
       const payload = (await response.json()) as PaymentLinksResponse;
       if (!response.ok) throw new Error(payload.message || 'Unable to create payment link.');
@@ -331,7 +354,9 @@ const PaymentLinks = () => {
   };
 
   const hasMarkedItems = markedItems.length > 0;
-  const markedItemLimitExceeded = markedItems.length > maxMarkedItems;
+  const selectedItemCount = markedItems.filter((item) => (selectedQuantities[item.id] ?? 0) > 0).length;
+  const markedItemLimitExceeded = selectedItemCount > maxMarkedItems;
+  const hasSelectedItems = selectedItemCount > 0;
 
   return (
     <Stack direction="column" height={1}>
@@ -452,30 +477,74 @@ const PaymentLinks = () => {
             ) : hasMarkedItems ? (
               <>
                 <Stack direction="column" divider={<Divider flexItem />} sx={{ gap: 1 }}>
-                  {markedItems.map((item) => (
-                    <Stack
-                      key={item.id}
-                      sx={{
-                        py: 1,
-                        gap: 1,
-                        flexDirection: { xs: 'column', sm: 'row' },
-                        alignItems: { sm: 'center' },
-                        justifyContent: 'space-between',
-                      }}
-                    >
-                      <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                          {item.title}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                          {[item.ccgNumber, item.brand, item.category].filter(Boolean).join(' • ') || 'Marked item'}
-                        </Typography>
-                      </Box>
-                      <Typography variant="body2" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
-                        {item.price} x {item.quantity || 1}
-                      </Typography>
-                    </Stack>
-                  ))}
+                  {markedItems.map((item) => {
+                    const quantity = selectedQuantities[item.id] ?? Math.min(1, Math.max(0, item.quantity || 0));
+                    const maxQuantity = Math.max(0, item.quantity || 0);
+                    return (
+                      <Stack
+                        key={item.id}
+                        sx={{
+                          py: 1,
+                          gap: 1.5,
+                          flexDirection: { xs: 'column', sm: 'row' },
+                          alignItems: { sm: 'center' },
+                          justifyContent: 'space-between',
+                        }}
+                      >
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                            {item.title}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                            {[item.ccgNumber, item.brand, item.category].filter(Boolean).join(' • ') || 'Marked item'}
+                          </Typography>
+                        </Box>
+                        <Stack
+                          direction="row"
+                          sx={{ alignItems: 'center', gap: 1, justifyContent: { xs: 'space-between', sm: 'flex-end' } }}
+                        >
+                          <Typography variant="body2" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+                            {item.price} x {quantity}
+                          </Typography>
+                          <Stack
+                            direction="row"
+                            sx={{
+                              alignItems: 'center',
+                              border: 1,
+                              borderColor: 'divider',
+                              borderRadius: 1,
+                              overflow: 'hidden',
+                            }}
+                          >
+                            <IconButton
+                              size="small"
+                              disabled={quantity <= 0}
+                              onClick={() => handleQuantityChange(item, quantity - 1)}
+                              aria-label={`Decrease quantity for ${item.title}`}
+                              sx={{ borderRadius: 0 }}
+                            >
+                              <IconifyIcon icon="material-symbols:remove-rounded" />
+                            </IconButton>
+                            <Typography
+                              variant="body2"
+                              sx={{ width: 32, textAlign: 'center', fontWeight: 700, userSelect: 'none' }}
+                            >
+                              {quantity}
+                            </Typography>
+                            <IconButton
+                              size="small"
+                              disabled={quantity >= maxQuantity}
+                              onClick={() => handleQuantityChange(item, quantity + 1)}
+                              aria-label={`Increase quantity for ${item.title}`}
+                              sx={{ borderRadius: 0 }}
+                            >
+                              <IconifyIcon icon="material-symbols:add-rounded" />
+                            </IconButton>
+                          </Stack>
+                        </Stack>
+                      </Stack>
+                    );
+                  })}
                 </Stack>
                 {markedItemLimitExceeded && (
                   <Alert severity="warning">
@@ -510,7 +579,7 @@ const PaymentLinks = () => {
           </Button>
           <Button
             variant="contained"
-            disabled={!hasMarkedItems || markedItemLimitExceeded || isLoadingMarkedItems || isCreating}
+            disabled={!hasMarkedItems || !hasSelectedItems || markedItemLimitExceeded || isLoadingMarkedItems || isCreating}
             onClick={handleCreatePaymentLink}
           >
             {isCreating ? 'Creating...' : 'Create'}
