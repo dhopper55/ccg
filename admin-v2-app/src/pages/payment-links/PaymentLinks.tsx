@@ -76,7 +76,7 @@ const PaymentLinks = () => {
   const [paymentLinks, setPaymentLinks] = useState<StripePaymentLink[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StripePaymentLink['status'] | ''>('Active');
   const [statusAnchorEl, setStatusAnchorEl] = useState<HTMLElement | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [markedItems, setMarkedItems] = useState<MarkedInventoryItem[]>([]);
