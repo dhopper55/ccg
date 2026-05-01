@@ -3586,6 +3586,7 @@ async function createStripeProductPriceForInventoryItem(
 function mapStripePaymentLink(paymentLink: any, lineItems: any[]): Record<string, unknown> {
   const firstLineItem = lineItems[0] || {};
   const firstProduct = firstLineItem?.price?.product;
+  const firstPrice = firstLineItem?.price;
   const name = normalizeText(
     firstLineItem.description
       ?? paymentLink?.metadata?.name
@@ -3597,6 +3598,8 @@ function mapStripePaymentLink(paymentLink: any, lineItems: any[]): Record<string
     paymentLink?.created
       ?? paymentLink?.metadata?.created
       ?? paymentLink?.metadata?.created_at
+      ?? firstPrice?.created
+      ?? (typeof firstProduct === 'object' ? firstProduct?.created : null)
       ?? 0,
   );
   const createdDate = created ? new Date(created * 1000) : null;

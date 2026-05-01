@@ -142,7 +142,7 @@ const PaymentLinks = () => {
       {
         field: 'name',
         headerName: 'Name',
-        minWidth: 420,
+        minWidth: 300,
         flex: 1,
         renderCell: (params) => (
           <Stack sx={{ minWidth: 0, justifyContent: 'center' }}>
@@ -162,7 +162,7 @@ const PaymentLinks = () => {
       {
         field: 'status',
         headerName: 'Status',
-        minWidth: 150,
+        width: 140,
         renderCell: (params) => (
           <Chip
             label={params.row.status}
@@ -175,7 +175,7 @@ const PaymentLinks = () => {
       {
         field: 'price',
         headerName: 'Price',
-        minWidth: 220,
+        width: 180,
         renderCell: (params) => (
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
             {params.row.price || '—'}
@@ -185,7 +185,7 @@ const PaymentLinks = () => {
       {
         field: 'created',
         headerName: 'Created',
-        minWidth: 180,
+        width: 160,
         renderCell: (params) => (
           <Typography variant="body2">
             {params.row.createdDisplay || (params.row.createdLabel
@@ -199,10 +199,11 @@ const PaymentLinks = () => {
       {
         field: 'actions',
         headerName: '',
-        minWidth: 132,
+        width: 118,
         sortable: false,
         filterable: false,
         align: 'right',
+        headerAlign: 'right',
         renderCell: (params) => (
           params.row.status === 'Active' ? (
             <Button
