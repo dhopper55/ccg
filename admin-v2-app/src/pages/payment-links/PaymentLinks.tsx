@@ -558,7 +558,7 @@ const PaymentLinks = () => {
                       onChange={(event) => setIncludeSalesTax(event.target.checked)}
                     />
                   }
-                  label="Include 7.5% CO Sales Tax"
+                  label="Include 8.05% CO Sales Tax"
                 />
               </>
             ) : (

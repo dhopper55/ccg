@@ -3537,13 +3537,13 @@ async function createStripePaymentLinkWithTaxLineItem(
     (sum, item) => sum + item.unitAmountCents * Math.max(1, item.quantity),
     0,
   );
-  const taxCents = Math.round(subtotalCents * 0.075);
+  const taxCents = Math.round(subtotalCents * 0.0805);
   const taxPriceId = taxCents > 0
     ? await createStripeProductPriceForInventoryItem(input.stripeSecretKey, {
       inventoryItemId: 0,
       ccgNumber: '',
-      title: 'CO Sales Tax (7.5%)',
-      description: `7.5% Colorado sales tax for marked inventory payment link. Tax rate id: ${input.taxRateId}`,
+      title: 'CO Sales Tax (8.05%)',
+      description: `8.05% Colorado sales tax for marked inventory payment link. Tax rate id: ${input.taxRateId}`,
       unitAmountCents: taxCents,
       imageUrl: '',
     })
