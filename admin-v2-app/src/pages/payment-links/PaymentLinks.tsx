@@ -68,6 +68,11 @@ type StripeConfigResponse = {
   message?: string;
 };
 
+type TestEmailResponse = {
+  ok?: boolean;
+  message?: string;
+};
+
 const getStatusBadgeColor = (value: StripePaymentLink['status']): ChipOwnProps['color'] =>
   value === 'Active' ? 'success' : 'neutral';
 
@@ -90,6 +95,8 @@ const PaymentLinks = () => {
   const [selectedQuantities, setSelectedQuantities] = useState<Record<string, number>>({});
   const [useStripeSandbox, setUseStripeSandbox] = useState(true);
   const [isUpdatingStripeEnv, setIsUpdatingStripeEnv] = useState(false);
+  const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
+  const [testEmailMessage, setTestEmailMessage] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -353,6 +360,25 @@ const PaymentLinks = () => {
     }
   };
 
+  const handleSendTestEmail = async () => {
+    setIsSendingTestEmail(true);
+    setError('');
+    setTestEmailMessage('');
+    try {
+      const response = await fetch('/api/admin-v2/order-confirmation-email/test', {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+      const payload = (await response.json()) as TestEmailResponse;
+      if (!response.ok) throw new Error(payload.message || 'Unable to send test email.');
+      setTestEmailMessage(payload.message || 'Test email sent.');
+    } catch (sendError) {
+      setError(sendError instanceof Error ? sendError.message : 'Unable to send test email.');
+    } finally {
+      setIsSendingTestEmail(false);
+    }
+  };
+
   const hasMarkedItems = markedItems.length > 0;
   const selectedItemCount = markedItems.filter((item) => (selectedQuantities[item.id] ?? 0) > 0).length;
   const markedItemLimitExceeded = selectedItemCount > maxMarkedItems;
@@ -379,6 +405,15 @@ const PaymentLinks = () => {
               }
               label={useStripeSandbox ? 'Stripe sandbox' : 'Stripe production'}
             />
+            <Button
+              variant="outlined"
+              color="neutral"
+              disabled={isSendingTestEmail}
+              startIcon={<IconifyIcon icon="material-symbols:outgoing-mail-rounded" />}
+              onClick={handleSendTestEmail}
+            >
+              {isSendingTestEmail ? 'Sending...' : 'Send test email'}
+            </Button>
             <Button
               variant="contained"
               startIcon={<IconifyIcon icon="material-symbols:add-rounded" />}
@@ -437,6 +472,7 @@ const PaymentLinks = () => {
             </Menu>
           </Stack>
           {error && <Alert severity="error">{error}</Alert>}
+          {testEmailMessage && <Alert severity="success">{testEmailMessage}</Alert>}
           <Box sx={{ width: 1 }}>
             <DataGrid
               rowHeight={68}

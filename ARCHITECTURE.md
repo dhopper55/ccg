@@ -279,6 +279,9 @@ Practical rule:
   - Reads Stripe sandbox/production mode from `sys_info`
 - `POST /api/admin-v2/stripe-config`
   - Toggles `sys_info.use_stripe_sandbox` live from Admin V2 Payment Links
+- `POST /api/admin-v2/order-confirmation-email/test`
+  - Sends a Brevo transactional order confirmation test email using static sample payload values
+  - Reads Brevo API key, sender, and template config from `sys_info`
 - `GET /api/admin-v2/serial-decodes`
   - Admin V2 serial decode grid data
   - Supports query params: `page`, `limit`, `brand`, `onlyErrors`, `unevaluated`, `sortDir`
@@ -375,6 +378,7 @@ Tables:
   - One-row system configuration table
   - Stores Stripe production/sandbox secret keys and tax rate ids
   - `use_stripe_sandbox` controls which Stripe credentials the Worker uses
+  - Stores Brevo API key, order confirmation template id, and sender identity for transactional email
 
 The live D1 database is the source of truth for schema.
 

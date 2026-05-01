@@ -701,6 +701,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/order-confirmation-email/test' && request.method === 'POST') {
+      const response = await handleAdminV2OrderConfirmationEmailTest(env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/admin-v2/payment-links/marked-items' && request.method === 'GET') {
       const response = await handleAdminV2PaymentLinkMarkedItems(env);
       return withCors(response, request, env);
@@ -2493,6 +2498,13 @@ type StripeRuntimeConfig = {
   useSandbox: boolean;
 };
 
+type BrevoRuntimeConfig = {
+  apiKey: string;
+  templateId: number;
+  senderName: string;
+  senderEmail: string;
+};
+
 type InventoryItemRow = {
   id: number;
   source_listing_id: number | null;
@@ -3057,6 +3069,29 @@ async function handleAdminV2StripeConfigUpdate(request: Request, env: Env): Prom
   }
 }
 
+async function handleAdminV2OrderConfirmationEmailTest(env: Env): Promise<Response> {
+  const config = await getBrevoRuntimeConfig(env);
+  if (!config.apiKey) {
+    return jsonResponse({ message: 'Brevo API key is not configured in sys_info.' }, 503);
+  }
+  if (!config.senderEmail) {
+    return jsonResponse({ message: 'Brevo sender email is not configured in sys_info.' }, 503);
+  }
+
+  try {
+    const result = await sendBrevoOrderConfirmationTestEmail(config);
+    return jsonResponse({
+      ok: true,
+      message: 'Brevo test order confirmation email sent.',
+      result,
+    });
+  } catch (error) {
+    return jsonResponse({
+      message: error instanceof Error ? error.message : 'Unable to send Brevo test email.',
+    }, 502);
+  }
+}
+
 async function handleAdminV2PaymentLinkMarkedItems(env: Env): Promise<Response> {
   const records = await dbListMarkedInventoryRowsForPaymentLinks(env);
   return jsonResponse({
@@ -3342,6 +3377,96 @@ async function getStripeRuntimeConfig(env: Env): Promise<StripeRuntimeConfig> {
     console.warn('Stripe sys_info lookup failed; using environment fallback.', { error });
     return fallback;
   }
+}
+
+async function getBrevoRuntimeConfig(env: Env): Promise<BrevoRuntimeConfig> {
+  const fallback: BrevoRuntimeConfig = {
+    apiKey: '',
+    templateId: 3,
+    senderName: 'Coal Creek Guitars',
+    senderEmail: '',
+  };
+
+  try {
+    const columns = await dbGetTableColumns('sys_info', env);
+    const columnNames = new Set(columns.map((column) => column.name));
+    if (!columnNames.has('brevo_api_key')) return fallback;
+
+    const row = await env.DB.prepare('SELECT * FROM sys_info LIMIT 1').first<Record<string, unknown>>();
+    if (!row) return fallback;
+
+    const templateId = Number(row.brevo_order_confirmation_template_id ?? fallback.templateId);
+    return {
+      apiKey: normalizeText(row.brevo_api_key, ''),
+      templateId: Number.isFinite(templateId) && templateId > 0 ? Math.floor(templateId) : fallback.templateId,
+      senderName: normalizeText(row.brevo_sender_name, fallback.senderName),
+      senderEmail: normalizeEmailAddress(row.brevo_sender_email),
+    };
+  } catch (error) {
+    console.warn('Brevo sys_info lookup failed.', { error });
+    return fallback;
+  }
+}
+
+async function sendBrevoOrderConfirmationTestEmail(
+  config: BrevoRuntimeConfig,
+): Promise<Record<string, unknown>> {
+  const payload = {
+    sender: {
+      name: config.senderName,
+      email: config.senderEmail,
+    },
+    to: [
+      {
+        email: 'customer@example.com',
+        name: 'John Doe',
+      },
+    ],
+    templateId: config.templateId,
+    params: {
+      ORDER_DATE: '2026-05-01',
+      items: [
+        {
+          name: 'Acoustic Guitar',
+          category: 'Musical Instruments',
+          sku: 'GTR-001',
+          price: '199.99',
+          quantity: 1,
+          image: 'https://example.com/images/guitar.jpg',
+        },
+        {
+          name: 'Guitar Strings Pack',
+          category: 'Accessories',
+          sku: 'STR-123',
+          price: '9.99',
+          quantity: 2,
+          image: 'https://example.com/images/strings.jpg',
+        },
+      ],
+      discount: '10%',
+    },
+    headers: {
+      'X-Mailin-custom': 'order-confirmation',
+    },
+  };
+
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      'api-key': config.apiKey,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json<Record<string, unknown>>().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(normalizeText(
+      (data as any)?.message ?? (data as any)?.error ?? '',
+      `Brevo rejected the test email request with status ${response.status}.`,
+    ));
+  }
+  return data;
 }
 
 async function getStripeRuntimeConfigForLivemode(
