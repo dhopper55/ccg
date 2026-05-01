@@ -8,9 +8,10 @@ interface GeneralInfoProps {
   category?: string;
   secondaryCategory?: string;
   title?: string;
+  itemNumber?: string;
 }
 
-const GeneralInfo = ({ sx, category, secondaryCategory, title }: GeneralInfoProps) => {
+const GeneralInfo = ({ sx, category, secondaryCategory, title, itemNumber }: GeneralInfoProps) => {
   const { product } = useEcommerce();
   const breadcrumbItems = [
     { label: 'Home', url: '/' },
@@ -42,9 +43,16 @@ const GeneralInfo = ({ sx, category, secondaryCategory, title }: GeneralInfoProp
           gap: 3,
         }}
       >
-        <Typography variant="h1" sx={{ fontSize: 'h5.fontSize' }}>
-          {title || product?.name}
-        </Typography>
+        <Box>
+          <Typography variant="h1" sx={{ fontSize: 'h5.fontSize' }}>
+            {title || product?.name}
+          </Typography>
+          {itemNumber ? (
+            <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.75 }}>
+              Item Number: {itemNumber}
+            </Typography>
+          ) : null}
+        </Box>
       </Stack>
     </Box>
   );

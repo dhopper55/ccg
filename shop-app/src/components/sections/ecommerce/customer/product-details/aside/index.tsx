@@ -3,6 +3,7 @@ import Grid from '@mui/material/Grid';
 import Highlights, { ProductHighlight } from './Highlights';
 import OrderCustomization from './OrderCustomization';
 import Price from './Price';
+import ProductVideo from './ProductVideo';
 import PurchaseDetails from './PurchaseDetails';
 import Quantity from './Quantity';
 
@@ -60,6 +61,19 @@ const ProductDetailsAside = ({
         >
           <Highlights sx={{ height: 1 }} highlights={highlights} />
         </Grid>
+        {youtubeUrl && (
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6,
+              md: 4,
+              lg: 12,
+              xl: 6,
+            }}
+          >
+            <ProductVideo sx={{ height: 1 }} youtubeUrl={youtubeUrl} />
+          </Grid>
+        )}
         {!isUnavailable && (
           <Grid
             size={{
@@ -95,7 +109,7 @@ const ProductDetailsAside = ({
             lg: 12,
           }}
         >
-          <OrderCustomization sx={{ height: 1 }} youtubeUrl={youtubeUrl} />
+          <OrderCustomization sx={{ height: 1 }} />
         </Grid>
       </Grid>
     </Paper>

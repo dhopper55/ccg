@@ -198,6 +198,7 @@ const ProductDetails = () => {
             category={shopProduct?.category}
             secondaryCategory={shopProduct?.secondaryCategory}
             title={shopProduct?.saleTitle}
+            itemNumber={shopProduct?.ccgNumber}
           />
           {galleryImages.length > 0 && <ProductGallery images={galleryImages} />}
         </Paper>
