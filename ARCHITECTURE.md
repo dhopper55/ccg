@@ -270,6 +270,10 @@ Practical rule:
   - Creates a Stripe Payment Link from all currently marked inventory rows
   - Creates fresh Stripe Product and Price objects for each marked inventory row on every run
   - Optionally attaches configured Colorado sales tax rate via `line_items.tax_rates`
+- `GET /api/admin-v2/stripe-config`
+  - Reads Stripe sandbox/production mode from `sys_info`
+- `POST /api/admin-v2/stripe-config`
+  - Toggles `sys_info.use_stripe_sandbox` live from Admin V2 Payment Links
 - `GET /api/admin-v2/serial-decodes`
   - Admin V2 serial decode grid data
   - Supports query params: `page`, `limit`, `brand`, `onlyErrors`, `unevaluated`, `sortDir`
@@ -362,6 +366,10 @@ Tables:
   - Content fields: `regex_pattern`, `rich_text`, timestamps
   - Populated automatically from successful decode traffic (upsert on pattern)
   - Edited from Admin V2 Serial Pattern Text page
+- `sys_info`
+  - One-row system configuration table
+  - Stores Stripe production/sandbox secret keys and tax rate ids
+  - `use_stripe_sandbox` controls which Stripe credentials the Worker uses
 
 The live D1 database is the source of truth for schema.
 
@@ -401,7 +409,7 @@ D1 workflow rules:
 - `AUTH_SECRET`
 Optional:
 - `REVERB_API_TOKEN`
-- `STRIPE_CO_SALES_TAX_RATE_ID` (currently sandbox default `txr_1TSEdADCplz62P7p4H6E7YJK`; change for production)
+- `STRIPE_CO_SALES_TAX_RATE_ID` fallback only; D1 `sys_info` is the Stripe tax id source of truth once populated
 
 ## Decoder Page Templates (Nunjucks)
 All 26 brand decoder HTML pages are generated from Nunjucks templates at build time.

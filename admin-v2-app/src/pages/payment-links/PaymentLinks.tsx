@@ -12,10 +12,12 @@ import {
   DialogTitle,
   Divider,
   FormControlLabel,
-  InputAdornment,
   Link,
+  Menu,
+  MenuItem,
   Paper,
   Stack,
+  Switch,
   Typography,
 } from '@mui/material';
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
@@ -24,7 +26,6 @@ import paths from 'routes/paths';
 import IconifyIcon from 'components/base/IconifyIcon';
 import DataGridPagination from 'components/pagination/DataGridPagination';
 import PageHeader from 'components/sections/ecommerce/admin/common/PageHeader';
-import StyledTextField from 'components/styled/StyledTextField';
 
 type StripePaymentLink = {
   id: string;
@@ -60,6 +61,11 @@ type MarkedItemsResponse = {
   message?: string;
 };
 
+type StripeConfigResponse = {
+  useStripeSandbox?: boolean;
+  message?: string;
+};
+
 const getStatusBadgeColor = (value: StripePaymentLink['status']): ChipOwnProps['color'] =>
   value === 'Active' ? 'success' : 'neutral';
 
@@ -67,7 +73,8 @@ const PaymentLinks = () => {
   const [paymentLinks, setPaymentLinks] = useState<StripePaymentLink[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [statusAnchorEl, setStatusAnchorEl] = useState<HTMLElement | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [markedItems, setMarkedItems] = useState<MarkedInventoryItem[]>([]);
   const [maxMarkedItems, setMaxMarkedItems] = useState(20);
@@ -75,6 +82,8 @@ const PaymentLinks = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState('');
   const [includeSalesTax, setIncludeSalesTax] = useState(true);
+  const [useStripeSandbox, setUseStripeSandbox] = useState(true);
+  const [isUpdatingStripeEnv, setIsUpdatingStripeEnv] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,6 +104,19 @@ const PaymentLinks = () => {
         if (!cancelled) setIsLoading(false);
       }
     };
+    const loadStripeConfig = async () => {
+      try {
+        const response = await fetch('/api/admin-v2/stripe-config', { credentials: 'same-origin' });
+        const payload = (await response.json()) as StripeConfigResponse;
+        if (!response.ok) throw new Error(payload.message || 'Unable to load Stripe config.');
+        if (!cancelled) setUseStripeSandbox(payload.useStripeSandbox ?? true);
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(loadError instanceof Error ? loadError.message : 'Unable to load Stripe config.');
+        }
+      }
+    };
+    void loadStripeConfig();
     void loadPaymentLinks();
     return () => {
       cancelled = true;
@@ -102,18 +124,14 @@ const PaymentLinks = () => {
   }, []);
 
   const filteredPaymentLinks = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    if (!term) return paymentLinks;
-    return paymentLinks.filter((paymentLink) =>
-      [
-        paymentLink.name,
-        paymentLink.price,
-        paymentLink.status,
-        paymentLink.createdLabel,
-        paymentLink.url,
-      ].some((value) => value.toLowerCase().includes(term)),
-    );
-  }, [paymentLinks, search]);
+    if (!statusFilter) return paymentLinks;
+    return paymentLinks.filter((paymentLink) => paymentLink.status === statusFilter);
+  }, [paymentLinks, statusFilter]);
+
+  const statusValues = useMemo(
+    () => Array.from(new Set(paymentLinks.map((paymentLink) => paymentLink.status).filter(Boolean))).sort(),
+    [paymentLinks],
+  );
 
   const columns: GridColDef<StripePaymentLink>[] = useMemo(
     () => [
@@ -124,24 +142,29 @@ const PaymentLinks = () => {
         flex: 1,
         renderCell: (params) => (
           <Stack sx={{ minWidth: 0, justifyContent: 'center' }}>
-            <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', minWidth: 0 }}>
-              <Link
-                href={params.row.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                variant="subtitle2"
-                sx={{ fontWeight: 700, lineHeight: 1.25 }}
-              >
-                {params.row.name || params.row.id}
-              </Link>
-              <Chip
-                label={params.row.status}
-                variant="soft"
-                color={getStatusBadgeColor(params.row.status)}
-                size="small"
-              />
-            </Stack>
+            <Link
+              href={params.row.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              variant="subtitle2"
+              sx={{ fontWeight: 700, lineHeight: 1.25 }}
+            >
+              {params.row.name || params.row.id}
+            </Link>
           </Stack>
+        ),
+      },
+      {
+        field: 'status',
+        headerName: 'Status',
+        minWidth: 150,
+        renderCell: (params) => (
+          <Chip
+            label={params.row.status}
+            variant="soft"
+            color={getStatusBadgeColor(params.row.status)}
+            size="small"
+          />
         ),
       },
       {
@@ -158,7 +181,15 @@ const PaymentLinks = () => {
         field: 'created',
         headerName: 'Created',
         minWidth: 180,
-        valueFormatter: (value) => (value ? dayjs.unix(Number(value)).format('MMM D, h:mm A') : '—'),
+        renderCell: (params) => (
+          <Typography variant="body2">
+            {params.row.createdLabel
+              ? dayjs(params.row.createdLabel).format('MMM D, h:mm A')
+              : params.row.created
+                ? dayjs.unix(Number(params.row.created)).format('MMM D, h:mm A')
+                : '—'}
+          </Typography>
+        ),
       },
     ],
     [],
@@ -208,6 +239,46 @@ const PaymentLinks = () => {
     }
   };
 
+  const reloadPaymentLinks = async () => {
+    setIsLoading(true);
+    setError('');
+    try {
+      const response = await fetch('/api/admin-v2/payment-links', { credentials: 'same-origin' });
+      const payload = (await response.json()) as PaymentLinksResponse;
+      if (!response.ok) throw new Error(payload.message || 'Unable to load payment links.');
+      setPaymentLinks(payload.records || []);
+    } catch (loadError) {
+      setPaymentLinks([]);
+      setError(loadError instanceof Error ? loadError.message : 'Unable to load payment links.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleStripeEnvToggle = async (checked: boolean) => {
+    const previous = useStripeSandbox;
+    setUseStripeSandbox(checked);
+    setIsUpdatingStripeEnv(true);
+    setError('');
+    try {
+      const response = await fetch('/api/admin-v2/stripe-config', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ useStripeSandbox: checked }),
+      });
+      const payload = (await response.json()) as StripeConfigResponse;
+      if (!response.ok) throw new Error(payload.message || 'Unable to update Stripe environment.');
+      setUseStripeSandbox(payload.useStripeSandbox ?? checked);
+      await reloadPaymentLinks();
+    } catch (toggleError) {
+      setUseStripeSandbox(previous);
+      setError(toggleError instanceof Error ? toggleError.message : 'Unable to update Stripe environment.');
+    } finally {
+      setIsUpdatingStripeEnv(false);
+    }
+  };
+
   const hasMarkedItems = markedItems.length > 0;
   const markedItemLimitExceeded = markedItems.length > maxMarkedItems;
 
@@ -221,13 +292,25 @@ const PaymentLinks = () => {
           { label: 'Payment Links', active: true },
         ]}
         actionComponent={
-          <Button
-            variant="contained"
-            startIcon={<IconifyIcon icon="material-symbols:add-rounded" />}
-            onClick={openCreateDialog}
-          >
-            Create payment link
-          </Button>
+          <Stack direction="row" sx={{ gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={useStripeSandbox}
+                  disabled={isUpdatingStripeEnv}
+                  onChange={(event) => handleStripeEnvToggle(event.target.checked)}
+                />
+              }
+              label={useStripeSandbox ? 'Stripe sandbox' : 'Stripe production'}
+            />
+            <Button
+              variant="contained"
+              startIcon={<IconifyIcon icon="material-symbols:add-rounded" />}
+              onClick={openCreateDialog}
+            >
+              Create payment link
+            </Button>
+          </Stack>
         }
       />
       <Paper sx={{ flex: 1, p: { xs: 3, md: 5 } }}>
@@ -235,40 +318,47 @@ const PaymentLinks = () => {
           <Stack
             sx={{
               gap: 2,
-              flexDirection: { xs: 'column', md: 'row' },
-              alignItems: { md: 'center' },
-              justifyContent: 'space-between',
+              flexDirection: 'row',
+              justifyContent: 'flex-end',
             }}
           >
-            <StyledTextField
-              id="payment-link-search-box"
-              type="search"
-              size="medium"
-              placeholder="Search payment links"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              slotProps={{
-                input: {
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <IconifyIcon icon="material-symbols:search-rounded" sx={{ fontSize: 20 }} />
-                    </InputAdornment>
-                  ),
-                },
-              }}
-              sx={{ maxWidth: { sm: 360 } }}
-            />
             <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
-              {['Created', 'Status', 'Automatic tax'].map((label) => (
-                <Chip
-                  key={label}
-                  label={label}
-                  variant="outlined"
-                  icon={<IconifyIcon icon="material-symbols:add-circle-outline-rounded" />}
-                  sx={{ borderStyle: 'dashed' }}
-                />
-              ))}
+              <Chip
+                label={statusFilter ? `Status: ${statusFilter}` : 'Status'}
+                variant="outlined"
+                icon={<IconifyIcon icon="material-symbols:add-circle-outline-rounded" />}
+                onClick={(event) => setStatusAnchorEl(event.currentTarget)}
+                onDelete={statusFilter ? () => setStatusFilter('') : undefined}
+                sx={{ borderStyle: 'dashed' }}
+              />
             </Stack>
+            <Menu
+              anchorEl={statusAnchorEl}
+              open={Boolean(statusAnchorEl)}
+              onClose={() => setStatusAnchorEl(null)}
+            >
+              <MenuItem
+                selected={!statusFilter}
+                onClick={() => {
+                  setStatusFilter('');
+                  setStatusAnchorEl(null);
+                }}
+              >
+                All statuses
+              </MenuItem>
+              {statusValues.map((status) => (
+                <MenuItem
+                  key={status}
+                  selected={statusFilter === status}
+                  onClick={() => {
+                    setStatusFilter(status);
+                    setStatusAnchorEl(null);
+                  }}
+                >
+                  {status}
+                </MenuItem>
+              ))}
+            </Menu>
           </Stack>
           {error && <Alert severity="error">{error}</Alert>}
           <Box sx={{ width: 1 }}>

@@ -691,6 +691,16 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/stripe-config' && request.method === 'GET') {
+      const response = await handleAdminV2StripeConfig(env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/stripe-config' && request.method === 'POST') {
+      const response = await handleAdminV2StripeConfigUpdate(request, env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/admin-v2/payment-links/marked-items' && request.method === 'GET') {
       const response = await handleAdminV2PaymentLinkMarkedItems(env);
       return withCors(response, request, env);
@@ -2471,6 +2481,12 @@ type ReverbPricingContext = {
   baseComps: ReverbComp[];
 };
 
+type StripeRuntimeConfig = {
+  secretKey: string;
+  taxRateId: string;
+  useSandbox: boolean;
+};
+
 type InventoryItemRow = {
   id: number;
   source_listing_id: number | null;
@@ -2983,8 +2999,8 @@ async function handleAdminV2Orders(request: Request, env: Env): Promise<Response
 }
 
 async function handleAdminV2PaymentLinks(request: Request, env: Env): Promise<Response> {
-  const stripeSecretKey = normalizeText(env.STRIPE_SECRET_KEY, '');
-  if (!stripeSecretKey) {
+  const stripeConfig = await getStripeRuntimeConfig(env);
+  if (!stripeConfig.secretKey) {
     return jsonResponse({ message: 'Stripe secret key is not configured.' }, 503);
   }
 
@@ -2992,12 +3008,46 @@ async function handleAdminV2PaymentLinks(request: Request, env: Env): Promise<Re
   const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '100', 10) || 100, 1), 100);
 
   try {
-    const records = await listStripePaymentLinks(stripeSecretKey, limit);
+    const records = await listStripePaymentLinks(stripeConfig.secretKey, limit);
     return jsonResponse({ records });
   } catch (error) {
     return jsonResponse({
       message: error instanceof Error ? error.message : 'Unable to load Stripe payment links.',
     }, 502);
+  }
+}
+
+async function handleAdminV2StripeConfig(env: Env): Promise<Response> {
+  const config = await getStripeRuntimeConfig(env);
+  return jsonResponse({
+    useStripeSandbox: config.useSandbox,
+    hasSecretKey: Boolean(config.secretKey),
+    hasTaxRateId: Boolean(config.taxRateId),
+  });
+}
+
+async function handleAdminV2StripeConfigUpdate(request: Request, env: Env): Promise<Response> {
+  let body: Record<string, unknown> = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  const useStripeSandbox = toBooleanInput(body.useStripeSandbox, true);
+  try {
+    await dbSetStripeSandboxMode(useStripeSandbox, env);
+    const config = await getStripeRuntimeConfig(env);
+    return jsonResponse({
+      ok: true,
+      useStripeSandbox: config.useSandbox,
+      hasSecretKey: Boolean(config.secretKey),
+      hasTaxRateId: Boolean(config.taxRateId),
+    });
+  } catch (error) {
+    return jsonResponse({
+      message: error instanceof Error ? error.message : 'Unable to update Stripe environment.',
+    }, 500);
   }
 }
 
@@ -3010,8 +3060,8 @@ async function handleAdminV2PaymentLinkMarkedItems(env: Env): Promise<Response> 
 }
 
 async function handleAdminV2PaymentLinkCreate(request: Request, env: Env): Promise<Response> {
-  const stripeSecretKey = normalizeText(env.STRIPE_SECRET_KEY, '');
-  if (!stripeSecretKey) {
+  const stripeConfig = await getStripeRuntimeConfig(env);
+  if (!stripeConfig.secretKey) {
     return jsonResponse({ message: 'Stripe secret key is not configured.' }, 503);
   }
 
@@ -3048,21 +3098,19 @@ async function handleAdminV2PaymentLinkCreate(request: Request, env: Env): Promi
     return jsonResponse({ message: `${invalidItem.title} is missing a usable sale or regular price.` }, 400);
   }
 
-  const taxRateId = includeSalesTax
-    ? normalizeText(env.STRIPE_CO_SALES_TAX_RATE_ID, DEFAULT_CO_SALES_TAX_RATE_ID)
-    : '';
+  const taxRateId = includeSalesTax ? stripeConfig.taxRateId : '';
   if (includeSalesTax && !taxRateId) {
     return jsonResponse({ message: 'Colorado sales tax rate is not configured.' }, 503);
   }
 
   try {
     const paymentLink = await createStripePaymentLinkFromInventory({
-      stripeSecretKey,
+      stripeSecretKey: stripeConfig.secretKey,
       items,
       includeSalesTax,
       taxRateId,
     });
-    const records = await listStripePaymentLinks(stripeSecretKey, 100);
+    const records = await listStripePaymentLinks(stripeConfig.secretKey, 100);
     return jsonResponse({
       ok: true,
       record: paymentLink,
@@ -3177,7 +3225,7 @@ async function createStripeFullRefund(
   orderId: string,
   env: Env,
 ): Promise<{ ok: true; refundId: string } | { ok: false; message: string; status: number }> {
-  const stripeSecretKey = normalizeText(env.STRIPE_SECRET_KEY, '');
+  const { secretKey: stripeSecretKey } = await getStripeRuntimeConfig(env);
   if (!stripeSecretKey) return { ok: false, message: 'Stripe secret key is not configured.', status: 500 };
 
   try {
@@ -3207,6 +3255,65 @@ async function createStripeFullRefund(
       status: 502,
     };
   }
+}
+
+async function getStripeRuntimeConfig(env: Env): Promise<StripeRuntimeConfig> {
+  const fallback: StripeRuntimeConfig = {
+    secretKey: normalizeText(env.STRIPE_SECRET_KEY, ''),
+    taxRateId: normalizeText(env.STRIPE_CO_SALES_TAX_RATE_ID, DEFAULT_CO_SALES_TAX_RATE_ID),
+    useSandbox: true,
+  };
+
+  try {
+    const columns = await dbGetTableColumns('sys_info', env);
+    const columnNames = new Set(columns.map((column) => column.name));
+    if (!columnNames.has('use_stripe_sandbox')) return fallback;
+
+    const row = await env.DB.prepare('SELECT * FROM sys_info LIMIT 1').first<Record<string, unknown>>();
+    if (!row) return fallback;
+
+    const useSandbox = parseSysInfoBoolean(row.use_stripe_sandbox, fallback.useSandbox);
+    const secretKey = useSandbox
+      ? normalizeText(row.stripe_secret_key_sandbox, fallback.secretKey)
+      : normalizeText(row.stripe_secret_key, fallback.secretKey);
+    const taxRateId = useSandbox
+      ? normalizeText(row.string_tax_id_sandbox, fallback.taxRateId)
+      : normalizeText(row.stripe_tax_id, fallback.taxRateId);
+
+    return {
+      secretKey,
+      taxRateId,
+      useSandbox,
+    };
+  } catch (error) {
+    console.warn('Stripe sys_info lookup failed; using environment fallback.', { error });
+    return fallback;
+  }
+}
+
+function parseSysInfoBoolean(value: unknown, fallback: boolean): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  const normalized = normalizeText(value, '').toLowerCase();
+  if (['1', 'true', 'yes', 'y', 'sandbox'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'n', 'prod', 'production'].includes(normalized)) return false;
+  return fallback;
+}
+
+async function dbSetStripeSandboxMode(useSandbox: boolean, env: Env): Promise<void> {
+  const columns = await dbGetTableColumns('sys_info', env);
+  const columnNames = new Set(columns.map((column) => column.name));
+  if (!columnNames.has('use_stripe_sandbox')) {
+    throw new Error('D1 table sys_info is missing use_stripe_sandbox.');
+  }
+
+  await env.DB.prepare(
+    `INSERT INTO sys_info (id, use_stripe_sandbox)
+     VALUES (1, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       use_stripe_sandbox = excluded.use_stripe_sandbox,
+       updated_at = CURRENT_TIMESTAMP`
+  ).bind(useSandbox ? 1 : 0).run();
 }
 
 async function listStripePaymentLinks(
@@ -3297,6 +3404,77 @@ async function createStripePaymentLinkFromInventory(input: {
   });
   const data = await response.json<any>();
   if (!response.ok) {
+    const message = normalizeText(data?.error?.message, 'Stripe rejected the payment link request.');
+    if (input.includeSalesTax && /tax_rates/i.test(message) && /unknown parameter/i.test(message)) {
+      return createStripePaymentLinkWithTaxLineItem(input, priceIds);
+    }
+    throw new Error(message);
+  }
+  return mapStripePaymentLink(data, []);
+}
+
+async function createStripePaymentLinkWithTaxLineItem(
+  input: {
+    stripeSecretKey: string;
+    items: Array<{
+      inventoryItemId: number;
+      ccgNumber: string;
+      title: string;
+      description: string;
+      quantity: number;
+      unitAmountCents: number;
+      imageUrl: string;
+    }>;
+    includeSalesTax: boolean;
+    taxRateId: string;
+  },
+  priceIds: string[],
+): Promise<Record<string, unknown>> {
+  const subtotalCents = input.items.reduce(
+    (sum, item) => sum + item.unitAmountCents * Math.max(1, item.quantity),
+    0,
+  );
+  const taxCents = Math.round(subtotalCents * 0.075);
+  const taxPriceId = taxCents > 0
+    ? await createStripeProductPriceForInventoryItem(input.stripeSecretKey, {
+      inventoryItemId: 0,
+      ccgNumber: '',
+      title: 'CO Sales Tax (7.5%)',
+      description: `7.5% Colorado sales tax for marked inventory payment link. Tax rate id: ${input.taxRateId}`,
+      unitAmountCents: taxCents,
+      imageUrl: '',
+    })
+    : '';
+
+  const form = new URLSearchParams();
+  form.set('metadata[source]', 'admin_v2_marked_inventory');
+  form.set('metadata[inventory_item_ids]', input.items.map((item) => String(item.inventoryItemId)).join(','));
+  form.set('metadata[include_sales_tax]', '1');
+  form.set('metadata[tax_rate_id]', input.taxRateId);
+  form.set('metadata[tax_fallback]', 'line_item');
+
+  input.items.forEach((item, index) => {
+    const prefix = `line_items[${index}]`;
+    form.set(`${prefix}[quantity]`, String(item.quantity));
+    form.set(`${prefix}[price]`, priceIds[index]);
+  });
+
+  if (taxPriceId) {
+    const prefix = `line_items[${input.items.length}]`;
+    form.set(`${prefix}[quantity]`, '1');
+    form.set(`${prefix}[price]`, taxPriceId);
+  }
+
+  const response = await fetch('https://api.stripe.com/v1/payment_links', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${input.stripeSecretKey}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: form,
+  });
+  const data = await response.json<any>();
+  if (!response.ok) {
     throw new Error(normalizeText(data?.error?.message, 'Stripe rejected the payment link request.'));
   }
   return mapStripePaymentLink(data, []);
@@ -3372,7 +3550,12 @@ function mapStripePaymentLink(paymentLink: any, lineItems: any[]): Record<string
       ?? paymentLink?.id,
     '',
   );
-  const created = Number(paymentLink?.created || 0);
+  const created = Number(
+    paymentLink?.created
+      ?? paymentLink?.metadata?.created
+      ?? paymentLink?.metadata?.created_at
+      ?? 0,
+  );
   return {
     id: normalizeText(paymentLink?.id, ''),
     name,
@@ -3512,7 +3695,7 @@ async function resolveOrderStripeCustomer(
   const localCustomer = buildAdminOrderCustomer(row, null);
   if (localCustomer.email || localCustomer.name !== 'Customer') return localCustomer;
 
-  const stripeSecretKey = normalizeText(env.STRIPE_SECRET_KEY, '');
+  const { secretKey: stripeSecretKey } = await getStripeRuntimeConfig(env);
   const sessionId = normalizeText(row.stripe_checkout_session_id, '');
   if (!stripeSecretKey || !sessionId) return null;
 
@@ -4036,7 +4219,7 @@ async function handleShopNewsletterSubscribe(request: Request, env: Env): Promis
 }
 
 async function handleShopCreateCheckoutSession(request: Request, env: Env): Promise<Response> {
-  const stripeSecretKey = normalizeText(env.STRIPE_SECRET_KEY, '');
+  const { secretKey: stripeSecretKey } = await getStripeRuntimeConfig(env);
   if (!stripeSecretKey) {
     return jsonResponse({ message: 'Stripe checkout is not configured.' }, 503);
   }
@@ -8558,7 +8741,7 @@ async function dbGetOrderReceipt(orderId: string, env: Env): Promise<Record<stri
 }
 
 async function resolveStripePaymentMethodLabel(paymentIntentId: string, env: Env): Promise<string> {
-  const stripeSecretKey = normalizeText(env.STRIPE_SECRET_KEY, '');
+  const { secretKey: stripeSecretKey } = await getStripeRuntimeConfig(env);
   const id = normalizeText(paymentIntentId, '');
   if (!stripeSecretKey || !id) return 'Payment method: Stripe';
 
