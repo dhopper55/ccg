@@ -16,7 +16,7 @@ import {
   Typography,
   inputBaseClasses,
 } from '@mui/material';
-import { useNavigate } from 'react-router';
+import { Link as RouterLink } from 'react-router';
 import SearchTextField from 'layouts/main-layout/common/search-box/SearchTextField';
 import { slugifyCategory } from 'lib/utils';
 import { useAssociateMode } from 'providers/AssociateModeProvider';
@@ -36,7 +36,6 @@ type SearchResponse = {
 };
 
 const PrimarySearchBox = () => {
-  const navigate = useNavigate();
   const { isAssociateMode, isCheckingAssociateMode } = useAssociateMode();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchProduct[]>([]);
@@ -97,15 +96,17 @@ const PrimarySearchBox = () => {
     setIsOpen(true);
   };
 
-  const handleSelect = (product: SearchProduct) => {
+  const getProductUrl = (product: SearchProduct) => {
     const categorySlug = slugifyCategory(product.primaryCategoryName);
     const productSlug = product.saleUrlSlug.trim();
-    if (!categorySlug || !productSlug) return;
+    if (!categorySlug || !productSlug) return paths.products;
+    return paths.productDetails(categorySlug, productSlug);
+  };
 
+  const handleSelect = () => {
     setQuery('');
     setResults([]);
     setIsOpen(false);
-    navigate(paths.productDetails(categorySlug, productSlug));
   };
 
   const showDropdown = isOpen && trimmedQuery.length > 0;
@@ -203,7 +204,9 @@ const PrimarySearchBox = () => {
                 {results.map((product) => (
                   <ListItemButton
                     key={product.id}
-                    onClick={() => handleSelect(product)}
+                    component={RouterLink}
+                    to={getProductUrl(product)}
+                    onClick={handleSelect}
                     sx={{ py: 1, px: 1.5 }}
                   >
                     <ListItemAvatar sx={{ minWidth: 48 }}>
