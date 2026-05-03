@@ -4049,12 +4049,15 @@ async function handleShopProducts(request: Request, env: Env): Promise<Response>
 async function handleShopProductSearch(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const query = normalizeText(url.searchParams.get('query'), '').slice(0, 200);
+  const associateMode = url.searchParams.get('associate') === '1'
+    ? await isAssociateModeRequest(request, env)
+    : false;
   if (!query) {
     return jsonResponse({ records: [] });
   }
 
-  const records = await dbSearchShopProductsByTitle(query, env);
-  return jsonResponse({ records, query });
+  const records = await dbSearchShopProductsByTitle(query, env, { associateMode });
+  return jsonResponse({ records, query, associateMode: associateMode ? 1 : 0 });
 }
 
 async function handleShopSitemapProducts(env: Env): Promise<Response> {
@@ -8400,8 +8403,13 @@ async function dbListShopProducts(
   });
 }
 
-async function dbSearchShopProductsByTitle(query: string, env: Env): Promise<Array<Record<string, unknown>>> {
+async function dbSearchShopProductsByTitle(
+  query: string,
+  env: Env,
+  options: { associateMode: boolean },
+): Promise<Array<Record<string, unknown>>> {
   const term = `%${query.toLowerCase()}%`;
+  const onlyInStoreClause = options.associateMode ? '' : '       AND COALESCE(i.only_in_store, 0) = 0\n';
   const result = await env.DB.prepare(
     `SELECT
        i.id,
@@ -8431,8 +8439,7 @@ async function dbSearchShopProductsByTitle(query: string, env: Env): Promise<Arr
      WHERE COALESCE(i.is_active, 0) = 1
        AND COALESCE(i.for_sale, 0) = 1
        AND COALESCE(i.is_sold, 0) = 0
-       AND COALESCE(i.only_in_store, 0) = 0
-       AND COALESCE(i.is_rented, 0) = 0
+${onlyInStoreClause}       AND COALESCE(i.is_rented, 0) = 0
        AND LOWER(COALESCE(NULLIF(TRIM(i.sale_title), ''), i.title, '')) LIKE ?
      ORDER BY
        LOWER(COALESCE(NULLIF(TRIM(i.sale_title), ''), i.title, '')) ASC,

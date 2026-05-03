@@ -19,6 +19,7 @@ import {
 import { useNavigate } from 'react-router';
 import SearchTextField from 'layouts/main-layout/common/search-box/SearchTextField';
 import { slugifyCategory } from 'lib/utils';
+import { useAssociateMode } from 'providers/AssociateModeProvider';
 import paths from 'routes/paths';
 import IconifyIcon from 'components/base/IconifyIcon';
 
@@ -36,6 +37,7 @@ type SearchResponse = {
 
 const PrimarySearchBox = () => {
   const navigate = useNavigate();
+  const { isAssociateMode, isCheckingAssociateMode } = useAssociateMode();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchProduct[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -46,7 +48,7 @@ const PrimarySearchBox = () => {
   useEffect(() => {
     abortControllerRef.current?.abort();
 
-    if (!trimmedQuery) {
+    if (!trimmedQuery || isCheckingAssociateMode) {
       setResults([]);
       setIsLoading(false);
       return;
@@ -57,7 +59,12 @@ const PrimarySearchBox = () => {
     setIsLoading(true);
 
     const timeout = window.setTimeout(() => {
-      fetch(`/api/shop/product-search?query=${encodeURIComponent(trimmedQuery)}`, {
+      const params = new URLSearchParams({ query: trimmedQuery });
+      if (isAssociateMode) {
+        params.set('associate', '1');
+      }
+
+      fetch(`/api/shop/product-search?${params.toString()}`, {
         signal: abortController.signal,
       })
         .then((response) => response.json() as Promise<SearchResponse>)
@@ -83,7 +90,7 @@ const PrimarySearchBox = () => {
       window.clearTimeout(timeout);
       abortController.abort();
     };
-  }, [trimmedQuery]);
+  }, [isAssociateMode, isCheckingAssociateMode, trimmedQuery]);
 
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     setQuery(event.target.value);
