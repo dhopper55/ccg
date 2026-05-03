@@ -25,8 +25,11 @@ const Quantity = ({ sx, quantity, max, disabled = false, onChange }: QuantityPro
         max={max}
         disabled={disabled}
         handleChange={onChange}
-        sx={{ mb: 0.5 }}
+        sx={{ mb: 1 }}
       />
+      <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
+        {max ?? 0} available
+      </Typography>
     </Paper>
   );
 };
