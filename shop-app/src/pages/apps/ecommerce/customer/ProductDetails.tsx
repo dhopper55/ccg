@@ -71,6 +71,7 @@ const ProductDetails = () => {
         return;
       }
       setIsLoadingProduct(true);
+      setShopProduct(null);
       try {
         const query = isAssociateMode ? '?associate=1' : '';
         const response = await fetch(`/api/shop/products/by-slug/${encodeURIComponent(slugParam)}${query}`);
@@ -91,6 +92,7 @@ const ProductDetails = () => {
     const canonicalCategory = slugifyCategory(shopProduct.primaryCategoryName);
     const canonicalSlug = shopProduct.saleUrlSlug.trim();
     if (!canonicalCategory || !canonicalSlug) return;
+    if (slugParam && canonicalSlug !== slugParam) return;
     if (categoryParam !== canonicalCategory || slugParam !== canonicalSlug) {
       navigate(paths.productDetails(canonicalCategory, canonicalSlug), { replace: true });
     }
