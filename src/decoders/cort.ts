@@ -5,6 +5,7 @@ import { DecodeResult, GuitarInfo } from '../types.js';
  *
  * Supports:
  * - Modern format: YYMMXXXX (2000-2004)
+ * - Modern numeric year/batch format: YY00XXXX
  * - Modern format extended: YYMMXXXXX (2005-present)
  * - Late 1990s format: YYMMXXXX (1990-1999)
  * - 1990s format: YMMXXXX (early 1990s-1999)
@@ -67,6 +68,11 @@ export function decodeCort(serial: string): DecodeResult {
   // Late 1990s format with 8 digits: YYMMXXXX (1990-1999)
   if (/^9\d{7}$/.test(normalized)) {
     return decodeLate1990s8Digit(normalized);
+  }
+
+  // Modern numeric year/batch format: YY00XXXX
+  if (/^\d{2}00\d{4}$/.test(normalized)) {
+    return decodeModern8DigitYearBatch(normalized);
   }
 
   // Modern format with 8 digits: YYMMXXXX (2000-2004)
@@ -367,6 +373,51 @@ function decodeLate1990s8Digit(serial: string): DecodeResult {
       ],
     },
     additionalContextRichText: `<h3>Overview</h3><p>This serial matches a late-1990s Cort numeric format where the first four digits identify production year and month.</p><h3>How This Pattern Is Typically Read</h3><p>The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} decode as ${getMonthName(month)}. The remaining digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Cort serials usually identify production date more reliably than exact model identity.</li><li>Factory attribution for late-1990s examples is commonly Korean, but physical country-of-origin markings remain the best confirmation.</li><li>Model identification still requires the headstock, label, or other instrument markings.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a practical late-1990s Cort date decode, then verify the exact model from physical markings and catalog specs.</p>`,
+  };
+}
+
+// Modern 8-digit year/batch format: YY00XXXX
+function decodeModern8DigitYearBatch(serial: string): DecodeResult {
+  const yearDigits = serial.substring(0, 2);
+  const batchDigits = serial.substring(2, 4);
+  const sequence = serial.substring(4);
+
+  const year = 2000 + parseInt(yearDigits, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Cort',
+    serialNumber: serial,
+    year: year.toString(),
+    factory: 'Cort (location varies - Korea, Indonesia, or China)',
+    country: 'Korea, Indonesia, or China',
+    notes: `Modern 8-digit numeric Cort format interpreted as YY + batch/code + sequence. The first two digits (${yearDigits}) indicate production year ${year}. The next two digits (${batchDigits}) are treated as a batch or internal code rather than a calendar month. Production sequence: ${parseInt(sequence, 10)}. Cort serials generally do not encode the exact model name, so verify model and factory from the headstock, label, or country-of-origin markings.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'cort-modern-8-digit-year-batch-sequence',
+    patternLabel: 'Cort modern 8-digit year/batch sequence format',
+    additionalContext: {
+      title: 'Cort modern numeric serial',
+      summary: 'This serial matches a modern Cort 8-digit numeric format where the first two digits identify the production year and 00 is treated as a batch/internal code.',
+      highlights: [
+        `The first two digits decode as production year ${year}.`,
+        `The digits ${batchDigits} are treated as a batch or internal code, not a valid calendar month.`,
+        `The remaining digits decode as production sequence ${parseInt(sequence, 10)}.`,
+      ],
+      caveats: [
+        'Cort serials usually identify production date or batch more reliably than exact model identity.',
+        'The serial does not identify the specific model name.',
+        'Production location requires country-of-origin markings or other physical evidence.',
+      ],
+      verificationTips: [
+        'Check the headstock, soundhole label, neck heel, or back of headstock for model and country markings.',
+        'Compare the instrument against Cort catalog specs from the decoded year.',
+        'Contact Cort or an authorized dealer with photos if exact factory confirmation is needed.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern Cort 8-digit numeric format where the first two digits identify the production year and 00 is treated as a batch/internal code.</p><h3>How This Pattern Is Typically Read</h3><p>The first two digits decode as production year ${year}. The digits ${batchDigits} are treated as a batch or internal code, not a valid calendar month. The remaining digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Cort serials usually identify production date or batch more reliably than exact model identity.</li><li>The serial does not identify the specific model name.</li><li>Production location requires country-of-origin markings or other physical evidence.</li></ul>`,
   };
 }
 

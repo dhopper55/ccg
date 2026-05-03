@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import {
   Badge,
+  Box,
   Button,
   Stack,
   Toolbar,
@@ -15,6 +16,7 @@ import { useSettingsContext } from 'providers/SettingsProvider';
 import paths from 'routes/paths';
 import IconifyIcon from 'components/base/IconifyIcon';
 import Logo from 'components/common/Logo';
+import PrimarySearchBox from './PrimarySearchBox';
 import ShopCategoryDrawer from './ShopCategoryDrawer';
 
 const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
@@ -41,7 +43,7 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
           }}
         >
           <Grid size="auto">
-            <Stack direction="row" spacing={1} alignItems="center">
+            <Stack direction="row" spacing={{ xs: 1, md: 2 }} alignItems="center">
               <Button
                 color="neutral"
                 variant="soft"
@@ -66,6 +68,9 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
                 Shop
               </Button>
               <Logo showName={up('sm')} />
+              <Box sx={{ display: { xs: 'none', md: 'block' }, width: { md: 320, lg: 460 } }}>
+                <PrimarySearchBox />
+              </Box>
             </Stack>
           </Grid>
           <Grid size="auto">

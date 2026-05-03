@@ -1,156 +1,234 @@
 'use client';
 
-import { MouseEvent, useState } from 'react';
+import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import {
+  Avatar,
   Box,
-  Button,
+  CircularProgress,
+  ClickAwayListener,
   InputAdornment,
+  List,
+  ListItemAvatar,
+  ListItemButton,
   ListItemText,
-  Menu,
-  MenuItem,
+  Paper,
   Stack,
+  Typography,
   inputBaseClasses,
-  listClasses,
 } from '@mui/material';
+import { useNavigate } from 'react-router';
 import SearchTextField from 'layouts/main-layout/common/search-box/SearchTextField';
-import { kebabCase } from 'lib/utils';
+import { slugifyCategory } from 'lib/utils';
+import paths from 'routes/paths';
 import IconifyIcon from 'components/base/IconifyIcon';
 
-const searchCategories = ['All', 'Popular', 'New', 'Discounted', 'Top Rated', 'Featured'];
+type SearchProduct = {
+  id: string;
+  mainImage: string;
+  saleTitle: string;
+  saleUrlSlug: string;
+  primaryCategoryName: string;
+};
+
+type SearchResponse = {
+  records?: SearchProduct[];
+};
 
 const PrimarySearchBox = () => {
-  const [searchMenuAnchorEl, setSearchMenuAnchorEl] = useState<null | HTMLElement>(null);
-  const [selectedCategory, setSelectedCategory] = useState(searchCategories[0]);
+  const navigate = useNavigate();
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<SearchProduct[]>([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const trimmedQuery = query.trim();
 
-  const handleSearchMenuClick = (event: MouseEvent<HTMLElement>) => {
-    setSearchMenuAnchorEl(event.currentTarget);
+  useEffect(() => {
+    abortControllerRef.current?.abort();
+
+    if (!trimmedQuery) {
+      setResults([]);
+      setIsLoading(false);
+      return;
+    }
+
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+    setIsLoading(true);
+
+    const timeout = window.setTimeout(() => {
+      fetch(`/api/shop/product-search?query=${encodeURIComponent(trimmedQuery)}`, {
+        signal: abortController.signal,
+      })
+        .then((response) => response.json() as Promise<SearchResponse>)
+        .then((data) => {
+          if (!abortController.signal.aborted) {
+            setResults(Array.isArray(data.records) ? data.records.slice(0, 10) : []);
+            setIsOpen(true);
+          }
+        })
+        .catch(() => {
+          if (!abortController.signal.aborted) {
+            setResults([]);
+          }
+        })
+        .finally(() => {
+          if (!abortController.signal.aborted) {
+            setIsLoading(false);
+          }
+        });
+    }, 150);
+
+    return () => {
+      window.clearTimeout(timeout);
+      abortController.abort();
+    };
+  }, [trimmedQuery]);
+
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setQuery(event.target.value);
+    setIsOpen(true);
   };
 
-  const handleSearchMenuClose = () => {
-    setSearchMenuAnchorEl(null);
+  const handleSelect = (product: SearchProduct) => {
+    const categorySlug = slugifyCategory(product.primaryCategoryName);
+    const productSlug = product.saleUrlSlug.trim();
+    if (!categorySlug || !productSlug) return;
+
+    setQuery('');
+    setResults([]);
+    setIsOpen(false);
+    navigate(paths.productDetails(categorySlug, productSlug));
   };
+
+  const showDropdown = isOpen && trimmedQuery.length > 0;
 
   return (
-    <Stack spacing={0.5} sx={{ width: 1, maxWidth: { lg: 602 } }}>
-      <Box
-        sx={({ vars }) => ({
-          display: 'flex',
-          alignItems: 'center',
-          width: 1,
-          borderRadius: 6,
-          backgroundColor: 'action.hover',
-          overflow: 'hidden',
-          transition: 'background-color 0.2s ease, border-color 0.2s ease',
-          border: '1px solid transparent',
-          '&:has(form:hover):not(:has(form:focus-within))': {
-            backgroundColor: 'background.elevation3',
-            '& > button': {
-              bgcolor: vars.palette.background.elevation3,
-            },
-          },
-          [`&:has(.${inputBaseClasses.root}.${inputBaseClasses.focused})`]: {
-            backgroundColor: 'primary.lighter',
-            borderColor: 'primary.main',
-            '& > button': {
-              bgcolor: 'primary.lighter',
-            },
-          },
-        })}
-      >
-        <Button
-          disableRipple
-          color="neutral"
-          variant="text"
-          onClick={handleSearchMenuClick}
+    <ClickAwayListener onClickAway={() => setIsOpen(false)}>
+      <Stack spacing={0.5} sx={{ width: 1, maxWidth: { sm: 360, lg: 460 }, position: 'relative' }}>
+        <Box
           sx={({ vars }) => ({
-            flexShrink: 0,
-            pr: 0.5,
-            py: 1,
-            borderRadius: 0,
-            minWidth: 'auto',
-            fontSize: 14,
-            fontWeight: 600,
-            color: 'text.secondary',
-            display: { xs: 'none', md: 'flex' },
-            transition: 'color 0.2s ease, background-color 0.2s ease',
-            bgcolor: vars.palette.background.elevation2,
-            '&:hover': {
-              color: vars.palette.text.primary,
+            display: 'flex',
+            alignItems: 'center',
+            width: 1,
+            borderRadius: 6,
+            backgroundColor: 'action.hover',
+            overflow: 'hidden',
+            transition: 'background-color 0.2s ease, border-color 0.2s ease',
+            border: '1px solid transparent',
+            '&:has(form:hover):not(:has(form:focus-within))': {
+              backgroundColor: 'background.elevation3',
+            },
+            [`&:has(.${inputBaseClasses.root}.${inputBaseClasses.focused})`]: {
+              backgroundColor: 'primary.lighter',
+              borderColor: 'primary.main',
             },
           })}
         >
-          {selectedCategory}
-          <IconifyIcon icon="material-symbols:expand-more-rounded" sx={{ fontSize: 18, ml: 0.5 }} />
-        </Button>
-        <Menu
-          anchorEl={searchMenuAnchorEl}
-          open={Boolean(searchMenuAnchorEl)}
-          onClose={handleSearchMenuClose}
-          onClick={handleSearchMenuClose}
-          transformOrigin={{ horizontal: 'left', vertical: 'top' }}
-          anchorOrigin={{ horizontal: 'left', vertical: 'bottom' }}
-          sx={{
-            [`& .${listClasses.root}`]: {
-              minWidth: 160,
-            },
-          }}
-        >
-          {searchCategories.map((category) => (
-            <MenuItem
-              key={kebabCase(category)}
-              onClick={() => {
-                setSelectedCategory(category);
-              }}
-            >
-              <ListItemText primary={category} />
-            </MenuItem>
-          ))}
-        </Menu>
-        <SearchTextField
-          component="form"
-          sx={{
-            flexGrow: 1,
-            [`& .${inputBaseClasses.root}`]: {
-              p: 0,
-              borderRadius: 0,
-              border: 'none',
-              '&:after': {
-                display: 'none',
+          <SearchTextField
+            component="form"
+            value={query}
+            onChange={handleChange}
+            onFocus={() => setIsOpen(true)}
+            onSubmit={(event) => event.preventDefault()}
+            sx={{
+              flexGrow: 1,
+              minWidth: 0,
+              [`& .${inputBaseClasses.root}`]: {
+                p: 0,
+                borderRadius: 0,
+                border: 'none',
+                '&:after': {
+                  display: 'none',
+                },
+                '&.Mui-focused': {
+                  boxShadow: 'none',
+                },
+                '&.Mui-focused:hover': {
+                  bgcolor: 'transparent !important',
+                },
+                '&.Mui-active': {
+                  bgcolor: 'transparent !important',
+                },
               },
-              '&.Mui-focused': {
-                boxShadow: 'none',
+              [`& .${inputBaseClasses.input}`]: {
+                pl: '16px !important',
               },
-              '&.Mui-focused:hover': {
-                bgcolor: 'transparent !important',
+            }}
+            placeholder="Search for products"
+            slotProps={{
+              input: {
+                inputProps: {
+                  style: { fontSize: 14 },
+                },
+                startAdornment: null,
+                endAdornment: (
+                  <InputAdornment position="end" sx={{ mr: 2 }}>
+                    {isLoading ? (
+                      <CircularProgress color="inherit" size={18} />
+                    ) : (
+                      <IconifyIcon
+                        icon="material-symbols:search-rounded"
+                        sx={{ fontSize: 20, color: 'text.secondary' }}
+                      />
+                    )}
+                  </InputAdornment>
+                ),
               },
-              '&.Mui-active': {
-                bgcolor: 'transparent !important',
-              },
-            },
-            [`& .${inputBaseClasses.input}`]: {
-              pl: { xs: '16px !important', md: '8px !important' },
-            },
-          }}
-          placeholder="Search product"
-          slotProps={{
-            input: {
-              inputProps: {
-                style: { fontSize: 14 },
-              },
-              startAdornment: null,
-              endAdornment: (
-                <InputAdornment position="end" sx={{ mr: 2 }}>
-                  <IconifyIcon
-                    icon="material-symbols:search-rounded"
-                    sx={{ fontSize: 20, color: 'text.secondary' }}
-                  />
-                </InputAdornment>
-              ),
-            },
-          }}
-        />
-      </Box>
-    </Stack>
+            }}
+          />
+        </Box>
+
+        {showDropdown && (
+          <Paper
+            sx={{
+              position: 'absolute',
+              top: 'calc(100% + 8px)',
+              left: 0,
+              right: 0,
+              zIndex: (theme) => theme.zIndex.modal,
+              overflow: 'hidden',
+              boxShadow: (theme) => theme.vars.shadows[4],
+            }}
+          >
+            {results.length > 0 ? (
+              <List disablePadding>
+                {results.map((product) => (
+                  <ListItemButton
+                    key={product.id}
+                    onClick={() => handleSelect(product)}
+                    sx={{ py: 1, px: 1.5 }}
+                  >
+                    <ListItemAvatar sx={{ minWidth: 48 }}>
+                      <Avatar
+                        variant="rounded"
+                        src={product.mainImage}
+                        alt={product.saleTitle}
+                        sx={{ width: 40, height: 40 }}
+                      />
+                    </ListItemAvatar>
+                    <ListItemText
+                      primary={product.saleTitle}
+                      primaryTypographyProps={{
+                        variant: 'body2',
+                        fontWeight: 600,
+                        noWrap: true,
+                      }}
+                    />
+                  </ListItemButton>
+                ))}
+              </List>
+            ) : (
+              !isLoading && (
+                <Typography variant="body2" color="text.secondary" sx={{ px: 2, py: 1.5 }}>
+                  No products found
+                </Typography>
+              )
+            )}
+          </Paper>
+        )}
+      </Stack>
+    </ClickAwayListener>
   );
 };
 

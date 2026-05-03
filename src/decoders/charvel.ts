@@ -5,7 +5,7 @@ import { DecodeResult, GuitarInfo } from '../types.js';
  *
  * Supports:
  * - San Dimas USA (1981-1986): 4-digit serials 1001-5491
- * - Japanese MIJ neck plate (1986-1989): 5-digit serials
+ * - Japanese MIJ neck plate (1986-early 1990s): 5-digit and 7-digit serials
  * - Japanese neck-through (1986-1991): C + digit + sequential
  * - Japanese bolt-on (1986-1991): 6-digit sequential (220000+)
  * - Modern Japan MIJ (2009-2012): JC + year + production
@@ -82,6 +82,11 @@ export function decodeCharvel(serial: string): DecodeResult {
     return decodeJapanBoltOn(normalized);
   }
 
+  // Japanese MIJ/IMC-era neck plate: 7-digit sequential
+  if (/^\d{7}$/.test(normalized)) {
+    return decodeJapanNeckPlate7Digit(normalized);
+  }
+
   // USA Pro-Mod 2009-2010: 00XXXX format
   if (/^00\d{4}$/.test(normalized)) {
     return decodeUSAProMod(normalized);
@@ -102,7 +107,7 @@ export function decodeCharvel(serial: string): DecodeResult {
 
   return {
     success: false,
-    error: 'Unable to decode this Charvel serial number. Common formats include: 4 digits (San Dimas USA 1981-1986), C + digit + numbers (Japan neck-through 1986-1991), 6 digits (Japan bolt-on), JC + numbers (Modern MIJ), MC + numbers (Mexico), ISC + YY + #### (modern Indonesia), or 10-character codes (modern imports). Note: Pre-1981 San Dimas guitars have no serial numbers.',
+    error: 'Unable to decode this Charvel serial number. Common formats include: 4 digits (San Dimas USA 1981-1986), C + digit + numbers (Japan neck-through 1986-1991), 5-7 digit numeric MIJ neck plate/bolt-on serials, JC + numbers (Modern MIJ), MC + numbers (Mexico), ISC + YY + #### (modern Indonesia), or 10-character codes (modern imports). Note: Pre-1981 San Dimas guitars have no serial numbers.',
   };
 }
 
@@ -254,6 +259,46 @@ function decodeJapanBoltOn(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+// Japanese MIJ/IMC-era neck plate: 7-digit sequential
+function decodeJapanNeckPlate7Digit(serial: string): DecodeResult {
+  const num = parseInt(serial, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Charvel',
+    serialNumber: serial,
+    year: 'mid-to-late 1980s or early 1990s (estimated)',
+    factory: 'Chushin Gakki / IMC-era Japanese import production',
+    country: 'Japan',
+    notes: `7-digit numeric Charvel serial ${num.toLocaleString()} fits the Japanese-made IMC-era import neck-plate family, often seen on plates marked "Fort Worth, TX" despite being made in Japan. These serials are usually sequential rather than reliably date-coded, so use the serial with headstock logo, neck plate, tremolo, electronics, and country-of-origin markings to confirm the exact model and year.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'charvel-japan-imc-7-digit-neck-plate',
+    patternLabel: 'Charvel Japanese IMC-era 7-digit neck-plate serial',
+    additionalContext: {
+      title: 'Charvel Japanese IMC-era serial',
+      summary: 'This serial matches a 7-digit numeric pattern associated with Japanese Charvel imports from the IMC era.',
+      highlights: [
+        '7-digit numeric serials are commonly associated with Japanese-made Charvel import neck-plate instruments from the late 1980s into the early 1990s.',
+        'A Fort Worth, TX neck plate on this era usually indicates the importer address, not USA manufacture.',
+        `The numeric sequence reads as ${num.toLocaleString()}.`,
+      ],
+      caveats: [
+        'The serial is best treated as sequential, not a precise date code.',
+        'Blank or swapped neck plates can exist, so physical feature verification matters.',
+      ],
+      verificationTips: [
+        'Check the headstock logo style, tremolo type, neck plate, and electronics.',
+        'Look for Made in Japan or other country-of-origin markings.',
+        'Compare photos with Charvel/Jackson import-era reference databases for the specific model.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a 7-digit numeric pattern associated with Japanese Charvel imports from the IMC era.</p><h3>How This Pattern Is Typically Read</h3><p>These serials are generally treated as sequential rather than reliably date-coded. A Fort Worth, TX neck plate on this era usually indicates the importer address, not USA manufacture. The numeric sequence reads as ${num.toLocaleString()}.</p><h3>What To Verify</h3><ul><li>Check the headstock logo style, tremolo type, neck plate, and electronics.</li><li>Look for Made in Japan or other country-of-origin markings.</li><li>Blank or swapped neck plates can exist, so physical feature verification matters.</li></ul>`,
+  };
 }
 
 // Modern Japan MIJ: JC + year + production (2009-2012)

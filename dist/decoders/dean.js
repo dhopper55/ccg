@@ -6,7 +6,7 @@
  * - UnSung Korea (US prefix, 2006+)
  * - World Korea (E prefix, WK prefix)
  * - Legacy Korea E-prefix import line (E + Y + 5 digits)
- * - YooJin China (Y prefix, 2006+)
+ * - China imports (Z prefix, O prefix; YooJin Y prefix, 2006+)
  * - Indonesia (CT, IW prefixes)
  * - Samick Korea (S prefix, 1993-1996)
  * - Japan FujiGen (J, JF prefixes)
@@ -37,6 +37,10 @@ export function decodeDean(serial) {
     // YooJin China: Y prefix
     if (/^Y\d{8,10}$/.test(normalized)) {
         return decodeYooJinChina(normalized);
+    }
+    // China import line: Z prefix
+    if (/^Z\d{7,8}$/.test(normalized)) {
+        return decodeChinaZ(normalized);
     }
     // Indonesia: IW prefix
     if (/^IW\d{8,10}$/.test(normalized)) {
@@ -84,7 +88,7 @@ export function decodeDean(serial) {
     }
     return {
         success: false,
-        error: 'Unable to decode this Dean serial number. The format was not recognized. Common formats include: 7-digit (USA), US prefix (UnSung Korea), WK prefix (World Korea), Y prefix (YooJin China), IW/CT prefix (Indonesia), or 5-6 digit (Czech Republic 1997-2000). Note: Guitars from 1986-1995 with serial numbers on the last fret cannot be reliably dated.',
+        error: 'Unable to decode this Dean serial number. The format was not recognized. Common formats include: 7-digit (USA), US prefix (UnSung Korea), WK prefix (World Korea), Z/O/Y prefix (China imports), IW/CT prefix (Indonesia), or 5-6 digit (Czech Republic 1997-2000). Note: Guitars from 1986-1995 with serial numbers on the last fret cannot be reliably dated.',
     };
 }
 // UnSung Korea: US prefix (2006+)
@@ -219,6 +223,47 @@ function decodeYooJinChina(serial) {
         notes: `Y prefix indicates YooJin factory in China. YooJin has produced Dean guitars since 2006. Production sequence: ${sequence}.`,
     };
     return { success: true, info };
+}
+// China import line: Z prefix
+// Typical pattern: Z + YY + production sequence
+function decodeChinaZ(serial) {
+    const digits = serial.substring(1);
+    const yearDigits = digits.substring(0, 2);
+    const sequence = digits.substring(2);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const info = {
+        brand: 'Dean',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'China import production line',
+        country: 'China',
+        notes: `Z prefix is commonly seen on Chinese-made Dean imports. Interpreted as Z + YY + production sequence, so ${yearDigits} indicates ${year}. Production sequence: ${sequence}. Verify with country-of-origin markings when exact authentication matters.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'dean-china-z-yy-sequence',
+        patternLabel: 'Dean China Z-prefix YY sequence format',
+        additionalContext: {
+            title: 'Dean China Z-prefix serial',
+            summary: 'This serial matches a Z-prefix format seen on Chinese-made Dean imports.',
+            highlights: [
+                'The Z prefix is commonly associated with Chinese Dean import production.',
+                `The first two digits after Z are treated as the production year: ${year}.`,
+                `The remaining digits decode as production sequence ${parseInt(sequence, 10)}.`,
+            ],
+            caveats: [
+                'Dean import serials can vary by factory and production run.',
+                'This decode identifies the likely country and year, not a complete authenticity guarantee.',
+            ],
+            verificationTips: [
+                'Check for a Made in China marking on the headstock, neck plate, or label.',
+                'Compare the model features against Dean import specs from the decoded year.',
+                'Contact Dean support if a definitive factory record is needed.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Z-prefix format seen on Chinese-made Dean imports.</p><h3>How This Pattern Is Typically Read</h3><p>The Z prefix is commonly associated with Chinese Dean import production. The first two digits after Z are treated as the production year, giving ${year}. The remaining digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Dean import serials can vary by factory and production run.</li><li>This decode identifies the likely country and year, not a complete authenticity guarantee.</li></ul><h3>Coal Creek Guitars Note</h3><p>Check for a Made in China marking, compare the guitar to Dean import specs from ${year}, and contact Dean support if exact dating is required.</p>`,
+    };
 }
 // Indonesia: IW prefix
 function decodeIndonesiaIW(serial) {

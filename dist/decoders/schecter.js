@@ -34,6 +34,14 @@ export function decodeSchecter(serial) {
     if (/^RN\d{8}$/.test(normalized)) {
         return decodeIndonesiaRN(normalized);
     }
+    // Indonesia RO prefix: RO + YY + sequence
+    if (/^RO\d{8}$/.test(normalized)) {
+        return decodeIndonesiaRO(normalized);
+    }
+    // China/import ST prefix: ST + YYMM + sequence
+    if (/^ST\d{8}$/.test(normalized)) {
+        return decodeChinaST(normalized);
+    }
     // Korea H prefix: H + 7-8 digits
     if (/^H\d{7,8}$/.test(normalized)) {
         return decodeKoreaH(normalized);
@@ -260,6 +268,93 @@ function decodeIndonesiaRN(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Schecter RN-prefix Indonesian import format parsed as factory prefix plus YYMM production date and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>RN indicates newer Schecter Indonesian production, commonly attributed to PT. Roxy Music. The digits ${digits.substring(0, 2)} decode as production year ${year}. The digits ${digits.substring(2, 4)} decode as ${month}. The final four digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This format identifies production date and factory family, not the exact model name.</li><li>RN-prefix examples are import/Diamond Series instruments rather than USA Custom Shop guitars.</li><li>Factory-code usage can vary by production run, so confirm with physical markings when provenance matters.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a practical Indonesian Schecter production decode, then verify the exact model from the headstock, truss rod cover, label, or Schecter support.</p>`,
+    };
+}
+function decodeIndonesiaRO(serial) {
+    const digits = serial.substring(2);
+    const yearDigits = digits.substring(0, 2);
+    const sequence = digits.substring(2);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Schecter',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'PT Cort Indonesia',
+        country: 'Indonesia',
+        model: 'Diamond Series import',
+        notes: `RO prefix indicates Indonesian Schecter import production commonly associated with PT Cort. Parsed as RO + YY + sequence. The digits ${yearDigits} indicate ${year}; production sequence: ${sequence}. This format identifies production year and factory family, not the exact model name.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'schecter-ro-indonesia-yy-sequence',
+        patternLabel: 'Schecter RO Indonesia YY sequence',
+        additionalContext: {
+            title: 'Schecter RO serial',
+            summary: 'This serial matches a Schecter RO-prefix Indonesian import format parsed as factory prefix plus production year and sequence.',
+            highlights: [
+                'RO indicates Indonesian Schecter import production commonly associated with PT Cort.',
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                `The remaining digits decode as production sequence ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'This format identifies production year and factory family, not the exact model name.',
+                'Factory-code usage can vary by production run, so confirm with physical markings when provenance matters.',
+            ],
+            verificationTips: [
+                'Check the headstock, truss rod cover, or label for the model name and country marking.',
+                'Contact Schecter support with photos of the serial and full instrument if exact factory confirmation is needed.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Schecter RO-prefix Indonesian import format parsed as factory prefix plus production year and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>RO indicates Indonesian Schecter import production commonly associated with PT Cort. The digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This format identifies production year and factory family, not the exact model name.</li><li>Factory-code usage can vary by production run, so confirm with physical markings when provenance matters.</li><li>Check the headstock, truss rod cover, or label for model name and country marking.</li></ul>`,
+    };
+}
+function decodeChinaST(serial) {
+    const digits = serial.substring(2);
+    const { year, month, sequence } = parseStandardDigits(digits);
+    if (!month) {
+        return {
+            success: false,
+            error: 'Unable to decode this Schecter ST serial number. The month field appears invalid.',
+        };
+    }
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Schecter',
+        serialNumber: serial,
+        year,
+        month,
+        factory: 'China import factory / ST production run',
+        country: 'China',
+        model: 'Diamond Series import',
+        notes: `ST prefix indicates a Schecter import production run, commonly associated with China-made Diamond Series instruments. Parsed as ST + YYMM + sequence. Sequence: ${sequence}. Verify the exact model from the headstock, truss rod cover, label, or Schecter support.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'schecter-st-yymm-sequence',
+        patternLabel: 'Schecter ST YYMM sequence',
+        additionalContext: {
+            title: 'Schecter ST serial',
+            summary: 'This serial matches a Schecter ST-prefix import format parsed as factory prefix plus YYMM production date and sequence.',
+            highlights: [
+                'ST indicates a Schecter import production run, commonly associated with China-made Diamond Series instruments.',
+                `The digits ${digits.substring(0, 2)} decode as production year ${year}.`,
+                `The digits ${digits.substring(2, 4)} decode as ${month}.`,
+                `The final four digits decode as production sequence ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'This format identifies production date and factory family, not the exact model name.',
+                'ST-prefix examples are import/Diamond Series instruments rather than USA Custom Shop guitars.',
+                'Factory-code usage can vary by production run, so confirm with physical markings when provenance matters.',
+            ],
+            verificationTips: [
+                'Check the headstock, truss rod cover, or label for the model name and country marking.',
+                'Contact Schecter support with photos of the serial and full instrument if exact factory confirmation is needed.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Schecter ST-prefix import format parsed as factory prefix plus YYMM production date and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>ST indicates a Schecter import production run, commonly associated with China-made Diamond Series instruments. The digits ${digits.substring(0, 2)} decode as production year ${year}. The digits ${digits.substring(2, 4)} decode as ${month}. The final four digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This format identifies production date and factory family, not the exact model name.</li><li>ST-prefix examples are import/Diamond Series instruments rather than USA Custom Shop guitars.</li><li>Factory-code usage can vary by production run, so confirm with physical markings when provenance matters.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a practical Schecter import production decode, then verify the exact model from the headstock, truss rod cover, label, or Schecter support.</p>`,
     };
 }
 function decodeKoreaH(serial) {
