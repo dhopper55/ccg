@@ -4,7 +4,7 @@
 The repo now has three active surfaces plus one shared Cloudflare Worker backend:
 1) Legacy static public site at the repo root
 2) Admin V2 Aurora app served from `/admin`
-3) Shop Aurora storefront served from `/guitars-and-gear-for-sale/`
+3) Shop Aurora storefront served from `/guitars-and-gear-for-sale/`, plus Aurora decoder pages served from `/decoders/`
 4) Cloudflare Worker backend that powers all `/api/*` routes
 
 The Worker currently:
@@ -18,7 +18,7 @@ The Worker currently:
 8) Powers inventory, Admin V2, and shop preview product/category/image endpoints
 
 Important decoder/deploy distinction:
-- Public serial decoder pages are static frontend pages.
+- Public serial decoder pages are Aurora React pages built from `shop-app/` and emitted as static route entries under `decoders/`.
 - The actual decode decision for live users is server-side at `POST /api/decode`.
 - That endpoint is implemented in the Cloudflare Worker at `workers/listing-evaluator/src/index.ts`.
 - The worker imports and runs `src/serial-decode-service.ts`, which calls the brand decoders in `src/decoders/*.ts`.
@@ -54,20 +54,22 @@ Going forward, the rule is:
 - If admin needs different backend payloads, add endpoints under `/api/admin-v2/*` rather than changing legacy endpoint contracts.
 
 ## Shop
-There is a separate Aurora-based storefront app deployed at `/guitars-and-gear-for-sale/`.
+There is a separate Aurora-based storefront app deployed at `/guitars-and-gear-for-sale/`. The same app also owns the modern public decoder page UI at `/decoders/`.
 
 Layout:
 - Source app: `shop-app/`
-- Deployed static output: `guitars-and-gear-for-sale/` (sibling of repo root; controlled by `VITE_OUT_DIR` in `shop-app/.env.production`)
-- Public URL: `https://www.coalcreekguitars.com/guitars-and-gear-for-sale/`
+- Deployed static output: `guitars-and-gear-for-sale/` for the app shell/assets, plus generated decoder route entries under `decoders/<slug>/index.html`
+- Public URLs: `https://www.coalcreekguitars.com/guitars-and-gear-for-sale/` and `https://www.coalcreekguitars.com/decoders/<decoder-slug>`
 - Build command: `npm --prefix shop-app run build`
-- Base path: `VITE_BASENAME=/guitars-and-gear-for-sale/` (used by both Vite and React Router)
+- Base path: `VITE_BASENAME=/guitars-and-gear-for-sale/` (used by Vite asset output and by React Router only for shop URLs)
 
 Routing:
-- Uses `createBrowserRouter` with basename `/guitars-and-gear-for-sale` (trailing slash stripped).
+- Uses `createBrowserRouter` with basename `/guitars-and-gear-for-sale` for shop URLs and `/` for `/decoders/*` URLs.
 - Product grid at `/` (inside the basename).
 - Product detail at `/:category/:slug` — e.g. `/guitars-and-gear-for-sale/packages/ovation-guitar-crate-amp-package`.
 - SPA fallback is handled by the `_redirects` rule `/guitars-and-gear-for-sale/* /guitars-and-gear-for-sale/index.html 200` so deep-link URLs resolve correctly.
+- Decoder pages are generated from the same shop build by `scripts/sync-shop-decoder-routes.mjs`, which copies the built app shell to `decoders/<slug>/index.html` and injects per-decoder SEO metadata.
+- Old `/new/decoders/*` URLs redirect to canonical `/decoders/*` URLs.
 
 Clean URL convention:
 - First path segment = primary category name, slugified via `slugifyCategory()` in `shop-app/src/lib/utils.ts` (lowercase, `&` → `and`, non-alphanumerics → `-`, trimmed dashes).
@@ -137,7 +139,7 @@ All `/api/*` endpoints require auth except:
 The serial decoder feature spans both the static site and the worker:
 
 1. Decoder page UI
-   - Static page JS in `src/main.ts`
+   - React UI in `shop-app/src/pages/decoders/`
    - Collects `brand`, `serial`, `pagePath`, `userAgent`, and `clientTimestamp`
    - Sends them to `POST /api/decode`
 
@@ -155,7 +157,7 @@ The serial decoder feature spans both the static site and the worker:
 
 Practical rule:
 - If you change `src/decoders/*.ts` or `src/serial-decode-service.ts`, assume `/api/decode` behavior changed and deploy the worker.
-- If you change decoder page markup, styling, or browser-side UX in `src/main.ts` / templates, deploy Pages.
+- If you change decoder page markup, styling, or browser-side UX in `shop-app/src/pages/decoders/`, deploy Pages.
 - Some changes touch both and require both deploy paths.
 
 ### Endpoints
@@ -420,34 +422,22 @@ Optional:
 - `REVERB_API_TOKEN`
 - `STRIPE_CO_SALES_TAX_RATE_ID` fallback only; D1 `sys_info` is the Stripe tax id source of truth once populated
 
-## Decoder Page Templates (Nunjucks)
-All 26 brand decoder HTML pages are generated from Nunjucks templates at build time.
+## Decoder Pages
+All public decoder pages are owned by `shop-app/`.
 
 Layout:
-- Shared layout: `templates/layout.njk` — contains all boilerplate (head/meta/structured data, nav, input section, result section, FAQ section, footer, scripts)
-- Brand templates: `templates/decoders/{brand}.njk` — each extends `layout.njk` and provides brand-specific variables and block content
-- Build script: `scripts/build-templates.mjs` — compiles `.njk` → `.html` into `decoders/`
-- Output map in build script maps template filenames to decoder HTML filenames (e.g. `gibson.njk` → `gibson-guitar-serial-number-decoder.html`)
+- Shared decoder layout: `shop-app/src/layouts/decoder-layout/DecoderPreviewLayout.tsx`
+- Decoder routes and page content: `shop-app/src/pages/decoders/`
+- Brand config/content: `shop-app/src/pages/decoders/decoder-configs.json`
+- Build sync script: `scripts/sync-shop-decoder-routes.mjs`
 
-Template variables (set per brand):
-- `brand`, `brandName`, `brandLogo`, `brandLogoClass`, `decoderDate`
-- `pageTitle`, `decoderTitle`, `metaDescription`, `ogDescription`, `pageSlug`
-- `serialPlaceholder`, `faqTitle`, `h1Title` (optional override)
-- `brandShortName`, `brandAltName` (optional, for structured data `alternateName`)
-- `faqs` array with `question`, `answer`, optional `answerPlain` (for structured data when HTML answer has tags)
+Build behavior:
+- `npm --prefix shop-app run build` runs the Vite shop build.
+- The shop app shell and hashed assets are emitted to `guitars-and-gear-for-sale/`.
+- `scripts/sync-shop-decoder-routes.mjs` copies that app shell into `decoders/guitar-serial-decoder-lookup/index.html` and each `decoders/<brand>-guitar-serial-number-decoder/index.html`.
+- The sync script injects route-specific title, description, canonical, Open Graph, Twitter, structured data, and hidden SEO snapshot content into each decoder route entry.
 
-Template blocks (override per brand as needed):
-- `brandDescription` — brand description paragraph
-- `howtoModal` — how-to-decode modal dialog
-- `beforeResult` — custom content between input and result (used by Ovation, B.C. Rich)
-- `afterResult` — custom content between error section and FAQ
-- `decoderNote` — decoder note with default "contact us" text (overridden by Charvel, Godin, Rickenbacker, Ovation)
-- `afterContent` — related brand decoders, popular models sections
-- `customScripts` — inline JS injected before footer year script (used by Ibanez for dynamic date)
-
-Build pipeline: `tsc` → `build-templates.mjs` → `update-cache-busters.mjs`
-
-The generated HTML files in `decoders/` are build output (like `dist/`). Edit the `.njk` source templates, not the HTML files directly.
+Legacy Nunjucks decoder `.html` output is no longer deployed. `/decoders/*.html` redirects to extensionless `/decoders/*`, and `/new/decoders/*` redirects to `/decoders/*`.
 
 ## Deployment
 From `workers/listing-evaluator/`:

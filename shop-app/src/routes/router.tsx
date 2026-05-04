@@ -5,7 +5,15 @@ import Cart from 'pages/apps/ecommerce/customer/Cart';
 import CheckoutSuccess from 'pages/apps/ecommerce/customer/CheckoutSuccess';
 import ProductDetails from 'pages/apps/ecommerce/customer/ProductDetails';
 import Products from 'pages/apps/ecommerce/customer/Products';
+import DecoderLandingPage from 'pages/decoders/DecoderLandingPage';
+import DecoderPage, { DecoderConfig } from 'pages/decoders/DecoderPage';
+import decoderConfigs from 'pages/decoders/decoder-configs.json';
 import Page404 from 'pages/errors/Page404';
+
+const decoderRoutes: RouteObject[] = (decoderConfigs as DecoderConfig[]).map((config) => ({
+  path: config.routePath,
+  element: <DecoderPage config={config} />,
+}));
 
 export const routes: RouteObject[] = [
   {
@@ -36,6 +44,11 @@ export const routes: RouteObject[] = [
         ),
       },
       {
+        path: '/decoders/guitar-serial-decoder-lookup',
+        element: <DecoderLandingPage />,
+      },
+      ...decoderRoutes,
+      {
         path: '/:category/:slug',
         element: (
           <EcommerceLayout>
@@ -52,17 +65,19 @@ export const routes: RouteObject[] = [
 ];
 
 const rawBase = import.meta.env.VITE_BASENAME || '/';
-const routerBasename = rawBase.length > 1 && rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
+const configuredShopBasename = rawBase.length > 1 && rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
+const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+const routerBasename = pathname.startsWith('/decoders') ? '/' : configuredShopBasename;
 
 if (typeof window !== 'undefined') {
   const isShopRoot =
-    window.location.pathname === routerBasename ||
-    window.location.pathname === `${routerBasename}/`;
+    window.location.pathname === configuredShopBasename ||
+    window.location.pathname === `${configuredShopBasename}/`;
   if (routerBasename !== '/' && isShopRoot && window.location.hash.startsWith('#/')) {
     window.history.replaceState(
       null,
       '',
-      `${routerBasename}${window.location.hash.slice(1)}${window.location.search}`,
+      `${configuredShopBasename}${window.location.hash.slice(1)}${window.location.search}`,
     );
   }
 }

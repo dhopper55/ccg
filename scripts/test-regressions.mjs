@@ -1701,26 +1701,27 @@ function assertSchecterHPrefix(serialInput) {
   );
 }
 
-function assertSchecterLeadingYearWPrefix(serialInput) {
+function assertSchecterOneWCorrectsToIW(serialInput, expectedCorrected) {
   const result = decodeSchecter(serialInput);
   assert(result.success, `Expected decode success for Schecter ${serialInput}`);
   assert(result.info, `Expected decoded info for Schecter ${serialInput}`);
+  assert(
+    result.correctedSerial === expectedCorrected,
+    `Expected corrected serial ${expectedCorrected} for ${serialInput}, got ${result.correctedSerial}`
+  );
 
   const info = result.info;
-  assert(info.year === '2001, 2011, or 2021', `Expected ambiguous year guidance for ${serialInput}, got ${info.year}`);
+  assert(info.serialNumber === expectedCorrected, `Expected corrected serialNumber ${expectedCorrected}, got ${info.serialNumber}`);
+  assert(info.year === '2017', `Expected year 2017 for ${serialInput}, got ${info.year}`);
+  assert(info.month === 'August', `Expected month August for ${serialInput}, got ${info.month}`);
   assert(
-    info.factory === 'World Music / World Musical Instruments',
-    `Expected World Music factory guidance for ${serialInput}, got ${info.factory}`
+    info.factory === 'World Musical Instruments (WMI)',
+    `Expected WMI factory for ${serialInput}, got ${info.factory}`
   );
-  assert(info.country === 'South Korea', `Expected South Korea country for ${serialInput}, got ${info.country}`);
-  assert(info.model === 'Diamond Series import', `Expected Diamond Series import model for ${serialInput}, got ${info.model}`);
+  assert(info.country === 'Indonesia', `Expected Indonesia country for ${serialInput}, got ${info.country}`);
   assert(
-    result.patternKey === 'schecter-leading-year-w-world-music-sequence',
-    `Expected Schecter leading-year W pattern key for ${serialInput}, got ${result.patternKey}`
-  );
-  assert(
-    result.additionalContextRichText && result.additionalContextRichText.includes('production sequence 17081558'),
-    `Expected Schecter leading-year W rich text for ${serialInput}`
+    info.notes && info.notes.includes(`corrected from ${serialInput} to ${expectedCorrected}`),
+    `Expected correction note for ${serialInput}, got ${info.notes}`
   );
 }
 
@@ -1911,7 +1912,7 @@ assertSchecterRNPrefix('Rn24100948');
 assertSchecterSTPrefix('ST19070042');
 assertSchecterROPrefix('RO23100905');
 assertSchecterHPrefix('H090501093');
-assertSchecterLeadingYearWPrefix('1W17081558');
+assertSchecterOneWCorrectsToIW('1W17081558', 'IW17081558');
 assertSchecterLegacy6Digit('527007');
 assertWashburnIndonesiaYearLetter('I8C112846');
 assertWashburnLegacyJapan6Digit('298093');

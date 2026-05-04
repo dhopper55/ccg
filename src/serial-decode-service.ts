@@ -226,6 +226,19 @@ function buildRetrySerials(serial: string, normalizedBrand: string): string[] {
     }
   }
 
+  if (normalizedBrand === 'schecter') {
+    const alnumUpper = serial.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    // Common mistype/OCR case on Schecter IW serials: leading "1W" instead of "IW".
+    if (/^1W\d{8,9}$/.test(alnumUpper)) {
+      addCandidate(`IW${alnumUpper.slice(2)}`);
+    }
+
+    const lastPartAlnumUpper = lastSpaceSeparatedPart.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    if (/^1W\d{8,9}$/.test(lastPartAlnumUpper)) {
+      addCandidate(`IW${lastPartAlnumUpper.slice(2)}`);
+    }
+  }
+
   return candidates;
 }
 
