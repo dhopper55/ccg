@@ -5,6 +5,7 @@
  * - USA neck-through: 5-digit YYXXX format (year + production sequence)
  * - Class Axe era: B0XXX / BXXXXX / BCXXXXX (year not encoded)
  * - Import pre-2000: F7XXXXX/F8XXXXX/F9XXXXX/F0XXXXX (year in second digit)
+ * - Early-2000s short numeric import: 6 digits like 150979
  * - Date-stamp numeric: 8 digits like 121XXXXX (year digit + quarter + production)
  * - Month/factory code: A08140023 (month letter + factory + year + production)
  * - NJ Series: R/P + 6 digits with year in first two digits
@@ -65,6 +66,9 @@ export function decodeBCRich(serial) {
     }
     if (/^I\d{5}$/.test(normalized)) {
         return decodeIShortImport(normalized);
+    }
+    if (/^\d{6}$/.test(normalized)) {
+        return decodeShortNumericImport(normalized);
     }
     if (/^\d{5}$/.test(normalized)) {
         return decodeUSA5Digit(normalized);
@@ -244,6 +248,52 @@ function decodeIShortImport(serial) {
         notes: `Short I-prefix import format interpreted as I + Y + MM + sequence. Parsed as ${year}${monthText ? `, ${monthText}` : ''} with sequence ${sequence}. B.C. Rich serial records are inconsistent across eras, so treat this as an estimate and confirm with headstock/soundhole country markings.`,
     };
     return { success: true, info };
+}
+function decodeShortNumericImport(serial) {
+    const yearDigit = parseInt(serial[0], 10);
+    const fillerDigit = serial[1];
+    const quarterDigit = parseInt(serial[2], 10);
+    const sequence = serial.slice(3);
+    const year = 2000 + yearDigit;
+    const quarter = quarterDigit >= 1 && quarterDigit <= 4 ? `Q${quarterDigit}` : undefined;
+    const quarterNote = quarter
+        ? `third digit indicates ${quarter}`
+        : `third digit "${serial[2]}" does not map cleanly to Q1-Q4`;
+    const info = {
+        brand: 'B.C. Rich',
+        serialNumber: serial,
+        year: `${year} (likely import estimate)`,
+        factory: 'Early-2000s import production',
+        country: 'South Korea / China / Indonesia',
+        notes: `Short 6-digit numeric B.C. Rich import format. Most likely interpretation: first digit indicates ${year}, second digit "${fillerDigit}" is commonly treated as a placeholder, ${quarterNote}, and final digits are production sequence ${sequence}. Because B.C. Rich serial records are inconsistent, this can overlap with Class Axe-era neck-plate numbers; verify with country-of-origin markings, headstock logo details, and neck pocket or electronics-cavity dates.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'bcrich-short-numeric-import-y-filler-quarter-sequence',
+        patternLabel: 'B.C. Rich short numeric import',
+        additionalContext: {
+            title: 'B.C. Rich short numeric serial',
+            summary: 'This 6-digit serial fits an early-2000s B.C. Rich import interpretation, with a possible Class Axe-era ambiguity.',
+            highlights: [
+                `The first digit ${serial[0]} is interpreted as production year ${year}.`,
+                `The second digit ${fillerDigit} is commonly treated as a placeholder in this format.`,
+                quarter ? `The third digit ${serial[2]} is interpreted as ${quarter}.` : `The third digit ${serial[2]} is not a clean quarter code.`,
+                `The final digits decode as production sequence ${parseInt(sequence, 10)}.`,
+            ],
+            caveats: [
+                'B.C. Rich serial records are inconsistent across import eras.',
+                'A 6-digit neck-plate serial can also indicate a late-1980s to early-1990s Class Axe-era instrument.',
+                'Use physical markings to separate early-2000s imports from older Class Axe-era examples.',
+            ],
+            verificationTips: [
+                'Check for a Made In marking or country-of-origin sticker.',
+                'Inspect the headstock logo and any TM mark for Class Axe-era clues.',
+                'Look in the neck pocket or electronics cavity for handwritten dates or inspector marks.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This 6-digit serial fits an early-2000s B.C. Rich import interpretation, with a possible Class Axe-era ambiguity.</p><h3>How This Pattern Is Typically Read</h3><p>The first digit ${serial[0]} is interpreted as production year ${year}. The second digit ${fillerDigit} is commonly treated as a placeholder. ${quarter ? `The third digit ${serial[2]} is interpreted as ${quarter}.` : `The third digit ${serial[2]} is not a clean quarter code.`} The final digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>B.C. Rich serial records are inconsistent across import eras.</li><li>A 6-digit neck-plate serial can also indicate a late-1980s to early-1990s Class Axe-era instrument.</li><li>Check country-of-origin markings, logo details, and neck pocket or electronics-cavity dates.</li></ul>`,
+    };
 }
 function decodeNJSeries(serial) {
     const yearDigits = serial.slice(1, 3);

@@ -46,6 +46,10 @@ const OUTPUT_MAP = {
 };
 
 const templates = fs.readdirSync(DECODERS_SRC).filter((f) => f.endsWith('.njk'));
+const currentDecoderDate = new Intl.DateTimeFormat('en-US', {
+  month: 'long',
+  year: 'numeric',
+}).format(new Date());
 
 let count = 0;
 for (const template of templates) {
@@ -53,7 +57,7 @@ for (const template of templates) {
   const outputPath = path.join(DECODERS_OUT, outputName);
   const templatePath = path.join('decoders', template);
 
-  const html = env.render(templatePath);
+  const html = env.render(templatePath, { currentDecoderDate });
   fs.writeFileSync(outputPath, html, 'utf8');
   count++;
   console.log(`  ${template} → decoders/${outputName}`);

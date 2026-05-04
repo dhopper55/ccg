@@ -4,7 +4,7 @@
 {% set brandName = "Ibanez" %}
 {% set brandLogo = "Ibanez_guitars_logo.webp" %}
 {% set brandLogoClass = "brand-logo-invert" %}
-{% set decoderDate = "Mar/2026" %}
+{% set decoderDate = currentDecoderDate %}
 
 {% set pageTitle = "Ibanez Guitar Serial Number Lookup/Decoder | Coal Creek Guitars" %}
 {% set decoderTitle = "Ibanez Guitar Serial Number Lookup/Decoder" %}
@@ -81,16 +81,4 @@
       </div>
     </div>
   </div>
-{% endblock %}
-
-{% block customScripts %}
-    (function() {
-      const asOf = document.getElementById('decoder-current-as-of');
-      if (asOf) {
-        const now = new Date();
-        const month = now.toLocaleString('en-US', { month: 'short' });
-        asOf.textContent = `${month}/${now.getFullYear()}`;
-      }
-    })();
-
 {% endblock %}

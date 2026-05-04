@@ -716,6 +716,31 @@ function assertBCRichIShortImport(serialInput, expectedYear, expectedMonth) {
   );
 }
 
+function assertBCRichShortNumericImport(serialInput) {
+  const result = decodeBCRich(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '2001 (likely import estimate)', `Expected likely 2001 import estimate for ${serialInput}, got ${info.year}`);
+  assert(
+    info.factory === 'Early-2000s import production',
+    `Expected early-2000s import factory note for ${serialInput}, got ${info.factory}`
+  );
+  assert(
+    info.notes && info.notes.includes('Class Axe-era'),
+    `Expected Class Axe-era ambiguity note for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    result.patternKey === 'bcrich-short-numeric-import-y-filler-quarter-sequence',
+    `Expected B.C. Rich short numeric pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('production sequence 979'),
+    `Expected B.C. Rich short numeric rich text for ${serialInput}`
+  );
+}
+
 function assertBCRichUSA5DigitOffset(serialInput, expectedYearRange) {
   const result = decodeBCRich(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -1597,6 +1622,33 @@ function assertSchecterROPrefix(serialInput) {
   );
 }
 
+function assertSchecterHPrefix(serialInput) {
+  const result = decodeSchecter(serialInput);
+  assert(result.success, `Expected decode success for Schecter ${serialInput}`);
+  assert(result.info, `Expected decoded info for Schecter ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '2009', `Expected year 2009 for ${serialInput}, got ${info.year}`);
+  assert(info.month === 'May', `Expected month May for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'Korea / Asian import factory',
+    `Expected H import factory guidance for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'South Korea', `Expected South Korea country for ${serialInput}, got ${info.country}`);
+  assert(
+    info.model === 'Diamond Series or similar import',
+    `Expected Diamond Series or similar import model for ${serialInput}, got ${info.model}`
+  );
+  assert(
+    result.patternKey === 'schecter-h-yymm-sequence',
+    `Expected Schecter H pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('production sequence 1093'),
+    `Expected Schecter H rich text for ${serialInput}`
+  );
+}
+
 function assertSchecterLegacy6Digit(serialInput) {
   const result = decodeSchecter(serialInput);
   assert(result.success, `Expected decode success for Schecter ${serialInput}`);
@@ -1730,6 +1782,7 @@ assertPRSUsaCoreSingleYearDigit('7126922');
 assertPRSUsaCoreSingleYearDigit('7 126922');
 assertPRSUsaCoreSingleYearDigit('7/126922');
 assertBCRichIShortImport('i50311', '2005', 'March');
+assertBCRichShortNumericImport('150979');
 assertBCRichUSA5DigitOffset('36642', '1982-1983 (estimated)');
 assertKramerModernS('S106020848', '2010', 'June');
 assertKramerVPrefix('V9954', 'mid-to-late 1980s (estimated)');
@@ -1780,6 +1833,7 @@ assertSchecterCAPrefix('CA24010005');
 assertSchecterRNPrefix('Rn24100948');
 assertSchecterSTPrefix('ST19070042');
 assertSchecterROPrefix('RO23100905');
+assertSchecterHPrefix('H090501093');
 assertSchecterLegacy6Digit('527007');
 assertWashburnIndonesiaYearLetter('I8C112846');
 assertWashburnLegacyJapan6Digit('298093');

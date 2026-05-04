@@ -2606,6 +2606,7 @@ type AdminV2DashboardSummary = {
   soldMargin30DayPercent: number;
   soldMargin60DayPercent: number;
   soldMargin90DayPercent: number;
+  postStoreLaunchMarginPercent: number;
   forSaleItems: number;
   avgDaysToSell: number;
   activeItems: number;
@@ -10654,6 +10655,24 @@ async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2DashboardS
           ELSE 0
         END
       ), 0) AS sold_revenue_90d,
+      COALESCE(SUM(
+        CASE
+          WHEN COALESCE(i.is_sold, 0) = 1
+            AND i.sold_date IS NOT NULL
+            AND i.sold_date >= date('2026-06-01')
+            THEN COALESCE(i.sold_amount, 0) - COALESCE(i.purchase_price, 0)
+          ELSE 0
+        END
+      ), 0) AS post_store_launch_profit,
+      COALESCE(SUM(
+        CASE
+          WHEN COALESCE(i.is_sold, 0) = 1
+            AND i.sold_date IS NOT NULL
+            AND i.sold_date >= date('2026-06-01')
+            THEN COALESCE(i.sold_amount, 0)
+          ELSE 0
+        END
+      ), 0) AS post_store_launch_revenue,
       COALESCE(AVG(
         CASE
           WHEN COALESCE(i.is_sold, 0) = 1
@@ -10674,12 +10693,15 @@ async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2DashboardS
     sold_revenue_60d: number | null;
     sold_profit_90d: number | null;
     sold_revenue_90d: number | null;
+    post_store_launch_profit: number | null;
+    post_store_launch_revenue: number | null;
     avg_days_to_sell: number | null;
   }>();
 
   const soldRevenue30Day = Number(row?.sold_revenue_30d || 0);
   const soldRevenue60Day = Number(row?.sold_revenue_60d || 0);
   const soldRevenue90Day = Number(row?.sold_revenue_90d || 0);
+  const postStoreLaunchRevenue = Number(row?.post_store_launch_revenue || 0);
 
   return {
     inventoryCostBasis: summary.ccgPaidUnsold,
@@ -10689,6 +10711,9 @@ async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2DashboardS
     soldMargin30DayPercent: soldRevenue30Day > 0 ? (Number(row?.sold_profit_30d || 0) / soldRevenue30Day) * 100 : 0,
     soldMargin60DayPercent: soldRevenue60Day > 0 ? (Number(row?.sold_profit_60d || 0) / soldRevenue60Day) * 100 : 0,
     soldMargin90DayPercent: soldRevenue90Day > 0 ? (Number(row?.sold_profit_90d || 0) / soldRevenue90Day) * 100 : 0,
+    postStoreLaunchMarginPercent: postStoreLaunchRevenue > 0
+      ? (Number(row?.post_store_launch_profit || 0) / postStoreLaunchRevenue) * 100
+      : 0,
     forSaleItems: summary.ccgForSaleItems,
     avgDaysToSell: Number(row?.avg_days_to_sell || 0),
     activeItems: summary.ccgActiveItems,

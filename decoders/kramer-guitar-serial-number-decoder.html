@@ -146,7 +146,7 @@
 
     <div class="decoder-update-note" aria-label="Decoder update status">
       <p>Our decoders are constantly being updated</p>
-      <p>Current as of <span id="decoder-current-as-of">Mar/2026</span></p>
+      <p>Current as of <span id="decoder-current-as-of">May 2026</span></p>
     </div>
 
     <div class="brand-header">
@@ -282,6 +282,15 @@
 
   <script type="module" src="../dist/main.js?version=683778"></script>
   <script>
+    (function() {
+      const asOf = document.getElementById('decoder-current-as-of');
+      if (asOf) {
+        asOf.textContent = new Intl.DateTimeFormat('en-US', {
+          month: 'long',
+          year: 'numeric',
+        }).format(new Date());
+      }
+    })();
     (function() {
       const year = new Date().getFullYear();
       document.querySelectorAll('.footer-year').forEach((el) => {

@@ -42,6 +42,7 @@ type DashboardSummaryResponse = {
     soldMargin30DayPercent: number;
     soldMargin60DayPercent: number;
     soldMargin90DayPercent: number;
+    postStoreLaunchMarginPercent: number;
     forSaleItems: number;
     avgDaysToSell: number;
     activeItems: number;
@@ -544,25 +545,32 @@ const Starter = () => {
                 chipLabel={`${summary?.avgDaysToSell?.toFixed(1) || '0.0'} avg days`}
               />
             </Grid>
-            <Grid size={{ xs: 12, md: 4 }}>
+            <Grid size={{ xs: 12, md: 3 }}>
               <MetricMiniCard
                 title="30-day margin"
                 subTitle="Sold item profit margin"
                 value={formatPercent(summary?.soldMargin30DayPercent || 0)}
               />
             </Grid>
-            <Grid size={{ xs: 12, md: 4 }}>
+            <Grid size={{ xs: 12, md: 3 }}>
               <MetricMiniCard
                 title="60-day margin"
                 subTitle="Sold item profit margin"
                 value={formatPercent(summary?.soldMargin60DayPercent || 0)}
               />
             </Grid>
-            <Grid size={{ xs: 12, md: 4 }}>
+            <Grid size={{ xs: 12, md: 3 }}>
               <MetricMiniCard
                 title="90-day margin"
                 subTitle="Sold item profit margin"
                 value={formatPercent(summary?.soldMargin90DayPercent || 0)}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 3 }}>
+              <MetricMiniCard
+                title="Post-store launch margin"
+                subTitle="Sold since Jun 1, 2026"
+                value={formatPercent(summary?.postStoreLaunchMarginPercent || 0)}
               />
             </Grid>
             {SHOW_EXTENDED_DASHBOARD_SECTIONS && (

@@ -213,6 +213,15 @@
   <script>
     {% block customScripts %}{% endblock %}
     (function() {
+      const asOf = document.getElementById('decoder-current-as-of');
+      if (asOf) {
+        asOf.textContent = new Intl.DateTimeFormat('en-US', {
+          month: 'long',
+          year: 'numeric',
+        }).format(new Date());
+      }
+    })();
+    (function() {
       const year = new Date().getFullYear();
       document.querySelectorAll('.footer-year').forEach((el) => {
         el.textContent = year;

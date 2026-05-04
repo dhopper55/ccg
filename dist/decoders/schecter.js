@@ -42,8 +42,8 @@ export function decodeSchecter(serial) {
     if (/^ST\d{8}$/.test(normalized)) {
         return decodeChinaST(normalized);
     }
-    // Korea H prefix: H + 7-8 digits
-    if (/^H\d{7,8}$/.test(normalized)) {
+    // Korea/import H prefix: H + YYMM + sequence
+    if (/^H\d{7,9}$/.test(normalized)) {
         return decodeKoreaH(normalized);
     }
     // China S/SK prefix: S/SK + 7-9 digits (Sejung)
@@ -360,16 +360,48 @@ function decodeChinaST(serial) {
 function decodeKoreaH(serial) {
     const digits = serial.substring(1);
     const { year, month, sequence } = parseStandardDigits(digits);
+    if (!month) {
+        return {
+            success: false,
+            error: 'Unable to decode this Schecter H serial number. The month field appears invalid.',
+        };
+    }
+    const sequenceNumber = parseInt(sequence, 10);
     const info = {
         brand: 'Schecter',
         serialNumber: serial,
-        year: year,
-        month: month,
-        factory: 'Korea Factory',
+        year,
+        month,
+        factory: 'Korea / Asian import factory',
         country: 'South Korea',
-        notes: `H prefix = Korea, exact factory unknown. Sequence: ${sequence}.`
+        model: 'Diamond Series or similar import',
+        notes: `H prefix is a recognized Schecter import format, commonly associated with Korean or Asian factory production runs. Parsed as H + YYMM + sequence. Sequence: ${sequence}. Verify exact factory and model from country-of-origin markings or Schecter support.`,
     };
-    return { success: true, info };
+    return {
+        success: true,
+        info,
+        patternKey: 'schecter-h-yymm-sequence',
+        patternLabel: 'Schecter H YYMM sequence',
+        additionalContext: {
+            title: 'Schecter H serial',
+            summary: 'This serial matches a Schecter H-prefix import format parsed as factory prefix plus YYMM production date and sequence.',
+            highlights: [
+                'H is a recognized Schecter import prefix, commonly associated with Korean or Asian production runs.',
+                `The digits ${digits.substring(0, 2)} decode as production year ${year}.`,
+                `The digits ${digits.substring(2, 4)} decode as ${month}.`,
+                `The remaining digits decode as production sequence ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'This format identifies production date and factory family, not the exact model name.',
+                'Factory-code usage can vary by production run, so confirm with physical markings when provenance matters.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for the country-of-origin marking.',
+                'Contact Schecter support with photos of the serial and full instrument if exact factory confirmation is needed.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Schecter H-prefix import format parsed as factory prefix plus YYMM production date and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>H is a recognized Schecter import prefix, commonly associated with Korean or Asian production runs. The digits ${digits.substring(0, 2)} decode as production year ${year}. The digits ${digits.substring(2, 4)} decode as ${month}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This format identifies production date and factory family, not the exact model name.</li><li>Factory-code usage can vary by production run, so confirm with physical markings when provenance matters.</li><li>Check the back of the headstock for the country-of-origin marking.</li></ul>`,
+    };
 }
 function decodeChinaS(serial) {
     let prefix;
