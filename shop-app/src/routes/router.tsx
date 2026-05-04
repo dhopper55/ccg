@@ -5,7 +5,6 @@ import Cart from 'pages/apps/ecommerce/customer/Cart';
 import CheckoutSuccess from 'pages/apps/ecommerce/customer/CheckoutSuccess';
 import ProductDetails from 'pages/apps/ecommerce/customer/ProductDetails';
 import Products from 'pages/apps/ecommerce/customer/Products';
-import DecoderLandingPage from 'pages/decoders/DecoderLandingPage';
 import DecoderPage, { DecoderConfig } from 'pages/decoders/DecoderPage';
 import decoderConfigs from 'pages/decoders/decoder-configs.json';
 import Page404 from 'pages/errors/Page404';
@@ -42,10 +41,6 @@ export const routes: RouteObject[] = [
             <CheckoutSuccess />
           </EcommerceLayout>
         ),
-      },
-      {
-        path: '/decoders/guitar-serial-decoder-lookup',
-        element: <DecoderLandingPage />,
       },
       ...decoderRoutes,
       {
