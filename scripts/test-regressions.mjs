@@ -741,6 +741,32 @@ function assertBCRichShortNumericImport(serialInput) {
   );
 }
 
+function assertBCRichShortMonthCodeImport(serialInput) {
+  const result = decodeBCRich(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '2020', `Expected year 2020 for ${serialInput}, got ${info.year}`);
+  assert(info.month === 'April', `Expected month April for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'Import production batch/factory code 5',
+    `Expected batch/factory code 5 for ${serialInput}, got ${info.factory}`
+  );
+  assert(
+    info.notes && info.notes.includes('pre-2000 F-prefix'),
+    `Expected pre-2000 F-prefix ambiguity note for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    result.patternKey === 'bcrich-short-modern-month-code-import',
+    `Expected B.C. Rich short month-code pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('production sequence 1631'),
+    `Expected B.C. Rich short month-code rich text for ${serialInput}`
+  );
+}
+
 function assertBCRichUSA5DigitOffset(serialInput, expectedYearRange) {
   const result = decodeBCRich(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -1004,6 +1030,32 @@ function assertCortAIPrefix(serialInput, expectedYear, expectedMonth) {
   assert(
     result.additionalContextRichText && result.additionalContextRichText.includes('production year 2020'),
     `Expected Cort AI rich text for ${serialInput}`
+  );
+}
+
+function assertCortICSEPrefix(serialInput) {
+  const result = decodeSerialForBackend('cort', serialInput);
+  assert(result.success, `Expected decode success for cort:${serialInput}`);
+  assert(result.info, `Expected decoded info for cort:${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '2021', `Expected year 2021 for ${serialInput}, got ${info.year}`);
+  assert(
+    info.factory === 'PT. Cort Indonesia, Surabaya',
+    `Expected PT. Cort Indonesia, Surabaya for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'Indonesia', `Expected country Indonesia for ${serialInput}, got ${info.country}`);
+  assert(
+    info.model === 'Cort/Cor-Tek SE production line or series',
+    `Expected ICSE model guidance for ${serialInput}, got ${info.model}`
+  );
+  assert(
+    result.patternKey === 'cort-icse-indonesia-yy-sequence',
+    `Expected Cort ICSE pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('production sequence 3319'),
+    `Expected Cort ICSE rich text for ${serialInput}`
   );
 }
 
@@ -1783,6 +1835,7 @@ assertPRSUsaCoreSingleYearDigit('7 126922');
 assertPRSUsaCoreSingleYearDigit('7/126922');
 assertBCRichIShortImport('i50311', '2005', 'March');
 assertBCRichShortNumericImport('150979');
+assertBCRichShortMonthCodeImport('F2051631');
 assertBCRichUSA5DigitOffset('36642', '1982-1983 (estimated)');
 assertKramerModernS('S106020848', '2010', 'June');
 assertKramerVPrefix('V9954', 'mid-to-late 1980s (estimated)');
@@ -1801,6 +1854,7 @@ assertDeanLegacyKoreaESingleYearDigit('E805978', '1998 or 2008 (estimated)');
 assertDeanChinaZPrefix('z1300165', '2013');
 assertCortIEPrefix('ie220403666', '2022', 'April');
 assertCortAIPrefix('AI200750591', '2020', 'July');
+assertCortICSEPrefix('ICSE21003319');
 assertCortIATransposedPrefix('IA200750591', 'AI200750591', '2020', 'July');
 assertCortYearSequence7Digit('0000400');
 assertCortLate1990s8Digit('99122466');

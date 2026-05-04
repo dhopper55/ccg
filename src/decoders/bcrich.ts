@@ -10,6 +10,7 @@ import { DecodeResult, GuitarInfo } from '../types.js';
  * - Early-2000s short numeric import: 6 digits like 150979
  * - Date-stamp numeric: 8 digits like 121XXXXX (year digit + quarter + production)
  * - Month/factory code: A08140023 (month letter + factory + year + production)
+ * - Short modern month-code import: F2051631 (month + year + batch/factory + sequence)
  * - NJ Series: R/P + 6 digits with year in first two digits
  */
 
@@ -52,6 +53,10 @@ export function decodeBCRich(serial: string): DecodeResult {
 
   if (/^[ACEFGHJKLMNP][0-9]{8}$/.test(normalized)) {
     return decodeMonthFactory(normalized);
+  }
+
+  if (/^[ACEFGHJKLMNP]\d{7}$/.test(normalized)) {
+    return decodeShortMonthCodeImport(normalized);
   }
 
   if (/^F[7890]\d{5}$/.test(normalized)) {
@@ -161,6 +166,54 @@ function decodeMonthFactory(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+function decodeShortMonthCodeImport(serial: string): DecodeResult {
+  const monthCode = serial[0];
+  const yearDigits = serial.slice(1, 3);
+  const batchCode = serial[3];
+  const sequence = serial.slice(4);
+  const yearNum = parseInt(yearDigits, 10);
+  const year = yearNum <= 30 ? 2000 + yearNum : 1900 + yearNum;
+  const month = MONTH_CODE_MAP[monthCode];
+
+  const info: GuitarInfo = {
+    brand: 'B.C. Rich',
+    serialNumber: serial,
+    year: year.toString(),
+    month,
+    factory: `Import production batch/factory code ${batchCode}`,
+    country: 'South Korea / China / Indonesia',
+    notes: `Short modern B.C. Rich month-code import format. ${monthCode} indicates ${month}; digits ${yearDigits} indicate ${year}; digit ${batchCode} is treated as a factory or batch code; production sequence: ${sequence}. If this serial is on an older neck plate, it could instead be a pre-2000 F-prefix import/Class Axe-era number, so verify with headstock markings, country-of-origin labels, and neck pocket or electronics-cavity dates.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'bcrich-short-modern-month-code-import',
+    patternLabel: 'B.C. Rich short modern month-code import',
+    additionalContext: {
+      title: 'B.C. Rich short month-code serial',
+      summary: 'This serial matches a short modern B.C. Rich import format parsed as month code, year, batch/factory code, and production sequence.',
+      highlights: [
+        `The prefix ${monthCode} decodes as ${month}.`,
+        `The digits ${yearDigits} decode as production year ${year}.`,
+        `The digit ${batchCode} is treated as a factory or batch code.`,
+        `The final digits decode as production sequence ${parseInt(sequence, 10)}.`,
+      ],
+      caveats: [
+        'B.C. Rich used inconsistent import serial systems across ownership eras.',
+        'F-prefix serials can also appear on older pre-2000 imports where the code may not follow this modern date format.',
+        'Use the physical serial location, country marking, and model era to choose between the modern and older interpretations.',
+      ],
+      verificationTips: [
+        'If the serial is on the back of the headstock, the modern month-code interpretation is more likely.',
+        'If the serial is on a metal neck plate, treat the older import/Class Axe-era interpretation as possible.',
+        'Check neck pocket or electronics-cavity dates when available.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a short modern B.C. Rich import format parsed as month code, year, batch/factory code, and production sequence.</p><h3>How This Pattern Is Typically Read</h3><p>The prefix ${monthCode} decodes as ${month}. The digits ${yearDigits} decode as production year ${year}. The digit ${batchCode} is treated as a factory or batch code. The final digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>B.C. Rich used inconsistent import serial systems across ownership eras.</li><li>F-prefix serials can also appear on older pre-2000 imports where the code may not follow this modern date format.</li><li>Use the physical serial location, country marking, and model era to choose between the modern and older interpretations.</li></ul>`,
+  };
 }
 
 function decodeFSeries(serial: string): DecodeResult {

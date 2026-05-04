@@ -8,7 +8,7 @@
  * - Late 1990s format: YYMMXXXX (1990-1999)
  * - 1990s format: YMMXXXX (early 1990s-1999)
  * - W.O. prefix: 1970s-1980s Korean production
- * - Indonesian production: Various prefixes (AI, I, IC, ICS, etc.)
+ * - Indonesian production: Various prefixes (AI, I, IC, ICS, ICSE, etc.)
  * - Chinese production: COS, COB prefixes
  *
  * Note: Pre-mid-1990s guitars often have randomly generated serial numbers.
@@ -19,6 +19,10 @@ export function decodeCort(serial) {
     // W.O. prefix - 1970s/1980s Korean production
     if (/^W\.?O\.?\d+/i.test(cleaned)) {
         return decodeWOPrefix(cleaned);
+    }
+    // Indonesian Cort factory: ICSE prefix (IC + SE production line/series)
+    if (/^ICSE\d{8}$/.test(normalized)) {
+        return decodeIndonesiaICSE(normalized);
     }
     // Indonesian Cort factory: ICS prefix (Factory Special Run)
     if (/^ICS\d{8,9}$/.test(normalized)) {
@@ -166,6 +170,48 @@ function decodeIndonesiaICS(serial) {
         notes: `ICS prefix indicates Indonesian Cor-Tek factory production. The "S" typically designates a Factory Special Run (FSR) model. Sequence: ${sequence}.`,
     };
     return { success: true, info };
+}
+// Indonesian ICSE prefix (IC + SE production line/series marker)
+function decodeIndonesiaICSE(serial) {
+    const yearDigits = serial.substring(4, 6);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const sequence = serial.substring(6);
+    const info = {
+        brand: 'Cort',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'PT. Cort Indonesia, Surabaya',
+        country: 'Indonesia',
+        model: 'Cort/Cor-Tek SE production line or series',
+        notes: `ICSE prefix indicates Indonesian Cor-Tek/Cort production. Parsed as IC + SE production line/series marker + YY + sequence. The "SE" portion likely identifies a production line, series, or internal run marker rather than the exact model name. Sequence: ${sequence}. Cort serials identify factory and production year, but not the exact model name; verify model from the headstock, truss rod cover, label, or other physical markings.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'cort-icse-indonesia-yy-sequence',
+        patternLabel: 'Cort ICSE Indonesia YY sequence',
+        additionalContext: {
+            title: 'Cort ICSE Indonesia serial',
+            summary: 'This serial matches a modern Indonesian Cort/Cor-Tek ICSE-prefix format parsed as factory prefix plus production-line marker, year, and sequence.',
+            highlights: [
+                'IC indicates Indonesian Cor-Tek/Cort production.',
+                'SE is treated as a production line, series, or internal run marker.',
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                `The remaining digits are production sequence ${parseInt(sequence, 10)}.`,
+            ],
+            caveats: [
+                'Cort serials usually identify factory and date more reliably than exact model identity.',
+                'The SE marker does not by itself confirm the exact model name.',
+                'Confirm the model from headstock, label, truss rod cover, or other physical markings.',
+            ],
+            verificationTips: [
+                'Check whether the instrument is Cort-branded or another brand built by Cor-Tek.',
+                'Compare the instrument against Cort catalog specs for the decoded year.',
+                'Contact Cort or an authorized dealer with photos if exact factory confirmation is needed.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern Indonesian Cort/Cor-Tek ICSE-prefix format parsed as factory prefix plus production-line marker, year, and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>IC indicates Indonesian Cor-Tek/Cort production. SE is treated as a production line, series, or internal run marker. The digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Cort serials usually identify factory and date more reliably than exact model identity.</li><li>The SE marker does not by itself confirm the exact model name.</li><li>Confirm the model from headstock, label, truss rod cover, or other physical markings.</li></ul>`,
+    };
 }
 // Indonesian IC prefix
 function decodeIndonesiaIC(serial) {
