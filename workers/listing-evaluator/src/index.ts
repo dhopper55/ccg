@@ -2603,6 +2603,9 @@ type AdminV2DashboardSummary = {
   privatePartyValue: number;
   currentAskingValue: number;
   realizedProfitMTD: number;
+  soldMargin30DayPercent: number;
+  soldMargin60DayPercent: number;
+  soldMargin90DayPercent: number;
   forSaleItems: number;
   avgDaysToSell: number;
   activeItems: number;
@@ -10527,8 +10530,8 @@ async function dbGetInventorySummary(env: Env): Promise<InventorySummaryTotals> 
       COALESCE(SUM(CASE WHEN i.is_active = 1 THEN l.price_asking ELSE 0 END), 0) AS total_listed,
       COALESCE(SUM(CASE WHEN i.is_sold = 1 THEN i.sold_amount ELSE 0 END), 0) AS total_sold,
       COALESCE(SUM(i.purchase_price), 0) AS total_purchased,
-      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 0 AND COALESCE(i.is_personal, 0) = 0 THEN COALESCE(i.purchase_price, 0) ELSE 0 END), 0) AS ccg_paid_unsold,
-      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 0 AND COALESCE(i.is_personal, 0) = 0 THEN COALESCE(i.private_party_value, 0) ELSE 0 END), 0) AS ccg_private_party_unsold,
+      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 0 THEN COALESCE(i.purchase_price, 0) ELSE 0 END), 0) AS ccg_paid_unsold,
+      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 0 THEN COALESCE(i.private_party_value, 0) ELSE 0 END), 0) AS ccg_private_party_unsold,
       COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 1 AND COALESCE(i.is_personal, 0) = 0 THEN COALESCE(i.purchase_price, 0) ELSE 0 END), 0) AS ccg_sold_paid,
       COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 1 AND COALESCE(i.is_personal, 0) = 0 THEN COALESCE(i.private_party_value, 0) ELSE 0 END), 0) AS ccg_sold_private_party,
       COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 1 AND COALESCE(i.is_personal, 0) = 0 THEN (COALESCE(i.sold_amount, 0) - COALESCE(i.purchase_price, 0)) ELSE 0 END), 0) AS ccg_sold_profit_amount,
@@ -10591,13 +10594,66 @@ async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2DashboardS
       COALESCE(SUM(
         CASE
           WHEN COALESCE(i.is_sold, 0) = 1
-            AND COALESCE(i.is_personal, 0) = 0
             AND i.sold_date IS NOT NULL
             AND i.sold_date >= date('now', 'start of month')
             THEN COALESCE(i.sold_amount, 0) - COALESCE(i.purchase_price, 0)
           ELSE 0
         END
       ), 0) AS realized_profit_mtd,
+      COALESCE(SUM(
+        CASE
+          WHEN COALESCE(i.is_sold, 0) = 1
+            AND i.sold_date IS NOT NULL
+            AND i.sold_date >= date('now', '-30 days')
+            THEN COALESCE(i.sold_amount, 0) - COALESCE(i.purchase_price, 0)
+          ELSE 0
+        END
+      ), 0) AS sold_profit_30d,
+      COALESCE(SUM(
+        CASE
+          WHEN COALESCE(i.is_sold, 0) = 1
+            AND i.sold_date IS NOT NULL
+            AND i.sold_date >= date('now', '-30 days')
+            THEN COALESCE(i.sold_amount, 0)
+          ELSE 0
+        END
+      ), 0) AS sold_revenue_30d,
+      COALESCE(SUM(
+        CASE
+          WHEN COALESCE(i.is_sold, 0) = 1
+            AND i.sold_date IS NOT NULL
+            AND i.sold_date >= date('now', '-60 days')
+            THEN COALESCE(i.sold_amount, 0) - COALESCE(i.purchase_price, 0)
+          ELSE 0
+        END
+      ), 0) AS sold_profit_60d,
+      COALESCE(SUM(
+        CASE
+          WHEN COALESCE(i.is_sold, 0) = 1
+            AND i.sold_date IS NOT NULL
+            AND i.sold_date >= date('now', '-60 days')
+            THEN COALESCE(i.sold_amount, 0)
+          ELSE 0
+        END
+      ), 0) AS sold_revenue_60d,
+      COALESCE(SUM(
+        CASE
+          WHEN COALESCE(i.is_sold, 0) = 1
+            AND i.sold_date IS NOT NULL
+            AND i.sold_date >= date('now', '-90 days')
+            THEN COALESCE(i.sold_amount, 0) - COALESCE(i.purchase_price, 0)
+          ELSE 0
+        END
+      ), 0) AS sold_profit_90d,
+      COALESCE(SUM(
+        CASE
+          WHEN COALESCE(i.is_sold, 0) = 1
+            AND i.sold_date IS NOT NULL
+            AND i.sold_date >= date('now', '-90 days')
+            THEN COALESCE(i.sold_amount, 0)
+          ELSE 0
+        END
+      ), 0) AS sold_revenue_90d,
       COALESCE(AVG(
         CASE
           WHEN COALESCE(i.is_sold, 0) = 1
@@ -10612,14 +10668,27 @@ async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2DashboardS
   ).first<{
     current_asking_value: number | null;
     realized_profit_mtd: number | null;
+    sold_profit_30d: number | null;
+    sold_revenue_30d: number | null;
+    sold_profit_60d: number | null;
+    sold_revenue_60d: number | null;
+    sold_profit_90d: number | null;
+    sold_revenue_90d: number | null;
     avg_days_to_sell: number | null;
   }>();
+
+  const soldRevenue30Day = Number(row?.sold_revenue_30d || 0);
+  const soldRevenue60Day = Number(row?.sold_revenue_60d || 0);
+  const soldRevenue90Day = Number(row?.sold_revenue_90d || 0);
 
   return {
     inventoryCostBasis: summary.ccgPaidUnsold,
     privatePartyValue: summary.ccgPrivatePartyUnsold,
     currentAskingValue: Number(row?.current_asking_value || 0),
     realizedProfitMTD: Number(row?.realized_profit_mtd || 0),
+    soldMargin30DayPercent: soldRevenue30Day > 0 ? (Number(row?.sold_profit_30d || 0) / soldRevenue30Day) * 100 : 0,
+    soldMargin60DayPercent: soldRevenue60Day > 0 ? (Number(row?.sold_profit_60d || 0) / soldRevenue60Day) * 100 : 0,
+    soldMargin90DayPercent: soldRevenue90Day > 0 ? (Number(row?.sold_profit_90d || 0) / soldRevenue90Day) * 100 : 0,
     forSaleItems: summary.ccgForSaleItems,
     avgDaysToSell: Number(row?.avg_days_to_sell || 0),
     activeItems: summary.ccgActiveItems,

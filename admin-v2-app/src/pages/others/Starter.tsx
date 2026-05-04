@@ -30,6 +30,8 @@ import SectionHeader from 'components/common/SectionHeader';
 
 echarts.use([TooltipComponent, GridComponent, LineChart, BarChart, PieChart, CanvasRenderer]);
 
+const SHOW_EXTENDED_DASHBOARD_SECTIONS = false;
+
 type DashboardSummaryResponse = {
   asOf: string;
   kpis: {
@@ -37,6 +39,9 @@ type DashboardSummaryResponse = {
     privatePartyValue: number;
     currentAskingValue: number;
     realizedProfitMTD: number;
+    soldMargin30DayPercent: number;
+    soldMargin60DayPercent: number;
+    soldMargin90DayPercent: number;
     forSaleItems: number;
     avgDaysToSell: number;
     activeItems: number;
@@ -539,57 +544,81 @@ const Starter = () => {
                 chipLabel={`${summary?.avgDaysToSell?.toFixed(1) || '0.0'} avg days`}
               />
             </Grid>
-            <Grid size={{ xs: 12 }}>
-              <Paper sx={{ p: { xs: 3, md: 5 }, height: 1 }}>
-                <Stack direction="column" sx={{ rowGap: 4, height: '100%' }}>
-                  <Grid
-                    container
-                    spacing={2}
-                    sx={{ alignItems: { lg: 'flex-end' }, justifyContent: 'space-between' }}
-                  >
-                    <Grid size={{ xs: 'grow', lg: 'auto' }}>
-                      <Typography variant="h6" sx={{ mb: 1 }}>
-                        Profit Trend
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                        Realized gross profit across the last 12 months
-                      </Typography>
-                    </Grid>
-                    <Grid sx={{ ml: { sm: 'auto', md: 0 } }}>
-                      <IconButton size="small" aria-label="Profit trend options">
-                        <IconifyIcon icon="material-symbols:more-horiz-rounded" />
-                      </IconButton>
-                    </Grid>
-                    <Grid size={{ xs: 12, lg: 'auto' }}>
-                      <Stack sx={{ gap: 1 }}>
-                        <Typography sx={{ typography: { xs: 'h4', xl: 'h3' }, mb: 0.5 }}>
-                          {formatCurrency(totalProfit12m)}
-                        </Typography>
-                        <Box>
-                          <Chip label={formatPercent(soldMargin12m)} color="success" />
-                          <Typography
-                            variant="body2"
-                            sx={{ color: 'text.secondary', ml: 0.75, display: 'inline' }}
-                          >
-                            margin, last 12 months
-                          </Typography>
-                        </Box>
-                      </Stack>
-                    </Grid>
-                  </Grid>
-
-                  <Box sx={{ flex: 1, '& .echarts-for-react': { height: '100% !important' } }}>
-                    <ReactEchart
-                      echarts={echarts}
-                      option={profitTrendOption}
-                      sx={{ minHeight: 280, width: '100%' }}
-                    />
-                  </Box>
-                </Stack>
-              </Paper>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <MetricMiniCard
+                title="30-day margin"
+                subTitle="Sold item profit margin"
+                value={formatPercent(summary?.soldMargin30DayPercent || 0)}
+              />
             </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <MetricMiniCard
+                title="60-day margin"
+                subTitle="Sold item profit margin"
+                value={formatPercent(summary?.soldMargin60DayPercent || 0)}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <MetricMiniCard
+                title="90-day margin"
+                subTitle="Sold item profit margin"
+                value={formatPercent(summary?.soldMargin90DayPercent || 0)}
+              />
+            </Grid>
+            {SHOW_EXTENDED_DASHBOARD_SECTIONS && (
+              <Grid size={{ xs: 12 }}>
+                <Paper sx={{ p: { xs: 3, md: 5 }, height: 1 }}>
+                  <Stack direction="column" sx={{ rowGap: 4, height: '100%' }}>
+                    <Grid
+                      container
+                      spacing={2}
+                      sx={{ alignItems: { lg: 'flex-end' }, justifyContent: 'space-between' }}
+                    >
+                      <Grid size={{ xs: 'grow', lg: 'auto' }}>
+                        <Typography variant="h6" sx={{ mb: 1 }}>
+                          Profit Trend
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                          Realized gross profit across the last 12 months
+                        </Typography>
+                      </Grid>
+                      <Grid sx={{ ml: { sm: 'auto', md: 0 } }}>
+                        <IconButton size="small" aria-label="Profit trend options">
+                          <IconifyIcon icon="material-symbols:more-horiz-rounded" />
+                        </IconButton>
+                      </Grid>
+                      <Grid size={{ xs: 12, lg: 'auto' }}>
+                        <Stack sx={{ gap: 1 }}>
+                          <Typography sx={{ typography: { xs: 'h4', xl: 'h3' }, mb: 0.5 }}>
+                            {formatCurrency(totalProfit12m)}
+                          </Typography>
+                          <Box>
+                            <Chip label={formatPercent(soldMargin12m)} color="success" />
+                            <Typography
+                              variant="body2"
+                              sx={{ color: 'text.secondary', ml: 0.75, display: 'inline' }}
+                            >
+                              margin, last 12 months
+                            </Typography>
+                          </Box>
+                        </Stack>
+                      </Grid>
+                    </Grid>
+
+                    <Box sx={{ flex: 1, '& .echarts-for-react': { height: '100% !important' } }}>
+                      <ReactEchart
+                        echarts={echarts}
+                        option={profitTrendOption}
+                        sx={{ minHeight: 280, width: '100%' }}
+                      />
+                    </Box>
+                  </Stack>
+                </Paper>
+              </Grid>
+            )}
           </Grid>
 
+          {SHOW_EXTENDED_DASHBOARD_SECTIONS && (
           <Grid container spacing={3} sx={{ mt: 0 }}>
             <Grid size={{ xs: 12 }}>
               <Paper sx={{ p: { xs: 3, md: 5 }, height: 1 }}>
@@ -860,6 +889,7 @@ const Starter = () => {
               </Paper>
             </Grid>
           </Grid>
+          )}
         </>
       )}
     </Box>
