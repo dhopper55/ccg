@@ -1,8 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Box } from '@mui/material';
 import Grid from '@mui/material/Grid';
-import CRMGreeting from 'components/sections/dashboards/crm/CRMGreeting';
-import { dealsData } from 'data/crm/dashboard';
 import DecoderPreviewLayout from 'layouts/decoder-layout/DecoderPreviewLayout';
 import DecoderInputPanel from './DecoderInputPanel';
 import IbanezAdditionalInfoPanel from './IbanezAdditionalInfoPanel';
@@ -34,8 +31,6 @@ interface DecoderPageProps {
 
 const DecoderPage = ({ config }: DecoderPageProps) => {
   const [additionalInfoRichText, setAdditionalInfoRichText] = useState('');
-  const now = new Date();
-  const currentAsOf = `${now.toLocaleString('en-US', { month: 'short' })}/${now.getFullYear()}`;
 
   useEffect(() => {
     document.title = config.pageTitle;
@@ -48,42 +43,6 @@ const DecoderPage = ({ config }: DecoderPageProps) => {
       headerLogoAlt={config.brandName}
     >
       <Grid container>
-        <Grid size={12}>
-          <CRMGreeting
-            data={dealsData}
-            singleColumn
-            title={config.pageTitle}
-            subtitle={config.brandDescriptionText}
-            noteContent={
-              <>
-                <Box
-                  component="span"
-                  sx={{
-                    '& p': { m: 0, display: 'inline' },
-                    '& a': {
-                      color: 'inherit',
-                      textDecoration: 'underline',
-                      textUnderlineOffset: '0.18em',
-                    },
-                    '& strong': { fontWeight: 600 },
-                  }}
-                  dangerouslySetInnerHTML={{ __html: config.noteHtml }}
-                />
-                <br />
-                <Box
-                  component="span"
-                  sx={{
-                    color: 'warning.main',
-                    fontWeight: 600,
-                  }}
-                >
-                  Our decoders are constantly being updated - Current as of {currentAsOf}
-                </Box>
-              </>
-            }
-          />
-        </Grid>
-
         <Grid container size={12}>
           <Grid size={{ xs: 12, lg: 5, xl: 6 }}>
             <DecoderInputPanel
