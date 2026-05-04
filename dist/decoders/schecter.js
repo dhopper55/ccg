@@ -17,6 +17,10 @@ export function decodeSchecter(serial) {
     if (/^N\d{8,9}$/.test(normalized)) {
         return decodeIndonesiaN(normalized);
     }
+    // Korea World Music prefix with leading year digit: Y + W + sequence
+    if (/^\dW\d{8}$/.test(normalized)) {
+        return decodeLeadingYearW(normalized);
+    }
     // Korea/Indonesia W prefix: W + 8-9 digits (World/Wildwood)
     // 8 digits = Korea, 9 digits = Indonesia
     if (/^W\d{8,9}$/.test(normalized)) {
@@ -161,6 +165,48 @@ function decodeW(serial) {
         notes: `W prefix. ${digitCount} digits indicates ${country} manufacture. Sequence: ${sequence}.`
     };
     return { success: true, info };
+}
+function decodeLeadingYearW(serial) {
+    const yearDigit = serial[0];
+    const sequence = serial.substring(2);
+    const digit = parseInt(yearDigit, 10);
+    const possibleYears = `${2000 + digit}, ${2010 + digit}, or ${2020 + digit}`;
+    const info = {
+        brand: 'Schecter',
+        serialNumber: serial,
+        year: possibleYears,
+        factory: 'World Music / World Musical Instruments',
+        country: 'South Korea',
+        model: 'Diamond Series import',
+        notes: `Leading-year W-prefix Schecter import format. The first digit ${yearDigit} indicates a production year ending in ${yearDigit}, commonly interpreted from model era as ${2010 + digit} or ${2020 + digit}. W indicates World Music / World Musical Instruments in South Korea. Remaining digits are production sequence ${sequence}. Verify the exact decade from the model, hardware, and country-of-origin markings.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'schecter-leading-year-w-world-music-sequence',
+        patternLabel: 'Schecter leading-year W sequence',
+        additionalContext: {
+            title: 'Schecter W serial with leading year digit',
+            summary: 'This serial matches a Schecter Diamond Series import format with a leading year digit followed by the W factory code and production sequence.',
+            highlights: [
+                `The leading digit ${yearDigit} indicates a production year ending in ${yearDigit}.`,
+                `For this modern import style, the likely years are ${2010 + digit} or ${2020 + digit}, depending on model era.`,
+                'W indicates World Music / World Musical Instruments production in South Korea.',
+                `The remaining digits decode as production sequence ${parseInt(sequence, 10)}.`,
+            ],
+            caveats: [
+                'The single year digit is decade-ambiguous without model context.',
+                'This format identifies factory family and likely era, not the exact model name.',
+                'Factory-code usage can vary by production run, so confirm with physical markings when provenance matters.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for Made in Korea or other country-of-origin markings.',
+                'Use model specs and hardware to decide whether 2011 or 2021 is the better fit.',
+                'Contact Schecter support with photos of the serial and full instrument if exact confirmation is needed.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Schecter Diamond Series import format with a leading year digit followed by the W factory code and production sequence.</p><h3>How This Pattern Is Typically Read</h3><p>The leading digit ${yearDigit} indicates a production year ending in ${yearDigit}. For this modern import style, the likely years are ${2010 + digit} or ${2020 + digit}, depending on model era. W indicates World Music / World Musical Instruments production in South Korea. The remaining digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>The single year digit is decade-ambiguous without model context.</li><li>This format identifies factory family and likely era, not the exact model name.</li><li>Check the back of the headstock for Made in Korea or other country-of-origin markings.</li></ul>`,
+    };
 }
 function decodeKoreaC(serial) {
     const digits = serial.substring(1);
