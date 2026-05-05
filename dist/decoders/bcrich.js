@@ -8,6 +8,7 @@
  * - Early-2000s short numeric import: 6 digits like 150979
  * - Date-stamp numeric: 8 digits like 121XXXXX (year digit + quarter + production)
  * - Month/factory code: A08140023 (month letter + factory + year + production)
+ * - B-prefix month-code import: BA09030385 (B + month letter + YY + sequence)
  * - Short modern month-code import: F2051631 (month + year + batch/factory + sequence)
  * - NJ Series: R/P + 6 digits with year in first two digits
  */
@@ -50,6 +51,9 @@ export function decodeBCRich(serial) {
     if (/^[ACEFGHJKLMNP]\d{7}$/.test(normalized)) {
         return decodeShortMonthCodeImport(normalized);
     }
+    if (/^B[ACEFGHJKLMNP]\d{8}$/.test(normalized)) {
+        return decodeBPrefixMonthCodeImport(normalized);
+    }
     if (/^F[7890]\d{5}$/.test(normalized)) {
         return decodeFSeries(normalized);
     }
@@ -79,7 +83,7 @@ export function decodeBCRich(serial) {
     }
     return {
         success: false,
-        error: 'Unable to decode this B.C. Rich serial number. Known formats include: 5-digit USA neck-through (YYXXX), F7/F8/F9/F0 import serials, 8-digit date-stamp (e.g., 121XXXXX), month/factory codes like A08140023, NJ series R/P + 6 digits, Class Axe BC/B0 series, or short I-prefix import estimates (I + 5 digits).',
+        error: 'Unable to decode this B.C. Rich serial number. Known formats include: 5-digit USA neck-through (YYXXX), F7/F8/F9/F0 import serials, 8-digit date-stamp (e.g., 121XXXXX), month/factory codes like A08140023, B-prefix month-code imports like BA09030385, NJ series R/P + 6 digits, Class Axe BC/B0 series, or short I-prefix import estimates (I + 5 digits).',
     };
 }
 const IMPORT_PREFIX_MAP = {
@@ -184,6 +188,51 @@ function decodeShortMonthCodeImport(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a short modern B.C. Rich import format parsed as month code, year, batch/factory code, and production sequence.</p><h3>How This Pattern Is Typically Read</h3><p>The prefix ${monthCode} decodes as ${month}. The digits ${yearDigits} decode as production year ${year}. The digit ${batchCode} is treated as a factory or batch code. The final digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>B.C. Rich used inconsistent import serial systems across ownership eras.</li><li>F-prefix serials can also appear on older pre-2000 imports where the code may not follow this modern date format.</li><li>Use the physical serial location, country marking, and model era to choose between the modern and older interpretations.</li></ul>`,
+    };
+}
+function decodeBPrefixMonthCodeImport(serial) {
+    const factoryPrefix = serial[0];
+    const monthCode = serial[1];
+    const yearDigits = serial.slice(2, 4);
+    const sequence = serial.slice(4);
+    const yearNum = parseInt(yearDigits, 10);
+    const year = yearNum <= 30 ? 2000 + yearNum : 1900 + yearNum;
+    const month = MONTH_CODE_MAP[monthCode];
+    const info = {
+        brand: 'B.C. Rich',
+        serialNumber: serial,
+        year: year.toString(),
+        month,
+        factory: 'China import production (B-prefix factory/line)',
+        country: 'China',
+        notes: `B-prefix modern B.C. Rich import format interpreted as factory/line prefix + month code + YY + sequence. ${factoryPrefix} is treated as a Chinese import factory or production-line prefix; ${monthCode} indicates ${month}; digits ${yearDigits} indicate production year ${year}; remaining digits are production sequence ${parseInt(sequence, 10)}. B.C. Rich import serials from this era can be inconsistent, so verify with country-of-origin markings, model features, and neck pocket or electronics-cavity dates where available.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'bcrich-b-prefix-month-code-import',
+        patternLabel: 'B.C. Rich B-prefix month-code import',
+        additionalContext: {
+            title: 'B.C. Rich B-prefix import serial',
+            summary: 'This serial matches a modern B.C. Rich import format parsed as B-prefix factory/line code, month letter, production year, and sequence.',
+            highlights: [
+                `${factoryPrefix} is treated as a Chinese import factory or production-line prefix.`,
+                `The month code ${monthCode} decodes as ${month}.`,
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                `The remaining digits decode as production sequence ${parseInt(sequence, 10)}.`,
+            ],
+            caveats: [
+                'B.C. Rich serial numbering is inconsistent across import eras and ownership periods.',
+                'This serial pattern identifies likely date and import family, not the exact model name.',
+                'Some bolt-on budget models used serial systems that are less reliable than factory date stamps.',
+            ],
+            verificationTips: [
+                'Check for Made in China or other country-of-origin markings near the serial or on the headstock.',
+                'Compare body shape, pickups, bridge, and trim against late-2000s B.C. Rich import catalogs.',
+                'Use neck pocket, electronics-cavity, or label dates if the instrument has them.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern B.C. Rich import format parsed as B-prefix factory/line code, month letter, production year, and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>${factoryPrefix} is treated as a Chinese import factory or production-line prefix. The month code ${monthCode} decodes as ${month}. The digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>B.C. Rich serial numbering is inconsistent across import eras and ownership periods.</li><li>This serial pattern identifies likely date and import family, not the exact model name.</li><li>Check country-of-origin markings, model features, and neck pocket or electronics-cavity dates where available.</li></ul>`,
     };
 }
 function decodeFSeries(serial) {

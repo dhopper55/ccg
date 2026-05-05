@@ -144,6 +144,9 @@ interface ShopCheckoutRequestPayload {
   fulfillmentType?: unknown;
   couponCode?: unknown;
   taxIncluded?: unknown;
+  splitTender?: {
+    cardAmountCents?: unknown;
+  };
   customer?: {
     firstName?: unknown;
     lastName?: unknown;
@@ -4508,6 +4511,19 @@ async function handleShopCreateCheckoutSession(request: Request, env: Env): Prom
     return draftResult;
   }
   const draft = draftResult;
+  const requestedCardAmountCents = numberOrZero(body?.splitTender?.cardAmountCents);
+  const isSplitTender = includeInStoreOnly && requestedCardAmountCents > 0;
+  const cardAmountCents = isSplitTender ? requestedCardAmountCents : draft.totalCents;
+  const cashAmountCents = isSplitTender ? Math.max(0, draft.totalCents - cardAmountCents) : 0;
+  if (body?.splitTender && !includeInStoreOnly) {
+    return jsonResponse({ message: 'Card + cash checkout is only available in associate mode.' }, 403);
+  }
+  if (isSplitTender && cardAmountCents < 100) {
+    return jsonResponse({ message: 'Card amount must be at least $1.00.' }, 400);
+  }
+  if (isSplitTender && cardAmountCents > draft.totalCents) {
+    return jsonResponse({ message: 'Card amount cannot exceed the order total.' }, 400);
+  }
 
   const nowIso = new Date().toISOString();
   const orderId = crypto.randomUUID();
@@ -4525,13 +4541,15 @@ async function handleShopCreateCheckoutSession(request: Request, env: Env): Prom
       channel,
       fulfillmentType,
       checkoutType: 'stripe',
-      checkoutProvider: 'stripe',
+      checkoutProvider: isSplitTender ? 'stripe_cash' : 'stripe',
       checkoutMode: 'hosted_checkout',
       subtotalCents: draft.subtotalCents,
       discountCents: draft.discountCents,
       couponCode: draft.couponCode,
       taxCents: draft.taxCents,
       totalCents: draft.totalCents,
+      cardAmountCents: isSplitTender ? cardAmountCents : null,
+      cashAmountCents: isSplitTender ? cashAmountCents : null,
       successUrl,
       cancelUrl,
       createdAt: nowIso,
@@ -4548,7 +4566,30 @@ async function handleShopCreateCheckoutSession(request: Request, env: Env): Prom
       couponCode: draft.couponCode,
       discountCents: draft.discountCents,
       taxCents: draft.taxCents,
+      splitTender: isSplitTender
+        ? {
+          cardAmountCents,
+          cashAmountCents,
+          totalCents: draft.totalCents,
+        }
+        : undefined,
     });
+
+    if (isSplitTender) {
+      await dbRecordOrderEvent(orderId, {
+        eventType: 'split_tender_created',
+        fromStatus: null,
+        toStatus: 'checkout_open',
+        source: 'associate_checkout',
+        sourceId: 'stripe_cash',
+        message: 'Card + cash checkout started from cart.',
+        payloadJson: JSON.stringify({
+          cardAmountCents,
+          cashAmountCents,
+          totalCents: draft.totalCents,
+        }),
+      }, env);
+    }
 
     await dbAttachStripeCheckoutSession(orderId, stripeSession.id, env);
 
@@ -4677,11 +4718,13 @@ async function handleShopOrderReceipt(orderId: string, request: Request, env: En
   if (!order) return jsonResponse({ message: 'Order not found.' }, 404);
 
   const checkoutProvider = normalizeText(order.checkoutProvider, '');
-  const paymentMethodLabel = checkoutProvider === 'stripe'
-    ? await resolveStripePaymentMethodLabel(normalizeText(order.stripePaymentIntentId, ''), env)
-    : checkoutProvider === 'cash'
-      ? 'Paid by cash'
-      : `Payment method: ${toDisplayPaymentMethodName(checkoutProvider || 'Stripe')}`;
+  const paymentMethodLabel = checkoutProvider === 'stripe_cash'
+    ? 'Card + cash'
+    : checkoutProvider === 'stripe'
+      ? await resolveStripePaymentMethodLabel(normalizeText(order.stripePaymentIntentId, ''), env)
+      : checkoutProvider === 'cash'
+        ? 'Paid by cash'
+        : `Payment method: ${toDisplayPaymentMethodName(checkoutProvider || 'Stripe')}`;
 
   return jsonResponse({
     record: {
@@ -8865,6 +8908,8 @@ async function dbCreateCheckoutOrder(
     couponCode: string | null;
     taxCents: number;
     totalCents: number;
+    cardAmountCents?: number | null;
+    cashAmountCents?: number | null;
     successUrl: string;
     cancelUrl: string;
     createdAt: string;
@@ -8907,6 +8952,9 @@ async function dbCreateCheckoutOrder(
     ['discount_cents', input.discountCents],
     ['coupon_code', input.couponCode],
     ['total_cents', input.totalCents],
+    ['card_amount_cents', input.cardAmountCents],
+    ['cash_amount_cents', input.cashAmountCents],
+    ['cash_due_cents', input.cashAmountCents],
     ['currency', 'usd'],
     ['reserve_expires_at', null],
     ['checkout_started_at', input.createdAt],
@@ -9129,6 +9177,11 @@ async function dbCancelFailedCheckoutOrder(orderId: string, env: Env): Promise<v
 async function dbMarkStripeCheckoutOrderPaid(orderId: string, session: any, env: Env): Promise<void> {
   const currentStatus = await dbGetOrderStatus(orderId, env);
   if (currentStatus === 'paid') return;
+  const splitTenderPayload = {
+    cardAmountCents: numberOrZero(session?.metadata?.card_amount_cents),
+    cashAmountCents: numberOrZero(session?.metadata?.cash_amount_cents),
+    totalCents: numberOrZero(session?.metadata?.total_cents),
+  };
 
   const inventoryItemIds = parseStripeInventoryItemIds(session);
   await dbApplyPaidOrderInventoryAdjustments(orderId, inventoryItemIds, session, env);
@@ -9148,6 +9201,7 @@ async function dbMarkStripeCheckoutOrderPaid(orderId: string, session: any, env:
       checkoutSessionId: normalizeText(session?.id, ''),
       paymentIntentId: normalizeText(session?.payment_intent, ''),
       paymentStatus: normalizeText(session?.payment_status, ''),
+      ...splitTenderPayload,
     }),
   }, env);
 }
@@ -9238,6 +9292,9 @@ async function dbUpdateStripeOrderStatus(
     stripe_customer_email: normalizeText(session?.customer_details?.email, ''),
     stripe_customer_phone: normalizeText(session?.customer_details?.phone, ''),
     stripe_payment_status: normalizeText(session?.payment_status, ''),
+    card_amount_cents: numberOrZero(session?.metadata?.card_amount_cents),
+    cash_amount_cents: numberOrZero(session?.metadata?.cash_amount_cents),
+    cash_due_cents: numberOrZero(session?.metadata?.cash_amount_cents),
     updated_at: new Date().toISOString(),
     ...extraValues,
   }, env);
@@ -9255,6 +9312,7 @@ async function dbGetOrderReceipt(orderId: string, env: Env): Promise<Record<stri
     'SELECT * FROM orders WHERE id = ? LIMIT 1'
   ).bind(orderId).first<Record<string, unknown>>();
   if (!order) return null;
+  const splitTender = await dbGetOrderSplitTender(orderId, order, env);
 
   const itemRows = await env.DB.prepare(
     'SELECT * FROM order_items WHERE order_id = ?'
@@ -9338,10 +9396,55 @@ async function dbGetOrderReceipt(orderId: string, env: Env): Promise<Record<stri
     taxCents: Number(order.tax_cents ?? 0) || 0,
     discountCents: Number(order.discount_cents ?? 0) || 0,
     totalCents: Number(order.total_cents ?? 0) || 0,
+    cardAmountCents: splitTender.cardAmountCents,
+    cashAmountCents: splitTender.cashAmountCents,
     createdAt: normalizeText(order.created_at ?? order.checkout_started_at, ''),
     paidAt: normalizeText(order.paid_at, ''),
     items,
   };
+}
+
+async function dbGetOrderSplitTender(
+  orderId: string,
+  order: Record<string, unknown>,
+  env: Env,
+): Promise<{ cardAmountCents: number; cashAmountCents: number }> {
+  const cardAmountCents = numberOrZero(order.card_amount_cents);
+  const cashAmountCents = numberOrZero(order.cash_amount_cents ?? order.cash_due_cents);
+  if (cardAmountCents > 0 || cashAmountCents > 0) {
+    return { cardAmountCents, cashAmountCents };
+  }
+
+  try {
+    const columns = await dbGetTableColumns('order_events', env);
+    const columnNames = new Set(columns.map((column) => column.name));
+    if (!columnNames.has('order_id') || !columnNames.has('payload_json')) {
+      return { cardAmountCents: 0, cashAmountCents: 0 };
+    }
+    const result = await env.DB.prepare(
+      `SELECT payload_json
+       FROM order_events
+       WHERE order_id = ?
+         AND event_type IN ('split_tender_created', 'payment_succeeded')
+       ORDER BY COALESCE(created_at, '') DESC
+       LIMIT 5`
+    ).bind(orderId).all<{ payload_json: string | null }>();
+    for (const row of result.results ?? []) {
+      const payload = JSON.parse(normalizeText(row?.payload_json, '{}')) as {
+        cardAmountCents?: unknown;
+        cashAmountCents?: unknown;
+      };
+      const parsed = {
+        cardAmountCents: numberOrZero(payload.cardAmountCents),
+        cashAmountCents: numberOrZero(payload.cashAmountCents),
+      };
+      if (parsed.cardAmountCents > 0 || parsed.cashAmountCents > 0) return parsed;
+    }
+    return { cardAmountCents: 0, cashAmountCents: 0 };
+  } catch (error) {
+    console.warn('Split tender lookup failed', { orderId, error });
+    return { cardAmountCents: 0, cashAmountCents: 0 };
+  }
 }
 
 async function resolveStripePaymentMethodLabel(paymentIntentId: string, env: Env): Promise<string> {
@@ -13870,6 +13973,11 @@ async function createStripeCheckoutSession(input: {
   couponCode: string | null;
   discountCents: number;
   taxCents: number;
+  splitTender?: {
+    cardAmountCents: number;
+    cashAmountCents: number;
+    totalCents: number;
+  };
   items: Array<{
     inventoryItemId: number;
     quantity: number;
@@ -13888,8 +13996,14 @@ async function createStripeCheckoutSession(input: {
   form.set('metadata[inventory_item_ids]', input.items.map((item) => String(item.inventoryItemId)).join(','));
   form.set('metadata[discount_cents]', String(input.discountCents));
   form.set('metadata[tax_cents]', String(input.taxCents));
+  if (input.splitTender) {
+    form.set('metadata[checkout_provider]', 'stripe_cash');
+    form.set('metadata[card_amount_cents]', String(input.splitTender.cardAmountCents));
+    form.set('metadata[cash_amount_cents]', String(input.splitTender.cashAmountCents));
+    form.set('metadata[total_cents]', String(input.splitTender.totalCents));
+  }
 
-  if (input.discountCents > 0) {
+  if (!input.splitTender && input.discountCents > 0) {
     const couponId = await createStripeAmountOffCoupon({
       stripeSecretKey: input.stripeSecretKey,
       orderId: input.orderId,
@@ -13900,19 +14014,28 @@ async function createStripeCheckoutSession(input: {
     form.set('discounts[0][coupon]', couponId);
   }
 
-  input.items.forEach((item, index) => {
-    const prefix = `line_items[${index}]`;
-    form.set(`${prefix}[quantity]`, String(item.quantity));
+  if (input.splitTender) {
+    const prefix = 'line_items[0]';
+    form.set(`${prefix}[quantity]`, '1');
     form.set(`${prefix}[price_data][currency]`, 'usd');
-    form.set(`${prefix}[price_data][unit_amount]`, String(item.unitAmountCents));
-    form.set(`${prefix}[price_data][product_data][name]`, item.title);
-    form.set(`${prefix}[price_data][product_data][metadata][inventory_item_id]`, String(item.inventoryItemId));
-    if (item.imageUrl) {
-      form.set(`${prefix}[price_data][product_data][images][0]`, item.imageUrl);
-    }
-  });
+    form.set(`${prefix}[price_data][unit_amount]`, String(input.splitTender.cardAmountCents));
+    form.set(`${prefix}[price_data][product_data][name]`, `Card payment for ${input.orderNumber}`);
+    form.set(`${prefix}[price_data][product_data][description]`, 'Partial card payment for an in-store card + cash checkout.');
+  } else {
+    input.items.forEach((item, index) => {
+      const prefix = `line_items[${index}]`;
+      form.set(`${prefix}[quantity]`, String(item.quantity));
+      form.set(`${prefix}[price_data][currency]`, 'usd');
+      form.set(`${prefix}[price_data][unit_amount]`, String(item.unitAmountCents));
+      form.set(`${prefix}[price_data][product_data][name]`, item.title);
+      form.set(`${prefix}[price_data][product_data][metadata][inventory_item_id]`, String(item.inventoryItemId));
+      if (item.imageUrl) {
+        form.set(`${prefix}[price_data][product_data][images][0]`, item.imageUrl);
+      }
+    });
+  }
 
-  if (input.taxCents > 0) {
+  if (!input.splitTender && input.taxCents > 0) {
     const prefix = `line_items[${input.items.length}]`;
     form.set(`${prefix}[quantity]`, '1');
     form.set(`${prefix}[price_data][currency]`, 'usd');

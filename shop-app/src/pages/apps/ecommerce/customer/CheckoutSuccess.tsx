@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button, Paper, Stack, Typography } from '@mui/material';
 import { ensureStarWebPrntGlobals } from 'lib/starWebPrntShim';
 import { useAssociateMode } from 'providers/AssociateModeProvider';
@@ -28,6 +28,8 @@ type ReceiptRecord = {
   subtotalCents: number;
   taxCents: number;
   totalCents: number;
+  cardAmountCents?: number;
+  cashAmountCents?: number;
   paymentMethodLabel: string;
   items: ReceiptItem[];
 };
@@ -257,37 +259,67 @@ const sendToWebPrnt = async (request: string) => {
   throw lastError || new Error('Unable to reach the Star webPRNT endpoint.');
 };
 
+const kickCashDrawer = async () => {
+  ensureStarWebPrntGlobals();
+  if (!window.StarWebPrintBuilder) throw new Error('Star webPRNT is not available.');
+  const builder = new window.StarWebPrintBuilder();
+  await sendToWebPrnt(builder.createPeripheralElement({ channel: 1, on: 200, off: 200 }));
+};
+
 const CheckoutSuccess = () => {
   const { setCartItems } = useEcommerce();
   const { isAssociateMode, isCheckingAssociateMode } = useAssociateMode();
   const location = useLocation();
+  const [receiptRecord, setReceiptRecord] = useState<ReceiptRecord | null>(null);
   const receiptAttemptedRef = useRef(false);
+  const orderId = new URLSearchParams(location.search).get('order') || '';
+  const cashAmountCents = Math.max(0, Number(receiptRecord?.cashAmountCents || 0));
 
   useEffect(() => {
     setCartItems([]);
   }, [setCartItems]);
 
   useEffect(() => {
+    let isMounted = true;
+    if (!orderId) return undefined;
+
+    const loadRecord = async () => {
+      try {
+        const record = await fetchReceiptRecord(orderId);
+        if (isMounted) setReceiptRecord(record);
+      } catch {
+        if (isMounted) setReceiptRecord(null);
+      }
+    };
+    void loadRecord();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [orderId]);
+
+  useEffect(() => {
     if (receiptAttemptedRef.current) return;
     if (isCheckingAssociateMode || !isAssociateMode || !isWebPrntBrowser()) return;
-    const orderId = new URLSearchParams(location.search).get('order') || '';
-    if (!orderId) return;
+    if (!orderId || !receiptRecord) return;
 
     receiptAttemptedRef.current = true;
     const printReceipt = async () => {
       try {
-        const record = await fetchReceiptRecord(orderId);
-        const templateCode = record.checkoutProvider === 'cash'
+        if (Math.max(0, Number(receiptRecord.cashAmountCents || 0)) > 0) {
+          await kickCashDrawer();
+        }
+        const templateCode = receiptRecord.checkoutProvider === 'cash'
           ? 'base_cash_receipt'
           : 'base_credit_receipt';
         const template = await fetchReceiptTemplate(templateCode);
-        await sendToWebPrnt(await buildReceiptRequest(renderReceiptTemplate(template, record)));
-      } catch (error) {
-        console.warn('Stripe receipt print skipped', error);
+        await sendToWebPrnt(await buildReceiptRequest(renderReceiptTemplate(template, receiptRecord)));
+      } catch {
+        // Receipt printing and cash drawer commands are best-effort on the success screen.
       }
     };
     void printReceipt();
-  }, [isAssociateMode, isCheckingAssociateMode, location.search]);
+  }, [isAssociateMode, isCheckingAssociateMode, orderId, receiptRecord]);
 
   return (
     <Paper
@@ -313,6 +345,11 @@ const CheckoutSuccess = () => {
         <Typography variant="h6" sx={{ color: 'text.secondary', fontWeight: 400 }}>
           Your payment is confirmed. Pickup is at our Englewood shop.
         </Typography>
+        {cashAmountCents > 0 && (
+          <Typography variant="h6" sx={{ color: 'warning.main', fontWeight: 700 }}>
+            {formatCents(cashAmountCents)} must be collected via cash to complete transaction.
+          </Typography>
+        )}
         <Typography sx={{ color: 'text.secondary' }}>
           Bring your receipt when you come in. Call or text (303) 376-9214 with any pickup
           questions.

@@ -7,6 +7,7 @@
  * - Modern format extended: YYMMXXXXX (2005-present)
  * - Late 1990s format: YYMMXXXX (1990-1999)
  * - 1990s format: YMMXXXX (early 1990s-1999)
+ * - R prefix year/sequence format: RYYXXXXX
  * - W.O. prefix: 1970s-1980s Korean production
  * - Indonesian production: Various prefixes (AI, I, IC, ICS, ICSE, etc.)
  * - Chinese production: COS, COB prefixes
@@ -52,6 +53,10 @@ export function decodeCort(serial) {
     if (/^COB\d{8,9}$/.test(normalized)) {
         return decodeChinaCOB(normalized);
     }
+    // R prefix: factory/line prefix + YY + sequence (e.g. R0611374 = 2006)
+    if (/^R\d{7}$/.test(normalized)) {
+        return decodeRPrefixYearSequence(normalized);
+    }
     // Modern format with 9 digits: YYMMXXXXX (2005-present)
     if (/^\d{9}$/.test(normalized)) {
         return decodeModern9Digit(normalized);
@@ -81,7 +86,7 @@ export function decodeCort(serial) {
     }
     return {
         success: false,
-        error: 'Unable to decode this Cort serial number. The format was not recognized. Common formats include: YYMMXXXX (8 digits, 2000-2004), YYMMXXXXX (9 digits, 2005+), YMMXXXX (7 digits, 1990s), or W.O. prefix (1970s-80s). Note: Pre-mid-1990s guitars often have randomly generated serial numbers.',
+        error: 'Unable to decode this Cort serial number. The format was not recognized. Common formats include: YYMMXXXX (8 digits, 2000-2004), YYMMXXXXX (9 digits, 2005+), RYYXXXXX (R prefix year/sequence), YMMXXXX (7 digits, 1990s), or W.O. prefix (1970s-80s). Note: Pre-mid-1990s guitars often have randomly generated serial numbers.',
     };
 }
 // Indonesian AI prefix
@@ -242,6 +247,45 @@ function decodeIndonesiaICF(serial) {
         notes: `ICF prefix indicates Indonesian Cor-Tek factory production. The "F" typically indicates this was a Fender-branded instrument manufactured by Cort. Sequence: ${sequence}.`,
     };
     return { success: true, info };
+}
+function decodeRPrefixYearSequence(serial) {
+    const yearDigits = serial.substring(1, 3);
+    const sequence = serial.substring(3);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const info = {
+        brand: 'Cort',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'Cor-Tek/Cort R-prefix production line or factory',
+        country: 'Korea, Indonesia, or China',
+        notes: `R-prefix Cort/Cor-Tek format interpreted as R + YY + sequence. The digits ${yearDigits} indicate production year ${year}; the remaining digits are production sequence ${parseInt(sequence, 10)}. Cort serials identify production year more reliably than exact model name; verify the model from the headstock, soundhole label, neck heel, or other physical markings.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'cort-r-prefix-yy-sequence',
+        patternLabel: 'Cort R-prefix YY sequence',
+        additionalContext: {
+            title: 'Cort R-prefix serial',
+            summary: 'This serial matches a Cort/Cor-Tek R-prefix format where the letter prefix is followed by a two-digit production year and sequence.',
+            highlights: [
+                'R is treated as a Cort/Cor-Tek factory, production line, or internal prefix.',
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                `The remaining digits decode as production sequence ${parseInt(sequence, 10)}.`,
+            ],
+            caveats: [
+                'The serial does not identify the exact Cort model name.',
+                'The R prefix alone is not enough to confirm the exact factory location.',
+                'Physical country-of-origin markings remain the best confirmation for factory/country.',
+            ],
+            verificationTips: [
+                'Check the headstock, back of headstock, neck heel, or soundhole label for the model name.',
+                'Look for Made in Indonesia, Korea, China, or other country-of-origin markings near the serial.',
+                'Compare body shape, bridge, electronics, and trim against Cort catalog specs for the decoded year.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Cort/Cor-Tek R-prefix format where the letter prefix is followed by a two-digit production year and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>R is treated as a Cort/Cor-Tek factory, production line, or internal prefix. The digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>The serial does not identify the exact Cort model name.</li><li>The R prefix alone is not enough to confirm the exact factory location.</li><li>Check the headstock, soundhole label, neck heel, or other physical markings for model and country-of-origin details.</li></ul>`,
+    };
 }
 // Indonesian IE prefix
 function decodeIndonesiaIE(serial) {

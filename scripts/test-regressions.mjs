@@ -767,6 +767,33 @@ function assertBCRichShortMonthCodeImport(serialInput) {
   );
 }
 
+function assertBCRichBPrefixMonthCodeImport(serialInput) {
+  const result = decodeBCRich(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '2009', `Expected year 2009 for ${serialInput}, got ${info.year}`);
+  assert(info.month === 'January', `Expected month January for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'China import production (B-prefix factory/line)',
+    `Expected B-prefix China import factory note for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'China', `Expected China for ${serialInput}, got ${info.country}`);
+  assert(
+    info.notes && info.notes.includes('production sequence 30385'),
+    `Expected production sequence 30385 for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    result.patternKey === 'bcrich-b-prefix-month-code-import',
+    `Expected B.C. Rich B-prefix month-code pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('production year 2009'),
+    `Expected B.C. Rich B-prefix rich text for ${serialInput}`
+  );
+}
+
 function assertBCRichUSA5DigitOffset(serialInput, expectedYearRange) {
   const result = decodeBCRich(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -1138,6 +1165,33 @@ function assertCortModern8DigitYearBatch(serialInput, expectedYear) {
   assert(
     result.patternKey === 'cort-modern-8-digit-year-batch-sequence',
     `Expected Cort modern 8-digit year/batch pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
+function assertCortRPrefixYearSequence(serialInput, expectedCorrected, expectedYear) {
+  const result = decodeSerialForBackend('cort', serialInput);
+  assert(result.success, `Expected decode success for cort:${serialInput}`);
+  assert(result.info, `Expected decoded info for cort:${serialInput}`);
+
+  const info = result.info;
+  assert(info.serialNumber === expectedCorrected, `Expected serialNumber ${expectedCorrected}, got ${info.serialNumber}`);
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(
+    info.factory === 'Cor-Tek/Cort R-prefix production line or factory',
+    `Expected Cort R-prefix factory guidance for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'Korea, Indonesia, or China', `Expected variable country for ${serialInput}, got ${info.country}`);
+  assert(
+    info.notes && info.notes.includes('production sequence 11374'),
+    `Expected R-prefix production sequence 11374 for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    result.patternKey === 'cort-r-prefix-yy-sequence',
+    `Expected Cort R-prefix pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('production year 2006'),
+    `Expected Cort R-prefix rich text for ${serialInput}`
   );
 }
 
@@ -1860,6 +1914,7 @@ assertPRSUsaCoreSingleYearDigit('7/126922');
 assertBCRichIShortImport('i50311', '2005', 'March');
 assertBCRichShortNumericImport('150979');
 assertBCRichShortMonthCodeImport('F2051631');
+assertBCRichBPrefixMonthCodeImport('BA09030385');
 assertBCRichUSA5DigitOffset('36642', '1982-1983 (estimated)');
 assertKramerModernS('S106020848', '2010', 'June');
 assertKramerVPrefix('V9954', 'mid-to-late 1980s (estimated)');
@@ -1883,6 +1938,7 @@ assertCortIATransposedPrefix('IA200750591', 'AI200750591', '2020', 'July');
 assertCortYearSequence7Digit('0000400');
 assertCortLate1990s8Digit('99122466');
 assertCortModern8DigitYearBatch('20002219', '2020');
+assertCortRPrefixYearSequence('R 0611374', 'R0611374', '2006');
 assertCharvelCFPrefix('CF22271', '2022');
 assertCharvelJapanIMC7Digit('0904460');
 assertSquierChinaSE9Digit('040811254', '2004', 'August');
