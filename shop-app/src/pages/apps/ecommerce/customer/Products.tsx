@@ -6,7 +6,6 @@ import {
   Card,
   CardContent,
   CardMedia,
-  Chip,
   CircularProgress,
   Paper,
   Stack,
@@ -236,14 +235,6 @@ const Products = () => {
               </Box>
             ) : (
               <Box sx={{ px: { xs: 2, md: 3 }, py: 3 }}>
-                {isAssociateMode && (
-                  <Chip
-                    label="Associate mode: in-store inventory included"
-                    color="info"
-                    variant="outlined"
-                    sx={{ mb: 3, fontWeight: 600 }}
-                  />
-                )}
                 <Grid container spacing={3}>
                   {visibleProducts.map((product) => (
                     <Grid key={product.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>

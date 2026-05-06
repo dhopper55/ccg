@@ -71,7 +71,7 @@ const validateCashCustomerForm = (values: CashCustomerForm) => {
 };
 
 const CartBottomBar = () => {
-  const { appliedCoupon, cartItems, cartTotal, taxIncluded } = useEcommerce();
+  const { appliedCoupon, associateDiscount, cartItems, cartTotal, taxIncluded } = useEcommerce();
   const { isAssociateMode } = useAssociateMode();
   const { up } = useBreakpoints();
   const { currencyFormat } = useNumberFormat();
@@ -122,6 +122,7 @@ const CartBottomBar = () => {
         body: JSON.stringify({
           fulfillmentType: 'pickup',
           couponCode: appliedCoupon?.code || undefined,
+          discountCents: Math.round(associateDiscount * 100),
           taxIncluded,
           items: selectedCartItems.map((item) => ({
             inventoryItemId: item.id,
@@ -161,6 +162,7 @@ const CartBottomBar = () => {
         body: JSON.stringify({
           fulfillmentType: 'pickup',
           couponCode: appliedCoupon?.code || undefined,
+          discountCents: Math.round(associateDiscount * 100),
           taxIncluded,
           splitTender: {
             cardAmountCents: splitCardAmountCents,
@@ -202,6 +204,7 @@ const CartBottomBar = () => {
         body: JSON.stringify({
           fulfillmentType: 'pickup',
           couponCode: appliedCoupon?.code || undefined,
+          discountCents: Math.round(associateDiscount * 100),
           taxIncluded,
           customer: {
             firstName: cashCustomer.firstName.trim(),

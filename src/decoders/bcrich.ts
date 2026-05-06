@@ -8,10 +8,11 @@ import { DecodeResult, GuitarInfo } from '../types.js';
  * - Class Axe era: B0XXX / BXXXXX / BCXXXXX (year not encoded)
  * - Import pre-2000: F7XXXXX/F8XXXXX/F9XXXXX/F0XXXXX (year in second digit)
  * - Early-2000s short numeric import: 6 digits like 150979
- * - Date-stamp numeric: 8 digits like 121XXXXX (year digit + quarter + production)
+ * - Hanser-era/date-stamp numeric: 8 digits like 41201627 (year digit + quarter + production)
  * - Month/factory code: A08140023 (month letter + factory + year + production)
  * - B-prefix month-code import: BA09030385 (B + month letter + YY + sequence)
  * - Short modern month-code import: F2051631 (month + year + batch/factory + sequence)
+ * - Class Axe/import B-prefix: B + 3-6 digits, including B007132
  * - NJ Series: R/P + 6 digits with year in first two digits
  */
 
@@ -46,7 +47,9 @@ const FACTORY_MAP: Record<string, { name: string; country: string }> = {
 
 export function decodeBCRich(serial: string): DecodeResult {
   const cleaned = serial.trim().toUpperCase();
-  const normalized = cleaned.replace(/[\s-]/g, '');
+  const normalized = cleaned
+    .replace(/^SR[#:.]?\s*/, '')
+    .replace(/[\s-]/g, '');
 
   if (/^[SIFN]\d{8}$/.test(normalized)) {
     return decodeImportLetterPrefix(normalized);
@@ -73,7 +76,7 @@ export function decodeBCRich(serial: string): DecodeResult {
   }
 
   if (/^\d{8}$/.test(normalized)) {
-    return decodeDateStampNumeric(normalized);
+    return decodeHanserEraNumericImport(normalized);
   }
 
   if (/^[RP]\d{6}$/.test(normalized)) {
@@ -84,7 +87,7 @@ export function decodeBCRich(serial: string): DecodeResult {
     return decodeClassAxeBC(normalized);
   }
 
-  if (/^B\d{3,5}$/.test(normalized)) {
+  if (/^B\d{3,6}$/.test(normalized)) {
     return decodeClassAxeB(normalized);
   }
 
@@ -102,7 +105,7 @@ export function decodeBCRich(serial: string): DecodeResult {
 
   return {
     success: false,
-    error: 'Unable to decode this B.C. Rich serial number. Known formats include: 5-digit USA neck-through (YYXXX), F7/F8/F9/F0 import serials, 8-digit date-stamp (e.g., 121XXXXX), month/factory codes like A08140023, B-prefix month-code imports like BA09030385, NJ series R/P + 6 digits, Class Axe BC/B0 series, or short I-prefix import estimates (I + 5 digits).',
+    error: 'Unable to decode this B.C. Rich serial number. Known formats include: 5-digit USA neck-through (YYXXX), F7/F8/F9/F0 import serials, 8-digit Hanser-era/import date stamps (e.g., Sr#41201627), month/factory codes like A08140023, B-prefix month-code imports like BA09030385, NJ series R/P + 6 digits, Class Axe BC/B0/B-prefix series like B007132, or short I-prefix import estimates (I + 5 digits).',
   };
 }
 
@@ -302,22 +305,53 @@ function decodeBoltOn2000(serial: string): DecodeResult {
   return { success: true, info };
 }
 
-function decodeDateStampNumeric(serial: string): DecodeResult {
+function decodeHanserEraNumericImport(serial: string): DecodeResult {
   const yearDigit = parseInt(serial[0], 10);
-  const quarterDigit = parseInt(serial[2], 10);
-  const production = serial.slice(3);
+  const quarterDigit = parseInt(serial[1], 10);
+  const production = serial.slice(2);
 
   const year = 2000 + yearDigit;
+  const alternateYear = 2010 + yearDigit;
   const quarter = quarterDigit >= 1 && quarterDigit <= 4 ? `Q${quarterDigit}` : undefined;
+  const yearText = yearDigit <= 5
+    ? `${year} or ${alternateYear} (likely ${year} for mid-2000s Hanser-era imports)`
+    : `${year} (likely import estimate)`;
 
   const info: GuitarInfo = {
     brand: 'B.C. Rich',
     serialNumber: serial,
-    year: year.toString(),
-    notes: `Date-stamp format used for imports and USA handmades (2001-era). Second digit is a placeholder; third digit is the quarter${quarter ? ` (${quarter})` : ''}. Production sequence: ${production}.`,
+    year: yearText,
+    factory: 'Hanser-era import production',
+    country: 'South Korea / China / Indonesia',
+    notes: `8-digit B.C. Rich import date-stamp format commonly seen on Hanser-era bolt-on/import models. First digit "${serial[0]}" is the year code, second digit "${serial[1]}" is the quarter${quarter ? ` (${quarter})` : ''}, and the remaining digits are production sequence ${parseInt(production, 10)}. A leading Sr# or serial-number label is not part of the serial. B.C. Rich import records are inconsistent, so confirm with country-of-origin markings, neck plate or sticker location, and model-era features.`,
   };
 
-  return { success: true, info };
+  return {
+    success: true,
+    info,
+    patternKey: 'bcrich-hanser-era-8-digit-import',
+    patternLabel: 'B.C. Rich Hanser-era 8-digit import',
+    additionalContext: {
+      title: 'B.C. Rich 8-digit import serial',
+      summary: 'This serial matches an 8-digit B.C. Rich import format often associated with Hanser-era bolt-on and import models.',
+      highlights: [
+        `The first digit ${serial[0]} is interpreted as the year code: ${yearText}.`,
+        quarter ? `The second digit ${serial[1]} is interpreted as ${quarter}.` : `The second digit ${serial[1]} is not a clean Q1-Q4 quarter code.`,
+        `The remaining digits decode as production sequence ${parseInt(production, 10)}.`,
+      ],
+      caveats: [
+        'B.C. Rich import serial numbering is inconsistent across ownership eras.',
+        'This format helps estimate date and import family, not the exact model name.',
+        'Neck-plate and sticker serials on budget imports can be less authoritative than factory date stamps.',
+      ],
+      verificationTips: [
+        'Check for a country-of-origin sticker or stamp near the serial.',
+        'Compare the logo, neck plate, bridge, and pickups against mid-2000s and mid-2010s B.C. Rich catalogs.',
+        'Inspect the neck pocket or electronics cavity for additional date markings when available.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches an 8-digit B.C. Rich import format often associated with Hanser-era bolt-on and import models.</p><h3>How This Pattern Is Typically Read</h3><p>The first digit ${serial[0]} is interpreted as the year code: ${yearText}. ${quarter ? `The second digit ${serial[1]} is interpreted as ${quarter}.` : `The second digit ${serial[1]} is not a clean Q1-Q4 quarter code.`} The remaining digits decode as production sequence ${parseInt(production, 10)}.</p><h3>What To Verify</h3><ul><li>B.C. Rich import serial numbering is inconsistent across ownership eras.</li><li>This format helps estimate date and import family, not the exact model name.</li><li>Check country-of-origin markings, model features, and neck pocket or electronics-cavity dates where available.</li></ul>`,
+  };
 }
 
 function decodeUSA5Digit(serial: string): DecodeResult {
@@ -372,16 +406,42 @@ function decodeClassAxeBC(serial: string): DecodeResult {
 }
 
 function decodeClassAxeB(serial: string): DecodeResult {
+  const sequence = serial.slice(1);
   const info: GuitarInfo = {
     brand: 'B.C. Rich',
     serialNumber: serial,
     year: '1989-1993 (estimated)',
     factory: 'Class Axe-era import production',
-    country: 'Japan / South Korea',
-    notes: 'B-prefixed short serial used on many late-1980s to early-1990s bolt-on B.C. Rich imports. These usually do not encode an exact year, so 1989-1993 should be treated as an estimate and confirmed with headstock, neck plate, or electronics-cavity markings.',
+    country: 'South Korea / Japan',
+    notes: `B-prefixed serial used on many late-1980s to early-1990s bolt-on B.C. Rich imports, especially Class Axe-era and related import neck-plate formats. The digits are treated as a production or neck-plate sequence (${parseInt(sequence, 10)}) rather than a reliable encoded date. These serials are often inconsistent or non-sequential, so confirm with headstock markings, neck plate style, country-of-origin stickers, wood construction, and electronics-cavity or neck-pocket clues.`,
   };
 
-  return { success: true, info };
+  return {
+    success: true,
+    info,
+    patternKey: 'bcrich-class-axe-b-prefix-import',
+    patternLabel: 'B.C. Rich Class Axe-era B-prefix import',
+    additionalContext: {
+      title: 'B.C. Rich B-prefix import serial',
+      summary: 'This serial matches a B-prefixed Class Axe-era import format commonly seen on late-1980s to early-1990s B.C. Rich bolt-on models.',
+      highlights: [
+        'The B prefix is treated as a Class Axe-era/import neck-plate prefix.',
+        'The likely manufacturing window is 1989-1993.',
+        `The remaining digits are treated as production or neck-plate sequence ${parseInt(sequence, 10)}.`,
+      ],
+      caveats: [
+        'B.C. Rich serial records from this era are inconsistent and often not sequential.',
+        'The serial can support an era estimate, but it should not be treated as an exact production date.',
+        'Some budget imports from this period used lower-cost construction, so physical inspection matters.',
+      ],
+      verificationTips: [
+        'Check whether the guitar is a bolt-on import and whether the serial appears on a neck plate.',
+        'Look for country-of-origin stickers or stamps.',
+        'Inspect the electronics cavity or neck pocket for wood construction and additional date markings.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a B-prefixed Class Axe-era import format commonly seen on late-1980s to early-1990s B.C. Rich bolt-on models.</p><h3>How This Pattern Is Typically Read</h3><p>The B prefix is treated as a Class Axe-era/import neck-plate prefix. The likely manufacturing window is 1989-1993. The remaining digits are treated as production or neck-plate sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>B.C. Rich serial records from this era are inconsistent and often not sequential.</li><li>The serial can support an era estimate, but it should not be treated as an exact production date.</li><li>Check bolt-on construction, neck plate style, country markings, and electronics-cavity or neck-pocket clues.</li></ul>`,
+  };
 }
 
 function decodeIShortImport(serial: string): DecodeResult {

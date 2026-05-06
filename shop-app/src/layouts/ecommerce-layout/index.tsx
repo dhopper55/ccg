@@ -1,11 +1,12 @@
 import { PropsWithChildren, useEffect, useRef } from 'react';
-import { Box, Drawer, Stack, Toolbar, drawerClasses } from '@mui/material';
+import { Box, Chip, Drawer, Stack, Toolbar, drawerClasses } from '@mui/material';
 import useSettingsPanelMountEffect from 'hooks/useSettingsPanelMountEffect';
 import NavProvider from 'layouts/main-layout/NavProvider';
 import Footer from 'layouts/main-layout/footer';
 import SidenavDrawerContent from 'layouts/main-layout/sidenav/SidenavDrawerContent';
 import { mainDrawerWidth } from 'lib/constants';
 import EcommerceProvider from 'providers/EcommerceProvider';
+import { useAssociateMode } from 'providers/AssociateModeProvider';
 import { useSettingsContext } from 'providers/SettingsProvider';
 import { mutate } from 'swr';
 import { sidenavVibrantStyle } from 'theme/styles/vibrantNav';
@@ -92,6 +93,7 @@ const EcommerceLayout = ({ children }: PropsWithChildren) => {
                   minHeight: (theme) => theme.mixins.ecommerceTopbar,
                 }}
               />
+              <AssociateModeBanner />
               {children}
             </Stack>
             <EcommerceFooter />
@@ -101,6 +103,25 @@ const EcommerceLayout = ({ children }: PropsWithChildren) => {
         </Box>
       </NavProvider>
     </EcommerceProvider>
+  );
+};
+
+const AssociateModeBanner = () => {
+  const { disableAssociateMode, isAssociateMode, isCheckingAssociateMode } = useAssociateMode();
+  if (!isAssociateMode || isCheckingAssociateMode) return null;
+
+  return (
+    <Box sx={{ px: { xs: 2, md: 3 }, pt: 3 }}>
+      <Chip
+        label="Associate mode: in-store inventory included"
+        color="info"
+        variant="outlined"
+        onDelete={() => {
+          void disableAssociateMode();
+        }}
+        sx={{ fontWeight: 600 }}
+      />
+    </Box>
   );
 };
 

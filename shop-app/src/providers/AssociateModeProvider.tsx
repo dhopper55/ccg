@@ -1,8 +1,9 @@
-import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 type AssociateModeContextValue = {
   isAssociateMode: boolean;
   isCheckingAssociateMode: boolean;
+  disableAssociateMode: () => Promise<void>;
 };
 
 type AssociateModeResponse = {
@@ -14,6 +15,7 @@ const associateModeStorageKey = 'ccgAssociateMode';
 const AssociateModeContext = createContext<AssociateModeContextValue>({
   isAssociateMode: false,
   isCheckingAssociateMode: false,
+  disableAssociateMode: async () => undefined,
 });
 
 const readStoredAssociateMode = () => {
@@ -38,6 +40,17 @@ const removeAssociateParam = () => {
 const AssociateModeProvider = ({ children }: { children: ReactNode }) => {
   const [isAssociateMode, setIsAssociateMode] = useState(readStoredAssociateMode);
   const [isCheckingAssociateMode, setIsCheckingAssociateMode] = useState(false);
+
+  const disableAssociateMode = useCallback(async () => {
+    setIsCheckingAssociateMode(true);
+    try {
+      await fetch('/api/shop/associate-mode', { method: 'DELETE' });
+    } finally {
+      setStoredAssociateMode(false);
+      setIsAssociateMode(false);
+      setIsCheckingAssociateMode(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -108,8 +121,8 @@ const AssociateModeProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const value = useMemo(
-    () => ({ isAssociateMode, isCheckingAssociateMode }),
-    [isAssociateMode, isCheckingAssociateMode],
+    () => ({ isAssociateMode, isCheckingAssociateMode, disableAssociateMode }),
+    [isAssociateMode, isCheckingAssociateMode, disableAssociateMode],
   );
 
   return <AssociateModeContext.Provider value={value}>{children}</AssociateModeContext.Provider>;

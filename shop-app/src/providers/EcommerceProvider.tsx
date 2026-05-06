@@ -22,6 +22,8 @@ interface EcommerceContextInterface {
   updateCartItem: (itemId: number, updatedData: Partial<CartItem>) => void;
   appliedCoupon: Coupon | null;
   setAppliedCoupon: Dispatch<SetStateAction<Coupon | null>>;
+  associateDiscount: number;
+  setAssociateDiscount: Dispatch<SetStateAction<number>>;
   taxIncluded: boolean;
   setTaxIncluded: Dispatch<SetStateAction<boolean>>;
   cartSubTotal: number;
@@ -51,6 +53,7 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
   const [product, setProduct] = useState<CartItem | null>(null);
   const [cartItems, setCartItems] = useState<CartItem[]>(getInitialCartItems);
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
+  const [associateDiscount, setAssociateDiscount] = useState(0);
   const [taxIncluded, setTaxIncluded] = useState(false);
 
   const addItemToCart = useCallback(
@@ -114,13 +117,15 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
 
   const cartTax = useMemo(() => {
     if (taxIncluded) return 0;
-    const taxableTotal = Math.max(0, cartSubTotal - (appliedCoupon?.appliedDiscount || 0));
+    const effectiveDiscount = associateDiscount > 0 ? associateDiscount : appliedCoupon?.appliedDiscount || 0;
+    const taxableTotal = Math.max(0, cartSubTotal - effectiveDiscount);
     return Math.round(taxableTotal * salesTaxRate * 100) / 100;
-  }, [cartSubTotal, appliedCoupon, taxIncluded]);
+  }, [cartSubTotal, appliedCoupon, associateDiscount, taxIncluded]);
 
   const cartTotal = useMemo(() => {
-    return Math.max(0, cartSubTotal - (appliedCoupon?.appliedDiscount || 0)) + cartTax;
-  }, [cartSubTotal, appliedCoupon, cartTax]);
+    const effectiveDiscount = associateDiscount > 0 ? associateDiscount : appliedCoupon?.appliedDiscount || 0;
+    return Math.max(0, cartSubTotal - effectiveDiscount) + cartTax;
+  }, [cartSubTotal, appliedCoupon, associateDiscount, cartTax]);
 
   useEffect(() => {
     setAppliedCoupon((prevCoupon) =>
@@ -131,6 +136,12 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
               cartSubTotal > 0 ? Math.min(prevCoupon.discount, cartSubTotal) : 0,
           }
         : prevCoupon,
+    );
+  }, [cartSubTotal]);
+
+  useEffect(() => {
+    setAssociateDiscount((currentDiscount) =>
+      cartSubTotal > 0 ? Math.min(currentDiscount, cartSubTotal) : 0,
     );
   }, [cartSubTotal]);
 
@@ -150,6 +161,8 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
         updateCartItem,
         appliedCoupon,
         setAppliedCoupon,
+        associateDiscount,
+        setAssociateDiscount,
         taxIncluded,
         setTaxIncluded,
         cartSubTotal,

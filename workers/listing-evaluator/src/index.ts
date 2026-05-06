@@ -143,6 +143,7 @@ interface DecodeRequestPayload {
 interface ShopCheckoutRequestPayload {
   fulfillmentType?: unknown;
   couponCode?: unknown;
+  discountCents?: unknown;
   taxIncluded?: unknown;
   splitTender?: {
     cardAmountCents?: unknown;
@@ -3435,8 +3436,20 @@ async function sendBrevoOrderConfirmationTestEmail(
       },
     ],
     templateId: config.templateId,
+    contact: {
+      ORDER_NUMBER: 'CCG-TEST-1001',
+      ORDER_DATE: '2026-05-06',
+      FIRST_NAME: 'John',
+    },
     params: {
       ORDER_DATE: '2026-05-01',
+      ORDER_NUMBER: 'CCG-TEST-1001',
+      FIRSTNAME: 'John',
+      FIRST_NAME: 'John',
+      discount: '$20.00',
+      subtotal: '$249.99',
+      tax: '$18.75',
+      total: '$248.74',
       items: [
         {
           name: 'Acoustic Guitar',
@@ -3455,13 +3468,19 @@ async function sendBrevoOrderConfirmationTestEmail(
           image: 'https://example.com/images/strings.jpg',
         },
       ],
-      discount: '10%',
     },
     headers: {
       'X-Mailin-custom': 'order-confirmation',
     },
   };
 
+  return sendBrevoTransactionalEmail(config, payload);
+}
+
+async function sendBrevoTransactionalEmail(
+  config: BrevoRuntimeConfig,
+  payload: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
   const response = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: {
@@ -3475,10 +3494,158 @@ async function sendBrevoOrderConfirmationTestEmail(
   if (!response.ok) {
     throw new Error(normalizeText(
       (data as any)?.message ?? (data as any)?.error ?? '',
-      `Brevo rejected the test email request with status ${response.status}.`,
+      `Brevo rejected the email request with status ${response.status}.`,
     ));
   }
   return data;
+}
+
+async function sendBrevoOrderConfirmationEmailForOrder(orderId: string, env: Env): Promise<void> {
+  try {
+    const config = await getBrevoRuntimeConfig(env);
+    if (!config.apiKey || !config.senderEmail) {
+      await dbRecordOrderEvent(orderId, {
+        eventType: 'order_confirmation_email_skipped',
+        fromStatus: null,
+        toStatus: 'paid',
+        source: 'brevo',
+        sourceId: '',
+        message: 'Order confirmation email skipped because Brevo is not configured.',
+        payloadJson: JSON.stringify({
+          hasApiKey: Boolean(config.apiKey),
+          hasSenderEmail: Boolean(config.senderEmail),
+        }),
+      }, env);
+      return;
+    }
+
+    const order = await env.DB.prepare('SELECT * FROM orders WHERE id = ? LIMIT 1')
+      .bind(orderId)
+      .first<Record<string, unknown>>();
+    const receipt = await dbGetOrderReceipt(orderId, env);
+    if (!order || !receipt) {
+      await dbRecordOrderEvent(orderId, {
+        eventType: 'order_confirmation_email_skipped',
+        fromStatus: null,
+        toStatus: 'paid',
+        source: 'brevo',
+        sourceId: '',
+        message: 'Order confirmation email skipped because order data was not found.',
+        payloadJson: '{}',
+      }, env);
+      return;
+    }
+
+    const customerEmail = normalizeEmailAddress(
+      order.customer_email ?? order.stripe_customer_email ?? order.email,
+    );
+    if (!customerEmail) {
+      await dbRecordOrderEvent(orderId, {
+        eventType: 'order_confirmation_email_skipped',
+        fromStatus: null,
+        toStatus: 'paid',
+        source: 'brevo',
+        sourceId: '',
+        message: 'Order confirmation email skipped because customer email is missing.',
+        payloadJson: '{}',
+      }, env);
+      return;
+    }
+
+    const customerName = normalizeText(
+      order.customer_name ?? order.stripe_customer_name ?? order.billing_name ?? '',
+      '',
+    );
+    const firstName = customerName.split(/\s+/).filter(Boolean)[0] || 'there';
+    const orderNumber = normalizeText(receipt.orderNumber, normalizeText(order.order_number, orderId));
+    const orderDate = formatBrevoOrderDate(
+      normalizeText(receipt.paidAt, '') ||
+      normalizeText(order.paid_at ?? order.updated_at ?? order.created_at, ''),
+    );
+    const items = Array.isArray(receipt.items) ? receipt.items : [];
+    const payload = {
+      sender: {
+        name: config.senderName,
+        email: config.senderEmail,
+      },
+      to: [
+        {
+          email: customerEmail,
+          name: customerName || customerEmail,
+        },
+      ],
+      templateId: config.templateId,
+      params: {
+        ORDER_NUMBER: orderNumber,
+        ORDER_DATE: orderDate,
+        FIRSTNAME: firstName,
+        FIRST_NAME: firstName,
+        discount: formatCurrencyCents(numberOrZero(receipt.discountCents)),
+        subtotal: formatCurrencyCents(numberOrZero(receipt.subtotalCents)),
+        tax: formatCurrencyCents(numberOrZero(receipt.taxCents)),
+        total: formatCurrencyCents(numberOrZero(receipt.totalCents)),
+        items: items.map((item: any) => {
+          const quantity = Math.max(1, Number(item.quantity || 1));
+          const lineSubtotalCents = numberOrZero(item.subtotalCents);
+          const unitAmountCents = quantity > 0 ? Math.round(lineSubtotalCents / quantity) : lineSubtotalCents;
+          return {
+            name: normalizeText(item.title, 'Item'),
+            category: 'Musical Instruments',
+            sku: normalizeText(item.ccgNumber, ''),
+            price: formatPlainDollarAmount(unitAmountCents),
+            quantity,
+            image: normalizeText(item.imageUrl, ''),
+          };
+        }),
+      },
+      headers: {
+        'X-Mailin-custom': `order-confirmation|order:${orderNumber}`,
+      },
+    };
+
+    const result = await sendBrevoTransactionalEmail(config, payload);
+    await dbRecordOrderEvent(orderId, {
+      eventType: 'order_confirmation_email_sent',
+      fromStatus: null,
+      toStatus: 'paid',
+      source: 'brevo',
+      sourceId: normalizeText((result as any)?.messageId, ''),
+      message: 'Order confirmation email sent to customer.',
+      payloadJson: JSON.stringify({
+        customerEmail,
+        orderNumber,
+        result,
+      }),
+    }, env);
+  } catch (error) {
+    console.warn('Order confirmation email failed', { orderId, error });
+    await dbRecordOrderEvent(orderId, {
+      eventType: 'order_confirmation_email_failed',
+      fromStatus: null,
+      toStatus: 'paid',
+      source: 'brevo',
+      sourceId: '',
+      message: error instanceof Error ? error.message : 'Unable to send order confirmation email.',
+      payloadJson: JSON.stringify({
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    }, env);
+  }
+}
+
+function formatBrevoOrderDate(value: string): string {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return value || new Date().toISOString().slice(0, 10);
+  return date.toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'America/Denver',
+  });
+}
+
+function formatPlainDollarAmount(cents: number): string {
+  return (numberOrZero(cents) / 100).toFixed(2);
 }
 
 async function getStripeRuntimeConfigForLivemode(
@@ -4506,6 +4673,7 @@ async function handleShopCreateCheckoutSession(request: Request, env: Env): Prom
   const draftResult = await buildShopCheckoutDraft(body, {
     includeInStoreOnly,
     allowTaxIncluded: includeInStoreOnly,
+    allowManualDiscount: includeInStoreOnly,
   }, env);
   if (draftResult instanceof Response) {
     return draftResult;
@@ -4644,6 +4812,7 @@ async function handleShopCreateCashOrder(request: Request, env: Env): Promise<Re
   const draftResult = await buildShopCheckoutDraft(body, {
     includeInStoreOnly,
     allowTaxIncluded: true,
+    allowManualDiscount: true,
   }, env);
   if (draftResult instanceof Response) {
     return draftResult;
@@ -4736,7 +4905,7 @@ async function handleShopOrderReceipt(orderId: string, request: Request, env: En
 
 async function buildShopCheckoutDraft(
   body: ShopCheckoutRequestPayload,
-  options: { includeInStoreOnly: boolean; allowTaxIncluded: boolean },
+  options: { includeInStoreOnly: boolean; allowTaxIncluded: boolean; allowManualDiscount: boolean },
   env: Env,
 ): Promise<ShopCheckoutDraft | Response> {
   const requestedItems = normalizeCheckoutItems(body?.items);
@@ -4787,7 +4956,17 @@ async function buildShopCheckoutDraft(
   if (couponCode && !coupon) {
     return jsonResponse({ message: 'Coupon is no longer valid.' }, 400);
   }
-  const discountCents = coupon ? Math.min(coupon.amountOffCents, subtotalCents) : 0;
+  const manualDiscountCents = options.allowManualDiscount ? numberOrZero(body?.discountCents) : 0;
+  if (!options.allowManualDiscount && numberOrZero(body?.discountCents) > 0) {
+    return jsonResponse({ message: 'Manual discounts are only available in associate mode.' }, 403);
+  }
+  if (manualDiscountCents > subtotalCents) {
+    return jsonResponse({ message: 'Discount cannot exceed the order subtotal.' }, 400);
+  }
+  const couponDiscountCents = coupon ? Math.min(coupon.amountOffCents, subtotalCents) : 0;
+  const discountCents = manualDiscountCents > 0
+    ? manualDiscountCents
+    : couponDiscountCents;
   const taxableCents = Math.max(0, subtotalCents - discountCents);
   const taxIncluded = options.allowTaxIncluded && body?.taxIncluded === true;
   const taxCents = taxIncluded ? 0 : Math.round(taxableCents * SHOP_SALES_TAX_RATE);
@@ -4797,7 +4976,7 @@ async function buildShopCheckoutDraft(
     items: checkoutItems,
     subtotalCents,
     discountCents,
-    couponCode: coupon ? couponCode : null,
+    couponCode: manualDiscountCents > 0 ? null : coupon ? couponCode : null,
     taxIncluded,
     taxCents,
     totalCents,
@@ -9204,6 +9383,8 @@ async function dbMarkStripeCheckoutOrderPaid(orderId: string, session: any, env:
       ...splitTenderPayload,
     }),
   }, env);
+
+  await sendBrevoOrderConfirmationEmailForOrder(orderId, env);
 }
 
 async function dbMarkManualCheckoutOrderPaid(
@@ -9246,6 +9427,8 @@ async function dbMarkManualCheckoutOrderPaid(
       taxIncluded: input.taxIncluded,
     }),
   }, env);
+
+  await sendBrevoOrderConfirmationEmailForOrder(orderId, env);
 }
 
 async function dbReleaseStripeCheckoutOrder(

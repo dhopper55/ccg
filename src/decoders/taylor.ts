@@ -9,9 +9,20 @@ export function decodeTaylor(serial: string): DecodeResult {
     return decode10Digit(normalized);
   }
 
-  // 11-digit format (January 2000 - October 2009)
+  // 11-digit format (January 2000 - October 2009), with a fallback for
+  // factory-coded 11-digit labels that include a series digit.
   if (/^\d{11}$/.test(normalized)) {
-    return decode11Digit(normalized);
+    const legacyResult = decode11Digit(normalized);
+    if (legacyResult.success) {
+      return legacyResult;
+    }
+
+    const modernExtendedResult = decodeModernExtended11Digit(normalized);
+    if (modernExtendedResult.success) {
+      return modernExtendedResult;
+    }
+
+    return legacyResult;
   }
 
   // 9-digit format (1993-1999)
@@ -187,6 +198,115 @@ function decode11Digit(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+function decodeModernExtended11Digit(serial: string): DecodeResult {
+  // Fallback layout seen on some modern factory-coded Taylor labels:
+  // Position 1: Factory (1 = El Cajon, CA; 2 = Tecate, Mexico)
+  // Position 2: First digit of two-digit year
+  // Position 3-4: Month
+  // Position 5-6: Day
+  // Position 7: Series indicator
+  // Position 8: Second digit of two-digit year
+  // Position 9-11: Production sequence for that day
+  const factoryCode = serial[0];
+  if (factoryCode !== '1' && factoryCode !== '2') {
+    return {
+      success: false,
+      error: 'Not a recognized modern extended Taylor factory-coded format.',
+    };
+  }
+
+  const yearDigits = `${serial[1]}${serial[7]}`;
+  const year = `20${yearDigits}`;
+  const yearNum = parseInt(year, 10);
+  const month = parseInt(serial.substring(2, 4), 10);
+  const day = parseInt(serial.substring(4, 6), 10);
+  const series = serial[6];
+  const sequence = serial.substring(8, 11);
+
+  if (yearNum < 2009 || yearNum > 2099) {
+    return {
+      success: false,
+      error: `Year ${year} is outside expected range for modern Taylor factory-coded format.`,
+    };
+  }
+
+  if (month < 1 || month > 12) {
+    return {
+      success: false,
+      error: `Invalid month: ${month}. Expected 01-12.`,
+    };
+  }
+
+  if (!isValidMonthDay(month, day, yearNum)) {
+    return {
+      success: false,
+      error: `Invalid date: ${month}/${day}/${year}.`,
+    };
+  }
+
+  const factoryInfo = factoryCode === '1'
+    ? { factory: 'El Cajon, California', country: 'USA' }
+    : { factory: 'Tecate, Baja California', country: 'Mexico' };
+  const seriesNames: Record<string, string> = {
+    '0': '300 or 400 Series',
+    '1': '500 Series through Presentation Series',
+    '2': '200 Series',
+    '3': 'Baby or Big Baby',
+    '4': 'Big Baby',
+    '5': 'T5',
+    '6': 'T3',
+    '7': 'Nylon Series',
+    '8': '100 Series',
+    '9': 'SolidBody Series or specialty model',
+  };
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+  const monthName = months[month - 1];
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Taylor',
+    serialNumber: serial,
+    year,
+    month: monthName,
+    day: day.toString(),
+    factory: factoryInfo.factory,
+    country: factoryInfo.country,
+    model: seriesNames[series] || `Series ${series}`,
+    notes: `Modern extended Taylor factory-coded format. Factory code ${factoryCode} indicates ${factoryInfo.factory}; date fields decode as ${monthName} ${day}, ${year}; series code ${series} indicates ${seriesNames[series] || 'an unspecified series group'}; final digits indicate production sequence #${sequenceNumber} for that day. Taylor officially documents the current factory-coded format as 10 digits, so verify the full printed label or contact Taylor support if exact factory records matter.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'taylor-modern-extended-11',
+    patternLabel: 'Taylor modern extended 11-digit format',
+    additionalContext: {
+      title: 'Taylor modern extended serial',
+      summary: 'This serial matches a modern factory-coded Taylor layout with an added series-code digit.',
+      highlights: [
+        `Factory code ${factoryCode} indicates ${factoryInfo.factory}.`,
+        `The date fields decode as ${monthName} ${day}, ${year}.`,
+        `Series code ${series} maps to ${seriesNames[series] || 'an unspecified series group'}.`,
+        `The final digits decode as production sequence #${sequenceNumber}.`,
+      ],
+      caveats: [
+        'Taylor officially documents the current factory-coded format as 10 digits.',
+        'This 11-digit fallback preserves the same factory/date/year logic while treating the seventh digit as a series code.',
+        'Use Taylor support or owner registration for exact original model/spec confirmation.',
+      ],
+      verificationTips: [
+        'Confirm the full serial from the label inside the guitar.',
+        'Check whether the label says El Cajon, California or Tecate, Mexico.',
+        'Contact Taylor support with the serial and photos if exact factory specs matter.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern factory-coded Taylor layout with an added series-code digit.</p><h3>How This Pattern Is Typically Read</h3><p>Factory code ${factoryCode} indicates ${factoryInfo.factory}. The date fields decode as ${monthName} ${day}, ${year}. Series code ${series} maps to ${seriesNames[series] || 'an unspecified series group'}. The final digits decode as production sequence #${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Taylor officially documents the current factory-coded format as 10 digits.</li><li>This 11-digit fallback preserves the same factory/date/year logic while treating the seventh digit as a series code.</li><li>Use Taylor support or owner registration for exact original model/spec confirmation.</li></ul>`,
+  };
 }
 
 function decode9Digit(serial: string): DecodeResult {

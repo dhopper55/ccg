@@ -8,6 +8,8 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  IconButton,
+  InputAdornment,
   Link,
   Stack,
   TextField,
@@ -18,15 +20,28 @@ import useNumberFormat from 'hooks/useNumberFormat';
 import { useAssociateMode } from 'providers/AssociateModeProvider';
 import { useSnackbar } from 'notistack';
 import { useEcommerce } from 'providers/EcommerceProvider';
+import IconifyIcon from 'components/base/IconifyIcon';
+
+const parseCurrencyToCents = (value: string) => {
+  const normalized = value.replace(/[^0-9.]/g, '');
+  const amount = Number.parseFloat(normalized);
+  return Number.isFinite(amount) ? Math.round(amount * 100) : 0;
+};
+
+const formatCurrencyInput = (value: number) => Math.max(0, value).toFixed(2);
 
 const PaymentSummary = () => {
   const [coupon, setCoupon] = useState('');
   const [couponError, setCouponError] = useState(false);
   const [taxOptionsOpen, setTaxOptionsOpen] = useState(false);
+  const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
+  const [discountAmountInput, setDiscountAmountInput] = useState('0.00');
   const { isAssociateMode } = useAssociateMode();
   const {
     appliedCoupon,
     setAppliedCoupon,
+    associateDiscount,
+    setAssociateDiscount,
     cartSubTotal,
     cartTax,
     cartTotal,
@@ -34,7 +49,11 @@ const PaymentSummary = () => {
   } = useEcommerce();
   const { enqueueSnackbar } = useSnackbar();
   const { currencyFormat } = useNumberFormat();
-  const appliedDiscount = appliedCoupon?.appliedDiscount || 0;
+  const appliedDiscount = associateDiscount > 0 ? associateDiscount : appliedCoupon?.appliedDiscount || 0;
+  const discountAmount = parseCurrencyToCents(discountAmountInput) / 100;
+  const discountError = discountAmount > cartSubTotal
+    ? `Discount cannot exceed ${currencyFormat(cartSubTotal)}.`
+    : '';
 
   const applyCouponCode = () => {
     const validCoupon = ecomCoupons.find(({ code }) => code === coupon);
@@ -46,6 +65,18 @@ const PaymentSummary = () => {
       setAppliedCoupon(null);
       setCouponError(true);
     }
+  };
+
+  const openDiscountDialog = () => {
+    setDiscountAmountInput(formatCurrencyInput(associateDiscount));
+    setDiscountDialogOpen(true);
+  };
+
+  const submitAssociateDiscount = () => {
+    if (discountError) return;
+    const nextDiscount = Math.min(Math.max(0, discountAmount), cartSubTotal);
+    setAssociateDiscount(Math.round(nextDiscount * 100) / 100);
+    setDiscountDialogOpen(false);
   };
 
   return (
@@ -280,15 +311,27 @@ const PaymentSummary = () => {
           >
             Discount
           </Typography>
-          <Typography
-            variant="subtitle1"
-            sx={{
-              fontWeight: 700,
-              color: 'text.secondary',
-            }}
-          >
-            {currencyFormat(appliedDiscount > 0 ? -appliedDiscount : appliedDiscount)}
-          </Typography>
+          <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5 }}>
+            <Typography
+              variant="subtitle1"
+              sx={{
+                fontWeight: 700,
+                color: 'text.secondary',
+              }}
+            >
+              {currencyFormat(appliedDiscount > 0 ? -appliedDiscount : appliedDiscount)}
+            </Typography>
+            {isAssociateMode && (
+              <IconButton
+                size="small"
+                color="primary"
+                aria-label="Edit discount"
+                onClick={openDiscountDialog}
+              >
+                <IconifyIcon icon="material-symbols:edit-outline-rounded" fontSize={18} />
+              </IconButton>
+            )}
+          </Stack>
         </Stack>
 
         <Divider sx={{ my: 3 }} />
@@ -348,6 +391,40 @@ const PaymentSummary = () => {
             Yes
           </Button>
         </DialogActions>
+      </Dialog>
+      <Dialog open={discountDialogOpen} onClose={() => setDiscountDialogOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>Edit discount</DialogTitle>
+        <Box component="form" onSubmit={(event) => {
+          event.preventDefault();
+          submitAssociateDiscount();
+        }}>
+          <DialogContent>
+            <TextField
+              autoFocus
+              fullWidth
+              label="Discount amount"
+              value={discountAmountInput}
+              error={!!discountError}
+              helperText={discountError || `Available discount: ${currencyFormat(cartSubTotal)}`}
+              onChange={(event) => setDiscountAmountInput(event.target.value)}
+              onBlur={() => setDiscountAmountInput(formatCurrencyInput(discountAmount))}
+              slotProps={{
+                input: {
+                  startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                  inputMode: 'decimal',
+                },
+              }}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button color="neutral" variant="soft" onClick={() => setDiscountDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="contained" disabled={!!discountError}>
+              Save
+            </Button>
+          </DialogActions>
+        </Box>
       </Dialog>
     </>
   );

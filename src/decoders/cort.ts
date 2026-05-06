@@ -8,6 +8,7 @@ import { DecodeResult, GuitarInfo } from '../types.js';
  * - Modern numeric year/batch format: YY00XXXX
  * - Modern format extended: YYMMXXXXX (2005-present)
  * - Late 1990s format: YYMMXXXX (1990-1999)
+ * - 1980s Korean 7-digit year/sequence format: 88XXXXX
  * - 1990s format: YMMXXXX (early 1990s-1999)
  * - R prefix year/sequence format: RYYXXXXX
  * - W.O. prefix: 1970s-1980s Korean production
@@ -94,6 +95,10 @@ export function decodeCort(serial: string): DecodeResult {
   // 1990s format: YMMXXXX (7 digits, single year digit)
   if (/^00\d{5}$/.test(normalized)) {
     return decodeYearSequence7Digit(normalized);
+  }
+
+  if (/^8\d{6}$/.test(normalized)) {
+    return decode1980sKorean7Digit(normalized);
   }
 
   if (/^\d{7}$/.test(normalized)) {
@@ -587,6 +592,48 @@ function decodeYearSequence7Digit(serial: string): DecodeResult {
       ],
     },
     additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Cort year-first numeric format where the first two digits identify the production year and the remaining digits are a sequence.</p><h3>How This Pattern Is Typically Read</h3><p>The first two digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production sequence ${parseInt(sequence, 10)}. The serial does not encode the exact model name.</p><h3>What To Verify</h3><ul><li>Cort has used multiple numeric serial systems, especially around the 1990s and early 2000s.</li><li>Model identification requires the headstock, label, or other physical markings.</li><li>Production location may require country-of-origin markings on the instrument.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a practical year/sequence decode, then verify the exact model from the headstock, soundhole label, and country-of-origin markings.</p>`,
+  };
+}
+
+function decode1980sKorean7Digit(serial: string): DecodeResult {
+  const yearDigits = serial.substring(0, 2);
+  const sequence = serial.substring(2);
+  const year = 1900 + parseInt(yearDigits, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Cort',
+    serialNumber: serial,
+    year: year.toString(),
+    factory: 'Cort Korea (Incheon)',
+    country: 'South Korea',
+    notes: `Legacy 7-digit Cort Korean numeric format. The first two digits (${yearDigits}) are interpreted as production year ${year}; the remaining digits are treated as production or internal sequence ${parseInt(sequence, 10)}. Cort serials from the 1980s and early 1990s can be inconsistent and usually do not identify the exact model name, so verify the model from the headstock, soundhole label, neck heel, or other physical markings.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'cort-1980s-korea-7-digit-yy-sequence',
+    patternLabel: 'Cort 1980s Korea 7-digit YY sequence',
+    additionalContext: {
+      title: 'Cort 1980s Korean serial',
+      summary: 'This serial matches a legacy Korean Cort numeric format where the first two digits identify the production year.',
+      highlights: [
+        `The first two digits ${yearDigits} decode as production year ${year}.`,
+        `The remaining digits decode as production or internal sequence ${parseInt(sequence, 10)}.`,
+        'Production is most likely South Korea for this era.',
+      ],
+      caveats: [
+        'Cort serial systems from the 1980s and early 1990s are less standardized than later formats.',
+        'The serial does not identify the exact Cort model name.',
+        'Factory attribution should be confirmed with country-of-origin markings when available.',
+      ],
+      verificationTips: [
+        'Check the headstock, soundhole label, or neck heel for model and country markings.',
+        'Compare the instrument against late-1980s Cort catalog specs.',
+        'Look for additional stamps or labels inside the body or electronics cavity.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a legacy Korean Cort numeric format where the first two digits identify the production year.</p><h3>How This Pattern Is Typically Read</h3><p>The first two digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production or internal sequence ${parseInt(sequence, 10)}. Production is most likely South Korea for this era.</p><h3>What To Verify</h3><ul><li>Cort serial systems from the 1980s and early 1990s are less standardized than later formats.</li><li>The serial does not identify the exact Cort model name.</li><li>Check the headstock, soundhole label, neck heel, or other markings for model and country-of-origin details.</li></ul>`,
   };
 }
 
