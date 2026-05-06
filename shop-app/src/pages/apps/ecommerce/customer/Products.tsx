@@ -6,6 +6,7 @@ import {
   Card,
   CardContent,
   CardMedia,
+  Chip,
   CircularProgress,
   Paper,
   Stack,
