@@ -2474,6 +2474,9 @@ type ListingListItem = {
   askingPrice?: number | string;
   score?: number | string;
   saved?: boolean;
+  submittedAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
   inInventory?: boolean;
 };
 
@@ -7692,6 +7695,9 @@ async function dbListListings(
        l.score,
        l.saved,
        l.image_url,
+       l.submitted_at,
+       l.created_at,
+       l.updated_at,
        CASE WHEN i.id IS NULL THEN 0 ELSE 1 END AS in_inventory
      FROM listings l
      LEFT JOIN ccg_inventory_items i
@@ -7715,6 +7721,9 @@ async function dbListListings(
       score: number | string | null;
       saved: number | null;
       image_url: string | null;
+      submitted_at: string | null;
+      created_at: string | null;
+      updated_at: string | null;
       in_inventory: number | null;
     }>();
 
@@ -7729,6 +7738,9 @@ async function dbListListings(
     score: row.score ?? null,
     saved: row.saved ? true : false,
     imageUrl: row.image_url ? String(row.image_url).trim().split(/\s+/)[0] : null,
+    submittedAt: row.submitted_at ?? null,
+    createdAt: row.created_at ?? null,
+    updatedAt: row.updated_at ?? null,
     inInventory: Boolean(row.in_inventory),
   }));
 

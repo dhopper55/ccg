@@ -37,6 +37,9 @@ type ListingListItem = {
   archiveReason?: string | null;
   askingPrice?: number | string;
   imageUrl?: string | null;
+  submittedAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 };
 
 type ListingsResponse = {
@@ -56,11 +59,13 @@ type ListingGridRow = {
   statusLabel: string;
   statusColor: ChipOwnProps['color'];
   isQueued: boolean;
+  canRequeue: boolean;
   askingPriceLabel: string;
   imageSrc: string | null;
 };
 
 const PAGE_SIZE = 20;
+const REQUEUE_DELAY_MS = 5 * 60 * 1000;
 const ARCHIVE_REASON_OPTIONS = ['Overpriced', 'Not Desirable', 'Repair Needs', 'Too Far', 'Old/Stale', 'Other'] as const;
 const headerActions = [
   { label: 'Results', icon: 'material-symbols:list-alt-rounded', color: 'default' as const },
@@ -160,6 +165,24 @@ function buildDetailsHref(id: string): string {
   return paths.listingEvaluatorItemWithId(id);
 }
 
+function parseListingTimestamp(value?: string | null): number | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(trimmed)
+    ? `${trimmed.replace(' ', 'T')}Z`
+    : trimmed;
+  const time = Date.parse(normalized);
+  return Number.isFinite(time) ? time : null;
+}
+
+function getLatestQueueTime(record: ListingListItem): number | null {
+  const times = [record.updatedAt, record.submittedAt, record.createdAt]
+    .map(parseListingTimestamp)
+    .filter((time): time is number => time != null);
+  return times.length ? Math.max(...times) : null;
+}
+
 const ListingEvaluatorResults = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [records, setRecords] = useState<ListingListItem[]>([]);
@@ -167,6 +190,7 @@ const ListingEvaluatorResults = () => {
   const [nextOffset, setNextOffset] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [requeueingIds, setRequeueingIds] = useState<Set<string>>(() => new Set());
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const { down } = useBreakpoints();
@@ -230,6 +254,11 @@ const ListingEvaluatorResults = () => {
   useEffect(() => {
     void loadListings();
   }, [archivedView, archiveReason, currentOffset, savedView, titleSearch]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 30000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const updateView = (view: 'results' | 'saved' | 'archived') => {
     const params = new URLSearchParams();
@@ -311,11 +340,17 @@ const ListingEvaluatorResults = () => {
           statusLabel: record.status?.trim() || 'unknown',
           statusColor: buildStatusColor(record.status),
           isQueued: (record.status?.trim().toLowerCase() || '') === 'queued',
+          canRequeue:
+            (record.status?.trim().toLowerCase() || '') === 'queued' &&
+            (() => {
+              const latestQueueTime = getLatestQueueTime(record);
+              return latestQueueTime == null || nowMs - latestQueueTime > REQUEUE_DELAY_MS;
+            })(),
           askingPriceLabel: formatCurrencyValue(record.askingPrice),
           imageSrc: buildImageSrc(record.imageUrl, record.url),
         };
       }),
-    [records],
+    [nowMs, records],
   );
 
   return (
@@ -519,7 +554,7 @@ const ListingEvaluatorResults = () => {
                             variant="soft"
                             sx={{ textTransform: 'capitalize' }}
                           />
-                          {row.isQueued && (
+                          {row.canRequeue && (
                             <Tooltip title="Re-queue listing">
                               <span>
                                 <IconButton
@@ -669,7 +704,7 @@ const ListingEvaluatorResults = () => {
                                 variant="soft"
                                 sx={{ textTransform: 'capitalize' }}
                               />
-                              {row.isQueued && (
+                              {row.canRequeue && (
                                 <Tooltip title="Re-queue listing">
                                   <span>
                                     <IconButton
