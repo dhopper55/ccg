@@ -101,7 +101,7 @@ export function decodeSerialForBackend(brandInput, serialInput) {
             break;
         }
     }
-    if (result.success && result.info && isFutureYearResult(result.info)) {
+    if (result.success && result.info && isFutureYearResult(result.info, getAllowedFutureYearOffset(normalizedBrand))) {
         return {
             success: false,
             error: 'Unable to decode this serial number.',
@@ -204,7 +204,14 @@ function buildRetrySerials(serial, normalizedBrand) {
     }
     return candidates;
 }
-function isFutureYearResult(info) {
+function getAllowedFutureYearOffset(normalizedBrand) {
+    // Cort often ships upcoming model-year inventory before that calendar year starts.
+    if (normalizedBrand === 'cort') {
+        return 1;
+    }
+    return 0;
+}
+function isFutureYearResult(info, allowedFutureYears = 0) {
     if (!info.year) {
         return false;
     }
@@ -213,7 +220,7 @@ function isFutureYearResult(info) {
         return false;
     }
     const currentYear = new Date().getFullYear();
-    return years.some((year) => year > currentYear);
+    return years.some((year) => year > currentYear + allowedFutureYears);
 }
 function extractYears(text) {
     const matches = text.match(/\b\d{4}\b/g);

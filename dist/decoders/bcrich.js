@@ -9,6 +9,8 @@
  * - Hanser-era/date-stamp numeric: 8 digits like 41201627 (year digit + quarter + production)
  * - Month/factory code: A08140023 (month letter + factory + year + production)
  * - B-prefix month-code import: BA09030385 (B + month letter + YY + sequence)
+ * - Two-letter Hanser-era import: CO1093111 (month + plant + YY + sequence)
+ * - F-prefix six-digit import: F201422 (factory/line prefix + YY + sequence)
  * - Short modern month-code import: F2051631 (month + year + batch/factory + sequence)
  * - Class Axe/import B-prefix: B + 3-6 digits, including B007132
  * - NJ Series: R/P + 6 digits with year in first two digits
@@ -48,6 +50,9 @@ export function decodeBCRich(serial) {
     if (/^[SIFN]\d{8}$/.test(normalized)) {
         return decodeImportLetterPrefix(normalized);
     }
+    if (/^[ACEFGHJKLMNP][A-Z]\d{7}$/.test(normalized)) {
+        return decodeHanserTwoLetterMonthPlantImport(normalized);
+    }
     if (/^[ACEFGHJKLMNP][0-9]{8}$/.test(normalized)) {
         return decodeMonthFactory(normalized);
     }
@@ -59,6 +64,9 @@ export function decodeBCRich(serial) {
     }
     if (/^F[7890]\d{5}$/.test(normalized)) {
         return decodeFSeries(normalized);
+    }
+    if (/^F\d{6}$/.test(normalized)) {
+        return decodeFSixDigitImport(normalized);
     }
     if (/^BO\d{3}$/.test(normalized)) {
         return decodeBoltOn2000(normalized);
@@ -86,7 +94,7 @@ export function decodeBCRich(serial) {
     }
     return {
         success: false,
-        error: 'Unable to decode this B.C. Rich serial number. Known formats include: 5-digit USA neck-through (YYXXX), F7/F8/F9/F0 import serials, 8-digit Hanser-era/import date stamps (e.g., Sr#41201627), month/factory codes like A08140023, B-prefix month-code imports like BA09030385, NJ series R/P + 6 digits, Class Axe BC/B0/B-prefix series like B007132, or short I-prefix import estimates (I + 5 digits).',
+        error: 'Unable to decode this B.C. Rich serial number. Known formats include: 5-digit USA neck-through (YYXXX), F7/F8/F9/F0 import serials, F-prefix six-digit imports like F201422, 8-digit Hanser-era/import date stamps (e.g., Sr#41201627), month/factory codes like A08140023, two-letter Hanser-era imports like CO1093111, B-prefix month-code imports like BA09030385, NJ series R/P + 6 digits, Class Axe BC/B0/B-prefix series like B007132, or short I-prefix import estimates (I + 5 digits).',
     };
 }
 const IMPORT_PREFIX_MAP = {
@@ -147,6 +155,51 @@ function decodeMonthFactory(serial) {
         notes: `Month/factory code format. Production sequence: ${production}.${factoryNote}`,
     };
     return { success: true, info };
+}
+function decodeHanserTwoLetterMonthPlantImport(serial) {
+    const monthCode = serial[0];
+    const plantCode = serial[1];
+    const yearDigits = serial.slice(2, 4);
+    const sequence = serial.slice(4);
+    const month = MONTH_CODE_MAP[monthCode];
+    const yearNum = parseInt(yearDigits, 10);
+    const year = yearNum <= 30 ? 2000 + yearNum : 1900 + yearNum;
+    const info = {
+        brand: 'B.C. Rich',
+        serialNumber: serial,
+        year: year.toString(),
+        month,
+        factory: `Hanser-era import plant/contract code ${plantCode}`,
+        country: 'China / Indonesia',
+        notes: `Two-letter Hanser-era B.C. Rich import format interpreted as month code + plant/contract code + YY + sequence. ${monthCode} indicates ${month}; ${plantCode} is treated as an internal plant or contract-manufacturer code; digits ${yearDigits} indicate production year ${year}; remaining digits are production sequence ${parseInt(sequence, 10)}. B.C. Rich import serials from this era can be inconsistent, so verify with country-of-origin markings, body shape, neck construction, and neck pocket or electronics-cavity dates where available.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'bcrich-hanser-two-letter-month-plant-import',
+        patternLabel: 'B.C. Rich Hanser-era two-letter month/plant import',
+        additionalContext: {
+            title: 'B.C. Rich Hanser-era import serial',
+            summary: 'This serial matches a Hanser-era B.C. Rich import format parsed as month code, plant or contract code, production year, and sequence.',
+            highlights: [
+                `The month code ${monthCode} decodes as ${month}.`,
+                `The letter ${plantCode} is treated as an internal plant or contract-manufacturer code.`,
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                `The remaining digits decode as production sequence ${parseInt(sequence, 10)}.`,
+            ],
+            caveats: [
+                'B.C. Rich serial numbering is inconsistent across import eras and ownership periods.',
+                'This serial pattern identifies likely date and import family, not the exact model name.',
+                'Plant-letter meanings are less consistently documented than numeric factory codes.',
+            ],
+            verificationTips: [
+                'Check for Made in China, Made in Indonesia, or other country-of-origin markings.',
+                'Compare body shape, neck construction, pickups, bridge, and trim against late-2000s and early-2010s B.C. Rich import catalogs.',
+                'Use neck pocket, electronics-cavity, or label dates if the instrument has them.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Hanser-era B.C. Rich import format parsed as month code, plant or contract code, production year, and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>The month code ${monthCode} decodes as ${month}. The letter ${plantCode} is treated as an internal plant or contract-manufacturer code. The digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>B.C. Rich serial numbering is inconsistent across import eras and ownership periods.</li><li>This serial pattern identifies likely date and import family, not the exact model name.</li><li>Check country-of-origin markings, model features, and neck pocket or electronics-cavity dates where available.</li></ul>`,
+    };
 }
 function decodeShortMonthCodeImport(serial) {
     const monthCode = serial[0];
@@ -254,6 +307,51 @@ function decodeFSeries(serial) {
         notes: 'Import serial format used before November 2000. The second digit indicates the year (7=1997, 8=1998, 9=1999, 0=2000).',
     };
     return { success: true, info };
+}
+function decodeFSixDigitImport(serial) {
+    const prefix = serial[0];
+    const yearDigits = serial.slice(1, 3);
+    const sequence = serial.slice(3);
+    const yearNum = parseInt(yearDigits, 10);
+    const modernYear = 2000 + yearNum;
+    const earlyYear = 2000 + parseInt(yearDigits[0], 10);
+    const yearText = yearNum >= 10
+        ? `${modernYear} or ${earlyYear} (context-dependent import estimate)`
+        : `${modernYear} (estimated)`;
+    const info = {
+        brand: 'B.C. Rich',
+        serialNumber: serial,
+        year: yearText,
+        factory: `${prefix}-prefix import production`,
+        country: 'South Korea / China / Taiwan',
+        notes: `F-prefix six-digit B.C. Rich import format interpreted as factory/line prefix + year code + sequence. ${prefix} is treated as an import factory, line, or product-tier prefix; digits ${yearDigits} can indicate ${modernYear}, or ${earlyYear} on early-2000s Hanser-era examples; remaining digits are production sequence ${parseInt(sequence, 10)}. If this serial is stamped on a metal neck plate, it may instead be a Class Axe-era import plate where the number is a non-date inventory ID. Verify with serial location, country-of-origin markings, neck construction, and model-era features.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'bcrich-f-prefix-six-digit-import',
+        patternLabel: 'B.C. Rich F-prefix six-digit import',
+        additionalContext: {
+            title: 'B.C. Rich F-prefix import serial',
+            summary: 'This serial matches an F-prefix B.C. Rich import format that can represent a Hanser-era factory/date code or an older Class Axe-era plate number depending on where it appears.',
+            highlights: [
+                `${prefix} is treated as an import factory, line, or product-tier prefix.`,
+                `The digits ${yearDigits} can indicate ${modernYear}, or ${earlyYear} on early-2000s examples.`,
+                `The remaining digits decode as production sequence ${parseInt(sequence, 10)} in the date-code interpretation.`,
+            ],
+            caveats: [
+                'B.C. Rich serial numbering is inconsistent across import eras and ownership periods.',
+                'If this is on a metal bolt-on neck plate, the number may be a Class Axe-era inventory ID rather than a date code.',
+                'This serial pattern identifies likely import family, not the exact model name.',
+            ],
+            verificationTips: [
+                'Check whether the serial is printed on the headstock wood or stamped on a metal neck plate.',
+                'Look for Made in Korea, China, Taiwan, or Indonesia markings.',
+                'Compare body shape, neck construction, pickups, bridge, and trim against B.C. Rich import catalogs.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches an F-prefix B.C. Rich import format that can represent a Hanser-era factory/date code or an older Class Axe-era plate number depending on where it appears.</p><h3>How This Pattern Is Typically Read</h3><p>${prefix} is treated as an import factory, line, or product-tier prefix. The digits ${yearDigits} can indicate ${modernYear}, or ${earlyYear} on early-2000s examples. The remaining digits decode as production sequence ${parseInt(sequence, 10)} in the date-code interpretation.</p><h3>What To Verify</h3><ul><li>B.C. Rich serial numbering is inconsistent across import eras and ownership periods.</li><li>If this is on a metal bolt-on neck plate, the number may be a Class Axe-era inventory ID rather than a date code.</li><li>Check country-of-origin markings, model features, and neck pocket or electronics-cavity dates where available.</li></ul>`,
+    };
 }
 function decodeBoltOn2000(serial) {
     const production = serial.slice(2);

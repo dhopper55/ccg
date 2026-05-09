@@ -55,6 +55,7 @@ type ListingGridRow = {
   sourceIcon: string | null;
   statusLabel: string;
   statusColor: ChipOwnProps['color'];
+  isQueued: boolean;
   askingPriceLabel: string;
   imageSrc: string | null;
 };
@@ -165,7 +166,9 @@ const ListingEvaluatorResults = () => {
   const [total, setTotal] = useState(0);
   const [nextOffset, setNextOffset] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [requeueingIds, setRequeueingIds] = useState<Set<string>>(() => new Set());
   const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const { down } = useBreakpoints();
   const navigate = useNavigate();
   const downSm = down('sm');
@@ -261,6 +264,39 @@ const ListingEvaluatorResults = () => {
     setSearchParams(params);
   };
 
+  const requeueListing = async (row: ListingGridRow) => {
+    if (!row.url || requeueingIds.has(row.id)) return;
+
+    setErrorMessage('');
+    setSuccessMessage('');
+    setRequeueingIds((current) => new Set(current).add(row.id));
+
+    try {
+      const response = await fetch('/api/listings/reprocess', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: row.url }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { message?: string; error?: string };
+
+      if (!response.ok) {
+        throw new Error(data.message || data.error || 'Unable to re-queue listing.');
+      }
+
+      setSuccessMessage('Listing re-queued.');
+      await loadListings();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to re-queue listing.');
+    } finally {
+      setRequeueingIds((current) => {
+        const next = new Set(current);
+        next.delete(row.id);
+        return next;
+      });
+    }
+  };
+
   const rows = useMemo<ListingGridRow[]>(
     () =>
       records.map((record, index) => {
@@ -274,6 +310,7 @@ const ListingEvaluatorResults = () => {
           sourceIcon: sourceMeta.icon,
           statusLabel: record.status?.trim() || 'unknown',
           statusColor: buildStatusColor(record.status),
+          isQueued: (record.status?.trim().toLowerCase() || '') === 'queued',
           askingPriceLabel: formatCurrencyValue(record.askingPrice),
           imageSrc: buildImageSrc(record.imageUrl, record.url),
         };
@@ -383,6 +420,7 @@ const ListingEvaluatorResults = () => {
       </Paper>
 
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
+      {successMessage && <Alert severity="success">{successMessage}</Alert>}
 
       <Paper sx={{ flex: 1, p: { xs: 2, md: 5 }, minWidth: 0, overflow: 'hidden' }}>
         {downSm ? (
@@ -481,6 +519,35 @@ const ListingEvaluatorResults = () => {
                             variant="soft"
                             sx={{ textTransform: 'capitalize' }}
                           />
+                          {row.isQueued && (
+                            <Tooltip title="Re-queue listing">
+                              <span>
+                                <IconButton
+                                  aria-label="Re-queue listing"
+                                  size="small"
+                                  disabled={requeueingIds.has(row.id)}
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    void requeueListing(row);
+                                  }}
+                                  sx={{
+                                    width: 28,
+                                    height: 28,
+                                    border: 1,
+                                    borderColor: 'warning.main',
+                                    color: 'warning.main',
+                                  }}
+                                >
+                                  {requeueingIds.has(row.id) ? (
+                                    <CircularProgress size={14} color="inherit" />
+                                  ) : (
+                                    <IconifyIcon icon="material-symbols:refresh-rounded" fontSize={16} />
+                                  )}
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                          )}
                         </Stack>
                       </Box>
                     </Stack>
@@ -602,6 +669,35 @@ const ListingEvaluatorResults = () => {
                                 variant="soft"
                                 sx={{ textTransform: 'capitalize' }}
                               />
+                              {row.isQueued && (
+                                <Tooltip title="Re-queue listing">
+                                  <span>
+                                    <IconButton
+                                      aria-label="Re-queue listing"
+                                      size="small"
+                                      disabled={requeueingIds.has(row.id)}
+                                      onClick={(event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        void requeueListing(row);
+                                      }}
+                                      sx={{
+                                        width: 28,
+                                        height: 28,
+                                        border: 1,
+                                        borderColor: 'warning.main',
+                                        color: 'warning.main',
+                                      }}
+                                    >
+                                      {requeueingIds.has(row.id) ? (
+                                        <CircularProgress size={14} color="inherit" />
+                                      ) : (
+                                        <IconifyIcon icon="material-symbols:refresh-rounded" fontSize={16} />
+                                      )}
+                                    </IconButton>
+                                  </span>
+                                </Tooltip>
+                              )}
                             </Stack>
                           </Box>
                         </Stack>

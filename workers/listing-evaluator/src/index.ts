@@ -98,6 +98,7 @@ interface QueueResult {
   unarchived?: boolean;
   unsaved?: boolean;
   existing?: boolean;
+  requeued?: boolean;
   resubmitted?: boolean;
   isMulti?: boolean;
 }
@@ -1608,7 +1609,9 @@ async function ensureSerialDecodePatternLookup(brand: string, pattern: string, e
        VALUES (?, ?, ?, '')
        ON CONFLICT(brand, pattern) DO UPDATE SET
          regex_pattern = CASE
-           WHEN trim(COALESCE(serial_decode_pattern_lookup.regex_pattern, '')) = '' THEN excluded.regex_pattern
+           WHEN trim(COALESCE(serial_decode_pattern_lookup.regex_pattern, '')) = ''
+             OR trim(COALESCE(serial_decode_pattern_lookup.regex_pattern, '')) = '^.{1,}$'
+             THEN excluded.regex_pattern
            ELSE serial_decode_pattern_lookup.regex_pattern
          END`
     ).bind(brandKey, cleaned, regexPattern).run();
@@ -1774,9 +1777,27 @@ async function handleSubmit(request: Request, env: Env, ctx: ExecutionContext): 
     if (existing) {
       const archived = isArchivedValue(existing.fields?.archived);
       const saved = isArchivedValue(existing.fields?.saved);
+      const existingStatus = normalizeText(existing.fields?.status, '').toLowerCase();
 
       if (archived || saved) {
         await dbUpdateListing(existing.id, { archived: false, archive_reason: null, saved: false }, env);
+      }
+
+      if (!archived && !saved && item.source !== 'reverb' && (existingStatus === 'queued' || existingStatus === 'failed')) {
+        const runId = await startApifyRun(item.url, item.source as ListingSource, env, existing.id);
+        if (runId) {
+          await env.LISTING_JOBS.put(runId, existing.id);
+          await dbUpdateListing(existing.id, { status: 'queued' }, env);
+          ctx.waitUntil(processApifyRunWhenReady(runId, env, existing.id));
+          results.push({
+            ...item,
+            runId,
+            recordId: existing.id,
+            existing: true,
+            requeued: true,
+          });
+          continue;
+        }
       }
 
       results.push({
@@ -1807,13 +1828,21 @@ async function handleSubmit(request: Request, env: Env, ctx: ExecutionContext): 
       continue;
     }
 
-    const runId = await startApifyRun(item.url, item.source as ListingSource, env);
+    const recordId = await insertQueuedRow(item.url, item.source as ListingSource, null, item.isMulti ?? false, env);
+    if (!recordId) {
+      rejected.push({ url: item.url, reason: 'Unable to queue listing.' });
+      continue;
+    }
+
+    const runId = await startApifyRun(item.url, item.source as ListingSource, env, recordId);
     if (!runId) {
+      await dbUpdateListing(recordId, { status: 'failed', ai_summary: 'Unable to start scraper run.' }, env);
       rejected.push({ url: item.url, reason: 'Unable to start scraper run.' });
       continue;
     }
 
-    const recordId = await insertQueuedRow(item.url, item.source as ListingSource, runId, item.isMulti ?? false, env);
+    await env.LISTING_JOBS.put(runId, recordId);
+    ctx.waitUntil(processApifyRunWhenReady(runId, env, recordId));
     results.push({ ...item, runId, recordId: recordId || undefined });
   }
 
@@ -2422,9 +2451,14 @@ async function handleWebhook(request: Request, env: Env, ctx: ExecutionContext):
   const resource = payload.resource || payload.data || payload;
   const runId = resource?.id || payload.runId || payload.runId;
   const eventType = payload.eventType || payload.event || payload.eventType;
+  const recordId = normalizeText(url.searchParams.get('recordId'), '');
 
   if (!runId) {
     return jsonResponse({ message: 'Missing run ID.' }, 400);
+  }
+
+  if (recordId) {
+    await env.LISTING_JOBS.put(runId, recordId);
   }
 
   await processRun(runId, resource, eventType, env);
@@ -11692,11 +11726,15 @@ async function dbListAdminV2SerialPatternLookup(
     .map((row) => {
       const brand = normalizeText(row.brand, '');
       const pattern = normalizeText(row.pattern, '');
+      const storedRegexPattern = normalizeText(row.regex_pattern, '');
+      const regexPattern = !storedRegexPattern || storedRegexPattern === '^.{1,}$'
+        ? deriveRegexFromPatternKey(pattern)
+        : storedRegexPattern;
       return {
         id: Number(row.id || 0),
         brand,
         pattern,
-        regexPattern: normalizeText(row.regex_pattern, ''),
+        regexPattern,
         richText: normalizeText(row.rich_text, ''),
         richTextPopulated: Number(row.is_populated || 0) === 1,
         createdAt: normalizeText(row.created_at, '') || null,
@@ -12384,6 +12422,9 @@ function deriveRegexFromPatternKey(patternKey: string): string {
   const cleaned = normalizeText(patternKey, '');
   if (!cleaned) return '^.{1,}$';
 
+  const explicitRegex = deriveExplicitRegexFromKnownPatternKey(cleaned);
+  if (explicitRegex) return explicitRegex;
+
   const parts = cleaned.split(':');
   const prefixPart = parts.find((part) => part.startsWith('prefix-')) || '';
   const lengthPart = parts.find((part) => part.startsWith('len-')) || '';
@@ -12435,6 +12476,39 @@ function deriveRegexFromPatternKey(patternKey: string): string {
   } catch {
     return '^.{1,}$';
   }
+}
+
+function deriveExplicitRegexFromKnownPatternKey(patternKey: string): string | null {
+  const knownPatterns: Record<string, string> = {
+    'bcrich-b-prefix-month-code-import': '^B[ACEFGHJKLMNP]\\d{8}$',
+    'bcrich-class-axe-b-prefix-import': '^B\\d{3,6}$',
+    'bcrich-f-prefix-six-digit-import': '^F\\d{6}$',
+    'bcrich-hanser-era-8-digit-import': '^\\d{8}$',
+    'bcrich-hanser-two-letter-month-plant-import': '^[ACEFGHJKLMNP][A-Z]\\d{7}$',
+    'bcrich-short-modern-month-code-import': '^[ACEFGHJKLMNP]\\d{7}$',
+    'bcrich-short-numeric-import-y-filler-quarter-sequence': '^\\d{6}$',
+    'cort-1980s-korea-7-digit-yy-sequence': '^8\\d{6}$',
+    'cort-ai-indonesia-yymm-sequence': '^AI\\d{9}$',
+    'cort-icse-indonesia-yy-sequence': '^ICSE\\d{8}$',
+    'cort-late-1990s-8-digit-yymm-sequence': '^9\\d{7}$',
+    'cort-modern-8-digit-year-batch-sequence': '^\\d{2}00\\d{4}$',
+    'cort-modern-9-digit-yymm-sequence': '^\\d{9}$',
+    'cort-modern-12-digit-year-tracking-sequence': '^\\d{12}$',
+    'cort-r-prefix-yy-sequence': '^R\\d{7}$',
+    'cort-year-sequence-7-digit': '^00\\d{5}$',
+    'schecter-ca-yymm-sequence': '^CA\\d{8}$',
+    'schecter-h-yymm-sequence': '^H\\d{7,9}$',
+    'schecter-im-indonesia-yymm-sequence': '^IM\\d{8}$',
+    'schecter-korea-legacy-6-digit': '^\\d{6}$',
+    'schecter-rn-yymm-sequence': '^RN\\d{8}$',
+    'schecter-ro-indonesia-yy-sequence': '^RO\\d{8}$',
+    'schecter-st-yymm-sequence': '^ST\\d{8}$',
+    'taylor-legacy-9-digit-year-code': '^\\d{9}$',
+    'taylor-modern-extended-11': '^[12]\\d{10}$',
+    'taylor-modern-short-9': '^[12]\\d{8}$',
+  };
+
+  return knownPatterns[patternKey] || null;
 }
 
 function parsePatternMaskRuns(maskPart: string, expectedLength: number | null): Array<{ type: 'A' | '9'; count: number }> {
@@ -13498,17 +13572,21 @@ function normalizeQueuedListingUrl(url: string): string | null {
   return normalized;
 }
 
-async function startApifyRun(url: string, source: ListingSource, env: Env): Promise<string | null> {
+async function startApifyRun(url: string, source: ListingSource, env: Env, recordId?: string | null): Promise<string | null> {
   if (source === 'reverb') return null;
   const actorId = source === 'facebook' ? env.APIFY_FACEBOOK_ACTOR : env.APIFY_CRAIGSLIST_ACTOR;
   const baseUrl = env.SITE_BASE_URL || 'https://www.coalcreekguitars.com';
-  const webhookUrl = env.WEBHOOK_SECRET
-    ? `${baseUrl}/api/listings/webhook?key=${env.WEBHOOK_SECRET}`
-    : `${baseUrl}/api/listings/webhook`;
+  const webhookUrl = new URL('/api/listings/webhook', baseUrl);
+  if (env.WEBHOOK_SECRET) {
+    webhookUrl.searchParams.set('key', env.WEBHOOK_SECRET);
+  }
+  if (recordId) {
+    webhookUrl.searchParams.set('recordId', recordId);
+  }
 
   const webhookPayload = [{
     eventTypes: ['ACTOR.RUN.SUCCEEDED', 'ACTOR.RUN.FAILED'],
-    requestUrl: webhookUrl,
+    requestUrl: webhookUrl.toString(),
     payloadTemplate: '{"resource":{{resource}},"eventType":"{{eventType}}"}',
   }];
 
@@ -13581,6 +13659,21 @@ async function waitForApifyRun(runId: string, env: Env, attempts: number): Promi
   return current;
 }
 
+async function processApifyRunWhenReady(runId: string, env: Env, recordId: string): Promise<void> {
+  try {
+    await env.LISTING_JOBS.put(runId, recordId);
+    const runDetails = await waitForApifyRun(runId, env, 20);
+    const status = normalizeText(runDetails?.status, '');
+    if (status !== 'SUCCEEDED' && status !== 'FAILED') {
+      console.warn('Apify run not finished during submit fallback', { runId, recordId, status });
+      return;
+    }
+    await processRun(runId, runDetails, status, env);
+  } catch (error) {
+    console.error('Apify submit fallback processing failed', { runId, recordId, error });
+  }
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -13591,7 +13684,7 @@ async function fetchApifyDataset(datasetId: string, env: Env): Promise<any[]> {
   return await response.json();
 }
 
-async function insertQueuedRow(url: string, source: ListingSource, runId: string, isMulti: boolean, env: Env): Promise<string | null> {
+async function insertQueuedRow(url: string, source: ListingSource, runId: string | null, isMulti: boolean, env: Env): Promise<string | null> {
   const timestamp = new Date().toISOString();
   const fields = {
     submitted_at: timestamp,
@@ -13603,7 +13696,7 @@ async function insertQueuedRow(url: string, source: ListingSource, runId: string
 
   try {
     const recordId = await dbCreateListing(fields, env);
-    if (recordId) {
+    if (recordId && runId) {
       await env.LISTING_JOBS.put(runId, recordId);
     }
     return recordId;

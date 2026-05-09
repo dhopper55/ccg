@@ -767,6 +767,32 @@ function assertBCRichShortMonthCodeImport(serialInput) {
   );
 }
 
+function assertBCRichFPrefixSixDigitImport(serialInput) {
+  const result = decodeBCRich(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '2020 or 2002 (context-dependent import estimate)', `Expected 2020/2002 estimate for ${serialInput}, got ${info.year}`);
+  assert(
+    info.factory === 'F-prefix import production',
+    `Expected F-prefix import factory note for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'South Korea / China / Taiwan', `Expected import country guidance for ${serialInput}, got ${info.country}`);
+  assert(
+    info.notes && info.notes.includes('production sequence 1422'),
+    `Expected production sequence 1422 for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    info.notes && info.notes.includes('Class Axe-era import plate'),
+    `Expected Class Axe-era plate ambiguity for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    result.patternKey === 'bcrich-f-prefix-six-digit-import',
+    `Expected B.C. Rich F-prefix six-digit pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
 function assertBCRichBPrefixMonthCodeImport(serialInput) {
   const result = decodeBCRich(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -791,6 +817,34 @@ function assertBCRichBPrefixMonthCodeImport(serialInput) {
   assert(
     result.additionalContextRichText && result.additionalContextRichText.includes('production year 2009'),
     `Expected B.C. Rich B-prefix rich text for ${serialInput}`
+  );
+}
+
+function assertBCRichHanserTwoLetterMonthPlantImport(serialInput) {
+  const result = decodeBCRich(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.serialNumber === 'CO1093111', `Expected normalized serial CO1093111 for ${serialInput}, got ${info.serialNumber}`);
+  assert(info.year === '2010', `Expected year 2010 for ${serialInput}, got ${info.year}`);
+  assert(info.month === 'February', `Expected month February for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'Hanser-era import plant/contract code O',
+    `Expected Hanser-era O plant code for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'China / Indonesia', `Expected China / Indonesia for ${serialInput}, got ${info.country}`);
+  assert(
+    info.notes && info.notes.includes('production sequence 93111'),
+    `Expected production sequence 93111 for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    result.patternKey === 'bcrich-hanser-two-letter-month-plant-import',
+    `Expected B.C. Rich two-letter Hanser pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('production year 2010'),
+    `Expected B.C. Rich two-letter Hanser rich text for ${serialInput}`
   );
 }
 
@@ -1222,6 +1276,51 @@ function assertCortModern8DigitYearBatch(serialInput, expectedYear) {
   assert(
     result.patternKey === 'cort-modern-8-digit-year-batch-sequence',
     `Expected Cort modern 8-digit year/batch pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
+function assertCortModern9DigitModelYear(serialInput, expectedYear, expectedMonth) {
+  const result = decodeSerialForBackend('cort', serialInput);
+  assert(result.success, `Expected decode success for cort:${serialInput}`);
+  assert(result.info, `Expected decoded info for cort:${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'Cort (location varies - Korea, Indonesia, or China)',
+    `Expected variable Cort factory for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'Korea, Indonesia, or China', `Expected variable country for ${serialInput}, got ${info.country}`);
+  assert(
+    info.notes && info.notes.includes('Production sequence: 27182'),
+    `Expected production sequence 27182 for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    result.patternKey === 'cort-modern-9-digit-yymm-sequence',
+    `Expected Cort modern 9-digit pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
+function assertCortModern12DigitTracking(serialInput, expectedYear) {
+  const result = decodeSerialForBackend('cort', serialInput);
+  assert(result.success, `Expected decode success for cort:${serialInput}`);
+  assert(result.info, `Expected decoded info for cort:${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(
+    info.factory === 'Cort (location varies - Korea, Indonesia, or China)',
+    `Expected variable Cort factory for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'Korea, Indonesia, or China', `Expected variable country for ${serialInput}, got ${info.country}`);
+  assert(
+    info.notes && info.notes.includes('Tracking/batch sequence: 0000050443'),
+    `Expected tracking sequence 0000050443 for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    result.patternKey === 'cort-modern-12-digit-year-tracking-sequence',
+    `Expected Cort modern 12-digit pattern key for ${serialInput}, got ${result.patternKey}`
   );
 }
 
@@ -1796,6 +1895,32 @@ function assertSchecterRNPrefix(serialInput) {
   );
 }
 
+function assertSchecterIMPrefix(serialInput) {
+  const result = decodeSchecter(serialInput);
+  assert(result.success, `Expected decode success for Schecter ${serialInput}`);
+  assert(result.info, `Expected decoded info for Schecter ${serialInput}`);
+
+  const info = result.info;
+  assert(info.serialNumber === 'IM25100158', `Expected normalized serial IM25100158 for ${serialInput}, got ${info.serialNumber}`);
+  assert(info.year === '2025', `Expected year 2025 for ${serialInput}, got ${info.year}`);
+  assert(info.month === 'October', `Expected month October for ${serialInput}, got ${info.month}`);
+  assert(info.factory === 'Inwoo / PT Inwoo Indonesia', `Expected Inwoo / PT Inwoo Indonesia factory for ${serialInput}, got ${info.factory}`);
+  assert(info.country === 'Indonesia', `Expected Indonesia country for ${serialInput}, got ${info.country}`);
+  assert(info.model === 'Diamond Series import', `Expected Diamond Series import model for ${serialInput}, got ${info.model}`);
+  assert(
+    info.notes && info.notes.includes('Sequence: 0158'),
+    `Expected sequence 0158 for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    result.patternKey === 'schecter-im-indonesia-yymm-sequence',
+    `Expected Schecter IM pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('production sequence 158'),
+    `Expected Schecter IM rich text for ${serialInput}`
+  );
+}
+
 function assertSchecterSTPrefix(serialInput) {
   const result = decodeSchecter(serialInput);
   assert(result.success, `Expected decode success for Schecter ${serialInput}`);
@@ -2026,7 +2151,9 @@ assertPRSUsaCoreSingleYearDigit('7/126922');
 assertBCRichIShortImport('i50311', '2005', 'March');
 assertBCRichShortNumericImport('150979');
 assertBCRichShortMonthCodeImport('F2051631');
+assertBCRichFPrefixSixDigitImport('F201422');
 assertBCRichBPrefixMonthCodeImport('BA09030385');
+assertBCRichHanserTwoLetterMonthPlantImport('co1093111');
 assertBCRichHanserEraEightDigitImport('Sr#41201627');
 assertBCRichClassAxeBPrefixImport('B007132');
 assertBCRichUSA5DigitOffset('36642', '1982-1983 (estimated)');
@@ -2052,6 +2179,8 @@ assertCortIATransposedPrefix('IA200750591', 'AI200750591', '2020', 'July');
 assertCortYearSequence7Digit('0000400');
 assertCortLate1990s8Digit('99122466');
 assertCortModern8DigitYearBatch('20002219', '2020');
+assertCortModern9DigitModelYear('270327182', '2027', 'March');
+assertCortModern12DigitTracking('210000050443', '2021');
 assertCortRPrefixYearSequence('R 0611374', 'R0611374', '2006');
 assertCort1980sKorea7Digit('8808046');
 assertCharvelCFPrefix('CF22271', '2022');
@@ -2081,6 +2210,7 @@ assertESPVintageJapan5Digit('22944');
 assertESPVintageJapan5Digit('29290');
 assertSchecterCAPrefix('CA24010005');
 assertSchecterRNPrefix('Rn24100948');
+assertSchecterIMPrefix('IM25100158');
 assertSchecterSTPrefix('ST19070042');
 assertSchecterROPrefix('RO23100905');
 assertSchecterHPrefix('H090501093');

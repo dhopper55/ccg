@@ -7,6 +7,7 @@ import { DecodeResult, GuitarInfo } from '../types.js';
  * - Modern format: YYMMXXXX (2000-2004)
  * - Modern numeric year/batch format: YY00XXXX
  * - Modern format extended: YYMMXXXXX (2005-present)
+ * - Modern 12-digit logistics/tracking format: YY + 10-digit sequence
  * - Late 1990s format: YYMMXXXX (1990-1999)
  * - 1980s Korean 7-digit year/sequence format: 88XXXXX
  * - 1990s format: YMMXXXX (early 1990s-1999)
@@ -72,6 +73,11 @@ export function decodeCort(serial: string): DecodeResult {
     return decodeRPrefixYearSequence(normalized);
   }
 
+  // Modern 12-digit logistics/tracking format: YY + 10-digit sequence
+  if (/^\d{12}$/.test(normalized)) {
+    return decodeModern12DigitTracking(normalized);
+  }
+
   // Modern format with 9 digits: YYMMXXXXX (2005-present)
   if (/^\d{9}$/.test(normalized)) {
     return decodeModern9Digit(normalized);
@@ -112,7 +118,7 @@ export function decodeCort(serial: string): DecodeResult {
 
   return {
     success: false,
-    error: 'Unable to decode this Cort serial number. The format was not recognized. Common formats include: YYMMXXXX (8 digits, 2000-2004), YYMMXXXXX (9 digits, 2005+), RYYXXXXX (R prefix year/sequence), YMMXXXX (7 digits, 1990s), or W.O. prefix (1970s-80s). Note: Pre-mid-1990s guitars often have randomly generated serial numbers.',
+    error: 'Unable to decode this Cort serial number. The format was not recognized. Common formats include: YYMMXXXX (8 digits, 2000-2004), YYMMXXXXX (9 digits, 2005+), YY + 10-digit tracking codes, RYYXXXXX (R prefix year/sequence), YMMXXXX (7 digits, 1990s), or W.O. prefix (1970s-80s). Note: Pre-mid-1990s guitars often have randomly generated serial numbers.',
   };
 }
 
@@ -423,7 +429,72 @@ function decodeModern9Digit(serial: string): DecodeResult {
     notes: `Modern 9-digit format (YYMMXXXXX) used since 2005. Production sequence: ${sequence}. Exact factory location requires additional identification from the instrument.`,
   };
 
-  return { success: true, info };
+  return {
+    success: true,
+    info,
+    patternKey: 'cort-modern-9-digit-yymm-sequence',
+    patternLabel: 'Cort modern 9-digit YYMM sequence',
+    additionalContext: {
+      title: 'Cort modern 9-digit serial',
+      summary: 'This serial matches a modern Cort numeric format where the first four digits identify production year and month.',
+      highlights: [
+        `The digits ${yearDigits} decode as production year ${year}.`,
+        `The digits ${monthDigits} decode as ${getMonthName(month)}.`,
+        `The remaining digits decode as production sequence ${parseInt(sequence, 10)}.`,
+      ],
+      caveats: [
+        'Cort serials usually identify production date more reliably than exact model identity.',
+        'The serial does not identify the specific Cort model name.',
+        'Production location requires country-of-origin markings or other physical evidence.',
+      ],
+      verificationTips: [
+        'Check the headstock, soundhole label, neck heel, or back of headstock for model and country markings.',
+        'Compare the instrument against Cort catalog specs from the decoded year.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern Cort numeric format where the first four digits identify production year and month.</p><h3>How This Pattern Is Typically Read</h3><p>The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} decode as ${getMonthName(month)}. The remaining digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Cort serials usually identify production date more reliably than exact model identity.</li><li>The serial does not identify the specific Cort model name.</li><li>Production location requires country-of-origin markings or other physical evidence.</li></ul>`,
+  };
+}
+
+// Modern 12-digit tracking/logistics format: YY + 10-digit sequence
+function decodeModern12DigitTracking(serial: string): DecodeResult {
+  const yearDigits = serial.substring(0, 2);
+  const sequence = serial.substring(2);
+  const year = 2000 + parseInt(yearDigits, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Cort',
+    serialNumber: serial,
+    year: year.toString(),
+    factory: 'Cort (location varies - Korea, Indonesia, or China)',
+    country: 'Korea, Indonesia, or China',
+    notes: `Modern 12-digit Cort tracking format interpreted as YY + 10-digit logistics or manufacturing sequence. The first two digits (${yearDigits}) indicate production year ${year}. Tracking/batch sequence: ${sequence}. This format may appear on barcode labels, soundhole labels, box stickers, or factory inventory labels rather than as a traditional stamped headstock serial.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'cort-modern-12-digit-year-tracking-sequence',
+    patternLabel: 'Cort modern 12-digit year/tracking sequence',
+    additionalContext: {
+      title: 'Cort modern 12-digit tracking serial',
+      summary: 'This serial matches a modern Cort 12-digit tracking format where the first two digits identify production year and the remaining digits are a logistics or manufacturing sequence.',
+      highlights: [
+        `The first two digits decode as production year ${year}.`,
+        `The remaining ten digits decode as tracking or batch sequence ${sequence}.`,
+      ],
+      caveats: [
+        'Cort serials usually identify production date more reliably than exact model identity.',
+        'This format may be tied to barcode, warehouse, or factory tracking labels.',
+        'Production location requires country-of-origin markings or other physical evidence.',
+      ],
+      verificationTips: [
+        'Check whether the number appears on a paper soundhole label, barcode label, box sticker, or headstock marking.',
+        'Use the headstock, soundhole label, neck heel, and country markings to confirm the model and factory.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern Cort 12-digit tracking format where the first two digits identify production year and the remaining digits are a logistics or manufacturing sequence.</p><h3>How This Pattern Is Typically Read</h3><p>The first two digits ${yearDigits} decode as production year ${year}. The remaining ten digits decode as tracking or batch sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>Cort serials usually identify production date more reliably than exact model identity.</li><li>This format may be tied to barcode, warehouse, or factory tracking labels.</li><li>Production location requires country-of-origin markings or other physical evidence.</li></ul>`,
+  };
 }
 
 // Late 1990s 8-digit format: YYMMXXXX (1990-1999)
