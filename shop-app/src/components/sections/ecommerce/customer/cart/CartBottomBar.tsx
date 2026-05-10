@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Button,
@@ -28,11 +28,31 @@ type CashCustomerForm = {
 };
 
 type CashCustomerFormErrors = Partial<Record<keyof CashCustomerForm, string>>;
+type AssociateStripeFlow = 'checkout' | 'split';
+type TerminalPaymentStatus = 'idle' | 'waiting' | 'succeeded' | 'failed';
+
+type TerminalPaymentState = {
+  open: boolean;
+  status: TerminalPaymentStatus;
+  orderId: string;
+  orderNumber: string;
+  successUrl: string;
+  message: string;
+};
 
 const defaultCashCustomerForm: CashCustomerForm = {
   firstName: '',
   lastName: '',
   email: '',
+};
+
+const defaultTerminalPaymentState: TerminalPaymentState = {
+  open: false,
+  status: 'idle',
+  orderId: '',
+  orderNumber: '',
+  successUrl: '',
+  message: '',
 };
 
 const parseCurrencyToCents = (value: string) => {
@@ -78,9 +98,12 @@ const CartBottomBar = () => {
   const { enqueueSnackbar } = useSnackbar();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [isCashCheckingOut, setIsCashCheckingOut] = useState(false);
-  const [checkoutUnavailableOpen, setCheckoutUnavailableOpen] = useState(false);
   const [splitTenderOpen, setSplitTenderOpen] = useState(false);
   const [splitCardAmount, setSplitCardAmount] = useState('0.00');
+  const [associateStripeFlow, setAssociateStripeFlow] = useState<AssociateStripeFlow | null>(null);
+  const [paymentRouteOpen, setPaymentRouteOpen] = useState(false);
+  const [terminalPayment, setTerminalPayment] = useState<TerminalPaymentState>(defaultTerminalPaymentState);
+  const [isCancelingTerminalPayment, setIsCancelingTerminalPayment] = useState(false);
   const [cashConfirmOpen, setCashConfirmOpen] = useState(false);
   const [cashCustomer, setCashCustomer] = useState<CashCustomerForm>(defaultCashCustomerForm);
   const [cashCustomerErrors, setCashCustomerErrors] = useState<CashCustomerFormErrors>({});
@@ -105,13 +128,25 @@ const CartBottomBar = () => {
     setCashCustomerErrors((current) => ({ ...current, [field]: undefined }));
   };
 
+  const buildCheckoutPayload = (splitTender?: { cardAmountCents: number }) => ({
+    fulfillmentType: 'pickup',
+    couponCode: appliedCoupon?.code || undefined,
+    discountCents: Math.round(associateDiscount * 100),
+    taxIncluded,
+    splitTender,
+    items: selectedCartItems.map((item) => ({
+      inventoryItemId: item.id,
+      quantity: item.quantity,
+    })),
+  });
+
+  const openAssociateStripeRoute = (flow: AssociateStripeFlow) => {
+    setAssociateStripeFlow(flow);
+    setPaymentRouteOpen(true);
+  };
+
   const handleStripeCheckout = async () => {
     if (selectedCartItems.length === 0 || isCheckingOut) return;
-
-    if (!isAssociateMode) {
-      setCheckoutUnavailableOpen(true);
-      return;
-    }
 
     setIsCheckingOut(true);
     try {
@@ -119,16 +154,7 @@ const CartBottomBar = () => {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fulfillmentType: 'pickup',
-          couponCode: appliedCoupon?.code || undefined,
-          discountCents: Math.round(associateDiscount * 100),
-          taxIncluded,
-          items: selectedCartItems.map((item) => ({
-            inventoryItemId: item.id,
-            quantity: item.quantity,
-          })),
-        }),
+        body: JSON.stringify(buildCheckoutPayload()),
       });
       const data = (await response.json()) as { url?: string; orderNumber?: string; message?: string };
 
@@ -159,19 +185,7 @@ const CartBottomBar = () => {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fulfillmentType: 'pickup',
-          couponCode: appliedCoupon?.code || undefined,
-          discountCents: Math.round(associateDiscount * 100),
-          taxIncluded,
-          splitTender: {
-            cardAmountCents: splitCardAmountCents,
-          },
-          items: selectedCartItems.map((item) => ({
-            inventoryItemId: item.id,
-            quantity: item.quantity,
-          })),
-        }),
+        body: JSON.stringify(buildCheckoutPayload({ cardAmountCents: splitCardAmountCents })),
       });
       const data = (await response.json()) as { url?: string; orderNumber?: string; message?: string };
 
@@ -187,6 +201,133 @@ const CartBottomBar = () => {
       setIsCheckingOut(false);
     }
   };
+
+  const handleTerminalCheckout = async () => {
+    if (selectedCartItems.length === 0 || isCheckingOut || !associateStripeFlow) return;
+
+    setPaymentRouteOpen(false);
+    setIsCheckingOut(true);
+    try {
+      const splitTender = associateStripeFlow === 'split'
+        ? { cardAmountCents: splitCardAmountCents }
+        : undefined;
+      const response = await fetch('/api/shop/orders/create-terminal-payment', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildCheckoutPayload(splitTender)),
+      });
+      const data = (await response.json()) as {
+        orderId?: string;
+        orderNumber?: string;
+        successUrl?: string;
+        message?: string;
+      };
+
+      if (!response.ok || !data.orderId) {
+        throw new Error(data.message || 'Unable to start terminal payment.');
+      }
+
+      setTerminalPayment({
+        open: true,
+        status: 'waiting',
+        orderId: data.orderId,
+        orderNumber: data.orderNumber || '',
+        successUrl: data.successUrl || '',
+        message: 'Complete the card payment on the WisePOS E.',
+      });
+    } catch (error) {
+      enqueueSnackbar(error instanceof Error ? error.message : 'Unable to start terminal payment.', {
+        variant: 'error',
+      });
+      setIsCheckingOut(false);
+    }
+  };
+
+  const handleAssociateWebCheckout = () => {
+    setPaymentRouteOpen(false);
+    if (associateStripeFlow === 'split') {
+      void handleSplitTenderCheckout();
+      return;
+    }
+    void handleStripeCheckout();
+  };
+
+  const handleTerminalCancel = async () => {
+    if (!terminalPayment.orderId || isCancelingTerminalPayment) return;
+
+    setIsCancelingTerminalPayment(true);
+    try {
+      const response = await fetch(`/api/shop/orders/${encodeURIComponent(terminalPayment.orderId)}/terminal-payment/cancel`, {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+      const data = (await response.json()) as { message?: string };
+      if (!response.ok) {
+        throw new Error(data.message || 'Unable to cancel terminal payment.');
+      }
+      setTerminalPayment(defaultTerminalPaymentState);
+      setIsCheckingOut(false);
+    } catch (error) {
+      enqueueSnackbar(error instanceof Error ? error.message : 'Unable to cancel terminal payment.', {
+        variant: 'error',
+      });
+    } finally {
+      setIsCancelingTerminalPayment(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!terminalPayment.open || terminalPayment.status !== 'waiting' || !terminalPayment.orderId) return undefined;
+
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const response = await fetch(`/api/shop/orders/${encodeURIComponent(terminalPayment.orderId)}/terminal-payment`, {
+          credentials: 'same-origin',
+        });
+        const data = (await response.json()) as {
+          status?: TerminalPaymentStatus;
+          successUrl?: string;
+          message?: string;
+        };
+        if (cancelled) return;
+        if (!response.ok) {
+          throw new Error(data.message || 'Unable to check terminal payment.');
+        }
+        if (data.status === 'succeeded') {
+          window.location.assign(data.successUrl || terminalPayment.successUrl);
+          return;
+        }
+        if (data.status === 'failed') {
+          setTerminalPayment((current) => ({
+            ...current,
+            status: 'failed',
+            message: data.message || 'Terminal payment failed.',
+          }));
+          setIsCheckingOut(false);
+        }
+      } catch (error) {
+        if (cancelled) return;
+        setTerminalPayment((current) => ({
+          ...current,
+          status: 'failed',
+          message: error instanceof Error ? error.message : 'Unable to check terminal payment.',
+        }));
+        setIsCheckingOut(false);
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      void poll();
+    }, 2500);
+    void poll();
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [terminalPayment.open, terminalPayment.orderId, terminalPayment.status, terminalPayment.successUrl]);
 
   const handleCashCheckout = async () => {
     if (selectedCartItems.length === 0 || isCashCheckingOut) return;
@@ -297,7 +438,13 @@ const CartBottomBar = () => {
               variant="contained"
               loading={isCheckingOut}
               disabled={selectedCartItems.length === 0}
-              onClick={handleStripeCheckout}
+              onClick={() => {
+                if (isAssociateMode) {
+                  openAssociateStripeRoute('checkout');
+                  return;
+                }
+                void handleStripeCheckout();
+              }}
               sx={{
                 whiteSpace: 'nowrap',
                 px: { xs: 3, sm: 6 },
@@ -339,24 +486,6 @@ const CartBottomBar = () => {
       </Stack>
     </Paper>
     <Dialog
-      open={checkoutUnavailableOpen}
-      onClose={() => setCheckoutUnavailableOpen(false)}
-      fullWidth
-      maxWidth="xs"
-    >
-      <DialogTitle>Checkout coming soon</DialogTitle>
-      <DialogContent sx={{ pt: 1 }}>
-        <Typography variant="body1">
-          Online checkout will be available shortly. Please contact us directly for checkout options today: (303) 376-9214.
-        </Typography>
-      </DialogContent>
-      <DialogActions>
-        <Button variant="contained" onClick={() => setCheckoutUnavailableOpen(false)}>
-          OK
-        </Button>
-      </DialogActions>
-    </Dialog>
-    <Dialog
       open={splitTenderOpen}
       onClose={() => !isCheckingOut && setSplitTenderOpen(false)}
       fullWidth
@@ -365,7 +494,9 @@ const CartBottomBar = () => {
       <DialogTitle>Card Amount?</DialogTitle>
       <Box component="form" onSubmit={(event) => {
         event.preventDefault();
-        void handleSplitTenderCheckout();
+        if (!canSubmitSplitTender) return;
+        setSplitTenderOpen(false);
+        openAssociateStripeRoute('split');
       }}>
         <DialogContent sx={{ pt: 1 }}>
           <Stack direction="column" sx={{ gap: 2 }}>
@@ -409,6 +540,85 @@ const CartBottomBar = () => {
           </Button>
         </DialogActions>
       </Box>
+    </Dialog>
+    <Dialog
+      open={paymentRouteOpen}
+      onClose={() => !isCheckingOut && setPaymentRouteOpen(false)}
+      fullWidth
+      maxWidth="xs"
+    >
+      <DialogTitle>Choose card checkout</DialogTitle>
+      <DialogContent sx={{ pt: 1 }}>
+        <Typography variant="body1">
+          Send the card payment to the WisePOS E terminal or continue with Stripe hosted checkout.
+        </Typography>
+      </DialogContent>
+      <DialogActions>
+        <Button
+          color="neutral"
+          variant="soft"
+          onClick={() => setPaymentRouteOpen(false)}
+          disabled={isCheckingOut}
+        >
+          Cancel
+        </Button>
+        <Button
+          color="neutral"
+          variant="outlined"
+          onClick={handleAssociateWebCheckout}
+          loading={isCheckingOut}
+        >
+          Web
+        </Button>
+        <Button
+          variant="contained"
+          onClick={handleTerminalCheckout}
+          loading={isCheckingOut}
+        >
+          Terminal
+        </Button>
+      </DialogActions>
+    </Dialog>
+    <Dialog
+      open={terminalPayment.open}
+      onClose={() => {
+        if (terminalPayment.status !== 'waiting' && !isCancelingTerminalPayment) {
+          setTerminalPayment(defaultTerminalPaymentState);
+        }
+      }}
+      fullWidth
+      maxWidth="xs"
+    >
+      <DialogTitle>
+        {terminalPayment.status === 'failed' ? 'Terminal payment failed' : 'Waiting for terminal payment'}
+      </DialogTitle>
+      <DialogContent sx={{ pt: 1 }}>
+        <Stack direction="column" sx={{ gap: 1 }}>
+          {terminalPayment.orderNumber && (
+            <Typography variant="subtitle2">{terminalPayment.orderNumber}</Typography>
+          )}
+          <Typography variant="body1">{terminalPayment.message}</Typography>
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        {terminalPayment.status === 'waiting' ? (
+          <Button
+            color="neutral"
+            variant="soft"
+            onClick={handleTerminalCancel}
+            loading={isCancelingTerminalPayment}
+          >
+            Cancel terminal payment
+          </Button>
+        ) : (
+          <Button
+            variant="contained"
+            onClick={() => setTerminalPayment(defaultTerminalPaymentState)}
+          >
+            OK
+          </Button>
+        )}
+      </DialogActions>
     </Dialog>
     <Dialog open={cashConfirmOpen} onClose={() => !isCashCheckingOut && setCashConfirmOpen(false)} fullWidth maxWidth="xs">
       <DialogTitle>Confirm cash paid in full?</DialogTitle>

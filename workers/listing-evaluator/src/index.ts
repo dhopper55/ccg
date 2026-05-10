@@ -31,6 +31,8 @@ interface Env {
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
   STRIPE_CO_SALES_TAX_RATE_ID?: string;
+  STRIPE_TERMINAL_READER_ID?: string;
+  STRIPE_TERMINAL_READER_ID_SANDBOX?: string;
   WEBHOOK_SECRET?: string;
   LISTING_JOBS: KVNamespace;
   GOOGLE_MAPS_API_KEY?: string;
@@ -154,6 +156,7 @@ interface ShopCheckoutRequestPayload {
     lastName?: unknown;
     email?: unknown;
   };
+  readerId?: unknown;
   items?: Array<{
     inventoryItemId?: unknown;
     quantity?: unknown;
@@ -519,8 +522,27 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/shop/orders/create-terminal-payment' && request.method === 'POST') {
+      const response = await handleShopCreateTerminalPayment(request, env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/shop/orders/create-cash-order' && request.method === 'POST') {
       const response = await handleShopCreateCashOrder(request, env);
+      return withCors(response, request, env);
+    }
+
+    const shopTerminalPaymentCancelMatch = path.match(/^\/api\/shop\/orders\/([^/]+)\/terminal-payment\/cancel$/);
+    if (shopTerminalPaymentCancelMatch && request.method === 'POST') {
+      const orderId = decodeURIComponent(shopTerminalPaymentCancelMatch[1]);
+      const response = await handleShopTerminalPaymentCancel(orderId, request, env);
+      return withCors(response, request, env);
+    }
+
+    const shopTerminalPaymentMatch = path.match(/^\/api\/shop\/orders\/([^/]+)\/terminal-payment$/);
+    if (shopTerminalPaymentMatch && request.method === 'GET') {
+      const orderId = decodeURIComponent(shopTerminalPaymentMatch[1]);
+      const response = await handleShopTerminalPaymentStatus(orderId, request, env);
       return withCors(response, request, env);
     }
 
@@ -4812,6 +4834,152 @@ async function handleShopCreateCheckoutSession(request: Request, env: Env): Prom
   }
 }
 
+async function handleShopCreateTerminalPayment(request: Request, env: Env): Promise<Response> {
+  const includeInStoreOnly = await isAssociateModeRequest(request, env);
+  if (!includeInStoreOnly) {
+    return jsonResponse({ message: 'Terminal checkout is only available in associate mode.' }, 403);
+  }
+
+  const stripeConfig = await getStripeRuntimeConfig(env);
+  const stripeSecretKey = stripeConfig.secretKey;
+  if (!stripeSecretKey) {
+    return jsonResponse({ message: 'Stripe Terminal is not configured.' }, 503);
+  }
+
+  let body: ShopCheckoutRequestPayload;
+  try {
+    body = await request.json<ShopCheckoutRequestPayload>();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  const fulfillmentType = normalizeText(body?.fulfillmentType, 'pickup') === 'pickup'
+    ? 'pickup'
+    : 'pickup';
+  const draftResult = await buildShopCheckoutDraft(body, {
+    includeInStoreOnly,
+    allowTaxIncluded: true,
+    allowManualDiscount: true,
+  }, env);
+  if (draftResult instanceof Response) {
+    return draftResult;
+  }
+  const draft = draftResult;
+  const requestedCardAmountCents = numberOrZero(body?.splitTender?.cardAmountCents);
+  const isSplitTender = requestedCardAmountCents > 0;
+  const cardAmountCents = isSplitTender ? requestedCardAmountCents : draft.totalCents;
+  const cashAmountCents = isSplitTender ? Math.max(0, draft.totalCents - cardAmountCents) : 0;
+  if (isSplitTender && cardAmountCents < 100) {
+    return jsonResponse({ message: 'Card amount must be at least $1.00.' }, 400);
+  }
+  if (isSplitTender && cardAmountCents > draft.totalCents) {
+    return jsonResponse({ message: 'Card amount cannot exceed the order total.' }, 400);
+  }
+
+  const readerResult = await resolveStripeTerminalReader({
+    stripeSecretKey,
+    requestedReaderId: normalizeText(body?.readerId, ''),
+    useSandbox: stripeConfig.useSandbox,
+    env,
+  });
+  if (!readerResult.ok) {
+    return jsonResponse({ message: readerResult.message }, readerResult.status);
+  }
+
+  const nowIso = new Date().toISOString();
+  const orderId = crypto.randomUUID();
+  const orderNumber = buildOrderNumber();
+  const baseUrl = normalizeText(env.SITE_BASE_URL, ACTIVITY_BASE_URL).replace(/\/+$/, '');
+  const successUrl = `${baseUrl}${SHOP_BASE_PATH}/checkout/success?order=${encodeURIComponent(orderId)}`;
+  const cancelUrl = `${baseUrl}${SHOP_BASE_PATH}/cart`;
+  const checkoutProvider = isSplitTender ? 'stripe_terminal_cash' : 'stripe_terminal';
+
+  try {
+    await dbCreateCheckoutOrder({
+      orderId,
+      orderNumber,
+      status: 'checkout_open',
+      channel: 'in_store',
+      fulfillmentType,
+      checkoutType: 'stripe',
+      checkoutProvider,
+      checkoutMode: 'terminal_reader',
+      subtotalCents: draft.subtotalCents,
+      discountCents: draft.discountCents,
+      couponCode: draft.couponCode,
+      taxCents: draft.taxCents,
+      totalCents: draft.totalCents,
+      cardAmountCents: isSplitTender ? cardAmountCents : null,
+      cashAmountCents: isSplitTender ? cashAmountCents : null,
+      successUrl,
+      cancelUrl,
+      createdAt: nowIso,
+      items: draft.items,
+    }, env);
+
+    const paymentIntent = await createStripeTerminalPaymentIntent({
+      stripeSecretKey,
+      orderId,
+      orderNumber,
+      amountCents: cardAmountCents,
+      totalCents: draft.totalCents,
+      cardAmountCents,
+      cashAmountCents,
+      discountCents: draft.discountCents,
+      taxCents: draft.taxCents,
+      checkoutProvider,
+      items: draft.items,
+    });
+
+    await dbUpdateTableById('orders', orderId, {
+      stripe_payment_intent_id: paymentIntent.id,
+      stripe_payment_status: normalizeText(paymentIntent.status, 'requires_payment_method'),
+      updated_at: new Date().toISOString(),
+    }, env);
+
+    const readerAction = await processStripeTerminalPaymentIntent({
+      stripeSecretKey,
+      readerId: readerResult.reader.id,
+      paymentIntentId: paymentIntent.id,
+      orderId,
+    });
+
+    await dbRecordOrderEvent(orderId, {
+      eventType: 'terminal_payment_started',
+      fromStatus: null,
+      toStatus: 'checkout_open',
+      source: 'associate_checkout',
+      sourceId: readerResult.reader.id,
+      message: 'Stripe Terminal payment sent to reader.',
+      payloadJson: JSON.stringify({
+        readerId: readerResult.reader.id,
+        readerLabel: readerResult.reader.label,
+        paymentIntentId: paymentIntent.id,
+        readerAction,
+        cardAmountCents,
+        cashAmountCents,
+        totalCents: draft.totalCents,
+      }),
+    }, env);
+
+    return jsonResponse({
+      orderId,
+      orderNumber,
+      successUrl,
+      paymentIntentId: paymentIntent.id,
+      readerId: readerResult.reader.id,
+      readerLabel: readerResult.reader.label,
+      status: 'waiting',
+    });
+  } catch (error) {
+    console.error('Stripe Terminal payment start failed', { error });
+    await dbCancelFailedCheckoutOrder(orderId, env);
+    return jsonResponse({
+      message: error instanceof Error ? error.message : 'Unable to start terminal payment.',
+    }, 500);
+  }
+}
+
 async function handleShopCreateCashOrder(request: Request, env: Env): Promise<Response> {
   const includeInStoreOnly = await isAssociateModeRequest(request, env);
   if (!includeInStoreOnly) {
@@ -4909,6 +5077,139 @@ async function handleShopCreateCashOrder(request: Request, env: Env): Promise<Re
       message: error instanceof Error ? error.message : 'Unable to record cash checkout.',
     }, 500);
   }
+}
+
+async function handleShopTerminalPaymentStatus(orderId: string, request: Request, env: Env): Promise<Response> {
+  const includeInStoreOnly = await isAssociateModeRequest(request, env);
+  if (!includeInStoreOnly) {
+    return jsonResponse({ message: 'Terminal checkout is only available in associate mode.' }, 403);
+  }
+
+  const normalizedOrderId = normalizeText(orderId, '');
+  if (!normalizedOrderId) return jsonResponse({ message: 'Order not found.' }, 404);
+
+  const order = await dbGetOrderById(normalizedOrderId, env);
+  if (!order) return jsonResponse({ message: 'Order not found.' }, 404);
+
+  const successUrl = normalizeText(order.success_url, `${SHOP_BASE_PATH}/checkout/success?order=${encodeURIComponent(normalizedOrderId)}`);
+  const currentStatus = normalizeText(order.status, '');
+  if (currentStatus === 'paid') {
+    return jsonResponse({ status: 'succeeded', successUrl });
+  }
+  if (currentStatus === 'cancelled' || currentStatus === 'canceled') {
+    return jsonResponse({ status: 'failed', message: 'Terminal payment was cancelled.', successUrl });
+  }
+
+  const paymentIntentId = normalizeText(order.stripe_payment_intent_id, '');
+  if (!paymentIntentId) {
+    return jsonResponse({ status: 'failed', message: 'Order is missing a terminal payment intent.' }, 409);
+  }
+
+  const { secretKey: stripeSecretKey } = await getStripeRuntimeConfig(env);
+  if (!stripeSecretKey) {
+    return jsonResponse({ message: 'Stripe Terminal is not configured.' }, 503);
+  }
+
+  const paymentIntent = await retrieveStripePaymentIntent(stripeSecretKey, paymentIntentId);
+  const paymentStatus = normalizeText(paymentIntent?.status, '');
+  await dbUpdateTableById('orders', normalizedOrderId, {
+    stripe_payment_status: paymentStatus,
+    updated_at: new Date().toISOString(),
+  }, env);
+
+  if (paymentStatus === 'succeeded') {
+    await dbMarkTerminalCheckoutOrderPaid(normalizedOrderId, paymentIntent, env);
+    return jsonResponse({ status: 'succeeded', successUrl });
+  }
+
+  if (paymentStatus === 'canceled') {
+    await dbCancelFailedCheckoutOrder(normalizedOrderId, env);
+    return jsonResponse({
+      status: 'failed',
+      message: 'Terminal payment was cancelled.',
+      successUrl,
+    });
+  }
+
+  const stripeConfig = await getStripeRuntimeConfig(env);
+  const readerResult = stripeConfig.secretKey
+    ? await resolveStripeTerminalReader({
+      stripeSecretKey: stripeConfig.secretKey,
+      requestedReaderId: '',
+      useSandbox: stripeConfig.useSandbox,
+      env,
+    })
+    : null;
+  const readerAction = readerResult?.ok ? readerResult.reader.action : null;
+  const actionPaymentIntent = normalizeText(
+    readerAction?.process_payment_intent?.payment_intent ?? readerAction?.payment_intent,
+    '',
+  );
+  const actionStatus = normalizeText(readerAction?.status, '');
+  if ((!actionPaymentIntent || actionPaymentIntent === paymentIntentId) && actionStatus === 'failed') {
+    await dbCancelFailedCheckoutOrder(normalizedOrderId, env);
+    return jsonResponse({
+      status: 'failed',
+      message: normalizeText(readerAction?.failure_message, 'Terminal payment failed.'),
+      successUrl,
+    });
+  }
+
+  return jsonResponse({
+    status: 'waiting',
+    paymentStatus,
+    readerActionStatus: actionStatus,
+    successUrl,
+  });
+}
+
+async function handleShopTerminalPaymentCancel(orderId: string, request: Request, env: Env): Promise<Response> {
+  const includeInStoreOnly = await isAssociateModeRequest(request, env);
+  if (!includeInStoreOnly) {
+    return jsonResponse({ message: 'Terminal checkout is only available in associate mode.' }, 403);
+  }
+
+  const normalizedOrderId = normalizeText(orderId, '');
+  const order = normalizedOrderId ? await dbGetOrderById(normalizedOrderId, env) : null;
+  if (!order) return jsonResponse({ message: 'Order not found.' }, 404);
+
+  const currentStatus = normalizeText(order.status, '');
+  if (currentStatus === 'paid') {
+    return jsonResponse({ message: 'This order is already paid.' }, 409);
+  }
+
+  const stripeConfig = await getStripeRuntimeConfig(env);
+  if (!stripeConfig.secretKey) {
+    return jsonResponse({ message: 'Stripe Terminal is not configured.' }, 503);
+  }
+
+  const readerResult = await resolveStripeTerminalReader({
+    stripeSecretKey: stripeConfig.secretKey,
+    requestedReaderId: '',
+    useSandbox: stripeConfig.useSandbox,
+    env,
+  });
+  if (readerResult.ok) {
+    await cancelStripeTerminalReaderAction(stripeConfig.secretKey, readerResult.reader.id);
+  }
+
+  const paymentIntentId = normalizeText(order.stripe_payment_intent_id, '');
+  if (paymentIntentId) {
+    await cancelStripePaymentIntent(stripeConfig.secretKey, paymentIntentId);
+  }
+
+  await dbCancelFailedCheckoutOrder(normalizedOrderId, env);
+  await dbRecordOrderEvent(normalizedOrderId, {
+    eventType: 'terminal_payment_cancelled',
+    fromStatus: currentStatus || null,
+    toStatus: 'cancelled',
+    source: 'associate_checkout',
+    sourceId: readerResult.ok ? readerResult.reader.id : '',
+    message: 'Stripe Terminal payment cancelled from cart.',
+    payloadJson: JSON.stringify({ paymentIntentId }),
+  }, env);
+
+  return jsonResponse({ ok: true });
 }
 
 async function handleShopOrderReceipt(orderId: string, request: Request, env: Env): Promise<Response> {
@@ -9534,6 +9835,55 @@ async function dbGetOrderStatus(orderId: string, env: Env): Promise<string | nul
     'SELECT status FROM orders WHERE id = ? LIMIT 1'
   ).bind(orderId).first<{ status: string | null }>();
   return normalizeText(row?.status, '') || null;
+}
+
+async function dbGetOrderById(orderId: string, env: Env): Promise<Record<string, unknown> | null> {
+  const normalizedOrderId = normalizeText(orderId, '');
+  if (!normalizedOrderId) return null;
+  return env.DB.prepare('SELECT * FROM orders WHERE id = ? LIMIT 1')
+    .bind(normalizedOrderId)
+    .first<Record<string, unknown>>();
+}
+
+async function dbMarkTerminalCheckoutOrderPaid(orderId: string, paymentIntent: any, env: Env): Promise<void> {
+  const currentStatus = await dbGetOrderStatus(orderId, env);
+  if (currentStatus === 'paid') return;
+
+  const paidAt = new Date().toISOString();
+  const session = {
+    id: normalizeText(paymentIntent?.id, ''),
+    payment_intent: normalizeText(paymentIntent?.id, ''),
+    payment_status: normalizeText(paymentIntent?.status, 'succeeded'),
+    manual_provider: 'stripe_terminal',
+  };
+  const items = await dbListOrderInventoryQuantities(orderId, env);
+  await dbApplyPaidInventoryItems(orderId, items, session, env);
+
+  await dbUpdateTableById('orders', orderId, {
+    status: 'paid',
+    paid_at: paidAt,
+    stripe_payment_intent_id: normalizeText(paymentIntent?.id, ''),
+    stripe_payment_status: normalizeText(paymentIntent?.status, 'succeeded'),
+    updated_at: paidAt,
+  }, env);
+
+  await dbRecordOrderEvent(orderId, {
+    eventType: 'payment_succeeded',
+    fromStatus: null,
+    toStatus: 'paid',
+    source: 'stripe_terminal',
+    sourceId: normalizeText(paymentIntent?.id, ''),
+    message: 'Stripe Terminal payment succeeded.',
+    payloadJson: JSON.stringify({
+      paymentIntentId: normalizeText(paymentIntent?.id, ''),
+      paymentStatus: normalizeText(paymentIntent?.status, ''),
+      cardAmountCents: numberOrZero(paymentIntent?.metadata?.card_amount_cents),
+      cashAmountCents: numberOrZero(paymentIntent?.metadata?.cash_amount_cents),
+      totalCents: numberOrZero(paymentIntent?.metadata?.total_cents),
+    }),
+  }, env);
+
+  await sendBrevoOrderConfirmationEmailForOrder(orderId, env);
 }
 
 async function dbGetOrderReceipt(orderId: string, env: Env): Promise<Record<string, unknown> | null> {
@@ -14348,6 +14698,253 @@ async function createStripeCheckoutSession(input: {
   const url = normalizeText(data?.url, '');
   if (!id || !url) throw new Error('Stripe did not return a checkout URL.');
   return { id, url };
+}
+
+async function createStripeTerminalPaymentIntent(input: {
+  stripeSecretKey: string;
+  orderId: string;
+  orderNumber: string;
+  amountCents: number;
+  totalCents: number;
+  cardAmountCents: number;
+  cashAmountCents: number;
+  discountCents: number;
+  taxCents: number;
+  checkoutProvider: string;
+  items: Array<{
+    inventoryItemId: number;
+    quantity: number;
+    title: string;
+  }>;
+}): Promise<{ id: string; status: string }> {
+  const form = new URLSearchParams();
+  form.set('amount', String(input.amountCents));
+  form.set('currency', 'usd');
+  form.append('payment_method_types[]', 'card_present');
+  form.set('capture_method', 'automatic');
+  form.set('description', `Coal Creek Guitars ${input.orderNumber}`);
+  form.set('metadata[order_id]', input.orderId);
+  form.set('metadata[order_number]', input.orderNumber);
+  form.set('metadata[checkout_provider]', input.checkoutProvider);
+  form.set('metadata[inventory_item_ids]', input.items.map((item) => String(item.inventoryItemId)).join(','));
+  form.set('metadata[card_amount_cents]', String(input.cardAmountCents));
+  form.set('metadata[cash_amount_cents]', String(input.cashAmountCents));
+  form.set('metadata[total_cents]', String(input.totalCents));
+  form.set('metadata[discount_cents]', String(input.discountCents));
+  form.set('metadata[tax_cents]', String(input.taxCents));
+
+  const response = await fetch('https://api.stripe.com/v1/payment_intents', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${input.stripeSecretKey}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Idempotency-Key': `ccg-terminal-pi-${input.orderId}`,
+    },
+    body: form,
+  });
+  const data = await response.json<any>();
+  if (!response.ok) {
+    throw new Error(normalizeText(data?.error?.message, 'Stripe rejected the Terminal payment request.'));
+  }
+  const id = normalizeText(data?.id, '');
+  if (!id) throw new Error('Stripe did not return a PaymentIntent ID.');
+  return { id, status: normalizeText(data?.status, '') };
+}
+
+async function processStripeTerminalPaymentIntent(input: {
+  stripeSecretKey: string;
+  readerId: string;
+  paymentIntentId: string;
+  orderId: string;
+}): Promise<any> {
+  const form = new URLSearchParams();
+  form.set('payment_intent', input.paymentIntentId);
+
+  const response = await fetch(
+    `https://api.stripe.com/v1/terminal/readers/${encodeURIComponent(input.readerId)}/process_payment_intent`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${input.stripeSecretKey}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Idempotency-Key': `ccg-terminal-process-${input.orderId}`,
+      },
+      body: form,
+    },
+  );
+  const data = await response.json<any>();
+  if (!response.ok) {
+    throw new Error(normalizeText(data?.error?.message, 'Stripe could not send the payment to the Terminal reader.'));
+  }
+  return data?.action ?? null;
+}
+
+async function retrieveStripePaymentIntent(stripeSecretKey: string, paymentIntentId: string): Promise<any> {
+  const response = await fetch(
+    `https://api.stripe.com/v1/payment_intents/${encodeURIComponent(paymentIntentId)}`,
+    { headers: { Authorization: `Bearer ${stripeSecretKey}` } },
+  );
+  const data = await response.json<any>();
+  if (!response.ok) {
+    throw new Error(normalizeText(data?.error?.message, 'Stripe payment lookup failed.'));
+  }
+  return data;
+}
+
+async function cancelStripePaymentIntent(stripeSecretKey: string, paymentIntentId: string): Promise<void> {
+  try {
+    const response = await fetch(
+      `https://api.stripe.com/v1/payment_intents/${encodeURIComponent(paymentIntentId)}/cancel`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${stripeSecretKey}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      },
+    );
+    if (!response.ok) {
+      const data = await response.json<any>();
+      console.warn('Stripe PaymentIntent cancel failed', {
+        paymentIntentId,
+        status: response.status,
+        message: normalizeText(data?.error?.message, ''),
+      });
+    }
+  } catch (error) {
+    console.warn('Stripe PaymentIntent cancel failed', { paymentIntentId, error });
+  }
+}
+
+async function cancelStripeTerminalReaderAction(stripeSecretKey: string, readerId: string): Promise<void> {
+  try {
+    const response = await fetch(
+      `https://api.stripe.com/v1/terminal/readers/${encodeURIComponent(readerId)}/cancel_action`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${stripeSecretKey}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      },
+    );
+    if (!response.ok) {
+      const data = await response.json<any>();
+      console.warn('Stripe Terminal reader action cancel failed', {
+        readerId,
+        status: response.status,
+        message: normalizeText(data?.error?.message, ''),
+      });
+    }
+  } catch (error) {
+    console.warn('Stripe Terminal reader action cancel failed', { readerId, error });
+  }
+}
+
+async function resolveStripeTerminalReader(input: {
+  stripeSecretKey: string;
+  requestedReaderId: string;
+  useSandbox: boolean;
+  env: Env;
+}): Promise<
+  | { ok: true; reader: { id: string; label: string; status: string; action?: any } }
+  | { ok: false; message: string; status: number }
+> {
+  const configuredReaderId = input.requestedReaderId || await getConfiguredStripeTerminalReaderId(input.env, input.useSandbox);
+  if (configuredReaderId) {
+    const reader = await retrieveStripeTerminalReader(input.stripeSecretKey, configuredReaderId);
+    if (!reader.id) {
+      return { ok: false, message: 'Configured Stripe Terminal reader was not found.', status: 503 };
+    }
+    if (reader.status !== 'online') {
+      return { ok: false, message: `Stripe Terminal reader ${reader.label || reader.id} is ${reader.status || 'offline'}.`, status: 409 };
+    }
+    return { ok: true, reader };
+  }
+
+  const readers = await listStripeTerminalReaders(input.stripeSecretKey);
+  const onlineReaders = readers.filter((reader) => reader.status === 'online');
+  if (onlineReaders.length === 1) {
+    return { ok: true, reader: onlineReaders[0] };
+  }
+  if (onlineReaders.length === 0) {
+    return { ok: false, message: 'No online Stripe Terminal readers were found in the active Stripe mode.', status: 503 };
+  }
+  return {
+    ok: false,
+    message: 'Multiple online Stripe Terminal readers were found. Configure a default reader before using Terminal checkout.',
+    status: 409,
+  };
+}
+
+async function getConfiguredStripeTerminalReaderId(env: Env, useSandbox: boolean): Promise<string> {
+  const envReaderId = useSandbox
+    ? normalizeText(env.STRIPE_TERMINAL_READER_ID_SANDBOX, '')
+    : normalizeText(env.STRIPE_TERMINAL_READER_ID, '');
+  if (envReaderId) return envReaderId;
+
+  try {
+    const columns = await dbGetTableColumns('sys_info', env);
+    const columnNames = new Set(columns.map((column) => column.name));
+    const columnName = useSandbox ? 'stripe_terminal_reader_id_sandbox' : 'stripe_terminal_reader_id';
+    if (!columnNames.has(columnName)) return '';
+    const row = await env.DB.prepare(`SELECT ${columnName} AS reader_id FROM sys_info LIMIT 1`)
+      .first<{ reader_id: string | null }>();
+    return normalizeText(row?.reader_id, '');
+  } catch (error) {
+    console.warn('Stripe Terminal reader config lookup failed', { useSandbox, error });
+    return '';
+  }
+}
+
+async function retrieveStripeTerminalReader(
+  stripeSecretKey: string,
+  readerId: string,
+): Promise<{ id: string; label: string; status: string; action?: any }> {
+  try {
+    const response = await fetch(
+      `https://api.stripe.com/v1/terminal/readers/${encodeURIComponent(readerId)}`,
+      { headers: { Authorization: `Bearer ${stripeSecretKey}` } },
+    );
+    const data = await response.json<any>();
+    if (!response.ok) {
+      console.warn('Stripe Terminal reader lookup failed', {
+        readerId,
+        status: response.status,
+        message: normalizeText(data?.error?.message, ''),
+      });
+      return { id: '', label: '', status: '' };
+    }
+    return {
+      id: normalizeText(data?.id, ''),
+      label: normalizeText(data?.label, ''),
+      status: normalizeText(data?.status, ''),
+      action: data?.action ?? null,
+    };
+  } catch (error) {
+    console.warn('Stripe Terminal reader lookup failed', { readerId, error });
+    return { id: '', label: '', status: '' };
+  }
+}
+
+async function listStripeTerminalReaders(
+  stripeSecretKey: string,
+): Promise<Array<{ id: string; label: string; status: string }>> {
+  const params = new URLSearchParams({ limit: '100' });
+  const response = await fetch(`https://api.stripe.com/v1/terminal/readers?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${stripeSecretKey}` },
+  });
+  const data = await response.json<any>();
+  if (!response.ok) {
+    throw new Error(normalizeText(data?.error?.message, 'Stripe Terminal reader lookup failed.'));
+  }
+  return (Array.isArray(data?.data) ? data.data : [])
+    .map((reader) => ({
+      id: normalizeText(reader?.id, ''),
+      label: normalizeText(reader?.label, ''),
+      status: normalizeText(reader?.status, ''),
+    }))
+    .filter((reader) => reader.id);
 }
 
 async function createStripeAmountOffCoupon(input: {
