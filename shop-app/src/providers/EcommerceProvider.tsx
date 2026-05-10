@@ -35,7 +35,7 @@ interface EcommerceContextInterface {
 export const EcommerceContext = createContext({} as EcommerceContextInterface);
 
 const cartStorageKey = 'ccg-shop-cart';
-const salesTaxRate = 0.0775;
+const salesTaxRate = 0.0805;
 
 const getInitialCartItems = (): CartItem[] => {
   if (typeof window === 'undefined') return [];

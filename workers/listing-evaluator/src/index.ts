@@ -81,7 +81,7 @@ const SHOP_BASE_PATH = '/guitars-and-gear-for-sale';
 const SHOP_STATIC_ORIGIN = 'https://ccg-2k1.pages.dev';
 const ASSOCIATE_COOKIE_NAME = 'ccg_associate';
 const ASSOCIATE_COOKIE_VALUE = 'associate';
-const SHOP_SALES_TAX_RATE = 0.0775;
+const SHOP_SALES_TAX_RATE = 0.0805;
 const DEFAULT_CO_SALES_TAX_RATE_ID = 'txr_1TSEdADCplz62P7p4H6E7YJK';
 const SHOP_COUPONS = new Map<string, { amountOffCents: number }>([
   ['TAKE100', { amountOffCents: 10000 }],

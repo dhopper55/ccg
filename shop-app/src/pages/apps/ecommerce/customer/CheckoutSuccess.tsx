@@ -156,7 +156,7 @@ const renderReceiptTemplate = (template: string, record: ReceiptRecord) => {
     subtotal: formatCents(record.subtotalCents),
     salesTax: formatCents(record.taxCents),
     total: formatCents(record.totalCents),
-    salesTaxRate: '7.5%',
+    salesTaxRate: '8.05%',
     paymentMethodLabel: record.paymentMethodLabel || 'Payment method: Stripe',
     orderNumber: record.orderNumber || '',
   });

@@ -163,7 +163,7 @@ const CartPrinterActions = () => {
 
   const renderReceiptTemplate = (template: string) => {
     const selectedCartItems = cartItems.filter((item) => item.selected);
-    const salesTax = Math.round(cartSubTotal * 0.075 * 100) / 100;
+    const salesTax = Math.round(cartSubTotal * 0.0805 * 100) / 100;
     const total = cartSubTotal + salesTax;
     const now = new Date();
     const receiptDate = now.toLocaleDateString('en-US', {
@@ -205,7 +205,7 @@ const CartPrinterActions = () => {
       subtotal: formatMoney(cartSubTotal),
       salesTax: formatMoney(salesTax),
       total: formatMoney(total),
-      salesTaxRate: '7.5%',
+      salesTaxRate: '8.05%',
       itemCount: String(selectedCartItems.reduce((sum, item) => sum + item.quantity, 0)),
     });
   };

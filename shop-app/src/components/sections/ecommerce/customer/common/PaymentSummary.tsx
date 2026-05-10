@@ -44,6 +44,7 @@ const PaymentSummary = () => {
     setAssociateDiscount,
     cartSubTotal,
     cartTax,
+    cartTaxRate,
     cartTotal,
     setTaxIncluded,
   } = useEcommerce();
@@ -51,6 +52,7 @@ const PaymentSummary = () => {
   const { currencyFormat } = useNumberFormat();
   const appliedDiscount = associateDiscount > 0 ? associateDiscount : appliedCoupon?.appliedDiscount || 0;
   const discountAmount = parseCurrencyToCents(discountAmountInput) / 100;
+  const taxRateLabel = `${(cartTaxRate * 100).toFixed(2)}%`;
   const discountError = discountAmount > cartSubTotal
     ? `Discount cannot exceed ${currencyFormat(cartSubTotal)}.`
     : '';
@@ -189,7 +191,7 @@ const PaymentSummary = () => {
                 color: 'text.secondary',
               }}
             >
-              Tax
+              Tax ({taxRateLabel})
             </Typography>
             <Typography
               variant="caption"
@@ -220,7 +222,7 @@ const PaymentSummary = () => {
               color: 'text.secondary',
             }}
           >
-            {currencyFormat(cartTax)}
+            {currencyFormat(cartTax)} ({taxRateLabel})
           </Typography>
         </Stack>
 
