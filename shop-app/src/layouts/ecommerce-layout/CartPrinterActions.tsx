@@ -19,6 +19,9 @@ const defaultStarEndpoints = [
   'http://localhost:8001/StarWebPRNT/SendMessage',
 ];
 
+const buildCashDrawerKickElement = (builder: NonNullable<typeof window.StarWebPrintBuilder> extends new () => infer T ? T : never) =>
+  builder.createPeripheralElement({ channel: 0, on: 200, off: 200 });
+
 const loadReceiptLogo = async () => {
   const image = await new Promise<HTMLImageElement>((resolve, reject) => {
     const nextImage = new Image();
@@ -290,7 +293,7 @@ const CartPrinterActions = () => {
         throw new Error('Star webPRNT is not available in this browser context.');
       }
       const builder = new window.StarWebPrintBuilder();
-      const request = builder.createPeripheralElement({ channel: 1, on: 200, off: 200 });
+      const request = buildCashDrawerKickElement(builder);
       await runRequest(request, 'Cash drawer command sent.');
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to open cash drawer.');

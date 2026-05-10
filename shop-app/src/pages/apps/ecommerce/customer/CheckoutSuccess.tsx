@@ -162,12 +162,18 @@ const renderReceiptTemplate = (template: string, record: ReceiptRecord) => {
   });
 };
 
-const buildReceiptRequest = async (renderedTemplate: string) => {
+const buildCashDrawerKickElement = (builder: NonNullable<typeof window.StarWebPrintBuilder> extends new () => infer T ? T : never) =>
+  builder.createPeripheralElement({ channel: 0, on: 200, off: 200 });
+
+const buildReceiptRequest = async (renderedTemplate: string, shouldKickCashDrawer: boolean) => {
   ensureStarWebPrntGlobals();
   if (!window.StarWebPrintBuilder) throw new Error('Star webPRNT is not available.');
   const builder = new window.StarWebPrintBuilder();
   const logo = await loadReceiptLogo();
   const parts: string[] = [builder.createInitializationElement({ reset: false, print: false })];
+  if (shouldKickCashDrawer) {
+    parts.push(buildCashDrawerKickElement(builder));
+  }
   const appendText = (data: string, options: Record<string, unknown> = {}) => {
     if (!data) return;
     parts.push(
@@ -263,7 +269,7 @@ const kickCashDrawer = async () => {
   ensureStarWebPrntGlobals();
   if (!window.StarWebPrintBuilder) throw new Error('Star webPRNT is not available.');
   const builder = new window.StarWebPrintBuilder();
-  await sendToWebPrnt(builder.createPeripheralElement({ channel: 1, on: 200, off: 200 }));
+  await sendToWebPrnt(buildCashDrawerKickElement(builder));
 };
 
 const CheckoutSuccess = () => {
@@ -306,14 +312,14 @@ const CheckoutSuccess = () => {
     receiptAttemptedRef.current = true;
     const printReceipt = async () => {
       try {
-        if (Math.max(0, Number(receiptRecord.cashAmountCents || 0)) > 0) {
-          await kickCashDrawer();
-        }
+        const shouldKickCashDrawer =
+          receiptRecord.checkoutProvider === 'cash' ||
+          Math.max(0, Number(receiptRecord.cashAmountCents || 0)) > 0;
         const templateCode = receiptRecord.checkoutProvider === 'cash'
           ? 'base_cash_receipt'
           : 'base_credit_receipt';
         const template = await fetchReceiptTemplate(templateCode);
-        await sendToWebPrnt(await buildReceiptRequest(renderReceiptTemplate(template, receiptRecord)));
+        await sendToWebPrnt(await buildReceiptRequest(renderReceiptTemplate(template, receiptRecord), shouldKickCashDrawer));
       } catch {
         // Receipt printing and cash drawer commands are best-effort on the success screen.
       }
