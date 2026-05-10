@@ -46,6 +46,8 @@ type AdminOrderDetail = {
   taxCents: number;
   discountCents: number;
   totalCents: number;
+  cardAmountCents?: number;
+  cashAmountCents?: number;
   createdAt: string;
   paidAt: string;
   paymentMethodLabel: string;
@@ -74,12 +76,36 @@ const receiptLogoUrl = 'https://www.coalcreekguitars.com/images/ccg_bnw.bmp';
 const refundReceiptTemplateCode = 'base_refund_receipt';
 const maxLogoWidth = 384;
 const receiptLineWidth = 32;
+const fallbackRefundReceiptTemplate = `{{logo}}
+{{center}}{{text bold="true" size="2"}}REFUND RECEIPT{{/text}}{{/center}}
+{{center}}Coal Creek Guitars{{/center}}
+{{center}}Order {{orderNumber}}{{/center}}
+{{dateLine}}
+{{hr}}
+{{itemHeader}}
+{{#items}}{{line}}
+{{/items}}{{hr}}
+Subtotal Refund {{subtotal}}
+Sales Tax ({{salesTaxRate}}) {{salesTax}}
+{{text bold="true"}}Total Refund {{total}}{{/text}}
+{{paymentMethodLabel}}
+{{hr}}
+Inventory restored to Coal Creek Guitars.
+Customer copy.`;
 const defaultStarEndpoints = [
   'https://localhost:8001/StarWebPRNT/SendMessage',
   'http://localhost:8001/StarWebPRNT/SendMessage',
 ];
 
 const moneyFormat = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+
+const buildCashDrawerKickElement = (builder: NonNullable<typeof window.StarWebPrintBuilder> extends new () => infer T ? T : never) =>
+  builder.createPeripheralElement({ channel: 0, on: 200, off: 200 });
+
+const orderHasCashComponent = (record: Pick<AdminOrderDetail, 'checkoutProvider' | 'cashAmountCents'>) =>
+  record.checkoutProvider === 'cash' ||
+  record.checkoutProvider.includes('cash') ||
+  Math.max(0, Number(record.cashAmountCents || 0)) > 0;
 
 const padReceiptColumns = (left: string, right: string, width = receiptLineWidth) => {
   const cleanLeft = left.replace(/\s+/g, ' ').trim();
@@ -198,10 +224,9 @@ const OrderManagerItem = () => {
     const response = await fetch(`/api/shop/receipt-templates/${refundReceiptTemplateCode}`, {
       headers: { Accept: 'application/json' },
     });
-    if (!response.ok) throw new Error('Unable to load refund receipt template.');
+    if (!response.ok) return fallbackRefundReceiptTemplate;
     const payload = (await response.json()) as { record?: { templateText?: string } };
-    if (!payload.record?.templateText) throw new Error('Refund receipt template is empty.');
-    return payload.record.templateText;
+    return payload.record?.templateText || fallbackRefundReceiptTemplate;
   };
 
   const renderRefundReceiptTemplate = (template: string, record: AdminOrderDetail) => {
@@ -227,18 +252,23 @@ const OrderManagerItem = () => {
       subtotal: `-${moneyFormat.format(record.subtotalCents / 100)}`,
       salesTax: `-${moneyFormat.format(record.taxCents / 100)}`,
       total: `-${moneyFormat.format(record.totalCents / 100)}`,
-      salesTaxRate: '7.5%',
-      paymentMethodLabel: record.checkoutProvider === 'cash' ? 'Refunded by cash' : record.paymentMethodLabel,
+      salesTaxRate: '8.05%',
+      paymentMethodLabel: orderHasCashComponent(record)
+        ? 'Refund includes cash return'
+        : `Refund to ${record.paymentMethodLabel}`,
     });
   };
 
-  const buildRefundReceiptRequest = async (record: AdminOrderDetail) => {
+  const buildRefundReceiptRequest = async (record: AdminOrderDetail, shouldKickCashDrawer: boolean) => {
     ensureStarWebPrntGlobals();
     if (!window.StarWebPrintBuilder) throw new Error('Star webPRNT is not available in this browser context.');
     const builder = new window.StarWebPrintBuilder();
     const logo = await loadReceiptLogo();
     const renderedTemplate = renderRefundReceiptTemplate(await fetchRefundTemplate(), record);
     const parts: string[] = [builder.createInitializationElement({ reset: false, print: false })];
+    if (shouldKickCashDrawer) {
+      parts.push(buildCashDrawerKickElement(builder));
+    }
     const appendText = (data: string, options: Record<string, unknown> = {}) => {
       if (!data) return;
       parts.push(
@@ -301,15 +331,9 @@ const OrderManagerItem = () => {
       if (!response.ok) throw new Error(payload.message || 'Refund failed.');
       const refreshedOrder = await loadOrder({ silent: true });
       const recordForReceipt = refreshedOrder || { ...order, status: 'refunded' };
+      const shouldKickCashDrawer = orderHasCashComponent(recordForReceipt);
       const localResults = await Promise.allSettled([
-        buildRefundReceiptRequest(recordForReceipt).then((request) => sendToPrinter(request)),
-        payload.provider === 'cash'
-          ? (async () => {
-              if (!window.StarWebPrintBuilder) throw new Error('Star webPRNT is not available.');
-              const builder = new window.StarWebPrintBuilder();
-              await sendToPrinter(builder.createPeripheralElement({ channel: 1, on: 200, off: 200 }));
-            })()
-          : Promise.resolve(),
+        buildRefundReceiptRequest(recordForReceipt, shouldKickCashDrawer).then((request) => sendToPrinter(request)),
       ]);
       const localErrors = localResults
         .filter((nextResult): nextResult is PromiseRejectedResult => nextResult.status === 'rejected')
