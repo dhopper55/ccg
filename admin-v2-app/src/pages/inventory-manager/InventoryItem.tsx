@@ -454,6 +454,10 @@ function sanitizeSaleUrlSlug(value: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
+function generateSaleUrlSlugFromTitle(value: string): string {
+  return sanitizeSaleUrlSlug(value);
+}
+
 function getForSaleValidationError(formState: FormState): string | null {
   if (!formState.forSale) return null;
   if (!formState.saleTitle.trim()) return 'Sale Details Title is required when For Sale is checked.';
@@ -695,7 +699,9 @@ const InventoryItem = () => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const aiAnalysisEditorRef = useRef<HTMLDivElement | null>(null);
   const wasForSaleOnLoadRef = useRef(false);
+  const saleTitleWasEmptyOnFocusRef = useRef(false);
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
+  const [saleUrlReadOnly, setSaleUrlReadOnly] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [sourceListingId, setSourceListingId] = useState<string | null>(null);
   const [sourceImageUrl, setSourceImageUrl] = useState<string | null>(null);
@@ -823,6 +829,7 @@ const InventoryItem = () => {
           setEditId(record.id);
           setSourceListingId(record.sourceListingId || null);
           wasForSaleOnLoadRef.current = Boolean(record.forSale);
+          setSaleUrlReadOnly(Boolean(record.saleUrl?.trim()));
           setForm({
             ccgNumber: record.ccgNumber || '',
             quantity: Math.max(0, Number(record.quantity ?? 1)),
@@ -927,6 +934,7 @@ const InventoryItem = () => {
           const fields = data.fields || {};
           setSourceListingId(fromListingId);
           wasForSaleOnLoadRef.current = false;
+          setSaleUrlReadOnly(false);
           const photoCandidates = (fields.photos || '')
             .split(/\r?\n/)
             .map((u: string) => u.trim())
@@ -959,6 +967,9 @@ const InventoryItem = () => {
               text: `Prefilled from listing with ${allImages.length} image(s).`,
             });
           }
+        }
+        if (!id && !fromListingId) {
+          setSaleUrlReadOnly(false);
         }
       } catch (error) {
         if (!cancelled) {
@@ -1023,6 +1034,23 @@ const InventoryItem = () => {
       }
       return { ...current, [key]: value };
     });
+    setMessage(null);
+  };
+
+  const handleSaleTitleFocus = () => {
+    saleTitleWasEmptyOnFocusRef.current = !form.saleTitle.trim();
+  };
+
+  const handleSaleTitleBlur = () => {
+    if (!saleTitleWasEmptyOnFocusRef.current) return;
+    const generatedSlug = generateSaleUrlSlugFromTitle(form.saleTitle);
+    if (!generatedSlug || form.saleUrl.trim()) return;
+
+    setForm((current) => {
+      if (current.saleUrl.trim()) return current;
+      return { ...current, saleUrl: generatedSlug };
+    });
+    setSaleUrlReadOnly(true);
     setMessage(null);
   };
 
@@ -2110,6 +2138,8 @@ const InventoryItem = () => {
                           label="Title"
                           value={form.saleTitle}
                           onChange={(event) => setField('saleTitle', event.target.value)}
+                          onFocus={handleSaleTitleFocus}
+                          onBlur={handleSaleTitleBlur}
                           inputProps={{ maxLength: 200 }}
                         />
                       </Grid>
@@ -2199,9 +2229,18 @@ const InventoryItem = () => {
                           required
                           label="Sale URL Slug"
                           value={form.saleUrl}
-                          onChange={(event) => setField('saleUrl', sanitizeSaleUrlSlug(event.target.value))}
+                          onChange={(event) => {
+                            if (!saleUrlReadOnly) {
+                              setField('saleUrl', sanitizeSaleUrlSlug(event.target.value));
+                            }
+                          }}
+                          InputProps={{ readOnly: saleUrlReadOnly }}
                           inputProps={{ maxLength: 150 }}
-                          helperText="URL segment used in the shop product URL, e.g. ovation-guitar-crate-amp-package"
+                          helperText={
+                            saleUrlReadOnly
+                              ? 'URL segment is locked once populated.'
+                              : 'URL segment used in the shop product URL, e.g. ovation-guitar-crate-amp-package'
+                          }
                         />
                       </Grid>
                       <Grid size={{ xs: 12, md: 3 }}>
