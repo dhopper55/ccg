@@ -2784,6 +2784,7 @@ type ShopProductRow = {
   bullet_6_text?: string | null;
   bullet_6_danger?: number | null;
   bullet_6_highlight?: number | null;
+  barcode?: string | null;
   category_id: number | null;
   category_name: string | null;
   category_path: string | null;
@@ -4290,8 +4291,9 @@ async function handleShopProductSearch(request: Request, env: Env): Promise<Resp
     return jsonResponse({ records: [] });
   }
 
+  const barcodeMatch = await dbFindShopProductByBarcode(query, env, { associateMode });
   const records = await dbSearchShopProductsByTitle(query, env, { associateMode });
-  return jsonResponse({ records, query, associateMode: associateMode ? 1 : 0 });
+  return jsonResponse({ records, barcodeMatch, query, associateMode: associateMode ? 1 : 0 });
 }
 
 async function handleShopSitemapProducts(env: Env): Promise<Response> {
@@ -9051,6 +9053,72 @@ ${onlyInStoreClause}       AND COALESCE(i.is_rented, 0) = 0
       isSold: Boolean(row.is_sold),
     };
   });
+}
+
+async function dbFindShopProductByBarcode(
+  barcode: string,
+  env: Env,
+  options: { associateMode: boolean },
+): Promise<Record<string, unknown> | null> {
+  const normalizedBarcode = barcode.trim();
+  if (!normalizedBarcode) return null;
+
+  const onlyInStoreClause = options.associateMode ? '' : '       AND COALESCE(i.only_in_store, 0) = 0\n';
+  const row = await env.DB.prepare(
+    `SELECT
+       i.id,
+       i.ccg_number,
+       CASE
+         WHEN EXISTS (
+           SELECT 1
+           FROM ccg_inventory_item_images sii_exists
+           WHERE sii_exists.inventory_item_id = i.id
+         ) THEN COALESCE((
+           SELECT sii.image_url
+           FROM ccg_inventory_item_images sii
+           WHERE sii.inventory_item_id = i.id
+             AND COALESCE(sii.is_private, 0) = 0
+           ORDER BY sii.display_order ASC, sii.id ASC
+           LIMIT 1
+         ), '')
+         ELSE i.image_url
+       END AS image_url,
+       i.title,
+       i.sale_title,
+       i.sale_url,
+       i.barcode,
+       ${INVENTORY_CATEGORY_SELECT_SQL},
+       i.is_sold
+     FROM ccg_inventory_items i
+     ${INVENTORY_CATEGORY_JOIN_SQL}
+     WHERE COALESCE(i.is_active, 0) = 1
+       AND COALESCE(i.for_sale, 0) = 1
+       AND COALESCE(i.is_sold, 0) = 0
+${onlyInStoreClause}       AND COALESCE(i.is_rented, 0) = 0
+       AND TRIM(COALESCE(i.barcode, '')) = ?
+     ORDER BY i.id DESC
+     LIMIT 1`
+  ).bind(normalizedBarcode).first<ShopProductRow>();
+
+  if (!row) return null;
+
+  let mainImage = (row.image_url || '').trim();
+  if (mainImage && !mainImage.startsWith('/api/') && !/^https?:\/\//i.test(mainImage)) {
+    mainImage = buildInventoryImageUrl(mainImage);
+  }
+  if (mainImage && mainImage.startsWith('/api/')) {
+    mainImage = `${ACTIVITY_BASE_URL}${mainImage}`;
+  }
+
+  return {
+    id: String(row.id),
+    ccgNumber: normalizeText(row.ccg_number, ''),
+    mainImage,
+    saleTitle: normalizeText(row.sale_title, '') || normalizeText(row.title, ''),
+    saleUrlSlug: normalizeText(row.sale_url, ''),
+    primaryCategoryName: normalizeText(row.category_name, ''),
+    isSold: Boolean(row.is_sold),
+  };
 }
 
 async function dbListShopSitemapProducts(env: Env): Promise<Array<Record<string, unknown>>> {

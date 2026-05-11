@@ -1,6 +1,6 @@
 'use client';
 
-import { ChangeEvent, useEffect, useRef, useState } from 'react';
+import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import {
   Avatar,
   Box,
@@ -16,7 +16,7 @@ import {
   Typography,
   inputBaseClasses,
 } from '@mui/material';
-import { Link as RouterLink } from 'react-router';
+import { Link as RouterLink, useNavigate } from 'react-router';
 import SearchTextField from 'layouts/main-layout/common/search-box/SearchTextField';
 import { slugifyCategory } from 'lib/utils';
 import { useAssociateMode } from 'providers/AssociateModeProvider';
@@ -33,9 +33,11 @@ type SearchProduct = {
 
 type SearchResponse = {
   records?: SearchProduct[];
+  barcodeMatch?: SearchProduct | null;
 };
 
 const PrimarySearchBox = () => {
+  const navigate = useNavigate();
   const { isAssociateMode, isCheckingAssociateMode } = useAssociateMode();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchProduct[]>([]);
@@ -43,6 +45,40 @@ const PrimarySearchBox = () => {
   const [isLoading, setIsLoading] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const trimmedQuery = query.trim();
+
+  const getProductUrl = useCallback((product: SearchProduct) => {
+    const categorySlug = slugifyCategory(product.primaryCategoryName);
+    const productSlug = product.saleUrlSlug.trim();
+    if (!categorySlug || !productSlug) return paths.products;
+    return paths.productDetails(categorySlug, productSlug);
+  }, []);
+
+  const handleSelect = useCallback(() => {
+    setQuery('');
+    setResults([]);
+    setIsOpen(false);
+  }, []);
+
+  const redirectToProduct = useCallback((product: SearchProduct) => {
+    handleSelect();
+    navigate(getProductUrl(product));
+  }, [getProductUrl, handleSelect, navigate]);
+
+  const fetchSearchResults = useCallback(async (
+    searchQuery: string,
+    signal?: AbortSignal,
+  ): Promise<SearchResponse> => {
+    const params = new URLSearchParams({ query: searchQuery });
+    if (isAssociateMode) {
+      params.set('associate', '1');
+    }
+
+    const response = await fetch(`/api/shop/product-search?${params.toString()}`, { signal });
+    if (!response.ok) {
+      throw new Error('Unable to search products.');
+    }
+    return response.json() as Promise<SearchResponse>;
+  }, [isAssociateMode]);
 
   useEffect(() => {
     abortControllerRef.current?.abort();
@@ -58,17 +94,13 @@ const PrimarySearchBox = () => {
     setIsLoading(true);
 
     const timeout = window.setTimeout(() => {
-      const params = new URLSearchParams({ query: trimmedQuery });
-      if (isAssociateMode) {
-        params.set('associate', '1');
-      }
-
-      fetch(`/api/shop/product-search?${params.toString()}`, {
-        signal: abortController.signal,
-      })
-        .then((response) => response.json() as Promise<SearchResponse>)
+      fetchSearchResults(trimmedQuery, abortController.signal)
         .then((data) => {
           if (!abortController.signal.aborted) {
+            if (data.barcodeMatch) {
+              redirectToProduct(data.barcodeMatch);
+              return;
+            }
             setResults(Array.isArray(data.records) ? data.records.slice(0, 10) : []);
             setIsOpen(true);
           }
@@ -89,24 +121,43 @@ const PrimarySearchBox = () => {
       window.clearTimeout(timeout);
       abortController.abort();
     };
-  }, [isAssociateMode, isCheckingAssociateMode, trimmedQuery]);
+  }, [fetchSearchResults, isCheckingAssociateMode, redirectToProduct, trimmedQuery]);
 
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     setQuery(event.target.value);
     setIsOpen(true);
   };
 
-  const getProductUrl = (product: SearchProduct) => {
-    const categorySlug = slugifyCategory(product.primaryCategoryName);
-    const productSlug = product.saleUrlSlug.trim();
-    if (!categorySlug || !productSlug) return paths.products;
-    return paths.productDetails(categorySlug, productSlug);
-  };
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
 
-  const handleSelect = () => {
-    setQuery('');
-    setResults([]);
-    setIsOpen(false);
+    if (!trimmedQuery || isCheckingAssociateMode) return;
+
+    abortControllerRef.current?.abort();
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+    setIsLoading(true);
+
+    fetchSearchResults(trimmedQuery, abortController.signal)
+      .then((data) => {
+        if (abortController.signal.aborted) return;
+        if (data.barcodeMatch) {
+          redirectToProduct(data.barcodeMatch);
+          return;
+        }
+        setResults(Array.isArray(data.records) ? data.records.slice(0, 10) : []);
+        setIsOpen(true);
+      })
+      .catch(() => {
+        if (!abortController.signal.aborted) {
+          setResults([]);
+        }
+      })
+      .finally(() => {
+        if (!abortController.signal.aborted) {
+          setIsLoading(false);
+        }
+      });
   };
 
   const showDropdown = isOpen && trimmedQuery.length > 0;
@@ -138,7 +189,7 @@ const PrimarySearchBox = () => {
             value={query}
             onChange={handleChange}
             onFocus={() => setIsOpen(true)}
-            onSubmit={(event) => event.preventDefault()}
+            onSubmit={handleSubmit}
             sx={{
               flexGrow: 1,
               minWidth: 0,
