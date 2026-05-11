@@ -62,6 +62,7 @@ type InventoryItemRecord = {
   bullet6Text?: string;
   bullet6Danger?: boolean;
   bullet6Highlight?: boolean;
+  barcode?: string;
   title: string;
   categoryId?: number | null;
   categoryName?: string;
@@ -161,6 +162,7 @@ type FormState = {
   bullet6Text: string;
   bullet6Danger: boolean;
   bullet6Highlight: boolean;
+  barcode: string;
   title: string;
   categoryId: string;
   secondaryCategoryId: string;
@@ -310,6 +312,7 @@ const DEFAULT_FORM: FormState = {
   bullet6Text: '',
   bullet6Danger: false,
   bullet6Highlight: false,
+  barcode: '',
   title: '',
   categoryId: '',
   secondaryCategoryId: '',
@@ -848,6 +851,7 @@ const InventoryItem = () => {
             bullet6Text: record.bullet6Text || '',
             bullet6Danger: Boolean(record.bullet6Danger),
             bullet6Highlight: Boolean(record.bullet6Highlight),
+            barcode: record.barcode || '',
             title: record.title || '',
             categoryId: record.categoryId != null ? String(record.categoryId) : '',
             secondaryCategoryId:
@@ -1057,6 +1061,7 @@ const InventoryItem = () => {
     bullet6Text: form.bullet6Text.trim(),
     bullet6Danger: form.bullet6Danger,
     bullet6Highlight: form.bullet6Highlight,
+    barcode: form.barcode.trim(),
     title: form.title.trim(),
     categoryId: form.categoryId,
     secondaryCategoryId: form.secondaryCategoryId || null,
@@ -2406,6 +2411,16 @@ const InventoryItem = () => {
                           label="Highlight Bullet?"
                         />
                       </Grid>
+                      <Grid size={{ xs: 12, md: 6 }}>
+                        <TextField
+                          fullWidth
+                          label="Barcode"
+                          value={form.barcode}
+                          onChange={(event) => setField('barcode', event.target.value)}
+                          inputProps={{ maxLength: 50 }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 6 }} />
                       <Grid size={{ xs: 12, md: 3 }}>
                         <Button
                           fullWidth

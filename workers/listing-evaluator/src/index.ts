@@ -2619,6 +2619,7 @@ type InventoryItemRow = {
   bullet_6_text: string | null;
   bullet_6_danger: number | null;
   bullet_6_highlight: number | null;
+  barcode: string | null;
   purchased_date: string | null;
   purchase_price: number | null;
   private_party_value: number | null;
@@ -5996,6 +5997,7 @@ async function handleAdminV2InventoryMergeMarked(env: Env): Promise<Response> {
     bullet_6_text: null,
     bullet_6_danger: 0,
     bullet_6_highlight: 0,
+    barcode: null,
     purchased_date: currentDateYmd(),
     purchase_price: purchasePriceTotal,
     private_party_value: privatePartyValueTotal,
@@ -6134,6 +6136,7 @@ async function handleInventoryPackageCreate(env: Env): Promise<Response> {
     bullet_6_text: null,
     bullet_6_danger: 0,
     bullet_6_highlight: 0,
+    barcode: null,
     purchased_date: currentDateYmd(),
     purchase_price: purchasePriceTotal,
     private_party_value: privatePartyValueTotal,
@@ -6247,6 +6250,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const bullet6Text = normalizeText(body.bullet6Text, '').slice(0, 60);
   const bullet6Danger = toBooleanInput(body.bullet6Danger, false);
   const bullet6Highlight = toBooleanInput(body.bullet6Highlight, false);
+  const barcode = normalizeText(body.barcode, '').slice(0, 50);
   const purchasedDate = normalizeInventoryDate(body.purchasedDate) || currentDateYmd();
   const purchasePrice = parseCurrencyAmount(body.purchasePrice);
   const privatePartyValue = parseCurrencyAmount(body.privatePartyValue) ?? 0;
@@ -6392,6 +6396,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     bullet_6_text: bullet6Text || null,
     bullet_6_danger: bullet6Danger ? 1 : 0,
     bullet_6_highlight: bullet6Highlight ? 1 : 0,
+    barcode: barcode || null,
     purchased_date: purchasedDate,
     purchase_price: purchasePrice,
     private_party_value: privatePartyValue,
@@ -6578,6 +6583,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const bullet6Text = normalizeText(body.bullet6Text, '').slice(0, 60);
   const bullet6Danger = toBooleanInput(body.bullet6Danger, false);
   const bullet6Highlight = toBooleanInput(body.bullet6Highlight, false);
+  const barcode = normalizeText(body.barcode, '').slice(0, 50);
   const purchasedDate = normalizeInventoryDate(body.purchasedDate);
   const purchasePrice = parseCurrencyAmount(body.purchasePrice);
   const privatePartyValue = parseCurrencyAmount(body.privatePartyValue) ?? 0;
@@ -6764,6 +6770,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       bullet_6_text: bullet6Text || null,
       bullet_6_danger: bullet6Danger ? 1 : 0,
       bullet_6_highlight: bullet6Highlight ? 1 : 0,
+      barcode: barcode || null,
       is_sold: 0,
       sold_date: null,
       sold_amount: null,
@@ -6822,6 +6829,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       bullet_6_text: bullet6Text || null,
       bullet_6_danger: bullet6Danger ? 1 : 0,
       bullet_6_highlight: bullet6Highlight ? 1 : 0,
+      barcode: barcode || null,
       purchased_date: purchasedDate,
       purchase_price: purchasePrice,
       private_party_value: privatePartyValue,
@@ -6909,6 +6917,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       bullet_6_text: bullet6Text || null,
       bullet_6_danger: bullet6Danger ? 1 : 0,
       bullet_6_highlight: bullet6Highlight ? 1 : 0,
+      barcode: barcode || null,
       is_sold: 1,
       sold_date: soldDate,
       sold_amount: soldAmount,
@@ -7014,6 +7023,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     bullet_6_text: bullet6Text || null,
     bullet_6_danger: bullet6Danger ? 1 : 0,
     bullet_6_highlight: bullet6Highlight ? 1 : 0,
+    barcode: barcode || null,
     is_sold: isSold ? 1 : 0,
     sold_date: resolveToggleTimestamp({
       previousOn: previousIsSold,
@@ -8496,6 +8506,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.bullet_6_text,
       i.bullet_6_danger,
       i.bullet_6_highlight,
+      i.barcode,
       i.purchased_date,
       i.purchase_price,
       i.private_party_value,
@@ -8585,6 +8596,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     bullet6Text: row.bullet_6_text || '',
     bullet6Danger: Boolean(row.bullet_6_danger),
     bullet6Highlight: Boolean(row.bullet_6_highlight),
+    barcode: row.barcode || '',
     purchasedDate: row.purchased_date || '',
     purchasePrice: row.purchase_price,
     privatePartyValue: row.private_party_value,
@@ -10610,6 +10622,7 @@ async function dbCreateInventoryItems(
     bullet_6_text: string | null;
     bullet_6_danger: number;
     bullet_6_highlight: number;
+    barcode: string | null;
     purchased_date: string;
     purchase_price: number | null;
     private_party_value: number;
@@ -10652,12 +10665,13 @@ async function dbCreateInventoryItems(
         bullet_4_text, bullet_4_danger, bullet_4_highlight,
         bullet_5_text, bullet_5_danger, bullet_5_highlight,
         bullet_6_text, bullet_6_danger, bullet_6_highlight,
+        barcode,
         purchased_date, purchase_price, private_party_value, purchase_notes, ai_analysis_text, serial_number,
         weight_lbs, neck_profile, neck_thickness, nut_width, width_12_fret, fretboard_radius, twelve_fret_action,
         is_active, is_marked, is_personal, is_rented, for_sale, only_in_store, for_sale_date,
         is_sold, sold_date, sold_amount, sell_notes, sale_url, sale_zip
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const result = await env.DB.prepare(statement).bind(
       fields.source_listing_id,
@@ -10700,6 +10714,7 @@ async function dbCreateInventoryItems(
       fields.bullet_6_text,
       fields.bullet_6_danger,
       fields.bullet_6_highlight,
+      fields.barcode,
       fields.purchased_date,
       fields.purchase_price,
       fields.private_party_value,
@@ -10799,6 +10814,7 @@ async function dbUpdateInventoryById(
     bullet_6_text: string | null;
     bullet_6_danger: number;
     bullet_6_highlight: number;
+    barcode: string | null;
     is_sold: number;
     sold_date: string | null;
     sold_amount: number | null;
@@ -10831,6 +10847,7 @@ async function dbUpdateInventoryById(
          bullet_4_text = ?, bullet_4_danger = ?, bullet_4_highlight = ?,
          bullet_5_text = ?, bullet_5_danger = ?, bullet_5_highlight = ?,
          bullet_6_text = ?, bullet_6_danger = ?, bullet_6_highlight = ?,
+         barcode = ?,
          is_sold = ?, sold_date = ?, sold_amount = ?, sell_notes = ?, subscription_id = ?,
          sale_url = ?, sale_zip = ?, sold_channel = ?,
          updated_at = CURRENT_TIMESTAMP
@@ -10896,6 +10913,7 @@ async function dbUpdateInventoryById(
       fields.bullet_6_text,
       fields.bullet_6_danger,
       fields.bullet_6_highlight,
+      fields.barcode,
       fields.is_sold,
       fields.sold_date,
       fields.sold_amount,
