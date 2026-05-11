@@ -164,7 +164,7 @@ const PrimarySearchBox = () => {
 
   return (
     <ClickAwayListener onClickAway={() => setIsOpen(false)}>
-      <Stack spacing={0.5} sx={{ width: 1, maxWidth: { sm: 360, lg: 460 }, position: 'relative' }}>
+      <Stack spacing={0.5} sx={{ width: 1, maxWidth: { md: 460 }, position: 'relative' }}>
         <Box
           sx={({ vars }) => ({
             display: 'flex',

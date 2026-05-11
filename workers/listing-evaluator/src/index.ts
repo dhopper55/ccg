@@ -6664,11 +6664,15 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     }
   }
 
-  const duplicateSaleUrl = await dbFindInventoryBySaleUrl(saleUrl, env, recordId);
-  if (duplicateSaleUrl) {
-    return jsonResponse({
-      message: `Sale URL Slug is already used by ${duplicateSaleUrl.ccg_number || `inventory item ${duplicateSaleUrl.id}`}.`,
-    }, 400);
+  const currentSaleUrl = normalizeText((current as { saleUrl?: unknown }).saleUrl, '');
+  const saleUrlChanged = currentSaleUrl.trim().toLowerCase() !== saleUrl.trim().toLowerCase();
+  if (saleUrlChanged) {
+    const duplicateSaleUrl = await dbFindInventoryBySaleUrl(saleUrl, env, recordId);
+    if (duplicateSaleUrl) {
+      return jsonResponse({
+        message: `Sale URL Slug is already used by ${duplicateSaleUrl.ccg_number || `inventory item ${duplicateSaleUrl.id}`}.`,
+      }, 400);
+    }
   }
 
   const primaryImageUrl = imageUrls[0];

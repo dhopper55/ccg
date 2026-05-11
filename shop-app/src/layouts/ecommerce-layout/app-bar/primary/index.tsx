@@ -31,7 +31,7 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
       <Toolbar
         component="nav"
         variant="appbar"
-        sx={{ px: { xs: 3, md: 5 }, py: { xs: 1, md: 0 }, minHeight: { md: 78 } }}
+        sx={{ px: { xs: 2, sm: 3, md: 5 }, py: { xs: 1, md: 0 }, minHeight: { md: 78 } }}
       >
         <Grid
           container
@@ -42,7 +42,7 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
             alignItems: 'center',
           }}
         >
-          <Grid size="auto">
+          <Grid size="auto" order={{ xs: 2, md: 3 }}>
             <Stack direction="row" spacing={{ xs: 1, md: 2 }} alignItems="center">
               <Button
                 color="neutral"
@@ -68,10 +68,18 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
                 Shop
               </Button>
               <Logo showName={up('sm')} />
-              <Box sx={{ display: { xs: 'none', md: 'block' }, width: { md: 320, lg: 460 } }}>
-                <PrimarySearchBox />
-              </Box>
             </Stack>
+          </Grid>
+          <Grid
+            size={{ xs: 12, md: 'grow' }}
+            order={{ xs: 3, md: 2 }}
+            sx={{
+              minWidth: 0,
+              maxWidth: { md: 460 },
+              mx: { md: 1 },
+            }}
+          >
+            <PrimarySearchBox />
           </Grid>
           <Grid size="auto">
             <Badge color="error" badgeContent={cartItemCount} invisible={cartItemCount === 0}>
