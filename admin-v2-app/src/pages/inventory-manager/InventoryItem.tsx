@@ -15,6 +15,7 @@ import {
   DialogTitle,
   FormControlLabel,
   IconButton,
+  InputAdornment,
   MenuItem,
   Paper,
   Stack,
@@ -697,6 +698,7 @@ const InventoryItem = () => {
   const [searchParams] = useSearchParams();
   const inventoryManagerHref = `${paths.inventoryManager}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const saleUrlInputRef = useRef<HTMLInputElement | null>(null);
   const aiAnalysisEditorRef = useRef<HTMLDivElement | null>(null);
   const wasForSaleOnLoadRef = useRef(false);
   const saleTitleWasEmptyOnFocusRef = useRef(false);
@@ -1052,6 +1054,23 @@ const InventoryItem = () => {
     });
     setSaleUrlReadOnly(true);
     setMessage(null);
+  };
+
+  const unlockSaleUrl = () => {
+    setSaleUrlReadOnly(false);
+    window.setTimeout(() => {
+      saleUrlInputRef.current?.focus();
+      const length = saleUrlInputRef.current?.value.length ?? 0;
+      saleUrlInputRef.current?.setSelectionRange(length, length);
+    }, 0);
+  };
+
+  const handleSaleUrlBlur = () => {
+    if (saleUrlReadOnly) return;
+    const sanitizedSlug = sanitizeSaleUrlSlug(form.saleUrl);
+    if (sanitizedSlug !== form.saleUrl) {
+      setField('saleUrl', sanitizedSlug);
+    }
   };
 
   const updateImages = (nextImages: InventoryImageRecord[]) => {
@@ -2228,13 +2247,31 @@ const InventoryItem = () => {
                           fullWidth
                           required
                           label="Sale URL Slug"
+                          inputRef={saleUrlInputRef}
                           value={form.saleUrl}
                           onChange={(event) => {
                             if (!saleUrlReadOnly) {
-                              setField('saleUrl', sanitizeSaleUrlSlug(event.target.value));
+                              setField('saleUrl', event.target.value);
                             }
                           }}
-                          InputProps={{ readOnly: saleUrlReadOnly }}
+                          onBlur={handleSaleUrlBlur}
+                          InputProps={{
+                            readOnly: saleUrlReadOnly,
+                            endAdornment: saleUrlReadOnly ? (
+                              <InputAdornment position="end">
+                                <Tooltip title="Edit sale URL slug">
+                                  <IconButton
+                                    aria-label="Edit sale URL slug"
+                                    edge="end"
+                                    size="small"
+                                    onClick={unlockSaleUrl}
+                                  >
+                                    <IconifyIcon icon="material-symbols:edit-outline-rounded" fontSize={20} />
+                                  </IconButton>
+                                </Tooltip>
+                              </InputAdornment>
+                            ) : null,
+                          }}
                           inputProps={{ maxLength: 150 }}
                           helperText={
                             saleUrlReadOnly
