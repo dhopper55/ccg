@@ -240,13 +240,26 @@ function buildImageSrc(imageUrl: string, referrer?: string): string {
     const params = new URLSearchParams();
     params.set('url', cleaned);
     if (referrer) params.set('ref', referrer);
-    return new URL(`/api/image?${params.toString()}`, window.location.origin).toString();
+    return buildCloudflareImageSrc(new URL(`/api/image?${params.toString()}`, window.location.origin).toString(), 1000);
   }
   // Ensure /api/ paths are absolute to avoid SPA base path prefixing
   if (cleaned.startsWith('/api/')) {
-    return new URL(cleaned, window.location.origin).toString();
+    return buildCloudflareImageSrc(new URL(cleaned, window.location.origin).toString(), 1000);
   }
-  return cleaned;
+  return buildCloudflareImageSrc(cleaned, 1000);
+}
+
+function buildCloudflareImageSrc(imageUrl: string, width: number): string {
+  const options = `fit=scale-down,width=${width},quality=85,format=auto,onerror=redirect`;
+  if (imageUrl.startsWith('/cdn-cgi/image/')) return imageUrl;
+
+  try {
+    const parsed = new URL(imageUrl, window.location.origin);
+    if (parsed.origin !== window.location.origin) return imageUrl;
+    return `${parsed.origin}/cdn-cgi/image/${options}${parsed.pathname}${parsed.search}`;
+  } catch {
+    return imageUrl;
+  }
 }
 
 function extractPhotoCandidates(value: unknown): string[] {
@@ -1097,6 +1110,8 @@ const ListingEvaluatorItem = () => {
                 component="img"
                 src={sourceImage}
                 alt={sourceLabel}
+                loading="lazy"
+                decoding="async"
                 sx={{ width: 22, height: 22, objectFit: 'contain' }}
               />
             ) : sourceGlyph ? (
@@ -1500,6 +1515,8 @@ const ListingEvaluatorItem = () => {
                                 component="img"
                                 src={currentImageUrl}
                                 alt={title}
+                                loading="lazy"
+                                decoding="async"
                                 sx={{
                                   display: 'block',
                                   width: { xs: '100%', lg: 270 },

@@ -354,6 +354,8 @@ const ProductCard = ({ product }: { product: ShopProduct }) => {
         component="img"
         image={mainImage || undefined}
         alt={saleTitle}
+        loading="lazy"
+        decoding="async"
         sx={{
           height: 240,
           objectFit: 'contain',

@@ -122,10 +122,24 @@ function buildImageSrc(imageUrl?: string | null, referrer?: string): string | nu
     const params = new URLSearchParams();
     params.set('url', cleaned);
     if (referrer) params.set('ref', referrer);
-    return new URL(`/api/image?${params.toString()}`, window.location.origin).toString();
+    return buildCloudflareImageSrc(new URL(`/api/image?${params.toString()}`, window.location.origin).toString(), 180);
   }
 
-  return cleaned;
+  return buildCloudflareImageSrc(cleaned, 180);
+}
+
+function buildCloudflareImageSrc(imageUrl: string, width: number): string {
+  const options = `fit=scale-down,width=${width},quality=80,format=auto,onerror=redirect`;
+  if (imageUrl.startsWith('/cdn-cgi/image/')) return imageUrl;
+  if (imageUrl.startsWith('/api/')) return `/cdn-cgi/image/${options}${imageUrl}`;
+
+  try {
+    const parsed = new URL(imageUrl, window.location.origin);
+    if (parsed.origin !== window.location.origin) return imageUrl;
+    return `${parsed.origin}/cdn-cgi/image/${options}${parsed.pathname}${parsed.search}`;
+  } catch {
+    return imageUrl;
+  }
 }
 
 function buildSourceMeta(source?: string): { label: string; imageSrc: string | null; icon: string | null } {

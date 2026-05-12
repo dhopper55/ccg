@@ -1998,14 +1998,64 @@ function buildInventoryImageUrl(key: string): string {
   return `/api/inventory-image?${params.toString()}`;
 }
 
-function toPublicShopImageUrl(value: unknown): string {
+type CloudflareImagePreset = 'thumb' | 'card' | 'detail';
+
+const CLOUDFLARE_IMAGE_TRANSFORM_OPTIONS: Record<CloudflareImagePreset, string> = {
+  thumb: 'fit=scale-down,width=180,quality=80,format=auto,onerror=redirect',
+  card: 'fit=scale-down,width=640,quality=82,format=auto,onerror=redirect',
+  detail: 'fit=scale-down,width=1400,quality=85,format=auto,onerror=redirect',
+};
+
+function normalizeInventoryImageUrl(value: unknown): string {
   const raw = typeof value === 'string' ? value.trim() : '';
   if (!raw) return '';
-  let imageUrl = raw;
-  if (!imageUrl.startsWith('/api/') && !/^https?:\/\//i.test(imageUrl)) {
-    imageUrl = buildInventoryImageUrl(imageUrl);
+  if (!raw.startsWith('/api/') && !/^https?:\/\//i.test(raw) && !raw.startsWith('/cdn-cgi/image/')) {
+    if (raw.startsWith('listing-images/')) return buildListingImageUrl(raw);
+    if (raw.startsWith('custom-items/')) return buildCustomImageUrl(raw);
+    return buildInventoryImageUrl(raw);
+  }
+  return raw;
+}
+
+function toCloudflareImageTransformUrl(
+  imageUrl: string,
+  preset: CloudflareImagePreset,
+  options: { absolute?: boolean } = {},
+): string {
+  const normalized = imageUrl.trim();
+  if (!normalized || normalized.startsWith('/cdn-cgi/image/')) return normalized;
+
+  const transformOptions = CLOUDFLARE_IMAGE_TRANSFORM_OPTIONS[preset];
+  const baseUrl = options.absolute ? ACTIVITY_BASE_URL : '';
+
+  if (normalized.startsWith('/api/')) {
+    return `${baseUrl}/cdn-cgi/image/${transformOptions}${normalized}`;
+  }
+
+  try {
+    const parsed = new URL(normalized);
+    const siteOrigin = new URL(ACTIVITY_BASE_URL).origin;
+    if (parsed.origin !== siteOrigin) return normalized;
+    return `${parsed.origin}/cdn-cgi/image/${transformOptions}${parsed.pathname}${parsed.search}`;
+  } catch {
+    return normalized;
+  }
+}
+
+function toAdminImageUrl(value: unknown, preset?: CloudflareImagePreset): string {
+  const imageUrl = normalizeInventoryImageUrl(value);
+  if (!imageUrl || !preset) return imageUrl;
+  return toCloudflareImageTransformUrl(imageUrl, preset);
+}
+
+function toPublicShopImageUrl(value: unknown, preset?: CloudflareImagePreset): string {
+  let imageUrl = normalizeInventoryImageUrl(value);
+  if (imageUrl && preset) {
+    imageUrl = toCloudflareImageTransformUrl(imageUrl, preset, { absolute: true });
   }
   if (imageUrl.startsWith('/api/')) {
+    imageUrl = `${ACTIVITY_BASE_URL}${imageUrl}`;
+  } else if (imageUrl.startsWith('/cdn-cgi/image/')) {
     imageUrl = `${ACTIVITY_BASE_URL}${imageUrl}`;
   }
   return imageUrl;
@@ -3232,7 +3282,7 @@ async function handleAdminV2PaymentLinkCreate(request: Request, env: Env): Promi
       description: normalizeText(row.sale_description || row.original_listing_desc || '', '').slice(0, 500),
       quantity: requestedQuantity,
       unitAmountCents,
-      imageUrl: toPublicShopImageUrl(row.image_url),
+      imageUrl: toPublicShopImageUrl(row.image_url, 'thumb'),
     };
   });
   const invalidItem = items.find((item) => item.unitAmountCents < 1);
@@ -5284,7 +5334,7 @@ async function buildShopCheckoutDraft(
       row,
       title: getCheckoutItemTitle(row),
       unitAmountCents,
-      imageUrl: toPublicShopImageUrl(row.image_url),
+      imageUrl: toPublicShopImageUrl(row.image_url, 'thumb'),
     });
   }
 
@@ -5490,7 +5540,7 @@ async function handleAdminV2Search(request: Request, env: Env): Promise<Response
       id: String(r.id),
       title: normalizeText(r.title, 'Untitled'),
       subtitle: [r.brand, r.model].filter(Boolean).join(' ') || null,
-      imageUrl: normalizeText(r.image_url, '').slice(0, 1000) || null,
+      imageUrl: toAdminImageUrl(r.image_url, 'thumb') || null,
     })),
     ...(listingRows.results || []).map((r) => {
       const firstPhoto = normalizeText(r.photos, '').split('\n').map((s) => s.trim()).find((s) => s.length > 0) || null;
@@ -8054,7 +8104,7 @@ async function dbListListings(
     askingPrice: row.price_asking ?? null,
     score: row.score ?? null,
     saved: row.saved ? true : false,
-    imageUrl: row.image_url ? String(row.image_url).trim().split(/\s+/)[0] : null,
+    imageUrl: toAdminImageUrl(row.image_url ? String(row.image_url).trim().split(/\s+/)[0] : null, 'thumb') || null,
     submittedAt: row.submitted_at ?? null,
     createdAt: row.created_at ?? null,
     updatedAt: row.updated_at ?? null,
@@ -8166,7 +8216,7 @@ function mapInventoryRow(
     id: String(row.id),
     sourceListingId: row.source_listing_id != null ? String(row.source_listing_id) : null,
     ccgNumber: row.ccg_number,
-    imageUrl: row.image_url,
+    imageUrl: toAdminImageUrl(row.image_url, 'thumb'),
     imageUrls: parseStoredInventoryImageUrls(row.image_urls, row.image_url),
     title: row.title,
     quantity: Number(row.quantity ?? 1),
@@ -8967,13 +9017,7 @@ async function dbListShopProducts(
   ).bind(...binds).all<ShopProductRow>();
 
   return (result.results ?? []).map((row) => {
-    let mainImage = (row.image_url || '').trim();
-    if (mainImage && !mainImage.startsWith('/api/') && !/^https?:\/\//i.test(mainImage)) {
-      mainImage = buildInventoryImageUrl(mainImage);
-    }
-    if (mainImage && mainImage.startsWith('/api/')) {
-      mainImage = `${ACTIVITY_BASE_URL}${mainImage}`;
-    }
+    const mainImage = toPublicShopImageUrl(row.image_url, 'card');
     return {
     id: String(row.id),
     ccgNumber: normalizeText(row.ccg_number, ''),
@@ -9039,13 +9083,7 @@ ${onlyInStoreClause}       AND COALESCE(i.is_rented, 0) = 0
   ).bind(term).all<ShopProductRow>();
 
   return (result.results ?? []).map((row) => {
-    let mainImage = (row.image_url || '').trim();
-    if (mainImage && !mainImage.startsWith('/api/') && !/^https?:\/\//i.test(mainImage)) {
-      mainImage = buildInventoryImageUrl(mainImage);
-    }
-    if (mainImage && mainImage.startsWith('/api/')) {
-      mainImage = `${ACTIVITY_BASE_URL}${mainImage}`;
-    }
+    const mainImage = toPublicShopImageUrl(row.image_url, 'thumb');
 
     return {
       id: String(row.id),
@@ -9106,13 +9144,7 @@ ${onlyInStoreClause}       AND COALESCE(i.is_rented, 0) = 0
 
   if (!row) return null;
 
-  let mainImage = (row.image_url || '').trim();
-  if (mainImage && !mainImage.startsWith('/api/') && !/^https?:\/\//i.test(mainImage)) {
-    mainImage = buildInventoryImageUrl(mainImage);
-  }
-  if (mainImage && mainImage.startsWith('/api/')) {
-    mainImage = `${ACTIVITY_BASE_URL}${mainImage}`;
-  }
+  const mainImage = toPublicShopImageUrl(row.image_url, 'thumb');
 
   return {
     id: String(row.id),
@@ -9250,7 +9282,7 @@ async function dbGetShopProductDetail(
       .filter((imageRow) => !imageRow.is_private)
       .map((imageRow) => imageRow.image_url)
     : parseStoredInventoryImageUrls(row.image_urls || null, row.image_url || null);
-  const images = Array.from(new Set(sourceImages.map(toPublicShopImageUrl).filter(Boolean)));
+  const images = Array.from(new Set(sourceImages.map((imageUrl) => toPublicShopImageUrl(imageUrl, 'detail')).filter(Boolean)));
 
   const mainImage = images[0] || '';
   const highlights = [
@@ -9395,7 +9427,7 @@ async function buildPaymentLinkCheckoutOrderItems(
       row,
       title: line?.title || getCheckoutItemTitle(row),
       unitAmountCents,
-      imageUrl: toPublicShopImageUrl(row.image_url),
+      imageUrl: toPublicShopImageUrl(row.image_url, 'thumb'),
     };
   });
 }
@@ -10042,7 +10074,7 @@ async function dbGetOrderReceipt(orderId: string, env: Env): Promise<Record<stri
         row.item_title_snapshot ?? row.title_snapshot ?? row.item_title ?? row.title ?? inventory?.sale_title ?? inventory?.title,
         'Item',
       ),
-      imageUrl: toPublicShopImageUrl(row.image_url_snapshot ?? row.item_image_url_snapshot ?? row.image_url ?? inventory?.image_url),
+      imageUrl: toPublicShopImageUrl(row.image_url_snapshot ?? row.item_image_url_snapshot ?? row.image_url ?? inventory?.image_url, 'thumb'),
       quantity,
       unitAmountCents: Number.isFinite(unitAmountCents) ? unitAmountCents : 0,
       subtotalCents: Number.isFinite(subtotalCents) ? subtotalCents : 0,
@@ -11693,7 +11725,7 @@ async function dbGetAdminV2RecentSales(limit: number, env: Env): Promise<AdminV2
     id: Number(row.id),
     ccgNumber: row.ccg_number,
     title: row.title,
-    imageUrl: row.image_url || '',
+    imageUrl: toAdminImageUrl(row.image_url, 'thumb'),
     category: row.category,
     brand: row.brand,
     soldDate: row.sold_date,
@@ -11760,7 +11792,7 @@ async function dbGetAdminV2OldestInventory(limit: number, env: Env): Promise<Adm
     id: Number(row.id),
     ccgNumber: row.ccg_number,
     title: row.title,
-    imageUrl: row.image_url || '',
+    imageUrl: toAdminImageUrl(row.image_url, 'thumb'),
     category: row.category,
     brand: row.brand,
     purchasedDate: row.purchased_date,
