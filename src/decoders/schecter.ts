@@ -9,6 +9,11 @@ export function decodeSchecter(serial: string): DecodeResult {
     return decodeUSACustomShop(normalized);
   }
 
+  // USA early-to-mid 1990s numeric: YY + sequence
+  if (/^9\d{4}$/.test(normalized)) {
+    return decodeUSA5DigitNumeric(normalized);
+  }
+
   // Indonesia IW prefix: IW + 8-9 digits (World Musical Instruments)
   if (/^IW\d{8,9}$/.test(normalized)) {
     return decodeIndonesiaIW(normalized);
@@ -112,6 +117,49 @@ function decodeUSACustomShop(serial: string): DecodeResult {
     notes: `USA-made custom shop guitar. Prefix "${prefix}". Sequence: ${sequence}. Contact Schecter directly for exact production date.`
   };
   return { success: true, info };
+}
+
+function decodeUSA5DigitNumeric(serial: string): DecodeResult {
+  const yearDigits = serial.substring(0, 2);
+  const sequence = serial.substring(2);
+  const year = 1900 + parseInt(yearDigits, 10);
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Schecter',
+    serialNumber: serial,
+    year: String(year),
+    factory: 'Schecter USA Custom Shop',
+    country: 'USA',
+    model: 'USA Custom Shop / early 1990s USA production',
+    notes: `Five-digit USA numeric format. First two digits indicate ${year}; remaining digits indicate production sequence ${sequenceNumber}. This is associated with early-to-mid 1990s USA Schecter production, not later Diamond Series import formats.`
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'schecter-usa-5-digit-yy-sequence',
+    patternLabel: 'Schecter USA 5-digit YY sequence',
+    additionalContext: {
+      title: 'Schecter USA 5-digit serial',
+      summary: 'This serial matches a Schecter five-digit numeric format commonly associated with early-to-mid 1990s USA production.',
+      highlights: [
+        `The first two digits ${yearDigits} decode as production year ${year}.`,
+        `The remaining digits decode as production sequence ${sequenceNumber}.`,
+        'Pure five-digit 1990s serials are associated with USA production rather than later Diamond Series import serial formats.',
+      ],
+      caveats: [
+        'Schecter serial documentation from this era is not as standardized as later import production.',
+        'Exact factory-location confirmation may require photos or confirmation from Schecter.',
+        'Use physical markings and construction details to distinguish USA Custom Shop/pro-era instruments from later imports.',
+      ],
+      verificationTips: [
+        'Check for USA markings, neck-plate/headstock details, and period-correct hardware.',
+        'Contact Schecter support with clear photos of the serial, front, back, and any neck-pocket or cavity markings for exact provenance.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Schecter five-digit numeric format commonly associated with early-to-mid 1990s USA production.</p><h3>How This Pattern Is Typically Read</h3><p>The first two digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production sequence ${sequenceNumber}. Pure five-digit 1990s serials are associated with USA production rather than later Diamond Series import serial formats.</p><h3>What To Verify</h3><ul><li>Schecter serial documentation from this era is not as standardized as later import production.</li><li>Exact factory-location confirmation may require photos or confirmation from Schecter.</li><li>Use physical markings and construction details to distinguish USA Custom Shop/pro-era instruments from later imports.</li></ul><h3>Coal Creek Guitars Note</h3><p>Treat this as an early 1990s USA Schecter decode, then verify the instrument against its markings, hardware, and Schecter support if exact provenance matters.</p>`,
+  };
 }
 
 function decodeIndonesiaIW(serial: string): DecodeResult {

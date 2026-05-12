@@ -934,6 +934,22 @@ function assertKramerModernS(serialInput, expectedYear, expectedMonth) {
   assert(info.country === 'South Korea', `Expected South Korea for ${serialInput}, got ${info.country}`);
 }
 
+function assertKramerSJSaemyungChina(serialInput, expectedYear, expectedMonth) {
+  const result = decodeKramer(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(info.factory === 'Saemyung', `Expected Saemyung factory for ${serialInput}, got ${info.factory}`);
+  assert(info.country === 'China', `Expected China for ${serialInput}, got ${info.country}`);
+  assert(
+    result.patternKey === 'kramer-sj-saemyung-china-yymm-sequence',
+    `Expected Kramer SJ Saemyung China pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
 function assertKramerVPrefix(serialInput, expectedYearRange) {
   const result = decodeKramer(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -1435,6 +1451,21 @@ function assertSquierChinaSE9Digit(serialInput, expectedYear, expectedMonth) {
   );
 }
 
+function assertSquierIndonesiaICSYear(serialInput, expectedYear) {
+  const result = decodeSerialForBackend('squier', serialInput);
+  assert(result.success, `Expected decode success for squier:${serialInput}`);
+  assert(result.info, `Expected decoded info for squier:${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.factory === 'Cor-Tek (Cort)', `Expected Cor-Tek (Cort) for ${serialInput}, got ${info.factory}`);
+  assert(info.country === 'Indonesia', `Expected Indonesia for ${serialInput}, got ${info.country}`);
+  assert(
+    result.patternKey === 'squier-indonesia-ics-yy-sequence',
+    `Expected Squier ICS YY pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
 function assertFenderTrailingFTypoCorrection(serialInput, expectedCorrected, expectedYear) {
   const result = decodeSerialForBackend('fender', serialInput);
   assert(result.success, `Expected decode success for fender:${serialInput}`);
@@ -1873,6 +1904,29 @@ function assertSchecterCAPrefix(serialInput) {
   );
 }
 
+function assertSchecterUSA5Digit(serialInput, expectedYear) {
+  const result = decodeSchecter(serialInput);
+  assert(result.success, `Expected decode success for Schecter ${serialInput}`);
+  assert(result.info, `Expected decoded info for Schecter ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.factory === 'Schecter USA Custom Shop', `Expected USA Custom Shop factory for ${serialInput}, got ${info.factory}`);
+  assert(info.country === 'USA', `Expected USA country for ${serialInput}, got ${info.country}`);
+  assert(
+    info.model === 'USA Custom Shop / early 1990s USA production',
+    `Expected early 1990s USA model guidance for ${serialInput}, got ${info.model}`
+  );
+  assert(
+    result.patternKey === 'schecter-usa-5-digit-yy-sequence',
+    `Expected Schecter USA 5-digit pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('production sequence 244'),
+    `Expected Schecter USA 5-digit rich text for ${serialInput}`
+  );
+}
+
 function assertSchecterRNPrefix(serialInput) {
   const result = decodeSchecter(serialInput);
   assert(result.success, `Expected decode success for Schecter ${serialInput}`);
@@ -2158,6 +2212,7 @@ assertBCRichHanserEraEightDigitImport('Sr#41201627');
 assertBCRichClassAxeBPrefixImport('B007132');
 assertBCRichUSA5DigitOffset('36642', '1982-1983 (estimated)');
 assertKramerModernS('S106020848', '2010', 'June');
+assertKramerSJSaemyungChina('SJ03120763', '2003', 'December');
 assertKramerVPrefix('V9954', 'mid-to-late 1980s (estimated)');
 assertKramerCFPrefix('CF22271', '1985-1989 (estimated)');
 assertKramerSESamickKorea('se 8280');
@@ -2186,6 +2241,7 @@ assertCort1980sKorea7Digit('8808046');
 assertCharvelCFPrefix('CF22271', '2022');
 assertCharvelJapanIMC7Digit('0904460');
 assertSquierChinaSE9Digit('040811254', '2004', 'August');
+assertSquierIndonesiaICSYear('ICS18291833', '2018');
 assertFenderTrailingFTypoCorrection('E528104f', 'E5281043', '1985');
 assertFenderJDPrefix('JD13006111', '2013');
 assertFenderICSPrefix('ICS11185000', '2011');
@@ -2209,6 +2265,7 @@ assertJacksonMij200C('200C00541');
 assertESPVintageJapan5Digit('22944');
 assertESPVintageJapan5Digit('29290');
 assertSchecterCAPrefix('CA24010005');
+assertSchecterUSA5Digit('92244', '1992');
 assertSchecterRNPrefix('Rn24100948');
 assertSchecterIMPrefix('IM25100158');
 assertSchecterSTPrefix('ST19070042');

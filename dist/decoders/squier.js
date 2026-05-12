@@ -14,6 +14,7 @@
  * - Korea CN prefix (Cor-Tek)
  * - Korea numeric-only (first digit = year)
  * - Indonesia IC/ICF/ICO prefix (Cort)
+ * - Indonesia ICS + YY prefix (Cort)
  * - Indonesia ICS + letter prefix (Cort, 2021+)
  * - Indonesia IS/ISS/SI prefix (Samick)
  * - China CY/YN prefix (Yako)
@@ -101,6 +102,11 @@ export function decodeSquier(serial) {
     // Korea M prefix (early 90s)
     if (/^M\d{7}$/.test(normalized)) {
         return decodeKoreaM(normalized);
+    }
+    // Indonesia ICS + YY prefix (Cort)
+    const icsYearMatch = normalized.match(/^ICS(\d{2})(\d+)$/);
+    if (icsYearMatch) {
+        return decodeIndonesiaICSYear(icsYearMatch[1], icsYearMatch[2], normalized);
     }
     // Indonesia ICS + letter prefix (Cort, 2021+)
     const icsMatch = normalized.match(/^ICS([A-L])(\d{2})(\d+)$/);
@@ -383,6 +389,43 @@ function decodeIndonesiaICS(monthLetter, yearDigits, sequence, serial) {
         notes: 'ICS prefix indicates Indonesian Cort production (2021+). Uses modern 4-letter prefix format with month code.',
     };
     return { success: true, info };
+}
+function decodeIndonesiaICSYear(yearDigits, sequence, serial) {
+    const year = 2000 + parseInt(yearDigits, 10);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Squier',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'Cor-Tek (Cort)',
+        country: 'Indonesia',
+        notes: `ICS prefix indicates Indonesian Squier production at Cor-Tek/Cort. Parsed as ICS + two-digit year (${yearDigits}) + production sequence ${sequenceNumber}. This format is commonly seen on modern Indonesian-made Squier instruments, including Classic Vibe and Contemporary-era models. Verify exact model and origin from the headstock/back-of-headstock markings because Fender lookup coverage can be incomplete for some Squier runs.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'squier-indonesia-ics-yy-sequence',
+        patternLabel: 'Squier Indonesia ICS YY sequence format',
+        additionalContext: {
+            title: 'Squier ICS Indonesia serial',
+            summary: 'This serial matches a Squier ICS-prefix Indonesian Cor-Tek/Cort format parsed as factory prefix plus production year and sequence.',
+            highlights: [
+                'ICS indicates Indonesian Cor-Tek/Cort production for Squier.',
+                `The two digits after ICS decode as production year ${year}.`,
+                `The remaining digits decode as production sequence ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'The serial identifies production year and factory family, not the exact model.',
+                'Fender serial lookup coverage can be incomplete for some Squier/import runs.',
+            ],
+            verificationTips: [
+                'Confirm the headstock/back-of-headstock country-of-origin marking.',
+                'Compare the instrument against Indonesian Squier specs for the decoded year.',
+                'Use physical model features to distinguish Classic Vibe, Contemporary, and other series.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Squier ICS-prefix Indonesian Cor-Tek/Cort format parsed as factory prefix plus production year and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>ICS indicates Indonesian Cor-Tek/Cort production for Squier. The digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>The serial identifies production year and factory family, not the exact model.</li><li>Confirm the Made in Indonesia marking near the serial.</li><li>Compare model features against Indonesian Squier specs for the decoded year.</li></ul>`,
+    };
 }
 function decodeIndonesiaIC(yearDigits, sequence, serial) {
     const year = 2000 + parseInt(yearDigits, 10);

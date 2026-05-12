@@ -42,6 +42,11 @@ export function decodeKramer(serial: string): DecodeResult {
     return { success: true, info };
   }
 
+  // Saemyung China / MusicYo-era import format: SJ + YYMM + sequence
+  if (/^SJ\d{8}$/.test(normalized)) {
+    return decodeSaemyungChinaSJ(normalized, cleaned);
+  }
+
   // Samick Indonesia modern import format: SI + YYMM + sequence
   if (/^SI\d{8}$/.test(normalized)) {
     return decodeSamickIndonesiaSI(normalized, cleaned);
@@ -277,6 +282,60 @@ function decodeSamickKoreaSE(normalized: string, cleaned: string): DecodeResult 
       ],
     },
     additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Korean-made Kramer SE-prefix import format commonly associated with late-1980s to early-1990s Samick production.</p><h3>How This Pattern Is Typically Read</h3><p>SE-prefix serials are commonly associated with Korean-made Kramer overseas models. The format appears on import-era models such as Striker, Aerostar, and Focus-family instruments. The four digits after SE are best treated as production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>This pattern supports an estimated import era, not an exact production date.</li><li>Kramer records from this period are incomplete, so physical feature checks matter.</li><li>Some late-1980s overseas models used plywood or laminated bodies, so construction should be verified directly.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as Korean import-era evidence, then verify the exact model from headstock logo, neck-plate markings, hardware, and body construction.</p>`,
+  };
+}
+
+function decodeSaemyungChinaSJ(normalized: string, cleaned: string): DecodeResult {
+  const yearPart = normalized.substring(2, 4);
+  const monthPart = normalized.substring(4, 6);
+  const sequence = normalized.substring(6);
+  const yy = parseInt(yearPart, 10);
+  const monthValue = parseInt(monthPart, 10);
+  const monthName = getMonthName(monthValue);
+  const fullYear = Number.isNaN(yy)
+    ? undefined
+    : yy <= 24
+      ? 2000 + yy
+      : 1900 + yy;
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Kramer',
+    serialNumber: cleaned,
+    year: fullYear ? fullYear.toString() : undefined,
+    month: monthName,
+    factory: 'Saemyung',
+    country: 'China',
+    model: 'MusicYo/Gibson-era import model, commonly Striker or Pacer Classic family',
+    notes: `SJ-prefix Kramer import format interpreted as SJ + YYMM + sequence. The SJ prefix is commonly associated with Saemyung production in China during the Gibson/MusicYo import era. Year: ${fullYear ?? 'unknown'}; month: ${monthName || 'unknown'}; production sequence: ${sequenceNumber}. This is not a vintage American Series neck-plate format, so verify model and country-of-origin from the back-of-headstock decal, headstock logo, hardware, and Vintage Kramer Registry examples.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'kramer-sj-saemyung-china-yymm-sequence',
+    patternLabel: 'Kramer SJ Saemyung China YYMM sequence',
+    additionalContext: {
+      title: 'Kramer SJ MusicYo-era import serial',
+      summary: 'This serial matches a Kramer SJ-prefix import format commonly associated with Saemyung China production during the Gibson/MusicYo era.',
+      highlights: [
+        'SJ is treated as a Saemyung China import factory prefix.',
+        `The digits ${yearPart} decode as production year ${fullYear ?? 'unknown'}.`,
+        `The digits ${monthPart} decode as ${monthName || 'unknown month'}.`,
+        `The final digits decode as production sequence ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'This is not the classic 1980s American Series letter-prefix neck-plate system.',
+        'Kramer import records are incomplete, so exact model confirmation requires physical features.',
+        'The serial identifies a production date/factory family, not the exact model name.',
+      ],
+      verificationTips: [
+        'Check for a decal serial on the back of the headstock.',
+        'Compare hardware, headstock logo, and pickup layout against MusicYo-era Striker and Pacer Classic specs.',
+        'Use the Vintage Kramer Registry and model features for confirmation.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Kramer SJ-prefix import format commonly associated with Saemyung China production during the Gibson/MusicYo era.</p><h3>How This Pattern Is Typically Read</h3><p>SJ is treated as a Saemyung China import factory prefix. The digits ${yearPart} decode as production year ${fullYear ?? 'unknown'}. The digits ${monthPart} decode as ${monthName || 'unknown month'}. The final digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This is not the classic 1980s American Series letter-prefix neck-plate system.</li><li>Check for a decal serial on the back of the headstock.</li><li>Compare hardware, headstock logo, and pickup layout against MusicYo-era Striker and Pacer Classic specs.</li></ul>`,
   };
 }
 
