@@ -32,7 +32,7 @@
   <meta name="twitter:description" content="Frequently asked questions for Coal Creek Guitars.">
   <meta name="twitter:image" content="https://www.coalcreekguitars.com/images/coal-creek-logo.png">
 
-  <link rel="stylesheet" href="../styles.css?version=018132">
+  <link rel="stylesheet" href="../styles.css?version=336481">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -83,39 +83,15 @@
   </nav>
 
   <main class="faq-shell">
-    <section class="faq-header-panel" aria-labelledby="faq-title">
-      <div>
-        <nav class="faq-breadcrumb" aria-label="Breadcrumb">
-          <a href="../index.html">Home</a>
-          <span aria-hidden="true">/</span>
-          <span>FAQ</span>
-        </nav>
-        <h1 id="faq-title">Faq</h1>
-      </div>
-      <label class="faq-search" for="faq-search">
-        <span class="faq-search-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" focusable="false">
-            <path d="M9.5 3a6.5 6.5 0 0 1 5.17 10.45l5.44 5.44-1.42 1.42-5.44-5.44A6.5 6.5 0 1 1 9.5 3Zm0 2a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Z"/>
-          </svg>
-        </span>
-        <input id="faq-search" type="search" placeholder="Search by keyword" autocomplete="off">
-      </label>
-    </section>
-
     <div class="faq-layout">
       <aside class="faq-sidebar" aria-label="FAQ categories">
-        <a class="faq-category active" href="#aws">AWS</a>
-        <a class="faq-category" href="#aws">Aurora</a>
-        <a class="faq-category" href="#aws">Pricing</a>
-        <a class="faq-category" href="#aws">Campaign</a>
-        <a class="faq-category" href="#aws">Templates</a>
-        <a class="faq-category" href="#aws">Segments</a>
-        <a class="faq-category" href="#aws">Billing</a>
-        <a class="faq-category" href="#aws">Accounts</a>
+        <a class="faq-category active" href="#visiting-us">Visiting Us</a>
+        <a class="faq-category" href="#selling-your-gear">Selling Your Gear</a>
+        <a class="faq-category" href="#buying-gear">Buying Gear</a>
       </aside>
 
-      <section class="faq-content" id="aws" aria-labelledby="aws-heading">
-        <h2 id="aws-heading">AWS</h2>
+      <section class="faq-content" id="visiting-us" aria-labelledby="visiting-us-heading">
+        <h2 id="visiting-us-heading">Visiting Us</h2>
 
         <article class="faq-item" id="how-much-do-your-services-cost" data-faq-item>
           <h3><a href="#how-much-do-your-services-cost">How much do your services cost?</a></h3>
@@ -210,23 +186,6 @@
       const year = new Date().getFullYear();
       document.querySelectorAll('.footer-year').forEach((el) => {
         el.textContent = year;
-      });
-
-      const search = document.querySelector('#faq-search');
-      const items = Array.from(document.querySelectorAll('[data-faq-item]'));
-      const empty = document.querySelector('.faq-empty');
-
-      search.addEventListener('input', () => {
-        const query = search.value.trim().toLowerCase();
-        let visibleCount = 0;
-
-        items.forEach((item) => {
-          const matches = !query || item.textContent.toLowerCase().includes(query);
-          item.hidden = !matches;
-          if (matches) visibleCount += 1;
-        });
-
-        empty.hidden = visibleCount !== 0;
       });
     })();
   </script>
