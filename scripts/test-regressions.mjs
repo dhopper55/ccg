@@ -741,6 +741,39 @@ function assertBCRichShortNumericImport(serialInput) {
   );
 }
 
+function assertBCRichSevenDigitNumericImport(serialInput) {
+  const result = decodeBCRich(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(
+    info.year === '2001 (likely import estimate; 2010/2011 possible on some series)',
+    `Expected likely 2001 import estimate for ${serialInput}, got ${info.year}`
+  );
+  assert(
+    info.factory === '2000s import production',
+    `Expected 2000s import factory note for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'South Korea / China', `Expected Korea/China country guidance for ${serialInput}, got ${info.country}`);
+  assert(
+    info.notes && info.notes.includes('production sequence 27150'),
+    `Expected production sequence 27150 for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    info.notes && info.notes.includes('2010/2011'),
+    `Expected 2010/2011 ambiguity for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    result.patternKey === 'bcrich-7-digit-numeric-import-yy-sequence',
+    `Expected B.C. Rich 7-digit numeric pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('production sequence 27150'),
+    `Expected B.C. Rich 7-digit numeric rich text for ${serialInput}`
+  );
+}
+
 function assertBCRichShortMonthCodeImport(serialInput) {
   const result = decodeBCRich(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -2204,6 +2237,7 @@ assertPRSUsaCoreSingleYearDigit('7 126922');
 assertPRSUsaCoreSingleYearDigit('7/126922');
 assertBCRichIShortImport('i50311', '2005', 'March');
 assertBCRichShortNumericImport('150979');
+assertBCRichSevenDigitNumericImport('0127150');
 assertBCRichShortMonthCodeImport('F2051631');
 assertBCRichFPrefixSixDigitImport('F201422');
 assertBCRichBPrefixMonthCodeImport('BA09030385');

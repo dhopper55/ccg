@@ -6,6 +6,7 @@
  * - Class Axe era: B0XXX / BXXXXX / BCXXXXX (year not encoded)
  * - Import pre-2000: F7XXXXX/F8XXXXX/F9XXXXX/F0XXXXX (year in second digit)
  * - Early-2000s short numeric import: 6 digits like 150979
+ * - 2000s 7-digit numeric import: 01XXXXX style serials like 0127150
  * - Hanser-era/date-stamp numeric: 8 digits like 41201627 (year digit + quarter + production)
  * - Month/factory code: A08140023 (month letter + factory + year + production)
  * - B-prefix month-code import: BA09030385 (B + month letter + YY + sequence)
@@ -86,6 +87,9 @@ export function decodeBCRich(serial) {
     if (/^I\d{5}$/.test(normalized)) {
         return decodeIShortImport(normalized);
     }
+    if (/^\d{7}$/.test(normalized)) {
+        return decodeSevenDigitNumericImport(normalized);
+    }
     if (/^\d{6}$/.test(normalized)) {
         return decodeShortNumericImport(normalized);
     }
@@ -94,7 +98,7 @@ export function decodeBCRich(serial) {
     }
     return {
         success: false,
-        error: 'Unable to decode this B.C. Rich serial number. Known formats include: 5-digit USA neck-through (YYXXX), F7/F8/F9/F0 import serials, F-prefix six-digit imports like F201422, 8-digit Hanser-era/import date stamps (e.g., Sr#41201627), month/factory codes like A08140023, two-letter Hanser-era imports like CO1093111, B-prefix month-code imports like BA09030385, NJ series R/P + 6 digits, Class Axe BC/B0/B-prefix series like B007132, or short I-prefix import estimates (I + 5 digits).',
+        error: 'Unable to decode this B.C. Rich serial number. Known formats include: 5-digit USA neck-through (YYXXX), F7/F8/F9/F0 import serials, F-prefix six-digit imports like F201422, 7-digit numeric imports like 0127150, 8-digit Hanser-era/import date stamps (e.g., Sr#41201627), month/factory codes like A08140023, two-letter Hanser-era imports like CO1093111, B-prefix month-code imports like BA09030385, NJ series R/P + 6 digits, Class Axe BC/B0/B-prefix series like B007132, or short I-prefix import estimates (I + 5 digits).',
     };
 }
 const IMPORT_PREFIX_MAP = {
@@ -549,6 +553,48 @@ function decodeShortNumericImport(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This 6-digit serial fits an early-2000s B.C. Rich import interpretation, with a possible Class Axe-era ambiguity.</p><h3>How This Pattern Is Typically Read</h3><p>The first digit ${serial[0]} is interpreted as production year ${year}. The second digit ${fillerDigit} is commonly treated as a placeholder. ${quarter ? `The third digit ${serial[2]} is interpreted as ${quarter}.` : `The third digit ${serial[2]} is not a clean quarter code.`} The final digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>B.C. Rich serial records are inconsistent across import eras.</li><li>A 6-digit neck-plate serial can also indicate a late-1980s to early-1990s Class Axe-era instrument.</li><li>Check country-of-origin markings, logo details, and neck pocket or electronics-cavity dates.</li></ul>`,
+    };
+}
+function decodeSevenDigitNumericImport(serial) {
+    const yearDigits = serial.slice(0, 2);
+    const sequence = serial.slice(2);
+    const yearNum = parseInt(yearDigits, 10);
+    const likelyYear = 2000 + yearNum;
+    const sequenceNumber = parseInt(sequence, 10);
+    const yearText = `${likelyYear} (likely import estimate; 2010/2011 possible on some series)`;
+    const info = {
+        brand: 'B.C. Rich',
+        serialNumber: serial,
+        year: yearText,
+        factory: '2000s import production',
+        country: 'South Korea / China',
+        notes: `Seven-digit numeric B.C. Rich import format. The first two digits ${yearDigits} commonly indicate ${likelyYear}; remaining digits are treated as production sequence ${sequenceNumber}. Some B.C. Rich import runs and series used inconsistent serial logic, so 2010/2011 can be a possible alternate reading for 01-prefix examples. Verify with Made in Korea or Made in China markings, headstock logo details, model features, and neck pocket or electronics-cavity dates where available.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'bcrich-7-digit-numeric-import-yy-sequence',
+        patternLabel: 'B.C. Rich 7-digit numeric import',
+        additionalContext: {
+            title: 'B.C. Rich 7-digit numeric serial',
+            summary: 'This serial matches a seven-digit numeric B.C. Rich import format commonly associated with 2000s Korean or Chinese production.',
+            highlights: [
+                `The first two digits ${yearDigits} commonly decode as production year ${likelyYear}.`,
+                `The remaining digits decode as production sequence ${sequenceNumber}.`,
+                'This format is generally associated with import models rather than USA neck-through serial systems.',
+            ],
+            caveats: [
+                'B.C. Rich serial numbering is inconsistent across ownership eras and import series.',
+                'Some 01-prefix examples may be interpreted as 2010/2011 depending on the exact model family and production run.',
+                'This format estimates date and import family, not the exact model name.',
+            ],
+            verificationTips: [
+                'Look for Made in Korea or Made in China markings on the back of the headstock.',
+                'Compare hardware, electronics, headstock logo, and body style against 2000s B.C. Rich import catalogs.',
+                'Check neck pocket or electronics-cavity markings if the instrument can be inspected safely.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a seven-digit numeric B.C. Rich import format commonly associated with 2000s Korean or Chinese production.</p><h3>How This Pattern Is Typically Read</h3><p>The first two digits ${yearDigits} commonly decode as production year ${likelyYear}. The remaining digits decode as production sequence ${sequenceNumber}. This format is generally associated with import models rather than USA neck-through serial systems.</p><h3>What To Verify</h3><ul><li>B.C. Rich serial numbering is inconsistent across ownership eras and import series.</li><li>Some 01-prefix examples may be interpreted as 2010/2011 depending on the exact model family and production run.</li><li>Check country-of-origin markings, model features, and neck pocket or electronics-cavity dates where available.</li></ul>`,
     };
 }
 function decodeNJSeries(serial) {
