@@ -157,6 +157,30 @@
           "@type": "Answer",
           "text": "Yes. Coal Creek Guitars collects applicable sales tax in accordance with the laws and requirements of the State of Colorado as well as applicable local taxing authorities, including Englewood and other jurisdictions when required. Sales tax is calculated based on the nature of the transaction and the applicable local tax rates at the time of sale."
         }
+      },
+      {
+        "@type": "Question",
+        "name": "My serial number didn't decode. Can I find out more about it?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "You usually do not need to take any additional action. If a serial number fails to decode in one of our tools, the failed lookup is automatically flagged for review on our side. We then research the brand and serial number format independently to determine whether the serial number is valid and whether support can be added to the decoder. In many cases, the serial number turns out to be legitimate - it simply uses a format that has not been added to the system yet. When that happens, we update the decoder so it works not only for you, but also for anyone else who enters a serial number in that format for that brand in the future. We recommend waiting a few days and trying the serial number again, as decoder updates are added regularly."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do your serial number decoders get updated?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes - our serial number decoders are continuously updated and improved over time. We log all serial number lookups, including both successful decodes and failed attempts. When a serial number fails to decode, it enters a review process where we independently research the brand, format, and available manufacturing information to determine whether support can be added. In many cases, failed serial numbers are simply using formats that have not yet been added to the system. When we confirm a format is valid, we update the decoder so future searches for that brand and serial number style will return proper results. This ongoing process helps make the tools more accurate and more useful for the entire guitar community over time."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "I want to decode a serial number for a brand you don't currently offer. Can you add it?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Absolutely. We are always open to expanding our serial number decoder library to support additional brands. While we currently offer decoders for 25+ major guitar and music gear brands, we understand there are many smaller, older, boutique, and less common brands that are still incredibly important to the people who own and play those instruments. If there is a brand you would like us to support, simply reach out through our Contact Us page and let us know the brand name along with a serial number example you are trying to decode. We will review the information, research the format, and see what we can do to add support for it in the future."
+        }
       }
     ]
   }
@@ -176,6 +200,7 @@
         <a class="faq-category active" href="#visiting-us">Visiting Us</a>
         <a class="faq-category" href="#selling-your-gear">Selling Your Gear</a>
         <a class="faq-category" href="#buying-gear">Buying Gear</a>
+        <a class="faq-category" href="#serial-decoders">Serial Decoders</a>
       </aside>
 
       <section class="faq-content" id="visiting-us" aria-labelledby="visiting-us-heading">
@@ -277,6 +302,27 @@
           <p>Yes. Coal Creek Guitars collects applicable sales tax in accordance with the laws and requirements of the State of Colorado as well as applicable local taxing authorities, including Englewood and other jurisdictions when required. Sales tax is calculated based on the nature of the transaction and the applicable local tax rates at the time of sale.</p>
         </article>
 
+        <h2 id="serial-decoders">Serial Decoders</h2>
+
+        <article class="faq-item" id="my-serial-number-didnt-decode-can-i-find-out-more-about-it" data-faq-item>
+          <h3><a href="#my-serial-number-didnt-decode-can-i-find-out-more-about-it">My serial number didn't decode. Can I find out more about it?</a></h3>
+          <p>You usually do not need to take any additional action. If a serial number fails to decode in one of our tools, the failed lookup is automatically flagged for review on our side. We then research the brand and serial number format independently to determine whether the serial number is valid and whether support can be added to the decoder.</p>
+          <p>In many cases, the serial number turns out to be legitimate - it simply uses a format that has not been added to the system yet. When that happens, we update the decoder so it works not only for you, but also for anyone else who enters a serial number in that format for that brand in the future.</p>
+          <p>We recommend waiting a few days and trying the serial number again, as decoder updates are added regularly.</p>
+        </article>
+
+        <article class="faq-item" id="do-your-serial-number-decoders-get-updated" data-faq-item>
+          <h3><a href="#do-your-serial-number-decoders-get-updated">Do your serial number decoders get updated?</a></h3>
+          <p>Yes - our serial number decoders are continuously updated and improved over time. We log all serial number lookups, including both successful decodes and failed attempts. When a serial number fails to decode, it enters a review process where we independently research the brand, format, and available manufacturing information to determine whether support can be added.</p>
+          <p>In many cases, failed serial numbers are simply using formats that have not yet been added to the system. When we confirm a format is valid, we update the decoder so future searches for that brand and serial number style will return proper results. This ongoing process helps make the tools more accurate and more useful for the entire guitar community over time.</p>
+        </article>
+
+        <article class="faq-item" id="i-want-to-decode-a-serial-number-for-a-brand-you-dont-offer-can-you-add" data-faq-item>
+          <h3><a href="#i-want-to-decode-a-serial-number-for-a-brand-you-dont-offer-can-you-add">I want to decode a serial number for a brand you don't currently offer. Can you add it?</a></h3>
+          <p>Absolutely. We are always open to expanding our serial number decoder library to support additional brands. While we currently offer decoders for 25+ major guitar and music gear brands, we understand there are many smaller, older, boutique, and less common brands that are still incredibly important to the people who own and play those instruments.</p>
+          <p>If there is a brand you would like us to support, simply reach out through our Contact Us page and let us know the brand name along with a serial number example you are trying to decode. We will review the information, research the format, and see what we can do to add support for it in the future.</p>
+        </article>
+
         <section class="faq-contact-card" aria-labelledby="faq-contact-title">
           <div class="faq-contact-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" focusable="false">
@@ -305,6 +351,30 @@
       document.querySelectorAll('.footer-year').forEach((el) => {
         el.textContent = year;
       });
+    })();
+
+    (function() {
+      const categories = Array.from(document.querySelectorAll('.faq-category'));
+
+      function setActiveCategory(hash) {
+        const targetHash = hash || '#visiting-us';
+
+        categories.forEach((category) => {
+          category.classList.toggle('active', category.getAttribute('href') === targetHash);
+        });
+      }
+
+      categories.forEach((category) => {
+        category.addEventListener('click', () => {
+          setActiveCategory(category.getAttribute('href'));
+        });
+      });
+
+      window.addEventListener('hashchange', () => {
+        setActiveCategory(window.location.hash);
+      });
+
+      setActiveCategory(window.location.hash);
     })();
   </script>
 </body>
