@@ -1,4 +1,4 @@
-# Listing Evaluator Architecture
+# Coal Creek Guitars Site Architecture
 
 ## Overview
 The repo now has three active surfaces plus one shared Cloudflare Worker backend:
@@ -15,7 +15,33 @@ The Worker currently:
 5) Protects admin/private `/api/*` with a simple username/password login (HttpOnly cookie)
 6) Receives serial decoder tracking events from public decoder pages and stores them in D1
 7) Stores reusable serial-pattern metadata/content for decoder context rendering
-8) Powers inventory, Admin V2, and shop preview product/category/image endpoints
+8) Powers inventory, Admin V2, shop product/category/image/order endpoints, and dynamic sitemap/robots responses
+
+## Root public site
+The repo root contains the legacy static public site and shared public assets.
+
+Important root files and directories:
+- `index.html` — main homepage cards and intro content
+- `styles.css` — shared legacy/root public styles, including decoder legacy styles and `/faq`
+- `faq/index.html` — static public FAQ page served at `/faq`
+- `about-us.html`, `contact-us.html`, `privacy-policy.html`, `terms-conditions.html`, and guide pages
+- `images/` — shared public images used by root static pages and generated metadata
+- `templates/` — text/listing templates used by listing workflows
+- `_redirects` — Cloudflare Pages redirect/fallback rules for `/admin`, `/guitars-and-gear-for-sale`, and `/decoders`
+- `_headers` — cache headers for SPA shells and hashed assets
+- `functions/sitemap.xml.js` — Pages Function sitemap generator
+
+Root URL conventions:
+- Clean directory pages are used where practical, e.g. `/faq` and `/new-guitarist-practice-resources`.
+- Some older root pages remain `.html`, e.g. `/about-us.html` and `/contact-us.html`.
+- `/faq` is a static root page, not part of the shop app or admin app.
+- `npm run build:legacy` compiles shared TypeScript and updates static cache-buster query strings.
+
+Sitemap behavior:
+- `/sitemap.xml` is implemented in both `functions/sitemap.xml.js` and the Worker fallback `handleSitemap(...)`.
+- Keep static URL lists in both places in sync.
+- Product URLs are appended dynamically from shop product rows.
+- `/robots.txt` points crawlers to `https://www.coalcreekguitars.com/sitemap.xml`.
 
 Important decoder/deploy distinction:
 - Public serial decoder pages are Aurora React pages built from `shop-app/` and emitted as static route entries under `decoders/`.
@@ -31,7 +57,7 @@ Admin is served from `/admin` and built from the Aurora-based app.
 Layout:
 - Source app: `admin-v2-app/`
 - Deployed static output: `admin/`
-- Build command: `npm --prefix admin-v2-app run build:ccg`
+- Build command: `npm run build:admin-v2`
 
 ### Aurora
 Admin V2 is based on the Aurora admin template.
@@ -60,13 +86,14 @@ Layout:
 - Source app: `shop-app/`
 - Deployed static output: `guitars-and-gear-for-sale/` for the app shell/assets, plus generated decoder route entries under `decoders/<slug>/index.html`
 - Public URLs: `https://www.coalcreekguitars.com/guitars-and-gear-for-sale/` and `https://www.coalcreekguitars.com/decoders/<decoder-slug>`
-- Build command: `npm --prefix shop-app run build`
+- Build command: `npm run build:shop`
 - Base path: `VITE_BASENAME=/guitars-and-gear-for-sale/` (used by Vite asset output and by React Router only for shop URLs)
 
 Routing:
 - Uses `createBrowserRouter` with basename `/guitars-and-gear-for-sale` for shop URLs and `/` for `/decoders/*` URLs.
 - Product grid at `/` (inside the basename).
 - Product detail at `/:category/:slug` — e.g. `/guitars-and-gear-for-sale/packages/ovation-guitar-crate-amp-package`.
+- Cart and checkout pages live inside the shop app. Customer checkout always uses web Stripe Checkout. Associate checkout can use cash, web Stripe, Stripe Terminal, or card + cash split tender.
 - SPA fallback is handled by the `_redirects` rule `/guitars-and-gear-for-sale/* /guitars-and-gear-for-sale/index.html 200` so deep-link URLs resolve correctly.
 - Decoder pages are generated from the same shop build by `scripts/sync-shop-decoder-routes.mjs`, which copies the built app shell to `decoders/<slug>/index.html` and injects per-decoder SEO metadata.
 - Old `/new/decoders/*` URLs redirect to canonical `/decoders/*` URLs.
@@ -81,12 +108,33 @@ Implementation notes:
 - Standalone Aurora app, not a route inside Admin V2.
 - Public; not gated by admin auth.
 - Uses public Worker endpoints under `/api/shop/*`.
+- Product grid/search can perform an exact barcode match. If the search query exactly matches `ccg_inventory_items.barcode`, the UI redirects to that product detail route. Partial barcode matches are intentionally ignored.
+- Product/listing images are delivered through public image URLs and Cloudflare image transformations (`/cdn-cgi/image/...`) for thumbnail/card/detail presets to avoid loading full-size originals in grids.
+- Sales tax is currently 8.05% for shop checkout calculations and receipts.
+- Associate mode is controlled by the `ccg_associate` cookie/token flow. It enables in-store-only products and associate checkout actions.
 - Current Worker contracts used by the shopping view:
   - `GET /api/shop/categories`
   - `GET /api/shop/products`
   - `GET /api/shop/products/by-slug/:slug`
   - `GET /api/shop/products/:id` (legacy numeric lookup; still available)
+  - `POST /api/shop/orders/create-checkout-session`
+  - `POST /api/shop/orders/create-terminal-payment`
+  - `GET /api/shop/orders/:id/terminal-payment`
+  - `POST /api/shop/orders/:id/terminal-payment/cancel`
+  - `POST /api/shop/orders/create-cash-order`
+  - `GET /api/shop/orders/:id/receipt`
+  - `GET /api/shop/receipt-templates/:name`
 - Keep storefront-specific Worker contracts under `/api/shop/*` so they stay clearly separated from Admin V2 and legacy admin contracts.
+
+### Checkout, payment, receipts, and mPOP
+- Normal customer checkout uses hosted Stripe Checkout only. It does not attempt mPOP/WebPRNT interaction.
+- Associate checkout exposes in-store payment choices: cash only, web Stripe, Stripe Terminal, and card + cash split tender.
+- Card + cash asks for the card amount first, then lets the associate choose Web or Terminal for the card portion.
+- Stripe Terminal currently targets BBPOS WisePOS E readers. Reader selection comes from `sys_info` when available, then `STRIPE_TERMINAL_READER_ID` / `STRIPE_TERMINAL_READER_ID_SANDBOX`, then online reader discovery.
+- Cash-only and card+cash orders should kick the cash drawer through the shop app’s WebPRNT/mPOP flow.
+- Checkout success fetches receipt data from `/api/shop/orders/:id/receipt` and prints when the in-store browser supports it.
+- Refunds from Admin V2 Order Manager use `/api/admin-v2/orders/:id/refund`; Stripe orders get a Stripe refund, cash orders are marked refunded locally. Orders involving cash should kick the drawer and print a refund receipt from the admin UI.
+- Receipt templates live in D1 table `receipt_templates` and are exposed by `/api/shop/receipt-templates/:name`.
 
 ### Auth and backend
 - Admin uses the same worker auth model:
@@ -127,13 +175,16 @@ All `/api/*` endpoints require auth except:
 - `/api/session`
 - `/api/listings/webhook` (Apify webhook)
 - `/api/serial-decodes` (public decoder tracking ingest)
+- `/api/decode` (public server-side serial decoder endpoint)
 - `/api/shop/*` (public shop preview endpoints)
+- `/api/stripe/webhook` (Stripe webhook)
 - `/api/inventory-image` (public inventory image streaming for non-private inventory images)
+- `/api/image` (public image proxy/transform helper where used)
 
 ## Cloudflare Worker
 - Location: `workers/listing-evaluator/src/index.ts`
 - Wrangler config: `workers/listing-evaluator/wrangler.toml`
-- Route: `https://www.coalcreekguitars.com/api/*`
+- Routes include `https://www.coalcreekguitars.com/api/*`, `https://www.coalcreekguitars.com/sitemap.xml`, `https://www.coalcreekguitars.com/robots.txt`, and shop route handling for dynamic SEO fallbacks.
 
 ### Serial decoding flow
 The serial decoder feature spans both the static site and the worker:
@@ -238,6 +289,7 @@ Practical rule:
 - `GET /api/shop/products`
   - Public product feed for the shop
   - Supports categories, text search, sold toggle, price range, and condition filters
+  - Returns `barcodeMatch` when the query exactly matches an inventory barcode
   - Category query params accepted by the Worker:
     - `categoryId`
     - `categoryIds`
@@ -250,6 +302,30 @@ Practical rule:
   - Public product detail lookup by `sale_url` slug
   - Slug is matched case-insensitively against `ccg_inventory_items.sale_url`
   - Returns the same shape as `GET /api/shop/products/:id`, including `saleUrlSlug` and `primaryCategoryName` for canonical URL resolution
+
+- `POST /api/shop/orders/create-checkout-session`
+  - Creates a hosted Stripe Checkout Session for customer web checkout or associate web-card/card+cash checkout
+  - Creates local `orders`, `order_items`, and `order_events` rows before redirect
+
+- `POST /api/shop/orders/create-terminal-payment`
+  - Associate-only Stripe Terminal checkout path
+  - Creates a local order, PaymentIntent, and reader action for the configured WisePOS E
+
+- `GET /api/shop/orders/:id/terminal-payment`
+  - Polls Terminal PaymentIntent/order state and completes the order when paid
+
+- `POST /api/shop/orders/:id/terminal-payment/cancel`
+  - Cancels an active Terminal reader action and marks/cancels the local order where applicable
+
+- `POST /api/shop/orders/create-cash-order`
+  - Associate-only cash checkout path
+  - Creates and immediately marks a cash order paid
+
+- `GET /api/shop/orders/:id/receipt`
+  - Public receipt payload for checkout success and printing
+
+- `GET /api/shop/receipt-templates/:name`
+  - Returns receipt template text by template name
 
 - `GET /api/admin-v2/dashboard/summary`
   - Dashboard KPI totals for Admin V2 home page
@@ -313,6 +389,14 @@ Practical rule:
   - Admin V2 category tree endpoint for inventory forms and filters
 - `POST /api/admin-v2/inventory/merge-marked`
   - Merge marked inventory rows into one new inventory item
+- `GET /api/admin-v2/orders`
+  - Admin V2 Order Manager order list
+- `GET /api/admin-v2/orders/:id`
+  - Admin V2 order detail, including items and timeline/events
+- `POST /api/admin-v2/orders/:id/refund`
+  - Full-order refund path
+  - Creates Stripe refund for Stripe-backed orders; cash orders are marked refunded locally
+  - Restores inventory and records order events
 
 ## Apify
 - Craigslist actor: `ivanvs/craigslist-scraper`
@@ -341,6 +425,10 @@ Tables:
     - `sale_price`
     - `"condition"`
     - `sale_description`
+    - `barcode` — exact-match shop/admin search barcode field; `VARCHAR(50)`
+    - sale bullet fields (`bullet1_text` through `bullet6_text`) plus danger/highlight flags
+    - `sale_zip`
+    - sold/rental/active/marked/personal flags used by admin and checkout flows
   - FBM fields are no longer part of the active model/contracts
 - `ccg_inventory_categories`
   - Inventory/shop category lookup table
@@ -380,7 +468,18 @@ Tables:
   - One-row system configuration table
   - Stores Stripe production/sandbox secret keys and tax rate ids
   - `use_stripe_sandbox` controls which Stripe credentials the Worker uses
+  - Stores Stripe Terminal reader ids for production/sandbox when present
   - Stores Brevo API key, order confirmation template id, and sender identity for transactional email
+- `orders`
+  - Local order header table for shop checkout, associate cash/terminal checkout, Stripe Payment Links, payment state, refunds, and receipt data
+  - Important fields include `checkout_type`, `checkout_provider`, `checkout_mode`, Stripe ids, totals, tax/discount/card/cash cents, customer fields, status, paid/refunded timestamps, and success URL
+- `order_items`
+  - Order line items linked to inventory items
+  - Tracks quantity, unit/subtotal/tax/total cents, sale URL/category snapshot fields, and image/title snapshots
+- `order_events`
+  - Timeline/audit trail for order lifecycle changes, checkout creation, payment/refund events, and admin actions
+- `receipt_templates`
+  - Text templates used by WebPRNT/mPOP receipt printing for sale and refund receipts
 
 The live D1 database is the source of truth for schema.
 
@@ -390,6 +489,9 @@ Inventory model notes:
 - Package creation finds the first top-level category whose name matches `%package%`; if none exists, package creation fails.
 - Shop/public category navigation comes from `ccg_inventory_categories`, not hardcoded demo categories.
 - Public shop images should resolve from non-private rows in `ccg_inventory_item_images`.
+- Admin inventory add/edit locks an already-populated `sale_url` slug by default; users can explicitly unlock it with the edit icon.
+- When sale title is populated from empty and the slug is blank, admin auto-generates a slug from the title on blur.
+- Barcode is optional and is used for exact-match scanner/search behavior.
 
 D1 workflow rules:
 - Schema changes are forward-only.
@@ -421,6 +523,9 @@ D1 workflow rules:
 Optional:
 - `REVERB_API_TOKEN`
 - `STRIPE_CO_SALES_TAX_RATE_ID` fallback only; D1 `sys_info` is the Stripe tax id source of truth once populated
+- `STRIPE_TERMINAL_READER_ID`
+- `STRIPE_TERMINAL_READER_ID_SANDBOX`
+- `GOOGLE_MAPS_API_KEY`
 
 ## Decoder Pages
 All public decoder pages are owned by `shop-app/`.
@@ -446,9 +551,18 @@ From `workers/listing-evaluator/`:
 From repo root:
 - `npm run build`
   - Builds the legacy site only
+- `npm run build:all`
+  - Builds legacy static files, Admin V2, and Shop/decoder static output
 
 Admin build:
-- `npm --prefix admin-v2-app run build:ccg`
+- `npm run build:admin-v2`
+  - Runs `npm --prefix admin-v2-app install` and `npm --prefix admin-v2-app run build:ccg`
 
 Shop build:
-- `npm --prefix shop-app run build`
+- `npm run build:shop`
+  - Runs `npm --prefix shop-app run build`
+
+Verification defaults:
+- Serial decoder logic: `npm run test:regressions`
+- Worker/API surface: `npx wrangler deploy --dry-run` from `workers/listing-evaluator/`
+- Static/root changes: `npm run build:legacy`
