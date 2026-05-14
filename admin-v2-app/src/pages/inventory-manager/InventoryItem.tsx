@@ -262,12 +262,41 @@ function todayYmd(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function buildInventoryImageApiUrl(key: string): string {
+  const params = new URLSearchParams();
+  params.set('key', key);
+  return `/api/inventory-image?${params.toString()}`;
+}
+
+function buildListingImageApiUrl(key: string): string {
+  const params = new URLSearchParams();
+  params.set('key', key);
+  return `/api/listing-image?${params.toString()}`;
+}
+
+function buildCustomImageApiUrl(key: string): string {
+  const params = new URLSearchParams();
+  params.set('key', key);
+  return `/api/listings/custom-image?${params.toString()}`;
+}
+
+function normalizeInventoryImageDisplayUrl(value: string): string {
+  const raw = value.trim();
+  if (!raw || raw.startsWith('/api/') || raw.startsWith('/cdn-cgi/image/') || /^https?:\/\//i.test(raw)) {
+    return raw;
+  }
+  if (raw.startsWith('inventory-items/')) return buildInventoryImageApiUrl(raw);
+  if (raw.startsWith('listing-images/')) return buildListingImageApiUrl(raw);
+  if (raw.startsWith('custom-items/')) return buildCustomImageApiUrl(raw);
+  return raw;
+}
+
 function normalizeImages(images: InventoryImageRecord[]): InventoryImageRecord[] {
   const seen = new Set<string>();
   const normalized = images
     .map((image) => ({
       id: image.id,
-      url: typeof image.url === 'string' ? image.url.trim() : '',
+      url: typeof image.url === 'string' ? normalizeInventoryImageDisplayUrl(image.url) : '',
       isPrivate: Boolean(image.isPrivate),
     }))
     .filter((image) => image.url)
