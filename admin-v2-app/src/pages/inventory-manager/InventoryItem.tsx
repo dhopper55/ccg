@@ -82,6 +82,9 @@ type InventoryItemRecord = {
   quantity?: number | null;
   purchasePrice?: number | null;
   privatePartyValue?: number | null;
+  miles?: number | null;
+  minutesSpent?: number | null;
+  shipCost?: number | null;
   purchaseNotes?: string;
   aiAnalysisText?: string;
   serialNumber?: string;
@@ -177,6 +180,9 @@ type FormState = {
   purchasedDate: string;
   purchasePrice: string;
   privatePartyValue: string;
+  miles: string;
+  minutesSpent: string;
+  shipCost: string;
   purchaseNotes: string;
   aiAnalysisText: string;
   serialNumber: string;
@@ -356,6 +362,9 @@ const DEFAULT_FORM: FormState = {
   purchasedDate: todayYmd(),
   purchasePrice: '',
   privatePartyValue: '0',
+  miles: '0',
+  minutesSpent: '0',
+  shipCost: '0',
   purchaseNotes: '',
   aiAnalysisText: '',
   serialNumber: '',
@@ -906,6 +915,9 @@ const InventoryItem = () => {
               record.purchasePrice != null ? String(record.purchasePrice) : '',
             privatePartyValue:
               record.privatePartyValue != null ? String(record.privatePartyValue) : '0',
+            miles: record.miles != null ? String(record.miles) : '0',
+            minutesSpent: record.minutesSpent != null ? String(record.minutesSpent) : '0',
+            shipCost: record.shipCost != null ? String(record.shipCost) : '0',
             purchaseNotes: record.purchaseNotes || '',
             aiAnalysisText: record.aiAnalysisText || '',
             serialNumber: record.serialNumber || '',
@@ -1151,6 +1163,9 @@ const InventoryItem = () => {
     purchasedDate: form.purchasedDate.trim(),
     purchasePrice: form.purchasePrice.trim(),
     privatePartyValue: form.privatePartyValue.trim() || '0',
+    miles: form.miles.trim() || '0',
+    minutesSpent: form.minutesSpent.trim() || '0',
+    shipCost: form.shipCost.trim() || '0',
     purchaseNotes: form.purchaseNotes.trim(),
     aiAnalysisText: form.aiAnalysisText.trim(),
     isActive: form.isActive,
@@ -2051,7 +2066,7 @@ const InventoryItem = () => {
                 />
               </Grid>
 
-              <Grid size={{ xs: 12, md: 6 }}>
+              <Grid size={{ xs: 12, md: 2.4 }}>
                 <TextField
                   fullWidth
                   label="How Much Paid? ($)"
@@ -2061,13 +2076,43 @@ const InventoryItem = () => {
                   inputProps={{ min: 0, step: 0.01 }}
                 />
               </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
+              <Grid size={{ xs: 12, md: 2.4 }}>
                 <TextField
                   fullWidth
                   label="Private Party Value ($)"
                   type="number"
                   value={form.privatePartyValue}
                   onChange={(event) => setField('privatePartyValue', event.target.value)}
+                  inputProps={{ min: 0, step: 0.01 }}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 2.4 }}>
+                <TextField
+                  fullWidth
+                  label="Miles"
+                  type="number"
+                  value={form.miles}
+                  onChange={(event) => setField('miles', event.target.value)}
+                  inputProps={{ min: 0, step: 1 }}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 2.4 }}>
+                <TextField
+                  fullWidth
+                  label="Minutes Spent"
+                  type="number"
+                  value={form.minutesSpent}
+                  onChange={(event) => setField('minutesSpent', event.target.value)}
+                  inputProps={{ min: 0, step: 1 }}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 2.4 }}>
+                <TextField
+                  fullWidth
+                  label="Ship Cost ($)"
+                  type="number"
+                  value={form.shipCost}
+                  onChange={(event) => setField('shipCost', event.target.value)}
                   inputProps={{ min: 0, step: 0.01 }}
                 />
               </Grid>

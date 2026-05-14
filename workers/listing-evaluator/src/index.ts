@@ -2674,6 +2674,9 @@ type InventoryItemRow = {
   purchased_date: string | null;
   purchase_price: number | null;
   private_party_value: number | null;
+  miles: number | null;
+  minutes_spent: number | null;
+  ship_cost: number | null;
   purchase_notes: string | null;
   ai_analysis_text: string | null;
   serial_number: string | null;
@@ -6055,6 +6058,9 @@ async function handleAdminV2InventoryMergeMarked(env: Env): Promise<Response> {
     purchased_date: currentDateYmd(),
     purchase_price: purchasePriceTotal,
     private_party_value: privatePartyValueTotal,
+    miles: 0,
+    minutes_spent: 0,
+    ship_cost: 0,
     purchase_notes: purchaseNotes || null,
     ai_analysis_text: null,
     serial_number: null,
@@ -6194,6 +6200,9 @@ async function handleInventoryPackageCreate(env: Env): Promise<Response> {
     purchased_date: currentDateYmd(),
     purchase_price: purchasePriceTotal,
     private_party_value: privatePartyValueTotal,
+    miles: 0,
+    minutes_spent: 0,
+    ship_cost: 0,
     purchase_notes: purchaseNotes || null,
     ai_analysis_text: null,
     serial_number: null,
@@ -6308,6 +6317,9 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const purchasedDate = normalizeInventoryDate(body.purchasedDate) || currentDateYmd();
   const purchasePrice = parseCurrencyAmount(body.purchasePrice);
   const privatePartyValue = parseCurrencyAmount(body.privatePartyValue) ?? 0;
+  const miles = parseBoundedInt(body.miles, 0, 0, 1_000_000);
+  const minutesSpent = parseBoundedInt(body.minutesSpent, 0, 0, 1_000_000);
+  const shipCost = parseCurrencyAmount(body.shipCost) ?? 0;
   const purchaseNotes = normalizeText(body.purchaseNotes, '').slice(0, 4000);
   const aiAnalysisText = sanitizePatternLookupHtml(normalizeText(body.aiAnalysisText, '')).slice(0, 20000);
   const serialNumber = normalizeText(body.serialNumber, '').slice(0, 180);
@@ -6454,6 +6466,9 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     purchased_date: purchasedDate,
     purchase_price: purchasePrice,
     private_party_value: privatePartyValue,
+    miles,
+    minutes_spent: minutesSpent,
+    ship_cost: shipCost,
     purchase_notes: purchaseNotes || null,
     ai_analysis_text: aiAnalysisText || null,
     serial_number: serialNumber || null,
@@ -6641,6 +6656,9 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const purchasedDate = normalizeInventoryDate(body.purchasedDate);
   const purchasePrice = parseCurrencyAmount(body.purchasePrice);
   const privatePartyValue = parseCurrencyAmount(body.privatePartyValue) ?? 0;
+  const miles = parseBoundedInt(body.miles, 0, 0, 1_000_000);
+  const minutesSpent = parseBoundedInt(body.minutesSpent, 0, 0, 1_000_000);
+  const shipCost = parseCurrencyAmount(body.shipCost) ?? 0;
   const purchaseNotes = normalizeText(body.purchaseNotes, '').slice(0, 4000);
   const aiAnalysisText = sanitizePatternLookupHtml(normalizeText(body.aiAnalysisText, '')).slice(0, 20000);
   const serialNumber = normalizeText(body.serialNumber, '').slice(0, 180);
@@ -6784,6 +6802,9 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       purchased_date: purchasedDate,
       purchase_price: purchasePrice,
       private_party_value: privatePartyValue,
+      miles,
+      minutes_spent: minutesSpent,
+      ship_cost: shipCost,
       purchase_notes: purchaseNotes || null,
       ai_analysis_text: aiAnalysisText || null,
       serial_number: serialNumber || null,
@@ -6891,6 +6912,9 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       purchased_date: purchasedDate,
       purchase_price: purchasePrice,
       private_party_value: privatePartyValue,
+      miles,
+      minutes_spent: minutesSpent,
+      ship_cost: shipCost,
       purchase_notes: purchaseNotes || null,
       ai_analysis_text: aiAnalysisText || null,
       serial_number: serialNumber || null,
@@ -6931,6 +6955,9 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       purchased_date: purchasedDate,
       purchase_price: purchasePrice,
       private_party_value: privatePartyValue,
+      miles,
+      minutes_spent: minutesSpent,
+      ship_cost: shipCost,
       purchase_notes: purchaseNotes || null,
       ai_analysis_text: aiAnalysisText || null,
       serial_number: serialNumber || null,
@@ -7033,6 +7060,9 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     purchased_date: purchasedDate,
     purchase_price: purchasePrice,
     private_party_value: privatePartyValue,
+    miles,
+    minutes_spent: minutesSpent,
+    ship_cost: shipCost,
     purchase_notes: purchaseNotes || null,
     ai_analysis_text: aiAnalysisText || null,
     serial_number: serialNumber || null,
@@ -8244,6 +8274,9 @@ function mapInventoryRow(
     purchasedDate: row.purchased_date || '',
     purchasePrice: row.purchase_price,
     privatePartyValue: row.private_party_value,
+    miles: Number(row.miles || 0),
+    minutesSpent: Number(row.minutes_spent || 0),
+    shipCost: Number(row.ship_cost || 0),
     purchaseNotes: row.purchase_notes || '',
     aiAnalysisText: row.ai_analysis_text || '',
     serialNumber: row.serial_number || '',
@@ -8466,6 +8499,9 @@ async function dbListInventoryItems(
        i.purchased_date,
        i.purchase_price,
        i.private_party_value,
+       i.miles,
+       i.minutes_spent,
+       i.ship_cost,
        i.purchase_notes,
        i.ai_analysis_text,
        i.serial_number,
@@ -8568,6 +8604,9 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.purchased_date,
       i.purchase_price,
       i.private_party_value,
+      i.miles,
+      i.minutes_spent,
+      i.ship_cost,
       i.purchase_notes,
       i.ai_analysis_text,
       i.serial_number,
@@ -8658,6 +8697,9 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     purchasedDate: row.purchased_date || '',
     purchasePrice: row.purchase_price,
     privatePartyValue: row.private_party_value,
+    miles: Number(row.miles || 0),
+    minutesSpent: Number(row.minutes_spent || 0),
+    shipCost: Number(row.ship_cost || 0),
     purchaseNotes: row.purchase_notes || '',
     aiAnalysisText: row.ai_analysis_text || '',
     serialNumber: row.serial_number || '',
@@ -10732,6 +10774,9 @@ async function dbCreateInventoryItems(
     purchased_date: string;
     purchase_price: number | null;
     private_party_value: number;
+    miles: number;
+    minutes_spent: number;
+    ship_cost: number;
     purchase_notes: string | null;
     ai_analysis_text: string | null;
     serial_number: string | null;
@@ -10772,12 +10817,12 @@ async function dbCreateInventoryItems(
         bullet_5_text, bullet_5_danger, bullet_5_highlight,
         bullet_6_text, bullet_6_danger, bullet_6_highlight,
         barcode,
-        purchased_date, purchase_price, private_party_value, purchase_notes, ai_analysis_text, serial_number,
+        purchased_date, purchase_price, private_party_value, miles, minutes_spent, ship_cost, purchase_notes, ai_analysis_text, serial_number,
         weight_lbs, neck_profile, neck_thickness, nut_width, width_12_fret, fretboard_radius, twelve_fret_action,
         is_active, is_marked, is_personal, is_rented, for_sale, only_in_store, for_sale_date,
         is_sold, sold_date, sold_amount, sell_notes, sale_url, sale_zip
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const result = await env.DB.prepare(statement).bind(
       fields.source_listing_id,
@@ -10824,6 +10869,9 @@ async function dbCreateInventoryItems(
       fields.purchased_date,
       fields.purchase_price,
       fields.private_party_value,
+      fields.miles,
+      fields.minutes_spent,
+      fields.ship_cost,
       fields.purchase_notes,
       fields.ai_analysis_text,
       fields.serial_number,
@@ -10876,6 +10924,9 @@ async function dbUpdateInventoryById(
     purchased_date: string;
     purchase_price: number | null;
     private_party_value: number;
+    miles: number;
+    minutes_spent: number;
+    ship_cost: number;
     purchase_notes: string | null;
     ai_analysis_text: string | null;
     serial_number: string | null;
@@ -10941,7 +10992,7 @@ async function dbUpdateInventoryById(
          image_url = ?, image_urls = ?, title = ?, quantity = ?, category_id = ?, secondary_category_id = ?,
          brand = ?, queue = ?, year_range = ?, model = ?, finish = ?,
          repair_notes = ?, original_listing_desc = ?, purchased_date = ?, purchase_price = ?,
-         private_party_value = ?, purchase_notes = ?, ai_analysis_text = ?, serial_number = ?,
+         private_party_value = ?, miles = ?, minutes_spent = ?, ship_cost = ?, purchase_notes = ?, ai_analysis_text = ?, serial_number = ?,
          weight_lbs = ?, neck_profile = ?, neck_thickness = ?, nut_width = ?, width_12_fret = ?,
          fretboard_radius = ?, twelve_fret_action = ?, storage_location = ?,
          is_active = ?, is_marked = ?, is_personal = ?, is_rented = ?, for_sale = ?, only_in_store = ?, for_sale_date = ?,
@@ -10975,6 +11026,9 @@ async function dbUpdateInventoryById(
       fields.purchased_date,
       fields.purchase_price,
       fields.private_party_value,
+      fields.miles,
+      fields.minutes_spent,
+      fields.ship_cost,
       fields.purchase_notes,
       fields.ai_analysis_text,
       fields.serial_number,
