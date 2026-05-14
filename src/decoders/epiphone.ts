@@ -137,7 +137,9 @@ function decodeSingleLetterFormat(factory: string, digits: string, serial: strin
   const factoryInfo = FACTORY_CODES[factory];
 
   // Try to parse: YYMMNNNNN format
-  const year = '20' + digits.substring(0, 2);
+  const yearDigits = digits.substring(0, 2);
+  const yearValue = parseInt(yearDigits, 10);
+  const year = yearValue >= 80 ? `19${yearDigits}` : `20${yearDigits}`;
   const month = parseInt(digits.substring(2, 4), 10);
   const sequence = digits.substring(4);
 
@@ -157,10 +159,35 @@ function decodeSingleLetterFormat(factory: string, digits: string, serial: strin
       month: months[month - 1],
       factory: factoryName,
       country,
-      notes: `Production sequence: ${sequence}. Factory code ${factory}.`
+      notes: `Production sequence: ${parseInt(sequence, 10)}. Factory code ${factory} = ${factoryName}, ${country}. Single-letter Epiphone serials from this era commonly use factory + YYMM + production sequence. Korean-made Epiphones from factories such as Unsung and Samick are often associated with late-1980s through early-2000s production, but model, neck joint, hardware, and headstock details should still be verified.`
     };
 
-    return { success: true, info };
+    return {
+      success: true,
+      info,
+      patternKey: 'epiphone-korea-single-letter-factory-yymm-sequence',
+      patternLabel: 'Epiphone Korean single-letter factory YYMM sequence',
+      additionalContext: {
+        title: 'Epiphone Korean factory serial',
+        summary: 'This serial matches a classic single-letter Epiphone factory format used on Korean-made instruments.',
+        highlights: [
+          `The prefix ${factory} indicates ${factoryName}.`,
+          `The digits ${yearDigits} decode as production year ${year}.`,
+          `The digits ${digits.substring(2, 4)} decode as ${months[month - 1]}.`,
+          `The final digits decode as production sequence ${parseInt(sequence, 10)}.`,
+        ],
+        caveats: [
+          'The serial identifies factory and production timing, not the exact model name.',
+          'Late-1990s Epiphone specs can vary by model and factory run.',
+        ],
+        verificationTips: [
+          'Check the back of the headstock for a gold or silver silkscreened serial.',
+          'Confirm the model from body style, pickups, bridge, and headstock markings.',
+          'Use neck construction, hardware style, and label or cavity markings to verify the exact instrument.',
+        ],
+      },
+      additionalContextRichText: `<h3>Overview</h3><p>This serial matches a classic single-letter Epiphone factory format used on Korean-made instruments.</p><h3>How This Pattern Is Typically Read</h3><p>The prefix ${factory} indicates ${factoryName}. The digits ${yearDigits} decode as production year ${year}. The digits ${digits.substring(2, 4)} decode as ${months[month - 1]}. The final digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>The serial identifies factory and production timing, not the exact model name.</li><li>Check the back of the headstock for a gold or silver silkscreened serial.</li><li>Confirm the exact model from body style, neck construction, pickups, bridge, and headstock markings.</li></ul>`,
+    };
   }
 
   // If month parsing failed, provide basic info

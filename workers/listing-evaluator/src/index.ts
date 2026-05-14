@@ -12966,6 +12966,7 @@ function deriveRegexFromPatternKey(patternKey: string): string {
 function deriveExplicitRegexFromKnownPatternKey(patternKey: string): string | null {
   const knownPatterns: Record<string, string> = {
     'bcrich-b-prefix-month-code-import': '^B[ACEFGHJKLMNP]\\d{8}$',
+    'bcrich-7-digit-numeric-import-yy-sequence': '^\\d{7}$',
     'bcrich-class-axe-b-prefix-import': '^B\\d{3,6}$',
     'bcrich-f-prefix-six-digit-import': '^F\\d{6}$',
     'bcrich-hanser-era-8-digit-import': '^\\d{8}$',
@@ -12981,6 +12982,9 @@ function deriveExplicitRegexFromKnownPatternKey(patternKey: string): string | nu
     'cort-modern-12-digit-year-tracking-sequence': '^\\d{12}$',
     'cort-r-prefix-yy-sequence': '^R\\d{7}$',
     'cort-year-sequence-7-digit': '^00\\d{5}$',
+    'epiphone-korea-single-letter-factory-yymm-sequence': '^[A-Z]\\d{7,}$',
+    'ibanez-china-gaoqing-grand-star-g-yymm-sequence': '^G\\d{8}$',
+    'ibanez-gs-mixed-contractor-yy-plant-mm-sequence': '^GS\\d{2}[A-Z]\\d{6}$',
     'schecter-ca-yymm-sequence': '^CA\\d{8}$',
     'schecter-h-yymm-sequence': '^H\\d{7,9}$',
     'schecter-im-indonesia-yymm-sequence': '^IM\\d{8}$',

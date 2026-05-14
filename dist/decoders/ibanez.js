@@ -201,9 +201,17 @@ export function decodeIbanez(serial) {
     if (/^S\d{8}$/.test(normalized)) {
         return decodeChinaS(normalized);
     }
+    // China: G + 8 digits (Gaoqing Grand Star, GIO/entry-level production)
+    if (/^G\d{8}$/.test(normalized)) {
+        return decodeChinaGaoqingGrandStar(normalized);
+    }
     // China: GS + 9 digits (2007-present, GIO series)
     if (/^GS\d{9}$/.test(normalized)) {
         return decodeChinaGS(normalized);
+    }
+    // China/contractor mixed format: GS + YY + subcontractor letter + MM + sequence
+    if (/^GS\d{2}[A-Z]\d{6}$/.test(normalized)) {
+        return decodeChinaGSMixedContractor(normalized);
     }
     // China: GZ + 9 digits (GIO-style variant)
     if (/^GZ\d{9}$/.test(normalized)) {
@@ -1237,6 +1245,52 @@ function decodeChinaS(serial) {
     };
     return { success: true, info };
 }
+// China G format: G + YY + MM + sequence (Gaoqing Grand Star)
+function decodeChinaGaoqingGrandStar(serial) {
+    const yearDigits = serial.substring(1, 3);
+    const monthDigits = serial.substring(3, 5);
+    const sequence = serial.substring(5);
+    const year = parseInt(yearDigits, 10) + 2000;
+    const month = parseInt(monthDigits, 10);
+    const monthName = getMonthName(month);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Ibanez',
+        serialNumber: serial,
+        year: year.toString(),
+        month: monthName,
+        factory: 'Gaoqing Grand Star, China',
+        country: 'China',
+        model: 'GIO Series (likely)',
+        notes: `G-prefix China format interpreted as Gaoqing Grand Star + YYMM + sequence. Digits ${yearDigits} indicate ${year}, digits ${monthDigits} indicate ${monthName}, and the final digits are production sequence ${sequenceNumber}. This format is commonly associated with Ibanez GIO and other entry-level China-made production.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'ibanez-china-gaoqing-grand-star-g-yymm-sequence',
+        patternLabel: 'Ibanez Gaoqing Grand Star G + YYMM + sequence',
+        additionalContext: {
+            title: 'Ibanez Gaoqing Grand Star serial',
+            summary: 'This serial matches a modern China-made Ibanez G-prefix format associated with Gaoqing Grand Star production.',
+            highlights: [
+                'The G prefix indicates Gaoqing Grand Star in China.',
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                `The digits ${monthDigits} decode as ${monthName}.`,
+                `The final digits decode as production sequence ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'The serial identifies factory, date, and production sequence, not the exact model name.',
+                'G-prefix China serials are commonly seen on GIO and entry-level Ibanez models.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for a clean stamped or silkscreened serial.',
+                'Confirm the model from the headstock, truss rod cover, pickup configuration, bridge, and body shape.',
+                'Compare the guitar against 2012 Ibanez GIO catalog specs if exact model identification matters.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern China-made Ibanez G-prefix format associated with Gaoqing Grand Star production.</p><h3>How This Pattern Is Typically Read</h3><p>The G prefix indicates Gaoqing Grand Star in China. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} decode as ${monthName}. The final digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>The serial identifies factory, date, and production sequence, not the exact model name.</li><li>G-prefix China serials are commonly seen on GIO and entry-level Ibanez models.</li><li>Confirm the model from the headstock, pickup configuration, bridge, body shape, and catalog specs.</li></ul>`,
+    };
+}
 // China GS format: GS + 9 digits (2007-present, GIO series)
 function decodeChinaGS(serial) {
     const year = parseInt(serial.substring(2, 4), 10) + 2000;
@@ -1253,6 +1307,58 @@ function decodeChinaGS(serial) {
         notes: `Sequence: ${sequence}. GS prefix typically indicates GIO series budget models.`
     };
     return { success: true, info };
+}
+// China/contractor GS mixed format: GS + YY + subcontractor + MM + sequence
+function decodeChinaGSMixedContractor(serial) {
+    const yearDigits = serial.substring(2, 4);
+    const contractorCode = serial[4];
+    const monthDigits = serial.substring(5, 7);
+    const sequence = serial.substring(7);
+    const year = parseInt(yearDigits, 10) + 2000;
+    const month = parseInt(monthDigits, 10);
+    const monthName = getMonthName(month);
+    const sequenceNumber = parseInt(sequence, 10);
+    const contractorLabel = contractorCode === 'U'
+        ? 'U subcontractor code (commonly associated with Unsung or a partner facility)'
+        : `${contractorCode} subcontractor code`;
+    const info = {
+        brand: 'Ibanez',
+        serialNumber: serial,
+        year: year.toString(),
+        month: monthName,
+        factory: `GS-prefix GIO/budget production; ${contractorLabel}`,
+        country: 'China / Indonesia',
+        model: 'GIO, acoustic, classical, or starter-pack line (likely)',
+        notes: `Mixed GS-prefix Ibanez format interpreted as GS + YY + subcontractor + MM + sequence. GS indicates an entry-level GIO or budget production run, digits ${yearDigits} indicate ${year}, ${contractorCode} is treated as a subcontractor or regional plant code, digits ${monthDigits} indicate ${monthName}, and the final digits are production sequence ${sequenceNumber}. This format is commonly seen on budget acoustics, nylon-string classical guitars, starter-pack electrics, or other outsourced entry-level instruments.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'ibanez-gs-mixed-contractor-yy-plant-mm-sequence',
+        patternLabel: 'Ibanez GS mixed contractor YY + plant + MM + sequence',
+        additionalContext: {
+            title: 'Ibanez GS mixed contractor serial',
+            summary: 'This serial matches a mixed GS-prefix Ibanez format used on some outsourced entry-level production runs.',
+            highlights: [
+                'The GS prefix indicates an entry-level GIO or budget production run.',
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                `The letter ${contractorCode} is treated as a subcontractor or regional plant code.`,
+                `The digits ${monthDigits} decode as ${monthName}.`,
+                `The final digits decode as production sequence ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'This format identifies a production run structure, not the exact model name.',
+                'The subcontractor letter is less consistently documented than major Ibanez factory prefixes.',
+                'These serials can appear on acoustics, classical guitars, starter packs, and GIO-style entry-level instruments.',
+            ],
+            verificationTips: [
+                'For acoustic or classical guitars, check the paper label visible through the soundhole.',
+                'For electric guitars, check the back of the headstock below the tuning machines.',
+                'Use the model name, pickup layout, bridge, body shape, and label text to confirm the exact instrument.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a mixed GS-prefix Ibanez format used on some outsourced entry-level production runs.</p><h3>How This Pattern Is Typically Read</h3><p>The GS prefix indicates an entry-level GIO or budget production run. The digits ${yearDigits} decode as production year ${year}. The letter ${contractorCode} is treated as a subcontractor or regional plant code. The digits ${monthDigits} decode as ${monthName}. The final digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This format identifies a production run structure, not the exact model name.</li><li>For acoustic or classical guitars, check the paper label visible through the soundhole.</li><li>For electric guitars, check the back of the headstock below the tuning machines.</li></ul>`,
+    };
 }
 // China GZ format: GZ + 9 digits (GIO-style variant)
 function decodeChinaGZ(serial) {

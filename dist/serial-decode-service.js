@@ -1,9 +1,9 @@
 import { decodeGibson } from './decoders/gibson.js?version=917338';
-import { decodeEpiphone } from './decoders/epiphone.js?version=262979';
+import { decodeEpiphone } from './decoders/epiphone.js?version=535412';
 import { decodeFender } from './decoders/fender.js?version=940349';
 import { decodeTaylor } from './decoders/taylor.js?version=149180';
 import { decodeMartin } from './decoders/martin.js?version=695834';
-import { decodeIbanez } from './decoders/ibanez.js?version=846692';
+import { decodeIbanez } from './decoders/ibanez.js?version=541199';
 import { decodeYamaha } from './decoders/yamaha.js?version=880046';
 import { decodePRS } from './decoders/prs.js?version=726120';
 import { decodeESP } from './decoders/esp.js?version=253157';
@@ -23,7 +23,7 @@ import { decodeOvation } from './decoders/ovation.js?version=695857';
 import { decodeCharvel } from './decoders/charvel.js?version=654883';
 import { decodeRickenbacker } from './decoders/rickenbacker.js?version=961802';
 import { decodeKramer } from './decoders/kramer.js?version=462075';
-import { decodeBCRich } from './decoders/bcrich.js?version=436575';
+import { decodeBCRich } from './decoders/bcrich.js?version=980350';
 const DECODER_MAP = {
     gibson: decodeGibson,
     epiphone: decodeEpiphone,

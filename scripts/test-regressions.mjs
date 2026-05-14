@@ -14,6 +14,10 @@ function decodeBCRich(serialInput) {
   return decodeSerialForBackend('bcrich', serialInput);
 }
 
+function decodeEpiphone(serialInput) {
+  return decodeSerialForBackend('epiphone', serialInput);
+}
+
 function decodeKramer(serialInput) {
   return decodeSerialForBackend('kramer', serialInput);
 }
@@ -357,6 +361,33 @@ function assertIbanezCompoundGS(serialInput, expectedYear, expectedMonth) {
   assert(info.country === 'China', `Expected country China for ${serialInput}, got ${info.country}`);
 }
 
+function assertIbanezGSMixedContractor(serialInput, expectedYear, expectedMonth) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(info.country === 'China / Indonesia', `Expected China / Indonesia country guidance for ${serialInput}, got ${info.country}`);
+  assert(
+    info.factory === 'GS-prefix GIO/budget production; U subcontractor code (commonly associated with Unsung or a partner facility)',
+    `Expected U subcontractor factory note for ${serialInput}, got ${info.factory}`
+  );
+  assert(
+    info.notes && info.notes.includes('production sequence 4325'),
+    `Expected production sequence 4325 for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    result.patternKey === 'ibanez-gs-mixed-contractor-yy-plant-mm-sequence',
+    `Expected GS mixed contractor pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('mixed GS-prefix Ibanez format'),
+    `Expected GS mixed contractor rich text for ${serialInput}`
+  );
+}
+
 function assertIbanezIndonesiaI(serialInput, expectedYear, expectedMonth) {
   const result = decodeIbanez(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -447,6 +478,34 @@ function assertIbanezChinaGZ(serialInput, expectedYear, expectedMonth) {
   assert(
     info.factory === 'China (GZ-prefix factory/line)',
     `Expected GZ factory note for ${serialInput}, got ${info.factory}`
+  );
+}
+
+function assertIbanezChinaGaoqingGrandStar(serialInput, expectedYear, expectedMonth) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(info.country === 'China', `Expected country China for ${serialInput}, got ${info.country}`);
+  assert(
+    info.factory === 'Gaoqing Grand Star, China',
+    `Expected Gaoqing Grand Star factory for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.model === 'GIO Series (likely)', `Expected likely GIO model family for ${serialInput}, got ${info.model}`);
+  assert(
+    info.notes && info.notes.includes('production sequence 2301'),
+    `Expected production sequence 2301 for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    result.patternKey === 'ibanez-china-gaoqing-grand-star-g-yymm-sequence',
+    `Expected Gaoqing Grand Star pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('Gaoqing Grand Star'),
+    `Expected Gaoqing Grand Star rich text for ${serialInput}`
   );
 }
 
@@ -748,28 +807,28 @@ function assertBCRichSevenDigitNumericImport(serialInput) {
 
   const info = result.info;
   assert(
-    info.year === '2001 (likely import estimate; 2010/2011 possible on some series)',
-    `Expected likely 2001 import estimate for ${serialInput}, got ${info.year}`
+    info.year === '2000 or 2010 (broad import estimate; serial may be arbitrary)',
+    `Expected broad 2000/2010 import estimate for ${serialInput}, got ${info.year}`
   );
   assert(
-    info.factory === '2000s import production',
-    `Expected 2000s import factory note for ${serialInput}, got ${info.factory}`
+    info.factory === 'Hanser-era/import production',
+    `Expected Hanser-era/import factory note for ${serialInput}, got ${info.factory}`
   );
   assert(info.country === 'South Korea / China', `Expected Korea/China country guidance for ${serialInput}, got ${info.country}`);
   assert(
-    info.notes && info.notes.includes('production sequence 27150'),
+    info.notes && info.notes.includes('sequence 27150'),
     `Expected production sequence 27150 for ${serialInput}, got ${info.notes}`
   );
   assert(
-    info.notes && info.notes.includes('2010/2011'),
-    `Expected 2010/2011 ambiguity for ${serialInput}, got ${info.notes}`
+    info.notes && info.notes.includes('arbitrary factory or neck-plate numbers'),
+    `Expected arbitrary-number caveat for ${serialInput}, got ${info.notes}`
   );
   assert(
     result.patternKey === 'bcrich-7-digit-numeric-import-yy-sequence',
     `Expected B.C. Rich 7-digit numeric pattern key for ${serialInput}, got ${result.patternKey}`
   );
   assert(
-    result.additionalContextRichText && result.additionalContextRichText.includes('production sequence 27150'),
+    result.additionalContextRichText && result.additionalContextRichText.includes('sequence 27150'),
     `Expected B.C. Rich 7-digit numeric rich text for ${serialInput}`
   );
 }
@@ -952,6 +1011,30 @@ function assertBCRichUSA5DigitOffset(serialInput, expectedYearRange) {
   assert(
     info.notes && info.notes.includes('serial drift'),
     `Expected serial-drift note for ${serialInput}, got ${info.notes}`
+  );
+}
+
+function assertEpiphoneKoreaSingleLetter(serialInput, expectedYear, expectedMonth, expectedFactory, expectedSequence) {
+  const result = decodeEpiphone(serialInput);
+  assert(result.success, `Expected decode success for Epiphone ${serialInput}`);
+  assert(result.info, `Expected decoded info for Epiphone ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(info.factory === expectedFactory, `Expected factory ${expectedFactory} for ${serialInput}, got ${info.factory}`);
+  assert(info.country === 'South Korea', `Expected South Korea for ${serialInput}, got ${info.country}`);
+  assert(
+    info.notes && info.notes.includes(`Production sequence: ${expectedSequence}`),
+    `Expected production sequence ${expectedSequence} for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    result.patternKey === 'epiphone-korea-single-letter-factory-yymm-sequence',
+    `Expected Epiphone Korean single-letter pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('The prefix U indicates Unsung'),
+    `Expected Epiphone Korean rich text for ${serialInput}`
   );
 }
 
@@ -2189,6 +2272,7 @@ assertIbanezOZPrefix('OZ100500158');
 assertIbanezHPrefix('H081100181');
 assertIbanezCompoundGS('2Y03GS241108648', '2024', 'November');
 assertIbanezCompoundGS('212Y03GS251101952', '2025', 'November');
+assertIbanezGSMixedContractor('GS08U094325', '2008', 'September');
 assertIbanezCompoundNumeric('215N015N250401143', '2025', 'April');
 assertIbanezCompoundNumeric('1P-01 I220300400', '2022', 'March');
 assertIbanez4L('4L1901087937', '2019', 'January');
@@ -2208,6 +2292,7 @@ assertIbanezMonthLetterCompactWithOTypo('Ao3oooo9', 'A0300009', '2003', 'January
 assertIbanezIndonesiaGILegacy('GI0012180', '2000', 'December');
 assertIbanezChinaGP('gp05105792', '2005', 'October');
 assertIbanezChinaGZ('GZ150102324', '2015', 'January');
+assertIbanezChinaGaoqingGrandStar('G12042301', '2012', 'April');
 assertIbanezFujiGenFD('FD2468031', '2024', 'July');
 assertIbanezVPrefix('V054683', '2005');
 assertIbanezVPrefix('vo54683', '2005');
@@ -2245,6 +2330,8 @@ assertBCRichHanserTwoLetterMonthPlantImport('co1093111');
 assertBCRichHanserEraEightDigitImport('Sr#41201627');
 assertBCRichClassAxeBPrefixImport('B007132');
 assertBCRichUSA5DigitOffset('36642', '1982-1983 (estimated)');
+assertEpiphoneKoreaSingleLetter('U97040128', '1997', 'April', 'Unsung', 128);
+assertEpiphoneKoreaSingleLetter('U97040228', '1997', 'April', 'Unsung', 228);
 assertKramerModernS('S106020848', '2010', 'June');
 assertKramerSJSaemyungChina('SJ03120763', '2003', 'December');
 assertKramerVPrefix('V9954', 'mid-to-late 1980s (estimated)');
