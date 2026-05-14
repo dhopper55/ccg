@@ -484,6 +484,14 @@ function parseTagPrice(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function formatMoney(value: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
 function sanitizeSaleUrlSlug(value: string): string {
   return value
     .toLowerCase()
@@ -758,6 +766,7 @@ const InventoryItem = () => {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [aiAnalysisDialogOpen, setAiAnalysisDialogOpen] = useState(false);
   const [aiAnalysisDraft, setAiAnalysisDraft] = useState('');
+  const [profitTargetsOpen, setProfitTargetsOpen] = useState(false);
   const [wasSoldOnLoad, setWasSoldOnLoad] = useState(false);
   const [soldConfirmOpen, setSoldConfirmOpen] = useState(false);
   const [categoryOptions, setCategoryOptions] = useState<InventoryCategoryOption[]>([]);
@@ -775,6 +784,19 @@ const InventoryItem = () => {
     if (!aiAnalysisDialogOpen || !aiAnalysisEditorRef.current) return;
     aiAnalysisEditorRef.current.innerHTML = aiAnalysisDraft || '';
   }, [aiAnalysisDialogOpen, aiAnalysisDraft]);
+
+  const profitTargetRows = useMemo(() => {
+    const paid = parseTagPrice(form.purchasePrice);
+    const margins = [0.2, 0.3, 0.35, 0.4];
+
+    return margins.map((margin) => {
+      const baseTarget = paid != null && paid > 0 ? paid / (1 - margin) : null;
+      return {
+        label: `${Math.round(margin * 100)}% profit margin`,
+        value: baseTarget != null ? baseTarget * 1.03 : null,
+      };
+    });
+  }, [form.purchasePrice]);
 
   const setAiAnalysisEditorNode = useCallback((node: HTMLDivElement | null) => {
     aiAnalysisEditorRef.current = node;
@@ -2074,6 +2096,36 @@ const InventoryItem = () => {
                   value={form.purchasePrice}
                   onChange={(event) => setField('purchasePrice', event.target.value)}
                   inputProps={{ min: 0, step: 0.01 }}
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <Tooltip title="Profit margin targets">
+                          <IconButton
+                            aria-label="Show profit margin targets"
+                            size="small"
+                            onClick={() => setProfitTargetsOpen(true)}
+                            edge="end"
+                            sx={{
+                              width: 24,
+                              height: 24,
+                              mr: 0.25,
+                              border: 1,
+                              borderColor: 'divider',
+                              bgcolor: 'background.paper',
+                              color: 'success.main',
+                              fontSize: 13,
+                              fontWeight: 800,
+                              '&:hover': {
+                                bgcolor: 'action.hover',
+                              },
+                            }}
+                          >
+                            $
+                          </IconButton>
+                        </Tooltip>
+                      </InputAdornment>
+                    ),
+                  }}
                 />
               </Grid>
               <Grid size={{ xs: 12, md: 2.4 }}>
@@ -2800,6 +2852,30 @@ const InventoryItem = () => {
             />
           ) : null}
         </DialogContent>
+      </Dialog>
+      <Dialog open={profitTargetsOpen} onClose={() => setProfitTargetsOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>Profit Targets</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={1.25}>
+            {profitTargetRows.map((row) => (
+              <Stack
+                key={row.label}
+                direction="row"
+                sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 2 }}
+              >
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  {row.label}:
+                </Typography>
+                <Typography variant="subtitle2">
+                  {row.value != null ? formatMoney(row.value) : 'Enter paid amount'}
+                </Typography>
+              </Stack>
+            ))}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setProfitTargetsOpen(false)}>Close</Button>
+        </DialogActions>
       </Dialog>
       <Dialog open={aiAnalysisDialogOpen} onClose={closeAiAnalysisDialog} fullWidth maxWidth="md">
         <DialogTitle>AI Analysis</DialogTitle>
