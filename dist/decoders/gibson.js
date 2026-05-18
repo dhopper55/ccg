@@ -2,6 +2,10 @@ export function decodeGibson(serial) {
     const cleaned = serial.trim().toUpperCase();
     // Remove any spaces or dashes
     const normalized = cleaned.replace(/[\s-]/g, '');
+    // Modern Gibson Custom Shop non-reissue format: CS + Y + 5-digit sequence
+    if (/^CS\d{6}$/.test(normalized)) {
+        return decodeModernCustomShop(normalized);
+    }
     // Check for 8-digit format (1977-2005): YDDDYRRR
     if (/^\d{8}$/.test(normalized)) {
         return decode8Digit(normalized);
@@ -22,6 +26,22 @@ export function decodeGibson(serial) {
         success: false,
         error: 'Unrecognized Gibson serial number format. Gibson serials are typically 6-9 digits for guitars made after 1970.'
     };
+}
+function decodeModernCustomShop(serial) {
+    const digits = serial.slice(2);
+    const yearDigit = parseInt(digits[0], 10);
+    const sequence = parseInt(digits.slice(1), 10);
+    const year = determineRecentSingleDigitYear(yearDigit);
+    const info = {
+        brand: 'Gibson',
+        serialNumber: serial,
+        year,
+        factory: 'Gibson Custom Shop, Nashville, Tennessee',
+        country: 'USA',
+        model: 'Custom Shop non-reissue / Les Paul Custom family',
+        notes: `Modern Gibson Custom Shop CS-prefix format. CS indicates Custom Shop; ${yearDigit} is interpreted as the last digit of the production year (${year}); ${digits.slice(1)} is the production sequence. Some Custom Shop and historic/reissue instruments use different formats, so verify against the COA, headstock stamp, and Gibson support when exact provenance matters.`
+    };
+    return { success: true, info };
 }
 function decode8Digit(serial) {
     // Format: YDDDYRRR
@@ -146,6 +166,15 @@ function decodeVintage(serial) {
         notes
     };
     return { success: true, info };
+}
+function determineRecentSingleDigitYear(yearDigit) {
+    const currentYear = new Date().getFullYear();
+    for (let year = currentYear + 1; year >= 2000; year--) {
+        if (year % 10 === yearDigit) {
+            return year.toString();
+        }
+    }
+    return (2000 + yearDigit).toString();
 }
 function determineYear(suffix, minYear, maxYear) {
     // Convert 2-digit year to full year within expected range

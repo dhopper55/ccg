@@ -46,6 +46,27 @@ function decodeTaylor(serialInput) {
   return decodeSerialForBackend('taylor', serialInput);
 }
 
+function decodeGibson(serialInput) {
+  return decodeSerialForBackend('gibson', serialInput);
+}
+
+function assertGibsonModernCustomShop(serialInput, expectedYear) {
+  const result = decodeGibson(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(
+    info.factory === 'Gibson Custom Shop, Nashville, Tennessee',
+    `Expected Gibson Custom Shop factory for ${serialInput}, got ${info.factory}`
+  );
+  assert(
+    info.notes?.includes('CS indicates Custom Shop'),
+    `Expected Custom Shop notes for ${serialInput}, got ${info.notes}`
+  );
+}
+
 function assertIbanezBPrefix(serialInput) {
   const result = decodeIbanez(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -2375,6 +2396,8 @@ assertTaylorModernShort9Digit('111130804', '2018', 'November', '30');
 assertTaylorLegacy9Digit('980311301', '1998', 'March', '11');
 assertTaylorLegacy9DigitYearCode('050913155', '1993', 'September', '13');
 assertTaylorModernExtended11Digit('21092006138', '2016', 'September', '20');
+assertGibsonModernCustomShop('CS403228', '2024');
+assertGibsonModernCustomShop('CS 403228', '2024');
 assertJacksonMijSevenDigit1990s('9405251', '1994');
 assertJacksonMijSevenPrefixSixDigit('702728');
 assertJacksonMij1996Transition('600503');
