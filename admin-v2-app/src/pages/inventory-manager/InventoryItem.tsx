@@ -25,7 +25,8 @@ import {
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import { useSnackbar } from 'notistack';
-import type { PDFForm, PDFFont } from 'pdf-lib';
+import QRCode from 'qrcode';
+import type { PDFDocument as PdfLibDocument, PDFForm, PDFFont } from 'pdf-lib';
 import liberationSansBoldUrl from 'pdfjs-dist/standard_fonts/LiberationSans-Bold.ttf?url';
 import liberationSansRegularUrl from 'pdfjs-dist/standard_fonts/LiberationSans-Regular.ttf?url';
 import IconifyIcon from 'components/base/IconifyIcon';
@@ -476,6 +477,21 @@ const GUITAR_LISTING_TEMPLATE_URL = '/templates/guitar-listing-template.txt';
 const GUITAR_PACKAGE_TEMPLATE_URL = '/templates/guitar-package-template.txt';
 const TAG_TITLE_MAX_WIDTH = 292;
 const TAG_TITLE_FONT_SIZE = 14;
+const SHOP_ORIGIN = 'https://www.coalcreekguitars.com';
+const SHOP_BASE_PATH = '/guitars-and-gear-for-sale';
+const CODE_128_PATTERNS = [
+  '212222', '222122', '222221', '121223', '121322', '131222', '122213', '122312', '132212', '221213',
+  '221312', '231212', '112232', '122132', '122231', '113222', '123122', '123221', '223211', '221132',
+  '221231', '213212', '223112', '312131', '311222', '321122', '321221', '312212', '322112', '322211',
+  '212123', '212321', '232121', '111323', '131123', '131321', '112313', '132113', '132311', '211313',
+  '231113', '231311', '112133', '112331', '132131', '113123', '113321', '133121', '313121', '211331',
+  '231131', '213113', '213311', '213131', '311123', '311321', '331121', '312113', '312311', '332111',
+  '314111', '221411', '431111', '111224', '111422', '121124', '121421', '141122', '141221', '112214',
+  '112412', '122114', '122411', '142112', '142211', '241211', '221114', '413111', '241112', '134111',
+  '111242', '121142', '121241', '114212', '124112', '124211', '411212', '421112', '421211', '212141',
+  '214121', '412121', '111143', '111341', '131141', '114113', '114311', '411113', '411311', '113141',
+  '114131', '311141', '411131', '211412', '211214', '211232', '2331112',
+];
 
 function parseTagPrice(value: string): number | null {
   const normalized = value.replace(/[^0-9.]/g, '');
@@ -490,6 +506,21 @@ function formatMoney(value: number): string {
     currency: 'USD',
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function slugifyShopCategory(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function buildShopProductUrl(categoryName: string, saleUrlSlug: string): string | null {
+  const categorySlug = slugifyShopCategory(categoryName);
+  const productSlug = saleUrlSlug.trim();
+  if (!categorySlug || !productSlug) return null;
+  return `${SHOP_ORIGIN}${SHOP_BASE_PATH}/${categorySlug}/${productSlug}`;
 }
 
 function sanitizeSaleUrlSlug(value: string): string {
@@ -656,7 +687,146 @@ async function fetchArrayBuffer(url: string): Promise<ArrayBuffer> {
   return response.arrayBuffer();
 }
 
-async function buildInventoryTagPdf(formState: FormState): Promise<Blob> {
+function getPdfFieldRectangle(
+  form: PDFForm,
+  name: string,
+): { x: number; y: number; width: number; height: number } | null {
+  try {
+    const field = form.getTextField(name);
+    return field.acroField.getWidgets()[0]?.getRectangle() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(blob);
+        return;
+      }
+      reject(new Error('Unable to render barcode image.'));
+    }, 'image/png');
+  });
+}
+
+function encodeCode128B(value: string): number[] {
+  const printable = value
+    .split('')
+    .map((char) => {
+      const code = char.charCodeAt(0);
+      return code >= 32 && code <= 126 ? char : '';
+    })
+    .join('');
+  const codes = [104, ...printable.split('').map((char) => char.charCodeAt(0) - 32)];
+  let checksum = codes[0];
+  for (let index = 1; index < codes.length; index += 1) checksum += codes[index] * index;
+  codes.push(checksum % 103, 106);
+  return codes;
+}
+
+function drawCode128BarcodeToCanvas(value: string): HTMLCanvasElement {
+  const codes = encodeCode128B(value);
+  const moduleCount = codes.reduce(
+    (sum, code) => sum + CODE_128_PATTERNS[code].split('').reduce((inner, width) => inner + Number(width), 0),
+    0,
+  );
+  const quietZoneModules = 10;
+  const scale = 3;
+  const height = 160;
+  const canvas = document.createElement('canvas');
+  canvas.width = (moduleCount + quietZoneModules * 2) * scale;
+  canvas.height = height;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Unable to create barcode canvas.');
+
+  context.fillStyle = '#FFFFFF';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = '#000000';
+
+  let cursor = quietZoneModules * scale;
+  for (const code of codes) {
+    const pattern = CODE_128_PATTERNS[code];
+    for (let index = 0; index < pattern.length; index += 1) {
+      const width = Number(pattern[index]) * scale;
+      if (index % 2 === 0) context.fillRect(cursor, 0, width, height);
+      cursor += width;
+    }
+  }
+
+  return canvas;
+}
+
+async function drawProductQrCode(
+  pdfDoc: PdfLibDocument,
+  pdfForm: PDFForm,
+  productUrl: string | null,
+): Promise<void> {
+  const fieldName = 'ProductQRCode';
+  const rect = getPdfFieldRectangle(pdfForm, fieldName);
+  if (!rect) return;
+  if (!productUrl) return;
+
+  const qrDataUrl = await QRCode.toDataURL(productUrl, {
+    errorCorrectionLevel: 'M',
+    margin: 1,
+    width: 512,
+    color: {
+      dark: '#000000',
+      light: '#FFFFFF',
+    },
+  });
+  const qrPngBytes = await fetch(qrDataUrl).then((response) => response.arrayBuffer());
+  const qrImage = await pdfDoc.embedPng(qrPngBytes);
+  const [{ rgb }] = await Promise.all([import('pdf-lib')]);
+  const page = pdfDoc.getPages()[0];
+  const size = Math.min(rect.width, rect.height);
+  const x = rect.x + (rect.width - size) / 2;
+  const y = rect.y + (rect.height - size) / 2;
+
+  page.drawRectangle({
+    x: rect.x,
+    y: rect.y,
+    width: rect.width,
+    height: rect.height,
+    color: rgb(1, 1, 1),
+  });
+  page.drawImage(qrImage, { x, y, width: size, height: size });
+}
+
+async function drawProductBarcode(
+  pdfDoc: PdfLibDocument,
+  pdfForm: PDFForm,
+  productUrl: string | null,
+  barcode: string,
+): Promise<void> {
+  const fieldName = 'ProductBarCode';
+  const rect = getPdfFieldRectangle(pdfForm, fieldName);
+  if (!rect || !barcode.trim() || !productUrl) return;
+
+  const canvas = drawCode128BarcodeToCanvas(productUrl);
+  const pngBlob = await canvasToPngBlob(canvas);
+  const barcodeImage = await pdfDoc.embedPng(await pngBlob.arrayBuffer());
+  const [{ rgb }] = await Promise.all([import('pdf-lib')]);
+  const page = pdfDoc.getPages()[0];
+
+  page.drawRectangle({
+    x: rect.x,
+    y: rect.y,
+    width: rect.width,
+    height: rect.height,
+    color: rgb(1, 1, 1),
+  });
+  page.drawImage(barcodeImage, {
+    x: rect.x,
+    y: rect.y,
+    width: rect.width,
+    height: rect.height,
+  });
+}
+
+async function buildInventoryTagPdf(formState: FormState, categoryName: string): Promise<Blob> {
   const salePrice = parseTagPrice(formState.salePrice);
   const regularPrice = parseTagPrice(formState.regularPrice);
   const isOnSale = salePrice != null && regularPrice != null && salePrice > 0 && regularPrice > salePrice;
@@ -679,6 +849,7 @@ async function buildInventoryTagPdf(formState: FormState): Promise<Blob> {
   const boldFont = await pdfDoc.embedFont(boldFontBytes);
   const regularFont = await pdfDoc.embedFont(regularFontBytes);
   const title = splitTitleForTag(formState.saleTitle.trim() || formState.title.trim(), boldFont);
+  const productUrl = buildShopProductUrl(categoryName, formState.saleUrl);
   const bullets = [
     [formState.bullet1Text, formState.bullet1Danger, formState.bullet1Highlight],
     [formState.bullet2Text, formState.bullet2Danger, formState.bullet2Highlight],
@@ -693,6 +864,8 @@ async function buildInventoryTagPdf(formState: FormState): Promise<Blob> {
   setPdfTextField(pdfForm, 'ccg_num', formState.ccgNumber.trim(), boldFont);
   setPdfTextField(pdfForm, 'sale_price', formatTagPrice(salePrice), boldFont);
   setPdfTextField(pdfForm, 'regular_price', formatTagPrice(regularPrice), regularFont);
+  setPdfTextField(pdfForm, 'ProductQRCode', '', regularFont);
+  setPdfTextField(pdfForm, 'ProductBarCode', '', regularFont);
   const clearanceFieldFilled = setPdfTextField(
     pdfForm,
     'txt_clearance',
@@ -722,6 +895,9 @@ async function buildInventoryTagPdf(formState: FormState): Promise<Blob> {
       Boolean(trimmed),
     );
   });
+
+  await drawProductQrCode(pdfDoc, pdfForm, productUrl);
+  await drawProductBarcode(pdfDoc, pdfForm, productUrl, formState.barcode);
 
   const bytes = await pdfDoc.save();
   return new Blob([bytes], { type: 'application/pdf' });
@@ -1516,7 +1692,7 @@ const InventoryItem = () => {
     setMessage(null);
 
     try {
-      const blob = await buildInventoryTagPdf(form);
+      const blob = await buildInventoryTagPdf(form, selectedCategoryName);
       const ccgNumber = form.ccgNumber.trim() || 'inventory';
       downloadBlob(blob, `${ccgNumber}-large-tag.pdf`);
       enqueueSnackbar('Large tag generated.', { variant: 'success' });
