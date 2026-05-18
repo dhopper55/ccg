@@ -18,6 +18,10 @@ import {
   Typography,
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
+import QRCode from 'qrcode';
+import type { PDFDocument as PdfLibDocument, PDFForm, PDFFont } from 'pdf-lib';
+import liberationSansBoldUrl from 'pdfjs-dist/standard_fonts/LiberationSans-Bold.ttf?url';
+import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import IconifyIcon from 'components/base/IconifyIcon';
 import paths from 'routes/paths';
 
@@ -26,6 +30,12 @@ type MarkedRecord = {
   ccgNumber: string;
   title: string;
   imageUrl?: string | null;
+  saleTitle?: string;
+  regularPrice?: number | string | null;
+  salePrice?: number | string | null;
+  saleUrl?: string;
+  categoryName?: string;
+  categoryPath?: string;
 };
 
 type InventoryListResponse = {
@@ -33,6 +43,239 @@ type InventoryListResponse = {
   total: number;
   message?: string;
 };
+
+type TagTextColor = 'black' | 'red' | 'blue';
+
+const TAG_TEMPLATE_SMALL = '/templates/template_small_tag.pdf';
+const SMALL_TAG_TITLE_MAX_WIDTH = 126;
+const SMALL_TAG_TITLE_FONT_SIZE = 12;
+const SHOP_ORIGIN = 'https://www.coalcreekguitars.com';
+const SHOP_BASE_PATH = '/guitars-and-gear-for-sale';
+const SMALL_TAG_QR_RECTS: Record<1 | 2, { x: number; y: number; size: number }> = {
+  1: { x: 4, y: 92, size: 76 },
+  2: { x: 4, y: 6, size: 76 },
+};
+
+function parseTagPrice(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value !== 'string') return null;
+  const normalized = value.replace(/[^0-9.]/g, '');
+  if (!normalized) return null;
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatTagPrice(value: number | null): string {
+  if (value == null) return '';
+  return `$${Math.round(value).toLocaleString()}`;
+}
+
+function truncateToPdfWidth(text: string, font: PDFFont, fontSize: number, maxWidth: number): string {
+  const normalized = text.trim();
+  if (font.widthOfTextAtSize(normalized, fontSize) <= maxWidth) return normalized;
+
+  let output = '';
+  for (const char of normalized) {
+    const next = `${output}${char}`;
+    if (font.widthOfTextAtSize(`${next}...`, fontSize) > maxWidth) break;
+    output = next;
+  }
+  return output.trimEnd() ? `${output.trimEnd()}...` : '';
+}
+
+function splitTextForPdfLines(
+  text: string,
+  font: PDFFont,
+  fontSize: number,
+  maxWidth: number,
+): { line1: string; line2: string } {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  let line1 = '';
+  let index = 0;
+
+  while (index < words.length) {
+    const next = [line1, words[index]].filter(Boolean).join(' ');
+    if (font.widthOfTextAtSize(next, fontSize) > maxWidth) break;
+    line1 = next;
+    index += 1;
+  }
+
+  if (!line1 && words[0]) {
+    line1 = truncateToPdfWidth(words[0], font, fontSize, maxWidth);
+    index = 1;
+  }
+
+  return {
+    line1,
+    line2: truncateToPdfWidth(words.slice(index).join(' '), font, fontSize, maxWidth),
+  };
+}
+
+function colorDefaultAppearance(color: TagTextColor): string {
+  if (color === 'red') return '1 0 0 rg';
+  if (color === 'blue') return '0 0.001 0.998 rg';
+  return '0 g';
+}
+
+function setPdfTextField(
+  form: PDFForm,
+  name: string,
+  text: string,
+  font: PDFFont,
+  color: TagTextColor = 'black',
+): boolean {
+  try {
+    const field = form.getTextField(name);
+    field.setText(text);
+    const defaultAppearance = field.acroField.getDefaultAppearance() || '';
+    field.acroField.setDefaultAppearance(`${defaultAppearance}\n${colorDefaultAppearance(color)}`);
+    field.updateAppearances(font);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function fetchArrayBuffer(url: string): Promise<ArrayBuffer> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('Unable to load small tag font.');
+  return response.arrayBuffer();
+}
+
+function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(blob);
+        return;
+      }
+      reject(new Error('Unable to render small tag PNG.'));
+    }, 'image/png');
+  });
+}
+
+async function renderPdfBytesToPng(pdfBytes: Uint8Array): Promise<Blob> {
+  const pdfjs = await import('pdfjs-dist');
+  pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
+  const pdf = await pdfjs.getDocument({ data: pdfBytes }).promise;
+  const page = await pdf.getPage(1);
+  const viewport = page.getViewport({ scale: 4 });
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Unable to create small tag PNG canvas.');
+
+  canvas.width = Math.ceil(viewport.width);
+  canvas.height = Math.ceil(viewport.height);
+  await page.render({ canvasContext: context, viewport }).promise;
+  return canvasToPngBlob(canvas);
+}
+
+function slugifyShopCategory(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function buildShopProductUrl(record: MarkedRecord): string | null {
+  const categorySlug = slugifyShopCategory(record.categoryName || record.categoryPath || '');
+  const productSlug = (record.saleUrl || '').trim();
+  if (!categorySlug || !productSlug) return null;
+  return `${SHOP_ORIGIN}${SHOP_BASE_PATH}/${categorySlug}/${productSlug}`;
+}
+
+async function drawProductQrCode(
+  pdfDoc: PdfLibDocument,
+  productNumber: 1 | 2,
+  url: string | null,
+): Promise<void> {
+  if (!url) return;
+
+  const qrDataUrl = await QRCode.toDataURL(url, {
+    errorCorrectionLevel: 'M',
+    margin: 1,
+    width: 512,
+    color: {
+      dark: '#000000',
+      light: '#FFFFFF',
+    },
+  });
+  const qrPngBytes = await fetch(qrDataUrl).then((response) => response.arrayBuffer());
+  const qrImage = await pdfDoc.embedPng(qrPngBytes);
+  const [{ rgb }] = await Promise.all([import('pdf-lib')]);
+  const page = pdfDoc.getPages()[0];
+  const rect = SMALL_TAG_QR_RECTS[productNumber];
+
+  page.drawRectangle({
+    x: rect.x,
+    y: rect.y,
+    width: rect.size,
+    height: rect.size,
+    color: rgb(1, 1, 1),
+  });
+  page.drawImage(qrImage, {
+    x: rect.x,
+    y: rect.y,
+    width: rect.size,
+    height: rect.size,
+  });
+}
+
+async function setSmallTagProductFields(
+  pdfDoc: PdfLibDocument,
+  pdfForm: PDFForm,
+  record: MarkedRecord,
+  productNumber: 1 | 2,
+  boldFont: PDFFont,
+): Promise<void> {
+  const title = splitTextForPdfLines(
+    (record.saleTitle || record.title || '').trim(),
+    boldFont,
+    SMALL_TAG_TITLE_FONT_SIZE,
+    SMALL_TAG_TITLE_MAX_WIDTH,
+  );
+
+  setPdfTextField(pdfForm, `Product${productNumber}Name1`, title.line1, boldFont);
+  setPdfTextField(pdfForm, `Product${productNumber}Name2`, title.line2, boldFont);
+  setPdfTextField(pdfForm, `Product${productNumber}CCGNum`, record.ccgNumber.trim(), boldFont);
+  setPdfTextField(pdfForm, `Product${productNumber}RegPrice`, formatTagPrice(parseTagPrice(record.regularPrice)), boldFont);
+  setPdfTextField(pdfForm, `Product${productNumber}SalePrice`, formatTagPrice(parseTagPrice(record.salePrice)), boldFont);
+  await drawProductQrCode(pdfDoc, productNumber, buildShopProductUrl(record));
+}
+
+async function buildSmallInventoryTagsPng(records: MarkedRecord[]): Promise<Blob> {
+  const response = await fetch(TAG_TEMPLATE_SMALL);
+  if (!response.ok) throw new Error('Unable to load small inventory tag template.');
+
+  const [{ PDFDocument }, fontkitModule] = await Promise.all([
+    import('pdf-lib'),
+    import('@pdf-lib/fontkit'),
+  ]);
+  const pdfDoc = await PDFDocument.load(await response.arrayBuffer());
+  const loadedFontkit = 'default' in fontkitModule ? fontkitModule.default : fontkitModule;
+  pdfDoc.registerFontkit(loadedFontkit);
+  const pdfForm = pdfDoc.getForm();
+  const boldFontBytes = await fetchArrayBuffer(liberationSansBoldUrl);
+  const boldFont = await pdfDoc.embedFont(boldFontBytes);
+
+  if (records[0]) await setSmallTagProductFields(pdfDoc, pdfForm, records[0], 1, boldFont);
+  if (records[1]) await setSmallTagProductFields(pdfDoc, pdfForm, records[1], 2, boldFont);
+
+  const bytes = await pdfDoc.save();
+  return renderPdfBytesToPng(bytes);
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
 
 const InventoryLabels = () => {
   const navigate = useNavigate();
@@ -42,6 +285,7 @@ const InventoryLabels = () => {
   const [secondPositions, setSecondPositions] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [isPrintingSmallTag, setIsPrintingSmallTag] = useState(false);
   const [isUnmarking, setIsUnmarking] = useState(false);
   const [unmarkConfirmOpen, setUnmarkConfirmOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -103,6 +347,7 @@ const InventoryLabels = () => {
     () => records.reduce((sum, r) => sum + (printCounts[r.id] || 1), 0),
     [records, printCounts],
   );
+  const canPrintSmallTag = records.length === 1 || records.length === 2;
 
   const handleUnmarkAll = async () => {
     setIsUnmarking(true);
@@ -210,6 +455,22 @@ const InventoryLabels = () => {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to generate labels PDF.');
     } finally {
       setIsPrinting(false);
+    }
+  };
+
+  const handlePrintSmallTag = async () => {
+    if (!canPrintSmallTag || isPrintingSmallTag) return;
+    setErrorMessage('');
+    setIsPrintingSmallTag(true);
+
+    try {
+      const blob = await buildSmallInventoryTagsPng(records.slice(0, 2));
+      const suffix = records.map((record) => record.ccgNumber.trim()).filter(Boolean).join('-') || 'inventory';
+      downloadBlob(blob, `${suffix}-small-tag.png`);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to generate small tag PNG.');
+    } finally {
+      setIsPrintingSmallTag(false);
     }
   };
 
@@ -382,7 +643,7 @@ const InventoryLabels = () => {
                     variant="contained"
                     color="warning"
                     onClick={() => setUnmarkConfirmOpen(true)}
-                    disabled={isUnmarking || isPrinting || records.length === 0}
+                    disabled={isUnmarking || isPrinting || isPrintingSmallTag || records.length === 0}
                     startIcon={
                       isUnmarking ? (
                         <CircularProgress color="inherit" size={16} />
@@ -396,7 +657,7 @@ const InventoryLabels = () => {
                   <Button
                     variant="contained"
                     onClick={handlePrint}
-                    disabled={isPrinting || isUnmarking || records.length === 0}
+                    disabled={isPrinting || isUnmarking || isPrintingSmallTag || records.length === 0}
                     startIcon={
                       isPrinting ? (
                         <CircularProgress color="inherit" size={16} />
@@ -407,6 +668,22 @@ const InventoryLabels = () => {
                   >
                     {isPrinting ? 'Generating…' : 'Print Labels'}
                   </Button>
+                  {canPrintSmallTag ? (
+                    <Button
+                      variant="contained"
+                      onClick={handlePrintSmallTag}
+                      disabled={isPrintingSmallTag || isPrinting || isUnmarking}
+                      startIcon={
+                        isPrintingSmallTag ? (
+                          <CircularProgress color="inherit" size={16} />
+                        ) : (
+                          <IconifyIcon icon="material-symbols:label-outline-rounded" />
+                        )
+                      }
+                    >
+                      {isPrintingSmallTag ? 'Generating…' : 'Print Small Tag'}
+                    </Button>
+                  ) : null}
                 </Stack>
                 <Dialog open={unmarkConfirmOpen} onClose={() => setUnmarkConfirmOpen(false)}>
                   <DialogTitle>Unmark all items</DialogTitle>

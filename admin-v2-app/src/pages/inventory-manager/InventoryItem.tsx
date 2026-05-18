@@ -25,11 +25,9 @@ import {
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import { useSnackbar } from 'notistack';
-import QRCode from 'qrcode';
-import type { PDFDocument as PdfLibDocument, PDFForm, PDFFont } from 'pdf-lib';
+import type { PDFForm, PDFFont } from 'pdf-lib';
 import liberationSansBoldUrl from 'pdfjs-dist/standard_fonts/LiberationSans-Bold.ttf?url';
 import liberationSansRegularUrl from 'pdfjs-dist/standard_fonts/LiberationSans-Regular.ttf?url';
-import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import IconifyIcon from 'components/base/IconifyIcon';
 import paths from 'routes/paths';
 
@@ -474,20 +472,10 @@ type TagTextColor = 'black' | 'red' | 'blue';
 
 const TAG_TEMPLATE_NO_SALE = '/templates/ccg_label_large_no_sale.pdf';
 const TAG_TEMPLATE_ON_SALE = '/templates/ccg_label_large_on_sale.pdf';
-const TAG_TEMPLATE_SMALL = '/templates/template_small_tag.pdf';
 const GUITAR_LISTING_TEMPLATE_URL = '/templates/guitar-listing-template.txt';
 const GUITAR_PACKAGE_TEMPLATE_URL = '/templates/guitar-package-template.txt';
 const TAG_TITLE_MAX_WIDTH = 292;
 const TAG_TITLE_FONT_SIZE = 14;
-const SMALL_TAG_TITLE_MAX_WIDTH = 126;
-const SMALL_TAG_TITLE_FONT_SIZE = 12;
-const SHOP_ORIGIN = 'https://www.coalcreekguitars.com';
-const SHOP_BASE_PATH = '/guitars-and-gear-for-sale';
-const SMALL_TAG_PRODUCT_1_QR_RECT = {
-  x: 4,
-  y: 92,
-  size: 76,
-};
 
 function parseTagPrice(value: string): number | null {
   const normalized = value.replace(/[^0-9.]/g, '');
@@ -502,21 +490,6 @@ function formatMoney(value: number): string {
     currency: 'USD',
     maximumFractionDigits: 2,
   }).format(value);
-}
-
-function slugifyShopCategory(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/&/g, ' and ')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
-function buildShopProductUrl(categoryName: string, saleUrlSlug: string): string | null {
-  const categorySlug = slugifyShopCategory(categoryName);
-  const productSlug = saleUrlSlug.trim();
-  if (!categorySlug || !productSlug) return null;
-  return `${SHOP_ORIGIN}${SHOP_BASE_PATH}/${categorySlug}/${productSlug}`;
 }
 
 function sanitizeSaleUrlSlug(value: string): string {
@@ -604,34 +577,6 @@ function truncateToPdfWidth(text: string, font: PDFFont, fontSize: number, maxWi
     output = next;
   }
   return output.trimEnd() ? `${output.trimEnd()}...` : '';
-}
-
-function splitTextForPdfLines(
-  text: string,
-  font: PDFFont,
-  fontSize: number,
-  maxWidth: number,
-): { line1: string; line2: string } {
-  const words = text.trim().split(/\s+/).filter(Boolean);
-  let line1 = '';
-  let index = 0;
-
-  while (index < words.length) {
-    const next = [line1, words[index]].filter(Boolean).join(' ');
-    if (font.widthOfTextAtSize(next, fontSize) > maxWidth) break;
-    line1 = next;
-    index += 1;
-  }
-
-  if (!line1 && words[0]) {
-    line1 = truncateToPdfWidth(words[0], font, fontSize, maxWidth);
-    index = 1;
-  }
-
-  return {
-    line1,
-    line2: truncateToPdfWidth(words.slice(index).join(' '), font, fontSize, maxWidth),
-  };
 }
 
 function splitTitleForTag(title: string, font: PDFFont): { title1: string; title2: string } {
@@ -780,107 +725,6 @@ async function buildInventoryTagPdf(formState: FormState): Promise<Blob> {
 
   const bytes = await pdfDoc.save();
   return new Blob([bytes], { type: 'application/pdf' });
-}
-
-function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) {
-        resolve(blob);
-        return;
-      }
-      reject(new Error('Unable to render small tag PNG.'));
-    }, 'image/png');
-  });
-}
-
-async function renderPdfBytesToPng(pdfBytes: Uint8Array): Promise<Blob> {
-  const pdfjs = await import('pdfjs-dist');
-  pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
-  const pdf = await pdfjs.getDocument({ data: pdfBytes }).promise;
-  const page = await pdf.getPage(1);
-  const viewport = page.getViewport({ scale: 4 });
-  const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d');
-  if (!context) throw new Error('Unable to create small tag PNG canvas.');
-
-  canvas.width = Math.ceil(viewport.width);
-  canvas.height = Math.ceil(viewport.height);
-  await page.render({ canvasContext: context, viewport }).promise;
-  return canvasToPngBlob(canvas);
-}
-
-async function drawProductQrCode(
-  pdfDoc: PdfLibDocument,
-  url: string | null,
-): Promise<void> {
-  if (!url) return;
-
-  const qrDataUrl = await QRCode.toDataURL(url, {
-    errorCorrectionLevel: 'M',
-    margin: 1,
-    width: 512,
-    color: {
-      dark: '#000000',
-      light: '#FFFFFF',
-    },
-  });
-  const qrPngBytes = await fetch(qrDataUrl).then((response) => response.arrayBuffer());
-  const qrImage = await pdfDoc.embedPng(qrPngBytes);
-  const [{ rgb }] = await Promise.all([import('pdf-lib')]);
-  const page = pdfDoc.getPages()[0];
-
-  page.drawRectangle({
-    x: SMALL_TAG_PRODUCT_1_QR_RECT.x,
-    y: SMALL_TAG_PRODUCT_1_QR_RECT.y,
-    width: SMALL_TAG_PRODUCT_1_QR_RECT.size,
-    height: SMALL_TAG_PRODUCT_1_QR_RECT.size,
-    color: rgb(1, 1, 1),
-  });
-  page.drawImage(qrImage, {
-    x: SMALL_TAG_PRODUCT_1_QR_RECT.x,
-    y: SMALL_TAG_PRODUCT_1_QR_RECT.y,
-    width: SMALL_TAG_PRODUCT_1_QR_RECT.size,
-    height: SMALL_TAG_PRODUCT_1_QR_RECT.size,
-  });
-}
-
-async function buildSmallInventoryTagPng(formState: FormState, categoryName: string): Promise<Blob> {
-  const response = await fetch(TAG_TEMPLATE_SMALL);
-  if (!response.ok) throw new Error('Unable to load small inventory tag template.');
-
-  const [{ PDFDocument }, fontkitModule] = await Promise.all([
-    import('pdf-lib'),
-    import('@pdf-lib/fontkit'),
-  ]);
-  const pdfDoc = await PDFDocument.load(await response.arrayBuffer());
-  const loadedFontkit = 'default' in fontkitModule ? fontkitModule.default : fontkitModule;
-  pdfDoc.registerFontkit(loadedFontkit);
-  const pdfForm = pdfDoc.getForm();
-  const [boldFontBytes, regularFontBytes] = await Promise.all([
-    fetchArrayBuffer(liberationSansBoldUrl),
-    fetchArrayBuffer(liberationSansRegularUrl),
-  ]);
-  const boldFont = await pdfDoc.embedFont(boldFontBytes);
-  const regularFont = await pdfDoc.embedFont(regularFontBytes);
-  const title = splitTextForPdfLines(
-    formState.saleTitle.trim() || formState.title.trim(),
-    boldFont,
-    SMALL_TAG_TITLE_FONT_SIZE,
-    SMALL_TAG_TITLE_MAX_WIDTH,
-  );
-  const regularPrice = parseTagPrice(formState.regularPrice);
-  const salePrice = parseTagPrice(formState.salePrice);
-
-  setPdfTextField(pdfForm, 'Product1Name1', title.line1, boldFont);
-  setPdfTextField(pdfForm, 'Product1Name2', title.line2, boldFont);
-  setPdfTextField(pdfForm, 'Product1CCGNum', formState.ccgNumber.trim(), boldFont);
-  setPdfTextField(pdfForm, 'Product1RegPrice', formatTagPrice(regularPrice), boldFont);
-  setPdfTextField(pdfForm, 'Product1SalePrice', formatTagPrice(salePrice), boldFont);
-  await drawProductQrCode(pdfDoc, buildShopProductUrl(categoryName, formState.saleUrl));
-
-  const bytes = await pdfDoc.save();
-  return renderPdfBytesToPng(bytes);
 }
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -1678,25 +1522,6 @@ const InventoryItem = () => {
       enqueueSnackbar('Large tag generated.', { variant: 'success' });
     } catch (error) {
       const text = error instanceof Error ? error.message : 'Unable to generate inventory tag.';
-      setMessage({ severity: 'error', text });
-      enqueueSnackbar(text, { variant: 'error' });
-    } finally {
-      setIsGeneratingTag(false);
-    }
-  };
-
-  const handleGenerateSmallTag = async () => {
-    if (isGeneratingTag) return;
-    setIsGeneratingTag(true);
-    setMessage(null);
-
-    try {
-      const blob = await buildSmallInventoryTagPng(form, selectedCategoryName);
-      const ccgNumber = form.ccgNumber.trim() || 'inventory';
-      downloadBlob(blob, `${ccgNumber}-small-tag.png`);
-      enqueueSnackbar('Small tag generated.', { variant: 'success' });
-    } catch (error) {
-      const text = error instanceof Error ? error.message : 'Unable to generate small inventory tag.';
       setMessage({ severity: 'error', text });
       enqueueSnackbar(text, { variant: 'error' });
     } finally {
@@ -2816,20 +2641,8 @@ const InventoryItem = () => {
                         </Button>
                       </Grid>
                       <Grid size={{ xs: 12, md: 3 }}>
-                        <Button
-                          fullWidth
-                          variant="contained"
-                          onClick={handleGenerateSmallTag}
-                          disabled={isGeneratingTag}
-                          startIcon={
-                            isGeneratingTag ? (
-                              <CircularProgress size={16} color="inherit" />
-                            ) : (
-                              <IconifyIcon icon="material-symbols:label-outline-rounded" fontSize={18} />
-                            )
-                          }
-                        >
-                          Gen. Small Tag
+                        <Button fullWidth variant="contained" disabled>
+                          Future Tag
                         </Button>
                       </Grid>
                       <Grid size={{ xs: 12, md: 3 }}>
