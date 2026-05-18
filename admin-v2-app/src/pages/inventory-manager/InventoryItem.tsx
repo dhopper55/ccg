@@ -25,7 +25,8 @@ import {
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import { useSnackbar } from 'notistack';
-import type { PDFForm, PDFFont } from 'pdf-lib';
+import QRCode from 'qrcode';
+import type { PDFDocument as PdfLibDocument, PDFForm, PDFFont } from 'pdf-lib';
 import liberationSansBoldUrl from 'pdfjs-dist/standard_fonts/LiberationSans-Bold.ttf?url';
 import liberationSansRegularUrl from 'pdfjs-dist/standard_fonts/LiberationSans-Regular.ttf?url';
 import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
@@ -480,6 +481,13 @@ const TAG_TITLE_MAX_WIDTH = 292;
 const TAG_TITLE_FONT_SIZE = 14;
 const SMALL_TAG_TITLE_MAX_WIDTH = 126;
 const SMALL_TAG_TITLE_FONT_SIZE = 12;
+const SHOP_ORIGIN = 'https://www.coalcreekguitars.com';
+const SHOP_BASE_PATH = '/guitars-and-gear-for-sale';
+const SMALL_TAG_PRODUCT_1_QR_RECT = {
+  x: 4,
+  y: 92,
+  size: 76,
+};
 
 function parseTagPrice(value: string): number | null {
   const normalized = value.replace(/[^0-9.]/g, '');
@@ -494,6 +502,21 @@ function formatMoney(value: number): string {
     currency: 'USD',
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function slugifyShopCategory(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function buildShopProductUrl(categoryName: string, saleUrlSlug: string): string | null {
+  const categorySlug = slugifyShopCategory(categoryName);
+  const productSlug = saleUrlSlug.trim();
+  if (!categorySlug || !productSlug) return null;
+  return `${SHOP_ORIGIN}${SHOP_BASE_PATH}/${categorySlug}/${productSlug}`;
 }
 
 function sanitizeSaleUrlSlug(value: string): string {
@@ -787,7 +810,42 @@ async function renderPdfBytesToPng(pdfBytes: Uint8Array): Promise<Blob> {
   return canvasToPngBlob(canvas);
 }
 
-async function buildSmallInventoryTagPng(formState: FormState): Promise<Blob> {
+async function drawProductQrCode(
+  pdfDoc: PdfLibDocument,
+  url: string | null,
+): Promise<void> {
+  if (!url) return;
+
+  const qrDataUrl = await QRCode.toDataURL(url, {
+    errorCorrectionLevel: 'M',
+    margin: 1,
+    width: 512,
+    color: {
+      dark: '#000000',
+      light: '#FFFFFF',
+    },
+  });
+  const qrPngBytes = await fetch(qrDataUrl).then((response) => response.arrayBuffer());
+  const qrImage = await pdfDoc.embedPng(qrPngBytes);
+  const [{ rgb }] = await Promise.all([import('pdf-lib')]);
+  const page = pdfDoc.getPages()[0];
+
+  page.drawRectangle({
+    x: SMALL_TAG_PRODUCT_1_QR_RECT.x,
+    y: SMALL_TAG_PRODUCT_1_QR_RECT.y,
+    width: SMALL_TAG_PRODUCT_1_QR_RECT.size,
+    height: SMALL_TAG_PRODUCT_1_QR_RECT.size,
+    color: rgb(1, 1, 1),
+  });
+  page.drawImage(qrImage, {
+    x: SMALL_TAG_PRODUCT_1_QR_RECT.x,
+    y: SMALL_TAG_PRODUCT_1_QR_RECT.y,
+    width: SMALL_TAG_PRODUCT_1_QR_RECT.size,
+    height: SMALL_TAG_PRODUCT_1_QR_RECT.size,
+  });
+}
+
+async function buildSmallInventoryTagPng(formState: FormState, categoryName: string): Promise<Blob> {
   const response = await fetch(TAG_TEMPLATE_SMALL);
   if (!response.ok) throw new Error('Unable to load small inventory tag template.');
 
@@ -819,6 +877,7 @@ async function buildSmallInventoryTagPng(formState: FormState): Promise<Blob> {
   setPdfTextField(pdfForm, 'Product1CCGNum', formState.ccgNumber.trim(), boldFont);
   setPdfTextField(pdfForm, 'Product1RegPrice', formatTagPrice(regularPrice), boldFont);
   setPdfTextField(pdfForm, 'Product1SalePrice', formatTagPrice(salePrice), boldFont);
+  await drawProductQrCode(pdfDoc, buildShopProductUrl(categoryName, formState.saleUrl));
 
   const bytes = await pdfDoc.save();
   return renderPdfBytesToPng(bytes);
@@ -1632,7 +1691,7 @@ const InventoryItem = () => {
     setMessage(null);
 
     try {
-      const blob = await buildSmallInventoryTagPng(form);
+      const blob = await buildSmallInventoryTagPng(form, selectedCategoryName);
       const ccgNumber = form.ccgNumber.trim() || 'inventory';
       downloadBlob(blob, `${ccgNumber}-small-tag.png`);
       enqueueSnackbar('Small tag generated.', { variant: 'success' });
