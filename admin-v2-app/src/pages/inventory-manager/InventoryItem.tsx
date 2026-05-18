@@ -807,17 +807,17 @@ async function buildSmallInventoryTagPng(formState: FormState): Promise<Blob> {
   const regularFont = await pdfDoc.embedFont(regularFontBytes);
   const title = splitTextForPdfLines(
     formState.saleTitle.trim() || formState.title.trim(),
-    regularFont,
+    boldFont,
     SMALL_TAG_TITLE_FONT_SIZE,
     SMALL_TAG_TITLE_MAX_WIDTH,
   );
   const regularPrice = parseTagPrice(formState.regularPrice);
   const salePrice = parseTagPrice(formState.salePrice);
 
-  setPdfTextField(pdfForm, 'Product1Name1', title.line1, regularFont);
-  setPdfTextField(pdfForm, 'Product1Name2', title.line2, regularFont);
-  setPdfTextField(pdfForm, 'Product1CCGNum', formState.ccgNumber.trim(), regularFont);
-  setPdfTextField(pdfForm, 'Product1RegPrice', formatTagPrice(regularPrice), regularFont);
+  setPdfTextField(pdfForm, 'Product1Name1', title.line1, boldFont);
+  setPdfTextField(pdfForm, 'Product1Name2', title.line2, boldFont);
+  setPdfTextField(pdfForm, 'Product1CCGNum', formState.ccgNumber.trim(), boldFont);
+  setPdfTextField(pdfForm, 'Product1RegPrice', formatTagPrice(regularPrice), boldFont);
   setPdfTextField(pdfForm, 'Product1SalePrice', formatTagPrice(salePrice), boldFont);
 
   const bytes = await pdfDoc.save();
