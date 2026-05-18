@@ -822,6 +822,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/inventory/backfill-barcodes' && request.method === 'POST') {
+      const response = await handleAdminV2InventoryBackfillBarcodes(env);
+      return withCors(response, request, env);
+    }
+
     if (path.endsWith('/mark') && path.startsWith('/api/admin-v2/inventory/') && request.method === 'POST') {
       const response = await handleAdminV2InventoryMarkUpdate(request, path, env);
       return withCors(response, request, env);
@@ -5960,6 +5965,57 @@ async function handleAdminV2InventoryUnmarkAll(env: Env): Promise<Response> {
   return jsonResponse({ ok: true, count });
 }
 
+async function handleAdminV2InventoryBackfillBarcodes(env: Env): Promise<Response> {
+  const rowsResult = await env.DB.prepare(
+    `SELECT id, barcode
+     FROM ccg_inventory_items
+     ORDER BY id ASC`
+  ).all<{ id: number; barcode: string | null }>();
+  const rows = rowsResult.results ?? [];
+  const used = new Set(
+    rows
+      .map((row) => normalizeText(row.barcode, '').trim())
+      .filter((barcode) => /^\d{8,20}$/.test(barcode)),
+  );
+  const missingRows = rows.filter((row) => !normalizeText(row.barcode, '').trim());
+  let updated = 0;
+  const assigned: Array<{ id: number; barcode: string }> = [];
+
+  for (const row of missingRows) {
+    const id = Number(row.id);
+    if (!Number.isFinite(id) || id <= 0) continue;
+
+    let barcode = '';
+    for (let attempt = 0; attempt < 10000; attempt += 1) {
+      const candidate = String(900000000000 + id + attempt);
+      if (!used.has(candidate)) {
+        barcode = candidate;
+        break;
+      }
+    }
+    if (!barcode) {
+      return jsonResponse({ message: `Unable to generate unique barcode for inventory item ${id}.` }, 500);
+    }
+
+    await env.DB.prepare(
+      `UPDATE ccg_inventory_items
+       SET barcode = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND (barcode IS NULL OR TRIM(barcode) = '')`
+    ).bind(barcode, id).run();
+    used.add(barcode);
+    updated += 1;
+    assigned.push({ id, barcode });
+  }
+
+  return jsonResponse({
+    ok: true,
+    scanned: rows.length,
+    missing: missingRows.length,
+    updated,
+    assigned,
+  });
+}
+
 async function handleAdminV2InventoryMergeMarked(env: Env): Promise<Response> {
   const markedRows = await dbListMarkedInventoryRowsForPackage(env);
 
@@ -6313,7 +6369,8 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const bullet6Text = normalizeText(body.bullet6Text, '').slice(0, 60);
   const bullet6Danger = toBooleanInput(body.bullet6Danger, false);
   const bullet6Highlight = toBooleanInput(body.bullet6Highlight, false);
-  const barcode = normalizeText(body.barcode, '').slice(0, 50);
+  const barcodeInput = normalizeRequiredInventoryBarcode(body.barcode);
+  const barcode = barcodeInput.value;
   const purchasedDate = normalizeInventoryDate(body.purchasedDate) || currentDateYmd();
   const purchasePrice = parseCurrencyAmount(body.purchasePrice);
   const privatePartyValue = parseCurrencyAmount(body.privatePartyValue) ?? 0;
@@ -6347,6 +6404,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
 
   if (!title) return jsonResponse({ message: 'Title is required.' }, 400);
   if (categoryId == null) return jsonResponse({ message: 'Category ID is required.' }, 400);
+  if (barcodeInput.message) return jsonResponse({ message: barcodeInput.message }, 400);
   if (imageUrls.length < 1) return jsonResponse({ message: 'At least one image is required.' }, 400);
   const forSaleValidationError = validateForSaleInventoryFields({
     forSale,
@@ -6652,7 +6710,8 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const bullet6Text = normalizeText(body.bullet6Text, '').slice(0, 60);
   const bullet6Danger = toBooleanInput(body.bullet6Danger, false);
   const bullet6Highlight = toBooleanInput(body.bullet6Highlight, false);
-  const barcode = normalizeText(body.barcode, '').slice(0, 50);
+  const barcodeInput = normalizeRequiredInventoryBarcode(body.barcode);
+  const barcode = barcodeInput.value;
   const purchasedDate = normalizeInventoryDate(body.purchasedDate);
   const purchasePrice = parseCurrencyAmount(body.purchasePrice);
   const privatePartyValue = parseCurrencyAmount(body.privatePartyValue) ?? 0;
@@ -6698,6 +6757,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
 
   if (!title) return jsonResponse({ message: 'Title is required.' }, 400);
   if (categoryId == null) return jsonResponse({ message: 'Category ID is required.' }, 400);
+  if (barcodeInput.message) return jsonResponse({ message: barcodeInput.message }, 400);
   if (!purchasedDate) return jsonResponse({ message: 'Purchased date is required.' }, 400);
   if (isSold && quantity < 1) return jsonResponse({ message: 'Qty must be at least 1 when marking an item sold.' }, 400);
   if (isSold && qtySold > quantity) return jsonResponse({ message: 'Qty Sold cannot be greater than Qty.' }, 400);
@@ -14729,6 +14789,16 @@ function parseCurrencyAmount(input: unknown): number | null {
     return parsed != null ? parsed : null;
   }
   return null;
+}
+
+function normalizeRequiredInventoryBarcode(input: unknown): { value: string; message: string | null } {
+  const value = normalizeText(input, '').trim();
+  if (!value) return { value: '', message: 'Barcode is required.' };
+  if (!/^\d+$/.test(value)) return { value, message: 'Barcode must be numeric only.' };
+  if (value.length < 8 || value.length > 20) {
+    return { value, message: 'Barcode must be 8 to 20 digits.' };
+  }
+  return { value, message: null };
 }
 
 function normalizeCheckoutItems(input: unknown): Array<{ inventoryItemId: number; quantity: number }> {

@@ -56,8 +56,19 @@ const SMALL_TAG_QR_RECTS: Record<1 | 2, { x: number; y: number; size: number }> 
   1: { x: 4, y: 92, size: 76 },
   2: { x: 4, y: 6, size: 76 },
 };
-const UPC_A_LEFT_PATTERNS = ['0001101', '0011001', '0010011', '0111101', '0100011', '0110001', '0101111', '0111011', '0110111', '0001011'];
-const UPC_A_RIGHT_PATTERNS = ['1110010', '1100110', '1101100', '1000010', '1011100', '1001110', '1010000', '1000100', '1001000', '1110100'];
+const CODE_128_PATTERNS = [
+  '212222', '222122', '222221', '121223', '121322', '131222', '122213', '122312', '132212', '221213',
+  '221312', '231212', '112232', '122132', '122231', '113222', '123122', '123221', '223211', '221132',
+  '221231', '213212', '223112', '312131', '311222', '321122', '321221', '312212', '322112', '322211',
+  '212123', '212321', '232121', '111323', '131123', '131321', '112313', '132113', '132311', '211313',
+  '231113', '231311', '112133', '112331', '132131', '113123', '113321', '133121', '313121', '211331',
+  '231131', '213113', '213311', '213131', '311123', '311321', '331121', '312113', '312311', '332111',
+  '314111', '221411', '431111', '111224', '111422', '121124', '121421', '141122', '141221', '112214',
+  '112412', '122114', '122411', '142112', '142211', '241211', '221114', '413111', '241112', '134111',
+  '111242', '121142', '121241', '114212', '124112', '124211', '411212', '421112', '421211', '212141',
+  '214121', '412121', '111143', '111341', '131141', '114113', '114311', '411113', '411311', '113141',
+  '114131', '311141', '411131', '211412', '211214', '211232', '2331112',
+];
 
 function parseTagPrice(value: unknown): number | null {
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
@@ -237,20 +248,17 @@ function getPdfFieldRectangle(
   }
 }
 
-function normalizeUpcA(value: string | undefined): string | null {
+function normalizeBarcodeValue(value: string | undefined): string | null {
   const digits = (value || '').replace(/\D/g, '');
-  return /^\d{12}$/.test(digits) ? digits : null;
+  return /^\d{8,20}$/.test(digits) ? digits : null;
 }
 
-function encodeUpcABits(value: string): string {
-  const digits = value.split('').map((digit) => Number(digit));
-  return [
-    '101',
-    ...digits.slice(0, 6).map((digit) => UPC_A_LEFT_PATTERNS[digit]),
-    '01010',
-    ...digits.slice(6).map((digit) => UPC_A_RIGHT_PATTERNS[digit]),
-    '101',
-  ].join('');
+function encodeCode128B(value: string): number[] {
+  const codes = [104, ...value.split('').map((char) => char.charCodeAt(0) - 32)];
+  let checksum = codes[0];
+  for (let index = 1; index < codes.length; index += 1) checksum += codes[index] * index;
+  codes.push(checksum % 103, 106);
+  return codes;
 }
 
 async function drawProductBarcode(
@@ -262,18 +270,21 @@ async function drawProductBarcode(
 ): Promise<void> {
   const fieldName = `Product${productNumber}BarCode`;
   setPdfTextField(pdfForm, fieldName, '', font);
-  const upc = normalizeUpcA(record.barcode);
-  if (!upc) return;
+  const barcode = normalizeBarcodeValue(record.barcode);
+  if (!barcode) return;
 
   const rect = getPdfFieldRectangle(pdfForm, fieldName);
   if (!rect) return;
 
   const [{ rgb }] = await Promise.all([import('pdf-lib')]);
   const page = pdfDoc.getPages()[0];
-  const bits = encodeUpcABits(upc);
-  const quietZoneModules = 6;
-  const moduleWidth = rect.width / (bits.length + quietZoneModules * 2);
-  const barcodeHeight = rect.height;
+  const codes = encodeCode128B(barcode);
+  const quietZoneModules = 10;
+  const moduleCount = codes.reduce(
+    (sum, code) => sum + CODE_128_PATTERNS[code].split('').reduce((inner, width) => inner + Number(width), 0),
+    0,
+  );
+  const moduleWidth = rect.width / (moduleCount + quietZoneModules * 2);
 
   page.drawRectangle({
     x: rect.x,
@@ -282,14 +293,20 @@ async function drawProductBarcode(
     height: rect.height,
     color: rgb(1, 1, 1),
   });
-  bits.split('').forEach((bit, index) => {
-    if (bit !== '1') return;
-    page.drawRectangle({
-      x: rect.x + (quietZoneModules + index) * moduleWidth,
-      y: rect.y,
-      width: Math.max(moduleWidth * 1.02, moduleWidth + 0.03),
-      height: barcodeHeight,
-      color: rgb(0, 0, 0),
+  let cursor = rect.x + quietZoneModules * moduleWidth;
+  codes.forEach((code) => {
+    CODE_128_PATTERNS[code].split('').forEach((widthText, index) => {
+      const width = Number(widthText) * moduleWidth;
+      if (index % 2 === 0) {
+        page.drawRectangle({
+          x: cursor,
+          y: rect.y,
+          width: Math.max(width * 1.02, width + 0.03),
+          height: rect.height,
+          color: rgb(0, 0, 0),
+        });
+      }
+      cursor += width;
     });
   });
 }
