@@ -4215,7 +4215,7 @@ body.auth-locked {
   margin-bottom: 14px;
 }
 
-.faq-item strong {
+.repair-pricing-page .faq-item strong {
   color: var(--text-light);
 }
 
@@ -4232,6 +4232,38 @@ body.auth-locked {
   color: var(--text-muted);
   font-size: 0.98rem;
   line-height: 1.7;
+}
+
+.repair-pricing-page .repair-service-line {
+  margin-bottom: 8px;
+  color: var(--text-light);
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
+.repair-pricing-page .repair-service-line strong {
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.repair-pricing-page .repair-price {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border: 1px solid var(--border-accent);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-gold-light);
+  font-size: 0.84rem;
+  font-weight: 800;
+  vertical-align: 0.08em;
+  white-space: nowrap;
+}
+
+.repair-pricing-page .repair-service-description {
+  margin-bottom: 18px;
 }
 
 .repair-pricing-page .faq-content h2 {
