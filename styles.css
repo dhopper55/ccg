@@ -4234,6 +4234,26 @@ body.auth-locked {
   line-height: 1.7;
 }
 
+.repair-pricing-page .faq-content h2 {
+  margin-bottom: 20px;
+  font-size: clamp(1.25rem, 2vw, 1.55rem);
+  line-height: 1.25;
+}
+
+.repair-section-heading-with-image {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.repair-section-heading-with-image img {
+  flex: 0 0 auto;
+  width: 82px;
+  height: 66px;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
 .faq-empty {
   margin: 0 0 34px;
   color: var(--text-muted);
