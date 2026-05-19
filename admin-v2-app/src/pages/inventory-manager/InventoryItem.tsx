@@ -493,10 +493,6 @@ const CODE_128_PATTERNS = [
   '114131', '311141', '411131', '211412', '211214', '211232', '2331112',
 ];
 
-function normalizeInventoryBarcodeInput(value: string): string {
-  return value.replace(/\D/g, '').slice(0, 20);
-}
-
 function getBarcodeValidationError(value: string): string | null {
   const trimmed = value.trim();
   if (!trimmed) return 'Barcode is required.';
@@ -1599,7 +1595,7 @@ const InventoryItem = () => {
       setMessage({ severity: 'error', text: 'Queue is required.' });
       return;
     }
-    const barcodeValidationError = getBarcodeValidationError(form.barcode);
+    const barcodeValidationError = editId ? getBarcodeValidationError(form.barcode) : null;
     if (barcodeValidationError) {
       setMessage({ severity: 'error', text: barcodeValidationError });
       enqueueSnackbar(barcodeValidationError, { variant: 'error' });
@@ -2775,19 +2771,27 @@ const InventoryItem = () => {
                           label="Highlight Bullet?"
                         />
                       </Grid>
-                      <Grid size={{ xs: 12, md: 6 }}>
-                        <TextField
-                          fullWidth
-                          label="Barcode"
-                          required
-                          value={form.barcode}
-                          onChange={(event) => setField('barcode', normalizeInventoryBarcodeInput(event.target.value))}
-                          error={Boolean(form.barcode && getBarcodeValidationError(form.barcode))}
-                          helperText={form.barcode && getBarcodeValidationError(form.barcode) ? getBarcodeValidationError(form.barcode) : 'Numeric only, 8-20 digits.'}
-                          inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', minLength: 8, maxLength: 20 }}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 6 }} />
+                      {editId ? (
+                        <>
+                          <Grid size={{ xs: 12, md: 6 }}>
+                            <TextField
+                              fullWidth
+                              label="Barcode"
+                              required
+                              value={form.barcode}
+                              InputProps={{ readOnly: true }}
+                              error={Boolean(form.barcode && getBarcodeValidationError(form.barcode))}
+                              helperText={
+                                form.barcode && getBarcodeValidationError(form.barcode)
+                                  ? getBarcodeValidationError(form.barcode)
+                                  : 'Auto-generated. Numeric only, 8-20 digits.'
+                              }
+                              inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', minLength: 8, maxLength: 20 }}
+                            />
+                          </Grid>
+                          <Grid size={{ xs: 12, md: 6 }} />
+                        </>
+                      ) : null}
                       <Grid size={{ xs: 12, md: 3 }}>
                         <Button
                           fullWidth
