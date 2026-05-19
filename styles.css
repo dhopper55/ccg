@@ -4208,6 +4208,19 @@ body.auth-locked {
   color: var(--accent-gold-light);
 }
 
+.faq-item p a {
+  color: var(--accent-gold-light);
+  text-decoration-color: rgba(205, 185, 146, 0.55);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  font-weight: 700;
+}
+
+.faq-item p a:hover {
+  color: var(--text-cream);
+  text-decoration-color: var(--text-cream);
+}
+
 .faq-item p {
   color: var(--text-muted);
   font-size: 0.98rem;
