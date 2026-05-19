@@ -69,6 +69,7 @@ const SITEMAP_STATIC_URLS = [
   { loc: '/decoders/rickenbacker-guitar-serial-number-decoder/', changefreq: 'monthly', priority: '0.8' },
   { loc: '/guitars-and-gear-for-sale', changefreq: 'daily', priority: '0.9' },
   { loc: '/faq', changefreq: 'monthly', priority: '0.6' },
+  { loc: '/guitar-repair-services-pricing', changefreq: 'monthly', priority: '0.7' },
   { loc: '/about-us.html', changefreq: 'monthly', priority: '0.6' },
   { loc: '/how-to-value-a-used-guitar.html', changefreq: 'monthly', priority: '0.7' },
   { loc: '/how-to-list-a-guitar-for-sale.html', changefreq: 'monthly', priority: '0.7' },
