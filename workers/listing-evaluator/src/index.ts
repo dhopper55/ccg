@@ -84,6 +84,7 @@ const SHOP_STATIC_ORIGIN = 'https://ccg-2k1.pages.dev';
 const ASSOCIATE_COOKIE_NAME = 'ccg_associate';
 const ASSOCIATE_COOKIE_VALUE = 'associate';
 const SHOP_SALES_TAX_RATE = 0.0805;
+const CCG_YOUTUBE_CHANNEL_ID = 'UCV-kDQjH_cWcsxwg0GZKX3g';
 const DEFAULT_CO_SALES_TAX_RATE_ID = 'txr_1TSEdADCplz62P7p4H6E7YJK';
 const SHOP_COUPONS = new Map<string, { amountOffCents: number }>([
   ['TAKE100', { amountOffCents: 10000 }],
@@ -516,6 +517,11 @@ export default {
 
     if (path === '/api/shop/newsletter' && request.method === 'POST') {
       const response = await handleShopNewsletterSubscribe(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/youtube/videos' && request.method === 'GET') {
+      const response = await handleYoutubeVideos();
       return withCors(response, request, env);
     }
 
@@ -4774,6 +4780,85 @@ async function handleShopNewsletterSubscribe(request: Request, env: Env): Promis
     duplicate: !inserted,
     message: inserted ? 'You are subscribed.' : 'You are already subscribed.',
   });
+}
+
+async function handleYoutubeVideos(): Promise<Response> {
+  const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(CCG_YOUTUBE_CHANNEL_ID)}`;
+  const response = await fetch(feedUrl, {
+    headers: {
+      'User-Agent': 'Coal Creek Guitars video feed fetcher',
+      'Accept': 'application/atom+xml, application/xml, text/xml',
+    },
+    cf: {
+      cacheTtl: 900,
+      cacheEverything: true,
+    },
+  } as RequestInit);
+
+  if (!response.ok) {
+    return jsonResponse({ message: 'Unable to load YouTube videos.' }, 502);
+  }
+
+  const xml = await response.text();
+  const records = parseYoutubeVideoFeed(xml).slice(0, 12);
+
+  return jsonResponse(
+    { records },
+    200,
+    { 'Cache-Control': 'public, max-age=900' },
+  );
+}
+
+function parseYoutubeVideoFeed(xml: string): Array<{
+  id: string;
+  title: string;
+  thumbnail: string;
+  publishedAt: string;
+  videoUrl: string;
+}> {
+  const entries = xml.match(/<entry\b[\s\S]*?<\/entry>/g) || [];
+
+  return entries
+    .map((entry) => {
+      const id = decodeXmlEntity(extractXmlText(entry, 'yt:videoId'));
+      const title = decodeXmlEntity(extractXmlText(entry, 'title'));
+      const publishedAt = decodeXmlEntity(extractXmlText(entry, 'published'));
+      const link = extractXmlAttribute(entry, 'link', 'href') || (id ? `https://www.youtube.com/watch?v=${id}` : '');
+      const thumbnail = extractXmlAttribute(entry, 'media:thumbnail', 'url') || (id ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : '');
+
+      return {
+        id,
+        title,
+        thumbnail,
+        publishedAt,
+        videoUrl: link,
+      };
+    })
+    .filter((video) => video.id && video.title && video.videoUrl);
+}
+
+function extractXmlText(xml: string, tagName: string): string {
+  const escapedTagName = tagName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = xml.match(new RegExp(`<${escapedTagName}[^>]*>([\\s\\S]*?)<\\/${escapedTagName}>`, 'i'));
+  return match ? match[1].trim() : '';
+}
+
+function extractXmlAttribute(xml: string, tagName: string, attributeName: string): string {
+  const escapedTagName = tagName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escapedAttributeName = attributeName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const tagMatch = xml.match(new RegExp(`<${escapedTagName}\\b[^>]*>`, 'i'));
+  if (!tagMatch) return '';
+  const attributeMatch = tagMatch[0].match(new RegExp(`${escapedAttributeName}="([^"]*)"`, 'i'));
+  return attributeMatch ? decodeXmlEntity(attributeMatch[1]) : '';
+}
+
+function decodeXmlEntity(value: string): string {
+  return String(value || '')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
 }
 
 async function handleShopCreateCheckoutSession(request: Request, env: Env): Promise<Response> {
@@ -15389,7 +15474,10 @@ function currentDateYmd(): string {
 }
 
 function isPublicApiPath(path: string): boolean {
-  return path.startsWith('/api/shop/') || path === '/api/inventory-image' || path === '/api/listing-image';
+  return path.startsWith('/api/shop/')
+    || path === '/api/youtube/videos'
+    || path === '/api/inventory-image'
+    || path === '/api/listing-image';
 }
 
 function formatMonthLabel(month: string): string {
