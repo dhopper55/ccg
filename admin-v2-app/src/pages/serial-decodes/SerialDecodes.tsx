@@ -44,6 +44,7 @@ type SerialDecodeRecord = {
   clientTimestamp: string | null;
   brand: string;
   serial: string;
+  email: string | null;
   patternLookupId: number | null;
   success: boolean;
   evaluated: boolean;
@@ -826,6 +827,12 @@ const SerialDecodes = () => {
                 <Typography variant="caption" color="text.secondary">Success</Typography>
                 <Typography variant="body2">{selectedRecord.success ? 'Yes' : 'No'}</Typography>
               </Box>
+              {selectedRecord.email ? (
+                <Box>
+                  <Typography variant="caption" color="text.secondary">Email</Typography>
+                  <Typography variant="body2">{selectedRecord.email}</Typography>
+                </Box>
+              ) : null}
 
               {selectedRecord.success ? (
                 <>

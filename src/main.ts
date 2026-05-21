@@ -9,6 +9,14 @@ const resultSection = document.getElementById('result') as HTMLDivElement;
 const resultContent = document.getElementById('result-content') as HTMLDivElement;
 const errorSection = document.getElementById('error') as HTMLDivElement;
 const decodeButtonDefaultText = decodeButton.textContent?.trim() || 'Decode Serial Number';
+const failedDecodeEmailPrompt =
+  'Coal Creek Guitars logs all serial number decode attempts for all brands. Since this decode failed, we will automatically research the number in the coming days and if we find out it is in fact a valid serial number, we will update the decoder. If you would like us to email you in the event that this number is valid, please enter your email below and click submit.';
+
+type FailedDecodeEmailContext = {
+  decodeEventId: number | null;
+  brand: Brand;
+  serial: string;
+};
 
 // Check for pre-selected brand from data attribute (used on brand-specific pages without dropdown)
 const preselectedBrand = document.body.dataset.preselectBrand as Brand | undefined;
@@ -95,7 +103,11 @@ async function handleDecode(): Promise<void> {
     }
 
     const errorMsg = (result && result.error) || 'Unable to decode serial number.';
-    showError(errorMsg);
+    showError(errorMsg, {
+      decodeEventId: typeof result?.serialDecodeEventId === 'number' ? result.serialDecodeEventId : null,
+      brand,
+      serial,
+    });
   } catch {
     showError('Unable to decode serial number.');
   } finally {
@@ -274,8 +286,15 @@ function initModals(): void {
   });
 }
 
-function showError(message: string): void {
-  errorSection.textContent = message;
+function showError(message: string, emailContext?: FailedDecodeEmailContext): void {
+  errorSection.innerHTML = '';
+  const messageElement = document.createElement('p');
+  messageElement.className = 'decode-error-message';
+  messageElement.textContent = message;
+  errorSection.appendChild(messageElement);
+  if (emailContext) {
+    errorSection.appendChild(buildFailedDecodeEmailCapture(emailContext));
+  }
   errorSection.classList.remove('hidden');
   resultSection.classList.add('hidden');
   scrollToDecodeFeedback(errorSection);
@@ -284,6 +303,104 @@ function showError(message: string): void {
 function hideResults(): void {
   resultSection.classList.add('hidden');
   errorSection.classList.add('hidden');
+  errorSection.innerHTML = '';
+}
+
+function buildFailedDecodeEmailCapture(context: FailedDecodeEmailContext): HTMLElement {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'failed-decode-email-capture';
+
+  const prompt = document.createElement('p');
+  prompt.textContent = failedDecodeEmailPrompt;
+  wrapper.appendChild(prompt);
+
+  const form = document.createElement('form');
+  form.className = 'failed-decode-email-form';
+  form.noValidate = true;
+
+  const input = document.createElement('input');
+  input.type = 'email';
+  input.name = 'email';
+  input.placeholder = 'Email address';
+  input.maxLength = 200;
+  input.required = true;
+
+  const button = document.createElement('button');
+  button.type = 'submit';
+  button.textContent = 'Submit';
+
+  const feedback = document.createElement('p');
+  feedback.className = 'failed-decode-email-feedback';
+
+  form.appendChild(input);
+  form.appendChild(button);
+  wrapper.appendChild(form);
+  wrapper.appendChild(feedback);
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    void submitFailedDecodeEmail(context, input, button, feedback);
+  });
+
+  return wrapper;
+}
+
+async function submitFailedDecodeEmail(
+  context: FailedDecodeEmailContext,
+  input: HTMLInputElement,
+  button: HTMLButtonElement,
+  feedback: HTMLParagraphElement,
+): Promise<void> {
+  const email = input.value.trim().toLowerCase();
+  feedback.classList.remove('is-success', 'is-error');
+  feedback.textContent = '';
+
+  if (!context.decodeEventId) {
+    feedback.classList.add('is-error');
+    feedback.textContent = 'Unable to attach email to this decode record.';
+    return;
+  }
+  if (!isValidEmailAddress(email)) {
+    feedback.classList.add('is-error');
+    feedback.textContent = 'Enter a valid email address.';
+    return;
+  }
+
+  input.disabled = true;
+  button.disabled = true;
+  button.textContent = 'Submitting...';
+  try {
+    const response = await fetch('/api/decode/email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        decodeEventId: context.decodeEventId,
+        brand: context.brand,
+        serial: context.serial,
+        email,
+      }),
+    });
+    const result = await response.json().catch(() => null) as { message?: string } | null;
+    if (!response.ok) {
+      throw new Error(result?.message || 'Unable to submit email address.');
+    }
+    input.value = email;
+    feedback.classList.add('is-success');
+    feedback.textContent = 'Email submitted. We will follow up if this serial number is verified.';
+  } catch (error) {
+    input.disabled = false;
+    button.disabled = false;
+    feedback.classList.add('is-error');
+    feedback.textContent = error instanceof Error ? error.message : 'Unable to submit email address.';
+  } finally {
+    button.textContent = 'Submit';
+  }
+}
+
+function isValidEmailAddress(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) && email.length <= 200;
 }
 
 function hasRenderableDecodeInfo(info: GuitarInfo): boolean {

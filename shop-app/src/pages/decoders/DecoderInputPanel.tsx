@@ -6,6 +6,13 @@ import SectionHeader from 'components/common/SectionHeader';
 import StyledTextField from 'components/styled/StyledTextField';
 
 const DECODE_URL = 'https://www.coalcreekguitars.com/api/decode';
+const DECODE_EMAIL_URL = 'https://www.coalcreekguitars.com/api/decode/email';
+const FAILED_DECODE_EMAIL_PROMPT =
+  'Coal Creek Guitars logs all serial number decode attempts for all brands. Since this decode failed, we will automatically research the number in the coming days and if we find out it is in fact a valid serial number, we will update the decoder. If you would like us to email you in the event that this number is valid, please enter your email below and click submit.';
+
+function isValidEmailAddress(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim());
+}
 
 interface GuitarInfo {
   serialNumber?: string;
@@ -23,6 +30,7 @@ interface DecodeResponse {
   info?: GuitarInfo;
   error?: string;
   additionalContextRichText?: string;
+  serialDecodeEventId?: number;
 }
 
 interface DecoderInputPanelProps {
@@ -37,6 +45,11 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange }: 
   const [isLoading, setIsLoading] = useState(false);
   const [decodedInfo, setDecodedInfo] = useState<GuitarInfo | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [failedDecodeEventId, setFailedDecodeEventId] = useState<number | null>(null);
+  const [emailAddress, setEmailAddress] = useState('');
+  const [emailSubmitMessage, setEmailSubmitMessage] = useState('');
+  const [emailSubmitError, setEmailSubmitError] = useState('');
+  const [isSubmittingEmail, setIsSubmittingEmail] = useState(false);
   const initialSerial = searchParams.get('serial')?.trim() || '';
   const hasAutoDecodedRef = useRef(false);
 
@@ -58,6 +71,10 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange }: 
   const clearDecodeOutput = () => {
     setDecodedInfo(null);
     setErrorMessage('');
+    setFailedDecodeEventId(null);
+    setEmailAddress('');
+    setEmailSubmitMessage('');
+    setEmailSubmitError('');
     onAdditionalInfoChange('');
   };
 
@@ -91,6 +108,10 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange }: 
 
       if (result?.success && result.info) {
         setDecodedInfo(result.info);
+        setFailedDecodeEventId(null);
+        setEmailAddress('');
+        setEmailSubmitMessage('');
+        setEmailSubmitError('');
         setSerial(result.info.serialNumber?.trim() || trimmed);
         onAdditionalInfoChange((result.additionalContextRichText || '').trim());
         return;
@@ -98,11 +119,55 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange }: 
 
       clearDecodeOutput();
       setErrorMessage(result?.error || 'Unable to decode serial number.');
+      setFailedDecodeEventId(typeof result?.serialDecodeEventId === 'number' ? result.serialDecodeEventId : null);
     } catch {
       clearDecodeOutput();
       setErrorMessage('Unable to decode serial number.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleEmailSubmit = async () => {
+    const trimmedEmail = emailAddress.trim().toLowerCase();
+    const trimmedSerial = serial.trim();
+    setEmailSubmitMessage('');
+    setEmailSubmitError('');
+
+    if (!failedDecodeEventId) {
+      setEmailSubmitError('Unable to attach email to this decode record.');
+      return;
+    }
+    if (!isValidEmailAddress(trimmedEmail)) {
+      setEmailSubmitError('Enter a valid email address.');
+      return;
+    }
+
+    setIsSubmittingEmail(true);
+    try {
+      const response = await fetch(DECODE_EMAIL_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          decodeEventId: failedDecodeEventId,
+          brand,
+          serial: trimmedSerial,
+          email: trimmedEmail,
+        }),
+      });
+      const result = (await response.json().catch(() => null)) as { message?: string } | null;
+      if (!response.ok) {
+        setEmailSubmitError(result?.message || 'Unable to submit email address.');
+        return;
+      }
+      setEmailAddress(trimmedEmail);
+      setEmailSubmitMessage('Email submitted. We will follow up if this serial number is verified.');
+    } catch {
+      setEmailSubmitError('Unable to submit email address.');
+    } finally {
+      setIsSubmittingEmail(false);
     }
   };
 
@@ -200,9 +265,42 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange }: 
         )}
 
         {errorMessage && (
-          <Typography variant="body2" sx={{ color: 'warning.main', fontWeight: 600, mt: 2.5 }}>
-            {errorMessage}
-          </Typography>
+          <Box sx={{ mt: 2.5, maxWidth: 720 }}>
+            <Typography variant="body2" sx={{ color: 'warning.main', fontWeight: 600 }}>
+              {errorMessage}
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mt: 2, lineHeight: 1.7 }}>
+              {FAILED_DECODE_EMAIL_PROMPT}
+            </Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 2, alignItems: { sm: 'flex-start' } }}>
+              <StyledTextField
+                type="email"
+                value={emailAddress}
+                placeholder="Email address"
+                onChange={(event) => {
+                  setEmailAddress(event.target.value);
+                  setEmailSubmitError('');
+                  setEmailSubmitMessage('');
+                }}
+                disabled={isSubmittingEmail || Boolean(emailSubmitMessage)}
+                inputProps={{ maxLength: 200 }}
+                error={Boolean(emailSubmitError)}
+                helperText={emailSubmitError || emailSubmitMessage || ' '}
+                sx={{ maxWidth: 340, width: 1 }}
+              />
+              <Button
+                variant="soft"
+                color="warning"
+                onClick={() => {
+                  void handleEmailSubmit();
+                }}
+                disabled={isSubmittingEmail || Boolean(emailSubmitMessage)}
+                sx={{ fontWeight: 700, minWidth: 120, mt: { sm: 0.5 } }}
+              >
+                {isSubmittingEmail ? 'Submitting...' : 'Submit'}
+              </Button>
+            </Stack>
+          </Box>
         )}
 
         {resultFields.length > 0 && (

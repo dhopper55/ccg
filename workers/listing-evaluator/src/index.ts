@@ -146,6 +146,13 @@ interface DecodeRequestPayload {
   clientTimestamp?: unknown;
 }
 
+interface DecodeEmailRequestPayload {
+  decodeEventId?: unknown;
+  brand?: unknown;
+  serial?: unknown;
+  email?: unknown;
+}
+
 interface ShopCheckoutRequestPayload {
   fulfillmentType?: unknown;
   couponCode?: unknown;
@@ -586,6 +593,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/decode/email' && request.method === 'POST') {
+      const response = await handleDecodeEmailRequest(request, env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/listings/webhook' && request.method === 'POST') {
       const response = await handleWebhook(request, env, ctx);
       return withCors(response, request, env);
@@ -967,6 +979,7 @@ function isPublicSiteScopedEndpoint(request: Request, path: string): boolean {
   const method = request.method.toUpperCase();
   return (
     (path === '/api/decode' && method === 'POST')
+    || (path === '/api/decode/email' && method === 'POST')
     || (path === '/api/serial-decodes' && method === 'POST')
   );
 }
@@ -1218,6 +1231,8 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
     ipAddress,
   );
 
+  let serialDecodeEventId: number | null = duplicateId || null;
+
   if (duplicateId) {
     try {
       await touchSerialDecodeEventTimestamp(env, duplicateId, eventPayload);
@@ -1226,7 +1241,7 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
     }
   } else {
     try {
-      await insertSerialDecodeEvent(env, eventPayload);
+      serialDecodeEventId = await insertSerialDecodeEvent(env, eventPayload);
     } catch (error) {
       console.error('serial decode event insert failed', { error });
     }
@@ -1260,7 +1275,63 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
     needsAdditionalContext,
     additionalContext,
     additionalContextRichText: additionalContextRichText || undefined,
+    serialDecodeEventId: serialDecodeEventId || undefined,
   });
+}
+
+async function handleDecodeEmailRequest(request: Request, env: Env): Promise<Response> {
+  let body: DecodeEmailRequestPayload = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  const decodeEventId = parseBoundedInt(String(body.decodeEventId || ''), 0, 1, 1_000_000_000);
+  const brand = normalizeText(body.brand, '').slice(0, 120);
+  const serial = normalizeText(body.serial, '').slice(0, 180);
+  const email = normalizeText(body.email, '').slice(0, 200).toLowerCase();
+  const normalizedBrand = normalizeBrandKey(brand).slice(0, 120);
+  const normalizedSerial = normalizeSerialKey(serial).slice(0, 180);
+
+  if (!decodeEventId) return jsonResponse({ message: 'Decode record is required.' }, 400);
+  if (!normalizedBrand || !normalizedSerial) return jsonResponse({ message: 'Brand and serial are required.' }, 400);
+  if (!isValidEmailAddress(email)) return jsonResponse({ message: 'Enter a valid email address.' }, 400);
+
+  const columns = await getSerialDecodeEventColumns(env);
+  if (!columns.has('email')) {
+    return jsonResponse({ message: 'Email capture is not available yet.' }, 500);
+  }
+
+  const where: string[] = ['id = ?', 'COALESCE(success, 0) = 0'];
+  const values: unknown[] = [email, decodeEventId];
+  if (columns.has('normalized_brand')) {
+    where.push('normalized_brand = ?');
+    values.push(normalizedBrand);
+  } else {
+    where.push('lower(trim(brand)) = lower(trim(?))');
+    values.push(brand);
+  }
+  if (columns.has('normalized_serial')) {
+    where.push('normalized_serial = ?');
+    values.push(normalizedSerial);
+  } else {
+    where.push('trim(serial) = trim(?)');
+    values.push(serial);
+  }
+
+  const result = await env.DB.prepare(
+    `UPDATE serial_decode_events
+     SET email = ?
+     WHERE ${where.join(' AND ')}`
+  ).bind(...values).run();
+
+  const updatedCount = Number(result.meta?.changes || 0);
+  if (updatedCount < 1) {
+    return jsonResponse({ message: 'Unable to attach email to this decode record.' }, 404);
+  }
+
+  return jsonResponse({ ok: true });
 }
 
 interface SerialDecodeEventInsert {
@@ -1281,6 +1352,7 @@ interface SerialDecodeEventInsert {
   model?: string;
   notes?: string;
   error?: string;
+  email?: string;
   usedAi?: boolean;
   aiCacheHit?: boolean;
   aiModel?: string;
@@ -1457,7 +1529,7 @@ async function insertSerialDecodeEventWithColumns(
   env: Env,
   payload: SerialDecodeEventInsert,
   columnSet: Set<string>,
-): Promise<void> {
+): Promise<number | null> {
   const valuesByColumn: Record<string, unknown> = {
     event_time_utc: new Date().toISOString(),
     brand: payload.brand,
@@ -1480,6 +1552,7 @@ async function insertSerialDecodeEventWithColumns(
     model: payload.model || null,
     notes: payload.notes || null,
     error: payload.error || null,
+    email: payload.email || null,
     ai_cache_hit: payload.aiCacheHit ? 1 : 0,
     ai_model: payload.aiModel || null,
     ai_response_json: payload.aiResponseJson || null,
@@ -1514,6 +1587,7 @@ async function insertSerialDecodeEventWithColumns(
     'model',
     'notes',
     'error',
+    'email',
     'ai_cache_hit',
     'ai_model',
     'ai_response_json',
@@ -1534,20 +1608,20 @@ async function insertSerialDecodeEventWithColumns(
   const placeholders = columns.map(() => '?').join(', ');
   const bindValues = columns.map((column) => valuesByColumn[column] ?? null);
   const sql = `INSERT INTO serial_decode_events (${columns.join(', ')}) VALUES (${placeholders})`;
-  await env.DB.prepare(sql).bind(...bindValues).run();
+  const result = await env.DB.prepare(sql).bind(...bindValues).run();
+  return Number(result.meta?.last_row_id || 0) || null;
 }
 
-async function insertSerialDecodeEvent(env: Env, payload: SerialDecodeEventInsert): Promise<void> {
+async function insertSerialDecodeEvent(env: Env, payload: SerialDecodeEventInsert): Promise<number | null> {
   const columns = await getSerialDecodeEventColumns(env);
   try {
-    await insertSerialDecodeEventWithColumns(env, payload, columns);
+    return await insertSerialDecodeEventWithColumns(env, payload, columns);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error || '');
     if (/no column named/i.test(message) || /has no column named/i.test(message)) {
       serialDecodeEventColumnCache = null;
       const refreshedColumns = await getSerialDecodeEventColumns(env);
-      await insertSerialDecodeEventWithColumns(env, payload, refreshedColumns);
-      return;
+      return await insertSerialDecodeEventWithColumns(env, payload, refreshedColumns);
     }
     throw error;
   }
@@ -2888,6 +2962,7 @@ type AdminV2SerialDecodeRow = {
   clientTimestamp: string | null;
   brand: string;
   serial: string;
+  email: string | null;
   patternLookupId: number | null;
   success: boolean;
   evaluated: boolean;
@@ -12186,6 +12261,7 @@ async function dbListAdminV2SerialDecodes(
         e.client_timestamp,
         e.brand,
         e.serial,
+        e.email,
         e.pattern_lookup_id,
         e.success,
         e.evaluated,
@@ -12208,6 +12284,7 @@ async function dbListAdminV2SerialDecodes(
       client_timestamp: string | null;
       brand: string | null;
       serial: string | null;
+      email: string | null;
       pattern_lookup_id: number | null;
       success: number | null;
       evaluated: number | null;
@@ -12262,6 +12339,7 @@ async function dbListAdminV2SerialDecodes(
     brand: normalizeText(row.brand, ''),
     serial: normalizeText(row.serial, ''),
     patternLookupId: Number((row as { pattern_lookup_id?: number | null }).pattern_lookup_id || 0) || null,
+    email: normalizeText((row as { email?: string | null }).email, '') || null,
     success: Number(row.success || 0) === 1,
     evaluated: Number(row.evaluated || 0) === 1,
     year: normalizeText(row.year, '') || null,
@@ -13016,6 +13094,10 @@ function normalizeEmailAddress(value: unknown): string {
   if (email.length > 254) return '';
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return '';
   return email;
+}
+
+function isValidEmailAddress(value: string): boolean {
+  return value.length <= 200 && normalizeEmailAddress(value) === value;
 }
 
 function sanitizePatternLookupHtml(input: string): string {
