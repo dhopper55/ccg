@@ -13,6 +13,14 @@ export function decodeESP(serial) {
     if (/^ES\d{7}$/.test(normalized)) {
         return decodeEII2016Plus(normalized);
     }
+    // Ambiguous ESP-owned E-prefix 6-digit format: early E-II Japan or early LTD Korea
+    if (/^E\d{6}$/.test(normalized)) {
+        return decodeAmbiguousEPrefix6Digit(normalized);
+    }
+    // Edwards by ESP format: ED + YY + 5-digit production sequence
+    if (/^ED\d{7}$/.test(normalized)) {
+        return decodeEdwardsEDPrefix(normalized);
+    }
     // 2000-2015 Japan ESP Custom Shop format: SS + 7 digits
     if (/^SS\d{7}$/.test(normalized)) {
         return decodeESPCustomShop(normalized);
@@ -29,6 +37,10 @@ export function decodeESP(serial) {
     // Indonesia: IW, W, IC, C, IS, S + 7-8 digits
     if (/^(IW|IC|IS|IR)\d{7,8}$/.test(normalized)) {
         return decodeLTDIndonesia(normalized);
+    }
+    // Korea: W + YY + week + 5-digit sequence (World Musical Instruments)
+    if (/^W\d{9}$/.test(normalized)) {
+        return decodeLTDKoreaWMI9Digit(normalized);
     }
     // Korea: W, E, U + 7-8 digits
     if (/^(W|E|U)\d{7,8}$/.test(normalized)) {
@@ -126,6 +138,85 @@ function decodeEII2016Plus(serial) {
         notes: `E-II line. Production number: ${productionNum}. 2016+ serial format.`
     };
     return { success: true, info };
+}
+function decodeAmbiguousEPrefix6Digit(serial) {
+    const ltdYearDigit = serial[1];
+    const ltdYear = 2000 + parseInt(ltdYearDigit, 10);
+    const ltdSequence = serial.substring(2);
+    const eiiYear = '2014';
+    const info = {
+        brand: 'ESP',
+        serialNumber: serial,
+        year: `${eiiYear} or ${ltdYear} (context-dependent ESP/E-II vs LTD estimate)`,
+        factory: 'ESP Japan E-II production or Saehan/Sunghak Korea LTD production',
+        country: 'Japan / South Korea',
+        model: 'ESP-owned E-prefix instrument',
+        notes: `Ambiguous ESP-owned E-prefix 6-digit format. If the headstock says E-II, this format is commonly interpreted as early E-II Japan production around ${eiiYear}. If the headstock says LTD or has Made in Korea markings, E indicates the Korean Saehan/Sunghak-era factory, ${ltdYearDigit} indicates ${ltdYear}, and ${ltdSequence} is the production sequence. Use the headstock logo and country marking to choose the correct interpretation.`
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'esp-ambiguous-e-prefix-6-digit-eii-ltd',
+        patternLabel: 'ESP ambiguous E-prefix 6-digit E-II/LTD format',
+        additionalContext: {
+            title: 'ESP E-prefix 6-digit serial',
+            summary: 'This serial shape is valid for ESP-owned instruments, but the meaning depends on whether the guitar is branded E-II or LTD.',
+            highlights: [
+                `E-II interpretation: Japanese E-II production around ${eiiYear}.`,
+                `LTD interpretation: Korean LTD production from ${ltdYear}, sequence ${ltdSequence}.`,
+                'Headstock logo and country markings are required to choose the right result.'
+            ],
+            caveats: [
+                'The serial alone cannot distinguish E-II Japan from LTD Korea for this format.',
+                'Early ESP/LTD serial documentation is less consistent than newer 8-digit ESP/E-II formats.'
+            ],
+            verificationTips: [
+                'If the front of the headstock says E-II, use the Japan/E-II interpretation.',
+                'If the guitar says LTD or Made in Korea, use the Korean LTD interpretation.',
+                'Check the back of the headstock for Made in Japan, Made in Korea, or ESP build stamps.'
+            ]
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This E-prefix 6-digit serial is valid for ESP-owned instruments, but it is context-dependent.</p><h3>How This Pattern Is Typically Read</h3><p>If the guitar is branded E-II, ${serial} points to early Japanese E-II production around ${eiiYear}. If it is branded LTD or marked Made in Korea, E indicates the Korean Saehan/Sunghak-era factory, ${ltdYearDigit} indicates ${ltdYear}, and ${ltdSequence} is the production sequence.</p><h3>What To Verify</h3><ul><li>Check whether the headstock says E-II or LTD.</li><li>Look for Made in Japan, Made in Korea, or ESP build stamps on the back of the headstock.</li><li>Use the model name and hardware specs to confirm the production line.</li></ul>`
+    };
+}
+function decodeEdwardsEDPrefix(serial) {
+    const yearDigits = serial.substring(2, 4);
+    const productionNum = serial.substring(4);
+    const yearNum = parseInt(yearDigits, 10);
+    const year = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum).toString();
+    const info = {
+        brand: 'ESP',
+        serialNumber: serial,
+        year,
+        factory: 'Edwards / ESP Japan domestic-market production',
+        country: 'Japan',
+        model: 'Edwards by ESP',
+        notes: `Edwards ED-prefix format. ED indicates Edwards, an ESP Guitar Company Japanese domestic-market line; ${yearDigits} indicates ${year}; ${productionNum} is the production sequence. These serials are commonly stamped on the back of the headstock or at the end of the fretboard.`
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'esp-edwards-ed-yy-sequence',
+        patternLabel: 'ESP Edwards ED YY sequence format',
+        additionalContext: {
+            title: 'ESP Edwards ED-prefix serial',
+            summary: 'Edwards guitars are Japanese domestic-market instruments produced and distributed by the ESP Guitar Company.',
+            highlights: [
+                'ED prefix identifies the Edwards line.',
+                `Year code ${yearDigits} decodes to ${year}.`,
+                `Production sequence: ${productionNum}.`
+            ],
+            caveats: [
+                'Edwards serial documentation is less centralized than major export ESP lines.',
+                'The serial confirms the format, but model and market details should be checked against the instrument features.'
+            ],
+            verificationTips: [
+                'Check the back of the headstock or fretboard end for the stamped serial.',
+                'Compare the model markings and specs against known Edwards model catalogs or ESP support.'
+            ]
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches an Edwards ED-prefix format used on Japanese domestic-market guitars produced and distributed by ESP.</p><h3>How This Pattern Is Typically Read</h3><p>ED identifies Edwards. The next two digits, ${yearDigits}, indicate ${year}. The remaining digits are production sequence ${productionNum}.</p><h3>What To Verify</h3><ul><li>Confirm the serial location on the back of the headstock or at the fretboard end.</li><li>Compare the model, finish, hardware, and headstock markings against Edwards catalog references.</li><li>Contact ESP support with photos if authentication matters.</li></ul>`
+    };
 }
 function decodeESPCustomShop(serial) {
     const year = parseInt(serial.substring(2, 4), 10) + 2000;
@@ -232,6 +323,48 @@ function decodeLTDKorea(serial) {
         notes: `LTD series. Production number: ${productionNum}.`
     };
     return { success: true, info };
+}
+function decodeLTDKoreaWMI9Digit(serial) {
+    const yearDigits = serial.substring(1, 3);
+    const weekDigits = serial.substring(3, 5);
+    const sequence = serial.substring(5);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const week = parseInt(weekDigits, 10);
+    const info = {
+        brand: 'ESP',
+        serialNumber: serial,
+        year: year.toString(),
+        month: week === 0 ? 'January' : undefined,
+        factory: 'World Musical Instruments, South Korea',
+        country: 'South Korea',
+        model: 'LTD Deluxe / high-tier LTD import',
+        notes: `Modern ESP LTD Korean W-prefix format. W indicates World Musical Instruments (WMI); ${yearDigits} indicates ${year}; ${weekDigits} is the production week or early-year production run code; ${sequence} is the factory tracking sequence. Week 00 is typically treated as the start of the production year.`
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'esp-ltd-korea-wmi-w-yy-week-sequence',
+        patternLabel: 'ESP LTD Korea WMI W + YY + week + sequence',
+        additionalContext: {
+            title: 'ESP LTD Korea WMI serial',
+            summary: 'This serial matches a modern ESP LTD Korean W-prefix format associated with World Musical Instruments.',
+            highlights: [
+                'W indicates World Musical Instruments in South Korea.',
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                `The digits ${weekDigits} decode as production week or early-year run code.`,
+                `The final digits decode as tracking sequence ${sequence}.`
+            ],
+            caveats: [
+                'The serial identifies factory timing and sequence, not the exact model name.',
+                'Week 00 is best read as very early-year production or wood/prep run timing rather than a normal calendar week.'
+            ],
+            verificationTips: [
+                'Check the headstock for LTD branding and the back of the headstock for Made in Korea markings.',
+                'Compare the guitar against LTD Deluxe 1000 Series or signature-model specs from the decoded year.'
+            ]
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern ESP LTD Korean W-prefix format associated with World Musical Instruments.</p><h3>How This Pattern Is Typically Read</h3><p>W indicates World Musical Instruments in South Korea. The digits ${yearDigits} decode as production year ${year}. The digits ${weekDigits} decode as the production week or early-year run code. The final digits decode as tracking sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>The serial identifies factory timing and sequence, not the exact model name.</li><li>Week 00 is best read as very early-year production or wood/prep run timing.</li><li>Check for LTD branding and Made in Korea markings.</li></ul>`
+    };
 }
 function decodeLTDChina(serial) {
     let prefix;

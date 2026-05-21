@@ -2,8 +2,8 @@ export function decodeGibson(serial) {
     const cleaned = serial.trim().toUpperCase();
     // Remove any spaces or dashes
     const normalized = cleaned.replace(/[\s-]/g, '');
-    // Modern Gibson Custom Shop non-reissue format: CS + Y + 5-digit sequence
-    if (/^CS\d{6}$/.test(normalized)) {
+    // Modern Gibson Custom Shop non-reissue format: CS + Y + 4/5-digit rank
+    if (/^CS\d{5,6}$/.test(normalized)) {
         return decodeModernCustomShop(normalized);
     }
     // Check for 8-digit format (1977-2005): YDDDYRRR
@@ -30,8 +30,8 @@ export function decodeGibson(serial) {
 function decodeModernCustomShop(serial) {
     const digits = serial.slice(2);
     const yearDigit = parseInt(digits[0], 10);
-    const sequence = parseInt(digits.slice(1), 10);
-    const year = determineRecentSingleDigitYear(yearDigit);
+    const productionRank = digits.slice(1);
+    const year = determineCustomShopYearRange(yearDigit);
     const info = {
         brand: 'Gibson',
         serialNumber: serial,
@@ -39,9 +39,31 @@ function decodeModernCustomShop(serial) {
         factory: 'Gibson Custom Shop, Nashville, Tennessee',
         country: 'USA',
         model: 'Custom Shop non-reissue / Les Paul Custom family',
-        notes: `Modern Gibson Custom Shop CS-prefix format. CS indicates Custom Shop; ${yearDigit} is interpreted as the last digit of the production year (${year}); ${digits.slice(1)} is the production sequence. Some Custom Shop and historic/reissue instruments use different formats, so verify against the COA, headstock stamp, and Gibson support when exact provenance matters.`
+        notes: `Modern Gibson Custom Shop CS-prefix format. CS indicates Custom Shop; ${yearDigit} is the last digit of the production year, commonly decoded as ${year} for this regular Custom Shop format; ${productionRank} is the production rank. Spaces after the CS prefix are optional. Historic reissues and some Custom Shop instruments use different serial formats, so verify against the COA, headstock stamp, model details, and Gibson support when exact provenance matters.`
     };
-    return { success: true, info };
+    return {
+        success: true,
+        info,
+        patternKey: 'gibson-modern-custom-shop-cs-prefix',
+        patternLabel: 'Gibson modern Custom Shop CS-prefix format',
+        additionalContext: {
+            title: 'Gibson Custom Shop CS-prefix serial',
+            summary: 'Modern regular-production Gibson Custom Shop instruments often use CS followed by a one-digit year code and a production rank.',
+            highlights: [
+                `CS prefix identifies Gibson Custom Shop production.`,
+                `Year digit ${yearDigit} points to ${year}; model features and paperwork usually narrow the decade.`,
+                `Production rank: ${productionRank}.`
+            ],
+            caveats: [
+                'This is for regular Custom Shop production, not every Historic Reissue or special-run format.',
+                'Gibson Custom Shop serial dating often needs model details, features, and the Certificate of Authenticity for certainty.'
+            ],
+            verificationTips: [
+                'Compare the serial against the COA and the stamp on the back of the headstock.',
+                'Use the model, finish, hardware, and case paperwork to distinguish possible decades.'
+            ]
+        }
+    };
 }
 function decode8Digit(serial) {
     // Format: YDDDYRRR
@@ -167,14 +189,10 @@ function decodeVintage(serial) {
     };
     return { success: true, info };
 }
-function determineRecentSingleDigitYear(yearDigit) {
-    const currentYear = new Date().getFullYear();
-    for (let year = currentYear + 1; year >= 2000; year--) {
-        if (year % 10 === yearDigit) {
-            return year.toString();
-        }
-    }
-    return (2000 + yearDigit).toString();
+function determineCustomShopYearRange(yearDigit) {
+    const firstCandidate = 2000 + yearDigit;
+    const secondCandidate = 2010 + yearDigit;
+    return `${firstCandidate} or ${secondCandidate} (context-dependent Custom Shop estimate)`;
 }
 function determineYear(suffix, minYear, maxYear) {
     // Convert 2-digit year to full year within expected range

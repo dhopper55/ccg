@@ -103,6 +103,11 @@ export function decodeCort(serial: string): DecodeResult {
     return decodeYearSequence7Digit(normalized);
   }
 
+  // Vintage 1990s 7-digit format: YYMMSSS (e.g. 9202539 = February 1992)
+  if (/^9\d{6}$/.test(normalized) && isValidMonthDigits(normalized.substring(2, 4))) {
+    return decodeVintage1990s7DigitYYMM(normalized);
+  }
+
   if (/^8\d{6}$/.test(normalized)) {
     return decode1980sKorean7Digit(normalized);
   }
@@ -666,6 +671,49 @@ function decodeYearSequence7Digit(serial: string): DecodeResult {
   };
 }
 
+function decodeVintage1990s7DigitYYMM(serial: string): DecodeResult {
+  const yearDigits = serial.substring(0, 2);
+  const monthDigits = serial.substring(2, 4);
+  const sequence = serial.substring(4);
+  const year = 1900 + parseInt(yearDigits, 10);
+  const month = parseInt(monthDigits, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Cort',
+    serialNumber: serial,
+    year: year.toString(),
+    month: getMonthName(month),
+    factory: 'Cort Korea (Incheon or Daejeon)',
+    country: 'South Korea',
+    notes: `Vintage 1990s Cort 7-digit YYMMSSS format. The first two digits (${yearDigits}) indicate production year ${year}; the next two digits (${monthDigits}) indicate ${getMonthName(month)}; the final three digits are production sequence ${parseInt(sequence, 10)}. Cort serials identify factory production timing, not the exact model name, so verify the model from headstock, label, or catalog details.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'cort-vintage-1990s-7-digit-yymm-sequence',
+    patternLabel: 'Cort vintage 1990s 7-digit YYMM sequence',
+    additionalContext: {
+      title: 'Cort vintage 1990s 7-digit serial',
+      summary: 'This serial matches a vintage Cort numeric format where the first four digits identify production year and month.',
+      highlights: [
+        `The first two digits ${yearDigits} decode as production year ${year}.`,
+        `The next two digits ${monthDigits} decode as ${getMonthName(month)}.`,
+        `The final digits decode as production sequence ${parseInt(sequence, 10)}.`,
+      ],
+      caveats: [
+        'Cort serials generally identify production timing, not exact model name or body shape.',
+        'Early-1990s Cort production was primarily South Korean, but physical markings remain the best confirmation.',
+      ],
+      verificationTips: [
+        'Check the headstock or label for a model name or country-of-origin marking.',
+        'Compare the instrument against early-1990s Cort catalog specs.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a vintage Cort 7-digit numeric format where the first four digits identify production year and month.</p><h3>How This Pattern Is Typically Read</h3><p>The first two digits ${yearDigits} decode as production year ${year}. The next two digits ${monthDigits} decode as ${getMonthName(month)}. The final digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Cort serials generally identify production timing, not the exact model name.</li><li>Early-1990s Cort production was primarily South Korean.</li><li>Confirm the exact model from the headstock, label, and catalog features.</li></ul>`,
+  };
+}
+
 function decode1980sKorean7Digit(serial: string): DecodeResult {
   const yearDigits = serial.substring(0, 2);
   const sequence = serial.substring(2);
@@ -706,6 +754,11 @@ function decode1980sKorean7Digit(serial: string): DecodeResult {
     },
     additionalContextRichText: `<h3>Overview</h3><p>This serial matches a legacy Korean Cort numeric format where the first two digits identify the production year.</p><h3>How This Pattern Is Typically Read</h3><p>The first two digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production or internal sequence ${parseInt(sequence, 10)}. Production is most likely South Korea for this era.</p><h3>What To Verify</h3><ul><li>Cort serial systems from the 1980s and early 1990s are less standardized than later formats.</li><li>The serial does not identify the exact Cort model name.</li><li>Check the headstock, soundhole label, neck heel, or other markings for model and country-of-origin details.</li></ul>`,
   };
+}
+
+function isValidMonthDigits(value: string): boolean {
+  const month = parseInt(value, 10);
+  return month >= 1 && month <= 12;
 }
 
 // 1990s 7-digit format: YMMXXXX

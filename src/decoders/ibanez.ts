@@ -105,6 +105,11 @@ export function decodeIbanez(serial: string): DecodeResult {
     return decodeFCHybrid(normalized);
   }
 
+  // Korea: SA + YYMM + 5-digit sequence (Saein factory)
+  if (/^SA\d{9}$/.test(normalized)) {
+    return decodeKoreaSaeinSAPrefix(normalized);
+  }
+
   // Korea: C/S/A/Y/P/R + 9 digits (2000-2008)
   if (/^[CSAYPR]\d{9}$/.test(normalized)) {
     return decodeKorea2000to2008(normalized);
@@ -722,6 +727,53 @@ function decodeFCHybrid(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+function decodeKoreaSaeinSAPrefix(serial: string): DecodeResult {
+  const yearDigits = serial.substring(2, 4);
+  const monthDigits = serial.substring(4, 6);
+  const sequence = serial.substring(6);
+  const year = 2000 + parseInt(yearDigits, 10);
+  const month = parseInt(monthDigits, 10);
+  const monthName = getMonthName(month);
+
+  const info: GuitarInfo = {
+    brand: 'Ibanez',
+    serialNumber: serial,
+    year: year.toString(),
+    month: monthName,
+    factory: 'Saein Musical Instrument Co., South Korea',
+    country: 'South Korea',
+    model: 'Korean-built Ibanez import',
+    notes: `SA-prefix Korean Ibanez format interpreted as Saein factory + YYMM + production sequence. SA indicates Saein Musical Instrument Co. and should not be confused with the Ibanez SA body series; ${yearDigits} indicates ${year}; ${monthDigits} indicates ${monthName}; ${sequence} is the production sequence. Model identity still requires headstock, label, and catalog verification.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'ibanez-korea-saein-sa-yymm-sequence',
+    patternLabel: 'Ibanez Korea Saein SA YYMM sequence',
+    additionalContext: {
+      title: 'Ibanez Saein Korea SA-prefix serial',
+      summary: 'This serial matches a modern Korean Ibanez SA-prefix format associated with Saein Musical Instrument Co.',
+      highlights: [
+        'SA indicates Saein Musical Instrument Co. in South Korea.',
+        `The digits ${yearDigits} decode as production year ${year}.`,
+        `The digits ${monthDigits} decode as ${monthName}.`,
+        `The remaining digits decode as production sequence ${sequence}.`,
+      ],
+      caveats: [
+        'The SA factory prefix is separate from the Ibanez SA guitar body series name.',
+        'The serial identifies factory/date/sequence, not the exact model name.',
+        'Korean Saein-built Ibanez examples from this era are often mid-tier or higher import models, but physical specs must confirm the model.',
+      ],
+      verificationTips: [
+        'Check the headstock, label, or back of headstock for Made in Korea markings.',
+        'Compare the guitar against 2015 Ibanez catalog specs for Artcore, acoustic-electric, or other Korean-built import lines.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern Korean Ibanez SA-prefix format associated with Saein Musical Instrument Co.</p><h3>How This Pattern Is Typically Read</h3><p>SA indicates Saein Musical Instrument Co. in South Korea. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} decode as ${monthName}. The remaining digits decode as production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>The SA factory prefix is separate from the Ibanez SA body series name.</li><li>The serial identifies factory, date, and sequence, not the exact model name.</li><li>Confirm the model from headstock, label, body shape, and 2015 catalog specs.</li></ul>`,
+  };
 }
 
 // Korea 2000-2008: Letter + 9 digits
@@ -1947,6 +1999,11 @@ function decodeLegacyNumericLate80s(serial: string): DecodeResult {
     return { success: true, info };
   }
 
+  const currentTwoDigitYear = new Date().getFullYear() % 100;
+  if (yy > currentTwoDigitYear && yy < 70) {
+    return decodeAmbiguousSixDigitNumericWithImpossibleYear(serial, yy);
+  }
+
   const sequence = serial.substring(2);
   const year = yy >= 70 ? 1900 + yy : 2000 + yy;
 
@@ -1960,6 +2017,49 @@ function decodeLegacyNumericLate80s(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+function decodeAmbiguousSixDigitNumericWithImpossibleYear(serial: string, yy: number): DecodeResult {
+  const sequence = serial.substring(2);
+  const possibleFujiGenSerial = `F${serial}`;
+  const possibleCortSerial = `C${serial}`;
+  const possibleMisread1991Serial = `9${serial.substring(1)}`;
+
+  const info: GuitarInfo = {
+    brand: 'Ibanez',
+    serialNumber: serial,
+    year: 'Unknown - likely missing prefix or misread digit',
+    factory: 'Unknown; check for missing FujiGen, Cort, or other factory prefix',
+    country: 'Japan / Korea / USA-linked assembly (ambiguous)',
+    notes: `Six-digit numeric Ibanez serial with leading digits ${yy}. A direct YY + sequence decode would point to 20${yy}, which is not valid for a current or vintage instrument. Treat this as an ambiguous numeric serial: if the serial is actually ${possibleFujiGenSerial}, it would indicate FujiGen Japan 1994; if it is ${possibleCortSerial}, it would indicate Cort Korea 1994. If the first digit is a misread 9, ${possibleMisread1991Serial} may point to a 1991-style numeric interpretation. Location matters: a metal neck plate may indicate a USA-linked late-1980s/early-1990s context, while a headstock stamp often suggests a missing factory prefix. Sequence portion as entered: ${sequence}.`
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'ibanez-ambiguous-6-digit-numeric-impossible-yy',
+    patternLabel: 'Ibanez ambiguous 6-digit numeric serial with impossible YY',
+    additionalContext: {
+      title: 'Ibanez ambiguous 6-digit numeric serial',
+      summary: 'This six-digit Ibanez serial is plausible as a stamped number, but the leading year digits do not produce a valid direct date.',
+      highlights: [
+        `Entered serial: ${serial}.`,
+        `Direct YY + sequence reading would imply 20${yy}, which should be treated as invalid.`,
+        `If a factory prefix was missed, ${possibleFujiGenSerial} would read as FujiGen Japan 1994 and ${possibleCortSerial} would read as Cort Korea 1994.`
+      ],
+      caveats: [
+        'Pure six-digit Ibanez numbers are highly dependent on where the number appears on the instrument.',
+        'A faded or missed factory letter prefix is common on older headstock stamps.',
+        'Metal neck-plate numbers can follow different USA-linked or assembly-era conventions.'
+      ],
+      verificationTips: [
+        'Recheck the serial under angled light for a faint leading letter such as F or C.',
+        'Confirm whether the number is on a metal neck joint plate or stamped on the back of the headstock.',
+        'Compare the model, bridge, headstock logo, and country markings against Ibanez catalog references.'
+      ]
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This six-digit Ibanez serial is plausible as a stamped number, but the leading digits ${yy} do not produce a valid direct YY + sequence date.</p><h3>How This Pattern Is Typically Read</h3><p>A direct decode would imply 20${yy}, which should be treated as invalid. If a factory prefix was missed, ${possibleFujiGenSerial} would indicate FujiGen Japan 1994, while ${possibleCortSerial} would indicate Cort Korea 1994. If the first digit was misread as 4 instead of 9, ${possibleMisread1991Serial} may fit a 1991-style numeric interpretation.</p><h3>What To Verify</h3><ul><li>Look closely for a faint or worn leading factory letter.</li><li>Check whether the serial is on a metal neck plate or stamped on the back of the headstock.</li><li>Use model features, country markings, and catalog specs to narrow the likely era.</li></ul>`
+  };
 }
 
 // Japan J-Custom 5-digit: YMXXX (2001-2004)

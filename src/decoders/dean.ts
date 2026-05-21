@@ -52,6 +52,11 @@ export function decodeDean(serial: string): DecodeResult {
     return decodeChinaZ(normalized);
   }
 
+  // Asian partner import line: A + YYMM + sequence
+  if (/^A\d{8}$/.test(normalized)) {
+    return decodeAsianPartnerA(normalized);
+  }
+
   // Indonesia: IW prefix
   if (/^IW\d{8,10}$/.test(normalized)) {
     return decodeIndonesiaIW(normalized);
@@ -310,6 +315,54 @@ function decodeChinaZ(serial: string): DecodeResult {
       ],
     },
     additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Z-prefix format seen on Chinese-made Dean imports.</p><h3>How This Pattern Is Typically Read</h3><p>The Z prefix is commonly associated with Chinese Dean import production. The first two digits after Z are treated as the production year, giving ${year}. The remaining digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Dean import serials can vary by factory and production run.</li><li>This decode identifies the likely country and year, not a complete authenticity guarantee.</li></ul><h3>Coal Creek Guitars Note</h3><p>Check for a Made in China marking, compare the guitar to Dean import specs from ${year}, and contact Dean support if exact dating is required.</p>`,
+  };
+}
+
+function decodeAsianPartnerA(serial: string): DecodeResult {
+  const digits = serial.substring(1);
+  const yearDigits = digits.substring(0, 2);
+  const monthDigits = digits.substring(2, 4);
+  const sequence = digits.substring(4);
+  const year = 2000 + parseInt(yearDigits, 10);
+  const month = parseInt(monthDigits, 10);
+  const monthName = month >= 1 && month <= 12 ? getMonthName(month) : undefined;
+
+  const info: GuitarInfo = {
+    brand: 'Dean',
+    serialNumber: serial,
+    year: year.toString(),
+    month: monthName,
+    factory: 'Asian partner import production line',
+    country: 'China or Indonesia',
+    notes: `A-prefix Dean import format interpreted as A + YYMM + production sequence. The A prefix identifies an Asian partner factory code; ${yearDigits} indicates ${year}; ${monthDigits} indicates ${monthName || 'an unverified month code'}; ${sequence} is the production sequence. Dean import serials identify production tracking more reliably than exact model identity, so verify the model from headstock markings and catalog specs.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'dean-asian-partner-a-yymm-sequence',
+    patternLabel: 'Dean Asian partner A-prefix YYMM sequence',
+    additionalContext: {
+      title: 'Dean A-prefix import serial',
+      summary: 'This serial matches an A-prefix Dean import format used by Asian manufacturing partners.',
+      highlights: [
+        'A is treated as an Asian partner factory code.',
+        `The digits ${yearDigits} decode as production year ${year}.`,
+        monthName ? `The digits ${monthDigits} decode as ${monthName}.` : `The digits ${monthDigits} are treated as a month or internal production code.`,
+        `The final digits decode as production sequence ${parseInt(sequence, 10)}.`,
+      ],
+      caveats: [
+        'Dean import prefix letters can vary by partner and production run.',
+        'This decode identifies likely production timing, not the exact model name.',
+        'Country should be confirmed from Made in China, Made in Indonesia, label, or headstock markings.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock and neck plate for country-of-origin markings.',
+        'Compare the guitar against 2007 Dean import specs such as Dimebag, EVO, Vendetta, and related import lines.',
+        'Contact Dean support with photos if exact factory confirmation is needed.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches an A-prefix Dean import format used by Asian manufacturing partners.</p><h3>How This Pattern Is Typically Read</h3><p>A is treated as an Asian partner factory code. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits}${monthName ? ` decode as ${monthName}` : ' are treated as a month or internal production code'}. The final digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Dean import prefix letters can vary by partner and production run.</li><li>This decode identifies likely production timing, not the exact model name.</li><li>Confirm country of origin from headstock, neck plate, label, or other physical markings.</li></ul>`,
   };
 }
 

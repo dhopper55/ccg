@@ -53,6 +53,10 @@ export function decodeWashburn(serial) {
     if (/^[A-Z]{1,2}\d{8,10}$/.test(normalized)) {
         return decodeLetterPrefix(normalized);
     }
+    // Late-1980s/1990s 10-digit tracking format: YYMM + 6-digit sequence
+    if (/^[89]\d{3}\d{6}$/.test(normalized)) {
+        return decodeLate80s90sNumeric10Digit(normalized);
+    }
     // Modern numeric: 8+ digits starting with year
     if (/^\d{8,12}$/.test(normalized)) {
         return decodeModernNumeric(normalized);
@@ -269,6 +273,48 @@ function decodeLetterPrefix(serial) {
         notes: `${notes} Sequence: ${sequence}.`,
     };
     return { success: true, info };
+}
+function decodeLate80s90sNumeric10Digit(serial) {
+    const yearDigits = serial.substring(0, 2);
+    const monthDigits = serial.substring(2, 4);
+    const sequence = serial.substring(4);
+    const year = 1900 + parseInt(yearDigits, 10);
+    const monthNum = parseInt(monthDigits, 10);
+    const month = monthNum >= 1 && monthNum <= 12 ? getMonthName(monthNum) : undefined;
+    const info = {
+        brand: 'Washburn',
+        serialNumber: serial,
+        year: year.toString(),
+        month,
+        factory: 'Washburn import tracking format; likely South Korea unless USA/custom-shop markings indicate otherwise',
+        country: 'South Korea or USA',
+        notes: `Late-1980s/1990s Washburn 10-digit numeric tracking format. The first two digits (${yearDigits}) indicate ${year}; the next two digits (${monthDigits})${month ? ` indicate ${month}` : ' are not a valid calendar month'}; ${sequence} is the production tracking sequence. This format identifies production timing, but the exact factory and model require label, headstock, or country-of-origin markings.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'washburn-1990s-10-digit-yymm-sequence',
+        patternLabel: 'Washburn 1990s 10-digit YYMM sequence',
+        additionalContext: {
+            title: 'Washburn 1990s 10-digit numeric serial',
+            summary: 'This serial matches a late-1980s/1990s Washburn numeric tracking format where the first four digits identify production year and month.',
+            highlights: [
+                `The first two digits ${yearDigits} decode as production year ${year}.`,
+                month ? `The next two digits ${monthDigits} decode as ${month}.` : `The next two digits ${monthDigits} are not a valid calendar month.`,
+                `The final six digits decode as tracking sequence ${sequence}.`,
+            ],
+            caveats: [
+                'Washburn used multiple factories and serial systems in this era.',
+                'The serial alone does not identify the exact model name or body shape.',
+                'South Korean import production was common in 1992, but USA/custom-shop markings should override that assumption.',
+            ],
+            verificationTips: [
+                'Check for Made in Korea, USA, or custom-shop markings on the headstock, label, or neck plate.',
+                'Compare the instrument against 1992 Washburn catalog models such as N-series, Mercury, or Festival-series instruments.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a late-1980s/1990s Washburn 10-digit numeric tracking format where the first four digits identify production year and month.</p><h3>How This Pattern Is Typically Read</h3><p>The first two digits ${yearDigits} decode as production year ${year}. The next two digits ${monthDigits}${month ? ` decode as ${month}` : ' are not a valid calendar month'}. The final six digits decode as tracking sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>Washburn used multiple factories and serial systems in this era.</li><li>The serial alone does not identify the exact model name or body shape.</li><li>Check country-of-origin, custom-shop, headstock, and label markings to separate Korean import production from USA production.</li></ul>`,
+    };
 }
 // Modern numeric format (8+ digits)
 function decodeModernNumeric(serial) {

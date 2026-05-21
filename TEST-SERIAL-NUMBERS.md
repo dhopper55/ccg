@@ -12,6 +12,7 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | C03071234 | Korea (Cort), 2003, July |
 | C8016949 | Korea (Cort), 1998, January (7-digit Korean 1990s variant: C + YMM + sequence) |
 | R060300616 | Korea (Peerless), 2006, March |
+| SA150105051 | Korea (Saein SA prefix), 2015, January |
 | SQ08E06597 | Saehan acoustic SQ month-letter format, 2008, May (SQ + YY + month letter + sequence) |
 | I120426682 | Indonesia, 2012, April |
 | B160100231 | Month-letter format, 2016, **February** (B=Feb; not a factory code) |
@@ -66,6 +67,7 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | 881865 | Legacy late-80s numeric format, 1988 (YY + sequence; USA-linked assembly/Japan parts context) |
 | 041195 | 6-digit numeric YYMMSS format, primary: 2004 November, alt vintage read: 1994 November |
 | 402989 | 6-digit pre-letter numeric YMMNNN format, primary: 1974 February, alt read: 1984 February |
+| 414159 | Ambiguous 6-digit numeric format; likely missing prefix or misread digit |
 | F912345 | Japan F/H/I format, 1989, April |
 | A12345 | Sugi / J-Custom 5-digit format |
 | IG123456 | IGDC format |
@@ -91,6 +93,8 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | 02345678 | 2000 |
 | 12345678 | 2001 |
 | 115100123 | 9-digit Gibson format, 2010 |
+| CS403228 | Gibson Custom Shop CS-prefix, 2004 or 2014 estimate |
+| CS 403228 | Gibson Custom Shop CS-prefix with optional space |
 | 123456 | 6-digit 1970s Gibson format |
 | 12345 | Vintage Gibson, approximate 1950s-1960s |
 
@@ -199,11 +203,14 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | SS1209210 | ESP Custom Shop Tokyo, 2012, February |
 | E1234162 | ESP Japan, 2016, Signatures Series |
 | ES1234173 | E-II Japan, 2017 |
+| E035054 | Ambiguous E-prefix 6-digit ESP-owned format: E-II Japan 2014 or LTD Korea 2000 |
+| ED0903516 | Edwards by ESP, Japan domestic market, 2009 |
 | K1507501 | Kiso Factory Japan, 2015, February |
 | K1234 | Kirk Hammett signature, 1993-1994 |
 | US15123 | ESP USA California, 2015 |
 | 25055012 | Pre-2000 Japan, May 25, 1985 or 1995 |
 | W21051234 | LTD Korea, 2021, May |
+| W120061141 | LTD Korea WMI, 2012, week 00 / early January run |
 | L21031234 | LTD China, 2021, March |
 | IR21051234 | LTD Indonesia, 2021, May |
 | I21051234 | LTD Vietnam, 2021, May |
@@ -286,6 +293,7 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | i50311 | Short I-prefix import estimate: likely 2005, March (I + Y + MM + sequence; factory unresolved) |
 | 36642 | USA neck-through 5-digit with known serial drift, estimated 1982-1983 (apparent code often reads later) |
 | A08240023 | Month/factory code format, January 2024, World Korea |
+| C301288 | Hanser-era Korean import single-letter calendar month format, March 2003 |
 | F812345 | Import F-series, 1998 |
 | BO123 | Bolt-on B0/BO format, 2000 |
 | 12112345 | 8-digit date-stamp numeric format, 2001 |
@@ -336,6 +344,7 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | 2108123456 | Korea/Indonesia/China, 2021, August (9-digit modern format) |
 | 7064381 | Korea, 1997, June (7-digit 1990s format) |
 | 9121234 | Korea, 1999, December (7-digit 1990s format) |
+| 9202539 | Korea, 1992, February (7-digit YYMMSSS vintage format) |
 | IC09123456 | Indonesia (Cort), 2009 |
 | ICS10123456 | Indonesia (Cort FSR), 2010 |
 | ICF09123456 | Indonesia (Cort, Fender branded), 2009 |
@@ -374,6 +383,7 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | N02040258 | Asia (N prefix), 2002, April |
 | OC04049724 | Asia (OC prefix), 2004, April |
 | 94031234 | 1994, March (8-digit numeric) |
+| 9212000236 | 1992, December (10-digit YYMM + tracking sequence) |
 | 8901827 | 1989 (7-digit format) |
 | 830421 | 1983 (6-digit format, 1980s) |
 | 12345 | 1970s-early 1980s (short format) |
@@ -386,6 +396,8 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | US14061234 | UnSung Korea, 2014, June |
 | WK17081234 | World Korea (new), 2017, August |
 | Y10031234 | YooJin China, 2010, March |
+| A07043194 | Asian partner import A-prefix, 2007, April |
+| a10091499 | Asian partner import A-prefix, 2010, September |
 | E805978 | Korean import E-prefix, 1998 or 2008 (estimated) |
 | E010001 | World Korea (old), 2001 |
 | E14051234 | World Korea (old), 2014 |
