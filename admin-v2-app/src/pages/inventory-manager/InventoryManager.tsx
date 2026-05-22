@@ -49,7 +49,7 @@ type InventoryRecord = {
   isPersonal?: boolean;
   forSale?: boolean;
   isSold?: boolean;
-  purchasePrice?: number | null;
+  unitPurchasePrice?: number | null;
   privatePartyValue?: number | null;
   soldAmount?: number | null;
   createdAt?: string | null;
@@ -534,7 +534,7 @@ const InventoryManager = () => {
                 direction={sortBy === 'paid' ? sortDir : 'asc'}
                 onClick={() => handleSort('paid')}
               >
-                Paid $
+                Unit Cost
               </TableSortLabel>
             </TableCell>
             <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
@@ -700,7 +700,7 @@ const InventoryManager = () => {
                     </Link>
                   </Stack>
                 </TableCell>
-                <TableCell align="right">{formatCurrency(record.purchasePrice)}</TableCell>
+                <TableCell align="right">{formatCurrency(record.unitPurchasePrice)}</TableCell>
                 <TableCell align="right">{formatCurrency(record.privatePartyValue)}</TableCell>
                 <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>{formatAddDate(record.createdAt)}</TableCell>
               </TableRow>
@@ -821,7 +821,7 @@ const InventoryManager = () => {
                 </Box>
               </Stack>
               <Stack direction="row" sx={{ gap: 2, flexWrap: 'wrap' }}>
-                <Typography variant="body2">Paid: {formatCurrency(record.purchasePrice)}</Typography>
+                <Typography variant="body2">Unit cost: {formatCurrency(record.unitPurchasePrice)}</Typography>
                 <Typography variant="body2">
                   Private: {formatCurrency(record.privatePartyValue)}
                 </Typography>

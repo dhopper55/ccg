@@ -2763,7 +2763,7 @@ type InventoryItemRow = {
   bullet_6_highlight: number | null;
   barcode: string | null;
   purchased_date: string | null;
-  purchase_price: number | null;
+  unit_purchase_price: number | null;
   private_party_value: number | null;
   miles: number | null;
   minutes_spent: number | null;
@@ -2855,7 +2855,7 @@ type AdminV2RecentSaleRow = {
   category: string | null;
   brand: string | null;
   soldDate: string | null;
-  purchasePrice: number;
+  unitPurchasePrice: number;
   soldAmount: number;
   profitAmount: number;
   daysHeld: number | null;
@@ -2870,7 +2870,7 @@ type AdminV2OldestInventoryRow = {
   brand: string | null;
   purchasedDate: string | null;
   daysHeld: number | null;
-  purchasePrice: number;
+  unitPurchasePrice: number;
   privatePartyValue: number;
   currentAskingValue: number;
   forSale: boolean;
@@ -2893,6 +2893,13 @@ type InventoryCategoryNode = {
   path: string;
   children: InventoryCategoryNode[];
 };
+
+const INVENTORY_UNIT_COST_BASIS_SQL = `COALESCE(i.unit_purchase_price, 0) *
+        CASE
+          WHEN COALESCE(i.quantity, 0) > 0 THEN COALESCE(i.quantity, 0)
+          WHEN COALESCE(i.is_sold, 0) = 1 THEN 1
+          ELSE 0
+        END`;
 
 type ShopProductRow = {
   id: number;
@@ -6225,8 +6232,8 @@ async function handleAdminV2InventoryMergeMarked(env: Env): Promise<Response> {
     return jsonResponse({ message: 'Marked items did not contain usable images.' }, 400);
   }
 
-  const purchasePriceTotal = activeUnsoldMarkedRows.reduce(
-    (sum, row) => sum + (Number.isFinite(row.purchase_price) ? Number(row.purchase_price) : 0),
+  const unitPurchasePriceTotal = activeUnsoldMarkedRows.reduce(
+    (sum, row) => sum + getInventoryRowCostBasis(row),
     0,
   );
   const privatePartyValueTotal = activeUnsoldMarkedRows.reduce(
@@ -6286,7 +6293,7 @@ async function handleAdminV2InventoryMergeMarked(env: Env): Promise<Response> {
     bullet_6_highlight: 0,
     barcode: null,
     purchased_date: currentDateYmd(),
-    purchase_price: purchasePriceTotal,
+    unit_purchase_price: unitPurchasePriceTotal,
     private_party_value: privatePartyValueTotal,
     miles: 0,
     minutes_spent: 0,
@@ -6373,7 +6380,7 @@ async function handleInventoryPackageCreate(env: Env): Promise<Response> {
     return jsonResponse({ message: 'Marked items did not contain usable images.' }, 400);
   }
 
-  const purchasePriceTotal = markedRows.reduce((sum, row) => sum + (Number.isFinite(row.purchase_price) ? Number(row.purchase_price) : 0), 0);
+  const unitPurchasePriceTotal = markedRows.reduce((sum, row) => sum + getInventoryRowCostBasis(row), 0);
   const privatePartyValueTotal = markedRows.reduce((sum, row) => sum + (Number.isFinite(row.private_party_value) ? Number(row.private_party_value) : 0), 0);
   const purchaseNotes = buildPackagePurchaseNotes(markedRows);
 
@@ -6428,7 +6435,7 @@ async function handleInventoryPackageCreate(env: Env): Promise<Response> {
     bullet_6_highlight: 0,
     barcode: null,
     purchased_date: currentDateYmd(),
-    purchase_price: purchasePriceTotal,
+    unit_purchase_price: unitPurchasePriceTotal,
     private_party_value: privatePartyValueTotal,
     miles: 0,
     minutes_spent: 0,
@@ -6548,7 +6555,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const barcodeInput = rawBarcode ? normalizeRequiredInventoryBarcode(rawBarcode) : { value: '', message: null };
   let barcode = barcodeInput.value;
   const purchasedDate = normalizeInventoryDate(body.purchasedDate) || currentDateYmd();
-  const purchasePrice = parseCurrencyAmount(body.purchasePrice);
+  const unitPurchasePrice = parseCurrencyAmount(body.unitPurchasePrice);
   const privatePartyValue = parseCurrencyAmount(body.privatePartyValue) ?? 0;
   const miles = parseBoundedInt(body.miles, 0, 0, 1_000_000);
   const minutesSpent = parseBoundedInt(body.minutesSpent, 0, 0, 1_000_000);
@@ -6650,7 +6657,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     model: model || null,
     finish: finish || null,
     purchased_date: purchasedDate,
-    purchase_price: purchasePrice,
+    unit_purchase_price: unitPurchasePrice,
   }, env);
   if (duplicate) {
     return jsonResponse({
@@ -6710,7 +6717,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     bullet_6_highlight: bullet6Highlight ? 1 : 0,
     barcode: barcode || null,
     purchased_date: purchasedDate,
-    purchase_price: purchasePrice,
+    unit_purchase_price: unitPurchasePrice,
     private_party_value: privatePartyValue,
     miles,
     minutes_spent: minutesSpent,
@@ -6901,7 +6908,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const barcodeInput = normalizeRequiredInventoryBarcode(body.barcode);
   const barcode = barcodeInput.value;
   const purchasedDate = normalizeInventoryDate(body.purchasedDate);
-  const purchasePrice = parseCurrencyAmount(body.purchasePrice);
+  const unitPurchasePrice = parseCurrencyAmount(body.unitPurchasePrice);
   const privatePartyValue = parseCurrencyAmount(body.privatePartyValue) ?? 0;
   const miles = parseBoundedInt(body.miles, 0, 0, 1_000_000);
   const minutesSpent = parseBoundedInt(body.minutesSpent, 0, 0, 1_000_000);
@@ -7048,7 +7055,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       repair_notes: repairNotes || null,
       original_listing_desc: originalListingDesc || null,
       purchased_date: purchasedDate,
-      purchase_price: purchasePrice,
+      unit_purchase_price: unitPurchasePrice,
       private_party_value: privatePartyValue,
       miles,
       minutes_spent: minutesSpent,
@@ -7158,7 +7165,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       bullet_6_highlight: bullet6Highlight ? 1 : 0,
       barcode: barcode || null,
       purchased_date: purchasedDate,
-      purchase_price: purchasePrice,
+      unit_purchase_price: unitPurchasePrice,
       private_party_value: privatePartyValue,
       miles,
       minutes_spent: minutesSpent,
@@ -7201,7 +7208,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       repair_notes: repairNotes || null,
       original_listing_desc: originalListingDesc || null,
       purchased_date: purchasedDate,
-      purchase_price: purchasePrice,
+      unit_purchase_price: unitPurchasePrice,
       private_party_value: privatePartyValue,
       miles,
       minutes_spent: minutesSpent,
@@ -7306,7 +7313,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     repair_notes: repairNotes || null,
     original_listing_desc: originalListingDesc || null,
     purchased_date: purchasedDate,
-    purchase_price: purchasePrice,
+    unit_purchase_price: unitPurchasePrice,
     private_party_value: privatePartyValue,
     miles,
     minutes_spent: minutesSpent,
@@ -8521,7 +8528,7 @@ function mapInventoryRow(
     saleDescription: row.sale_description || '',
     barcode: row.barcode || '',
     purchasedDate: row.purchased_date || '',
-    purchasePrice: row.purchase_price,
+    unitPurchasePrice: row.unit_purchase_price,
     privatePartyValue: row.private_party_value,
     miles: Number(row.miles || 0),
     minutesSpent: Number(row.minutes_spent || 0),
@@ -8658,7 +8665,7 @@ function inventoryOrderBySql(sortBy: InventorySortKey, sortDir: InventorySortDir
     case 'ccgNumber':
       return `LOWER(i.ccg_number) ${dir}, LOWER(i.title) ASC, i.id DESC`;
     case 'paid':
-      return `CASE WHEN i.purchase_price IS NULL THEN 1 ELSE 0 END ASC, COALESCE(i.purchase_price, 0) ${dir}, LOWER(i.title) ASC, i.id DESC`;
+      return `CASE WHEN i.unit_purchase_price IS NULL THEN 1 ELSE 0 END ASC, COALESCE(i.unit_purchase_price, 0) ${dir}, LOWER(i.title) ASC, i.id DESC`;
     case 'private':
       return `CASE WHEN i.private_party_value IS NULL THEN 1 ELSE 0 END ASC, COALESCE(i.private_party_value, 0) ${dir}, LOWER(i.title) ASC, i.id DESC`;
     case 'soldPrice':
@@ -8754,7 +8761,7 @@ async function dbListInventoryItems(
        i.sale_description,
        i.barcode,
        i.purchased_date,
-       i.purchase_price,
+       i.unit_purchase_price,
        i.private_party_value,
        i.miles,
        i.minutes_spent,
@@ -8860,7 +8867,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.bullet_6_highlight,
       i.barcode,
       i.purchased_date,
-      i.purchase_price,
+      i.unit_purchase_price,
       i.private_party_value,
       i.miles,
       i.minutes_spent,
@@ -8953,7 +8960,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     bullet6Highlight: Boolean(row.bullet_6_highlight),
     barcode: row.barcode || '',
     purchasedDate: row.purchased_date || '',
-    purchasePrice: row.purchase_price,
+    unitPurchasePrice: row.unit_purchase_price,
     privatePartyValue: row.private_party_value,
     miles: Number(row.miles || 0),
     minutesSpent: Number(row.minutes_spent || 0),
@@ -9038,7 +9045,7 @@ async function dbFindRecentDuplicateInventoryCreate(
     model: string | null;
     finish: string | null;
     purchased_date: string;
-    purchase_price: number | null;
+    unit_purchase_price: number | null;
   },
   env: Env
 ): Promise<{ id: number; ccg_number: string } | null> {
@@ -9062,7 +9069,7 @@ async function dbFindRecentDuplicateInventoryCreate(
        AND IFNULL(model, '') = ?
        AND IFNULL(finish, '') = ?
        AND purchased_date = ?
-       AND ((purchase_price IS NULL AND ? IS NULL) OR purchase_price = ?)
+       AND ((unit_purchase_price IS NULL AND ? IS NULL) OR unit_purchase_price = ?)
        AND created_at >= datetime('now', '-2 minutes')
      ORDER BY id DESC
      LIMIT 1`
@@ -9077,8 +9084,8 @@ async function dbFindRecentDuplicateInventoryCreate(
     fields.model || '',
     fields.finish || '',
     fields.purchased_date,
-    fields.purchase_price,
-    fields.purchase_price,
+    fields.unit_purchase_price,
+    fields.unit_purchase_price,
   ).first<{ id: number; ccg_number: string }>();
   return row || null;
 }
@@ -10572,8 +10579,11 @@ async function dbUnwindRefundedOrderInventory(
 
     const purchasedQuantity = Math.max(1, item.quantity);
     const currentQuantity = Math.max(0, Number(row.quantity ?? 0));
-    const wasPartialSale = Number(row.is_sold || 0) === 0 && currentQuantity > 0;
-    const restoredQuantity = currentQuantity + purchasedQuantity;
+    const rowIsSold = Number(row.is_sold || 0) === 1;
+    const wasPartialSale = !rowIsSold && currentQuantity > 0;
+    const restoredQuantity = rowIsSold
+      ? Math.max(currentQuantity, purchasedQuantity)
+      : currentQuantity + purchasedQuantity;
     const columns = await dbGetTableColumns('ccg_inventory_items', env);
     const columnNames = new Set(columns.map((column) => column.name));
     const values = new Map<string, unknown>([
@@ -10699,6 +10709,7 @@ async function dbApplyPaidInventoryItemAdjustment(
 
   await dbUpdateOriginalInventoryAfterFullSale(
     item.inventoryItemId,
+    purchasedQuantity,
     orderId,
     soldAmount,
     soldDate,
@@ -10732,6 +10743,7 @@ async function dbUpdateOriginalInventoryAfterPartialSale(
 
 async function dbUpdateOriginalInventoryAfterFullSale(
   inventoryItemId: number,
+  soldQuantity: number,
   orderId: string,
   soldAmount: number,
   soldDate: string,
@@ -10743,7 +10755,7 @@ async function dbUpdateOriginalInventoryAfterFullSale(
   const paidChannel = getPaidInventoryChannel(session);
   const paidNote = getPaidInventorySellNote(session);
   const values = new Map<string, unknown>([
-    ['quantity', 0],
+    ['quantity', soldQuantity],
     ['is_sold', 1],
     ['for_sale', 0],
     ['availability_status', 'sold'],
@@ -11048,7 +11060,7 @@ async function dbCreateInventoryItems(
     bullet_6_highlight: number;
     barcode: string | null;
     purchased_date: string;
-    purchase_price: number | null;
+    unit_purchase_price: number | null;
     private_party_value: number;
     miles: number;
     minutes_spent: number;
@@ -11093,7 +11105,7 @@ async function dbCreateInventoryItems(
         bullet_5_text, bullet_5_danger, bullet_5_highlight,
         bullet_6_text, bullet_6_danger, bullet_6_highlight,
         barcode,
-        purchased_date, purchase_price, private_party_value, miles, minutes_spent, ship_cost, purchase_notes, ai_analysis_text, serial_number,
+        purchased_date, unit_purchase_price, private_party_value, miles, minutes_spent, ship_cost, purchase_notes, ai_analysis_text, serial_number,
         weight_lbs, neck_profile, neck_thickness, nut_width, width_12_fret, fretboard_radius, twelve_fret_action,
         is_active, is_marked, is_personal, is_rented, for_sale, only_in_store, for_sale_date,
         is_sold, sold_date, sold_amount, sell_notes, sale_url, sale_zip
@@ -11143,7 +11155,7 @@ async function dbCreateInventoryItems(
       fields.bullet_6_highlight,
       fields.barcode,
       fields.purchased_date,
-      fields.purchase_price,
+      fields.unit_purchase_price,
       fields.private_party_value,
       fields.miles,
       fields.minutes_spent,
@@ -11198,7 +11210,7 @@ async function dbUpdateInventoryById(
     repair_notes: string | null;
     original_listing_desc: string | null;
     purchased_date: string;
-    purchase_price: number | null;
+    unit_purchase_price: number | null;
     private_party_value: number;
     miles: number;
     minutes_spent: number;
@@ -11267,7 +11279,7 @@ async function dbUpdateInventoryById(
        SET
          image_url = ?, image_urls = ?, title = ?, quantity = ?, category_id = ?, secondary_category_id = ?,
          brand = ?, queue = ?, year_range = ?, model = ?, finish = ?,
-         repair_notes = ?, original_listing_desc = ?, purchased_date = ?, purchase_price = ?,
+         repair_notes = ?, original_listing_desc = ?, purchased_date = ?, unit_purchase_price = ?,
          private_party_value = ?, miles = ?, minutes_spent = ?, ship_cost = ?, purchase_notes = ?, ai_analysis_text = ?, serial_number = ?,
          weight_lbs = ?, neck_profile = ?, neck_thickness = ?, nut_width = ?, width_12_fret = ?,
          fretboard_radius = ?, twelve_fret_action = ?, storage_location = ?,
@@ -11300,7 +11312,7 @@ async function dbUpdateInventoryById(
       fields.repair_notes,
       fields.original_listing_desc,
       fields.purchased_date,
-      fields.purchase_price,
+      fields.unit_purchase_price,
       fields.private_party_value,
       fields.miles,
       fields.minutes_spent,
@@ -11445,7 +11457,7 @@ async function dbListMarkedInventoryRowsForPackage(env: Env): Promise<InventoryI
       i.finish,
       i.original_listing_desc,
       i.purchased_date,
-      i.purchase_price,
+      i.unit_purchase_price,
       i.private_party_value,
       i.purchase_notes,
       i.serial_number,
@@ -11666,12 +11678,12 @@ async function dbGetInventorySummary(env: Env): Promise<InventorySummaryTotals> 
     `SELECT
       COALESCE(SUM(CASE WHEN i.is_active = 1 THEN l.price_asking ELSE 0 END), 0) AS total_listed,
       COALESCE(SUM(CASE WHEN i.is_sold = 1 THEN i.sold_amount ELSE 0 END), 0) AS total_sold,
-      COALESCE(SUM(i.purchase_price), 0) AS total_purchased,
-      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 0 THEN COALESCE(i.purchase_price, 0) ELSE 0 END), 0) AS ccg_paid_unsold,
+      COALESCE(SUM(${INVENTORY_UNIT_COST_BASIS_SQL}), 0) AS total_purchased,
+      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 0 THEN ${INVENTORY_UNIT_COST_BASIS_SQL} ELSE 0 END), 0) AS ccg_paid_unsold,
       COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 0 THEN COALESCE(i.private_party_value, 0) ELSE 0 END), 0) AS ccg_private_party_unsold,
-      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 1 AND COALESCE(i.is_personal, 0) = 0 THEN COALESCE(i.purchase_price, 0) ELSE 0 END), 0) AS ccg_sold_paid,
+      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 1 AND COALESCE(i.is_personal, 0) = 0 THEN ${INVENTORY_UNIT_COST_BASIS_SQL} ELSE 0 END), 0) AS ccg_sold_paid,
       COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 1 AND COALESCE(i.is_personal, 0) = 0 THEN COALESCE(i.private_party_value, 0) ELSE 0 END), 0) AS ccg_sold_private_party,
-      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 1 AND COALESCE(i.is_personal, 0) = 0 THEN (COALESCE(i.sold_amount, 0) - COALESCE(i.purchase_price, 0)) ELSE 0 END), 0) AS ccg_sold_profit_amount,
+      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 1 AND COALESCE(i.is_personal, 0) = 0 THEN (COALESCE(i.sold_amount, 0) - (${INVENTORY_UNIT_COST_BASIS_SQL})) ELSE 0 END), 0) AS ccg_sold_profit_amount,
       COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 1 AND COALESCE(i.is_personal, 0) = 0 THEN COALESCE(i.sold_amount, 0) ELSE 0 END), 0) AS ccg_sold_amount_total,
       COALESCE(SUM(CASE WHEN i.is_active = 1 THEN 1 ELSE 0 END), 0) AS ccg_active_items,
       COALESCE(SUM(CASE WHEN i.is_active = 1 AND COALESCE(i.for_sale, 0) = 0 THEN 1 ELSE 0 END), 0) AS ccg_not_for_sale_items,
@@ -11724,7 +11736,7 @@ async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2DashboardS
       COALESCE(SUM(
         CASE
           WHEN i.is_active = 1 AND COALESCE(i.is_sold, 0) = 0 AND COALESCE(i.for_sale, 0) = 1
-            THEN COALESCE(l.price_asking, i.private_party_value, i.purchase_price, 0)
+            THEN COALESCE(l.price_asking, i.private_party_value, (${INVENTORY_UNIT_COST_BASIS_SQL}), 0)
           ELSE 0
         END
       ), 0) AS current_asking_value,
@@ -11733,7 +11745,7 @@ async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2DashboardS
           WHEN COALESCE(i.is_sold, 0) = 1
             AND i.sold_date IS NOT NULL
             AND i.sold_date >= date('now', 'start of month')
-            THEN COALESCE(i.sold_amount, 0) - COALESCE(i.purchase_price, 0)
+            THEN COALESCE(i.sold_amount, 0) - (${INVENTORY_UNIT_COST_BASIS_SQL})
           ELSE 0
         END
       ), 0) AS realized_profit_mtd,
@@ -11742,7 +11754,7 @@ async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2DashboardS
           WHEN COALESCE(i.is_sold, 0) = 1
             AND i.sold_date IS NOT NULL
             AND i.sold_date >= date('now', '-30 days')
-            THEN COALESCE(i.sold_amount, 0) - COALESCE(i.purchase_price, 0)
+            THEN COALESCE(i.sold_amount, 0) - (${INVENTORY_UNIT_COST_BASIS_SQL})
           ELSE 0
         END
       ), 0) AS sold_profit_30d,
@@ -11760,7 +11772,7 @@ async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2DashboardS
           WHEN COALESCE(i.is_sold, 0) = 1
             AND i.sold_date IS NOT NULL
             AND i.sold_date >= date('now', '-60 days')
-            THEN COALESCE(i.sold_amount, 0) - COALESCE(i.purchase_price, 0)
+            THEN COALESCE(i.sold_amount, 0) - (${INVENTORY_UNIT_COST_BASIS_SQL})
           ELSE 0
         END
       ), 0) AS sold_profit_60d,
@@ -11778,7 +11790,7 @@ async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2DashboardS
           WHEN COALESCE(i.is_sold, 0) = 1
             AND i.sold_date IS NOT NULL
             AND i.sold_date >= date('now', '-90 days')
-            THEN COALESCE(i.sold_amount, 0) - COALESCE(i.purchase_price, 0)
+            THEN COALESCE(i.sold_amount, 0) - (${INVENTORY_UNIT_COST_BASIS_SQL})
           ELSE 0
         END
       ), 0) AS sold_profit_90d,
@@ -11796,7 +11808,7 @@ async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2DashboardS
           WHEN COALESCE(i.is_sold, 0) = 1
             AND i.sold_date IS NOT NULL
             AND i.sold_date >= date('2026-06-01')
-            THEN COALESCE(i.sold_amount, 0) - COALESCE(i.purchase_price, 0)
+            THEN COALESCE(i.sold_amount, 0) - (${INVENTORY_UNIT_COST_BASIS_SQL})
           ELSE 0
         END
       ), 0) AS post_store_launch_profit,
@@ -11865,8 +11877,8 @@ async function dbGetAdminV2ProfitTrend(months: number, env: Env): Promise<AdminV
       strftime('%Y-%m', i.sold_date) AS month_key,
       COUNT(*) AS sold_count,
       COALESCE(SUM(i.sold_amount), 0) AS revenue,
-      COALESCE(SUM(i.purchase_price), 0) AS cost,
-      COALESCE(SUM(COALESCE(i.sold_amount, 0) - COALESCE(i.purchase_price, 0)), 0) AS profit
+      COALESCE(SUM(${INVENTORY_UNIT_COST_BASIS_SQL}), 0) AS cost,
+      COALESCE(SUM(COALESCE(i.sold_amount, 0) - (${INVENTORY_UNIT_COST_BASIS_SQL})), 0) AS profit
      FROM ccg_inventory_items i
      WHERE COALESCE(i.is_sold, 0) = 1
        AND COALESCE(i.is_personal, 0) = 0
@@ -11933,9 +11945,9 @@ async function dbGetAdminV2InventoryAging(env: Env): Promise<AdminV2InventoryAgi
         ELSE '90+'
       END AS bucket_key,
       COUNT(*) AS item_count,
-      COALESCE(SUM(COALESCE(i.purchase_price, 0)), 0) AS cost_basis,
+      COALESCE(SUM(${INVENTORY_UNIT_COST_BASIS_SQL}), 0) AS cost_basis,
       COALESCE(SUM(COALESCE(i.private_party_value, 0)), 0) AS private_party_value,
-      COALESCE(SUM(COALESCE(l.price_asking, i.private_party_value, i.purchase_price, 0)), 0) AS current_asking_value
+      COALESCE(SUM(COALESCE(l.price_asking, i.private_party_value, (${INVENTORY_UNIT_COST_BASIS_SQL}), 0)), 0) AS current_asking_value
      FROM ccg_inventory_items i
      LEFT JOIN listings l ON l.id = i.source_listing_id
      WHERE i.is_active = 1
@@ -12024,9 +12036,9 @@ async function dbGetAdminV2RecentSales(limit: number, env: Env): Promise<AdminV2
       END AS category,
       i.brand,
       i.sold_date,
-      i.purchase_price,
+      i.unit_purchase_price,
       i.sold_amount,
-      (COALESCE(i.sold_amount, 0) - COALESCE(i.purchase_price, 0)) AS profit_amount,
+      (COALESCE(i.sold_amount, 0) - (${INVENTORY_UNIT_COST_BASIS_SQL})) AS profit_amount,
       CASE
         WHEN i.purchased_date IS NOT NULL AND i.sold_date IS NOT NULL
           THEN CAST(julianday(i.sold_date) - julianday(i.purchased_date) AS INTEGER)
@@ -12047,7 +12059,7 @@ async function dbGetAdminV2RecentSales(limit: number, env: Env): Promise<AdminV2
     category: string | null;
     brand: string | null;
     sold_date: string | null;
-    purchase_price: number | null;
+    unit_purchase_price: number | null;
     sold_amount: number | null;
     profit_amount: number | null;
     days_held: number | null;
@@ -12061,7 +12073,7 @@ async function dbGetAdminV2RecentSales(limit: number, env: Env): Promise<AdminV2
     category: row.category,
     brand: row.brand,
     soldDate: row.sold_date,
-    purchasePrice: Number(row.purchase_price || 0),
+    unitPurchasePrice: Number(row.unit_purchase_price || 0),
     soldAmount: Number(row.sold_amount || 0),
     profitAmount: Number(row.profit_amount || 0),
     daysHeld: row.days_held == null ? null : Number(row.days_held),
@@ -12087,9 +12099,9 @@ async function dbGetAdminV2OldestInventory(limit: number, env: Env): Promise<Adm
           THEN CAST(julianday('now') - julianday(i.purchased_date) AS INTEGER)
         ELSE NULL
       END AS days_held,
-      i.purchase_price,
+      i.unit_purchase_price,
       i.private_party_value,
-      COALESCE(l.price_asking, i.private_party_value, i.purchase_price, 0) AS current_asking_value,
+      COALESCE(l.price_asking, i.private_party_value, (${INVENTORY_UNIT_COST_BASIS_SQL}), 0) AS current_asking_value,
       COALESCE(i.for_sale, 0) AS for_sale,
       l.source AS source
      FROM ccg_inventory_items i
@@ -12113,7 +12125,7 @@ async function dbGetAdminV2OldestInventory(limit: number, env: Env): Promise<Adm
     brand: string | null;
     purchased_date: string | null;
     days_held: number | null;
-    purchase_price: number | null;
+    unit_purchase_price: number | null;
     private_party_value: number | null;
     current_asking_value: number | null;
     for_sale: number | null;
@@ -12129,7 +12141,7 @@ async function dbGetAdminV2OldestInventory(limit: number, env: Env): Promise<Adm
     brand: row.brand,
     purchasedDate: row.purchased_date,
     daysHeld: row.days_held == null ? null : Number(row.days_held),
-    purchasePrice: Number(row.purchase_price || 0),
+    unitPurchasePrice: Number(row.unit_purchase_price || 0),
     privatePartyValue: Number(row.private_party_value || 0),
     currentAskingValue: Number(row.current_asking_value || 0),
     forSale: Number(row.for_sale || 0) === 1,
@@ -15854,6 +15866,18 @@ function formatOptionalMoneyForPackageNotes(value: number | null): string {
   return `$${Math.round(value).toLocaleString('en-US')}`;
 }
 
+function getInventoryRowCostBasis(row: Pick<InventoryItemRow, 'unit_purchase_price' | 'quantity' | 'is_sold'>): number {
+  const unitCost = Number(row.unit_purchase_price);
+  if (!Number.isFinite(unitCost)) return 0;
+  const quantity = Number(row.quantity);
+  const costQuantity = Number.isFinite(quantity) && quantity > 0
+    ? quantity
+    : Number(row.is_sold || 0) === 1
+      ? 1
+      : 0;
+  return unitCost * costQuantity;
+}
+
 function buildPackagePurchaseNotes(rows: InventoryItemRow[]): string {
   const separator = '------------------------';
   const sections: string[] = [];
@@ -15875,7 +15899,7 @@ function buildPackagePurchaseNotes(rows: InventoryItemRow[]): string {
 
     const valuesLine = [
       formatDateForPackageNotes(row.purchased_date),
-      formatOptionalMoneyForPackageNotes(row.purchase_price),
+      formatOptionalMoneyForPackageNotes(row.unit_purchase_price),
       formatOptionalMoneyForPackageNotes(row.private_party_value),
     ].filter(Boolean).join(' - ');
     if (valuesLine) lines.push(valuesLine);
@@ -15960,7 +15984,7 @@ function selectMergePackageImageEntries(
 
 function buildMergedPackagePurchaseNotes(rows: InventoryItemRow[]): string {
   return rows.map((row, index) => {
-    const paid = formatOptionalMoneyForPackageNotes(row.purchase_price) || '$0';
+    const unitCost = formatOptionalMoneyForPackageNotes(row.unit_purchase_price) || '$0';
     const privateParty = formatOptionalMoneyForPackageNotes(row.private_party_value) || '$0';
     const itemLines = [
       `${index + 1}. ${normalizeText(row.ccg_number, 'N/A')} | ${normalizeText(row.title, 'Untitled')}`,
@@ -15969,7 +15993,7 @@ function buildMergedPackagePurchaseNotes(rows: InventoryItemRow[]): string {
       `Year: ${normalizeText(row.year_range, '') || 'N/A'}`,
       `Model: ${normalizeText(row.model, '') || 'N/A'}`,
       `Finish: ${normalizeText(row.finish, '') || 'N/A'}`,
-      `How Much Paid: ${paid}`,
+      `Unit Cost: ${unitCost}`,
       `Private Party Value: ${privateParty}`,
       `Serial Number: ${normalizeText(row.serial_number, '') || 'N/A'}`,
       `Repair Notes: ${normalizeText(row.repair_notes, '') || 'N/A'}`,

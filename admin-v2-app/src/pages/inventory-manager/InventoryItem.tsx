@@ -81,7 +81,7 @@ type InventoryItemRecord = {
   originalListingDesc?: string;
   purchasedDate?: string;
   quantity?: number | null;
-  purchasePrice?: number | null;
+  unitPurchasePrice?: number | null;
   privatePartyValue?: number | null;
   miles?: number | null;
   minutesSpent?: number | null;
@@ -184,7 +184,7 @@ type FormState = {
   repairNotes: string;
   originalListingDesc: string;
   purchasedDate: string;
-  purchasePrice: string;
+  unitPurchasePrice: string;
   privatePartyValue: string;
   miles: string;
   minutesSpent: string;
@@ -381,7 +381,7 @@ const DEFAULT_FORM: FormState = {
   repairNotes: '',
   originalListingDesc: '',
   purchasedDate: todayYmd(),
-  purchasePrice: '',
+  unitPurchasePrice: '',
   privatePartyValue: '0',
   miles: '0',
   minutesSpent: '0',
@@ -960,7 +960,7 @@ const InventoryItem = () => {
   }, [aiAnalysisDialogOpen, aiAnalysisDraft]);
 
   const profitTargetRows = useMemo(() => {
-    const paid = parseTagPrice(form.purchasePrice);
+    const paid = parseTagPrice(form.unitPurchasePrice);
     const margins = [0.2, 0.3, 0.35, 0.4];
 
     return margins.map((margin) => {
@@ -970,7 +970,7 @@ const InventoryItem = () => {
         value: baseTarget != null ? baseTarget * 1.03 : null,
       };
     });
-  }, [form.purchasePrice]);
+  }, [form.unitPurchasePrice]);
 
   const setAiAnalysisEditorNode = useCallback((node: HTMLDivElement | null) => {
     aiAnalysisEditorRef.current = node;
@@ -1107,8 +1107,8 @@ const InventoryItem = () => {
             repairNotes: record.repairNotes || '',
             originalListingDesc: record.originalListingDesc || '',
             purchasedDate: record.purchasedDate || todayYmd(),
-            purchasePrice:
-              record.purchasePrice != null ? String(record.purchasePrice) : '',
+            unitPurchasePrice:
+              record.unitPurchasePrice != null ? String(record.unitPurchasePrice) : '',
             privatePartyValue:
               record.privatePartyValue != null ? String(record.privatePartyValue) : '0',
             miles: record.miles != null ? String(record.miles) : '0',
@@ -1399,7 +1399,7 @@ const InventoryItem = () => {
     repairNotes: form.repairNotes.trim(),
     originalListingDesc: form.originalListingDesc.trim(),
     purchasedDate: form.purchasedDate.trim(),
-    purchasePrice: form.purchasePrice.trim(),
+    unitPurchasePrice: form.unitPurchasePrice.trim(),
     privatePartyValue: form.privatePartyValue.trim() || '0',
     miles: form.miles.trim() || '0',
     minutesSpent: form.minutesSpent.trim() || '0',
@@ -2338,10 +2338,10 @@ const InventoryItem = () => {
               <Grid size={{ xs: 12, md: 2.4 }}>
                 <TextField
                   fullWidth
-                  label="How Much Paid? ($)"
+                  label="Unit Cost ($)"
                   type="number"
-                  value={form.purchasePrice}
-                  onChange={(event) => setField('purchasePrice', event.target.value)}
+                  value={form.unitPurchasePrice}
+                  onChange={(event) => setField('unitPurchasePrice', event.target.value)}
                   inputProps={{ min: 0, step: 0.01 }}
                   InputProps={{
                     endAdornment: (

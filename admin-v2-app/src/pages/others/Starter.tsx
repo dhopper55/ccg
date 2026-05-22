@@ -96,7 +96,7 @@ type RecentSaleRow = {
   title: string;
   imageUrl: string;
   soldDate: string | null;
-  purchasePrice: number;
+  unitPurchasePrice: number;
   soldAmount: number;
   profitAmount: number;
   daysHeld: number | null;
@@ -113,7 +113,7 @@ type OldestInventoryRow = {
   imageUrl: string;
   purchasedDate: string | null;
   daysHeld: number | null;
-  purchasePrice: number;
+  unitPurchasePrice: number;
   currentAskingValue: number;
   forSale: boolean;
   source: string | null;
@@ -879,7 +879,7 @@ const Starter = () => {
                             </Stack>
                           </TableCell>
                           <TableCell>{sourceLabel(row.source)}</TableCell>
-                          <TableCell align="right">{formatCurrency(row.purchasePrice)}</TableCell>
+                          <TableCell align="right">{formatCurrency(row.unitPurchasePrice)}</TableCell>
                           <TableCell>
                             <Chip
                               label={row.forSale ? 'For sale' : 'Held'}
