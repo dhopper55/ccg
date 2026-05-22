@@ -663,6 +663,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/inventory/next-ccg-number' && request.method === 'GET') {
+      const response = await handleInventoryNextCcgNumber(env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/admin-v2/dashboard/summary' && request.method === 'GET') {
       const response = await handleAdminV2DashboardSummary(env);
       return withCors(response, request, env);
@@ -3091,6 +3096,14 @@ async function handleInventoryList(request: Request, env: Env): Promise<Response
 async function handleInventorySummary(env: Env): Promise<Response> {
   const totals = await dbGetInventorySummary(env);
   return jsonResponse(totals);
+}
+
+async function handleInventoryNextCcgNumber(env: Env): Promise<Response> {
+  const ccgNumber = await generateUniqueCcgNumber(env);
+  if (!ccgNumber) {
+    return jsonResponse({ message: 'Unable to generate CCG Number. Please try again.' }, 500);
+  }
+  return jsonResponse({ ccgNumber });
 }
 
 async function handleAdminV2InventoryCategories(env: Env): Promise<Response> {
@@ -6483,6 +6496,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   }
 
   const sourceListingId = parseOptionalPositiveInt(body.sourceListingId);
+  const requestedCcgNumber = normalizeText(body.ccgNumber, '').toUpperCase();
   const imageUrl = normalizeText(body.imageUrl, '');
   const imageEntriesInput = normalizeInventoryImageEntries(imageUrl, body.images, body.imageUrls);
   const title = normalizeText(body.title, '').slice(0, 240);
@@ -6608,7 +6622,14 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     }, 400);
   }
 
-  const ccgNumber = await generateUniqueCcgNumber(env);
+  if (requestedCcgNumber && !/^CCG-\d{6}$/.test(requestedCcgNumber)) {
+    return jsonResponse({ message: 'CCG Number must use the CCG-###### format.' }, 400);
+  }
+  if (requestedCcgNumber && await dbCcgNumberExists(requestedCcgNumber, env)) {
+    return jsonResponse({ message: `CCG Number ${requestedCcgNumber} is already in use.` }, 400);
+  }
+
+  const ccgNumber = requestedCcgNumber || await generateUniqueCcgNumber(env);
   if (!ccgNumber) {
     return jsonResponse({ message: 'Unable to generate CCG Number. Please try again.' }, 500);
   }

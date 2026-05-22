@@ -139,6 +139,11 @@ type SaveResponse = {
   duplicateSuppressed?: boolean;
 };
 
+type NextCcgNumberResponse = {
+  ccgNumber?: string;
+  message?: string;
+};
+
 type FormState = {
   ccgNumber: string;
   quantity: number;
@@ -319,6 +324,21 @@ function normalizeImages(images: InventoryImageRecord[]): InventoryImageRecord[]
   }
 
   return normalized;
+}
+
+function getSavableCcgNumber(value: string): string {
+  const normalized = value.trim().toUpperCase();
+  return /^CCG-\d{6}$/.test(normalized) ? normalized : '';
+}
+
+function createDuplicateSaleUrlSlug(value: string): string {
+  const slug = sanitizeSaleUrlSlug(value);
+  if (!slug) return '';
+  const match = slug.match(/^(.*?)-(\d+)$/);
+  if (match) {
+    return `${match[1]}-${Number(match[2]) + 1}`;
+  }
+  return `${slug}-2`;
 }
 
 const DEFAULT_FORM: FormState = {
@@ -921,6 +941,8 @@ const InventoryItem = () => {
   const [profitTargetsOpen, setProfitTargetsOpen] = useState(false);
   const [wasSoldOnLoad, setWasSoldOnLoad] = useState(false);
   const [soldConfirmOpen, setSoldConfirmOpen] = useState(false);
+  const [duplicateConfirmOpen, setDuplicateConfirmOpen] = useState(false);
+  const [isDuplicating, setIsDuplicating] = useState(false);
   const [categoryOptions, setCategoryOptions] = useState<InventoryCategoryOption[]>([]);
   const [subscriptionOptions, setSubscriptionOptions] = useState<Array<{ id: string; name: string }>>([]);
 
@@ -1254,6 +1276,47 @@ const InventoryItem = () => {
     setMessage(null);
   };
 
+  const handleConfirmDuplicate = async () => {
+    if (mode !== 'edit' || isDuplicating) return;
+
+    setIsDuplicating(true);
+    setMessage(null);
+    try {
+      const response = await fetch('/api/inventory/next-ccg-number', {
+        method: 'GET',
+        credentials: 'same-origin',
+      });
+      const data = (await response.json().catch(() => ({}))) as NextCcgNumberResponse;
+      if (!response.ok || !data.ccgNumber) {
+        throw new Error(data.message || 'Unable to generate CCG Number.');
+      }
+
+      setEditId(null);
+      setSourceListingId(null);
+      setSourceImageUrl(null);
+      setWasSoldOnLoad(false);
+      wasForSaleOnLoadRef.current = false;
+      setSaleUrlReadOnly(Boolean(form.saleUrl.trim()));
+      setForm((current) => ({
+        ...current,
+        ccgNumber: data.ccgNumber || DEFAULT_FORM.ccgNumber,
+        saleUrl: createDuplicateSaleUrlSlug(current.saleUrl),
+      }));
+      setImages((current) => normalizeImages(
+        current.map((image) => ({ url: image.url, isPrivate: image.isPrivate })),
+      ));
+      setDuplicateConfirmOpen(false);
+      navigate(paths.inventoryItem, { replace: true });
+      enqueueSnackbar('Duplicate draft opened. Review and save when ready.', { variant: 'success' });
+    } catch (error) {
+      const text = error instanceof Error ? error.message : 'Unable to duplicate inventory item.';
+      setMessage({ severity: 'error', text });
+      enqueueSnackbar(text, { variant: 'error' });
+    } finally {
+      setIsDuplicating(false);
+    }
+  };
+
   const handleSaleTitleFocus = () => {
     saleTitleWasEmptyOnFocusRef.current = !form.saleTitle.trim();
   };
@@ -1294,6 +1357,7 @@ const InventoryItem = () => {
 
   const createSavePayload = (nextImages: InventoryImageRecord[]) => ({
     sourceListingId,
+    ccgNumber: getSavableCcgNumber(form.ccgNumber),
     quantity: form.quantity,
     imageUrl: nextImages[0]?.url,
     imageUrls: nextImages.map((image) => image.url),
@@ -1824,12 +1888,37 @@ const InventoryItem = () => {
           <Stack spacing={4}>
             <Grid container spacing={3}>
               <Grid size={{ xs: 12, md: 6 }}>
-                <TextField
-                  fullWidth
-                  label="CCG Number"
-                  value={form.ccgNumber}
-                  InputProps={{ readOnly: true }}
-                />
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                  {mode === 'edit' ? (
+                    <Tooltip title="Duplicate">
+                      <IconButton
+                        aria-label="Duplicate"
+                        onClick={() => setDuplicateConfirmOpen(true)}
+                        disabled={isSubmitting || isDuplicating}
+                        sx={{
+                          width: 44,
+                          height: 44,
+                          border: 1,
+                          borderColor: 'divider',
+                          bgcolor: 'background.elevation1',
+                          color: 'text.primary',
+                          flexShrink: 0,
+                          '&:hover': {
+                            bgcolor: 'background.elevation2',
+                          },
+                        }}
+                      >
+                        <IconifyIcon icon="material-symbols:content-copy-outline-rounded" fontSize={20} />
+                      </IconButton>
+                    </Tooltip>
+                  ) : null}
+                  <TextField
+                    fullWidth
+                    label="CCG Number"
+                    value={form.ccgNumber}
+                    InputProps={{ readOnly: true }}
+                  />
+                </Stack>
               </Grid>
               <Grid size={{ xs: 12, md: 3 }}>
                 <TextField
@@ -3118,6 +3207,26 @@ const InventoryItem = () => {
           <Button onClick={() => setSoldConfirmOpen(false)}>Cancel</Button>
           <Button onClick={() => doSubmit()} color="error" variant="contained">
             Mark Sold & Save
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={duplicateConfirmOpen} onClose={() => !isDuplicating && setDuplicateConfirmOpen(false)}>
+        <DialogTitle>Duplicate product</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to duplicate this product?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDuplicateConfirmOpen(false)} disabled={isDuplicating}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => void handleConfirmDuplicate()}
+            variant="contained"
+            disabled={isDuplicating}
+          >
+            {isDuplicating ? 'Duplicating...' : 'Yes'}
           </Button>
         </DialogActions>
       </Dialog>
