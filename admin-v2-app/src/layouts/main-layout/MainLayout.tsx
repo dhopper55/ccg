@@ -52,6 +52,7 @@ const MainLayout = ({ children }: PropsWithChildren) => {
   const renderNavItem = (item: SubMenuItem, level = 0) => {
     const hasChildren = Boolean(item.items?.length);
     const isActive = isItemActive(item);
+    const isSelfActive = pathname === item.path || Boolean(item.selectionPrefix && pathname.includes(item.selectionPrefix));
     const isOpen = openItems.includes(item.pathName);
 
     return (
@@ -66,7 +67,7 @@ const MainLayout = ({ children }: PropsWithChildren) => {
               setMobileNavOpen(false);
             }
           }}
-          selected={isActive}
+          selected={hasChildren ? isSelfActive : isActive}
           sx={{
             minHeight: 48,
             borderRadius: 2,

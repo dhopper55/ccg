@@ -92,6 +92,12 @@ function parseMoney(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function rootUrl(path: string): string {
+  if (/^https?:\/\//i.test(path)) return path;
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${window.location.origin}${normalizedPath}`;
+}
+
 const MfrOrders = () => {
   const { enqueueSnackbar } = useSnackbar();
   const [orders, setOrders] = useState<MfrOrder[]>([]);
@@ -198,7 +204,7 @@ const MfrOrders = () => {
   const handleDeleteFile = async (file: MfrOrderFile) => {
     if (!window.confirm(`Delete ${file.fileName}?`)) return;
     try {
-      const response = await fetch(file.url, {
+      const response = await fetch(rootUrl(file.url), {
         method: 'DELETE',
         credentials: 'same-origin',
       });
@@ -452,7 +458,7 @@ const MfrOrders = () => {
                 <Paper key={file.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
                   <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
                     <Box sx={{ minWidth: 0 }}>
-                      <Link href={file.url} target="_blank" rel="noreferrer" variant="subtitle2" sx={{ fontWeight: 700 }}>
+                      <Link href={rootUrl(file.url)} target="_blank" rel="noreferrer" variant="subtitle2" sx={{ fontWeight: 700 }}>
                         {file.fileName}
                       </Link>
                       <Typography variant="caption" display="block" sx={{ color: 'text.secondary' }}>
