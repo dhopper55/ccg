@@ -18,6 +18,7 @@ import InventoryCategoryManager from 'pages/inventory-manager/InventoryCategoryM
 import InventoryLabels from 'pages/inventory-manager/InventoryLabels';
 import OrderManager from 'pages/order-manager/OrderManager';
 import OrderManagerItem from 'pages/order-manager/OrderManagerItem';
+import MfrOrders from 'pages/mfr-orders/MfrOrders';
 import PaymentLinks from 'pages/payment-links/PaymentLinks';
 import SerialDecodes from 'pages/serial-decodes/SerialDecodes';
 import SerialPatternText from 'pages/serial-pattern-text/SerialPatternText';
@@ -75,6 +76,10 @@ export const routes: RouteObject[] = [
           {
             path: paths.orderManager,
             element: <OrderManager />,
+          },
+          {
+            path: paths.mfrOrders,
+            element: <MfrOrders />,
           },
           {
             path: paths.paymentLinks,

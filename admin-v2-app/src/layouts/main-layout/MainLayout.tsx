@@ -1,7 +1,8 @@
-import { PropsWithChildren, useMemo, useState } from 'react';
+import { PropsWithChildren, useEffect, useMemo, useState } from 'react';
 import { NavLink, useLocation } from 'react-router';
 import {
   Box,
+  Collapse,
   Divider,
   IconButton,
   List,
@@ -17,15 +18,127 @@ import Logo from 'components/common/Logo';
 import NotificationMenu from 'layouts/main-layout/common/NotificationMenu';
 import ProfileMenu from 'layouts/main-layout/common/ProfileMenu';
 import SearchDropdown from 'layouts/main-layout/common/SearchDropdown';
-import sitemap from 'routes/sitemap';
+import sitemap, { SubMenuItem } from 'routes/sitemap';
 
 const SIDEBAR_WIDTH = 280;
 
 const MainLayout = ({ children }: PropsWithChildren) => {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [openItems, setOpenItems] = useState<string[]>([]);
   const { pathname } = useLocation();
 
   const navItems = useMemo(() => sitemap.flatMap((section) => section.items), []);
+  const isItemActive = (item: SubMenuItem): boolean => (
+    pathname === item.path
+    || Boolean(item.selectionPrefix && pathname.includes(item.selectionPrefix))
+    || Boolean(item.items?.some(isItemActive))
+  );
+
+  useEffect(() => {
+    const activeParents = navItems
+      .filter((item) => item.items?.some(isItemActive))
+      .map((item) => item.pathName);
+    setOpenItems((current) => Array.from(new Set([...current, ...activeParents])));
+  }, [pathname, navItems]);
+
+  const toggleItem = (pathName: string) => {
+    setOpenItems((current) => (
+      current.includes(pathName)
+        ? current.filter((item) => item !== pathName)
+        : [...current, pathName]
+    ));
+  };
+
+  const renderNavItem = (item: SubMenuItem, level = 0) => {
+    const hasChildren = Boolean(item.items?.length);
+    const isActive = isItemActive(item);
+    const isOpen = openItems.includes(item.pathName);
+
+    return (
+      <Box key={item.pathName}>
+        <ListItemButton
+          component={hasChildren || !item.path ? 'div' : NavLink}
+          to={!hasChildren && item.path ? item.path : undefined}
+          onClick={() => {
+            if (hasChildren) {
+              toggleItem(item.pathName);
+            } else {
+              setMobileNavOpen(false);
+            }
+          }}
+          selected={isActive}
+          sx={{
+            minHeight: 48,
+            borderRadius: 2,
+            px: 1.5,
+            pl: 1.5 + level * 2.5,
+            '&.active': {
+              bgcolor: 'primary.dark',
+              color: 'common.black',
+              '& .MuiListItemIcon-root': {
+                color: 'common.black',
+              },
+              '& .MuiListItemText-primary': {
+                color: 'common.black',
+              },
+            },
+            '&:hover': {
+              bgcolor: 'primary.dark',
+              color: 'common.black',
+              '& .MuiListItemIcon-root': {
+                color: 'common.black',
+              },
+              '& .MuiListItemText-primary': {
+                color: 'common.black',
+              },
+            },
+            '&.Mui-selected': {
+              bgcolor: 'primary.dark',
+              color: 'common.black',
+              '& .MuiListItemIcon-root': {
+                color: 'common.black',
+              },
+              '& .MuiListItemText-primary': {
+                color: 'common.black',
+              },
+              '&:hover': {
+                bgcolor: 'primary.dark',
+                color: 'common.black',
+              },
+            },
+          }}
+        >
+          <ListItemIcon sx={{ minWidth: 32, color: 'inherit' }}>
+            <IconifyIcon icon={item.icon || 'material-symbols:circle-outline'} />
+          </ListItemIcon>
+          <ListItemText
+            primary={item.name}
+            primaryTypographyProps={{
+              fontSize: level === 0 ? 16 : 14,
+              fontWeight: level === 0 ? 500 : 400,
+            }}
+          />
+          {hasChildren ? (
+            <IconifyIcon
+              icon="material-symbols:expand-more-rounded"
+              sx={{
+                fontSize: 20,
+                transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 180ms ease',
+              }}
+            />
+          ) : null}
+        </ListItemButton>
+        {hasChildren ? (
+          <Collapse in={isOpen} timeout="auto" unmountOnExit>
+            <List dense disablePadding sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 0.5 }}>
+              {item.items?.map((child) => renderNavItem(child, level + 1))}
+            </List>
+          </Collapse>
+        ) : null}
+      </Box>
+    );
+  };
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -69,73 +182,7 @@ const MainLayout = ({ children }: PropsWithChildren) => {
         <Divider />
         <Box sx={{ flex: 1, overflowY: 'auto', px: 1.5, py: 3 }}>
           <List dense sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            {navItems.map((item) => {
-              const isDisabled = item.path === '#';
-              const isActive =
-                !isDisabled &&
-                (pathname === item.path ||
-                  (item.selectionPrefix && pathname.includes(item.selectionPrefix)));
-
-              return (
-                <ListItemButton
-                  key={item.pathName}
-                  component={isDisabled ? 'div' : NavLink}
-                  to={isDisabled ? undefined : item.path}
-                  onClick={() => setMobileNavOpen(false)}
-                  selected={isActive}
-                  sx={{
-                    minHeight: 48,
-                    borderRadius: 2,
-                    px: 1.5,
-                    '&.active': {
-                      bgcolor: 'primary.dark',
-                      color: 'common.black',
-                      '& .MuiListItemIcon-root': {
-                        color: 'common.black',
-                      },
-                      '& .MuiListItemText-primary': {
-                        color: 'common.black',
-                      },
-                    },
-                    '&:hover': {
-                      bgcolor: 'primary.dark',
-                      color: 'common.black',
-                      '& .MuiListItemIcon-root': {
-                        color: 'common.black',
-                      },
-                      '& .MuiListItemText-primary': {
-                        color: 'common.black',
-                      },
-                    },
-                    '&.Mui-selected': {
-                      bgcolor: 'primary.dark',
-                      color: 'common.black',
-                      '& .MuiListItemIcon-root': {
-                        color: 'common.black',
-                      },
-                      '& .MuiListItemText-primary': {
-                        color: 'common.black',
-                      },
-                      '&:hover': {
-                        bgcolor: 'primary.dark',
-                        color: 'common.black',
-                      },
-                    },
-                  }}
-                >
-                  <ListItemIcon sx={{ minWidth: 32, color: 'inherit' }}>
-                    <IconifyIcon icon={item.icon || 'material-symbols:circle-outline'} />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={item.name}
-                    primaryTypographyProps={{
-                      fontSize: 16,
-                      fontWeight: 500,
-                    }}
-                  />
-                </ListItemButton>
-              );
-            })}
+            {navItems.map((item) => renderNavItem(item))}
           </List>
         </Box>
       </Box>

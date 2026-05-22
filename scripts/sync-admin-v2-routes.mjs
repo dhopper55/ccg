@@ -14,6 +14,7 @@ const routeDirs = [
   'inventory-labels',
   'order-manager',
   'order-manager-item',
+  'mfr-orders',
   'payment-links',
   'listing-evaluator',
   'listing-evaluator-results',
