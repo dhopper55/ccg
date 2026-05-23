@@ -64,6 +64,12 @@ const PrimarySearchBox = () => {
     navigate(getProductUrl(product));
   }, [getProductUrl, handleSelect, navigate]);
 
+  const navigateToSearchResults = useCallback((searchQuery: string) => {
+    const params = new URLSearchParams({ search: searchQuery });
+    handleSelect();
+    navigate(`${paths.products}?${params.toString()}`);
+  }, [handleSelect, navigate]);
+
   const fetchSearchResults = useCallback(async (
     searchQuery: string,
     signal?: AbortSignal,
@@ -145,8 +151,7 @@ const PrimarySearchBox = () => {
           redirectToProduct(data.barcodeMatch);
           return;
         }
-        setResults(Array.isArray(data.records) ? data.records.slice(0, 10) : []);
-        setIsOpen(true);
+        navigateToSearchResults(trimmedQuery);
       })
       .catch(() => {
         if (!abortController.signal.aborted) {

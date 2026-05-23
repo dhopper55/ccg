@@ -21,7 +21,7 @@ import { slugifyCategory } from 'lib/utils';
 import FilterDrawer from 'components/sections/ecommerce/customer/products/FilterDrawer';
 import ProductsProvider from 'components/sections/ecommerce/customer/products/providers/ProductsProvider';
 import IconifyIcon from 'components/base/IconifyIcon';
-import { ProductFilterOptions } from 'types/ecommerce';
+import { FilterOption, ProductFilterOptions } from 'types/ecommerce';
 
 type ShopProduct = {
   id: string;
@@ -107,6 +107,11 @@ const Products = () => {
       price: [0, Math.max(maxPrice, 1)],
     };
   }, [categories, maxPrice]);
+  const categoryOptions = filterOptions.category ?? [];
+  const effectiveCategoryIds = useMemo(
+    () => getEffectiveCategoryIds(categoryOptions, selectedCategoryIds || []),
+    [categoryOptions, selectedCategoryIds],
+  );
 
   useEffect(() => {
     if (!didInitializePriceRange.current && maxPrice > 0) {
@@ -159,7 +164,7 @@ const Products = () => {
         if (searchTerm) {
           params.set('search', searchTerm);
         }
-        for (const categoryId of selectedCategoryIds || []) {
+        for (const categoryId of effectiveCategoryIds) {
           params.append('categoryIds', categoryId);
         }
 
@@ -177,7 +182,7 @@ const Products = () => {
         if (cancelled) return;
         const records = Array.isArray(data.records) ? data.records : [];
         setAllProducts(records);
-        if (maxPrice === 0 && (!selectedCategoryIds || selectedCategoryIds.length === 0)) {
+        if (maxPrice === 0 && effectiveCategoryIds.length === 0) {
           setMaxPrice(getHighestProductPrice(records));
         }
         setPage(1);
@@ -189,7 +194,7 @@ const Products = () => {
     };
     void load();
     return () => { cancelled = true; };
-  }, [isAssociateMode, isCheckingAssociateMode, maxPrice, priceRange, searchTerm, selectedCategoryIds]);
+  }, [effectiveCategoryIds, isAssociateMode, isCheckingAssociateMode, maxPrice, priceRange, searchTerm]);
 
   const totalPages = Math.max(1, Math.ceil(allProducts.length / PAGE_SIZE));
   const visibleProducts = allProducts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -283,13 +288,19 @@ const Products = () => {
   );
 };
 
-function flattenCategoryOptions(nodes: ShopCategoryNode[], depth = 0): { label: string; value: string }[] {
+function flattenCategoryOptions(
+  nodes: ShopCategoryNode[],
+  parentId: string | null = null,
+  depth = 0,
+): FilterOption[] {
   return nodes.flatMap((node) => [
     {
-      label: node.path || `${depth > 0 ? `${'  '.repeat(depth)}- ` : ''}${node.name}`,
+      label: node.name,
       value: String(node.id),
+      parentId,
+      depth,
     },
-    ...flattenCategoryOptions(Array.isArray(node.children) ? node.children : [], depth + 1),
+    ...flattenCategoryOptions(Array.isArray(node.children) ? node.children : [], String(node.id), depth + 1),
   ]);
 }
 
@@ -302,6 +313,18 @@ function flattenCategoryNodes(nodes: ShopCategoryNode[]): ShopCategoryNode[] {
 
 function normalizeCategoryQuery(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function getEffectiveCategoryIds(categoryOptions: FilterOption[], selectedCategoryIds: string[]): string[] {
+  const selected = selectedCategoryIds.filter(Boolean);
+  if (selected.length === 0) return [];
+
+  const childIds = selected.filter((value) => categoryOptions.some((option) => (
+    option.value === value && Boolean(option.parentId)
+  )));
+  if (childIds.length > 0) return childIds;
+
+  return selected.slice(0, 1);
 }
 
 function getHighestProductPrice(products: ShopProduct[]): number {

@@ -1,5 +1,6 @@
 import { Divider, Stack } from '@mui/material';
 import { ProductFilterOptions } from 'types/ecommerce';
+import CategoryFilterSection from './CategoryFilterSection';
 import FilterSection from './FilterSection';
 import PriceFilterSection from './PriceFilterSection';
 
@@ -30,7 +31,7 @@ const FilterPanel = ({ filterOptions }: FilterPanelProps) => {
         />
       )}
       {filterOptions.category && (
-        <FilterSection
+        <CategoryFilterSection
           defaultOpen
           title="Category"
           options={filterOptions.category}

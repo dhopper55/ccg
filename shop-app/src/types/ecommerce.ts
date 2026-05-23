@@ -264,6 +264,8 @@ export interface InvoiceListAdmin extends OrderListAdmin {
 export interface FilterOption {
   label: string;
   value: string;
+  parentId?: string | null;
+  depth?: number;
 }
 export interface ProductFilterOptions {
   availability?: FilterOption[];
