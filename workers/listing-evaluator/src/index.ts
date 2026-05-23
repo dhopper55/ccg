@@ -2818,6 +2818,7 @@ type InventoryItemRow = {
   barcode: string | null;
   purchased_date: string | null;
   unit_purchase_price: number | null;
+  map_price: number | null;
   private_party_value: number | null;
   miles: number | null;
   minutes_spent: number | null;
@@ -6622,6 +6623,7 @@ async function handleAdminV2InventoryMergeMarked(env: Env): Promise<Response> {
     barcode: null,
     purchased_date: currentDateYmd(),
     unit_purchase_price: unitPurchasePriceTotal,
+    map_price: null,
     private_party_value: privatePartyValueTotal,
     miles: 0,
     minutes_spent: 0,
@@ -6764,6 +6766,7 @@ async function handleInventoryPackageCreate(env: Env): Promise<Response> {
     barcode: null,
     purchased_date: currentDateYmd(),
     unit_purchase_price: unitPurchasePriceTotal,
+    map_price: null,
     private_party_value: privatePartyValueTotal,
     miles: 0,
     minutes_spent: 0,
@@ -6884,6 +6887,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   let barcode = barcodeInput.value;
   const purchasedDate = normalizeInventoryDate(body.purchasedDate) || currentDateYmd();
   const unitPurchasePrice = parseCurrencyAmount(body.unitPurchasePrice);
+  const mapPrice = parseCurrencyAmount(body.mapPrice);
   const privatePartyValue = parseCurrencyAmount(body.privatePartyValue) ?? 0;
   const miles = parseBoundedInt(body.miles, 0, 0, 1_000_000);
   const minutesSpent = parseBoundedInt(body.minutesSpent, 0, 0, 1_000_000);
@@ -7046,6 +7050,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     barcode: barcode || null,
     purchased_date: purchasedDate,
     unit_purchase_price: unitPurchasePrice,
+    map_price: mapPrice,
     private_party_value: privatePartyValue,
     miles,
     minutes_spent: minutesSpent,
@@ -7237,6 +7242,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const barcode = barcodeInput.value;
   const purchasedDate = normalizeInventoryDate(body.purchasedDate);
   const unitPurchasePrice = parseCurrencyAmount(body.unitPurchasePrice);
+  const mapPrice = parseCurrencyAmount(body.mapPrice);
   const privatePartyValue = parseCurrencyAmount(body.privatePartyValue) ?? 0;
   const miles = parseBoundedInt(body.miles, 0, 0, 1_000_000);
   const minutesSpent = parseBoundedInt(body.minutesSpent, 0, 0, 1_000_000);
@@ -7384,6 +7390,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       original_listing_desc: originalListingDesc || null,
       purchased_date: purchasedDate,
       unit_purchase_price: unitPurchasePrice,
+      map_price: mapPrice,
       private_party_value: privatePartyValue,
       miles,
       minutes_spent: minutesSpent,
@@ -7494,6 +7501,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       barcode: barcode || null,
       purchased_date: purchasedDate,
       unit_purchase_price: unitPurchasePrice,
+      map_price: mapPrice,
       private_party_value: privatePartyValue,
       miles,
       minutes_spent: minutesSpent,
@@ -7537,6 +7545,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       original_listing_desc: originalListingDesc || null,
       purchased_date: purchasedDate,
       unit_purchase_price: unitPurchasePrice,
+      map_price: mapPrice,
       private_party_value: privatePartyValue,
       miles,
       minutes_spent: minutesSpent,
@@ -7642,6 +7651,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     original_listing_desc: originalListingDesc || null,
     purchased_date: purchasedDate,
     unit_purchase_price: unitPurchasePrice,
+    map_price: mapPrice,
     private_party_value: privatePartyValue,
     miles,
     minutes_spent: minutesSpent,
@@ -8857,6 +8867,7 @@ function mapInventoryRow(
     barcode: row.barcode || '',
     purchasedDate: row.purchased_date || '',
     unitPurchasePrice: row.unit_purchase_price,
+    mapPrice: row.map_price,
     privatePartyValue: row.private_party_value,
     miles: Number(row.miles || 0),
     minutesSpent: Number(row.minutes_spent || 0),
@@ -9090,6 +9101,7 @@ async function dbListInventoryItems(
        i.barcode,
        i.purchased_date,
        i.unit_purchase_price,
+       i.map_price,
        i.private_party_value,
        i.miles,
        i.minutes_spent,
@@ -9196,6 +9208,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.barcode,
       i.purchased_date,
       i.unit_purchase_price,
+      i.map_price,
       i.private_party_value,
       i.miles,
       i.minutes_spent,
@@ -9289,6 +9302,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     barcode: row.barcode || '',
     purchasedDate: row.purchased_date || '',
     unitPurchasePrice: row.unit_purchase_price,
+    mapPrice: row.map_price,
     privatePartyValue: row.private_party_value,
     miles: Number(row.miles || 0),
     minutesSpent: Number(row.minutes_spent || 0),
@@ -11389,6 +11403,7 @@ async function dbCreateInventoryItems(
     barcode: string | null;
     purchased_date: string;
     unit_purchase_price: number | null;
+    map_price: number | null;
     private_party_value: number;
     miles: number;
     minutes_spent: number;
@@ -11433,12 +11448,12 @@ async function dbCreateInventoryItems(
         bullet_5_text, bullet_5_danger, bullet_5_highlight,
         bullet_6_text, bullet_6_danger, bullet_6_highlight,
         barcode,
-        purchased_date, unit_purchase_price, private_party_value, miles, minutes_spent, ship_cost, purchase_notes, ai_analysis_text, serial_number,
+        purchased_date, unit_purchase_price, map_price, private_party_value, miles, minutes_spent, ship_cost, purchase_notes, ai_analysis_text, serial_number,
         weight_lbs, neck_profile, neck_thickness, nut_width, width_12_fret, fretboard_radius, twelve_fret_action,
         is_active, is_marked, is_personal, is_rented, for_sale, only_in_store, for_sale_date,
         is_sold, sold_date, sold_amount, sell_notes, sale_url, sale_zip
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const result = await env.DB.prepare(statement).bind(
       fields.source_listing_id,
@@ -11484,6 +11499,7 @@ async function dbCreateInventoryItems(
       fields.barcode,
       fields.purchased_date,
       fields.unit_purchase_price,
+      fields.map_price,
       fields.private_party_value,
       fields.miles,
       fields.minutes_spent,
@@ -11539,6 +11555,7 @@ async function dbUpdateInventoryById(
     original_listing_desc: string | null;
     purchased_date: string;
     unit_purchase_price: number | null;
+    map_price: number | null;
     private_party_value: number;
     miles: number;
     minutes_spent: number;
@@ -11607,7 +11624,7 @@ async function dbUpdateInventoryById(
        SET
          image_url = ?, image_urls = ?, title = ?, quantity = ?, category_id = ?, secondary_category_id = ?,
          brand = ?, queue = ?, year_range = ?, model = ?, finish = ?,
-         repair_notes = ?, original_listing_desc = ?, purchased_date = ?, unit_purchase_price = ?,
+         repair_notes = ?, original_listing_desc = ?, purchased_date = ?, unit_purchase_price = ?, map_price = ?,
          private_party_value = ?, miles = ?, minutes_spent = ?, ship_cost = ?, purchase_notes = ?, ai_analysis_text = ?, serial_number = ?,
          weight_lbs = ?, neck_profile = ?, neck_thickness = ?, nut_width = ?, width_12_fret = ?,
          fretboard_radius = ?, twelve_fret_action = ?, storage_location = ?,
@@ -11641,6 +11658,7 @@ async function dbUpdateInventoryById(
       fields.original_listing_desc,
       fields.purchased_date,
       fields.unit_purchase_price,
+      fields.map_price,
       fields.private_party_value,
       fields.miles,
       fields.minutes_spent,

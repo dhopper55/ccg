@@ -82,6 +82,7 @@ type InventoryItemRecord = {
   purchasedDate?: string;
   quantity?: number | null;
   unitPurchasePrice?: number | null;
+  mapPrice?: number | null;
   privatePartyValue?: number | null;
   miles?: number | null;
   minutesSpent?: number | null;
@@ -185,6 +186,7 @@ type FormState = {
   originalListingDesc: string;
   purchasedDate: string;
   unitPurchasePrice: string;
+  mapPrice: string;
   privatePartyValue: string;
   miles: string;
   minutesSpent: string;
@@ -386,6 +388,7 @@ const DEFAULT_FORM: FormState = {
   originalListingDesc: '',
   purchasedDate: todayYmd(),
   unitPurchasePrice: '',
+  mapPrice: '',
   privatePartyValue: '0',
   miles: '0',
   minutesSpent: '0',
@@ -1113,6 +1116,7 @@ const InventoryItem = () => {
             purchasedDate: record.purchasedDate || todayYmd(),
             unitPurchasePrice:
               record.unitPurchasePrice != null ? String(record.unitPurchasePrice) : '',
+            mapPrice: record.mapPrice != null ? String(record.mapPrice) : '',
             privatePartyValue:
               record.privatePartyValue != null ? String(record.privatePartyValue) : '0',
             miles: record.miles != null ? String(record.miles) : '0',
@@ -1404,6 +1408,7 @@ const InventoryItem = () => {
     originalListingDesc: form.originalListingDesc.trim(),
     purchasedDate: form.purchasedDate.trim(),
     unitPurchasePrice: form.unitPurchasePrice.trim(),
+    mapPrice: form.mapPrice.trim(),
     privatePartyValue: form.privatePartyValue.trim() || '0',
     miles: form.miles.trim() || '0',
     minutesSpent: form.minutesSpent.trim() || '0',
@@ -2341,7 +2346,7 @@ const InventoryItem = () => {
                 />
               </Grid>
 
-              <Grid size={{ xs: 12, md: 2.4 }}>
+              <Grid size={{ xs: 12, md: 2 }}>
                 <TextField
                   fullWidth
                   label="Unit Cost ($)"
@@ -2381,7 +2386,17 @@ const InventoryItem = () => {
                   }}
                 />
               </Grid>
-              <Grid size={{ xs: 12, md: 2.4 }}>
+              <Grid size={{ xs: 12, md: 2 }}>
+                <TextField
+                  fullWidth
+                  label="MAP Price ($)"
+                  type="number"
+                  value={form.mapPrice}
+                  onChange={(event) => setField('mapPrice', event.target.value)}
+                  inputProps={{ min: 0, step: 0.01 }}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 2 }}>
                 <TextField
                   fullWidth
                   label="Private Party Value ($)"
@@ -2391,7 +2406,7 @@ const InventoryItem = () => {
                   inputProps={{ min: 0, step: 0.01 }}
                 />
               </Grid>
-              <Grid size={{ xs: 12, md: 2.4 }}>
+              <Grid size={{ xs: 12, md: 2 }}>
                 <TextField
                   fullWidth
                   label="Miles"
@@ -2401,7 +2416,7 @@ const InventoryItem = () => {
                   inputProps={{ min: 0, step: 1 }}
                 />
               </Grid>
-              <Grid size={{ xs: 12, md: 2.4 }}>
+              <Grid size={{ xs: 12, md: 2 }}>
                 <TextField
                   fullWidth
                   label="Minutes Spent"
@@ -2411,7 +2426,7 @@ const InventoryItem = () => {
                   inputProps={{ min: 0, step: 1 }}
                 />
               </Grid>
-              <Grid size={{ xs: 12, md: 2.4 }}>
+              <Grid size={{ xs: 12, md: 2 }}>
                 <TextField
                   fullWidth
                   label="Ship Cost ($)"
