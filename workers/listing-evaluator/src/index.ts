@@ -734,7 +734,7 @@ export default {
     }
 
     if (path === '/api/admin-v2/upc-lookup' && request.method === 'GET') {
-      const response = await handleAdminV2UpcLookup(request);
+      const response = await handleAdminV2UpcLookup(request, env);
       return withCors(response, request, env);
     }
 
@@ -6082,7 +6082,22 @@ async function handleAdminV2BarcodeLookup(request: Request, env: Env): Promise<R
   });
 }
 
-async function handleAdminV2UpcLookup(request: Request): Promise<Response> {
+type DunlopMfrPriceListRow = {
+  item_number: string;
+  description: string;
+  upc: string;
+  map: number | null;
+  msrp: number | null;
+  dealer_cost: number | null;
+};
+
+type UpcAiEnrichment = {
+  clean_title: string;
+  clean_description: string;
+  clean_bullets: string[];
+};
+
+async function handleAdminV2UpcLookup(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const barcode = normalizeText(url.searchParams.get('barcode'), '').replace(/\D/g, '').slice(0, 20);
   const brand = normalizeText(url.searchParams.get('brand'), '').slice(0, 120);
@@ -6090,9 +6105,12 @@ async function handleAdminV2UpcLookup(request: Request): Promise<Response> {
     return jsonResponse({ message: 'Barcode must be 8 to 20 digits.' }, 400);
   }
 
+  const mfrRow = await dbGetDunlopMfrPriceListByUpc(barcode, env);
+
   const lookupUrl = new URL('https://api.upcitemdb.com/prod/trial/lookup');
   lookupUrl.searchParams.set('upc', barcode);
 
+  let item: Record<string, unknown> | null = null;
   let response: Response;
   try {
     response = await fetch(lookupUrl.toString(), {
@@ -6102,56 +6120,90 @@ async function handleAdminV2UpcLookup(request: Request): Promise<Response> {
       },
     });
   } catch {
-    return jsonResponse({ message: 'Unable to reach UPC lookup service.' }, 502);
+    if (!mfrRow) return jsonResponse({ message: 'Unable to reach UPC lookup service.' }, 502);
+    response = new Response('{}', { status: 200 });
   }
 
-  if (!response.ok) {
+  if (!response.ok && !mfrRow) {
     return jsonResponse({ message: 'UPC lookup service returned an error.' }, 502);
   }
 
-  let data: Record<string, unknown>;
-  try {
-    data = await response.json();
-  } catch {
-    return jsonResponse({ message: 'UPC lookup service returned invalid JSON.' }, 502);
+  if (response.ok) {
+    try {
+      const data = await response.json() as Record<string, unknown>;
+      const items = Array.isArray(data.items) ? data.items : [];
+      item = items.find((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === 'object')) || null;
+    } catch {
+      if (!mfrRow) return jsonResponse({ message: 'UPC lookup service returned invalid JSON.' }, 502);
+    }
   }
+  if (!item && !mfrRow) return jsonResponse({ found: false, barcode, brand, source: 'upcitemdb' });
 
-  const items = Array.isArray(data.items) ? data.items : [];
-  const item = items.find((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === 'object'));
-  if (!item) return jsonResponse({ found: false, barcode, brand, source: 'upcitemdb' });
+  const normalized = normalizeUpcItemDbItem(barcode, brand, item || {}, mfrRow);
+  const ai = await runOpenAIUpcProductEnrichment(normalized, env);
 
   return jsonResponse({
     found: true,
-    ...normalizeUpcItemDbItem(barcode, brand, item),
+    ...normalized,
+    ...(ai || {}),
   });
+}
+
+async function dbGetDunlopMfrPriceListByUpc(upc: string, env: Env): Promise<DunlopMfrPriceListRow | null> {
+  try {
+    return await env.DB.prepare(
+      `SELECT item_number, description, upc, map, msrp, dealer_cost
+       FROM mfr_price_list_dunlop
+       WHERE upc = ?
+       LIMIT 1`,
+    ).bind(upc).first<DunlopMfrPriceListRow>();
+  } catch (error) {
+    console.warn('Dunlop price list lookup failed', { error, upc });
+    return null;
+  }
 }
 
 function normalizeUpcItemDbItem(
   barcode: string,
   requestedBrand: string,
   item: Record<string, unknown>,
+  mfrRow: DunlopMfrPriceListRow | null,
 ): Record<string, unknown> {
   const title = normalizeText(item.title, '');
-  const brand = normalizeText(item.brand, '');
-  const description = normalizeText(item.description, '');
+  const brand = normalizeText(item.brand, '') || requestedBrand;
+  const sourceDescription = normalizeText(item.description, '');
   const images = normalizeUpcItemDbImages(item.images);
   const attributes = normalizeUpcItemDbAttributes(item);
+  const brandDesc = normalizeText(mfrRow?.description, '') || pickUpcString(item, ['brand_desc', 'brandDescription']);
+  const mapValue = mfrRow?.map ?? pickUpcNumber(item, ['map', 'minimum_advertised_price']);
+  const msrpValue = mfrRow?.msrp ?? pickUpcNumber(item, ['msrp', 'highest_recorded_price']);
+  const dealerCostValue = mfrRow?.dealer_cost ?? pickUpcNumber(item, ['dealer_cost', 'cost']);
 
   return {
     barcode,
     requested_brand: requestedBrand || null,
     source: 'upcitemdb',
     title,
-    description,
+    description: sourceDescription,
     features: [],
     attributes,
     images,
-    item_no: pickUpcString(item, ['asin', 'elid', 'ean', 'upc']),
-    brand_desc: pickUpcString(item, ['brand_desc', 'brandDescription']),
+    item_no: normalizeText(mfrRow?.item_number, '') || pickUpcString(item, ['asin', 'elid', 'ean', 'upc']),
+    brand_desc: brandDesc,
     brand,
-    map: formatNullableCurrency(pickUpcNumber(item, ['map', 'minimum_advertised_price'])),
-    msrp: formatNullableCurrency(pickUpcNumber(item, ['msrp', 'highest_recorded_price'])),
-    dealer_cost: formatNullableCurrency(pickUpcNumber(item, ['dealer_cost', 'cost'])),
+    map: formatNullableCurrency(mapValue),
+    msrp: formatNullableCurrency(msrpValue),
+    dealer_cost: formatNullableCurrency(dealerCostValue),
+    mfr_price_list: mfrRow
+      ? {
+        item_number: normalizeText(mfrRow.item_number, ''),
+        description: normalizeText(mfrRow.description, ''),
+        upc: normalizeText(mfrRow.upc, ''),
+        map: formatNullableCurrency(mfrRow.map),
+        msrp: formatNullableCurrency(mfrRow.msrp),
+        dealer_cost: formatNullableCurrency(mfrRow.dealer_cost),
+      }
+      : null,
     raw: item,
   };
 }
@@ -6166,13 +6218,101 @@ function normalizeUpcItemDbImages(value: unknown): string[] {
 }
 
 function normalizeUpcItemDbAttributes(item: Record<string, unknown>): Record<string, string> {
-  const keys = ['brand', 'model', 'color', 'size', 'dimension', 'weight', 'category'];
+  const keys = ['color', 'size', 'weight'];
   const attributes: Record<string, string> = {};
   keys.forEach((key) => {
     const value = normalizeText(item[key], '');
     if (value) attributes[key] = value;
   });
   return attributes;
+}
+
+async function runOpenAIUpcProductEnrichment(
+  product: Record<string, unknown>,
+  env: Env,
+): Promise<UpcAiEnrichment | null> {
+  if (!env.OPENAI_API_KEY) return null;
+
+  const prompt = [
+    'Create clean ecommerce copy for a music store product draft.',
+    'Use only the provided product data. Do not invent specs.',
+    'Return JSON only.',
+    '',
+    'Requirements:',
+    '- clean_title: concise retail product title.',
+    '- clean_description: 1-2 short paragraphs, plain text.',
+    '- clean_bullets: exactly 5 useful bullets, each 60 characters or less.',
+    '- Bullets should describe product benefits/features, not price.',
+    '',
+    'Product data:',
+    JSON.stringify({
+      barcode: product.barcode,
+      brand: product.brand,
+      item_no: product.item_no,
+      brand_desc: product.brand_desc,
+      upcitemdb_title: product.title,
+      upcitemdb_description: product.description,
+      attributes: product.attributes,
+      mfr_price_list: product.mfr_price_list,
+    }, null, 2),
+  ].join('\n');
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }],
+        temperature: 0.2,
+        max_output_tokens: 700,
+        text: {
+          format: {
+            type: 'json_schema',
+            name: 'upc_product_enrichment',
+            schema: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                clean_title: { type: 'string' },
+                clean_description: { type: 'string' },
+                clean_bullets: {
+                  type: 'array',
+                  minItems: 5,
+                  maxItems: 5,
+                  items: { type: 'string', maxLength: 60 },
+                },
+              },
+              required: ['clean_title', 'clean_description', 'clean_bullets'],
+            },
+          },
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const bodyText = await response.text();
+      console.warn('UPC product enrichment failed', { status: response.status, body: bodyText.slice(0, 600) });
+      return null;
+    }
+
+    const data = await response.json();
+    const parsed = JSON.parse(extractOpenAIText(data)) as UpcAiEnrichment;
+    return {
+      clean_title: normalizeText(parsed.clean_title, '').slice(0, 200),
+      clean_description: normalizeText(parsed.clean_description, '').slice(0, 4000),
+      clean_bullets: (Array.isArray(parsed.clean_bullets) ? parsed.clean_bullets : [])
+        .map((bullet) => normalizeText(bullet, '').slice(0, 60))
+        .filter(Boolean)
+        .slice(0, 5),
+    };
+  } catch (error) {
+    console.warn('UPC product enrichment parse/request failed', { error });
+    return null;
+  }
 }
 
 function pickUpcString(item: Record<string, unknown>, keys: string[]): string | null {

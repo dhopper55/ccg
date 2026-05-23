@@ -155,6 +155,9 @@ type UpcLookupResponse = {
   map?: string | null;
   msrp?: string | null;
   dealer_cost?: string | null;
+  clean_title?: string;
+  clean_description?: string;
+  clean_bullets?: string[];
   message?: string;
   raw?: unknown;
 };
@@ -658,13 +661,8 @@ function buildUpcAttributeLines(data: UpcLookupResponse): string[] {
     if (!lines.includes(line)) lines.push(line);
   };
 
-  pushLine('Brand', data.brand);
-  pushLine('Item No.', data.item_no);
-  pushLine('MAP', data.map);
-  pushLine('MSRP', data.msrp);
-  pushLine('Dealer Cost', data.dealer_cost);
-
   Object.entries(data.attributes || {}).forEach(([key, value]) => {
+    if (!['color', 'weight', 'size'].includes(key.toLowerCase())) return;
     const label = key
       .replace(/[_-]+/g, ' ')
       .replace(/\b\w/g, (char) => char.toUpperCase());
@@ -677,7 +675,7 @@ function buildUpcAttributeLines(data: UpcLookupResponse): string[] {
 function appendAttributeLines(description: string, attributeLines: string[]): string {
   const base = description.trim();
   if (attributeLines.length === 0) return base;
-  return [base, 'Attributes:', ...attributeLines.map((line) => `- ${line}`)].filter(Boolean).join('\n');
+  return [base, ...attributeLines.map((line) => `- ${line}`)].filter(Boolean).join('\n\n');
 }
 
 function truncateBulletText(value: string): string {
@@ -1694,15 +1692,18 @@ const InventoryItem = () => {
   const handlePopulateFromUpc = async () => {
     if (!upcLookupData || isImporting) return;
 
-    const preferredTitle = (upcLookupData.brand_desc || upcLookupData.title || '').trim();
+    const preferredTitle = (upcLookupData.clean_title || upcLookupData.brand_desc || upcLookupData.title || '').trim();
     const brand = (upcLookupData.brand || upcLookupBrand || '').trim();
-    const description = (upcLookupData.description || '').trim();
+    const description = (upcLookupData.clean_description || upcLookupData.description || '').trim();
     const attributeLines = buildUpcAttributeLines(upcLookupData);
     const descriptionWithAttributes = appendAttributeLines(description, attributeLines);
-    const bulletCandidates = [
-      ...attributeLines,
-      ...(Array.isArray(upcLookupData.features) ? upcLookupData.features : []),
-    ].map(truncateBulletText).filter(Boolean).slice(0, 6);
+    const bulletCandidates = (Array.isArray(upcLookupData.clean_bullets) ? upcLookupData.clean_bullets : [])
+      .map(truncateBulletText)
+      .filter(Boolean)
+      .slice(0, 5);
+    const mapPrice = parseTagPrice(upcLookupData.map || '');
+    const msrpPrice = parseTagPrice(upcLookupData.msrp || '');
+    const dealerCost = parseTagPrice(upcLookupData.dealer_cost || '');
 
     setForm((current) => ({
       ...current,
@@ -1718,10 +1719,16 @@ const InventoryItem = () => {
       bullet3Text: bulletCandidates[2] || current.bullet3Text,
       bullet4Text: bulletCandidates[3] || current.bullet4Text,
       bullet5Text: bulletCandidates[4] || current.bullet5Text,
-      bullet6Text: bulletCandidates[5] || current.bullet6Text,
-      mapPrice: current.mapPrice || String(parseTagPrice(upcLookupData.map || '') ?? ''),
-      unitPurchasePrice: current.unitPurchasePrice || String(parseTagPrice(upcLookupData.dealer_cost || '') ?? ''),
-      regularPrice: current.regularPrice || String(parseTagPrice(upcLookupData.msrp || '') ?? ''),
+      mapPrice: mapPrice != null ? String(mapPrice) : current.mapPrice,
+      salePrice: mapPrice != null ? String(mapPrice) : current.salePrice,
+      privatePartyValue: mapPrice != null ? String(mapPrice) : current.privatePartyValue,
+      regularPrice:
+        msrpPrice != null
+          ? String(msrpPrice)
+          : mapPrice != null
+            ? String(mapPrice)
+            : current.regularPrice,
+      unitPurchasePrice: dealerCost != null ? String(dealerCost) : current.unitPurchasePrice,
     }));
     if (preferredTitle) {
       setSaleUrlReadOnly(true);
@@ -3110,16 +3117,29 @@ const InventoryItem = () => {
                               },
                             }}
                           />
-                          <Button
-                            variant="outlined"
-                            color="primary"
-                            disabled={!form.barcode.trim() || Boolean(getBarcodeValidationError(form.barcode))}
-                            onClick={openUpcLookupDialog}
-                            startIcon={<IconifyIcon icon="material-symbols:search-rounded" />}
-                            sx={{ minHeight: 56, minWidth: 126 }}
-                          >
-                            Lookup
-                          </Button>
+                          <Tooltip title="Lookup UPC data">
+                            <span>
+                              <IconButton
+                                aria-label="Lookup UPC data"
+                                color="primary"
+                                disabled={!form.barcode.trim() || Boolean(getBarcodeValidationError(form.barcode))}
+                                onClick={openUpcLookupDialog}
+                                sx={{
+                                  width: 44,
+                                  height: 44,
+                                  mt: 0.75,
+                                  border: 1,
+                                  borderColor: 'primary.main',
+                                  bgcolor: 'background.elevation1',
+                                  '&:hover': {
+                                    bgcolor: 'background.elevation2',
+                                  },
+                                }}
+                              >
+                                <IconifyIcon icon="material-symbols:search-rounded" fontSize={20} />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
                         </Stack>
                       </Grid>
                       <Grid size={{ xs: 12, md: 6 }} />
