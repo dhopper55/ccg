@@ -28,6 +28,7 @@ type ShopProduct = {
   youtubeUrl: string;
   regularPrice: number | null;
   salePrice: number;
+  saleCondition: string;
   clearance: boolean;
   onlyInStore: boolean;
   category: string;
@@ -201,6 +202,7 @@ const ProductDetails = () => {
             secondaryCategory={shopProduct?.secondaryCategory}
             title={shopProduct?.saleTitle}
             itemNumber={shopProduct?.ccgNumber}
+            condition={shopProduct?.saleCondition}
           />
           {galleryImages.length > 0 && <ProductGallery images={galleryImages} />}
         </Paper>

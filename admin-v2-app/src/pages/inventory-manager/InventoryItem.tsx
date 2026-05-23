@@ -437,7 +437,7 @@ const DEFAULT_FORM: FormState = {
   sellNotes: '',
   subscriptionId: '',
   saleUrl: '',
-  saleZip: '',
+  saleZip: '80113',
   storageLocation: '',
   soldChannel: '',
 };
@@ -675,12 +675,17 @@ function buildUpcAttributeLines(data: UpcLookupResponse): string[] {
 function appendAttributeLines(description: string, attributeLines: string[]): string {
   const base = description.trim();
   if (attributeLines.length === 0) return base;
-  return [base, ...attributeLines.map((line) => `- ${line}`)].filter(Boolean).join('\n\n');
+  return [base, ...attributeLines.map((line) => `- ${line}`)].filter(Boolean).join('\n');
 }
 
 function truncateBulletText(value: string): string {
   const trimmed = value.trim();
   return trimmed.length <= 60 ? trimmed : `${trimmed.slice(0, 57).trimEnd()}...`;
+}
+
+function parsePopulatedPrice(value: string | null | undefined): number | null {
+  const parsed = parseTagPrice(value || '');
+  return parsed != null && parsed > 0 ? parsed : null;
 }
 
 function replaceLinePlaceholder(template: string, placeholder: string, value: string): string {
@@ -1701,9 +1706,9 @@ const InventoryItem = () => {
       .map(truncateBulletText)
       .filter(Boolean)
       .slice(0, 5);
-    const mapPrice = parseTagPrice(upcLookupData.map || '');
-    const msrpPrice = parseTagPrice(upcLookupData.msrp || '');
-    const dealerCost = parseTagPrice(upcLookupData.dealer_cost || '');
+    const mapPrice = parsePopulatedPrice(upcLookupData.map);
+    const msrpPrice = parsePopulatedPrice(upcLookupData.msrp);
+    const dealerCost = parsePopulatedPrice(upcLookupData.dealer_cost);
 
     setForm((current) => ({
       ...current,
@@ -1729,6 +1734,7 @@ const InventoryItem = () => {
             ? String(mapPrice)
             : current.regularPrice,
       unitPurchasePrice: dealerCost != null ? String(dealerCost) : current.unitPurchasePrice,
+      condition: 'New',
     }));
     if (preferredTitle) {
       setSaleUrlReadOnly(true);
@@ -1742,19 +1748,20 @@ const InventoryItem = () => {
         let importedCount = 0;
         for (const url of imageUrls) {
           if (nextImages.length >= INVENTORY_MAX_IMAGES) break;
-          const importedUrl = await importSourceImage(url);
-          nextImages = normalizeImages([...nextImages, { url: importedUrl, isPrivate: false }]);
-          importedCount += 1;
-          setImages(nextImages);
+          try {
+            const importedUrl = await importSourceImage(url);
+            nextImages = normalizeImages([...nextImages, { url: importedUrl, isPrivate: false }]);
+            importedCount += 1;
+            setImages(nextImages);
+          } catch {
+            // Best-effort UPC image import. Some external image URLs block downloads.
+          }
         }
         if (importedCount > 0) {
           enqueueSnackbar(`Imported ${importedCount} UPC image${importedCount === 1 ? '' : 's'}.`, {
             variant: 'success',
           });
         }
-      } catch (error) {
-        const text = error instanceof Error ? error.message : 'Unable to import UPC image.';
-        enqueueSnackbar(text, { variant: 'error' });
       } finally {
         setIsImporting(false);
       }

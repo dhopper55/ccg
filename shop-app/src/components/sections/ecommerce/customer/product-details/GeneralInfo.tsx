@@ -1,4 +1,4 @@
-import { Box, Stack, SxProps, Typography } from '@mui/material';
+import { Box, Chip, Stack, SxProps, Typography } from '@mui/material';
 import { useEcommerce } from 'providers/EcommerceProvider';
 import paths from 'routes/paths';
 import PageBreadcrumb from '../../../common/PageBreadcrumb';
@@ -9,10 +9,13 @@ interface GeneralInfoProps {
   secondaryCategory?: string;
   title?: string;
   itemNumber?: string;
+  condition?: string;
 }
 
-const GeneralInfo = ({ sx, category, secondaryCategory, title, itemNumber }: GeneralInfoProps) => {
+const GeneralInfo = ({ sx, category, secondaryCategory, title, itemNumber, condition }: GeneralInfoProps) => {
   const { product } = useEcommerce();
+  const conditionLabel = (condition || '').trim();
+  const showCondition = Boolean(conditionLabel) && conditionLabel.toLowerCase() !== 'new';
   const breadcrumbItems = [
     { label: 'Home', url: '/' },
     category
@@ -48,9 +51,20 @@ const GeneralInfo = ({ sx, category, secondaryCategory, title, itemNumber }: Gen
             {title || product?.name}
           </Typography>
           {itemNumber ? (
-            <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.75 }}>
-              Item Number: {itemNumber}
-            </Typography>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap', mt: 0.75 }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                Item Number: {itemNumber}
+              </Typography>
+              {showCondition ? (
+                <Chip
+                  label={conditionLabel}
+                  size="small"
+                  color="info"
+                  variant="soft"
+                  sx={{ height: 24, fontWeight: 700 }}
+                />
+              ) : null}
+            </Stack>
           ) : null}
         </Box>
       </Stack>
