@@ -46,6 +46,10 @@ function decodeTaylor(serialInput) {
   return decodeSerialForBackend('taylor', serialInput);
 }
 
+function decodeTakamine(serialInput) {
+  return decodeSerialForBackend('takamine', serialInput);
+}
+
 function decodeGibson(serialInput) {
   return decodeSerialForBackend('gibson', serialInput);
 }
@@ -69,6 +73,17 @@ function assertGibsonModernCustomShop(serialInput, expectedYear) {
     result.patternKey === 'gibson-modern-custom-shop-cs-prefix',
     `Expected Gibson Custom Shop pattern key for ${serialInput}, got ${result.patternKey}`
   );
+}
+
+function assertTakamine8DigitYYMM(serialInput, expectedYear, expectedMonth) {
+  const result = decodeTakamine(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(info.country === 'Japan', `Expected country Japan for ${serialInput}, got ${info.country}`);
 }
 
 function assertIbanezBPrefix(serialInput) {
@@ -663,6 +678,24 @@ function assertIbanezMPrefix(serialInput, expectedYear, expectedMonth) {
   assert(
     info.notes && info.notes.includes('Alternate interpretation'),
     `Expected alternate interpretation note for ${serialInput}, got ${info.notes}`
+  );
+}
+
+function assertIbanezLegacyKoreaMPrefix(serialInput, expectedYear) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(
+    info.factory === 'Mirr / Korean import production',
+    `Expected Mirr / Korean import production for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'South Korea', `Expected South Korea for ${serialInput}, got ${info.country}`);
+  assert(
+    result.patternKey === 'ibanez-legacy-korea-m-prefix-yy-sequence',
+    `Expected Ibanez legacy Korea M-prefix pattern key for ${serialInput}, got ${result.patternKey}`
   );
 }
 
@@ -1708,6 +1741,47 @@ function assertSquierChinaSE9Digit(serialInput, expectedYear, expectedMonth) {
   );
 }
 
+function assertSquierChinaSE8Digit2004(serialInput, expectedMonth) {
+  const result = decodeSerialForBackend('squier', serialInput);
+  assert(result.success, `Expected decode success for squier:${serialInput}`);
+  assert(result.info, `Expected decoded info for squier:${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '2004', `Expected year 2004 for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'China Strat Pack / SE production',
+    `Expected China Strat Pack / SE production for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'China', `Expected China for ${serialInput}, got ${info.country}`);
+  assert(
+    info.model === 'Squier Strat SE (Special Edition)',
+    `Expected Squier Strat SE model for ${serialInput}, got ${info.model}`
+  );
+  assert(
+    result.patternKey === 'squier-china-se-2004-8-digit-yymm-sequence',
+    `Expected Squier SE 2004 8-digit pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
+function assertSquierChinaCPrefix(serialInput, expectedYear) {
+  const result = decodeSerialForBackend('squier', serialInput);
+  assert(result.success, `Expected decode success for squier:${serialInput}`);
+  assert(result.info, `Expected decoded info for squier:${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(
+    info.factory === 'Yako / Chinese Squier production',
+    `Expected Yako / Chinese Squier production for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'China', `Expected China for ${serialInput}, got ${info.country}`);
+  assert(
+    result.patternKey === 'squier-china-c-prefix-yy-sequence',
+    `Expected Squier China C-prefix pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
 function assertSquierIndonesiaICSYear(serialInput, expectedYear) {
   const result = decodeSerialForBackend('squier', serialInput);
   assert(result.success, `Expected decode success for squier:${serialInput}`);
@@ -1720,6 +1794,15 @@ function assertSquierIndonesiaICSYear(serialInput, expectedYear) {
   assert(
     result.patternKey === 'squier-indonesia-ics-yy-sequence',
     `Expected Squier ICS YY pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
+function assertSquierNumericOnly8DigitRejected(serialInput) {
+  const result = decodeSerialForBackend('squier', serialInput);
+  assert(!result.success, `Expected decode failure for squier:${serialInput}`);
+  assert(
+    result.error?.includes('Eight-digit numeric-only Squier serials are not a standard supported pattern'),
+    `Expected Squier 8-digit numeric-only rejection for ${serialInput}, got ${result.error}`
   );
 }
 
@@ -1894,6 +1977,32 @@ function assertTaylorModernShort9Digit(serialInput, expectedYear, expectedMonth,
   assert(
     result.additionalContextRichText && result.additionalContextRichText.includes('production sequence #4'),
     `Expected Taylor shortened-modern rich text for ${serialInput}`
+  );
+}
+
+function assertTaylorModern10Digit(serialInput, expectedYear, expectedMonth, expectedDay, expectedFactory, expectedCountry) {
+  const result = decodeTaylor(serialInput);
+  assert(result.success, `Expected decode success for Taylor ${serialInput}`);
+  assert(result.info, `Expected decoded info for Taylor ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(info.day === expectedDay, `Expected day ${expectedDay} for ${serialInput}, got ${info.day}`);
+  assert(info.factory === expectedFactory, `Expected factory ${expectedFactory} for ${serialInput}, got ${info.factory}`);
+  assert(info.country === expectedCountry, `Expected country ${expectedCountry} for ${serialInput}, got ${info.country}`);
+  assert(
+    result.patternKey === 'taylor-modern-10-digit-factory-date-sequence',
+    `Expected Taylor modern 10-digit pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
+function assertTaylorModern10DigitRejectedAsFuture(serialInput) {
+  const result = decodeTaylor(serialInput);
+  assert(!result.success, `Expected backend Taylor decode failure for ${serialInput}`);
+  assert(
+    result.error === 'Unable to decode this serial number.',
+    `Expected generic future-year decode failure for ${serialInput}, got ${result.error}`
   );
 }
 
@@ -2536,6 +2645,7 @@ assertIbanezChinaGaoqingGrandStar('G12042301', '2012', 'April');
 assertIbanezFujiGenFD('FD2468031', '2024', 'July');
 assertIbanezVPrefix('V054683', '2005');
 assertIbanezVPrefix('vo54683', '2005');
+assertIbanezLegacyKoreaMPrefix('m850413', '1985');
 assertIbanezMPrefix('M3013293', '2003', 'January');
 assertIbanezChinaL('L160200319', '2016', 'February');
 assertIbanezChinaN('N230401406', '2023', 'April');
@@ -2607,7 +2717,10 @@ assertCortVintage1990s7DigitYYMM('9202539');
 assertCharvelCFPrefix('CF22271', '2022');
 assertCharvelJapanIMC7Digit('0904460');
 assertSquierChinaSE9Digit('040811254', '2004', 'August');
+assertSquierChinaSE8Digit2004('04090431', 'September');
+assertSquierChinaCPrefix('c004039', '2000');
 assertSquierIndonesiaICSYear('ICS18291833', '2018');
+assertSquierNumericOnly8DigitRejected('05021913');
 assertFenderTrailingFTypoCorrection('E528104f', 'E5281043', '1985');
 assertFenderJDPrefix('JD13006111', '2013');
 assertFenderICSPrefix('ICS11185000', '2011');
@@ -2616,10 +2729,14 @@ assertCharvelNumeric8('05050187', '2005', 'May');
 assertGodinAmbiguous7Digit('4284009');
 assertOvationSnPrefixedUsa('SN487892', '1994');
 assertOvationKoreanImport7Digit('2121282');
+assertTaylorModern10Digit('1107289190', '2019', 'July', '28', 'El Cajon, California', 'USA');
+assertTaylorModern10Digit('2107289190', '2019', 'July', '28', 'Tecate, Baja California', 'Mexico');
+assertTaylorModern10DigitRejectedAsFuture('1207289190');
 assertTaylorModernShort9Digit('111130804', '2018', 'November', '30');
 assertTaylorLegacy9Digit('980311301', '1998', 'March', '11');
 assertTaylorLegacy9DigitYearCode('050913155', '1993', 'September', '13');
 assertTaylorModernExtended11Digit('21092006138', '2016', 'September', '20');
+assertTakamine8DigitYYMM('93041401', '1993', 'April');
 assertGibsonModernCustomShop('CS403228', '2004 or 2014 (context-dependent Custom Shop estimate)');
 assertGibsonModernCustomShop('CS 403228', '2004 or 2014 (context-dependent Custom Shop estimate)');
 assertGibsonModernCustomShop('CS40322', '2004 or 2014 (context-dependent Custom Shop estimate)');

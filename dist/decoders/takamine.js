@@ -158,15 +158,15 @@ function decode8Digit(serial) {
     // Determine year
     let year;
     let yearNote;
-    if (yearNum >= 51) {
+    if (yearNum >= 62 && yearNum <= 99) {
+        // Standard pre-2000 YYMM sequence format.
+        year = 1900 + yearNum;
+        yearNote = '';
+    }
+    else if (yearNum >= 51) {
         // Post-2012 system: add to 1962 (51 = 2013, 52 = 2014, etc.)
         year = 1962 + yearNum;
         yearNote = 'Year calculated using post-2012 system (offset from 1962).';
-    }
-    else if (yearNum >= 62 && yearNum <= 99) {
-        // 1962-1999
-        year = 1900 + yearNum;
-        yearNote = '';
     }
     else if (yearNum <= 24) {
         // 2000-2024 (or future years)

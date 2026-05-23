@@ -139,6 +139,10 @@ export function decodeIbanez(serial) {
     if (/^V[0O]\d{5}$/.test(normalized)) {
         return decodeVPrefix(normalized);
     }
+    // Legacy Korean M prefix: M + YY + 4-digit sequence
+    if (/^M\d{6}$/.test(normalized)) {
+        return decodeLegacyKoreaMPrefix(normalized);
+    }
     // Less-common M prefix: M + 7 digits
     if (/^M\d{7}$/.test(normalized)) {
         return decodeMPrefix(normalized);
@@ -880,6 +884,47 @@ function decodeVPrefix(serial) {
         notes: `Sequence: ${sequence}. V prefix is treated as a less-common factory/series code. If original stamp used a letter "O", the serial may be a 2005-format read (e.g., V054683).`
     };
     return { success: true, info };
+}
+// Legacy Korean M prefix: M + YY + 4-digit sequence
+function decodeLegacyKoreaMPrefix(serial) {
+    const yearDigits = serial.substring(1, 3);
+    const sequence = serial.substring(3);
+    const year = 1900 + parseInt(yearDigits, 10);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Ibanez',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'Mirr / Korean import production',
+        country: 'South Korea',
+        notes: `Legacy M-prefix Ibanez serial interpreted as M + two-digit year (${yearDigits}) + production sequence ${sequenceNumber}. This format is associated with Korean import production and is commonly attributed to Mirr; verify against the instrument's country marking, model line, and catalog specs because mid-1980s Ibanez factory attribution can be inconsistent.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'ibanez-legacy-korea-m-prefix-yy-sequence',
+        patternLabel: 'Ibanez legacy Korea M-prefix YY sequence format',
+        additionalContext: {
+            title: 'Ibanez legacy M-prefix serial',
+            summary: 'This serial matches a legacy Ibanez M-prefix format parsed as Korean import production, two-digit year, and production sequence.',
+            highlights: [
+                'M is treated as the legacy Korean import factory/prefix code for this format.',
+                `The next two digits decode as production year ${year}.`,
+                `The remaining digits decode as production sequence ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'This is separate from later M + 7 digit import serials.',
+                'Mid-1980s Ibanez factory attribution can be inconsistent across references.',
+                'Use the country-of-origin mark and model features to confirm the exact production context.',
+            ],
+            verificationTips: [
+                'Check whether the guitar is marked Made in Korea.',
+                'Compare the body shape, hardware, and headstock against 1985 Ibanez catalog models.',
+                'Look closely for worn or missing characters if the serial is stamped rather than printed.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a legacy Ibanez M-prefix format parsed as Korean import production, two-digit year, and production sequence.</p><h3>How This Pattern Is Typically Read</h3><p>M is treated as the legacy Korean import factory/prefix code for this format. The next two digits decode as production year ${year}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This is separate from later M + 7 digit import serials.</li><li>Mid-1980s Ibanez factory attribution can be inconsistent across references.</li><li>Use the country-of-origin mark and model features to confirm the exact production context.</li></ul>`,
+    };
 }
 // Less-common M prefix: M + 7 digits
 function decodeMPrefix(serial) {

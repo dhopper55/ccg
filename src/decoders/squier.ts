@@ -166,6 +166,12 @@ export function decodeSquier(serial: string): DecodeResult {
     return decodeChinaCY(cyMatch[1], cyMatch[2], normalized);
   }
 
+  // China C prefix (Yako, early 2000s)
+  const cChinaMatch = normalized.match(/^C(\d{2})(\d{4,6})$/);
+  if (cChinaMatch) {
+    return decodeChinaCSinglePrefix(cChinaMatch[1], cChinaMatch[2], normalized);
+  }
+
   // China YN prefix (Yako)
   if (/^YN\d{6,7}$/.test(normalized)) {
     return decodeChinaYN(normalized);
@@ -231,6 +237,18 @@ export function decodeSquier(serial: string): DecodeResult {
   // Korea numeric-only (6-7 digits, first digit = year)
   if (/^\d{6,7}$/.test(normalized)) {
     return decodeKoreaNumeric(normalized);
+  }
+
+  // Known 2004 China Squier SE / Strat Pack sticker format: YYMM + sequence
+  if (/^04(0[1-9]|1[0-2])\d{4}$/.test(normalized)) {
+    return decodeChinaSquierSE8Digit2004(normalized);
+  }
+
+  if (/^\d{8}$/.test(normalized)) {
+    return {
+      success: false,
+      error: 'Unable to decode this Squier serial number. Eight-digit numeric-only Squier serials are not a standard supported pattern. Most Squier serials include a factory or country prefix such as IC, ICS, CY, CG, CO, MN, or MZ. Verify the number and check for a "Made in..." or "Crafted in..." label on the guitar.',
+    };
   }
 
   return {
@@ -401,6 +419,52 @@ function decodeKoreaNumeric(serial: string): DecodeResult {
   return { success: true, info };
 }
 
+// China Squier SE / Strat Pack 2004 sticker format: YYMM + sequence
+function decodeChinaSquierSE8Digit2004(serial: string): DecodeResult {
+  const monthDigits = serial.substring(2, 4);
+  const sequence = serial.substring(4);
+  const year = 2004;
+  const month = getMonthName(parseInt(monthDigits, 10));
+
+  const info: GuitarInfo = {
+    brand: 'Squier',
+    serialNumber: serial,
+    year: year.toString(),
+    month,
+    factory: 'China Strat Pack / SE production',
+    country: 'China',
+    model: 'Squier Strat SE (Special Edition)',
+    notes: `8-digit numeric Squier serial interpreted as a 2004 Chinese Squier SE / Strat Pack sticker serial. Year: ${year}; month: ${month}; production sequence: ${sequence}. Verify with SE features such as the Squier Strat logo, full-thickness body, and a headstock sticker serial rather than a stamped neck plate.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'squier-china-se-2004-8-digit-yymm-sequence',
+    patternLabel: 'Squier China SE 2004 8-digit YYMM sequence format',
+    additionalContext: {
+      title: 'Squier SE 2004 numeric serial',
+      summary: 'This serial matches a known 8-digit numeric sticker format associated with 2004 Chinese-made Squier SE Strat Pack guitars.',
+      highlights: [
+        'The first two digits decode as production year 2004.',
+        `The next two digits decode as ${month}.`,
+        `The remaining digits decode as production sequence ${parseInt(sequence, 10)}.`,
+      ],
+      caveats: [
+        'This is treated as a narrow 2004 SE / Strat Pack pattern, not as a general Squier numeric-only format.',
+        'Many Squier SE serials were stickers and may be missing or replaced.',
+        'Fender lookup coverage can be incomplete for budget Squier models from this era.',
+      ],
+      verificationTips: [
+        'Look for a headstock that says Squier Strat rather than Squier Stratocaster.',
+        'Check for a full-thickness body, commonly associated with the SE.',
+        'Confirm the serial is on a headstock sticker and compare against known 2004 Strat Pack SE features.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a known 8-digit numeric sticker format associated with 2004 Chinese-made Squier SE Strat Pack guitars.</p><h3>How This Pattern Is Typically Read</h3><p>The first two digits decode as production year 2004. The next two digits decode as ${month}. The remaining digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Look for a headstock that says Squier Strat rather than Squier Stratocaster.</li><li>Check for a full-thickness body, commonly associated with the SE.</li><li>Confirm the serial is on a headstock sticker and compare against known 2004 Strat Pack SE features.</li></ul>`,
+  };
+}
+
 // China Squier SE / Strat Pack numeric-only format: YYMM + sequence
 function decodeChinaSquierSE9Digit(serial: string): DecodeResult {
   const yearDigits = serial.substring(0, 2);
@@ -559,6 +623,46 @@ function decodeIndonesiaSI(yearDigits: string, sequence: string, serial: string)
   };
 
   return { success: true, info };
+}
+
+function decodeChinaCSinglePrefix(yearDigits: string, sequence: string, serial: string): DecodeResult {
+  const year = 2000 + parseInt(yearDigits, 10);
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Squier',
+    serialNumber: serial,
+    year: year.toString(),
+    factory: 'Yako / Chinese Squier production',
+    country: 'China',
+    notes: `C prefix indicates Chinese-made Squier production, commonly associated with Yako-era Affinity/Bullet/Standard instruments. Parsed as C + two-digit year (${yearDigits}) + production sequence ${sequenceNumber}. Verify the model from the headstock logo, body thickness, bridge style, and country-of-origin marking.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'squier-china-c-prefix-yy-sequence',
+    patternLabel: 'Squier China C-prefix YY sequence format',
+    additionalContext: {
+      title: 'Squier C-prefix China serial',
+      summary: 'This serial matches an early-2000s Chinese Squier C-prefix format parsed as factory/country prefix plus production year and sequence.',
+      highlights: [
+        'C indicates Chinese-made Squier production.',
+        `The next two digits decode as production year ${year}.`,
+        `The remaining digits decode as production sequence ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'This serial identifies likely production year and origin, not the exact model.',
+        'Fender lookup coverage can be incomplete for early-2000s import Squier models.',
+      ],
+      verificationTips: [
+        'Check the headstock logo and series markings to distinguish Affinity, Bullet, and Standard models.',
+        'Confirm the Made in China or Crafted in China marking near the serial.',
+        'Use body thickness and bridge style as model clues, especially on Affinity-era instruments.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches an early-2000s Chinese Squier C-prefix format parsed as factory/country prefix plus production year and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>C indicates Chinese-made Squier production. The next two digits decode as production year ${year}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the headstock logo and series markings to distinguish Affinity, Bullet, and Standard models.</li><li>Confirm the Made in China or Crafted in China marking near the serial.</li><li>Use body thickness and bridge style as model clues, especially on Affinity-era instruments.</li></ul>`,
+  };
 }
 
 function decodeChinaCYK(monthLetter: string, yearDigits: string, sequence: string, serial: string): DecodeResult {

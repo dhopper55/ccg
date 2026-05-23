@@ -82,7 +82,7 @@ function decode10Digit(serial) {
             country = 'USA';
             break;
         case '2':
-            factory = 'Tecate';
+            factory = 'Tecate, Baja California';
             country = 'Mexico';
             break;
         default:
@@ -103,7 +103,34 @@ function decode10Digit(serial) {
         country,
         notes: `Production sequence #${parseInt(sequence, 10)} for that day. This 10-digit format has been used since November 2009.`
     };
-    return { success: true, info };
+    const sequenceNumber = parseInt(sequence, 10);
+    const monthName = months[month - 1];
+    return {
+        success: true,
+        info,
+        patternKey: 'taylor-modern-10-digit-factory-date-sequence',
+        patternLabel: 'Taylor modern 10-digit factory/date/sequence format',
+        additionalContext: {
+            title: 'Taylor modern 10-digit serial',
+            summary: 'This serial matches Taylor\'s current 10-digit factory-coded format used since November 2009.',
+            highlights: [
+                `Factory code ${factoryCode} indicates ${factory}.`,
+                `The 2nd and 7th digits combine as year ${year}.`,
+                `The date fields decode as ${monthName} ${day}, ${year}.`,
+                `The final three digits decode as production sequence #${sequenceNumber}.`,
+            ],
+            caveats: [
+                'This serial identifies factory, production start date, and schedule sequence, not the exact model.',
+                'Use the label/model marking or Taylor support for exact model and original specifications.',
+            ],
+            verificationTips: [
+                'Confirm the full serial from the label visible through the soundhole.',
+                'Check whether the label says El Cajon, California or Tecate, Mexico.',
+                'For a 2019 July 28 decode, the 2nd and 7th digits should combine as 19.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches Taylor&#39;s current 10-digit factory-coded format used since November 2009.</p><h3>How This Pattern Is Typically Read</h3><p>Factory code ${factoryCode} indicates ${factory}. The 2nd and 7th digits combine as year ${year}. The date fields decode as ${monthName} ${day}, ${year}. The final three digits decode as production sequence #${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This serial identifies factory, production start date, and schedule sequence, not the exact model.</li><li>Use the label/model marking or Taylor support for exact model and original specifications.</li><li>For a 2019 July 28 decode, the 2nd and 7th digits should combine as 19.</li></ul>`,
+    };
 }
 function decode11Digit(serial) {
     // Format (January 2000 - October 2009):
