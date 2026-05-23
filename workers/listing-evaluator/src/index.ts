@@ -728,6 +728,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/barcode-lookup' && request.method === 'GET') {
+      const response = await handleAdminV2BarcodeLookup(request, env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/admin-v2/serial-contexts/generate' && request.method === 'POST') {
       const response = await handleAdminV2SerialPatternContextGenerate(request, env);
       return withCors(response, request, env);
@@ -6045,6 +6050,30 @@ async function handleAdminV2Search(request: Request, env: Env): Promise<Response
   ].slice(0, 10);
 
   return jsonResponse({ results });
+}
+
+async function handleAdminV2BarcodeLookup(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const barcode = normalizeText(url.searchParams.get('barcode'), '').trim().slice(0, 80);
+  if (!barcode) return jsonResponse({ found: false });
+
+  const row = await env.DB.prepare(
+    `SELECT id, ccg_number
+     FROM ccg_inventory_items
+     WHERE TRIM(COALESCE(barcode, '')) = ?
+       AND COALESCE(is_active, 0) = 1
+     ORDER BY id DESC
+     LIMIT 1`
+  ).bind(barcode).first<{ id: number; ccg_number: string | null }>();
+
+  if (!row?.id) return jsonResponse({ found: false });
+
+  return jsonResponse({
+    found: true,
+    id: String(row.id),
+    ccgNumber: normalizeText(row.ccg_number, ''),
+    url: `/admin/inventory-item?id=${encodeURIComponent(String(row.id))}`,
+  });
 }
 
 async function handleAdminV2SerialPatternTextList(request: Request, env: Env): Promise<Response> {

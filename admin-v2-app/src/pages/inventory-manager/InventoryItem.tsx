@@ -2875,7 +2875,16 @@ const InventoryItem = () => {
                                   ? getBarcodeValidationError(form.barcode)
                                   : 'Auto-generated. Numeric only, 8-20 digits.'
                               }
-                              inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', minLength: 8, maxLength: 20 }}
+                              inputProps={{
+                                name: 'barcode',
+                                id: 'barcode',
+                                'aria-label': 'Barcode',
+                                'data-admin-barcode-field': 'true',
+                                inputMode: 'numeric',
+                                pattern: '[0-9]*',
+                                minLength: 8,
+                                maxLength: 20,
+                              }}
                             />
                           </Grid>
                           <Grid size={{ xs: 12, md: 6 }} />

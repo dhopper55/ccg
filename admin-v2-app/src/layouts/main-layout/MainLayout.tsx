@@ -1,4 +1,4 @@
-import { PropsWithChildren, useEffect, useMemo, useState } from 'react';
+import { PropsWithChildren, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router';
 import {
   Box,
@@ -18,14 +18,51 @@ import Logo from 'components/common/Logo';
 import NotificationMenu from 'layouts/main-layout/common/NotificationMenu';
 import ProfileMenu from 'layouts/main-layout/common/ProfileMenu';
 import SearchDropdown from 'layouts/main-layout/common/SearchDropdown';
+import { useSnackbar } from 'notistack';
+import paths from 'routes/paths';
 import sitemap, { SubMenuItem } from 'routes/sitemap';
 
 const SIDEBAR_WIDTH = 280;
+const BARCODE_MIN_LENGTH = 8;
+const BARCODE_MAX_INTER_KEY_MS = 65;
+const BARCODE_QUIET_MS = 140;
+
+type BarcodeLookupResponse = {
+  found?: boolean;
+  url?: string;
+  message?: string;
+};
+
+function isBarcodeFieldFocused(pathname: string): boolean {
+  if (pathname !== paths.inventoryItem) return false;
+  const activeElement = document.activeElement;
+  if (!(activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement)) {
+    return false;
+  }
+
+  const fieldName = activeElement.name.toLowerCase();
+  const fieldId = activeElement.id.toLowerCase();
+  const ariaLabel = activeElement.getAttribute('aria-label')?.toLowerCase() || '';
+  const dataRole = activeElement.getAttribute('data-admin-barcode-field');
+
+  return (
+    dataRole === 'true'
+    || fieldName === 'barcode'
+    || fieldId === 'barcode'
+    || ariaLabel === 'barcode'
+  );
+}
 
 const MainLayout = ({ children }: PropsWithChildren) => {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [openItems, setOpenItems] = useState<string[]>([]);
   const { pathname } = useLocation();
+  const { enqueueSnackbar } = useSnackbar();
+  const scanBufferRef = useRef('');
+  const scanStartedAtRef = useRef(0);
+  const lastKeyAtRef = useRef(0);
+  const quietTimerRef = useRef<number | null>(null);
+  const lookupInFlightRef = useRef(false);
 
   const navItems = useMemo(() => sitemap.flatMap((section) => section.items), []);
   const isItemActive = (item: SubMenuItem): boolean => (
@@ -40,6 +77,103 @@ const MainLayout = ({ children }: PropsWithChildren) => {
       .map((item) => item.pathName);
     setOpenItems((current) => Array.from(new Set([...current, ...activeParents])));
   }, [pathname, navItems]);
+
+  useEffect(() => {
+    const resetScan = () => {
+      scanBufferRef.current = '';
+      scanStartedAtRef.current = 0;
+      lastKeyAtRef.current = 0;
+      if (quietTimerRef.current !== null) {
+        window.clearTimeout(quietTimerRef.current);
+        quietTimerRef.current = null;
+      }
+    };
+
+    const submitScan = async () => {
+      const barcode = scanBufferRef.current.trim();
+      const startedAt = scanStartedAtRef.current;
+      const lastKeyAt = lastKeyAtRef.current;
+      resetScan();
+
+      if (barcode.length < BARCODE_MIN_LENGTH || !startedAt || !lastKeyAt) return;
+      const averageDelay = (lastKeyAt - startedAt) / Math.max(barcode.length - 1, 1);
+      if (averageDelay > BARCODE_MAX_INTER_KEY_MS || lookupInFlightRef.current) return;
+
+      lookupInFlightRef.current = true;
+      try {
+        const response = await fetch(`/api/admin-v2/barcode-lookup?barcode=${encodeURIComponent(barcode)}`, {
+          credentials: 'same-origin',
+        });
+        if (!response.ok) {
+          throw new Error(`Barcode lookup failed with status ${response.status}`);
+        }
+        const data = (await response.json()) as BarcodeLookupResponse;
+        if (data.found && data.url) {
+          window.location.assign(data.url);
+          return;
+        }
+        enqueueSnackbar('Barcode not found', { variant: 'warning', autoHideDuration: 3000 });
+      } catch (error) {
+        console.error('Barcode lookup failed', error);
+        enqueueSnackbar('Barcode lookup failed', { variant: 'error', autoHideDuration: 3000 });
+      } finally {
+        lookupInFlightRef.current = false;
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isBarcodeFieldFocused(pathname)) {
+        resetScan();
+        return;
+      }
+
+      if (event.ctrlKey || event.metaKey || event.altKey) {
+        resetScan();
+        return;
+      }
+
+      if (event.key === 'Enter') {
+        if (scanBufferRef.current.length >= BARCODE_MIN_LENGTH) {
+          event.preventDefault();
+          void submitScan();
+        } else {
+          resetScan();
+        }
+        return;
+      }
+
+      if (event.key.length !== 1) return;
+
+      const now = performance.now();
+      if (!scanBufferRef.current || now - lastKeyAtRef.current > BARCODE_MAX_INTER_KEY_MS) {
+        scanBufferRef.current = event.key;
+        scanStartedAtRef.current = now;
+      } else {
+        scanBufferRef.current += event.key;
+        if (scanBufferRef.current.length >= 3) {
+          event.preventDefault();
+        }
+      }
+      lastKeyAtRef.current = now;
+
+      if (quietTimerRef.current !== null) {
+        window.clearTimeout(quietTimerRef.current);
+      }
+      quietTimerRef.current = window.setTimeout(() => {
+        if (scanBufferRef.current.length >= BARCODE_MIN_LENGTH) {
+          void submitScan();
+        } else {
+          resetScan();
+        }
+      }, BARCODE_QUIET_MS);
+    };
+
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, { capture: true });
+      resetScan();
+    };
+  }, [enqueueSnackbar, pathname]);
 
   const toggleItem = (pathName: string) => {
     setOpenItems((current) => (
