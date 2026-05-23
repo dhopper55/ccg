@@ -2862,7 +2862,7 @@ const InventoryItem = () => {
                           label="Highlight Bullet?"
                         />
                       </Grid>
-                      <Grid size={{ xs: 12, md: 6 }}>
+                      <Grid size={{ xs: 12, md: 6 }} data-admin-barcode-field="true">
                         <TextField
                           fullWidth
                           label="Barcode"

@@ -33,21 +33,26 @@ type BarcodeLookupResponse = {
   message?: string;
 };
 
-function isBarcodeFieldFocused(pathname: string): boolean {
+function isBarcodeFieldFocused(pathname: string, eventTarget: EventTarget | null): boolean {
   if (pathname !== paths.inventoryItem) return false;
+  if (eventTarget instanceof Element && eventTarget.closest('[data-admin-barcode-field="true"]')) {
+    return true;
+  }
+
   const activeElement = document.activeElement;
-  if (!(activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement)) {
+  if (!(activeElement instanceof Element)) {
     return false;
   }
+
+  if (activeElement.closest('[data-admin-barcode-field="true"]')) return true;
+  if (!(activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement)) return false;
 
   const fieldName = activeElement.name.toLowerCase();
   const fieldId = activeElement.id.toLowerCase();
   const ariaLabel = activeElement.getAttribute('aria-label')?.toLowerCase() || '';
-  const dataRole = activeElement.getAttribute('data-admin-barcode-field');
 
   return (
-    dataRole === 'true'
-    || fieldName === 'barcode'
+    fieldName === 'barcode'
     || fieldId === 'barcode'
     || ariaLabel === 'barcode'
   );
@@ -122,7 +127,7 @@ const MainLayout = ({ children }: PropsWithChildren) => {
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (isBarcodeFieldFocused(pathname)) {
+      if (isBarcodeFieldFocused(pathname, event.target)) {
         resetScan();
         return;
       }
