@@ -33,7 +33,18 @@ type BarcodeLookupResponse = {
   message?: string;
 };
 
+type BarcodeFocusWindow = Window & {
+  __ccgAdminBarcodeInputFocused?: boolean;
+};
+
+function isInventoryBarcodeInputFocused(): boolean {
+  if ((window as BarcodeFocusWindow).__ccgAdminBarcodeInputFocused) return true;
+  const activeElement = document.activeElement;
+  return activeElement instanceof Element && activeElement.getAttribute('data-admin-barcode-field') === 'true';
+}
+
 function isBarcodeFieldFocused(pathname: string, eventTarget: EventTarget | null): boolean {
+  if (isInventoryBarcodeInputFocused()) return true;
   if (pathname !== paths.inventoryItem) return false;
   if (eventTarget instanceof Element && eventTarget.closest('[data-admin-barcode-field="true"]')) {
     return true;
@@ -99,6 +110,11 @@ const MainLayout = ({ children }: PropsWithChildren) => {
     };
 
     const submitScan = async () => {
+      if (isInventoryBarcodeInputFocused()) {
+        resetScan();
+        return;
+      }
+
       const barcode = scanBufferRef.current.trim();
       const startedAt = scanStartedAtRef.current;
       const lastKeyAt = lastKeyAtRef.current;

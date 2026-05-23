@@ -257,6 +257,10 @@ type InventoryCategoriesResponse = {
   message?: string;
 };
 
+type BarcodeFocusWindow = Window & {
+  __ccgAdminBarcodeInputFocused?: boolean;
+};
+
 type InventoryCategoryOption = {
   id: string;
   name: string;
@@ -2870,6 +2874,12 @@ const InventoryItem = () => {
                           required={Boolean(editId)}
                           value={form.barcode}
                           onChange={(event) => setField('barcode', event.target.value)}
+                          onFocus={() => {
+                            (window as BarcodeFocusWindow).__ccgAdminBarcodeInputFocused = true;
+                          }}
+                          onBlur={() => {
+                            (window as BarcodeFocusWindow).__ccgAdminBarcodeInputFocused = false;
+                          }}
                           error={Boolean(form.barcode && getBarcodeValidationError(form.barcode))}
                           helperText={
                             form.barcode && getBarcodeValidationError(form.barcode)
