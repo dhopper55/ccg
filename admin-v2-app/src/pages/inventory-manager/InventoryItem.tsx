@@ -1706,8 +1706,8 @@ const InventoryItem = () => {
       .map(truncateBulletText)
       .filter(Boolean)
       .slice(0, 5);
-    const mapPrice = parsePopulatedPrice(upcLookupData.map);
     const msrpPrice = parsePopulatedPrice(upcLookupData.msrp);
+    const mapPrice = parsePopulatedPrice(upcLookupData.map) ?? msrpPrice;
     const dealerCost = parsePopulatedPrice(upcLookupData.dealer_cost);
 
     setForm((current) => ({
