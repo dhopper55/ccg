@@ -183,6 +183,34 @@ const PaymentSummary = () => {
             justifyContent: 'space-between',
           }}
         >
+          <Typography
+            variant="subtitle1"
+            sx={{
+              fontWeight: 700,
+              color: 'text.secondary',
+            }}
+          >
+            Subtotal
+          </Typography>
+          <Typography
+            variant="subtitle1"
+            sx={{
+              fontWeight: 700,
+              color: 'text.secondary',
+            }}
+          >
+            {currencyFormat(cartSubTotal)}
+          </Typography>
+        </Stack>
+
+        <Divider sx={{ my: 3 }} />
+
+        <Stack
+          sx={{
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
           <Box>
             <Typography
               variant="subtitle1"
@@ -223,34 +251,6 @@ const PaymentSummary = () => {
             }}
           >
             {currencyFormat(cartTax)} ({taxRateLabel})
-          </Typography>
-        </Stack>
-
-        <Divider sx={{ my: 3 }} />
-
-        <Stack
-          sx={{
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <Typography
-            variant="subtitle1"
-            sx={{
-              fontWeight: 700,
-              color: 'text.secondary',
-            }}
-          >
-            Subtotal
-          </Typography>
-          <Typography
-            variant="subtitle1"
-            sx={{
-              fontWeight: 700,
-              color: 'text.secondary',
-            }}
-          >
-            {currencyFormat(cartSubTotal)}
           </Typography>
         </Stack>
 

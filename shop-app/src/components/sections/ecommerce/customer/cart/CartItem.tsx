@@ -31,6 +31,7 @@ const CartItem = ({ item }: CartItemProps) => {
   const upSm = up('sm');
 
   const { id, name, images, price, stock, quantity } = item;
+  const hasDiscount = Number(price.regular) > Number(price.discounted);
 
   const handleQuantityChange = (quantity: number) => {
     updateCartItem(item.id, { quantity: Math.min(quantity, Math.max(1, Number(stock || 1))) });
@@ -175,7 +176,7 @@ const CartItem = ({ item }: CartItemProps) => {
                       {currencyFormat(price.discounted)}
                     </Box>
                   </Typography>
-                  {item.price.offer && (
+                  {hasDiscount && item.price.offer && (
                     <Chip variant="soft" color="success" label={`Save ${item.price.offer}`} />
                   )}
                 </Stack>
@@ -186,15 +187,17 @@ const CartItem = ({ item }: CartItemProps) => {
                     alignItems: 'center',
                   }}
                 >
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      color: 'text.disabled',
-                      textDecoration: 'line-through',
-                    }}
-                  >
-                    {currencyFormat(price.regular)}
-                  </Typography>
+                  {hasDiscount && (
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: 'text.disabled',
+                        textDecoration: 'line-through',
+                      }}
+                    >
+                      {currencyFormat(price.regular)}
+                    </Typography>
+                  )}
                   <Typography variant="h5">
                     {currencyFormat(price.discounted * quantity)}
                   </Typography>
