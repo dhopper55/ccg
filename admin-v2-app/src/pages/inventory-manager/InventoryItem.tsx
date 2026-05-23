@@ -2865,6 +2865,7 @@ const InventoryItem = () => {
                       <Grid size={{ xs: 12, md: 6 }} data-admin-barcode-field="true">
                         <TextField
                           fullWidth
+                          data-admin-barcode-field="true"
                           label="Barcode"
                           required={Boolean(editId)}
                           value={form.barcode}
@@ -2883,9 +2884,21 @@ const InventoryItem = () => {
                             'aria-label': 'Barcode',
                             'data-admin-barcode-field': 'true',
                             inputMode: 'numeric',
-                            pattern: '[0-9]*',
-                            minLength: 8,
-                            maxLength: 20,
+                              pattern: '[0-9]*',
+                              minLength: 8,
+                              maxLength: 20,
+                          }}
+                          slotProps={{
+                            htmlInput: {
+                              name: 'barcode',
+                              id: 'barcode',
+                              'aria-label': 'Barcode',
+                              'data-admin-barcode-field': 'true',
+                              inputMode: 'numeric',
+                              pattern: '[0-9]*',
+                              minLength: 8,
+                              maxLength: 20,
+                            },
                           }}
                         />
                       </Grid>

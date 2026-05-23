@@ -47,6 +47,10 @@ function isBarcodeFieldFocused(pathname: string, eventTarget: EventTarget | null
   if (activeElement.closest('[data-admin-barcode-field="true"]')) return true;
   if (!(activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement)) return false;
 
+  const formControl = activeElement.closest('.MuiFormControl-root');
+  const formControlText = formControl?.textContent?.toLowerCase() || '';
+  if (formControlText.includes('barcode')) return true;
+
   const fieldName = activeElement.name.toLowerCase();
   const fieldId = activeElement.id.toLowerCase();
   const ariaLabel = activeElement.getAttribute('aria-label')?.toLowerCase() || '';
