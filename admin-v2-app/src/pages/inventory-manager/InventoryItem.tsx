@@ -2095,7 +2095,7 @@ const InventoryItem = () => {
         ) : (
           <Stack spacing={4}>
             <Grid container spacing={3}>
-              <Grid size={{ xs: 12, md: 6 }}>
+              <Grid size={{ xs: 12, md: 4 }}>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                   {mode === 'edit' ? (
                     <Tooltip title="Duplicate">
@@ -2128,7 +2128,78 @@ const InventoryItem = () => {
                   />
                 </Stack>
               </Grid>
-              <Grid size={{ xs: 12, md: 3 }}>
+              <Grid size={{ xs: 12, md: 4 }} data-admin-barcode-field="true">
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
+                  <TextField
+                    fullWidth
+                    data-admin-barcode-field="true"
+                    label="Barcode"
+                    required={Boolean(editId)}
+                    value={form.barcode}
+                    onChange={(event) => setField('barcode', event.target.value)}
+                    onFocus={() => {
+                      (window as BarcodeFocusWindow).__ccgAdminBarcodeInputFocused = true;
+                    }}
+                    onBlur={() => {
+                      (window as BarcodeFocusWindow).__ccgAdminBarcodeInputFocused = false;
+                    }}
+                    error={Boolean(form.barcode && getBarcodeValidationError(form.barcode))}
+                    helperText={
+                      form.barcode && getBarcodeValidationError(form.barcode)
+                        ? getBarcodeValidationError(form.barcode)
+                        : editId
+                          ? 'Numeric only, 8-20 digits.'
+                          : 'Scan or enter a barcode, or leave blank to auto-generate on save.'
+                    }
+                    inputProps={{
+                      name: 'barcode',
+                      id: 'barcode',
+                      'aria-label': 'Barcode',
+                      'data-admin-barcode-field': 'true',
+                      inputMode: 'numeric',
+                      pattern: '[0-9]*',
+                      minLength: 8,
+                      maxLength: 20,
+                    }}
+                    slotProps={{
+                      htmlInput: {
+                        name: 'barcode',
+                        id: 'barcode',
+                        'aria-label': 'Barcode',
+                        'data-admin-barcode-field': 'true',
+                        inputMode: 'numeric',
+                        pattern: '[0-9]*',
+                        minLength: 8,
+                        maxLength: 20,
+                      },
+                    }}
+                  />
+                  <Tooltip title="Lookup UPC data">
+                    <span>
+                      <IconButton
+                        aria-label="Lookup UPC data"
+                        color="primary"
+                        disabled={!form.barcode.trim() || Boolean(getBarcodeValidationError(form.barcode))}
+                        onClick={openUpcLookupDialog}
+                        sx={{
+                          width: 44,
+                          height: 44,
+                          mt: 0.75,
+                          border: 1,
+                          borderColor: 'primary.main',
+                          bgcolor: 'background.elevation1',
+                          '&:hover': {
+                            bgcolor: 'background.elevation2',
+                          },
+                        }}
+                      >
+                        <IconifyIcon icon="material-symbols:search-rounded" fontSize={20} />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                </Stack>
+              </Grid>
+              <Grid size={{ xs: 12, md: 2 }}>
                 <TextField
                   fullWidth
                   label="Purchased Date"
@@ -2138,7 +2209,7 @@ const InventoryItem = () => {
                   slotProps={{ inputLabel: { shrink: true } }}
                 />
               </Grid>
-              <Grid size={{ xs: 12, md: 3 }}>
+              <Grid size={{ xs: 12, md: 2 }}>
                 <TextField
                   fullWidth
                   label="Qty"
@@ -3078,78 +3149,6 @@ const InventoryItem = () => {
                           label="Highlight Bullet?"
                         />
                       </Grid>
-                      <Grid size={{ xs: 12, md: 6 }} data-admin-barcode-field="true">
-                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ alignItems: 'flex-start' }}>
-                          <TextField
-                            fullWidth
-                            data-admin-barcode-field="true"
-                            label="Barcode"
-                            required={Boolean(editId)}
-                            value={form.barcode}
-                            onChange={(event) => setField('barcode', event.target.value)}
-                            onFocus={() => {
-                              (window as BarcodeFocusWindow).__ccgAdminBarcodeInputFocused = true;
-                            }}
-                            onBlur={() => {
-                              (window as BarcodeFocusWindow).__ccgAdminBarcodeInputFocused = false;
-                            }}
-                            error={Boolean(form.barcode && getBarcodeValidationError(form.barcode))}
-                            helperText={
-                              form.barcode && getBarcodeValidationError(form.barcode)
-                                ? getBarcodeValidationError(form.barcode)
-                                : editId
-                                  ? 'Numeric only, 8-20 digits.'
-                                  : 'Scan or enter a barcode, or leave blank to auto-generate on save.'
-                            }
-                            inputProps={{
-                              name: 'barcode',
-                              id: 'barcode',
-                              'aria-label': 'Barcode',
-                              'data-admin-barcode-field': 'true',
-                              inputMode: 'numeric',
-                              pattern: '[0-9]*',
-                              minLength: 8,
-                              maxLength: 20,
-                            }}
-                            slotProps={{
-                              htmlInput: {
-                                name: 'barcode',
-                                id: 'barcode',
-                                'aria-label': 'Barcode',
-                                'data-admin-barcode-field': 'true',
-                                inputMode: 'numeric',
-                                pattern: '[0-9]*',
-                                minLength: 8,
-                                maxLength: 20,
-                              },
-                            }}
-                          />
-                          <Tooltip title="Lookup UPC data">
-                            <span>
-                              <IconButton
-                                aria-label="Lookup UPC data"
-                                color="primary"
-                                disabled={!form.barcode.trim() || Boolean(getBarcodeValidationError(form.barcode))}
-                                onClick={openUpcLookupDialog}
-                                sx={{
-                                  width: 44,
-                                  height: 44,
-                                  mt: 0.75,
-                                  border: 1,
-                                  borderColor: 'primary.main',
-                                  bgcolor: 'background.elevation1',
-                                  '&:hover': {
-                                    bgcolor: 'background.elevation2',
-                                  },
-                                }}
-                              >
-                                <IconifyIcon icon="material-symbols:search-rounded" fontSize={20} />
-                              </IconButton>
-                            </span>
-                          </Tooltip>
-                        </Stack>
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 6 }} />
                       <Grid size={{ xs: 12, md: 3 }}>
                         <Button
                           fullWidth
