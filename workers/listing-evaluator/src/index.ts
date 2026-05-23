@@ -733,6 +733,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/upc-lookup' && request.method === 'GET') {
+      const response = await handleAdminV2UpcLookup(request);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/admin-v2/serial-contexts/generate' && request.method === 'POST') {
       const response = await handleAdminV2SerialPatternContextGenerate(request, env);
       return withCors(response, request, env);
@@ -6075,6 +6080,125 @@ async function handleAdminV2BarcodeLookup(request: Request, env: Env): Promise<R
     ccgNumber: normalizeText(row.ccg_number, ''),
     url: `/admin/inventory-item?id=${encodeURIComponent(String(row.id))}`,
   });
+}
+
+async function handleAdminV2UpcLookup(request: Request): Promise<Response> {
+  const url = new URL(request.url);
+  const barcode = normalizeText(url.searchParams.get('barcode'), '').replace(/\D/g, '').slice(0, 20);
+  const brand = normalizeText(url.searchParams.get('brand'), '').slice(0, 120);
+  if (!/^\d{8,20}$/.test(barcode)) {
+    return jsonResponse({ message: 'Barcode must be 8 to 20 digits.' }, 400);
+  }
+
+  const lookupUrl = new URL('https://api.upcitemdb.com/prod/trial/lookup');
+  lookupUrl.searchParams.set('upc', barcode);
+
+  let response: Response;
+  try {
+    response = await fetch(lookupUrl.toString(), {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'CCG Admin UPC Lookup/1.0',
+      },
+    });
+  } catch {
+    return jsonResponse({ message: 'Unable to reach UPC lookup service.' }, 502);
+  }
+
+  if (!response.ok) {
+    return jsonResponse({ message: 'UPC lookup service returned an error.' }, 502);
+  }
+
+  let data: Record<string, unknown>;
+  try {
+    data = await response.json();
+  } catch {
+    return jsonResponse({ message: 'UPC lookup service returned invalid JSON.' }, 502);
+  }
+
+  const items = Array.isArray(data.items) ? data.items : [];
+  const item = items.find((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === 'object'));
+  if (!item) return jsonResponse({ found: false, barcode, brand, source: 'upcitemdb' });
+
+  return jsonResponse({
+    found: true,
+    ...normalizeUpcItemDbItem(barcode, brand, item),
+  });
+}
+
+function normalizeUpcItemDbItem(
+  barcode: string,
+  requestedBrand: string,
+  item: Record<string, unknown>,
+): Record<string, unknown> {
+  const title = normalizeText(item.title, '');
+  const brand = normalizeText(item.brand, '');
+  const description = normalizeText(item.description, '');
+  const images = normalizeUpcItemDbImages(item.images);
+  const attributes = normalizeUpcItemDbAttributes(item);
+
+  return {
+    barcode,
+    requested_brand: requestedBrand || null,
+    source: 'upcitemdb',
+    title,
+    description,
+    features: [],
+    attributes,
+    images,
+    item_no: pickUpcString(item, ['asin', 'elid', 'ean', 'upc']),
+    brand_desc: pickUpcString(item, ['brand_desc', 'brandDescription']),
+    brand,
+    map: formatNullableCurrency(pickUpcNumber(item, ['map', 'minimum_advertised_price'])),
+    msrp: formatNullableCurrency(pickUpcNumber(item, ['msrp', 'highest_recorded_price'])),
+    dealer_cost: formatNullableCurrency(pickUpcNumber(item, ['dealer_cost', 'cost'])),
+    raw: item,
+  };
+}
+
+function normalizeUpcItemDbImages(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(
+    value
+      .map((entry) => normalizeUrl(normalizeText(entry, '')))
+      .filter((entry): entry is string => Boolean(entry)),
+  )).slice(0, INVENTORY_MAX_IMAGES);
+}
+
+function normalizeUpcItemDbAttributes(item: Record<string, unknown>): Record<string, string> {
+  const keys = ['brand', 'model', 'color', 'size', 'dimension', 'weight', 'category'];
+  const attributes: Record<string, string> = {};
+  keys.forEach((key) => {
+    const value = normalizeText(item[key], '');
+    if (value) attributes[key] = value;
+  });
+  return attributes;
+}
+
+function pickUpcString(item: Record<string, unknown>, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = normalizeText(item[key], '');
+    if (value) return value;
+  }
+  return null;
+}
+
+function pickUpcNumber(item: Record<string, unknown>, keys: string[]): number | null {
+  for (const key of keys) {
+    const parsed = parseCurrencyAmount(item[key]);
+    if (parsed != null) return parsed;
+  }
+  return null;
+}
+
+function formatNullableCurrency(value: number | null): string | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
 }
 
 async function handleAdminV2SerialPatternTextList(request: Request, env: Env): Promise<Response> {

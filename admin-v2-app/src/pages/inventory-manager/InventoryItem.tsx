@@ -140,6 +140,25 @@ type SaveResponse = {
   duplicateSuppressed?: boolean;
 };
 
+type UpcLookupResponse = {
+  found?: boolean;
+  barcode?: string;
+  source?: string;
+  title?: string;
+  description?: string;
+  features?: string[];
+  attributes?: Record<string, string>;
+  images?: string[];
+  item_no?: string | null;
+  brand_desc?: string | null;
+  brand?: string | null;
+  map?: string | null;
+  msrp?: string | null;
+  dealer_cost?: string | null;
+  message?: string;
+  raw?: unknown;
+};
+
 type NextCcgNumberResponse = {
   ccgNumber?: string;
   message?: string;
@@ -620,6 +639,52 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function removeBrandFromModel(title: string, brand: string): string {
+  const normalizedTitle = title.trim();
+  const normalizedBrand = brand.trim();
+  if (!normalizedTitle || !normalizedBrand) return normalizedTitle;
+  return normalizedTitle
+    .replace(new RegExp(`\\b${escapeRegExp(normalizedBrand)}\\b`, 'ig'), '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildUpcAttributeLines(data: UpcLookupResponse): string[] {
+  const lines: string[] = [];
+  const pushLine = (label: string, value: unknown) => {
+    const text = typeof value === 'string' ? value.trim() : '';
+    if (!text) return;
+    const line = `${label}: ${text}`;
+    if (!lines.includes(line)) lines.push(line);
+  };
+
+  pushLine('Brand', data.brand);
+  pushLine('Item No.', data.item_no);
+  pushLine('MAP', data.map);
+  pushLine('MSRP', data.msrp);
+  pushLine('Dealer Cost', data.dealer_cost);
+
+  Object.entries(data.attributes || {}).forEach(([key, value]) => {
+    const label = key
+      .replace(/[_-]+/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+    pushLine(label, value);
+  });
+
+  return lines;
+}
+
+function appendAttributeLines(description: string, attributeLines: string[]): string {
+  const base = description.trim();
+  if (attributeLines.length === 0) return base;
+  return [base, 'Attributes:', ...attributeLines.map((line) => `- ${line}`)].filter(Boolean).join('\n');
+}
+
+function truncateBulletText(value: string): string {
+  const trimmed = value.trim();
+  return trimmed.length <= 60 ? trimmed : `${trimmed.slice(0, 57).trimEnd()}...`;
+}
+
 function replaceLinePlaceholder(template: string, placeholder: string, value: string): string {
   if (value.trim()) return template.replaceAll(placeholder, value);
 
@@ -950,6 +1015,10 @@ const InventoryItem = () => {
   const [soldConfirmOpen, setSoldConfirmOpen] = useState(false);
   const [duplicateConfirmOpen, setDuplicateConfirmOpen] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
+  const [upcLookupOpen, setUpcLookupOpen] = useState(false);
+  const [upcLookupBrand, setUpcLookupBrand] = useState('DUNLOP');
+  const [isUpcSearching, setIsUpcSearching] = useState(false);
+  const [upcLookupData, setUpcLookupData] = useState<UpcLookupResponse | null>(null);
   const [categoryOptions, setCategoryOptions] = useState<InventoryCategoryOption[]>([]);
   const [subscriptionOptions, setSubscriptionOptions] = useState<Array<{ id: string; name: string }>>([]);
 
@@ -1572,6 +1641,120 @@ const InventoryItem = () => {
       throw new Error(data.message || 'Unable to import source image.');
     }
     return data.imageUrl;
+  };
+
+  const openUpcLookupDialog = () => {
+    setUpcLookupData(null);
+    setUpcLookupBrand('DUNLOP');
+    setUpcLookupOpen(true);
+    setMessage(null);
+  };
+
+  const closeUpcLookupDialog = () => {
+    if (isUpcSearching || isImporting) return;
+    setUpcLookupOpen(false);
+  };
+
+  const handleUpcLookupGo = async () => {
+    const barcode = form.barcode.trim();
+    const barcodeValidationError = getBarcodeValidationError(barcode);
+    if (barcodeValidationError) {
+      enqueueSnackbar(barcodeValidationError, { variant: 'error' });
+      return;
+    }
+
+    setIsUpcSearching(true);
+    setUpcLookupData(null);
+    try {
+      const params = new URLSearchParams();
+      params.set('barcode', barcode);
+      params.set('brand', upcLookupBrand);
+      const response = await fetch(`/api/admin-v2/upc-lookup?${params.toString()}`, {
+        method: 'GET',
+        credentials: 'same-origin',
+      });
+      const data = (await response.json().catch(() => ({}))) as UpcLookupResponse;
+      if (!response.ok) {
+        throw new Error(data.message || 'Unable to lookup UPC data.');
+      }
+      if (!data.found) {
+        setUpcLookupOpen(false);
+        enqueueSnackbar('UPC Data Not Found', { variant: 'warning' });
+        return;
+      }
+      setUpcLookupData(data);
+    } catch (error) {
+      const text = error instanceof Error ? error.message : 'Unable to lookup UPC data.';
+      enqueueSnackbar(text, { variant: 'error' });
+    } finally {
+      setIsUpcSearching(false);
+    }
+  };
+
+  const handlePopulateFromUpc = async () => {
+    if (!upcLookupData || isImporting) return;
+
+    const preferredTitle = (upcLookupData.brand_desc || upcLookupData.title || '').trim();
+    const brand = (upcLookupData.brand || upcLookupBrand || '').trim();
+    const description = (upcLookupData.description || '').trim();
+    const attributeLines = buildUpcAttributeLines(upcLookupData);
+    const descriptionWithAttributes = appendAttributeLines(description, attributeLines);
+    const bulletCandidates = [
+      ...attributeLines,
+      ...(Array.isArray(upcLookupData.features) ? upcLookupData.features : []),
+    ].map(truncateBulletText).filter(Boolean).slice(0, 6);
+
+    setForm((current) => ({
+      ...current,
+      title: preferredTitle || current.title,
+      saleTitle: preferredTitle || current.saleTitle,
+      saleUrl: preferredTitle ? generateSaleUrlSlugFromTitle(preferredTitle) : current.saleUrl,
+      originalListingDesc: descriptionWithAttributes || current.originalListingDesc,
+      saleDescription: descriptionWithAttributes || current.saleDescription,
+      brand: brand || current.brand,
+      model: preferredTitle ? removeBrandFromModel(preferredTitle, brand) : current.model,
+      bullet1Text: bulletCandidates[0] || current.bullet1Text,
+      bullet2Text: bulletCandidates[1] || current.bullet2Text,
+      bullet3Text: bulletCandidates[2] || current.bullet3Text,
+      bullet4Text: bulletCandidates[3] || current.bullet4Text,
+      bullet5Text: bulletCandidates[4] || current.bullet5Text,
+      bullet6Text: bulletCandidates[5] || current.bullet6Text,
+      mapPrice: current.mapPrice || String(parseTagPrice(upcLookupData.map || '') ?? ''),
+      unitPurchasePrice: current.unitPurchasePrice || String(parseTagPrice(upcLookupData.dealer_cost || '') ?? ''),
+      regularPrice: current.regularPrice || String(parseTagPrice(upcLookupData.msrp || '') ?? ''),
+    }));
+    if (preferredTitle) {
+      setSaleUrlReadOnly(true);
+    }
+
+    const imageUrls = (upcLookupData.images || []).filter(Boolean).slice(0, INVENTORY_MAX_IMAGES - images.length);
+    if (imageUrls.length > 0) {
+      setIsImporting(true);
+      try {
+        let nextImages = [...images];
+        let importedCount = 0;
+        for (const url of imageUrls) {
+          if (nextImages.length >= INVENTORY_MAX_IMAGES) break;
+          const importedUrl = await importSourceImage(url);
+          nextImages = normalizeImages([...nextImages, { url: importedUrl, isPrivate: false }]);
+          importedCount += 1;
+          setImages(nextImages);
+        }
+        if (importedCount > 0) {
+          enqueueSnackbar(`Imported ${importedCount} UPC image${importedCount === 1 ? '' : 's'}.`, {
+            variant: 'success',
+          });
+        }
+      } catch (error) {
+        const text = error instanceof Error ? error.message : 'Unable to import UPC image.';
+        enqueueSnackbar(text, { variant: 'error' });
+      } finally {
+        setIsImporting(false);
+      }
+    }
+
+    setUpcLookupOpen(false);
+    enqueueSnackbar('UPC data populated. Review and save when ready.', { variant: 'success' });
   };
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -2882,39 +3065,29 @@ const InventoryItem = () => {
                         />
                       </Grid>
                       <Grid size={{ xs: 12, md: 6 }} data-admin-barcode-field="true">
-                        <TextField
-                          fullWidth
-                          data-admin-barcode-field="true"
-                          label="Barcode"
-                          required={Boolean(editId)}
-                          value={form.barcode}
-                          onChange={(event) => setField('barcode', event.target.value)}
-                          onFocus={() => {
-                            (window as BarcodeFocusWindow).__ccgAdminBarcodeInputFocused = true;
-                          }}
-                          onBlur={() => {
-                            (window as BarcodeFocusWindow).__ccgAdminBarcodeInputFocused = false;
-                          }}
-                          error={Boolean(form.barcode && getBarcodeValidationError(form.barcode))}
-                          helperText={
-                            form.barcode && getBarcodeValidationError(form.barcode)
-                              ? getBarcodeValidationError(form.barcode)
-                              : editId
-                                ? 'Numeric only, 8-20 digits.'
-                                : 'Scan or enter a barcode, or leave blank to auto-generate on save.'
-                          }
-                          inputProps={{
-                            name: 'barcode',
-                            id: 'barcode',
-                            'aria-label': 'Barcode',
-                            'data-admin-barcode-field': 'true',
-                            inputMode: 'numeric',
-                              pattern: '[0-9]*',
-                              minLength: 8,
-                              maxLength: 20,
-                          }}
-                          slotProps={{
-                            htmlInput: {
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ alignItems: 'flex-start' }}>
+                          <TextField
+                            fullWidth
+                            data-admin-barcode-field="true"
+                            label="Barcode"
+                            required={Boolean(editId)}
+                            value={form.barcode}
+                            onChange={(event) => setField('barcode', event.target.value)}
+                            onFocus={() => {
+                              (window as BarcodeFocusWindow).__ccgAdminBarcodeInputFocused = true;
+                            }}
+                            onBlur={() => {
+                              (window as BarcodeFocusWindow).__ccgAdminBarcodeInputFocused = false;
+                            }}
+                            error={Boolean(form.barcode && getBarcodeValidationError(form.barcode))}
+                            helperText={
+                              form.barcode && getBarcodeValidationError(form.barcode)
+                                ? getBarcodeValidationError(form.barcode)
+                                : editId
+                                  ? 'Numeric only, 8-20 digits.'
+                                  : 'Scan or enter a barcode, or leave blank to auto-generate on save.'
+                            }
+                            inputProps={{
                               name: 'barcode',
                               id: 'barcode',
                               'aria-label': 'Barcode',
@@ -2923,9 +3096,31 @@ const InventoryItem = () => {
                               pattern: '[0-9]*',
                               minLength: 8,
                               maxLength: 20,
-                            },
-                          }}
-                        />
+                            }}
+                            slotProps={{
+                              htmlInput: {
+                                name: 'barcode',
+                                id: 'barcode',
+                                'aria-label': 'Barcode',
+                                'data-admin-barcode-field': 'true',
+                                inputMode: 'numeric',
+                                pattern: '[0-9]*',
+                                minLength: 8,
+                                maxLength: 20,
+                              },
+                            }}
+                          />
+                          <Button
+                            variant="outlined"
+                            color="primary"
+                            disabled={!form.barcode.trim() || Boolean(getBarcodeValidationError(form.barcode))}
+                            onClick={openUpcLookupDialog}
+                            startIcon={<IconifyIcon icon="material-symbols:search-rounded" />}
+                            sx={{ minHeight: 56, minWidth: 126 }}
+                          >
+                            Lookup
+                          </Button>
+                        </Stack>
                       </Grid>
                       <Grid size={{ xs: 12, md: 6 }} />
                       <Grid size={{ xs: 12, md: 3 }}>
@@ -3145,6 +3340,88 @@ const InventoryItem = () => {
           </Stack>
         )}
       </Box>
+
+      <Dialog open={upcLookupOpen} onClose={closeUpcLookupDialog} fullWidth maxWidth="md">
+        <DialogTitle>UPC Lookup</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2.5}>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <TextField
+                  fullWidth
+                  label="Barcode"
+                  value={form.barcode.trim()}
+                  InputProps={{ readOnly: true }}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <TextField
+                  select
+                  fullWidth
+                  label="Brand"
+                  value={upcLookupBrand}
+                  onChange={(event) => setUpcLookupBrand(event.target.value)}
+                  disabled={isUpcSearching}
+                >
+                  <MenuItem value="DUNLOP">Dunlop</MenuItem>
+                </TextField>
+              </Grid>
+              <Grid size={{ xs: 12, md: 2 }}>
+                <Button
+                  fullWidth
+                  variant="contained"
+                  onClick={() => void handleUpcLookupGo()}
+                  disabled={isUpcSearching}
+                  startIcon={
+                    isUpcSearching ? (
+                      <CircularProgress size={16} color="inherit" />
+                    ) : (
+                      <IconifyIcon icon="material-symbols:search-rounded" />
+                    )
+                  }
+                  sx={{ minHeight: 56 }}
+                >
+                  Go
+                </Button>
+              </Grid>
+            </Grid>
+
+            {isUpcSearching ? (
+              <Stack sx={{ alignItems: 'center', justifyContent: 'center', py: 5 }} spacing={1.5}>
+                <CircularProgress size={24} />
+                <Typography sx={{ color: 'text.secondary' }}>Searching...</Typography>
+              </Stack>
+            ) : upcLookupData ? (
+              <TextField
+                fullWidth
+                multiline
+                minRows={12}
+                maxRows={18}
+                label="UPC JSON"
+                value={JSON.stringify(upcLookupData, null, 2)}
+                InputProps={{ readOnly: true }}
+                sx={notesFieldSx}
+              />
+            ) : (
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                Select a brand and click Go to lookup UPC data.
+              </Typography>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeUpcLookupDialog} disabled={isUpcSearching || isImporting}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => void handlePopulateFromUpc()}
+            disabled={!upcLookupData || isUpcSearching || isImporting}
+          >
+            {isImporting ? 'Importing Images...' : 'Populate'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={Boolean(previewImage)} onClose={() => setPreviewImage(null)} maxWidth="lg">
         <DialogContent sx={{ p: 1, bgcolor: 'background.default' }}>
