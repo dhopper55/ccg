@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useFormContext, useWatch } from 'react-hook-form';
 import {
   Box,
@@ -80,6 +80,9 @@ const Products = () => {
   const selectedCategoryIds = useWatch({ control, name: 'category', defaultValue: [] }) as string[];
   const didInitializePriceRange = useRef(false);
   const previousSearchTerm = useRef(searchTerm);
+  const productsTopRef = useRef<HTMLDivElement | null>(null);
+  const previousFilterSignature = useRef('');
+  const pendingFilterScroll = useRef(false);
 
   useEffect(() => {
     if (upMd) setIsDrawerOpen(true);
@@ -112,6 +115,16 @@ const Products = () => {
     () => getEffectiveCategoryIds(categoryOptions, selectedCategoryIds || []),
     [categoryOptions, selectedCategoryIds],
   );
+  const filterSignature = useMemo(() => {
+    const priceSignature = Array.isArray(priceRange) ? priceRange.join(':') : '';
+    return `${effectiveCategoryIds.join('|')}::${priceSignature}`;
+  }, [effectiveCategoryIds, priceRange]);
+
+  const scrollProductsToTop = useCallback(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    document.scrollingElement?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    productsTopRef.current?.scrollIntoView({ block: 'start', behavior: 'auto' });
+  }, []);
 
   useEffect(() => {
     if (!didInitializePriceRange.current && maxPrice > 0) {
@@ -186,6 +199,12 @@ const Products = () => {
           setMaxPrice(getHighestProductPrice(records));
         }
         setPage(1);
+        if (pendingFilterScroll.current) {
+          window.requestAnimationFrame(() => {
+            scrollProductsToTop();
+            pendingFilterScroll.current = false;
+          });
+        }
       } catch {
         if (!cancelled) setAllProducts([]);
       } finally {
@@ -194,20 +213,43 @@ const Products = () => {
     };
     void load();
     return () => { cancelled = true; };
-  }, [effectiveCategoryIds, isAssociateMode, isCheckingAssociateMode, maxPrice, priceRange, searchTerm]);
+  }, [
+    effectiveCategoryIds,
+    isAssociateMode,
+    isCheckingAssociateMode,
+    maxPrice,
+    priceRange,
+    scrollProductsToTop,
+    searchTerm,
+  ]);
 
   const totalPages = Math.max(1, Math.ceil(allProducts.length / PAGE_SIZE));
   const visibleProducts = allProducts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [effectiveCategoryIds, priceRange]);
+  useLayoutEffect(() => {
+    if (previousFilterSignature.current === '') {
+      previousFilterSignature.current = filterSignature;
+      return;
+    }
+    if (previousFilterSignature.current === filterSignature) return;
+
+    previousFilterSignature.current = filterSignature;
+    pendingFilterScroll.current = true;
+    scrollProductsToTop();
+
+    const frame = window.requestAnimationFrame(scrollProductsToTop);
+    const timeout = window.setTimeout(scrollProductsToTop, 0);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timeout);
+    };
+  }, [filterSignature, scrollProductsToTop]);
 
   const handlePrev = useCallback(() => setPage((p) => Math.max(1, p - 1)), []);
   const handleNext = useCallback(() => setPage((p) => Math.min(totalPages, p + 1)), [totalPages]);
 
   return (
-    <Grid container>
+    <Grid ref={productsTopRef} container sx={{ scrollMarginTop: 96 }}>
       <Grid size={12}>
         <Stack>
           <FilterDrawer
