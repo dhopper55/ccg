@@ -878,6 +878,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/inventory/custom-template' && request.method === 'GET') {
+      const response = await handleAdminV2InventoryCustomTemplate(request, env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/admin-v2/inventory/unmark-all' && request.method === 'POST') {
       const response = await handleAdminV2InventoryUnmarkAll(env);
       return withCors(response, request, env);
@@ -2835,6 +2840,7 @@ type InventoryItemRow = {
   is_marked: number | null;
   is_personal: number | null;
   is_rented: number | null;
+  is_custom: number | null;
   for_sale: number | null;
   only_in_store: number | null;
   for_sale_date: string | null;
@@ -4719,6 +4725,8 @@ async function handleShopProducts(request: Request, env: Env): Promise<Response>
   const url = new URL(request.url);
   const categoryIds = parseShopCategoryIds(url);
   const search = normalizeText(url.searchParams.get('search'), '').slice(0, 200);
+  const brands = Array.from(new Set(url.searchParams.getAll('brand').map((brand) => normalizeText(brand, '').slice(0, 100)).filter(Boolean)));
+  const sort = normalizeShopProductSort(url.searchParams.get('sort'));
   const showSold = url.searchParams.get('showSold') === '1';
   const associateMode = url.searchParams.get('associate') === '1'
     ? await isAssociateModeRequest(request, env)
@@ -4728,9 +4736,11 @@ async function handleShopProducts(request: Request, env: Env): Promise<Response>
   const conditionInput = normalizeText(url.searchParams.get('condition'), 'All').slice(0, 50);
   const condition = conditionInput && conditionInput !== 'All' ? conditionInput : '';
 
-  const records = await dbListShopProducts({
+  const productResult = await dbListShopProducts({
     categoryIds,
     search,
+    brands,
+    sort,
     showSold,
     associateMode,
     priceMin,
@@ -4739,10 +4749,13 @@ async function handleShopProducts(request: Request, env: Env): Promise<Response>
   }, env);
 
   return jsonResponse({
-    records,
+    records: productResult.records,
+    brands: productResult.brands,
     filters: {
       categoryIds,
       search,
+      brands,
+      sort,
       showSold: showSold ? 1 : 0,
       associateMode: associateMode ? 1 : 0,
       priceMin,
@@ -6082,6 +6095,26 @@ async function handleAdminV2BarcodeLookup(request: Request, env: Env): Promise<R
   });
 }
 
+async function handleAdminV2InventoryCustomTemplate(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const barcode = normalizeText(url.searchParams.get('barcode'), '').trim().slice(0, 80);
+  if (!barcode) return jsonResponse({ message: 'Barcode is required.' }, 400);
+
+  const row = await env.DB.prepare(
+    `SELECT id
+     FROM ccg_inventory_items
+     WHERE TRIM(COALESCE(barcode, '')) = ?
+       AND COALESCE(is_active, 0) = 1
+     ORDER BY id DESC
+     LIMIT 1`,
+  ).bind(barcode).first<{ id: number }>();
+  if (!row?.id) return jsonResponse({ message: 'Custom product template not found.' }, 404);
+
+  const record = await dbGetInventoryItem(String(row.id), env);
+  if (!record) return jsonResponse({ message: 'Custom product template not found.' }, 404);
+  return jsonResponse({ record });
+}
+
 type DunlopMfrPriceListRow = {
   item_number: string;
   description: string;
@@ -7110,6 +7143,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const isMarked = toBooleanInput(body.isMarked, false);
   const isPersonal = toBooleanInput(body.isPersonal, false);
   const isRented = toBooleanInput(body.isRented, false);
+  const isCustom = toBooleanInput(body.isCustom, false);
   const isSold = toBooleanInput(body.isSold, false);
   const forSaleRaw = toBooleanInput(body.forSale, false);
   const forSale = isSold ? false : forSaleRaw;
@@ -7333,6 +7367,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     is_marked: isMarked ? 1 : 0,
     is_personal: isPersonal ? 1 : 0,
     is_rented: isRented ? 1 : 0,
+    is_custom: isCustom ? 1 : 0,
     for_sale: forSale ? 1 : 0,
     only_in_store: onlyInStore ? 1 : 0,
     for_sale_date: forSale ? new Date().toISOString() : null,
@@ -7525,6 +7560,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const isMarked = toBooleanInput(body.isMarked, false);
   const isPersonal = toBooleanInput(body.isPersonal, false);
   const isRented = toBooleanInput(body.isRented, false);
+  const isCustom = toBooleanInput(body.isCustom, false);
   const isSold = toBooleanInput(body.isSold, false);
   const forSaleRaw = toBooleanInput(body.forSale, false);
   const forSale = isSold ? false : forSaleRaw;
@@ -7674,6 +7710,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       is_marked: isMarked ? 1 : 0,
       is_personal: isPersonal ? 1 : 0,
       is_rented: isRented ? 1 : 0,
+      is_custom: isCustom ? 1 : 0,
       for_sale: 1,
       only_in_store: onlyInStore ? 1 : 0,
       for_sale_date: remainingForSaleDate,
@@ -7784,6 +7821,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       is_marked: 0,
       is_personal: isPersonal ? 1 : 0,
       is_rented: isRented ? 1 : 0,
+      is_custom: isCustom ? 1 : 0,
       for_sale: 0,
       only_in_store: onlyInStore ? 1 : 0,
       for_sale_date: null,
@@ -7935,6 +7973,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     is_marked: isMarked ? 1 : 0,
     is_personal: isPersonal ? 1 : 0,
     is_rented: isRented ? 1 : 0,
+    is_custom: isCustom ? 1 : 0,
     for_sale: forSale ? 1 : 0,
     only_in_store: onlyInStore ? 1 : 0,
     for_sale_date: resolveToggleTimestamp({
@@ -9491,6 +9530,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.is_marked,
       i.is_personal,
       i.is_rented,
+      i.is_custom,
       i.for_sale,
       i.only_in_store,
       i.for_sale_date,
@@ -9585,6 +9625,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     isMarked: Boolean(row.is_marked),
     isPersonal: Boolean(row.is_personal),
     isRented: Boolean(row.is_rented),
+    isCustom: Boolean(row.is_custom),
     forSale: Boolean(row.for_sale),
     onlyInStore: Boolean(row.only_in_store),
     forSaleDate: row.for_sale_date || null,
@@ -9837,6 +9878,8 @@ async function dbListShopProducts(
   filters: {
     categoryIds: number[];
     search: string;
+    brands: string[];
+    sort: string;
     showSold: boolean;
     associateMode: boolean;
     priceMin: number;
@@ -9844,49 +9887,49 @@ async function dbListShopProducts(
     condition: string;
   },
   env: Env,
-): Promise<Array<Record<string, unknown>>> {
+): Promise<{ records: Array<Record<string, unknown>>; brands: string[] }> {
   const categoryRows = await dbListInventoryCategories(env);
   const allowedCategoryIds = expandInventoryCategoryIds(filters.categoryIds, categoryRows);
 
-  const clauses: string[] = [
+  const baseClauses: string[] = [
     'COALESCE(i.is_active, 0) = 1',
     filters.showSold ? 'COALESCE(i.is_sold, 0) = 1' : 'COALESCE(i.is_sold, 0) = 0',
   ];
-  const binds: unknown[] = [];
+  const baseBinds: unknown[] = [];
 
   if (!filters.showSold) {
-    clauses.push('COALESCE(i.for_sale, 0) = 1');
+    baseClauses.push('COALESCE(i.for_sale, 0) = 1');
   }
   if (!filters.associateMode) {
-    clauses.push('COALESCE(i.only_in_store, 0) = 0');
+    baseClauses.push('COALESCE(i.only_in_store, 0) = 0');
   }
-  clauses.push('COALESCE(i.is_rented, 0) = 0');
+  baseClauses.push('COALESCE(i.is_rented, 0) = 0');
 
   if (allowedCategoryIds.length > 0) {
     const placeholders = allowedCategoryIds.map(() => '?').join(', ');
-    clauses.push(`(
+    baseClauses.push(`(
       i.category_id IN (${placeholders})
       OR COALESCE(i.secondary_category_id, 0) IN (${placeholders})
     )`);
-    binds.push(...allowedCategoryIds, ...allowedCategoryIds);
+    baseBinds.push(...allowedCategoryIds, ...allowedCategoryIds);
   }
 
   if (filters.search) {
-    clauses.push(`(
+    baseClauses.push(`(
       LOWER(COALESCE(i.sale_title, '')) LIKE ?
       OR LOWER(COALESCE(i.title, '')) LIKE ?
     )`);
     const term = `%${filters.search.toLowerCase()}%`;
-    binds.push(term, term);
+    baseBinds.push(term, term);
   }
 
   if (filters.condition) {
-    clauses.push('LOWER(COALESCE(i."condition", \'\')) = LOWER(?)');
-    binds.push(filters.condition);
+    baseClauses.push('LOWER(COALESCE(i."condition", \'\')) = LOWER(?)');
+    baseBinds.push(filters.condition);
   }
 
   if (!(filters.priceMin === 0 && filters.priceMax === 0)) {
-    clauses.push(`(
+    baseClauses.push(`(
       CASE
         WHEN COALESCE(i.sale_price, 0) > 0 THEN COALESCE(i.sale_price, 0)
         ELSE COALESCE(i.regular_price, 0)
@@ -9897,7 +9940,28 @@ async function dbListShopProducts(
         ELSE COALESCE(i.regular_price, 0)
       END
     ) <= ?`);
-    binds.push(filters.priceMin, filters.priceMax > 0 ? filters.priceMax : Number.MAX_SAFE_INTEGER);
+    baseBinds.push(filters.priceMin, filters.priceMax > 0 ? filters.priceMax : Number.MAX_SAFE_INTEGER);
+  }
+
+  const brandWhereSql = baseClauses.join(' AND ');
+  const brandResult = await env.DB.prepare(
+    `SELECT DISTINCT TRIM(i.brand) AS brand
+     FROM ccg_inventory_items i
+     ${INVENTORY_CATEGORY_JOIN_SQL}
+     WHERE ${brandWhereSql}
+       AND TRIM(COALESCE(i.brand, '')) <> ''
+     ORDER BY LOWER(TRIM(i.brand)) ASC`
+  ).bind(...baseBinds).all<{ brand: string }>();
+  const brands = (brandResult.results ?? [])
+    .map((row) => normalizeText(row.brand, ''))
+    .filter(Boolean);
+
+  const clauses = [...baseClauses];
+  const binds = [...baseBinds];
+  if (filters.brands.length > 0) {
+    const placeholders = filters.brands.map(() => '?').join(', ');
+    clauses.push(`LOWER(TRIM(COALESCE(i.brand, ''))) IN (${placeholders})`);
+    binds.push(...filters.brands.map((brand) => brand.toLowerCase()));
   }
 
   const whereSql = clauses.join(' AND ');
@@ -9928,19 +9992,17 @@ async function dbListShopProducts(
        i.clearance,
        i.only_in_store,
        i."condition",
+       i.brand,
        i.sale_description,
        ${INVENTORY_CATEGORY_SELECT_SQL},
        i.is_sold
      FROM ccg_inventory_items i
      ${INVENTORY_CATEGORY_JOIN_SQL}
      WHERE ${whereSql}
-     ORDER BY
-       c."order" ASC,
-       LOWER(COALESCE(i.sale_title, i.title, '')) ASC,
-       i.id DESC`
+     ORDER BY ${shopProductOrderBySql(filters.sort)}`
   ).bind(...binds).all<ShopProductRow>();
 
-  return (result.results ?? []).map((row) => {
+  const records = (result.results ?? []).map((row) => {
     const mainImage = toPublicShopImageUrl(row.image_url, 'card');
     return {
     id: String(row.id),
@@ -9960,6 +10022,38 @@ async function dbListShopProducts(
     isSold: Boolean(row.is_sold),
     };
   });
+  return { records, brands };
+}
+
+function shopProductOrderBySql(sort: string): string {
+  const priceSql = `CASE
+        WHEN COALESCE(i.sale_price, 0) > 0 THEN COALESCE(i.sale_price, 0)
+        ELSE COALESCE(i.regular_price, 0)
+      END`;
+
+  switch (sort) {
+    case 'brand-az':
+      return `LOWER(COALESCE(NULLIF(TRIM(i.brand), ''), 'zzzz')) ASC,
+       LOWER(COALESCE(NULLIF(TRIM(i.sale_title), ''), i.title, '')) ASC,
+       i.id DESC`;
+    case 'price-low-high':
+      return `${priceSql} ASC,
+       LOWER(COALESCE(NULLIF(TRIM(i.sale_title), ''), i.title, '')) ASC,
+       i.id DESC`;
+    case 'price-high-low':
+      return `${priceSql} DESC,
+       LOWER(COALESCE(NULLIF(TRIM(i.sale_title), ''), i.title, '')) ASC,
+       i.id DESC`;
+    case 'popular':
+    default:
+      return `CASE
+         WHEN LOWER(COALESCE(gp.name, p.name, c.name, '')) LIKE 'package%' THEN 0
+         WHEN LOWER(COALESCE(gp.name, p.name, c.name, '')) IN ('guitar', 'guitars') THEN 1
+         ELSE 2
+       END ASC,
+       COALESCE(i.created_at, '') DESC,
+       i.id DESC`;
+  }
 }
 
 async function dbSearchShopProductsByTitle(
@@ -11686,6 +11780,7 @@ async function dbCreateInventoryItems(
     is_marked: number;
     is_personal: number;
     is_rented: number;
+    is_custom?: number;
     for_sale: number;
     only_in_store: number;
     for_sale_date: string | null;
@@ -11714,10 +11809,10 @@ async function dbCreateInventoryItems(
         barcode,
         purchased_date, unit_purchase_price, map_price, private_party_value, miles, minutes_spent, ship_cost, purchase_notes, ai_analysis_text, serial_number,
         weight_lbs, neck_profile, neck_thickness, nut_width, width_12_fret, fretboard_radius, twelve_fret_action,
-        is_active, is_marked, is_personal, is_rented, for_sale, only_in_store, for_sale_date,
+        is_active, is_marked, is_personal, is_rented, is_custom, for_sale, only_in_store, for_sale_date,
         is_sold, sold_date, sold_amount, sell_notes, sale_url, sale_zip
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const result = await env.DB.prepare(statement).bind(
       fields.source_listing_id,
@@ -11782,6 +11877,7 @@ async function dbCreateInventoryItems(
       fields.is_marked,
       fields.is_personal,
       fields.is_rented,
+      fields.is_custom ?? 0,
       fields.for_sale,
       fields.only_in_store,
       fields.for_sale_date,
@@ -11839,6 +11935,7 @@ async function dbUpdateInventoryById(
     is_marked: number;
     is_personal: number;
     is_rented: number;
+    is_custom: number;
     for_sale: number;
     only_in_store: number;
     for_sale_date: string | null;
@@ -11892,7 +11989,7 @@ async function dbUpdateInventoryById(
          private_party_value = ?, miles = ?, minutes_spent = ?, ship_cost = ?, purchase_notes = ?, ai_analysis_text = ?, serial_number = ?,
          weight_lbs = ?, neck_profile = ?, neck_thickness = ?, nut_width = ?, width_12_fret = ?,
          fretboard_radius = ?, twelve_fret_action = ?, storage_location = ?,
-         is_active = ?, is_marked = ?, is_personal = ?, is_rented = ?, for_sale = ?, only_in_store = ?, for_sale_date = ?,
+         is_active = ?, is_marked = ?, is_personal = ?, is_rented = ?, is_custom = ?, for_sale = ?, only_in_store = ?, for_sale_date = ?,
          source_listing_id = ?, video_url = ?, sale_title = ?, regular_price = ?, sale_price = ?, "condition" = ?, sale_description = ?,
          clearance = ?,
          bullet_1_text = ?, bullet_1_danger = ?, bullet_1_highlight = ?,
@@ -11942,6 +12039,7 @@ async function dbUpdateInventoryById(
       fields.is_marked,
       fields.is_personal,
       fields.is_rented,
+      fields.is_custom,
       fields.for_sale,
       fields.only_in_store,
       fields.for_sale_date,
@@ -15600,6 +15698,19 @@ function parseShopCategoryIds(url: URL): number[] {
         .filter((value): value is number => value != null),
     ),
   );
+}
+
+function normalizeShopProductSort(value: string | null): string {
+  switch (normalizeText(value, '').toLowerCase()) {
+    case 'brand-az':
+    case 'price-low-high':
+    case 'price-high-low':
+      return normalizeText(value, '').toLowerCase();
+    case 'popular':
+    case 'most-popular':
+    default:
+      return 'popular';
+  }
 }
 
 function expandInventoryCategoryIds(selectedIds: number[], rows: InventoryCategoryRow[]): number[] {

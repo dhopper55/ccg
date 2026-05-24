@@ -3,6 +3,7 @@ import { ProductFilterOptions } from 'types/ecommerce';
 import CategoryFilterSection from './CategoryFilterSection';
 import FilterSection from './FilterSection';
 import PriceFilterSection from './PriceFilterSection';
+import SortFilterSection from './SortFilterSection';
 
 interface FilterPanelProps {
   filterOptions: ProductFilterOptions;
@@ -30,6 +31,9 @@ const FilterPanel = ({ filterOptions }: FilterPanelProps) => {
           title="Material"
         />
       )}
+      {filterOptions.sort && filterOptions.sort.length > 0 && (
+        <SortFilterSection defaultOpen title="Sort" options={filterOptions.sort} name="sortBy" />
+      )}
       {filterOptions.category && (
         <CategoryFilterSection
           defaultOpen
@@ -37,6 +41,9 @@ const FilterPanel = ({ filterOptions }: FilterPanelProps) => {
           options={filterOptions.category}
           name="category"
         />
+      )}
+      {filterOptions.brand && filterOptions.brand.length > 0 && (
+        <FilterSection defaultOpen title="Brand" options={filterOptions.brand} name="brand" />
       )}
       {filterOptions.price && (
         <PriceFilterSection defaultOpen defaultValue={filterOptions.price || [0, 5000]} />

@@ -40,6 +40,7 @@ type ShopProduct = {
 
 type ShopProductsResponse = {
   records: ShopProduct[];
+  brands?: string[];
 };
 
 type ShopCategoryNode = {
@@ -78,6 +79,9 @@ const Products = () => {
   const categoryParam = (searchParams.get('category') ?? '').trim();
   const priceRange = useWatch({ control, name: 'priceRange' }) as number[] | undefined;
   const selectedCategoryIds = useWatch({ control, name: 'category', defaultValue: [] }) as string[];
+  const selectedBrands = useWatch({ control, name: 'brand', defaultValue: [] }) as string[];
+  const sortBy = (useWatch({ control, name: 'sortBy', defaultValue: 'popular' }) as string) || 'popular';
+  const [availableBrands, setAvailableBrands] = useState<string[]>([]);
   const didInitializePriceRange = useRef(false);
   const previousSearchTerm = useRef(searchTerm);
   const productsTopRef = useRef<HTMLDivElement | null>(null);
@@ -106,10 +110,17 @@ const Products = () => {
 
   const filterOptions = useMemo<ProductFilterOptions>(() => {
     return {
+      sort: [
+        { label: 'Most Popular', value: 'popular' },
+        { label: 'Brand A-Z', value: 'brand-az' },
+        { label: 'Price Low-High', value: 'price-low-high' },
+        { label: 'Price High-Low', value: 'price-high-low' },
+      ],
       category: flattenCategoryOptions(categories),
+      brand: availableBrands.map((brand) => ({ label: brand, value: brand })),
       price: [0, Math.max(maxPrice, 1)],
     };
-  }, [categories, maxPrice]);
+  }, [availableBrands, categories, maxPrice]);
   const categoryOptions = filterOptions.category ?? [];
   const effectiveCategoryIds = useMemo(
     () => getEffectiveCategoryIds(categoryOptions, selectedCategoryIds || []),
@@ -117,8 +128,9 @@ const Products = () => {
   );
   const filterSignature = useMemo(() => {
     const priceSignature = Array.isArray(priceRange) ? priceRange.join(':') : '';
-    return `${effectiveCategoryIds.join('|')}::${priceSignature}`;
-  }, [effectiveCategoryIds, priceRange]);
+    const brandSignature = (selectedBrands || []).join('|');
+    return `${effectiveCategoryIds.join('|')}::${brandSignature}::${priceSignature}::${sortBy}`;
+  }, [effectiveCategoryIds, priceRange, selectedBrands, sortBy]);
 
   const scrollProductsToTop = useCallback(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -137,6 +149,7 @@ const Products = () => {
     if (previousSearchTerm.current === searchTerm) return;
     previousSearchTerm.current = searchTerm;
     setValue('category', []);
+    setValue('brand', []);
     if (maxPrice > 0) {
       setValue('priceRange', [0, maxPrice]);
     }
@@ -162,6 +175,24 @@ const Products = () => {
   }, [isAssociateMode, setValue]);
 
   useEffect(() => {
+    setValue('sortBy', sortBy || 'popular', {
+      shouldDirty: false,
+      shouldTouch: false,
+    });
+  }, [setValue, sortBy]);
+
+  useEffect(() => {
+    if (!Array.isArray(selectedBrands) || selectedBrands.length === 0) return;
+    const available = new Set(availableBrands);
+    const validBrands = selectedBrands.filter((brand) => available.has(brand));
+    if (validBrands.length === selectedBrands.length) return;
+    setValue('brand', validBrands, {
+      shouldDirty: true,
+      shouldTouch: true,
+    });
+  }, [availableBrands, selectedBrands, setValue]);
+
+  useEffect(() => {
     let cancelled = false;
     const load = async () => {
       if (isCheckingAssociateMode) {
@@ -180,6 +211,10 @@ const Products = () => {
         for (const categoryId of effectiveCategoryIds) {
           params.append('categoryIds', categoryId);
         }
+        for (const brand of selectedBrands || []) {
+          if (brand) params.append('brand', brand);
+        }
+        params.set('sort', sortBy);
 
         if (Array.isArray(priceRange) && priceRange.length === 2) {
           const [min, max] = priceRange;
@@ -195,6 +230,7 @@ const Products = () => {
         if (cancelled) return;
         const records = Array.isArray(data.records) ? data.records : [];
         setAllProducts(records);
+        setAvailableBrands(Array.isArray(data.brands) ? data.brands.filter(Boolean) : []);
         if (maxPrice === 0 && effectiveCategoryIds.length === 0) {
           setMaxPrice(getHighestProductPrice(records));
         }
@@ -221,6 +257,8 @@ const Products = () => {
     priceRange,
     scrollProductsToTop,
     searchTerm,
+    selectedBrands,
+    sortBy,
   ]);
 
   const totalPages = Math.max(1, Math.ceil(allProducts.length / PAGE_SIZE));

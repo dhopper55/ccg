@@ -32,7 +32,7 @@ const ProductsProvider = ({
   const filterItems = useMemo(() => {
     return Object.keys(formValues).reduce(
       (acc: { value: string; filter: string }[], key) => {
-        if (key !== 'priceRange') {
+        if (key !== 'priceRange' && Array.isArray(formValues[key])) {
           formValues[key].forEach((element: string) => {
             acc.push({
               value: element,
@@ -90,6 +90,9 @@ const ProductsProvider = ({
   const onSubmit = (data: FieldValues) => {
     const filteredProducts = products.filter((product) => {
       return Object.keys(data).every((key) => {
+        if (key === 'sortBy' || !Array.isArray(data[key])) {
+          return true;
+        }
         if (data[key].length === 0) {
           return true;
         }

@@ -101,6 +101,7 @@ type InventoryItemRecord = {
   isMarked?: boolean;
   isPersonal?: boolean;
   isRented?: boolean;
+  isCustom?: boolean;
   forSale?: boolean;
   onlyInStore?: boolean;
   forSaleDate?: string | null;
@@ -227,6 +228,7 @@ type FormState = {
   isMarked: boolean;
   isPersonal: boolean;
   isRented: boolean;
+  isCustom: boolean;
   forSale: boolean;
   onlyInStore: boolean;
   isSold: boolean;
@@ -429,6 +431,7 @@ const DEFAULT_FORM: FormState = {
   isMarked: false,
   isPersonal: false,
   isRented: false,
+  isCustom: false,
   forSale: false,
   onlyInStore: false,
   isSold: false,
@@ -1122,6 +1125,7 @@ const InventoryItem = () => {
     let cancelled = false;
     const id = searchParams.get('id');
     const fromListingId = searchParams.get('fromListingId');
+    const customTemplateBarcode = searchParams.get('customTemplateBarcode');
 
     const initialize = async () => {
       setIsLoading(true);
@@ -1208,6 +1212,7 @@ const InventoryItem = () => {
             isMarked: Boolean(record.isMarked),
             isPersonal: Boolean(record.isPersonal),
             isRented: Boolean(record.isRented),
+            isCustom: Boolean(record.isCustom),
             forSale: Boolean(record.forSale),
             onlyInStore: Boolean(record.onlyInStore),
             isSold: Boolean(record.isSold),
@@ -1236,6 +1241,121 @@ const InventoryItem = () => {
                   : []
             ).map((url) => ({ url, isPrivate: false }));
           setImages(normalizeImages(existingImages));
+          return;
+        }
+
+        if (customTemplateBarcode) {
+          const response = await fetch(
+            `/api/admin-v2/inventory/custom-template?barcode=${encodeURIComponent(customTemplateBarcode)}`,
+            {
+              method: 'GET',
+              credentials: 'same-origin',
+            },
+          );
+          const data = (await response.json()) as InventoryRecordResponse;
+          if (!response.ok || !data.record) {
+            throw new Error(data.message || 'Unable to load custom product template.');
+          }
+          if (cancelled) return;
+
+          const record = data.record;
+          setEditId(null);
+          setSourceListingId(null);
+          wasForSaleOnLoadRef.current = false;
+          setSaleUrlReadOnly(Boolean(record.saleUrl?.trim()));
+          setForm({
+            ccgNumber: DEFAULT_FORM.ccgNumber,
+            quantity: Math.max(0, Number(record.quantity ?? 1)),
+            videoUrl: record.videoUrl || '',
+            saleTitle: record.saleTitle || '',
+            regularPrice: record.regularPrice != null ? String(record.regularPrice) : '',
+            salePrice: record.salePrice != null ? String(record.salePrice) : '0',
+            condition: record.condition || '',
+            saleDescription: record.saleDescription || '',
+            clearance: Boolean(record.clearance),
+            bullet1Text: record.bullet1Text || '',
+            bullet1Danger: Boolean(record.bullet1Danger),
+            bullet1Highlight: Boolean(record.bullet1Highlight),
+            bullet2Text: record.bullet2Text || '',
+            bullet2Danger: Boolean(record.bullet2Danger),
+            bullet2Highlight: Boolean(record.bullet2Highlight),
+            bullet3Text: record.bullet3Text || '',
+            bullet3Danger: Boolean(record.bullet3Danger),
+            bullet3Highlight: Boolean(record.bullet3Highlight),
+            bullet4Text: record.bullet4Text || '',
+            bullet4Danger: Boolean(record.bullet4Danger),
+            bullet4Highlight: Boolean(record.bullet4Highlight),
+            bullet5Text: record.bullet5Text || '',
+            bullet5Danger: Boolean(record.bullet5Danger),
+            bullet5Highlight: Boolean(record.bullet5Highlight),
+            bullet6Text: record.bullet6Text || '',
+            bullet6Danger: Boolean(record.bullet6Danger),
+            bullet6Highlight: Boolean(record.bullet6Highlight),
+            barcode: record.barcode || customTemplateBarcode,
+            title: record.title || '',
+            categoryId: record.categoryId != null ? String(record.categoryId) : '',
+            secondaryCategoryId:
+              record.secondaryCategoryId != null ? String(record.secondaryCategoryId) : '',
+            brand: record.brand || '',
+            queue: record.queue || 'Triage',
+            yearRange: record.yearRange || '',
+            model: record.model || '',
+            finish: record.finish || '',
+            repairNotes: record.repairNotes || '',
+            originalListingDesc: record.originalListingDesc || '',
+            purchasedDate: todayYmd(),
+            unitPurchasePrice:
+              record.unitPurchasePrice != null ? String(record.unitPurchasePrice) : '',
+            mapPrice: record.mapPrice != null ? String(record.mapPrice) : '',
+            privatePartyValue:
+              record.privatePartyValue != null ? String(record.privatePartyValue) : '0',
+            miles: record.miles != null ? String(record.miles) : '0',
+            minutesSpent: record.minutesSpent != null ? String(record.minutesSpent) : '0',
+            shipCost: record.shipCost != null ? String(record.shipCost) : '0',
+            purchaseNotes: record.purchaseNotes || '',
+            aiAnalysisText: record.aiAnalysisText || '',
+            serialNumber: '',
+            weightLbs: record.weightLbs || '',
+            neckProfile: record.neckProfile || '',
+            neckThickness: record.neckThickness || '',
+            nutWidth: record.nutWidth || '',
+            width12Fret: record.width12Fret || '',
+            fretboardRadius: record.fretboardRadius || '',
+            twelveFretAction: record.twelveFretAction || '',
+            isActive: true,
+            isMarked: false,
+            isPersonal: Boolean(record.isPersonal),
+            isRented: false,
+            isCustom: true,
+            forSale: Boolean(record.forSale),
+            onlyInStore: Boolean(record.onlyInStore),
+            isSold: false,
+            qtySold: 1,
+            soldAmount: '',
+            sellNotes: '',
+            subscriptionId: record.subscriptionId != null ? String(record.subscriptionId) : '',
+            saleUrl: record.saleUrl || '',
+            saleZip: record.saleZip || DEFAULT_FORM.saleZip,
+            storageLocation: record.storageLocation || '',
+            soldChannel: '',
+          });
+          setWasSoldOnLoad(false);
+
+          const existingImages = Array.isArray(record.images) && record.images.length
+            ? record.images.map((image) => ({
+              id: image.id,
+              url: image.url,
+              isPrivate: Boolean(image.isPrivate),
+            }))
+            : (
+              Array.isArray(record.imageUrls) && record.imageUrls.length
+                ? record.imageUrls
+                : record.imageUrl
+                  ? [record.imageUrl]
+                  : []
+            ).map((url) => ({ url, isPrivate: false }));
+          setImages(normalizeImages(existingImages));
+          setMessage({ severity: 'success', text: 'Custom product draft opened. Review and save when ready.' });
           return;
         }
 
@@ -1491,6 +1611,7 @@ const InventoryItem = () => {
     isMarked: form.isMarked,
     isPersonal: form.isPersonal,
     isRented: form.isRented,
+    isCustom: form.isCustom,
     forSale: form.forSale,
     onlyInStore: form.onlyInStore,
     isSold: form.isSold,
@@ -2763,6 +2884,15 @@ const InventoryItem = () => {
                         />
                       }
                       label="Is Rented"
+                    />
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={form.isCustom}
+                          onChange={(event) => setField('isCustom', event.target.checked)}
+                        />
+                      }
+                      label="Is Custom"
                     />
                     <FormControlLabel
                       control={

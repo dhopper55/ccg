@@ -271,7 +271,9 @@ export interface ProductFilterOptions {
   availability?: FilterOption[];
   sale?: FilterOption[];
   material?: FilterOption[];
+  sort?: FilterOption[];
   category?: FilterOption[];
+  brand?: FilterOption[];
   features?: FilterOption[];
   price?: [number, number];
 }

@@ -26,6 +26,7 @@ const SIDEBAR_WIDTH = 280;
 const BARCODE_MIN_LENGTH = 8;
 const BARCODE_MAX_INTER_KEY_MS = 65;
 const BARCODE_QUIET_MS = 140;
+const CUSTOM_PRODUCT_TEMPLATE_BARCODE = '898158021760';
 
 type BarcodeLookupResponse = {
   found?: boolean;
@@ -123,6 +124,11 @@ const MainLayout = ({ children }: PropsWithChildren) => {
       if (barcode.length < BARCODE_MIN_LENGTH || !startedAt || !lastKeyAt) return;
       const averageDelay = (lastKeyAt - startedAt) / Math.max(barcode.length - 1, 1);
       if (averageDelay > BARCODE_MAX_INTER_KEY_MS || lookupInFlightRef.current) return;
+
+      if (barcode === CUSTOM_PRODUCT_TEMPLATE_BARCODE) {
+        window.location.assign(`${paths.inventoryItem}?customTemplateBarcode=${encodeURIComponent(barcode)}`);
+        return;
+      }
 
       lookupInFlightRef.current = true;
       try {
