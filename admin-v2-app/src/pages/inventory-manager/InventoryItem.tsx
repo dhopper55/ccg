@@ -104,6 +104,15 @@ type InventoryItemRecord = {
   isCustom?: boolean;
   forSale?: boolean;
   onlyInStore?: boolean;
+  salesChannelCcg?: boolean;
+  salesChannelFbm?: boolean;
+  salesChannelCl?: boolean;
+  salesChannelReverb?: boolean;
+  salesChannelGearExchange?: boolean;
+  salesChannelOfferUp?: boolean;
+  salesChannelEbay?: boolean;
+  salesChannelNextdoor?: boolean;
+  salesChannelOther?: boolean;
   forSaleDate?: string | null;
   isSold?: boolean;
   qtySold?: number | null;
@@ -231,6 +240,15 @@ type FormState = {
   isCustom: boolean;
   forSale: boolean;
   onlyInStore: boolean;
+  salesChannelCcg: boolean;
+  salesChannelFbm: boolean;
+  salesChannelCl: boolean;
+  salesChannelReverb: boolean;
+  salesChannelGearExchange: boolean;
+  salesChannelOfferUp: boolean;
+  salesChannelEbay: boolean;
+  salesChannelNextdoor: boolean;
+  salesChannelOther: boolean;
   isSold: boolean;
   qtySold: number;
   soldAmount: string;
@@ -434,6 +452,15 @@ const DEFAULT_FORM: FormState = {
   isCustom: false,
   forSale: false,
   onlyInStore: false,
+  salesChannelCcg: false,
+  salesChannelFbm: false,
+  salesChannelCl: false,
+  salesChannelReverb: false,
+  salesChannelGearExchange: false,
+  salesChannelOfferUp: false,
+  salesChannelEbay: false,
+  salesChannelNextdoor: false,
+  salesChannelOther: false,
   isSold: false,
   qtySold: 1,
   soldAmount: '',
@@ -1215,6 +1242,15 @@ const InventoryItem = () => {
             isCustom: Boolean(record.isCustom),
             forSale: Boolean(record.forSale),
             onlyInStore: Boolean(record.onlyInStore),
+            salesChannelCcg: Boolean(record.salesChannelCcg),
+            salesChannelFbm: Boolean(record.salesChannelFbm),
+            salesChannelCl: Boolean(record.salesChannelCl),
+            salesChannelReverb: Boolean(record.salesChannelReverb),
+            salesChannelGearExchange: Boolean(record.salesChannelGearExchange),
+            salesChannelOfferUp: Boolean(record.salesChannelOfferUp),
+            salesChannelEbay: Boolean(record.salesChannelEbay),
+            salesChannelNextdoor: Boolean(record.salesChannelNextdoor),
+            salesChannelOther: Boolean(record.salesChannelOther),
             isSold: Boolean(record.isSold),
             qtySold: Math.max(1, Number(record.qtySold ?? (record.isSold ? record.quantity : 1) ?? 1)),
             soldAmount: record.soldAmount != null ? String(record.soldAmount) : '',
@@ -1329,6 +1365,15 @@ const InventoryItem = () => {
             isCustom: true,
             forSale: Boolean(record.forSale),
             onlyInStore: Boolean(record.onlyInStore),
+            salesChannelCcg: Boolean(record.forSale || record.salesChannelCcg),
+            salesChannelFbm: Boolean(record.salesChannelFbm),
+            salesChannelCl: Boolean(record.salesChannelCl),
+            salesChannelReverb: Boolean(record.salesChannelReverb),
+            salesChannelGearExchange: Boolean(record.salesChannelGearExchange),
+            salesChannelOfferUp: Boolean(record.salesChannelOfferUp),
+            salesChannelEbay: Boolean(record.salesChannelEbay),
+            salesChannelNextdoor: Boolean(record.salesChannelNextdoor),
+            salesChannelOther: Boolean(record.salesChannelOther),
             isSold: false,
             qtySold: 1,
             soldAmount: '',
@@ -1459,13 +1504,14 @@ const InventoryItem = () => {
             return {
               ...current,
               forSale: true,
+              salesChannelCcg: true,
               queue: 'For Sale',
               bullet6Text: 'FINANCING AVAILABLE!',
               bullet6Danger: false,
               bullet6Highlight: true,
             };
           }
-          return { ...current, forSale: true, queue: 'For Sale' };
+          return { ...current, forSale: true, salesChannelCcg: true, queue: 'For Sale' };
         }
         if (current.forSale && !nextForSale) {
           return { ...current, forSale: false, queue: 'To Sell' };
@@ -1614,6 +1660,15 @@ const InventoryItem = () => {
     isCustom: form.isCustom,
     forSale: form.forSale,
     onlyInStore: form.onlyInStore,
+    salesChannelCcg: form.salesChannelCcg,
+    salesChannelFbm: form.salesChannelFbm,
+    salesChannelCl: form.salesChannelCl,
+    salesChannelReverb: form.salesChannelReverb,
+    salesChannelGearExchange: form.salesChannelGearExchange,
+    salesChannelOfferUp: form.salesChannelOfferUp,
+    salesChannelEbay: form.salesChannelEbay,
+    salesChannelNextdoor: form.salesChannelNextdoor,
+    salesChannelOther: form.salesChannelOther,
     isSold: form.isSold,
     qtySold: form.qtySold,
     serialNumber: form.serialNumber.trim(),
@@ -2936,6 +2991,97 @@ const InventoryItem = () => {
 
               <Grid size={12}>
                 <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, bgcolor: 'background.default' }}>
+                  <Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: 0.6 }}>
+                    Active sales channels
+                  </Typography>
+                  <Stack direction="row" sx={{ gap: 3, flexWrap: 'wrap', mt: 1 }}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={form.salesChannelCcg}
+                          onChange={(event) => setField('salesChannelCcg', event.target.checked)}
+                        />
+                      }
+                      label="CCG"
+                    />
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={form.salesChannelFbm}
+                          onChange={(event) => setField('salesChannelFbm', event.target.checked)}
+                        />
+                      }
+                      label="FBM"
+                    />
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={form.salesChannelCl}
+                          onChange={(event) => setField('salesChannelCl', event.target.checked)}
+                        />
+                      }
+                      label="CL"
+                    />
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={form.salesChannelReverb}
+                          onChange={(event) => setField('salesChannelReverb', event.target.checked)}
+                        />
+                      }
+                      label="Reverb"
+                    />
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={form.salesChannelGearExchange}
+                          onChange={(event) => setField('salesChannelGearExchange', event.target.checked)}
+                        />
+                      }
+                      label="Gear Exch."
+                    />
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={form.salesChannelOfferUp}
+                          onChange={(event) => setField('salesChannelOfferUp', event.target.checked)}
+                        />
+                      }
+                      label="OfferUp"
+                    />
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={form.salesChannelEbay}
+                          onChange={(event) => setField('salesChannelEbay', event.target.checked)}
+                        />
+                      }
+                      label="EBay"
+                    />
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={form.salesChannelNextdoor}
+                          onChange={(event) => setField('salesChannelNextdoor', event.target.checked)}
+                        />
+                      }
+                      label="Nextdoor"
+                    />
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={form.salesChannelOther}
+                          onChange={(event) => setField('salesChannelOther', event.target.checked)}
+                        />
+                      }
+                      label="Other"
+                    />
+                  </Stack>
+                </Paper>
+              </Grid>
+
+              <Grid size={12}>
+                <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, bgcolor: 'background.default' }}>
                     <Grid container spacing={3}>
                       <Grid size={12}>
                         <Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: 0.6 }}>
@@ -3453,8 +3599,11 @@ const InventoryItem = () => {
                   <MenuItem value=""><em>None</em></MenuItem>
                   <MenuItem value="FBM">FBM</MenuItem>
                   <MenuItem value="CL">CL</MenuItem>
-                  <MenuItem value="CCG">CCG</MenuItem>
+                  <MenuItem value="CCG External Web">CCG External Web</MenuItem>
+                  <MenuItem value="CCG In-Store">CCG In-Store</MenuItem>
                   <MenuItem value="Reverb">Reverb</MenuItem>
+                  <MenuItem value="OfferUp">OfferUp</MenuItem>
+                  <MenuItem value="EBay">EBay</MenuItem>
                   <MenuItem value="Nextdoor">Nextdoor</MenuItem>
                   <MenuItem value="Sweetwater Gear Exchange">Sweetwater Gear Exchange</MenuItem>
                   <MenuItem value="Other">Other</MenuItem>

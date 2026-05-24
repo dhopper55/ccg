@@ -2843,6 +2843,15 @@ type InventoryItemRow = {
   is_custom: number | null;
   for_sale: number | null;
   only_in_store: number | null;
+  sales_channel_ccg: number | null;
+  sales_channel_fbm: number | null;
+  sales_channel_cl: number | null;
+  sales_channel_reverb: number | null;
+  sales_channel_gear_exchange: number | null;
+  sales_channel_offerup: number | null;
+  sales_channel_ebay: number | null;
+  sales_channel_nextdoor: number | null;
+  sales_channel_other: number | null;
   for_sale_date: string | null;
   is_sold: number | null;
   sold_date: string | null;
@@ -7148,6 +7157,15 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const forSaleRaw = toBooleanInput(body.forSale, false);
   const forSale = isSold ? false : forSaleRaw;
   const onlyInStore = toBooleanInput(body.onlyInStore, false);
+  const salesChannelCcg = toBooleanInput(body.salesChannelCcg, forSale);
+  const salesChannelFbm = toBooleanInput(body.salesChannelFbm, false);
+  const salesChannelCl = toBooleanInput(body.salesChannelCl, false);
+  const salesChannelReverb = toBooleanInput(body.salesChannelReverb, false);
+  const salesChannelGearExchange = toBooleanInput(body.salesChannelGearExchange, false);
+  const salesChannelOfferUp = toBooleanInput(body.salesChannelOfferUp, false);
+  const salesChannelEbay = toBooleanInput(body.salesChannelEbay, false);
+  const salesChannelNextdoor = toBooleanInput(body.salesChannelNextdoor, false);
+  const salesChannelOther = toBooleanInput(body.salesChannelOther, false);
   const queueInput = normalizeInventoryQueue(body.queue);
   const queue = queueInput || (forSale ? 'For Sale' : 'Triage');
   const yearRange = normalizeText(body.yearRange, '').slice(0, 120);
@@ -7204,6 +7222,17 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
   const saleUrl = normalizeText(body.saleUrl, '').slice(0, 150);
   const saleZip = normalizeText(body.saleZip, '').slice(0, 10);
+  const salesChannelFields = {
+    sales_channel_ccg: salesChannelCcg ? 1 : 0,
+    sales_channel_fbm: salesChannelFbm ? 1 : 0,
+    sales_channel_cl: salesChannelCl ? 1 : 0,
+    sales_channel_reverb: salesChannelReverb ? 1 : 0,
+    sales_channel_gear_exchange: salesChannelGearExchange ? 1 : 0,
+    sales_channel_offerup: salesChannelOfferUp ? 1 : 0,
+    sales_channel_ebay: salesChannelEbay ? 1 : 0,
+    sales_channel_nextdoor: salesChannelNextdoor ? 1 : 0,
+    sales_channel_other: salesChannelOther ? 1 : 0,
+  };
 
   let imageUrls: string[];
   try {
@@ -7370,6 +7399,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     is_custom: isCustom ? 1 : 0,
     for_sale: forSale ? 1 : 0,
     only_in_store: onlyInStore ? 1 : 0,
+    ...salesChannelFields,
     for_sale_date: forSale ? new Date().toISOString() : null,
     is_sold: isSold ? 1 : 0,
     sold_date: isSold ? new Date().toISOString() : null,
@@ -7565,6 +7595,15 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const forSaleRaw = toBooleanInput(body.forSale, false);
   const forSale = isSold ? false : forSaleRaw;
   const onlyInStore = toBooleanInput(body.onlyInStore, false);
+  const salesChannelCcg = toBooleanInput(body.salesChannelCcg, forSale);
+  const salesChannelFbm = toBooleanInput(body.salesChannelFbm, false);
+  const salesChannelCl = toBooleanInput(body.salesChannelCl, false);
+  const salesChannelReverb = toBooleanInput(body.salesChannelReverb, false);
+  const salesChannelGearExchange = toBooleanInput(body.salesChannelGearExchange, false);
+  const salesChannelOfferUp = toBooleanInput(body.salesChannelOfferUp, false);
+  const salesChannelEbay = toBooleanInput(body.salesChannelEbay, false);
+  const salesChannelNextdoor = toBooleanInput(body.salesChannelNextdoor, false);
+  const salesChannelOther = toBooleanInput(body.salesChannelOther, false);
   const soldAmount = parseCurrencyAmount(body.soldAmount);
   const qtySold = parseBoundedInt(body.qtySold, 1, 1, 1_000_000);
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
@@ -7573,6 +7612,17 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const saleZip = normalizeText(body.saleZip, '').slice(0, 10);
   const storageLocation = normalizeText(body.storageLocation, '').slice(0, 100);
   const soldChannel = normalizeText(body.soldChannel, '').slice(0, 100);
+  const salesChannelFields = {
+    sales_channel_ccg: salesChannelCcg ? 1 : 0,
+    sales_channel_fbm: salesChannelFbm ? 1 : 0,
+    sales_channel_cl: salesChannelCl ? 1 : 0,
+    sales_channel_reverb: salesChannelReverb ? 1 : 0,
+    sales_channel_gear_exchange: salesChannelGearExchange ? 1 : 0,
+    sales_channel_offerup: salesChannelOfferUp ? 1 : 0,
+    sales_channel_ebay: salesChannelEbay ? 1 : 0,
+    sales_channel_nextdoor: salesChannelNextdoor ? 1 : 0,
+    sales_channel_other: salesChannelOther ? 1 : 0,
+  };
 
   let imageUrls: string[];
   try {
@@ -7713,6 +7763,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       is_custom: isCustom ? 1 : 0,
       for_sale: 1,
       only_in_store: onlyInStore ? 1 : 0,
+      ...salesChannelFields,
       for_sale_date: remainingForSaleDate,
       source_listing_id: sourceListingId,
       video_url: videoUrl || null,
@@ -7824,6 +7875,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       is_custom: isCustom ? 1 : 0,
       for_sale: 0,
       only_in_store: onlyInStore ? 1 : 0,
+      ...salesChannelFields,
       for_sale_date: null,
       is_sold: 1,
       sold_date: soldDate,
@@ -7869,6 +7921,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       is_rented: isRented ? 1 : 0,
       for_sale: 0,
       only_in_store: onlyInStore ? 1 : 0,
+      ...salesChannelFields,
       for_sale_date: null,
       source_listing_id: null,
       video_url: videoUrl || null,
@@ -7976,6 +8029,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     is_custom: isCustom ? 1 : 0,
     for_sale: forSale ? 1 : 0,
     only_in_store: onlyInStore ? 1 : 0,
+    ...salesChannelFields,
     for_sale_date: resolveToggleTimestamp({
       previousOn: previousForSale,
       nextOn: forSale,
@@ -9533,6 +9587,15 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.is_custom,
       i.for_sale,
       i.only_in_store,
+      i.sales_channel_ccg,
+      i.sales_channel_fbm,
+      i.sales_channel_cl,
+      i.sales_channel_reverb,
+      i.sales_channel_gear_exchange,
+      i.sales_channel_offerup,
+      i.sales_channel_ebay,
+      i.sales_channel_nextdoor,
+      i.sales_channel_other,
       i.for_sale_date,
       i.is_sold,
       i.sold_date,
@@ -9628,6 +9691,15 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     isCustom: Boolean(row.is_custom),
     forSale: Boolean(row.for_sale),
     onlyInStore: Boolean(row.only_in_store),
+    salesChannelCcg: Boolean(row.sales_channel_ccg),
+    salesChannelFbm: Boolean(row.sales_channel_fbm),
+    salesChannelCl: Boolean(row.sales_channel_cl),
+    salesChannelReverb: Boolean(row.sales_channel_reverb),
+    salesChannelGearExchange: Boolean(row.sales_channel_gear_exchange),
+    salesChannelOfferUp: Boolean(row.sales_channel_offerup),
+    salesChannelEbay: Boolean(row.sales_channel_ebay),
+    salesChannelNextdoor: Boolean(row.sales_channel_nextdoor),
+    salesChannelOther: Boolean(row.sales_channel_other),
     forSaleDate: row.for_sale_date || null,
     isSold: Boolean(row.is_sold),
     soldDate: row.sold_date || null,
@@ -11227,8 +11299,10 @@ async function dbApplyPaidInventoryItems(
   session: any,
   env: Env,
 ): Promise<void> {
+  const order = await dbGetOrderById(orderId, env);
+  const paidChannel = getPaidInventoryChannel(session, normalizeText(order?.channel, ''));
   for (const item of items) {
-    await dbApplyPaidInventoryItemAdjustment(orderId, item, session, env);
+    await dbApplyPaidInventoryItemAdjustment(orderId, item, session, paidChannel, env);
   }
 }
 
@@ -11373,6 +11447,7 @@ async function dbApplyPaidInventoryItemAdjustment(
   orderId: string,
   item: { inventoryItemId: number; quantity: number; subtotalCents: number },
   session: any,
+  paidChannel: string,
   env: Env,
 ): Promise<void> {
   const row = await env.DB.prepare(
@@ -11402,6 +11477,7 @@ async function dbApplyPaidInventoryItemAdjustment(
       soldDate,
       orderId,
       session,
+      paidChannel,
       env,
     });
     return;
@@ -11414,6 +11490,7 @@ async function dbApplyPaidInventoryItemAdjustment(
     soldAmount,
     soldDate,
     session,
+    paidChannel,
     env,
   );
 }
@@ -11448,11 +11525,11 @@ async function dbUpdateOriginalInventoryAfterFullSale(
   soldAmount: number,
   soldDate: string,
   session: any,
+  paidChannel: string,
   env: Env,
 ): Promise<void> {
   const columns = await dbGetTableColumns('ccg_inventory_items', env);
   const columnNames = new Set(columns.map((column) => column.name));
-  const paidChannel = getPaidInventoryChannel(session);
   const paidNote = getPaidInventorySellNote(session);
   const values = new Map<string, unknown>([
     ['quantity', soldQuantity],
@@ -11495,6 +11572,7 @@ async function dbCreateSoldInventoryCloneFromSource(input: {
   soldDate: string;
   orderId: string;
   session: any;
+  paidChannel: string;
   env: Env;
 }): Promise<number | null> {
   const sourceId = Number(input.sourceRow.id);
@@ -11505,7 +11583,6 @@ async function dbCreateSoldInventoryCloneFromSource(input: {
 
   const columns = await dbGetTableColumns('ccg_inventory_items', input.env);
   const sourceValues = new Map(Object.entries(input.sourceRow));
-  const paidChannel = getPaidInventoryChannel(input.session);
   const paidNote = getPaidInventorySellNote(input.session);
   const overrideValues = new Map<string, unknown>([
     ['ccg_number', ccgNumber],
@@ -11518,7 +11595,7 @@ async function dbCreateSoldInventoryCloneFromSource(input: {
     ['sold_date', input.soldDate],
     ['sold_amount', input.soldAmount],
     ['sell_notes', paidNote],
-    ['sold_channel', paidChannel],
+    ['sold_channel', input.paidChannel],
     ['is_marked', 0],
     ['source_listing_id', null],
     ['sale_url_slug', null],
@@ -11545,7 +11622,9 @@ async function dbCreateSoldInventoryCloneFromSource(input: {
   return cloneId;
 }
 
-function getPaidInventoryChannel(session: any): string {
+function getPaidInventoryChannel(session: any, orderChannel = ''): string {
+  if (orderChannel === 'online') return 'CCG External Web';
+  if (orderChannel === 'in_store') return 'CCG In-Store';
   const manualProvider = normalizeText(session?.manual_provider, '');
   return manualProvider || 'stripe';
 }
@@ -11783,6 +11862,15 @@ async function dbCreateInventoryItems(
     is_custom?: number;
     for_sale: number;
     only_in_store: number;
+    sales_channel_ccg?: number;
+    sales_channel_fbm?: number;
+    sales_channel_cl?: number;
+    sales_channel_reverb?: number;
+    sales_channel_gear_exchange?: number;
+    sales_channel_offerup?: number;
+    sales_channel_ebay?: number;
+    sales_channel_nextdoor?: number;
+    sales_channel_other?: number;
     for_sale_date: string | null;
     is_sold: number;
     sold_date: string | null;
@@ -11809,10 +11897,13 @@ async function dbCreateInventoryItems(
         barcode,
         purchased_date, unit_purchase_price, map_price, private_party_value, miles, minutes_spent, ship_cost, purchase_notes, ai_analysis_text, serial_number,
         weight_lbs, neck_profile, neck_thickness, nut_width, width_12_fret, fretboard_radius, twelve_fret_action,
-        is_active, is_marked, is_personal, is_rented, is_custom, for_sale, only_in_store, for_sale_date,
+        is_active, is_marked, is_personal, is_rented, is_custom, for_sale, only_in_store,
+        sales_channel_ccg, sales_channel_fbm, sales_channel_cl, sales_channel_reverb, sales_channel_gear_exchange,
+        sales_channel_offerup, sales_channel_ebay, sales_channel_nextdoor, sales_channel_other,
+        for_sale_date,
         is_sold, sold_date, sold_amount, sell_notes, sale_url, sale_zip
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const result = await env.DB.prepare(statement).bind(
       fields.source_listing_id,
@@ -11880,6 +11971,15 @@ async function dbCreateInventoryItems(
       fields.is_custom ?? 0,
       fields.for_sale,
       fields.only_in_store,
+      fields.sales_channel_ccg ?? 0,
+      fields.sales_channel_fbm ?? 0,
+      fields.sales_channel_cl ?? 0,
+      fields.sales_channel_reverb ?? 0,
+      fields.sales_channel_gear_exchange ?? 0,
+      fields.sales_channel_offerup ?? 0,
+      fields.sales_channel_ebay ?? 0,
+      fields.sales_channel_nextdoor ?? 0,
+      fields.sales_channel_other ?? 0,
       fields.for_sale_date,
       fields.is_sold,
       fields.sold_date,
@@ -11938,6 +12038,15 @@ async function dbUpdateInventoryById(
     is_custom: number;
     for_sale: number;
     only_in_store: number;
+    sales_channel_ccg: number;
+    sales_channel_fbm: number;
+    sales_channel_cl: number;
+    sales_channel_reverb: number;
+    sales_channel_gear_exchange: number;
+    sales_channel_offerup: number;
+    sales_channel_ebay: number;
+    sales_channel_nextdoor: number;
+    sales_channel_other: number;
     for_sale_date: string | null;
     source_listing_id: number | null;
     video_url: string | null;
@@ -11989,7 +12098,10 @@ async function dbUpdateInventoryById(
          private_party_value = ?, miles = ?, minutes_spent = ?, ship_cost = ?, purchase_notes = ?, ai_analysis_text = ?, serial_number = ?,
          weight_lbs = ?, neck_profile = ?, neck_thickness = ?, nut_width = ?, width_12_fret = ?,
          fretboard_radius = ?, twelve_fret_action = ?, storage_location = ?,
-         is_active = ?, is_marked = ?, is_personal = ?, is_rented = ?, is_custom = ?, for_sale = ?, only_in_store = ?, for_sale_date = ?,
+         is_active = ?, is_marked = ?, is_personal = ?, is_rented = ?, is_custom = ?, for_sale = ?, only_in_store = ?,
+         sales_channel_ccg = ?, sales_channel_fbm = ?, sales_channel_cl = ?, sales_channel_reverb = ?, sales_channel_gear_exchange = ?,
+         sales_channel_offerup = ?, sales_channel_ebay = ?, sales_channel_nextdoor = ?, sales_channel_other = ?,
+         for_sale_date = ?,
          source_listing_id = ?, video_url = ?, sale_title = ?, regular_price = ?, sale_price = ?, "condition" = ?, sale_description = ?,
          clearance = ?,
          bullet_1_text = ?, bullet_1_danger = ?, bullet_1_highlight = ?,
@@ -12042,6 +12154,15 @@ async function dbUpdateInventoryById(
       fields.is_custom,
       fields.for_sale,
       fields.only_in_store,
+      fields.sales_channel_ccg,
+      fields.sales_channel_fbm,
+      fields.sales_channel_cl,
+      fields.sales_channel_reverb,
+      fields.sales_channel_gear_exchange,
+      fields.sales_channel_offerup,
+      fields.sales_channel_ebay,
+      fields.sales_channel_nextdoor,
+      fields.sales_channel_other,
       fields.for_sale_date,
       fields.source_listing_id,
       fields.video_url,
