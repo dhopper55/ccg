@@ -12,7 +12,7 @@ import paths from 'routes/paths';
 const BARCODE_MIN_LENGTH = 8;
 const BARCODE_MAX_INTER_KEY_MS = 65;
 const BARCODE_QUIET_MS = 140;
-const ASSOCIATE_SCREENSAVER_IDLE_MS = 5_000;
+const ASSOCIATE_SCREENSAVER_IDLE_MS = 60_000;
 const CCG_LOGO_URL = 'https://www.coalcreekguitars.com/images/coal-creek-logo.png';
 
 type BarcodeSearchProduct = {
