@@ -1291,7 +1291,7 @@ const InventoryItem = () => {
             bullet6Text: record.bullet6Text || '',
             bullet6Danger: Boolean(record.bullet6Danger),
             bullet6Highlight: Boolean(record.bullet6Highlight),
-            barcode: record.barcode || customTemplateBarcode,
+            barcode: '',
             title: record.title || '',
             categoryId: record.categoryId != null ? String(record.categoryId) : '',
             secondaryCategoryId:

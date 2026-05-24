@@ -6105,7 +6105,7 @@ async function handleAdminV2InventoryCustomTemplate(request: Request, env: Env):
      FROM ccg_inventory_items
      WHERE TRIM(COALESCE(barcode, '')) = ?
        AND COALESCE(is_active, 0) = 1
-     ORDER BY id DESC
+     ORDER BY id ASC
      LIMIT 1`,
   ).bind(barcode).first<{ id: number }>();
   if (!row?.id) return jsonResponse({ message: 'Custom product template not found.' }, 404);
