@@ -79,8 +79,18 @@ const Products = () => {
   const categoryParam = (searchParams.get('category') ?? '').trim();
   const priceRange = useWatch({ control, name: 'priceRange' }) as number[] | undefined;
   const selectedCategoryIds = useWatch({ control, name: 'category', defaultValue: [] }) as string[];
+  const selectedCategoryIdsKey = Array.isArray(selectedCategoryIds) ? selectedCategoryIds.filter(Boolean).join('|') : '';
+  const selectedCategoryValues = useMemo(
+    () => (selectedCategoryIdsKey ? selectedCategoryIdsKey.split('|') : []),
+    [selectedCategoryIdsKey],
+  );
   const selectedBrands = useWatch({ control, name: 'brand', defaultValue: [] }) as string[];
   const sortBy = (useWatch({ control, name: 'sortBy', defaultValue: 'popular' }) as string) || 'popular';
+  const selectedBrandsKey = Array.isArray(selectedBrands) ? selectedBrands.filter(Boolean).join('|') : '';
+  const selectedBrandValues = useMemo(
+    () => (selectedBrandsKey ? selectedBrandsKey.split('|') : []),
+    [selectedBrandsKey],
+  );
   const [availableBrands, setAvailableBrands] = useState<string[]>([]);
   const didInitializePriceRange = useRef(false);
   const previousSearchTerm = useRef(searchTerm);
@@ -108,6 +118,11 @@ const Products = () => {
     return () => { cancelled = true; };
   }, []);
 
+  const categoryOptions = useMemo(() => flattenCategoryOptions(categories), [categories]);
+  const brandOptions = useMemo(
+    () => availableBrands.map((brand) => ({ label: brand, value: brand })),
+    [availableBrands],
+  );
   const filterOptions = useMemo<ProductFilterOptions>(() => {
     return {
       sort: [
@@ -116,21 +131,20 @@ const Products = () => {
         { label: 'Price Low-High', value: 'price-low-high' },
         { label: 'Price High-Low', value: 'price-high-low' },
       ],
-      category: flattenCategoryOptions(categories),
-      brand: availableBrands.map((brand) => ({ label: brand, value: brand })),
+      category: categoryOptions,
+      brand: brandOptions,
       price: [0, Math.max(maxPrice, 1)],
     };
-  }, [availableBrands, categories, maxPrice]);
-  const categoryOptions = filterOptions.category ?? [];
+  }, [brandOptions, categoryOptions, maxPrice]);
   const effectiveCategoryIds = useMemo(
-    () => getEffectiveCategoryIds(categoryOptions, selectedCategoryIds || []),
-    [categoryOptions, selectedCategoryIds],
+    () => getEffectiveCategoryIds(categoryOptions, selectedCategoryValues),
+    [categoryOptions, selectedCategoryValues],
   );
+  const effectiveCategoryIdsKey = effectiveCategoryIds.join('|');
   const filterSignature = useMemo(() => {
     const priceSignature = Array.isArray(priceRange) ? priceRange.join(':') : '';
-    const brandSignature = (selectedBrands || []).join('|');
-    return `${effectiveCategoryIds.join('|')}::${brandSignature}::${priceSignature}::${sortBy}`;
-  }, [effectiveCategoryIds, priceRange, selectedBrands, sortBy]);
+    return `${effectiveCategoryIdsKey}::${selectedBrandsKey}::${priceSignature}::${sortBy}`;
+  }, [effectiveCategoryIdsKey, priceRange, selectedBrandsKey, sortBy]);
 
   const scrollProductsToTop = useCallback(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -175,22 +189,15 @@ const Products = () => {
   }, [isAssociateMode, setValue]);
 
   useEffect(() => {
-    setValue('sortBy', sortBy || 'popular', {
-      shouldDirty: false,
-      shouldTouch: false,
-    });
-  }, [setValue, sortBy]);
-
-  useEffect(() => {
-    if (!Array.isArray(selectedBrands) || selectedBrands.length === 0) return;
+    if (selectedBrandValues.length === 0) return;
     const available = new Set(availableBrands);
-    const validBrands = selectedBrands.filter((brand) => available.has(brand));
-    if (validBrands.length === selectedBrands.length) return;
+    const validBrands = selectedBrandValues.filter((brand) => available.has(brand));
+    if (validBrands.length === selectedBrandValues.length) return;
     setValue('brand', validBrands, {
       shouldDirty: true,
       shouldTouch: true,
     });
-  }, [availableBrands, selectedBrands, setValue]);
+  }, [availableBrands, selectedBrandValues, setValue]);
 
   useEffect(() => {
     let cancelled = false;
@@ -211,7 +218,7 @@ const Products = () => {
         for (const categoryId of effectiveCategoryIds) {
           params.append('categoryIds', categoryId);
         }
-        for (const brand of selectedBrands || []) {
+        for (const brand of selectedBrandValues) {
           if (brand) params.append('brand', brand);
         }
         params.set('sort', sortBy);
@@ -250,14 +257,14 @@ const Products = () => {
     void load();
     return () => { cancelled = true; };
   }, [
-    effectiveCategoryIds,
+    effectiveCategoryIdsKey,
     isAssociateMode,
     isCheckingAssociateMode,
     maxPrice,
     priceRange,
     scrollProductsToTop,
     searchTerm,
-    selectedBrands,
+    selectedBrandsKey,
     sortBy,
   ]);
 
