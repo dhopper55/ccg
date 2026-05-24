@@ -216,7 +216,7 @@ const AssociateScreensaver = () => {
         justifyContent: 'center',
         bgcolor: 'background.default',
         cursor: 'none',
-        p: { xs: 3, sm: 5, md: 8 },
+        overflow: 'hidden',
       }}
     >
       <Box
@@ -226,9 +226,11 @@ const AssociateScreensaver = () => {
         draggable={false}
         sx={{
           display: 'block',
-          width: 'min(86vw, 720px)',
-          maxWidth: 1,
-          maxHeight: '78dvh',
+          height: '100dvh',
+          minHeight: '-webkit-fill-available',
+          width: 'auto',
+          maxWidth: 'none',
+          flexShrink: 0,
           objectFit: 'contain',
         }}
       />
