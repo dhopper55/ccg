@@ -105,7 +105,7 @@ const OrderManager = () => {
       {
         field: 'orderNumber',
         headerName: 'Order',
-        minWidth: 220,
+        width: 150,
         renderCell: (params) => (
           <Link
             variant="subtitle2"
@@ -125,20 +125,13 @@ const OrderManager = () => {
       {
         field: 'customerName',
         headerName: 'Customer',
-        minWidth: 280,
-        flex: 1,
+        width: 120,
+        align: 'center',
+        headerAlign: 'center',
         renderCell: (params) => (
-          <Stack sx={{ gap: 1.5, alignItems: 'center' }}>
-            <Avatar sx={{ width: 32, height: 32 }}>{params.row.customerName.charAt(0)}</Avatar>
-            <Box sx={{ minWidth: 0 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
-                {params.row.customerName}
-              </Typography>
-              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                {params.row.customerEmail || 'No email'}
-              </Typography>
-            </Box>
-          </Stack>
+          <Avatar sx={{ width: 32, height: 32, mx: 'auto' }}>
+            {params.row.customerName.charAt(0)}
+          </Avatar>
         ),
       },
       {
@@ -165,16 +158,6 @@ const OrderManager = () => {
             color={getPaymentStatusBadgeColor(params.row.paymentStatus)}
             sx={{ textTransform: 'capitalize' }}
           />
-        ),
-      },
-      {
-        field: 'itemCount',
-        headerName: 'Items',
-        minWidth: 104,
-        renderCell: (params) => (
-          <Typography variant="body2">
-            {params.row.itemCount || 1} ({currencyFormat(params.row.totalCents / 100)})
-          </Typography>
         ),
       },
       {
