@@ -446,6 +446,38 @@ const OrderManagerItem = () => {
                 <Typography variant="h4" sx={{ mb: 2 }}>
                   Order <Box component="span">{displayOrderNumber}</Box>
                 </Typography>
+                <Stack
+                  direction="row"
+                  sx={{
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: { xs: 0.5, sm: 2 },
+                    mb: 2,
+                  }}
+                >
+                  {orderStatusFlags.map((flag) => (
+                    <FormControlLabel
+                      key={flag.key}
+                      control={
+                        <Checkbox
+                          checked={order[flag.key]}
+                          disabled={updatingFlag !== null}
+                          size="small"
+                          onChange={(event) => void handleStatusFlagChange(flag.key, event.target.checked)}
+                        />
+                      }
+                      label={flag.label}
+                      sx={{
+                        m: 0,
+                        '& .MuiFormControlLabel-label': {
+                          color: 'text.secondary',
+                          fontSize: '0.8125rem',
+                          fontWeight: 600,
+                        },
+                      }}
+                    />
+                  ))}
+                </Stack>
                 <Stack sx={{ gap: 1, alignItems: 'center' }}>
                   <IconifyIcon icon={paymentIcon(order.checkoutProvider)} sx={{ fontSize: 22 }} />
                   <Chip
@@ -496,7 +528,7 @@ const OrderManagerItem = () => {
               </Box>
 
               <Stack direction="column" sx={{ gap: 5 }}>
-                {order.items.map((item, index) => (
+                {order.items.map((item) => (
                   <Stack key={`${item.inventoryItemId}-${item.ccgNumber}`} sx={{ gap: 2, alignItems: 'center' }}>
                     <Link
                       href={paths.inventoryItemWithId(String(item.inventoryItemId))}
@@ -530,40 +562,6 @@ const OrderManagerItem = () => {
                       <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                         {item.ccgNumber}
                       </Typography>
-                      {index === 0 && (
-                        <Stack
-                          direction="row"
-                          sx={{
-                            alignItems: 'center',
-                            flexWrap: 'wrap',
-                            gap: { xs: 0.5, sm: 2 },
-                            mt: 1,
-                          }}
-                        >
-                          {orderStatusFlags.map((flag) => (
-                            <FormControlLabel
-                              key={flag.key}
-                              control={
-                                <Checkbox
-                                  checked={order[flag.key]}
-                                  disabled={updatingFlag !== null}
-                                  size="small"
-                                  onChange={(event) => void handleStatusFlagChange(flag.key, event.target.checked)}
-                                />
-                              }
-                              label={flag.label}
-                              sx={{
-                                m: 0,
-                                '& .MuiFormControlLabel-label': {
-                                  color: 'text.secondary',
-                                  fontSize: '0.8125rem',
-                                  fontWeight: 600,
-                                },
-                              }}
-                            />
-                          ))}
-                        </Stack>
-                      )}
                     </Box>
                     <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                       {item.quantity} x {currencyFormat(item.unitAmountCents / 100)}
