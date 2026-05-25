@@ -3893,14 +3893,19 @@ async function handleAdminV2OrderDetail(orderId: string, env: Env): Promise<Resp
   const paymentMethodLabel = provider === 'cash'
     ? 'Cash'
     : await resolveStripePaymentMethodLabel(normalizeText(order.stripePaymentIntentId, ''), env);
+  const storedCostBasis = parseCurrencyAmount(rawOrder?.cost_basis_adjusted) ?? 0;
+  const moneyAccounted = parseOrderBoolean(rawOrder?.money_accounted);
+  const costBasisAdjusted = moneyAccounted || storedCostBasis > 0
+    ? storedCostBasis
+    : await dbCalculateOrderCostBasis(normalizedOrderId, env);
 
   return jsonResponse({
     record: {
       ...order,
       listingsUpdated: parseOrderBoolean(rawOrder?.listings_updated),
       settled: parseOrderBoolean(rawOrder?.settled),
-      moneyAccounted: parseOrderBoolean(rawOrder?.money_accounted),
-      costBasisAdjusted: formatSystemCurrency(rawOrder?.cost_basis_adjusted),
+      moneyAccounted,
+      costBasisAdjusted: formatSystemCurrency(costBasisAdjusted),
       paymentMethodLabel,
       customer: buildAdminOrderCustomer(rawOrder || {}, stripeCustomer),
       events,
@@ -11824,6 +11829,20 @@ async function dbListOrderInventoryQuantities(
       };
     })
     .filter((item): item is { inventoryItemId: number; quantity: number; subtotalCents: number } => item != null);
+}
+
+async function dbCalculateOrderCostBasis(orderId: string, env: Env): Promise<number> {
+  const items = await dbListOrderInventoryQuantities(orderId, env);
+  if (items.length === 0) return 0;
+
+  let total = 0;
+  for (const item of items) {
+    const row = await env.DB.prepare(
+      'SELECT unit_purchase_price FROM ccg_inventory_items WHERE id = ? LIMIT 1'
+    ).bind(item.inventoryItemId).first<{ unit_purchase_price: number | null }>();
+    total += Math.max(0, Number(row?.unit_purchase_price || 0)) * Math.max(1, item.quantity);
+  }
+  return Number(total.toFixed(2));
 }
 
 async function dbUnwindRefundedOrderInventory(
