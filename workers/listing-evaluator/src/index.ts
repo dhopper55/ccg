@@ -842,6 +842,16 @@ export default {
       return withCors(response, request, env);
     }
 
+    const adminV2OrderStatusFlagsMatch = path.match(/^\/api\/admin-v2\/orders\/([^/]+)\/status-flags$/);
+    if (adminV2OrderStatusFlagsMatch && request.method === 'POST') {
+      const response = await handleAdminV2OrderStatusFlagsUpdate(
+        request,
+        decodeURIComponent(adminV2OrderStatusFlagsMatch[1]),
+        env,
+      );
+      return withCors(response, request, env);
+    }
+
     const adminV2OrderRefundMatch = path.match(/^\/api\/admin-v2\/orders\/([^/]+)\/refund$/);
     if (adminV2OrderRefundMatch && request.method === 'POST') {
       const response = await handleAdminV2OrderRefund(decodeURIComponent(adminV2OrderRefundMatch[1]), env);
@@ -3876,10 +3886,91 @@ async function handleAdminV2OrderDetail(orderId: string, env: Env): Promise<Resp
   return jsonResponse({
     record: {
       ...order,
+      listingsUpdated: parseOrderBoolean(rawOrder?.listings_updated),
+      settled: parseOrderBoolean(rawOrder?.settled),
+      moneyAccounted: parseOrderBoolean(rawOrder?.money_accounted),
       paymentMethodLabel,
       customer: buildAdminOrderCustomer(rawOrder || {}, stripeCustomer),
       events,
     },
+  });
+}
+
+async function handleAdminV2OrderStatusFlagsUpdate(request: Request, orderId: string, env: Env): Promise<Response> {
+  const normalizedOrderId = normalizeText(orderId, '').slice(0, 100);
+  if (!normalizedOrderId) return jsonResponse({ message: 'Order not found.' }, 404);
+
+  let body: Record<string, unknown> = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  const columns = await dbGetTableColumns('orders', env);
+  const columnNames = new Set(columns.map((column) => column.name));
+  const requiredColumns = ['listings_updated', 'settled', 'money_accounted'];
+  const missingColumn = requiredColumns.find((column) => !columnNames.has(column));
+  if (missingColumn) return jsonResponse({ message: `D1 table orders is missing ${missingColumn}.` }, 500);
+
+  const existing = await env.DB.prepare(
+    'SELECT id, listings_updated, settled, money_accounted FROM orders WHERE id = ? LIMIT 1'
+  ).bind(normalizedOrderId).first<Record<string, unknown>>();
+  if (!existing) return jsonResponse({ message: 'Order not found.' }, 404);
+
+  const updates: Record<string, unknown> = {};
+  const eventPayload: Record<string, { from: boolean; to: boolean }> = {};
+  const fieldMap = [
+    ['listingsUpdated', 'listings_updated'],
+    ['settled', 'settled'],
+    ['moneyAccounted', 'money_accounted'],
+  ] as const;
+
+  for (const [payloadKey, columnName] of fieldMap) {
+    if (!(payloadKey in body)) continue;
+    const nextValue = toBooleanInput(body[payloadKey], false);
+    const previousValue = parseOrderBoolean(existing[columnName]);
+    updates[columnName] = nextValue ? 1 : 0;
+    if (previousValue !== nextValue) {
+      eventPayload[payloadKey] = { from: previousValue, to: nextValue };
+    }
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return jsonResponse({
+      ok: true,
+      listingsUpdated: parseOrderBoolean(existing.listings_updated),
+      settled: parseOrderBoolean(existing.settled),
+      moneyAccounted: parseOrderBoolean(existing.money_accounted),
+    });
+  }
+
+  await dbUpdateTableById('orders', normalizedOrderId, {
+    ...updates,
+    updated_at: new Date().toISOString(),
+  }, env);
+
+  if (Object.keys(eventPayload).length > 0) {
+    await dbRecordOrderEvent(normalizedOrderId, {
+      eventType: 'order_status_flags_updated',
+      fromStatus: null,
+      toStatus: normalizeText(existing.status, ''),
+      source: 'admin-v2',
+      sourceId: '',
+      message: 'Order status flags updated.',
+      payloadJson: JSON.stringify(eventPayload),
+    }, env);
+  }
+
+  const refreshed = await env.DB.prepare(
+    'SELECT listings_updated, settled, money_accounted FROM orders WHERE id = ? LIMIT 1'
+  ).bind(normalizedOrderId).first<Record<string, unknown>>();
+
+  return jsonResponse({
+    ok: true,
+    listingsUpdated: parseOrderBoolean(refreshed?.listings_updated),
+    settled: parseOrderBoolean(refreshed?.settled),
+    moneyAccounted: parseOrderBoolean(refreshed?.money_accounted),
   });
 }
 
@@ -4839,7 +4930,17 @@ function mapAdminOrderSummary(
     checkoutType: normalizeText(row.checkout_type, provider),
     checkoutMode: normalizeText(row.checkout_mode, ''),
     paymentMethodLabel: provider === 'cash' ? 'Cash' : 'Stripe',
+    listingsUpdated: parseOrderBoolean(row.listings_updated),
+    settled: parseOrderBoolean(row.settled),
+    moneyAccounted: parseOrderBoolean(row.money_accounted),
   };
+}
+
+function parseOrderBoolean(value: unknown): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  const normalized = normalizeText(value, '').toLowerCase();
+  return ['1', 'true', 'yes', 'y'].includes(normalized);
 }
 
 function buildAdminOrderCustomer(
