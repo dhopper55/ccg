@@ -482,6 +482,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/shop/settings' && request.method === 'GET') {
+      const response = await handleShopSettings(env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/shop/categories' && request.method === 'GET') {
       const response = await handleShopCategories(env);
       return withCors(response, request, env);
@@ -3662,6 +3667,10 @@ async function handleAdminV2SystemSettingsUpdate(request: Request, env: Env): Pr
   const templateId = Number(body.brevoOrderConfirmationTemplateId);
   const senderName = normalizeText(body.brevoSenderName, '');
   const senderEmail = normalizeEmailAddress(body.brevoSenderEmail);
+  const associateScreensaverIdleSeconds = Number(body.associateScreensaverIdleSeconds);
+  const customProductBarcode = normalizeText(body.customProductBarcode, '').slice(0, 80);
+  const currentUsedLocalFunds = parseCurrencyAmount(body.currentUsedLocalFunds);
+  const currentMfrWholesaleFunds = parseCurrencyAmount(body.currentMfrWholesaleFunds);
 
   if (!Number.isFinite(templateId) || templateId <= 0 || Math.floor(templateId) !== templateId) {
     return jsonResponse({ message: 'Brevo Order Confirm Template ID must be a positive whole number.' }, 400);
@@ -3672,12 +3681,29 @@ async function handleAdminV2SystemSettingsUpdate(request: Request, env: Env): Pr
   if (!senderEmail) {
     return jsonResponse({ message: 'Enter a valid Brevo Sender Email.' }, 400);
   }
+  if (
+    !Number.isFinite(associateScreensaverIdleSeconds) ||
+    associateScreensaverIdleSeconds <= 0 ||
+    Math.floor(associateScreensaverIdleSeconds) !== associateScreensaverIdleSeconds
+  ) {
+    return jsonResponse({ message: 'Associate Screensaver Idle Seconds must be a positive whole number.' }, 400);
+  }
+  if (currentUsedLocalFunds == null || currentUsedLocalFunds < 0) {
+    return jsonResponse({ message: 'Current Used Local Funds must be zero or greater.' }, 400);
+  }
+  if (currentMfrWholesaleFunds == null || currentMfrWholesaleFunds < 0) {
+    return jsonResponse({ message: 'Current Mfr Wholesale Funds must be zero or greater.' }, 400);
+  }
 
   try {
     await dbSetSystemSettings({
       brevoOrderConfirmationTemplateId: templateId,
       brevoSenderName: senderName,
       brevoSenderEmail: senderEmail,
+      associateScreensaverIdleSeconds,
+      customProductBarcode,
+      currentUsedLocalFunds,
+      currentMfrWholesaleFunds,
     }, env);
     const settings = await dbGetSystemSettings(env);
     return jsonResponse({ ok: true, ...settings });
@@ -4027,6 +4053,39 @@ async function getBrevoRuntimeConfig(env: Env): Promise<BrevoRuntimeConfig> {
   }
 }
 
+async function getShopRuntimeSettings(env: Env): Promise<{
+  associateScreensaverIdleMs: number;
+  customProductBarcode: string;
+}> {
+  const fallback = {
+    associateScreensaverIdleMs: 60_000,
+    customProductBarcode: '',
+  };
+
+  try {
+    const columns = await dbGetTableColumns('sys_info', env);
+    const columnNames = new Set(columns.map((column) => column.name));
+    const row = await env.DB.prepare('SELECT * FROM sys_info LIMIT 1').first<Record<string, unknown>>();
+    if (!row) return fallback;
+
+    const idleSeconds = columnNames.has('associate_screensaver_idle_seconds')
+      ? Number(row.associate_screensaver_idle_seconds)
+      : fallback.associateScreensaverIdleMs / 1000;
+
+    return {
+      associateScreensaverIdleMs: Number.isFinite(idleSeconds) && idleSeconds > 0
+        ? Math.floor(idleSeconds) * 1000
+        : fallback.associateScreensaverIdleMs,
+      customProductBarcode: columnNames.has('custom_product_barcode')
+        ? normalizeText(row.custom_product_barcode, '').slice(0, 80)
+        : fallback.customProductBarcode,
+    };
+  } catch (error) {
+    console.warn('Shop sys_info settings lookup failed.', { error });
+    return fallback;
+  }
+}
+
 async function sendBrevoOrderConfirmationTestEmail(
   config: BrevoRuntimeConfig,
 ): Promise<Record<string, unknown>> {
@@ -4316,32 +4375,21 @@ async function dbGetSystemSettings(env: Env): Promise<{
   brevoOrderConfirmationTemplateId: string;
   brevoSenderName: string;
   brevoSenderEmail: string;
+  associateScreensaverIdleSeconds: string;
+  customProductBarcode: string;
+  currentUsedLocalFunds: string;
+  currentMfrWholesaleFunds: string;
 }> {
-  const columns = await dbGetTableColumns('sys_info', env);
-  const columnNames = new Set(columns.map((column) => column.name));
-  const requiredColumns = [
-    'brevo_order_confirmation_template_id',
-    'brevo_sender_name',
-    'brevo_sender_email',
-  ];
-  const missingColumn = requiredColumns.find((column) => !columnNames.has(column));
-  if (missingColumn) {
-    throw new Error(`D1 table sys_info is missing ${missingColumn}.`);
-  }
-
-  const row = await env.DB.prepare(
-    `SELECT
-       brevo_order_confirmation_template_id,
-       brevo_sender_name,
-       brevo_sender_email
-     FROM sys_info
-     LIMIT 1`
-  ).first<Record<string, unknown>>();
+  const row = await env.DB.prepare('SELECT * FROM sys_info LIMIT 1').first<Record<string, unknown>>();
 
   return {
-    brevoOrderConfirmationTemplateId: normalizeText(row?.brevo_order_confirmation_template_id, ''),
+    brevoOrderConfirmationTemplateId: normalizeText(row?.brevo_order_confirmation_template_id, '3'),
     brevoSenderName: normalizeText(row?.brevo_sender_name, ''),
     brevoSenderEmail: normalizeText(row?.brevo_sender_email, ''),
+    associateScreensaverIdleSeconds: normalizeText(row?.associate_screensaver_idle_seconds, '60'),
+    customProductBarcode: normalizeText(row?.custom_product_barcode, ''),
+    currentUsedLocalFunds: formatSystemCurrency(row?.current_used_local_funds),
+    currentMfrWholesaleFunds: formatSystemCurrency(row?.current_mfr_wholesale_funds),
   };
 }
 
@@ -4350,6 +4398,10 @@ async function dbSetSystemSettings(
     brevoOrderConfirmationTemplateId: number;
     brevoSenderName: string;
     brevoSenderEmail: string;
+    associateScreensaverIdleSeconds: number;
+    customProductBarcode: string;
+    currentUsedLocalFunds: number;
+    currentMfrWholesaleFunds: number;
   },
   env: Env,
 ): Promise<void> {
@@ -4359,6 +4411,10 @@ async function dbSetSystemSettings(
     'brevo_order_confirmation_template_id',
     'brevo_sender_name',
     'brevo_sender_email',
+    'associate_screensaver_idle_seconds',
+    'custom_product_barcode',
+    'current_used_local_funds',
+    'current_mfr_wholesale_funds',
   ];
   const missingColumn = requiredColumns.find((column) => !columnNames.has(column));
   if (missingColumn) {
@@ -4370,19 +4426,36 @@ async function dbSetSystemSettings(
        id,
        brevo_order_confirmation_template_id,
        brevo_sender_name,
-       brevo_sender_email
+       brevo_sender_email,
+       associate_screensaver_idle_seconds,
+       custom_product_barcode,
+       current_used_local_funds,
+       current_mfr_wholesale_funds
      )
-     VALUES (1, ?, ?, ?)
+     VALUES (1, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        brevo_order_confirmation_template_id = excluded.brevo_order_confirmation_template_id,
        brevo_sender_name = excluded.brevo_sender_name,
        brevo_sender_email = excluded.brevo_sender_email,
+       associate_screensaver_idle_seconds = excluded.associate_screensaver_idle_seconds,
+       custom_product_barcode = excluded.custom_product_barcode,
+       current_used_local_funds = excluded.current_used_local_funds,
+       current_mfr_wholesale_funds = excluded.current_mfr_wholesale_funds,
        updated_at = CURRENT_TIMESTAMP`
   ).bind(
     settings.brevoOrderConfirmationTemplateId,
     settings.brevoSenderName,
     settings.brevoSenderEmail,
+    settings.associateScreensaverIdleSeconds,
+    settings.customProductBarcode,
+    Number(settings.currentUsedLocalFunds.toFixed(2)),
+    Number(settings.currentMfrWholesaleFunds.toFixed(2)),
   ).run();
+}
+
+function formatSystemCurrency(value: unknown): string {
+  const parsed = parseCurrencyAmount(value);
+  return (parsed == null || parsed < 0 ? 0 : parsed).toFixed(2);
 }
 
 async function listStripePaymentLinks(
@@ -4860,6 +4933,11 @@ function handleShopAssociateModeDisable(): Response {
       'Set-Cookie': clearAssociateModeCookie(),
     },
   );
+}
+
+async function handleShopSettings(env: Env): Promise<Response> {
+  const settings = await getShopRuntimeSettings(env);
+  return jsonResponse(settings);
 }
 
 async function handleShopProducts(request: Request, env: Env): Promise<Response> {

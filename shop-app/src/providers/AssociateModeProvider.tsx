@@ -3,6 +3,8 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 type AssociateModeContextValue = {
   isAssociateMode: boolean;
   isCheckingAssociateMode: boolean;
+  associateScreensaverIdleMs: number;
+  customProductBarcode: string;
   disableAssociateMode: () => Promise<void>;
 };
 
@@ -10,11 +12,19 @@ type AssociateModeResponse = {
   associateMode?: boolean;
 };
 
+type ShopSettingsResponse = {
+  associateScreensaverIdleMs?: number;
+  customProductBarcode?: string;
+};
+
 const associateModeStorageKey = 'ccgAssociateMode';
+const defaultAssociateScreensaverIdleMs = 60_000;
 
 const AssociateModeContext = createContext<AssociateModeContextValue>({
   isAssociateMode: false,
   isCheckingAssociateMode: false,
+  associateScreensaverIdleMs: defaultAssociateScreensaverIdleMs,
+  customProductBarcode: '',
   disableAssociateMode: async () => undefined,
 });
 
@@ -40,6 +50,8 @@ const removeAssociateParam = () => {
 const AssociateModeProvider = ({ children }: { children: ReactNode }) => {
   const [isAssociateMode, setIsAssociateMode] = useState(readStoredAssociateMode);
   const [isCheckingAssociateMode, setIsCheckingAssociateMode] = useState(false);
+  const [associateScreensaverIdleMs, setAssociateScreensaverIdleMs] = useState(defaultAssociateScreensaverIdleMs);
+  const [customProductBarcode, setCustomProductBarcode] = useState('');
 
   const disableAssociateMode = useCallback(async () => {
     setIsCheckingAssociateMode(true);
@@ -50,6 +62,36 @@ const AssociateModeProvider = ({ children }: { children: ReactNode }) => {
       setIsAssociateMode(false);
       setIsCheckingAssociateMode(false);
     }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    let cancelled = false;
+
+    const loadShopSettings = async () => {
+      try {
+        const response = await fetch('/api/shop/settings');
+        const data = (await response.json()) as ShopSettingsResponse;
+        if (!response.ok || cancelled) return;
+        const idleMs = Number(data.associateScreensaverIdleMs);
+        setAssociateScreensaverIdleMs(Number.isFinite(idleMs) && idleMs > 0
+          ? Math.floor(idleMs)
+          : defaultAssociateScreensaverIdleMs);
+        setCustomProductBarcode(typeof data.customProductBarcode === 'string' ? data.customProductBarcode.trim() : '');
+      } catch {
+        if (!cancelled) {
+          setAssociateScreensaverIdleMs(defaultAssociateScreensaverIdleMs);
+          setCustomProductBarcode('');
+        }
+      }
+    };
+
+    void loadShopSettings();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -121,8 +163,20 @@ const AssociateModeProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const value = useMemo(
-    () => ({ isAssociateMode, isCheckingAssociateMode, disableAssociateMode }),
-    [isAssociateMode, isCheckingAssociateMode, disableAssociateMode],
+    () => ({
+      isAssociateMode,
+      isCheckingAssociateMode,
+      associateScreensaverIdleMs,
+      customProductBarcode,
+      disableAssociateMode,
+    }),
+    [
+      isAssociateMode,
+      isCheckingAssociateMode,
+      associateScreensaverIdleMs,
+      customProductBarcode,
+      disableAssociateMode,
+    ],
   );
 
   return <AssociateModeContext.Provider value={value}>{children}</AssociateModeContext.Provider>;

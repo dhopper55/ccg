@@ -12,7 +12,6 @@ import paths from 'routes/paths';
 const BARCODE_MIN_LENGTH = 8;
 const BARCODE_MAX_INTER_KEY_MS = 65;
 const BARCODE_QUIET_MS = 140;
-const ASSOCIATE_SCREENSAVER_IDLE_MS = 60_000;
 const CCG_LOGO_URL = 'https://www.coalcreekguitars.com/images/coal-creek-logo.png';
 
 type BarcodeSearchProduct = {
@@ -28,7 +27,7 @@ type BarcodeSearchResponse = {
 const ShopBarcodeScanner = () => {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
-  const { isAssociateMode, isCheckingAssociateMode } = useAssociateMode();
+  const { isAssociateMode, isCheckingAssociateMode, customProductBarcode } = useAssociateMode();
   const scanBufferRef = useRef('');
   const scanStartedAtRef = useRef(0);
   const lastKeyAtRef = useRef(0);
@@ -58,7 +57,14 @@ const ShopBarcodeScanner = () => {
     const lastKeyAt = lastKeyAtRef.current;
     resetScan();
 
-    if (barcode.length < BARCODE_MIN_LENGTH || !startedAt || !lastKeyAt || isCheckingAssociateMode) return;
+    const configuredCustomBarcode = customProductBarcode.trim();
+    const isConfiguredCustomBarcode = configuredCustomBarcode.length > 0 && barcode === configuredCustomBarcode;
+    if (
+      (!isConfiguredCustomBarcode && barcode.length < BARCODE_MIN_LENGTH) ||
+      !startedAt ||
+      !lastKeyAt ||
+      isCheckingAssociateMode
+    ) return;
     const averageDelay = (lastKeyAt - startedAt) / Math.max(barcode.length - 1, 1);
     if (averageDelay > BARCODE_MAX_INTER_KEY_MS || lookupInFlightRef.current) return;
 
@@ -84,7 +90,15 @@ const ShopBarcodeScanner = () => {
     } finally {
       lookupInFlightRef.current = false;
     }
-  }, [enqueueSnackbar, getProductUrl, isAssociateMode, isCheckingAssociateMode, navigate, resetScan]);
+  }, [
+    customProductBarcode,
+    enqueueSnackbar,
+    getProductUrl,
+    isAssociateMode,
+    isCheckingAssociateMode,
+    navigate,
+    resetScan,
+  ]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -94,7 +108,11 @@ const ShopBarcodeScanner = () => {
       }
 
       if (event.key === 'Enter') {
-        if (scanBufferRef.current.length >= BARCODE_MIN_LENGTH) {
+        const configuredCustomBarcode = customProductBarcode.trim();
+        if (
+          scanBufferRef.current.length >= BARCODE_MIN_LENGTH ||
+          (configuredCustomBarcode && scanBufferRef.current === configuredCustomBarcode)
+        ) {
           event.preventDefault();
           void submitScan();
         } else {
@@ -121,7 +139,11 @@ const ShopBarcodeScanner = () => {
         window.clearTimeout(quietTimerRef.current);
       }
       quietTimerRef.current = window.setTimeout(() => {
-        if (scanBufferRef.current.length >= BARCODE_MIN_LENGTH) {
+        const configuredCustomBarcode = customProductBarcode.trim();
+        if (
+          scanBufferRef.current.length >= BARCODE_MIN_LENGTH ||
+          (configuredCustomBarcode && scanBufferRef.current === configuredCustomBarcode)
+        ) {
           void submitScan();
         } else {
           resetScan();
@@ -134,13 +156,13 @@ const ShopBarcodeScanner = () => {
       window.removeEventListener('keydown', handleKeyDown, { capture: true });
       resetScan();
     };
-  }, [resetScan, submitScan]);
+  }, [customProductBarcode, resetScan, submitScan]);
 
   return null;
 };
 
 const AssociateScreensaver = () => {
-  const { isAssociateMode, isCheckingAssociateMode } = useAssociateMode();
+  const { isAssociateMode, isCheckingAssociateMode, associateScreensaverIdleMs } = useAssociateMode();
   const [isVisible, setIsVisible] = useState(false);
   const timerRef = useRef<number | null>(null);
 
@@ -155,8 +177,8 @@ const AssociateScreensaver = () => {
     clearIdleTimer();
     timerRef.current = window.setTimeout(() => {
       setIsVisible(true);
-    }, ASSOCIATE_SCREENSAVER_IDLE_MS);
-  }, [clearIdleTimer]);
+    }, associateScreensaverIdleMs);
+  }, [associateScreensaverIdleMs, clearIdleTimer]);
 
   const handleActivity = useCallback(() => {
     setIsVisible(false);
