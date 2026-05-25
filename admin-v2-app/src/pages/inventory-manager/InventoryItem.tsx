@@ -165,6 +165,7 @@ type UpcLookupResponse = {
   map?: string | null;
   msrp?: string | null;
   dealer_cost?: string | null;
+  mfr_price_list?: unknown;
   clean_title?: string;
   clean_description?: string;
   clean_bullets?: string[];
@@ -1883,7 +1884,8 @@ const InventoryItem = () => {
       .filter(Boolean)
       .slice(0, 5);
     const msrpPrice = parsePopulatedPrice(upcLookupData.msrp);
-    const mapPrice = parsePopulatedPrice(upcLookupData.map) ?? msrpPrice;
+    const hasMfrPriceList = Boolean(upcLookupData.mfr_price_list);
+    const mapPrice = parsePopulatedPrice(upcLookupData.map) ?? (hasMfrPriceList ? msrpPrice : null);
     const dealerCost = parsePopulatedPrice(upcLookupData.dealer_cost);
 
     setForm((current) => ({

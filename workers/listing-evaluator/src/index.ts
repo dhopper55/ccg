@@ -6534,8 +6534,8 @@ function normalizeUpcItemDbItem(
   const images = normalizeUpcItemDbImages(item.images);
   const attributes = normalizeUpcItemDbAttributes(item);
   const brandDesc = normalizeText(mfrRow?.description, '') || pickUpcString(item, ['brand_desc', 'brandDescription']);
-  const mapValue = mfrRow?.map ?? pickUpcNumber(item, ['map', 'minimum_advertised_price']);
-  const msrpValue = mfrRow?.msrp ?? pickUpcNumber(item, ['msrp', 'highest_recorded_price']);
+  const mapValue = mfrRow?.map ?? pickUpcNumber(item, ['map', 'minimum_advertised_price', 'lowest_recorded_price']);
+  const msrpValue = mfrRow?.msrp ?? pickUpcNumber(item, ['msrp', 'list_price']);
   const dealerCostValue = mfrRow?.dealer_cost ?? null;
 
   return {
