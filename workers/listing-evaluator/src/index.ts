@@ -6453,12 +6453,18 @@ type UpcAiEnrichment = {
 async function handleAdminV2UpcLookup(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const barcode = normalizeText(url.searchParams.get('barcode'), '').replace(/\D/g, '').slice(0, 20);
-  const brand = normalizeText(url.searchParams.get('brand'), '').slice(0, 120);
+  const requestedBrandCode = normalizeText(url.searchParams.get('brand'), 'DUNLOP').toUpperCase().slice(0, 120);
+  const isDunlopLookup = requestedBrandCode === 'DUNLOP';
+  const isOtherLookup = requestedBrandCode === 'OTHER';
+  if (!isDunlopLookup && !isOtherLookup) {
+    return jsonResponse({ message: 'Brand is invalid.' }, 400);
+  }
+  const brand = isDunlopLookup ? 'Dunlop' : 'Other';
   if (!/^\d{8,20}$/.test(barcode)) {
     return jsonResponse({ message: 'Barcode must be 8 to 20 digits.' }, 400);
   }
 
-  const mfrRow = await dbGetDunlopMfrPriceListByUpc(barcode, env);
+  const mfrRow = isDunlopLookup ? await dbGetDunlopMfrPriceListByUpc(barcode, env) : null;
 
   const lookupUrl = new URL('https://api.upcitemdb.com/prod/trial/lookup');
   lookupUrl.searchParams.set('upc', barcode);
@@ -6530,7 +6536,7 @@ function normalizeUpcItemDbItem(
   const brandDesc = normalizeText(mfrRow?.description, '') || pickUpcString(item, ['brand_desc', 'brandDescription']);
   const mapValue = mfrRow?.map ?? pickUpcNumber(item, ['map', 'minimum_advertised_price']);
   const msrpValue = mfrRow?.msrp ?? pickUpcNumber(item, ['msrp', 'highest_recorded_price']);
-  const dealerCostValue = mfrRow?.dealer_cost ?? pickUpcNumber(item, ['dealer_cost', 'cost']);
+  const dealerCostValue = mfrRow?.dealer_cost ?? null;
 
   return {
     barcode,

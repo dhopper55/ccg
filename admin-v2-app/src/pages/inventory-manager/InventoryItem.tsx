@@ -3669,6 +3669,7 @@ const InventoryItem = () => {
                   disabled={isUpcSearching}
                 >
                   <MenuItem value="DUNLOP">Dunlop</MenuItem>
+                  <MenuItem value="OTHER">Other</MenuItem>
                 </TextField>
               </Grid>
               <Grid size={{ xs: 12, md: 2 }}>
