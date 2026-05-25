@@ -7802,6 +7802,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       sold_channel: null,
     }, env);
     if (!remainingUpdateOk) return jsonResponse({ message: 'Unable to update remaining inventory item.' }, 500);
+    await dbSetInventorySoldAvailability(recordId, false, env);
     if (!(await dbReplaceInventoryImagesByItemIds([recordIdNum], imageEntries, env))) {
       return jsonResponse({ message: 'Unable to update remaining inventory item images.' }, 500);
     }
@@ -7960,6 +7961,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       sold_channel: soldChannel || null,
     }, env);
     if (!soldCloneOk) return jsonResponse({ message: 'Unable to update sold inventory item.' }, 500);
+    await dbSetInventorySoldAvailability(soldInsert.firstId, true, env);
     if (!(await dbReplaceInventoryImagesByItemIds([Number(soldInsert.firstId)], imageEntries, env))) {
       return jsonResponse({ message: 'Sold inventory item was created, but its image records failed to save.' }, 500);
     }
@@ -8076,6 +8078,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     sold_channel: soldChannel || null,
   }, env);
   if (!updateOk) return jsonResponse({ message: 'Unable to update inventory item.' }, 500);
+  await dbSetInventorySoldAvailability(recordId, isSold, env);
   if (!(await dbReplaceInventoryImagesByItemIds([Number.parseInt(recordId, 10)], imageEntries, env))) {
     return jsonResponse({ message: 'Unable to update inventory item images.' }, 500);
   }
@@ -12206,6 +12209,38 @@ async function dbUpdateInventoryById(
     console.error('Inventory row update failed', { error });
     return false;
   }
+}
+
+async function dbSetInventorySoldAvailability(
+  recordId: string,
+  isSold: boolean,
+  env: Env,
+): Promise<void> {
+  const idValue = Number.parseInt(recordId, 10);
+  if (!Number.isFinite(idValue)) return;
+
+  if (isSold) {
+    await env.DB.prepare(
+      `UPDATE ccg_inventory_items
+       SET availability_status = 'sold',
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`
+    ).bind(idValue).run();
+    return;
+  }
+
+  await env.DB.prepare(
+    `UPDATE ccg_inventory_items
+     SET availability_status = 'available',
+         active_order_id = NULL,
+         reserved_until = NULL,
+         sold_date = NULL,
+         sold_amount = NULL,
+         sell_notes = NULL,
+         sold_channel = NULL,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?`
+  ).bind(idValue).run();
 }
 
 async function dbSetInventoryMarked(recordId: string, isMarked: boolean, env: Env): Promise<boolean> {

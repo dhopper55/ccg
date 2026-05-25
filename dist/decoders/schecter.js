@@ -66,6 +66,10 @@ export function decodeSchecter(serial) {
     if (/^SA\d{6,8}$/.test(normalized)) {
         return decodeJapanSA(normalized);
     }
+    // Pure numeric modern import: YY + long internal production/factory code
+    if (/^\d{10,12}$/.test(normalized)) {
+        return decodeNumericLongImport(normalized);
+    }
     // Pure numeric: Early 2000s or late 1990s Korean
     // Format: YYMM + sequence
     if (/^\d{7,9}$/.test(normalized)) {
@@ -592,6 +596,46 @@ function decodeNumeric(serial) {
         notes: `Numeric-only serial indicates Korean manufacture (typically early 2000s or late 1990s). Sequence: ${sequence}.`
     };
     return { success: true, info };
+}
+function decodeNumericLongImport(serial) {
+    const yearDigits = serial.substring(0, 2);
+    const yearNum = parseInt(yearDigits, 10);
+    const year = yearNum >= 90 ? 1900 + yearNum : 2000 + yearNum;
+    const internalCode = serial.substring(2);
+    const info = {
+        brand: 'Schecter',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'Import production line',
+        country: 'China or other Asian import factory',
+        model: 'Diamond Series or similar import',
+        notes: `Long numeric Schecter import serial. The first two digits (${yearDigits}) are treated as production year ${year}; the remaining digits (${internalCode}) are internal factory, batch, or sequence coding. Schecter often uses letter prefixes for specific factories, so confirm country and model from the back-of-headstock marking, truss rod cover, label, or physical features.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'schecter-long-numeric-import-yy-sequence',
+        patternLabel: 'Schecter long numeric import YY sequence',
+        additionalContext: {
+            title: 'Schecter long numeric import serial',
+            summary: 'This serial matches a long numeric Schecter import format where the first two digits identify the production year.',
+            highlights: [
+                `The first two digits ${yearDigits} decode as production year ${year}.`,
+                `The remaining digits are treated as internal production code ${internalCode}.`,
+                'A pure numeric format commonly points to import production rather than USA Custom Shop formats.',
+            ],
+            caveats: [
+                'Schecter factory attribution is stronger when a letter prefix is present.',
+                'The serial identifies likely year, not exact model name.',
+                'Country should be confirmed from Made in markings or physical labels.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for Made in China, Indonesia, or Korea markings.',
+                'Use the truss rod cover, pickups, and body shape to identify the exact model series.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a long numeric Schecter import format where the first two digits identify the production year.</p><h3>How This Pattern Is Typically Read</h3><p>The first two digits ${yearDigits} decode as production year ${year}. The remaining digits are treated as internal production code ${internalCode}. A pure numeric format commonly points to import production rather than USA Custom Shop formats.</p><h3>What To Verify</h3><ul><li>Schecter factory attribution is stronger when a letter prefix is present.</li><li>The serial identifies likely year, not exact model name.</li><li>Country should be confirmed from Made in markings or physical labels.</li></ul>`,
+    };
 }
 function decodeNumericLegacy6(serial) {
     const yearDigit = parseInt(serial[0], 10);

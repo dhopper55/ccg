@@ -46,6 +46,10 @@ export function decodeDean(serial) {
     if (/^A\d{8}$/.test(normalized)) {
         return decodeAsianPartnerA(normalized);
     }
+    // Asian partner import line: D + YYMM + sequence
+    if (/^D\d{8}$/.test(normalized)) {
+        return decodeAsianPartnerD(normalized);
+    }
     // Indonesia: IW prefix
     if (/^IW\d{8,10}$/.test(normalized)) {
         return decodeIndonesiaIW(normalized);
@@ -312,6 +316,52 @@ function decodeAsianPartnerA(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches an A-prefix Dean import format used by Asian manufacturing partners.</p><h3>How This Pattern Is Typically Read</h3><p>A is treated as an Asian partner factory code. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits}${monthName ? ` decode as ${monthName}` : ' are treated as a month or internal production code'}. The final digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Dean import prefix letters can vary by partner and production run.</li><li>This decode identifies likely production timing, not the exact model name.</li><li>Confirm country of origin from headstock, neck plate, label, or other physical markings.</li></ul>`,
+    };
+}
+function decodeAsianPartnerD(serial) {
+    const digits = serial.substring(1);
+    const yearDigits = digits.substring(0, 2);
+    const monthDigits = digits.substring(2, 4);
+    const sequence = digits.substring(4);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const month = parseInt(monthDigits, 10);
+    const monthName = month >= 1 && month <= 12 ? getMonthName(month) : undefined;
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Dean',
+        serialNumber: serial,
+        year: year.toString(),
+        month: monthName,
+        factory: 'Asian partner import production line',
+        country: 'China, South Korea, or Indonesia',
+        notes: `D-prefix Dean import format interpreted as D + YYMM + production sequence. The D prefix identifies an Asian partner factory code; ${yearDigits} indicates ${year}; ${monthDigits} indicates ${monthName || 'an unverified month code'}; ${sequence} is production sequence ${sequenceNumber}. Dean factory codes can shift by run, so confirm country and exact model from headstock markings and catalog specs.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'dean-asian-partner-d-yymm-sequence',
+        patternLabel: 'Dean Asian partner D-prefix YYMM sequence',
+        additionalContext: {
+            title: 'Dean D-prefix import serial',
+            summary: 'This serial matches a D-prefix Dean import format used by Asian manufacturing partners.',
+            highlights: [
+                'D is treated as an Asian partner factory code.',
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                monthName ? `The digits ${monthDigits} decode as ${monthName}.` : `The digits ${monthDigits} are treated as a month or internal production code.`,
+                `The final digits decode as production sequence ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'Dean import prefix letters can vary by partner and production run.',
+                'This decode identifies likely production timing, not the exact model name.',
+                'Country should be confirmed from Made in markings, label, or headstock details.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for country-of-origin markings.',
+                'Compare hardware, body shape, and finish against Dean import specs from the decoded year.',
+                'Contact Dean support with photos if exact factory confirmation is needed.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a D-prefix Dean import format used by Asian manufacturing partners.</p><h3>How This Pattern Is Typically Read</h3><p>D is treated as an Asian partner factory code. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits}${monthName ? ` decode as ${monthName}` : ' are treated as a month or internal production code'}. The final digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Dean import prefix letters can vary by partner and production run.</li><li>This decode identifies likely production timing, not the exact model name.</li><li>Confirm country of origin from headstock, neck plate, label, or other physical markings.</li></ul>`,
     };
 }
 // Indonesia: IW prefix

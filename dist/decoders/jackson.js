@@ -9,8 +9,10 @@
  * - USA Bolt-On Custom Shop (4-digit, 1986-1997)
  * - USA Bolt-On Production (6-digit 00xxxx, 1990+)
  * - Jackson Junior (JJ suffix, 1994-2000)
+ * - Japan Professional (5-digit, 1990-1995)
  * - Japan Professional (6-digit, 1990-1995)
  * - Japan Professional transition (6-digit, 1996)
+ * - Japan Professional late 1990s (6-digit, 98-99 prefix)
  * - Japan MIJ import numeric sequence (6-digit 7 prefix, late 1990s-2000s estimated)
  * - Japan Fusion (6-digit 90-95 prefix, 1990-1995)
  * - Japan mid-1990s MIJ (7-digit, 90-95 prefix)
@@ -129,6 +131,10 @@ export function decodeJackson(serial) {
     if (/^[0-5]\d{5}$/.test(normalized) && normalized.length === 6) {
         return decodeJapanProfessional(normalized);
     }
+    // Japan Professional 5-digit (1990-1995, first digit 0-5)
+    if (/^[0-5]\d{4}$/.test(normalized) && normalized.length === 5) {
+        return decodeJapanProfessionalFiveDigit(normalized);
+    }
     // Japan Professional transition 6-digit (1996, first digit 6)
     if (/^6\d{5}$/.test(normalized) && normalized.length === 6) {
         return decodeJapanProfessionalTransition1996(normalized);
@@ -136,6 +142,10 @@ export function decodeJackson(serial) {
     // Japan MIJ import numeric sequence (6-digit 7 prefix, late 1990s-2000s estimated)
     if (/^7\d{5}$/.test(normalized) && normalized.length === 6) {
         return decodeJapanMijSevenPrefixSixDigit(normalized);
+    }
+    // Japan Professional late-1990s 6-digit (98-99 prefix)
+    if (/^9[8-9]\d{4}$/.test(normalized) && normalized.length === 6) {
+        return decodeJapanMijLate1990sSixDigit(normalized);
     }
     // Japan Fusion 6-digit (90-95 prefix)
     if (/^9[0-5]\d{4}$/.test(normalized) && normalized.length === 6) {
@@ -169,10 +179,10 @@ export function decodeJackson(serial) {
     if (/^00\d{4}$/.test(normalized)) {
         return decodeUSABoltOnProduction(normalized);
     }
-    // USA Custom Shop Bolt-On (4-digit, 1001-8089)
+    // USA Custom Shop Bolt-On (4-digit, 1001-8999)
     if (/^\d{4}$/.test(normalized)) {
         const num = parseInt(normalized, 10);
-        if (num >= 1001 && num <= 8089) {
+        if (num >= 1001 && num <= 8999) {
             return decodeUSACustomBoltOn(normalized);
         }
     }
@@ -326,8 +336,11 @@ function decodeUSACustomBoltOn(serial) {
     else if (num <= 6000) {
         info.year = '1992-1995';
     }
-    else {
+    else if (num <= 8200) {
         info.year = '1995-1997';
+    }
+    else {
+        info.year = '1994-1995 (estimated)';
     }
     return { success: true, info };
 }
@@ -365,6 +378,46 @@ function decodeJapanProfessional(serial) {
         notes: 'Made in Japan Professional series. High-quality import models produced 1990-1995.',
     };
     return { success: true, info };
+}
+function decodeJapanProfessionalFiveDigit(serial) {
+    const yearDigit = parseInt(serial[0], 10);
+    const year = 1990 + yearDigit;
+    const sequence = parseInt(serial.substring(1), 10);
+    const info = {
+        brand: 'Jackson',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'Chushin Gakki',
+        country: 'Japan',
+        model: 'Professional Series',
+        notes: `Likely made in Japan Professional Series model. This 5-digit early-1990s Jackson import format uses the first digit as the production year within 1990-1995 (${serial[0]} = ${year}) and the remaining four digits as production sequence ${sequence}. Verify with Professional headstock script, serial placement, neck plate, and neck-pocket or heel markings when possible.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'jackson-mij-professional-5-digit',
+        patternLabel: 'Jackson MIJ Professional 5-digit',
+        additionalContext: {
+            title: 'Jackson MIJ Professional 5-digit serial',
+            summary: 'This serial matches an early-1990s Japanese Jackson Professional Series 5-digit format.',
+            highlights: [
+                `The first digit ${serial[0]} points to ${year}.`,
+                `The remaining four digits decode as production sequence ${sequence}.`,
+                'This format is commonly associated with Japanese Professional Series instruments.',
+            ],
+            caveats: [
+                'Jackson import records from this era are incomplete.',
+                'The serial supports an era/origin decode, but exact model confirmation requires physical inspection.',
+                'Serial placement can vary, including fretboard stamp or neck plate.',
+            ],
+            verificationTips: [
+                'Look for Professional script on the headstock.',
+                'Check whether the serial is stamped into the fretboard or appears on a neck plate.',
+                'Inspect neck-pocket or heel markings when exact date/model confirmation matters.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches an early-1990s Japanese Jackson Professional Series 5-digit format.</p><h3>How This Pattern Is Typically Read</h3><p>The first digit ${serial[0]} points to ${year}. The remaining four digits decode as production sequence ${sequence}. This format is commonly associated with Japanese Professional Series instruments.</p><h3>What To Verify</h3><ul><li>Jackson import records from this era are incomplete.</li><li>The serial supports an era and origin decode, but exact model confirmation requires physical inspection.</li><li>Serial placement can vary, including fretboard stamp or neck plate.</li></ul>`,
+    };
 }
 function decodeJapanProfessionalTransition1996(serial) {
     const sequence = serial.substring(1);
@@ -438,6 +491,45 @@ function decodeJapanMijSevenPrefixSixDigit(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a 6-digit 7-prefix Japanese Jackson import sequence associated with late-1990s to late-2000s bolt-on models.</p><h3>How This Pattern Is Typically Read</h3><p>The leading 7 points to a Japanese import sequence rather than a precise calendar year. This style is commonly associated with MIJ bolt-on Jackson models from the late 1990s through the late 2000s. The full number is treated as production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>Exact dating is limited because many Japanese Jackson factory records from this era are incomplete or unavailable.</li><li>Some references describe related 7-prefix MIJ serials as 7-digit numbers; this serial has 6 digits.</li><li>Use this as a likely MIJ era/origin decode, not exact model authentication.</li></ul><h3>Coal Creek Guitars Note</h3><p>Check for Made in Japan markings, compare the guitar to DKMG, DXMG, DX10, or related MIJ specs, and inspect neck-pocket or heel stamps when possible.</p>`,
+    };
+}
+function decodeJapanMijLate1990sSixDigit(serial) {
+    const yearDigits = serial.substring(0, 2);
+    const year = 1900 + parseInt(yearDigits, 10);
+    const sequence = parseInt(serial.substring(2), 10);
+    const info = {
+        brand: 'Jackson',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'Chushin Gakki',
+        country: 'Japan',
+        notes: `Likely made in Japan Professional Series or related MIJ bolt-on model. This 6-digit late-1990s Jackson import format uses the first two digits as the year (${yearDigits} = ${year}) and the remaining four digits as production sequence ${sequence}. Many pre-2002 Jackson import records are incomplete, so verify with neck plate, headstock, neck-pocket, or heel markings when possible.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'jackson-mij-6-digit-late-1990s-professional',
+        patternLabel: 'Jackson MIJ 6-digit late-1990s Professional format',
+        additionalContext: {
+            title: 'Jackson MIJ late-1990s 6-digit serial',
+            summary: 'This 6-digit serial matches a late-1990s Japanese Jackson import pattern commonly associated with Professional Series and related MIJ bolt-on models.',
+            highlights: [
+                `The first two digits point to ${year}.`,
+                'These serials are commonly associated with Japanese Professional Series or related MIJ import models.',
+                `The remaining four digits decode as production sequence ${sequence}.`,
+            ],
+            caveats: [
+                'Jackson records from this era are incomplete, especially for pre-2002 import instruments.',
+                'Official Jackson lookup results may be missing even when the serial format is valid.',
+                'Use this as a production-era and country decode, not exact model authentication by itself.',
+            ],
+            verificationTips: [
+                'Check whether the serial is on a bolt-on neck plate or on the back of the headstock.',
+                'Look for Made in Japan markings and compare the instrument to late-1990s Professional Series specs.',
+                'If possible, inspect the neck pocket or neck heel for model/date stamps.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This 6-digit serial matches a late-1990s Japanese Jackson import pattern commonly associated with Professional Series and related MIJ bolt-on models.</p><h3>How This Pattern Is Typically Read</h3><p>The first two digits point to ${year}. These serials are commonly associated with Japanese Professional Series or related MIJ import models. The remaining four digits decode as production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>Jackson records from this era are incomplete, especially for pre-2002 import instruments.</li><li>Official Jackson lookup results may be missing even when the serial format is valid.</li><li>Use this as a production-era and country decode, not exact model authentication by itself.</li></ul><h3>Coal Creek Guitars Note</h3><p>Confirm with Made in Japan markings, model specs, and neck-pocket or heel stamps when possible.</p>`,
     };
 }
 function decodeJapanMij1990to1995SevenDigit(serial) {

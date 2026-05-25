@@ -52,6 +52,11 @@ export function decodeKramer(serial: string): DecodeResult {
     return decodeSamickIndonesiaSI(normalized, cleaned);
   }
 
+  // MusicYo/Gibson-era Striker format: S + YY + sequence
+  if (/^S\d{5}$/.test(normalized)) {
+    return decodeMusicYoStrikerS(normalized, cleaned);
+  }
+
   // SF-prefix: Japanese-made import era (late 1980s – early 1990s)
   if (/^SF\d{3,6}$/.test(normalized)) {
     const sequence = normalized.substring(2);
@@ -364,6 +369,51 @@ function decodeSamickIndonesiaSI(normalized: string, cleaned: string): DecodeRes
   };
 
   return { success: true, info };
+}
+
+function decodeMusicYoStrikerS(normalized: string, cleaned: string): DecodeResult {
+  const yearPart = normalized.substring(1, 3);
+  const sequence = normalized.substring(3);
+  const yearValue = parseInt(yearPart, 10);
+  const fullYear = Number.isNaN(yearValue) ? undefined : 2000 + yearValue;
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Kramer',
+    serialNumber: cleaned,
+    year: fullYear ? fullYear.toString() : undefined,
+    factory: 'MusicYo/Gibson-era import production',
+    country: 'South Korea or China',
+    model: 'Striker Series',
+    notes: `S-prefix 5-digit Kramer serial interpreted as a MusicYo/Gibson-era Striker format: S + YY + sequence. The digits ${yearPart} indicate ${fullYear ?? 'an unknown year'} and the remaining digits are production sequence ${sequenceNumber}. This is not a vintage 1980s American Kramer neck-plate format; verify with the headstock logo, back-of-headstock or neck-plate serial placement, country-of-origin markings, and hardware.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'kramer-musicyo-striker-s-yy-sequence',
+    patternLabel: 'Kramer MusicYo Striker S-prefix YY sequence',
+    additionalContext: {
+      title: 'Kramer MusicYo-era Striker serial',
+      summary: 'This serial matches a short S-prefix Kramer import format commonly associated with MusicYo-era Striker Series instruments.',
+      highlights: [
+        'S is treated as a Striker/MusicYo-era import prefix.',
+        `The digits ${yearPart} decode as production year ${fullYear ?? 'unknown'}.`,
+        `The remaining digits decode as production sequence ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'This is not the vintage 1980s American Series letter-prefix neck-plate system.',
+        'Country can vary across MusicYo-era import production, so confirm from physical markings.',
+        'The serial identifies likely era/series, not exact model configuration by itself.',
+      ],
+      verificationTips: [
+        'Check for a block-style Kramer logo and MusicYo-era Striker features.',
+        'Compare pickup layout and tremolo hardware against 2000s Striker specs.',
+        'Look for a country-of-origin stamp or sticker on the back of the headstock.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a short S-prefix Kramer import format commonly associated with MusicYo-era Striker Series instruments.</p><h3>How This Pattern Is Typically Read</h3><p>S is treated as a Striker/MusicYo-era import prefix. The digits ${yearPart} decode as production year ${fullYear ?? 'unknown'}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This is not the vintage 1980s American Series letter-prefix neck-plate system.</li><li>Country can vary across MusicYo-era import production, so confirm from physical markings.</li><li>The serial identifies likely era and series, not exact model configuration by itself.</li></ul>`,
+  };
 }
 
 function decodeModernSamickS(normalized: string, cleaned: string): DecodeResult {

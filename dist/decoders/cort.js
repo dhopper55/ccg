@@ -87,6 +87,10 @@ export function decodeCort(serial) {
     if (/^9\d{6}$/.test(normalized) && isValidMonthDigits(normalized.substring(2, 4))) {
         return decodeVintage1990s7DigitYYMM(normalized);
     }
+    // Early 1990s 7-digit format: YY + sequence, when YYMM is not valid
+    if (/^9[0-5]\d{5}$/.test(normalized)) {
+        return decodeEarly1990s7DigitYearSequence(normalized);
+    }
     if (/^8\d{6}$/.test(normalized)) {
         return decode1980sKorean7Digit(normalized);
     }
@@ -625,6 +629,45 @@ function decodeVintage1990s7DigitYYMM(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a vintage Cort 7-digit numeric format where the first four digits identify production year and month.</p><h3>How This Pattern Is Typically Read</h3><p>The first two digits ${yearDigits} decode as production year ${year}. The next two digits ${monthDigits} decode as ${getMonthName(month)}. The final digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Cort serials generally identify production timing, not the exact model name.</li><li>Early-1990s Cort production was primarily South Korean.</li><li>Confirm the exact model from the headstock, label, and catalog features.</li></ul>`,
+    };
+}
+function decodeEarly1990s7DigitYearSequence(serial) {
+    const yearDigits = serial.substring(0, 2);
+    const sequence = serial.substring(2);
+    const year = 1900 + parseInt(yearDigits, 10);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Cort',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'Cort Korea (Incheon or Daejeon)',
+        country: 'South Korea',
+        notes: `Early-1990s Cort 7-digit YY + sequence format. The first two digits (${yearDigits}) indicate production year ${year}; the remaining digits are production or batch sequence ${sequenceNumber}. This pattern is used when the third and fourth digits do not form a valid month in the YYMMSSS format. Verify the exact model from headstock, label, and catalog features.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'cort-early-1990s-7-digit-yy-sequence',
+        patternLabel: 'Cort early 1990s 7-digit YY sequence',
+        additionalContext: {
+            title: 'Cort early-1990s 7-digit serial',
+            summary: 'This serial matches an early-1990s Cort numeric format where the first two digits identify the production year.',
+            highlights: [
+                `The first two digits ${yearDigits} decode as production year ${year}.`,
+                `The remaining digits decode as production or batch sequence ${sequenceNumber}.`,
+                'Production is most likely South Korea for this era.',
+            ],
+            caveats: [
+                'Some early Cort serials use YYMM while others use YY plus sequence.',
+                'The serial does not identify the exact model name.',
+                'Physical markings should be used to confirm country and model.',
+            ],
+            verificationTips: [
+                'Check whether the serial is stamped, printed on a sticker, or on a neck plate.',
+                'Compare the logo, electronics, and body style against early-1990s Cort catalogs.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches an early-1990s Cort numeric format where the first two digits identify the production year.</p><h3>How This Pattern Is Typically Read</h3><p>The first two digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production or batch sequence ${sequenceNumber}. Production is most likely South Korea for this era.</p><h3>What To Verify</h3><ul><li>Some early Cort serials use YYMM while others use YY plus sequence.</li><li>The serial does not identify the exact model name.</li><li>Physical markings should be used to confirm country and model.</li></ul>`,
     };
 }
 function decode1980sKorean7Digit(serial) {
