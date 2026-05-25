@@ -148,6 +148,14 @@ const sitemap: MenuItem[] = [
           },
         ],
       },
+      {
+        name: 'System Settings',
+        key: 'system_settings',
+        path: paths.systemSettings,
+        pathName: 'system-settings',
+        icon: 'material-symbols:settings-outline',
+        active: true,
+      },
     ],
   },
 ];

@@ -22,6 +22,7 @@ import MfrOrders from 'pages/mfr-orders/MfrOrders';
 import PaymentLinks from 'pages/payment-links/PaymentLinks';
 import SerialDecodes from 'pages/serial-decodes/SerialDecodes';
 import SerialPatternText from 'pages/serial-pattern-text/SerialPatternText';
+import SystemSettings from 'pages/system-settings/SystemSettings';
 import LoggedOut from 'pages/authentication/default/LoggedOut';
 import Logout from 'pages/authentication/default/Logout';
 import Signup from 'pages/authentication/default/jwt/Signup';
@@ -104,6 +105,10 @@ export const routes: RouteObject[] = [
           {
             path: paths.serialPatternText,
             element: <SerialPatternText />,
+          },
+          {
+            path: paths.systemSettings,
+            element: <SystemSettings />,
           },
           {
             path: paths.inventoryItem,

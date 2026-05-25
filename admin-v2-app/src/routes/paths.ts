@@ -35,6 +35,7 @@ const paths = {
   inventoryLabels: '/inventory-labels',
   serialDecodes: '/serial-decodes',
   serialPatternText: '/serial-pattern-text',
+  systemSettings: '/system-settings',
   inventoryItem: '/inventory-item',
   inventoryItemWithId: (id: string) => `/inventory-item?id=${encodeURIComponent(id)}`,
   inventoryItemFromListing: (listingId: string) =>

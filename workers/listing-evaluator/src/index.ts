@@ -800,6 +800,16 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/system-settings' && request.method === 'GET') {
+      const response = await handleAdminV2SystemSettings(env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/system-settings' && request.method === 'POST') {
+      const response = await handleAdminV2SystemSettingsUpdate(request, env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/admin-v2/order-confirmation-email/test' && request.method === 'POST') {
       const response = await handleAdminV2OrderConfirmationEmailTest(env);
       return withCors(response, request, env);
@@ -3630,6 +3640,54 @@ async function handleAdminV2StripeConfigUpdate(request: Request, env: Env): Prom
   }
 }
 
+async function handleAdminV2SystemSettings(env: Env): Promise<Response> {
+  try {
+    const settings = await dbGetSystemSettings(env);
+    return jsonResponse(settings);
+  } catch (error) {
+    return jsonResponse({
+      message: error instanceof Error ? error.message : 'Unable to load system settings.',
+    }, 500);
+  }
+}
+
+async function handleAdminV2SystemSettingsUpdate(request: Request, env: Env): Promise<Response> {
+  let body: Record<string, unknown> = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  const templateId = Number(body.brevoOrderConfirmationTemplateId);
+  const senderName = normalizeText(body.brevoSenderName, '');
+  const senderEmail = normalizeEmailAddress(body.brevoSenderEmail);
+
+  if (!Number.isFinite(templateId) || templateId <= 0 || Math.floor(templateId) !== templateId) {
+    return jsonResponse({ message: 'Brevo Order Confirm Template ID must be a positive whole number.' }, 400);
+  }
+  if (!senderName) {
+    return jsonResponse({ message: 'Brevo Sender Name is required.' }, 400);
+  }
+  if (!senderEmail) {
+    return jsonResponse({ message: 'Enter a valid Brevo Sender Email.' }, 400);
+  }
+
+  try {
+    await dbSetSystemSettings({
+      brevoOrderConfirmationTemplateId: templateId,
+      brevoSenderName: senderName,
+      brevoSenderEmail: senderEmail,
+    }, env);
+    const settings = await dbGetSystemSettings(env);
+    return jsonResponse({ ok: true, ...settings });
+  } catch (error) {
+    return jsonResponse({
+      message: error instanceof Error ? error.message : 'Unable to save system settings.',
+    }, 500);
+  }
+}
+
 async function handleAdminV2OrderConfirmationEmailTest(env: Env): Promise<Response> {
   const config = await getBrevoRuntimeConfig(env);
   if (!config.apiKey) {
@@ -4252,6 +4310,79 @@ async function dbSetStripeSandboxMode(useSandbox: boolean, env: Env): Promise<vo
        use_stripe_sandbox = excluded.use_stripe_sandbox,
        updated_at = CURRENT_TIMESTAMP`
   ).bind(useSandbox ? 1 : 0).run();
+}
+
+async function dbGetSystemSettings(env: Env): Promise<{
+  brevoOrderConfirmationTemplateId: string;
+  brevoSenderName: string;
+  brevoSenderEmail: string;
+}> {
+  const columns = await dbGetTableColumns('sys_info', env);
+  const columnNames = new Set(columns.map((column) => column.name));
+  const requiredColumns = [
+    'brevo_order_confirmation_template_id',
+    'brevo_sender_name',
+    'brevo_sender_email',
+  ];
+  const missingColumn = requiredColumns.find((column) => !columnNames.has(column));
+  if (missingColumn) {
+    throw new Error(`D1 table sys_info is missing ${missingColumn}.`);
+  }
+
+  const row = await env.DB.prepare(
+    `SELECT
+       brevo_order_confirmation_template_id,
+       brevo_sender_name,
+       brevo_sender_email
+     FROM sys_info
+     LIMIT 1`
+  ).first<Record<string, unknown>>();
+
+  return {
+    brevoOrderConfirmationTemplateId: normalizeText(row?.brevo_order_confirmation_template_id, ''),
+    brevoSenderName: normalizeText(row?.brevo_sender_name, ''),
+    brevoSenderEmail: normalizeText(row?.brevo_sender_email, ''),
+  };
+}
+
+async function dbSetSystemSettings(
+  settings: {
+    brevoOrderConfirmationTemplateId: number;
+    brevoSenderName: string;
+    brevoSenderEmail: string;
+  },
+  env: Env,
+): Promise<void> {
+  const columns = await dbGetTableColumns('sys_info', env);
+  const columnNames = new Set(columns.map((column) => column.name));
+  const requiredColumns = [
+    'brevo_order_confirmation_template_id',
+    'brevo_sender_name',
+    'brevo_sender_email',
+  ];
+  const missingColumn = requiredColumns.find((column) => !columnNames.has(column));
+  if (missingColumn) {
+    throw new Error(`D1 table sys_info is missing ${missingColumn}.`);
+  }
+
+  await env.DB.prepare(
+    `INSERT INTO sys_info (
+       id,
+       brevo_order_confirmation_template_id,
+       brevo_sender_name,
+       brevo_sender_email
+     )
+     VALUES (1, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       brevo_order_confirmation_template_id = excluded.brevo_order_confirmation_template_id,
+       brevo_sender_name = excluded.brevo_sender_name,
+       brevo_sender_email = excluded.brevo_sender_email,
+       updated_at = CURRENT_TIMESTAMP`
+  ).bind(
+    settings.brevoOrderConfirmationTemplateId,
+    settings.brevoSenderName,
+    settings.brevoSenderEmail,
+  ).run();
 }
 
 async function listStripePaymentLinks(

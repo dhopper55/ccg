@@ -16,6 +16,7 @@ const routeDirs = [
   'order-manager-item',
   'mfr-orders',
   'payment-links',
+  'system-settings',
   'listing-evaluator',
   'listing-evaluator-results',
   'listing-evaluator-item',
