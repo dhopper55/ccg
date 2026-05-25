@@ -4,9 +4,8 @@ import {
   Box,
   Chip,
   ChipOwnProps,
-  InputAdornment,
   Link,
-  Paper,
+  MenuItem,
   Stack,
   Typography,
 } from '@mui/material';
@@ -17,7 +16,7 @@ import { formatOrderNumber } from 'lib/utils';
 import paths from 'routes/paths';
 import IconifyIcon from 'components/base/IconifyIcon';
 import DataGridPagination from 'components/pagination/DataGridPagination';
-import PageHeader from 'components/sections/ecommerce/admin/common/PageHeader';
+import PageBreadcrumb from 'components/sections/common/PageBreadcrumb';
 import StyledTextField from 'components/styled/StyledTextField';
 
 type AdminOrderSummary = {
@@ -33,6 +32,9 @@ type AdminOrderSummary = {
   fulfillmentStatus: string;
   checkoutProvider: string;
   paymentMethodLabel: string;
+  listingsUpdated: boolean;
+  settled: boolean;
+  moneyAccounted: boolean;
 };
 
 type OrdersResponse = {
@@ -60,7 +62,9 @@ const OrderManager = () => {
   const { currencyFormat } = useNumberFormat();
   const [orders, setOrders] = useState<AdminOrderSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [listingsUpdatedFilter, setListingsUpdatedFilter] = useState('');
+  const [settledFilter, setSettledFilter] = useState('');
+  const [moneyAccountedFilter, setMoneyAccountedFilter] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -84,20 +88,17 @@ const OrderManager = () => {
   }, []);
 
   const filteredOrders = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    if (!term) return orders;
+    const matchesFilter = (value: boolean, filter: string) => {
+      if (!filter) return true;
+      return filter === 'yes' ? value : !value;
+    };
+
     return orders.filter((order) =>
-      [
-        order.orderNumber,
-        formatOrderNumber(order.orderNumber),
-        order.customerName,
-        order.customerEmail,
-        order.itemTitle,
-        order.paymentStatus,
-        order.checkoutProvider,
-      ].some((value) => value.toLowerCase().includes(term)),
+      matchesFilter(order.listingsUpdated, listingsUpdatedFilter) &&
+      matchesFilter(order.settled, settledFilter) &&
+      matchesFilter(order.moneyAccounted, moneyAccountedFilter),
     );
-  }, [orders, search]);
+  }, [listingsUpdatedFilter, moneyAccountedFilter, orders, settledFilter]);
 
   const columns: GridColDef<AdminOrderSummary>[] = useMemo(
     () => [
@@ -187,57 +188,96 @@ const OrderManager = () => {
   );
 
   return (
-    <Stack direction="column" height={1}>
-      <PageHeader
-        title="Order Manager"
-        breadcrumb={[
+    <Stack direction="column" height={1} sx={{ gap: 4 }}>
+      <Stack
+        sx={{
+          gap: 2,
+          alignItems: { md: 'flex-end' },
+          justifyContent: 'space-between',
+          flexDirection: { xs: 'column', md: 'row' },
+        }}
+      >
+        <Stack direction="column" sx={{ gap: 1 }}>
+        <PageBreadcrumb
+          items={[
           { label: 'Home', url: paths.starter },
           { label: 'Order Manager', active: true },
         ]}
-      />
-      <Paper sx={{ flex: 1, p: { xs: 3, md: 5 } }}>
-        <Stack direction="column" sx={{ gap: 4 }}>
-          <StyledTextField
-            id="order-search-box"
-            type="search"
-            size="medium"
-            placeholder="Search orders"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <IconifyIcon icon="material-symbols:search-rounded" sx={{ fontSize: 20 }} />
-                  </InputAdornment>
-                ),
+        />
+        <Typography variant="h4">Order Manager</Typography>
+        </Stack>
+        <Stack sx={{ gap: 1.5, flexWrap: 'wrap', justifyContent: { md: 'flex-end' } }}>
+          <OrderStatusFilter
+            label="Listings Updated"
+            value={listingsUpdatedFilter}
+            onChange={setListingsUpdatedFilter}
+          />
+          <OrderStatusFilter
+            label="Settled"
+            value={settledFilter}
+            onChange={setSettledFilter}
+          />
+          <OrderStatusFilter
+            label="Money Accounted"
+            value={moneyAccountedFilter}
+            onChange={setMoneyAccountedFilter}
+          />
+        </Stack>
+      </Stack>
+      <Stack direction="column" sx={{ gap: 4, flex: 1 }}>
+        <Box sx={{ width: 1 }}>
+          <DataGrid
+            rowHeight={64}
+            rows={filteredOrders}
+            columns={columns}
+            loading={isLoading}
+            pageSizeOptions={[10]}
+            initialState={{
+              pagination: {
+                paginationModel: {
+                  pageSize: 10,
+                },
               },
             }}
-            sx={{ maxWidth: { sm: 320 } }}
+            slots={{
+              basePagination: (props) => <DataGridPagination showFullPagination {...props} />,
+            }}
           />
-          <Box sx={{ width: 1 }}>
-            <DataGrid
-              rowHeight={64}
-              rows={filteredOrders}
-              columns={columns}
-              loading={isLoading}
-              pageSizeOptions={[10]}
-              initialState={{
-                pagination: {
-                  paginationModel: {
-                    pageSize: 10,
-                  },
-                },
-              }}
-              slots={{
-                basePagination: (props) => <DataGridPagination showFullPagination {...props} />,
-              }}
-            />
-          </Box>
-        </Stack>
-      </Paper>
+        </Box>
+      </Stack>
     </Stack>
   );
 };
+
+const OrderStatusFilter = ({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) => (
+  <StyledTextField
+    select
+    size="small"
+    label={label}
+    value={value}
+    onChange={(event) => onChange(event.target.value)}
+    sx={{
+      minWidth: 154,
+      '& .MuiInputBase-input': {
+        fontSize: 13,
+      },
+      '& .MuiInputLabel-root': {
+        fontSize: 13,
+      },
+    }}
+  >
+    <MenuItem value="">Any</MenuItem>
+    <MenuItem value="yes">Yes</MenuItem>
+    <MenuItem value="no">No</MenuItem>
+  </StyledTextField>
+);
 
 export default OrderManager;
