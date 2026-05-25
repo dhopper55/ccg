@@ -513,6 +513,7 @@ const OrderManagerItem = () => {
 
   const displayOrderNumber = formatOrderNumber(order.orderNumber);
   const adjustedCostBasisAmount = parseAccountingAmount(order.costBasisAdjusted || '0.00') || 0;
+  const isRefundedOrder = order.status === 'refunded';
 
   return (
     <>
@@ -563,7 +564,7 @@ const OrderManagerItem = () => {
                       }}
                     />
                   ))}
-                  {order.moneyAccounted ? (
+                  {!isRefundedOrder && order.moneyAccounted ? (
                     <FormControlLabel
                       control={
                         <Checkbox
@@ -584,7 +585,7 @@ const OrderManagerItem = () => {
                         },
                       }}
                     />
-                  ) : (
+                  ) : !isRefundedOrder ? (
                     <Button
                       variant="contained"
                       color="warning"
@@ -595,7 +596,7 @@ const OrderManagerItem = () => {
                     >
                       Account
                     </Button>
-                  )}
+                  ) : null}
                 </Stack>
                 <Stack sx={{ gap: 1, alignItems: 'center' }}>
                   <IconifyIcon icon={paymentIcon(order.checkoutProvider)} sx={{ fontSize: 22 }} />
