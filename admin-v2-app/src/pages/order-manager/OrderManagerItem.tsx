@@ -15,6 +15,7 @@ import {
   FormControlLabel,
   Link,
   Stack,
+  TextField,
   Typography,
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
@@ -53,6 +54,7 @@ type AdminOrderDetail = {
   listingsUpdated: boolean;
   settled: boolean;
   moneyAccounted: boolean;
+  costBasisAdjusted: string;
   createdAt: string;
   paidAt: string;
   paymentMethodLabel: string;
@@ -73,12 +75,11 @@ type OrderDetailResponse = {
   record?: AdminOrderDetail;
 };
 
-type OrderStatusFlagKey = 'listingsUpdated' | 'settled' | 'moneyAccounted';
+type OrderStatusFlagKey = 'listingsUpdated' | 'settled';
 
 const orderStatusFlags: Array<{ key: OrderStatusFlagKey; label: string }> = [
   { key: 'listingsUpdated', label: 'Listings Updated' },
   { key: 'settled', label: 'Settled' },
-  { key: 'moneyAccounted', label: 'Money Accounted' },
 ];
 
 const paymentIcon = (provider: string) =>
@@ -111,6 +112,13 @@ const defaultStarEndpoints = [
 ];
 
 const moneyFormat = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+
+const parseAccountingAmount = (value: string) => {
+  const normalized = value.replace(/[$,]/g, '').trim();
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) && parsed >= 0 ? Number(parsed.toFixed(2)) : null;
+};
 
 const buildCashDrawerKickElement = (builder: NonNullable<typeof window.StarWebPrintBuilder> extends new () => infer T ? T : never) =>
   builder.createPeripheralElement({ channel: 0, on: 200, off: 200 });
@@ -172,6 +180,14 @@ const OrderManagerItem = () => {
   const [result, setResult] = useState<{ severity: 'success' | 'error'; message: string } | null>(null);
   const [isRefunding, setIsRefunding] = useState(false);
   const [updatingFlag, setUpdatingFlag] = useState<OrderStatusFlagKey | null>(null);
+  const [accountFundsOpen, setAccountFundsOpen] = useState(false);
+  const [accountFundsForm, setAccountFundsForm] = useState({
+    adjustedCostBasis: '0.00',
+    usedLocalFunds: '0.00',
+    mfrWholesaleFunds: '0.00',
+  });
+  const [accountFundsError, setAccountFundsError] = useState('');
+  const [isAccountingFunds, setIsAccountingFunds] = useState(false);
   const orderId = searchParams.get('id') || '';
 
   const loadOrder = useCallback(async (options: { silent?: boolean } = {}) => {
@@ -418,6 +434,57 @@ const OrderManagerItem = () => {
     }
   };
 
+  const openAccountFundsDialog = () => {
+    setAccountFundsForm({
+      adjustedCostBasis: order?.costBasisAdjusted || '0.00',
+      usedLocalFunds: '0.00',
+      mfrWholesaleFunds: '0.00',
+    });
+    setAccountFundsError('');
+    setAccountFundsOpen(true);
+  };
+
+  const closeAccountFundsDialog = () => {
+    if (isAccountingFunds) return;
+    setAccountFundsOpen(false);
+  };
+
+  const handleAccountFundsSave = async () => {
+    if (!order || isAccountingFunds) return;
+
+    const usedLocalFunds = parseAccountingAmount(accountFundsForm.usedLocalFunds);
+    const mfrWholesaleFunds = parseAccountingAmount(accountFundsForm.mfrWholesaleFunds);
+    const adjustedCostBasis = parseAccountingAmount(accountFundsForm.adjustedCostBasis);
+    if (adjustedCostBasis == null || usedLocalFunds == null || mfrWholesaleFunds == null) {
+      setAccountFundsError('Enter $0 or greater in each currency box.');
+      return;
+    }
+
+    setIsAccountingFunds(true);
+    setAccountFundsError('');
+    try {
+      const response = await fetch(`/api/admin-v2/orders/${encodeURIComponent(order.orderId)}/account-funds`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ adjustedCostBasis, usedLocalFunds, mfrWholesaleFunds }),
+      });
+      const payload = (await response.json()) as { message?: string };
+      if (!response.ok) throw new Error(payload.message || 'Unable to account funds.');
+
+      setAccountFundsOpen(false);
+      enqueueSnackbar('Funds accounted.', { variant: 'success', autoHideDuration: 2500 });
+      await loadOrder({ silent: true });
+    } catch (error) {
+      setAccountFundsError(error instanceof Error ? error.message : 'Unable to account funds.');
+    } finally {
+      setIsAccountingFunds(false);
+    }
+  };
+
   const itemCount = useMemo(
     () => order?.items.reduce((sum, item) => sum + item.quantity, 0) || 0,
     [order?.items],
@@ -441,6 +508,7 @@ const OrderManagerItem = () => {
   }
 
   const displayOrderNumber = formatOrderNumber(order.orderNumber);
+  const adjustedCostBasisAmount = parseAccountingAmount(order.costBasisAdjusted || '0.00') || 0;
 
   return (
     <>
@@ -491,6 +559,25 @@ const OrderManagerItem = () => {
                       }}
                     />
                   ))}
+                  {order.moneyAccounted ? (
+                    <Stack sx={{ alignItems: 'center', gap: 0.75, color: 'success.main' }}>
+                      <IconifyIcon icon="material-symbols:check-circle-rounded" sx={{ fontSize: 20 }} />
+                      <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                        Money Accounted
+                      </Typography>
+                    </Stack>
+                  ) : (
+                    <Button
+                      variant="contained"
+                      color="warning"
+                      size="small"
+                      onClick={openAccountFundsDialog}
+                      startIcon={<IconifyIcon icon="material-symbols:attach-money-rounded" />}
+                      sx={{ minHeight: 34 }}
+                    >
+                      Account
+                    </Button>
+                  )}
                 </Stack>
                 <Stack sx={{ gap: 1, alignItems: 'center' }}>
                   <IconifyIcon icon={paymentIcon(order.checkoutProvider)} sx={{ fontSize: 22 }} />
@@ -681,6 +768,68 @@ const OrderManagerItem = () => {
         </Button>
         <Button variant="contained" color="error" onClick={() => void handleConfirmRefund()} disabled={isRefunding}>
           Yes, refund
+        </Button>
+      </DialogActions>
+    </Dialog>
+    <Dialog open={accountFundsOpen} onClose={closeAccountFundsDialog} fullWidth maxWidth="sm">
+      <DialogTitle>Add funds to buckets</DialogTitle>
+      <DialogContent>
+        <Stack direction="column" sx={{ gap: 2, pt: 1 }}>
+          {accountFundsError && <Alert severity="error">{accountFundsError}</Alert>}
+          <Stack sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="subtitle2" sx={{ color: 'text.secondary' }}>
+              Order Total
+            </Typography>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+              {currencyFormat(order.totalCents / 100)}
+            </Typography>
+          </Stack>
+          <Stack sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="subtitle2" sx={{ color: 'text.secondary' }}>
+              Cost Basis
+            </Typography>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+              {currencyFormat(adjustedCostBasisAmount)}
+            </Typography>
+          </Stack>
+          <TextField
+            fullWidth
+            required
+            type="number"
+            label="Adjusted Cost Basis:"
+            value={accountFundsForm.adjustedCostBasis}
+            disabled={isAccountingFunds}
+            onChange={(event) => setAccountFundsForm((current) => ({ ...current, adjustedCostBasis: event.target.value }))}
+            inputProps={{ min: 0, step: 0.01 }}
+          />
+          <TextField
+            fullWidth
+            required
+            type="number"
+            label="Used/Local Funds:"
+            value={accountFundsForm.usedLocalFunds}
+            disabled={isAccountingFunds}
+            onChange={(event) => setAccountFundsForm((current) => ({ ...current, usedLocalFunds: event.target.value }))}
+            inputProps={{ min: 0, step: 0.01 }}
+          />
+          <TextField
+            fullWidth
+            required
+            type="number"
+            label="Mfr/Wholesale Funds:"
+            value={accountFundsForm.mfrWholesaleFunds}
+            disabled={isAccountingFunds}
+            onChange={(event) => setAccountFundsForm((current) => ({ ...current, mfrWholesaleFunds: event.target.value }))}
+            inputProps={{ min: 0, step: 0.01 }}
+          />
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={closeAccountFundsDialog} disabled={isAccountingFunds}>
+          Cancel
+        </Button>
+        <Button variant="contained" onClick={() => void handleAccountFundsSave()} disabled={isAccountingFunds}>
+          {isAccountingFunds ? 'Saving...' : 'Save'}
         </Button>
       </DialogActions>
     </Dialog>

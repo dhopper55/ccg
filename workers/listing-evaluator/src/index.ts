@@ -202,6 +202,7 @@ interface ShopCheckoutInventoryRow {
   image_url: string | null;
   regular_price: number | null;
   sale_price: number | null;
+  unit_purchase_price: number | null;
   quantity: number | null;
   for_sale: number | null;
   only_in_store: number | null;
@@ -847,6 +848,16 @@ export default {
       const response = await handleAdminV2OrderStatusFlagsUpdate(
         request,
         decodeURIComponent(adminV2OrderStatusFlagsMatch[1]),
+        env,
+      );
+      return withCors(response, request, env);
+    }
+
+    const adminV2OrderAccountFundsMatch = path.match(/^\/api\/admin-v2\/orders\/([^/]+)\/account-funds$/);
+    if (adminV2OrderAccountFundsMatch && request.method === 'POST') {
+      const response = await handleAdminV2OrderAccountFunds(
+        request,
+        decodeURIComponent(adminV2OrderAccountFundsMatch[1]),
         env,
       );
       return withCors(response, request, env);
@@ -3889,6 +3900,7 @@ async function handleAdminV2OrderDetail(orderId: string, env: Env): Promise<Resp
       listingsUpdated: parseOrderBoolean(rawOrder?.listings_updated),
       settled: parseOrderBoolean(rawOrder?.settled),
       moneyAccounted: parseOrderBoolean(rawOrder?.money_accounted),
+      costBasisAdjusted: formatSystemCurrency(rawOrder?.cost_basis_adjusted),
       paymentMethodLabel,
       customer: buildAdminOrderCustomer(rawOrder || {}, stripeCustomer),
       events,
@@ -3974,6 +3986,67 @@ async function handleAdminV2OrderStatusFlagsUpdate(request: Request, orderId: st
   });
 }
 
+async function handleAdminV2OrderAccountFunds(request: Request, orderId: string, env: Env): Promise<Response> {
+  const normalizedOrderId = normalizeText(orderId, '').slice(0, 100);
+  if (!normalizedOrderId) return jsonResponse({ message: 'Order not found.' }, 404);
+
+  let body: Record<string, unknown> = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  const usedLocalFunds = parseCurrencyAmount(body.usedLocalFunds);
+  const mfrWholesaleFunds = parseCurrencyAmount(body.mfrWholesaleFunds);
+  const adjustedCostBasis = parseCurrencyAmount(body.adjustedCostBasis);
+  if (usedLocalFunds == null || usedLocalFunds < 0) {
+    return jsonResponse({ message: 'Used/Local Funds must be $0 or greater.' }, 400);
+  }
+  if (mfrWholesaleFunds == null || mfrWholesaleFunds < 0) {
+    return jsonResponse({ message: 'Mfr/Wholesale Funds must be $0 or greater.' }, 400);
+  }
+  if (adjustedCostBasis == null || adjustedCostBasis < 0) {
+    return jsonResponse({ message: 'Adjusted Cost Basis must be $0 or greater.' }, 400);
+  }
+
+  const order = await env.DB.prepare(
+    'SELECT id, status, listings_updated, settled, money_accounted FROM orders WHERE id = ? LIMIT 1'
+  ).bind(normalizedOrderId).first<Record<string, unknown>>();
+  if (!order) return jsonResponse({ message: 'Order not found.' }, 404);
+  if (parseOrderBoolean(order.money_accounted)) {
+    return jsonResponse({ message: 'Money has already been accounted for this order.' }, 409);
+  }
+
+  await dbApplyOrderFundsAccounting(normalizedOrderId, usedLocalFunds, mfrWholesaleFunds, adjustedCostBasis, env);
+
+  await dbRecordOrderEvent(normalizedOrderId, {
+    eventType: 'order_money_accounted',
+    fromStatus: normalizeText(order.status, ''),
+    toStatus: normalizeText(order.status, ''),
+    source: 'admin_v2',
+    sourceId: '',
+    message: 'Order money accounted. Funds added to buckets.',
+    payloadJson: JSON.stringify({
+      usedLocalFunds: Number(usedLocalFunds.toFixed(2)),
+      mfrWholesaleFunds: Number(mfrWholesaleFunds.toFixed(2)),
+      adjustedCostBasis: Number(adjustedCostBasis.toFixed(2)),
+    }),
+  }, env);
+
+  return jsonResponse({
+    ok: true,
+    listingsUpdated: parseOrderBoolean(order.listings_updated),
+    settled: parseOrderBoolean(order.settled),
+    moneyAccounted: true,
+    funds: {
+      usedLocalFunds: Number(usedLocalFunds.toFixed(2)),
+      mfrWholesaleFunds: Number(mfrWholesaleFunds.toFixed(2)),
+      adjustedCostBasis: Number(adjustedCostBasis.toFixed(2)),
+    },
+  });
+}
+
 async function handleAdminV2OrderRefund(orderId: string, env: Env): Promise<Response> {
   const normalizedOrderId = normalizeText(orderId, '').slice(0, 100);
   if (!normalizedOrderId) return jsonResponse({ message: 'Order not found.' }, 404);
@@ -4015,6 +4088,9 @@ async function handleAdminV2OrderRefund(orderId: string, env: Env): Promise<Resp
   }
 
   await dbUnwindRefundedOrderInventory(normalizedOrderId, order, env);
+  const fundsReversal = parseOrderBoolean(order.money_accounted)
+    ? await dbReverseOrderFundsAccounting(normalizedOrderId, env)
+    : null;
 
   await dbUpdateTableById('orders', normalizedOrderId, {
     status: 'refunded',
@@ -4022,6 +4098,7 @@ async function handleAdminV2OrderRefund(orderId: string, env: Env): Promise<Resp
     cancelled_at: now,
     stripe_payment_status: provider === 'cash' ? 'not_applicable' : 'refunded',
     stripe_refund_id: stripeRefundId,
+    money_accounted: fundsReversal ? 0 : order.money_accounted,
     updated_at: now,
   }, env);
 
@@ -4031,10 +4108,12 @@ async function handleAdminV2OrderRefund(orderId: string, env: Env): Promise<Resp
     toStatus: 'refunded',
     source: 'admin_v2',
     sourceId: stripeRefundId || provider,
-    message: provider === 'cash'
-      ? 'Cash order refunded. Inventory was restored.'
-      : 'Stripe order refunded. Inventory was restored.',
-    payloadJson: JSON.stringify({ provider, totalCents, stripeRefundId }),
+    message: fundsReversal
+      ? `${provider === 'cash' ? 'Cash' : 'Stripe'} order refunded. Inventory was restored. Accounted funds were removed.`
+      : provider === 'cash'
+        ? 'Cash order refunded. Inventory was restored.'
+        : 'Stripe order refunded. Inventory was restored.',
+    payloadJson: JSON.stringify({ provider, totalCents, stripeRefundId, fundsReversal }),
   }, env);
 
   return jsonResponse({
@@ -4542,6 +4621,90 @@ async function dbSetSystemSettings(
     Number(settings.currentUsedLocalFunds.toFixed(2)),
     Number(settings.currentMfrWholesaleFunds.toFixed(2)),
   ).run();
+}
+
+async function dbApplyOrderFundsAccounting(
+  orderId: string,
+  usedLocalFunds: number,
+  mfrWholesaleFunds: number,
+  adjustedCostBasis: number,
+  env: Env,
+): Promise<void> {
+  const sysColumns = await dbGetTableColumns('sys_info', env);
+  const sysColumnNames = new Set(sysColumns.map((column) => column.name));
+  const missingSysColumn = ['current_used_local_funds', 'current_mfr_wholesale_funds']
+    .find((column) => !sysColumnNames.has(column));
+  if (missingSysColumn) {
+    throw new Error(`D1 table sys_info is missing ${missingSysColumn}.`);
+  }
+
+  await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE sys_info
+       SET current_used_local_funds = ROUND(COALESCE(current_used_local_funds, 0) + ?, 2),
+           current_mfr_wholesale_funds = ROUND(COALESCE(current_mfr_wholesale_funds, 0) + ?, 2),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = (SELECT id FROM sys_info ORDER BY id LIMIT 1)`
+    ).bind(Number(usedLocalFunds.toFixed(2)), Number(mfrWholesaleFunds.toFixed(2))),
+    env.DB.prepare(
+      `UPDATE orders
+       SET money_accounted = 1,
+           cost_basis_adjusted = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`
+    ).bind(Number(adjustedCostBasis.toFixed(2)), orderId),
+  ]);
+}
+
+async function dbReverseOrderFundsAccounting(
+  orderId: string,
+  env: Env,
+): Promise<{ usedLocalFunds: number; mfrWholesaleFunds: number } | null> {
+  const event = await env.DB.prepare(
+    `SELECT payload_json
+     FROM order_events
+     WHERE order_id = ?
+       AND event_type = 'order_money_accounted'
+     ORDER BY COALESCE(created_at, '') DESC
+     LIMIT 1`
+  ).bind(orderId).first<{ payload_json: string | null }>();
+  if (!event?.payload_json) return null;
+
+  let payload: Record<string, unknown>;
+  try {
+    payload = JSON.parse(event.payload_json) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+
+  const usedLocalFunds = parseCurrencyAmount(payload.usedLocalFunds);
+  const mfrWholesaleFunds = parseCurrencyAmount(payload.mfrWholesaleFunds);
+  if (usedLocalFunds == null || mfrWholesaleFunds == null) return null;
+
+  const reversal = {
+    usedLocalFunds: Number(Math.max(0, usedLocalFunds).toFixed(2)),
+    mfrWholesaleFunds: Number(Math.max(0, mfrWholesaleFunds).toFixed(2)),
+  };
+
+  await env.DB.prepare(
+    `UPDATE sys_info
+     SET current_used_local_funds = ROUND(MAX(0, COALESCE(current_used_local_funds, 0) - ?), 2),
+         current_mfr_wholesale_funds = ROUND(MAX(0, COALESCE(current_mfr_wholesale_funds, 0) - ?), 2),
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = (SELECT id FROM sys_info ORDER BY id LIMIT 1)`
+  ).bind(reversal.usedLocalFunds, reversal.mfrWholesaleFunds).run();
+
+  await dbRecordOrderEvent(orderId, {
+    eventType: 'order_money_accounting_reversed',
+    fromStatus: 'paid',
+    toStatus: 'refunded',
+    source: 'admin_v2',
+    sourceId: '',
+    message: 'Order money accounting reversed. Funds removed from buckets.',
+    payloadJson: JSON.stringify(reversal),
+  }, env);
+
+  return reversal;
 }
 
 function formatSystemCurrency(value: unknown): string {
@@ -10757,9 +10920,10 @@ async function dbListCheckoutInventoryItems(
        model,
        "condition",
        image_url,
-       regular_price,
-       sale_price,
-       quantity,
+      regular_price,
+      sale_price,
+      unit_purchase_price,
+      quantity,
        for_sale,
        only_in_store,
        is_sold,
@@ -10906,6 +11070,7 @@ function buildMissingPaymentLinkInventoryRow(
     image_url: '',
     regular_price: 0,
     sale_price: 0,
+    unit_purchase_price: 0,
     quantity: 1,
     for_sale: 0,
     only_in_store: 0,
@@ -10983,6 +11148,10 @@ async function dbCreateCheckoutOrder(
   const orderTitleSnapshot = input.items.length === 1
     ? firstItem.title
     : `${firstItem.title} + ${input.items.length - 1} more`;
+  const costBasisAdjusted = input.items.reduce(
+    (sum, item) => sum + Math.max(0, Number(item.row.unit_purchase_price || 0)) * Math.max(1, item.quantity),
+    0,
+  );
   const orderValueByColumn = new Map<string, unknown>([
     ['id', input.orderId],
     ['order_number', input.orderNumber],
@@ -11004,9 +11173,11 @@ async function dbCreateCheckoutOrder(
     ['discount_cents', input.discountCents],
     ['coupon_code', input.couponCode],
     ['total_cents', input.totalCents],
+    ['cost_basis_adjusted', Number(costBasisAdjusted.toFixed(2))],
     ['card_amount_cents', input.cardAmountCents],
     ['cash_amount_cents', input.cashAmountCents],
     ['cash_due_cents', input.cashAmountCents],
+    ['settled', input.checkoutProvider === 'cash' ? 1 : 0],
     ['currency', 'usd'],
     ['reserve_expires_at', null],
     ['checkout_started_at', input.createdAt],
