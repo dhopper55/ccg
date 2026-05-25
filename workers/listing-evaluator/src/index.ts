@@ -1764,6 +1764,7 @@ async function ensureSerialDecodePatternLookup(brand: string, pattern: string, e
   const cleaned = normalizeText(pattern, '').slice(0, 180);
   if (!brandKey || !cleaned) return null;
   const regexPattern = deriveRegexFromPatternKey(cleaned).slice(0, 1000);
+  if (!regexPattern || isCatchAllSerialRegex(regexPattern)) return null;
   try {
     await env.DB.prepare(
       `INSERT INTO serial_decode_pattern_lookup (brand, pattern, regex_pattern, rich_text)
@@ -14119,7 +14120,7 @@ function normalizeSerialKey(value: string): string {
 function deriveRegexFromPatternKey(patternKey: string): string {
   try {
   const cleaned = normalizeText(patternKey, '');
-  if (!cleaned) return '^.{1,}$';
+  if (!cleaned) return '';
 
   const explicitRegex = deriveExplicitRegexFromKnownPatternKey(cleaned);
   if (explicitRegex) return explicitRegex;
@@ -14171,10 +14172,15 @@ function deriveRegexFromPatternKey(patternKey: string): string {
   }
 
   if (escapedPrefix) return `^${escapedPrefix}[A-Z0-9]*$`;
-  return '^.{1,}$';
+  return '';
   } catch {
-    return '^.{1,}$';
+    return '';
   }
+}
+
+function isCatchAllSerialRegex(regexPattern: string): boolean {
+  const normalized = normalizeText(regexPattern, '');
+  return normalized === '^.{1,}$' || normalized === '^.+$' || normalized === '^.*$';
 }
 
 function deriveExplicitRegexFromKnownPatternKey(patternKey: string): string | null {
