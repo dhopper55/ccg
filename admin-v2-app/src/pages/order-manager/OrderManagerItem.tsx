@@ -55,6 +55,10 @@ type AdminOrderDetail = {
   settled: boolean;
   moneyAccounted: boolean;
   costBasisAdjusted: string;
+  accountingFunds?: {
+    usedLocalFunds: number;
+    mfrWholesaleFunds: number;
+  };
   createdAt: string;
   paidAt: string;
   paymentMethodLabel: string;
@@ -437,8 +441,8 @@ const OrderManagerItem = () => {
   const openAccountFundsDialog = () => {
     setAccountFundsForm({
       adjustedCostBasis: order?.costBasisAdjusted || '0.00',
-      usedLocalFunds: '0.00',
-      mfrWholesaleFunds: '0.00',
+      usedLocalFunds: order?.accountingFunds?.usedLocalFunds != null ? String(order.accountingFunds.usedLocalFunds.toFixed(2)) : '0.00',
+      mfrWholesaleFunds: order?.accountingFunds?.mfrWholesaleFunds != null ? String(order.accountingFunds.mfrWholesaleFunds.toFixed(2)) : '0.00',
     });
     setAccountFundsError('');
     setAccountFundsOpen(true);
@@ -560,12 +564,26 @@ const OrderManagerItem = () => {
                     />
                   ))}
                   {order.moneyAccounted ? (
-                    <Stack sx={{ alignItems: 'center', gap: 0.75, color: 'success.main' }}>
-                      <IconifyIcon icon="material-symbols:check-circle-rounded" sx={{ fontSize: 20 }} />
-                      <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-                        Money Accounted
-                      </Typography>
-                    </Stack>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked
+                          size="small"
+                          onChange={openAccountFundsDialog}
+                          icon={<IconifyIcon icon="material-symbols:check-circle-rounded" sx={{ fontSize: 24, color: 'success.main' }} />}
+                          checkedIcon={<IconifyIcon icon="material-symbols:check-circle-rounded" sx={{ fontSize: 24, color: 'success.main' }} />}
+                        />
+                      }
+                      label="Money Accounted"
+                      sx={{
+                        m: 0,
+                        '& .MuiFormControlLabel-label': {
+                          color: 'text.secondary',
+                          fontSize: '0.8125rem',
+                          fontWeight: 600,
+                        },
+                      }}
+                    />
                   ) : (
                     <Button
                       variant="contained"

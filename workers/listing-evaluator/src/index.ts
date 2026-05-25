@@ -3906,6 +3906,7 @@ async function handleAdminV2OrderDetail(orderId: string, env: Env): Promise<Resp
       settled: parseOrderBoolean(rawOrder?.settled),
       moneyAccounted,
       costBasisAdjusted: formatSystemCurrency(costBasisAdjusted),
+      accountingFunds: await dbGetOrderFundsAccountingTotals(normalizedOrderId, env),
       paymentMethodLabel,
       customer: buildAdminOrderCustomer(rawOrder || {}, stripeCustomer),
       events,
@@ -4019,22 +4020,33 @@ async function handleAdminV2OrderAccountFunds(request: Request, orderId: string,
     'SELECT id, status, listings_updated, settled, money_accounted FROM orders WHERE id = ? LIMIT 1'
   ).bind(normalizedOrderId).first<Record<string, unknown>>();
   if (!order) return jsonResponse({ message: 'Order not found.' }, 404);
-  if (parseOrderBoolean(order.money_accounted)) {
-    return jsonResponse({ message: 'Money has already been accounted for this order.' }, 409);
-  }
+  const wasMoneyAccounted = parseOrderBoolean(order.money_accounted);
+  const previousFunds = await dbGetOrderFundsAccountingTotals(normalizedOrderId, env);
+  const usedLocalFundsDelta = Number((usedLocalFunds - previousFunds.usedLocalFunds).toFixed(2));
+  const mfrWholesaleFundsDelta = Number((mfrWholesaleFunds - previousFunds.mfrWholesaleFunds).toFixed(2));
 
-  await dbApplyOrderFundsAccounting(normalizedOrderId, usedLocalFunds, mfrWholesaleFunds, adjustedCostBasis, env);
+  await dbApplyOrderFundsAccounting(
+    normalizedOrderId,
+    usedLocalFundsDelta,
+    mfrWholesaleFundsDelta,
+    adjustedCostBasis,
+    env,
+  );
 
   await dbRecordOrderEvent(normalizedOrderId, {
-    eventType: 'order_money_accounted',
+    eventType: wasMoneyAccounted ? 'order_money_accounting_adjusted' : 'order_money_accounted',
     fromStatus: normalizeText(order.status, ''),
     toStatus: normalizeText(order.status, ''),
     source: 'admin_v2',
     sourceId: '',
-    message: 'Order money accounted. Funds added to buckets.',
+    message: wasMoneyAccounted
+      ? 'Order money accounting adjusted. Funds buckets updated.'
+      : 'Order money accounted. Funds added to buckets.',
     payloadJson: JSON.stringify({
-      usedLocalFunds: Number(usedLocalFunds.toFixed(2)),
-      mfrWholesaleFunds: Number(mfrWholesaleFunds.toFixed(2)),
+      usedLocalFunds: usedLocalFundsDelta,
+      mfrWholesaleFunds: mfrWholesaleFundsDelta,
+      totalUsedLocalFunds: Number(usedLocalFunds.toFixed(2)),
+      totalMfrWholesaleFunds: Number(mfrWholesaleFunds.toFixed(2)),
       adjustedCostBasis: Number(adjustedCostBasis.toFixed(2)),
     }),
   }, env);
@@ -4048,6 +4060,8 @@ async function handleAdminV2OrderAccountFunds(request: Request, orderId: string,
       usedLocalFunds: Number(usedLocalFunds.toFixed(2)),
       mfrWholesaleFunds: Number(mfrWholesaleFunds.toFixed(2)),
       adjustedCostBasis: Number(adjustedCostBasis.toFixed(2)),
+      usedLocalFundsDelta,
+      mfrWholesaleFundsDelta,
     },
   });
 }
@@ -4630,8 +4644,8 @@ async function dbSetSystemSettings(
 
 async function dbApplyOrderFundsAccounting(
   orderId: string,
-  usedLocalFunds: number,
-  mfrWholesaleFunds: number,
+  usedLocalFundsDelta: number,
+  mfrWholesaleFundsDelta: number,
   adjustedCostBasis: number,
   env: Env,
 ): Promise<void> {
@@ -4650,7 +4664,7 @@ async function dbApplyOrderFundsAccounting(
            current_mfr_wholesale_funds = ROUND(COALESCE(current_mfr_wholesale_funds, 0) + ?, 2),
            updated_at = CURRENT_TIMESTAMP
        WHERE id = (SELECT id FROM sys_info ORDER BY id LIMIT 1)`
-    ).bind(Number(usedLocalFunds.toFixed(2)), Number(mfrWholesaleFunds.toFixed(2))),
+    ).bind(Number(usedLocalFundsDelta.toFixed(2)), Number(mfrWholesaleFundsDelta.toFixed(2))),
     env.DB.prepare(
       `UPDATE orders
        SET money_accounted = 1,
@@ -4665,30 +4679,12 @@ async function dbReverseOrderFundsAccounting(
   orderId: string,
   env: Env,
 ): Promise<{ usedLocalFunds: number; mfrWholesaleFunds: number } | null> {
-  const event = await env.DB.prepare(
-    `SELECT payload_json
-     FROM order_events
-     WHERE order_id = ?
-       AND event_type = 'order_money_accounted'
-     ORDER BY COALESCE(created_at, '') DESC
-     LIMIT 1`
-  ).bind(orderId).first<{ payload_json: string | null }>();
-  if (!event?.payload_json) return null;
-
-  let payload: Record<string, unknown>;
-  try {
-    payload = JSON.parse(event.payload_json) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-
-  const usedLocalFunds = parseCurrencyAmount(payload.usedLocalFunds);
-  const mfrWholesaleFunds = parseCurrencyAmount(payload.mfrWholesaleFunds);
-  if (usedLocalFunds == null || mfrWholesaleFunds == null) return null;
+  const totals = await dbGetOrderFundsAccountingTotals(orderId, env);
+  if (totals.usedLocalFunds <= 0 && totals.mfrWholesaleFunds <= 0) return null;
 
   const reversal = {
-    usedLocalFunds: Number(Math.max(0, usedLocalFunds).toFixed(2)),
-    mfrWholesaleFunds: Number(Math.max(0, mfrWholesaleFunds).toFixed(2)),
+    usedLocalFunds: Number(Math.max(0, totals.usedLocalFunds).toFixed(2)),
+    mfrWholesaleFunds: Number(Math.max(0, totals.mfrWholesaleFunds).toFixed(2)),
   };
 
   await env.DB.prepare(
@@ -4710,6 +4706,36 @@ async function dbReverseOrderFundsAccounting(
   }, env);
 
   return reversal;
+}
+
+async function dbGetOrderFundsAccountingTotals(
+  orderId: string,
+  env: Env,
+): Promise<{ usedLocalFunds: number; mfrWholesaleFunds: number }> {
+  const result = await env.DB.prepare(
+    `SELECT payload_json
+     FROM order_events
+     WHERE order_id = ?
+       AND event_type IN ('order_money_accounted', 'order_money_accounting_adjusted')`
+  ).bind(orderId).all<{ payload_json: string | null }>();
+
+  let usedLocalFunds = 0;
+  let mfrWholesaleFunds = 0;
+  for (const row of result.results ?? []) {
+    if (!row.payload_json) continue;
+    try {
+      const payload = JSON.parse(row.payload_json) as Record<string, unknown>;
+      usedLocalFunds += parseCurrencyAmount(payload.usedLocalFunds) ?? 0;
+      mfrWholesaleFunds += parseCurrencyAmount(payload.mfrWholesaleFunds) ?? 0;
+    } catch {
+      // Ignore malformed historical payloads; they should not block order detail or refund.
+    }
+  }
+
+  return {
+    usedLocalFunds: Number(Math.max(0, usedLocalFunds).toFixed(2)),
+    mfrWholesaleFunds: Number(Math.max(0, mfrWholesaleFunds).toFixed(2)),
+  };
 }
 
 function formatSystemCurrency(value: unknown): string {
@@ -6525,7 +6551,10 @@ async function handleAdminV2Search(request: Request, env: Env): Promise<Response
   const invRows = await env.DB.prepare(
     `SELECT id, title, brand, model, image_url
      FROM ccg_inventory_items
-     WHERE title LIKE ? OR (COALESCE(brand,'') || ' ' || COALESCE(model,'')) LIKE ?
+     WHERE COALESCE(is_active, 0) = 1
+       AND COALESCE(is_sold, 0) = 0
+       AND COALESCE(sold_channel, '') = ''
+       AND (title LIKE ? OR (COALESCE(brand,'') || ' ' || COALESCE(model,'')) LIKE ?)
      LIMIT 5`
   ).bind(like, like).all<{ id: number; title: string; brand: string | null; model: string | null; image_url: string | null }>();
 
