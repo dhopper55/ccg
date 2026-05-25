@@ -4,6 +4,7 @@ import {
   Avatar,
   Box,
   Button,
+  Checkbox,
   Chip,
   Container,
   Divider,
@@ -11,13 +12,14 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
   Link,
-  Paper,
   Stack,
   Typography,
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import dayjs from 'dayjs';
+import { useSnackbar } from 'notistack';
 import useNumberFormat from 'hooks/useNumberFormat';
 import { formatOrderNumber } from 'lib/utils';
 import { ensureStarWebPrntGlobals } from 'lib/starWebPrntShim';
@@ -48,6 +50,9 @@ type AdminOrderDetail = {
   totalCents: number;
   cardAmountCents?: number;
   cashAmountCents?: number;
+  listingsUpdated: boolean;
+  settled: boolean;
+  moneyAccounted: boolean;
   createdAt: string;
   paidAt: string;
   paymentMethodLabel: string;
@@ -67,6 +72,14 @@ type AdminOrderDetail = {
 type OrderDetailResponse = {
   record?: AdminOrderDetail;
 };
+
+type OrderStatusFlagKey = 'listingsUpdated' | 'settled' | 'moneyAccounted';
+
+const orderStatusFlags: Array<{ key: OrderStatusFlagKey; label: string }> = [
+  { key: 'listingsUpdated', label: 'Listings Updated' },
+  { key: 'settled', label: 'Settled' },
+  { key: 'moneyAccounted', label: 'Money Accounted' },
+];
 
 const paymentIcon = (provider: string) =>
   provider === 'cash' ? 'material-symbols:payments-outline-rounded' : 'material-symbols:credit-card-outline';
@@ -151,12 +164,14 @@ const loadReceiptLogo = async () => {
 const OrderManagerItem = () => {
   const [searchParams] = useSearchParams();
   const { currencyFormat } = useNumberFormat();
+  const { enqueueSnackbar } = useSnackbar();
   const [order, setOrder] = useState<AdminOrderDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [resultOpen, setResultOpen] = useState(false);
   const [result, setResult] = useState<{ severity: 'success' | 'error'; message: string } | null>(null);
   const [isRefunding, setIsRefunding] = useState(false);
+  const [updatingFlag, setUpdatingFlag] = useState<OrderStatusFlagKey | null>(null);
   const orderId = searchParams.get('id') || '';
 
   const loadOrder = useCallback(async (options: { silent?: boolean } = {}) => {
@@ -353,6 +368,42 @@ const OrderManagerItem = () => {
     }
   };
 
+  const handleStatusFlagChange = async (field: OrderStatusFlagKey, checked: boolean) => {
+    if (!order || updatingFlag) return;
+
+    const previousOrder = order;
+    setUpdatingFlag(field);
+    setOrder({ ...order, [field]: checked });
+
+    try {
+      const response = await fetch(`/api/admin-v2/orders/${encodeURIComponent(order.orderId)}/status-flags`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ [field]: checked }),
+      });
+      const payload = (await response.json()) as {
+        message?: string;
+        record?: Pick<AdminOrderDetail, 'listingsUpdated' | 'settled' | 'moneyAccounted'>;
+      };
+      if (!response.ok || !payload.record) throw new Error(payload.message || 'Unable to update order status.');
+
+      setOrder((currentOrder) => (currentOrder ? { ...currentOrder, ...payload.record } : currentOrder));
+      enqueueSnackbar('Order status updated.', { variant: 'success', autoHideDuration: 2500 });
+    } catch (error) {
+      setOrder(previousOrder);
+      enqueueSnackbar(error instanceof Error ? error.message : 'Unable to update order status.', {
+        variant: 'error',
+        autoHideDuration: 3500,
+      });
+    } finally {
+      setUpdatingFlag(null);
+    }
+  };
+
   const itemCount = useMemo(
     () => order?.items.reduce((sum, item) => sum + item.quantity, 0) || 0,
     [order?.items],
@@ -361,17 +412,17 @@ const OrderManagerItem = () => {
 
   if (isLoading) {
     return (
-      <Paper sx={{ p: { xs: 4, md: 6 } }}>
+      <Box sx={{ p: { xs: 4, md: 6 } }}>
         <Typography sx={{ color: 'text.secondary' }}>Loading order...</Typography>
-      </Paper>
+      </Box>
     );
   }
 
   if (!order) {
     return (
-      <Paper sx={{ p: { xs: 4, md: 6 } }}>
+      <Box sx={{ p: { xs: 4, md: 6 } }}>
         <Typography variant="h5">Order not found</Typography>
-      </Paper>
+      </Box>
     );
   }
 
@@ -382,7 +433,7 @@ const OrderManagerItem = () => {
     <Grid container>
       <Grid size={{ xs: 12, md: 8, xl: 9 }}>
         <Stack direction="column">
-          <Paper sx={{ height: 1, p: { xs: 3, md: 5 } }}>
+          <Box sx={{ p: { xs: 3, md: 5 } }}>
             <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ gap: 2, justifyContent: 'space-between' }}>
               <Box sx={{ width: 'fit-content' }}>
                 <PageBreadcrumb
@@ -432,9 +483,9 @@ const OrderManagerItem = () => {
                 </Typography>
               </Stack>
             </Stack>
-          </Paper>
+          </Box>
 
-          <Paper sx={{ height: 1, p: { xs: 3, md: 5 } }}>
+          <Box sx={{ p: { xs: 3, md: 5 } }}>
             <Container maxWidth={false} sx={{ maxWidth: 694, px: { xs: 0 } }}>
               <Box sx={{ bgcolor: 'background.elevation1', borderRadius: 2, p: 2, mb: 4 }}>
                 <Stack sx={{ gap: 2, justifyContent: 'space-between', textTransform: 'capitalize' }}>
@@ -445,7 +496,7 @@ const OrderManagerItem = () => {
               </Box>
 
               <Stack direction="column" sx={{ gap: 5 }}>
-                {order.items.map((item) => (
+                {order.items.map((item, index) => (
                   <Stack key={`${item.inventoryItemId}-${item.ccgNumber}`} sx={{ gap: 2, alignItems: 'center' }}>
                     <Link
                       href={paths.inventoryItemWithId(String(item.inventoryItemId))}
@@ -479,6 +530,40 @@ const OrderManagerItem = () => {
                       <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                         {item.ccgNumber}
                       </Typography>
+                      {index === 0 && (
+                        <Stack
+                          direction="row"
+                          sx={{
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                            gap: { xs: 0.5, sm: 2 },
+                            mt: 1,
+                          }}
+                        >
+                          {orderStatusFlags.map((flag) => (
+                            <FormControlLabel
+                              key={flag.key}
+                              control={
+                                <Checkbox
+                                  checked={order[flag.key]}
+                                  disabled={updatingFlag !== null}
+                                  size="small"
+                                  onChange={(event) => void handleStatusFlagChange(flag.key, event.target.checked)}
+                                />
+                              }
+                              label={flag.label}
+                              sx={{
+                                m: 0,
+                                '& .MuiFormControlLabel-label': {
+                                  color: 'text.secondary',
+                                  fontSize: '0.8125rem',
+                                  fontWeight: 600,
+                                },
+                              }}
+                            />
+                          ))}
+                        </Stack>
+                      )}
                     </Box>
                     <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                       {item.quantity} x {currencyFormat(item.unitAmountCents / 100)}
@@ -490,9 +575,9 @@ const OrderManagerItem = () => {
                 ))}
               </Stack>
             </Container>
-          </Paper>
+          </Box>
 
-          <Paper sx={{ height: 1, p: { xs: 3, md: 5 } }}>
+          <Box sx={{ p: { xs: 3, md: 5 } }}>
             <Container maxWidth={false} sx={{ maxWidth: 694, px: { xs: 0 } }}>
               <Stack sx={{ alignItems: 'center', gap: 2, mb: 4 }}>
                 <Avatar variant="rounded" sx={{ width: 36, height: 36, bgcolor: 'success.lighter', borderRadius: 2 }}>
@@ -515,12 +600,12 @@ const OrderManagerItem = () => {
                 </Stack>
               </Stack>
             </Container>
-          </Paper>
+          </Box>
         </Stack>
       </Grid>
 
       <Grid size={{ xs: 12, md: 4, xl: 3 }}>
-        <Paper background={1} sx={{ height: 1 }}>
+        <Box sx={{ height: 1 }}>
           <Stack direction="column" divider={<Divider flexItem orientation="horizontal" />}>
             <Box sx={{ p: { xs: 3, md: 4, lg: 5 } }}>
               <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>
@@ -570,7 +655,7 @@ const OrderManagerItem = () => {
               </Stack>
             </Box>
           </Stack>
-        </Paper>
+        </Box>
       </Grid>
     </Grid>
     <Dialog open={confirmOpen} onClose={() => !isRefunding && setConfirmOpen(false)}>

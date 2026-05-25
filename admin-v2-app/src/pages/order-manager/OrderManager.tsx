@@ -7,6 +7,7 @@ import {
   Link,
   MenuItem,
   Stack,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
@@ -128,11 +129,19 @@ const OrderManager = () => {
         width: 120,
         align: 'center',
         headerAlign: 'center',
-        renderCell: (params) => (
-          <Avatar sx={{ width: 32, height: 32, mx: 'auto' }}>
-            {params.row.customerName.charAt(0)}
-          </Avatar>
-        ),
+        renderCell: (params) => {
+          const tooltipLines = [
+            params.row.customerName,
+            params.row.customerEmail,
+          ].filter(Boolean);
+          return (
+            <Tooltip title={tooltipLines.join('\n')}>
+              <Avatar sx={{ width: 32, height: 32, mx: 'auto' }}>
+                {params.row.customerName.charAt(0)}
+              </Avatar>
+            </Tooltip>
+          );
+        },
       },
       {
         field: 'checkoutProvider',
