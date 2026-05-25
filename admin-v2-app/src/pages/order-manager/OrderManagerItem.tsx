@@ -388,10 +388,24 @@ const OrderManagerItem = () => {
       const payload = (await response.json()) as {
         message?: string;
         record?: Pick<AdminOrderDetail, 'listingsUpdated' | 'settled' | 'moneyAccounted'>;
+        listingsUpdated?: boolean;
+        settled?: boolean;
+        moneyAccounted?: boolean;
       };
-      if (!response.ok || !payload.record) throw new Error(payload.message || 'Unable to update order status.');
+      const updatedFlags = payload.record || (
+        typeof payload.listingsUpdated === 'boolean' &&
+        typeof payload.settled === 'boolean' &&
+        typeof payload.moneyAccounted === 'boolean'
+          ? {
+              listingsUpdated: payload.listingsUpdated,
+              settled: payload.settled,
+              moneyAccounted: payload.moneyAccounted,
+            }
+          : null
+      );
+      if (!response.ok || !updatedFlags) throw new Error(payload.message || 'Unable to update order status.');
 
-      setOrder((currentOrder) => (currentOrder ? { ...currentOrder, ...payload.record } : currentOrder));
+      setOrder((currentOrder) => (currentOrder ? { ...currentOrder, ...updatedFlags } : currentOrder));
       enqueueSnackbar('Order status updated.', { variant: 'success', autoHideDuration: 2500 });
     } catch (error) {
       setOrder(previousOrder);
