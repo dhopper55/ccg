@@ -18,7 +18,6 @@ import {
   MenuItem,
   Paper,
   Stack,
-  Switch,
   Typography,
 } from '@mui/material';
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
@@ -63,11 +62,6 @@ type MarkedItemsResponse = {
   message?: string;
 };
 
-type StripeConfigResponse = {
-  useStripeSandbox?: boolean;
-  message?: string;
-};
-
 type TestEmailResponse = {
   ok?: boolean;
   message?: string;
@@ -93,8 +87,6 @@ const PaymentLinks = () => {
   const [createError, setCreateError] = useState('');
   const [includeSalesTax, setIncludeSalesTax] = useState(true);
   const [selectedQuantities, setSelectedQuantities] = useState<Record<string, number>>({});
-  const [useStripeSandbox, setUseStripeSandbox] = useState(true);
-  const [isUpdatingStripeEnv, setIsUpdatingStripeEnv] = useState(false);
   const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
   const [testEmailMessage, setTestEmailMessage] = useState('');
 
@@ -117,19 +109,6 @@ const PaymentLinks = () => {
         if (!cancelled) setIsLoading(false);
       }
     };
-    const loadStripeConfig = async () => {
-      try {
-        const response = await fetch('/api/admin-v2/stripe-config', { credentials: 'same-origin' });
-        const payload = (await response.json()) as StripeConfigResponse;
-        if (!response.ok) throw new Error(payload.message || 'Unable to load Stripe config.');
-        if (!cancelled) setUseStripeSandbox(payload.useStripeSandbox ?? true);
-      } catch (loadError) {
-        if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : 'Unable to load Stripe config.');
-        }
-      }
-    };
-    void loadStripeConfig();
     void loadPaymentLinks();
     return () => {
       cancelled = true;
@@ -296,22 +275,6 @@ const PaymentLinks = () => {
     }
   };
 
-  const reloadPaymentLinks = async () => {
-    setIsLoading(true);
-    setError('');
-    try {
-      const response = await fetch('/api/admin-v2/payment-links', { credentials: 'same-origin' });
-      const payload = (await response.json()) as PaymentLinksResponse;
-      if (!response.ok) throw new Error(payload.message || 'Unable to load payment links.');
-      setPaymentLinks(payload.records || []);
-    } catch (loadError) {
-      setPaymentLinks([]);
-      setError(loadError instanceof Error ? loadError.message : 'Unable to load payment links.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleDeactivatePaymentLink = async (paymentLinkId: string) => {
     const confirmed = window.confirm('Deactivate this payment link?');
     if (!confirmed) return;
@@ -333,30 +296,6 @@ const PaymentLinks = () => {
       setError(deactivateError instanceof Error ? deactivateError.message : 'Unable to deactivate payment link.');
     } finally {
       setDeactivatingId('');
-    }
-  };
-
-  const handleStripeEnvToggle = async (checked: boolean) => {
-    const previous = useStripeSandbox;
-    setUseStripeSandbox(checked);
-    setIsUpdatingStripeEnv(true);
-    setError('');
-    try {
-      const response = await fetch('/api/admin-v2/stripe-config', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ useStripeSandbox: checked }),
-      });
-      const payload = (await response.json()) as StripeConfigResponse;
-      if (!response.ok) throw new Error(payload.message || 'Unable to update Stripe environment.');
-      setUseStripeSandbox(payload.useStripeSandbox ?? checked);
-      await reloadPaymentLinks();
-    } catch (toggleError) {
-      setUseStripeSandbox(previous);
-      setError(toggleError instanceof Error ? toggleError.message : 'Unable to update Stripe environment.');
-    } finally {
-      setIsUpdatingStripeEnv(false);
     }
   };
 
@@ -395,16 +334,6 @@ const PaymentLinks = () => {
         ]}
         actionComponent={
           <Stack direction="row" sx={{ gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={useStripeSandbox}
-                  disabled={isUpdatingStripeEnv}
-                  onChange={(event) => handleStripeEnvToggle(event.target.checked)}
-                />
-              }
-              label={useStripeSandbox ? 'Stripe sandbox' : 'Stripe production'}
-            />
             <Button
               variant="outlined"
               color="neutral"

@@ -105,6 +105,14 @@ const sitemap: MenuItem[] = [
         active: true,
         items: [
           {
+            name: 'Payment Links',
+            key: 'payment_links',
+            path: paths.paymentLinks,
+            pathName: 'payment-links',
+            icon: 'material-symbols:link-rounded',
+            active: true,
+          },
+          {
             name: 'Customer Orders',
             key: 'customer_orders',
             path: paths.orderManager,

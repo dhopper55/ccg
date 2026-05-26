@@ -18,6 +18,10 @@ function decodeEpiphone(serialInput) {
   return decodeSerialForBackend('epiphone', serialInput);
 }
 
+function decodeGuild(serialInput) {
+  return decodeSerialForBackend('guild', serialInput);
+}
+
 function decodeKramer(serialInput) {
   return decodeSerialForBackend('kramer', serialInput);
 }
@@ -1302,6 +1306,57 @@ function assertKramerNumeric5Prefix(serialInput, expectedYearRange) {
   assert(info.country === 'South Korea', `Expected South Korea for ${serialInput}, got ${info.country}`);
 }
 
+function assertKramerSDSamickKorea(serialInput) {
+  const result = decodeKramer(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '1987-1989 (estimated)', `Expected late-1980s estimate for ${serialInput}, got ${info.year}`);
+  assert(info.factory === 'Samick', `Expected Samick factory for ${serialInput}, got ${info.factory}`);
+  assert(info.country === 'South Korea', `Expected South Korea for ${serialInput}, got ${info.country}`);
+  assert(
+    result.patternKey === 'kramer-sd-samick-korea-striker-sequence',
+    `Expected Kramer SD Samick Korea pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
+function assertKramerModernGibsonEraNumeric(serialInput, expectedYear, expectedMonth, expectedFactory) {
+  const result = decodeKramer(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(info.factory === expectedFactory, `Expected factory ${expectedFactory} for ${serialInput}, got ${info.factory}`);
+  assert(info.country === 'China', `Expected China for ${serialInput}, got ${info.country}`);
+  assert(
+    result.patternKey === 'kramer-modern-gibson-era-11-digit-yymm-factory-sequence',
+    `Expected Kramer modern Gibson-era 11-digit pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('production sequence 4'),
+    `Expected Kramer modern Gibson-era rich text for ${serialInput}`
+  );
+}
+
+function assertKramerModernGibsonEraFactoryNumeric(serialInput, expectedYear, expectedMonth, expectedFactory) {
+  const result = decodeKramer(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(info.factory === expectedFactory, `Expected factory ${expectedFactory} for ${serialInput}, got ${info.factory}`);
+  assert(info.country === 'China', `Expected China for ${serialInput}, got ${info.country}`);
+  assert(
+    result.patternKey === 'kramer-modern-gibson-era-9-digit-factory-yym-sequence',
+    `Expected Kramer modern Gibson-era 9-digit pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
 function assertKramerVintage5Digit(serialInput) {
   const result = decodeKramer(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -1321,6 +1376,26 @@ function assertKramerVintage5Digit(serialInput) {
   assert(
     result.additionalContextRichText && result.additionalContextRichText.includes('plate sequence here is 70630'),
     `Expected Kramer vintage 5-digit rich text for ${serialInput}`
+  );
+}
+
+function assertGuildGADNeckBlock(serialInput, expectedYear, expectedMonth) {
+  const result = decodeGuild(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'Guild GAD Chinese import production',
+    `Expected Guild GAD Chinese import production for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'China', `Expected China for ${serialInput}, got ${info.country}`);
+  assert(info.model === 'GAD Series acoustic', `Expected GAD Series acoustic for ${serialInput}, got ${info.model}`);
+  assert(
+    result.patternKey === 'guild-gad-10-digit-neck-block-yymm-batch-unit',
+    `Expected Guild GAD neck-block pattern key for ${serialInput}, got ${result.patternKey}`
   );
 }
 
@@ -2816,6 +2891,10 @@ assertKramerSESamickKorea('se 8280');
 assertKramerSCJapanImport('SC9117');
 assertKramerVintage5Digit('70630');
 assertKramerNumeric5Prefix('5062786', '1987-1991 (estimated)');
+assertKramerSDSamickKorea('SD4425');
+assertKramerModernGibsonEraNumeric('25051300004', '2025', 'May', 'Factory 13');
+assertKramerModernGibsonEraFactoryNumeric('311763081', '2017', 'June', 'Qingdao');
+assertGuildGADNeckBlock('1102290034', '2011', 'February');
 assertYamahaLetterZeroLetter('IOL033214');
 assertYamahaLetterZeroLetter('I0L033214');
 assertGretschFenderEraWithSuffix('CYG16080893', '2016', 'August');

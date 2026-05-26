@@ -74,6 +74,11 @@ export function decodeGuild(serial: string): DecodeResult {
     return decodeSequential(normalized);
   }
 
+  // GAD-era 10-digit neck-block manufacturing code: YY MM BB UUUU
+  if (/^\d{10}$/.test(normalized)) {
+    return decodeGADNeckBlockCode(normalized);
+  }
+
   // Longer numeric format
   if (/^\d{7,10}$/.test(normalized)) {
     return decodeLongNumeric(normalized);
@@ -322,6 +327,63 @@ function decodeGAD(serial: string): DecodeResult {
   return { success: true, info };
 }
 
+function decodeGADNeckBlockCode(serial: string): DecodeResult {
+  const yearPart = serial.substring(0, 2);
+  const monthPart = serial.substring(2, 4);
+  const batchCode = serial.substring(4, 6);
+  const unitNumber = serial.substring(6);
+  const yearValue = parseInt(yearPart, 10);
+  const monthValue = parseInt(monthPart, 10);
+  const monthName = getMonthName(monthValue);
+  const fullYear = Number.isNaN(yearValue) ? undefined : 2000 + yearValue;
+  const unit = parseInt(unitNumber, 10);
+
+  if (!fullYear || !monthName) {
+    return {
+      success: false,
+      error: 'Unable to decode this Guild serial number.',
+    };
+  }
+
+  const info: GuitarInfo = {
+    brand: 'Guild',
+    serialNumber: serial,
+    year: fullYear.toString(),
+    month: monthName,
+    factory: 'Guild GAD Chinese import production',
+    country: 'China',
+    model: 'GAD Series acoustic',
+    notes: `GAD-era 10-digit neck-block manufacturing code interpreted as YYMMBBUUUU. Year: ${fullYear}; month: ${monthName}; batch/vendor code: ${batchCode}; unit number: ${unit}. This code is typically stamped into the wooden neck heel block on Guild GAD-Series Chinese imports and can differ from the paper-label GAD tracking number.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'guild-gad-10-digit-neck-block-yymm-batch-unit',
+    patternLabel: 'Guild GAD 10-digit neck-block YYMM batch unit',
+    additionalContext: {
+      title: 'Guild GAD neck-block manufacturing code',
+      summary: 'This serial matches the 10-digit neck-block manufacturing code used on Guild GAD-Series Chinese import acoustics.',
+      highlights: [
+        `The digits ${yearPart} decode as production year ${fullYear}.`,
+        `The digits ${monthPart} decode as ${monthName}.`,
+        `The digits ${batchCode} are an internal batch or vendor code.`,
+        `The final four digits decode as unit number ${unit}.`,
+      ],
+      caveats: [
+        'This neck-block code can differ from the paper soundhole label tracking number.',
+        'The code identifies production date and batch tracking, not the exact model by itself.',
+        'Confirm the model from the soundhole label and physical specifications.',
+      ],
+      verificationTips: [
+        'Look for this number stamped into the wooden neck block inside the soundhole.',
+        'Compare the label model, bracing, and woods to known GAD-Series specifications.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches the 10-digit neck-block manufacturing code used on Guild GAD-Series Chinese import acoustics.</p><h3>How This Pattern Is Typically Read</h3><p>The digits ${yearPart} decode as production year ${fullYear}. The digits ${monthPart} decode as ${monthName}. The digits ${batchCode} are an internal batch or vendor code. The final four digits decode as unit number ${unit}.</p><h3>What To Verify</h3><ul><li>This neck-block code can differ from the paper soundhole label tracking number.</li><li>The code identifies production date and batch tracking, not the exact model by itself.</li><li>Confirm the model from the soundhole label and physical specifications.</li></ul>`,
+  };
+}
+
 // Model prefix format: Two letters + digits
 function decodeModelPrefix(serial: string): DecodeResult {
   const prefix = serial.substring(0, 2);
@@ -443,4 +505,35 @@ function decodeLongNumeric(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+function getMonthName(monthValue: number): string | undefined {
+  switch (monthValue) {
+    case 1:
+      return 'January';
+    case 2:
+      return 'February';
+    case 3:
+      return 'March';
+    case 4:
+      return 'April';
+    case 5:
+      return 'May';
+    case 6:
+      return 'June';
+    case 7:
+      return 'July';
+    case 8:
+      return 'August';
+    case 9:
+      return 'September';
+    case 10:
+      return 'October';
+    case 11:
+      return 'November';
+    case 12:
+      return 'December';
+    default:
+      return undefined;
+  }
 }

@@ -1,5 +1,5 @@
 import { ChangeEvent, useEffect, useState } from 'react';
-import { Alert, Button, Paper, Stack, TextField } from '@mui/material';
+import { Alert, Button, FormControlLabel, Paper, Stack, Switch, TextField } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import IconifyIcon from 'components/base/IconifyIcon';
 import PageHeader from 'components/sections/ecommerce/admin/common/PageHeader';
@@ -20,6 +20,11 @@ type SystemSettingsResponse = Partial<SystemSettingsForm> & {
   message?: string;
 };
 
+type StripeConfigResponse = {
+  useStripeSandbox?: boolean;
+  message?: string;
+};
+
 const defaultForm: SystemSettingsForm = {
   brevoOrderConfirmationTemplateId: '',
   brevoSenderName: '',
@@ -35,15 +40,22 @@ const SystemSettings = () => {
   const [form, setForm] = useState<SystemSettingsForm>(defaultForm);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [useStripeSandbox, setUseStripeSandbox] = useState(true);
+  const [isUpdatingStripeEnv, setIsUpdatingStripeEnv] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
   const loadSettings = async () => {
     setIsLoading(true);
     setErrorMessage('');
     try {
-      const response = await fetch('/api/admin-v2/system-settings', { credentials: 'same-origin' });
-      const payload = (await response.json()) as SystemSettingsResponse;
-      if (!response.ok) throw new Error(payload.message || 'Unable to load system settings.');
+      const [settingsResponse, stripeResponse] = await Promise.all([
+        fetch('/api/admin-v2/system-settings', { credentials: 'same-origin' }),
+        fetch('/api/admin-v2/stripe-config', { credentials: 'same-origin' }),
+      ]);
+      const payload = (await settingsResponse.json()) as SystemSettingsResponse;
+      const stripePayload = (await stripeResponse.json()) as StripeConfigResponse;
+      if (!settingsResponse.ok) throw new Error(payload.message || 'Unable to load system settings.');
+      if (!stripeResponse.ok) throw new Error(stripePayload.message || 'Unable to load Stripe config.');
       setForm({
         brevoOrderConfirmationTemplateId: payload.brevoOrderConfirmationTemplateId || '',
         brevoSenderName: payload.brevoSenderName || '',
@@ -53,6 +65,7 @@ const SystemSettings = () => {
         currentUsedLocalFunds: payload.currentUsedLocalFunds || '0.00',
         currentMfrWholesaleFunds: payload.currentMfrWholesaleFunds || '0.00',
       });
+      setUseStripeSandbox(stripePayload.useStripeSandbox ?? true);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to load system settings.');
     } finally {
@@ -108,6 +121,30 @@ const SystemSettings = () => {
     }
   };
 
+  const handleStripeEnvToggle = async (checked: boolean) => {
+    const previous = useStripeSandbox;
+    setUseStripeSandbox(checked);
+    setIsUpdatingStripeEnv(true);
+    setErrorMessage('');
+    try {
+      const response = await fetch('/api/admin-v2/stripe-config', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ useStripeSandbox: checked }),
+      });
+      const payload = (await response.json()) as StripeConfigResponse;
+      if (!response.ok) throw new Error(payload.message || 'Unable to update Stripe environment.');
+      setUseStripeSandbox(payload.useStripeSandbox ?? checked);
+      enqueueSnackbar('Stripe environment updated.', { variant: 'success' });
+    } catch (error) {
+      setUseStripeSandbox(previous);
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to update Stripe environment.');
+    } finally {
+      setIsUpdatingStripeEnv(false);
+    }
+  };
+
   return (
     <Stack direction="column" height={1}>
       <PageHeader
@@ -130,6 +167,16 @@ const SystemSettings = () => {
       <Paper sx={{ flex: 1, p: { xs: 3, md: 5 } }}>
         <Stack direction="column" sx={{ gap: 3, maxWidth: 720 }}>
           {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
+          <FormControlLabel
+            control={
+              <Switch
+                checked={useStripeSandbox}
+                disabled={isLoading || isSaving || isUpdatingStripeEnv}
+                onChange={(event) => void handleStripeEnvToggle(event.target.checked)}
+              />
+            }
+            label={useStripeSandbox ? 'Stripe sandbox' : 'Stripe production'}
+          />
           <TextField
             fullWidth
             required

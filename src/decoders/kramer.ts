@@ -80,6 +80,11 @@ export function decodeKramer(serial: string): DecodeResult {
     return decodeSamickKoreaSE(normalized, cleaned);
   }
 
+  // SD-prefix Samick Korea Striker/import-era plates
+  if (/^SD\d{4,6}$/.test(normalized)) {
+    return decodeSamickKoreaSD(normalized, cleaned);
+  }
+
   // Two-letter overseas prefixes (e.g., FA, FB, CF)
   if (/^[A-Z]{2}\d+$/.test(normalized)) {
     const prefix = normalized.substring(0, 2);
@@ -181,6 +186,18 @@ export function decodeKramer(serial: string): DecodeResult {
       return { success: true, info };
     }
 
+    // Modern Gibson/Epiphone-era 9-digit import format:
+    // FF YY M SSSS (e.g., 311763081 => factory 31, 2017, June, sequence 3081).
+    if (/^\d{9}$/.test(normalized)) {
+      return decodeModernGibsonEraFactoryNumeric(normalized, cleaned);
+    }
+
+    // Modern Gibson-era all-numeric import format shared with Epiphone:
+    // YY MM FF SSSSS (e.g., 25051300004 => 2025, May, factory 13, sequence 00004).
+    if (/^\d{11}$/.test(normalized)) {
+      return decodeModernGibsonEraNumeric(normalized, cleaned);
+    }
+
     const yearPrefix = normalized.substring(0, 2);
     const yearValue = parseInt(yearPrefix, 10);
 
@@ -205,6 +222,164 @@ export function decodeKramer(serial: string): DecodeResult {
   return {
     success: false,
     error: 'Unable to decode this Kramer serial number. Kramer serials vary by era, and many vintage records were lost. Try the Vintage Kramer registry or HTPG serial search for additional context.',
+  };
+}
+
+function decodeSamickKoreaSD(normalized: string, cleaned: string): DecodeResult {
+  const sequence = parseInt(normalized.substring(2), 10);
+
+  const info: GuitarInfo = {
+    brand: 'Kramer',
+    serialNumber: cleaned,
+    year: '1987-1989 (estimated)',
+    factory: 'Samick',
+    country: 'South Korea',
+    model: 'Striker Series or entry-level import line',
+    notes: `SD-prefix Kramer import serial. The S prefix is commonly associated with Striker-series imports, and SD is treated as a later Samick Korea batch prefix from roughly 1987-1989. The digits are a production sequence rather than an exact date code. Sequence: ${sequence}. Neck plates from this era may show the Neptune, NJ address even on Korean-built import models; confirm with headstock style, hardware, and body construction.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'kramer-sd-samick-korea-striker-sequence',
+    patternLabel: 'Kramer SD Samick Korea Striker/import sequence',
+    additionalContext: {
+      title: 'Kramer SD Samick Korea import serial',
+      summary: 'This serial matches an SD-prefix Kramer import pattern commonly associated with late-1980s Samick Korea Striker-family production.',
+      highlights: [
+        'SD is treated as a Samick Korea import batch prefix.',
+        'This prefix is commonly associated with Striker and other entry-level import lines.',
+        `The digits after SD are production sequence ${sequence}.`,
+      ],
+      caveats: [
+        'This format provides an estimated late-1980s era, not an exact production date.',
+        'Neptune, NJ neck plates can appear on imported Kramers and do not prove USA manufacture.',
+        'Kramer import records from this period are incomplete.',
+      ],
+      verificationTips: [
+        'Check for a pointy late-1980s Kramer headstock and logo style.',
+        'Compare the tremolo and hardware to Striker-series specs.',
+        'Inspect body construction and electronics cavity details if model identification matters.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches an SD-prefix Kramer import pattern commonly associated with late-1980s Samick Korea Striker-family production.</p><h3>How This Pattern Is Typically Read</h3><p>SD is treated as a Samick Korea import batch prefix. This prefix is commonly associated with Striker and other entry-level import lines. The digits after SD are production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>This format provides an estimated late-1980s era, not an exact production date.</li><li>Neptune, NJ neck plates can appear on imported Kramers and do not prove USA manufacture.</li><li>Kramer import records from this period are incomplete.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as late-1980s Samick Korea import evidence, then verify the exact model from the headstock, tremolo, pickup layout, and construction.</p>`,
+  };
+}
+
+function decodeModernGibsonEraFactoryNumeric(normalized: string, cleaned: string): DecodeResult {
+  const factoryCode = normalized.substring(0, 2);
+  const yearPart = normalized.substring(2, 4);
+  const monthPart = normalized.substring(4, 5);
+  const sequence = normalized.substring(5);
+  const yearValue = parseInt(yearPart, 10);
+  const monthValue = parseInt(monthPart, 10);
+  const monthName = getMonthName(monthValue);
+  const fullYear = Number.isNaN(yearValue) ? undefined : 2000 + yearValue;
+  const sequenceNumber = parseInt(sequence, 10);
+
+  if (!fullYear || !monthName || fullYear < 2008 || fullYear > 2019) {
+    return {
+      success: false,
+      error: 'Unable to decode this Kramer serial number.',
+    };
+  }
+
+  const info: GuitarInfo = {
+    brand: 'Kramer',
+    serialNumber: cleaned,
+    year: fullYear.toString(),
+    month: monthName,
+    factory: factoryCode === '31' ? 'Qingdao' : `Factory ${factoryCode}`,
+    country: factoryCode === '31' ? 'China' : undefined,
+    model: 'Modern Gibson-era import model',
+    notes: `Modern 9-digit Kramer import serial interpreted as FFYYMSSSS. This Gibson/Epiphone-era format uses the first two digits as factory code, then two-digit year, one-digit month, and a four-digit sequence. Factory code: ${factoryCode}; year: ${fullYear}; month: ${monthName}; production sequence: ${sequenceNumber}. Factory code 31 is commonly associated with Gibson/Epiphone Qingdao production in China. Verify with back-of-headstock serial placement and country-of-origin markings.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'kramer-modern-gibson-era-9-digit-factory-yym-sequence',
+    patternLabel: 'Kramer modern Gibson-era 9-digit factory YYM sequence',
+    additionalContext: {
+      title: 'Kramer modern Gibson-era 9-digit import serial',
+      summary: 'This serial matches a 9-digit all-numeric Gibson/Epiphone-era import format used on modern Kramer instruments.',
+      highlights: [
+        `The factory code is ${factoryCode}${factoryCode === '31' ? ', commonly associated with Qingdao, China' : ''}.`,
+        `The digits ${yearPart} decode as production year ${fullYear}.`,
+        `The digit ${monthPart} decodes as ${monthName}.`,
+        `The final four digits decode as production sequence ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'This is not a vintage 1980s Kramer neck-plate serial format.',
+        'The serial identifies production date and factory code, not the exact model by itself.',
+        'Confirm with country-of-origin markings and model specifications.',
+      ],
+      verificationTips: [
+        'Look for the serial printed, stamped, or stickered on the back of the headstock.',
+        'Compare the body style and hardware to modern Pacer, Baretta, Assault, and related import specs.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a 9-digit all-numeric Gibson/Epiphone-era import format used on modern Kramer instruments.</p><h3>How This Pattern Is Typically Read</h3><p>The factory code is ${factoryCode}${factoryCode === '31' ? ', commonly associated with Qingdao, China' : ''}. The digits ${yearPart} decode as production year ${fullYear}. The digit ${monthPart} decodes as ${monthName}. The final four digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This is not a vintage 1980s Kramer neck-plate serial format.</li><li>The serial identifies production date and factory code, not the exact model by itself.</li><li>Confirm with country-of-origin markings and model specifications.</li></ul>`,
+  };
+}
+
+function decodeModernGibsonEraNumeric(normalized: string, cleaned: string): DecodeResult {
+  const yearPart = normalized.substring(0, 2);
+  const monthPart = normalized.substring(2, 4);
+  const factoryCode = normalized.substring(4, 6);
+  const sequence = normalized.substring(6);
+  const yearValue = parseInt(yearPart, 10);
+  const monthValue = parseInt(monthPart, 10);
+  const monthName = getMonthName(monthValue);
+  const fullYear = Number.isNaN(yearValue)
+    ? undefined
+    : 2000 + yearValue;
+  const sequenceNumber = parseInt(sequence, 10);
+
+  if (!fullYear || !monthName) {
+    return {
+      success: false,
+      error: 'Unable to decode this Kramer serial number.',
+    };
+  }
+
+  const info: GuitarInfo = {
+    brand: 'Kramer',
+    serialNumber: cleaned,
+    year: fullYear.toString(),
+    month: monthName,
+    factory: `Factory ${factoryCode}`,
+    country: factoryCode === '13' ? 'China' : undefined,
+    model: 'Modern Gibson-era import model, commonly Focus, Striker, or entry-level Kramer family',
+    notes: `Modern 11-digit Kramer import serial interpreted as YYMMFFSSSSS. Because Gibson owns Kramer, many post-2008 budget/import Kramer models use the all-numeric format also seen on Epiphone instruments. Year: ${fullYear}; month: ${monthName}; factory code: ${factoryCode}; production sequence: ${sequenceNumber}. Factory code 13 is commonly associated with authorized Chinese import production. Verify with the back-of-headstock serial placement, country-of-origin marking, and model specs.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'kramer-modern-gibson-era-11-digit-yymm-factory-sequence',
+    patternLabel: 'Kramer modern Gibson-era 11-digit YYMM factory sequence',
+    additionalContext: {
+      title: 'Kramer modern Gibson-era import serial',
+      summary: 'This serial matches the 11-digit all-numeric import format used on many modern Gibson-era Kramer instruments.',
+      highlights: [
+        `The digits ${yearPart} decode as production year ${fullYear}.`,
+        `The digits ${monthPart} decode as ${monthName}.`,
+        `The factory code is ${factoryCode}${factoryCode === '13' ? ', commonly associated with Chinese import production' : ''}.`,
+        `The final five digits decode as production sequence ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'This is not the vintage 1980s Kramer neck-plate serial system.',
+        'The serial identifies production date and factory code, not the exact model by itself.',
+        'Factory-code public references can be incomplete, so confirm with country-of-origin markings.',
+      ],
+      verificationTips: [
+        'Look for the serial printed or stamped on the back of the headstock.',
+        'Check for a nearby Made in China or other country-of-origin sticker or stamp.',
+        'Compare hardware and pickup layout against modern Focus, Striker, Baretta, and related import specs.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches the 11-digit all-numeric import format used on many modern Gibson-era Kramer instruments.</p><h3>How This Pattern Is Typically Read</h3><p>The digits ${yearPart} decode as production year ${fullYear}. The digits ${monthPart} decode as ${monthName}. The factory code is ${factoryCode}${factoryCode === '13' ? ', commonly associated with Chinese import production' : ''}. The final five digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This is not the vintage 1980s Kramer neck-plate serial system.</li><li>The serial identifies production date and factory code, not the exact model by itself.</li><li>Factory-code public references can be incomplete, so confirm with country-of-origin markings.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a modern Gibson-era Kramer import decode, then confirm the exact model from the headstock serial placement, country marking, hardware, and specs.</p>`,
   };
 }
 
