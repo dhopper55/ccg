@@ -6610,16 +6610,30 @@ async function handleAdminV2Search(request: Request, env: Env): Promise<Response
   if (q.length < 3) return jsonResponse({ results: [] });
 
   const like = `%${q}%`;
+  const normalizedCcgQuery = q.toUpperCase().replace(/^CCG-?/, '').replace(/\D/g, '');
+  const ccgLike = normalizedCcgQuery ? `%${normalizedCcgQuery}%` : like;
 
   const invRows = await env.DB.prepare(
-    `SELECT id, title, brand, model, image_url
+    `SELECT id, ccg_number, title, brand, model, image_url
      FROM ccg_inventory_items
      WHERE COALESCE(is_active, 0) = 1
        AND COALESCE(is_sold, 0) = 0
        AND COALESCE(sold_channel, '') = ''
-       AND (title LIKE ? OR (COALESCE(brand,'') || ' ' || COALESCE(model,'')) LIKE ?)
+       AND (
+         title LIKE ?
+         OR (COALESCE(brand,'') || ' ' || COALESCE(model,'')) LIKE ?
+         OR UPPER(COALESCE(ccg_number, '')) LIKE UPPER(?)
+         OR REPLACE(UPPER(COALESCE(ccg_number, '')), 'CCG-', '') LIKE ?
+       )
      LIMIT 5`
-  ).bind(like, like).all<{ id: number; title: string; brand: string | null; model: string | null; image_url: string | null }>();
+  ).bind(like, like, like, ccgLike).all<{
+    id: number;
+    ccg_number: string | null;
+    title: string;
+    brand: string | null;
+    model: string | null;
+    image_url: string | null;
+  }>();
 
   const listingRows = await env.DB.prepare(
     `SELECT id, title, brand, model, photos
@@ -6633,7 +6647,7 @@ async function handleAdminV2Search(request: Request, env: Env): Promise<Response
       type: 'inventory' as const,
       id: String(r.id),
       title: normalizeText(r.title, 'Untitled'),
-      subtitle: [r.brand, r.model].filter(Boolean).join(' ') || null,
+      subtitle: [normalizeText(r.ccg_number, ''), r.brand, r.model].filter(Boolean).join(' • ') || null,
       imageUrl: toAdminImageUrl(r.image_url, 'thumb') || null,
     })),
     ...(listingRows.results || []).map((r) => {
