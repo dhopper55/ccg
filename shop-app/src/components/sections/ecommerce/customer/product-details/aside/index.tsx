@@ -1,7 +1,6 @@
 import { Paper } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import Highlights, { ProductHighlight } from './Highlights';
-import OrderCustomization from './OrderCustomization';
 import Price from './Price';
 import ProductVideo from './ProductVideo';
 import PurchaseDetails from './PurchaseDetails';
@@ -17,6 +16,7 @@ interface ProductDetailsAsideProps {
   maxQuantity?: number;
   onQuantityChange: (quantity: number) => void;
   youtubeUrl?: string;
+  allowShipping?: boolean;
 }
 
 const ProductDetailsAside = ({
@@ -29,6 +29,7 @@ const ProductDetailsAside = ({
   maxQuantity,
   onQuantityChange,
   youtubeUrl,
+  allowShipping = false,
 }: ProductDetailsAsideProps) => {
   return (
     <Paper>
@@ -100,16 +101,7 @@ const ProductDetailsAside = ({
             lg: 12,
           }}
         >
-          <PurchaseDetails sx={{ height: 1 }} />
-        </Grid>
-        <Grid
-          size={{
-            xs: 12,
-            sm: 6,
-            lg: 12,
-          }}
-        >
-          <OrderCustomization sx={{ height: 1 }} />
+          <PurchaseDetails sx={{ height: 1 }} allowShipping={allowShipping} />
         </Grid>
       </Grid>
     </Paper>

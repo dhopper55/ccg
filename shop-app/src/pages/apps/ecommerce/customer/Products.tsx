@@ -34,6 +34,7 @@ type ShopProduct = {
   category: string;
   primaryCategoryName: string;
   secondaryCategory: string;
+  allowShipping: boolean;
   onlyInStore: boolean;
   isSold: boolean;
 };
@@ -439,7 +440,16 @@ function calcDiscount(regular: number, sale: number): number {
 }
 
 const ProductCard = ({ product }: { product: ShopProduct }) => {
-  const { mainImage, saleTitle, salePrice, regularPrice, category, secondaryCategory, onlyInStore } = product;
+  const {
+    mainImage,
+    saleTitle,
+    salePrice,
+    regularPrice,
+    category,
+    secondaryCategory,
+    allowShipping,
+    onlyInStore,
+  } = product;
   const hasDiscount = regularPrice != null && regularPrice > 0 && salePrice > 0 && salePrice < regularPrice;
   const discount = hasDiscount ? calcDiscount(regularPrice!, salePrice) : 0;
   const displayPrice = salePrice > 0 ? salePrice : (regularPrice ?? 0);
@@ -513,18 +523,11 @@ const ProductCard = ({ product }: { product: ShopProduct }) => {
           {secondaryCategory && <Chip label={secondaryCategory} size="small" variant="outlined" />}
         </Stack>
 
-        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-          Local pickup only. Please{' '}
-          <a
-            href="https://www.coalcreekguitars.com/contact-us"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: 'inherit', fontWeight: 600 }}
-          >
-            contact us
-          </a>{' '}
-          to purchase.
-        </Typography>
+        {!allowShipping && (
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+            Local pickup only.
+          </Typography>
+        )}
 
         {displayPrice > 0 && (
           <Box sx={{ mt: 'auto', pt: 1 }}>

@@ -2878,6 +2878,7 @@ type InventoryItemRow = {
   regular_price: number | null;
   sale_price: number | null;
   condition: string | null;
+  allow_shipping: number | null;
   sale_description: string | null;
   clearance: number | null;
   bullet_1_text: string | null;
@@ -3066,6 +3067,7 @@ type ShopProductRow = {
   sale_price: number | null;
   clearance?: number | null;
   condition: string | null;
+  allow_shipping?: number | null;
   sale_description?: string | null;
   bullet_1_text?: string | null;
   bullet_1_danger?: number | null;
@@ -7775,6 +7777,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const regularPrice = parseCurrencyAmount(body.regularPrice);
   const salePrice = parseCurrencyAmount(body.salePrice) ?? 0;
   const condition = normalizeText(body.condition, '').slice(0, 50);
+  const allowShipping = toBooleanInput(body.allowShipping, false);
   const saleDescription = normalizeText(body.saleDescription, '').slice(0, 12000);
   const clearance = toBooleanInput(body.clearance, false);
   const bullet1Text = normalizeText(body.bullet1Text, '').slice(0, 60);
@@ -7951,6 +7954,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     regular_price: regularPrice,
     sale_price: salePrice,
     condition: condition || null,
+    allow_shipping: allowShipping ? 1 : 0,
     sale_description: saleDescription || null,
     clearance: clearance ? 1 : 0,
     bullet_1_text: bullet1Text || null,
@@ -8144,6 +8148,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const regularPrice = parseCurrencyAmount(body.regularPrice);
   const salePrice = parseCurrencyAmount(body.salePrice) ?? 0;
   const condition = normalizeText(body.condition, '').slice(0, 50);
+  const allowShipping = toBooleanInput(body.allowShipping, false);
   const saleDescription = normalizeText(body.saleDescription, '').slice(0, 12000);
   const clearance = toBooleanInput(body.clearance, false);
   const bullet1Text = normalizeText(body.bullet1Text, '').slice(0, 60);
@@ -8368,6 +8373,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       regular_price: regularPrice,
       sale_price: salePrice,
       condition: condition || null,
+      allow_shipping: allowShipping ? 1 : 0,
       sale_description: saleDescription || null,
       clearance: clearance ? 1 : 0,
       bullet_1_text: bullet1Text || null,
@@ -8428,6 +8434,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       regular_price: regularPrice,
       sale_price: salePrice,
       condition: condition || null,
+      allow_shipping: allowShipping ? 1 : 0,
       sale_description: saleDescription || null,
       clearance: clearance ? 1 : 0,
       bullet_1_text: bullet1Text || null,
@@ -8527,6 +8534,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       regular_price: regularPrice,
       sale_price: salePrice,
       condition: condition || null,
+      allow_shipping: allowShipping ? 1 : 0,
       sale_description: saleDescription || null,
       clearance: clearance ? 1 : 0,
       bullet_1_text: bullet1Text || null,
@@ -8640,6 +8648,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     regular_price: regularPrice,
     sale_price: salePrice,
     condition: condition || null,
+    allow_shipping: allowShipping ? 1 : 0,
     sale_description: saleDescription || null,
     clearance: clearance ? 1 : 0,
     bullet_1_text: bullet1Text || null,
@@ -9820,6 +9829,7 @@ function mapInventoryRow(
     regularPrice: row.regular_price ?? null,
     salePrice: row.sale_price ?? 0,
     condition: row.condition || '',
+    allowShipping: Boolean(row.allow_shipping),
     saleDescription: row.sale_description || '',
     barcode: row.barcode || '',
     purchasedDate: row.purchased_date || '',
@@ -10054,6 +10064,7 @@ async function dbListInventoryItems(
        i.regular_price,
        i.sale_price,
        i.condition,
+       i.allow_shipping,
        i.sale_description,
        i.barcode,
        i.purchased_date,
@@ -10142,6 +10153,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.regular_price,
       i.sale_price,
       i."condition",
+      i.allow_shipping,
       i.sale_description,
       i.clearance,
       i.bullet_1_text,
@@ -10246,6 +10258,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     regularPrice: row.regular_price ?? null,
     salePrice: row.sale_price ?? 0,
     condition: row.condition || '',
+    allowShipping: Boolean(row.allow_shipping),
     saleDescription: row.sale_description || '',
     clearance: Boolean(row.clearance),
     bullet1Text: row.bullet_1_text || '',
@@ -10662,6 +10675,7 @@ async function dbListShopProducts(
        i.regular_price,
        i.sale_price,
        i.clearance,
+       i.allow_shipping,
        i.only_in_store,
        i."condition",
        i.brand,
@@ -10690,6 +10704,7 @@ async function dbListShopProducts(
     category: getInventoryCategoryLabel(row),
     primaryCategoryName: normalizeText(row.category_name, ''),
     secondaryCategory: normalizeText(row.secondary_category_name, ''),
+    allowShipping: Boolean(row.allow_shipping),
     onlyInStore: Boolean(row.only_in_store),
     isSold: Boolean(row.is_sold),
     };
@@ -10924,6 +10939,7 @@ async function dbGetShopProductDetail(
        i.regular_price,
        i.sale_price,
        i.clearance,
+       i.allow_shipping,
        i.only_in_store,
        i."condition",
        i.sale_description,
@@ -11004,6 +11020,7 @@ async function dbGetShopProductDetail(
     regularPrice: row.regular_price,
     salePrice: row.sale_price ?? 0,
     clearance: Boolean(row.clearance),
+    allowShipping: Boolean(row.allow_shipping),
     onlyInStore: Boolean(row.only_in_store),
     category: getInventoryCategoryLabel(row),
     primaryCategoryName: normalizeText(row.category_name, ''),
@@ -12492,6 +12509,7 @@ async function dbCreateInventoryItems(
     regular_price: number | null;
     sale_price: number | null;
     condition: string | null;
+    allow_shipping?: number;
     sale_description: string | null;
     clearance: number;
     bullet_1_text: string | null;
@@ -12562,7 +12580,7 @@ async function dbCreateInventoryItems(
         source_listing_id, ccg_number, image_url, title, quantity, category_id, brand, queue, year_range, model, finish,
         secondary_category_id,
         image_urls,
-        repair_notes, original_listing_desc, video_url, sale_title, regular_price, sale_price, "condition", sale_description, clearance,
+        repair_notes, original_listing_desc, video_url, sale_title, regular_price, sale_price, "condition", allow_shipping, sale_description, clearance,
         bullet_1_text, bullet_1_danger, bullet_1_highlight,
         bullet_2_text, bullet_2_danger, bullet_2_highlight,
         bullet_3_text, bullet_3_danger, bullet_3_highlight,
@@ -12578,7 +12596,7 @@ async function dbCreateInventoryItems(
         for_sale_date,
         is_sold, sold_date, sold_amount, sell_notes, sale_url, sale_zip
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const result = await env.DB.prepare(statement).bind(
       fields.source_listing_id,
@@ -12601,6 +12619,7 @@ async function dbCreateInventoryItems(
       fields.regular_price,
       fields.sale_price,
       fields.condition,
+      fields.allow_shipping ?? 0,
       fields.sale_description,
       fields.clearance,
       fields.bullet_1_text,
@@ -12729,6 +12748,7 @@ async function dbUpdateInventoryById(
     regular_price: number | null;
     sale_price: number | null;
     condition: string | null;
+    allow_shipping: number;
     sale_description: string | null;
     clearance: number;
     bullet_1_text: string | null;
@@ -12777,7 +12797,7 @@ async function dbUpdateInventoryById(
          sales_channel_ccg = ?, sales_channel_fbm = ?, sales_channel_cl = ?, sales_channel_reverb = ?, sales_channel_gear_exchange = ?,
          sales_channel_offerup = ?, sales_channel_ebay = ?, sales_channel_nextdoor = ?, sales_channel_other = ?,
          for_sale_date = ?,
-         source_listing_id = ?, video_url = ?, sale_title = ?, regular_price = ?, sale_price = ?, "condition" = ?, sale_description = ?,
+         source_listing_id = ?, video_url = ?, sale_title = ?, regular_price = ?, sale_price = ?, "condition" = ?, allow_shipping = ?, sale_description = ?,
          clearance = ?,
          bullet_1_text = ?, bullet_1_danger = ?, bullet_1_highlight = ?,
          bullet_2_text = ?, bullet_2_danger = ?, bullet_2_highlight = ?,
@@ -12845,6 +12865,7 @@ async function dbUpdateInventoryById(
       fields.regular_price,
       fields.sale_price,
       fields.condition,
+      fields.allow_shipping,
       fields.sale_description,
       fields.clearance,
       fields.bullet_1_text,

@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1116 617" role="img" aria-labelledby="title desc">
+  <title id="title">Pickup location near Englewood, Colorado</title>
+  <desc id="desc">Static map-style image centered near South Broadway in Englewood, Colorado.</desc>
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#111" flood-opacity="0.35"/>
+    </filter>
+    <style>
+      .bg{fill:#f5f7f9}.park{fill:#c7f2d8}.water{fill:#bfeefe}.road{fill:none;stroke:#d6e0e8;stroke-width:2}.major{fill:none;stroke:#8da7c8;stroke-width:8}.highway{fill:none;stroke:#6f8eb8;stroke-width:14}.label{font:22px Arial,sans-serif;fill:#2b3338}.small{font:19px Arial,sans-serif;fill:#3e474d}.poi{font:25px Arial,sans-serif}.blue{fill:#0d7cff}.red{fill:#e53d3d}.purple{fill:#874ee9}.badge{fill:#fff;stroke:#777;stroke-width:2}.pin{fill:#d72626;stroke:#b81717;stroke-width:2}
+    </style>
+  </defs>
+  <rect class="bg" width="1116" height="617"/>
+  <path class="park" d="M158 260h210v95H258l-38 46H110V301zM810 300h170v155H830l-35-60zM640 84h39v39h-39z"/>
+  <path class="water" d="M361 0c20 74-33 140 6 208 26 45 7 98-23 140M990 145c42 7 83 7 126-8v242c-45-5-83-4-126 12zM157 345c50-6 67 19 117 2"/>
+  <g class="road">
+    <path d="M0 55h1116M0 109h1116M0 163h1116M0 217h1116M0 271h1116M0 325h1116M0 379h1116M0 433h1116M0 487h1116M0 541h1116"/>
+    <path d="M47 0v617M105 0v617M163 0v617M221 0v617M279 0v617M337 0v617M395 0v617M453 0v617M511 0v617M569 0v617M627 0v617M685 0v617M743 0v617M801 0v617M859 0v617M917 0v617M975 0v617M1033 0v617M1091 0v617"/>
+  </g>
+  <path class="highway" d="M0 231c92 2 185 14 276-8 68-16 109-12 172 2 51 11 105 25 163 24 169-3 337-38 505-20"/>
+  <path class="major" d="M560 0v617M910 0v617M142 0v617M390 0c-10 155-40 306-28 617"/>
+  <path class="major" d="M0 382h1116"/>
+  <g filter="url(#shadow)">
+    <rect x="44" y="90" width="410" height="38" rx="4" fill="#555"/>
+    <text x="58" y="116" font-family="Arial,sans-serif" font-size="22" font-weight="700" fill="#fff">Pickup location near Englewood, CO</text>
+  </g>
+  <text class="label" x="700" y="69">ARAPAHOE</text>
+  <text class="label" x="741" y="93">ACRES</text>
+  <text class="label" x="944" y="121">WELLSHIRE</text>
+  <text class="label" x="836" y="386">Cherry Hills</text>
+  <text class="label" x="854" y="421">Village</text>
+  <text class="small" x="497" y="439">W Quincy Ave</text>
+  <text class="small" x="535" y="545">E Tufts Ave</text>
+  <text class="small" x="658" y="117">E Dartmouth Ave</text>
+  <text class="small" x="386" y="390">W Oxford Ave</text>
+  <text class="small" transform="translate(516 79) rotate(90)">S Elati St</text>
+  <text class="small" transform="translate(517 462) rotate(90)">S Delaware St</text>
+  <text class="small" transform="translate(581 246) rotate(90)">S Broadway</text>
+  <text class="small" transform="translate(635 250) rotate(90)">S Logan St</text>
+  <text class="small" transform="translate(698 225) rotate(90)">S Clarkson St</text>
+  <text class="small" transform="translate(904 0) rotate(90)">S University Blvd</text>
+  <text class="poi purple" x="360" y="132">Gothic Theatre</text>
+  <text class="poi red" x="693" y="191">HCA HealthONE Swedish</text>
+  <text class="poi blue" x="109" y="328">Costco Wholesale</text>
+  <text x="543" y="586" font-family="Arial,sans-serif" font-size="30" fill="#4285f4">G</text>
+  <text x="566" y="586" font-family="Arial,sans-serif" font-size="30" fill="#ea4335">o</text>
+  <text x="584" y="586" font-family="Arial,sans-serif" font-size="30" fill="#fbbc05">o</text>
+  <text x="602" y="586" font-family="Arial,sans-serif" font-size="30" fill="#4285f4">g</text>
+  <text x="621" y="586" font-family="Arial,sans-serif" font-size="30" fill="#34a853">l</text>
+  <text x="629" y="586" font-family="Arial,sans-serif" font-size="30" fill="#ea4335">e</text>
+  <g filter="url(#shadow)">
+    <circle cx="663" cy="181" r="21" fill="#fff"/>
+    <circle cx="663" cy="181" r="16" fill="#ef3b3b"/>
+    <text x="656" y="191" font-family="Arial,sans-serif" font-size="28" font-weight="700" fill="#fff">H</text>
+    <circle cx="579" cy="132" r="23" fill="#fff"/>
+    <circle cx="579" cy="132" r="18" fill="#a25df2"/>
+    <text x="566" y="140" font-family="Arial,sans-serif" font-size="22" font-weight="700" fill="#fff">🎭</text>
+    <circle cx="364" cy="319" r="22" fill="#fff"/>
+    <circle cx="364" cy="319" r="17" fill="#0095ff"/>
+    <text x="356" y="328" font-family="Arial,sans-serif" font-size="23" font-weight="700" fill="#fff">♟</text>
+  </g>
+  <g filter="url(#shadow)">
+    <path class="pin" d="M579 230c-15 0-27 12-27 27 0 23 27 48 27 48s27-25 27-48c0-15-12-27-27-27z"/>
+    <circle cx="579" cy="256" r="10" fill="#9e1515"/>
+  </g>
+  <g filter="url(#shadow)">
+    <path class="badge" d="M145 218l20 12v26l-20 12-20-12v-26z"/>
+    <text x="127" y="247" font-family="Arial,sans-serif" font-size="18" font-weight="700" fill="#333">285</text>
+    <path class="badge" d="M674 230l20 12v26l-20 12-20-12v-26z"/>
+    <text x="656" y="259" font-family="Arial,sans-serif" font-size="18" font-weight="700" fill="#333">285</text>
+    <circle class="badge" cx="907" cy="280" r="20"/>
+    <text x="891" y="287" font-family="Arial,sans-serif" font-size="17" font-weight="700" fill="#333">177</text>
+    <circle class="badge" cx="139" cy="451" r="18"/>
+    <text x="128" y="458" font-family="Arial,sans-serif" font-size="16" font-weight="700" fill="#333">88</text>
+  </g>
+</svg>

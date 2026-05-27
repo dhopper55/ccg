@@ -44,6 +44,7 @@ type InventoryItemRecord = {
   regularPrice?: number | null;
   salePrice?: number | null;
   condition?: string;
+  allowShipping?: boolean;
   saleDescription?: string;
   clearance?: boolean;
   bullet1Text?: string;
@@ -186,6 +187,7 @@ type FormState = {
   regularPrice: string;
   salePrice: string;
   condition: string;
+  allowShipping: boolean;
   saleDescription: string;
   clearance: boolean;
   bullet1Text: string;
@@ -398,6 +400,7 @@ const DEFAULT_FORM: FormState = {
   regularPrice: '',
   salePrice: '0',
   condition: '',
+  allowShipping: false,
   saleDescription: '',
   clearance: false,
   bullet1Text: '',
@@ -1185,6 +1188,7 @@ const InventoryItem = () => {
             regularPrice: record.regularPrice != null ? String(record.regularPrice) : '',
             salePrice: record.salePrice != null ? String(record.salePrice) : '0',
             condition: record.condition || '',
+            allowShipping: Boolean(record.allowShipping),
             saleDescription: record.saleDescription || '',
             clearance: Boolean(record.clearance),
             bullet1Text: record.bullet1Text || '',
@@ -1308,6 +1312,7 @@ const InventoryItem = () => {
             regularPrice: record.regularPrice != null ? String(record.regularPrice) : '',
             salePrice: record.salePrice != null ? String(record.salePrice) : '0',
             condition: record.condition || '',
+            allowShipping: Boolean(record.allowShipping),
             saleDescription: record.saleDescription || '',
             clearance: Boolean(record.clearance),
             bullet1Text: record.bullet1Text || '',
@@ -1498,6 +1503,14 @@ const InventoryItem = () => {
       if (key === 'categoryId') {
         return { ...current, categoryId: value as FormState['categoryId'], secondaryCategoryId: '' };
       }
+      if (key === 'barcode' && !editId) {
+        const nextBarcode = String(value || '').trim();
+        return {
+          ...current,
+          barcode: value as FormState['barcode'],
+          allowShipping: Boolean(nextBarcode),
+        };
+      }
       if (key === 'forSale') {
         const nextForSale = Boolean(value);
         if (!current.forSale && nextForSale) {
@@ -1614,6 +1627,7 @@ const InventoryItem = () => {
     regularPrice: form.regularPrice.trim(),
     salePrice: form.salePrice.trim(),
     condition: form.condition.trim(),
+    allowShipping: form.allowShipping,
     saleDescription: form.saleDescription.trim(),
     clearance: form.clearance,
     bullet1Text: form.bullet1Text.trim(),
@@ -3102,7 +3116,7 @@ const InventoryItem = () => {
                           inputProps={{ maxLength: 200 }}
                         />
                       </Grid>
-                      <Grid size={{ xs: 12, md: 4 }}>
+                      <Grid size={{ xs: 12, md: 3 }}>
                         <TextField
                           fullWidth
                           required
@@ -3119,7 +3133,7 @@ const InventoryItem = () => {
                           inputProps={{ min: 0, step: 0.01 }}
                         />
                       </Grid>
-                      <Grid size={{ xs: 12, md: 4 }}>
+                      <Grid size={{ xs: 12, md: 3 }}>
                         <TextField
                           fullWidth
                           required
@@ -3130,7 +3144,7 @@ const InventoryItem = () => {
                           inputProps={{ min: 0, step: 0.01 }}
                         />
                       </Grid>
-                      <Grid size={{ xs: 12, md: 4 }}>
+                      <Grid size={{ xs: 12, md: 3 }}>
                         <TextField
                           select
                           fullWidth
@@ -3145,6 +3159,31 @@ const InventoryItem = () => {
                             </MenuItem>
                           ))}
                         </TextField>
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <Box
+                          sx={{
+                            height: 1,
+                            minHeight: 90,
+                            px: 2,
+                            display: 'flex',
+                            alignItems: 'center',
+                            bgcolor: 'background.paper',
+                            border: 1,
+                            borderColor: 'divider',
+                            borderRadius: 3,
+                          }}
+                        >
+                          <FormControlLabel
+                            control={(
+                              <Checkbox
+                                checked={form.allowShipping}
+                                onChange={(event) => setField('allowShipping', event.target.checked)}
+                              />
+                            )}
+                            label="Allow Shipping"
+                          />
+                        </Box>
                       </Grid>
                       <Grid size={{ xs: 12, md: 9.6 }}>
                         <TextField

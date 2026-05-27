@@ -30,6 +30,7 @@ type ShopProduct = {
   salePrice: number;
   saleCondition: string;
   clearance: boolean;
+  allowShipping: boolean;
   onlyInStore: boolean;
   category: string;
   primaryCategoryName: string;
@@ -223,6 +224,7 @@ const ProductDetails = () => {
           maxQuantity={availableQuantity}
           onQuantityChange={(nextQuantity) => setQuantity(Math.min(nextQuantity, availableQuantity))}
           youtubeUrl={shopProduct?.youtubeUrl}
+          allowShipping={Boolean(shopProduct?.allowShipping)}
         />
       </Grid>
       <Grid size={12}>

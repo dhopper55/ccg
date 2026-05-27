@@ -1,7 +1,7 @@
 import { Box, Paper, Stack, SxProps, Typography } from '@mui/material';
 import IconifyIcon from 'components/base/IconifyIcon';
 
-const PurchaseDetails = ({ sx }: { sx?: SxProps }) => {
+const PurchaseDetails = ({ allowShipping = false, sx }: { allowShipping?: boolean; sx?: SxProps }) => {
   return (
     <Paper sx={{ p: { xs: 3, md: 5 }, ...sx }}>
       <Typography
@@ -28,17 +28,23 @@ const PurchaseDetails = ({ sx }: { sx?: SxProps }) => {
             color: 'text.secondary',
           }}
         >
-          Store pickup in Englewood & local delivery
-          <Box
-            sx={{
-              display: 'block',
-              fontWeight: 700,
-              color: 'success.main',
-            }}
-            component="span"
-          >
-            Both available
-          </Box>
+          {allowShipping ? (
+            'Store pickup, local delivery, or shipping in the US available'
+          ) : (
+            <>
+              Store pickup in Englewood & local delivery
+              <Box
+                sx={{
+                  display: 'block',
+                  fontWeight: 700,
+                  color: 'success.main',
+                }}
+                component="span"
+              >
+                Both available
+              </Box>
+            </>
+          )}
         </Typography>
       </Stack>
       <Stack
