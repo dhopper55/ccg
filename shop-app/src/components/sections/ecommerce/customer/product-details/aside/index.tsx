@@ -12,6 +12,7 @@ interface ProductDetailsAsideProps {
   clearance?: boolean;
   highlights: ProductHighlight[];
   isUnavailable?: boolean;
+  unavailableLabel?: string;
   quantity: number;
   maxQuantity?: number;
   onQuantityChange: (quantity: number) => void;
@@ -25,6 +26,7 @@ const ProductDetailsAside = ({
   clearance = false,
   highlights,
   isUnavailable = false,
+  unavailableLabel = 'SOLD',
   quantity,
   maxQuantity,
   onQuantityChange,
@@ -49,6 +51,7 @@ const ProductDetailsAside = ({
             salePrice={salePrice}
             clearance={clearance}
             isUnavailable={isUnavailable}
+            unavailableLabel={unavailableLabel}
           />
         </Grid>
         <Grid

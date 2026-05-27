@@ -10,6 +10,7 @@ import {
   useState,
 } from 'react';
 import { useSnackbar } from 'notistack';
+import { trackShopAnalyticsEvent } from 'lib/shopAnalytics';
 import { CartItem, Coupon, ProductDetails } from 'types/ecommerce';
 
 interface EcommerceContextInterface {
@@ -58,9 +59,13 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
 
   const addItemToCart = useCallback(
     (product: ProductDetails, quantity = 1) => {
+      const maxQuantity = Math.max(0, Number(product.stock || 0));
+      if (maxQuantity <= 0) {
+        enqueueSnackbar('This item is currently out of stock.', { variant: 'warning' });
+        return;
+      }
       const existingItem = cartItems.find((item) => item.id === product.id);
       const addQuantity = Math.max(1, Math.floor(quantity));
-      const maxQuantity = Math.max(1, Number(product.stock || 1));
       const newQuantity = Math.min(
         existingItem ? existingItem.quantity + addQuantity : addQuantity,
         maxQuantity,
@@ -73,6 +78,16 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
       } else {
         setCartItems((prev) => [...prev, { ...product, quantity: newQuantity, selected: true }]);
       }
+      trackShopAnalyticsEvent({
+        eventType: 'add_to_cart',
+        inventoryItemId: product.id,
+        metadata: {
+          title: product.name,
+          quantity: addQuantity,
+          cartQuantity: newQuantity,
+          price: product.price.discounted,
+        },
+      });
       enqueueSnackbar('Added to the cart successfully!', { variant: 'success' });
     },
     [cartItems],

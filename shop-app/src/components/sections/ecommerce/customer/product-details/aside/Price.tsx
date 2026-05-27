@@ -8,6 +8,7 @@ interface PriceProps {
   salePrice?: number;
   clearance?: boolean;
   isUnavailable?: boolean;
+  unavailableLabel?: string;
 }
 
 const Price = ({
@@ -16,6 +17,7 @@ const Price = ({
   salePrice = 0,
   clearance = false,
   isUnavailable = false,
+  unavailableLabel = 'SOLD',
 }: PriceProps) => {
   const { currencyFormat } = useNumberFormat();
   const displayPrice = salePrice > 0 ? salePrice : (regularPrice ?? 0);
@@ -52,7 +54,7 @@ const Price = ({
             letterSpacing: 0,
           }}
         >
-          SOLD
+          {unavailableLabel}
         </Typography>
       ) : (
         <>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Outlet, useNavigate } from 'react-router';
 import { Box } from '@mui/material';
 import { useSnackbar } from 'notistack';
+import GoogleAnalytics from 'components/common/GoogleAnalytics';
 import AuthProvider from 'providers/AuthProvider';
 import AssociateModeProvider from 'providers/AssociateModeProvider';
 import EcommerceProvider from 'providers/EcommerceProvider';
@@ -265,6 +266,7 @@ const App = () => {
     <AuthProvider>
       <AssociateModeProvider>
         <EcommerceProvider>
+          <GoogleAnalytics />
           <ShopBarcodeScanner />
           <AssociateScreensaver />
           <Outlet />

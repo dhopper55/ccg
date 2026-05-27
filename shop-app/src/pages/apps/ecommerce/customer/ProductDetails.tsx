@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
-import { Paper } from '@mui/material';
+import { useLocation, useNavigate, useParams } from 'react-router';
+import { Chip, Paper } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import { slugifyCategory } from 'lib/utils';
+import { trackShopAnalyticsEvent } from 'lib/shopAnalytics';
 import { useAssociateMode } from 'providers/AssociateModeProvider';
 import { useEcommerce } from 'providers/EcommerceProvider';
 import paths from 'routes/paths';
@@ -54,6 +55,7 @@ const normalizeSpecValue = (value?: string | null) => {
 
 const ProductDetails = () => {
   const { category: categoryParam, slug: slugParam } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const { addItemToCart } = useEcommerce();
   const { isAssociateMode, isCheckingAssociateMode } = useAssociateMode();
@@ -100,9 +102,39 @@ const ProductDetails = () => {
     }
   }, [shopProduct, categoryParam, slugParam, navigate]);
 
+  useEffect(() => {
+    if (!shopProduct) return;
+    const canonicalCategory = slugifyCategory(shopProduct.primaryCategoryName);
+    const canonicalSlug = shopProduct.saleUrlSlug.trim();
+    if (!canonicalCategory || !canonicalSlug) return;
+    if (categoryParam !== canonicalCategory || slugParam !== canonicalSlug) return;
+
+    trackShopAnalyticsEvent({
+      eventType: 'product_view',
+      inventoryItemId: Number(shopProduct.id),
+      metadata: {
+        ccgNumber: shopProduct.ccgNumber || '',
+        saleUrlSlug: canonicalSlug,
+        title: shopProduct.saleTitle,
+        category: shopProduct.primaryCategoryName,
+        price: shopProduct.salePrice,
+        allowShipping: shopProduct.allowShipping,
+        quantity: shopProduct.quantity,
+      },
+    });
+  }, [
+    categoryParam,
+    location.pathname,
+    location.search,
+    shopProduct,
+    slugParam,
+  ]);
+
   const galleryImages = shopProduct?.images || [];
-  const isUnavailable = Boolean(shopProduct?.isSold || !shopProduct?.forSale);
-  const availableQuantity = shopProduct ? Math.max(1, Number(shopProduct.quantity || 1)) : 1;
+  const availableQuantity = shopProduct ? Math.max(0, Number(shopProduct.quantity ?? 0)) : 0;
+  const isOutOfStock = Boolean(shopProduct && !shopProduct.isSold && shopProduct.forSale && availableQuantity <= 0);
+  const isUnavailable = Boolean(shopProduct?.isSold || !shopProduct?.forSale || isOutOfStock);
+  const unavailableLabel = isOutOfStock ? 'OUT OF STOCK' : 'SOLD';
   const displayPrice = shopProduct
     ? shopProduct.salePrice > 0
       ? shopProduct.salePrice
@@ -163,14 +195,18 @@ const ProductDetails = () => {
       vat: 0,
       sold: 0,
       stock: isUnavailable ? 0 : availableQuantity,
-      availability: isUnavailable ? ['Sold'] : [shopProduct.onlyInStore ? 'In store only' : 'In stock'],
+      availability: isOutOfStock
+        ? ['Out of stock']
+        : isUnavailable
+          ? ['Sold']
+          : [shopProduct.onlyInStore ? 'In store only' : 'In stock'],
       category: [shopProduct.category, shopProduct.secondaryCategory].filter(Boolean),
       features: shopProduct.highlights.map((highlight) => highlight.text).filter(Boolean),
     };
-  }, [availableQuantity, displayPrice, galleryImages, isUnavailable, shopProduct]);
+  }, [availableQuantity, displayPrice, galleryImages, isOutOfStock, isUnavailable, shopProduct]);
 
   const handleAddToCart = () => {
-    if (!cartProduct || isUnavailable) return;
+    if (!cartProduct || isUnavailable || availableQuantity <= 0) return;
     addItemToCart(cartProduct, Math.min(quantity, availableQuantity));
   };
 
@@ -205,6 +241,13 @@ const ProductDetails = () => {
             itemNumber={shopProduct?.ccgNumber}
             condition={shopProduct?.saleCondition}
           />
+          {isOutOfStock && (
+            <Chip
+              label="Currently Out of Stock"
+              color="warning"
+              sx={{ alignSelf: 'flex-start', mb: 2, fontWeight: 700 }}
+            />
+          )}
           {galleryImages.length > 0 && <ProductGallery images={galleryImages} />}
         </Paper>
       </Grid>
@@ -220,6 +263,7 @@ const ProductDetails = () => {
           clearance={Boolean(shopProduct?.clearance)}
           highlights={shopProduct?.highlights || []}
           isUnavailable={isUnavailable}
+          unavailableLabel={unavailableLabel}
           quantity={quantity}
           maxQuantity={availableQuantity}
           onQuantityChange={(nextQuantity) => setQuantity(Math.min(nextQuantity, availableQuantity))}
@@ -240,6 +284,7 @@ const ProductDetails = () => {
           title={shopProduct?.saleTitle}
           price={displayPrice}
           disabled={isUnavailable}
+          buttonLabel={isOutOfStock ? 'Out of Stock' : 'Add to Cart'}
           onAddToCart={handleAddToCart}
         />
       </Grid>

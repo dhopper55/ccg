@@ -1,40 +1,8 @@
-import { useEffect, useState } from 'react';
-import { Box, Button, ButtonBase, Stack, Typography } from '@mui/material';
-import dayjs from 'dayjs';
-import duration from 'dayjs/plugin/duration';
-import { cssVarRgba } from 'lib/utils';
+import { Box, ButtonBase, Stack, Typography } from '@mui/material';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
-
-dayjs.extend(duration);
-const formatTime = (seconds: number) => {
-  const duration = dayjs.duration(seconds, 'seconds');
-  const hours = duration.hours().toString().padStart(2, '0');
-  const minutes = duration.minutes().toString().padStart(2, '0');
-  const secs = duration.seconds().toString().padStart(2, '0');
-
-  return { hours, minutes, secs };
-};
+import IconifyIcon from 'components/base/IconifyIcon';
 
 const PromoBanner = () => {
-  const [timeLeft, setTimeLeft] = useState(1 * 60 * 60 + 24 * 60 + 48);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-
-          return 0;
-        }
-
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  const { hours, minutes, secs } = formatTime(timeLeft);
   const { down } = useBreakpoints();
   const downSm = down('sm');
 
@@ -44,9 +12,12 @@ const PromoBanner = () => {
       gap={2}
       sx={{
         px: { xs: 3, md: 5 },
-        minHeight: 46,
-        bgcolor: 'warning.lighter',
-
+        py: { xs: 1, md: 0 },
+        minHeight: { xs: 52, md: 46 },
+        bgcolor: 'background.elevation1',
+        borderTop: 1,
+        borderBottom: 1,
+        borderColor: 'divider',
         alignItems: 'center',
         justifyContent: { md: 'center' },
       }}
@@ -54,7 +25,7 @@ const PromoBanner = () => {
       <Box sx={{ flexGrow: { xs: 1, md: 0 }, overflow: 'hidden' }}>
         <Typography
           variant="h6"
-          color="warning.darker"
+          color="text.primary"
           sx={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -73,65 +44,38 @@ const PromoBanner = () => {
             animation: { xs: 'marquee 7s linear infinite', md: 'none' },
           }}
         >
-          30% Off{' '}
+          <IconifyIcon
+            icon="material-symbols:local-shipping-outline-rounded"
+            sx={{ color: 'success.main', fontSize: 24, flexShrink: 0 }}
+          />
+          Free shipping at $75+{' '}
           <Box component="span" fontWeight={500} fontSize="subtitle1.fontSize">
-            on all products. Use promo code{' '}
+            on eligible items in the 50 states. Orders under $75 ship flat rate{' '}
           </Box>
-          <Box component="span" fontWeight={700} fontSize="subtitle1.fontSize">
-            SAVE30
+          <Box component="span" fontWeight={800} fontSize="subtitle1.fontSize" color="success.main">
+            $6
           </Box>
         </Typography>
       </Box>
-      <Stack
-        direction="row"
-        spacing={0.5}
-        alignItems="center"
-        sx={{ color: 'warning.dark', ml: { xs: 0, md: 2 }, textAlign: 'center' }}
-      >
-        <Box
-          sx={{
-            bgcolor: (theme) => cssVarRgba(theme.vars.palette.warning.mainChannel, 0.08),
-            p: 1,
-            borderRadius: 2,
-            textAlign: 'center',
-            minWidth: 40,
-          }}
-        >
-          <Typography variant="body2" color="warning.dark">
-            {hours}
-          </Typography>
-        </Box>
-        :
-        <Box
-          sx={{
-            bgcolor: (theme) => cssVarRgba(theme.vars.palette.warning.mainChannel, 0.08),
-            p: 1,
-            borderRadius: 2,
-            minWidth: 40,
-          }}
-        >
-          <Typography variant="body2" color="warning.dark">
-            {minutes}
-          </Typography>
-        </Box>
-        :
-        <Box
-          sx={{
-            bgcolor: (theme) => cssVarRgba(theme.vars.palette.warning.mainChannel, 0.08),
-            p: 1,
-            borderRadius: 2,
-            minWidth: 40,
-          }}
-        >
-          <Typography variant="body2" color="warning.dark">
-            {secs}
-          </Typography>
-        </Box>
-      </Stack>
       {!downSm && (
-        <Button variant="contained" color="warning" sx={{ flexShrink: 0 }}>
-          View Deal
-        </Button>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ ml: 2, flexShrink: 0 }}>
+          {['50 states', '$6 under $75', 'Free $75+'].map((label) => (
+            <Box
+              key={label}
+              sx={{
+                bgcolor: 'action.hover',
+                color: 'text.secondary',
+                px: 1.25,
+                py: 0.75,
+                borderRadius: 1.5,
+              }}
+            >
+              <Typography variant="body2" fontWeight={700}>
+                {label}
+              </Typography>
+            </Box>
+          ))}
+        </Stack>
       )}
     </Stack>
   );

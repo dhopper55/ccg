@@ -9,6 +9,7 @@ interface PricingBottomBarProps {
   title?: string;
   price?: number;
   disabled?: boolean;
+  buttonLabel?: string;
   onAddToCart?: () => void;
 }
 
@@ -17,6 +18,7 @@ const PricingBottomBar = ({
   title,
   price = 0,
   disabled = false,
+  buttonLabel = 'Add to Cart',
   onAddToCart,
 }: PricingBottomBarProps) => {
   const { currencyFormat } = useNumberFormat();
@@ -105,7 +107,7 @@ const PricingBottomBar = ({
               onClick={onAddToCart}
               sx={{ flex: 1, flexShrink: 0, whiteSpace: 'nowrap', maxWidth: 275 }}
             >
-              Add to Cart
+              {buttonLabel}
             </Button>
           </Stack>
         </Grid>

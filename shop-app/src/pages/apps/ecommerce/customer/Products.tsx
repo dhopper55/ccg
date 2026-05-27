@@ -28,6 +28,7 @@ type ShopProduct = {
   mainImage: string;
   saleTitle: string;
   saleUrlSlug: string;
+  quantity: number;
   saleCondition: string;
   regularPrice: number | null;
   salePrice: number;
@@ -445,6 +446,7 @@ const ProductCard = ({ product }: { product: ShopProduct }) => {
     saleTitle,
     salePrice,
     regularPrice,
+    quantity,
     category,
     secondaryCategory,
     allowShipping,
@@ -453,6 +455,7 @@ const ProductCard = ({ product }: { product: ShopProduct }) => {
   const hasDiscount = regularPrice != null && regularPrice > 0 && salePrice > 0 && salePrice < regularPrice;
   const discount = hasDiscount ? calcDiscount(regularPrice!, salePrice) : 0;
   const displayPrice = salePrice > 0 ? salePrice : (regularPrice ?? 0);
+  const isOutOfStock = Number(quantity || 0) <= 0;
 
   const categorySlug = slugifyCategory(product.primaryCategoryName);
   const productSlug = product.saleUrlSlug.trim();
@@ -527,6 +530,15 @@ const ProductCard = ({ product }: { product: ShopProduct }) => {
           <Typography variant="caption" sx={{ color: 'text.secondary' }}>
             Local pickup only.
           </Typography>
+        )}
+
+        {isOutOfStock && (
+          <Chip
+            label="Currently Out of Stock"
+            color="warning"
+            size="small"
+            sx={{ fontWeight: 700 }}
+          />
         )}
 
         {displayPrice > 0 && (

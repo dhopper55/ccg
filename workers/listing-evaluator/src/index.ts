@@ -231,6 +231,7 @@ type ShopCheckoutDraft = {
 interface ShopCheckoutInventoryRow {
   id: number;
   title: string | null;
+  quantity?: number | null;
   sale_title: string | null;
   brand: string | null;
   model: string | null;
@@ -541,6 +542,19 @@ export default {
 
     if (path === '/api/shop/sitemap-products' && request.method === 'GET') {
       const response = await handleShopSitemapProducts(env);
+      return withCors(response, request, env);
+    }
+
+    if (
+      (path === '/api/shop/google-merchant-feed.xml' || path === '/google-merchant-feed.xml') &&
+      (request.method === 'GET' || request.method === 'HEAD')
+    ) {
+      const response = await handleGoogleMerchantFeed(env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/shop/analytics/event' && request.method === 'POST') {
+      const response = await handleShopAnalyticsEvent(request, env);
       return withCors(response, request, env);
     }
 
@@ -5364,6 +5378,31 @@ async function handleShopSitemapProducts(env: Env): Promise<Response> {
   return jsonResponse({ records });
 }
 
+async function handleGoogleMerchantFeed(env: Env): Promise<Response> {
+  const baseUrl = normalizeText(env.SITE_BASE_URL, 'https://www.coalcreekguitars.com').replace(/\/+$/, '');
+  const records = await dbListGoogleMerchantProducts(env);
+  const xml = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">',
+    '  <channel>',
+    '    <title>Coal Creek Guitars Products</title>',
+    `    <link>${escapeXml(`${baseUrl}${SHOP_BASE_PATH}`)}</link>`,
+    '    <description>Current guitars and gear for sale from Coal Creek Guitars.</description>',
+    ...records.map((record) => renderGoogleMerchantFeedItem(record)),
+    '  </channel>',
+    '</rss>',
+  ].join('\n');
+
+  return new Response(xml, {
+    headers: {
+      'content-type': 'application/xml; charset=UTF-8',
+      'cache-control': 'no-store, max-age=0',
+      'x-ccg-feed-source': 'google-merchant',
+      'x-ccg-feed-product-count': String(records.length),
+    },
+  });
+}
+
 async function handleShopReceiptTemplate(templateCode: string, env: Env): Promise<Response> {
   const code = normalizeText(templateCode, '').slice(0, 100);
   if (!/^[a-z0-9_-]+$/i.test(code)) {
@@ -5632,6 +5671,127 @@ function buildShopProductDescription(product: Record<string, unknown>): string {
   return `${text.slice(0, 157).replace(/\s+\S*$/, '')}...`;
 }
 
+type GoogleMerchantFeedProduct = {
+  id: string;
+  title: string;
+  description: string;
+  link: string;
+  imageLink: string;
+  additionalImageLinks: string[];
+  availability: 'in stock' | 'out of stock';
+  price: number;
+  salePrice: number;
+  condition: 'new' | 'used' | 'refurbished';
+  brand: string;
+  gtin: string;
+  identifierExists: boolean;
+  productType: string;
+  shippingWeight: string;
+};
+
+function renderGoogleMerchantFeedItem(product: GoogleMerchantFeedProduct): string {
+  const item: string[] = [
+    '    <item>',
+    `      <g:id>${escapeXml(product.id)}</g:id>`,
+    `      <g:title>${escapeXml(product.title)}</g:title>`,
+    `      <g:description>${escapeXml(product.description)}</g:description>`,
+    `      <g:link>${escapeXml(product.link)}</g:link>`,
+  ];
+
+  if (product.imageLink) item.push(`      <g:image_link>${escapeXml(product.imageLink)}</g:image_link>`);
+  for (const imageLink of product.additionalImageLinks.slice(0, 10)) {
+    item.push(`      <g:additional_image_link>${escapeXml(imageLink)}</g:additional_image_link>`);
+  }
+
+  item.push(
+    `      <g:availability>${escapeXml(product.availability)}</g:availability>`,
+    `      <g:price>${formatMerchantPrice(product.price)}</g:price>`,
+  );
+
+  if (product.salePrice > 0 && product.salePrice < product.price) {
+    item.push(`      <g:sale_price>${formatMerchantPrice(product.salePrice)}</g:sale_price>`);
+  }
+
+  item.push(
+    `      <g:condition>${escapeXml(product.condition)}</g:condition>`,
+    `      <g:identifier_exists>${product.identifierExists ? 'yes' : 'no'}</g:identifier_exists>`,
+  );
+
+  if (product.brand) item.push(`      <g:brand>${escapeXml(product.brand)}</g:brand>`);
+  if (product.gtin) item.push(`      <g:gtin>${escapeXml(product.gtin)}</g:gtin>`);
+  if (product.productType) item.push(`      <g:product_type>${escapeXml(product.productType)}</g:product_type>`);
+  if (product.shippingWeight) item.push(`      <g:shipping_weight>${escapeXml(product.shippingWeight)}</g:shipping_weight>`);
+
+  item.push(
+    '      <g:shipping>',
+    '        <g:country>US</g:country>',
+    '        <g:service>Standard</g:service>',
+    `        <g:price>${formatMerchantPrice(product.price >= 75 ? 0 : 6)}</g:price>`,
+    '      </g:shipping>',
+    `      <g:ads_redirect>${escapeXml(product.link)}</g:ads_redirect>`,
+    '    </item>',
+  );
+
+  return item.join('\n');
+}
+
+function formatMerchantPrice(value: number): string {
+  const normalized = Number.isFinite(value) ? Math.max(0, value) : 0;
+  return `${normalized.toFixed(2)} USD`;
+}
+
+function normalizeGoogleMerchantCondition(input: unknown): 'new' | 'used' | 'refurbished' {
+  const value = normalizeText(input, '').toLowerCase();
+  if (value.includes('new')) return 'new';
+  if (value.includes('refurb')) return 'refurbished';
+  return 'used';
+}
+
+function normalizeMerchantDescription(input: unknown, fallback: string): string {
+  const text = stripHtmlTags(normalizeText(input, '')).replace(/\s+/g, ' ').trim();
+  const description = text || fallback;
+  return description.slice(0, 5000);
+}
+
+function stripHtmlTags(input: string): string {
+  return input.replace(/<[^>]*>/g, ' ');
+}
+
+function normalizeMerchantGtin(input: unknown): string {
+  const value = normalizeText(input, '').replace(/\D/g, '');
+  if (![8, 12, 13, 14].includes(value.length)) return '';
+  if (/^900000000/.test(value)) return '';
+  return hasValidGtinCheckDigit(value) ? value : '';
+}
+
+function hasValidGtinCheckDigit(value: string): boolean {
+  const digits = value.split('').map((digit) => Number(digit));
+  if (digits.some((digit) => !Number.isInteger(digit))) return false;
+  const checkDigit = digits.pop();
+  if (checkDigit == null) return false;
+  const sum = digits
+    .reverse()
+    .reduce((total, digit, index) => total + digit * (index % 2 === 0 ? 3 : 1), 0);
+  return (10 - (sum % 10)) % 10 === checkDigit;
+}
+
+function normalizeMerchantShippingWeight(input: unknown): string {
+  const value = Number(normalizeText(input, '').replace(/[^\d.]/g, ''));
+  if (!Number.isFinite(value) || value <= 0) return '';
+  return `${value.toFixed(2)} lb`;
+}
+
+function buildMerchantProductLink(row: ShopProductRow, baseUrl: string): string {
+  const categorySlug = slugifyShopCategory(normalizeText(row.category_name, ''));
+  const productSlug = normalizeText(row.sale_url, '');
+  if (!categorySlug || !isValidSaleUrlSlug(productSlug)) return '';
+  return `${baseUrl}${SHOP_BASE_PATH}/${categorySlug}/${productSlug}`;
+}
+
+function getMerchantProductId(row: ShopProductRow): string {
+  return normalizeText(row.ccg_number, '') || `ccg-inventory-${row.id}`;
+}
+
 function buildShopProductJsonLd(
   product: Record<string, unknown>,
   context: {
@@ -5756,6 +5916,89 @@ async function handleShopProductDetailBySlug(slug: string, request: Request, env
   const record = await dbGetShopProductDetail({ slug: trimmed }, env, { includeInStoreOnly });
   if (!record) return jsonResponse({ message: 'Product not found.' }, 404);
   return jsonResponse({ record });
+}
+
+type ShopAnalyticsEventInput = {
+  eventType?: unknown;
+  inventoryItemId?: unknown;
+  sessionId?: unknown;
+  pagePath?: unknown;
+  referrer?: unknown;
+  metadata?: unknown;
+};
+
+const SHOP_ANALYTICS_EVENT_TYPES = new Set([
+  'product_view',
+  'search',
+  'add_to_cart',
+  'checkout_start',
+]);
+
+async function handleShopAnalyticsEvent(request: Request, env: Env): Promise<Response> {
+  let body: ShopAnalyticsEventInput;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  const eventType = normalizeText(body?.eventType, '').toLowerCase();
+  if (!SHOP_ANALYTICS_EVENT_TYPES.has(eventType)) {
+    return jsonResponse({ message: 'Unsupported analytics event.' }, 400);
+  }
+
+  const userAgent = normalizeText(request.headers.get('user-agent'), '');
+  const botUserAgent = getObviousBotUserAgent(userAgent);
+  if (botUserAgent) {
+    return jsonResponse({ ok: true, skipped: true, reason: 'bot_user_agent', botUserAgent });
+  }
+
+  const pagePath = normalizeAnalyticsPagePath(body?.pagePath);
+  if (eventType === 'product_view' && !pagePath.startsWith(`${SHOP_BASE_PATH}/`)) {
+    return jsonResponse({ message: 'Invalid product view path.' }, 400);
+  }
+
+  const inventoryItemId = toPositiveInteger(body?.inventoryItemId);
+  if ((eventType === 'product_view' || eventType === 'add_to_cart') && inventoryItemId == null) {
+    return jsonResponse({ message: 'Inventory item is required.' }, 400);
+  }
+
+  const sessionId = normalizeAnalyticsToken(body?.sessionId, 80);
+  const referrer = truncateText(normalizeText(body?.referrer, ''), 500);
+  const metadataJson = serializeAnalyticsMetadata(body?.metadata);
+  const cf = (request as any).cf || {};
+  const ipHash = await hashAnalyticsIp(normalizeText(request.headers.get('cf-connecting-ip'), ''), env);
+  const isSuspicious = isSuspiciousAnalyticsRequest(request, pagePath);
+
+  await env.DB.prepare(
+    `INSERT INTO shop_analytics_events (
+       event_type,
+       inventory_item_id,
+       session_id,
+       page_path,
+       referrer,
+       user_agent,
+       ip_hash,
+       country,
+       colo,
+       is_suspicious,
+       metadata_json
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(
+    eventType,
+    inventoryItemId,
+    sessionId,
+    pagePath,
+    referrer,
+    truncateText(userAgent, 500),
+    ipHash,
+    truncateText(normalizeText(cf.country, ''), 8),
+    truncateText(normalizeText(cf.colo, ''), 16),
+    isSuspicious ? 1 : 0,
+    metadataJson,
+  ).run();
+
+  return jsonResponse({ ok: true, skipped: false });
 }
 
 async function handleShopNewsletterSubscribe(request: Request, env: Env): Promise<Response> {
@@ -10672,6 +10915,7 @@ async function dbListShopProducts(
        i.title,
        i.sale_title,
        i.sale_url,
+       i.quantity,
        i.regular_price,
        i.sale_price,
        i.clearance,
@@ -10696,6 +10940,7 @@ async function dbListShopProducts(
     mainImage,
     saleTitle: normalizeText(row.sale_title, '') || normalizeText(row.title, ''),
     saleUrlSlug: normalizeText(row.sale_url, ''),
+    quantity: Number(row.quantity ?? 0),
     saleCondition: row.condition || '',
     saleDescription: row.sale_description || '',
     regularPrice: row.regular_price,
@@ -10897,6 +11142,111 @@ async function dbListShopSitemapProducts(env: Env): Promise<Array<Record<string,
       isSold: Boolean(row.is_sold),
     };
   }).filter((record): record is Record<string, unknown> => Boolean(record?.urlPath));
+}
+
+async function dbListGoogleMerchantProducts(env: Env): Promise<GoogleMerchantFeedProduct[]> {
+  const baseUrl = normalizeText(env.SITE_BASE_URL, 'https://www.coalcreekguitars.com').replace(/\/+$/, '');
+  const result = await env.DB.prepare(
+    `SELECT
+       i.id,
+       i.ccg_number,
+       CASE
+         WHEN EXISTS (
+           SELECT 1
+           FROM ccg_inventory_item_images sii_exists
+           WHERE sii_exists.inventory_item_id = i.id
+         ) THEN COALESCE((
+           SELECT sii.image_url
+           FROM ccg_inventory_item_images sii
+           WHERE sii.inventory_item_id = i.id
+             AND COALESCE(sii.is_private, 0) = 0
+           ORDER BY sii.display_order ASC, sii.id ASC
+           LIMIT 1
+         ), '')
+         ELSE i.image_url
+       END AS image_url,
+       COALESCE((
+         SELECT GROUP_CONCAT(sii.image_url, CHAR(31))
+         FROM ccg_inventory_item_images sii
+         WHERE sii.inventory_item_id = i.id
+           AND COALESCE(sii.is_private, 0) = 0
+       ), '') AS feed_image_urls,
+       i.image_urls,
+       i.title,
+       i.sale_title,
+       i.sale_url,
+       i.quantity,
+       i.regular_price,
+       i.sale_price,
+       i."condition",
+       i.brand,
+       i.barcode,
+       i.sale_description,
+       i.weight_lbs,
+       ${INVENTORY_CATEGORY_SELECT_SQL},
+       i.is_sold
+     FROM ccg_inventory_items i
+     ${INVENTORY_CATEGORY_JOIN_SQL}
+     WHERE COALESCE(i.is_active, 0) = 1
+       AND COALESCE(i.for_sale, 0) = 1
+       AND COALESCE(i.is_sold, 0) = 0
+       AND COALESCE(i.only_in_store, 0) = 0
+       AND COALESCE(i.allow_shipping, 0) = 1
+       AND COALESCE(i.is_rented, 0) = 0
+       AND TRIM(COALESCE(i.sale_url, '')) != ''
+       AND (
+         CASE
+           WHEN COALESCE(i.sale_price, 0) > 0 THEN COALESCE(i.sale_price, 0)
+           ELSE COALESCE(i.regular_price, 0)
+         END
+       ) > 0
+     ORDER BY
+       c."order" ASC,
+       LOWER(COALESCE(i.sale_title, i.title, '')) ASC,
+       i.id DESC`
+  ).all<ShopProductRow & { feed_image_urls: string | null }>();
+
+  return (result.results ?? []).map((row) => {
+    const title = normalizeText(row.sale_title, '') || normalizeText(row.title, '');
+    const link = buildMerchantProductLink(row, baseUrl);
+    const regularPrice = Number(row.regular_price ?? row.sale_price ?? 0);
+    const salePrice = Number(row.sale_price ?? 0);
+    const effectivePrice = salePrice > 0 ? salePrice : regularPrice;
+    const feedImages = normalizeText(row.feed_image_urls, '')
+      .split(String.fromCharCode(31))
+      .map((imageUrl) => toPublicShopImageUrl(imageUrl, 'detail'))
+      .filter(Boolean);
+    const storedImages = parseStoredInventoryImageUrls(row.image_urls || null, row.image_url || null)
+      .map((imageUrl) => toPublicShopImageUrl(imageUrl, 'detail'))
+      .filter(Boolean);
+    const images = Array.from(new Set([
+      toPublicShopImageUrl(row.image_url, 'detail'),
+      ...feedImages,
+      ...storedImages,
+    ].filter(Boolean)));
+    const gtin = normalizeMerchantGtin(row.barcode);
+    const productType = normalizeText(row.category_path || row.category_name, '');
+    const shippingWeight = normalizeMerchantShippingWeight(row.weight_lbs);
+    if (!title || !link || images.length === 0 || effectivePrice <= 0) return null;
+
+    return {
+      id: getMerchantProductId(row),
+      title: title.slice(0, 150),
+      description: normalizeMerchantDescription(row.sale_description, title),
+      link,
+      imageLink: images[0],
+      additionalImageLinks: images.slice(1),
+      availability: Number(row.quantity ?? 0) > 0 ? 'in stock' : 'out of stock',
+      price: regularPrice > 0 ? regularPrice : effectivePrice,
+      salePrice: salePrice > 0 && salePrice < regularPrice ? salePrice : 0,
+      condition: normalizeGoogleMerchantCondition(row.condition),
+      brand: normalizeText(row.brand, ''),
+      gtin,
+      identifierExists: Boolean(gtin),
+      productType,
+      shippingWeight,
+    };
+  }).filter((record): record is GoogleMerchantFeedProduct => Boolean(record));
 }
 
 async function dbCreateNewsletterSubscriber(email: string, env: Env): Promise<boolean> {
@@ -16662,7 +17012,8 @@ function getCheckoutInventoryUnavailableReason(
   if (Number(row.only_in_store || 0) === 1 && !input.includeInStoreOnly) {
     return `${title} is only available in store.`;
   }
-  const availableQuantity = Math.max(1, Number(row.quantity || 1));
+  const availableQuantity = Math.max(0, Number(row.quantity ?? 0));
+  if (availableQuantity <= 0) return `${title} is currently out of stock.`;
   if (input.requestedQuantity > availableQuantity) {
     return `${title} has only ${availableQuantity} available.`;
   }
@@ -17147,6 +17498,113 @@ function validateForSaleInventoryFields(input: {
 function isValidAssociateToken(token: string, env: Env): boolean {
   const expected = normalizeText(env.ASSOCIATE_MODE_TOKEN, '');
   return Boolean(expected && token === expected);
+}
+
+function getObviousBotUserAgent(userAgent: string): string {
+  const value = userAgent.toLowerCase();
+  if (!value) return 'missing';
+  const botPatterns = [
+    'googlebot',
+    'bingbot',
+    'slurp',
+    'duckduckbot',
+    'baiduspider',
+    'yandexbot',
+    'sogou',
+    'exabot',
+    'facebot',
+    'facebookexternalhit',
+    'twitterbot',
+    'linkedinbot',
+    'pinterestbot',
+    'slackbot',
+    'discordbot',
+    'telegrambot',
+    'whatsapp',
+    'applebot',
+    'ahrefsbot',
+    'semrushbot',
+    'mj12bot',
+    'dotbot',
+    'petalbot',
+    'bytespider',
+    'ccbot',
+    'gptbot',
+    'claudebot',
+    'perplexitybot',
+    'crawler',
+    'spider',
+    'bot/',
+  ];
+  return botPatterns.find((pattern) => value.includes(pattern)) || '';
+}
+
+function normalizeAnalyticsPagePath(input: unknown): string {
+  const value = truncateText(normalizeText(input, ''), 500);
+  if (!value) return '';
+  try {
+    const parsed = value.startsWith('http') ? new URL(value) : null;
+    if (parsed) return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return '';
+  }
+  return value.startsWith('/') ? value : '';
+}
+
+function normalizeAnalyticsToken(input: unknown, maxLength: number): string {
+  const value = truncateText(normalizeText(input, ''), maxLength);
+  return /^[a-zA-Z0-9._:-]+$/.test(value) ? value : '';
+}
+
+function toPositiveInteger(input: unknown): number | null {
+  const value = Number(input);
+  if (!Number.isInteger(value) || value <= 0) return null;
+  return value;
+}
+
+function serializeAnalyticsMetadata(input: unknown): string {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return '';
+  const sanitized = Object.fromEntries(
+    Object.entries(input as Record<string, unknown>)
+      .slice(0, 25)
+      .map(([key, value]) => [
+        truncateText(normalizeText(key, ''), 80),
+        typeof value === 'number' || typeof value === 'boolean'
+          ? value
+          : truncateText(normalizeText(value, ''), 500),
+      ])
+      .filter(([key]) => Boolean(key)),
+  );
+  const json = JSON.stringify(sanitized);
+  return json.length > 4000 ? json.slice(0, 4000) : json;
+}
+
+async function hashAnalyticsIp(ipAddress: string, env: Env): Promise<string> {
+  const ip = normalizeText(ipAddress, '');
+  const secret = normalizeText(env.AUTH_SECRET, '');
+  if (!ip || !secret) return '';
+  const encoded = new TextEncoder().encode(`${secret}:${ip}`);
+  const digest = await crypto.subtle.digest('SHA-256', encoded);
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+function isSuspiciousAnalyticsRequest(request: Request, pagePath: string): boolean {
+  const secFetchDest = normalizeText(request.headers.get('sec-fetch-dest'), '').toLowerCase();
+  const secFetchMode = normalizeText(request.headers.get('sec-fetch-mode'), '').toLowerCase();
+  const origin = normalizeText(request.headers.get('origin'), '');
+  const referer = normalizeText(request.headers.get('referer'), '');
+  if (!pagePath.startsWith(SHOP_BASE_PATH)) return true;
+  if (secFetchDest && secFetchDest !== 'empty') return true;
+  if (secFetchMode && !['cors', 'same-origin'].includes(secFetchMode)) return true;
+  if (origin && !origin.includes('coalcreekguitars.com') && !origin.includes('ccg-2k1.pages.dev')) return true;
+  if (referer && !referer.includes('coalcreekguitars.com') && !referer.includes('ccg-2k1.pages.dev')) return true;
+  return false;
+}
+
+function truncateText(value: string, maxLength: number): string {
+  return value.length > maxLength ? value.slice(0, maxLength) : value;
 }
 
 async function isAssociateModeRequest(request: Request, env: Env): Promise<boolean> {

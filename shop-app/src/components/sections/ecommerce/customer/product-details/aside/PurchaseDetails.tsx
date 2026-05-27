@@ -29,7 +29,19 @@ const PurchaseDetails = ({ allowShipping = false, sx }: { allowShipping?: boolea
           }}
         >
           {allowShipping ? (
-            'Store pickup, local delivery, or shipping in the US available'
+            <>
+              Store pickup, local delivery, or shipping in the US available
+              <Box
+                sx={{
+                  display: 'block',
+                  fontWeight: 700,
+                  color: 'success.main',
+                }}
+                component="span"
+              >
+                $6 flat rate under $75, free shipping at $75+
+              </Box>
+            </>
           ) : (
             <>
               Store pickup in Englewood & local delivery

@@ -1,4 +1,5 @@
 import { Box } from '@mui/material';
+import PromoBanner from './PromoBanner';
 import PrimaryAppbar from './primary';
 
 const EcommerceAppbar = () => {
@@ -9,7 +10,7 @@ const EcommerceAppbar = () => {
       }}
     >
       <PrimaryAppbar>
-        {null}
+        <PromoBanner />
       </PrimaryAppbar>
     </Box>
   );
