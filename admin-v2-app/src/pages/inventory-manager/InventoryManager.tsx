@@ -51,6 +51,7 @@ type InventoryRecord = {
   isSold?: boolean;
   unitPurchasePrice?: number | null;
   privatePartyValue?: number | null;
+  salePrice?: number | null;
   soldAmount?: number | null;
   createdAt?: string | null;
   quantity?: number | null;
@@ -126,8 +127,13 @@ function formatCurrency(value: number | null | undefined): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(value);
+}
+
+function formatForSalePrice(record: InventoryRecord): string {
+  return record.forSale ? formatCurrency(record.salePrice) : '';
 }
 
 const FILTER_CONTROL_WIDTH = 260;
@@ -547,13 +553,7 @@ const InventoryManager = () => {
               </TableSortLabel>
             </TableCell>
             <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-              <TableSortLabel
-                active={sortBy === 'addDate'}
-                direction={sortBy === 'addDate' ? sortDir : 'asc'}
-                onClick={() => handleSort('addDate')}
-              >
-                Add Date
-              </TableSortLabel>
+              For Sale Price
             </TableCell>
           </TableRow>
         </TableHead>
@@ -702,7 +702,7 @@ const InventoryManager = () => {
                 </TableCell>
                 <TableCell align="right">{formatCurrency(record.unitPurchasePrice)}</TableCell>
                 <TableCell align="right">{formatCurrency(record.privatePartyValue)}</TableCell>
-                <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>{formatAddDate(record.createdAt)}</TableCell>
+                <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>{formatForSalePrice(record)}</TableCell>
               </TableRow>
             ))
           )}
@@ -825,7 +825,9 @@ const InventoryManager = () => {
                 <Typography variant="body2">
                   Private: {formatCurrency(record.privatePartyValue)}
                 </Typography>
-                <Typography variant="body2">Added: {formatAddDate(record.createdAt)}</Typography>
+                {record.forSale ? (
+                  <Typography variant="body2">For sale: {formatCurrency(record.salePrice)}</Typography>
+                ) : null}
               </Stack>
             </Stack>
           </Paper>

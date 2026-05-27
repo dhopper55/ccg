@@ -6616,17 +6616,23 @@ async function handleAdminV2Search(request: Request, env: Env): Promise<Response
   const invRows = await env.DB.prepare(
     `SELECT id, ccg_number, title, brand, model, image_url
      FROM ccg_inventory_items
-     WHERE COALESCE(is_active, 0) = 1
-       AND COALESCE(is_sold, 0) = 0
-       AND COALESCE(sold_channel, '') = ''
-       AND (
-         title LIKE ?
-         OR (COALESCE(brand,'') || ' ' || COALESCE(model,'')) LIKE ?
-         OR UPPER(COALESCE(ccg_number, '')) LIKE UPPER(?)
-         OR REPLACE(UPPER(COALESCE(ccg_number, '')), 'CCG-', '') LIKE ?
+     WHERE (
+       (
+         COALESCE(is_active, 0) = 1
+         AND (
+           title LIKE ?
+           OR (COALESCE(brand,'') || ' ' || COALESCE(model,'')) LIKE ?
+           OR UPPER(COALESCE(ccg_number, '')) LIKE UPPER(?)
+           OR REPLACE(UPPER(COALESCE(ccg_number, '')), 'CCG-', '') LIKE ?
+         )
        )
+       OR (
+         ? <> ''
+         AND REPLACE(UPPER(COALESCE(ccg_number, '')), 'CCG-', '') = ?
+       )
+     )
      LIMIT 5`
-  ).bind(like, like, like, ccgLike).all<{
+  ).bind(like, like, like, ccgLike, normalizedCcgQuery, normalizedCcgQuery).all<{
     id: number;
     ccg_number: string | null;
     title: string;
