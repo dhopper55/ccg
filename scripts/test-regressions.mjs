@@ -1671,6 +1671,24 @@ function assertCortModern8DigitYearBatch(serialInput, expectedYear) {
   );
 }
 
+function assertCortModern2000sDroppedLeadingZero(serialInput, expectedYear, expectedMonth) {
+  const result = decodeSerialForBackend('cort', serialInput);
+  assert(result.success, `Expected decode success for cort:${serialInput}`);
+  assert(result.info, `Expected decoded info for cort:${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.notes && info.notes.includes('production sequence 14001'),
+    `Expected production sequence 14001 for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    result.patternKey === 'cort-modern-2000s-dropped-leading-zero-yymm-sequence',
+    `Expected Cort omitted-leading-zero pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
 function assertCortModern9DigitModelYear(serialInput, expectedYear, expectedMonth) {
   const result = decodeSerialForBackend('cort', serialInput);
   assert(result.success, `Expected decode success for cort:${serialInput}`);
@@ -2913,6 +2931,7 @@ assertCortIATransposedPrefix('IA200750591', 'AI200750591', '2020', 'July');
 assertCortYearSequence7Digit('0000400');
 assertCortLate1990s8Digit('99122466');
 assertCortModern8DigitYearBatch('20002219', '2020');
+assertCortModern2000sDroppedLeadingZero('70514001', '2007', 'May');
 assertCortModern9DigitModelYear('270327182', '2027', 'March');
 assertCortModern12DigitTracking('210000050443', '2021');
 assertCortRPrefixYearSequence('R 0611374', 'R0611374', '2006');

@@ -13,6 +13,8 @@ type SystemSettingsForm = {
   customProductBarcode: string;
   currentUsedLocalFunds: string;
   currentMfrWholesaleFunds: string;
+  postStoreLaunchDate: string;
+  saleDescriptionPostfix: string;
 };
 
 type SystemSettingsResponse = Partial<SystemSettingsForm> & {
@@ -33,6 +35,8 @@ const defaultForm: SystemSettingsForm = {
   customProductBarcode: '',
   currentUsedLocalFunds: '0.00',
   currentMfrWholesaleFunds: '0.00',
+  postStoreLaunchDate: '2026-06-01',
+  saleDescriptionPostfix: '',
 };
 
 const SystemSettings = () => {
@@ -64,6 +68,8 @@ const SystemSettings = () => {
         customProductBarcode: payload.customProductBarcode || '',
         currentUsedLocalFunds: payload.currentUsedLocalFunds || '0.00',
         currentMfrWholesaleFunds: payload.currentMfrWholesaleFunds || '0.00',
+        postStoreLaunchDate: payload.postStoreLaunchDate || '2026-06-01',
+        saleDescriptionPostfix: payload.saleDescriptionPostfix || '',
       });
       setUseStripeSandbox(stripePayload.useStripeSandbox ?? true);
     } catch (error) {
@@ -100,6 +106,8 @@ const SystemSettings = () => {
           customProductBarcode: form.customProductBarcode,
           currentUsedLocalFunds: Number(form.currentUsedLocalFunds),
           currentMfrWholesaleFunds: Number(form.currentMfrWholesaleFunds),
+          postStoreLaunchDate: form.postStoreLaunchDate,
+          saleDescriptionPostfix: form.saleDescriptionPostfix,
         }),
       });
       const payload = (await response.json()) as SystemSettingsResponse;
@@ -112,6 +120,8 @@ const SystemSettings = () => {
         customProductBarcode: payload.customProductBarcode || form.customProductBarcode,
         currentUsedLocalFunds: payload.currentUsedLocalFunds || form.currentUsedLocalFunds,
         currentMfrWholesaleFunds: payload.currentMfrWholesaleFunds || form.currentMfrWholesaleFunds,
+        postStoreLaunchDate: payload.postStoreLaunchDate || form.postStoreLaunchDate,
+        saleDescriptionPostfix: payload.saleDescriptionPostfix ?? form.saleDescriptionPostfix,
       });
       enqueueSnackbar('System settings saved.', { variant: 'success' });
     } catch (error) {
@@ -238,6 +248,25 @@ const SystemSettings = () => {
             disabled={isLoading || isSaving}
             onChange={handleChange('currentMfrWholesaleFunds')}
             inputProps={{ min: 0, step: 0.01 }}
+          />
+          <TextField
+            fullWidth
+            required
+            type="date"
+            label="Post Store Launch Date"
+            value={form.postStoreLaunchDate}
+            disabled={isLoading || isSaving}
+            onChange={handleChange('postStoreLaunchDate')}
+            InputLabelProps={{ shrink: true }}
+          />
+          <TextField
+            fullWidth
+            multiline
+            minRows={12}
+            label="Sale Description Postfix"
+            value={form.saleDescriptionPostfix}
+            disabled={isLoading || isSaving}
+            onChange={handleChange('saleDescriptionPostfix')}
           />
         </Stack>
       </Paper>

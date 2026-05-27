@@ -43,6 +43,7 @@ type DashboardSummaryResponse = {
     soldMargin60DayPercent: number;
     soldMargin90DayPercent: number;
     postStoreLaunchMarginPercent: number;
+    postStoreLaunchDate: string;
     forSaleItems: number;
     avgDaysToSell: number;
     activeItems: number;
@@ -569,7 +570,7 @@ const Starter = () => {
             <Grid size={{ xs: 12, md: 3 }}>
               <MetricMiniCard
                 title="Post-store launch margin"
-                subTitle="Sold since Jun 1, 2026"
+                subTitle={`Sold since ${formatShortDate(summary?.postStoreLaunchDate || '2026-06-01')}`}
                 value={formatPercent(summary?.postStoreLaunchMarginPercent || 0)}
               />
             </Grid>

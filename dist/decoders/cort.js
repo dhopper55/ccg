@@ -3,6 +3,7 @@
  *
  * Supports:
  * - Modern format: YYMMXXXX (2000-2004)
+ * - Modern format with omitted leading zero: YMMXXXXX (2000-2009)
  * - Modern numeric year/batch format: YY00XXXX
  * - Modern format extended: YYMMXXXXX (2005-present)
  * - Modern 12-digit logistics/tracking format: YY + 10-digit sequence
@@ -74,6 +75,10 @@ export function decodeCort(serial) {
     // Modern numeric year/batch format: YY00XXXX
     if (/^\d{2}00\d{4}$/.test(normalized)) {
         return decodeModern8DigitYearBatch(normalized);
+    }
+    // Modern 2000s format with omitted leading zero: YMMXXXXX (e.g. 70514001 = 07/05/14001)
+    if (/^[1-9]\d{7}$/.test(normalized) && isValidMonthDigits(normalized.substring(1, 3))) {
+        return decodeModern2000sDroppedLeadingZero(normalized);
     }
     // Modern format with 8 digits: YYMMXXXX (2000-2004)
     if (/^\d{8}$/.test(normalized)) {
@@ -552,6 +557,48 @@ function decodeModern8Digit(serial) {
         notes: `Modern 8-digit format (YYMMXXXX) used 2000-2004. Production sequence: ${sequence}. Exact factory location requires additional identification from the instrument.`,
     };
     return { success: true, info };
+}
+// Modern 2000s format with omitted leading zero: YMMXXXXX
+function decodeModern2000sDroppedLeadingZero(serial) {
+    const yearDigits = `0${serial.substring(0, 1)}`;
+    const monthDigits = serial.substring(1, 3);
+    const sequence = serial.substring(3);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const month = parseInt(monthDigits, 10);
+    const info = {
+        brand: 'Cort',
+        serialNumber: serial,
+        year: year.toString(),
+        month: getMonthName(month),
+        factory: 'Cort (location varies - Korea, Indonesia, or China)',
+        country: 'Korea, Indonesia, or China',
+        notes: `Modern Cort numeric format with omitted leading zero, interpreted as ${yearDigits}${monthDigits}${sequence}. The first digit is treated as the 2000s year (${year}), the next two digits (${monthDigits}) indicate ${getMonthName(month)}, and the remaining digits are production sequence ${parseInt(sequence, 10)}. Cort serials identify production date more reliably than exact model, so verify the model from the headstock, label, or other physical markings.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'cort-modern-2000s-dropped-leading-zero-yymm-sequence',
+        patternLabel: 'Cort modern 2000s omitted-leading-zero YYMM sequence',
+        additionalContext: {
+            title: 'Cort modern 2000s numeric serial',
+            summary: 'This serial matches a Cort 2000s numeric format where the leading zero of the two-digit year appears to be omitted.',
+            highlights: [
+                `The leading digit is read as ${yearDigits}, indicating production year ${year}.`,
+                `The next two digits ${monthDigits} decode as ${getMonthName(month)}.`,
+                `The remaining digits decode as production sequence ${parseInt(sequence, 10)}.`,
+            ],
+            caveats: [
+                'Cort serials usually identify production date more reliably than exact model identity.',
+                'The serial does not identify the specific Cort model name.',
+                'Production location requires country-of-origin markings or other physical evidence.',
+            ],
+            verificationTips: [
+                'Check the headstock, soundhole label, neck heel, or back of headstock for model and country markings.',
+                'Compare the instrument against Cort catalog specs from the decoded year.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Cort 2000s numeric format where the leading zero of the two-digit year appears to be omitted.</p><h3>How This Pattern Is Typically Read</h3><p>The leading digit is read as ${yearDigits}, indicating production year ${year}. The next two digits ${monthDigits} decode as ${getMonthName(month)}. The remaining digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Cort serials usually identify production date more reliably than exact model identity.</li><li>The serial does not identify the specific Cort model name.</li><li>Production location requires country-of-origin markings or other physical evidence.</li></ul>`,
+    };
 }
 function decodeYearSequence7Digit(serial) {
     const yearDigits = serial.substring(0, 2);

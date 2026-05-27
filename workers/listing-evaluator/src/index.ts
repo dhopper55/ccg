@@ -81,6 +81,42 @@ const SITEMAP_STATIC_URLS = [
 ];
 const SHOP_BASE_PATH = '/guitars-and-gear-for-sale';
 const SHOP_STATIC_ORIGIN = 'https://ccg-2k1.pages.dev';
+const DEFAULT_SALE_DESCRIPTION_POSTFIX = `📍 Local pickup in Englewood, CO
+
+🔐 Come to our shop in Englewood during business hours and give this item (and many others) a try 🔐
+Thu: 10am-4pm
+Fri: 10am-4pm
+Sat: 10am-4pm
+Sun: 10am-4pm
+Mon: Closed
+Tue: Closed
+Wed: Closed
+** We can still make arrangements for you to see this item outside of business hours.  Just send us a message!
+
+⸻
+
+💳 Payment options:
+• Cash, Venmo, Zelle, CashApp, PayPal, Credit Card, or financing
+• Financing is with Affirm or Klarna via Stripe - our secure payment provider
+
+⸻
+
+Message us with any questions!
+info@coalcreekguitars.com
+(303) 376-9214 (call or text anytime)
+
+⸻
+
+About Coal Creek Guitars:
+
+Coal Creek Guitars has been serving the Denver area since 2017, specializing in clean, affordable, ready-to-play instruments.
+
+Every guitar we offer is:
+• Cleaned, checked, and properly set up
+• Ready to play from day one
+• Carefully selected to provide real value
+
+We focus on helping people get started the right way — without overpaying or dealing with unknown online sellers.`;
 const ASSOCIATE_COOKIE_NAME = 'ccg_associate';
 const ASSOCIATE_COOKIE_VALUE = 'associate';
 const SHOP_SALES_TAX_RATE = 0.0805;
@@ -2928,6 +2964,7 @@ type AdminV2DashboardSummary = {
   soldMargin60DayPercent: number;
   soldMargin90DayPercent: number;
   postStoreLaunchMarginPercent: number;
+  postStoreLaunchDate: string;
   forSaleItems: number;
   avgDaysToSell: number;
   activeItems: number;
@@ -3692,6 +3729,8 @@ async function handleAdminV2SystemSettingsUpdate(request: Request, env: Env): Pr
   const customProductBarcode = normalizeText(body.customProductBarcode, '').slice(0, 80);
   const currentUsedLocalFunds = parseCurrencyAmount(body.currentUsedLocalFunds);
   const currentMfrWholesaleFunds = parseCurrencyAmount(body.currentMfrWholesaleFunds);
+  const postStoreLaunchDate = normalizeInventoryDate(body.postStoreLaunchDate);
+  const saleDescriptionPostfix = normalizeText(body.saleDescriptionPostfix, '').slice(0, 12000);
 
   if (!Number.isFinite(templateId) || templateId <= 0 || Math.floor(templateId) !== templateId) {
     return jsonResponse({ message: 'Brevo Order Confirm Template ID must be a positive whole number.' }, 400);
@@ -3715,6 +3754,9 @@ async function handleAdminV2SystemSettingsUpdate(request: Request, env: Env): Pr
   if (currentMfrWholesaleFunds == null || currentMfrWholesaleFunds < 0) {
     return jsonResponse({ message: 'Current Mfr Wholesale Funds must be zero or greater.' }, 400);
   }
+  if (!postStoreLaunchDate) {
+    return jsonResponse({ message: 'Post Store Launch Date must be a valid date.' }, 400);
+  }
 
   try {
     await dbSetSystemSettings({
@@ -3725,6 +3767,8 @@ async function handleAdminV2SystemSettingsUpdate(request: Request, env: Env): Pr
       customProductBarcode,
       currentUsedLocalFunds,
       currentMfrWholesaleFunds,
+      postStoreLaunchDate,
+      saleDescriptionPostfix,
     }, env);
     const settings = await dbGetSystemSettings(env);
     return jsonResponse({ ok: true, ...settings });
@@ -4245,10 +4289,12 @@ async function getBrevoRuntimeConfig(env: Env): Promise<BrevoRuntimeConfig> {
 async function getShopRuntimeSettings(env: Env): Promise<{
   associateScreensaverIdleMs: number;
   customProductBarcode: string;
+  saleDescriptionPostfix: string;
 }> {
   const fallback = {
     associateScreensaverIdleMs: 60_000,
     customProductBarcode: '',
+    saleDescriptionPostfix: DEFAULT_SALE_DESCRIPTION_POSTFIX,
   };
 
   try {
@@ -4268,6 +4314,9 @@ async function getShopRuntimeSettings(env: Env): Promise<{
       customProductBarcode: columnNames.has('custom_product_barcode')
         ? normalizeText(row.custom_product_barcode, '').slice(0, 80)
         : fallback.customProductBarcode,
+      saleDescriptionPostfix: columnNames.has('sale_description_postfix')
+        ? normalizeText(row.sale_description_postfix, DEFAULT_SALE_DESCRIPTION_POSTFIX)
+        : fallback.saleDescriptionPostfix,
     };
   } catch (error) {
     console.warn('Shop sys_info settings lookup failed.', { error });
@@ -4568,6 +4617,8 @@ async function dbGetSystemSettings(env: Env): Promise<{
   customProductBarcode: string;
   currentUsedLocalFunds: string;
   currentMfrWholesaleFunds: string;
+  postStoreLaunchDate: string;
+  saleDescriptionPostfix: string;
 }> {
   const row = await env.DB.prepare('SELECT * FROM sys_info LIMIT 1').first<Record<string, unknown>>();
 
@@ -4579,6 +4630,8 @@ async function dbGetSystemSettings(env: Env): Promise<{
     customProductBarcode: normalizeText(row?.custom_product_barcode, ''),
     currentUsedLocalFunds: formatSystemCurrency(row?.current_used_local_funds),
     currentMfrWholesaleFunds: formatSystemCurrency(row?.current_mfr_wholesale_funds),
+    postStoreLaunchDate: normalizeInventoryDate(row?.post_store_launch_date) || '2026-06-01',
+    saleDescriptionPostfix: normalizeText(row?.sale_description_postfix, DEFAULT_SALE_DESCRIPTION_POSTFIX),
   };
 }
 
@@ -4591,6 +4644,8 @@ async function dbSetSystemSettings(
     customProductBarcode: string;
     currentUsedLocalFunds: number;
     currentMfrWholesaleFunds: number;
+    postStoreLaunchDate: string;
+    saleDescriptionPostfix: string;
   },
   env: Env,
 ): Promise<void> {
@@ -4604,6 +4659,8 @@ async function dbSetSystemSettings(
     'custom_product_barcode',
     'current_used_local_funds',
     'current_mfr_wholesale_funds',
+    'post_store_launch_date',
+    'sale_description_postfix',
   ];
   const missingColumn = requiredColumns.find((column) => !columnNames.has(column));
   if (missingColumn) {
@@ -4619,9 +4676,11 @@ async function dbSetSystemSettings(
        associate_screensaver_idle_seconds,
        custom_product_barcode,
        current_used_local_funds,
-       current_mfr_wholesale_funds
+       current_mfr_wholesale_funds,
+       post_store_launch_date,
+       sale_description_postfix
      )
-     VALUES (1, ?, ?, ?, ?, ?, ?, ?)
+     VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        brevo_order_confirmation_template_id = excluded.brevo_order_confirmation_template_id,
        brevo_sender_name = excluded.brevo_sender_name,
@@ -4630,6 +4689,8 @@ async function dbSetSystemSettings(
        custom_product_barcode = excluded.custom_product_barcode,
        current_used_local_funds = excluded.current_used_local_funds,
        current_mfr_wholesale_funds = excluded.current_mfr_wholesale_funds,
+       post_store_launch_date = excluded.post_store_launch_date,
+       sale_description_postfix = excluded.sale_description_postfix,
        updated_at = CURRENT_TIMESTAMP`
   ).bind(
     settings.brevoOrderConfirmationTemplateId,
@@ -4639,6 +4700,8 @@ async function dbSetSystemSettings(
     settings.customProductBarcode,
     Number(settings.currentUsedLocalFunds.toFixed(2)),
     Number(settings.currentMfrWholesaleFunds.toFixed(2)),
+    settings.postStoreLaunchDate,
+    settings.saleDescriptionPostfix,
   ).run();
 }
 
@@ -10900,6 +10963,7 @@ async function dbGetShopProductDetail(
     { text: normalizeText(row.bullet_5_text, ''), danger: Boolean(row.bullet_5_danger), highlight: Boolean(row.bullet_5_highlight) },
     { text: normalizeText(row.bullet_6_text, ''), danger: Boolean(row.bullet_6_danger), highlight: Boolean(row.bullet_6_highlight) },
   ].filter((item) => item.text);
+  const saleDescriptionPostfix = (await getShopRuntimeSettings(env)).saleDescriptionPostfix;
 
   return {
     id: String(row.id),
@@ -10911,7 +10975,7 @@ async function dbGetShopProductDetail(
     saleUrlSlug: normalizeText(row.sale_url, ''),
     saleZip: normalizeText(row.sale_zip, ''),
     saleCondition: row.condition || '',
-    saleDescription: row.sale_description || '',
+    saleDescription: appendSaleDescriptionPostfix(row.sale_description || '', saleDescriptionPostfix),
     highlights,
     brand: normalizeText(row.brand, ''),
     model: normalizeText(row.model, ''),
@@ -10936,6 +11000,58 @@ async function dbGetShopProductDetail(
     ].filter((item) => item.value && item.value.toLowerCase() !== 'unknown'),
     isSold: Boolean(row.is_sold),
   };
+}
+
+function appendSaleDescriptionPostfix(description: string, postfix: string): string {
+  const base = stripKnownSaleDescriptionFooter(normalizeText(description, '').trim());
+  const footer = normalizeText(postfix, '').trim();
+  if (!footer) return base;
+
+  const baseWithoutConfiguredFooter = stripTrailingText(base, footer);
+  const baseWithoutDefaultFooter = stripTrailingText(baseWithoutConfiguredFooter, DEFAULT_SALE_DESCRIPTION_POSTFIX);
+  return [baseWithoutDefaultFooter.trim(), footer].filter(Boolean).join('\n\n');
+}
+
+function stripKnownSaleDescriptionFooter(value: string): string {
+  const text = normalizeText(value, '').trim();
+  if (!text) return text;
+
+  const markers = [
+    '\n\n📍 Local pickup in Englewood, CO',
+    '\n\nLocal pickup in Englewood, CO',
+    '\n\n🔐 Come to our shop in Englewood',
+    '\n\n💳 Payment options:',
+    '\n\nPayment options:',
+    '\n\nCoal Creek Guitars –',
+    '\n\nAbout Coal Creek Guitars:',
+  ];
+  const markerIndex = markers
+    .map((marker) => text.indexOf(marker))
+    .filter((index) => index >= 0)
+    .sort((left, right) => left - right)[0];
+  return markerIndex == null ? text : text.slice(0, markerIndex).trim();
+}
+
+function stripTrailingText(value: string, trailingText: string): string {
+  const text = normalizeText(value, '').trim();
+  const suffix = normalizeText(trailingText, '').trim();
+  if (!text || !suffix) return text;
+  if (text.endsWith(suffix)) return text.slice(0, -suffix.length).trim();
+
+  const normalizedText = normalizeWhitespaceForComparison(text);
+  const normalizedSuffix = normalizeWhitespaceForComparison(suffix);
+  if (!normalizedText.endsWith(normalizedSuffix)) return text;
+
+  const marker = suffix.split('\n').map((line) => line.trim()).find(Boolean) || '';
+  if (marker) {
+    const markerIndex = text.lastIndexOf(marker);
+    if (markerIndex > 0) return text.slice(0, markerIndex).trim();
+  }
+  return text;
+}
+
+function normalizeWhitespaceForComparison(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
 }
 
 async function dbListCheckoutInventoryItems(
@@ -13131,6 +13247,7 @@ async function dbGetInventorySummary(env: Env): Promise<InventorySummaryTotals> 
 
 async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2DashboardSummary> {
   const summary = await dbGetInventorySummary(env);
+  const { postStoreLaunchDate } = await dbGetSystemSettings(env);
   const row = await env.DB.prepare(
     `SELECT
       COALESCE(SUM(
@@ -13207,7 +13324,7 @@ async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2DashboardS
         CASE
           WHEN COALESCE(i.is_sold, 0) = 1
             AND i.sold_date IS NOT NULL
-            AND i.sold_date >= date('2026-06-01')
+            AND i.sold_date >= date(?)
             THEN COALESCE(i.sold_amount, 0) - (${INVENTORY_UNIT_COST_BASIS_SQL})
           ELSE 0
         END
@@ -13216,7 +13333,7 @@ async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2DashboardS
         CASE
           WHEN COALESCE(i.is_sold, 0) = 1
             AND i.sold_date IS NOT NULL
-            AND i.sold_date >= date('2026-06-01')
+            AND i.sold_date >= date(?)
             THEN COALESCE(i.sold_amount, 0)
           ELSE 0
         END
@@ -13232,7 +13349,7 @@ async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2DashboardS
       ), 0) AS avg_days_to_sell
      FROM ccg_inventory_items i
      LEFT JOIN listings l ON l.id = i.source_listing_id`
-  ).first<{
+  ).bind(postStoreLaunchDate, postStoreLaunchDate).first<{
     current_asking_value: number | null;
     realized_profit_mtd: number | null;
     sold_profit_30d: number | null;
@@ -13262,6 +13379,7 @@ async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2DashboardS
     postStoreLaunchMarginPercent: postStoreLaunchRevenue > 0
       ? (Number(row?.post_store_launch_profit || 0) / postStoreLaunchRevenue) * 100
       : 0,
+    postStoreLaunchDate,
     forSaleItems: summary.ccgForSaleItems,
     avgDaysToSell: Number(row?.avg_days_to_sell || 0),
     activeItems: summary.ccgActiveItems,
