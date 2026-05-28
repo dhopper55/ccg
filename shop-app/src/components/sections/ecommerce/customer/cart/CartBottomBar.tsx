@@ -29,7 +29,6 @@ type CashCustomerForm = {
 
 type CashCustomerFormErrors = Partial<Record<keyof CashCustomerForm, string>>;
 type AssociateStripeFlow = 'checkout' | 'split';
-type CustomerPaymentMode = 'standard' | 'finance';
 type TerminalPaymentStatus = 'idle' | 'waiting' | 'succeeded' | 'failed';
 
 type TerminalPaymentState = {
@@ -104,7 +103,6 @@ const CartBottomBar = () => {
   const [associateStripeFlow, setAssociateStripeFlow] = useState<AssociateStripeFlow | null>(null);
   const [paymentRouteOpen, setPaymentRouteOpen] = useState(false);
   const [refundPolicyOpen, setRefundPolicyOpen] = useState(false);
-  const [pendingPaymentMode, setPendingPaymentMode] = useState<CustomerPaymentMode>('standard');
   const [terminalPayment, setTerminalPayment] = useState<TerminalPaymentState>(defaultTerminalPaymentState);
   const [isCancelingTerminalPayment, setIsCancelingTerminalPayment] = useState(false);
   const [cashConfirmOpen, setCashConfirmOpen] = useState(false);
@@ -131,14 +129,10 @@ const CartBottomBar = () => {
     setCashCustomerErrors((current) => ({ ...current, [field]: undefined }));
   };
 
-  const showFinanceCheckout = !isAssociateMode && cartTotalCents >= 20000;
-
   const buildCheckoutPayload = (
     splitTender?: { cardAmountCents: number },
-    paymentMode?: CustomerPaymentMode,
   ) => ({
     fulfillmentType: 'pickup',
-    paymentMode,
     couponCode: appliedCoupon?.code || undefined,
     discountCents: Math.round(associateDiscount * 100),
     taxIncluded,
@@ -154,17 +148,16 @@ const CartBottomBar = () => {
     setPaymentRouteOpen(true);
   };
 
-  const openRefundPolicyDialog = (paymentMode: CustomerPaymentMode) => {
-    setPendingPaymentMode(paymentMode);
+  const openRefundPolicyDialog = () => {
     setRefundPolicyOpen(true);
   };
 
   const handleRefundPolicyAgree = () => {
     setRefundPolicyOpen(false);
-    void handleStripeCheckout(pendingPaymentMode);
+    void handleStripeCheckout();
   };
 
-  const handleStripeCheckout = async (paymentMode: CustomerPaymentMode = 'standard') => {
+  const handleStripeCheckout = async () => {
     if (selectedCartItems.length === 0 || isCheckingOut) return;
 
     setIsCheckingOut(true);
@@ -173,17 +166,17 @@ const CartBottomBar = () => {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildCheckoutPayload(undefined, isAssociateMode ? undefined : paymentMode)),
+        body: JSON.stringify(buildCheckoutPayload()),
       });
       const data = (await response.json()) as { url?: string; orderNumber?: string; message?: string };
 
       if (!response.ok || !data.url) {
-        throw new Error(data.message || (paymentMode === 'finance' ? 'Unable to start financing checkout.' : 'Unable to start checkout.'));
+        throw new Error(data.message || 'Unable to start checkout.');
       }
 
       window.location.assign(data.url);
     } catch (error) {
-      enqueueSnackbar(error instanceof Error ? error.message : (paymentMode === 'finance' ? 'Unable to start financing checkout.' : 'Unable to start checkout.'), {
+      enqueueSnackbar(error instanceof Error ? error.message : 'Unable to start checkout.', {
         variant: 'error',
       });
       setIsCheckingOut(false);
@@ -462,7 +455,7 @@ const CartBottomBar = () => {
                   openAssociateStripeRoute('checkout');
                   return;
                 }
-                openRefundPolicyDialog('standard');
+                openRefundPolicyDialog();
               }}
               sx={{
                 whiteSpace: 'nowrap',
@@ -471,23 +464,6 @@ const CartBottomBar = () => {
             >
               Checkout
             </Button>
-            {showFinanceCheckout && (
-              <Button
-                color="neutral"
-                variant="outlined"
-                loading={isCheckingOut}
-                disabled={selectedCartItems.length === 0}
-                onClick={() => {
-                  openRefundPolicyDialog('finance');
-                }}
-                sx={{
-                  whiteSpace: 'nowrap',
-                  px: { xs: 3, sm: 5 },
-                }}
-              >
-                Finance This
-              </Button>
-            )}
             {isAssociateMode && (
               <>
                 <Button
@@ -534,7 +510,10 @@ const CartBottomBar = () => {
             Eligible items may be refunded within 7 days of product pickup.
           </Typography>
           <Typography variant="body1">
-            If you return an item, Coal Creek Guitars cannot refund the payment processing fees charged by Stripe. Credit card fees are around 3% of the transaction, and financing fees through Affirm or Klarna are around 6% of the transaction.
+            Online checkout is available by card and other standard Stripe payment methods. Financing is available only for eligible in-store purchases.
+          </Typography>
+          <Typography variant="body1">
+            Returned items must come back in the same condition. Shipping and local delivery charges are not refundable, and customers are responsible for insured return shipping unless we made a mistake with the order.
           </Typography>
         </Stack>
       </DialogContent>

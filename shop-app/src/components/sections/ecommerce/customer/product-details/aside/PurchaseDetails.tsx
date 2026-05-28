@@ -75,7 +75,7 @@ const PurchaseDetails = ({ allowShipping = false, sx }: { allowShipping?: boolea
               color: 'text.secondary',
             }}
           >
-            Eligible for refund within 7 days of product pickup.
+            Eligible for return within 7 days. Shipped orders use the delivery date as the start of the return window.
           </Typography>
         </div>
       </Stack>

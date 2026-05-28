@@ -304,7 +304,7 @@ const OrderManagerItem = () => {
       paymentMethodLabel: orderHasCashComponent(record)
         ? 'Refund includes cash return'
         : retainedFeeCents > 0
-          ? `Refund to ${record.paymentMethodLabel}\nStripe fee retained ${moneyFormat.format(retainedFeeCents / 100)}`
+          ? `Refund to ${record.paymentMethodLabel}\nFinancing fee retained ${moneyFormat.format(retainedFeeCents / 100)}`
           : `Refund to ${record.paymentMethodLabel}`,
     });
   };
@@ -389,7 +389,7 @@ const OrderManagerItem = () => {
         .filter((nextResult): nextResult is PromiseRejectedResult => nextResult.status === 'rejected')
         .map((nextResult) => nextResult.reason instanceof Error ? nextResult.reason.message : String(nextResult.reason));
       const retainedFeeMessage = payload.stripeRetainedFeeCents
-        ? ` Retained Stripe fee: ${currencyFormat(payload.stripeRetainedFeeCents / 100)}.`
+        ? ` Retained financing fee: ${currencyFormat(payload.stripeRetainedFeeCents / 100)}.`
         : '';
       setResult({
         severity: 'success',
@@ -532,6 +532,7 @@ const OrderManagerItem = () => {
   const displayOrderNumber = formatOrderNumber(order.orderNumber);
   const adjustedCostBasisAmount = parseAccountingAmount(order.costBasisAdjusted || '0.00') || 0;
   const isRefundedOrder = order.status === 'refunded';
+  const isFinancingOrder = /affirm|klarna/i.test(order.paymentMethodLabel || '');
 
   return (
     <>
@@ -802,9 +803,9 @@ const OrderManagerItem = () => {
       <DialogContent>
         <Stack direction="column" sx={{ gap: 1 }}>
           <Typography>Are you sure you want to cancel/refund this order?</Typography>
-          {order.checkoutProvider !== 'cash' && (
+          {isFinancingOrder && (
             <Alert severity="warning">
-              Stripe processing fees will be retained. The customer refund will be the Stripe payment amount minus the card or financing fee.
+              Financing processing fees will be retained. The customer refund will be the Stripe payment amount minus the Affirm/Klarna fee.
             </Alert>
           )}
         </Stack>

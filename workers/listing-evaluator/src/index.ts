@@ -96,8 +96,9 @@ Wed: Closed
 ⸻
 
 💳 Payment options:
-• Cash, Venmo, Zelle, CashApp, PayPal, Credit Card, or financing
-• Financing is with Affirm or Klarna via Stripe - our secure payment provider
+• Online checkout: credit/debit card and standard Stripe payment methods
+• In-store checkout: cash, Venmo, Zelle, CashApp, PayPal, credit/debit card, or financing on eligible larger purchases
+• Financing is available in-store only through Affirm or Klarna via Stripe, subject to approval
 
 ⸻
 
@@ -4198,6 +4199,10 @@ async function handleAdminV2OrderRefund(orderId: string, env: Env): Promise<Resp
   const fundsReversal = parseOrderBoolean(order.money_accounted)
     ? await dbReverseOrderFundsAccounting(normalizedOrderId, env)
     : null;
+  const retainedStripeFee = provider !== 'cash' && stripeRetainedFeeCents > 0;
+  const stripeRefundMessage = retainedStripeFee
+    ? 'Stripe financing order refunded less financing processing fee'
+    : 'Stripe order refunded';
 
   await dbUpdateTableById('orders', normalizedOrderId, {
     status: 'refunded',
@@ -4216,10 +4221,10 @@ async function handleAdminV2OrderRefund(orderId: string, env: Env): Promise<Resp
     source: 'admin_v2',
     sourceId: stripeRefundId || provider,
     message: fundsReversal
-      ? `${provider === 'cash' ? 'Cash order refunded' : 'Stripe order refunded less Stripe processing fees'}. Inventory was restored. Accounted funds were removed.`
+      ? `${provider === 'cash' ? 'Cash order refunded' : stripeRefundMessage}. Inventory was restored. Accounted funds were removed.`
       : provider === 'cash'
         ? 'Cash order refunded. Inventory was restored.'
-        : 'Stripe order refunded less Stripe processing fees. Inventory was restored.',
+        : `${stripeRefundMessage}. Inventory was restored.`,
     payloadJson: JSON.stringify({
       provider,
       totalCents,
@@ -4233,7 +4238,7 @@ async function handleAdminV2OrderRefund(orderId: string, env: Env): Promise<Resp
   }, env);
 
   return jsonResponse({
-    message: provider === 'cash' ? 'Cash order refunded.' : 'Stripe order refunded less Stripe processing fees.',
+    message: provider === 'cash' ? 'Cash order refunded.' : `${stripeRefundMessage}.`,
     provider,
     stripeRefundId,
     stripeRefundAmountCents,
@@ -4345,7 +4350,9 @@ async function resolveStripeFeeAdjustedRefundPlan(
         latestCharge?.payment_method_details?.type,
         normalizeText(data?.payment_method_types?.[0], ''),
       );
-      retainedFeeCents = numberOrZero(balanceTransaction?.fee);
+      if (paymentMethodType === 'affirm' || paymentMethodType === 'klarna') {
+        retainedFeeCents = numberOrZero(balanceTransaction?.fee);
+      }
       if (retainedFeeCents > 0) {
         feeSource = 'stripe_balance_transaction';
       }
@@ -4356,11 +4363,18 @@ async function resolveStripeFeeAdjustedRefundPlan(
     console.warn('Stripe refund fee lookup failed', { paymentIntentId, error });
   }
 
+  if (paymentMethodType !== 'affirm' && paymentMethodType !== 'klarna') {
+    return {
+      refundAmountCents: chargeAmountCents,
+      retainedFeeCents: 0,
+      feeSource: 'standard_payment_full_refund',
+      paymentMethodType: paymentMethodType || 'stripe',
+    };
+  }
+
   if (retainedFeeCents <= 0) {
     retainedFeeCents = estimateNonRefundableStripeFeeCents(chargeAmountCents, paymentMethodType);
-    feeSource = paymentMethodType === 'affirm' || paymentMethodType === 'klarna'
-      ? 'fallback_financing_estimate'
-      : 'fallback_card_estimate';
+    feeSource = 'fallback_financing_estimate';
   }
 
   const cappedFeeCents = Math.min(Math.max(0, retainedFeeCents), chargeAmountCents);
@@ -4374,7 +4388,8 @@ async function resolveStripeFeeAdjustedRefundPlan(
 
 function estimateNonRefundableStripeFeeCents(amountCents: number, paymentMethodType: string): number {
   const normalizedType = normalizeText(paymentMethodType, '').toLowerCase();
-  const rate = normalizedType === 'affirm' || normalizedType === 'klarna' ? 0.06 : 0.029;
+  const rate = normalizedType === 'affirm' || normalizedType === 'klarna' ? 0.06 : 0;
+  if (rate <= 0) return 0;
   return Math.max(0, Math.round(amountCents * rate) + 30);
 }
 
@@ -6290,12 +6305,13 @@ async function handleShopCreateCheckoutSession(request: Request, env: Env): Prom
   if (isSplitTender && cardAmountCents > draft.totalCents) {
     return jsonResponse({ message: 'Card amount cannot exceed the order total.' }, 400);
   }
-  const customerPaymentMode = normalizeText(body?.paymentMode, 'standard').toLowerCase() === 'finance'
+  const requestedPaymentMode = normalizeText(body?.paymentMode, 'standard').toLowerCase();
+  if (!includeInStoreOnly && requestedPaymentMode === 'finance') {
+    return jsonResponse({ message: 'Financing is available for eligible in-store purchases only.' }, 403);
+  }
+  const customerPaymentMode = requestedPaymentMode === 'finance'
     ? 'finance'
     : 'standard';
-  if (!includeInStoreOnly && customerPaymentMode === 'finance' && draft.totalCents < 20000) {
-    return jsonResponse({ message: 'Financing checkout is available for orders of $200 or more.' }, 400);
-  }
 
   const nowIso = new Date().toISOString();
   const orderId = crypto.randomUUID();

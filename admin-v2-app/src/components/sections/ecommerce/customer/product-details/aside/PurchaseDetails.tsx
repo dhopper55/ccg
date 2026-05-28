@@ -57,7 +57,7 @@ const PurchaseDetails = ({ sx }: { sx?: SxProps }) => {
               color: 'text.secondary',
             }}
           >
-            <strong>Eligible for refund within 30 days</strong> of receiving products.{' '}
+            <strong>Eligible for return within 7 days</strong> of pickup or delivery.{' '}
             <Link href="#!">View details.</Link>
           </Typography>
         </div>
