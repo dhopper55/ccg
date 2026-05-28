@@ -81,6 +81,13 @@ type OrderDetailResponse = {
   record?: AdminOrderDetail;
 };
 
+type RefundResponse = {
+  message?: string;
+  provider?: string;
+  stripeRefundAmountCents?: number;
+  stripeRetainedFeeCents?: number;
+};
+
 type OrderStatusFlagKey = 'listingsUpdated' | 'settled';
 
 const orderStatusFlags: Array<{ key: OrderStatusFlagKey; label: string }> = [
@@ -266,10 +273,14 @@ const OrderManagerItem = () => {
     return payload.record?.templateText || fallbackRefundReceiptTemplate;
   };
 
-  const renderRefundReceiptTemplate = (template: string, record: AdminOrderDetail) => {
+  const renderRefundReceiptTemplate = (template: string, record: AdminOrderDetail, refund?: RefundResponse) => {
     const now = new Date();
     const receiptDate = now.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
     const receiptTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const retainedFeeCents = Number(refund?.stripeRetainedFeeCents || 0);
+    const refundTotalCents = Number(refund?.stripeRefundAmountCents || 0) > 0
+      ? Number(refund?.stripeRefundAmountCents || 0)
+      : record.totalCents;
     const itemRows = record.items.map((item) => ({
       line: padReceiptColumns(
         `${item.quantity > 1 ? `${item.quantity}x ` : ''}${item.ccgNumber || `CCG-${item.inventoryItemId}`} ${item.title}`,
@@ -288,20 +299,22 @@ const OrderManagerItem = () => {
       itemHeader: padReceiptColumns('SKU / DESC', 'REFUND'),
       subtotal: `-${moneyFormat.format(record.subtotalCents / 100)}`,
       salesTax: `-${moneyFormat.format(record.taxCents / 100)}`,
-      total: `-${moneyFormat.format(record.totalCents / 100)}`,
+      total: `-${moneyFormat.format(refundTotalCents / 100)}`,
       salesTaxRate: '8.05%',
       paymentMethodLabel: orderHasCashComponent(record)
         ? 'Refund includes cash return'
-        : `Refund to ${record.paymentMethodLabel}`,
+        : retainedFeeCents > 0
+          ? `Refund to ${record.paymentMethodLabel}\nStripe fee retained ${moneyFormat.format(retainedFeeCents / 100)}`
+          : `Refund to ${record.paymentMethodLabel}`,
     });
   };
 
-  const buildRefundReceiptRequest = async (record: AdminOrderDetail, shouldKickCashDrawer: boolean) => {
+  const buildRefundReceiptRequest = async (record: AdminOrderDetail, shouldKickCashDrawer: boolean, refund?: RefundResponse) => {
     ensureStarWebPrntGlobals();
     if (!window.StarWebPrintBuilder) throw new Error('Star webPRNT is not available in this browser context.');
     const builder = new window.StarWebPrintBuilder();
     const logo = await loadReceiptLogo();
-    const renderedTemplate = renderRefundReceiptTemplate(await fetchRefundTemplate(), record);
+    const renderedTemplate = renderRefundReceiptTemplate(await fetchRefundTemplate(), record, refund);
     const parts: string[] = [builder.createInitializationElement({ reset: false, print: false })];
     if (shouldKickCashDrawer) {
       parts.push(buildCashDrawerKickElement(builder));
@@ -364,22 +377,25 @@ const OrderManagerItem = () => {
         credentials: 'same-origin',
         headers: { Accept: 'application/json' },
       });
-      const payload = (await response.json()) as { message?: string; provider?: string };
+      const payload = (await response.json()) as RefundResponse;
       if (!response.ok) throw new Error(payload.message || 'Refund failed.');
       const refreshedOrder = await loadOrder({ silent: true });
       const recordForReceipt = refreshedOrder || { ...order, status: 'refunded' };
       const shouldKickCashDrawer = orderHasCashComponent(recordForReceipt);
       const localResults = await Promise.allSettled([
-        buildRefundReceiptRequest(recordForReceipt, shouldKickCashDrawer).then((request) => sendToPrinter(request)),
+        buildRefundReceiptRequest(recordForReceipt, shouldKickCashDrawer, payload).then((request) => sendToPrinter(request)),
       ]);
       const localErrors = localResults
         .filter((nextResult): nextResult is PromiseRejectedResult => nextResult.status === 'rejected')
         .map((nextResult) => nextResult.reason instanceof Error ? nextResult.reason.message : String(nextResult.reason));
+      const retainedFeeMessage = payload.stripeRetainedFeeCents
+        ? ` Retained Stripe fee: ${currencyFormat(payload.stripeRetainedFeeCents / 100)}.`
+        : '';
       setResult({
         severity: 'success',
         message: localErrors.length > 0
-          ? `${payload.message || 'Order refunded.'} Local mPOP command failed: ${localErrors.join(' ')}`
-          : payload.message || 'Order refunded.',
+          ? `${payload.message || 'Order refunded.'}${retainedFeeMessage} Local mPOP command failed: ${localErrors.join(' ')}`
+          : `${payload.message || 'Order refunded.'}${retainedFeeMessage}`,
       });
     } catch (error) {
       await loadOrder({ silent: true });
@@ -784,7 +800,14 @@ const OrderManagerItem = () => {
     <Dialog open={confirmOpen} onClose={() => !isRefunding && setConfirmOpen(false)}>
       <DialogTitle>Cancel/refund order</DialogTitle>
       <DialogContent>
-        <Typography>Are you sure you want to cancel/refund this order?</Typography>
+        <Stack direction="column" sx={{ gap: 1 }}>
+          <Typography>Are you sure you want to cancel/refund this order?</Typography>
+          {order.checkoutProvider !== 'cash' && (
+            <Alert severity="warning">
+              Stripe processing fees will be retained. The customer refund will be the Stripe payment amount minus the card or financing fee.
+            </Alert>
+          )}
+        </Stack>
       </DialogContent>
       <DialogActions>
         <Button onClick={() => setConfirmOpen(false)} disabled={isRefunding}>

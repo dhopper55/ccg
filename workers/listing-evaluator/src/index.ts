@@ -4164,13 +4164,17 @@ async function handleAdminV2OrderRefund(orderId: string, env: Env): Promise<Resp
   const totalCents = Number(order.total_cents ?? 0) || 0;
   const now = new Date().toISOString();
   let stripeRefundId = '';
+  let stripeRefundAmountCents = 0;
+  let stripeRetainedFeeCents = 0;
+  let stripeRefundFeeSource = '';
+  let stripeRefundPaymentMethodType = '';
 
   if (provider !== 'cash') {
     const paymentIntentId = normalizeText(order.stripe_payment_intent_id, '');
     if (!paymentIntentId) {
       return jsonResponse({ message: 'Stripe payment intent is missing for this order.' }, 400);
     }
-    const stripeRefund = await createStripeFullRefund(paymentIntentId, normalizedOrderId, env);
+    const stripeRefund = await createStripeFeeAdjustedRefund(paymentIntentId, normalizedOrderId, totalCents, env);
     if (!stripeRefund.ok) {
       await dbRecordOrderEvent(normalizedOrderId, {
         eventType: 'refund_failed',
@@ -4184,6 +4188,10 @@ async function handleAdminV2OrderRefund(orderId: string, env: Env): Promise<Resp
       return jsonResponse({ message: stripeRefund.message }, stripeRefund.status || 502);
     }
     stripeRefundId = stripeRefund.refundId;
+    stripeRefundAmountCents = stripeRefund.refundAmountCents;
+    stripeRetainedFeeCents = stripeRefund.retainedFeeCents;
+    stripeRefundFeeSource = stripeRefund.feeSource;
+    stripeRefundPaymentMethodType = stripeRefund.paymentMethodType;
   }
 
   await dbUnwindRefundedOrderInventory(normalizedOrderId, order, env);
@@ -4208,30 +4216,68 @@ async function handleAdminV2OrderRefund(orderId: string, env: Env): Promise<Resp
     source: 'admin_v2',
     sourceId: stripeRefundId || provider,
     message: fundsReversal
-      ? `${provider === 'cash' ? 'Cash' : 'Stripe'} order refunded. Inventory was restored. Accounted funds were removed.`
+      ? `${provider === 'cash' ? 'Cash order refunded' : 'Stripe order refunded less Stripe processing fees'}. Inventory was restored. Accounted funds were removed.`
       : provider === 'cash'
         ? 'Cash order refunded. Inventory was restored.'
-        : 'Stripe order refunded. Inventory was restored.',
-    payloadJson: JSON.stringify({ provider, totalCents, stripeRefundId, fundsReversal }),
+        : 'Stripe order refunded less Stripe processing fees. Inventory was restored.',
+    payloadJson: JSON.stringify({
+      provider,
+      totalCents,
+      stripeRefundId,
+      stripeRefundAmountCents,
+      stripeRetainedFeeCents,
+      stripeRefundFeeSource,
+      stripeRefundPaymentMethodType,
+      fundsReversal,
+    }),
   }, env);
 
   return jsonResponse({
-    message: provider === 'cash' ? 'Cash order refunded.' : 'Stripe order refunded.',
+    message: provider === 'cash' ? 'Cash order refunded.' : 'Stripe order refunded less Stripe processing fees.',
     provider,
     stripeRefundId,
+    stripeRefundAmountCents,
+    stripeRetainedFeeCents,
   });
 }
 
-async function createStripeFullRefund(
+async function createStripeFeeAdjustedRefund(
   paymentIntentId: string,
   orderId: string,
+  orderTotalCents: number,
   env: Env,
-): Promise<{ ok: true; refundId: string } | { ok: false; message: string; status: number }> {
+): Promise<{
+  ok: true;
+  refundId: string;
+  refundAmountCents: number;
+  retainedFeeCents: number;
+  feeSource: string;
+  paymentMethodType: string;
+} | { ok: false; message: string; status: number }> {
   const { secretKey: stripeSecretKey } = await getStripeRuntimeConfig(env);
   if (!stripeSecretKey) return { ok: false, message: 'Stripe secret key is not configured.', status: 500 };
 
   try {
-    const body = new URLSearchParams({ payment_intent: paymentIntentId });
+    const refundPlan = await resolveStripeFeeAdjustedRefundPlan(paymentIntentId, orderTotalCents, stripeSecretKey);
+    if (refundPlan.refundAmountCents <= 0) {
+      return {
+        ok: true,
+        refundId: '',
+        refundAmountCents: 0,
+        retainedFeeCents: refundPlan.retainedFeeCents,
+        feeSource: refundPlan.feeSource,
+        paymentMethodType: refundPlan.paymentMethodType,
+      };
+    }
+
+    const body = new URLSearchParams({
+      payment_intent: paymentIntentId,
+      amount: String(refundPlan.refundAmountCents),
+    });
+    body.set('metadata[order_id]', orderId);
+    body.set('metadata[retained_fee_cents]', String(refundPlan.retainedFeeCents));
+    body.set('metadata[retained_fee_source]', refundPlan.feeSource);
+    body.set('metadata[payment_method_type]', refundPlan.paymentMethodType);
     const response = await fetch('https://api.stripe.com/v1/refunds', {
       method: 'POST',
       headers: {
@@ -4249,7 +4295,14 @@ async function createStripeFullRefund(
         status: response.status || 502,
       };
     }
-    return { ok: true, refundId: normalizeText(data?.id, '') };
+    return {
+      ok: true,
+      refundId: normalizeText(data?.id, ''),
+      refundAmountCents: refundPlan.refundAmountCents,
+      retainedFeeCents: refundPlan.retainedFeeCents,
+      feeSource: refundPlan.feeSource,
+      paymentMethodType: refundPlan.paymentMethodType,
+    };
   } catch (error) {
     return {
       ok: false,
@@ -4257,6 +4310,72 @@ async function createStripeFullRefund(
       status: 502,
     };
   }
+}
+
+async function resolveStripeFeeAdjustedRefundPlan(
+  paymentIntentId: string,
+  orderTotalCents: number,
+  stripeSecretKey: string,
+): Promise<{
+  refundAmountCents: number;
+  retainedFeeCents: number;
+  feeSource: string;
+  paymentMethodType: string;
+}> {
+  let chargeAmountCents = Math.max(0, Math.round(orderTotalCents));
+  let retainedFeeCents = 0;
+  let feeSource = 'fallback_card_estimate';
+  let paymentMethodType = '';
+
+  try {
+    const response = await fetch(
+      `https://api.stripe.com/v1/payment_intents/${encodeURIComponent(paymentIntentId)}?expand[]=latest_charge.balance_transaction`,
+      {
+        headers: {
+          Authorization: `Bearer ${stripeSecretKey}`,
+        },
+      },
+    );
+    const data = await response.json<any>();
+    if (response.ok) {
+      const latestCharge = data?.latest_charge;
+      const balanceTransaction = latestCharge?.balance_transaction;
+      chargeAmountCents = numberOrZero(latestCharge?.amount) || numberOrZero(data?.amount_received) || chargeAmountCents;
+      paymentMethodType = normalizeText(
+        latestCharge?.payment_method_details?.type,
+        normalizeText(data?.payment_method_types?.[0], ''),
+      );
+      retainedFeeCents = numberOrZero(balanceTransaction?.fee);
+      if (retainedFeeCents > 0) {
+        feeSource = 'stripe_balance_transaction';
+      }
+    } else {
+      console.warn('Stripe refund fee lookup failed', { paymentIntentId, status: response.status });
+    }
+  } catch (error) {
+    console.warn('Stripe refund fee lookup failed', { paymentIntentId, error });
+  }
+
+  if (retainedFeeCents <= 0) {
+    retainedFeeCents = estimateNonRefundableStripeFeeCents(chargeAmountCents, paymentMethodType);
+    feeSource = paymentMethodType === 'affirm' || paymentMethodType === 'klarna'
+      ? 'fallback_financing_estimate'
+      : 'fallback_card_estimate';
+  }
+
+  const cappedFeeCents = Math.min(Math.max(0, retainedFeeCents), chargeAmountCents);
+  return {
+    refundAmountCents: Math.max(0, chargeAmountCents - cappedFeeCents),
+    retainedFeeCents: cappedFeeCents,
+    feeSource,
+    paymentMethodType: paymentMethodType || 'stripe',
+  };
+}
+
+function estimateNonRefundableStripeFeeCents(amountCents: number, paymentMethodType: string): number {
+  const normalizedType = normalizeText(paymentMethodType, '').toLowerCase();
+  const rate = normalizedType === 'affirm' || normalizedType === 'klarna' ? 0.06 : 0.029;
+  return Math.max(0, Math.round(amountCents * rate) + 30);
 }
 
 async function getStripeRuntimeConfig(env: Env): Promise<StripeRuntimeConfig> {
@@ -13652,8 +13771,8 @@ async function dbGetInventorySummary(env: Env): Promise<InventorySummaryTotals> 
       COALESCE(SUM(CASE WHEN i.is_active = 1 THEN l.price_asking ELSE 0 END), 0) AS total_listed,
       COALESCE(SUM(CASE WHEN i.is_sold = 1 THEN i.sold_amount ELSE 0 END), 0) AS total_sold,
       COALESCE(SUM(${INVENTORY_UNIT_COST_BASIS_SQL}), 0) AS total_purchased,
-      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 0 THEN ${INVENTORY_UNIT_COST_BASIS_SQL} ELSE 0 END), 0) AS ccg_paid_unsold,
-      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 0 THEN COALESCE(i.private_party_value, 0) ELSE 0 END), 0) AS ccg_private_party_unsold,
+      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 0 AND COALESCE(i.is_personal, 0) = 0 THEN ${INVENTORY_UNIT_COST_BASIS_SQL} ELSE 0 END), 0) AS ccg_paid_unsold,
+      COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 0 AND COALESCE(i.is_personal, 0) = 0 THEN COALESCE(i.private_party_value, 0) ELSE 0 END), 0) AS ccg_private_party_unsold,
       COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 1 AND COALESCE(i.is_personal, 0) = 0 THEN ${INVENTORY_UNIT_COST_BASIS_SQL} ELSE 0 END), 0) AS ccg_sold_paid,
       COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 1 AND COALESCE(i.is_personal, 0) = 0 THEN COALESCE(i.private_party_value, 0) ELSE 0 END), 0) AS ccg_sold_private_party,
       COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.is_sold = 1 AND COALESCE(i.is_personal, 0) = 0 THEN (COALESCE(i.sold_amount, 0) - (${INVENTORY_UNIT_COST_BASIS_SQL})) ELSE 0 END), 0) AS ccg_sold_profit_amount,
@@ -13726,6 +13845,7 @@ async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2DashboardS
       COALESCE(SUM(
         CASE
           WHEN COALESCE(i.is_sold, 0) = 1
+            AND COALESCE(i.is_personal, 0) = 0
             AND i.sold_date IS NOT NULL
             AND i.sold_date >= date('now', '-30 days')
             THEN COALESCE(i.sold_amount, 0) - (${INVENTORY_UNIT_COST_BASIS_SQL})
@@ -13735,6 +13855,7 @@ async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2DashboardS
       COALESCE(SUM(
         CASE
           WHEN COALESCE(i.is_sold, 0) = 1
+            AND COALESCE(i.is_personal, 0) = 0
             AND i.sold_date IS NOT NULL
             AND i.sold_date >= date('now', '-30 days')
             THEN COALESCE(i.sold_amount, 0)
@@ -13744,6 +13865,7 @@ async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2DashboardS
       COALESCE(SUM(
         CASE
           WHEN COALESCE(i.is_sold, 0) = 1
+            AND COALESCE(i.is_personal, 0) = 0
             AND i.sold_date IS NOT NULL
             AND i.sold_date >= date('now', '-60 days')
             THEN COALESCE(i.sold_amount, 0) - (${INVENTORY_UNIT_COST_BASIS_SQL})
@@ -13753,6 +13875,7 @@ async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2DashboardS
       COALESCE(SUM(
         CASE
           WHEN COALESCE(i.is_sold, 0) = 1
+            AND COALESCE(i.is_personal, 0) = 0
             AND i.sold_date IS NOT NULL
             AND i.sold_date >= date('now', '-60 days')
             THEN COALESCE(i.sold_amount, 0)
@@ -13762,6 +13885,7 @@ async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2DashboardS
       COALESCE(SUM(
         CASE
           WHEN COALESCE(i.is_sold, 0) = 1
+            AND COALESCE(i.is_personal, 0) = 0
             AND i.sold_date IS NOT NULL
             AND i.sold_date >= date('now', '-90 days')
             THEN COALESCE(i.sold_amount, 0) - (${INVENTORY_UNIT_COST_BASIS_SQL})
@@ -13771,6 +13895,7 @@ async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2DashboardS
       COALESCE(SUM(
         CASE
           WHEN COALESCE(i.is_sold, 0) = 1
+            AND COALESCE(i.is_personal, 0) = 0
             AND i.sold_date IS NOT NULL
             AND i.sold_date >= date('now', '-90 days')
             THEN COALESCE(i.sold_amount, 0)
@@ -13780,6 +13905,7 @@ async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2DashboardS
       COALESCE(SUM(
         CASE
           WHEN COALESCE(i.is_sold, 0) = 1
+            AND COALESCE(i.is_personal, 0) = 0
             AND i.sold_date IS NOT NULL
             AND i.sold_date >= date(?)
             THEN COALESCE(i.sold_amount, 0) - (${INVENTORY_UNIT_COST_BASIS_SQL})
@@ -13789,6 +13915,7 @@ async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2DashboardS
       COALESCE(SUM(
         CASE
           WHEN COALESCE(i.is_sold, 0) = 1
+            AND COALESCE(i.is_personal, 0) = 0
             AND i.sold_date IS NOT NULL
             AND i.sold_date >= date(?)
             THEN COALESCE(i.sold_amount, 0)

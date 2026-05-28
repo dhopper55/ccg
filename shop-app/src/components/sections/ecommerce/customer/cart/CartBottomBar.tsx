@@ -103,6 +103,8 @@ const CartBottomBar = () => {
   const [splitCardAmount, setSplitCardAmount] = useState('0.00');
   const [associateStripeFlow, setAssociateStripeFlow] = useState<AssociateStripeFlow | null>(null);
   const [paymentRouteOpen, setPaymentRouteOpen] = useState(false);
+  const [refundPolicyOpen, setRefundPolicyOpen] = useState(false);
+  const [pendingPaymentMode, setPendingPaymentMode] = useState<CustomerPaymentMode>('standard');
   const [terminalPayment, setTerminalPayment] = useState<TerminalPaymentState>(defaultTerminalPaymentState);
   const [isCancelingTerminalPayment, setIsCancelingTerminalPayment] = useState(false);
   const [cashConfirmOpen, setCashConfirmOpen] = useState(false);
@@ -150,6 +152,16 @@ const CartBottomBar = () => {
   const openAssociateStripeRoute = (flow: AssociateStripeFlow) => {
     setAssociateStripeFlow(flow);
     setPaymentRouteOpen(true);
+  };
+
+  const openRefundPolicyDialog = (paymentMode: CustomerPaymentMode) => {
+    setPendingPaymentMode(paymentMode);
+    setRefundPolicyOpen(true);
+  };
+
+  const handleRefundPolicyAgree = () => {
+    setRefundPolicyOpen(false);
+    void handleStripeCheckout(pendingPaymentMode);
   };
 
   const handleStripeCheckout = async (paymentMode: CustomerPaymentMode = 'standard') => {
@@ -450,7 +462,7 @@ const CartBottomBar = () => {
                   openAssociateStripeRoute('checkout');
                   return;
                 }
-                void handleStripeCheckout();
+                openRefundPolicyDialog('standard');
               }}
               sx={{
                 whiteSpace: 'nowrap',
@@ -466,7 +478,7 @@ const CartBottomBar = () => {
                 loading={isCheckingOut}
                 disabled={selectedCartItems.length === 0}
                 onClick={() => {
-                  void handleStripeCheckout('finance');
+                  openRefundPolicyDialog('finance');
                 }}
                 sx={{
                   whiteSpace: 'nowrap',
@@ -509,6 +521,37 @@ const CartBottomBar = () => {
         </Stack>
       </Stack>
     </Paper>
+    <Dialog
+      open={refundPolicyOpen}
+      onClose={() => !isCheckingOut && setRefundPolicyOpen(false)}
+      fullWidth
+      maxWidth="sm"
+    >
+      <DialogTitle>Refund policy acknowledgement</DialogTitle>
+      <DialogContent sx={{ pt: 1 }}>
+        <Stack direction="column" sx={{ gap: 2 }}>
+          <Typography variant="body1">
+            Eligible items may be refunded within 7 days of product pickup.
+          </Typography>
+          <Typography variant="body1">
+            If you return an item, Coal Creek Guitars cannot refund the payment processing fees charged by Stripe. Credit card fees are around 3% of the transaction, and financing fees through Affirm or Klarna are around 6% of the transaction.
+          </Typography>
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button
+          color="neutral"
+          variant="soft"
+          onClick={() => setRefundPolicyOpen(false)}
+          disabled={isCheckingOut}
+        >
+          Cancel
+        </Button>
+        <Button variant="contained" onClick={handleRefundPolicyAgree} loading={isCheckingOut}>
+          Agree & Proceed
+        </Button>
+      </DialogActions>
+    </Dialog>
     <Dialog
       open={splitTenderOpen}
       onClose={() => !isCheckingOut && setSplitTenderOpen(false)}
