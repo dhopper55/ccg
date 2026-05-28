@@ -202,6 +202,7 @@ const ProductDetails = () => {
           : [shopProduct.onlyInStore ? 'In store only' : 'In stock'],
       category: [shopProduct.category, shopProduct.secondaryCategory].filter(Boolean),
       features: shopProduct.highlights.map((highlight) => highlight.text).filter(Boolean),
+      allowShipping: Boolean(shopProduct.allowShipping),
     };
   }, [availableQuantity, displayPrice, galleryImages, isOutOfStock, isUnavailable, shopProduct]);
 

@@ -5,6 +5,7 @@ type ShopAnalyticsEvent = {
 };
 
 const analyticsSessionKey = 'ccg-shop-analytics-session';
+const associateModeStorageKey = 'ccgAssociateMode';
 
 const getAnalyticsSessionId = () => {
   if (typeof window === 'undefined') return '';
@@ -21,6 +22,11 @@ const getAnalyticsSessionId = () => {
 
 export const trackShopAnalyticsEvent = (event: ShopAnalyticsEvent) => {
   if (typeof window === 'undefined') return;
+  try {
+    if (window.localStorage.getItem(associateModeStorageKey) === '1') return;
+  } catch {
+    // Server-side analytics filtering still applies if local storage is unavailable.
+  }
 
   const payload = JSON.stringify({
     ...event,

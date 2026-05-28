@@ -46,6 +46,8 @@ type AdminOrderDetail = {
   checkoutProvider: string;
   checkoutMode: string;
   subtotalCents: number;
+  shippingLabel?: string;
+  shippingCents?: number;
   taxCents: number;
   discountCents: number;
   totalCents: number;
@@ -705,7 +707,10 @@ const OrderManagerItem = () => {
               </Stack>
               <Stack direction="column" divider={<Divider flexItem />} sx={{ gap: 2, bgcolor: 'background.elevation1', borderRadius: 6, p: 3 }}>
                 <PriceSummaryRow label="Subtotal" value={order.subtotalCents / 100} />
-                <PriceSummaryRow label="Shipping cost" value={0} />
+                <PriceSummaryRow
+                  label="Shipping cost"
+                  value={order.shippingLabel || currencyFormat((order.shippingCents || 0) / 100)}
+                />
                 <PriceSummaryRow label="Discount" value={order.discountCents / 100} />
                 <PriceSummaryRow label="Sales tax" value={order.taxCents / 100} />
                 <Stack sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
@@ -867,7 +872,7 @@ const OrderManagerItem = () => {
   );
 };
 
-const PriceSummaryRow = ({ label, value }: { label: string; value: number }) => {
+const PriceSummaryRow = ({ label, value }: { label: string; value: number | string }) => {
   const { currencyFormat } = useNumberFormat();
 
   return (
@@ -875,7 +880,7 @@ const PriceSummaryRow = ({ label, value }: { label: string; value: number }) => 
       <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
         {label}
       </Typography>
-      <Typography variant="subtitle2">{currencyFormat(value)}</Typography>
+      <Typography variant="subtitle2">{typeof value === 'number' ? currencyFormat(value) : value}</Typography>
     </Stack>
   );
 };

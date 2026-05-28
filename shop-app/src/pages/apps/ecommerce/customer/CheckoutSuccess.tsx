@@ -26,6 +26,8 @@ type ReceiptRecord = {
   orderNumber: string;
   checkoutProvider: string;
   subtotalCents: number;
+  shippingLabel?: string;
+  shippingCents?: number;
   taxCents: number;
   totalCents: number;
   cardAmountCents?: number;
@@ -154,6 +156,7 @@ const renderReceiptTemplate = (template: string, record: ReceiptRecord) => {
     receiptTime,
     itemHeader: padReceiptColumns('SKU / DESC', 'PRICE'),
     subtotal: formatCents(record.subtotalCents),
+    shipping: record.shippingLabel || formatCents(record.shippingCents || 0),
     salesTax: formatCents(record.taxCents),
     total: formatCents(record.totalCents),
     salesTaxRate: '8.05%',

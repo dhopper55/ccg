@@ -61,6 +61,7 @@ type NewOrderForm = {
 };
 
 const todayYmd = () => new Date().toISOString().slice(0, 10);
+const mfrCodeOptions = ['DUNLOP', 'NOMAD'];
 
 const defaultForm = (): NewOrderForm => ({
   poNumber: '',
@@ -397,7 +398,11 @@ const MfrOrders = () => {
                 onChange={(event) => setForm((prev) => ({ ...prev, mfrCode: event.target.value }))}
                 sx={{ minWidth: 180 }}
               >
-                <MenuItem value="DUNLOP">DUNLOP</MenuItem>
+                {mfrCodeOptions.map((mfrCode) => (
+                  <MenuItem key={mfrCode} value={mfrCode}>
+                    {mfrCode}
+                  </MenuItem>
+                ))}
               </TextField>
               <TextField
                 label="Order Date"

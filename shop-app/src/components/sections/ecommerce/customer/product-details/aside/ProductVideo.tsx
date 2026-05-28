@@ -22,7 +22,7 @@ const getYouTubeEmbedUrl = (url?: string) => {
     }
 
     return videoId
-      ? `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?autoplay=1&mute=1&playsinline=1&rel=0`
+      ? `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?playsinline=1&rel=0`
       : '';
   } catch {
     return '';
@@ -39,7 +39,7 @@ const ProductVideo = ({ sx, youtubeUrl }: { sx?: SxProps; youtubeUrl?: string })
         component="iframe"
         src={youtubeEmbedUrl}
         title="Product video"
-        allow="autoplay; encrypted-media; picture-in-picture"
+        allow="encrypted-media; picture-in-picture"
         allowFullScreen
         sx={{
           border: 0,

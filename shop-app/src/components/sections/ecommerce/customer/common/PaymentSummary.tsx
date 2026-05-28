@@ -45,6 +45,8 @@ const PaymentSummary = () => {
     cartSubTotal,
     cartTax,
     cartTaxRate,
+    cartShipping,
+    cartShippingLabel,
     cartTotal,
     setTaxIncluded,
   } = useEcommerce();
@@ -277,10 +279,17 @@ const PaymentSummary = () => {
               variant="subtitle1"
               sx={{
                 fontWeight: 700,
-                color: 'text.secondary',
+                color: cartShippingLabel === 'FREE' ? 'success.main' : 'text.secondary',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                gap: 0.5,
               }}
             >
-              N/A
+              {cartShippingLabel === 'FREE' && (
+                <IconifyIcon icon="material-symbols:check-circle-rounded" fontSize={18} />
+              )}
+              {cartShippingLabel === '$6.00' ? currencyFormat(cartShipping) : cartShippingLabel}
             </Typography>
           </Stack>
 
@@ -290,9 +299,19 @@ const PaymentSummary = () => {
               color: 'text.secondary',
             }}
           >
-            Local pickup in Englewood, CO.
-            <br />
-            Contact us for dropoff options.
+            {cartShippingLabel === 'IN-STORE' ? (
+              <>
+                Local pickup in Englewood, CO.
+                <br />
+                Contact us for dropoff options.
+              </>
+            ) : (
+              <>
+                US shipping available.
+                <br />
+                $6 flat rate under $75, free shipping at $75+.
+              </>
+            )}
           </Typography>
         </div>
 

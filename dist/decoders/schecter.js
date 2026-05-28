@@ -5,8 +5,8 @@ export function decodeSchecter(serial) {
     if (/^[ABCG]\d{4,5}$/.test(normalized)) {
         return decodeUSACustomShop(normalized);
     }
-    // USA early-to-mid 1990s numeric: YY + sequence
-    if (/^9\d{4}$/.test(normalized)) {
+    // USA California/Sunset Blvd-era 5-digit chronological sequence
+    if (/^\d{5}$/.test(normalized)) {
         return decodeUSA5DigitNumeric(normalized);
     }
     // Indonesia IW prefix: IW + 8-9 digits (World Musical Instruments)
@@ -54,6 +54,10 @@ export function decodeSchecter(serial) {
     if (/^H\d{7,9}$/.test(normalized)) {
         return decodeKoreaH(normalized);
     }
+    // Korea import R prefix: R + YY + sequence
+    if (/^R\d{7}$/.test(normalized)) {
+        return decodeKoreaRYearSequence(normalized);
+    }
     // China S/SK prefix: S/SK + 7-9 digits (Sejung)
     if (/^S[K]?\d{7,9}$/.test(normalized)) {
         return decodeChinaS(normalized);
@@ -100,43 +104,41 @@ function decodeUSACustomShop(serial) {
     return { success: true, info };
 }
 function decodeUSA5DigitNumeric(serial) {
-    const yearDigits = serial.substring(0, 2);
-    const sequence = serial.substring(2);
-    const year = 1900 + parseInt(yearDigits, 10);
-    const sequenceNumber = parseInt(sequence, 10);
+    const sequenceNumber = parseInt(serial, 10);
     const info = {
         brand: 'Schecter',
         serialNumber: serial,
-        year: String(year),
-        factory: 'Schecter USA Custom Shop',
+        year: 'Late 1980s-mid 1990s (estimated)',
+        factory: 'Schecter California / USA production',
         country: 'USA',
-        model: 'USA Custom Shop / early 1990s USA production',
-        notes: `Five-digit USA numeric format. First two digits indicate ${year}; remaining digits indicate production sequence ${sequenceNumber}. This is associated with early-to-mid 1990s USA Schecter production, not later Diamond Series import formats.`
+        model: 'USA California-era / early custom shop production',
+        notes: `Five-digit USA Schecter numeric sequence associated with the Sunset Blvd / Pro Gauges / early California production era. The number ${serial} is best treated as a chronological production sequence, not as a strict YY date code. These serials generally require factory confirmation for exact year and specifications; contact Schecter with photos of the serial and full instrument for the most authoritative confirmation.`,
     };
     return {
         success: true,
         info,
         patternKey: 'schecter-usa-5-digit-yy-sequence',
-        patternLabel: 'Schecter USA 5-digit YY sequence',
+        patternLabel: 'Schecter USA 5-digit chronological sequence',
         additionalContext: {
             title: 'Schecter USA 5-digit serial',
-            summary: 'This serial matches a Schecter five-digit numeric format commonly associated with early-to-mid 1990s USA production.',
+            summary: 'This serial matches a Schecter five-digit numeric format commonly associated with late-1980s to mid-1990s California/USA production.',
             highlights: [
-                `The first two digits ${yearDigits} decode as production year ${year}.`,
-                `The remaining digits decode as production sequence ${sequenceNumber}.`,
-                'Pure five-digit 1990s serials are associated with USA production rather than later Diamond Series import serial formats.',
+                `The five digits are treated as chronological production sequence ${sequenceNumber}.`,
+                'This format is associated with early USA/California Schecter production rather than later Diamond Series import serial formats.',
+                'The first two digits should not be treated as a strict production year.',
             ],
             caveats: [
-                'Schecter serial documentation from this era is not as standardized as later import production.',
-                'Exact factory-location confirmation may require photos or confirmation from Schecter.',
+                'Schecter serial documentation from this era is not standardized like later import production.',
+                'Exact year confirmation usually requires Schecter factory support.',
                 'Use physical markings and construction details to distinguish USA Custom Shop/pro-era instruments from later imports.',
             ],
             verificationTips: [
-                'Check for USA markings, neck-plate/headstock details, and period-correct hardware.',
+                'Check whether the serial is stamped on a metal neck plate or on the wood.',
+                'Check for California USA, Los Angeles, or period-correct Schecter Guitar Research logo details.',
                 'Contact Schecter support with clear photos of the serial, front, back, and any neck-pocket or cavity markings for exact provenance.',
             ],
         },
-        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Schecter five-digit numeric format commonly associated with early-to-mid 1990s USA production.</p><h3>How This Pattern Is Typically Read</h3><p>The first two digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production sequence ${sequenceNumber}. Pure five-digit 1990s serials are associated with USA production rather than later Diamond Series import serial formats.</p><h3>What To Verify</h3><ul><li>Schecter serial documentation from this era is not as standardized as later import production.</li><li>Exact factory-location confirmation may require photos or confirmation from Schecter.</li><li>Use physical markings and construction details to distinguish USA Custom Shop/pro-era instruments from later imports.</li></ul><h3>Coal Creek Guitars Note</h3><p>Treat this as an early 1990s USA Schecter decode, then verify the instrument against its markings, hardware, and Schecter support if exact provenance matters.</p>`,
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Schecter five-digit numeric format commonly associated with late-1980s to mid-1990s California/USA production.</p><h3>How This Pattern Is Typically Read</h3><p>The five digits are treated as chronological production sequence ${sequenceNumber}. This format is associated with early USA/California Schecter production rather than later Diamond Series import serial formats. The first two digits should not be treated as a strict production year.</p><h3>What To Verify</h3><ul><li>Schecter serial documentation from this era is not standardized like later import production.</li><li>Exact year confirmation usually requires Schecter factory support.</li><li>Use physical markings and construction details to distinguish USA Custom Shop/pro-era instruments from later imports.</li></ul><h3>Coal Creek Guitars Note</h3><p>Treat this as an early USA Schecter sequence decode, then verify the instrument against its markings, hardware, and Schecter support if exact provenance matters.</p>`,
     };
 }
 function decodeIndonesiaIW(serial) {
@@ -407,6 +409,47 @@ function decodeIndonesiaRO(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Schecter RO-prefix Indonesian import format parsed as factory prefix plus production year and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>RO indicates Indonesian Schecter import production commonly associated with PT Cort. The digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This format identifies production year and factory family, not the exact model name.</li><li>Factory-code usage can vary by production run, so confirm with physical markings when provenance matters.</li><li>Check the headstock, truss rod cover, or label for model name and country marking.</li></ul>`,
+    };
+}
+function decodeKoreaRYearSequence(serial) {
+    const yearDigits = serial.substring(1, 3);
+    const sequence = serial.substring(3);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Schecter',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'Reliance / Korean import production',
+        country: 'South Korea',
+        model: 'Diamond Series import',
+        notes: `R-prefix Schecter import format interpreted as R + YY + sequence. The digits ${yearDigits} indicate production year ${year}; the remaining digits are production sequence ${sequenceNumber}. R is commonly associated with Reliance or related Korean import production, though factory-code usage can vary by run. Verify exact model and factory from country-of-origin markings and Schecter support when needed.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'schecter-r-korea-yy-sequence',
+        patternLabel: 'Schecter R Korea YY sequence',
+        additionalContext: {
+            title: 'Schecter R-prefix serial',
+            summary: 'This serial matches a Schecter R-prefix import format parsed as factory prefix, production year, and sequence.',
+            highlights: [
+                'R is treated as a Korean import factory or production-line prefix, commonly associated with Reliance.',
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                `The remaining digits decode as production sequence ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'This format identifies production year and factory family, not the exact model name.',
+                'Factory-code usage can vary by production run.',
+                'Exact factory confirmation may require Schecter support and photos.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for Made in Korea or other country-of-origin markings.',
+                'Compare the guitar against Schecter Diamond Series catalog specs for the decoded year.',
+                'Use pickups, body shape, finish, and headstock/logo details to narrow the exact model.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Schecter R-prefix import format parsed as factory prefix, production year, and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>R is treated as a Korean import factory or production-line prefix, commonly associated with Reliance. The digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This format identifies production year and factory family, not the exact model name.</li><li>Factory-code usage can vary by production run.</li><li>Check the back of the headstock for country-of-origin markings and compare physical specs against Schecter catalog references.</li></ul>`,
     };
 }
 function decodeChinaST(serial) {

@@ -202,6 +202,11 @@ export function decodeIbanez(serial: string): DecodeResult {
     return decodeMonthLetterPrefix9Digit(normalized);
   }
 
+  // Indonesia Premium: J + YY + sequence, seen on 2010-2015 Premium models
+  if (/^J\d{6}$/.test(normalized)) {
+    return decodeIndonesiaPremiumJYearSequence(normalized);
+  }
+
   // Indonesia: I/K/J/U + 9 digits (2001-present)
   if (/^[IKJU]\d{9}$/.test(normalized)) {
     return decodeIndonesia2001(normalized);
@@ -1346,6 +1351,51 @@ function decodeMonthLetterPrefix7Digit(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+// Indonesia Premium: J + YY + sequence
+function decodeIndonesiaPremiumJYearSequence(serial: string): DecodeResult {
+  const yearDigits = serial.substring(1, 3);
+  const sequence = serial.substring(3);
+  const year = 2000 + parseInt(yearDigits, 10);
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Ibanez',
+    serialNumber: serial,
+    year: year.toString(),
+    factory: 'Indonesia Premium Factory',
+    country: 'Indonesia',
+    model: 'Premium Series',
+    notes: `J-prefix Indonesian Premium format interpreted as J + YY + sequence. The digits ${yearDigits} indicate production year ${year}; the remaining digits are production sequence ${sequenceNumber}. Ibanez serials usually identify production year and factory family, not the exact model name, so verify the model from the headstock, Premium logo, catalog specs, and physical features.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'ibanez-indonesia-premium-j-yy-sequence',
+    patternLabel: 'Ibanez Indonesia Premium J YY sequence',
+    additionalContext: {
+      title: 'Ibanez Indonesia Premium J-prefix serial',
+      summary: 'This serial matches an Indonesian Ibanez Premium format where J is followed by a two-digit year and production sequence.',
+      highlights: [
+        'J indicates an Indonesian Premium production format.',
+        `The digits ${yearDigits} decode as production year ${year}.`,
+        `The remaining digits decode as production sequence ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'This format identifies production year and Premium-series factory family, not the exact model name.',
+        'Third-party lookup tools can be unreliable for Indonesian Ibanez Premium serials.',
+        'Exact model verification requires physical features and catalog comparison.',
+      ],
+      verificationTips: [
+        'Look for a Premium logo on the back of the headstock.',
+        'Compare body shape, bridge, pickups, finish, neck construction, and fretboard binding against the Ibanez catalog for the decoded year.',
+        'Use the Ibanez Wiki or official catalog pages to narrow the model.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches an Indonesian Ibanez Premium format where J is followed by a two-digit year and production sequence.</p><h3>How This Pattern Is Typically Read</h3><p>J indicates an Indonesian Premium production format. The digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This format identifies production year and Premium-series factory family, not the exact model name.</li><li>Look for a Premium logo on the back of the headstock.</li><li>Compare body shape, bridge, pickups, finish, neck construction, and fretboard binding against the Ibanez catalog for the decoded year.</li></ul>`,
+  };
 }
 
 // Indonesia 2001-present: I/K/J/U + 9 digits

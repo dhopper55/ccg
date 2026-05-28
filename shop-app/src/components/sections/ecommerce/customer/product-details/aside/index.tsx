@@ -6,6 +6,8 @@ import ProductVideo from './ProductVideo';
 import PurchaseDetails from './PurchaseDetails';
 import Quantity from './Quantity';
 
+const SHOW_PRODUCT_VIDEO = false;
+
 interface ProductDetailsAsideProps {
   regularPrice?: number | null;
   salePrice?: number;
@@ -65,7 +67,7 @@ const ProductDetailsAside = ({
         >
           <Highlights sx={{ height: 1 }} highlights={highlights} />
         </Grid>
-        {youtubeUrl && (
+        {SHOW_PRODUCT_VIDEO && youtubeUrl && (
           <Grid
             size={{
               xs: 12,

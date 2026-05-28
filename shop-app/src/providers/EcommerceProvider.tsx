@@ -12,6 +12,7 @@ import {
 import { useSnackbar } from 'notistack';
 import { trackShopAnalyticsEvent } from 'lib/shopAnalytics';
 import { CartItem, Coupon, ProductDetails } from 'types/ecommerce';
+import { useAssociateMode } from 'providers/AssociateModeProvider';
 
 interface EcommerceContextInterface {
   product: CartItem | null;
@@ -30,6 +31,9 @@ interface EcommerceContextInterface {
   cartSubTotal: number;
   cartTax: number;
   cartTaxRate: number;
+  cartShipping: number;
+  cartShippingLabel: '$6.00' | 'FREE' | 'IN-STORE';
+  cartShippingAddressRequired: boolean;
   cartTotal: number;
 }
 
@@ -37,6 +41,8 @@ export const EcommerceContext = createContext({} as EcommerceContextInterface);
 
 const cartStorageKey = 'ccg-shop-cart';
 const salesTaxRate = 0.0805;
+const flatRateShipping = 6;
+const freeShippingThreshold = 75;
 
 const getInitialCartItems = (): CartItem[] => {
   if (typeof window === 'undefined') return [];
@@ -50,6 +56,7 @@ const getInitialCartItems = (): CartItem[] => {
 
 const EcommerceProvider = ({ children }: PropsWithChildren) => {
   const { enqueueSnackbar } = useSnackbar();
+  const { isAssociateMode } = useAssociateMode();
 
   const [product, setProduct] = useState<CartItem | null>(null);
   const [cartItems, setCartItems] = useState<CartItem[]>(getInitialCartItems);
@@ -130,17 +137,42 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
     [cartItems],
   );
 
+  const effectiveDiscount = associateDiscount > 0 ? associateDiscount : appliedCoupon?.appliedDiscount || 0;
+
+  const cartShippingDetails = useMemo(() => {
+    const selectedItems = cartItems.filter((item) => item.selected);
+    const hasShippableItems = selectedItems.some((item) => Boolean(item.allowShipping));
+    if (isAssociateMode || !hasShippableItems) {
+      return {
+        amount: 0,
+        label: 'IN-STORE' as const,
+        addressRequired: false,
+      };
+    }
+    const thresholdSubtotal = Math.max(0, cartSubTotal - effectiveDiscount);
+    if (thresholdSubtotal >= freeShippingThreshold) {
+      return {
+        amount: 0,
+        label: 'FREE' as const,
+        addressRequired: true,
+      };
+    }
+    return {
+      amount: flatRateShipping,
+      label: '$6.00' as const,
+      addressRequired: true,
+    };
+  }, [cartItems, cartSubTotal, effectiveDiscount, isAssociateMode]);
+
   const cartTax = useMemo(() => {
     if (taxIncluded) return 0;
-    const effectiveDiscount = associateDiscount > 0 ? associateDiscount : appliedCoupon?.appliedDiscount || 0;
-    const taxableTotal = Math.max(0, cartSubTotal - effectiveDiscount);
+    const taxableTotal = Math.max(0, cartSubTotal - effectiveDiscount + cartShippingDetails.amount);
     return Math.round(taxableTotal * salesTaxRate * 100) / 100;
-  }, [cartSubTotal, appliedCoupon, associateDiscount, taxIncluded]);
+  }, [cartSubTotal, effectiveDiscount, cartShippingDetails.amount, taxIncluded]);
 
   const cartTotal = useMemo(() => {
-    const effectiveDiscount = associateDiscount > 0 ? associateDiscount : appliedCoupon?.appliedDiscount || 0;
-    return Math.max(0, cartSubTotal - effectiveDiscount) + cartTax;
-  }, [cartSubTotal, appliedCoupon, associateDiscount, cartTax]);
+    return Math.max(0, cartSubTotal - effectiveDiscount + cartShippingDetails.amount) + cartTax;
+  }, [cartSubTotal, effectiveDiscount, cartShippingDetails.amount, cartTax]);
 
   useEffect(() => {
     setAppliedCoupon((prevCoupon) =>
@@ -183,6 +215,9 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
         cartSubTotal,
         cartTax,
         cartTaxRate: salesTaxRate,
+        cartShipping: cartShippingDetails.amount,
+        cartShippingLabel: cartShippingDetails.label,
+        cartShippingAddressRequired: cartShippingDetails.addressRequired,
         cartTotal,
       }}
     >

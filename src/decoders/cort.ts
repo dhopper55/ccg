@@ -24,8 +24,13 @@ export function decodeCort(serial: string): DecodeResult {
   const cleaned = serial.trim().toUpperCase();
   const normalized = cleaned.replace(/[\s-]/g, '');
 
-  // W.O. prefix - 1970s/1980s Korean production
-  if (/^W\.?O\.?\d+/i.test(cleaned)) {
+  // Modern alphanumeric factory/line prefix: 1A + YYMM + sequence
+  if (/^\d[A-Z]\d{9}$/.test(normalized)) {
+    return decodeModernAlphaFactoryLine(normalized);
+  }
+
+  // W.O./W0 prefix - vintage 1970s/1980s Korean production
+  if (/^W(?:\.?O\.?|0)\s*\d+/i.test(cleaned)) {
     return decodeWOPrefix(cleaned);
   }
 
@@ -94,7 +99,12 @@ export function decodeCort(serial: string): DecodeResult {
     return decodeModern8DigitYearBatch(normalized);
   }
 
-  // Modern 2000s format with omitted leading zero: YMMXXXXX (e.g. 70514001 = 07/05/14001)
+  // Modern 2000s 8-digit year/sequence format with transposed zero: Y0 + sequence
+  if (/^[1-9]0\d{6}$/.test(normalized)) {
+    return decodeModern2000sTransposedZeroYearSequence(normalized);
+  }
+
+  // Modern 2000s format with omitted leading zero: YMMXXXXX
   if (/^[1-9]\d{7}$/.test(normalized) && isValidMonthDigits(normalized.substring(1, 3))) {
     return decodeModern2000sDroppedLeadingZero(normalized);
   }
@@ -127,6 +137,11 @@ export function decodeCort(serial: string): DecodeResult {
     return decode1990s7Digit(normalized);
   }
 
+  // Early 1980s 5-digit neck-plate numeric format
+  if (/^\d{5}$/.test(normalized)) {
+    return decodeEarly1980sFiveDigitNeckPlate(normalized);
+  }
+
   // 6-digit format (older/ambiguous)
   if (/^\d{6}$/.test(normalized)) {
     return decode6Digit(normalized);
@@ -135,6 +150,61 @@ export function decodeCort(serial: string): DecodeResult {
   return {
     success: false,
     error: 'Unable to decode this Cort serial number. The format was not recognized. Common formats include: YYMMXXXX (8 digits, 2000-2004), YYMMXXXXX (9 digits, 2005+), YY + 10-digit tracking codes, RYYXXXXX (R prefix year/sequence), YMMXXXX (7 digits, 1990s), or W.O. prefix (1970s-80s). Note: Pre-mid-1990s guitars often have randomly generated serial numbers.',
+  };
+}
+
+// Modern alphanumeric factory/line prefix: 1A + YYMM + sequence
+function decodeModernAlphaFactoryLine(serial: string): DecodeResult {
+  const prefix = serial.substring(0, 2);
+  const yearDigits = serial.substring(2, 4);
+  const monthDigits = serial.substring(4, 6);
+  const sequence = serial.substring(6);
+  const year = 2000 + parseInt(yearDigits, 10);
+  const month = parseInt(monthDigits, 10);
+
+  if (month < 1 || month > 12) {
+    return {
+      success: false,
+      error: `Invalid month "${monthDigits}" in serial number. Month should be 01-12.`,
+    };
+  }
+
+  const info: GuitarInfo = {
+    brand: 'Cort',
+    serialNumber: serial,
+    year: year.toString(),
+    month: getMonthName(month),
+    factory: 'Cort modern factory/production line',
+    country: 'Korea, Indonesia, or China',
+    notes: `Modern Cort alphanumeric format interpreted as factory/line prefix + YYMM + sequence. Prefix ${prefix} indicates an internal factory or production line code. The digits ${yearDigits} indicate production year ${year}; ${monthDigits} indicates ${getMonthName(month)}. Production sequence: ${parseInt(sequence, 10)}. Cort serials identify production date more reliably than exact model name, so verify the model from the headstock, label, or other physical markings.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'cort-modern-alphanumeric-factory-line-yymm-sequence',
+    patternLabel: 'Cort modern alphanumeric factory-line YYMM sequence',
+    additionalContext: {
+      title: 'Cort modern alphanumeric serial',
+      summary: 'This serial matches a modern Cort alphanumeric format parsed as factory/line prefix, production year and month, and sequence.',
+      highlights: [
+        `Prefix ${prefix} is treated as an internal factory or production line code.`,
+        `The digits ${yearDigits} decode as production year ${year}.`,
+        `The digits ${monthDigits} decode as ${getMonthName(month)}.`,
+        `The remaining digits decode as production sequence ${parseInt(sequence, 10)}.`,
+      ],
+      caveats: [
+        'Cort serials usually identify production date more reliably than exact model identity.',
+        'The serial does not identify the specific Cort model name.',
+        'Production location requires country-of-origin markings or other physical evidence.',
+      ],
+      verificationTips: [
+        'Check the headstock, soundhole label, neck heel, or back of headstock for model and country markings.',
+        'Compare the instrument against Cort catalog specs from the decoded year.',
+        'Contact Cort with photos if exact model confirmation is needed.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern Cort alphanumeric format parsed as factory/line prefix, production year and month, and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>Prefix ${prefix} is treated as an internal factory or production line code. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} decode as ${getMonthName(month)}. The remaining digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Cort serials usually identify production date more reliably than exact model identity.</li><li>The serial does not identify the specific Cort model name.</li><li>Confirm the model from headstock, label, or other physical markings.</li></ul>`,
   };
 }
 
@@ -191,32 +261,50 @@ function decodeIndonesiaAI(serial: string): DecodeResult {
   };
 }
 
-// W.O. prefix - 1970s/1980s Korean production
+// W.O./W0 prefix - vintage Korean production
 function decodeWOPrefix(serial: string): DecodeResult {
-  // Extract number after W.O. prefix
-  const match = serial.match(/^W\.?O\.?(\d+)/i);
+  const match = serial.match(/^W(?:\.?O\.?|0)\s*(\d+)/i);
   const numericPart = match ? match[1] : '';
-
-  // Check if last two digits could indicate year (e.g., ending in 86 = 1986)
-  let yearNote = '';
-  if (numericPart.length >= 2) {
-    const lastTwo = numericPart.slice(-2);
-    const potentialYear = parseInt(lastTwo, 10);
-    if (potentialYear >= 73 && potentialYear <= 95) {
-      yearNote = ` The serial ends in "${lastTwo}" which may indicate 19${lastTwo}, though this pattern is unconfirmed.`;
-    }
-  }
+  const prefix = serial.match(/^W(?:\.?O\.?|0)/i)?.[0].toUpperCase() ?? 'W.O.';
+  const sequenceNumber = numericPart ? parseInt(numericPart, 10) : undefined;
 
   const info: GuitarInfo = {
     brand: 'Cort',
     serialNumber: serial,
-    year: '1970s-1980s (exact year uncertain)',
-    factory: 'Cort Korea (Incheon)',
+    year: '1984-1989 (estimated)',
+    factory: 'Cort / Cor-Tek Korea',
     country: 'South Korea',
-    notes: `W.O. prefix indicates Korean Cort production from the 1970s-1980s. These serial numbers were typically on white stickers with black borders on the headstock or neck heel.${yearNote}`,
+    notes: `Vintage ${prefix} prefix Cort format associated with South Korean Cor-Tek production in the mid-to-late 1980s. The remaining digits are best treated as a batch or production sequence${sequenceNumber !== undefined ? ` (${sequenceNumber})` : ''}, not a month/day date code. This format helps verify era and origin, but it does not identify the exact model name.`,
   };
 
-  return { success: true, info };
+  return {
+    success: true,
+    info,
+    patternKey: 'cort-vintage-wo-w0-korea-sequence',
+    patternLabel: 'Cort vintage W.O./W0 Korea sequence',
+    additionalContext: {
+      title: 'Cort vintage W.O./W0 serial',
+      summary: 'This serial matches a vintage Cort W.O./W0-prefix format associated with Korean Cor-Tek production.',
+      highlights: [
+        `${prefix} is treated as a vintage Cort/Cor-Tek prefix rather than a modern date code.`,
+        'The era is estimated as 1984-1989.',
+        sequenceNumber !== undefined
+          ? `The digits after the prefix are treated as production sequence ${sequenceNumber}.`
+          : 'The digits after the prefix are treated as a production or batch sequence.',
+      ],
+      caveats: [
+        'The sequence is not a reliable exact month or day code.',
+        'This format verifies vintage Korean-era production more reliably than exact model identity.',
+        'Exact model identification requires physical markings and catalog comparison.',
+      ],
+      verificationTips: [
+        'Check for a silver or paper foil sticker on the back of the headstock or a stamped neck plate.',
+        'Compare the headstock logo and body style against Cort Performer, Effector, and other mid-to-late 1980s Cort catalog models.',
+        'Use country-of-origin markings and hardware details to help confirm the model.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a vintage Cort W.O./W0-prefix format associated with Korean Cor-Tek production.</p><h3>How This Pattern Is Typically Read</h3><p>${prefix} is treated as a vintage Cort/Cor-Tek prefix rather than a modern date code. The era is estimated as 1984-1989. The digits after the prefix are treated as a production or batch sequence${sequenceNumber !== undefined ? ` (${sequenceNumber})` : ''}.</p><h3>What To Verify</h3><ul><li>The sequence is not a reliable exact month or day code.</li><li>This format verifies vintage Korean-era production more reliably than exact model identity.</li><li>Check the headstock logo, sticker or neck plate, country markings, and catalog features to narrow the exact model.</li></ul>`,
+  };
 }
 
 // Indonesian ICS prefix (Factory Special Run)
@@ -641,6 +729,50 @@ function decodeModern8Digit(serial: string): DecodeResult {
   return { success: true, info };
 }
 
+// Modern 2000s 8-digit year/sequence format: Y0 + sequence (e.g. 70514001 = 2007 + 514001)
+function decodeModern2000sTransposedZeroYearSequence(serial: string): DecodeResult {
+  const yearDigits = serial.substring(0, 2);
+  const sequence = serial.substring(2);
+  const year = 2000 + parseInt(serial[0], 10);
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Cort',
+    serialNumber: serial,
+    year: year.toString(),
+    factory: 'Cort (location varies - Korea, Indonesia, or China)',
+    country: 'Korea, Indonesia, or China',
+    notes: `Modern Cort 8-digit numeric format interpreted as Y0 + sequence. The first two digits (${yearDigits}) indicate production year ${year}; the remaining digits are production sequence ${sequenceNumber}. Cort serials identify production year more reliably than exact model name, so verify the model from the headstock, label, or other physical markings.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'cort-modern-2000s-y0-year-sequence',
+    patternLabel: 'Cort modern 2000s Y0 year sequence',
+    additionalContext: {
+      title: 'Cort modern 2000s year/sequence serial',
+      summary: 'This serial matches a Cort 2000s numeric format where the first two digits identify the production year and the rest is a sequence.',
+      highlights: [
+        `The first two digits ${yearDigits} decode as production year ${year}.`,
+        `The remaining digits decode as production sequence ${sequenceNumber}.`,
+        'The serial does not encode the exact model name.',
+      ],
+      caveats: [
+        'Cort serials usually identify production year more reliably than exact model identity.',
+        'Production location requires country-of-origin markings or other physical evidence.',
+        'Model identification requires the headstock, label, or other physical markings.',
+      ],
+      verificationTips: [
+        'Check the headstock, soundhole label, neck heel, or back of headstock for model and country markings.',
+        'Compare the instrument against Cort catalog specs from the decoded year.',
+        'Contact Cort with photos if exact model confirmation is needed.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Cort 2000s numeric format where the first two digits identify the production year and the rest is a sequence.</p><h3>How This Pattern Is Typically Read</h3><p>The first two digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Cort serials usually identify production year more reliably than exact model identity.</li><li>The serial does not identify the specific Cort model name.</li><li>Confirm the model from headstock, label, or other physical markings.</li></ul>`,
+  };
+}
+
 // Modern 2000s format with omitted leading zero: YMMXXXXX
 function decodeModern2000sDroppedLeadingZero(serial: string): DecodeResult {
   const yearDigits = `0${serial.substring(0, 1)}`;
@@ -890,6 +1022,55 @@ function decode1990s7Digit(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+// Early 1980s 5-digit neck-plate numeric format
+function decodeEarly1980sFiveDigitNeckPlate(serial: string): DecodeResult {
+  const yearCode = serial.substring(0, 2);
+  const sequence = serial.substring(2);
+  const sequenceNumber = parseInt(sequence, 10);
+  const yearByCode: Record<string, number> = {
+    '20': 1982,
+  };
+  const year = yearByCode[yearCode];
+
+  const info: GuitarInfo = {
+    brand: 'Cort',
+    serialNumber: serial,
+    year: year ? year.toString() : 'Early 1980s (estimated)',
+    factory: 'Cor-Tek Korea',
+    country: 'South Korea',
+    notes: `Early-1980s Cort 5-digit neck-plate format. The first two digits (${yearCode}) are treated as an early Cort production-year code${year ? ` for ${year}` : ''}; the remaining digits are production sequence ${sequenceNumber}. This format is associated with Korean Cor-Tek bolt-on instruments and should be verified against a metal neck plate, Made in Korea marking, headstock logo, and period-correct catalog features.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'cort-early-1980s-5-digit-neck-plate',
+    patternLabel: 'Cort early 1980s 5-digit neck-plate serial',
+    additionalContext: {
+      title: 'Cort early-1980s 5-digit serial',
+      summary: 'This serial matches an early Cort all-numeric 5-digit format associated with Korean neck-plate stamped instruments.',
+      highlights: [
+        year
+          ? `The first two digits ${yearCode} decode as the early Cort production-year code for ${year}.`
+          : `The first two digits ${yearCode} are treated as an early Cort production-year code.`,
+        `The remaining digits decode as production sequence ${sequenceNumber}.`,
+        'This format is most useful when stamped on a metal neck plate with Made in Korea markings.',
+      ],
+      caveats: [
+        'Early Cort serial documentation is less standardized than later date-coded formats.',
+        'The serial does not identify the exact model name.',
+        'Use physical markings and construction details to confirm the era.',
+      ],
+      verificationTips: [
+        'Check whether the number is stamped into the metal neck plate.',
+        'Look for Made in Korea markings near the neck plate or headstock.',
+        'Compare the body shape, headstock logo, pickups, and bridge against early-1980s Cort catalog examples.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches an early Cort all-numeric 5-digit format associated with Korean neck-plate stamped instruments.</p><h3>How This Pattern Is Typically Read</h3><p>The first two digits ${yearCode} are treated as an early Cort production-year code${year ? ` for ${year}` : ''}. The remaining digits decode as production sequence ${sequenceNumber}. This format is most useful when stamped on a metal neck plate with Made in Korea markings.</p><h3>What To Verify</h3><ul><li>Early Cort serial documentation is less standardized than later date-coded formats.</li><li>The serial does not identify the exact model name.</li><li>Confirm the number location, Made in Korea markings, body shape, headstock logo, and period-correct hardware.</li></ul>`,
+  };
 }
 
 // 6-digit format (older/ambiguous)

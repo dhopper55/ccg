@@ -120,8 +120,11 @@ We focus on helping people get started the right way — without overpaying or d
 const ASSOCIATE_COOKIE_NAME = 'ccg_associate';
 const ASSOCIATE_COOKIE_VALUE = 'associate';
 const SHOP_SALES_TAX_RATE = 0.0805;
+const SHOP_FLAT_RATE_SHIPPING_CENTS = 600;
+const SHOP_FREE_SHIPPING_THRESHOLD_CENTS = 7500;
 const CCG_YOUTUBE_CHANNEL_ID = 'UCV-kDQjH_cWcsxwg0GZKX3g';
 const DEFAULT_CO_SALES_TAX_RATE_ID = 'txr_1TSEdADCplz62P7p4H6E7YJK';
+const ALLOWED_MFR_CODES = new Set(['DUNLOP', 'NOMAD']);
 const SHOP_COUPONS = new Map<string, { amountOffCents: number }>([
   ['TAKE100', { amountOffCents: 10000 }],
 ]);
@@ -224,6 +227,11 @@ type ShopCheckoutDraft = {
   discountCents: number;
   couponCode: string | null;
   taxIncluded: boolean;
+  shippingStatus: 'flat_rate' | 'free' | 'in_store';
+  shippingLabel: '$6.00' | 'FREE' | 'IN-STORE';
+  shippingCents: number;
+  shippingTaxCents: number;
+  shippingAddressRequired: boolean;
   taxCents: number;
   totalCents: number;
 };
@@ -2866,6 +2874,11 @@ type BrevoRuntimeConfig = {
   senderEmail: string;
 };
 
+const ORDER_CONFIRMATION_BCC_RECIPIENT = {
+  email: 'david@coalcreekguitars.com',
+  name: 'David Hopper',
+};
+
 type InventoryItemRow = {
   id: number;
   source_listing_id: number | null;
@@ -3471,7 +3484,7 @@ async function handleAdminV2MfrOrderCreate(request: Request, env: Env): Promise<
 
   if (!poNumber) return jsonResponse({ message: 'PO Number is required.' }, 400);
   if (!mfrCode) return jsonResponse({ message: 'MFR Code is required.' }, 400);
-  if (mfrCode !== 'DUNLOP') return jsonResponse({ message: 'MFR Code is invalid.' }, 400);
+  if (!ALLOWED_MFR_CODES.has(mfrCode)) return jsonResponse({ message: 'MFR Code is invalid.' }, 400);
   if ([lineItemsTotal, shippingCost, otherCost, salesTax, total].some((value) => value < 0)) {
     return jsonResponse({ message: 'Amounts cannot be negative.' }, 400);
   }
@@ -4499,6 +4512,7 @@ async function sendBrevoOrderConfirmationEmailForOrder(orderId: string, env: Env
           name: customerName || customerEmail,
         },
       ],
+      bcc: [ORDER_CONFIRMATION_BCC_RECIPIENT],
       templateId: config.templateId,
       params: {
         ORDER_NUMBER: orderNumber,
@@ -4507,6 +4521,7 @@ async function sendBrevoOrderConfirmationEmailForOrder(orderId: string, env: Env
         FIRST_NAME: firstName,
         discount: formatCurrencyCents(numberOrZero(receipt.discountCents)),
         subtotal: formatCurrencyCents(numberOrZero(receipt.subtotalCents)),
+        shipping: normalizeText((receipt as any).shippingLabel, '') || formatCurrencyCents(numberOrZero((receipt as any).shippingCents)),
         tax: formatCurrencyCents(numberOrZero(receipt.taxCents)),
         total: formatCurrencyCents(numberOrZero(receipt.totalCents)),
         items: items.map((item: any) => {
@@ -5953,6 +5968,15 @@ async function handleShopAnalyticsEvent(request: Request, env: Env): Promise<Res
     return jsonResponse({ message: 'Unsupported analytics event.' }, 400);
   }
 
+  if (await isAssociateModeRequest(request, env)) {
+    return jsonResponse({ ok: true, skipped: true, reason: 'associate_mode' });
+  }
+
+  const stripeConfig = await getStripeRuntimeConfig(env);
+  if (stripeConfig.useSandbox) {
+    return jsonResponse({ ok: true, skipped: true, reason: 'stripe_sandbox' });
+  }
+
   const userAgent = normalizeText(request.headers.get('user-agent'), '');
   const botUserAgent = getObviousBotUserAgent(userAgent);
   if (botUserAgent) {
@@ -6168,6 +6192,10 @@ async function handleShopCreateCheckoutSession(request: Request, env: Env): Prom
       subtotalCents: draft.subtotalCents,
       discountCents: draft.discountCents,
       couponCode: draft.couponCode,
+      shippingStatus: draft.shippingStatus,
+      shippingLabel: draft.shippingLabel,
+      shippingCents: draft.shippingCents,
+      shippingTaxCents: draft.shippingTaxCents,
       taxCents: draft.taxCents,
       totalCents: draft.totalCents,
       cardAmountCents: isSplitTender ? cardAmountCents : null,
@@ -6187,6 +6215,10 @@ async function handleShopCreateCheckoutSession(request: Request, env: Env): Prom
       items: draft.items,
       couponCode: draft.couponCode,
       discountCents: draft.discountCents,
+      shippingStatus: draft.shippingStatus,
+      shippingLabel: draft.shippingLabel,
+      shippingCents: draft.shippingCents,
+      shippingAddressRequired: draft.shippingAddressRequired,
       taxCents: draft.taxCents,
       splitTender: isSplitTender
         ? {
@@ -6302,6 +6334,10 @@ async function handleShopCreateTerminalPayment(request: Request, env: Env): Prom
       subtotalCents: draft.subtotalCents,
       discountCents: draft.discountCents,
       couponCode: draft.couponCode,
+      shippingStatus: draft.shippingStatus,
+      shippingLabel: draft.shippingLabel,
+      shippingCents: draft.shippingCents,
+      shippingTaxCents: draft.shippingTaxCents,
       taxCents: draft.taxCents,
       totalCents: draft.totalCents,
       cardAmountCents: isSplitTender ? cardAmountCents : null,
@@ -6322,6 +6358,9 @@ async function handleShopCreateTerminalPayment(request: Request, env: Env): Prom
       cashAmountCents,
       discountCents: draft.discountCents,
       taxCents: draft.taxCents,
+      shippingStatus: draft.shippingStatus,
+      shippingLabel: draft.shippingLabel,
+      shippingCents: draft.shippingCents,
       checkoutProvider,
       items: draft.items,
     });
@@ -6439,6 +6478,10 @@ async function handleShopCreateCashOrder(request: Request, env: Env): Promise<Re
       subtotalCents: draft.subtotalCents,
       discountCents: draft.discountCents,
       couponCode: draft.couponCode,
+      shippingStatus: draft.shippingStatus,
+      shippingLabel: draft.shippingLabel,
+      shippingCents: draft.shippingCents,
+      shippingTaxCents: draft.shippingTaxCents,
       taxCents: draft.taxCents,
       totalCents: draft.totalCents,
       successUrl,
@@ -6700,9 +6743,18 @@ async function buildShopCheckoutDraft(
   const discountCents = manualDiscountCents > 0
     ? manualDiscountCents
     : couponDiscountCents;
-  const taxableCents = Math.max(0, subtotalCents - discountCents);
+  const shipping = calculateShopCheckoutShipping({
+    items: checkoutItems,
+    subtotalCents,
+    discountCents,
+    isAssociateMode: options.includeInStoreOnly,
+  });
+  const taxableCents = Math.max(0, subtotalCents - discountCents + shipping.shippingCents);
   const taxIncluded = options.allowTaxIncluded && body?.taxIncluded === true;
   const taxCents = taxIncluded ? 0 : Math.round(taxableCents * SHOP_SALES_TAX_RATE);
+  const shippingTaxCents = taxIncluded || shipping.shippingCents <= 0
+    ? 0
+    : Math.round(shipping.shippingCents * SHOP_SALES_TAX_RATE);
   const totalCents = taxableCents + taxCents;
 
   return {
@@ -6711,8 +6763,47 @@ async function buildShopCheckoutDraft(
     discountCents,
     couponCode: manualDiscountCents > 0 ? null : coupon ? couponCode : null,
     taxIncluded,
+    shippingStatus: shipping.shippingStatus,
+    shippingLabel: shipping.shippingLabel,
+    shippingCents: shipping.shippingCents,
+    shippingTaxCents,
+    shippingAddressRequired: shipping.shippingAddressRequired,
     taxCents,
     totalCents,
+  };
+}
+
+function calculateShopCheckoutShipping(input: {
+  items: ShopCheckoutLineItem[];
+  subtotalCents: number;
+  discountCents: number;
+  isAssociateMode: boolean;
+}): Pick<ShopCheckoutDraft, 'shippingStatus' | 'shippingLabel' | 'shippingCents' | 'shippingAddressRequired'> {
+  const hasShippableItems = input.items.some((item) => Number(item.row.allow_shipping || 0) === 1);
+  if (input.isAssociateMode || !hasShippableItems) {
+    return {
+      shippingStatus: 'in_store',
+      shippingLabel: 'IN-STORE',
+      shippingCents: 0,
+      shippingAddressRequired: false,
+    };
+  }
+
+  const thresholdSubtotalCents = Math.max(0, input.subtotalCents - input.discountCents);
+  if (thresholdSubtotalCents >= SHOP_FREE_SHIPPING_THRESHOLD_CENTS) {
+    return {
+      shippingStatus: 'free',
+      shippingLabel: 'FREE',
+      shippingCents: 0,
+      shippingAddressRequired: true,
+    };
+  }
+
+  return {
+    shippingStatus: 'flat_rate',
+    shippingLabel: '$6.00',
+    shippingCents: SHOP_FLAT_RATE_SHIPPING_CENTS,
+    shippingAddressRequired: true,
   };
 }
 
@@ -11408,6 +11499,7 @@ async function dbListCheckoutInventoryItems(
       regular_price,
       sale_price,
       unit_purchase_price,
+      allow_shipping,
       quantity,
        for_sale,
        only_in_store,
@@ -11556,6 +11648,7 @@ function buildMissingPaymentLinkInventoryRow(
     regular_price: 0,
     sale_price: 0,
     unit_purchase_price: 0,
+    allow_shipping: 0,
     quantity: 1,
     for_sale: 0,
     only_in_store: 0,
@@ -11608,6 +11701,10 @@ async function dbCreateCheckoutOrder(
     subtotalCents: number;
     discountCents: number;
     couponCode: string | null;
+    shippingStatus: string;
+    shippingLabel: string;
+    shippingCents: number;
+    shippingTaxCents: number;
     taxCents: number;
     totalCents: number;
     cardAmountCents?: number | null;
@@ -11654,7 +11751,11 @@ async function dbCreateCheckoutOrder(
     ['item_image_url_snapshot', firstItem.imageUrl],
     ['subtotal_cents', input.subtotalCents],
     ['tax_cents', input.taxCents],
-    ['shipping_cents', 0],
+    ['shipping_cents', input.shippingCents],
+    ['shipping_status', input.shippingStatus],
+    ['shipping_label', input.shippingLabel],
+    ['shipping_tax_cents', input.shippingTaxCents],
+    ['shipping_address_required', input.shippingStatus === 'free' || input.shippingStatus === 'flat_rate' ? 1 : 0],
     ['discount_cents', input.discountCents],
     ['coupon_code', input.couponCode],
     ['total_cents', input.totalCents],
@@ -11800,6 +11901,10 @@ async function dbEnsurePaymentLinkCheckoutOrder(session: any, event: any, env: E
     subtotalCents,
     discountCents,
     couponCode: null,
+    shippingStatus: 'in_store',
+    shippingLabel: 'IN-STORE',
+    shippingCents: 0,
+    shippingTaxCents: 0,
     taxCents,
     totalCents: normalizedTotalCents,
     successUrl,
@@ -11992,6 +12097,8 @@ async function dbUpdateStripeOrderStatus(
   env: Env,
   extraValues: Record<string, unknown> = {},
 ): Promise<void> {
+  const shippingDetails = session?.shipping_details;
+  const shippingAddress = shippingDetails?.address ?? {};
   await dbUpdateTableById('orders', orderId, {
     status,
     stripe_checkout_session_id: normalizeText(session?.id, ''),
@@ -12004,6 +12111,14 @@ async function dbUpdateStripeOrderStatus(
     stripe_customer_email: normalizeText(session?.customer_details?.email, ''),
     stripe_customer_phone: normalizeText(session?.customer_details?.phone, ''),
     stripe_payment_status: normalizeText(session?.payment_status, ''),
+    shipping_name: normalizeText(shippingDetails?.name, ''),
+    shipping_phone: normalizeText(shippingDetails?.phone, ''),
+    shipping_address_line1: normalizeText(shippingAddress?.line1, ''),
+    shipping_address_line2: normalizeText(shippingAddress?.line2, ''),
+    shipping_address_city: normalizeText(shippingAddress?.city, ''),
+    shipping_address_state: normalizeText(shippingAddress?.state, ''),
+    shipping_address_postal_code: normalizeText(shippingAddress?.postal_code, ''),
+    shipping_address_country: normalizeText(shippingAddress?.country, ''),
     card_amount_cents: numberOrZero(session?.metadata?.card_amount_cents),
     cash_amount_cents: numberOrZero(session?.metadata?.cash_amount_cents),
     cash_due_cents: numberOrZero(session?.metadata?.cash_amount_cents),
@@ -12154,6 +12269,10 @@ async function dbGetOrderReceipt(orderId: string, env: Env): Promise<Record<stri
     checkoutProvider: normalizeText(order.checkout_provider, '') || (normalizeText(order.stripe_checkout_session_id, '') ? 'stripe' : ''),
     stripePaymentIntentId: normalizeText(order.stripe_payment_intent_id, ''),
     subtotalCents: Number(order.subtotal_cents ?? 0) || 0,
+    shippingStatus: normalizeText(order.shipping_status, 'in_store'),
+    shippingLabel: normalizeText(order.shipping_label, Number(order.shipping_cents ?? 0) > 0 ? '$6.00' : 'IN-STORE'),
+    shippingCents: Number(order.shipping_cents ?? 0) || 0,
+    shippingTaxCents: Number(order.shipping_tax_cents ?? 0) || 0,
     taxCents: Number(order.tax_cents ?? 0) || 0,
     discountCents: Number(order.discount_cents ?? 0) || 0,
     totalCents: Number(order.total_cents ?? 0) || 0,
@@ -15179,12 +15298,16 @@ function deriveExplicitRegexFromKnownPatternKey(patternKey: string): string | nu
     'bcrich-short-numeric-import-y-filler-quarter-sequence': '^\\d{6}$',
     'cort-1980s-korea-7-digit-yy-sequence': '^8\\d{6}$',
     'cort-ai-indonesia-yymm-sequence': '^AI\\d{9}$',
+    'cort-early-1980s-5-digit-neck-plate': '^\\d{5}$',
     'cort-icse-indonesia-yy-sequence': '^ICSE\\d{8}$',
     'cort-late-1990s-8-digit-yymm-sequence': '^9\\d{7}$',
+    'cort-modern-alphanumeric-factory-line-yymm-sequence': '^\\d[A-Z]\\d{9}$',
     'cort-modern-8-digit-year-batch-sequence': '^\\d{2}00\\d{4}$',
+    'cort-modern-2000s-y0-year-sequence': '^[1-9]0\\d{6}$',
     'cort-modern-9-digit-yymm-sequence': '^\\d{9}$',
     'cort-modern-12-digit-year-tracking-sequence': '^\\d{12}$',
     'cort-r-prefix-yy-sequence': '^R\\d{7}$',
+    'cort-vintage-wo-w0-korea-sequence': '^W(?:\\.?O\\.?|0)\\s*\\d+$',
     'cort-vintage-1990s-7-digit-yymm-sequence': '^9\\d{6}$',
     'cort-year-sequence-7-digit': '^00\\d{5}$',
     'dean-asian-partner-a-yymm-sequence': '^A\\d{8}$',
@@ -15196,14 +15319,17 @@ function deriveExplicitRegexFromKnownPatternKey(patternKey: string): string | nu
     'ibanez-china-gaoqing-grand-star-g-yymm-sequence': '^G\\d{8}$',
     'ibanez-ambiguous-6-digit-numeric-impossible-yy': '^\\d{6}$',
     'ibanez-gs-mixed-contractor-yy-plant-mm-sequence': '^GS\\d{2}[A-Z]\\d{6}$',
+    'ibanez-indonesia-premium-j-yy-sequence': '^J\\d{6}$',
     'ibanez-korea-saein-sa-yymm-sequence': '^SA\\d{9}$',
     'schecter-ca-yymm-sequence': '^CA\\d{8}$',
     'schecter-h-yymm-sequence': '^H\\d{7,9}$',
     'schecter-im-indonesia-yymm-sequence': '^IM\\d{8}$',
     'schecter-korea-legacy-6-digit': '^\\d{6}$',
+    'schecter-r-korea-yy-sequence': '^R\\d{7}$',
     'schecter-rn-yymm-sequence': '^RN\\d{8}$',
     'schecter-ro-indonesia-yy-sequence': '^RO\\d{8}$',
     'schecter-st-yymm-sequence': '^ST\\d{8}$',
+    'schecter-usa-5-digit-yy-sequence': '^\\d{5}$',
     'taylor-legacy-9-digit-year-code': '^\\d{9}$',
     'taylor-modern-extended-11': '^[12]\\d{10}$',
     'taylor-modern-short-9': '^[12]\\d{8}$',
@@ -16974,6 +17100,10 @@ async function createStripeCheckoutSession(input: {
   cancelUrl: string;
   couponCode: string | null;
   discountCents: number;
+  shippingStatus: string;
+  shippingLabel: string;
+  shippingCents: number;
+  shippingAddressRequired: boolean;
   taxCents: number;
   splitTender?: {
     cardAmountCents: number;
@@ -16997,7 +17127,13 @@ async function createStripeCheckoutSession(input: {
   form.set('metadata[order_number]', input.orderNumber);
   form.set('metadata[inventory_item_ids]', input.items.map((item) => String(item.inventoryItemId)).join(','));
   form.set('metadata[discount_cents]', String(input.discountCents));
+  form.set('metadata[shipping_status]', input.shippingStatus);
+  form.set('metadata[shipping_label]', input.shippingLabel);
+  form.set('metadata[shipping_cents]', String(input.shippingCents));
   form.set('metadata[tax_cents]', String(input.taxCents));
+  if (input.shippingAddressRequired) {
+    form.append('shipping_address_collection[allowed_countries][]', 'US');
+  }
   if (input.splitTender) {
     form.set('metadata[checkout_provider]', 'stripe_cash');
     form.set('metadata[card_amount_cents]', String(input.splitTender.cardAmountCents));
@@ -17035,10 +17171,18 @@ async function createStripeCheckoutSession(input: {
         form.set(`${prefix}[price_data][product_data][images][0]`, item.imageUrl);
       }
     });
+    if (input.shippingAddressRequired) {
+      const prefix = `line_items[${input.items.length}]`;
+      form.set(`${prefix}[quantity]`, '1');
+      form.set(`${prefix}[price_data][currency]`, 'usd');
+      form.set(`${prefix}[price_data][unit_amount]`, String(input.shippingCents));
+      form.set(`${prefix}[price_data][product_data][name]`, 'Shipping');
+      form.set(`${prefix}[price_data][product_data][description]`, input.shippingLabel);
+    }
   }
 
   if (!input.splitTender && input.taxCents > 0) {
-    const prefix = `line_items[${input.items.length}]`;
+    const prefix = `line_items[${input.items.length + (input.shippingAddressRequired ? 1 : 0)}]`;
     form.set(`${prefix}[quantity]`, '1');
     form.set(`${prefix}[price_data][currency]`, 'usd');
     form.set(`${prefix}[price_data][unit_amount]`, String(input.taxCents));
@@ -17073,6 +17217,9 @@ async function createStripeTerminalPaymentIntent(input: {
   cardAmountCents: number;
   cashAmountCents: number;
   discountCents: number;
+  shippingStatus: string;
+  shippingLabel: string;
+  shippingCents: number;
   taxCents: number;
   checkoutProvider: string;
   items: Array<{
@@ -17095,6 +17242,9 @@ async function createStripeTerminalPaymentIntent(input: {
   form.set('metadata[cash_amount_cents]', String(input.cashAmountCents));
   form.set('metadata[total_cents]', String(input.totalCents));
   form.set('metadata[discount_cents]', String(input.discountCents));
+  form.set('metadata[shipping_status]', input.shippingStatus);
+  form.set('metadata[shipping_label]', input.shippingLabel);
+  form.set('metadata[shipping_cents]', String(input.shippingCents));
   form.set('metadata[tax_cents]', String(input.taxCents));
 
   const response = await fetch('https://api.stripe.com/v1/payment_intents', {

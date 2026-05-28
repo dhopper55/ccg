@@ -46,6 +46,7 @@ export interface ProductDetails {
   material?: string[];
   category?: string[];
   features?: string[];
+  allowShipping?: boolean;
 }
 export interface ProductListAdmin {
   id: number;
