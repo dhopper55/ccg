@@ -24,9 +24,9 @@ declare module '@mui/material/styles' {
 
 const mixins: MixinsOptions = {
   ecommerceTopbar: {
-    xs: 172,
-    sm: 172,
-    md: 124,
+    xs: 164,
+    sm: 164,
+    md: 120,
   },
   topbar: {
     default: {

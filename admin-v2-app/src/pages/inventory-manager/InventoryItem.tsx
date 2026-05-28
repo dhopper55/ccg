@@ -2057,7 +2057,7 @@ const InventoryItem = () => {
       setMessage({ severity: 'error', text: 'Queue is required.' });
       return;
     }
-    const barcodeValidationError = editId || form.barcode.trim()
+    const barcodeValidationError = form.barcode.trim()
       ? getBarcodeValidationError(form.barcode)
       : null;
     if (barcodeValidationError) {
@@ -2326,7 +2326,6 @@ const InventoryItem = () => {
                     fullWidth
                     data-admin-barcode-field="true"
                     label="Barcode"
-                    required={Boolean(editId)}
                     value={form.barcode}
                     onChange={(event) => setField('barcode', event.target.value)}
                     onFocus={() => {
@@ -2339,9 +2338,7 @@ const InventoryItem = () => {
                     helperText={
                       form.barcode && getBarcodeValidationError(form.barcode)
                         ? getBarcodeValidationError(form.barcode)
-                        : editId
-                          ? 'Numeric only, 8-20 digits.'
-                          : 'Scan or enter a barcode, or leave blank to auto-generate on save.'
+                        : 'Scan or enter an official barcode, or leave blank.'
                     }
                     inputProps={{
                       name: 'barcode',

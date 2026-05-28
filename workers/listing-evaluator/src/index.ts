@@ -3220,7 +3220,13 @@ async function handleMapsConfig(env: Env): Promise<Response> {
 }
 
 function parseBoundedInt(value: unknown, fallback: number, min: number, max: number): number {
-  const parsed = parseOptionalPositiveInt(value);
+  let parsed: number | null = null;
+  if (typeof value === 'number' && Number.isFinite(value) && Number.isInteger(value)) {
+    parsed = value;
+  } else if (typeof value === 'string' && /^-?\d+$/.test(value.trim())) {
+    const next = Number.parseInt(value.trim(), 10);
+    parsed = Number.isFinite(next) ? next : null;
+  }
   if (parsed == null) return fallback;
   return Math.min(max, Math.max(min, parsed));
 }
@@ -7623,55 +7629,10 @@ async function handleAdminV2InventoryUnmarkAll(env: Env): Promise<Response> {
   return jsonResponse({ ok: true, count });
 }
 
-async function handleAdminV2InventoryBackfillBarcodes(env: Env): Promise<Response> {
-  const rowsResult = await env.DB.prepare(
-    `SELECT id, barcode
-     FROM ccg_inventory_items
-     ORDER BY id ASC`
-  ).all<{ id: number; barcode: string | null }>();
-  const rows = rowsResult.results ?? [];
-  const used = new Set(
-    rows
-      .map((row) => normalizeText(row.barcode, '').trim())
-      .filter((barcode) => /^\d{8,20}$/.test(barcode)),
-  );
-  const missingRows = rows.filter((row) => !normalizeText(row.barcode, '').trim());
-  let updated = 0;
-  const assigned: Array<{ id: number; barcode: string }> = [];
-
-  for (const row of missingRows) {
-    const id = Number(row.id);
-    if (!Number.isFinite(id) || id <= 0) continue;
-
-    let barcode = '';
-    for (let attempt = 0; attempt < 10000; attempt += 1) {
-      const candidate = String(900000000000 + id + attempt);
-      if (!used.has(candidate)) {
-        barcode = candidate;
-        break;
-      }
-    }
-    if (!barcode) {
-      return jsonResponse({ message: `Unable to generate unique barcode for inventory item ${id}.` }, 500);
-    }
-
-    await env.DB.prepare(
-      `UPDATE ccg_inventory_items
-       SET barcode = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ? AND (barcode IS NULL OR TRIM(barcode) = '')`
-    ).bind(barcode, id).run();
-    used.add(barcode);
-    updated += 1;
-    assigned.push({ id, barcode });
-  }
-
+async function handleAdminV2InventoryBackfillBarcodes(_env: Env): Promise<Response> {
   return jsonResponse({
-    ok: true,
-    scanned: rows.length,
-    missing: missingRows.length,
-    updated,
-    assigned,
-  });
+    message: 'Barcode backfill is disabled. Barcodes are now only saved when explicitly entered.',
+  }, 410);
 }
 
 async function handleAdminV2InventoryMergeMarked(env: Env): Promise<Response> {
@@ -8043,7 +8004,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
   const bullet6Highlight = toBooleanInput(body.bullet6Highlight, false);
   const rawBarcode = normalizeText(body.barcode, '').trim();
   const barcodeInput = rawBarcode ? normalizeRequiredInventoryBarcode(rawBarcode) : { value: '', message: null };
-  let barcode = barcodeInput.value;
+  const barcode = barcodeInput.value;
   const purchasedDate = normalizeInventoryDate(body.purchasedDate) || currentDateYmd();
   const unitPurchasePrice = parseCurrencyAmount(body.unitPurchasePrice);
   const mapPrice = parseCurrencyAmount(body.mapPrice);
@@ -8169,11 +8130,6 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
       duplicateSuppressed: true,
       message: 'Duplicate submit prevented.',
     });
-  }
-
-  if (!barcode) {
-    barcode = await generateUniqueInventoryBarcode(env);
-    if (!barcode) return jsonResponse({ message: 'Unable to generate inventory barcode. Please try again.' }, 500);
   }
 
   const inserted = await dbCreateInventoryItems({
@@ -8412,7 +8368,8 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const bullet6Text = normalizeText(body.bullet6Text, '').slice(0, 60);
   const bullet6Danger = toBooleanInput(body.bullet6Danger, false);
   const bullet6Highlight = toBooleanInput(body.bullet6Highlight, false);
-  const barcodeInput = normalizeRequiredInventoryBarcode(body.barcode);
+  const rawBarcode = normalizeText(body.barcode, '').trim();
+  const barcodeInput = rawBarcode ? normalizeRequiredInventoryBarcode(rawBarcode) : { value: '', message: null };
   const barcode = barcodeInput.value;
   const purchasedDate = normalizeInventoryDate(body.purchasedDate);
   const unitPurchasePrice = parseCurrencyAmount(body.unitPurchasePrice);
@@ -10053,7 +10010,7 @@ function mapInventoryRow(
     imageUrl: toAdminImageUrl(row.image_url, 'thumb'),
     imageUrls: parseStoredInventoryImageUrls(row.image_urls, row.image_url),
     title: row.title,
-    quantity: Number(row.quantity ?? 1),
+    quantity: Number(row.quantity ?? 0),
     categoryId: row.category_id,
     categoryName: row.category_name || '',
     categoryPath: row.category_path || row.category_name || '',
@@ -10482,7 +10439,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     imageUrls,
     images: imageDetails,
     title: row.title,
-    quantity: Number(row.quantity ?? 1),
+    quantity: Number(row.quantity ?? 0),
     categoryId: row.category_id,
     categoryName: row.category_name || '',
     categoryPath: row.category_path || row.category_name || '',
@@ -10669,15 +10626,6 @@ async function dbCcgNumberExists(ccgNumber: string, env: Env): Promise<boolean> 
   const row = await env.DB.prepare(
     'SELECT id FROM ccg_inventory_items WHERE ccg_number = ? LIMIT 1'
   ).bind(ccgNumber).first<{ id: number }>();
-  return Boolean(row?.id);
-}
-
-async function dbInventoryBarcodeExists(barcode: string, env: Env): Promise<boolean> {
-  const normalizedBarcode = barcode.trim();
-  if (!normalizedBarcode) return false;
-  const row = await env.DB.prepare(
-    'SELECT id FROM ccg_inventory_items WHERE barcode = ? LIMIT 1'
-  ).bind(normalizedBarcode).first<{ id: number }>();
   return Boolean(row?.id);
 }
 
@@ -12824,15 +12772,6 @@ async function generateUniqueCcgNumber(env: Env): Promise<string | null> {
     const ccgNumber = `CCG-${value}`;
     const exists = await dbCcgNumberExists(ccgNumber, env);
     if (!exists) return ccgNumber;
-  }
-  return null;
-}
-
-async function generateUniqueInventoryBarcode(env: Env): Promise<string | null> {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    const barcode = String(randomIntInRange(100000000000, 999999999999));
-    const exists = await dbInventoryBarcodeExists(barcode, env);
-    if (!exists) return barcode;
   }
   return null;
 }
