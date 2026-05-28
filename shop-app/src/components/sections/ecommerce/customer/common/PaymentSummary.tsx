@@ -48,6 +48,7 @@ const PaymentSummary = () => {
     cartShipping,
     cartShippingLabel,
     cartHasLocalPickupOnlyItems,
+    cartFreeShippingRemaining,
     cartTotal,
     setTaxIncluded,
   } = useEcommerce();
@@ -312,6 +313,20 @@ const PaymentSummary = () => {
               <>
                 US shipping available.
                 <br />
+                {cartShippingLabel === '$6.00' && (
+                  <>
+                    <Box
+                      component="span"
+                      sx={{
+                        color: 'success.main',
+                        fontWeight: 800,
+                      }}
+                    >
+                      Add {currencyFormat(cartFreeShippingRemaining)} more to get free shipping!
+                    </Box>
+                    <br />
+                  </>
+                )}
                 {cartHasLocalPickupOnlyItems && (
                   <>
                     <Box

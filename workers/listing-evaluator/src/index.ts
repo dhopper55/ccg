@@ -194,6 +194,7 @@ interface DecodeEmailRequestPayload {
 
 interface ShopCheckoutRequestPayload {
   fulfillmentType?: unknown;
+  paymentMode?: unknown;
   couponCode?: unknown;
   discountCents?: unknown;
   taxIncluded?: unknown;
@@ -6170,6 +6171,12 @@ async function handleShopCreateCheckoutSession(request: Request, env: Env): Prom
   if (isSplitTender && cardAmountCents > draft.totalCents) {
     return jsonResponse({ message: 'Card amount cannot exceed the order total.' }, 400);
   }
+  const customerPaymentMode = normalizeText(body?.paymentMode, 'standard').toLowerCase() === 'finance'
+    ? 'finance'
+    : 'standard';
+  if (!includeInStoreOnly && customerPaymentMode === 'finance' && draft.totalCents < 20000) {
+    return jsonResponse({ message: 'Financing checkout is available for orders of $200 or more.' }, 400);
+  }
 
   const nowIso = new Date().toISOString();
   const orderId = crypto.randomUUID();
@@ -6220,6 +6227,7 @@ async function handleShopCreateCheckoutSession(request: Request, env: Env): Prom
       shippingCents: draft.shippingCents,
       shippingAddressRequired: draft.shippingAddressRequired,
       taxCents: draft.taxCents,
+      paymentMethodMode: includeInStoreOnly ? 'associate_all' : customerPaymentMode,
       splitTender: isSplitTender
         ? {
           cardAmountCents,
@@ -17105,6 +17113,7 @@ async function createStripeCheckoutSession(input: {
   shippingCents: number;
   shippingAddressRequired: boolean;
   taxCents: number;
+  paymentMethodMode: 'standard' | 'finance' | 'associate_all';
   splitTender?: {
     cardAmountCents: number;
     cashAmountCents: number;
@@ -17131,6 +17140,15 @@ async function createStripeCheckoutSession(input: {
   form.set('metadata[shipping_label]', input.shippingLabel);
   form.set('metadata[shipping_cents]', String(input.shippingCents));
   form.set('metadata[tax_cents]', String(input.taxCents));
+  form.set('metadata[payment_method_mode]', input.paymentMethodMode);
+  if (!input.splitTender && input.paymentMethodMode === 'standard') {
+    form.append('payment_method_types[]', 'card');
+    form.append('payment_method_types[]', 'cashapp');
+    form.append('payment_method_types[]', 'us_bank_account');
+  } else if (!input.splitTender && input.paymentMethodMode === 'finance') {
+    form.append('payment_method_types[]', 'affirm');
+    form.append('payment_method_types[]', 'klarna');
+  }
   if (input.shippingAddressRequired) {
     form.append('shipping_address_collection[allowed_countries][]', 'US');
   }

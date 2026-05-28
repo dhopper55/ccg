@@ -35,6 +35,7 @@ interface EcommerceContextInterface {
   cartShippingLabel: '$6.00' | 'FREE' | 'IN-STORE' | '$0.00';
   cartShippingAddressRequired: boolean;
   cartHasLocalPickupOnlyItems: boolean;
+  cartFreeShippingRemaining: number;
   cartTotal: number;
 }
 
@@ -272,6 +273,7 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
         cartShippingLabel: cartShippingDetails.label,
         cartShippingAddressRequired: cartShippingDetails.addressRequired,
         cartHasLocalPickupOnlyItems,
+        cartFreeShippingRemaining: Math.max(0, freeShippingThreshold - Math.max(0, cartSubTotal - effectiveDiscount)),
         cartTotal,
       }}
     >

@@ -29,6 +29,7 @@ type CashCustomerForm = {
 
 type CashCustomerFormErrors = Partial<Record<keyof CashCustomerForm, string>>;
 type AssociateStripeFlow = 'checkout' | 'split';
+type CustomerPaymentMode = 'standard' | 'finance';
 type TerminalPaymentStatus = 'idle' | 'waiting' | 'succeeded' | 'failed';
 
 type TerminalPaymentState = {
@@ -128,8 +129,14 @@ const CartBottomBar = () => {
     setCashCustomerErrors((current) => ({ ...current, [field]: undefined }));
   };
 
-  const buildCheckoutPayload = (splitTender?: { cardAmountCents: number }) => ({
+  const showFinanceCheckout = !isAssociateMode && cartTotalCents >= 20000;
+
+  const buildCheckoutPayload = (
+    splitTender?: { cardAmountCents: number },
+    paymentMode?: CustomerPaymentMode,
+  ) => ({
     fulfillmentType: 'pickup',
+    paymentMode,
     couponCode: appliedCoupon?.code || undefined,
     discountCents: Math.round(associateDiscount * 100),
     taxIncluded,
@@ -145,7 +152,7 @@ const CartBottomBar = () => {
     setPaymentRouteOpen(true);
   };
 
-  const handleStripeCheckout = async () => {
+  const handleStripeCheckout = async (paymentMode: CustomerPaymentMode = 'standard') => {
     if (selectedCartItems.length === 0 || isCheckingOut) return;
 
     setIsCheckingOut(true);
@@ -154,17 +161,17 @@ const CartBottomBar = () => {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildCheckoutPayload()),
+        body: JSON.stringify(buildCheckoutPayload(undefined, isAssociateMode ? undefined : paymentMode)),
       });
       const data = (await response.json()) as { url?: string; orderNumber?: string; message?: string };
 
       if (!response.ok || !data.url) {
-        throw new Error(data.message || 'Unable to start checkout.');
+        throw new Error(data.message || (paymentMode === 'finance' ? 'Unable to start financing checkout.' : 'Unable to start checkout.'));
       }
 
       window.location.assign(data.url);
     } catch (error) {
-      enqueueSnackbar(error instanceof Error ? error.message : 'Unable to start checkout.', {
+      enqueueSnackbar(error instanceof Error ? error.message : (paymentMode === 'finance' ? 'Unable to start financing checkout.' : 'Unable to start checkout.'), {
         variant: 'error',
       });
       setIsCheckingOut(false);
@@ -452,6 +459,23 @@ const CartBottomBar = () => {
             >
               Checkout
             </Button>
+            {showFinanceCheckout && (
+              <Button
+                color="neutral"
+                variant="outlined"
+                loading={isCheckingOut}
+                disabled={selectedCartItems.length === 0}
+                onClick={() => {
+                  void handleStripeCheckout('finance');
+                }}
+                sx={{
+                  whiteSpace: 'nowrap',
+                  px: { xs: 3, sm: 5 },
+                }}
+              >
+                Finance This
+              </Button>
+            )}
             {isAssociateMode && (
               <>
                 <Button
