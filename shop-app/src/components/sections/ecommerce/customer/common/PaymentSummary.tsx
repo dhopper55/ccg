@@ -47,6 +47,7 @@ const PaymentSummary = () => {
     cartTaxRate,
     cartShipping,
     cartShippingLabel,
+    cartHasLocalPickupOnlyItems,
     cartTotal,
     setTaxIncluded,
   } = useEcommerce();
@@ -311,6 +312,20 @@ const PaymentSummary = () => {
               <>
                 US shipping available.
                 <br />
+                {cartHasLocalPickupOnlyItems && (
+                  <>
+                    <Box
+                      component="span"
+                      sx={{
+                        color: 'warning.main',
+                        fontWeight: 700,
+                      }}
+                    >
+                      FYI Some Items in Cart - Local Pickup Only
+                    </Box>
+                    <br />
+                  </>
+                )}
                 $6 flat rate under $75, free shipping at $75+.
               </>
             )}

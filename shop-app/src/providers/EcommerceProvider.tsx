@@ -34,6 +34,7 @@ interface EcommerceContextInterface {
   cartShipping: number;
   cartShippingLabel: '$6.00' | 'FREE' | 'IN-STORE' | '$0.00';
   cartShippingAddressRequired: boolean;
+  cartHasLocalPickupOnlyItems: boolean;
   cartTotal: number;
 }
 
@@ -196,6 +197,11 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
     };
   }, [cartItems, cartSubTotal, effectiveDiscount, isAssociateMode]);
 
+  const cartHasLocalPickupOnlyItems = useMemo(
+    () => cartItems.some((item) => item.selected && item.allowShipping === false),
+    [cartItems],
+  );
+
   const cartTax = useMemo(() => {
     if (taxIncluded) return 0;
     const taxableTotal = Math.max(0, cartSubTotal - effectiveDiscount + cartShippingDetails.amount);
@@ -265,6 +271,7 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
         cartShipping: cartShippingDetails.amount,
         cartShippingLabel: cartShippingDetails.label,
         cartShippingAddressRequired: cartShippingDetails.addressRequired,
+        cartHasLocalPickupOnlyItems,
         cartTotal,
       }}
     >

@@ -107,11 +107,21 @@ const CartItem = ({ item }: CartItemProps) => {
                     alignItems: 'start',
                   }}
                 >
-                  <Chip
-                    variant="soft"
-                    color={stock > 4 ? 'success' : 'warning'}
-                    label={stock > 4 ? 'In stock' : `${stock} remaining`}
-                  />
+                  <Stack sx={{ gap: 1, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                    <Chip
+                      variant="soft"
+                      color={stock > 4 ? 'success' : 'warning'}
+                      label={stock > 4 ? 'In stock' : `${stock} remaining`}
+                    />
+                    {item.allowShipping === false && (
+                      <Chip
+                        variant="soft"
+                        color="warning"
+                        label="Local Pickup Only"
+                        sx={{ fontWeight: 700 }}
+                      />
+                    )}
+                  </Stack>
 
                   {item.variants && (
                     <List
