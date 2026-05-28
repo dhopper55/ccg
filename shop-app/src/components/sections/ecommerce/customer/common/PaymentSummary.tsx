@@ -289,7 +289,9 @@ const PaymentSummary = () => {
               {cartShippingLabel === 'FREE' && (
                 <IconifyIcon icon="material-symbols:check-circle-rounded" fontSize={18} />
               )}
-              {cartShippingLabel === '$6.00' ? currencyFormat(cartShipping) : cartShippingLabel}
+              {cartShippingLabel === '$6.00' || cartShippingLabel === '$0.00'
+                ? currencyFormat(cartShipping)
+                : cartShippingLabel}
             </Typography>
           </Stack>
 

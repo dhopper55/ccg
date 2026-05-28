@@ -32,7 +32,7 @@ interface EcommerceContextInterface {
   cartTax: number;
   cartTaxRate: number;
   cartShipping: number;
-  cartShippingLabel: '$6.00' | 'FREE' | 'IN-STORE';
+  cartShippingLabel: '$6.00' | 'FREE' | 'IN-STORE' | '$0.00';
   cartShippingAddressRequired: boolean;
   cartTotal: number;
 }
@@ -52,6 +52,31 @@ const getInitialCartItems = (): CartItem[] => {
   } catch {
     return [];
   }
+};
+
+const hydrateCartShippingFlags = async (items: CartItem[], signal: AbortSignal) => {
+  const itemsMissingShipping = items.filter((item) => typeof item.allowShipping !== 'boolean');
+  if (itemsMissingShipping.length === 0) return null;
+
+  const updates = await Promise.all(
+    itemsMissingShipping.map(async (item) => {
+      try {
+        const response = await fetch(`/api/shop/products/${encodeURIComponent(item.id)}`, {
+          credentials: 'same-origin',
+          signal,
+        });
+        if (!response.ok) return null;
+        const payload = (await response.json()) as { record?: { allowShipping?: boolean } };
+        if (typeof payload.record?.allowShipping !== 'boolean') return null;
+        return [item.id, payload.record.allowShipping] as const;
+      } catch {
+        return null;
+      }
+    }),
+  );
+
+  const shippingById = new Map(updates.filter((update): update is readonly [number, boolean] => update != null));
+  return shippingById.size > 0 ? shippingById : null;
 };
 
 const EcommerceProvider = ({ children }: PropsWithChildren) => {
@@ -142,10 +167,17 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
   const cartShippingDetails = useMemo(() => {
     const selectedItems = cartItems.filter((item) => item.selected);
     const hasShippableItems = selectedItems.some((item) => Boolean(item.allowShipping));
-    if (isAssociateMode || !hasShippableItems) {
+    if (isAssociateMode) {
       return {
         amount: 0,
         label: 'IN-STORE' as const,
+        addressRequired: false,
+      };
+    }
+    if (!hasShippableItems) {
+      return {
+        amount: 0,
+        label: '$0.00' as const,
         addressRequired: false,
       };
     }
@@ -191,6 +223,21 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
       cartSubTotal > 0 ? Math.min(currentDiscount, cartSubTotal) : 0,
     );
   }, [cartSubTotal]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void hydrateCartShippingFlags(cartItems, controller.signal).then((shippingById) => {
+      if (!shippingById || controller.signal.aborted) return;
+      setCartItems((currentItems) =>
+        currentItems.map((item) =>
+          shippingById.has(item.id)
+            ? { ...item, allowShipping: shippingById.get(item.id) }
+            : item,
+        ),
+      );
+    });
+    return () => controller.abort();
+  }, [cartItems]);
 
   useEffect(() => {
     window.localStorage.setItem(cartStorageKey, JSON.stringify(cartItems));
