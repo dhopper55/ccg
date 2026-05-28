@@ -321,7 +321,7 @@ const PaymentSummary = () => {
                         fontWeight: 700,
                       }}
                     >
-                      FYI Some Items in Cart - Local Pickup Only
+                      **Some Items in Cart are Local Pickup Only
                     </Box>
                     <br />
                   </>
