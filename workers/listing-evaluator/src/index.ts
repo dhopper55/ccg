@@ -5499,12 +5499,25 @@ async function handleShopProducts(request: Request, env: Env): Promise<Response>
   const priceMax = parseCurrencyAmount(url.searchParams.get('priceMax')) ?? 0;
   const conditionInput = normalizeText(url.searchParams.get('condition'), 'All').slice(0, 50);
   const condition = conditionInput && conditionInput !== 'All' ? conditionInput : '';
+  const randomSeed = normalizeAnalyticsToken(url.searchParams.get('randomSeed'), 120);
+  const useBalancedRandom = Boolean(
+    randomSeed
+    && sort === 'popular'
+    && categoryIds.length === 0
+    && !search
+    && brands.length === 0
+    && priceMin === 0
+    && priceMax === 0
+    && !condition
+    && !showSold
+  );
 
   const productResult = await dbListShopProducts({
     categoryIds,
     search,
     brands,
     sort,
+    randomSeed: useBalancedRandom ? randomSeed : '',
     showSold,
     associateMode,
     priceMin,
@@ -5520,6 +5533,7 @@ async function handleShopProducts(request: Request, env: Env): Promise<Response>
       search,
       brands,
       sort,
+      randomized: useBalancedRandom ? 1 : 0,
       showSold: showSold ? 1 : 0,
       associateMode: associateMode ? 1 : 0,
       priceMin,
@@ -11042,6 +11056,7 @@ async function dbListShopProducts(
     search: string;
     brands: string[];
     sort: string;
+    randomSeed: string;
     showSold: boolean;
     associateMode: boolean;
     priceMin: number;
@@ -11188,7 +11203,10 @@ async function dbListShopProducts(
     isSold: Boolean(row.is_sold),
     };
   });
-  return { records, brands };
+  return {
+    records: filters.randomSeed ? balancedRandomizeShopProducts(records, filters.randomSeed) : records,
+    brands,
+  };
 }
 
 function shopProductOrderBySql(sort: string): string {
@@ -11220,6 +11238,91 @@ function shopProductOrderBySql(sort: string): string {
        COALESCE(i.created_at, '') DESC,
        i.id DESC`;
   }
+}
+
+function balancedRandomizeShopProducts(
+  records: Array<Record<string, unknown>>,
+  seed: string,
+): Array<Record<string, unknown>> {
+  if (records.length < 2) return records;
+
+  const groups = new Map<string, Array<{
+    record: Record<string, unknown>;
+    priceBand: string;
+    randomScore: number;
+  }>>();
+
+  records.forEach((record, index) => {
+    const categoryKey = normalizeText(
+      record.primaryCategoryName,
+      normalizeText(record.category, 'Other'),
+    ).toLowerCase() || 'other';
+    const salePrice = typeof record.salePrice === 'number' ? record.salePrice : 0;
+    const regularPrice = typeof record.regularPrice === 'number' ? record.regularPrice : 0;
+    const price = salePrice > 0 ? salePrice : regularPrice;
+    const item = {
+      record,
+      priceBand: getShopProductPriceBand(price),
+      randomScore: seededUnitScore(`${seed}:${record.id ?? index}`),
+    };
+    const group = groups.get(categoryKey) ?? [];
+    group.push(item);
+    groups.set(categoryKey, group);
+  });
+
+  for (const group of groups.values()) {
+    group.sort((a, b) => a.randomScore - b.randomScore);
+  }
+
+  const output: Array<Record<string, unknown>> = [];
+  let lastCategory = '';
+  let lastPriceBand = '';
+
+  while (output.length < records.length) {
+    const candidates = Array.from(groups.entries())
+      .filter(([, group]) => group.length > 0)
+      .sort((a, b) => {
+        if (a[0] === lastCategory && b[0] !== lastCategory) return 1;
+        if (b[0] === lastCategory && a[0] !== lastCategory) return -1;
+        if (b[1].length !== a[1].length) return b[1].length - a[1].length;
+        return seededUnitScore(`${seed}:category:${a[0]}:${output.length}`)
+          - seededUnitScore(`${seed}:category:${b[0]}:${output.length}`);
+      });
+
+    const selectedCategory = candidates[0]?.[0];
+    if (!selectedCategory) break;
+
+    const group = groups.get(selectedCategory);
+    if (!group || group.length === 0) break;
+    let selectedIndex = group.findIndex((item) => item.priceBand !== lastPriceBand);
+    if (selectedIndex < 0) selectedIndex = 0;
+    const [selected] = group.splice(selectedIndex, 1);
+    if (!selected) continue;
+
+    output.push(selected.record);
+    lastCategory = selectedCategory;
+    lastPriceBand = selected.priceBand;
+  }
+
+  return output.length === records.length ? output : records;
+}
+
+function getShopProductPriceBand(price: number): string {
+  if (price < 25) return 'under-25';
+  if (price < 75) return '25-74';
+  if (price < 200) return '75-199';
+  if (price < 500) return '200-499';
+  if (price < 1000) return '500-999';
+  return '1000-plus';
+}
+
+function seededUnitScore(input: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) / 4294967295;
 }
 
 async function dbSearchShopProductsByTitle(

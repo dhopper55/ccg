@@ -58,6 +58,7 @@ type ShopCategoriesResponse = {
 
 const PAGE_SIZE = 20;
 const filterDrawerWidth = 320;
+const shopBrowseSeedKey = 'ccg-shop-browse-seed';
 
 const index = () => (
   <ProductsProvider products={[]}>
@@ -99,6 +100,7 @@ const Products = () => {
   const productsTopRef = useRef<HTMLDivElement | null>(null);
   const previousFilterSignature = useRef('');
   const pendingFilterScroll = useRef(false);
+  const [browseRandomSeed] = useState(() => getShopBrowseRandomSeed());
 
   useEffect(() => {
     if (upMd) setIsDrawerOpen(true);
@@ -147,6 +149,18 @@ const Products = () => {
     const priceSignature = Array.isArray(priceRange) ? priceRange.join(':') : '';
     return `${effectiveCategoryIdsKey}::${selectedBrandsKey}::${priceSignature}::${sortBy}`;
   }, [effectiveCategoryIdsKey, priceRange, selectedBrandsKey, sortBy]);
+  const isDefaultBrowseView = useMemo(() => {
+    const hasNarrowedPrice = Array.isArray(priceRange)
+      && priceRange.length === 2
+      && (priceRange[0] > 0 || (maxPrice > 0 && priceRange[1] < maxPrice));
+    return (
+      !searchTerm
+      && effectiveCategoryIds.length === 0
+      && selectedBrandValues.length === 0
+      && !hasNarrowedPrice
+      && sortBy === 'popular'
+    );
+  }, [effectiveCategoryIds.length, maxPrice, priceRange, searchTerm, selectedBrandValues.length, sortBy]);
 
   const scrollProductsToTop = useCallback(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -224,6 +238,9 @@ const Products = () => {
           if (brand) params.append('brand', brand);
         }
         params.set('sort', sortBy);
+        if (isDefaultBrowseView && browseRandomSeed) {
+          params.set('randomSeed', browseRandomSeed);
+        }
 
         if (Array.isArray(priceRange) && priceRange.length === 2) {
           const [min, max] = priceRange;
@@ -262,8 +279,10 @@ const Products = () => {
     effectiveCategoryIdsKey,
     isAssociateMode,
     isCheckingAssociateMode,
+    isDefaultBrowseView,
     maxPrice,
     priceRange,
+    browseRandomSeed,
     scrollProductsToTop,
     searchTerm,
     selectedBrandsKey,
@@ -425,6 +444,19 @@ function getHighestProductPrice(products: ShopProduct[]): number {
     const price = product.salePrice > 0 ? product.salePrice : (product.regularPrice ?? 0);
     return Math.max(max, price);
   }, 0);
+}
+
+function getShopBrowseRandomSeed(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    const existing = window.sessionStorage.getItem(shopBrowseSeedKey);
+    if (existing) return existing;
+    const generated = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    window.sessionStorage.setItem(shopBrowseSeedKey, generated);
+    return generated;
+  } catch {
+    return '';
+  }
 }
 
 function formatPrice(amount: number): string {
