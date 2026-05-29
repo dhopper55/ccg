@@ -814,6 +814,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/shop-statistics' && request.method === 'GET') {
+      const response = await handleAdminV2ShopStatistics(request, env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/admin-v2/orders' && request.method === 'GET') {
       const response = await handleAdminV2Orders(request, env);
       return withCors(response, request, env);
@@ -936,6 +941,11 @@ export default {
 
     if (path.endsWith('/delete') && path.startsWith('/api/admin-v2/serial-decodes/') && request.method === 'POST') {
       const response = await handleAdminV2SerialDecodeDelete(path, env);
+      return withCors(response, request, env);
+    }
+
+    if (path.endsWith('/delete') && path.startsWith('/api/admin-v2/shop-statistics/') && request.method === 'POST') {
+      const response = await handleAdminV2ShopStatisticDelete(path, env);
       return withCors(response, request, env);
     }
 
@@ -4636,6 +4646,7 @@ async function sendBrevoOrderConfirmationEmailForOrder(orderId: string, env: Env
       normalizeText(order.paid_at ?? order.updated_at ?? order.created_at, ''),
     );
     const items = Array.isArray(receipt.items) ? receipt.items : [];
+    const paidBy = await resolveOrderPaidByLabel(order, receipt, env);
     const payload = {
       sender: {
         name: config.senderName,
@@ -4659,6 +4670,10 @@ async function sendBrevoOrderConfirmationEmailForOrder(orderId: string, env: Env
         shipping: normalizeText((receipt as any).shippingLabel, '') || formatCurrencyCents(numberOrZero((receipt as any).shippingCents)),
         tax: formatCurrencyCents(numberOrZero(receipt.taxCents)),
         total: formatCurrencyCents(numberOrZero(receipt.totalCents)),
+        paidBy,
+        paymentMethod: paidBy,
+        PAID_BY: paidBy,
+        PAYMENT_METHOD: paidBy,
         items: items.map((item: any) => {
           const quantity = Math.max(1, Number(item.quantity || 1));
           const lineSubtotalCents = numberOrZero(item.subtotalCents);
@@ -7089,6 +7104,25 @@ async function handleAdminV2SerialDecodeLookupVolume(request: Request, env: Env)
   return jsonResponse(data);
 }
 
+async function handleAdminV2ShopStatistics(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const page = parseBoundedInt(url.searchParams.get('page'), 1, 1, 1_000_000);
+  const limit = parseBoundedInt(url.searchParams.get('limit'), 20, 1, 100);
+  const q = normalizeText(url.searchParams.get('q'), '').slice(0, 200);
+  const eventType = normalizeText(url.searchParams.get('eventType'), '').toLowerCase();
+  const sortDir = normalizeText(url.searchParams.get('sortDir'), '').toLowerCase() === 'asc' ? 'asc' : 'desc';
+
+  const data = await dbListAdminV2ShopStatistics({
+    page,
+    limit,
+    q,
+    eventType: SHOP_ANALYTICS_EVENT_TYPES.has(eventType) ? eventType : '',
+    sortDir,
+    env,
+  });
+  return jsonResponse(data);
+}
+
 async function handleAdminV2Search(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const q = normalizeText(url.searchParams.get('q'), '').slice(0, 200);
@@ -7697,6 +7731,24 @@ async function handleAdminV2SerialDecodeDelete(path: string, env: Env): Promise<
   if (!deleteResult) return jsonResponse({ message: 'Unable to delete serial decode record.' }, 500);
   if (deleteResult.deletedCount < 1) {
     return jsonResponse({ message: 'Serial decode record not found.' }, 404);
+  }
+
+  return jsonResponse({
+    ok: true,
+    deletedCount: deleteResult.deletedCount,
+  });
+}
+
+async function handleAdminV2ShopStatisticDelete(path: string, env: Env): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const deleteIndex = parts.indexOf('delete');
+  const recordId = deleteIndex > 0 ? parts[deleteIndex - 1] : '';
+  if (!recordId) return jsonResponse({ message: 'Missing shop statistic event ID.' }, 400);
+
+  const deleteResult = await dbDeleteShopAnalyticsEvent(recordId, env);
+  if (!deleteResult) return jsonResponse({ message: 'Unable to delete shop statistic event.' }, 500);
+  if (deleteResult.deletedCount < 1) {
+    return jsonResponse({ message: 'Shop statistic event not found.' }, 404);
   }
 
   return jsonResponse({
@@ -12504,6 +12556,69 @@ async function resolveStripePaymentMethodLabel(paymentIntentId: string, env: Env
   }
 }
 
+async function resolveOrderPaidByLabel(
+  order: Record<string, unknown>,
+  receipt: Record<string, unknown>,
+  env: Env,
+): Promise<string> {
+  const provider = normalizeText(order.checkout_provider, normalizeText(receipt.checkoutProvider, ''));
+  if (provider === 'cash') return 'Cash';
+  if (provider === 'stripe_cash') return 'Card + Cash';
+
+  const paymentIntentId = normalizeText(
+    order.stripe_payment_intent_id,
+    normalizeText(receipt.stripePaymentIntentId, ''),
+  );
+  if (paymentIntentId) {
+    return resolveStripePaidByLabel(paymentIntentId, env);
+  }
+
+  return provider
+    ? toDisplayPaymentMethodName(provider)
+    : 'Stripe';
+}
+
+async function resolveStripePaidByLabel(paymentIntentId: string, env: Env): Promise<string> {
+  const { secretKey: stripeSecretKey } = await getStripeRuntimeConfig(env);
+  const id = normalizeText(paymentIntentId, '');
+  if (!stripeSecretKey || !id) return 'Stripe';
+
+  try {
+    const response = await fetch(
+      `https://api.stripe.com/v1/payment_intents/${encodeURIComponent(id)}?expand[]=latest_charge`,
+      {
+        headers: {
+          Authorization: `Bearer ${stripeSecretKey}`,
+        },
+      },
+    );
+    const data = await response.json<any>();
+    if (!response.ok) {
+      console.warn('Stripe paid-by lookup failed', { paymentIntentId: id, status: response.status });
+      return 'Stripe';
+    }
+
+    const details = data?.latest_charge?.payment_method_details;
+    const type = normalizeText(details?.type, normalizeText(data?.payment_method_types?.[0], 'stripe')).toLowerCase();
+    if (type === 'card') {
+      const last4 = normalizeText(details?.card?.last4, '');
+      return last4 ? `Credit Card XXXX-${last4}` : 'Credit Card';
+    }
+    if (type === 'card_present') {
+      const last4 = normalizeText(details?.card_present?.last4, '');
+      return last4 ? `Credit Card XXXX-${last4}` : 'Credit Card';
+    }
+    if (type === 'affirm') return 'Affirm financing';
+    if (type === 'klarna') return 'Klarna financing';
+    if (type === 'cashapp') return 'Cash App Pay';
+    if (type === 'us_bank_account') return 'Bank account';
+    return toDisplayPaymentMethodName(type || 'Stripe');
+  } catch (error) {
+    console.warn('Stripe paid-by lookup failed', { paymentIntentId: id, error });
+    return 'Stripe';
+  }
+}
+
 function toDisplayPaymentMethodName(input: unknown): string {
   const normalized = normalizeText(input, '').replace(/_/g, ' ').trim();
   if (!normalized) return 'Stripe';
@@ -14509,6 +14624,135 @@ async function dbListAdminV2SerialDecodes(
   };
 }
 
+async function dbListAdminV2ShopStatistics(input: {
+  page: number;
+  limit: number;
+  q: string;
+  eventType: string;
+  sortDir: 'asc' | 'desc';
+  env: Env;
+}): Promise<{
+  records: Array<{
+    id: number;
+    eventType: string;
+    inventoryItemId: number | null;
+    sessionId: string;
+    pagePath: string;
+    referrer: string;
+    userAgent: string;
+    country: string;
+    colo: string;
+    isSuspicious: boolean;
+    metadataJson: string;
+    createdAt: string;
+    inventoryTitle: string;
+    ccgNumber: string;
+  }>;
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}> {
+  const where: string[] = [];
+  const values: unknown[] = [];
+  const db = input.env.DB.withSession('first-primary');
+
+  if (input.eventType) {
+    where.push(`e.event_type = ?`);
+    values.push(input.eventType);
+  }
+
+  if (input.q) {
+    const like = `%${input.q.toLowerCase()}%`;
+    where.push(`(
+      lower(COALESCE(e.event_type, '')) LIKE ?
+      OR lower(COALESCE(e.page_path, '')) LIKE ?
+      OR lower(COALESCE(e.referrer, '')) LIKE ?
+      OR lower(COALESCE(e.user_agent, '')) LIKE ?
+      OR lower(COALESCE(e.session_id, '')) LIKE ?
+      OR lower(COALESCE(e.metadata_json, '')) LIKE ?
+      OR lower(COALESCE(i.title, '')) LIKE ?
+      OR lower(COALESCE(i.ccg_number, '')) LIKE ?
+    )`);
+    values.push(like, like, like, like, like, like, like, like);
+  }
+
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  const totalRow = await db.prepare(
+    `SELECT COUNT(*) AS total
+     FROM shop_analytics_events e
+     LEFT JOIN ccg_inventory_items i ON CAST(i.id AS TEXT) = CAST(e.inventory_item_id AS TEXT)
+     ${whereSql}`
+  ).bind(...values).first<{ total: number | null }>();
+
+  const total = Number(totalRow?.total || 0);
+  const totalPages = Math.max(1, Math.ceil(total / input.limit));
+  const effectivePage = Math.min(Math.max(1, input.page), totalPages);
+  const offset = (effectivePage - 1) * input.limit;
+  const sortDirection = input.sortDir === 'asc' ? 'ASC' : 'DESC';
+
+  const rows = await db.prepare(
+    `SELECT
+       e.id,
+       e.event_type,
+       e.inventory_item_id,
+       e.session_id,
+       e.page_path,
+       e.referrer,
+       e.user_agent,
+       e.country,
+       e.colo,
+       e.is_suspicious,
+       e.metadata_json,
+       e.created_at,
+       i.title AS inventory_title,
+       i.ccg_number
+     FROM shop_analytics_events e
+     LEFT JOIN ccg_inventory_items i ON CAST(i.id AS TEXT) = CAST(e.inventory_item_id AS TEXT)
+     ${whereSql}
+     ORDER BY datetime(e.created_at) ${sortDirection}, e.id ${sortDirection}
+     LIMIT ? OFFSET ?`
+  ).bind(...values, input.limit, offset).all<{
+    id: number | null;
+    event_type: string | null;
+    inventory_item_id: number | null;
+    session_id: string | null;
+    page_path: string | null;
+    referrer: string | null;
+    user_agent: string | null;
+    country: string | null;
+    colo: string | null;
+    is_suspicious: number | null;
+    metadata_json: string | null;
+    created_at: string | null;
+    inventory_title: string | null;
+    ccg_number: string | null;
+  }>();
+
+  return {
+    records: (rows.results ?? []).map((row) => ({
+      id: Number(row.id || 0),
+      eventType: normalizeText(row.event_type, ''),
+      inventoryItemId: Number(row.inventory_item_id || 0) || null,
+      sessionId: normalizeText(row.session_id, ''),
+      pagePath: normalizeText(row.page_path, ''),
+      referrer: normalizeText(row.referrer, ''),
+      userAgent: normalizeText(row.user_agent, ''),
+      country: normalizeText(row.country, ''),
+      colo: normalizeText(row.colo, ''),
+      isSuspicious: Number(row.is_suspicious || 0) === 1,
+      metadataJson: normalizeText(row.metadata_json, ''),
+      createdAt: normalizeText(row.created_at, ''),
+      inventoryTitle: normalizeText(row.inventory_title, ''),
+      ccgNumber: normalizeText(row.ccg_number, ''),
+    })),
+    page: effectivePage,
+    limit: input.limit,
+    total,
+    totalPages,
+  };
+}
+
 async function dbGetAdminV2SerialDecodeBrandResponses(
   brand: string,
   env: Env,
@@ -15031,6 +15275,24 @@ async function dbDeleteSerialDecodeRecord(
   const db = env.DB.withSession('first-primary');
   const deleteResult = await db.prepare(
     `DELETE FROM serial_decode_events
+     WHERE CAST(id AS TEXT) = ?`
+  ).bind(id).run();
+
+  return {
+    deletedCount: Number(deleteResult.meta.changes || 0),
+  };
+}
+
+async function dbDeleteShopAnalyticsEvent(
+  recordId: string,
+  env: Env,
+): Promise<{ deletedCount: number } | null> {
+  const id = normalizeText(recordId, '');
+  if (!/^\d+$/.test(id)) return null;
+
+  const db = env.DB.withSession('first-primary');
+  const deleteResult = await db.prepare(
+    `DELETE FROM shop_analytics_events
      WHERE CAST(id AS TEXT) = ?`
   ).bind(id).run();
 

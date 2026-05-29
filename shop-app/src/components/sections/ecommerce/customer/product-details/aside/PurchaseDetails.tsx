@@ -19,7 +19,7 @@ const PurchaseDetails = ({ allowShipping = false, sx }: { allowShipping?: boolea
         }}
       >
         <IconifyIcon
-          icon="material-symbols:local-shipping-outline-rounded"
+          icon={allowShipping ? 'material-symbols:local-shipping-outline-rounded' : 'material-symbols:storefront-outline-rounded'}
           sx={{ flexShrink: 0, fontSize: 22 }}
         />
         <Typography
@@ -44,7 +44,7 @@ const PurchaseDetails = ({ allowShipping = false, sx }: { allowShipping?: boolea
             </>
           ) : (
             <>
-              Store pickup in Englewood & local delivery
+              Local pickup in Englewood. Come by the shop, take your time, and try this piece through our diverse lineup of amps and effects before you decide.
               <Box
                 sx={{
                   display: 'block',
@@ -53,7 +53,7 @@ const PurchaseDetails = ({ allowShipping = false, sx }: { allowShipping?: boolea
                 }}
                 component="span"
               >
-                Both available
+                Built for a real in-shop test drive.
               </Box>
             </>
           )}

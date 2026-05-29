@@ -744,6 +744,18 @@ body {
   margin-bottom: 20px;
 }
 
+.tool-shipping-note {
+  color: var(--accent-gold-light);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.35;
+  margin: -6px 0 18px;
+  padding: 8px 12px;
+  border: 1px solid rgba(201, 169, 97, 0.45);
+  border-radius: 999px;
+  background: rgba(201, 169, 97, 0.12);
+}
+
 .tool-link {
   color: var(--accent-gold);
   font-weight: 600;

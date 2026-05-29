@@ -157,6 +157,14 @@ const sitemap: MenuItem[] = [
         ],
       },
       {
+        name: 'Shop Statistics',
+        key: 'shop_statistics',
+        path: paths.shopStatistics,
+        pathName: 'shop-statistics',
+        icon: 'material-symbols:monitoring-outline-rounded',
+        active: true,
+      },
+      {
         name: 'System Settings',
         key: 'system_settings',
         path: paths.systemSettings,

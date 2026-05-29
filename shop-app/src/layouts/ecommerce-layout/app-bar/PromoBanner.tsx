@@ -47,10 +47,7 @@ const PromoBanner = () => {
             fontWeight: 500,
           }}
         >
-          Orders under $75 ship for{' '}
-          <Box component="span" color="success.main" fontWeight={800}>
-            $6
-          </Box>
+          $6 flat rate under $75
         </Box>
       </Typography>
     </Stack>
