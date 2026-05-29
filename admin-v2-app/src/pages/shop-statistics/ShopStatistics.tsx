@@ -21,7 +21,6 @@ import {
   TableCell,
   TableContainer,
   TableHead,
-  TablePagination,
   TableRow,
   TableSortLabel,
   TextField,
@@ -410,18 +409,53 @@ const ShopStatistics = () => {
           </Table>
         </TableContainer>
 
-        <TablePagination
-          component="div"
-          count={total}
-          page={page}
-          rowsPerPage={rowsPerPage}
-          rowsPerPageOptions={[10, 20, 50, 100]}
-          onPageChange={(_, nextPage) => setPage(nextPage)}
-          onRowsPerPageChange={(event) => {
-            setRowsPerPage(Number.parseInt(event.target.value, 10));
-            setPage(0);
-          }}
-        />
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          spacing={2}
+          sx={{ alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'flex-end', mt: 2 }}
+        >
+          <FormControl size="small" sx={{ minWidth: 120 }}>
+            <InputLabel id="shop-statistics-rows-label">Rows</InputLabel>
+            <Select
+              labelId="shop-statistics-rows-label"
+              value={String(rowsPerPage)}
+              label="Rows"
+              onChange={(event) => {
+                setRowsPerPage(Number.parseInt(event.target.value, 10));
+                setPage(0);
+              }}
+            >
+              {[10, 20, 50, 100].map((value) => (
+                <MenuItem key={value} value={String(value)}>
+                  {value}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <Typography variant="body2" color="text.secondary" sx={{ textAlign: { xs: 'left', sm: 'right' } }}>
+            {pageSummary}
+          </Typography>
+          <Stack direction="row" spacing={1} sx={{ justifyContent: { xs: 'space-between', sm: 'flex-end' } }}>
+            <Button
+              variant="outlined"
+              size="small"
+              disabled={page <= 0 || isLoading}
+              startIcon={<IconifyIcon icon="material-symbols:chevron-left-rounded" />}
+              onClick={() => setPage((current) => Math.max(0, current - 1))}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              disabled={(page + 1) * rowsPerPage >= total || isLoading}
+              endIcon={<IconifyIcon icon="material-symbols:chevron-right-rounded" />}
+              onClick={() => setPage((current) => current + 1)}
+            >
+              Next
+            </Button>
+          </Stack>
+        </Stack>
       </Paper>
 
       <Dialog open={Boolean(deleteTarget)} onClose={() => setDeleteTarget(null)} maxWidth="sm" fullWidth>
