@@ -2,6 +2,7 @@
  * Cort Guitar Serial Number Decoder
  *
  * Supports:
+ * - Modern two-letter factory/line prefix: CA + YYMM + sequence
  * - Modern format: YYMMXXXX (2000-2004)
  * - Modern format with omitted leading zero: YMMXXXXX (2000-2009)
  * - Modern numeric year/batch format: YY00XXXX
@@ -20,6 +21,10 @@
 export function decodeCort(serial) {
     const cleaned = serial.trim().toUpperCase();
     const normalized = cleaned.replace(/[\s-]/g, '');
+    // Modern two-letter factory/line prefix: CA + YYMM + sequence
+    if (/^CA\d{9}$/.test(normalized)) {
+        return decodeModernTwoLetterFactoryLine(normalized);
+    }
     // Modern alphanumeric factory/line prefix: 1A + YYMM + sequence
     if (/^\d[A-Z]\d{9}$/.test(normalized)) {
         return decodeModernAlphaFactoryLine(normalized);
@@ -121,6 +126,57 @@ export function decodeCort(serial) {
     return {
         success: false,
         error: 'Unable to decode this Cort serial number. The format was not recognized. Common formats include: YYMMXXXX (8 digits, 2000-2004), YYMMXXXXX (9 digits, 2005+), YY + 10-digit tracking codes, RYYXXXXX (R prefix year/sequence), YMMXXXX (7 digits, 1990s), or W.O. prefix (1970s-80s). Note: Pre-mid-1990s guitars often have randomly generated serial numbers.',
+    };
+}
+// Modern two-letter factory/line prefix: CA + YYMM + sequence
+function decodeModernTwoLetterFactoryLine(serial) {
+    const prefix = serial.substring(0, 2);
+    const yearDigits = serial.substring(2, 4);
+    const monthDigits = serial.substring(4, 6);
+    const sequence = serial.substring(6);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const month = parseInt(monthDigits, 10);
+    if (month < 1 || month > 12) {
+        return {
+            success: false,
+            error: `Invalid month "${monthDigits}" in serial number. Month should be 01-12.`,
+        };
+    }
+    const info = {
+        brand: 'Cort',
+        serialNumber: serial,
+        year: year.toString(),
+        month: getMonthName(month),
+        factory: 'Cort modern factory/production line',
+        country: 'Korea, Indonesia, or China',
+        notes: `Modern Cort two-letter factory/line format interpreted as prefix + YYMM + sequence. Prefix ${prefix} indicates an internal factory or production line code. The digits ${yearDigits} indicate production year ${year}; ${monthDigits} indicates ${getMonthName(month)}. Production sequence: ${parseInt(sequence, 10)}. Cort serials identify production date more reliably than exact model name, so verify the model from the headstock, label, or other physical markings.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'cort-modern-two-letter-factory-line-yymm-sequence',
+        patternLabel: 'Cort modern two-letter factory-line YYMM sequence',
+        additionalContext: {
+            title: 'Cort modern two-letter serial',
+            summary: 'This serial matches a modern Cort two-letter factory/line format parsed as prefix, production year and month, and sequence.',
+            highlights: [
+                `Prefix ${prefix} is treated as an internal factory or production line code.`,
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                `The digits ${monthDigits} decode as ${getMonthName(month)}.`,
+                `The remaining digits decode as production sequence ${parseInt(sequence, 10)}.`,
+            ],
+            caveats: [
+                'Cort serials usually identify production date more reliably than exact model identity.',
+                'The serial does not identify the specific Cort model name.',
+                'Production location requires country-of-origin markings or other physical evidence.',
+            ],
+            verificationTips: [
+                'Check the headstock, soundhole label, neck heel, or back of headstock for model and country markings.',
+                'Compare the instrument against Cort catalog specs from the decoded year.',
+                'Contact Cort with photos if exact model confirmation is needed.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern Cort two-letter factory/line format parsed as prefix, production year and month, and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>Prefix ${prefix} is treated as an internal factory or production line code. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} decode as ${getMonthName(month)}. The remaining digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Cort serials usually identify production date more reliably than exact model identity.</li><li>The serial does not identify the specific Cort model name.</li><li>Confirm the model from headstock, label, or other physical markings.</li></ul>`,
     };
 }
 // Modern alphanumeric factory/line prefix: 1A + YYMM + sequence
