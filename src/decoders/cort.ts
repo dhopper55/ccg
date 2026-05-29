@@ -4,7 +4,7 @@ import { DecodeResult, GuitarInfo } from '../types.js';
  * Cort Guitar Serial Number Decoder
  *
  * Supports:
- * - Modern two-letter factory/line prefix: CA + YYMM + sequence
+ * - Modern two-letter factory/line prefix: C[A-Z] + YYMM + sequence
  * - Modern format: YYMMXXXX (2000-2004)
  * - Modern format with omitted leading zero: YMMXXXXX (2000-2009)
  * - Modern numeric year/batch format: YY00XXXX
@@ -25,8 +25,8 @@ export function decodeCort(serial: string): DecodeResult {
   const cleaned = serial.trim().toUpperCase();
   const normalized = cleaned.replace(/[\s-]/g, '');
 
-  // Modern two-letter factory/line prefix: CA + YYMM + sequence
-  if (/^CA\d{9}$/.test(normalized)) {
+  // Modern two-letter factory/line prefix: C[A-Z] + YYMM + sequence
+  if (/^C[A-Z]\d{8,9}$/.test(normalized)) {
     return decodeModernTwoLetterFactoryLine(normalized);
   }
 
@@ -159,7 +159,7 @@ export function decodeCort(serial: string): DecodeResult {
   };
 }
 
-// Modern two-letter factory/line prefix: CA + YYMM + sequence
+// Modern two-letter factory/line prefix: C[A-Z] + YYMM + sequence
 function decodeModernTwoLetterFactoryLine(serial: string): DecodeResult {
   const prefix = serial.substring(0, 2);
   const yearDigits = serial.substring(2, 4);

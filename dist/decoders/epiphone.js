@@ -47,6 +47,11 @@ export function decodeEpiphone(serial) {
     if (singleLetterMatch) {
         return decodeSingleLetterFormat(singleLetterMatch[1], singleLetterMatch[2], normalized);
     }
+    // Format 2b: 1990s all-numeric import format, YMM#### (e.g., 6043399 = April 1996)
+    const numeric1990sMatch = normalized.match(/^(\d)(\d{2})(\d{4})$/);
+    if (numeric1990sMatch) {
+        return decode1990sNumericImportFormat(numeric1990sMatch[1], numeric1990sMatch[2], numeric1990sMatch[3], normalized);
+    }
     // Format 3: YYMM + 2-digit factory code + 3-6 digits (since 2008)
     // e.g., 0807230809 = July 2008, factory 23, #809
     // e.g., 08121512345 = Dec 2008, factory 15, #12345
@@ -165,6 +170,57 @@ function decodeSingleLetterFormat(factory, digits, serial) {
         notes: `Factory code ${factory}. Unable to determine exact date from this serial number format.`
     };
     return { success: true, info };
+}
+function decode1990sNumericImportFormat(yearDigit, monthDigits, sequence, serial) {
+    const year = `199${yearDigit}`;
+    const month = parseInt(monthDigits, 10);
+    if (month < 1 || month > 12) {
+        return {
+            success: false,
+            error: `Invalid month value: ${month}. Expected 01-12.`
+        };
+    }
+    const months = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    const monthName = months[month - 1];
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Epiphone',
+        serialNumber: serial,
+        year,
+        month: monthName,
+        factory: 'Unknown Korean or Japanese contract factory',
+        country: 'South Korea or Japan',
+        notes: `1990s all-numeric Epiphone import format interpreted as Y + MM + production sequence. The first digit ${yearDigit} indicates ${year}; ${monthDigits} indicates ${monthName}; the final four digits are production sequence ${sequenceNumber}. This format does not include a factory-letter code, so verify country and factory from headstock markings, label details, and model specs.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'epiphone-1990s-numeric-y-mm-sequence',
+        patternLabel: 'Epiphone 1990s numeric YMM sequence',
+        additionalContext: {
+            title: 'Epiphone 1990s numeric serial',
+            summary: 'This serial matches a 1990s all-numeric Epiphone import format parsed as single-digit year, month, and sequence.',
+            highlights: [
+                `The first digit ${yearDigit} decodes as production year ${year}.`,
+                `The next two digits ${monthDigits} decode as ${monthName}.`,
+                `The final four digits decode as production sequence ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'This format does not identify a specific factory by letter code.',
+                'Factory attribution is usually Korean, with some uncertainty across 1990s contract production.',
+                'The serial identifies production timing, not the exact model name.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for Made in Korea, Made in Japan, or other origin markings.',
+                'Compare truss rod cover, headstock shape, hardware, and label details against mid-1990s Epiphone specs.',
+                'Contact Gibson/Epiphone support with photos if exact factory confirmation is needed.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a 1990s all-numeric Epiphone import format parsed as single-digit year, month, and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>The first digit ${yearDigit} decodes as production year ${year}. The next two digits ${monthDigits} decode as ${monthName}. The final four digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This format does not identify a specific factory by letter code.</li><li>Factory attribution is usually Korean, with some uncertainty across 1990s contract production.</li><li>Confirm model and country from the headstock, label, hardware, and other physical markings.</li></ul>`,
+    };
 }
 function decodeNumericFactoryFormat(year, month, factory, sequence, serial) {
     const factoryInfo = NUMERIC_FACTORY_CODES[factory];

@@ -34,8 +34,8 @@ export function decodeESP(serial: string): DecodeResult {
     return decodeESPCustomShop(normalized);
   }
 
-  // 2000-2015 Japan factory formats: K/N/S/T/CH/CS/TH + 7 digits
-  if (/^(K|N|S|T|CH|CS|TH)\d{7}$/.test(normalized)) {
+  // 2000-2015 Japan factory formats: K/N/S/T/CH/CS/TH + 7-8 digits
+  if (/^(K|N|S|T|CH|CS|TH)\d{7,8}$/.test(normalized)) {
     return decodeESPJapanFactory(normalized);
   }
 
@@ -61,6 +61,11 @@ export function decodeESP(serial: string): DecodeResult {
   // Korea: W + YY + week + 5-digit sequence (World Musical Instruments)
   if (/^W\d{9}$/.test(normalized)) {
     return decodeLTDKoreaWMI9Digit(normalized);
+  }
+
+  // Early Korea: U + 6-digit sequential tracking number (Unsung-era LTD)
+  if (/^U\d{6}$/.test(normalized)) {
+    return decodeLTDEarlyKoreaUSequential(normalized);
   }
 
   // Korea: W, E, U + 7-8 digits
@@ -430,6 +435,48 @@ function decodeLTDKoreaWMI9Digit(serial: string): DecodeResult {
       ]
     },
     additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern ESP LTD Korean W-prefix format associated with World Musical Instruments.</p><h3>How This Pattern Is Typically Read</h3><p>W indicates World Musical Instruments in South Korea. The digits ${yearDigits} decode as production year ${year}. The digits ${weekDigits} decode as the production week or early-year run code. The final digits decode as tracking sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>The serial identifies factory timing and sequence, not the exact model name.</li><li>Week 00 is best read as very early-year production or wood/prep run timing.</li><li>Check for LTD branding and Made in Korea markings.</li></ul>`
+  };
+}
+
+function decodeLTDEarlyKoreaUSequential(serial: string): DecodeResult {
+  const sequence = serial.substring(1);
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'ESP',
+    serialNumber: serial,
+    year: '2000-2001 (estimated)',
+    factory: 'Unsung, South Korea',
+    country: 'South Korea',
+    model: 'LTD',
+    notes: `Early ESP LTD Korean U-prefix format. U is associated with Unsung production, and the six digits are treated as a sequential factory tracking number rather than a reliable YYMM date code. Sequence/tracking number: ${sequenceNumber}. This format is best dated broadly to around 2000-2001 and should be verified with Made in Korea markings, headstock logo, model specs, and serial location.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'esp-ltd-early-korea-u-sequential',
+    patternLabel: 'ESP LTD early Korea U-prefix sequential format',
+    additionalContext: {
+      title: 'ESP LTD early Korea U-prefix serial',
+      summary: 'This serial matches an early ESP LTD Korean U-prefix format associated with Unsung production.',
+      highlights: [
+        'U is treated as an Unsung Korea factory prefix for this early LTD format.',
+        `The six digits are treated as sequential tracking number ${sequenceNumber}.`,
+        'The likely production window is around 2000-2001.',
+      ],
+      caveats: [
+        'The six digits do not reliably encode an exact year, month, or week.',
+        'This applies to LTD-branded Korean imports, not Japanese ESP Original, E-II, Edwards, or Navigator instruments.',
+        'Factory and date should be confirmed from Made in Korea markings and model details.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock or final fret area for the serial and Made in Korea marking.',
+        'Compare the guitar against early-2000s LTD model specs such as M, H, MH, EC, and related Korean lines.',
+        'Contact ESP support with clear photos if exact production confirmation is needed.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches an early ESP LTD Korean U-prefix format associated with Unsung production.</p><h3>How This Pattern Is Typically Read</h3><p>U is treated as an Unsung Korea factory prefix for this early LTD format. The six digits are treated as sequential tracking number ${sequenceNumber}. The likely production window is around 2000-2001.</p><h3>What To Verify</h3><ul><li>The six digits do not reliably encode an exact year, month, or week.</li><li>This applies to LTD-branded Korean imports, not Japanese ESP Original, E-II, Edwards, or Navigator instruments.</li><li>Confirm with Made in Korea markings, model details, and serial location.</li></ul>`,
   };
 }
 

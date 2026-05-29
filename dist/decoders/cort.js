@@ -2,7 +2,7 @@
  * Cort Guitar Serial Number Decoder
  *
  * Supports:
- * - Modern two-letter factory/line prefix: CA + YYMM + sequence
+ * - Modern two-letter factory/line prefix: C[A-Z] + YYMM + sequence
  * - Modern format: YYMMXXXX (2000-2004)
  * - Modern format with omitted leading zero: YMMXXXXX (2000-2009)
  * - Modern numeric year/batch format: YY00XXXX
@@ -21,8 +21,8 @@
 export function decodeCort(serial) {
     const cleaned = serial.trim().toUpperCase();
     const normalized = cleaned.replace(/[\s-]/g, '');
-    // Modern two-letter factory/line prefix: CA + YYMM + sequence
-    if (/^CA\d{9}$/.test(normalized)) {
+    // Modern two-letter factory/line prefix: C[A-Z] + YYMM + sequence
+    if (/^C[A-Z]\d{8,9}$/.test(normalized)) {
         return decodeModernTwoLetterFactoryLine(normalized);
     }
     // Modern alphanumeric factory/line prefix: 1A + YYMM + sequence
@@ -128,7 +128,7 @@ export function decodeCort(serial) {
         error: 'Unable to decode this Cort serial number. The format was not recognized. Common formats include: YYMMXXXX (8 digits, 2000-2004), YYMMXXXXX (9 digits, 2005+), YY + 10-digit tracking codes, RYYXXXXX (R prefix year/sequence), YMMXXXX (7 digits, 1990s), or W.O. prefix (1970s-80s). Note: Pre-mid-1990s guitars often have randomly generated serial numbers.',
     };
 }
-// Modern two-letter factory/line prefix: CA + YYMM + sequence
+// Modern two-letter factory/line prefix: C[A-Z] + YYMM + sequence
 function decodeModernTwoLetterFactoryLine(serial) {
     const prefix = serial.substring(0, 2);
     const yearDigits = serial.substring(2, 4);

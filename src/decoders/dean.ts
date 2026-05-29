@@ -696,6 +696,11 @@ function decode5or6Digit(serial: string): DecodeResult {
     country = 'USA';
     factory = 'Dean USA (Evanston/Chicago)';
     notes = `Early USA-made Dean from the original Zelinsky era (1977-1985). Production sequence: ${sequence}.`;
+  } else if (serial.length === 5) {
+    year = 'Unknown (likely late 1990s-early 2000s Czech import or vintage USA, verify markings)';
+    country = 'Czech Republic or USA';
+    factory = 'Dean European Custom Select / Strunal Schönbach or Dean USA';
+    notes = `5-digit numeric Dean serial treated as a sequential production number rather than a reliable embedded date. This format is seen on some Czech Republic European Custom Select instruments from the late 1990s to early 2000s, and can overlap visually with older USA Dean numeric stamps. Sequence/tracking number: ${parseInt(serial, 10)}. Check for "Handcrafted in the Czech Republic", "Made in USA", headstock markings, and model details before assigning a factory or year.`;
   } else {
     year = `Possibly 19${yearDigits} or 20${yearDigits}`;
     country = 'Unknown';
@@ -709,8 +714,40 @@ function decode5or6Digit(serial: string): DecodeResult {
     year: year,
     factory: factory,
     country: country,
+    model: serial.length === 5 && !(yearNum >= 77 && yearNum <= 85) && !(yearNum >= 97 && yearNum <= 99)
+      ? '5-digit numeric Dean format'
+      : undefined,
     notes: notes,
   };
+
+  if (serial.length === 5 && !(yearNum >= 77 && yearNum <= 85) && !(yearNum >= 97 && yearNum <= 99)) {
+    return {
+      success: true,
+      info,
+      patternKey: 'dean-five-digit-sequential-czech-or-usa',
+      patternLabel: 'Dean 5-digit sequential Czech/USA ambiguous format',
+      additionalContext: {
+        title: 'Dean 5-digit numeric serial',
+        summary: 'This serial matches a 5-digit Dean numeric format best treated as a sequential tracking number unless country markings provide more context.',
+        highlights: [
+          `The full number ${serial} is treated as sequence/tracking number ${parseInt(serial, 10)}.`,
+          'This style can be seen on late-1990s to early-2000s Czech European Custom Select instruments.',
+          'A visually similar 5-digit numeric stamp can also appear on older USA Dean instruments.',
+        ],
+        caveats: [
+          'The digits do not reliably encode an exact year or month by themselves.',
+          'Do not assign Czech Republic or USA production from the serial alone.',
+          'Model, logo, country stamp, and construction details are required for confident identification.',
+        ],
+        verificationTips: [
+          'Look for Handcrafted in the Czech Republic or Made in USA near the serial or on the headstock.',
+          'Compare the body shape and hardware against Dean European Custom Select and vintage USA catalog examples.',
+          'Contact Dean support with photos if exact dating or authentication matters.',
+        ],
+      },
+      additionalContextRichText: `<h3>Overview</h3><p>This serial matches a 5-digit Dean numeric format best treated as a sequential tracking number unless country markings provide more context.</p><h3>How This Pattern Is Typically Read</h3><p>The full number ${serial} is treated as sequence/tracking number ${parseInt(serial, 10)}. This style can be seen on late-1990s to early-2000s Czech European Custom Select instruments, while visually similar 5-digit numeric stamps can also appear on older USA Dean instruments.</p><h3>What To Verify</h3><ul><li>The digits do not reliably encode an exact year or month by themselves.</li><li>Do not assign Czech Republic or USA production from the serial alone.</li><li>Check for Handcrafted in the Czech Republic, Made in USA, model markings, and period-correct construction details.</li></ul>`,
+    };
+  }
 
   return { success: true, info };
 }
