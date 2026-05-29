@@ -5875,6 +5875,7 @@ type GoogleMerchantFeedProduct = {
 };
 
 function renderGoogleMerchantFeedItem(product: GoogleMerchantFeedProduct): string {
+  const effectivePrice = product.salePrice > 0 && product.salePrice < product.price ? product.salePrice : product.price;
   const item: string[] = [
     '    <item>',
     `      <g:id>${escapeXml(product.id)}</g:id>`,
@@ -5911,7 +5912,7 @@ function renderGoogleMerchantFeedItem(product: GoogleMerchantFeedProduct): strin
     '      <g:shipping>',
     '        <g:country>US</g:country>',
     '        <g:service>Standard</g:service>',
-    `        <g:price>${formatMerchantPrice(product.price >= 75 ? 0 : 6)}</g:price>`,
+    `        <g:price>${formatMerchantPrice(effectivePrice >= 75 ? 0 : 6)}</g:price>`,
     '      </g:shipping>',
     `      <g:ads_redirect>${escapeXml(product.link)}</g:ads_redirect>`,
     '    </item>',
@@ -11530,6 +11531,7 @@ async function dbListGoogleMerchantProducts(env: Env): Promise<GoogleMerchantFee
        AND COALESCE(i.only_in_store, 0) = 0
        AND COALESCE(i.allow_shipping, 0) = 1
        AND COALESCE(i.is_rented, 0) = 0
+       AND TRIM(COALESCE(i.barcode, '')) != ''
        AND TRIM(COALESCE(i.sale_url, '')) != ''
        AND (
          CASE
@@ -11564,7 +11566,7 @@ async function dbListGoogleMerchantProducts(env: Env): Promise<GoogleMerchantFee
     const gtin = normalizeMerchantGtin(row.barcode);
     const productType = normalizeText(row.category_path || row.category_name, '');
     const shippingWeight = normalizeMerchantShippingWeight(row.weight_lbs);
-    if (!title || !link || images.length === 0 || effectivePrice <= 0) return null;
+    if (!title || !link || images.length === 0 || effectivePrice <= 0 || !gtin) return null;
 
     return {
       id: getMerchantProductId(row),
@@ -15830,7 +15832,9 @@ function deriveExplicitRegexFromKnownPatternKey(patternKey: string): string | nu
     'epiphone-korea-single-letter-factory-yymm-sequence': '^[A-Z]\\d{7,}$',
     'esp-ambiguous-e-prefix-6-digit-eii-ltd': '^E\\d{6}$',
     'esp-edwards-ed-yy-sequence': '^ED\\d{7}$',
+    'esp-ltd-korea-peerless-r-yy-week-sequence': '^R\\d{7}$',
     'esp-ltd-korea-wmi-w-yy-week-sequence': '^W\\d{9}$',
+    'esp-ltd-transitional-yy-week-sequence': '^\\d{7}$',
     'gibson-modern-custom-shop-cs-prefix': '^CS\\d{5,6}$',
     'ibanez-china-gaoqing-grand-star-g-yymm-sequence': '^G\\d{8}$',
     'ibanez-ambiguous-6-digit-numeric-impossible-yy': '^\\d{6}$',
@@ -15846,6 +15850,7 @@ function deriveExplicitRegexFromKnownPatternKey(patternKey: string): string | nu
     'schecter-ro-indonesia-yy-sequence': '^RO\\d{8}$',
     'schecter-st-yymm-sequence': '^ST\\d{8}$',
     'schecter-usa-5-digit-yy-sequence': '^\\d{5}$',
+    'schecter-vintage-van-nuys-s-sequence': '^S\\d{3,6}$',
     'taylor-legacy-9-digit-year-code': '^\\d{9}$',
     'taylor-modern-extended-11': '^[12]\\d{10}$',
     'taylor-modern-short-9': '^[12]\\d{8}$',

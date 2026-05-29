@@ -34,6 +34,13 @@ export function decodeESP(serial) {
         return decodeKirkHammett(normalized);
     }
     // LTD Asian formats with letter prefixes
+    // Korea: R + YY + week + 3-digit sequence (Peerless)
+    if (/^R\d{7}$/.test(normalized)) {
+        const week = parseInt(normalized.substring(3, 5), 10);
+        if (week >= 1 && week <= 53) {
+            return decodeLTDKoreaPeerlessR(normalized);
+        }
+    }
     // Indonesia: IW, W, IC, C, IS, S + 7-8 digits
     if (/^(IW|IC|IS|IR)\d{7,8}$/.test(normalized)) {
         return decodeLTDIndonesia(normalized);
@@ -53,6 +60,13 @@ export function decodeESP(serial) {
     // Vietnam: I + 7-8 digits (but not IW, IC, IS, IR)
     if (/^I\d{7,8}$/.test(normalized)) {
         return decodeLTDVietnam(normalized);
+    }
+    // LTD transitional Korean/Indonesian format: YY + week + 3-digit sequence
+    if (/^\d{7}$/.test(normalized)) {
+        const week = parseInt(normalized.substring(2, 4), 10);
+        if (week >= 1 && week <= 53) {
+            return decodeLTDTransitionalNumeric(normalized);
+        }
     }
     // Pre-2000 format: 6-8 digits (DDMMYNNN or shorter variants)
     if (/^\d{6,8}$/.test(normalized)) {
@@ -405,6 +419,95 @@ function decodeLTDVietnam(serial) {
         notes: `LTD series. Production number: ${productionNum}.`
     };
     return { success: true, info };
+}
+function decodeLTDKoreaPeerlessR(serial) {
+    const yearDigits = serial.substring(1, 3);
+    const weekDigits = serial.substring(3, 5);
+    const productionNum = serial.substring(5);
+    const yearNum = parseInt(yearDigits, 10);
+    const year = (yearNum < 80 ? 2000 + yearNum : 1900 + yearNum).toString();
+    const week = parseInt(weekDigits, 10);
+    const sequence = parseInt(productionNum, 10);
+    const info = {
+        brand: 'ESP',
+        serialNumber: serial,
+        year,
+        factory: 'Peerless Guitar Co.',
+        country: 'South Korea',
+        model: 'LTD Korean import',
+        notes: `R-prefix ESP LTD Korean format. R indicates Peerless Guitar Co. in South Korea; the digits ${yearDigits} indicate ${year}; ${weekDigits} indicates production week ${week}; and ${productionNum} is production sequence ${sequence}. This format is associated with early-to-mid-2000s Korean LTD production. Verify the model, logo style, and Made in Korea marking on the back of the headstock.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'esp-ltd-korea-peerless-r-yy-week-sequence',
+        patternLabel: 'ESP LTD Korea Peerless R YY week sequence',
+        additionalContext: {
+            title: 'ESP LTD Peerless Korea R-prefix serial',
+            summary: 'This serial matches an R-prefix ESP LTD format associated with Peerless-built Korean production.',
+            highlights: [
+                'R indicates Peerless Guitar Co. in South Korea.',
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                `The digits ${weekDigits} decode as production week ${week}.`,
+                `The final three digits decode as production sequence ${sequence}.`,
+            ],
+            caveats: [
+                'This format identifies factory timing and sequence, not the exact model name.',
+                'Factory-letter usage varies across ESP LTD production eras and partners.',
+                'Confirm the guitar is LTD-branded and marked Made in Korea before relying on the Peerless interpretation.',
+            ],
+            verificationTips: [
+                'Check for LTD branding on the headstock.',
+                'Look for a Made in Korea stamp or decal on the back of the headstock.',
+                'Compare the finish, neck construction, hardware, and pickups against 2006 LTD catalog specs.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches an R-prefix ESP LTD format associated with Peerless-built Korean production.</p><h3>How This Pattern Is Typically Read</h3><p>R indicates Peerless Guitar Co. in South Korea. The digits ${yearDigits} decode as production year ${year}. The digits ${weekDigits} decode as production week ${week}. The final three digits decode as production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>This format identifies factory timing and sequence, not the exact model name.</li><li>Confirm the guitar is LTD-branded and marked Made in Korea before relying on the Peerless interpretation.</li><li>Compare the finish, neck construction, hardware, and pickups against 2006 LTD catalog specs.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a mid-2000s Peerless Korea LTD decode, then verify the exact model from the headstock logo, country stamp, and physical specs.</p>`,
+    };
+}
+function decodeLTDTransitionalNumeric(serial) {
+    const yearDigits = serial.substring(0, 2);
+    const weekDigits = serial.substring(2, 4);
+    const productionNum = serial.substring(4);
+    const yearNum = parseInt(yearDigits, 10);
+    const year = (yearNum < 80 ? 2000 + yearNum : 1900 + yearNum).toString();
+    const week = parseInt(weekDigits, 10);
+    const sequence = parseInt(productionNum, 10);
+    const info = {
+        brand: 'ESP',
+        serialNumber: serial,
+        year,
+        factory: 'ESP LTD Korean / Indonesian partner factory',
+        country: 'South Korea or Indonesia',
+        model: 'LTD transitional import',
+        notes: `Seven-digit LTD transitional numeric format. The first two digits (${yearDigits}) indicate ${year}; the next two digits (${weekDigits}) indicate production week ${week}; the final three digits indicate production sequence ${sequence}. These pure numeric serials are seen on late-1990s through mid-2000s ESP LTD imports, before later factory-letter formats became more standardized. Verify the exact factory from the Made in Korea or Made in Indonesia marking.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'esp-ltd-transitional-yy-week-sequence',
+        patternLabel: 'ESP LTD transitional YY week sequence',
+        additionalContext: {
+            title: 'ESP LTD transitional numeric serial',
+            summary: 'This serial matches a seven-digit pure numeric ESP LTD format used on some late-1990s through mid-2000s Korean and Indonesian imports.',
+            highlights: [
+                `The first two digits ${yearDigits} decode as production year ${year}.`,
+                `The next two digits ${weekDigits} decode as production week ${week}.`,
+                `The final three digits decode as production sequence ${sequence}.`,
+            ],
+            caveats: [
+                'This format identifies production timing and sequence, not the exact model name.',
+                'The serial alone usually cannot distinguish Korea from Indonesia.',
+                'Modern ESP LTD instruments more commonly use leading factory-letter serial formats.',
+            ],
+            verificationTips: [
+                'Check whether the headstock is branded LTD rather than ESP Original, E-II, Edwards, or Navigator.',
+                'Look for Made in Korea or Made in Indonesia on the back of the headstock.',
+                'Compare the logo style and model specs against mid-2000s LTD catalog examples.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a seven-digit pure numeric ESP LTD format used on some late-1990s through mid-2000s Korean and Indonesian imports.</p><h3>How This Pattern Is Typically Read</h3><p>The first two digits, ${yearDigits}, decode as production year ${year}. The next two digits, ${weekDigits}, decode as production week ${week}. The final three digits decode as production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>This format identifies production timing and sequence, not the exact model name.</li><li>The serial alone usually cannot distinguish Korea from Indonesia.</li><li>Check for LTD branding and Made in Korea or Made in Indonesia markings on the back of the headstock.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a mid-2000s ESP LTD import decode, then verify the exact model and factory from the headstock logo, country stamp, and catalog specs.</p>`,
+    };
 }
 function decodePre2000(serial) {
     // Pre-2000 format: DDMMYNNN (8 digits) or shorter variants (6-7 digits)

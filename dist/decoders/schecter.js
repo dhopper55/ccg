@@ -5,6 +5,10 @@ export function decodeSchecter(serial) {
     if (/^[ABCG]\d{4,5}$/.test(normalized)) {
         return decodeUSACustomShop(normalized);
     }
+    // Vintage Van Nuys / early Dallas-era Schecter: S + short numeric sequence
+    if (/^S\d{3,6}$/.test(normalized)) {
+        return decodeVintageVanNuysS(normalized);
+    }
     // USA California/Sunset Blvd-era 5-digit chronological sequence
     if (/^\d{5}$/.test(normalized)) {
         return decodeUSA5DigitNumeric(normalized);
@@ -102,6 +106,45 @@ function decodeUSACustomShop(serial) {
         notes: `USA-made custom shop guitar. Prefix "${prefix}". Sequence: ${sequence}. Contact Schecter directly for exact production date.`
     };
     return { success: true, info };
+}
+function decodeVintageVanNuysS(serial) {
+    const sequence = serial.substring(1);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Schecter',
+        serialNumber: serial,
+        year: 'Early 1980s vintage era (estimated)',
+        factory: 'Schecter Van Nuys / early Dallas-era USA assembly',
+        country: 'USA',
+        model: 'Vintage Schecter Dream Machine / parts-era instrument',
+        notes: `Short S-prefix Schecter serial ${serial} is atypical for modern Diamond Series imports but is associated with vintage Van Nuys and early Dallas-era USA-assembled Schecter instruments. Treat S${sequence} as a chronological sequence (${sequenceNumber}) rather than a strict date code. Verify the serial location, neck plate or fretboard stamp, hardware, pickups, logo style, and any neck-pocket or cavity markings. Contact Schecter Guitar Research for exact confirmation.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'schecter-vintage-van-nuys-s-sequence',
+        patternLabel: 'Schecter vintage Van Nuys S-prefix sequence',
+        additionalContext: {
+            title: 'Schecter vintage S-prefix serial',
+            summary: 'This serial matches a short S-prefix format associated with vintage Van Nuys and early Dallas-era Schecter instruments.',
+            highlights: [
+                `The S prefix plus short numeric sequence ${sequenceNumber} is not a standard modern Diamond Series import format.`,
+                'This format is most consistent with early 1980s Schecter Dream Machine / parts-era instruments.',
+                'The sequence should be treated as a production sequence rather than a precise year/month date code.',
+            ],
+            caveats: [
+                'Modern Schecter imports normally use longer factory/date serial formats.',
+                'Short or generic-looking serials can also appear on incorrect or counterfeit instruments.',
+                'Exact date and legitimacy require physical inspection and, ideally, Schecter factory confirmation.',
+            ],
+            verificationTips: [
+                'Check whether the serial is stamped on a neck plate, fretboard, or another period-correct location.',
+                'Compare the headstock logo, inlays, pickups, hardware, and construction to known early Schecter examples.',
+                'Contact Schecter support with clear photos of the full instrument, serial, headstock, neck pocket, and electronics cavity.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a short S-prefix format associated with vintage Van Nuys and early Dallas-era Schecter instruments.</p><h3>How This Pattern Is Typically Read</h3><p>The S prefix plus short numeric sequence ${sequenceNumber} is not a standard modern Diamond Series import format. It is most consistent with early 1980s Schecter Dream Machine / parts-era instruments. Treat the digits as a production sequence rather than a precise year/month date code.</p><h3>What To Verify</h3><ul><li>Modern Schecter imports normally use longer factory/date serial formats.</li><li>Short or generic-looking serials can also appear on incorrect or counterfeit instruments.</li><li>Verify the serial location, headstock logo, inlays, pickups, hardware, and any neck-pocket or cavity markings.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a vintage Schecter S-prefix match, then confirm the instrument against physical markings and Schecter Guitar Research if exact provenance matters.</p>`,
+    };
 }
 function decodeUSA5DigitNumeric(serial) {
     const sequenceNumber = parseInt(serial, 10);
