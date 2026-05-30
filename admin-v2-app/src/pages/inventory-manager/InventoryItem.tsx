@@ -659,17 +659,24 @@ function getForSaleValidationError(formState: FormState): string | null {
 
 function formatTagPrice(value: number | null): string {
   if (value == null) return '';
-  return `$${Math.round(value).toLocaleString()}`;
+  const cents = Math.round(value * 100);
+  const hasCents = Math.abs(cents % 100) !== 0;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: hasCents ? 2 : 0,
+    maximumFractionDigits: hasCents ? 2 : 0,
+  }).format(cents / 100);
 }
 
 function replaceTemplatePrice(template: string, value: string): string {
   const price = parseTagPrice(value);
   if (price == null) return template.replaceAll('$<PRICE>', '').replaceAll('<PRICE>', '');
 
-  const numberText = Math.round(price).toLocaleString();
+  const numberText = formatTagPrice(price);
   return template
-    .replaceAll('$<PRICE>', `$${numberText}`)
-    .replaceAll('<PRICE>', `$${numberText}`);
+    .replaceAll('$<PRICE>', numberText)
+    .replaceAll('<PRICE>', numberText);
 }
 
 function escapeRegExp(value: string): string {

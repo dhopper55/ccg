@@ -81,7 +81,14 @@ function parseTagPrice(value: unknown): number | null {
 
 function formatTagPrice(value: number | null): string {
   if (value == null) return '';
-  return `$${Math.round(value).toLocaleString()}`;
+  const cents = Math.round(value * 100);
+  const hasCents = Math.abs(cents % 100) !== 0;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: hasCents ? 2 : 0,
+    maximumFractionDigits: hasCents ? 2 : 0,
+  }).format(cents / 100);
 }
 
 function truncateToPdfWidth(text: string, font: PDFFont, fontSize: number, maxWidth: number): string {

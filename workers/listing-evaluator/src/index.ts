@@ -5876,10 +5876,11 @@ type GoogleMerchantFeedProduct = {
 
 function renderGoogleMerchantFeedItem(product: GoogleMerchantFeedProduct): string {
   const effectivePrice = product.salePrice > 0 && product.salePrice < product.price ? product.salePrice : product.price;
+  const feedTitle = getGoogleMerchantFeedTitle(product);
   const item: string[] = [
     '    <item>',
     `      <g:id>${escapeXml(product.id)}</g:id>`,
-    `      <g:title>${escapeXml(product.title)}</g:title>`,
+    `      <g:title>${escapeXml(feedTitle)}</g:title>`,
     `      <g:description>${escapeXml(product.description)}</g:description>`,
     `      <g:link>${escapeXml(product.link)}</g:link>`,
   ];
@@ -5919,6 +5920,12 @@ function renderGoogleMerchantFeedItem(product: GoogleMerchantFeedProduct): strin
   );
 
   return item.join('\n');
+}
+
+function getGoogleMerchantFeedTitle(product: GoogleMerchantFeedProduct): string {
+  const title = normalizeText(product.title, '').trim();
+  if (product.condition !== 'used') return title;
+  return /^used\b/i.test(title) ? title : `Used ${title}`;
 }
 
 function formatMerchantPrice(value: number): string {

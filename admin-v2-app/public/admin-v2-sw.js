@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'ccg-admin-v2-20260321a';
+const CACHE_VERSION = 'ccg-admin-v2-20260530a';
 const SHELL_ASSETS = [
   '/admin/',
   '/admin/index.html',
@@ -51,6 +51,7 @@ self.addEventListener('fetch', (event) => {
 
   const accept = request.headers.get('accept') || '';
   const isDocument = request.mode === 'navigate' || accept.includes('text/html');
+  const url = new URL(request.url);
 
   if (isDocument) {
     event.respondWith(
@@ -67,6 +68,26 @@ self.addEventListener('fetch', (event) => {
           const appShell = (await caches.match('/admin/')) || (await caches.match('/admin/index.html'));
           if (appShell) return appShell;
 
+          throw new Error('offline');
+        }
+      })(),
+    );
+    return;
+  }
+
+  if (url.pathname.startsWith('/admin/assets/')) {
+    event.respondWith(
+      (async () => {
+        try {
+          const network = await fetch(request);
+          if (network.ok) {
+            const cache = await caches.open(CACHE_VERSION);
+            cache.put(request, network.clone()).catch(() => undefined);
+          }
+          return network;
+        } catch {
+          const cached = await caches.match(request);
+          if (cached) return cached;
           throw new Error('offline');
         }
       })(),
