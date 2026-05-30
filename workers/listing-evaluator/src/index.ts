@@ -382,8 +382,6 @@ const BRAND_ACTIVITY_META: Record<string, { label: string; decoderSlug: string; 
 
 const SUPPORTED_ORIGINS = [
   'https://www.coalcreekguitars.com',
-  'http://localhost:3000',
-  'http://localhost:8080',
 ];
 
 const CATEGORY_OPTIONS = [
@@ -1456,27 +1454,8 @@ async function handleDecodeEmailRequest(request: Request, env: Env): Promise<Res
   if (!normalizedBrand || !normalizedSerial) return jsonResponse({ message: 'Brand and serial are required.' }, 400);
   if (!isValidEmailAddress(email)) return jsonResponse({ message: 'Enter a valid email address.' }, 400);
 
-  const columns = await getSerialDecodeEventColumns(env);
-  if (!columns.has('email')) {
-    return jsonResponse({ message: 'Email capture is not available yet.' }, 500);
-  }
-
-  const where: string[] = ['id = ?', 'COALESCE(success, 0) = 0'];
-  const values: unknown[] = [email, decodeEventId];
-  if (columns.has('normalized_brand')) {
-    where.push('normalized_brand = ?');
-    values.push(normalizedBrand);
-  } else {
-    where.push('lower(trim(brand)) = lower(trim(?))');
-    values.push(brand);
-  }
-  if (columns.has('normalized_serial')) {
-    where.push('normalized_serial = ?');
-    values.push(normalizedSerial);
-  } else {
-    where.push('trim(serial) = trim(?)');
-    values.push(serial);
-  }
+  const where = ['id = ?', 'COALESCE(success, 0) = 0', 'normalized_brand = ?', 'normalized_serial = ?'];
+  const values: unknown[] = [email, decodeEventId, normalizedBrand, normalizedSerial];
 
   const result = await env.DB.prepare(
     `UPDATE serial_decode_events
@@ -1561,7 +1540,6 @@ async function isSerialDecodeRateLimited(env: Env, ipAddress: string): Promise<b
   return count > SERIAL_DECODE_HOURLY_LIMIT;
 }
 
-let serialDecodeEventColumnCache: Set<string> | null = null;
 
 function buildBrandActivityContext(brandInput: string, normalizedBrandInput = ''): {
   brandLabel: string;
@@ -1669,120 +1647,50 @@ async function insertActivityLogBestEffort(env: Env, payload: ActivityLogInsert)
   }
 }
 
-async function getSerialDecodeEventColumns(env: Env): Promise<Set<string>> {
-  if (serialDecodeEventColumnCache) return serialDecodeEventColumnCache;
-  const rows = await env.DB.withSession('first-primary').prepare(
-    `PRAGMA table_info(serial_decode_events)`
-  ).all<{ name: string | null }>();
-
-  serialDecodeEventColumnCache = new Set(
-    (rows.results ?? [])
-      .map((row) => normalizeText(row.name, '').toLowerCase())
-      .filter(Boolean),
-  );
-  return serialDecodeEventColumnCache;
-}
-
-async function insertSerialDecodeEventWithColumns(
-  env: Env,
-  payload: SerialDecodeEventInsert,
-  columnSet: Set<string>,
-): Promise<number | null> {
-  const valuesByColumn: Record<string, unknown> = {
-    event_time_utc: new Date().toISOString(),
-    brand: payload.brand,
-    serial: payload.serial,
-    pattern: payload.pattern || null,
-    pattern_key: payload.patternKey || null,
-    pattern_label: payload.patternLabel || null,
-    pattern_lookup_id: payload.patternLookupId ?? null,
-    normalized_brand: payload.normalizedBrand || normalizeBrandKey(payload.brand),
-    normalized_serial: payload.normalizedSerial || normalizeSerialKey(payload.serial),
-    success: payload.success ? 1 : 0,
-    evaluated: 0,
-    needs_context: payload.needsContext ? 1 : 0,
-    used_ai: payload.usedAi ? 1 : 0,
-    is_listing_eval: 0,
-    year: payload.year || null,
-    month: payload.month || null,
-    factory: payload.factory || null,
-    country: payload.country || null,
-    model: payload.model || null,
-    notes: payload.notes || null,
-    error: payload.error || null,
-    email: payload.email || null,
-    ai_cache_hit: payload.aiCacheHit ? 1 : 0,
-    ai_model: payload.aiModel || null,
-    ai_response_json: payload.aiResponseJson || null,
-    ai_attempted_at: payload.aiAttemptedAt || null,
-    page_path: payload.pagePath || null,
-    user_agent: payload.userAgent || null,
-    client_timestamp: payload.clientTimestamp || null,
-    ip_address: payload.ipAddress || null,
-    cf_country: payload.countryCode || null,
-    cf_colo: payload.colo || null,
-  };
-
-  const preferredOrder = [
-    'event_time_utc',
-    'brand',
-    'serial',
-    'pattern',
-    'pattern_key',
-    'pattern_label',
-    'pattern_lookup_id',
-    'normalized_brand',
-    'normalized_serial',
-    'success',
-    'evaluated',
-    'needs_context',
-    'used_ai',
-    'is_listing_eval',
-    'year',
-    'month',
-    'factory',
-    'country',
-    'model',
-    'notes',
-    'error',
-    'email',
-    'ai_cache_hit',
-    'ai_model',
-    'ai_response_json',
-    'ai_attempted_at',
-    'page_path',
-    'user_agent',
-    'client_timestamp',
-    'ip_address',
-    'cf_country',
-    'cf_colo',
-  ];
-
-  const columns = preferredOrder.filter((column) => columnSet.has(column));
-  if (!columns.includes('brand') || !columns.includes('serial') || !columns.includes('success')) {
-    throw new Error('serial_decode_events is missing required columns (brand, serial, success).');
-  }
-
-  const placeholders = columns.map(() => '?').join(', ');
-  const bindValues = columns.map((column) => valuesByColumn[column] ?? null);
-  const sql = `INSERT INTO serial_decode_events (${columns.join(', ')}) VALUES (${placeholders})`;
-  const result = await env.DB.prepare(sql).bind(...bindValues).run();
-  return Number(result.meta?.last_row_id || 0) || null;
-}
-
 async function insertSerialDecodeEvent(env: Env, payload: SerialDecodeEventInsert): Promise<number | null> {
-  const columns = await getSerialDecodeEventColumns(env);
-  try {
-    return await insertSerialDecodeEventWithColumns(env, payload, columns);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error || '');
-    if (/no column named/i.test(message) || /has no column named/i.test(message)) {
-      serialDecodeEventColumnCache = null;
-      const refreshedColumns = await getSerialDecodeEventColumns(env);
-      return await insertSerialDecodeEventWithColumns(env, payload, refreshedColumns);
-    }
-    throw error;
-  }
+  const result = await env.DB.prepare(
+    `INSERT INTO serial_decode_events (
+       event_time_utc, brand, serial, pattern, pattern_key, pattern_label, pattern_lookup_id,
+       normalized_brand, normalized_serial, success, evaluated, needs_context, used_ai,
+       is_listing_eval, year, month, factory, country, model, notes, error, email,
+       ai_cache_hit, ai_model, ai_response_json, ai_attempted_at,
+       page_path, user_agent, client_timestamp, ip_address, cf_country, cf_colo
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(
+    new Date().toISOString(),
+    payload.brand,
+    payload.serial,
+    payload.pattern || null,
+    payload.patternKey || null,
+    payload.patternLabel || null,
+    payload.patternLookupId ?? null,
+    payload.normalizedBrand || normalizeBrandKey(payload.brand),
+    payload.normalizedSerial || normalizeSerialKey(payload.serial),
+    payload.success ? 1 : 0,
+    0,
+    payload.needsContext ? 1 : 0,
+    payload.usedAi ? 1 : 0,
+    0,
+    payload.year || null,
+    payload.month || null,
+    payload.factory || null,
+    payload.country || null,
+    payload.model || null,
+    payload.notes || null,
+    payload.error || null,
+    payload.email || null,
+    payload.aiCacheHit ? 1 : 0,
+    payload.aiModel || null,
+    payload.aiResponseJson || null,
+    payload.aiAttemptedAt || null,
+    payload.pagePath || null,
+    payload.userAgent || null,
+    payload.clientTimestamp || null,
+    payload.ipAddress || null,
+    payload.countryCode || null,
+    payload.colo || null,
+  ).run();
+  return Number(result.meta?.last_row_id || 0) || null;
 }
 
 async function findRecentSerialDecodeDuplicateId(
@@ -1792,11 +1700,6 @@ async function findRecentSerialDecodeDuplicateId(
   ipAddress: string,
 ): Promise<number | null> {
   if (!normalizedBrand || !normalizedSerial || !ipAddress) return null;
-
-  const columns = await getSerialDecodeEventColumns(env);
-  if (!columns.has('normalized_brand') || !columns.has('normalized_serial') || !columns.has('ip_address')) {
-    return null;
-  }
 
   const row = await env.DB.prepare(
     `SELECT id
@@ -1826,43 +1729,24 @@ async function touchSerialDecodeEventTimestamp(
 ): Promise<void> {
   if (!(id > 0)) return;
 
-  const columns = await getSerialDecodeEventColumns(env);
-  const assignments: string[] = [];
-  const bindValues: unknown[] = [];
-
-  if (columns.has('event_time_utc')) {
-    assignments.push('event_time_utc = ?');
-    bindValues.push(new Date().toISOString());
-  }
-  if (columns.has('page_path')) {
-    assignments.push('page_path = ?');
-    bindValues.push(payload.pagePath || null);
-  }
-  if (columns.has('user_agent')) {
-    assignments.push('user_agent = ?');
-    bindValues.push(payload.userAgent || null);
-  }
-  if (columns.has('client_timestamp')) {
-    assignments.push('client_timestamp = ?');
-    bindValues.push(payload.clientTimestamp || null);
-  }
-  if (columns.has('cf_country')) {
-    assignments.push('cf_country = ?');
-    bindValues.push(payload.countryCode || null);
-  }
-  if (columns.has('cf_colo')) {
-    assignments.push('cf_colo = ?');
-    bindValues.push(payload.colo || null);
-  }
-
-  if (!assignments.length) return;
-
-  bindValues.push(id);
   await env.DB.prepare(
     `UPDATE serial_decode_events
-     SET ${assignments.join(', ')}
+     SET event_time_utc = ?,
+         page_path = ?,
+         user_agent = ?,
+         client_timestamp = ?,
+         cf_country = ?,
+         cf_colo = ?
      WHERE id = ?`
-  ).bind(...bindValues).run();
+  ).bind(
+    new Date().toISOString(),
+    payload.pagePath || null,
+    payload.userAgent || null,
+    payload.clientTimestamp || null,
+    payload.countryCode || null,
+    payload.colo || null,
+    id,
+  ).run();
 }
 
 async function ensureSerialDecodePatternLookup(brand: string, pattern: string, env: Env): Promise<number | null> {
@@ -3423,16 +3307,10 @@ async function handleAdminV2InventorySubscriptions(env: Env): Promise<Response> 
 async function handleAdminV2Orders(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '50', 10) || 50, 1), 100);
-  const orderColumns = await dbGetTableColumns('orders', env);
-  const orderColumnNames = new Set(orderColumns.map((column) => column.name));
-  if (!orderColumnNames.has('id')) return jsonResponse({ records: [] });
-
-  const dateColumn = ['paid_at', 'checkout_started_at', 'created_at']
-    .find((columnName) => orderColumnNames.has(columnName)) || 'id';
   const result = await env.DB.prepare(
     `SELECT *
      FROM orders
-     ORDER BY ${dateColumn} DESC
+     ORDER BY paid_at DESC
      LIMIT ?`
   ).bind(limit).all<Record<string, unknown>>();
 
@@ -4016,12 +3894,6 @@ async function handleAdminV2OrderStatusFlagsUpdate(request: Request, orderId: st
     return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
   }
 
-  const columns = await dbGetTableColumns('orders', env);
-  const columnNames = new Set(columns.map((column) => column.name));
-  const requiredColumns = ['listings_updated', 'settled', 'money_accounted'];
-  const missingColumn = requiredColumns.find((column) => !columnNames.has(column));
-  if (missingColumn) return jsonResponse({ message: `D1 table orders is missing ${missingColumn}.` }, 500);
-
   const existing = await env.DB.prepare(
     'SELECT id, listings_updated, settled, money_accounted FROM orders WHERE id = ? LIMIT 1'
   ).bind(normalizedOrderId).first<Record<string, unknown>>();
@@ -4411,10 +4283,6 @@ async function getStripeRuntimeConfig(env: Env): Promise<StripeRuntimeConfig> {
   };
 
   try {
-    const columns = await dbGetTableColumns('sys_info', env);
-    const columnNames = new Set(columns.map((column) => column.name));
-    if (!columnNames.has('use_stripe_sandbox')) return fallback;
-
     const row = await env.DB.prepare('SELECT * FROM sys_info LIMIT 1').first<Record<string, unknown>>();
     if (!row) return fallback;
 
@@ -4446,10 +4314,6 @@ async function getBrevoRuntimeConfig(env: Env): Promise<BrevoRuntimeConfig> {
   };
 
   try {
-    const columns = await dbGetTableColumns('sys_info', env);
-    const columnNames = new Set(columns.map((column) => column.name));
-    if (!columnNames.has('brevo_api_key')) return fallback;
-
     const row = await env.DB.prepare('SELECT * FROM sys_info LIMIT 1').first<Record<string, unknown>>();
     if (!row) return fallback;
 
@@ -4478,25 +4342,16 @@ async function getShopRuntimeSettings(env: Env): Promise<{
   };
 
   try {
-    const columns = await dbGetTableColumns('sys_info', env);
-    const columnNames = new Set(columns.map((column) => column.name));
     const row = await env.DB.prepare('SELECT * FROM sys_info LIMIT 1').first<Record<string, unknown>>();
     if (!row) return fallback;
 
-    const idleSeconds = columnNames.has('associate_screensaver_idle_seconds')
-      ? Number(row.associate_screensaver_idle_seconds)
-      : fallback.associateScreensaverIdleMs / 1000;
-
+    const idleSeconds = Number(row.associate_screensaver_idle_seconds);
     return {
       associateScreensaverIdleMs: Number.isFinite(idleSeconds) && idleSeconds > 0
         ? Math.floor(idleSeconds) * 1000
         : fallback.associateScreensaverIdleMs,
-      customProductBarcode: columnNames.has('custom_product_barcode')
-        ? normalizeText(row.custom_product_barcode, '').slice(0, 80)
-        : fallback.customProductBarcode,
-      saleDescriptionPostfix: columnNames.has('sale_description_postfix')
-        ? normalizeText(row.sale_description_postfix, DEFAULT_SALE_DESCRIPTION_POSTFIX)
-        : fallback.saleDescriptionPostfix,
+      customProductBarcode: normalizeText(row.custom_product_barcode, '').slice(0, 80),
+      saleDescriptionPostfix: normalizeText(row.sale_description_postfix, DEFAULT_SALE_DESCRIPTION_POSTFIX),
     };
   } catch (error) {
     console.warn('Shop sys_info settings lookup failed.', { error });
@@ -4746,10 +4601,6 @@ async function getStripeRuntimeConfigForLivemode(
   const useSandbox = !livemode;
 
   try {
-    const columns = await dbGetTableColumns('sys_info', env);
-    const columnNames = new Set(columns.map((column) => column.name));
-    if (!columnNames.has('use_stripe_sandbox')) return { ...fallback, useSandbox };
-
     const row = await env.DB.prepare('SELECT * FROM sys_info LIMIT 1').first<Record<string, unknown>>();
     if (!row) return { ...fallback, useSandbox };
 
@@ -4781,12 +4632,6 @@ function parseSysInfoBoolean(value: unknown, fallback: boolean): boolean {
 }
 
 async function dbSetStripeSandboxMode(useSandbox: boolean, env: Env): Promise<void> {
-  const columns = await dbGetTableColumns('sys_info', env);
-  const columnNames = new Set(columns.map((column) => column.name));
-  if (!columnNames.has('use_stripe_sandbox')) {
-    throw new Error('D1 table sys_info is missing use_stripe_sandbox.');
-  }
-
   await env.DB.prepare(
     `INSERT INTO sys_info (id, use_stripe_sandbox)
      VALUES (1, ?)
@@ -4836,24 +4681,6 @@ async function dbSetSystemSettings(
   },
   env: Env,
 ): Promise<void> {
-  const columns = await dbGetTableColumns('sys_info', env);
-  const columnNames = new Set(columns.map((column) => column.name));
-  const requiredColumns = [
-    'brevo_order_confirmation_template_id',
-    'brevo_sender_name',
-    'brevo_sender_email',
-    'associate_screensaver_idle_seconds',
-    'custom_product_barcode',
-    'current_used_local_funds',
-    'current_mfr_wholesale_funds',
-    'post_store_launch_date',
-    'sale_description_postfix',
-  ];
-  const missingColumn = requiredColumns.find((column) => !columnNames.has(column));
-  if (missingColumn) {
-    throw new Error(`D1 table sys_info is missing ${missingColumn}.`);
-  }
-
   await env.DB.prepare(
     `INSERT INTO sys_info (
        id,
@@ -4899,14 +4726,6 @@ async function dbApplyOrderFundsAccounting(
   adjustedCostBasis: number,
   env: Env,
 ): Promise<void> {
-  const sysColumns = await dbGetTableColumns('sys_info', env);
-  const sysColumnNames = new Set(sysColumns.map((column) => column.name));
-  const missingSysColumn = ['current_used_local_funds', 'current_mfr_wholesale_funds']
-    .find((column) => !sysColumnNames.has(column));
-  if (missingSysColumn) {
-    throw new Error(`D1 table sys_info is missing ${missingSysColumn}.`);
-  }
-
   await env.DB.batch([
     env.DB.prepare(
       `UPDATE sys_info
@@ -5326,8 +5145,6 @@ async function dbCountOrderItems(orderIds: string[], env: Env): Promise<Map<stri
 
 async function dbListOrderEvents(orderId: string, env: Env): Promise<Array<Record<string, unknown>>> {
   try {
-    const columns = await dbGetTableColumns('order_events', env);
-    if (!columns.some((column) => column.name === 'order_id')) return [];
     const result = await env.DB.prepare(
       `SELECT *
        FROM order_events
@@ -6426,6 +6243,10 @@ async function handleShopCreateCheckoutSession(request: Request, env: Env): Prom
     }
 
     await dbAttachStripeCheckoutSession(orderId, stripeSession.id, env);
+
+    if (!stripeSession.url) {
+      throw new Error('Stripe did not return a checkout URL.');
+    }
 
     return jsonResponse({
       orderId,
@@ -11596,6 +11417,11 @@ async function dbListGoogleMerchantProducts(env: Env): Promise<GoogleMerchantFee
 }
 
 async function dbCreateNewsletterSubscriber(email: string, env: Env): Promise<boolean> {
+  const existing = await env.DB.prepare(
+    `SELECT 1 FROM email_newsletter WHERE LOWER(email) = LOWER(?) LIMIT 1`
+  ).bind(email).first();
+  if (existing) return false;
+
   const result = await env.DB.prepare(
     `INSERT OR IGNORE INTO email_newsletter (email)
      VALUES (?)`
@@ -11979,21 +11805,6 @@ function stripeTimestampToIso(value: unknown): string {
   return new Date(seconds * 1000).toISOString();
 }
 
-async function dbGetTableColumns(
-  tableName: string,
-  env: Env,
-): Promise<Array<{ name: string; type: string | null; notnull: number | null; dflt_value: string | null; pk: number | null }>> {
-  const safeTableName = tableName.replace(/[^a-zA-Z0-9_]/g, '');
-  if (!safeTableName) return [];
-  const result = await env.DB.prepare(`PRAGMA table_info(${safeTableName})`).all<{
-    name: string;
-    type: string | null;
-    notnull: number | null;
-    dflt_value: string | null;
-    pk: number | null;
-  }>();
-  return result.results ?? [];
-}
 
 async function dbCreateCheckoutOrder(
   input: {
@@ -12032,7 +11843,6 @@ async function dbCreateCheckoutOrder(
   },
   env: Env,
 ): Promise<void> {
-  const orderColumns = await dbGetTableColumns('orders', env);
   const firstItem = input.items[0];
   const orderTitleSnapshot = input.items.length === 1
     ? firstItem.title
@@ -12041,110 +11851,86 @@ async function dbCreateCheckoutOrder(
     (sum, item) => sum + Math.max(0, Number(item.row.unit_purchase_price || 0)) * Math.max(1, item.quantity),
     0,
   );
-  const orderValueByColumn = new Map<string, unknown>([
-    ['id', input.orderId],
-    ['order_number', input.orderNumber],
-    ['inventory_item_id', firstItem.inventoryItemId],
-    ['status', input.status],
-    ['channel', input.channel],
-    ['checkout_type', input.checkoutType],
-    ['checkout_provider', input.checkoutProvider],
-    ['checkout_mode', input.checkoutMode],
-    ['fulfillment_type', input.fulfillmentType],
-    ['item_title_snapshot', orderTitleSnapshot],
-    ['item_brand_snapshot', firstItem.row.brand || ''],
-    ['item_model_snapshot', firstItem.row.model || ''],
-    ['item_condition_snapshot', firstItem.row.condition || ''],
-    ['item_image_url_snapshot', firstItem.imageUrl],
-    ['subtotal_cents', input.subtotalCents],
-    ['tax_cents', input.taxCents],
-    ['shipping_cents', input.shippingCents],
-    ['shipping_status', input.shippingStatus],
-    ['shipping_label', input.shippingLabel],
-    ['shipping_tax_cents', input.shippingTaxCents],
-    ['shipping_address_required', input.shippingStatus === 'free' || input.shippingStatus === 'flat_rate' ? 1 : 0],
-    ['discount_cents', input.discountCents],
-    ['coupon_code', input.couponCode],
-    ['total_cents', input.totalCents],
-    ['cost_basis_adjusted', Number(costBasisAdjusted.toFixed(2))],
-    ['card_amount_cents', input.cardAmountCents],
-    ['cash_amount_cents', input.cashAmountCents],
-    ['cash_due_cents', input.cashAmountCents],
-    ['settled', input.checkoutProvider === 'cash' ? 1 : 0],
-    ['currency', 'usd'],
-    ['reserve_expires_at', null],
-    ['checkout_started_at', input.createdAt],
-    ['success_url', input.successUrl],
-    ['cancel_url', input.cancelUrl],
-    ['customer_name', normalizeText(input.customerName, '')],
-    ['customer_email', normalizeEmailAddress(input.customerEmail)],
-    ['created_at', input.createdAt],
-    ['updated_at', input.createdAt],
-  ]);
-  const insertColumns = orderColumns
-    .filter((column) =>
-      (orderValueByColumn.has(column.name) && !isAutoIntegerPrimaryKey(column))
-      || isRequiredInsertColumn(column)
-    )
-    .map((column) => column.name);
-  const insertValues = insertColumns.map((columnName) =>
-    orderValueByColumn.has(columnName)
-      ? orderValueByColumn.get(columnName)
-      : getRequiredOrderFallback(columnName, firstItem, input.createdAt)
-  );
-  const placeholders = insertColumns.map(() => '?').join(', ');
 
   await env.DB.prepare(
-    `INSERT INTO orders (${insertColumns.join(', ')}) VALUES (${placeholders})`
-  ).bind(...insertValues).run();
+    `INSERT INTO orders (
+       id, order_number, inventory_item_id, status, channel,
+       checkout_type, checkout_provider, checkout_mode, fulfillment_type,
+       item_title_snapshot, item_brand_snapshot, item_model_snapshot,
+       item_condition_snapshot, item_image_url_snapshot,
+       subtotal_cents, tax_cents, shipping_cents, shipping_status,
+       shipping_label, shipping_tax_cents, shipping_address_required,
+       discount_cents, coupon_code, total_cents, cost_basis_adjusted,
+       card_amount_cents, cash_amount_cents, cash_due_cents,
+       settled, currency, reserve_expires_at, checkout_started_at,
+       success_url, cancel_url, customer_name, customer_email,
+       created_at, updated_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(
+    input.orderId,
+    input.orderNumber,
+    firstItem.inventoryItemId,
+    input.status,
+    input.channel,
+    input.checkoutType,
+    input.checkoutProvider,
+    input.checkoutMode,
+    input.fulfillmentType,
+    orderTitleSnapshot,
+    firstItem.row.brand || '',
+    firstItem.row.model || '',
+    firstItem.row.condition || '',
+    firstItem.imageUrl,
+    input.subtotalCents,
+    input.taxCents,
+    input.shippingCents,
+    input.shippingStatus,
+    input.shippingLabel,
+    input.shippingTaxCents,
+    input.shippingStatus === 'free' || input.shippingStatus === 'flat_rate' ? 1 : 0,
+    input.discountCents,
+    input.couponCode,
+    input.totalCents,
+    Number(costBasisAdjusted.toFixed(2)),
+    input.cardAmountCents,
+    input.cashAmountCents,
+    input.cashAmountCents,
+    input.checkoutProvider === 'cash' ? 1 : 0,
+    'usd',
+    null,
+    input.createdAt,
+    input.successUrl,
+    input.cancelUrl,
+    normalizeText(input.customerName, ''),
+    normalizeEmailAddress(input.customerEmail),
+    input.createdAt,
+    input.createdAt,
+  ).run();
 
-  const orderItemColumns = await dbGetTableColumns('order_items', env);
   for (const item of input.items) {
-    const orderItemValueByColumn = new Map<string, unknown>([
-      ['id', crypto.randomUUID()],
-      ['order_id', input.orderId],
-      ['inventory_item_id', item.inventoryItemId],
-      ['quantity', item.quantity],
-      ['item_title_snapshot', item.title],
-      ['title_snapshot', item.title],
-      ['item_title', item.title],
-      ['title', item.title],
-      ['item_brand_snapshot', item.row.brand || ''],
-      ['brand_snapshot', item.row.brand || ''],
-      ['brand', item.row.brand || ''],
-      ['item_model_snapshot', item.row.model || ''],
-      ['model_snapshot', item.row.model || ''],
-      ['model', item.row.model || ''],
-      ['item_condition_snapshot', item.row.condition || ''],
-      ['condition_snapshot', item.row.condition || ''],
-      ['condition', item.row.condition || ''],
-      ['item_image_url_snapshot', item.imageUrl],
-      ['image_url_snapshot', item.imageUrl],
-      ['image_url', item.imageUrl],
-      ['unit_price_cents', item.unitAmountCents],
-      ['price_cents', item.unitAmountCents],
-      ['unit_amount_cents', item.unitAmountCents],
-      ['subtotal_cents', item.unitAmountCents * item.quantity],
-      ['total_cents', item.unitAmountCents * item.quantity],
-      ['created_at', input.createdAt],
-      ['updated_at', input.createdAt],
-    ]);
-    const orderItemInsertColumns = orderItemColumns
-      .filter((column) =>
-        (orderItemValueByColumn.has(column.name) && !isAutoIntegerPrimaryKey(column))
-        || isRequiredInsertColumn(column)
-      )
-      .map((column) => column.name);
-    const orderItemInsertValues = orderItemInsertColumns.map((columnName) =>
-      orderItemValueByColumn.has(columnName)
-        ? orderItemValueByColumn.get(columnName)
-        : getRequiredOrderItemFallback(columnName, item, input.createdAt)
-    );
-    const orderItemPlaceholders = orderItemInsertColumns.map(() => '?').join(', ');
-
     await env.DB.prepare(
-      `INSERT INTO order_items (${orderItemInsertColumns.join(', ')}) VALUES (${orderItemPlaceholders})`
-    ).bind(...orderItemInsertValues).run();
+      `INSERT INTO order_items (
+         id, order_id, inventory_item_id, quantity,
+         item_title_snapshot, item_brand_snapshot, item_model_snapshot,
+         item_condition_snapshot, item_image_url_snapshot,
+         unit_amount_cents, subtotal_cents,
+         created_at, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      crypto.randomUUID(),
+      input.orderId,
+      item.inventoryItemId,
+      item.quantity,
+      item.title,
+      item.row.brand || '',
+      item.row.model || '',
+      item.row.condition || '',
+      item.imageUrl,
+      item.unitAmountCents,
+      item.unitAmountCents * item.quantity,
+      input.createdAt,
+      input.createdAt,
+    ).run();
   }
 
   await env.DB.prepare(
@@ -12257,9 +12043,6 @@ async function dbGetOrderIdByStripeCheckoutSessionId(
 ): Promise<string | null> {
   const id = normalizeText(checkoutSessionId, '');
   if (!id) return null;
-  const columns = await dbGetTableColumns('orders', env);
-  const columnNames = new Set(columns.map((column) => column.name));
-  if (!columnNames.has('stripe_checkout_session_id')) return null;
   const row = await env.DB.prepare(
     'SELECT id FROM orders WHERE stripe_checkout_session_id = ? LIMIT 1'
   ).bind(id).first<{ id: string | null }>();
@@ -12603,11 +12386,6 @@ async function dbGetOrderSplitTender(
   }
 
   try {
-    const columns = await dbGetTableColumns('order_events', env);
-    const columnNames = new Set(columns.map((column) => column.name));
-    if (!columnNames.has('order_id') || !columnNames.has('payload_json')) {
-      return { cardAmountCents: 0, cashAmountCents: 0 };
-    }
     const result = await env.DB.prepare(
       `SELECT payload_json
        FROM order_events
@@ -12775,10 +12553,6 @@ async function dbListOrderInventoryQuantities(
   orderId: string,
   env: Env,
 ): Promise<Array<{ inventoryItemId: number; quantity: number; subtotalCents: number }>> {
-  const columns = await dbGetTableColumns('order_items', env);
-  const names = new Set(columns.map((column) => column.name));
-  if (!names.has('order_id')) return [];
-
   const result = await env.DB.prepare(
     'SELECT * FROM order_items WHERE order_id = ?'
   ).bind(orderId).all<Record<string, unknown>>();
@@ -12837,8 +12611,6 @@ async function dbUnwindRefundedOrderInventory(
     const restoredQuantity = rowIsSold
       ? Math.max(currentQuantity, purchasedQuantity)
       : currentQuantity + purchasedQuantity;
-    const columns = await dbGetTableColumns('ccg_inventory_items', env);
-    const columnNames = new Set(columns.map((column) => column.name));
     const values = new Map<string, unknown>([
       ['quantity', restoredQuantity],
       ['is_sold', 0],
@@ -12852,7 +12624,7 @@ async function dbUnwindRefundedOrderInventory(
       ['sold_channel', null],
       ['updated_at', new Date().toISOString()],
     ]);
-    await dbUpdateInventoryColumns(item.inventoryItemId, orderId, values, columnNames, env);
+    await dbUpdateInventoryColumns(item.inventoryItemId, orderId, values, env);
 
     if (wasPartialSale) {
       await dbDeactivateRefundedPartialSaleClone({
@@ -12905,8 +12677,6 @@ async function dbDeactivateRefundedPartialSaleClone(input: {
   const cloneId = Number(clone?.id || 0);
   if (!Number.isFinite(cloneId) || cloneId <= 0) return;
 
-  const columns = await dbGetTableColumns('ccg_inventory_items', input.env);
-  const columnNames = new Set(columns.map((column) => column.name));
   await dbUpdateInventoryColumns(cloneId, input.orderId, new Map<string, unknown>([
     ['quantity', 0],
     ['is_active', 0],
@@ -12919,7 +12689,7 @@ async function dbDeactivateRefundedPartialSaleClone(input: {
     ['sold_amount', null],
     ['sell_notes', `Refunded order ${normalizeText(input.orderId, '')}`],
     ['updated_at', new Date().toISOString()],
-  ]), columnNames, input.env);
+  ]), input.env);
 }
 
 async function dbApplyPaidInventoryItemAdjustment(
@@ -12980,8 +12750,6 @@ async function dbUpdateOriginalInventoryAfterPartialSale(
   orderId: string,
   env: Env,
 ): Promise<void> {
-  const columns = await dbGetTableColumns('ccg_inventory_items', env);
-  const columnNames = new Set(columns.map((column) => column.name));
   const values = new Map<string, unknown>([
     ['quantity', remainingQuantity],
     ['is_sold', 0],
@@ -12994,7 +12762,7 @@ async function dbUpdateOriginalInventoryAfterPartialSale(
     ['sell_notes', null],
     ['updated_at', new Date().toISOString()],
   ]);
-  await dbUpdateInventoryColumns(inventoryItemId, orderId, values, columnNames, env);
+  await dbUpdateInventoryColumns(inventoryItemId, orderId, values, env);
 }
 
 async function dbUpdateOriginalInventoryAfterFullSale(
@@ -13007,8 +12775,6 @@ async function dbUpdateOriginalInventoryAfterFullSale(
   paidChannel: string,
   env: Env,
 ): Promise<void> {
-  const columns = await dbGetTableColumns('ccg_inventory_items', env);
-  const columnNames = new Set(columns.map((column) => column.name));
   const paidNote = getPaidInventorySellNote(session);
   const values = new Map<string, unknown>([
     ['quantity', soldQuantity],
@@ -13023,17 +12789,16 @@ async function dbUpdateOriginalInventoryAfterFullSale(
     ['sold_channel', paidChannel],
     ['updated_at', new Date().toISOString()],
   ]);
-  await dbUpdateInventoryColumns(inventoryItemId, orderId, values, columnNames, env);
+  await dbUpdateInventoryColumns(inventoryItemId, orderId, values, env);
 }
 
 async function dbUpdateInventoryColumns(
   inventoryItemId: number,
   orderId: string,
   values: Map<string, unknown>,
-  columnNames: Set<string>,
   env: Env,
 ): Promise<void> {
-  const setColumns = Array.from(values.keys()).filter((columnName) => columnNames.has(columnName));
+  const setColumns = Array.from(values.keys());
   if (setColumns.length === 0) return;
   const bindValues = setColumns.map((columnName) => values.get(columnName));
   bindValues.push(inventoryItemId);
@@ -13060,7 +12825,6 @@ async function dbCreateSoldInventoryCloneFromSource(input: {
   const ccgNumber = await generateUniqueCcgNumber(input.env);
   if (!ccgNumber) return null;
 
-  const columns = await dbGetTableColumns('ccg_inventory_items', input.env);
   const sourceValues = new Map(Object.entries(input.sourceRow));
   const paidNote = getPaidInventorySellNote(input.session);
   const overrideValues = new Map<string, unknown>([
@@ -13082,10 +12846,8 @@ async function dbCreateSoldInventoryCloneFromSource(input: {
     ['created_at', input.soldDate],
     ['updated_at', input.soldDate],
   ]);
-  const insertColumns = columns
-    .filter((column) => !isAutoIntegerPrimaryKey(column))
-    .map((column) => column.name)
-    .filter((columnName) => overrideValues.has(columnName) || sourceValues.has(columnName));
+  const insertColumns = Object.keys(input.sourceRow)
+    .filter((columnName) => columnName !== 'id');
   const insertValues = insertColumns.map((columnName) =>
     overrideValues.has(columnName) ? overrideValues.get(columnName) : sourceValues.get(columnName)
   );
@@ -13138,10 +12900,8 @@ async function dbUpdateTableById(
   values: Record<string, unknown>,
   env: Env,
 ): Promise<void> {
-  const columns = await dbGetTableColumns(tableName, env);
-  const columnNames = new Set(columns.map((column) => column.name));
-  const setColumns = Object.keys(values).filter((columnName) => columnNames.has(columnName));
-  if (setColumns.length === 0 || !columnNames.has('id')) return;
+  const setColumns = Object.keys(values);
+  if (setColumns.length === 0) return;
   await env.DB.prepare(
     `UPDATE ${tableName}
      SET ${setColumns.map((columnName) => `${columnName} = ?`).join(', ')}
@@ -13163,97 +12923,27 @@ async function dbRecordOrderEvent(
   env: Env,
 ): Promise<void> {
   try {
-    const columns = await dbGetTableColumns('order_events', env);
-    const values = new Map<string, unknown>([
-      ['order_id', orderId],
-      ['event_type', event.eventType],
-      ['from_status', event.fromStatus],
-      ['to_status', event.toStatus],
-      ['source', event.source],
-      ['source_id', event.sourceId],
-      ['message', event.message],
-      ['payload_json', event.payloadJson],
-      ['created_at', new Date().toISOString()],
-    ]);
-    const insertColumns = columns
-      .filter((column) => values.has(column.name) && !isAutoIntegerPrimaryKey(column))
-      .map((column) => column.name);
-    if (insertColumns.length === 0) return;
     await env.DB.prepare(
-      `INSERT INTO order_events (${insertColumns.join(', ')})
-       VALUES (${insertColumns.map(() => '?').join(', ')})`
-    ).bind(...insertColumns.map((columnName) => values.get(columnName))).run();
+      `INSERT INTO order_events (
+         order_id, event_type, from_status, to_status,
+         source, source_id, message, payload_json, created_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      orderId,
+      event.eventType,
+      event.fromStatus,
+      event.toStatus,
+      event.source,
+      event.sourceId,
+      event.message,
+      event.payloadJson,
+      new Date().toISOString(),
+    ).run();
   } catch (error) {
     console.error('Failed to record order event', { orderId, error });
   }
 }
 
-function isRequiredInsertColumn(column: {
-  name: string;
-  notnull: number | null;
-  dflt_value: string | null;
-  pk: number | null;
-}): boolean {
-  return Number(column.notnull || 0) === 1
-    && Number(column.pk || 0) === 0
-    && column.dflt_value == null;
-}
-
-function isAutoIntegerPrimaryKey(column: {
-  name: string;
-  type: string | null;
-  pk: number | null;
-}): boolean {
-  return Number(column.pk || 0) > 0 && /int/i.test(String(column.type || ''));
-}
-
-function getRequiredOrderFallback(
-  columnName: string,
-  item: {
-    inventoryItemId: number;
-    quantity: number;
-    row: ShopCheckoutInventoryRow;
-    title: string;
-    unitAmountCents: number;
-    imageUrl: string;
-  },
-  createdAt: string,
-): unknown {
-  const name = columnName.toLowerCase();
-  if (name.includes('inventory') && name.includes('id')) return item.inventoryItemId;
-  if (name.includes('quantity')) return item.quantity;
-  if (name.includes('title') || name.includes('name')) return item.title;
-  if (name.includes('brand')) return item.row.brand || '';
-  if (name.includes('model')) return item.row.model || '';
-  if (name.includes('condition')) return item.row.condition || '';
-  if (name.includes('image')) return item.imageUrl;
-  if (name.includes('checkout') || name.includes('provider') || name.includes('type')) return 'stripe';
-  if (name.includes('mode')) return 'hosted_checkout';
-  if (name.includes('fulfillment')) return 'pickup';
-  if (name.includes('channel')) return 'online';
-  if (name.includes('status')) return 'checkout_open';
-  if (name.includes('currency')) return 'usd';
-  if (name.includes('price') || name.includes('amount')) return item.unitAmountCents;
-  if (name.includes('subtotal') || name.includes('total')) return item.unitAmountCents * item.quantity;
-  if (name.includes('tax') || name.includes('shipping') || name.includes('discount')) return 0;
-  if (name.includes('date') || name.includes('time') || name.endsWith('_at')) return createdAt;
-  return '';
-}
-
-function getRequiredOrderItemFallback(
-  columnName: string,
-  item: {
-    inventoryItemId: number;
-    quantity: number;
-    row: ShopCheckoutInventoryRow;
-    title: string;
-    unitAmountCents: number;
-    imageUrl: string;
-  },
-  createdAt: string,
-): unknown {
-  return getRequiredOrderFallback(columnName, item, createdAt);
-}
 
 async function generateUniqueCcgNumber(env: Env): Promise<string | null> {
   for (let attempt = 0; attempt < CCG_NUMBER_ATTEMPTS; attempt += 1) {
@@ -17936,10 +17626,7 @@ async function getConfiguredStripeTerminalReaderId(env: Env, useSandbox: boolean
   if (envReaderId) return envReaderId;
 
   try {
-    const columns = await dbGetTableColumns('sys_info', env);
-    const columnNames = new Set(columns.map((column) => column.name));
     const columnName = useSandbox ? 'stripe_terminal_reader_id_sandbox' : 'stripe_terminal_reader_id';
-    if (!columnNames.has(columnName)) return '';
     const row = await env.DB.prepare(`SELECT ${columnName} AS reader_id FROM sys_info LIMIT 1`)
       .first<{ reader_id: string | null }>();
     return normalizeText(row?.reader_id, '');
