@@ -61,8 +61,8 @@ export function decodeWashburn(serial: string): DecodeResult {
     return decodeZaozhuang(normalized);
   }
 
-  // Two-letter prefix format (e.g., OC, SC, N + digits)
-  if (/^[A-Z]{1,2}\d{8,10}$/.test(normalized)) {
+  // One-to-three letter prefix format (e.g., OC, SC, N, YBJ + digits)
+  if (/^[A-Z]{1,3}\d{8,10}$/.test(normalized)) {
     return decodeLetterPrefix(normalized);
   }
 
@@ -267,10 +267,9 @@ function decodeZaozhuang(serial: string): DecodeResult {
   return { success: true, info };
 }
 
-// Two-letter prefix format
+// One-to-three letter prefix format
 function decodeLetterPrefix(serial: string): DecodeResult {
-  // Extract prefix and digits
-  const match = serial.match(/^([A-Z]{1,2})(\d+)$/);
+  const match = serial.match(/^([A-Z]{1,3})(\d+)$/);
   if (!match) {
     return { success: false, error: 'Invalid letter prefix format.' };
   }
@@ -305,6 +304,11 @@ function decodeLetterPrefix(serial: string): DecodeResult {
       factory = 'Peerless Korea';
       country = 'South Korea';
       notes = 'R prefix indicates Peerless factory in Korea.';
+      break;
+    case 'YBJ':
+      factory = 'Asian contracted factory (YBJ)';
+      country = 'China or Indonesia';
+      notes = 'YBJ is a multi-letter factory code identifying a specific contracted Asian facility. Common on modern Washburn imports. Year and month are encoded in the first four digits after the prefix.';
       break;
     default:
       notes = `${prefix} prefix - factory identification uncertain.`;

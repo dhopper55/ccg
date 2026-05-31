@@ -58,60 +58,87 @@ export function decodeAlvarez(serial: string): DecodeResult {
   };
 }
 
+// Known prefixes (not officially documented)
+const ALVAREZ_PREFIX_INFO: Record<string, string> = {
+  'E': 'Standard production line',
+  'F': 'Production line F',
+  'S': 'Production line S',
+  'K': 'Production line K',
+};
+
 // Modern standard format: Letter + 8-9 digits
+// Two sub-formats exist:
+//   A) L + YY(00-30 or 85-99) + MM + sequence  e.g. E24113487 → 2024, November
+//   B) L + Y(single digit) + MM + DD + sequence  e.g. F706132542 → 2007, June, day 13
 function decodeModernStandard(serial: string): DecodeResult {
   const prefix = serial.charAt(0);
   const digits = serial.substring(1);
+  const prefixMeaning = ALVAREZ_PREFIX_INFO[prefix] || 'Production line indicator';
 
-  // Extract year and month from first 4 digits after prefix
-  const yearDigits = digits.substring(0, 2);
-  const monthDigits = digits.substring(2, 4);
-  const productionNum = digits.substring(4);
+  // --- Try format A: 2-digit year ---
+  const yearTwoDigits = digits.substring(0, 2);
+  const yearTwoNum = parseInt(yearTwoDigits, 10);
+  const monthTwoDigits = digits.substring(2, 4);
+  const monthTwoNum = parseInt(monthTwoDigits, 10);
+  const isValidTwoDigitYear = (yearTwoNum >= 0 && yearTwoNum <= 30) || (yearTwoNum >= 85 && yearTwoNum <= 99);
+  const isValidMonthA = monthTwoNum >= 1 && monthTwoNum <= 12;
 
-  const yearNum = parseInt(yearDigits, 10);
-  const monthNum = parseInt(monthDigits, 10);
-
-  // Validate month
-  let monthStr: string | undefined;
-  if (monthNum >= 1 && monthNum <= 12) {
-    const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December',
-    ];
-    monthStr = months[monthNum - 1];
+  if (isValidTwoDigitYear && isValidMonthA) {
+    const year = yearTwoNum <= 30
+      ? `20${yearTwoDigits.padStart(2, '0')}`
+      : `19${yearTwoDigits}`;
+    const monthStr = getMonthName(monthTwoNum);
+    const productionNum = digits.substring(4);
+    return {
+      success: true,
+      info: {
+        brand: 'Alvarez',
+        serialNumber: serial,
+        year,
+        month: monthStr,
+        factory: 'China or Korea',
+        country: 'China or Korea (check label)',
+        notes: `Modern Alvarez format. Prefix "${prefix}" = ${prefixMeaning}. Year: ${year}, Month: ${monthStr || 'Unknown'}. Production batch: ${productionNum}. Check the label inside the guitar to confirm country of origin.`,
+      },
+    };
   }
 
-  // Determine year (assume 2000s for modern format)
-  let year: string;
-  if (yearNum >= 0 && yearNum <= 30) {
-    year = `20${yearDigits.padStart(2, '0')}`;
-  } else if (yearNum >= 85 && yearNum <= 99) {
-    year = `19${yearDigits}`;
-  } else {
-    year = `Unknown (${yearDigits})`;
+  // --- Try format B: single-digit year + 2-digit month + 2-digit day ---
+  // e.g. F706132542 → year digit "7" = 2007, month "06" = June, day "13", seq "2542"
+  const yearSingleDigit = parseInt(digits.charAt(0), 10);
+  const monthSingleDigits = digits.substring(1, 3);
+  const monthSingleNum = parseInt(monthSingleDigits, 10);
+
+  if (monthSingleNum >= 1 && monthSingleNum <= 12) {
+    const yearGuess = 2000 + yearSingleDigit;
+    const monthStr = getMonthName(monthSingleNum);
+    const dayField = digits.substring(3, 5);
+    const productionNum = digits.substring(5);
+    return {
+      success: true,
+      info: {
+        brand: 'Alvarez',
+        serialNumber: serial,
+        year: yearGuess.toString(),
+        month: monthStr,
+        factory: 'China or Korea',
+        country: 'China or Korea (check label)',
+        notes: `Modern Alvarez format (mid-series encoding). Prefix "${prefix}" = ${prefixMeaning}. Year: ~${yearGuess} (single-digit year "${yearSingleDigit}" — decade approximate; could also be ${yearGuess + 10}). Month: ${monthStr || 'Unknown'}. Day: ${dayField}. Production sequence: ${productionNum}. Check the label inside the guitar to confirm country of origin and exact year.`,
+      },
+    };
   }
 
-  // Known prefixes (not officially documented)
-  const prefixInfo: Record<string, string> = {
-    'E': 'Standard production line',
-    'F': 'Production line F',
-    'S': 'Production line S',
-    'SL': 'SL production designation',
+  // --- Fallback: format detected but date not parseable ---
+  return {
+    success: true,
+    info: {
+      brand: 'Alvarez',
+      serialNumber: serial,
+      factory: 'China or Korea',
+      country: 'China or Korea (check label)',
+      notes: `Modern Alvarez serial detected (letter prefix + digits). Production date could not be decoded from this specific format. Check the label inside the soundhole for model and date, or use the Alvarez Guitar Date Finder at alvarezguitars.com.`,
+    },
   };
-
-  const prefixMeaning = prefixInfo[prefix] || 'Production line indicator';
-
-  const info: GuitarInfo = {
-    brand: 'Alvarez',
-    serialNumber: serial,
-    year: year,
-    month: monthStr,
-    factory: 'China or Korea',
-    country: 'China or Korea (check label)',
-    notes: `Modern Alvarez format. Prefix "${prefix}" = ${prefixMeaning}. Year: ${year}, Month: ${monthStr || 'Unknown'}. Production number: ${productionNum}. Current Alvarez Artist, Regent, and Masterworks series guitars are made in China. Check the label inside the guitar to confirm country of origin.`,
-  };
-
-  return { success: true, info };
 }
 
 // Emperor dating code: 4 digits YYMM (Showa/Heisei eras)

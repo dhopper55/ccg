@@ -127,8 +127,8 @@ export function decodeJackson(serial: string): DecodeResult {
     return decodeChina(normalized);
   }
 
-  // India format (NHJ prefix or numeric with year prefix)
-  if (/^NHJ\d{6,8}$/i.test(normalized)) {
+  // India format (NHJ prefix — digits with optional trailing batch letter)
+  if (/^NHJ\d{6,8}[A-Z]?$/i.test(normalized)) {
     return decodeIndia(normalized);
   }
 
@@ -785,8 +785,12 @@ function decodeChina(serial: string): DecodeResult {
 }
 
 function decodeIndia(serial: string): DecodeResult {
-  // Format: NHJ + year(2) + month(2) + sequence
-  const digits = serial.substring(3);
+  // Format: NHJ + year(2) + sequence + optional batch letter suffix
+  // e.g. NHJ111644B → year=11 (2011), sequence=1644, batch=B
+  const withoutPrefix = serial.substring(3);
+  const digits = withoutPrefix.replace(/[A-Z]$/i, ''); // strip optional trailing batch letter
+  const batchCode = /[A-Z]$/i.test(withoutPrefix) ? withoutPrefix.slice(-1).toUpperCase() : null;
+
   const yearDigits = digits.substring(0, 2);
   const monthDigits = digits.substring(2, 4);
 
@@ -794,15 +798,17 @@ function decodeIndia(serial: string): DecodeResult {
   year = year >= 90 ? 1900 + year : 2000 + year;
 
   const month = parseInt(monthDigits, 10);
-  const monthName = getMonthName(month);
+  const monthName = month >= 1 && month <= 12 ? getMonthName(month) : undefined;
+  const sequence = monthName ? digits.substring(4) : digits.substring(2);
 
   const info: GuitarInfo = {
     brand: 'Jackson',
     serialNumber: serial,
     year: year.toString(),
     month: monthName,
-    factory: 'Jackson India',
+    factory: 'Jackson India (contracted factory)',
     country: 'India',
+    notes: `NHJ-series Jackson JS Series import (mid-2000s to early 2010s). Built at a contracted Asian facility. Year: ${year}${monthName ? `, Month: ${monthName}` : ''}. Production sequence: ${sequence}${batchCode ? `. Batch code: ${batchCode}` : ''}. These instruments are not in the official Jackson online lookup — verify with headstock markings and model features.`,
   };
 
   return { success: true, info };
