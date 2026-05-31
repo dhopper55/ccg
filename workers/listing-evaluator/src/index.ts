@@ -1648,48 +1648,50 @@ async function insertActivityLogBestEffort(env: Env, payload: ActivityLogInsert)
 }
 
 async function insertSerialDecodeEvent(env: Env, payload: SerialDecodeEventInsert): Promise<number | null> {
+  const allValues: Record<string, unknown> = {
+    event_time_utc: new Date().toISOString(),
+    brand: payload.brand,
+    serial: payload.serial,
+    pattern: payload.pattern || null,
+    pattern_key: payload.patternKey || null,
+    pattern_label: payload.patternLabel || null,
+    pattern_lookup_id: payload.patternLookupId ?? null,
+    normalized_brand: payload.normalizedBrand || normalizeBrandKey(payload.brand),
+    normalized_serial: payload.normalizedSerial || normalizeSerialKey(payload.serial),
+    success: payload.success ? 1 : 0,
+    evaluated: 0,
+    needs_context: payload.needsContext ? 1 : 0,
+    used_ai: payload.usedAi ? 1 : 0,
+    is_listing_eval: 0,
+    year: payload.year || null,
+    month: payload.month || null,
+    factory: payload.factory || null,
+    country: payload.country || null,
+    model: payload.model || null,
+    notes: payload.notes || null,
+    error: payload.error || null,
+    email: payload.email || null,
+    ai_cache_hit: payload.aiCacheHit ? 1 : 0,
+    ai_model: payload.aiModel || null,
+    ai_response_json: payload.aiResponseJson || null,
+    ai_attempted_at: payload.aiAttemptedAt || null,
+    page_path: payload.pagePath || null,
+    user_agent: payload.userAgent || null,
+    client_timestamp: payload.clientTimestamp || null,
+    ip_address: payload.ipAddress || null,
+    cf_country: payload.countryCode || null,
+    cf_colo: payload.colo || null,
+  };
+
+  const schemaRows = await env.DB.prepare(`PRAGMA table_info(serial_decode_events)`).all<{ name: string | null }>();
+  const existingColumns = new Set(
+    (schemaRows.results ?? []).map((r) => normalizeText(r.name, '').toLowerCase()).filter(Boolean)
+  );
+
+  const columns = Object.keys(allValues).filter((col) => existingColumns.has(col));
   const result = await env.DB.prepare(
-    `INSERT INTO serial_decode_events (
-       event_time_utc, brand, serial, pattern, pattern_key, pattern_label, pattern_lookup_id,
-       normalized_brand, normalized_serial, success, evaluated, needs_context, used_ai,
-       is_listing_eval, year, month, factory, country, model, notes, error, email,
-       ai_cache_hit, ai_model, ai_response_json, ai_attempted_at,
-       page_path, user_agent, client_timestamp, ip_address, cf_country, cf_colo
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).bind(
-    new Date().toISOString(),
-    payload.brand,
-    payload.serial,
-    payload.pattern || null,
-    payload.patternKey || null,
-    payload.patternLabel || null,
-    payload.patternLookupId ?? null,
-    payload.normalizedBrand || normalizeBrandKey(payload.brand),
-    payload.normalizedSerial || normalizeSerialKey(payload.serial),
-    payload.success ? 1 : 0,
-    0,
-    payload.needsContext ? 1 : 0,
-    payload.usedAi ? 1 : 0,
-    0,
-    payload.year || null,
-    payload.month || null,
-    payload.factory || null,
-    payload.country || null,
-    payload.model || null,
-    payload.notes || null,
-    payload.error || null,
-    payload.email || null,
-    payload.aiCacheHit ? 1 : 0,
-    payload.aiModel || null,
-    payload.aiResponseJson || null,
-    payload.aiAttemptedAt || null,
-    payload.pagePath || null,
-    payload.userAgent || null,
-    payload.clientTimestamp || null,
-    payload.ipAddress || null,
-    payload.countryCode || null,
-    payload.colo || null,
-  ).run();
+    `INSERT INTO serial_decode_events (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`
+  ).bind(...columns.map((col) => allValues[col])).run();
   return Number(result.meta?.last_row_id || 0) || null;
 }
 
@@ -1701,25 +1703,29 @@ async function findRecentSerialDecodeDuplicateId(
 ): Promise<number | null> {
   if (!normalizedBrand || !normalizedSerial || !ipAddress) return null;
 
-  const row = await env.DB.prepare(
-    `SELECT id
-     FROM serial_decode_events
-     WHERE normalized_brand = ?
-       AND normalized_serial = ?
-       AND ip_address = ?
-       AND is_listing_eval = 0
-       AND datetime(COALESCE(event_time_utc, created_at)) >= datetime('now', ?)
-     ORDER BY datetime(COALESCE(event_time_utc, created_at)) DESC, id DESC
-     LIMIT 1`
-  ).bind(
-    normalizedBrand,
-    normalizedSerial,
-    ipAddress,
-    `-${SERIAL_DECODE_DUPLICATE_WINDOW_HOURS} hours`,
-  ).first<{ id: number | null }>();
+  try {
+    const row = await env.DB.prepare(
+      `SELECT id
+       FROM serial_decode_events
+       WHERE normalized_brand = ?
+         AND normalized_serial = ?
+         AND ip_address = ?
+         AND is_listing_eval = 0
+         AND datetime(COALESCE(event_time_utc, created_at)) >= datetime('now', ?)
+       ORDER BY datetime(COALESCE(event_time_utc, created_at)) DESC, id DESC
+       LIMIT 1`
+    ).bind(
+      normalizedBrand,
+      normalizedSerial,
+      ipAddress,
+      `-${SERIAL_DECODE_DUPLICATE_WINDOW_HOURS} hours`,
+    ).first<{ id: number | null }>();
 
-  if (row?.id == null) return null;
-  return Number(row.id);
+    if (row?.id == null) return null;
+    return Number(row.id);
+  } catch {
+    return null;
+  }
 }
 
 async function touchSerialDecodeEventTimestamp(
@@ -1729,24 +1735,22 @@ async function touchSerialDecodeEventTimestamp(
 ): Promise<void> {
   if (!(id > 0)) return;
 
+  const existingCols = await dbGetColumnNames('serial_decode_events', env);
+  const allUpdates: Record<string, unknown> = {
+    event_time_utc: new Date().toISOString(),
+    page_path: payload.pagePath || null,
+    user_agent: payload.userAgent || null,
+    client_timestamp: payload.clientTimestamp || null,
+    cf_country: payload.countryCode || null,
+    cf_colo: payload.colo || null,
+  };
+  const setCols = Object.keys(allUpdates).filter((col) => existingCols.has(col));
+  if (!setCols.length) return;
   await env.DB.prepare(
     `UPDATE serial_decode_events
-     SET event_time_utc = ?,
-         page_path = ?,
-         user_agent = ?,
-         client_timestamp = ?,
-         cf_country = ?,
-         cf_colo = ?
+     SET ${setCols.map((col) => `${col} = ?`).join(', ')}
      WHERE id = ?`
-  ).bind(
-    new Date().toISOString(),
-    payload.pagePath || null,
-    payload.userAgent || null,
-    payload.clientTimestamp || null,
-    payload.countryCode || null,
-    payload.colo || null,
-    id,
-  ).run();
+  ).bind(...setCols.map((col) => allUpdates[col]), id).run();
 }
 
 async function ensureSerialDecodePatternLookup(brand: string, pattern: string, env: Env): Promise<number | null> {
@@ -4681,42 +4685,27 @@ async function dbSetSystemSettings(
   },
   env: Env,
 ): Promise<void> {
+  const existingCols = await dbGetColumnNames('sys_info', env);
+  const allValues: Record<string, unknown> = {
+    brevo_order_confirmation_template_id: settings.brevoOrderConfirmationTemplateId,
+    brevo_sender_name: settings.brevoSenderName,
+    brevo_sender_email: settings.brevoSenderEmail,
+    associate_screensaver_idle_seconds: settings.associateScreensaverIdleSeconds,
+    custom_product_barcode: settings.customProductBarcode,
+    current_used_local_funds: Number(settings.currentUsedLocalFunds.toFixed(2)),
+    current_mfr_wholesale_funds: Number(settings.currentMfrWholesaleFunds.toFixed(2)),
+    post_store_launch_date: settings.postStoreLaunchDate,
+    sale_description_postfix: settings.saleDescriptionPostfix,
+  };
+  const cols = Object.keys(allValues).filter((col) => existingCols.has(col));
+  if (cols.length === 0) return;
   await env.DB.prepare(
-    `INSERT INTO sys_info (
-       id,
-       brevo_order_confirmation_template_id,
-       brevo_sender_name,
-       brevo_sender_email,
-       associate_screensaver_idle_seconds,
-       custom_product_barcode,
-       current_used_local_funds,
-       current_mfr_wholesale_funds,
-       post_store_launch_date,
-       sale_description_postfix
-     )
-     VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO sys_info (id, ${cols.join(', ')})
+     VALUES (1, ${cols.map(() => '?').join(', ')})
      ON CONFLICT(id) DO UPDATE SET
-       brevo_order_confirmation_template_id = excluded.brevo_order_confirmation_template_id,
-       brevo_sender_name = excluded.brevo_sender_name,
-       brevo_sender_email = excluded.brevo_sender_email,
-       associate_screensaver_idle_seconds = excluded.associate_screensaver_idle_seconds,
-       custom_product_barcode = excluded.custom_product_barcode,
-       current_used_local_funds = excluded.current_used_local_funds,
-       current_mfr_wholesale_funds = excluded.current_mfr_wholesale_funds,
-       post_store_launch_date = excluded.post_store_launch_date,
-       sale_description_postfix = excluded.sale_description_postfix,
+       ${cols.map((col) => `${col} = excluded.${col}`).join(',\n       ')},
        updated_at = CURRENT_TIMESTAMP`
-  ).bind(
-    settings.brevoOrderConfirmationTemplateId,
-    settings.brevoSenderName,
-    settings.brevoSenderEmail,
-    settings.associateScreensaverIdleSeconds,
-    settings.customProductBarcode,
-    Number(settings.currentUsedLocalFunds.toFixed(2)),
-    Number(settings.currentMfrWholesaleFunds.toFixed(2)),
-    settings.postStoreLaunchDate,
-    settings.saleDescriptionPostfix,
-  ).run();
+  ).bind(...cols.map((col) => allValues[col])).run();
 }
 
 async function dbApplyOrderFundsAccounting(
@@ -11806,6 +11795,26 @@ function stripeTimestampToIso(value: unknown): string {
 }
 
 
+async function dbGetColumnNames(tableName: string, env: Env): Promise<Set<string>> {
+  const safeTableName = tableName.replace(/[^a-zA-Z0-9_]/g, '');
+  if (!safeTableName) return new Set();
+  const rows = await env.DB.prepare(`PRAGMA table_info(${safeTableName})`).all<{ name: string | null }>();
+  return new Set((rows.results ?? []).map((r) => normalizeText(r.name, '').toLowerCase()).filter(Boolean));
+}
+
+async function dbInsertFiltered(
+  tableName: string,
+  allValues: Record<string, unknown>,
+  existingColumns: Set<string>,
+  env: Env,
+): Promise<{ last_row_id?: number }> {
+  const cols = Object.keys(allValues).filter((col) => existingColumns.has(col));
+  const result = await env.DB.prepare(
+    `INSERT INTO ${tableName} (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`
+  ).bind(...cols.map((col) => allValues[col])).run();
+  return { last_row_id: Number(result.meta?.last_row_id || 0) || undefined };
+}
+
 async function dbCreateCheckoutOrder(
   input: {
     orderId: string;
@@ -11852,85 +11861,75 @@ async function dbCreateCheckoutOrder(
     0,
   );
 
-  await env.DB.prepare(
-    `INSERT INTO orders (
-       id, order_number, inventory_item_id, status, channel,
-       checkout_type, checkout_provider, checkout_mode, fulfillment_type,
-       item_title_snapshot, item_brand_snapshot, item_model_snapshot,
-       item_condition_snapshot, item_image_url_snapshot,
-       subtotal_cents, tax_cents, shipping_cents, shipping_status,
-       shipping_label, shipping_tax_cents, shipping_address_required,
-       discount_cents, coupon_code, total_cents, cost_basis_adjusted,
-       card_amount_cents, cash_amount_cents, cash_due_cents,
-       settled, currency, reserve_expires_at, checkout_started_at,
-       success_url, cancel_url, customer_name, customer_email,
-       created_at, updated_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).bind(
-    input.orderId,
-    input.orderNumber,
-    firstItem.inventoryItemId,
-    input.status,
-    input.channel,
-    input.checkoutType,
-    input.checkoutProvider,
-    input.checkoutMode,
-    input.fulfillmentType,
-    orderTitleSnapshot,
-    firstItem.row.brand || '',
-    firstItem.row.model || '',
-    firstItem.row.condition || '',
-    firstItem.imageUrl,
-    input.subtotalCents,
-    input.taxCents,
-    input.shippingCents,
-    input.shippingStatus,
-    input.shippingLabel,
-    input.shippingTaxCents,
-    input.shippingStatus === 'free' || input.shippingStatus === 'flat_rate' ? 1 : 0,
-    input.discountCents,
-    input.couponCode,
-    input.totalCents,
-    Number(costBasisAdjusted.toFixed(2)),
-    input.cardAmountCents,
-    input.cashAmountCents,
-    input.cashAmountCents,
-    input.checkoutProvider === 'cash' ? 1 : 0,
-    'usd',
-    null,
-    input.createdAt,
-    input.successUrl,
-    input.cancelUrl,
-    normalizeText(input.customerName, ''),
-    normalizeEmailAddress(input.customerEmail),
-    input.createdAt,
-    input.createdAt,
-  ).run();
+  const [orderCols, orderItemCols] = await Promise.all([
+    dbGetColumnNames('orders', env),
+    dbGetColumnNames('order_items', env),
+  ]);
+
+  await dbInsertFiltered('orders', {
+    id: input.orderId,
+    order_number: input.orderNumber,
+    inventory_item_id: firstItem.inventoryItemId,
+    status: input.status,
+    channel: input.channel,
+    checkout_type: input.checkoutType,
+    checkout_provider: input.checkoutProvider,
+    checkout_mode: input.checkoutMode,
+    fulfillment_type: input.fulfillmentType,
+    item_title_snapshot: orderTitleSnapshot,
+    item_brand_snapshot: firstItem.row.brand || '',
+    item_model_snapshot: firstItem.row.model || '',
+    item_condition_snapshot: firstItem.row.condition || '',
+    item_image_url_snapshot: firstItem.imageUrl,
+    subtotal_cents: input.subtotalCents,
+    tax_cents: input.taxCents,
+    shipping_cents: input.shippingCents,
+    shipping_status: input.shippingStatus,
+    shipping_label: input.shippingLabel,
+    shipping_tax_cents: input.shippingTaxCents,
+    shipping_address_required: input.shippingStatus === 'free' || input.shippingStatus === 'flat_rate' ? 1 : 0,
+    discount_cents: input.discountCents,
+    coupon_code: input.couponCode,
+    total_cents: input.totalCents,
+    cost_basis_adjusted: Number(costBasisAdjusted.toFixed(2)),
+    card_amount_cents: input.cardAmountCents ?? null,
+    cash_amount_cents: input.cashAmountCents ?? null,
+    cash_due_cents: input.cashAmountCents ?? null,
+    settled: input.checkoutProvider === 'cash' ? 1 : 0,
+    currency: 'usd',
+    reserve_expires_at: null,
+    checkout_started_at: input.createdAt,
+    success_url: input.successUrl,
+    cancel_url: input.cancelUrl,
+    customer_name: normalizeText(input.customerName, ''),
+    customer_email: normalizeEmailAddress(input.customerEmail),
+    created_at: input.createdAt,
+    updated_at: input.createdAt,
+  }, orderCols, env);
 
   for (const item of input.items) {
-    await env.DB.prepare(
-      `INSERT INTO order_items (
-         id, order_id, inventory_item_id, quantity,
-         item_title_snapshot, item_brand_snapshot, item_model_snapshot,
-         item_condition_snapshot, item_image_url_snapshot,
-         unit_amount_cents, subtotal_cents,
-         created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(
-      crypto.randomUUID(),
-      input.orderId,
-      item.inventoryItemId,
-      item.quantity,
-      item.title,
-      item.row.brand || '',
-      item.row.model || '',
-      item.row.condition || '',
-      item.imageUrl,
-      item.unitAmountCents,
-      item.unitAmountCents * item.quantity,
-      input.createdAt,
-      input.createdAt,
-    ).run();
+    await dbInsertFiltered('order_items', {
+      id: crypto.randomUUID(),
+      order_id: input.orderId,
+      inventory_item_id: item.inventoryItemId,
+      quantity: item.quantity,
+      item_title_snapshot: item.title,
+      title_snapshot: item.title,
+      item_brand_snapshot: item.row.brand || '',
+      brand_snapshot: item.row.brand || '',
+      item_model_snapshot: item.row.model || '',
+      model_snapshot: item.row.model || '',
+      item_condition_snapshot: item.row.condition || '',
+      condition_snapshot: item.row.condition || '',
+      item_image_url_snapshot: item.imageUrl,
+      image_url_snapshot: item.imageUrl,
+      unit_amount_cents: item.unitAmountCents,
+      unit_price_cents: item.unitAmountCents,
+      subtotal_cents: item.unitAmountCents * item.quantity,
+      total_cents: item.unitAmountCents * item.quantity,
+      created_at: input.createdAt,
+      updated_at: input.createdAt,
+    }, orderItemCols, env);
   }
 
   await env.DB.prepare(
@@ -12553,9 +12552,14 @@ async function dbListOrderInventoryQuantities(
   orderId: string,
   env: Env,
 ): Promise<Array<{ inventoryItemId: number; quantity: number; subtotalCents: number }>> {
-  const result = await env.DB.prepare(
-    'SELECT * FROM order_items WHERE order_id = ?'
-  ).bind(orderId).all<Record<string, unknown>>();
+  let result: { results: Record<string, unknown>[] };
+  try {
+    result = await env.DB.prepare(
+      'SELECT * FROM order_items WHERE order_id = ?'
+    ).bind(orderId).all<Record<string, unknown>>();
+  } catch {
+    return [];
+  }
 
   return (result.results ?? [])
     .map((row) => {
@@ -12798,7 +12802,8 @@ async function dbUpdateInventoryColumns(
   values: Map<string, unknown>,
   env: Env,
 ): Promise<void> {
-  const setColumns = Array.from(values.keys());
+  const existingCols = await dbGetColumnNames('ccg_inventory_items', env);
+  const setColumns = Array.from(values.keys()).filter((col) => existingCols.has(col));
   if (setColumns.length === 0) return;
   const bindValues = setColumns.map((columnName) => values.get(columnName));
   bindValues.push(inventoryItemId);
@@ -12923,22 +12928,18 @@ async function dbRecordOrderEvent(
   env: Env,
 ): Promise<void> {
   try {
-    await env.DB.prepare(
-      `INSERT INTO order_events (
-         order_id, event_type, from_status, to_status,
-         source, source_id, message, payload_json, created_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(
-      orderId,
-      event.eventType,
-      event.fromStatus,
-      event.toStatus,
-      event.source,
-      event.sourceId,
-      event.message,
-      event.payloadJson,
-      new Date().toISOString(),
-    ).run();
+    const existingCols = await dbGetColumnNames('order_events', env);
+    await dbInsertFiltered('order_events', {
+      order_id: orderId,
+      event_type: event.eventType,
+      from_status: event.fromStatus,
+      to_status: event.toStatus,
+      source: event.source,
+      source_id: event.sourceId,
+      message: event.message,
+      payload_json: event.payloadJson,
+      created_at: new Date().toISOString(),
+    }, existingCols, env);
   } catch (error) {
     console.error('Failed to record order event', { orderId, error });
   }
