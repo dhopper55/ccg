@@ -12209,8 +12209,11 @@ async function dbUpdateStripeOrderStatus(
   env: Env,
   extraValues: Record<string, unknown> = {},
 ): Promise<void> {
-  const shippingDetails = session?.shipping_details;
-  const shippingAddress = shippingDetails?.address ?? {};
+  // Stripe has used several field names across API versions
+  const shippingDetails = session?.shipping_details
+    ?? session?.collected_information?.shipping_details
+    ?? session?.shipping;
+  const shippingAddress = shippingDetails?.address ?? shippingDetails ?? {};
   await dbUpdateTableById('orders', orderId, {
     status,
     stripe_checkout_session_id: normalizeText(session?.id, ''),
