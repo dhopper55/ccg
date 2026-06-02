@@ -68,6 +68,12 @@ type AdminOrderDetail = {
     name: string;
     email: string;
     phone: string;
+    shippingAddressLine1?: string;
+    shippingAddressLine2?: string;
+    shippingAddressCity?: string;
+    shippingAddressState?: string;
+    shippingAddressPostalCode?: string;
+    shippingAddressCountry?: string;
   };
   items: AdminOrderItem[];
   events: Array<{
@@ -759,6 +765,28 @@ const OrderManagerItem = () => {
                 <Link href={`mailto:${order.customer.email}`} variant="body2">
                   {order.customer.email}
                 </Link>
+              )}
+              {order.customer.phone && (
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  {order.customer.phone}
+                </Typography>
+              )}
+              {order.customer.shippingAddressLine1 && (
+                <Stack direction="column" sx={{ mt: 1, gap: 0.25 }}>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Ship to
+                  </Typography>
+                  <Typography variant="body2">{order.customer.shippingAddressLine1}</Typography>
+                  {order.customer.shippingAddressLine2 && (
+                    <Typography variant="body2">{order.customer.shippingAddressLine2}</Typography>
+                  )}
+                  <Typography variant="body2">
+                    {[order.customer.shippingAddressCity, order.customer.shippingAddressState, order.customer.shippingAddressPostalCode].filter(Boolean).join(', ')}
+                  </Typography>
+                  {order.customer.shippingAddressCountry && order.customer.shippingAddressCountry !== 'US' && (
+                    <Typography variant="body2">{order.customer.shippingAddressCountry}</Typography>
+                  )}
+                </Stack>
               )}
             </Box>
             <Box sx={{ p: { xs: 3, md: 4, lg: 5 } }}>

@@ -3881,7 +3881,15 @@ async function handleAdminV2OrderDetail(orderId: string, env: Env): Promise<Resp
       costBasisAdjusted: formatSystemCurrency(costBasisAdjusted),
       accountingFunds: await dbGetOrderFundsAccountingTotals(normalizedOrderId, env),
       paymentMethodLabel,
-      customer: buildAdminOrderCustomer(rawOrder || {}, stripeCustomer),
+      customer: {
+        ...buildAdminOrderCustomer(rawOrder || {}, stripeCustomer),
+        shippingAddressLine1: normalizeText(rawOrder?.shipping_address_line1, ''),
+        shippingAddressLine2: normalizeText(rawOrder?.shipping_address_line2, ''),
+        shippingAddressCity: normalizeText(rawOrder?.shipping_address_city, ''),
+        shippingAddressState: normalizeText(rawOrder?.shipping_address_state, ''),
+        shippingAddressPostalCode: normalizeText(rawOrder?.shipping_address_postal_code, ''),
+        shippingAddressCountry: normalizeText(rawOrder?.shipping_address_country, ''),
+      },
       events,
     },
   });
