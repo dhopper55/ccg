@@ -8,6 +8,8 @@ import paths from 'routes/paths';
 
 const receiptLogoUrl = 'https://www.coalcreekguitars.com/images/ccg_bnw.bmp';
 const receiptLineWidth = 32;
+const itemReceiptLineWidth = 42;
+const shopPhoneNumber = '(303) 376-9214';
 const maxLogoWidth = 384;
 const printerUrlStorageKey = 'ccg-star-webprnt-url';
 const defaultStarEndpoints = [
@@ -136,32 +138,37 @@ const renderReceiptTemplate = (template: string, record: ReceiptRecord) => {
   const itemRows = record.items.map((item) => {
     const sku = item.ccgNumber || '';
     const description = item.title || 'Item';
-    const left = item.quantity > 1 ? `${sku} ${description} x${item.quantity}` : `${sku} ${description}`;
+    const priceStr = formatCents(item.subtotalCents);
+    const prefix = `${String(item.quantity)} ${sku} `;
+    const maxDescLen = Math.max(0, itemReceiptLineWidth - prefix.length - priceStr.length - 1);
+    const truncDesc = description.slice(0, maxDescLen);
     return {
       sku,
       description,
       quantity: String(item.quantity),
-      price: formatCents(item.subtotalCents),
-      line: padReceiptColumns(left, formatCents(item.subtotalCents)),
+      price: priceStr,
+      line: padReceiptColumns(`${prefix}${truncDesc}`, priceStr, itemReceiptLineWidth),
     };
   });
   const withItems = template.replace(
     /{{#items}}([\s\S]*?){{\/items}}/g,
     (_, itemTemplate: string) =>
-      itemRows.map((item) => replaceTemplateVariables(itemTemplate, item)).join(''),
+      `{{text font="font_b"}}${itemRows.map((item) => replaceTemplateVariables(itemTemplate, item)).join('')}{{/text}}`,
   );
   return replaceTemplateVariables(withItems, {
     dateLine: padReceiptColumns(`Date:${receiptDate}`, `Time:${receiptTime}`),
     receiptDate,
     receiptTime,
-    itemHeader: padReceiptColumns('SKU / DESC', 'PRICE'),
+    itemHeader: padReceiptColumns('QTY / SKU / DESC', 'PRICE'),
     subtotal: formatCents(record.subtotalCents),
-    shipping: record.shippingLabel || formatCents(record.shippingCents || 0),
+    shipping: formatCents(record.shippingCents || 0),
+    shippingLabel: record.shippingLabel || 'In-store',
     salesTax: formatCents(record.taxCents),
     total: formatCents(record.totalCents),
     salesTaxRate: '8.05%',
     paymentMethodLabel: record.paymentMethodLabel || 'Payment method: Stripe',
     orderNumber: record.orderNumber || '',
+    shopPhone: shopPhoneNumber,
   });
 };
 
@@ -228,6 +235,7 @@ const buildReceiptRequest = async (renderedTemplate: string, shouldKickCashDrawe
         emphasis: attrs.bold === 'true',
         width: size,
         height: size,
+        ...(attrs.font ? { font: attrs.font } : {}),
       });
     }
     cursor = (match.index || 0) + token.length;
