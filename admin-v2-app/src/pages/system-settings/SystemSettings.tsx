@@ -1,9 +1,68 @@
 import { ChangeEvent, useEffect, useState } from 'react';
-import { Alert, Button, FormControlLabel, Paper, Stack, Switch, TextField } from '@mui/material';
+import { Alert, Button, Divider, FormControlLabel, Paper, Stack, Switch, TextField, Typography } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import IconifyIcon from 'components/base/IconifyIcon';
 import PageHeader from 'components/sections/ecommerce/admin/common/PageHeader';
 import paths from 'routes/paths';
+import { ensureStarWebPrntGlobals } from 'lib/starWebPrntShim';
+
+const printerUrlStorageKey = 'ccg-star-webprnt-url';
+const receiptLogoUrl = 'https://www.coalcreekguitars.com/images/ccg_bnw.bmp';
+const receiptLineWidth = 32;
+const itemReceiptLineWidth = 42;
+const shopPhoneNumber = '(303) 376-9214';
+const defaultStarEndpoints = [
+  'https://localhost:8001/StarWebPRNT/SendMessage',
+  'http://localhost:8001/StarWebPRNT/SendMessage',
+];
+const moneyFormat = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+const formatMoney = (v: number) => moneyFormat.format(v);
+
+const padReceiptColumns = (left: string, right: string, width = receiptLineWidth) => {
+  const cleanLeft = left.replace(/\s+/g, ' ').trim();
+  const cleanRight = right.trim();
+  const maxLeft = Math.max(1, width - cleanRight.length - 1);
+  const visible = cleanLeft.length > maxLeft ? cleanLeft.slice(0, maxLeft) : cleanLeft;
+  return `${visible}${' '.repeat(Math.max(1, width - visible.length - cleanRight.length))}${cleanRight}`;
+};
+
+const replaceTemplateVariables = (template: string, values: Record<string, string>) =>
+  template.replace(/{{\s*([a-zA-Z0-9_]+)\s*}}/g, (match, key: string) => values[key] ?? match);
+
+const parseTextDirectiveAttrs = (value: string) => {
+  const attrs: Record<string, string> = {};
+  value.replace(/([a-zA-Z0-9_-]+)="([^"]*)"/g, (_, k: string, v: string) => { attrs[k] = v; return ''; });
+  return attrs;
+};
+
+const loadReceiptLogo = async () => {
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Unable to load receipt logo.'));
+    img.src = receiptLogoUrl;
+  });
+  const targetWidth = Math.min(384, image.naturalWidth || 384);
+  const scale = targetWidth / (image.naturalWidth || targetWidth);
+  const targetHeight = Math.max(1, Math.round((image.naturalHeight || 1) * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, targetWidth, targetHeight);
+  ctx.drawImage(image, 0, 0, targetWidth, targetHeight);
+  return { context: ctx, width: targetWidth, height: targetHeight };
+};
+
+const buildCashDrawerKick = (builder: NonNullable<typeof window.StarWebPrintBuilder> extends new () => infer T ? T : never) =>
+  builder.createPeripheralElement({ channel: 0, on: 200, off: 200 });
+
+const sampleReceiptItems = [
+  { quantity: 1, sku: 'CCG-638112', description: 'Test Product XYXDEF IS Here', linePrice: 37.99 },
+  { quantity: 11, sku: 'CCG-443998', description: 'Test Product 2 ABCDEF is a really cool product', linePrice: 122.89 },
+  { quantity: 7, sku: 'CCG-922333', description: 'Test Product Humidifer IS Here', linePrice: 11.00 },
+];
 
 type SystemSettingsForm = {
   brevoOrderConfirmationTemplateId: string;
@@ -47,6 +106,8 @@ const SystemSettings = () => {
   const [useStripeSandbox, setUseStripeSandbox] = useState(true);
   const [isUpdatingStripeEnv, setIsUpdatingStripeEnv] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isPrintingReceipt, setIsPrintingReceipt] = useState(false);
+  const [isKickingDrawer, setIsKickingDrawer] = useState(false);
 
   const loadSettings = async () => {
     setIsLoading(true);
@@ -153,6 +214,133 @@ const SystemSettings = () => {
     } finally {
       setIsUpdatingStripeEnv(false);
     }
+  };
+
+  const resolvePrinterUrl = () => {
+    const stored = window.localStorage.getItem(printerUrlStorageKey) || '';
+    return stored || defaultStarEndpoints[0];
+  };
+
+  const sendToTrader = (url: string, request: string) =>
+    new Promise<void>((resolve, reject) => {
+      ensureStarWebPrntGlobals();
+      if (!window.StarWebPrintTrader) { reject(new Error('Star webPRNT not available.')); return; }
+      const trader = new window.StarWebPrintTrader!({ url, timeout: 90000 });
+      trader.onReceive = () => { window.localStorage.setItem(printerUrlStorageKey, url); resolve(); };
+      trader.onError = (r) => reject(new Error(r.responseText || 'webPRNT request failed.'));
+      trader.sendMessage({ request });
+    });
+
+  const runPrinterRequest = async (request: string, successMsg: string) => {
+    const initial = resolvePrinterUrl();
+    const candidates = [initial, ...defaultStarEndpoints].filter((u, i, a) => u && a.indexOf(u) === i);
+    let lastError: Error | null = null;
+    for (const url of candidates) {
+      try { await sendToTrader(url, request); enqueueSnackbar(successMsg, { variant: 'success' }); return; }
+      catch (e) { lastError = e instanceof Error ? e : new Error(String(e)); }
+    }
+    throw lastError || new Error('Unable to reach printer.');
+  };
+
+  const buildSampleReceiptRequest = async () => {
+    ensureStarWebPrntGlobals();
+    if (!window.StarWebPrintBuilder) throw new Error('Star webPRNT not available.');
+    const builder = new window.StarWebPrintBuilder();
+    const logo = await loadReceiptLogo();
+
+    const response = await fetch('/api/shop/receipt-templates/base_cash_receipt', { credentials: 'same-origin' });
+    const payload = response.ok ? (await response.json()) as { record?: { templateText?: string } } : {};
+    const template = payload.record?.templateText || '{{logo}}\n{{center}}Coal Creek Guitars{{/center}}\n{{shopPhone}}\n{{hr}}\n{{itemHeader}}\n{{#items}}{{line}}\n{{/items}}{{hr}}\nShipping   {{shipping}}\nSubtotal   {{subtotal}}\nTax ({{salesTaxRate}}) {{salesTax}}\n{{text bold="true"}}Total   {{total}}{{/text}}\n{{hr}}\nThank you!';
+
+    const now = new Date();
+    const receiptDate = now.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+    const receiptTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+    const itemRows = sampleReceiptItems.map((item) => {
+      const priceStr = formatMoney(item.linePrice);
+      const prefix = `${String(item.quantity)} ${item.sku} `;
+      const maxDescLen = Math.max(0, itemReceiptLineWidth - prefix.length - priceStr.length - 1);
+      return {
+        sku: item.sku,
+        description: item.description,
+        quantity: String(item.quantity),
+        price: priceStr,
+        line: padReceiptColumns(`${prefix}${item.description.slice(0, maxDescLen)}`, priceStr, itemReceiptLineWidth),
+      };
+    });
+
+    const subtotal = sampleReceiptItems.reduce((s, i) => s + i.linePrice, 0);
+    const salesTax = Math.round(subtotal * 0.0805 * 100) / 100;
+    const total = subtotal + salesTax;
+
+    const withItems = template.replace(
+      /{{#items}}([\s\S]*?){{\/items}}/g,
+      (_, itemTemplate: string) =>
+        `{{text font="font_b"}}${itemRows.map((item) => replaceTemplateVariables(itemTemplate, item)).join('')}{{/text}}`,
+    );
+    const rendered = replaceTemplateVariables(withItems, {
+      dateLine: padReceiptColumns(`Date:${receiptDate}`, `Time:${receiptTime}`),
+      receiptDate,
+      receiptTime,
+      orderNumber: 'SAMPLE',
+      itemHeader: padReceiptColumns('QTY / SKU / DESC', 'PRICE'),
+      subtotal: formatMoney(subtotal),
+      salesTax: formatMoney(salesTax),
+      total: formatMoney(total),
+      salesTaxRate: '8.05%',
+      itemCount: String(sampleReceiptItems.reduce((s, i) => s + i.quantity, 0)),
+      shopPhone: shopPhoneNumber,
+      shipping: formatMoney(0),
+      shippingLabel: 'In-store pickup',
+    });
+
+    const parts: string[] = [builder.createInitializationElement({ reset: false, print: false })];
+    const appendText = (data: string, options: Record<string, unknown> = {}) => {
+      if (!data) return;
+      parts.push(builder.createTextElement({ codepage: 'utf8', international: 'usa', characterspace: 0, emphasis: false, invert: false, linespace: 32, width: 1, height: 1, font: 'font_a', underline: false, data, ...options }));
+    };
+    const tokenPattern = /{{logo}}|{{hr}}|{{center}}([\s\S]*?){{\/center}}|{{text\s+([^}]*)}}([\s\S]*?){{\/text}}/g;
+    let cursor = 0;
+    for (const match of rendered.matchAll(tokenPattern)) {
+      appendText(rendered.slice(cursor, match.index));
+      const token = match[0];
+      if (token === '{{logo}}') {
+        parts.push(builder.createAlignmentElement({ position: 'center' }), builder.createBitImageElement({ context: logo.context, x: 0, y: 0, width: logo.width, height: logo.height }), builder.createAlignmentElement({ position: 'left' }));
+      } else if (token === '{{hr}}') {
+        appendText(`${'-'.repeat(receiptLineWidth)}\n`);
+      } else if (token.startsWith('{{center}}')) {
+        parts.push(builder.createAlignmentElement({ position: 'center' }));
+        appendText(match[1] || '');
+        parts.push(builder.createAlignmentElement({ position: 'left' }));
+      } else {
+        const attrs = parseTextDirectiveAttrs(match[2] || '');
+        const size = Math.max(1, Math.min(4, Number(attrs.size || 1)));
+        appendText(match[3] || '', { emphasis: attrs.bold === 'true', width: size, height: size, ...(attrs.font ? { font: attrs.font } : {}) });
+      }
+      cursor = (match.index || 0) + token.length;
+    }
+    appendText(rendered.slice(cursor));
+    parts.push(builder.createFeedElement({ line: 3, unit: 0 }), builder.createCutPaperElement({ feed: true, type: 'partial' }));
+    return parts.join('');
+  };
+
+  const handleSampleReceipt = async () => {
+    setIsPrintingReceipt(true);
+    try { await runPrinterRequest(await buildSampleReceiptRequest(), 'Sample receipt sent.'); }
+    catch (e) { enqueueSnackbar(e instanceof Error ? e.message : 'Unable to print sample receipt.', { variant: 'error' }); }
+    finally { setIsPrintingReceipt(false); }
+  };
+
+  const handleKickDrawer = async () => {
+    setIsKickingDrawer(true);
+    try {
+      ensureStarWebPrntGlobals();
+      if (!window.StarWebPrintBuilder) throw new Error('Star webPRNT not available.');
+      const builder = new window.StarWebPrintBuilder();
+      await runPrinterRequest(buildCashDrawerKick(builder), 'Cash drawer command sent.');
+    } catch (e) {
+      enqueueSnackbar(e instanceof Error ? e.message : 'Unable to kick drawer.', { variant: 'error' });
+    } finally { setIsKickingDrawer(false); }
   };
 
   return (
@@ -268,6 +456,31 @@ const SystemSettings = () => {
             disabled={isLoading || isSaving}
             onChange={handleChange('saleDescriptionPostfix')}
           />
+          <Divider />
+          <Typography variant="subtitle2" color="text.secondary">
+            Register / Printer
+          </Typography>
+          <Stack direction="row" sx={{ gap: 2, flexWrap: 'wrap' }}>
+            <Button
+              variant="outlined"
+              startIcon={<IconifyIcon icon="material-symbols:receipt-long-rounded" />}
+              loading={isPrintingReceipt}
+              disabled={isKickingDrawer}
+              onClick={() => void handleSampleReceipt()}
+            >
+              Sample Receipt
+            </Button>
+            <Button
+              variant="outlined"
+              color="neutral"
+              startIcon={<IconifyIcon icon="mdi:cash-register" />}
+              loading={isKickingDrawer}
+              disabled={isPrintingReceipt}
+              onClick={() => void handleKickDrawer()}
+            >
+              Kick Drawer
+            </Button>
+          </Stack>
         </Stack>
       </Paper>
     </Stack>

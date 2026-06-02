@@ -14,6 +14,8 @@ const receiptLogoUrl = 'https://www.coalcreekguitars.com/images/ccg_bnw.bmp';
 const receiptTemplateCode = 'base_cash_receipt';
 const maxLogoWidth = 384;
 const receiptLineWidth = 32;
+const itemReceiptLineWidth = 42; // font_b gives ~42 chars on 80mm paper
+const shopPhoneNumber = '(303) 376-9214';
 const defaultStarEndpoints = [
   'https://localhost:8001/StarWebPRNT/SendMessage',
   'http://localhost:8001/StarWebPRNT/SendMessage',
@@ -179,21 +181,24 @@ const CartPrinterActions = () => {
       const sku = item.ccgNumber || `CCG-${item.id}`;
       const description = item.name;
       const linePrice = item.price.discounted * item.quantity;
-      const left = item.quantity > 1 ? `${sku} ${description} x${item.quantity}` : `${sku} ${description}`;
+      const priceStr = formatMoney(linePrice);
+      const prefix = `${String(item.quantity)} ${sku} `;
+      const maxDescLen = Math.max(0, itemReceiptLineWidth - prefix.length - priceStr.length - 1);
+      const truncDesc = description.slice(0, maxDescLen);
       return {
         sku,
         description,
         quantity: String(item.quantity),
-        price: formatMoney(linePrice),
+        price: priceStr,
         unitPrice: formatMoney(item.price.discounted),
-        line: padReceiptColumns(left, formatMoney(linePrice)),
+        line: padReceiptColumns(`${prefix}${truncDesc}`, priceStr, itemReceiptLineWidth),
       };
     });
 
     const withItems = template.replace(
       /{{#items}}([\s\S]*?){{\/items}}/g,
       (_, itemTemplate: string) =>
-        itemRows.map((item) => replaceTemplateVariables(itemTemplate, item)).join(''),
+        `{{text font="font_b"}}${itemRows.map((item) => replaceTemplateVariables(itemTemplate, item)).join('')}{{/text}}`,
     );
 
     return replaceTemplateVariables(withItems, {
@@ -201,12 +206,15 @@ const CartPrinterActions = () => {
       receiptDate,
       receiptTime,
       orderNumber: window.localStorage.getItem(cashOrderNumberStorageKey) || '',
-      itemHeader: padReceiptColumns('SKU / DESC', 'PRICE'),
+      itemHeader: padReceiptColumns('QTY / SKU / DESC', 'PRICE'),
       subtotal: formatMoney(cartSubTotal),
       salesTax: formatMoney(salesTax),
       total: formatMoney(total),
       salesTaxRate: '8.05%',
       itemCount: String(selectedCartItems.reduce((sum, item) => sum + item.quantity, 0)),
+      shopPhone: shopPhoneNumber,
+      shipping: formatMoney(0),
+      shippingLabel: 'In-store pickup',
     });
   };
 
@@ -271,6 +279,7 @@ const CartPrinterActions = () => {
           emphasis: attrs.bold === 'true',
           width: size,
           height: size,
+          ...(attrs.font ? { font: attrs.font } : {}),
         });
       }
       cursor = (match.index || 0) + token.length;

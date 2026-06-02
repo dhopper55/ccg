@@ -3314,7 +3314,7 @@ async function handleAdminV2Orders(request: Request, env: Env): Promise<Response
   const result = await env.DB.prepare(
     `SELECT *
      FROM orders
-     ORDER BY paid_at DESC
+     ORDER BY COALESCE(paid_at, checkout_started_at, created_at) DESC
      LIMIT ?`
   ).bind(limit).all<Record<string, unknown>>();
 
@@ -6312,6 +6312,11 @@ async function handleShopCreateTerminalPayment(request: Request, env: Env): Prom
   const checkoutProvider = isSplitTender ? 'stripe_terminal_cash' : 'stripe_terminal';
 
   try {
+    const terminalCustomerFirstName = normalizeText(body?.customer?.firstName, '');
+    const terminalCustomerLastName = normalizeText(body?.customer?.lastName, '');
+    const terminalCustomerEmail = normalizeEmailAddress(body?.customer?.email);
+    const terminalCustomerName = [terminalCustomerFirstName, terminalCustomerLastName].filter(Boolean).join(' ');
+
     await dbCreateCheckoutOrder({
       orderId,
       orderNumber,
@@ -6335,6 +6340,8 @@ async function handleShopCreateTerminalPayment(request: Request, env: Env): Prom
       successUrl,
       cancelUrl,
       createdAt: nowIso,
+      customerName: terminalCustomerName,
+      customerEmail: terminalCustomerEmail,
       items: draft.items,
     }, env);
 
@@ -11909,7 +11916,6 @@ async function dbCreateCheckoutOrder(
 
   for (const item of input.items) {
     await dbInsertFiltered('order_items', {
-      id: crypto.randomUUID(),
       order_id: input.orderId,
       inventory_item_id: item.inventoryItemId,
       quantity: item.quantity,
@@ -11925,8 +11931,17 @@ async function dbCreateCheckoutOrder(
       image_url_snapshot: item.imageUrl,
       unit_amount_cents: item.unitAmountCents,
       unit_price_cents: item.unitAmountCents,
+      unit_tax_cents: 0,
       subtotal_cents: item.unitAmountCents * item.quantity,
       total_cents: item.unitAmountCents * item.quantity,
+      line_total_cents: item.unitAmountCents * item.quantity,
+      line_tax_cents: 0,
+      tax_cents: 0,
+      discount_cents: 0,
+      sale_url_slug: item.row.sale_url || '',
+      sale_url: item.row.sale_url || '',
+      category_name: item.row.primaryCategoryName || '',
+      currency: 'usd',
       created_at: input.createdAt,
       updated_at: input.createdAt,
     }, orderItemCols, env);
@@ -12905,7 +12920,8 @@ async function dbUpdateTableById(
   values: Record<string, unknown>,
   env: Env,
 ): Promise<void> {
-  const setColumns = Object.keys(values);
+  const existingCols = await dbGetColumnNames(tableName, env);
+  const setColumns = Object.keys(values).filter((col) => existingCols.has(col));
   if (setColumns.length === 0) return;
   await env.DB.prepare(
     `UPDATE ${tableName}

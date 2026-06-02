@@ -106,8 +106,11 @@ const CartBottomBar = () => {
   const [terminalPayment, setTerminalPayment] = useState<TerminalPaymentState>(defaultTerminalPaymentState);
   const [isCancelingTerminalPayment, setIsCancelingTerminalPayment] = useState(false);
   const [cashConfirmOpen, setCashConfirmOpen] = useState(false);
+  const [terminalCustomerOpen, setTerminalCustomerOpen] = useState(false);
   const [cashCustomer, setCashCustomer] = useState<CashCustomerForm>(defaultCashCustomerForm);
   const [cashCustomerErrors, setCashCustomerErrors] = useState<CashCustomerFormErrors>({});
+  const [terminalCustomer, setTerminalCustomer] = useState<CashCustomerForm>(defaultCashCustomerForm);
+  const [terminalCustomerErrors, setTerminalCustomerErrors] = useState<CashCustomerFormErrors>({});
   const upSm = up('sm');
   const selectedCartItems = useMemo(() => cartItems.filter((item) => item.selected), [cartItems]);
   const cartTotalCents = Math.max(0, Math.round(cartTotal * 100));
@@ -127,6 +130,11 @@ const CartBottomBar = () => {
   const setCashCustomerField = (field: keyof CashCustomerForm, value: string) => {
     setCashCustomer((current) => ({ ...current, [field]: value }));
     setCashCustomerErrors((current) => ({ ...current, [field]: undefined }));
+  };
+
+  const setTerminalCustomerField = (field: keyof CashCustomerForm, value: string) => {
+    setTerminalCustomer((current) => ({ ...current, [field]: value }));
+    setTerminalCustomerErrors((current) => ({ ...current, [field]: undefined }));
   };
 
   const buildCheckoutPayload = (
@@ -214,10 +222,10 @@ const CartBottomBar = () => {
     }
   };
 
-  const handleTerminalCheckout = async () => {
+  const handleTerminalCheckout = async (customer: CashCustomerForm) => {
     if (selectedCartItems.length === 0 || isCheckingOut || !associateStripeFlow) return;
 
-    setPaymentRouteOpen(false);
+    setTerminalCustomerOpen(false);
     setIsCheckingOut(true);
     try {
       const splitTender = associateStripeFlow === 'split'
@@ -227,7 +235,14 @@ const CartBottomBar = () => {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildCheckoutPayload(splitTender)),
+        body: JSON.stringify({
+          ...buildCheckoutPayload(splitTender),
+          customer: {
+            firstName: customer.firstName.trim(),
+            lastName: customer.lastName.trim(),
+            email: customer.email.trim(),
+          },
+        }),
       });
       const data = (await response.json()) as {
         orderId?: string;
@@ -618,7 +633,12 @@ const CartBottomBar = () => {
         </Button>
         <Button
           variant="contained"
-          onClick={handleTerminalCheckout}
+          onClick={() => {
+            setPaymentRouteOpen(false);
+            setTerminalCustomer(defaultCashCustomerForm);
+            setTerminalCustomerErrors({});
+            setTerminalCustomerOpen(true);
+          }}
           loading={isCheckingOut}
         >
           Terminal
@@ -665,6 +685,66 @@ const CartBottomBar = () => {
           </Button>
         )}
       </DialogActions>
+    </Dialog>
+    <Dialog open={terminalCustomerOpen} onClose={() => !isCheckingOut && setTerminalCustomerOpen(false)} fullWidth maxWidth="xs">
+      <DialogTitle>Customer info</DialogTitle>
+      <Box component="form" onSubmit={(event) => {
+        event.preventDefault();
+        const errors = validateCashCustomerForm(terminalCustomer);
+        setTerminalCustomerErrors(errors);
+        if (Object.keys(errors).length > 0) return;
+        void handleTerminalCheckout(terminalCustomer);
+      }}>
+        <DialogContent sx={{ pt: 1 }}>
+          <Stack direction="column" sx={{ gap: 2 }}>
+            <TextField
+              autoFocus
+              required
+              fullWidth
+              label="First name"
+              value={terminalCustomer.firstName}
+              error={!!terminalCustomerErrors.firstName}
+              helperText={terminalCustomerErrors.firstName}
+              onChange={(event) => setTerminalCustomerField('firstName', event.target.value)}
+              disabled={isCheckingOut}
+            />
+            <TextField
+              required
+              fullWidth
+              label="Last name"
+              value={terminalCustomer.lastName}
+              error={!!terminalCustomerErrors.lastName}
+              helperText={terminalCustomerErrors.lastName}
+              onChange={(event) => setTerminalCustomerField('lastName', event.target.value)}
+              disabled={isCheckingOut}
+            />
+            <TextField
+              required
+              fullWidth
+              type="email"
+              label="Email"
+              value={terminalCustomer.email}
+              error={!!terminalCustomerErrors.email}
+              helperText={terminalCustomerErrors.email}
+              onChange={(event) => setTerminalCustomerField('email', event.target.value)}
+              disabled={isCheckingOut}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            color="neutral"
+            variant="soft"
+            onClick={() => setTerminalCustomerOpen(false)}
+            disabled={isCheckingOut}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" variant="contained" loading={isCheckingOut}>
+            Charge terminal
+          </Button>
+        </DialogActions>
+      </Box>
     </Dialog>
     <Dialog open={cashConfirmOpen} onClose={() => !isCashCheckingOut && setCashConfirmOpen(false)} fullWidth maxWidth="xs">
       <DialogTitle>Confirm cash paid in full?</DialogTitle>
