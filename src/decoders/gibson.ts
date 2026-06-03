@@ -6,6 +6,11 @@ export function decodeGibson(serial: string): DecodeResult {
   // Remove any spaces or dashes
   const normalized = cleaned.replace(/[\s-]/g, '');
 
+  // Artist Custom Shop: ZW + 3-4 digits (Zakk Wylde signature series)
+  if (/^ZW\d{3,4}$/.test(normalized)) {
+    return decodeZakkWyldeCustomShop(normalized);
+  }
+
   // Modern Gibson Custom Shop non-reissue format: CS + Y + 4/5-digit rank
   if (/^CS\d{5,6}$/.test(normalized)) {
     return decodeModernCustomShop(normalized);
@@ -34,6 +39,51 @@ export function decodeGibson(serial: string): DecodeResult {
   return {
     success: false,
     error: 'Unrecognized Gibson serial number format. Gibson serials are typically 6-9 digits for guitars made after 1970.'
+  };
+}
+
+function decodeZakkWyldeCustomShop(serial: string): DecodeResult {
+  const productionRank = serial.substring(2);
+  const rankNumber = parseInt(productionRank, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Gibson',
+    serialNumber: serial,
+    year: 'Gibson Custom Shop (exact year requires COA or factory confirmation)',
+    factory: 'Gibson Custom Shop, Nashville, Tennessee',
+    country: 'USA',
+    model: 'Zakk Wylde Signature Les Paul Custom',
+    notes: `ZW prefix uniquely identifies this as a Zakk Wylde Signature model from the Gibson Custom Shop. The digits ${productionRank} are the sequential production number (unit ${rankNumber} in the ZW artist run). The ZW series does not embed the calendar year directly in the serial; exact production year requires the Certificate of Authenticity or Gibson Custom Shop confirmation. Authentic ZW Custom Shop guitars feature EMG 81/85 active pickups, a Les Paul Custom body (typically in Bullseye or Camo finish), and neck binding with fret nibs. Counterfeits are common on this signature line.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'gibson-custom-shop-zakk-wylde-zw-prefix',
+    patternLabel: 'Gibson Custom Shop Zakk Wylde ZW-prefix artist format',
+    additionalContext: {
+      title: 'Gibson Zakk Wylde Custom Shop serial',
+      summary: 'ZW is the Gibson Custom Shop artist prefix uniquely identifying this as a Zakk Wylde Signature Les Paul Custom. The digits are the sequential production number within the ZW artist run.',
+      highlights: [
+        'ZW prefix identifies Gibson Custom Shop Zakk Wylde Signature production.',
+        `Production rank: ${rankNumber} (unit ${rankNumber} in the ZW artist series).`,
+        'Authentic ZW Les Pauls feature EMG 81/85 active pickups and a Bullseye or Camo finish.',
+        'The serial does not directly encode the calendar year; a COA or Gibson registry is needed for exact dating.',
+      ],
+      caveats: [
+        'ZW Bullseye and Camo Les Pauls are among the most counterfeited guitars in the world.',
+        'A correct serial number alone does not authenticate the instrument — counterfeits often copy valid serials.',
+        'The serial number sequence does not map directly to a calendar year for ZW artist runs.',
+      ],
+      verificationTips: [
+        'Check that the headstock front has the E-II — wait, the correct feature: the Gibson Custom Shop badge and Zakk Wylde caricature/graphic on the back of the headstock.',
+        'Verify fret nibs: authentic Gibson Custom Shop guitars have binding that rolls up over fret ends (fret nibs/nubs). Counterfeits usually omit this.',
+        'Confirm EMG 81/85 active pickups with a battery compartment routed into the back of the body.',
+        'Match the serial against the Certificate of Authenticity (COA) booklet if available.',
+        'Contact Gibson Custom Shop directly with the serial and clear photos for factory confirmation.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>ZW is the Gibson Custom Shop artist prefix uniquely identifying this as a Zakk Wylde Signature Les Paul Custom. The digits are the sequential production number within the ZW artist run.</p><h3>How This Pattern Is Typically Read</h3><p>ZW identifies the guitar as a Zakk Wylde Signature model built at the Gibson Custom Shop in Nashville. The digits ${productionRank} are production rank ${rankNumber} within the ZW series. Unlike standard production Gibsons, the ZW series does not encode the calendar year in the serial — exact production year requires the Certificate of Authenticity or Gibson Custom Shop confirmation.</p><h3>What To Verify</h3><ul><li>ZW Bullseye and Camo Les Pauls are among the most counterfeited guitars. A correct serial alone does not authenticate the guitar.</li><li>Check fret nibs: real Gibson Custom Shop guitars have binding that rolls up over fret ends; counterfeits almost always miss this.</li><li>Confirm EMG 81/85 active pickups with a rear battery compartment.</li><li>Match the serial against the COA if one is present.</li></ul><h3>Coal Creek Guitars Note</h3><p>Treat this as a genuine ZW Custom Shop decode, but always verify physical features and COA before buying, selling, or valuing this instrument due to the high counterfeit prevalence.</p>`,
   };
 }
 

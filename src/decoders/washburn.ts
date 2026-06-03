@@ -61,6 +61,16 @@ export function decodeWashburn(serial: string): DecodeResult {
     return decodeZaozhuang(normalized);
   }
 
+  // Modern 2-letter factory code + YYWW + 3-digit unit (e.g., UO2045971)
+  if (/^[A-Z]{2}\d{7}$/.test(normalized)) {
+    return decodeModernTwoLetterYYWW(normalized);
+  }
+
+  // Late-1980s Japanese: single letter + 1-digit year + 5-digit sequence (e.g., K801108)
+  if (/^[A-Z]\d{6}$/.test(normalized)) {
+    return decodeLate80sJapaneseSingleLetter(normalized);
+  }
+
   // One-to-three letter prefix format (e.g., OC, SC, N, YBJ + digits)
   if (/^[A-Z]{1,3}\d{8,10}$/.test(normalized)) {
     return decodeLetterPrefix(normalized);
@@ -265,6 +275,121 @@ function decodeZaozhuang(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+// Modern 2-letter factory code + YYWW + 3-digit unit
+function decodeModernTwoLetterYYWW(serial: string): DecodeResult {
+  const prefix = serial.substring(0, 2);
+  const yearDigits = serial.substring(2, 4);
+  const weekDigits = serial.substring(4, 6);
+  const unit = serial.substring(6);
+  const year = 2000 + parseInt(yearDigits, 10);
+  const week = parseInt(weekDigits, 10);
+  const month = week >= 1 && week <= 53 ? getMonthName(Math.min(12, Math.ceil((week * 12) / 52))) : undefined;
+
+  const twoLetterFactories: Record<string, { factory: string; country: string }> = {
+    UO: { factory: 'Unsung Musical Instrument Co.', country: 'South Korea or China' },
+    SI: { factory: 'Samick Indonesia (Cileungsi)', country: 'Indonesia' },
+    OC: { factory: 'Asian contracted factory (OC)', country: 'Asia' },
+    SC: { factory: 'Asian contracted factory (SC)', country: 'Asia' },
+  };
+
+  const known = twoLetterFactories[prefix];
+  const factory = known ? known.factory : `Asian contracted factory (${prefix})`;
+  const country = known ? known.country : 'Asia';
+
+  const info: GuitarInfo = {
+    brand: 'Washburn',
+    serialNumber: serial,
+    year: year.toString(),
+    month,
+    factory,
+    country,
+    notes: `Modern Washburn 2-letter factory code format. ${prefix} is the factory prefix indicating ${factory}. ${yearDigits} indicates ${year}. ${weekDigits} is production week ${week}${month ? ` (approximately ${month})` : ''}. ${unit} is the unit number within that batch.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: `washburn-modern-2-letter-${prefix.toLowerCase()}-yyww-unit`,
+    patternLabel: `Washburn modern ${prefix} factory YYWW unit format`,
+    additionalContext: {
+      title: `Washburn modern ${prefix}-prefix serial`,
+      summary: `This serial matches a modern Washburn import format using a 2-letter factory code, 2-digit year, 2-digit production week, and 3-digit unit number.`,
+      highlights: [
+        `${prefix} is the factory code indicating ${factory}.`,
+        `${yearDigits} decodes as production year ${year}.`,
+        `${weekDigits} decodes as production week ${week}${month ? ` (approximately ${month})` : ''}.`,
+        `${unit} is the unit number within that batch.`,
+      ],
+      caveats: [
+        'Washburn has used many 2-letter factory codes across different Asian facilities.',
+        'The week number gives an approximate month rather than an exact date.',
+        'This format does not encode the exact model name.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock or soundhole label for the country-of-origin marking.',
+        'Compare hardware, pickups, and finish against the catalog for the decoded year.',
+        'Contact Washburn support with clear photos if exact factory confirmation is needed.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern Washburn import format using a 2-letter factory code, 2-digit year, 2-digit production week, and 3-digit unit number.</p><h3>How This Pattern Is Typically Read</h3><p>${prefix} is the factory code indicating ${factory}. The digits ${yearDigits} decode as production year ${year}. The digits ${weekDigits} decode as production week ${week}${month ? `, approximately ${month}` : ''}. The final digits ${unit} are the unit number within that batch.</p><h3>What To Verify</h3><ul><li>Washburn has used many 2-letter factory codes across different Asian facilities.</li><li>The week number gives an approximate month rather than an exact date.</li><li>This format does not encode the exact model name — confirm it from headstock, label, and hardware.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a modern Washburn import decode, then confirm the exact model and factory from the headstock, soundhole label, or Washburn support if needed.</p>`,
+  };
+}
+
+// Late-1980s Japanese: single letter + 1-digit year + 5-digit sequence
+function decodeLate80sJapaneseSingleLetter(serial: string): DecodeResult {
+  const factoryLetter = serial[0];
+  const yearDigit = parseInt(serial[1], 10);
+  const sequence = serial.substring(2);
+
+  // Year digit: 8=1988, 9=1989, 0=1990, 1=1991, etc.
+  const year = yearDigit >= 5 ? 1980 + yearDigit : 1990 + yearDigit;
+
+  const japaneseFactories: Record<string, string> = {
+    K: 'Chushin Gakki (premium neck-through electrics)',
+    M: 'Japanese factory (M-series)',
+    R: 'Peerless / Japanese factory (R-series)',
+    N: 'Japanese factory (N-series)',
+  };
+
+  const factory = japaneseFactories[factoryLetter] ?? `Japanese factory (${factoryLetter}-series)`;
+
+  const info: GuitarInfo = {
+    brand: 'Washburn',
+    serialNumber: serial,
+    year: year.toString(),
+    factory,
+    country: 'Japan',
+    notes: `Late-1980s Japanese Washburn format. ${factoryLetter} identifies the factory as ${factory}. ${serial[1]} is the year digit indicating ${year}. ${sequence} is the sequential production number. This era produced many of Washburn's highest-regarded instruments, including neck-through electrics with premium hardware.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: `washburn-late80s-japan-${factoryLetter.toLowerCase()}-year-sequence`,
+    patternLabel: `Washburn late-1980s Japan ${factoryLetter}-prefix year sequence`,
+    additionalContext: {
+      title: `Washburn late-1980s Japanese ${factoryLetter}-prefix serial`,
+      summary: `This serial matches a late-1980s Washburn serial format from Japanese production where a single factory letter is followed by a year digit and a 5-digit sequential production number.`,
+      highlights: [
+        `${factoryLetter} identifies the factory as ${factory}.`,
+        `The digit ${serial[1]} decodes as production year ${year}.`,
+        `${sequence} is the sequential production number within that year.`,
+      ],
+      caveats: [
+        'Japanese Washburn serial documentation from this era is not fully standardized.',
+        'The single year digit cannot distinguish between, for example, 1988 and 1998 without model context.',
+        'Factory attribution for some letter prefixes is approximate; physical inspection is recommended.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock or neck plate for Made in Japan markings.',
+        'Compare the instrument against late-1980s Washburn catalogs (EC, MG, and Festival series are common from this era).',
+        'Look for neck-through construction, active electronics, and Floyd Rose hardware as era indicators.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a late-1980s Washburn format from Japanese production where a single factory letter is followed by a year digit and a 5-digit sequential production number.</p><h3>How This Pattern Is Typically Read</h3><p>${factoryLetter} identifies the factory as ${factory}. The digit ${serial[1]} decodes as production year ${year}. The digits ${sequence} are the sequential production number within that year.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock or neck plate for Made in Japan markings.</li><li>Compare against late-1980s Washburn catalogs for the EC, MG, and shredder-era series.</li><li>Neck-through construction, active electronics, and premium hardware are common on these instruments.</li></ul><h3>Coal Creek Guitars Note</h3><p>Late-1980s Japanese Washburns are among the brand's most collectible instruments. Use the model features alongside this decode to confirm the exact year and series.</p>`,
+  };
 }
 
 // One-to-three letter prefix format

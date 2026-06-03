@@ -14,8 +14,14 @@ export function decodeESP(serial: string): DecodeResult {
     return decodeESP2016Plus(normalized);
   }
 
-  // 2016+ E-II format: ES + 7 digits
+  // E-II format: ES + 7 digits
+  // Early E-II (2013-2015): ES + YY + 5-digit sequence (year at front)
+  // 2016+ E-II: ES + 4-digit prod num + YY + series code (year near end)
   if (/^ES\d{7}$/.test(normalized)) {
+    const earlyYear = parseInt(normalized.substring(2, 4), 10);
+    if (earlyYear >= 13 && earlyYear <= 15) {
+      return decodeEIIEarly(normalized);
+    }
     return decodeEII2016Plus(normalized);
   }
 
@@ -185,6 +191,51 @@ function decodeEII2016Plus(serial: string): DecodeResult {
     notes: `E-II line. Production number: ${productionNum}. 2016+ serial format.`
   };
   return { success: true, info };
+}
+
+function decodeEIIEarly(serial: string): DecodeResult {
+  const yearDigits = serial.substring(2, 4);
+  const productionNum = serial.substring(4);
+  const year = 2000 + parseInt(yearDigits, 10);
+  const sequenceNumber = parseInt(productionNum, 10);
+
+  const info: GuitarInfo = {
+    brand: 'ESP',
+    serialNumber: serial,
+    year: year.toString(),
+    factory: 'ESP Japan (Tokyo)',
+    country: 'Japan',
+    model: 'E-II Series',
+    notes: `Early ESP E-II Japan format (2013–2015). ES identifies the E-II production line, which replaced the legacy ESP Standard series. ${yearDigits} indicates ${year}. ${productionNum} is the sequential production number (${sequenceNumber}). This era predates ESP's unified serial format change around 2016; the year digits appear at the front of the numeric portion rather than near the end as in later E-II serials.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'esp-eii-early-es-yy-sequence',
+    patternLabel: 'ESP early E-II ES + YY + sequence (2013-2015)',
+    additionalContext: {
+      title: 'ESP early E-II serial (2013–2015)',
+      summary: 'This serial matches the early E-II Japan format where ES identifies the production line, the first two digits encode the year, and the final five digits are the sequential production number.',
+      highlights: [
+        'ES identifies this as an E-II model, the successor to the ESP Standard series.',
+        `The digits ${yearDigits} decode as production year ${year}.`,
+        `The digits ${productionNum} decode as sequential production number ${sequenceNumber}.`,
+        'This format was used during the early E-II era (roughly 2013–2015) before ESP unified their Japanese serial system.',
+      ],
+      caveats: [
+        'Post-2016 E-II serials use a different layout where the year appears near the end of the serial.',
+        'The serial alone does not encode the exact model shape (Horizon, Eclipse, M-II, Viper, etc.).',
+        'Physical inspection and catalog comparison are needed to identify the exact model.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock for the E-II logo and a Made in Japan stamp.',
+        'Look for a "Designed and built by ESP" circular logo or sticker on the back of the headstock.',
+        'Compare the model shape, pickup configuration, and hardware against the 2014 E-II Japan catalog.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches the early E-II Japan format where ES identifies the production line, the first two digits encode the year, and the final five digits are the sequential production number.</p><h3>How This Pattern Is Typically Read</h3><p>ES identifies this as an E-II model, the successor to the ESP Standard series. The digits ${yearDigits} decode as production year ${year}. The digits ${productionNum} decode as sequential production number ${sequenceNumber}. This format was used during the early E-II era (roughly 2013–2015) before ESP unified their Japanese serial system around 2016, at which point the year moved to near the end of the serial.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for the E-II logo and Made in Japan stamp.</li><li>Look for the "Designed and built by ESP" marking alongside the serial.</li><li>Compare the model shape, pickups, and hardware against the 2014 E-II Japan catalog to confirm the exact model.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed early E-II Japan decode, then identify the exact model from physical features and the catalog for the decoded year.</p>`,
+  };
 }
 
 function decodeAmbiguousEPrefix6Digit(serial: string): DecodeResult {

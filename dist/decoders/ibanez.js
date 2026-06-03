@@ -389,9 +389,35 @@ function decodeKnownModelCode(modelCode) {
 // Japan FujiGen 1997-present: F + 7 digits
 function decodeFujiGenModern(serial) {
     const year = parseInt(serial.substring(1, 3), 10);
-    const productionNum = parseInt(serial.substring(3), 10);
+    // If the 2-digit year would produce an implausible future year (>2030), a leading zero
+    // was likely dropped from the serial (e.g., F5051758 where the stamped serial is F0551758
+    // meaning year 2005). Fall back to reading the first digit as a single year code.
+    if (year > 30) {
+        const singleYearDigit = parseInt(serial[1], 10);
+        const fallbackYear = singleYearDigit >= 7 ? 1990 + singleYearDigit : 2000 + singleYearDigit;
+        const fallbackProdNum = parseInt(serial.substring(2), 10);
+        const unitsPerMonthFallback = fallbackYear >= 2005 ? 3000 : 5000;
+        const fallbackMonthNum = Math.floor(fallbackProdNum / unitsPerMonthFallback) + 1;
+        const fallbackMonth = fallbackMonthNum <= 12 ? getMonthName(fallbackMonthNum) : undefined;
+        const fallbackInfo = {
+            brand: 'Ibanez',
+            serialNumber: serial,
+            year: fallbackYear.toString(),
+            month: fallbackMonth,
+            factory: 'FujiGen Gakki, Nagano',
+            country: 'Japan',
+            notes: `Production number: ${fallbackProdNum}. FujiGen F-prefix serial decoded with single-digit year (leading zero likely omitted from the transcribed number). FujiGen builds premium Ibanez lines including Prestige, Genesis, and J-Custom.`,
+        };
+        return {
+            success: true,
+            info: fallbackInfo,
+            patternKey: 'ibanez-fujigen-modern-f-year-sequence',
+            patternLabel: 'Ibanez FujiGen modern F + year + sequence',
+        };
+    }
     // Determine full year (97-99 = 1997-1999, 00+ = 2000+)
     const fullYear = year >= 97 ? 1900 + year : 2000 + year;
+    const productionNum = parseInt(serial.substring(3), 10);
     // Calculate approximate month from production number
     // Post-2004: 3000 units/month, Pre-2004: 5000 units/month
     const unitsPerMonth = fullYear >= 2005 ? 3000 : 5000;

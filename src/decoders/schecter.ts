@@ -9,6 +9,12 @@ export function decodeSchecter(serial: string): DecodeResult {
     return decodeUSACustomShop(normalized);
   }
 
+  // Import A-prefix factory + YY + 5-digit sequence (e.g., A0818910)
+  // A with 7-8 digits is a Diamond Series import format, not USA Custom Shop (which uses 4-5 digits)
+  if (/^A\d{7,8}$/.test(normalized)) {
+    return decodeImportSingleLetterYYSequence(normalized);
+  }
+
   // Vintage Van Nuys / early Dallas-era Schecter: S + short numeric sequence
   if (/^S\d{3,6}$/.test(normalized)) {
     return decodeVintageVanNuysS(normalized);
@@ -214,6 +220,60 @@ function decodeUSA5DigitNumeric(serial: string): DecodeResult {
       ],
     },
     additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Schecter five-digit numeric format commonly associated with late-1980s to mid-1990s California/USA production.</p><h3>How This Pattern Is Typically Read</h3><p>The five digits are treated as chronological production sequence ${sequenceNumber}. This format is associated with early USA/California Schecter production rather than later Diamond Series import serial formats. The first two digits should not be treated as a strict production year.</p><h3>What To Verify</h3><ul><li>Schecter serial documentation from this era is not standardized like later import production.</li><li>Exact year confirmation usually requires Schecter factory support.</li><li>Use physical markings and construction details to distinguish USA Custom Shop/pro-era instruments from later imports.</li></ul><h3>Coal Creek Guitars Note</h3><p>Treat this as an early USA Schecter sequence decode, then verify the instrument against its markings, hardware, and Schecter support if exact provenance matters.</p>`,
+  };
+}
+
+function decodeImportSingleLetterYYSequence(serial: string): DecodeResult {
+  const factoryLetter = serial[0];
+  const yearDigits = serial.substring(1, 3);
+  const sequence = serial.substring(3);
+  const yearNum = parseInt(yearDigits, 10);
+  const year = (yearNum >= 90 ? 1900 + yearNum : 2000 + yearNum).toString();
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const knownFactories: Record<string, { factory: string; country: string }> = {
+    A: { factory: 'Arai / Associated Asian import factory', country: 'China' },
+  };
+
+  const known = knownFactories[factoryLetter];
+  const factory = known ? known.factory : `Asian import factory (${factoryLetter} prefix)`;
+  const country = known ? known.country : 'Asia';
+
+  const info: GuitarInfo = {
+    brand: 'Schecter',
+    serialNumber: serial,
+    year,
+    factory,
+    country,
+    model: 'Diamond Series import',
+    notes: `${factoryLetter}-prefix Schecter import format interpreted as factory letter + YY + production sequence. ${factoryLetter} indicates ${factory}; ${yearDigits} indicates ${year}; ${sequence} is the production sequence (${sequenceNumber}). This identifies production year and factory family, not the exact model name.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: `schecter-import-${factoryLetter.toLowerCase()}-yy-sequence`,
+    patternLabel: `Schecter import ${factoryLetter}-prefix YY sequence`,
+    additionalContext: {
+      title: `Schecter ${factoryLetter}-prefix import serial`,
+      summary: `This serial matches a Schecter single-letter import factory format parsed as factory prefix, 2-digit year, and production sequence.`,
+      highlights: [
+        `${factoryLetter} indicates ${factory}.`,
+        `The digits ${yearDigits} decode as production year ${year}.`,
+        `The remaining digits decode as production sequence ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'This format identifies production year and factory family, not the exact model name.',
+        'Diamond Series models from this era commonly include the Omen, Damien, C-1, and related lines.',
+        'Factory-code usage can vary by production run; confirm with country-of-origin markings when provenance matters.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock for Made in China, Korea, or Indonesia markings.',
+        'Compare the model name on the headstock or truss rod cover against Schecter Diamond Series catalogs for the decoded year.',
+        'Contact Schecter support with clear photos if exact factory confirmation is needed.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Schecter single-letter import factory format parsed as factory prefix, 2-digit year, and production sequence.</p><h3>How This Pattern Is Typically Read</h3><p>${factoryLetter} indicates ${factory}. The digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This format identifies production year and factory family, not the exact model name.</li><li>Diamond Series models from this era commonly include the Omen, Damien, C-1, and related lines.</li><li>Check the back of the headstock for country-of-origin markings.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a practical import production decode, then verify the exact model from the headstock, truss rod cover, label, or Schecter support.</p>`,
   };
 }
 
