@@ -10332,8 +10332,8 @@ function inventoryFilterClause(filters: Pick<InventoryListFilters, 'categoryId' 
   }
 
   if (filters.categoryId != null) {
-    clauses.push('i.category_id = ?');
-    binds.push(filters.categoryId);
+    clauses.push('(i.category_id = ? OR i.secondary_category_id = ?)');
+    binds.push(filters.categoryId, filters.categoryId);
   }
   if (filters.brand) {
     clauses.push('LOWER(COALESCE(i.brand, \'\')) = LOWER(?)');

@@ -97,7 +97,7 @@ type InventoryCategoryOption = {
   label: string;
 };
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 50;
 
 const DEFAULT_FILTERS: InventoryFilters = {
   categoryId: '',
@@ -213,6 +213,7 @@ const InventoryManager = () => {
       || searchParams.get('onlyPersonal') === '1'
     );
   });
+  const [selectAllChecked, setSelectAllChecked] = useState(false);
   const [isUnmarkingAll, setIsUnmarkingAll] = useState(false);
   const [isMergingMarked, setIsMergingMarked] = useState(false);
   const [togglingMarkedIds, setTogglingMarkedIds] = useState<string[]>([]);
@@ -419,6 +420,20 @@ const InventoryManager = () => {
     }
   };
 
+  // Reset the select-all header checkbox whenever the page of records changes.
+  useEffect(() => {
+    setSelectAllChecked(false);
+  }, [records]);
+
+  const handleSelectAll = (checked: boolean) => {
+    setSelectAllChecked(checked);
+    records.forEach((record) => {
+      if (record.isMarked !== checked) {
+        void handleToggleMarked(record.id, checked);
+      }
+    });
+  };
+
   const handleUnmarkAll = async () => {
     setIsUnmarkingAll(true);
     setActionErrorMessage('');
@@ -517,13 +532,24 @@ const InventoryManager = () => {
         <TableHead>
           <TableRow>
             <TableCell sx={{ whiteSpace: 'nowrap' }}>
-              <TableSortLabel
-                active={sortBy === 'ccgNumber'}
-                direction={sortBy === 'ccgNumber' ? sortDir : 'asc'}
-                onClick={() => handleSort('ccgNumber')}
-              >
-                CCG #
-              </TableSortLabel>
+              <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5 }}>
+                {showMarkedCheckboxes ? (
+                  <Checkbox
+                    size="small"
+                    checked={selectAllChecked}
+                    disabled={isUnmarkingAll || records.length === 0 || isLoading}
+                    onChange={(event) => handleSelectAll(event.target.checked)}
+                    sx={{ p: 0.25 }}
+                  />
+                ) : null}
+                <TableSortLabel
+                  active={sortBy === 'ccgNumber'}
+                  direction={sortBy === 'ccgNumber' ? sortDir : 'asc'}
+                  onClick={() => handleSort('ccgNumber')}
+                >
+                  CCG #
+                </TableSortLabel>
+              </Stack>
             </TableCell>
             <TableCell sx={{ width: '100%' }}>
               <TableSortLabel

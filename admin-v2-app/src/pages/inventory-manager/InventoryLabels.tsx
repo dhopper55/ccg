@@ -4,6 +4,7 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   CircularProgress,
   Container,
   Dialog,
@@ -377,6 +378,7 @@ function downloadBlob(blob: Blob, filename: string) {
 const InventoryLabels = () => {
   const navigate = useNavigate();
   const [records, setRecords] = useState<MarkedRecord[]>([]);
+  const [smallTagChecked, setSmallTagChecked] = useState<Record<string, boolean>>({});
   const [printCounts, setPrintCounts] = useState<Record<string, number>>({});
   const [firstPositions, setFirstPositions] = useState<Record<string, number>>({});
   const [secondPositions, setSecondPositions] = useState<Record<string, number>>({});
@@ -417,13 +419,16 @@ const InventoryLabels = () => {
         setRecords(items);
         const defaults: Record<string, number> = {};
         const posDefaults: Record<string, number> = {};
+        const checkedDefaults: Record<string, boolean> = {};
         for (const item of items) {
           defaults[item.id] = 1;
           posDefaults[item.id] = 0;
+          checkedDefaults[item.id] = true;
         }
         setPrintCounts(defaults);
         setFirstPositions(posDefaults);
         setSecondPositions({ ...posDefaults });
+        setSmallTagChecked(checkedDefaults);
       } catch (error) {
         if (!cancelled) {
           setErrorMessage(error instanceof Error ? error.message : 'Unable to load marked items.');
@@ -444,7 +449,11 @@ const InventoryLabels = () => {
     () => records.reduce((sum, r) => sum + (printCounts[r.id] || 1), 0),
     [records, printCounts],
   );
-  const canPrintSmallTag = records.length === 1 || records.length === 2;
+  const smallTagSelectedRecords = useMemo(
+    () => records.filter((r) => smallTagChecked[r.id]),
+    [records, smallTagChecked],
+  );
+  const canPrintSmallTag = smallTagSelectedRecords.length === 2;
 
   const handleUnmarkAll = async () => {
     setIsUnmarking(true);
@@ -561,8 +570,8 @@ const InventoryLabels = () => {
     setIsPrintingSmallTag(true);
 
     try {
-      const blob = await buildSmallInventoryTagsPng(records.slice(0, 2));
-      const suffix = records.map((record) => record.ccgNumber.trim()).filter(Boolean).join('-') || 'inventory';
+      const blob = await buildSmallInventoryTagsPng(smallTagSelectedRecords.slice(0, 2));
+      const suffix = smallTagSelectedRecords.map((record) => record.ccgNumber.trim()).filter(Boolean).join('-') || 'inventory';
       downloadBlob(blob, `${suffix}-small-tag.png`);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to generate small tag PNG.');
@@ -639,9 +648,17 @@ const InventoryLabels = () => {
                     '&:last-child': { borderBottom: 0 },
                   }}
                 >
-                  <Typography variant="body2" sx={{ width: 140, flexShrink: 0 }}>
-                    {record.ccgNumber}
-                  </Typography>
+                  <Stack direction="row" sx={{ width: 140, flexShrink: 0, alignItems: 'center', gap: 0.5 }}>
+                    <Checkbox
+                      size="small"
+                      checked={Boolean(smallTagChecked[record.id])}
+                      onChange={(e) => setSmallTagChecked((prev) => ({ ...prev, [record.id]: e.target.checked }))}
+                      sx={{ p: 0.25 }}
+                    />
+                    <Typography variant="body2">
+                      {record.ccgNumber}
+                    </Typography>
+                  </Stack>
                   <Stack direction="row" sx={{ flex: 1, alignItems: 'center', gap: 1.5, minWidth: 0 }}>
                     {record.imageUrl ? (
                       <Box
