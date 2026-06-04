@@ -325,6 +325,7 @@ async function setSmallTagProductFields(
   record: MarkedRecord,
   productNumber: 1 | 2,
   boldFont: PDFFont,
+  skipQr = false,
 ): Promise<void> {
   const title = splitTextForPdfLines(
     (record.saleTitle || record.title || '').trim(),
@@ -338,11 +339,11 @@ async function setSmallTagProductFields(
   setPdfTextField(pdfForm, `Product${productNumber}CCGNum`, record.ccgNumber.trim(), boldFont);
   setPdfTextField(pdfForm, `Product${productNumber}RegPrice`, formatTagPrice(parseTagPrice(record.regularPrice)), boldFont);
   setPdfTextField(pdfForm, `Product${productNumber}SalePrice`, formatTagPrice(parseTagPrice(record.salePrice)), boldFont);
-  await drawProductQrCode(pdfDoc, productNumber, buildShopProductUrl(record));
+  if (!skipQr) await drawProductQrCode(pdfDoc, productNumber, buildShopProductUrl(record));
   await drawProductBarcode(pdfDoc, pdfForm, record, productNumber, boldFont);
 }
 
-async function buildSmallInventoryTagsPng(records: MarkedRecord[]): Promise<Blob> {
+async function buildSmallInventoryTagsPng(records: MarkedRecord[], skipQr = false): Promise<Blob> {
   const response = await fetch(TAG_TEMPLATE_SMALL);
   if (!response.ok) throw new Error('Unable to load small inventory tag template.');
 
@@ -357,8 +358,8 @@ async function buildSmallInventoryTagsPng(records: MarkedRecord[]): Promise<Blob
   const boldFontBytes = await fetchArrayBuffer(liberationSansBoldUrl);
   const boldFont = await pdfDoc.embedFont(boldFontBytes);
 
-  if (records[0]) await setSmallTagProductFields(pdfDoc, pdfForm, records[0], 1, boldFont);
-  if (records[1]) await setSmallTagProductFields(pdfDoc, pdfForm, records[1], 2, boldFont);
+  if (records[0]) await setSmallTagProductFields(pdfDoc, pdfForm, records[0], 1, boldFont, skipQr);
+  if (records[1]) await setSmallTagProductFields(pdfDoc, pdfForm, records[1], 2, boldFont, skipQr);
 
   const bytes = await pdfDoc.save();
   return renderPdfBytesToPng(bytes);
@@ -385,6 +386,7 @@ const InventoryLabels = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isPrinting, setIsPrinting] = useState(false);
   const [isPrintingSmallTag, setIsPrintingSmallTag] = useState(false);
+  const [isPrintingSmallTagNoQr, setIsPrintingSmallTagNoQr] = useState(false);
   const [isUnmarking, setIsUnmarking] = useState(false);
   const [unmarkConfirmOpen, setUnmarkConfirmOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -580,6 +582,22 @@ const InventoryLabels = () => {
     }
   };
 
+  const handlePrintSmallTagNoQr = async () => {
+    if (!canPrintSmallTag || isPrintingSmallTagNoQr) return;
+    setErrorMessage('');
+    setIsPrintingSmallTagNoQr(true);
+
+    try {
+      const blob = await buildSmallInventoryTagsPng(smallTagSelectedRecords.slice(0, 2), true);
+      const suffix = smallTagSelectedRecords.map((record) => record.ccgNumber.trim()).filter(Boolean).join('-') || 'inventory';
+      downloadBlob(blob, `${suffix}-small-tag-noqr.png`);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to generate small tag PNG.');
+    } finally {
+      setIsPrintingSmallTagNoQr(false);
+    }
+  };
+
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       <Grid container spacing={3}>
@@ -757,7 +775,7 @@ const InventoryLabels = () => {
                     variant="contained"
                     color="warning"
                     onClick={() => setUnmarkConfirmOpen(true)}
-                    disabled={isUnmarking || isPrinting || isPrintingSmallTag || records.length === 0}
+                    disabled={isUnmarking || isPrinting || isPrintingSmallTag || isPrintingSmallTagNoQr || records.length === 0}
                     startIcon={
                       isUnmarking ? (
                         <CircularProgress color="inherit" size={16} />
@@ -771,7 +789,7 @@ const InventoryLabels = () => {
                   <Button
                     variant="contained"
                     onClick={handlePrint}
-                    disabled={isPrinting || isUnmarking || isPrintingSmallTag || records.length === 0}
+                    disabled={isPrinting || isUnmarking || isPrintingSmallTag || isPrintingSmallTagNoQr || records.length === 0}
                     startIcon={
                       isPrinting ? (
                         <CircularProgress color="inherit" size={16} />
@@ -783,20 +801,36 @@ const InventoryLabels = () => {
                     {isPrinting ? 'Generating…' : 'Print Labels'}
                   </Button>
                   {canPrintSmallTag ? (
-                    <Button
-                      variant="contained"
-                      onClick={handlePrintSmallTag}
-                      disabled={isPrintingSmallTag || isPrinting || isUnmarking}
-                      startIcon={
-                        isPrintingSmallTag ? (
-                          <CircularProgress color="inherit" size={16} />
-                        ) : (
-                          <IconifyIcon icon="material-symbols:label-outline-rounded" />
-                        )
-                      }
-                    >
-                      {isPrintingSmallTag ? 'Generating…' : 'Print Small Tag'}
-                    </Button>
+                    <>
+                      <Button
+                        variant="contained"
+                        onClick={handlePrintSmallTag}
+                        disabled={isPrintingSmallTag || isPrintingSmallTagNoQr || isPrinting || isUnmarking}
+                        startIcon={
+                          isPrintingSmallTag ? (
+                            <CircularProgress color="inherit" size={16} />
+                          ) : (
+                            <IconifyIcon icon="material-symbols:label-outline-rounded" />
+                          )
+                        }
+                      >
+                        {isPrintingSmallTag ? 'Generating…' : 'Print Small Tag'}
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        onClick={handlePrintSmallTagNoQr}
+                        disabled={isPrintingSmallTagNoQr || isPrintingSmallTag || isPrinting || isUnmarking}
+                        startIcon={
+                          isPrintingSmallTagNoQr ? (
+                            <CircularProgress color="inherit" size={16} />
+                          ) : (
+                            <IconifyIcon icon="material-symbols:label-off-outline-rounded" />
+                          )
+                        }
+                      >
+                        {isPrintingSmallTagNoQr ? 'Generating…' : 'Print Small Tag (no QR)'}
+                      </Button>
+                    </>
                   ) : null}
                 </Stack>
                 <Dialog open={unmarkConfirmOpen} onClose={() => setUnmarkConfirmOpen(false)}>

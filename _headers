@@ -1,3 +1,13 @@
+# .mjs workers must have an explicit JS MIME type — Cloudflare Pages does not
+# auto-assign application/javascript for .mjs, causing Worker MIME rejections.
+/admin/assets/*.mjs
+  Content-Type: application/javascript; charset=utf-8
+  Cache-Control: public, max-age=31536000, immutable
+
+/guitars-and-gear-for-sale/assets/*.mjs
+  Content-Type: application/javascript; charset=utf-8
+  Cache-Control: public, max-age=31536000, immutable
+
 # Hashed JS/CSS assets cached forever (filename changes on every build)
 /admin/assets/*
   Cache-Control: public, max-age=31536000, immutable
