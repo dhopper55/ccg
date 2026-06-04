@@ -285,7 +285,6 @@ const ShopStatistics = () => {
                 </TableCell>
                 <TableCell>Event</TableCell>
                 <TableCell sx={{ minWidth: 200 }}>Product</TableCell>
-                <TableCell>Session</TableCell>
                 <TableCell>Source</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
@@ -293,7 +292,7 @@ const ShopStatistics = () => {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6}>
+                  <TableCell colSpan={5}>
                     <Stack sx={{ alignItems: 'center', py: 6 }} spacing={2}>
                       <CircularProgress size={28} />
                       <Typography sx={{ color: 'text.secondary' }}>Loading shop statistics...</Typography>
@@ -302,7 +301,7 @@ const ShopStatistics = () => {
                 </TableRow>
               ) : records.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6}>
+                  <TableCell colSpan={5}>
                     <Typography sx={{ py: 4, color: 'text.secondary' }}>
                       No shop events match the current filters.
                     </Typography>
@@ -336,19 +335,14 @@ const ShopStatistics = () => {
                         </Stack>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2" fontWeight={600}>
+                        <Typography variant="caption" fontWeight={600}>
                           {productLabel}
                         </Typography>
                         {record.ccgNumber && record.inventoryTitle ? (
-                          <Typography variant="caption" color="text.secondary">
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                             {record.ccgNumber}
                           </Typography>
                         ) : null}
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="caption" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                          {record.sessionId || '-'}
-                        </Typography>
                       </TableCell>
                       <TableCell>
                         {(() => {
