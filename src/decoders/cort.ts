@@ -25,6 +25,11 @@ export function decodeCort(serial: string): DecodeResult {
   const cleaned = serial.trim().toUpperCase();
   const normalized = cleaned.replace(/[\s-]/g, '');
 
+  // Modern three-letter factory/line prefix: C[A-Z]{2} + YYMM + sequence (e.g. CSA251002567)
+  if (/^C[A-Z]{2}\d{7,9}$/.test(normalized)) {
+    return decodeModernThreeLetterFactoryLine(normalized);
+  }
+
   // Modern two-letter factory/line prefix: C[A-Z] + YYMM + sequence
   // 7 digits covers short-batch sequences (e.g. CA2501026 = CA+25+01+026)
   if (/^C[A-Z]\d{7,9}$/.test(normalized)) {
@@ -161,6 +166,68 @@ export function decodeCort(serial: string): DecodeResult {
 }
 
 // Modern two-letter factory/line prefix: C[A-Z] + YYMM + sequence
+const CORT_THREE_LETTER_FACTORY_MAP: Record<string, { factory: string; country: string }> = {
+  CSA: { factory: 'PT Cort Indonesia, Surabaya', country: 'Indonesia' },
+};
+
+function decodeModernThreeLetterFactoryLine(serial: string): DecodeResult {
+  const prefix = serial.substring(0, 3);
+  const yearDigits = serial.substring(3, 5);
+  const monthDigits = serial.substring(5, 7);
+  const sequence = serial.substring(7);
+  const year = 2000 + parseInt(yearDigits, 10);
+  const month = parseInt(monthDigits, 10);
+
+  if (month < 1 || month > 12) {
+    return {
+      success: false,
+      error: `Invalid month "${monthDigits}" in serial number. Month should be 01-12.`,
+    };
+  }
+
+  const knownFactory = CORT_THREE_LETTER_FACTORY_MAP[prefix];
+  const factory = knownFactory ? knownFactory.factory : 'Cort modern factory/production line';
+  const country = knownFactory ? knownFactory.country : 'Korea, Indonesia, or China';
+
+  const info: GuitarInfo = {
+    brand: 'Cort',
+    serialNumber: serial,
+    year: year.toString(),
+    month: getMonthName(month),
+    factory,
+    country,
+    notes: `Modern Cort three-letter factory/line format interpreted as prefix + YYMM + sequence. Prefix ${prefix} indicates ${factory}. The digits ${yearDigits} indicate production year ${year}; ${monthDigits} indicates ${getMonthName(month)}. Production sequence: ${parseInt(sequence, 10)}. Cort serials identify production date more reliably than exact model name, so verify the model from the headstock, label, or other physical markings.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'cort-modern-three-letter-factory-line-yymm-sequence',
+    patternLabel: 'Cort modern three-letter factory-line YYMM sequence',
+    additionalContext: {
+      title: 'Cort modern three-letter serial',
+      summary: 'This serial matches a modern Cort three-letter factory/line format parsed as prefix, production year and month, and sequence.',
+      highlights: [
+        `Prefix ${prefix} indicates ${factory}.`,
+        `The digits ${yearDigits} decode as production year ${year}.`,
+        `The digits ${monthDigits} decode as ${getMonthName(month)}.`,
+        `The remaining digits decode as production sequence ${parseInt(sequence, 10)}.`,
+      ],
+      caveats: [
+        'Cort serials usually identify production date more reliably than exact model identity.',
+        'The serial does not identify the specific Cort model name.',
+        'Production location requires country-of-origin markings or other physical evidence.',
+      ],
+      verificationTips: [
+        'Check the headstock, soundhole label, neck heel, or back of headstock for model and country markings.',
+        'Compare the instrument against Cort catalog specs from the decoded year.',
+        'Contact Cort with photos if exact model confirmation is needed.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern Cort three-letter factory/line format parsed as prefix, production year and month, and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>Prefix ${prefix} indicates ${factory}. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} decode as ${getMonthName(month)}. The remaining digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Cort serials usually identify production date more reliably than exact model identity.</li><li>The serial does not identify the specific Cort model name.</li><li>Confirm the model from headstock, label, or other physical markings.</li></ul>`,
+  };
+}
+
 const CORT_TWO_LETTER_FACTORY_MAP: Record<string, { factory: string; country: string }> = {
   CA: { factory: 'PT Cort Indonesia, Surabaya', country: 'Indonesia' },
   CI: { factory: 'PT Cort Indonesia', country: 'Indonesia' },

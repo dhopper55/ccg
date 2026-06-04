@@ -193,6 +193,12 @@ export function decodeJackson(serial: string): DecodeResult {
     return decodeIndiaNumeric8(normalized);
   }
 
+  // Modern Indonesia/Korea 8-digit import: YY + sequence (2005-2029)
+  // Must follow India check so 96xx-04xx still routes correctly
+  if (/^(0[5-9]|[12]\d)\d{6}$/.test(normalized) && normalized.length === 8) {
+    return decodeModernIndonesiaKorea8Digit(normalized);
+  }
+
   // India 9-digit (JS30xx, 2004-2007 prefix)
   if (/^200[4-7]\d{5}$/.test(normalized) && normalized.length === 9) {
     return decodeIndiaNumeric9(normalized);
@@ -1017,6 +1023,49 @@ function decodeModern(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+function decodeModernIndonesiaKorea8Digit(serial: string): DecodeResult {
+  const yearDigits = serial.substring(0, 2);
+  const sequence = serial.substring(2);
+  const year = 2000 + parseInt(yearDigits, 10);
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Jackson',
+    serialNumber: serial,
+    year: year.toString(),
+    factory: 'Jackson Indonesian or Korean import facility',
+    country: 'Indonesia or South Korea',
+    notes: `Modern 8-digit Jackson import format. The first two digits ${yearDigits} decode as production year ${year}. The remaining digits are the sequential production number ${sequenceNumber}. This format is commonly seen on JS Series, X Series, and entry-level Pro Series models built at contracted Asian factories. Exact factory (Indonesia vs. Korea) and model require verification from the headstock, neck pocket, and country-of-origin marking.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'jackson-modern-8-digit-yy-sequence-import',
+    patternLabel: 'Jackson modern 8-digit YY sequence import (Indonesia/Korea)',
+    additionalContext: {
+      title: 'Jackson modern 8-digit import serial',
+      summary: 'This serial matches a modern Jackson 8-digit import format where the first two digits identify the production year.',
+      highlights: [
+        `The first two digits ${yearDigits} decode as production year ${year}.`,
+        `The remaining digits decode as sequential production number ${sequenceNumber}.`,
+        'This format is common on JS, X Series, and entry-level Pro Series import models.',
+      ],
+      caveats: [
+        'The serial does not encode the exact factory location or model name.',
+        'Indonesian and Korean import facilities both used this format during this era.',
+        'Not all import serials appear in Jackson\'s USA Custom Shop lookup database.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock or neck plate for a Made in Indonesia or Made in Korea stamp.',
+        'Remove the neck and check the neck pocket for a date stamp and model designation if present.',
+        'Compare body shape, inlays, and hardware to Jackson catalog specs for the decoded year.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern Jackson 8-digit import format where the first two digits identify the production year.</p><h3>How This Pattern Is Typically Read</h3><p>The first two digits ${yearDigits} decode as production year ${year}. The remaining digits decode as sequential production number ${sequenceNumber}. This format is commonly seen on JS, X Series, and entry-level Pro Series models built at contracted Asian factories.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock or neck plate for a country-of-origin stamp.</li><li>Remove the neck and check the neck pocket for a date stamp and model designation.</li><li>Compare body shape, inlays, pickup configuration, and hardware to Jackson catalog specs for the decoded year.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed modern Jackson import decode, then identify the exact model and factory from physical markings and catalog comparison.</p>`,
+  };
 }
 
 function getMonthName(month: number): string {

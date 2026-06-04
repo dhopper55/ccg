@@ -324,24 +324,48 @@ function decodeModernGibsonEraFactoryNumeric(normalized: string, cleaned: string
 }
 
 function decodeModernGibsonEraNumeric(normalized: string, cleaned: string): DecodeResult {
-  const yearPart = normalized.substring(0, 2);
-  const monthPart = normalized.substring(2, 4);
-  const factoryCode = normalized.substring(4, 6);
-  const sequence = normalized.substring(6);
-  const yearValue = parseInt(yearPart, 10);
-  const monthValue = parseInt(monthPart, 10);
-  const monthName = getMonthName(monthValue);
-  const fullYear = Number.isNaN(yearValue)
-    ? undefined
-    : 2000 + yearValue;
-  const sequenceNumber = parseInt(sequence, 10);
+  // Primary parse: YY-MM-FF-SSSSS
+  let yearPart = normalized.substring(0, 2);
+  let monthPart = normalized.substring(2, 4);
+  let factoryCode = normalized.substring(4, 6);
+  let sequence = normalized.substring(6);
+  let yearValue = parseInt(yearPart, 10);
+  let monthValue = parseInt(monthPart, 10);
+  let monthName = getMonthName(monthValue);
+  let fullYear: number | undefined = Number.isNaN(yearValue) ? undefined : 2000 + yearValue;
+  let layout = 'YYMMFFSSSSS';
 
-  if (!fullYear || !monthName) {
+  // Fallback: FF-YY-MM-SSSSS (factory-first layout used on some earlier Gibson-era runs)
+  if (!fullYear || !monthName || monthValue < 1 || monthValue > 12) {
+    const ffFactory = normalized.substring(0, 2);
+    const ffYear = normalized.substring(2, 4);
+    const ffMonth = normalized.substring(4, 6);
+    const ffSeq = normalized.substring(6);
+    const ffYearValue = parseInt(ffYear, 10);
+    const ffMonthValue = parseInt(ffMonth, 10);
+    const ffMonthName = getMonthName(ffMonthValue);
+    const ffFullYear = Number.isNaN(ffYearValue) ? undefined : 2000 + ffYearValue;
+    if (ffFullYear && ffMonthName && ffMonthValue >= 1 && ffMonthValue <= 12) {
+      yearPart = ffYear;
+      monthPart = ffMonth;
+      factoryCode = ffFactory;
+      sequence = ffSeq;
+      yearValue = ffYearValue;
+      monthValue = ffMonthValue;
+      monthName = ffMonthName;
+      fullYear = ffFullYear;
+      layout = 'FFYYMMSSSSS';
+    }
+  }
+
+  if (!fullYear || !monthName || monthValue < 1 || monthValue > 12) {
     return {
       success: false,
       error: 'Unable to decode this Kramer serial number.',
     };
   }
+
+  const sequenceNumber = parseInt(sequence, 10);
 
   const info: GuitarInfo = {
     brand: 'Kramer',
@@ -351,7 +375,7 @@ function decodeModernGibsonEraNumeric(normalized: string, cleaned: string): Deco
     factory: `Factory ${factoryCode}`,
     country: factoryCode === '13' ? 'China' : undefined,
     model: 'Modern Gibson-era import model, commonly Focus, Striker, or entry-level Kramer family',
-    notes: `Modern 11-digit Kramer import serial interpreted as YYMMFFSSSSS. Because Gibson owns Kramer, many post-2008 budget/import Kramer models use the all-numeric format also seen on Epiphone instruments. Year: ${fullYear}; month: ${monthName}; factory code: ${factoryCode}; production sequence: ${sequenceNumber}. Factory code 13 is commonly associated with authorized Chinese import production. Verify with the back-of-headstock serial placement, country-of-origin marking, and model specs.`,
+    notes: `Modern 11-digit Kramer import serial interpreted as ${layout}. Because Gibson owns Kramer, many post-2008 budget/import Kramer models use the all-numeric format also seen on Epiphone instruments. Year: ${fullYear}; month: ${monthName}; factory code: ${factoryCode}; production sequence: ${sequenceNumber}. Factory code 13 is commonly associated with authorized Chinese import production. Verify with the back-of-headstock serial placement, country-of-origin marking, and model specs.`,
   };
 
   return {
