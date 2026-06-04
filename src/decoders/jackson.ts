@@ -97,6 +97,12 @@ export function decodeJackson(serial: string): DecodeResult {
     return decodeUSARandyRhoads(normalized);
   }
 
+  // Modern Indonesia J-prefix: J + YY + 5-digit sequence (2013+, e.g. J2245267)
+  // Must be checked before USA Custom Shop J-prefix (which only matches 4-6 digits)
+  if (/^J\d{7}$/i.test(normalized)) {
+    return decodeModernJIndonesia(normalized);
+  }
+
   // USA Custom Shop Neck-Through (J prefix)
   if (/^J\d{4,6}$/i.test(normalized)) {
     return decodeUSACustomNeckThrough(normalized);
@@ -262,6 +268,50 @@ function decodeUSACustomNeckThrough(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+function decodeModernJIndonesia(serial: string): DecodeResult {
+  const yearDigits = serial.substring(1, 3);
+  const sequence = serial.substring(3);
+  const year = 2000 + parseInt(yearDigits, 10);
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Jackson',
+    serialNumber: serial,
+    year: year.toString(),
+    factory: 'Jackson Indonesia (PT. Cort or similar contracted facility)',
+    country: 'Indonesia',
+    notes: `Modern Jackson import format (2013+). J indicates Indonesian production. The digits ${yearDigits} decode as production year ${year}. The remaining digits are the sequential production number ${sequenceNumber}. This format is common on JS, X Series, and Pro Series models built in Indonesia. The serial does not encode the exact model name; verify from the headstock logo, catalog specs, and Made in Indonesia marking.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'jackson-modern-j-indonesia-yy-sequence',
+    patternLabel: 'Jackson modern J-prefix Indonesia YY sequence (2013+)',
+    additionalContext: {
+      title: 'Jackson modern Indonesia J-prefix serial',
+      summary: 'This serial matches the modern Jackson J-prefix import format used on Indonesian-built JS, X Series, and Pro Series guitars.',
+      highlights: [
+        'J indicates Indonesian production (PT. Cort or similar contracted facility).',
+        `The digits ${yearDigits} decode as production year ${year}.`,
+        `The remaining digits decode as sequential production number ${sequenceNumber}.`,
+        'This format was introduced around 2013 for modern Jackson import production.',
+      ],
+      caveats: [
+        'The serial does not encode the exact model name or body shape.',
+        'Indonesian J-prefix serials may not appear in Jackson\'s USA Custom Shop database.',
+        'Quality and features vary by series (JS, X, Pro); verify from the headstock, pickups, and hardware.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock or neck plate for a Made in Indonesia stamp.',
+        'Compare the body shape, inlay style, pickup configuration, and headstock logo against Jackson catalog specs for the decoded year.',
+        'Use the Jackson official serial number lookup to attempt factory confirmation.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches the modern Jackson J-prefix import format used on Indonesian-built JS, X Series, and Pro Series guitars.</p><h3>How This Pattern Is Typically Read</h3><p>J indicates Indonesian production. The digits ${yearDigits} decode as production year ${year}. The remaining digits decode as sequential production number ${sequenceNumber}. This format was introduced around 2013 for modern Jackson import production.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock or neck plate for a Made in Indonesia stamp.</li><li>The serial does not encode the exact model name; verify body shape, inlays, and pickups against the Jackson catalog for the decoded year.</li><li>Indonesian J-prefix serials may not appear in Jackson's USA Custom Shop database.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed modern Indonesian Jackson decode, then identify the exact series and model from physical features and Jackson's catalog.</p>`,
+  };
 }
 
 function decodeUSANeckThrough(serial: string): DecodeResult {

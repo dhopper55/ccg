@@ -22,7 +22,8 @@ export function decodeCort(serial) {
     const cleaned = serial.trim().toUpperCase();
     const normalized = cleaned.replace(/[\s-]/g, '');
     // Modern two-letter factory/line prefix: C[A-Z] + YYMM + sequence
-    if (/^C[A-Z]\d{8,9}$/.test(normalized)) {
+    // 7 digits covers short-batch sequences (e.g. CA2501026 = CA+25+01+026)
+    if (/^C[A-Z]\d{7,9}$/.test(normalized)) {
         return decodeModernTwoLetterFactoryLine(normalized);
     }
     // Modern alphanumeric factory/line prefix: 1A + YYMM + sequence
@@ -129,6 +130,12 @@ export function decodeCort(serial) {
     };
 }
 // Modern two-letter factory/line prefix: C[A-Z] + YYMM + sequence
+const CORT_TWO_LETTER_FACTORY_MAP = {
+    CA: { factory: 'PT Cort Indonesia, Surabaya', country: 'Indonesia' },
+    CI: { factory: 'PT Cort Indonesia', country: 'Indonesia' },
+    CK: { factory: 'Cort Korea', country: 'South Korea' },
+    CC: { factory: 'Cort China', country: 'China' },
+};
 function decodeModernTwoLetterFactoryLine(serial) {
     const prefix = serial.substring(0, 2);
     const yearDigits = serial.substring(2, 4);
@@ -142,14 +149,17 @@ function decodeModernTwoLetterFactoryLine(serial) {
             error: `Invalid month "${monthDigits}" in serial number. Month should be 01-12.`,
         };
     }
+    const knownFactory = CORT_TWO_LETTER_FACTORY_MAP[prefix];
+    const factory = knownFactory ? knownFactory.factory : 'Cort modern factory/production line';
+    const country = knownFactory ? knownFactory.country : 'Korea, Indonesia, or China';
     const info = {
         brand: 'Cort',
         serialNumber: serial,
         year: year.toString(),
         month: getMonthName(month),
-        factory: 'Cort modern factory/production line',
-        country: 'Korea, Indonesia, or China',
-        notes: `Modern Cort two-letter factory/line format interpreted as prefix + YYMM + sequence. Prefix ${prefix} indicates an internal factory or production line code. The digits ${yearDigits} indicate production year ${year}; ${monthDigits} indicates ${getMonthName(month)}. Production sequence: ${parseInt(sequence, 10)}. Cort serials identify production date more reliably than exact model name, so verify the model from the headstock, label, or other physical markings.`,
+        factory,
+        country,
+        notes: `Modern Cort two-letter factory/line format interpreted as prefix + YYMM + sequence. Prefix ${prefix} indicates ${factory}. The digits ${yearDigits} indicate production year ${year}; ${monthDigits} indicates ${getMonthName(month)}. Production sequence: ${parseInt(sequence, 10)}. Cort serials identify production date more reliably than exact model name, so verify the model from the headstock, label, or other physical markings.`,
     };
     return {
         success: true,

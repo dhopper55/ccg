@@ -70,6 +70,11 @@ export function decodeBCRich(serial: string): DecodeResult {
     .replace(/^SR[#:.]?\s*/, '')
     .replace(/[\s-]/g, '');
 
+  // Class Axe era: CA prefix + sequential production number (1989-1993)
+  if (/^CA\d{3,6}$/.test(normalized)) {
+    return decodeClassAxeCA(normalized);
+  }
+
   if (/^[SIFN]\d{8}$/.test(normalized)) {
     return decodeImportLetterPrefix(normalized);
   }
@@ -569,6 +574,48 @@ function decodeUSA5Digit(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+function decodeClassAxeCA(serial: string): DecodeResult {
+  const sequence = serial.slice(2);
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'B.C. Rich',
+    serialNumber: serial,
+    year: '1989–1993',
+    factory: 'Class Axe-era import production (Class Axe Inc., licensed distributor)',
+    country: 'South Korea or Japan',
+    notes: `CA prefix on B.C. Rich serial numbers stands for Class Axe, the company that held the B.C. Rich licensing and distribution rights from 1989 to 1993. The digits ${sequence} are a sequential production number (${sequenceNumber}) within that era. Class Axe records were inconsistent, so the number does not reliably encode a precise month or year. During this period the brand transitioned from high-end USA custom shop instruments to high-volume import models. Bolt-on neck construction is a strong indicator of a budget Korean or Japanese import; set-neck or neck-through construction suggests a higher-tier model. The presence of an L.A., California address on a neck plate does not confirm USA origin — many Class Axe import neck plates carried that address despite being manufactured overseas.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'bcrich-class-axe-ca-prefix',
+    patternLabel: 'B.C. Rich Class Axe-era CA-prefix serial (1989–1993)',
+    additionalContext: {
+      title: 'B.C. Rich Class Axe CA-prefix serial',
+      summary: 'CA stands for Class Axe, the licensed B.C. Rich distributor from 1989 to 1993. The following digits are a sequential production number from that era.',
+      highlights: [
+        'CA explicitly identifies this as a Class Axe-era B.C. Rich (1989–1993).',
+        `The digits ${sequence} are the sequential production number (${sequenceNumber}).`,
+        'This era covers the brand\'s transition from USA custom shop to high-volume Asian imports.',
+      ],
+      caveats: [
+        'Class Axe production records were notoriously inconsistent; the number does not encode an exact date.',
+        'An L.A. or California address on a neck plate does not mean USA origin — Class Axe import plates often carried US addresses.',
+        'Bolt-on necks are common on budget import models from this era; neck-through construction indicates a higher-tier instrument.',
+      ],
+      verificationTips: [
+        'Check whether the neck is bolt-on (import) or neck-through (higher-tier).',
+        'Look for Made in Korea or Made in Japan markings on the headstock, back of body, or neck pocket.',
+        'Compare the body shape, pickups, and hardware against late-1980s to early-1990s B.C. Rich catalogs.',
+        'Warlock, Mockingbird, and Virgin shapes are the most common from this era.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>CA stands for Class Axe, the licensed B.C. Rich distributor from 1989 to 1993. The following digits are a sequential production number from that era.</p><h3>How This Pattern Is Typically Read</h3><p>CA explicitly identifies this as a Class Axe-era B.C. Rich. The digits ${sequence} are sequential production number ${sequenceNumber}. Class Axe records were inconsistent, so the number does not encode an exact month or year within the 1989–1993 window.</p><h3>What To Verify</h3><ul><li>Bolt-on neck = budget import model. Neck-through construction = higher-tier instrument.</li><li>An L.A. or California address on the neck plate does not confirm USA origin; many Class Axe import plates carried US addresses.</li><li>Look for Made in Korea or Made in Japan markings on the headstock, back of body, or neck pocket.</li><li>Compare body shape, pickups, and hardware against late-1980s to early-1990s B.C. Rich catalogs.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed Class Axe-era decode. Neck construction and country-of-origin markings are the most reliable ways to separate budget imports from higher-tier instruments in this run.</p>`,
+  };
 }
 
 function decodeClassAxeBC(serial: string): DecodeResult {
