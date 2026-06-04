@@ -8,7 +8,6 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  Paper,
   Stack,
   Typography,
 } from '@mui/material';
@@ -252,7 +251,7 @@ const DecoderPreviewLayout = ({
         </Box>
 
         <Box component="main" sx={{ p: { xs: 2, md: 5 }, minWidth: 0 }}>
-          <Paper sx={{ bgcolor: 'transparent', boxShadow: 'none', minWidth: 0 }}>{children}</Paper>
+          {children}
         </Box>
       </Box>
     </Box>

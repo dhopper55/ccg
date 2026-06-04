@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Box, Card, CardMedia, Link, Typography } from '@mui/material';
+import { Box, Card, CardMedia, Typography } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import { currencyFormat, slugifyCategory } from 'lib/utils';
 
@@ -24,6 +24,12 @@ function fisherYatesShuffle<T>(arr: T[]): T[] {
     [copy[i], copy[j]] = [copy[j], copy[i]];
   }
   return copy;
+}
+
+// Use direct window.location navigation for all decoder→shop links to bypass
+// the global MuiLink→RouterLink wiring that would otherwise do in-app routing.
+function navigateTo(url: string) {
+  window.location.href = url;
 }
 
 interface DecoderAccessorySuggestionsProps {
@@ -71,22 +77,21 @@ const DecoderAccessorySuggestions = ({ count = 9 }: DecoderAccessorySuggestionsP
           const productUrl =
             categorySlug && product.saleUrlSlug
               ? `${SHOP_BASE}/${categorySlug}/${product.saleUrlSlug}`
-              : SHOP_BASE;
+              : `${SHOP_BASE}/`;
           const displayPrice =
             product.salePrice > 0 ? product.salePrice : (product.regularPrice ?? 0);
 
           return (
             <Grid key={product.id} size={{ xs: 4 }}>
               <Card
-                component="a"
-                href={productUrl}
+                onClick={() => navigateTo(productUrl)}
                 sx={{
                   display: 'flex',
                   flexDirection: 'column',
                   borderRadius: 2,
                   overflow: 'hidden',
                   color: 'inherit',
-                  textDecoration: 'none',
+                  cursor: 'pointer',
                   transition: 'transform 0.18s, box-shadow 0.18s',
                   height: '100%',
                   '&:hover': { transform: 'translateY(-2px)', boxShadow: 3 },
@@ -135,9 +140,18 @@ const DecoderAccessorySuggestions = ({ count = 9 }: DecoderAccessorySuggestionsP
         })}
       </Grid>
       <Box sx={{ mt: 1.5, textAlign: 'center' }}>
-        <Link href={`${SHOP_BASE}/`} variant="caption" color="text.secondary" underline="hover">
+        <Typography
+          variant="caption"
+          onClick={() => navigateTo(`${SHOP_BASE}/`)}
+          sx={{
+            color: 'text.secondary',
+            cursor: 'pointer',
+            textDecoration: 'underline',
+            '&:hover': { color: 'text.primary' },
+          }}
+        >
           See more...
-        </Link>
+        </Typography>
       </Box>
     </Box>
   );
