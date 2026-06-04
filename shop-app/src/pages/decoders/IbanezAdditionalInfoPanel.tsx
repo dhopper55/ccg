@@ -1,4 +1,4 @@
-import { Box, Paper, Typography } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 
 interface IbanezAdditionalInfoPanelProps {
   richText: string;
@@ -91,7 +91,7 @@ function formatAdditionalInfoHtml(text: string): string {
 
 const IbanezAdditionalInfoPanel = ({ richText }: IbanezAdditionalInfoPanelProps) => {
   return (
-    <Paper sx={{ p: { xs: 3, md: 5 } }}>
+    <Box sx={{ p: { xs: 1, md: 2 } }}>
       <Typography variant="h6" sx={{ mb: 3, color: 'warning.main' }}>
         Additional decoded information
       </Typography>
@@ -113,7 +113,7 @@ const IbanezAdditionalInfoPanel = ({ richText }: IbanezAdditionalInfoPanelProps)
         }}
         dangerouslySetInnerHTML={{ __html: formatAdditionalInfoHtml(richText) }}
       />
-    </Paper>
+    </Box>
   );
 };
 

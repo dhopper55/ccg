@@ -1,4 +1,4 @@
-import { Box, Paper, Typography } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 
 interface DecoderHowToPanelProps {
   title: string;
@@ -7,7 +7,7 @@ interface DecoderHowToPanelProps {
 
 const DecoderHowToPanel = ({ title, html }: DecoderHowToPanelProps) => {
   return (
-    <Paper sx={{ p: { xs: 3, md: 5 }, height: 1 }}>
+    <Box sx={{ p: { xs: 1, md: 2 } }}>
       <Typography variant="h6" mb={3}>
         {title}
       </Typography>
@@ -27,7 +27,7 @@ const DecoderHowToPanel = ({ title, html }: DecoderHowToPanelProps) => {
         }}
         dangerouslySetInnerHTML={{ __html: html }}
       />
-    </Paper>
+    </Box>
   );
 };
 

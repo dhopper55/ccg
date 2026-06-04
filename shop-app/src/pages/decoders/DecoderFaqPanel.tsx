@@ -1,4 +1,4 @@
-import { Box, Divider, Paper, Typography } from '@mui/material';
+import { Box, Divider, Typography } from '@mui/material';
 
 interface DecoderFaqItem {
   question: string;
@@ -12,7 +12,7 @@ interface DecoderFaqPanelProps {
 
 const DecoderFaqPanel = ({ title, items }: DecoderFaqPanelProps) => {
   return (
-    <Paper sx={{ p: { xs: 3, md: 5 } }}>
+    <Box sx={{ p: { xs: 1, md: 2 } }}>
       <Typography variant="h6" mb={3}>
         {title}
       </Typography>
@@ -36,7 +36,7 @@ const DecoderFaqPanel = ({ title, items }: DecoderFaqPanelProps) => {
           </Box>
         ))}
       </Box>
-    </Paper>
+    </Box>
   );
 };
 

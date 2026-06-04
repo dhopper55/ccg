@@ -135,7 +135,7 @@ const DecoderAccessorySuggestions = ({ count = 9 }: DecoderAccessorySuggestionsP
         })}
       </Grid>
       <Box sx={{ mt: 1.5, textAlign: 'center' }}>
-        <Link href={SHOP_BASE} variant="caption" color="text.secondary" underline="hover">
+        <Link href={`${SHOP_BASE}/`} variant="caption" color="text.secondary" underline="hover">
           See more...
         </Link>
       </Box>

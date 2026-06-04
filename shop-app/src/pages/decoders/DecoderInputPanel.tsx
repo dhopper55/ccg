@@ -51,6 +51,7 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange }: 
   const [emailSubmitMessage, setEmailSubmitMessage] = useState('');
   const [emailSubmitError, setEmailSubmitError] = useState('');
   const [isSubmittingEmail, setIsSubmittingEmail] = useState(false);
+  const [notesExpanded, setNotesExpanded] = useState(false);
   const initialSerial = searchParams.get('serial')?.trim() || '';
   const hasAutoDecodedRef = useRef(false);
 
@@ -76,6 +77,7 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange }: 
     setEmailAddress('');
     setEmailSubmitMessage('');
     setEmailSubmitError('');
+    setNotesExpanded(false);
     onAdditionalInfoChange('');
   };
 
@@ -333,43 +335,88 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange }: 
               </Link>
             </Stack>
             <Stack direction="column" divider={<Divider sx={{ borderColor: 'dividerLight', opacity: 0.59 }} />}>
-              {resultFields.map((field) => (
-                <Stack
-                  key={field.label}
-                  direction="row"
-                  sx={{
-                    alignItems: 'flex-start',
-                    justifyContent: 'space-between',
-                    gap: 2,
-                    py: 0.75,
-                    width: 1,
-                  }}
-                >
-                  <Typography
-                    variant="body2"
+              {resultFields.map((field) => {
+                const isNotes = field.label === 'Notes';
+                const notesPreviewLen = 72;
+                const notesTooLong = isNotes && (field.value?.length ?? 0) > notesPreviewLen;
+                return (
+                  <Stack
+                    key={field.label}
+                    direction="row"
                     sx={{
-                      color: 'text.secondary',
-                      fontWeight: 600,
-                      flexShrink: 0,
+                      alignItems: 'flex-start',
+                      justifyContent: 'space-between',
+                      gap: 2,
+                      py: 0.75,
+                      width: 1,
                     }}
                   >
-                    {field.label}
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      color: 'text.primary',
-                      fontWeight: 600,
-                      textAlign: 'right',
-                      whiteSpace: 'pre-wrap',
-                      wordBreak: 'break-word',
-                      maxWidth: { xs: '60%', md: '70%' },
-                    }}
-                  >
-                    {field.value}
-                  </Typography>
-                </Stack>
-              ))}
+                    <Typography
+                      variant="body2"
+                      sx={{ color: 'text.secondary', fontWeight: 600, flexShrink: 0 }}
+                    >
+                      {field.label}
+                    </Typography>
+                    {isNotes && notesTooLong ? (
+                      <Box sx={{ textAlign: 'right', maxWidth: { xs: '60%', md: '70%' } }}>
+                        {notesExpanded ? (
+                          <>
+                            <Typography
+                              variant="body2"
+                              sx={{ color: 'text.primary', fontWeight: 600, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                            >
+                              {field.value}
+                            </Typography>
+                            <Link
+                              component="button"
+                              type="button"
+                              onClick={() => setNotesExpanded(false)}
+                              underline="hover"
+                              color="warning.main"
+                              sx={{ fontSize: 11, fontWeight: 600, mt: 0.5, display: 'block' }}
+                            >
+                              Less
+                            </Link>
+                          </>
+                        ) : (
+                          <>
+                            <Typography
+                              variant="body2"
+                              sx={{ color: 'text.primary', fontWeight: 600, wordBreak: 'break-word' }}
+                            >
+                              {field.value!.slice(0, notesPreviewLen).trimEnd()}…
+                            </Typography>
+                            <Link
+                              component="button"
+                              type="button"
+                              onClick={() => setNotesExpanded(true)}
+                              underline="hover"
+                              color="warning.main"
+                              sx={{ fontSize: 11, fontWeight: 600, mt: 0.5, display: 'block' }}
+                            >
+                              More info
+                            </Link>
+                          </>
+                        )}
+                      </Box>
+                    ) : (
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: 'text.primary',
+                          fontWeight: 600,
+                          textAlign: 'right',
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word',
+                          maxWidth: { xs: '60%', md: '70%' },
+                        }}
+                      >
+                        {field.value}
+                      </Typography>
+                    )}
+                  </Stack>
+                );
+              })}
             </Stack>
             <DecoderAccessorySuggestions count={9} />
           </Box>
