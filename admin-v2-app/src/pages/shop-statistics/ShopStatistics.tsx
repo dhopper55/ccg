@@ -89,13 +89,20 @@ function formatTimestampMountain(value: string): string {
   }).format(parsed).replace(',', '');
 }
 
-function formatMetadata(value: string): string {
-  if (!value) return '';
+function classifySource(referrer: string): { label: string; color: 'default' | 'primary' | 'secondary' | 'info' | 'success' | 'warning' | 'error' } {
+  if (!referrer) return { label: 'Direct', color: 'default' };
   try {
-    return JSON.stringify(JSON.parse(value), null, 2);
+    const url = new URL(referrer);
+    const host = url.hostname.toLowerCase().replace(/^www\./, '');
+    if (host === 'coalcreekguitars.com') {
+      if (url.pathname.startsWith('/decoders/')) return { label: 'Serial Decoders', color: 'warning' };
+      if (url.pathname.startsWith('/guitars-and-gear-for-sale/')) return { label: 'Product List', color: 'info' };
+      return { label: 'Our Site', color: 'secondary' };
+    }
   } catch {
-    return value;
+    // invalid referrer URL
   }
+  return { label: 'Internet', color: 'success' };
 }
 
 const ShopStatistics = () => {
@@ -277,8 +284,7 @@ const ShopStatistics = () => {
                   </TableSortLabel>
                 </TableCell>
                 <TableCell>Event</TableCell>
-                <TableCell sx={{ minWidth: 260 }}>Page</TableCell>
-                <TableCell sx={{ minWidth: 260 }}>Product</TableCell>
+                <TableCell sx={{ minWidth: 200 }}>Product</TableCell>
                 <TableCell>Session</TableCell>
                 <TableCell>Source</TableCell>
                 <TableCell align="right">Actions</TableCell>
@@ -287,7 +293,7 @@ const ShopStatistics = () => {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7}>
+                  <TableCell colSpan={6}>
                     <Stack sx={{ alignItems: 'center', py: 6 }} spacing={2}>
                       <CircularProgress size={28} />
                       <Typography sx={{ color: 'text.secondary' }}>Loading shop statistics...</Typography>
@@ -296,7 +302,7 @@ const ShopStatistics = () => {
                 </TableRow>
               ) : records.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7}>
+                  <TableCell colSpan={6}>
                     <Typography sx={{ py: 4, color: 'text.secondary' }}>
                       No shop events match the current filters.
                     </Typography>
@@ -330,27 +336,6 @@ const ShopStatistics = () => {
                         </Stack>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
-                          {record.pagePath || '-'}
-                        </Typography>
-                        {record.metadataJson ? (
-                          <Typography
-                            component="pre"
-                            variant="caption"
-                            sx={{
-                              color: 'text.secondary',
-                              fontFamily: 'monospace',
-                              m: 0,
-                              mt: 0.5,
-                              whiteSpace: 'pre-wrap',
-                              wordBreak: 'break-word',
-                            }}
-                          >
-                            {formatMetadata(record.metadataJson)}
-                          </Typography>
-                        ) : null}
-                      </TableCell>
-                      <TableCell>
                         <Typography variant="body2" fontWeight={600}>
                           {productLabel}
                         </Typography>
@@ -366,27 +351,19 @@ const ShopStatistics = () => {
                         </Typography>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2">
-                          {[record.country, record.colo].filter(Boolean).join(' / ') || '-'}
-                        </Typography>
-                        <Tooltip title={record.referrer || 'No referrer'}>
-                          <Typography
-                            variant="caption"
-                            color="text.secondary"
-                            sx={{ display: 'block', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                          >
-                            {record.referrer || 'Direct'}
+                        {(() => {
+                          const src = classifySource(record.referrer);
+                          return (
+                            <Tooltip title={record.referrer || 'No referrer'}>
+                              <Chip size="small" label={src.label} color={src.color} />
+                            </Tooltip>
+                          );
+                        })()}
+                        {[record.country, record.colo].filter(Boolean).length > 0 && (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                            {[record.country, record.colo].filter(Boolean).join(' / ')}
                           </Typography>
-                        </Tooltip>
-                        <Tooltip title={record.userAgent || 'No user agent'}>
-                          <Typography
-                            variant="caption"
-                            color="text.secondary"
-                            sx={{ display: 'block', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                          >
-                            {record.userAgent || '-'}
-                          </Typography>
-                        </Tooltip>
+                        )}
                       </TableCell>
                       <TableCell align="right">
                         <Tooltip title="Hard delete event">

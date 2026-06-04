@@ -1,9 +1,10 @@
 import { KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Button, Divider, Link, Paper, Stack, Typography } from '@mui/material';
+import { Box, Button, Divider, Link, Stack, Typography } from '@mui/material';
 import { useSearchParams } from 'react-router';
 import IconifyIcon from 'components/base/IconifyIcon';
 import SectionHeader from 'components/common/SectionHeader';
 import StyledTextField from 'components/styled/StyledTextField';
+import DecoderAccessorySuggestions from './DecoderAccessorySuggestions';
 
 const DECODE_URL = 'https://www.coalcreekguitars.com/api/decode';
 const DECODE_EMAIL_URL = 'https://www.coalcreekguitars.com/api/decode/email';
@@ -191,11 +192,10 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange }: 
   }, [decodedInfo, errorMessage, initialSerial, isLoading]);
 
   return (
-    <Paper
+    <Box
       sx={{
         height: 1,
-        overflow: 'hidden',
-        p: { xs: 3, md: 5 },
+        p: { xs: 2, md: 4 },
         display: 'flex',
         flexDirection: 'column',
       }}
@@ -261,6 +261,7 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange }: 
                 {isLoading ? 'Decoding...' : 'Decode'}
               </Button>
             </Box>
+            <DecoderAccessorySuggestions count={9} />
           </>
         )}
 
@@ -304,7 +305,7 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange }: 
         )}
 
         {resultFields.length > 0 && (
-          <Box sx={{ width: 1, mt: 3 }}>
+          <Box sx={{ width: 1, mt: 2 }}>
             <Divider sx={{ borderColor: 'dividerLight', opacity: 0.59 }} />
             <Stack
               direction="row"
@@ -312,12 +313,12 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange }: 
                 alignItems: 'baseline',
                 justifyContent: 'space-between',
                 gap: 2,
-                mt: 2.5,
-                mb: 1,
+                mt: 1.5,
+                mb: 0.5,
                 flexWrap: 'wrap',
               }}
             >
-              <Typography variant="h6" sx={{ color: 'text.primary', fontWeight: 700 }}>
+              <Typography variant="subtitle2" sx={{ color: 'text.primary', fontWeight: 700 }}>
                 Decoder Results
               </Typography>
               <Link
@@ -339,26 +340,26 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange }: 
                   sx={{
                     alignItems: 'flex-start',
                     justifyContent: 'space-between',
-                    gap: 3,
-                    py: 1.5,
+                    gap: 2,
+                    py: 0.75,
                     width: 1,
                   }}
                 >
                   <Typography
-                    variant="h6"
+                    variant="body2"
                     sx={{
                       color: 'text.secondary',
-                      fontWeight: 700,
+                      fontWeight: 600,
                       flexShrink: 0,
                     }}
                   >
                     {field.label}
                   </Typography>
                   <Typography
-                    variant="h6"
+                    variant="body2"
                     sx={{
                       color: 'text.primary',
-                      fontWeight: 700,
+                      fontWeight: 600,
                       textAlign: 'right',
                       whiteSpace: 'pre-wrap',
                       wordBreak: 'break-word',
@@ -370,10 +371,11 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange }: 
                 </Stack>
               ))}
             </Stack>
+            <DecoderAccessorySuggestions count={9} />
           </Box>
         )}
       </Box>
-    </Paper>
+    </Box>
   );
 };
 
