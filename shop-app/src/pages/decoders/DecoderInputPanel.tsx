@@ -197,7 +197,10 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange }: 
     <Box
       sx={{
         height: 1,
-        p: { xs: 2, md: 4 },
+        pt: { xs: 2, md: 3 },
+        pr: { xs: 2, md: 3 },
+        pb: { xs: 2, md: 3 },
+        pl: { xs: 1, md: '10px' },
         display: 'flex',
         flexDirection: 'column',
       }}
@@ -320,7 +323,7 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange }: 
                 flexWrap: 'wrap',
               }}
             >
-              <Typography variant="subtitle2" sx={{ color: 'text.primary', fontWeight: 700 }}>
+              <Typography variant="body2" sx={{ color: 'text.primary', fontWeight: 700 }}>
                 Decoder Results
               </Typography>
               <Link
@@ -337,76 +340,57 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange }: 
             <Stack direction="column" divider={<Divider sx={{ borderColor: 'dividerLight', opacity: 0.59 }} />}>
               {resultFields.map((field) => {
                 const isNotes = field.label === 'Notes';
-                const notesPreviewLen = 72;
+                const notesPreviewLen = 46;
                 const notesTooLong = isNotes && (field.value?.length ?? 0) > notesPreviewLen;
                 return (
                   <Stack
                     key={field.label}
                     direction="row"
                     sx={{
-                      alignItems: 'flex-start',
+                      alignItems: 'baseline',
                       justifyContent: 'space-between',
                       gap: 2,
-                      py: 0.75,
+                      py: 0.5,
                       width: 1,
                     }}
                   >
                     <Typography
-                      variant="body2"
-                      sx={{ color: 'text.secondary', fontWeight: 600, flexShrink: 0 }}
+                      variant="caption"
+                      sx={{ color: 'text.secondary', fontWeight: 400, flexShrink: 0 }}
                     >
                       {field.label}
                     </Typography>
                     {isNotes && notesTooLong ? (
-                      <Box sx={{ textAlign: 'right', maxWidth: { xs: '60%', md: '70%' } }}>
-                        {notesExpanded ? (
-                          <>
-                            <Typography
-                              variant="body2"
-                              sx={{ color: 'text.primary', fontWeight: 600, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
-                            >
-                              {field.value}
-                            </Typography>
-                            <Link
-                              component="button"
-                              type="button"
-                              onClick={() => setNotesExpanded(false)}
-                              underline="hover"
-                              color="warning.main"
-                              sx={{ fontSize: 11, fontWeight: 600, mt: 0.5, display: 'block' }}
-                            >
-                              Less
-                            </Link>
-                          </>
-                        ) : (
-                          <>
-                            <Typography
-                              variant="body2"
-                              sx={{ color: 'text.primary', fontWeight: 600, wordBreak: 'break-word' }}
-                            >
-                              {field.value!.slice(0, notesPreviewLen).trimEnd()}…
-                            </Typography>
-                            <Link
-                              component="button"
-                              type="button"
-                              onClick={() => setNotesExpanded(true)}
-                              underline="hover"
-                              color="warning.main"
-                              sx={{ fontSize: 11, fontWeight: 600, mt: 0.5, display: 'block' }}
-                            >
-                              More info
-                            </Link>
-                          </>
-                        )}
-                      </Box>
+                      notesExpanded ? (
+                        <Typography
+                          variant="caption"
+                          component="div"
+                          sx={{ color: 'text.primary', fontWeight: 500, textAlign: 'right', wordBreak: 'break-word', maxWidth: { xs: '60%', md: '70%' } }}
+                        >
+                          {field.value}{' '}
+                          <Box component="span" onClick={() => setNotesExpanded(false)} sx={{ color: 'warning.main', cursor: 'pointer', fontWeight: 700 }}>
+                            Less
+                          </Box>
+                        </Typography>
+                      ) : (
+                        <Typography
+                          variant="caption"
+                          component="div"
+                          sx={{ color: 'text.primary', fontWeight: 500, textAlign: 'right', maxWidth: { xs: '60%', md: '70%' } }}
+                        >
+                          {field.value!.slice(0, notesPreviewLen).trimEnd()}…{' '}
+                          <Box component="span" onClick={() => setNotesExpanded(true)} sx={{ color: 'warning.main', cursor: 'pointer', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                            More info
+                          </Box>
+                        </Typography>
+                      )
                     ) : (
                       <Typography
-                        variant="body2"
+                        variant="caption"
                         sx={{
                           color: 'text.primary',
-                          fontWeight: 600,
+                          fontWeight: 500,
                           textAlign: 'right',
-                          whiteSpace: 'pre-wrap',
                           wordBreak: 'break-word',
                           maxWidth: { xs: '60%', md: '70%' },
                         }}
