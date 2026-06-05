@@ -46,6 +46,11 @@ export function decodeYamaha(serial) {
     if (/^\d{5}$/.test(normalized)) {
         return decodeTenryu1946(normalized);
     }
+    // Standard format extended: Letter-Letter-##-##### (2 letters + 7 digits, e.g., QM0303325)
+    // Same year/month/day letter encoding as standard format, larger unit number block.
+    if (/^[A-Z]{2}\d{7}$/.test(normalized)) {
+        return decodeStandardExtended(normalized);
+    }
     // Standard format: Letter-Letter-##-### (e.g., HM02316)
     if (/^[A-Z]{2}\d{5}$/.test(normalized)) {
         return decodeStandard(normalized);
@@ -154,6 +159,33 @@ function decodeStandard(serial) {
         day: day > 0 && day <= 31 ? day.toString() : undefined,
         country: 'Japan (likely)',
         notes: `Unit #${unit} built on day ${day}. Yamaha serial numbers repeat every 10 years, so the exact decade may need to be determined by model features.`
+    };
+    return { success: true, info };
+}
+// Standard format extended: Letter-Letter-##-##### (2 letters + 7 digits)
+function decodeStandardExtended(serial) {
+    const yearLetter = serial[0];
+    const monthLetter = serial[1];
+    const day = parseInt(serial.substring(2, 4), 10);
+    const unit = parseInt(serial.substring(4), 10);
+    const yearDigit = getYearDigit(yearLetter);
+    const month = getMonthFromLetter(monthLetter);
+    if (yearDigit === -1 || month === 0) {
+        return {
+            success: false,
+            error: 'Invalid year or month code in serial number.',
+        };
+    }
+    const possibleYears = getPossibleYears(yearDigit);
+    const info = {
+        brand: 'Yamaha',
+        serialNumber: serial,
+        year: possibleYears,
+        month: getMonthName(month),
+        day: day > 0 && day <= 31 ? day.toString() : undefined,
+        factory: 'Taiwan (Kaohsiung), Indonesia (YMMI), or China',
+        country: 'Taiwan, Indonesia, or China',
+        notes: `Unit #${unit} built on day ${day}. Extended standard format (2-letter year/month code + 7-digit production block). Used on mid-range to premium Yamaha acoustics, electrics, and basses from Taiwan, Indonesia, and China factories. Yamaha serial years repeat on a 10-year cycle, so the exact decade should be confirmed from the model name and the country-of-origin label inside the body or on the back of the headstock.`,
     };
     return { success: true, info };
 }
