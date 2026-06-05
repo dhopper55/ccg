@@ -125,7 +125,7 @@ const SHOP_FLAT_RATE_SHIPPING_CENTS = 600;
 const SHOP_FREE_SHIPPING_THRESHOLD_CENTS = 7500;
 const CCG_YOUTUBE_CHANNEL_ID = 'UCV-kDQjH_cWcsxwg0GZKX3g';
 const DEFAULT_CO_SALES_TAX_RATE_ID = 'txr_1TSEdADCplz62P7p4H6E7YJK';
-const ALLOWED_MFR_CODES = new Set(['DUNLOP', 'NOMAD']);
+const ALLOWED_MFR_CODES = new Set(['DUNLOP', 'NOMAD', "D'ADDARIO"]);
 const SHOP_COUPONS = new Map<string, { amountOffCents: number }>([
   ['TAKE100', { amountOffCents: 10000 }],
 ]);

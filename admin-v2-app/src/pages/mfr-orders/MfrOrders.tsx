@@ -61,7 +61,7 @@ type NewOrderForm = {
 };
 
 const todayYmd = () => new Date().toISOString().slice(0, 10);
-const mfrCodeOptions = ['DUNLOP', 'NOMAD'];
+const mfrCodeOptions = ["D'ADDARIO", 'DUNLOP', 'NOMAD'];
 
 const defaultForm = (): NewOrderForm => ({
   poNumber: '',
