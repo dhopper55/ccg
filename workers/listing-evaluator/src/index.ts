@@ -3032,6 +3032,7 @@ type ShopProductRow = {
   for_sale?: number | null;
   only_in_store?: number | null;
   is_sold: number | null;
+  merchant_center_cat_code?: string | null;
 };
 
 type InventoryItemImageRow = {
@@ -5688,6 +5689,53 @@ type GoogleMerchantFeedProduct = {
   productType: string;
   shippingWeight: string;
   allowShipping: boolean;
+  googleProductCategory: string;
+};
+
+const MERCHANT_CENTER_CATEGORY_MAP: Record<string, string> = {
+  MUSICAL_INSTRUMENT: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments',
+  STRING_INSTRUMENT: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments',
+  GUITAR: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Guitars',
+  BASS_GUITAR: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Bass Guitars',
+  UKULELE: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Ukuleles',
+  BANJO: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Banjos',
+  MANDOLIN: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Mandolins',
+  VIOLIN: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Violins',
+  VIOLA: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Violas',
+  CELLO: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Cellos',
+  DOUBLE_BASS: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Double Basses',
+  HARP: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Harps',
+  KEYBOARD_INSTRUMENT: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Keyboard Instruments',
+  PIANO: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Keyboard Instruments > Pianos',
+  DIGITAL_PIANO: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Keyboard Instruments > Digital Pianos',
+  SYNTHESIZER: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Keyboard Instruments > Synthesizers',
+  DRUMS_AND_PERCUSSION: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Percussion',
+  DRUM_SET: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Percussion > Drum Sets',
+  CYMBAL: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Percussion > Cymbals',
+  WIND_INSTRUMENT: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Wind Instruments',
+  FLUTE: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Wind Instruments > Flutes',
+  CLARINET: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Wind Instruments > Clarinets',
+  SAXOPHONE: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Wind Instruments > Saxophones',
+  TRUMPET: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Wind Instruments > Trumpets',
+  TROMBONE: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Wind Instruments > Trombones',
+  MUSICAL_INSTRUMENT_ACCESSORY: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories',
+  STRINGS: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Strings',
+  PICKS: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Plectrums',
+  TUNER: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Tuners',
+  METRONOME: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Metronomes',
+  CAPO: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Capos',
+  SLIDE: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Slides',
+  STRAP: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Straps',
+  CASE: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Cases',
+  STAND: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Stands',
+  EFFECTS_PEDAL: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Effects Pedals',
+  PEDALBOARD: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Pedalboards',
+  PICKUP: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Pickups',
+  AMPLIFIER: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Amplifiers',
+  AMPLIFIER_HEAD: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Amplifiers',
+  SPEAKER_CABINET: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Amplifiers',
+  MUSIC_BOOK: 'Media > Books > Music Books',
+  SHEET_MUSIC: 'Media > Books > Sheet Music',
 };
 
 function renderGoogleMerchantFeedItem(product: GoogleMerchantFeedProduct): string {
@@ -5723,6 +5771,7 @@ function renderGoogleMerchantFeedItem(product: GoogleMerchantFeedProduct): strin
   if (product.brand) item.push(`      <g:brand>${escapeXml(product.brand)}</g:brand>`);
   if (product.gtin) item.push(`      <g:gtin>${escapeXml(product.gtin)}</g:gtin>`);
   if (product.productType) item.push(`      <g:product_type>${escapeXml(product.productType)}</g:product_type>`);
+  if (product.googleProductCategory) item.push(`      <g:google_product_category>${escapeXml(product.googleProductCategory)}</g:google_product_category>`);
   if (product.shippingWeight) item.push(`      <g:shipping_weight>${escapeXml(product.shippingWeight)}</g:shipping_weight>`);
 
   if (product.allowShipping) {
@@ -10571,6 +10620,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
       i.sale_zip,
       i.storage_location,
       i.sold_channel,
+      i.merchant_center_cat_code,
       i.created_at,
       i.updated_at
      FROM ccg_inventory_items i
@@ -11373,6 +11423,7 @@ async function dbListGoogleMerchantProducts(env: Env): Promise<GoogleMerchantFee
        i.sale_description,
        i.weight_lbs,
        i.allow_shipping,
+       i.merchant_center_cat_code,
        ${INVENTORY_CATEGORY_SELECT_SQL},
        i.is_sold
      FROM ccg_inventory_items i
@@ -11435,6 +11486,7 @@ async function dbListGoogleMerchantProducts(env: Env): Promise<GoogleMerchantFee
       productType,
       shippingWeight,
       allowShipping: Boolean(row.allow_shipping),
+      googleProductCategory: MERCHANT_CENTER_CATEGORY_MAP[normalizeText(row.merchant_center_cat_code, '')] ?? '',
     };
   }).filter((record): record is GoogleMerchantFeedProduct => Boolean(record));
 }
