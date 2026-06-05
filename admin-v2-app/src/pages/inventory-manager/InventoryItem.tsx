@@ -66,6 +66,7 @@ type InventoryItemRecord = {
   bullet6Danger?: boolean;
   bullet6Highlight?: boolean;
   barcode?: string;
+  merchantCenterCatCode?: string | null;
   title: string;
   categoryId?: number | null;
   categoryName?: string;
@@ -210,6 +211,7 @@ type FormState = {
   bullet6Highlight: boolean;
   barcode: string;
   title: string;
+  merchantCenterCatCode: string;
   categoryId: string;
   secondaryCategoryId: string;
   brand: string;
@@ -288,6 +290,52 @@ const INVENTORY_QUEUE_OPTIONS = [
   'Rented',
   'Parking Lot',
 ] as const;
+
+const MERCHANT_CENTER_CATEGORY_OPTIONS: { key: string; value: string }[] = [
+  { key: 'MUSICAL_INSTRUMENT', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments' },
+  { key: 'STRING_INSTRUMENT', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments' },
+  { key: 'GUITAR', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Guitars' },
+  { key: 'BASS_GUITAR', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Bass Guitars' },
+  { key: 'UKULELE', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Ukuleles' },
+  { key: 'BANJO', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Banjos' },
+  { key: 'MANDOLIN', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Mandolins' },
+  { key: 'VIOLIN', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Violins' },
+  { key: 'VIOLA', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Violas' },
+  { key: 'CELLO', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Cellos' },
+  { key: 'DOUBLE_BASS', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Double Basses' },
+  { key: 'HARP', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Harps' },
+  { key: 'KEYBOARD_INSTRUMENT', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Keyboard Instruments' },
+  { key: 'PIANO', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Keyboard Instruments > Pianos' },
+  { key: 'DIGITAL_PIANO', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Keyboard Instruments > Digital Pianos' },
+  { key: 'SYNTHESIZER', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Keyboard Instruments > Synthesizers' },
+  { key: 'DRUMS_AND_PERCUSSION', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Percussion' },
+  { key: 'DRUM_SET', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Percussion > Drum Sets' },
+  { key: 'CYMBAL', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Percussion > Cymbals' },
+  { key: 'WIND_INSTRUMENT', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Wind Instruments' },
+  { key: 'FLUTE', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Wind Instruments > Flutes' },
+  { key: 'CLARINET', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Wind Instruments > Clarinets' },
+  { key: 'SAXOPHONE', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Wind Instruments > Saxophones' },
+  { key: 'TRUMPET', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Wind Instruments > Trumpets' },
+  { key: 'TROMBONE', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Wind Instruments > Trombones' },
+  { key: 'MUSICAL_INSTRUMENT_ACCESSORY', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories' },
+  { key: 'STRINGS', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Strings' },
+  { key: 'PICKS', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Plectrums' },
+  { key: 'TUNER', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Tuners' },
+  { key: 'METRONOME', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Metronomes' },
+  { key: 'CAPO', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Capos' },
+  { key: 'SLIDE', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Slides' },
+  { key: 'STRAP', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Straps' },
+  { key: 'CASE', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Cases' },
+  { key: 'STAND', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Stands' },
+  { key: 'EFFECTS_PEDAL', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Effects Pedals' },
+  { key: 'PEDALBOARD', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Pedalboards' },
+  { key: 'PICKUP', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Pickups' },
+  { key: 'AMPLIFIER', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Amplifiers' },
+  { key: 'AMPLIFIER_HEAD', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Amplifiers' },
+  { key: 'SPEAKER_CABINET', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Amplifiers' },
+  { key: 'MUSIC_BOOK', value: 'Media > Books > Music Books' },
+  { key: 'SHEET_MUSIC', value: 'Media > Books > Sheet Music' },
+];
 
 type InventoryCategoryNode = {
   id: number;
@@ -422,6 +470,7 @@ const DEFAULT_FORM: FormState = {
   bullet6Danger: false,
   bullet6Highlight: false,
   barcode: '',
+  merchantCenterCatCode: '',
   title: '',
   categoryId: '',
   secondaryCategoryId: '',
@@ -1217,6 +1266,7 @@ const InventoryItem = () => {
             bullet6Danger: Boolean(record.bullet6Danger),
             bullet6Highlight: Boolean(record.bullet6Highlight),
             barcode: record.barcode || '',
+            merchantCenterCatCode: record.merchantCenterCatCode || '',
             title: record.title || '',
             categoryId: record.categoryId != null ? String(record.categoryId) : '',
             secondaryCategoryId:
@@ -1341,6 +1391,7 @@ const InventoryItem = () => {
             bullet6Danger: Boolean(record.bullet6Danger),
             bullet6Highlight: Boolean(record.bullet6Highlight),
             barcode: '',
+            merchantCenterCatCode: record.merchantCenterCatCode || '',
             title: record.title || '',
             categoryId: record.categoryId != null ? String(record.categoryId) : '',
             secondaryCategoryId:
@@ -1656,6 +1707,7 @@ const InventoryItem = () => {
     bullet6Danger: form.bullet6Danger,
     bullet6Highlight: form.bullet6Highlight,
     barcode: form.barcode.trim(),
+    merchantCenterCatCode: form.merchantCenterCatCode || null,
     title: form.title.trim(),
     categoryId: form.categoryId,
     secondaryCategoryId: form.secondaryCategoryId || null,
@@ -2062,6 +2114,10 @@ const InventoryItem = () => {
     }
     if (!form.queue.trim()) {
       setMessage({ severity: 'error', text: 'Queue is required.' });
+      return;
+    }
+    if (!form.merchantCenterCatCode.trim()) {
+      setMessage({ severity: 'error', text: 'Merchant Center Category is required.' });
       return;
     }
     const barcodeValidationError = form.barcode.trim()
@@ -2663,7 +2719,7 @@ const InventoryItem = () => {
                 />
               </Grid>
 
-              <Grid size={{ xs: 12, md: 4 }}>
+              <Grid size={{ xs: 12, md: 3 }}>
                 <TextField
                   select
                   fullWidth
@@ -2679,7 +2735,7 @@ const InventoryItem = () => {
                 </TextField>
               </Grid>
 
-              <Grid size={{ xs: 12, md: 4 }}>
+              <Grid size={{ xs: 12, md: 3 }}>
                 <TextField
                   select
                   fullWidth
@@ -2695,7 +2751,7 @@ const InventoryItem = () => {
                 </TextField>
               </Grid>
 
-              <Grid size={{ xs: 12, md: 4 }}>
+              <Grid size={{ xs: 12, md: 3 }}>
                 <TextField
                   select
                   fullWidth
@@ -2715,6 +2771,23 @@ const InventoryItem = () => {
                   {secondaryCategoryOptions.map((option) => (
                     <MenuItem key={`secondary-${option.id}`} value={option.id}>
                       {option.name}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+
+              <Grid size={{ xs: 12, md: 3 }}>
+                <TextField
+                  select
+                  fullWidth
+                  label="Merchant Center Category"
+                  value={form.merchantCenterCatCode}
+                  onChange={(event) => setField('merchantCenterCatCode', event.target.value)}
+                >
+                  <MenuItem value="">—</MenuItem>
+                  {MERCHANT_CENTER_CATEGORY_OPTIONS.map((option) => (
+                    <MenuItem key={option.key} value={option.key}>
+                      {option.key}
                     </MenuItem>
                   ))}
                 </TextField>

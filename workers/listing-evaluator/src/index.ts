@@ -2864,6 +2864,7 @@ type InventoryItemRow = {
   sale_zip: string | null;
   storage_location: string | null;
   sold_channel: string | null;
+  merchant_center_cat_code: string | null;
   created_at: string | null;
   updated_at: string | null;
 };
@@ -5686,6 +5687,7 @@ type GoogleMerchantFeedProduct = {
   identifierExists: boolean;
   productType: string;
   shippingWeight: string;
+  allowShipping: boolean;
 };
 
 function renderGoogleMerchantFeedItem(product: GoogleMerchantFeedProduct): string {
@@ -5723,12 +5725,23 @@ function renderGoogleMerchantFeedItem(product: GoogleMerchantFeedProduct): strin
   if (product.productType) item.push(`      <g:product_type>${escapeXml(product.productType)}</g:product_type>`);
   if (product.shippingWeight) item.push(`      <g:shipping_weight>${escapeXml(product.shippingWeight)}</g:shipping_weight>`);
 
+  if (product.allowShipping) {
+    item.push(
+      '      <g:shipping>',
+      '        <g:country>US</g:country>',
+      '        <g:service>Standard</g:service>',
+      `        <g:price>${formatMerchantPrice(effectivePrice >= 75 ? 0 : 6)}</g:price>`,
+      '      </g:shipping>',
+      '      <g:shipping_label>ships_nationwide</g:shipping_label>',
+    );
+  } else {
+    item.push(
+      '      <g:pickup_method>buy</g:pickup_method>',
+      '      <g:pickup_SLA>same_day</g:pickup_SLA>',
+    );
+  }
+
   item.push(
-    '      <g:shipping>',
-    '        <g:country>US</g:country>',
-    '        <g:service>Standard</g:service>',
-    `        <g:price>${formatMerchantPrice(effectivePrice >= 75 ? 0 : 6)}</g:price>`,
-    '      </g:shipping>',
     `      <g:ads_redirect>${escapeXml(product.link)}</g:ads_redirect>`,
     '    </item>',
   );
@@ -8340,6 +8353,7 @@ async function handleInventoryCreate(request: Request, env: Env): Promise<Respon
     sell_notes: sellNotes || null,
     sale_url: saleUrl || null,
     sale_zip: saleZip || null,
+    merchant_center_cat_code: normalizeText(body.merchantCenterCatCode, '').slice(0, 50) || null,
   }, env);
 
   if (!inserted) {
@@ -8547,6 +8561,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
   const saleZip = normalizeText(body.saleZip, '').slice(0, 10);
   const storageLocation = normalizeText(body.storageLocation, '').slice(0, 100);
   const soldChannel = normalizeText(body.soldChannel, '').slice(0, 100);
+  const merchantCenterCatCode = normalizeText(body.merchantCenterCatCode, '').slice(0, 50) || null;
   const salesChannelFields = {
     sales_channel_ccg: salesChannelCcg ? 1 : 0,
     sales_channel_fbm: salesChannelFbm ? 1 : 0,
@@ -8736,6 +8751,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       sale_url: saleUrl || null,
       sale_zip: saleZip || null,
       sold_channel: null,
+      merchant_center_cat_code: merchantCenterCatCode,
     }, env);
     if (!remainingUpdateOk) return jsonResponse({ message: 'Unable to update remaining inventory item.' }, 500);
     await dbSetInventorySoldAvailability(recordId, false, env);
@@ -8897,6 +8913,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
       sale_url: saleUrl || null,
       sale_zip: saleZip || null,
       sold_channel: soldChannel || null,
+      merchant_center_cat_code: merchantCenterCatCode,
     }, env);
     if (!soldCloneOk) return jsonResponse({ message: 'Unable to update sold inventory item.' }, 500);
     await dbSetInventorySoldAvailability(soldInsert.firstId, true, env);
@@ -9015,6 +9032,7 @@ async function handleInventoryUpdate(request: Request, path: string, env: Env): 
     sale_url: saleUrl || null,
     sale_zip: saleZip || null,
     sold_channel: soldChannel || null,
+    merchant_center_cat_code: merchantCenterCatCode,
   }, env);
   if (!updateOk) return jsonResponse({ message: 'Unable to update inventory item.' }, 500);
   await dbSetInventorySoldAvailability(recordId, isSold, env);
@@ -10187,6 +10205,7 @@ function mapInventoryRow(
     soldAmount: row.sold_amount,
     sellNotes: row.sell_notes || '',
     saleUrl: row.sale_url || '',
+    merchantCenterCatCode: row.merchant_center_cat_code || null,
     createdAt: row.created_at || '',
     updatedAt: row.updated_at || '',
     sourceListingPriceAsking: row.source_listing_price_asking ?? null,
@@ -11353,6 +11372,7 @@ async function dbListGoogleMerchantProducts(env: Env): Promise<GoogleMerchantFee
        i.barcode,
        i.sale_description,
        i.weight_lbs,
+       i.allow_shipping,
        ${INVENTORY_CATEGORY_SELECT_SQL},
        i.is_sold
      FROM ccg_inventory_items i
@@ -11361,7 +11381,6 @@ async function dbListGoogleMerchantProducts(env: Env): Promise<GoogleMerchantFee
        AND COALESCE(i.for_sale, 0) = 1
        AND COALESCE(i.is_sold, 0) = 0
        AND COALESCE(i.only_in_store, 0) = 0
-       AND COALESCE(i.allow_shipping, 0) = 1
        AND COALESCE(i.is_rented, 0) = 0
        AND TRIM(COALESCE(i.barcode, '')) != ''
        AND TRIM(COALESCE(i.sale_url, '')) != ''
@@ -11416,6 +11435,7 @@ async function dbListGoogleMerchantProducts(env: Env): Promise<GoogleMerchantFee
       identifierExists: Boolean(gtin),
       productType,
       shippingWeight,
+      allowShipping: Boolean(row.allow_shipping),
     };
   }).filter((record): record is GoogleMerchantFeedProduct => Boolean(record));
 }
