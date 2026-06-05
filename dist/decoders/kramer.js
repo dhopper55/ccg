@@ -44,6 +44,12 @@ export function decodeKramer(serial) {
     if (/^SI\d{8}$/.test(normalized)) {
         return decodeSamickIndonesiaSI(normalized, cleaned);
     }
+    // Vintage 1980s Striker/Aerostar import: S + 5-digit sequential (no year encoding)
+    // Identified by first two digits that cannot be a plausible modern production year (> current decade).
+    // Must be checked before MusicYo check so future-rejected year digits route here instead.
+    if (/^S[6-9]\d{4}$/.test(normalized)) {
+        return decodeVintage1980sSStrikerSequential(normalized, cleaned);
+    }
     // MusicYo/Gibson-era Striker format: S + YY + sequence
     if (/^S\d{5}$/.test(normalized)) {
         return decodeMusicYoStrikerS(normalized, cleaned);
@@ -516,6 +522,47 @@ function decodeSamickIndonesiaSI(normalized, cleaned) {
         notes: `SI-prefix import format interpreted as SI + YYMM + sequence. Sequence: ${sequence}. SI is commonly associated with Samick Indonesia production on modern/import-era Kramer runs.`,
     };
     return { success: true, info };
+}
+function decodeVintage1980sSStrikerSequential(normalized, cleaned) {
+    const sequence = normalized.substring(1);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Kramer',
+        serialNumber: cleaned,
+        year: '1986–1989 (estimated)',
+        factory: 'Samick Korea or Japanese contracted facility',
+        country: 'South Korea or Japan',
+        model: 'Striker Series or Aerostar Series',
+        notes: `S-prefix Kramer import serial from the vintage late-1980s Striker/Aerostar production era. The five digits ${sequence} are a sequential production number (${sequenceNumber}) rather than a year-encoded date code. Kramer used S-prefix neck plates on budget overseas import lines — primarily the Striker 100, 200, and 300 and select Aerostar models — manufactured at Samick Korea and Japanese contracted facilities during the peak of the 1980s shred-guitar boom (roughly 1986–1989). Factory records from this era are incomplete and production logs have largely been lost, so exact month/year dating is not possible from the serial alone. Confirm model and origin from the headstock shape (beak/banana-style), pickup count, and neck-plate finish (chrome or black).`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'kramer-vintage-1980s-s-striker-sequential',
+        patternLabel: 'Kramer vintage 1980s S-prefix Striker/Aerostar sequential',
+        additionalContext: {
+            title: 'Kramer vintage S-prefix Striker/Aerostar serial',
+            summary: 'This serial matches the vintage late-1980s Kramer S-prefix import format used on Striker and Aerostar series overseas models. The five digits are a production sequence, not a date code.',
+            highlights: [
+                'S indicates a late-1980s Kramer import neck-plate serial, distinct from the American Series.',
+                `The digits ${sequence} are a sequential production number (${sequenceNumber}), not a year-encoded date code.`,
+                'Typically found on Striker 100/200/300 and Aerostar models from 1986–1989.',
+                'Manufactured at Samick Korea or Japanese contracted facilities.',
+            ],
+            caveats: [
+                'Kramer production records from this era are incomplete and largely lost.',
+                'Exact month and year cannot be determined from the serial alone.',
+                'S-prefix serials are import-line identifiers, not American Series neck-plate codes.',
+            ],
+            verificationTips: [
+                'Check the headstock shape: beak/banana style is characteristic of late-1980s Striker/Aerostar imports.',
+                'Note the number of pickups and tremolo type to narrow the exact model (Striker 100, 200, or 300).',
+                'Look for a Made in Korea or Made in Japan stamp on the back of the body or neck pocket.',
+                'Use the Vintage Kramer Serial Number Research Database to cross-reference similar builds.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches the vintage late-1980s Kramer S-prefix import format used on Striker and Aerostar series models. The five digits are a production sequence, not a year-encoded date code.</p><h3>How This Pattern Is Typically Read</h3><p>S indicates a late-1980s Kramer import neck-plate serial. The digits ${sequence} are sequential production number ${sequenceNumber}. This format was used on the Striker 100, 200, and 300 and select Aerostar models, built at Samick Korea and Japanese contracted facilities from roughly 1986 to 1989. Kramer records from this era are largely lost, so exact dating requires physical inspection.</p><h3>What To Verify</h3><ul><li>Headstock shape: the beak or banana-style pointy headstock is characteristic of late-1980s Striker/Aerostar imports.</li><li>Pickup count and tremolo type help narrow the exact model within the Striker range.</li><li>Look for Made in Korea or Made in Japan markings on the back of the body or neck pocket.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed late-1980s Kramer import decode. Physical features — headstock shape, hardware, neck-plate finish, and country markings — are the most reliable ways to pin down the exact model and year.</p>`,
+    };
 }
 function decodeMusicYoStrikerS(normalized, cleaned) {
     const yearPart = normalized.substring(1, 3);
