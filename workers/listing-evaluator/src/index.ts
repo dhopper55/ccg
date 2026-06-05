@@ -5811,8 +5811,10 @@ function formatMerchantPrice(value: number): string {
 
 function normalizeGoogleMerchantCondition(input: unknown): 'new' | 'used' | 'refurbished' {
   const value = normalizeText(input, '').toLowerCase();
-  if (value.includes('new')) return 'new';
   if (value.includes('refurb')) return 'refurbished';
+  // Check 'used' before 'new' so "Used - Like New" is correctly treated as used, not new.
+  if (value.includes('used')) return 'used';
+  if (value === 'new') return 'new';
   return 'used';
 }
 
@@ -10726,6 +10728,7 @@ async function dbGetInventoryItem(recordId: string, env: Env): Promise<Record<st
     saleZip: row.sale_zip || '',
     storageLocation: row.storage_location || '',
     soldChannel: row.sold_channel || '',
+    merchantCenterCatCode: row.merchant_center_cat_code || null,
     createdAt: row.created_at || '',
     updatedAt: row.updated_at || '',
   };
