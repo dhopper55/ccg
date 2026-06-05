@@ -5785,6 +5785,11 @@ function renderGoogleMerchantFeedItem(product: GoogleMerchantFeedProduct): strin
     );
   } else {
     item.push(
+      '      <g:shipping>',
+      '        <g:country>US</g:country>',
+      '        <g:service>In-store pickup</g:service>',
+      '        <g:price>0.00 USD</g:price>',
+      '      </g:shipping>',
       '      <g:pickup_method>buy</g:pickup_method>',
       '      <g:pickup_SLA>same_day</g:pickup_SLA>',
     );
