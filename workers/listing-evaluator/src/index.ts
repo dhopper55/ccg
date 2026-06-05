@@ -5751,7 +5751,7 @@ function renderGoogleMerchantFeedItem(product: GoogleMerchantFeedProduct): strin
 
 function getGoogleMerchantFeedTitle(product: GoogleMerchantFeedProduct): string {
   const title = normalizeText(product.title, '').trim();
-  if (product.condition !== 'used') return title;
+  if (product.condition === 'new') return title;
   return /^used\b/i.test(title) ? title : `Used ${title}`;
 }
 
@@ -11382,7 +11382,6 @@ async function dbListGoogleMerchantProducts(env: Env): Promise<GoogleMerchantFee
        AND COALESCE(i.is_sold, 0) = 0
        AND COALESCE(i.only_in_store, 0) = 0
        AND COALESCE(i.is_rented, 0) = 0
-       AND TRIM(COALESCE(i.barcode, '')) != ''
        AND TRIM(COALESCE(i.sale_url, '')) != ''
        AND (
          CASE
@@ -11417,7 +11416,7 @@ async function dbListGoogleMerchantProducts(env: Env): Promise<GoogleMerchantFee
     const gtin = normalizeMerchantGtin(row.barcode);
     const productType = normalizeText(row.category_path || row.category_name, '');
     const shippingWeight = normalizeMerchantShippingWeight(row.weight_lbs);
-    if (!title || !link || images.length === 0 || effectivePrice <= 0 || !gtin) return null;
+    if (!title || !link || images.length === 0 || effectivePrice <= 0) return null;
 
     return {
       id: getMerchantProductId(row),
