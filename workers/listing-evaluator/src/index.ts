@@ -13353,6 +13353,7 @@ async function dbUpdateInventoryById(
     sale_url: string | null;
     sale_zip: string | null;
     sold_channel: string | null;
+    merchant_center_cat_code: string | null;
   },
   env: Env,
 ): Promise<boolean> {
@@ -13383,6 +13384,7 @@ async function dbUpdateInventoryById(
          barcode = ?,
          is_sold = ?, sold_date = ?, sold_amount = ?, sell_notes = ?, subscription_id = ?,
          sale_url = ?, sale_zip = ?, sold_channel = ?,
+         merchant_center_cat_code = ?,
          updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
     ).bind(
@@ -13470,6 +13472,7 @@ async function dbUpdateInventoryById(
       fields.sale_url,
       fields.sale_zip,
       fields.sold_channel,
+      fields.merchant_center_cat_code,
       idValue,
     ).run();
     return true;
