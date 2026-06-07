@@ -132,6 +132,11 @@ export function decodeSquier(serial) {
     if (siMatch) {
         return decodeIndonesiaSI(siMatch[1], siMatch[2], normalized);
     }
+    // China CMC prefix (Muse factory, 2020+ four-letter format: CMC + month-letter + YY + sequence)
+    const cmcMatch = normalized.match(/^CMC([A-L])(\d{2})(\d+)$/);
+    if (cmcMatch) {
+        return decodeChinaCMC(cmcMatch[1], cmcMatch[2], cmcMatch[3], normalized);
+    }
     // China CYK + letter prefix (Yako, 2020+)
     const cykMatch = normalized.match(/^CYK([A-L])(\d{2})(\d+)$/);
     if (cykMatch) {
@@ -566,6 +571,46 @@ function decodeChinaCSinglePrefix(yearDigits, sequence, serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches an early-2000s Chinese Squier C-prefix format parsed as factory/country prefix plus production year and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>C indicates Chinese-made Squier production. The next two digits decode as production year ${year}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the headstock logo and series markings to distinguish Affinity, Bullet, and Standard models.</li><li>Confirm the Made in China or Crafted in China marking near the serial.</li><li>Use body thickness and bridge style as model clues, especially on Affinity-era instruments.</li></ul>`,
+    };
+}
+function decodeChinaCMC(monthLetter, yearDigits, sequence, serial) {
+    const year = 2000 + parseInt(yearDigits, 10);
+    const month = MONTH_LETTERS[monthLetter] || 'Unknown';
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Squier',
+        serialNumber: serial,
+        year: year.toString(),
+        month,
+        factory: 'Muse factory, China (Squier contract)',
+        country: 'China',
+        notes: `Modern Squier CMC four-letter prefix format. "C" identifies China; "M" identifies the Muse manufacturing facility; "C" indicates the Squier contract line; "${monthLetter}" indicates ${month} using alphabetical month coding (A=January through L=December); ${yearDigits} indicates ${year}; production sequence: ${sequenceNumber}. This format is used on modern Squier lines including Contemporary, Paranormal, and Affinity series.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'squier-china-cmc-month-letter-yy-sequence',
+        patternLabel: 'Squier China CMC month-letter YY sequence',
+        additionalContext: {
+            title: 'Squier China CMC serial (Muse factory)',
+            summary: `This serial matches the modern Squier four-letter CMC prefix format from the Muse factory in China.`,
+            highlights: [
+                '"CMC" identifies China (C), Muse factory (M), Squier contract (C).',
+                `"${monthLetter}" decodes as ${month} using alphabetical month coding (A=January through L=December).`,
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                `The remaining digits decode as production sequence ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'This serial identifies factory, production month, year, and sequence — not the exact model name.',
+                'The model series (Contemporary, Paranormal, Affinity, etc.) must be confirmed from the headstock or body markings.',
+            ],
+            verificationTips: [
+                'Check the headstock front for the Squier model series name.',
+                'Look for "Made in China" on the back of the headstock.',
+                'Compare the instrument against Squier catalog specs from the decoded year.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches the modern Squier four-letter CMC prefix format from the Muse factory in China.</p><h3>How This Pattern Is Typically Read</h3><p>"CMC" identifies China (C), the Muse factory (M), and the Squier contract line (C). "${monthLetter}" decodes as ${month}. The digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the headstock front for the Squier model series name.</li><li>Look for "Made in China" on the back of the headstock.</li><li>Compare the instrument against Squier catalog specs from ${year}.</li></ul>`,
     };
 }
 function decodeChinaCYK(monthLetter, yearDigits, sequence, serial) {

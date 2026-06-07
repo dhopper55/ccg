@@ -84,6 +84,11 @@ export function decodeESP(serial: string): DecodeResult {
     return decodeLTDGToneChina(normalized);
   }
 
+  // China factory single-letter C prefix: C + YY + week + 5-digit sequence (e.g. C124070985)
+  if (/^C\d{9}$/.test(normalized)) {
+    return decodeLTDChinaSingleC(normalized);
+  }
+
   // China: L, RS, SH, SX, SK, SP + 7-8 digits
   if (/^(L|RS|SH|SX|SK|SP)\d{7,8}$/.test(normalized)) {
     return decodeLTDChina(normalized);
@@ -538,6 +543,53 @@ function decodeLTDEarlyKoreaUSequential(serial: string): DecodeResult {
       ],
     },
     additionalContextRichText: `<h3>Overview</h3><p>This serial matches an early ESP LTD Korean U-prefix format associated with Unsung production.</p><h3>How This Pattern Is Typically Read</h3><p>U is treated as an Unsung Korea factory prefix for this early LTD format. The six digits are treated as sequential tracking number ${sequenceNumber}. The likely production window is around 2000-2001.</p><h3>What To Verify</h3><ul><li>The six digits do not reliably encode an exact year, month, or week.</li><li>This applies to LTD-branded Korean imports, not Japanese ESP Original, E-II, Edwards, or Navigator instruments.</li><li>Confirm with Made in Korea markings, model details, and serial location.</li></ul>`,
+  };
+}
+
+function decodeLTDChinaSingleC(serial: string): DecodeResult {
+  const yearDigits = serial.substring(1, 3);
+  const weekDigits = serial.substring(3, 5);
+  const sequence = serial.substring(5);
+  const year = 2000 + parseInt(yearDigits, 10);
+  const week = parseInt(weekDigits, 10);
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'ESP',
+    serialNumber: serial,
+    year: year.toString(),
+    factory: 'ESP LTD China factory',
+    country: 'China',
+    model: 'LTD',
+    notes: `ESP LTD China single-letter C factory format. "C" identifies a Chinese factory; ${yearDigits} indicates ${year}; ${weekDigits} indicates production week ${week} of ${year}; ${sequence} is the factory sequence number (${sequenceNumber}). This format is used on ESP LTD budget and mid-range models. Verify the exact model from the headstock or 12th-fret inlay markings, and confirm "Made in China" on the back of the headstock.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'esp-ltd-china-single-c-yy-week-sequence',
+    patternLabel: 'ESP LTD China single-letter C + YY + week + sequence',
+    additionalContext: {
+      title: 'ESP LTD China single-letter C serial',
+      summary: 'This serial matches an ESP LTD China factory format: C + production year + calendar week + sequence number.',
+      highlights: [
+        '"C" identifies a Chinese factory.',
+        `The digits ${yearDigits} decode as production year ${year}.`,
+        `The digits ${weekDigits} decode as production week ${week} of ${year}.`,
+        `The final digits decode as factory sequence number ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'This format is used on LTD budget and mid-range models, not ESP Original, E-II, or Custom Shop lines.',
+        'A "Made in China" ESP headstock should always say LTD — a premium ESP logo on a China serial is a red flag for counterfeits.',
+        'The serial identifies factory, year, and week, not the exact model name.',
+      ],
+      verificationTips: [
+        'Check the headstock front or 12th-fret inlay for the exact LTD model name.',
+        'Look for "Made in China" on the back of the headstock.',
+        'Compare hardware, pickups, and construction against the ESP LTD catalog for the decoded year.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches an ESP LTD China factory format: C + production year + calendar week + sequence number.</p><h3>How This Pattern Is Typically Read</h3><p>"C" identifies a Chinese factory. The digits ${yearDigits} decode as production year ${year}. The digits ${weekDigits} decode as production week ${week} of ${year}. The final digits decode as factory sequence number ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This format is used on LTD budget and mid-range models, not ESP Original or E-II lines.</li><li>A premium ESP logo on a China serial is a red flag for counterfeits — authentic China-built ESPs always say LTD.</li><li>Check the headstock or 12th-fret inlay for the exact LTD model name and look for "Made in China" on the back of the headstock.</li></ul>`,
   };
 }
 

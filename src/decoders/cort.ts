@@ -82,6 +82,11 @@ export function decodeCort(serial: string): DecodeResult {
     return decodeIndonesiaIE(normalized);
   }
 
+  // Indonesian Cort factory: IS + 1-2 letter product/line code + YY + sequence (e.g. ISSG22002098)
+  if (/^IS[A-Z]{1,2}\d{6,8}$/.test(normalized)) {
+    return decodeIndonesiaISProductLine(normalized);
+  }
+
   // Chinese Cort factory: COS prefix
   if (/^COS\d{8,9}$/.test(normalized)) {
     return decodeChinaCOS(normalized);
@@ -674,6 +679,57 @@ function decodeIndonesiaIE(serial: string): DecodeResult {
 }
 
 // Chinese COS prefix
+function decodeIndonesiaISProductLine(serial: string): DecodeResult {
+  // IS = Indonesia + S sub-factory, followed by 1-2 letter product/line code, then YY + sequence
+  const prefixMatch = serial.match(/^(IS[A-Z]{1,2})(\d{2})(\d+)$/);
+  if (!prefixMatch) {
+    return { success: false, error: 'Unable to parse Cort IS product-line serial format.' };
+  }
+  const prefix = prefixMatch[1];
+  const yearDigits = prefixMatch[2];
+  const sequence = prefixMatch[3];
+  const year = 2000 + parseInt(yearDigits, 10);
+  const lineCode = prefix.substring(2);
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Cort',
+    serialNumber: serial,
+    year: year.toString(),
+    factory: `PT Cort Indonesia, S factory (${lineCode} product/contract line)`,
+    country: 'Indonesia',
+    notes: `Cort Indonesia IS product-line format. "I" identifies Indonesia; "S" identifies the factory sub-line or partner facility; "${lineCode}" is the product or contract line code; ${yearDigits} indicates ${year}; ${sequence} is the production sequence (${sequenceNumber}). This format is used on Cort-branded and OEM-contract instruments from the Indonesian facility. Verify the exact model from the headstock, soundhole label, or back-of-headstock country marking.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: `cort-indonesia-is-product-line-yy-sequence`,
+    patternLabel: `Cort Indonesia IS product-line format`,
+    additionalContext: {
+      title: 'Cort Indonesia IS product-line serial',
+      summary: `This serial matches a Cort Indonesian factory format where IS identifies the Indonesia S factory line, the following letters indicate a product or contract line, and the digits encode year and sequence.`,
+      highlights: [
+        '"I" identifies Indonesia as the country of manufacture.',
+        `"S" identifies the factory sub-line or partner facility; "${lineCode}" is the product or contract line code.`,
+        `The digits ${yearDigits} decode as production year ${year}.`,
+        `The remaining digits decode as production sequence ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'Cort serials identify production date and factory more reliably than exact model name.',
+        'The serial does not identify the specific Cort model name.',
+        'OEM production for other brands (Ibanez, Squier, PRS) may share this factory format.',
+      ],
+      verificationTips: [
+        'Check the headstock, soundhole label, or neck heel for the model name and Made in Indonesia marking.',
+        'Compare the instrument against Cort catalog specs from the decoded year.',
+        'Contact Cort support with photos if exact model confirmation is needed.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Cort Indonesian factory format where IS identifies the Indonesia S factory line, the following letters indicate a product or contract line, and the digits encode year and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>"I" identifies Indonesia. "S" identifies the factory sub-line or partner facility; "${lineCode}" is the product or contract line code. The digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Cort serials identify production date and factory more reliably than exact model name.</li><li>Check the headstock, soundhole label, or back-of-headstock marking for the model name and Made in Indonesia stamp.</li><li>Contact Cort support with photos if exact model confirmation is needed.</li></ul>`,
+  };
+}
+
 function decodeChinaCOS(serial: string): DecodeResult {
   const yearDigits = serial.substring(3, 5);
   const year = 2000 + parseInt(yearDigits, 10);

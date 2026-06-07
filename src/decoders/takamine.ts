@@ -50,6 +50,11 @@ export function decodeTakamine(serial: string): DecodeResult {
     }
   }
 
+  // Two-letter factory prefix alphanumeric formats (e.g. SI = Samick Indonesia)
+  if (/^[A-Z]{2}\d{6,10}$/.test(normalized)) {
+    return decodeTwoLetterPrefix(normalized);
+  }
+
   // Alphanumeric formats (less common)
   if (/^[A-Z]\d+$/.test(normalized)) {
     return decodeAlphanumeric(normalized);
@@ -329,6 +334,68 @@ function decode6Digit(serial: string): DecodeResult {
 }
 
 // Alphanumeric format (letter prefix)
+const TWO_LETTER_FACTORY_MAP: Record<string, { factory: string; country: string }> = {
+  SI: { factory: 'Samick factory, Indonesia', country: 'Indonesia' },
+  SK: { factory: 'Samick factory, South Korea', country: 'South Korea' },
+  SC: { factory: 'Samick factory, China', country: 'China' },
+};
+
+function decodeTwoLetterPrefix(serial: string): DecodeResult {
+  const prefix = serial.substring(0, 2);
+  const yearDigits = serial.substring(2, 4);
+  const monthDigits = serial.substring(4, 6);
+  const sequence = serial.substring(6);
+  const yearNum = parseInt(yearDigits, 10);
+  const monthNum = parseInt(monthDigits, 10);
+  const year = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum).toString();
+  const isValidMonth = monthNum >= 1 && monthNum <= 12;
+  const monthName = isValidMonth ? getMonthName(monthNum) : undefined;
+  const sequenceNumber = parseInt(sequence, 10);
+  const factoryInfo = TWO_LETTER_FACTORY_MAP[prefix];
+  const factory = factoryInfo?.factory ?? `${prefix}-prefix factory`;
+  const country = factoryInfo?.country ?? 'Asia';
+
+  const info: GuitarInfo = {
+    brand: 'Takamine',
+    serialNumber: serial,
+    year,
+    ...(monthName ? { month: monthName } : {}),
+    factory,
+    country,
+    notes: `Takamine G-Series two-letter factory prefix format. "${prefix}" identifies the ${factory}; ${yearDigits} indicates ${year}; ${monthDigits} indicates ${isValidMonth ? monthName : 'an unrecognized batch code'}; ${sequence} is the unit sequence number (${sequenceNumber}). This format is used on Takamine G-Series entry-level and intermediate models built at contract manufacturing facilities. Pro-Series and USA/Japanese Takamine guitars use a different all-numeric format.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: `takamine-two-letter-prefix-yymm-sequence`,
+    patternLabel: `Takamine ${prefix} two-letter factory prefix format`,
+    additionalContext: {
+      title: `Takamine G-Series ${prefix}-prefix serial`,
+      summary: `This serial matches a Takamine G-Series two-letter factory prefix format where "${prefix}" identifies the manufacturing facility and the digits encode year, month, and sequence.`,
+      highlights: [
+        `"${prefix}" identifies the ${factory}.`,
+        `The digits ${yearDigits} decode as production year ${year}.`,
+        isValidMonth
+          ? `The digits ${monthDigits} decode as ${monthName}.`
+          : `The digits ${monthDigits} are an unrecognized batch code, not a standard calendar month.`,
+        `The remaining digits decode as unit sequence number ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'This format is used on Takamine G-Series models, not Pro-Series or Japanese-made instruments.',
+        'The serial identifies factory and production date — not the specific G-Series model name.',
+        'Standard online Takamine decoders expect all-numeric Pro-Series formats and will not recognize this format.',
+      ],
+      verificationTips: [
+        'Check the paper label inside the soundhole for the model name and country of origin.',
+        'Compare the instrument against the Takamine G-Series catalog for the decoded year.',
+        'Contact Takamine support with the full serial and photos if exact model confirmation is needed.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Takamine G-Series two-letter factory prefix format.</p><h3>How This Pattern Is Typically Read</h3><p>"${prefix}" identifies the ${factory}. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} indicate ${isValidMonth ? monthName : 'an unrecognized batch code'}. The remaining digits decode as unit sequence number ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This format is used on Takamine G-Series models, not Pro-Series or Japanese-made instruments.</li><li>Check the soundhole label for the model name and country of origin.</li><li>Standard Takamine online decoders only handle all-numeric Pro-Series formats — this format will not match them.</li></ul>`,
+  };
+}
+
 function decodeAlphanumeric(serial: string): DecodeResult {
   const prefix = serial[0];
   const numericPart = serial.substring(1);
