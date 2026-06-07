@@ -76,15 +76,9 @@ function decode10Digit(serial: string): DecodeResult {
   const yearSuffix = yearDigit1 + yearDigit2;
   const year = '20' + yearSuffix;
 
-  // Validate month
-  if (month < 1 || month > 12) {
-    return {
-      success: false,
-      error: `Invalid month: ${month}. Expected 01-12.`
-    };
-  }
+  const isAnomalousMonth = month < 1 || month > 12;
 
-  if (!isValidMonthDay(month, day, parseInt(year, 10))) {
+  if (!isAnomalousMonth && !isValidMonthDay(month, day, parseInt(year, 10))) {
     return {
       success: false,
       error: `Invalid date: ${month}/${day}/${year}.`
@@ -114,19 +108,26 @@ function decode10Digit(serial: string): DecodeResult {
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
 
+  const monthName = isAnomalousMonth
+    ? undefined
+    : months[month - 1];
+  const monthDescription = isAnomalousMonth
+    ? `overflow/batch code "${serial.substring(2, 4)}" (used on special series runs, limited editions, or custom-managed internal production batches)`
+    : months[month - 1];
+  const sequenceNumber = parseInt(sequence, 10);
+
   const info: GuitarInfo = {
     brand: 'Taylor',
     serialNumber: serial,
     year,
-    month: months[month - 1],
-    day: day.toString(),
+    ...(monthName ? { month: monthName } : {}),
+    ...(isAnomalousMonth ? {} : { day: day.toString() }),
     factory,
     country,
-    notes: `Production sequence #${parseInt(sequence, 10)} for that day. This 10-digit format has been used since November 2009.`
+    notes: isAnomalousMonth
+      ? `Production sequence #${sequenceNumber}. Month field "${serial.substring(2, 4)}" is an overflow/batch code rather than a standard calendar month — seen on special series runs, limited editions, or custom-managed internal production batches. Day field: ${day}. This 10-digit format has been used since November 2009.`
+      : `Production sequence #${sequenceNumber} for that day. This 10-digit format has been used since November 2009.`,
   };
-
-  const sequenceNumber = parseInt(sequence, 10);
-  const monthName = months[month - 1];
 
   return {
     success: true,
@@ -135,24 +136,31 @@ function decode10Digit(serial: string): DecodeResult {
     patternLabel: 'Taylor modern 10-digit factory/date/sequence format',
     additionalContext: {
       title: 'Taylor modern 10-digit serial',
-      summary: 'This serial matches Taylor\'s current 10-digit factory-coded format used since November 2009.',
+      summary: isAnomalousMonth
+        ? `This serial matches Taylor's current 10-digit factory-coded format, but with an overflow/batch code in the month field rather than a standard calendar month.`
+        : `This serial matches Taylor's current 10-digit factory-coded format used since November 2009.`,
       highlights: [
         `Factory code ${factoryCode} indicates ${factory}.`,
         `The 2nd and 7th digits combine as year ${year}.`,
-        `The date fields decode as ${monthName} ${day}, ${year}.`,
+        isAnomalousMonth
+          ? `The month field "${serial.substring(2, 4)}" is an overflow/batch code, not a calendar month — seen on special series runs, limited editions, or custom-managed internal production batches.`
+          : `The date fields decode as ${monthName} ${day}, ${year}.`,
         `The final three digits decode as production sequence #${sequenceNumber}.`,
       ],
       caveats: [
         'This serial identifies factory, production start date, and schedule sequence, not the exact model.',
+        ...(isAnomalousMonth ? ['The month field here is an overflow/batch code rather than a standard calendar month — verify the exact run from the label or Taylor support.'] : []),
         'Use the label/model marking or Taylor support for exact model and original specifications.',
       ],
       verificationTips: [
         'Confirm the full serial from the label visible through the soundhole.',
         'Check whether the label says El Cajon, California or Tecate, Mexico.',
-        'For a 2019 July 28 decode, the 2nd and 7th digits should combine as 19.',
+        'Contact Taylor support with the serial and photos if exact factory specs or batch details matter.',
       ],
     },
-    additionalContextRichText: `<h3>Overview</h3><p>This serial matches Taylor&#39;s current 10-digit factory-coded format used since November 2009.</p><h3>How This Pattern Is Typically Read</h3><p>Factory code ${factoryCode} indicates ${factory}. The 2nd and 7th digits combine as year ${year}. The date fields decode as ${monthName} ${day}, ${year}. The final three digits decode as production sequence #${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This serial identifies factory, production start date, and schedule sequence, not the exact model.</li><li>Use the label/model marking or Taylor support for exact model and original specifications.</li><li>For a 2019 July 28 decode, the 2nd and 7th digits should combine as 19.</li></ul>`,
+    additionalContextRichText: isAnomalousMonth
+      ? `<h3>Overview</h3><p>This serial matches Taylor&#39;s current 10-digit factory-coded format, but with an overflow/batch code in the month field.</p><h3>How This Pattern Is Typically Read</h3><p>Factory code ${factoryCode} indicates ${factory}. The 2nd and 7th digits combine as year ${year}. The month field "${serial.substring(2, 4)}" is an overflow/batch code seen on special series runs, limited editions, or custom-managed internal production batches. The final three digits decode as production sequence #${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>The month field is not a standard calendar month — verify the exact run from the label or Taylor support.</li><li>This serial identifies factory and year reliably; the exact model and batch must be confirmed from the soundhole label.</li><li>Contact Taylor support with the serial and photos if exact factory specs or batch details matter.</li></ul>`
+      : `<h3>Overview</h3><p>This serial matches Taylor&#39;s current 10-digit factory-coded format used since November 2009.</p><h3>How This Pattern Is Typically Read</h3><p>Factory code ${factoryCode} indicates ${factory}. The 2nd and 7th digits combine as year ${year}. The date fields decode as ${monthName} ${day}, ${year}. The final three digits decode as production sequence #${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This serial identifies factory, production start date, and schedule sequence, not the exact model.</li><li>Use the label/model marking or Taylor support for exact model and original specifications.</li></ul>`,
   };
 }
 

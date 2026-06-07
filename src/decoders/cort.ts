@@ -36,6 +36,12 @@ export function decodeCort(serial: string): DecodeResult {
     return decodeModernTwoLetterFactoryLine(normalized);
   }
 
+  // Single-letter China factory prefix: C + YYMM + sequence (e.g. C125030418 = China 2012)
+  // Month field may be an anomalous export/batch code (e.g. "50") rather than a calendar month.
+  if (/^C\d{9}$/.test(normalized)) {
+    return decodeChinaSingleLetterC(normalized);
+  }
+
   // Modern alphanumeric factory/line prefix: 1A + YYMM + sequence
   if (/^\d[A-Z]\d{9}$/.test(normalized)) {
     return decodeModernAlphaFactoryLine(normalized);
@@ -290,6 +296,63 @@ function decodeModernTwoLetterFactoryLine(serial: string): DecodeResult {
       ],
     },
     additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern Cort two-letter factory/line format parsed as prefix, production year and month, and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>Prefix ${prefix} is treated as an internal factory or production line code. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} decode as ${getMonthName(month)}. The remaining digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Cort serials usually identify production date more reliably than exact model identity.</li><li>The serial does not identify the specific Cort model name.</li><li>Confirm the model from headstock, label, or other physical markings.</li></ul>`,
+  };
+}
+
+// Single-letter China factory prefix: C + YYMM + sequence
+// Month field may be an anomalous export/batch code (e.g. "50") rather than a calendar month.
+function decodeChinaSingleLetterC(serial: string): DecodeResult {
+  const yearDigits = serial.substring(1, 3);
+  const monthDigits = serial.substring(3, 5);
+  const sequence = serial.substring(5);
+  const year = 2000 + parseInt(yearDigits, 10);
+  const month = parseInt(monthDigits, 10);
+  const isAnomalousMonth = month < 1 || month > 12;
+
+  const monthDescription = isAnomalousMonth
+    ? `batch/export code "${monthDigits}" (a known anomaly on certain Cort China export runs, used as a special batch marker or mid-year production placeholder)`
+    : getMonthName(month);
+
+  const info: GuitarInfo = {
+    brand: 'Cort',
+    serialNumber: serial,
+    year: year.toString(),
+    ...(isAnomalousMonth ? {} : { month: getMonthName(month) }),
+    factory: 'Cor-Tek factory, China',
+    country: 'China',
+    notes: `Modern Cort single-letter China factory format (C + YYMM + sequence). "C" indicates the Cor-Tek factory in China. The digits ${yearDigits} indicate production year ${year}. The digits ${monthDigits} indicate ${monthDescription}. Production sequence: ${parseInt(sequence, 10)}. Cort serials identify production date more reliably than exact model name; verify the model from the headstock, label, or other physical markings.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'cort-china-single-letter-c-yymm-sequence',
+    patternLabel: 'Cort China single-letter C factory YYMM sequence',
+    additionalContext: {
+      title: 'Cort China factory serial (C prefix)',
+      summary: 'This serial matches the modern Cort single-letter China factory format: C + production year (YY) + month/batch code (MM) + sequence.',
+      highlights: [
+        '"C" prefix identifies the Cor-Tek factory in China.',
+        `The digits ${yearDigits} decode as production year ${year}.`,
+        isAnomalousMonth
+          ? `The digits ${monthDigits} are an anomalous batch/export code, not a calendar month — a known occurrence on certain Cort China export runs.`
+          : `The digits ${monthDigits} decode as ${getMonthName(month)}.`,
+        `The remaining digits decode as production sequence ${parseInt(sequence, 10)}.`,
+      ],
+      caveats: [
+        'Cort serials identify production date more reliably than exact model identity.',
+        'The serial does not identify the specific Cort model name.',
+        isAnomalousMonth
+          ? 'The "month" field here is an anomalous export/batch code, not a standard calendar month.'
+          : 'Confirm the production month from the label or other documentation if precision is needed.',
+      ],
+      verificationTips: [
+        'Check the headstock, soundhole label, neck heel, or back of headstock for model and country markings.',
+        'Compare the instrument against Cort catalog specs from the decoded year.',
+        'Contact Cort with photos if exact model confirmation is needed.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches the modern Cort single-letter China factory format: C + YY + MM + sequence.</p><h3>How This Pattern Is Typically Read</h3><p>"C" identifies the Cor-Tek factory in China. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} indicate ${monthDescription}. The remaining digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Cort serials identify production date more reliably than exact model identity.</li>${isAnomalousMonth ? '<li>The "month" field is an anomalous export/batch code, not a standard calendar month.</li>' : ''}<li>Confirm the model from headstock, label, or other physical markings.</li></ul>`,
   };
 }
 
@@ -655,22 +718,19 @@ function decodeModern9Digit(serial: string): DecodeResult {
   const year = 2000 + parseInt(yearDigits, 10);
   const month = parseInt(monthDigits, 10);
 
-  // Validate month
-  if (month < 1 || month > 12) {
-    return {
-      success: false,
-      error: `Invalid month "${monthDigits}" in serial number. Month should be 01-12.`,
-    };
-  }
+  const isAnomalousMonth = month < 1 || month > 12;
+  const monthDescription = isAnomalousMonth
+    ? `batch/export code "${monthDigits}" (a known anomaly on certain Cort export runs, used as a special batch marker or production placeholder)`
+    : getMonthName(month);
 
   const info: GuitarInfo = {
     brand: 'Cort',
     serialNumber: serial,
     year: year.toString(),
-    month: getMonthName(month),
+    ...(isAnomalousMonth ? {} : { month: getMonthName(month) }),
     factory: 'Cort (location varies - Korea, Indonesia, or China)',
     country: 'Korea, Indonesia, or China',
-    notes: `Modern 9-digit format (YYMMXXXXX) used since 2005. Production sequence: ${sequence}. Exact factory location requires additional identification from the instrument.`,
+    notes: `Modern 9-digit format (YYMMXXXXX) used since 2005. The digits ${yearDigits} indicate ${year}; ${monthDigits} indicates ${monthDescription}. Production sequence: ${parseInt(sequence, 10)}. Exact factory location requires additional identification from the instrument.`,
   };
 
   return {
@@ -683,12 +743,15 @@ function decodeModern9Digit(serial: string): DecodeResult {
       summary: 'This serial matches a modern Cort numeric format where the first four digits identify production year and month.',
       highlights: [
         `The digits ${yearDigits} decode as production year ${year}.`,
-        `The digits ${monthDigits} decode as ${getMonthName(month)}.`,
+        isAnomalousMonth
+          ? `The digits ${monthDigits} are an anomalous batch/export code, not a calendar month — a known occurrence on certain Cort export runs.`
+          : `The digits ${monthDigits} decode as ${getMonthName(month)}.`,
         `The remaining digits decode as production sequence ${parseInt(sequence, 10)}.`,
       ],
       caveats: [
         'Cort serials usually identify production date more reliably than exact model identity.',
         'The serial does not identify the specific Cort model name.',
+        ...(isAnomalousMonth ? ['The month field here is an anomalous export/batch code, not a standard calendar month.'] : []),
         'Production location requires country-of-origin markings or other physical evidence.',
       ],
       verificationTips: [
@@ -696,7 +759,7 @@ function decodeModern9Digit(serial: string): DecodeResult {
         'Compare the instrument against Cort catalog specs from the decoded year.',
       ],
     },
-    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern Cort numeric format where the first four digits identify production year and month.</p><h3>How This Pattern Is Typically Read</h3><p>The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} decode as ${getMonthName(month)}. The remaining digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Cort serials usually identify production date more reliably than exact model identity.</li><li>The serial does not identify the specific Cort model name.</li><li>Production location requires country-of-origin markings or other physical evidence.</li></ul>`,
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern Cort numeric format where the first four digits identify production year and month.</p><h3>How This Pattern Is Typically Read</h3><p>The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} indicate ${monthDescription}. The remaining digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Cort serials usually identify production date more reliably than exact model identity.</li>${isAnomalousMonth ? '<li>The month field is an anomalous export/batch code, not a standard calendar month.</li>' : ''}<li>The serial does not identify the specific Cort model name.</li><li>Production location requires country-of-origin markings or other physical evidence.</li></ul>`,
   };
 }
 

@@ -266,47 +266,46 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange }: 
                 {isLoading ? 'Decoding...' : 'Decode'}
               </Button>
             </Box>
+            {errorMessage && (
+              <Box sx={{ mt: 2.5, maxWidth: 720 }}>
+                <Typography variant="caption" sx={{ color: 'warning.main', fontWeight: 600 }}>
+                  {errorMessage}
+                </Typography>
+                <Typography variant="caption" component="p" sx={{ color: 'text.secondary', mt: 2, lineHeight: 1.7 }}>
+                  {FAILED_DECODE_EMAIL_PROMPT}
+                </Typography>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 2, alignItems: { sm: 'flex-start' } }}>
+                  <StyledTextField
+                    type="email"
+                    value={emailAddress}
+                    placeholder="Email address"
+                    onChange={(event) => {
+                      setEmailAddress(event.target.value);
+                      setEmailSubmitError('');
+                      setEmailSubmitMessage('');
+                    }}
+                    disabled={isSubmittingEmail || Boolean(emailSubmitMessage)}
+                    inputProps={{ maxLength: 200 }}
+                    error={Boolean(emailSubmitError)}
+                    helperText={emailSubmitError || emailSubmitMessage || ' '}
+                    sx={{ maxWidth: 340, width: 1 }}
+                  />
+                  <Button
+                    variant="soft"
+                    color="warning"
+                    onClick={() => {
+                      void handleEmailSubmit();
+                    }}
+                    disabled={isSubmittingEmail || Boolean(emailSubmitMessage)}
+                    sx={{ fontWeight: 700, minWidth: 120, mt: { sm: 0.5 } }}
+                  >
+                    {isSubmittingEmail ? 'Submitting...' : 'Submit'}
+                  </Button>
+                </Stack>
+              </Box>
+            )}
             <DecoderAccessorySuggestions count={9} />
           </>
-        )}
-
-        {errorMessage && (
-          <Box sx={{ mt: 2.5, maxWidth: 720 }}>
-            <Typography variant="body2" sx={{ color: 'warning.main', fontWeight: 600 }}>
-              {errorMessage}
-            </Typography>
-            <Typography variant="body2" sx={{ color: 'text.secondary', mt: 2, lineHeight: 1.7 }}>
-              {FAILED_DECODE_EMAIL_PROMPT}
-            </Typography>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 2, alignItems: { sm: 'flex-start' } }}>
-              <StyledTextField
-                type="email"
-                value={emailAddress}
-                placeholder="Email address"
-                onChange={(event) => {
-                  setEmailAddress(event.target.value);
-                  setEmailSubmitError('');
-                  setEmailSubmitMessage('');
-                }}
-                disabled={isSubmittingEmail || Boolean(emailSubmitMessage)}
-                inputProps={{ maxLength: 200 }}
-                error={Boolean(emailSubmitError)}
-                helperText={emailSubmitError || emailSubmitMessage || ' '}
-                sx={{ maxWidth: 340, width: 1 }}
-              />
-              <Button
-                variant="soft"
-                color="warning"
-                onClick={() => {
-                  void handleEmailSubmit();
-                }}
-                disabled={isSubmittingEmail || Boolean(emailSubmitMessage)}
-                sx={{ fontWeight: 700, minWidth: 120, mt: { sm: 0.5 } }}
-              >
-                {isSubmittingEmail ? 'Submitting...' : 'Submit'}
-              </Button>
-            </Stack>
-          </Box>
         )}
 
         {resultFields.length > 0 && (

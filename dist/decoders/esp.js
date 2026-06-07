@@ -63,6 +63,10 @@ export function decodeESP(serial) {
     if (/^(W|E|U)\d{7,8}$/.test(normalized)) {
         return decodeLTDKorea(normalized);
     }
+    // G-Tone China factory: GC + YY + week + 3-digit sequence
+    if (/^GC\d{7}$/.test(normalized)) {
+        return decodeLTDGToneChina(normalized);
+    }
     // China: L, RS, SH, SX, SK, SP + 7-8 digits
     if (/^(L|RS|SH|SX|SK|SP)\d{7,8}$/.test(normalized)) {
         return decodeLTDChina(normalized);
@@ -78,8 +82,12 @@ export function decodeESP(serial) {
             return decodeLTDTransitionalNumeric(normalized);
         }
     }
-    // Pre-2000 format: 6-8 digits (DDMMYNNN or shorter variants)
-    if (/^\d{6,8}$/.test(normalized)) {
+    // 8-digit all-numeric: try DDMMYNNN (pre-2000 day-first), then YYMMXXXX (year-first)
+    if (/^\d{8}$/.test(normalized)) {
+        return decode8DigitNumeric(normalized);
+    }
+    // Pre-2000 format: 6-7 digits (DDMMYNNN or shorter variants)
+    if (/^\d{6,7}$/.test(normalized)) {
         return decodePre2000(normalized);
     }
     // Older Japanese neck-plate numeric format: 5 digits
@@ -471,6 +479,50 @@ function decodeLTDEarlyKoreaUSequential(serial) {
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches an early ESP LTD Korean U-prefix format associated with Unsung production.</p><h3>How This Pattern Is Typically Read</h3><p>U is treated as an Unsung Korea factory prefix for this early LTD format. The six digits are treated as sequential tracking number ${sequenceNumber}. The likely production window is around 2000-2001.</p><h3>What To Verify</h3><ul><li>The six digits do not reliably encode an exact year, month, or week.</li><li>This applies to LTD-branded Korean imports, not Japanese ESP Original, E-II, Edwards, or Navigator instruments.</li><li>Confirm with Made in Korea markings, model details, and serial location.</li></ul>`,
     };
 }
+function decodeLTDGToneChina(serial) {
+    const yearDigits = serial.substring(2, 4);
+    const weekDigits = serial.substring(4, 6);
+    const sequence = serial.substring(6);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const week = parseInt(weekDigits, 10);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'ESP',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'G-Tone factory, China',
+        country: 'China',
+        model: 'LTD (10, 50, 100, or 200 Series)',
+        notes: `ESP LTD G-Tone China factory format. GC identifies the G-Tone factory in China; ${yearDigits} indicates ${year}; ${weekDigits} indicates production week ${week} of ${year}; ${sequence} is the factory sequence number (${sequenceNumber}). This format is predominantly used on ESP LTD entry-level and intermediate models (10-, 50-, 100-, and 200-series). Verify the exact model from the headstock or 12th-fret inlay markings.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'esp-ltd-china-gtone-gc-yy-week-sequence',
+        patternLabel: 'ESP LTD China G-Tone GC + YY + week + sequence',
+        additionalContext: {
+            title: 'ESP LTD G-Tone China serial',
+            summary: 'This serial matches the ESP LTD G-Tone China factory format: GC + production year + calendar week + sequence number.',
+            highlights: [
+                'GC identifies the G-Tone factory in China.',
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                `The digits ${weekDigits} decode as production week ${week} of ${year}.`,
+                `The final three digits decode as factory sequence number ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'This format is used on LTD entry-level and intermediate models, not ESP Original or E-II lines.',
+                'The serial identifies factory, year, and week, not the exact model name or series number.',
+                'Counterfeit LTD instruments exist; consistent serial formatting is a good sign but not sufficient alone.',
+            ],
+            verificationTips: [
+                'Check the headstock front or 12th-fret inlay for the exact LTD model name.',
+                'Look for "Made in China" on the back of the headstock.',
+                'Compare hardware, pickups, and construction against the ESP LTD catalog for the decoded year.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches the ESP LTD G-Tone China factory format: GC + production year + calendar week + sequence number.</p><h3>How This Pattern Is Typically Read</h3><p>GC identifies the G-Tone factory in China. The digits ${yearDigits} decode as production year ${year}. The digits ${weekDigits} decode as production week ${week} of ${year}. The final three digits decode as factory sequence number ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This format is used on LTD entry-level and intermediate models, not ESP Original or E-II lines.</li><li>Check the headstock or 12th-fret inlay for the exact LTD model name.</li><li>Look for "Made in China" on the back of the headstock and compare against the ESP LTD catalog for ${year}.</li></ul>`,
+    };
+}
 function decodeLTDChina(serial) {
     let prefix;
     let digits;
@@ -598,6 +650,65 @@ function decodeLTDTransitionalNumeric(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a seven-digit pure numeric ESP LTD format used on some late-1990s through mid-2000s Korean and Indonesian imports.</p><h3>How This Pattern Is Typically Read</h3><p>The first two digits, ${yearDigits}, decode as production year ${year}. The next two digits, ${weekDigits}, decode as production week ${week}. The final three digits decode as production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>This format identifies production timing and sequence, not the exact model name.</li><li>The serial alone usually cannot distinguish Korea from Indonesia.</li><li>Check for LTD branding and Made in Korea or Made in Indonesia markings on the back of the headstock.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a mid-2000s ESP LTD import decode, then verify the exact model and factory from the headstock logo, country stamp, and catalog specs.</p>`,
+    };
+}
+function decode8DigitNumeric(serial) {
+    // Try DDMMYNNN first (pre-2000 ESP Japan: day, month, single year digit, sequence)
+    const dayNum = parseInt(serial.substring(0, 2), 10);
+    const ddmmMonthNum = parseInt(serial.substring(2, 4), 10);
+    if (dayNum >= 1 && dayNum <= 31 && ddmmMonthNum >= 1 && ddmmMonthNum <= 12) {
+        return decodePre2000(serial);
+    }
+    // Fallback: YYMMXXXX (year-first format, e.g. 98050768 = 1998, May, sequence 768)
+    const yearDigits = serial.substring(0, 2);
+    const monthDigits = serial.substring(2, 4);
+    const sequence = serial.substring(4);
+    const yearNum = parseInt(yearDigits, 10);
+    const monthNum = parseInt(monthDigits, 10);
+    if (monthNum < 1 || monthNum > 12) {
+        return {
+            success: false,
+            error: 'Unable to decode this ESP serial number. The date values appear invalid.',
+        };
+    }
+    const year = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum).toString();
+    const monthName = getMonthName(monthNum);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'ESP',
+        serialNumber: serial,
+        year,
+        month: monthName,
+        factory: 'ESP Japan or ESP LTD Korea',
+        country: 'Japan or South Korea',
+        notes: `Late-1990s/early-2000s ESP 8-digit year-first format. The digits ${yearDigits} indicate ${year}; ${monthDigits} indicates ${monthName}; ${sequence} is the production sequence (${sequenceNumber}). If the headstock says ESP or ESP Standard, this is likely a Japanese-built instrument. If it says LTD, this may be an early Korean LTD. Verify the exact factory and model from the headstock logo and country-of-origin marking.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'esp-late-1990s-yymm-sequence-8digit',
+        patternLabel: 'ESP late 1990s/early 2000s YYMM + 4-digit sequence',
+        additionalContext: {
+            title: 'ESP late-1990s/early-2000s 8-digit serial',
+            summary: 'This serial matches a late-1990s/early-2000s ESP 8-digit format where the first two digits encode the year, the next two encode the month, and the final four are the production sequence.',
+            highlights: [
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                `The digits ${monthDigits} decode as ${monthName}.`,
+                `The remaining digits decode as production sequence ${sequenceNumber}.`,
+                'This format is seen on both ESP Japan (Original/Standard series) and early ESP LTD Korean imports from this era.',
+            ],
+            caveats: [
+                'The serial alone cannot confirm whether this is an ESP Japan or ESP LTD Korean instrument.',
+                'ESP Japan and ESP LTD guitars from this era can have very different build quality, hardware, and value.',
+                'The serial identifies production date; the exact model must be confirmed from the headstock and physical features.',
+            ],
+            verificationTips: [
+                'Check the headstock logo — "ESP" indicates the Original/Standard series; "LTD" indicates the import line.',
+                'Look for "Made in Japan" or "Made in Korea" stamped on the back of the headstock or neck plate.',
+                'Compare the hardware, finishes, and construction against ESP and LTD catalog specs from the decoded year.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a late-1990s/early-2000s ESP 8-digit format where the first two digits encode the year, the next two encode the month, and the final four are the production sequence.</p><h3>How This Pattern Is Typically Read</h3><p>The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} decode as ${monthName}. The remaining digits decode as production sequence ${sequenceNumber}. This format is seen on both ESP Japan (Original/Standard series) and early ESP LTD Korean imports from this era.</p><h3>What To Verify</h3><ul><li>Check the headstock logo — "ESP" indicates the Original/Standard series; "LTD" indicates the import line.</li><li>Look for "Made in Japan" or "Made in Korea" on the back of the headstock or neck plate.</li><li>Compare the hardware, finishes, and construction against ESP and LTD catalog specs from the decoded year.</li></ul>`,
     };
 }
 function decodePre2000(serial) {

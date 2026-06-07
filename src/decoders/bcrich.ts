@@ -107,6 +107,10 @@ export function decodeBCRich(serial: string): DecodeResult {
     return decodeBoltOn2000(normalized);
   }
 
+  if (/^\d{9}$/.test(normalized)) {
+    return decodeNineDigitImport(normalized);
+  }
+
   if (/^\d{8}$/.test(normalized)) {
     return decodeHanserEraNumericImport(normalized);
   }
@@ -487,6 +491,57 @@ function decodeBoltOn2000(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+function decodeNineDigitImport(serial: string): DecodeResult {
+  const yearDigits = serial.substring(0, 2);
+  const monthDigits = serial.substring(2, 4);
+  const sequence = serial.substring(4);
+  const yearNum = parseInt(yearDigits, 10);
+  const monthNum = parseInt(monthDigits, 10);
+  const year = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum).toString();
+  const isValidMonth = monthNum >= 1 && monthNum <= 12;
+  const monthName = isValidMonth ? MONTH_NAME(monthNum) : undefined;
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'B.C. Rich',
+    serialNumber: serial,
+    year,
+    ...(monthName ? { month: monthName } : {}),
+    factory: 'Import production (Korea, China, or Indonesia)',
+    country: 'South Korea / China / Indonesia',
+    notes: `9-digit numeric B.C. Rich import format (YYMMXXXXX). The digits ${yearDigits} indicate ${year}; ${monthDigits} indicates ${isValidMonth ? monthName : `an unrecognized batch code (not a standard calendar month)`}; ${sequence} is the factory sequence number (${sequenceNumber}). This format is associated with mid-to-late 2000s Korean and Chinese import models. Verify with headstock series markings, country-of-origin labels, and body/neck construction details.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'bcrich-9-digit-import-yymm-sequence',
+    patternLabel: 'B.C. Rich 9-digit import YYMM sequence',
+    additionalContext: {
+      title: 'B.C. Rich 9-digit import serial',
+      summary: 'This serial matches a 9-digit B.C. Rich import format where the first four digits encode the production year and month.',
+      highlights: [
+        `The digits ${yearDigits} decode as production year ${year}.`,
+        isValidMonth
+          ? `The digits ${monthDigits} decode as ${monthName}.`
+          : `The digits ${monthDigits} are an unrecognized batch code, not a standard calendar month.`,
+        `The remaining digits decode as factory sequence number ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'B.C. Rich import serial numbering is inconsistent across ownership eras.',
+        'This serial identifies date and import family, not the exact model name or series tier.',
+        'Common shapes from this era include Warlock, Mockingbird, Bich, and Beast in Bronze, Platinum, or NJ lines.',
+      ],
+      verificationTips: [
+        'Check the headstock or truss-rod cover for series name markings.',
+        'Look for "Made in Korea", "Made in China", or "Made in Indonesia" on the back of the headstock.',
+        'Compare body shape, hardware, and pickups against B.C. Rich import catalogs from the decoded year.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a 9-digit B.C. Rich import format where the first four digits encode the production year and month.</p><h3>How This Pattern Is Typically Read</h3><p>The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} indicate ${isValidMonth ? monthName : 'an unrecognized batch code, not a standard calendar month'}. The remaining digits decode as factory sequence number ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>B.C. Rich import serial numbering is inconsistent across ownership eras.</li><li>Check the headstock or truss-rod cover for series name markings.</li><li>Look for country-of-origin markings and compare the guitar against B.C. Rich import catalogs from ${year}.</li></ul>`,
+  };
 }
 
 function decodeHanserEraNumericImport(serial: string): DecodeResult {
