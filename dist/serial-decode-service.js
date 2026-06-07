@@ -23,7 +23,7 @@ import { decodeOvation } from './decoders/ovation.js?version=695857';
 import { decodeCharvel } from './decoders/charvel.js?version=654883';
 import { decodeRickenbacker } from './decoders/rickenbacker.js?version=961802';
 import { decodeKramer } from './decoders/kramer.js?version=811442';
-import { decodeBCRich } from './decoders/bcrich.js?version=903742';
+import { decodeBCRich } from './decoders/bcrich.js?version=494123';
 const DECODER_MAP = {
     gibson: decodeGibson,
     epiphone: decodeEpiphone,

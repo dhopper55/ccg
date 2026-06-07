@@ -67,6 +67,9 @@ export function decodeBCRich(serial) {
     if (/^CA\d{3,6}$/.test(normalized)) {
         return decodeClassAxeCA(normalized);
     }
+    if (/^[SIFN]\d{9}$/.test(normalized)) {
+        return decodeImportLetterNineDigit(normalized);
+    }
     if (/^[SIFN]\d{8}$/.test(normalized)) {
         return decodeImportLetterPrefix(normalized);
     }
@@ -132,6 +135,65 @@ const IMPORT_PREFIX_MAP = {
     F: 'F-prefix (factory designation)',
     N: 'N-prefix (NJ Series or import designation)',
 };
+const IMPORT_PREFIX_FACTORY_MAP = {
+    I: { factory: 'B.C. Rich import production (I-prefix)', country: 'South Korea or Indonesia' },
+    S: { factory: 'Samick factory', country: 'South Korea or Indonesia' },
+    F: { factory: 'Import factory (F-prefix)', country: 'South Korea / China' },
+    N: { factory: 'NJ Series / import factory', country: 'South Korea / China' },
+};
+function decodeImportLetterNineDigit(serial) {
+    const prefix = serial[0];
+    const yearDigits = serial.substring(1, 3);
+    const monthDigits = serial.substring(3, 5);
+    const sequence = serial.substring(5);
+    const yearNum = parseInt(yearDigits, 10);
+    const monthNum = parseInt(monthDigits, 10);
+    const year = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum).toString();
+    const isValidMonth = monthNum >= 1 && monthNum <= 12;
+    const monthName = isValidMonth ? MONTH_NAME(monthNum) : undefined;
+    const sequenceNumber = parseInt(sequence, 10);
+    const factoryInfo = IMPORT_PREFIX_FACTORY_MAP[prefix];
+    const factory = factoryInfo?.factory ?? `${prefix}-prefix import factory`;
+    const country = factoryInfo?.country ?? 'South Korea / China / Indonesia';
+    const info = {
+        brand: 'B.C. Rich',
+        serialNumber: serial,
+        year,
+        ...(monthName ? { month: monthName } : {}),
+        factory,
+        country,
+        notes: `${prefix}-prefix 9-digit import format (${prefix} + YYMMXXXXX). "${prefix}" identifies the ${factory}; digits ${yearDigits} indicate ${year}; ${monthDigits} indicates ${isValidMonth ? monthName : 'an unrecognized batch code'}; ${sequence} is the factory sequence number (${sequenceNumber}). This format is associated with mid-to-late 2000s Korean and Indonesian B.C. Rich import models. Verify with headstock markings, country-of-origin labels, and body/neck construction details.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'bcrich-import-letter-9-digit-yymm-sequence',
+        patternLabel: `B.C. Rich ${prefix}-prefix 9-digit import YYMM sequence`,
+        additionalContext: {
+            title: `B.C. Rich ${prefix}-prefix 9-digit import serial`,
+            summary: `This serial matches a 9-digit B.C. Rich import format where the leading "${prefix}" identifies the factory and the following digits encode year, month, and production sequence.`,
+            highlights: [
+                `"${prefix}" identifies the ${factory}.`,
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                isValidMonth
+                    ? `The digits ${monthDigits} decode as ${monthName}.`
+                    : `The digits ${monthDigits} are an unrecognized batch code, not a standard calendar month.`,
+                `The remaining digits decode as factory sequence number ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'B.C. Rich import serial numbering is inconsistent across ownership eras.',
+                'This serial identifies date and import factory, not the exact model name or series tier.',
+                'Common shapes from this era include Warlock, Mockingbird, Bich, and Beast in NJ, Platinum, or Bronze lines.',
+            ],
+            verificationTips: [
+                'Check the headstock or truss-rod cover for series name markings.',
+                `Look for "Made in Korea" or "Made in Indonesia" on the back of the headstock.`,
+                `Compare body shape, hardware, and pickups against B.C. Rich import catalogs from ${year}.`,
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a 9-digit B.C. Rich import format where "${prefix}" identifies the ${factory} and the digits encode year, month, and production sequence.</p><h3>How This Pattern Is Typically Read</h3><p>"${prefix}" identifies the ${factory}. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} indicate ${isValidMonth ? monthName : 'an unrecognized batch code'}. The remaining digits decode as factory sequence number ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the headstock or truss-rod cover for series name markings.</li><li>Look for country-of-origin markings on the back of the headstock.</li><li>Compare body shape, hardware, and pickups against B.C. Rich import catalogs from ${year}.</li></ul>`,
+    };
+}
 function decodeImportLetterPrefix(serial) {
     const prefix = serial[0];
     const yearDigits = serial.slice(1, 3);
