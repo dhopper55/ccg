@@ -83,6 +83,8 @@ type SystemSettingsResponse = Partial<SystemSettingsForm> & {
 
 type StripeConfigResponse = {
   useStripeSandbox?: boolean;
+  stripePublishableKeySandbox?: string;
+  stripePublishableKey?: string;
   message?: string;
 };
 
@@ -104,7 +106,10 @@ const SystemSettings = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [useStripeSandbox, setUseStripeSandbox] = useState(true);
+  const [stripePublishableKeySandbox, setStripePublishableKeySandbox] = useState('');
+  const [stripePublishableKey, setStripePublishableKey] = useState('');
   const [isUpdatingStripeEnv, setIsUpdatingStripeEnv] = useState(false);
+  const [isSavingStripeKeys, setIsSavingStripeKeys] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [isPrintingReceipt, setIsPrintingReceipt] = useState(false);
   const [isKickingDrawer, setIsKickingDrawer] = useState(false);
@@ -133,6 +138,8 @@ const SystemSettings = () => {
         saleDescriptionPostfix: payload.saleDescriptionPostfix || '',
       });
       setUseStripeSandbox(stripePayload.useStripeSandbox ?? true);
+      setStripePublishableKeySandbox(stripePayload.stripePublishableKeySandbox ?? '');
+      setStripePublishableKey(stripePayload.stripePublishableKey ?? '');
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to load system settings.');
     } finally {
@@ -213,6 +220,32 @@ const SystemSettings = () => {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to update Stripe environment.');
     } finally {
       setIsUpdatingStripeEnv(false);
+    }
+  };
+
+  const handleStripeKeysSave = async () => {
+    setIsSavingStripeKeys(true);
+    setErrorMessage('');
+    try {
+      const response = await fetch('/api/admin-v2/stripe-config', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          useStripeSandbox,
+          stripePublishableKeySandbox,
+          stripePublishableKey,
+        }),
+      });
+      const payload = (await response.json()) as StripeConfigResponse;
+      if (!response.ok) throw new Error(payload.message || 'Unable to save Stripe keys.');
+      setStripePublishableKeySandbox(payload.stripePublishableKeySandbox ?? stripePublishableKeySandbox);
+      setStripePublishableKey(payload.stripePublishableKey ?? stripePublishableKey);
+      enqueueSnackbar('Stripe publishable keys saved.', { variant: 'success' });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to save Stripe keys.');
+    } finally {
+      setIsSavingStripeKeys(false);
     }
   };
 
@@ -375,6 +408,30 @@ const SystemSettings = () => {
             }
             label={useStripeSandbox ? 'Stripe sandbox' : 'Stripe production'}
           />
+          <TextField
+            fullWidth
+            label="Stripe Publishable Key (Test / Sandbox)"
+            placeholder="pk_test_..."
+            value={stripePublishableKeySandbox}
+            disabled={isLoading || isSavingStripeKeys}
+            onChange={(e) => setStripePublishableKeySandbox(e.target.value)}
+          />
+          <TextField
+            fullWidth
+            label="Stripe Publishable Key (Live / Production)"
+            placeholder="pk_live_..."
+            value={stripePublishableKey}
+            disabled={isLoading || isSavingStripeKeys}
+            onChange={(e) => setStripePublishableKey(e.target.value)}
+          />
+          <Button
+            variant="outlined"
+            disabled={isLoading || isSavingStripeKeys}
+            onClick={() => void handleStripeKeysSave()}
+            sx={{ alignSelf: 'flex-start' }}
+          >
+            {isSavingStripeKeys ? 'Saving...' : 'Save Stripe Keys'}
+          </Button>
           <TextField
             fullWidth
             required

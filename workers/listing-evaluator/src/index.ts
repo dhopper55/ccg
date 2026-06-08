@@ -30,6 +30,7 @@ interface Env {
   ASSOCIATE_MODE_TOKEN?: string;
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
+  STRIPE_PUBLISHABLE_KEY?: string;
   STRIPE_CO_SALES_TAX_RATE_ID?: string;
   STRIPE_TERMINAL_READER_ID?: string;
   STRIPE_TERMINAL_READER_ID_SANDBOX?: string;
@@ -588,6 +589,16 @@ export default {
 
     if (path === '/api/shop/newsletter' && request.method === 'POST') {
       const response = await handleShopNewsletterSubscribe(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/guitar-evaluation' && request.method === 'POST') {
+      const response = await handleGuitarEvaluationSubmit(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/guitar-evaluation/payment-intent' && request.method === 'POST') {
+      const response = await handleGuitarEvaluationPaymentIntent(request, env);
       return withCors(response, request, env);
     }
 
@@ -2763,6 +2774,7 @@ type ReverbPricingContext = {
 
 type StripeRuntimeConfig = {
   secretKey: string;
+  publishableKey: string;
   taxRateId: string;
   useSandbox: boolean;
 };
@@ -3602,10 +3614,13 @@ async function handleAdminV2PaymentLinks(request: Request, env: Env): Promise<Re
 
 async function handleAdminV2StripeConfig(env: Env): Promise<Response> {
   const config = await getStripeRuntimeConfig(env);
+  const row = await env.DB.prepare('SELECT * FROM sys_info LIMIT 1').first<Record<string, unknown>>().catch(() => null);
   return jsonResponse({
     useStripeSandbox: config.useSandbox,
     hasSecretKey: Boolean(config.secretKey),
     hasTaxRateId: Boolean(config.taxRateId),
+    stripePublishableKeySandbox: normalizeText(row?.stripe_publishable_key_sandbox, ''),
+    stripePublishableKey: normalizeText(row?.stripe_publishable_key, ''),
   });
 }
 
@@ -3620,12 +3635,24 @@ async function handleAdminV2StripeConfigUpdate(request: Request, env: Env): Prom
   const useStripeSandbox = toBooleanInput(body.useStripeSandbox, true);
   try {
     await dbSetStripeSandboxMode(useStripeSandbox, env);
+
+    if (body.stripePublishableKeySandbox !== undefined || body.stripePublishableKey !== undefined) {
+      await dbSetStripePublishableKeys(
+        normalizeText(body.stripePublishableKeySandbox, ''),
+        normalizeText(body.stripePublishableKey, ''),
+        env,
+      );
+    }
+
     const config = await getStripeRuntimeConfig(env);
+    const row = await env.DB.prepare('SELECT * FROM sys_info LIMIT 1').first<Record<string, unknown>>().catch(() => null);
     return jsonResponse({
       ok: true,
       useStripeSandbox: config.useSandbox,
       hasSecretKey: Boolean(config.secretKey),
       hasTaxRateId: Boolean(config.taxRateId),
+      stripePublishableKeySandbox: normalizeText(row?.stripe_publishable_key_sandbox, ''),
+      stripePublishableKey: normalizeText(row?.stripe_publishable_key, ''),
     });
   } catch (error) {
     return jsonResponse({
@@ -4292,6 +4319,7 @@ function estimateNonRefundableStripeFeeCents(amountCents: number, paymentMethodT
 async function getStripeRuntimeConfig(env: Env): Promise<StripeRuntimeConfig> {
   const fallback: StripeRuntimeConfig = {
     secretKey: normalizeText(env.STRIPE_SECRET_KEY, ''),
+    publishableKey: normalizeText(env.STRIPE_PUBLISHABLE_KEY, ''),
     taxRateId: normalizeText(env.STRIPE_CO_SALES_TAX_RATE_ID, DEFAULT_CO_SALES_TAX_RATE_ID),
     useSandbox: true,
   };
@@ -4304,12 +4332,16 @@ async function getStripeRuntimeConfig(env: Env): Promise<StripeRuntimeConfig> {
     const secretKey = useSandbox
       ? normalizeText(row.stripe_secret_key_sandbox, fallback.secretKey)
       : normalizeText(row.stripe_secret_key, fallback.secretKey);
+    const publishableKey = useSandbox
+      ? normalizeText(row.stripe_publishable_key_sandbox, fallback.publishableKey)
+      : normalizeText(row.stripe_publishable_key, fallback.publishableKey);
     const taxRateId = useSandbox
       ? normalizeText(row.string_tax_id_sandbox, fallback.taxRateId)
       : normalizeText(row.stripe_tax_id, fallback.taxRateId);
 
     return {
       secretKey,
+      publishableKey,
       taxRateId,
       useSandbox,
     };
@@ -4653,6 +4685,23 @@ async function dbSetStripeSandboxMode(useSandbox: boolean, env: Env): Promise<vo
        use_stripe_sandbox = excluded.use_stripe_sandbox,
        updated_at = CURRENT_TIMESTAMP`
   ).bind(useSandbox ? 1 : 0).run();
+}
+
+async function dbSetStripePublishableKeys(sandboxKey: string, liveKey: string, env: Env): Promise<void> {
+  const existingCols = await dbGetColumnNames('sys_info', env);
+  const allValues: Record<string, unknown> = {
+    stripe_publishable_key_sandbox: sandboxKey || null,
+    stripe_publishable_key: liveKey || null,
+  };
+  const cols = Object.keys(allValues).filter((col) => existingCols.has(col));
+  if (cols.length === 0) return;
+  await env.DB.prepare(
+    `INSERT INTO sys_info (id, ${cols.join(', ')})
+     VALUES (1, ${cols.map(() => '?').join(', ')})
+     ON CONFLICT(id) DO UPDATE SET
+       ${cols.map((col) => `${col} = excluded.${col}`).join(',\n       ')},
+       updated_at = CURRENT_TIMESTAMP`
+  ).bind(...cols.map((col) => allValues[col])).run();
 }
 
 async function dbGetSystemSettings(env: Env): Promise<{
@@ -18157,11 +18206,127 @@ function currentDateYmd(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+async function dbInsertGuitarEvaluation(env: Env, data: {
+  serialNumber: string | null;
+  brand: string;
+  brandOther: string | null;
+  model: string | null;
+  includesCase: string;
+  location: string | null;
+  note: string;
+  damage: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+}): Promise<number | null> {
+  const result = await env.DB.prepare(`
+    INSERT INTO guitar_evaluations (
+      serial_number, brand, brand_other, model, includes_case,
+      location, note, damage, first_name, last_name, email, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    data.serialNumber,
+    data.brand,
+    data.brandOther,
+    data.model,
+    data.includesCase,
+    data.location,
+    data.note,
+    data.damage,
+    data.firstName,
+    data.lastName,
+    data.email,
+    new Date().toISOString(),
+  ).run();
+  return (result.meta?.last_row_id as number) ?? null;
+}
+
+async function handleGuitarEvaluationPaymentIntent(request: Request, env: Env): Promise<Response> {
+  let body: any;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid request body.' }, 400);
+  }
+
+  const evaluationId = body?.evaluationId;
+  if (!evaluationId) {
+    return jsonResponse({ message: 'evaluationId is required.' }, 400);
+  }
+
+  const stripeConfig = await getStripeRuntimeConfig(env);
+  if (!stripeConfig.secretKey) {
+    return jsonResponse({ message: 'Payment processing is not configured.' }, 503);
+  }
+
+  const params = new URLSearchParams({
+    amount: '299',
+    currency: 'usd',
+    'metadata[evaluation_id]': String(evaluationId),
+    'metadata[source]': 'guitar_evaluation',
+    description: 'Comprehensive Guitar Evaluation Report',
+  });
+
+  const stripeRes = await fetch('https://api.stripe.com/v1/payment_intents', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${stripeConfig.secretKey}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: params.toString(),
+  });
+
+  if (!stripeRes.ok) {
+    const err: any = await stripeRes.json().catch(() => ({}));
+    return jsonResponse({ message: err?.error?.message ?? 'Failed to create payment intent.' }, 502);
+  }
+
+  const intent: any = await stripeRes.json();
+  return jsonResponse({ clientSecret: intent.client_secret, publishableKey: stripeConfig.publishableKey });
+}
+
+async function handleGuitarEvaluationSubmit(request: Request, env: Env): Promise<Response> {
+  let body: any;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid request body.' }, 400);
+  }
+
+  const { serialNumber, brand, brandOther, model, includesCase, location, note, damage, firstName, lastName, email } = body ?? {};
+
+  if (!brand || !includesCase || !note || !damage || !firstName || !lastName || !email) {
+    return jsonResponse({ message: 'Missing required fields.' }, 400);
+  }
+
+  const id = await dbInsertGuitarEvaluation(env, {
+    serialNumber: serialNumber ?? null,
+    brand,
+    brandOther: brandOther ?? null,
+    model: model ?? null,
+    includesCase,
+    location: location ?? null,
+    note,
+    damage,
+    firstName,
+    lastName,
+    email,
+  });
+
+  if (!id) {
+    return jsonResponse({ message: 'Failed to save evaluation. Please try again.' }, 500);
+  }
+
+  return jsonResponse({ id, message: 'Evaluation submitted successfully.' });
+}
+
 function isPublicApiPath(path: string): boolean {
   return path.startsWith('/api/shop/')
     || path === '/api/youtube/videos'
     || path === '/api/inventory-image'
-    || path === '/api/listing-image';
+    || path === '/api/listing-image'
+    || path === '/api/guitar-evaluation'
+    || path === '/api/guitar-evaluation/payment-intent';
 }
 
 function formatMonthLabel(month: string): string {

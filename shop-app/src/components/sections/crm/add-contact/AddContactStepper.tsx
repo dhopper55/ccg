@@ -63,10 +63,10 @@ const steps: AddContactStepperStep[] = [
     id: 4,
     label: (
       <Typography variant="subtitle2" fontWeight={700}>
-        Confirmation
+        Finalize
       </Typography>
     ),
-    content: <ConfirmationForm label="Confirmation" />,
+    content: null,
     hasValidation: false,
   },
 ];
@@ -78,7 +78,8 @@ export interface ContactForm extends CompanyInfo, PersonalInfo, LeadInfo {}
 const AddContactStepper = () => {
   const [activeStep, setActiveStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<Record<number, boolean>>({});
-  const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [evaluationId, setEvaluationId] = useState<number | null>(null);
   const { enqueueSnackbar } = useSnackbar();
   const [searchParams] = useSearchParams();
   const methods = useForm<ContactForm>({
@@ -96,7 +97,7 @@ const AddContactStepper = () => {
     },
   });
 
-  const { handleSubmit, reset } = methods;
+  const { handleSubmit } = methods;
 
   const handleNext = async () => {
     const isValid = await methods.trigger();
@@ -110,33 +111,54 @@ const AddContactStepper = () => {
     setActiveStep((prevStep) => prevStep - 1);
   };
 
-  const onSubmit = (data: any) => {
+  const onSubmit = async (data: ContactForm) => {
     const resolvedBrand =
       data.personalInfo?.brand === 'Other'
         ? (data.personalInfo?.brandOther ?? 'Other')
         : data.personalInfo?.brand;
-    const payload = { ...data, personalInfo: { ...data.personalInfo, brand: resolvedBrand } };
-    console.log('Form data', payload);
-    enqueueSnackbar('Evaluation request submitted!', { variant: 'success' });
-    setCompletedSteps((prev) => ({ ...prev, [activeStep]: true }));
-    setSubmitted(true);
-    setActiveStep(CONFIRMATION_STEP_INDEX);
-  };
 
-  const handleStepClick = (step: number) => {
-    setActiveStep(step);
+    const payload = {
+      serialNumber: data.personalInfo?.serialNumber || null,
+      brand: resolvedBrand,
+      brandOther: data.personalInfo?.brandOther || null,
+      model: data.personalInfo?.model || null,
+      includesCase: data.personalInfo?.includesCase,
+      location: data.personalInfo?.location || null,
+      note: data.personalInfo?.note,
+      damage: data.personalInfo?.damage,
+      firstName: data.leadInfo?.firstName,
+      lastName: data.leadInfo?.lastName,
+      email: data.leadInfo?.email,
+    };
+
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/guitar-evaluation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as any).message || 'Submission failed');
+      }
+      const result = await res.json() as { id: number };
+      setEvaluationId(result.id);
+      setCompletedSteps((prev) => ({ ...prev, [activeStep]: true }));
+      setActiveStep(CONFIRMATION_STEP_INDEX);
+    } catch (e: any) {
+      enqueueSnackbar(e?.message ?? 'Something went wrong. Please try again.', { variant: 'error' });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (activeStep === CONFIRMATION_STEP_INDEX) {
-      // Already confirmed — no-op
-      return;
-    }
+    if (activeStep === CONFIRMATION_STEP_INDEX) return;
 
     if (activeStep === CONFIRMATION_STEP_INDEX - 1) {
-      // Last data-entry step: validate then submit
       handleSubmit(onSubmit)();
     } else {
       handleNext();
@@ -148,29 +170,31 @@ const AddContactStepper = () => {
   return (
     <FormProvider {...methods}>
       <Container maxWidth="sm" sx={{ p: 0 }}>
-        <Stepper nonLinear activeStep={activeStep} alternativeLabel sx={{ mb: 3 }}>
+        <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 3 }}>
           {steps.map(({ id, label }, index) => (
             <Step key={id} completed={!!completedSteps[index]} sx={{ p: 0 }}>
-              <StepLabel onClick={() => handleStepClick(index)} sx={{ cursor: 'pointer' }}>
-                {label}
-              </StepLabel>
+              <StepLabel>{label}</StepLabel>
             </Step>
           ))}
         </Stepper>
 
         <Box component="form" onSubmit={handleFormSubmit}>
-          <Box sx={{ mb: 7 }}>{steps[activeStep]?.content}</Box>
+          <Box sx={{ mb: 7 }}>
+            {activeStep === CONFIRMATION_STEP_INDEX
+              ? <ConfirmationForm evaluationId={evaluationId} />
+              : steps[activeStep]?.content}
+          </Box>
 
           <Stack gap={2} justifyContent="flex-end">
             {activeStep > 0 && !isConfirmationStep && (
-              <Button variant="soft" color="neutral" onClick={handleBack} sx={{ px: 4 }}>
+              <Button variant="soft" color="neutral" onClick={handleBack} sx={{ px: 4 }} disabled={submitting}>
                 Back
               </Button>
             )}
 
             {!isConfirmationStep && (
-              <Button type="submit" variant="soft">
-                {activeStep === CONFIRMATION_STEP_INDEX - 1 ? 'Save & Continue' : 'Save & Continue'}
+              <Button type="submit" variant="soft" loading={submitting}>
+                Save & Continue
               </Button>
             )}
           </Stack>
