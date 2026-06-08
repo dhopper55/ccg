@@ -947,6 +947,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/value-reports' && request.method === 'GET') {
+      const response = await handleAdminV2ValueReports(request, env);
+      return withCors(response, request, env);
+    }
+
     if (path.endsWith('/evaluated') && path.startsWith('/api/admin-v2/serial-decodes/') && request.method === 'POST') {
       const response = await handleAdminV2SerialDecodeEvaluatedUpdate(request, path, env);
       return withCors(response, request, env);
@@ -18204,6 +18209,46 @@ async function buildAssociateModeCookie(env: Env): Promise<string> {
 
 function clearAssociateModeCookie(): string {
   return `${ASSOCIATE_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`;
+}
+
+async function handleAdminV2ValueReports(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10));
+  const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '25', 10)));
+  const offset = (page - 1) * limit;
+
+  const countResult = await env.DB.prepare(
+    `SELECT COUNT(*) as total FROM guitar_evaluations`
+  ).first<{ total: number }>();
+  const total = countResult?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  const rows = await env.DB.prepare(
+    `SELECT id, created_at, first_name, last_name, brand, location, stripe_payment_intent_id
+     FROM guitar_evaluations
+     ORDER BY created_at DESC
+     LIMIT ? OFFSET ?`
+  ).bind(limit, offset).all<{
+    id: number;
+    created_at: string;
+    first_name: string | null;
+    last_name: string | null;
+    brand: string | null;
+    location: string | null;
+    stripe_payment_intent_id: string | null;
+  }>();
+
+  const records = (rows.results ?? []).map((row) => ({
+    id: row.id,
+    createdAt: row.created_at,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    brand: row.brand,
+    location: row.location,
+    stripePaymentIntentId: row.stripe_payment_intent_id,
+  }));
+
+  return jsonResponse({ records, page, limit, total, totalPages });
 }
 
 function currentDateYmd(): string {

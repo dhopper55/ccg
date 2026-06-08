@@ -79,6 +79,12 @@ Going forward, the rule is:
 - If a screen needs a new arrangement, find the closest Aurora example and adapt it instead of inventing a custom layout.
 - If admin needs different backend payloads, add endpoints under `/api/admin-v2/*` rather than changing legacy endpoint contracts.
 
+### Adding a new admin page (required steps)
+Every new admin route requires three changes or the page will 404 on hard refresh:
+1. Add the path to `paths.ts` and `sitemap.ts`, register it in `router.tsx`, and create the page component — same as any React route.
+2. Add the route slug to the `routeDirs` array in `scripts/sync-admin-v2-routes.mjs`. This script copies the built `admin/index.html` shell into `admin/<route>/index.html` so Cloudflare Pages can serve the SPA shell on a direct URL hit or browser refresh. Skipping this step causes hard-refresh 404s that fall through to the root static site.
+3. Run `npm run build:admin-v2` (which runs the Vite build then the sync script) and deploy Pages.
+
 ## Shop
 There is a separate Aurora-based storefront app deployed at `/guitars-and-gear-for-sale/`. The same app also owns the modern public decoder page UI at `/decoders/`.
 
