@@ -28,49 +28,28 @@ const steps: AddContactStepperStep[] = [
     id: 1,
     label: (
       <Typography variant="subtitle2" fontWeight={700}>
-        Personal Info
-        <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
-          rmation
-        </Box>
+        Guitar Info
       </Typography>
     ),
-    content: <PersonalInfoForm label="Personal Information" />,
+    content: <PersonalInfoForm label="Guitar Info" />,
   },
   {
     id: 2,
     label: (
-      <Typography
-        variant="subtitle2"
-        fontWeight={700}
-        sx={{
-          '& br': { display: { xs: 'none', sm: 'inline' } },
-        }}
-      >
-        Company Info
-        <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
-          rmation
-        </Box>
+      <Typography variant="subtitle2" fontWeight={700}>
+        Photos
       </Typography>
     ),
-    content: <CompanyInfoForm label="Company Information" />,
+    content: <CompanyInfoForm label="Photos" />,
   },
   {
     id: 3,
     label: (
-      <Typography
-        variant="subtitle2"
-        fontWeight={700}
-        sx={{
-          '& br': { display: { xs: 'none', sm: 'inline' } },
-        }}
-      >
-        Lead Info
-        <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
-          rmation
-        </Box>
+      <Typography variant="subtitle2" fontWeight={700}>
+        Contact Info
       </Typography>
     ),
-    content: <LeadInfoForm label="Lead Information" />,
+    content: <LeadInfoForm label="Contact Info" />,
   },
 ];
 

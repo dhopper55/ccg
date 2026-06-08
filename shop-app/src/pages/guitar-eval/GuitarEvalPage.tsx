@@ -1,24 +1,53 @@
-import { Paper } from '@mui/material';
+import { Box, Divider, Paper, Stack, Typography } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-import MainLayout from 'layouts/main-layout';
+import IconifyIcon from 'components/base/IconifyIcon';
+import PageBreadcrumb from 'components/sections/common/PageBreadcrumb';
 import AddContactStepper from 'components/sections/crm/add-contact/AddContactStepper';
-import PageHeader from 'components/sections/ecommerce/admin/common/PageHeader';
 
 const GuitarEvalPage = () => {
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <MainLayout>
-        <Grid container>
+      <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', p: { xs: 2, md: 5 } }}>
+        <Grid container sx={{ gap: 2 }}>
           <Grid size={12}>
-            <PageHeader
-              title="$ Coal Creek Guitar Evaluation Report"
-              breadcrumb={[
-                { label: 'Home', url: 'https://www.coalcreekguitars.com' },
-                { label: 'Guitar Evaluation', active: true },
-              ]}
-            />
+            <Paper sx={{ px: { xs: 3, md: 5 }, py: 3 }}>
+              <Stack direction="row" sx={{ alignItems: 'center', gap: 2, mb: 1 }}>
+                <Box
+                  component="a"
+                  href="https://www.coalcreekguitars.com"
+                  sx={{ display: 'flex', alignItems: 'center', gap: 1.5, textDecoration: 'none', flexShrink: 0 }}
+                >
+                  <Box
+                    component="img"
+                    src="/images/coal-creek-logo.png"
+                    alt="Coal Creek Guitars"
+                    sx={{ width: 32, height: 32, objectFit: 'contain', filter: 'invert(1)' }}
+                  />
+                  <Typography fontWeight={700} fontSize={15} color="text.primary" sx={{ whiteSpace: 'nowrap' }}>
+                    Coal Creek Guitars
+                  </Typography>
+                </Box>
+                <Divider orientation="vertical" flexItem />
+                <PageBreadcrumb
+                  items={[
+                    { label: 'Home', url: 'https://www.coalcreekguitars.com' },
+                    { label: 'Guitar Evaluation', active: true },
+                  ]}
+                />
+              </Stack>
+              <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5 }}>
+                <IconifyIcon
+                  icon="mdi:currency-usd"
+                  color="#b8960c"
+                  sx={{ fontSize: '2.125rem', flexShrink: 0 }}
+                />
+                <Typography variant="h4">
+                  Coal Creek Guitar Evaluation Report
+                </Typography>
+              </Stack>
+            </Paper>
           </Grid>
           <Grid size={12}>
             <Paper sx={{ p: { xs: 3, md: 5 } }}>
@@ -26,7 +55,7 @@ const GuitarEvalPage = () => {
             </Paper>
           </Grid>
         </Grid>
-      </MainLayout>
+      </Box>
     </LocalizationProvider>
   );
 };
