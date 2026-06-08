@@ -24,6 +24,7 @@ const routeDirs = [
   'serial-decodes',
   'serial-pattern-text',
   'value-reports',
+  'value-report-item',
   'authentication/default/jwt/login',
   'authentication/default/jwt/sign-up',
   'authentication/default/jwt/forgot-password',

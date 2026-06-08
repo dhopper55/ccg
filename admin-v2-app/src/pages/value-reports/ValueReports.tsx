@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router';
+import paths from 'routes/paths';
 import {
   Alert,
   Button,
@@ -40,6 +42,7 @@ type ValueReportsResponse = {
 const PAGE_SIZE = 25;
 
 const ValueReports = () => {
+  const navigate = useNavigate();
   const [records, setRecords] = useState<ValueReportRecord[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -142,7 +145,7 @@ const ValueReports = () => {
                           component="button"
                           variant="body2"
                           underline="hover"
-                          onClick={() => {/* detail view — coming later */}}
+                          onClick={() => navigate(paths.valueReportItemWithId(record.id))}
                           sx={{ cursor: 'pointer' }}
                         >
                           {formattedDate}

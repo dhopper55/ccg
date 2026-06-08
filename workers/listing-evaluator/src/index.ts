@@ -952,6 +952,12 @@ export default {
       return withCors(response, request, env);
     }
 
+    const adminV2ValueReportItemMatch = path.match(/^\/api\/admin-v2\/value-reports\/(\d+)$/);
+    if (adminV2ValueReportItemMatch && request.method === 'GET') {
+      const response = await handleAdminV2ValueReportItem(adminV2ValueReportItemMatch[1], env);
+      return withCors(response, request, env);
+    }
+
     if (path.endsWith('/evaluated') && path.startsWith('/api/admin-v2/serial-decodes/') && request.method === 'POST') {
       const response = await handleAdminV2SerialDecodeEvaluatedUpdate(request, path, env);
       return withCors(response, request, env);
@@ -18209,6 +18215,53 @@ async function buildAssociateModeCookie(env: Env): Promise<string> {
 
 function clearAssociateModeCookie(): string {
   return `${ASSOCIATE_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`;
+}
+
+async function handleAdminV2ValueReportItem(id: string, env: Env): Promise<Response> {
+  const row = await env.DB.prepare(
+    `SELECT id, created_at, first_name, last_name, email, brand, brand_other, model,
+            serial_number, includes_case, location, note, damage,
+            stripe_payment_intent_id, fulfilled
+     FROM guitar_evaluations WHERE id = ?`
+  ).bind(id).first<{
+    id: number;
+    created_at: string;
+    first_name: string | null;
+    last_name: string | null;
+    email: string | null;
+    brand: string | null;
+    brand_other: string | null;
+    model: string | null;
+    serial_number: string | null;
+    includes_case: string | null;
+    location: string | null;
+    note: string | null;
+    damage: string | null;
+    stripe_payment_intent_id: string | null;
+    fulfilled: number;
+  }>();
+
+  if (!row) return jsonResponse({ message: 'Value report not found.' }, 404);
+
+  return jsonResponse({
+    record: {
+      id: row.id,
+      createdAt: row.created_at,
+      firstName: row.first_name,
+      lastName: row.last_name,
+      email: row.email,
+      brand: row.brand,
+      brandOther: row.brand_other,
+      model: row.model,
+      serialNumber: row.serial_number,
+      includesCase: row.includes_case,
+      location: row.location,
+      note: row.note,
+      damage: row.damage,
+      stripePaymentIntentId: row.stripe_payment_intent_id,
+      fulfilled: row.fulfilled,
+    },
+  });
 }
 
 async function handleAdminV2ValueReports(request: Request, env: Env): Promise<Response> {

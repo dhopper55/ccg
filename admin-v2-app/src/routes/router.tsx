@@ -23,6 +23,7 @@ import PaymentLinks from 'pages/payment-links/PaymentLinks';
 import SerialDecodes from 'pages/serial-decodes/SerialDecodes';
 import SerialPatternText from 'pages/serial-pattern-text/SerialPatternText';
 import ValueReports from 'pages/value-reports/ValueReports';
+import ValueReportItem from 'pages/value-reports/ValueReportItem';
 import ShopStatistics from 'pages/shop-statistics/ShopStatistics';
 import SystemSettings from 'pages/system-settings/SystemSettings';
 import LoggedOut from 'pages/authentication/default/LoggedOut';
@@ -111,6 +112,10 @@ export const routes: RouteObject[] = [
           {
             path: paths.valueReports,
             element: <ValueReports />,
+          },
+          {
+            path: paths.valueReportItem,
+            element: <ValueReportItem />,
           },
           {
             path: paths.shopStatistics,

@@ -36,6 +36,8 @@ const paths = {
   serialDecodes: '/serial-decodes',
   serialPatternText: '/serial-pattern-text',
   valueReports: '/value-reports',
+  valueReportItem: '/value-report-item',
+  valueReportItemWithId: (id: string | number) => `/value-report-item?id=${encodeURIComponent(String(id))}`,
   shopStatistics: '/shop-statistics',
   systemSettings: '/system-settings',
   inventoryItem: '/inventory-item',
