@@ -169,7 +169,7 @@ const sitemap: MenuItem[] = [
         key: 'shop_statistics',
         path: paths.shopStatistics,
         pathName: 'shop-statistics',
-        icon: 'material-symbols:monitoring-outline-rounded',
+        icon: 'material-symbols:bar-chart-4-bars-rounded',
         active: true,
       },
       {
