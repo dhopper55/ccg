@@ -47,6 +47,19 @@ const GuitarEvalPage = () => {
                   Comprehensive Guitar Evaluation Report
                 </Typography>
               </Stack>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5, lineHeight: 1.7 }}>
+                Answer a few questions about your instrument and get a professional-grade valuation report in less than 24 hours. We identify your gear, price it across Reverb, eBay, dealers, and local sale, flag what raises or lowers its value, and hand you a ready-to-post listing for your area. Read it on screen, save it as a PDF, or print it.{' '}
+                <Box
+                  component="a"
+                  href="https://www.coalcreekguitars.com/guitar-value-report-evaluation/sample-report.pdf"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, color: 'primary.main', textDecoration: 'underline', verticalAlign: 'middle' }}
+                >
+                  <Box component="img" src="/images/pdf.png" alt="PDF" sx={{ width: 18, height: 18, objectFit: 'contain' }} />
+                  Click here to see a sample report.
+                </Box>
+              </Typography>
             </Paper>
           </Grid>
           <Grid size={12}>

@@ -1,10 +1,8 @@
 import { Controller, useFormContext } from 'react-hook-form';
 import {
   Box,
-  Divider,
   FormControl,
   FormHelperText,
-  Link,
   MenuItem,
   Select,
   Stack,
@@ -14,7 +12,6 @@ import {
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import * as yup from 'yup';
-import IconifyIcon from 'components/base/IconifyIcon';
 import ContactFormSection from 'components/sections/crm/add-contact/ContactFormSection';
 
 export interface PersonalInfo {
@@ -25,6 +22,7 @@ export interface PersonalInfo {
     includesCase: string;
     phoneNumber?: string;
     alternatePhoneNumber?: string;
+    location?: string;
     note: string;
     damage?: string;
   };
@@ -38,6 +36,7 @@ export const personalInfoSchema = yup.object({
     includesCase: yup.string().required('This field is required'),
     phoneNumber: yup.string().optional(),
     alternatePhoneNumber: yup.string().optional(),
+    location: yup.string().optional(),
     note: yup.string().required('Guitar Notes are required'),
     damage: yup.string().optional(),
   }),
@@ -72,8 +71,6 @@ const GUITAR_BRANDS = [
   'Yamaha',
   'Other',
 ];
-
-const SAMPLE_REPORT_URL = 'https://www.coalcreekguitars.com/guitar-value-report-evaluation/sample-report.pdf';
 
 const FieldTooltip = ({ title }: { title: string }) => (
   <Tooltip title={title} placement="top" arrow>
@@ -126,27 +123,6 @@ const PersonalInfoForm = (_: { label?: string }) => {
 
   return (
     <div>
-      <Box sx={{ mb: 3 }}>
-        <Divider />
-        <Box sx={{ mt: 2 }}>
-          <Stack direction="row" alignItems="center" spacing={0.75}>
-            <IconifyIcon icon="mdi:file-pdf-box" sx={{ fontSize: 20, color: '#e53935', flexShrink: 0 }} />
-            <Link
-              href={SAMPLE_REPORT_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              underline="always"
-              variant="body2"
-            >
-              Click here to view a sample evaluation report
-            </Link>
-          </Stack>
-          <Typography variant="body2" fontStyle="italic" sx={{ mt: 0.5 }}>
-            Ready in less than 24 hours
-          </Typography>
-        </Box>
-      </Box>
-
       <Stack direction="column" spacing={4}>
         <ContactFormSection title="Guitar Information">
           <Grid container spacing={2} sx={{ width: 1 }}>
@@ -217,6 +193,15 @@ const PersonalInfoForm = (_: { label?: string }) => {
         </ContactFormSection>
 
         <ContactFormSection title="Additional Information">
+          <Box sx={{ width: 1 }}>
+            <FieldLabel text="Approx. Instrument Location" optional />
+            <TextField
+              fullWidth
+              error={!!errors.personalInfo?.location}
+              helperText={errors.personalInfo?.location?.message}
+              {...register('personalInfo.location')}
+            />
+          </Box>
           <Box sx={{ width: 1 }}>
             <FieldLabel text="Guitar Notes" />
             <TextField
