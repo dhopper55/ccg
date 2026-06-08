@@ -5,10 +5,11 @@ import { loadStripe, Stripe } from '@stripe/stripe-js';
 import IconifyIcon from 'components/base/IconifyIcon';
 
 interface PaymentFormProps {
+  evaluationId: number | null;
   onSuccess: () => void;
 }
 
-const PaymentForm = ({ onSuccess }: PaymentFormProps) => {
+const PaymentForm = ({ evaluationId, onSuccess }: PaymentFormProps) => {
   const stripe = useStripe();
   const elements = useElements();
   const [paying, setPaying] = useState(false);
@@ -20,7 +21,7 @@ const PaymentForm = ({ onSuccess }: PaymentFormProps) => {
     setPaying(true);
     setError(null);
 
-    const { error: stripeError } = await stripe.confirmPayment({
+    const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
       elements,
       confirmParams: { return_url: window.location.href },
       redirect: 'if_required',
@@ -29,9 +30,18 @@ const PaymentForm = ({ onSuccess }: PaymentFormProps) => {
     if (stripeError) {
       setError(stripeError.message ?? 'Payment failed. Please try again.');
       setPaying(false);
-    } else {
-      onSuccess();
+      return;
     }
+
+    if (paymentIntent?.id && evaluationId) {
+      await fetch('/api/guitar-evaluation/confirm-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ evaluationId, paymentIntentId: paymentIntent.id }),
+      }).catch(() => undefined);
+    }
+
+    onSuccess();
   };
 
   return (
@@ -176,7 +186,7 @@ const ConfirmationForm = ({ evaluationId }: { evaluationId: number | null; label
                 appearance: { theme: 'night' },
               }}
             >
-              <PaymentForm onSuccess={() => setPaid(true)} />
+              <PaymentForm evaluationId={evaluationId} onSuccess={() => setPaid(true)} />
             </Elements>
           )}
         </>

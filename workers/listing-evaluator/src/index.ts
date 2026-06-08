@@ -599,6 +599,10 @@ export default {
 
     if (path === '/api/guitar-evaluation/payment-intent' && request.method === 'POST') {
       const response = await handleGuitarEvaluationPaymentIntent(request, env);
+      return addCorsHeaders(response, request);
+    }
+    if (path === '/api/guitar-evaluation/confirm-payment' && request.method === 'POST') {
+      const response = await handleGuitarEvaluationConfirmPayment(request, env);
       return withCors(response, request, env);
     }
 
@@ -18289,6 +18293,27 @@ async function handleGuitarEvaluationPaymentIntent(request: Request, env: Env): 
   return jsonResponse({ clientSecret: intent.client_secret, publishableKey: stripeConfig.publishableKey });
 }
 
+async function handleGuitarEvaluationConfirmPayment(request: Request, env: Env): Promise<Response> {
+  let body: any;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid request body.' }, 400);
+  }
+
+  const evaluationId = body?.evaluationId;
+  const paymentIntentId = normalizeText(body?.paymentIntentId, '');
+  if (!evaluationId || !paymentIntentId) {
+    return jsonResponse({ message: 'evaluationId and paymentIntentId are required.' }, 400);
+  }
+
+  await env.DB.prepare(
+    `UPDATE guitar_evaluations SET stripe_payment_intent_id = ? WHERE id = ?`
+  ).bind(paymentIntentId, evaluationId).run();
+
+  return jsonResponse({ ok: true });
+}
+
 async function handleGuitarEvaluationSubmit(request: Request, env: Env): Promise<Response> {
   let body: any;
   try {
@@ -18330,7 +18355,8 @@ function isPublicApiPath(path: string): boolean {
     || path === '/api/inventory-image'
     || path === '/api/listing-image'
     || path === '/api/guitar-evaluation'
-    || path === '/api/guitar-evaluation/payment-intent';
+    || path === '/api/guitar-evaluation/payment-intent'
+    || path === '/api/guitar-evaluation/confirm-payment';
 }
 
 function formatMonthLabel(month: string): string {

@@ -154,6 +154,14 @@ const sitemap: MenuItem[] = [
             icon: 'material-symbols:notes-rounded',
             active: true,
           },
+          {
+            name: 'Value Reports',
+            key: 'value_reports',
+            path: paths.valueReports,
+            pathName: 'value-reports',
+            icon: 'material-symbols:attach-money',
+            active: true,
+          },
         ],
       },
       {

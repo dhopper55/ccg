@@ -35,6 +35,7 @@ const paths = {
   inventoryLabels: '/inventory-labels',
   serialDecodes: '/serial-decodes',
   serialPatternText: '/serial-pattern-text',
+  valueReports: '/value-reports',
   shopStatistics: '/shop-statistics',
   systemSettings: '/system-settings',
   inventoryItem: '/inventory-item',
