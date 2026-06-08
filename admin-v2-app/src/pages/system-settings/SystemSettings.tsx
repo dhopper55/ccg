@@ -109,7 +109,6 @@ const SystemSettings = () => {
   const [stripePublishableKeySandbox, setStripePublishableKeySandbox] = useState('');
   const [stripePublishableKey, setStripePublishableKey] = useState('');
   const [isUpdatingStripeEnv, setIsUpdatingStripeEnv] = useState(false);
-  const [isSavingStripeKeys, setIsSavingStripeKeys] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [isPrintingReceipt, setIsPrintingReceipt] = useState(false);
   const [isKickingDrawer, setIsKickingDrawer] = useState(false);
@@ -162,24 +161,34 @@ const SystemSettings = () => {
     setIsSaving(true);
     setErrorMessage('');
     try {
-      const response = await fetch('/api/admin-v2/system-settings', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          brevoOrderConfirmationTemplateId: Number(form.brevoOrderConfirmationTemplateId),
-          brevoSenderName: form.brevoSenderName,
-          brevoSenderEmail: form.brevoSenderEmail,
-          associateScreensaverIdleSeconds: Number(form.associateScreensaverIdleSeconds),
-          customProductBarcode: form.customProductBarcode,
-          currentUsedLocalFunds: Number(form.currentUsedLocalFunds),
-          currentMfrWholesaleFunds: Number(form.currentMfrWholesaleFunds),
-          postStoreLaunchDate: form.postStoreLaunchDate,
-          saleDescriptionPostfix: form.saleDescriptionPostfix,
+      const [settingsRes, stripeRes] = await Promise.all([
+        fetch('/api/admin-v2/system-settings', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            brevoOrderConfirmationTemplateId: Number(form.brevoOrderConfirmationTemplateId),
+            brevoSenderName: form.brevoSenderName,
+            brevoSenderEmail: form.brevoSenderEmail,
+            associateScreensaverIdleSeconds: Number(form.associateScreensaverIdleSeconds),
+            customProductBarcode: form.customProductBarcode,
+            currentUsedLocalFunds: Number(form.currentUsedLocalFunds),
+            currentMfrWholesaleFunds: Number(form.currentMfrWholesaleFunds),
+            postStoreLaunchDate: form.postStoreLaunchDate,
+            saleDescriptionPostfix: form.saleDescriptionPostfix,
+          }),
         }),
-      });
-      const payload = (await response.json()) as SystemSettingsResponse;
-      if (!response.ok) throw new Error(payload.message || 'Unable to save system settings.');
+        fetch('/api/admin-v2/stripe-config', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ useStripeSandbox, stripePublishableKeySandbox, stripePublishableKey }),
+        }),
+      ]);
+      const payload = (await settingsRes.json()) as SystemSettingsResponse;
+      const stripePayload = (await stripeRes.json()) as StripeConfigResponse;
+      if (!settingsRes.ok) throw new Error(payload.message || 'Unable to save system settings.');
+      if (!stripeRes.ok) throw new Error(stripePayload.message || 'Unable to save Stripe keys.');
       setForm({
         brevoOrderConfirmationTemplateId: payload.brevoOrderConfirmationTemplateId || form.brevoOrderConfirmationTemplateId,
         brevoSenderName: payload.brevoSenderName || form.brevoSenderName,
@@ -191,6 +200,8 @@ const SystemSettings = () => {
         postStoreLaunchDate: payload.postStoreLaunchDate || form.postStoreLaunchDate,
         saleDescriptionPostfix: payload.saleDescriptionPostfix ?? form.saleDescriptionPostfix,
       });
+      setStripePublishableKeySandbox(stripePayload.stripePublishableKeySandbox ?? stripePublishableKeySandbox);
+      setStripePublishableKey(stripePayload.stripePublishableKey ?? stripePublishableKey);
       enqueueSnackbar('System settings saved.', { variant: 'success' });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to save system settings.');
@@ -220,32 +231,6 @@ const SystemSettings = () => {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to update Stripe environment.');
     } finally {
       setIsUpdatingStripeEnv(false);
-    }
-  };
-
-  const handleStripeKeysSave = async () => {
-    setIsSavingStripeKeys(true);
-    setErrorMessage('');
-    try {
-      const response = await fetch('/api/admin-v2/stripe-config', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          useStripeSandbox,
-          stripePublishableKeySandbox,
-          stripePublishableKey,
-        }),
-      });
-      const payload = (await response.json()) as StripeConfigResponse;
-      if (!response.ok) throw new Error(payload.message || 'Unable to save Stripe keys.');
-      setStripePublishableKeySandbox(payload.stripePublishableKeySandbox ?? stripePublishableKeySandbox);
-      setStripePublishableKey(payload.stripePublishableKey ?? stripePublishableKey);
-      enqueueSnackbar('Stripe publishable keys saved.', { variant: 'success' });
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Unable to save Stripe keys.');
-    } finally {
-      setIsSavingStripeKeys(false);
     }
   };
 
@@ -413,7 +398,7 @@ const SystemSettings = () => {
             label="Stripe Publishable Key (Test / Sandbox)"
             placeholder="pk_test_..."
             value={stripePublishableKeySandbox}
-            disabled={isLoading || isSavingStripeKeys}
+            disabled={isLoading || isSaving}
             onChange={(e) => setStripePublishableKeySandbox(e.target.value)}
           />
           <TextField
@@ -421,17 +406,9 @@ const SystemSettings = () => {
             label="Stripe Publishable Key (Live / Production)"
             placeholder="pk_live_..."
             value={stripePublishableKey}
-            disabled={isLoading || isSavingStripeKeys}
+            disabled={isLoading || isSaving}
             onChange={(e) => setStripePublishableKey(e.target.value)}
           />
-          <Button
-            variant="outlined"
-            disabled={isLoading || isSavingStripeKeys}
-            onClick={() => void handleStripeKeysSave()}
-            sx={{ alignSelf: 'flex-start' }}
-          >
-            {isSavingStripeKeys ? 'Saving...' : 'Save Stripe Keys'}
-          </Button>
           <TextField
             fullWidth
             required

@@ -82,6 +82,11 @@ export function decodeCort(serial: string): DecodeResult {
     return decodeIndonesiaIE(normalized);
   }
 
+  // Indonesian Cort factory: plain I prefix + YYMMXXXXX (e.g. I250804919 = Indonesia 2025 August)
+  if (/^I\d{9}$/.test(normalized)) {
+    return decodeIndonesiaSingleI(normalized);
+  }
+
   // Indonesian Cort factory: IS + 1-2 letter product/line code + YY + sequence (e.g. ISSG22002098)
   if (/^IS[A-Z]{1,2}\d{6,8}$/.test(normalized)) {
     return decodeIndonesiaISProductLine(normalized);
