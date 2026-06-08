@@ -33,7 +33,7 @@ const GuitarEvalPage = () => {
                 <PageBreadcrumb
                   items={[
                     { label: 'Home', url: 'https://www.coalcreekguitars.com' },
-                    { label: 'Guitar Evaluation', active: true },
+                    { label: 'Guitar Evaluation Report', active: true },
                   ]}
                 />
               </Stack>
@@ -44,7 +44,7 @@ const GuitarEvalPage = () => {
                   sx={{ fontSize: '2.125rem', flexShrink: 0 }}
                 />
                 <Typography variant="h4">
-                  Coal Creek Guitar Evaluation Report
+                  Comprehensive Guitar Evaluation Report
                 </Typography>
               </Stack>
             </Paper>

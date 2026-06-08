@@ -4,7 +4,8 @@ import { useSearchParams } from 'react-router';
 import IconifyIcon from 'components/base/IconifyIcon';
 import SectionHeader from 'components/common/SectionHeader';
 import StyledTextField from 'components/styled/StyledTextField';
-import DecoderAccessorySuggestions from './DecoderAccessorySuggestions';
+
+const GOOGLE_REVIEW_URL = 'https://g.page/r/CYgEveOaLAOjEBM/review';
 
 const DECODE_URL = 'https://www.coalcreekguitars.com/api/decode';
 const DECODE_EMAIL_URL = 'https://www.coalcreekguitars.com/api/decode/email';
@@ -51,7 +52,6 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange }: 
   const [emailSubmitMessage, setEmailSubmitMessage] = useState('');
   const [emailSubmitError, setEmailSubmitError] = useState('');
   const [isSubmittingEmail, setIsSubmittingEmail] = useState(false);
-  const [notesExpanded, setNotesExpanded] = useState(false);
   const initialSerial = searchParams.get('serial')?.trim() || '';
   const hasAutoDecodedRef = useRef(false);
 
@@ -77,7 +77,6 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange }: 
     setEmailAddress('');
     setEmailSubmitMessage('');
     setEmailSubmitError('');
-    setNotesExpanded(false);
     onAdditionalInfoChange('');
   };
 
@@ -304,7 +303,6 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange }: 
                 </Stack>
               </Box>
             )}
-            <DecoderAccessorySuggestions count={9} />
           </>
         )}
 
@@ -337,71 +335,61 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange }: 
               </Link>
             </Stack>
             <Stack direction="column" divider={<Divider sx={{ borderColor: 'dividerLight', opacity: 0.59 }} />}>
-              {resultFields.map((field) => {
-                const isNotes = field.label === 'Notes';
-                const notesPreviewLen = 46;
-                const notesTooLong = isNotes && (field.value?.length ?? 0) > notesPreviewLen;
-                return (
-                  <Stack
-                    key={field.label}
-                    direction="row"
+              {resultFields.map((field) => (
+                <Stack
+                  key={field.label}
+                  direction="row"
+                  sx={{
+                    alignItems: 'baseline',
+                    justifyContent: 'space-between',
+                    gap: 2,
+                    py: 0.5,
+                    width: 1,
+                  }}
+                >
+                  <Typography
+                    variant="caption"
+                    sx={{ color: 'text.secondary', fontWeight: 400, flexShrink: 0 }}
+                  >
+                    {field.label}
+                  </Typography>
+                  <Typography
+                    variant="caption"
                     sx={{
-                      alignItems: 'baseline',
-                      justifyContent: 'space-between',
-                      gap: 2,
-                      py: 0.5,
-                      width: 1,
+                      color: 'text.primary',
+                      fontWeight: 500,
+                      textAlign: 'right',
+                      wordBreak: 'break-word',
+                      maxWidth: { xs: '60%', md: '70%' },
                     }}
                   >
-                    <Typography
-                      variant="caption"
-                      sx={{ color: 'text.secondary', fontWeight: 400, flexShrink: 0 }}
-                    >
-                      {field.label}
-                    </Typography>
-                    {isNotes && notesTooLong ? (
-                      notesExpanded ? (
-                        <Typography
-                          variant="caption"
-                          component="div"
-                          sx={{ color: 'text.primary', fontWeight: 500, textAlign: 'right', wordBreak: 'break-word', maxWidth: { xs: '60%', md: '70%' } }}
-                        >
-                          {field.value}{' '}
-                          <Box component="span" onClick={() => setNotesExpanded(false)} sx={{ color: 'warning.main', cursor: 'pointer', fontWeight: 700 }}>
-                            Less
-                          </Box>
-                        </Typography>
-                      ) : (
-                        <Typography
-                          variant="caption"
-                          component="div"
-                          sx={{ color: 'text.primary', fontWeight: 500, textAlign: 'right', maxWidth: { xs: '60%', md: '70%' } }}
-                        >
-                          {field.value!.slice(0, notesPreviewLen).trimEnd()}…{' '}
-                          <Box component="span" onClick={() => setNotesExpanded(true)} sx={{ color: 'warning.main', cursor: 'pointer', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                            More info
-                          </Box>
-                        </Typography>
-                      )
-                    ) : (
-                      <Typography
-                        variant="caption"
-                        sx={{
-                          color: 'text.primary',
-                          fontWeight: 500,
-                          textAlign: 'right',
-                          wordBreak: 'break-word',
-                          maxWidth: { xs: '60%', md: '70%' },
-                        }}
-                      >
-                        {field.value}
-                      </Typography>
-                    )}
-                  </Stack>
-                );
-              })}
+                    {field.value}
+                  </Typography>
+                </Stack>
+              ))}
+              <Box sx={{ py: 0.75 }}>
+                <Typography
+                  variant="caption"
+                  sx={{ color: 'text.secondary', fontStyle: 'italic', lineHeight: 1.6 }}
+                >
+                  This decode was completely free — no catch. If it helped you, 30 seconds on Google goes a long way for us.
+                </Typography>
+              </Box>
             </Stack>
-            <DecoderAccessorySuggestions count={9} />
+            <Box sx={{ mt: 2 }}>
+              <Button
+                variant="soft"
+                color="warning"
+                startIcon={<IconifyIcon icon="logos:google-icon" />}
+                component="a"
+                href={GOOGLE_REVIEW_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                sx={{ fontWeight: 700 }}
+              >
+                Leave a Google Review
+              </Button>
+            </Box>
           </Box>
         )}
       </Box>

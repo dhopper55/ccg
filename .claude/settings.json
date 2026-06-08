@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(git rm:*)",
-      "Bash(aws cloudwatch:*)"
+      "Bash(aws cloudwatch:*)",
+      "Bash(python3 -c \"import json,sys; configs=json.load\\(sys.stdin\\); [print\\(c.get\\('pageTitle',''\\)\\) for c in configs]\")"
     ]
   }
 }

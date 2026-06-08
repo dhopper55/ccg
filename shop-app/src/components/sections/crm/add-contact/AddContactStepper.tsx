@@ -8,6 +8,7 @@ import CompanyInfoForm, {
   CompanyInfo,
   companyInfoSchema,
 } from 'components/sections/crm/add-contact/steps/CompanyInfoForm';
+import ConfirmationForm from 'components/sections/crm/add-contact/steps/ConfirmationForm';
 import LeadInfoForm, {
   LeadInfo,
   leadInfoSchema,
@@ -21,7 +22,10 @@ interface AddContactStepperStep {
   id: number;
   label: JSX.Element;
   content: JSX.Element;
+  hasValidation: boolean;
 }
+
+const CONFIRMATION_STEP_INDEX = 3;
 
 const steps: AddContactStepperStep[] = [
   {
@@ -31,7 +35,8 @@ const steps: AddContactStepperStep[] = [
         Guitar Info
       </Typography>
     ),
-    content: <PersonalInfoForm label="Guitar Info" />,
+    content: <PersonalInfoForm />,
+    hasValidation: true,
   },
   {
     id: 2,
@@ -41,6 +46,7 @@ const steps: AddContactStepperStep[] = [
       </Typography>
     ),
     content: <CompanyInfoForm label="Photos" />,
+    hasValidation: true,
   },
   {
     id: 3,
@@ -50,6 +56,17 @@ const steps: AddContactStepperStep[] = [
       </Typography>
     ),
     content: <LeadInfoForm label="Contact Info" />,
+    hasValidation: true,
+  },
+  {
+    id: 4,
+    label: (
+      <Typography variant="subtitle2" fontWeight={700}>
+        Confirmation
+      </Typography>
+    ),
+    content: <ConfirmationForm label="Confirmation" />,
+    hasValidation: false,
   },
 ];
 
@@ -60,11 +77,14 @@ export interface ContactForm extends CompanyInfo, PersonalInfo, LeadInfo {}
 const AddContactStepper = () => {
   const [activeStep, setActiveStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<Record<number, boolean>>({});
+  const [submitted, setSubmitted] = useState(false);
   const { enqueueSnackbar } = useSnackbar();
   const methods = useForm<ContactForm>({
-    resolver: yupResolver(validationSchemas[activeStep] as yup.ObjectSchema<ContactForm>),
+    resolver: activeStep < validationSchemas.length
+      ? yupResolver(validationSchemas[activeStep] as yup.ObjectSchema<ContactForm>)
+      : undefined,
     defaultValues: {
-      personalInfo: {},
+      personalInfo: { includesCase: 'no' } as PersonalInfo['personalInfo'],
       companyInfo: {},
       leadInfo: {},
     },
@@ -86,11 +106,12 @@ const AddContactStepper = () => {
 
   const onSubmit = (data: any) => {
     console.log('Form data', data);
-    enqueueSnackbar('Contact added successfully', { variant: 'success' });
-    reset();
-    setCompletedSteps({});
-    setActiveStep(0);
+    enqueueSnackbar('Evaluation request submitted!', { variant: 'success' });
+    setCompletedSteps((prev) => ({ ...prev, [activeStep]: true }));
+    setSubmitted(true);
+    setActiveStep(CONFIRMATION_STEP_INDEX);
   };
+
   const handleStepClick = (step: number) => {
     setActiveStep(step);
   };
@@ -98,12 +119,20 @@ const AddContactStepper = () => {
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (activeStep === steps.length - 1) {
+    if (activeStep === CONFIRMATION_STEP_INDEX) {
+      // Already confirmed — no-op
+      return;
+    }
+
+    if (activeStep === CONFIRMATION_STEP_INDEX - 1) {
+      // Last data-entry step: validate then submit
       handleSubmit(onSubmit)();
     } else {
       handleNext();
     }
   };
+
+  const isConfirmationStep = activeStep === CONFIRMATION_STEP_INDEX;
 
   return (
     <FormProvider {...methods}>
@@ -122,19 +151,15 @@ const AddContactStepper = () => {
           <Box sx={{ mb: 7 }}>{steps[activeStep]?.content}</Box>
 
           <Stack gap={2} justifyContent="flex-end">
-            {activeStep > 0 && (
+            {activeStep > 0 && !isConfirmationStep && (
               <Button variant="soft" color="neutral" onClick={handleBack} sx={{ px: 4 }}>
                 Back
               </Button>
             )}
 
-            {activeStep === steps.length - 1 ? (
-              <Button type="submit" variant="soft" sx={{ px: 4 }}>
-                Save
-              </Button>
-            ) : (
+            {!isConfirmationStep && (
               <Button type="submit" variant="soft">
-                Save & Continue
+                {activeStep === CONFIRMATION_STEP_INDEX - 1 ? 'Save & Continue' : 'Save & Continue'}
               </Button>
             )}
           </Stack>
