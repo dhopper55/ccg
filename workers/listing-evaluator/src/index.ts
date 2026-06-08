@@ -18266,6 +18266,9 @@ async function handleGuitarEvaluationPaymentIntent(request: Request, env: Env): 
     'metadata[source]': 'guitar_evaluation',
     description: 'Comprehensive Guitar Evaluation Report',
   });
+  params.append('payment_method_types[]', 'card');
+  params.append('payment_method_types[]', 'cashapp');
+  params.append('payment_method_types[]', 'us_bank_account');
 
   const stripeRes = await fetch('https://api.stripe.com/v1/payment_intents', {
     method: 'POST',

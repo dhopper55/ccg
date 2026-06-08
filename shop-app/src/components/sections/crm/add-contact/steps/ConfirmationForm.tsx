@@ -37,7 +37,7 @@ const PaymentForm = ({ clientSecret, onSuccess }: PaymentFormProps) => {
 
   return (
     <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
-      <PaymentElement />
+      <PaymentElement options={{ layout: 'tabs' }} />
       {error && (
         <Typography variant="caption" color="error" display="block" sx={{ mt: 1 }}>
           {error}
