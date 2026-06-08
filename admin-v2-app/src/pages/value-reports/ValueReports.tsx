@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
   Alert,
-  Box,
   Button,
   CircularProgress,
   Link,
@@ -15,6 +14,7 @@ import {
   TableRow,
   Typography,
 } from '@mui/material';
+import IconifyIcon from 'components/base/IconifyIcon';
 import dayjs from 'dayjs';
 
 type ValueReportRecord = {
@@ -24,6 +24,7 @@ type ValueReportRecord = {
   lastName: string | null;
   brand: string | null;
   location: string | null;
+  stripePaymentIntentId: string | null;
 };
 
 type ValueReportsResponse = {
@@ -106,12 +107,13 @@ const ValueReports = () => {
                 <TableCell sx={{ fontWeight: 700 }}>Name</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Brand</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Location</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Paid?</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={4}>
+                  <TableCell colSpan={5}>
                     <Stack direction="row" justifyContent="center" py={4}>
                       <CircularProgress size={26} />
                     </Stack>
@@ -119,7 +121,7 @@ const ValueReports = () => {
                 </TableRow>
               ) : records.length < 1 ? (
                 <TableRow>
-                  <TableCell colSpan={4}>
+                  <TableCell colSpan={5}>
                     <Typography variant="body2" color="text.secondary" py={2}>
                       No value reports found.
                     </Typography>
@@ -147,6 +149,15 @@ const ValueReports = () => {
                       <TableCell>{fullName}</TableCell>
                       <TableCell>{record.brand || '—'}</TableCell>
                       <TableCell>{record.location || '—'}</TableCell>
+                      <TableCell>
+                        {record.stripePaymentIntentId ? (
+                          <IconifyIcon
+                            icon="material-symbols:check-circle-rounded"
+                            fontSize={20}
+                            style={{ color: '#4caf50' }}
+                          />
+                        ) : null}
+                      </TableCell>
                     </TableRow>
                   );
                 })

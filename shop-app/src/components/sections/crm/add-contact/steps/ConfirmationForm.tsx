@@ -46,7 +46,7 @@ const PaymentForm = ({ evaluationId, onSuccess }: PaymentFormProps) => {
 
   return (
     <Box sx={{ mt: 2 }}>
-      <PaymentElement options={{ layout: 'tabs' }} />
+      <PaymentElement options={{ layout: 'tabs', wallets: { link: 'never' } }} />
       {error && (
         <Typography variant="caption" color="error" display="block" sx={{ mt: 1 }}>
           {error}
