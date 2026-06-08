@@ -92,7 +92,7 @@ const AddContactStepper = () => {
         brand: searchParams.get('brand') ?? '',
       } as PersonalInfo['personalInfo'],
       companyInfo: { photos: [] },
-      leadInfo: {},
+      leadInfo: { firstName: '', lastName: '', email: '' },
     },
   });
 
