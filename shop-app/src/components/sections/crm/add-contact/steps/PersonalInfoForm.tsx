@@ -1,3 +1,4 @@
+import React from 'react';
 import { Controller, useFormContext } from 'react-hook-form';
 import {
   Box,
@@ -72,7 +73,7 @@ const GUITAR_BRANDS = [
   'Other',
 ];
 
-const FieldTooltip = ({ title }: { title: string }) => (
+const FieldTooltip = ({ title }: { title: React.ReactNode }) => (
   <Tooltip title={title} placement="top" arrow>
     <Box
       component="span"
@@ -100,7 +101,32 @@ const FieldTooltip = ({ title }: { title: string }) => (
   </Tooltip>
 );
 
-const FieldLabel = ({ text, optional }: { text: string; optional?: boolean }) => (
+const SERIAL_NUMBER_TOOLTIP = (
+  <Box sx={{ p: 0.5, maxWidth: 320 }}>
+    <Typography variant="caption" display="block" sx={{ mb: 1 }}>
+      Most major guitar manufacturers assign a serial number to each instrument. The serial number can help identify the guitar's model, production year, factory of origin, and other important details.
+    </Typography>
+    <Typography variant="caption" display="block" sx={{ mb: 0.75 }}>
+      Serial number locations vary by brand and model, but common places to check include:
+    </Typography>
+    {[
+      'Front or back of the headstock (near the tuning machines)',
+      'A label inside the soundhole of an acoustic guitar',
+      'The neck plate on bolt-on neck guitars',
+      'The back of the neck near the body joint',
+      'Inside an electronics cavity or control compartment (less common)',
+    ].map((item) => (
+      <Typography key={item} variant="caption" display="block" sx={{ pl: 1, mb: 0.25 }}>
+        • {item}
+      </Typography>
+    ))}
+    <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+      Enter the serial number exactly as it appears on the instrument, including any letters, numbers, spaces, or dashes. If you cannot find a serial number, leave this field blank and continue with the evaluation.
+    </Typography>
+  </Box>
+);
+
+const FieldLabel = ({ text, optional, tooltip }: { text: string; optional?: boolean; tooltip?: React.ReactNode }) => (
   <Stack direction="row" alignItems="center" spacing={0.75} sx={{ mb: 0.5 }}>
     <Typography variant="caption" fontWeight={600} sx={{ lineHeight: 1.4 }}>
       {text}
@@ -110,7 +136,7 @@ const FieldLabel = ({ text, optional }: { text: string; optional?: boolean }) =>
         </Box>
       )}
     </Typography>
-    <FieldTooltip title="Test text here for now" />
+    <FieldTooltip title={tooltip ?? 'Test text here for now'} />
   </Stack>
 );
 
@@ -127,7 +153,7 @@ const PersonalInfoForm = (_: { label?: string }) => {
         <ContactFormSection title="Guitar Information">
           <Grid container spacing={2} sx={{ width: 1 }}>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <FieldLabel text="Serial #" optional />
+              <FieldLabel text="Serial #" optional tooltip={SERIAL_NUMBER_TOOLTIP} />
               <TextField
                 fullWidth
                 error={!!errors.personalInfo?.serialNumber}
