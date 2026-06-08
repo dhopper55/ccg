@@ -4,7 +4,15 @@
       "Bash(git rm:*)",
       "Bash(aws cloudwatch:*)",
       "Bash(python3 -c \"import json,sys; configs=json.load\\(sys.stdin\\); [print\\(c.get\\('pageTitle',''\\)\\) for c in configs]\")",
-      "Bash(npm list *)"
+      "Bash(npm list *)",
+      "Bash(git -C /Users/davidhopper2/Documents/Code/ccg log --oneline --follow -- _redirects)",
+      "Bash(git -C /Users/davidhopper2/Documents/Code/ccg log --oneline --follow -- admin-v2-app/public/_redirects)",
+      "Bash(git -C /Users/davidhopper2/Documents/Code/ccg log --oneline -5)",
+      "Bash(git -C /Users/davidhopper2/Documents/Code/ccg log --oneline origin/main..HEAD)",
+      "Bash(git -C /Users/davidhopper2/Documents/Code/ccg status)",
+      "Bash(git -C /Users/davidhopper2/Documents/Code/ccg add admin-v2-app/public/admin-v2-sw.js admin/admin-v2-sw.js)",
+      "Bash(git -C /Users/davidhopper2/Documents/Code/ccg add admin/authentication/ admin/inventory-category-manager/ admin/inventory-item/ admin/inventory-labels/ admin/inventory-manager/ admin/listing-evaluator-item/ admin/listing-evaluator-results/ admin/listing-evaluator/ admin/mfr-orders/ admin/order-manager-item/ admin/order-manager/ admin/payment-links/ admin/serial-decodes/ admin/serial-pattern-text/ admin/shop-statistics/ admin/system-settings/)",
+      "Bash(git -C /Users/davidhopper2/Documents/Code/ccg commit -m ' *)"
     ]
   }
 }
