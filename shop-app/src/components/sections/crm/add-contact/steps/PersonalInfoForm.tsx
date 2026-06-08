@@ -26,7 +26,7 @@ export interface PersonalInfo {
     alternatePhoneNumber?: string;
     location?: string;
     note: string;
-    damage?: string;
+    damage: string;
   };
 }
 
@@ -43,7 +43,7 @@ export const personalInfoSchema = yup.object({
     alternatePhoneNumber: yup.string().optional(),
     location: yup.string().optional(),
     note: yup.string().required('Guitar Notes are required'),
-    damage: yup.string().optional(),
+    damage: yup.string().required('Damage notes are required'),
   }),
 });
 
@@ -144,6 +144,175 @@ const BRAND_TOOLTIP = (
   </Box>
 );
 
+const MODEL_TOOLTIP = (
+  <Box sx={{ p: 0.5, maxWidth: 320 }}>
+    <Typography variant="caption" display="block" sx={{ mb: 1 }}>
+      If you know the guitar's model, please enter it here. The model is often printed on the headstock, listed on a label inside the soundhole of an acoustic guitar, or can sometimes be identified from the serial number.
+    </Typography>
+    <Typography variant="caption" display="block" sx={{ mb: 1 }}>
+      This field is optional. If you're unsure of the model, leave it blank and continue with the evaluation. With clear, comprehensive photos of the instrument, we can often identify the model and major specifications during the appraisal process.
+    </Typography>
+    <Typography variant="caption" display="block" sx={{ mb: 0.75 }}>
+      Examples of models include:
+    </Typography>
+    {['Stratocaster', 'Les Paul Standard', 'D-28', 'CE24', 'FG800'].map((item) => (
+      <Typography key={item} variant="caption" display="block" sx={{ pl: 1, mb: 0.25 }}>
+        • {item}
+      </Typography>
+    ))}
+    <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+      Providing the model, when known, helps us deliver a faster and more accurate valuation.
+    </Typography>
+  </Box>
+);
+
+const CASE_TOOLTIP = (
+  <Box sx={{ p: 0.5, maxWidth: 320 }}>
+    <Typography variant="caption" display="block" sx={{ mb: 1 }}>
+      Please indicate whether a gig bag or case would be included if you were to sell the guitar. Cases and gig bags can have a meaningful impact on an instrument's value, especially for higher-end, vintage, or collectible guitars.
+    </Typography>
+    <Typography variant="caption" display="block" sx={{ mb: 1 }}>
+      If a case or gig bag is included, and it is original to the instrument, a premium brand, vintage, custom-fit, or otherwise noteworthy, please provide additional details in the Notes section below.
+    </Typography>
+    <Typography variant="caption" display="block" sx={{ mb: 0.75 }}>
+      Examples include:
+    </Typography>
+    {[
+      'Original factory hard case',
+      'Original molded case',
+      'Premium aftermarket hard case',
+      'Vintage period-correct case',
+      'Basic gig bag',
+    ].map((item) => (
+      <Typography key={item} variant="caption" display="block" sx={{ pl: 1, mb: 0.25 }}>
+        • {item}
+      </Typography>
+    ))}
+    <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+      Including this information helps us provide a more accurate valuation.
+    </Typography>
+  </Box>
+);
+
+const NOTES_TOOLTIP = (
+  <Box sx={{ p: 0.5, maxWidth: 340 }}>
+    <Typography variant="caption" display="block" sx={{ mb: 1 }}>
+      Please tell us anything you know about the guitar, even if it may not seem important. Additional details often help us provide a more accurate evaluation and can be valuable when creating a future listing description.
+    </Typography>
+    <Typography variant="caption" display="block" sx={{ mb: 0.5 }}>
+      Helpful information includes:
+    </Typography>
+    {[
+      'Any modifications, upgrades, repairs, or replaced parts',
+      'Known issues, damage, or cosmetic wear',
+      'Recent setup or maintenance work',
+      'Whether the guitar has been professionally serviced',
+      'Any accessories included in the sale',
+    ].map((item) => (
+      <Typography key={item} variant="caption" display="block" sx={{ pl: 1, mb: 0.25 }}>
+        • {item}
+      </Typography>
+    ))}
+    <Typography variant="caption" display="block" sx={{ mt: 1, mb: 0.5 }}>
+      Please also list everything that would be included if you were to sell the guitar, such as:
+    </Typography>
+    {[
+      'Case candy and original paperwork',
+      'Certificates of authenticity',
+      'Original receipts',
+      'Extra strings',
+      'Straps',
+      'Slides',
+      'Capos',
+      'Tools, wrenches, or adjustment kits',
+      'Spare parts or accessories',
+    ].map((item) => (
+      <Typography key={item} variant="caption" display="block" sx={{ pl: 1, mb: 0.25 }}>
+        • {item}
+      </Typography>
+    ))}
+    <Typography variant="caption" display="block" sx={{ mt: 1, mb: 0.75 }}>
+      If you know the history of the instrument, we'd love to hear it. Examples include:
+    </Typography>
+    {[
+      'I am the original owner and purchased it new from Joe\'s Guitars in Denver in 1990.',
+      'This guitar was passed down from my father and has been in the family since the 1970s.',
+      'I purchased it used in 2015 and have played it regularly ever since.',
+    ].map((quote) => (
+      <Typography key={quote} variant="caption" display="block" fontStyle="italic" sx={{ mb: 0.5 }}>
+        "{quote}"
+      </Typography>
+    ))}
+    <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
+      While provenance and ownership history do not always affect value, they provide useful context and can make a future listing more compelling to potential buyers.
+    </Typography>
+  </Box>
+);
+
+const DAMAGE_TOOLTIP = (
+  <Box sx={{ p: 0.5, maxWidth: 320 }}>
+    <Typography variant="caption" display="block" sx={{ mb: 1 }}>
+      Please describe any damage, wear, or issues with the guitar. No detail is too small. Condition can have a major impact on value, and accurate information helps us provide a more reliable evaluation.
+    </Typography>
+    <Typography variant="caption" display="block" sx={{ mb: 0.5 }}>
+      Examples include:
+    </Typography>
+    {[
+      'Cracks, breaks, or repaired damage',
+      'Headstock repairs',
+      'Neck issues, warping, or twisting',
+      'Loose, worn, or buzzing frets',
+      'Broken or missing knobs, tuners, switches, or hardware',
+      'Electrical issues, scratchy pots, weak pickups, or no output',
+      'Scratches, dents, chips, buckle rash, or finish checking',
+      'Signs of water damage, mold, smoke odor, or heavy dirt',
+      'High action, tuning problems, or playability issues',
+    ].map((item) => (
+      <Typography key={item} variant="caption" display="block" sx={{ pl: 1, mb: 0.25 }}>
+        • {item}
+      </Typography>
+    ))}
+    <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+      Please be as honest and specific as possible. Clear photos of any damage or wear are especially helpful.
+    </Typography>
+  </Box>
+);
+
+const LOCATION_TOOLTIP = (
+  <Box sx={{ p: 0.5, maxWidth: 320 }}>
+    <Typography variant="caption" display="block" sx={{ mb: 1 }}>
+      Please tell us approximately where the guitar is located (City, State/Province, and Country).
+    </Typography>
+    <Typography variant="caption" display="block" sx={{ mb: 1 }}>
+      While this field is optional, location can be an important factor when determining a guitar's value. Local market conditions, buyer demand, and shipping considerations can all influence what an instrument may realistically sell for.
+    </Typography>
+    <Typography variant="caption" display="block" sx={{ mb: 0.5 }}>
+      Location helps us:
+    </Typography>
+    {[
+      'Estimate local/private-party market value more accurately',
+      'Account for regional supply and demand',
+      'Consider shipping costs and availability',
+      'Identify markets where certain brands or models may be more or less desirable',
+    ].map((item) => (
+      <Typography key={item} variant="caption" display="block" sx={{ pl: 1, mb: 0.25 }}>
+        • {item}
+      </Typography>
+    ))}
+    <Typography variant="caption" display="block" sx={{ mt: 1, mb: 0.5 }}>
+      Examples:
+    </Typography>
+    {['Denver, Colorado, USA', 'Toronto, Ontario, Canada', 'Melbourne, Victoria, Australia'].map((item) => (
+      <Typography key={item} variant="caption" display="block" sx={{ pl: 1, mb: 0.25 }}>
+        • {item}
+      </Typography>
+    ))}
+    <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+      You do not need to provide a street address—just a general location is sufficient.
+    </Typography>
+  </Box>
+);
+
 const FieldLabel = ({ text, optional, tooltip }: { text: string; optional?: boolean; tooltip?: React.ReactNode }) => (
   <Stack direction="row" alignItems="center" spacing={0.75} sx={{ mb: 0.5 }}>
     <Typography variant="caption" fontWeight={600} sx={{ lineHeight: 1.4 }}>
@@ -220,7 +389,7 @@ const PersonalInfoForm = (_: { label?: string }) => {
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <FieldLabel text="Model" optional />
+              <FieldLabel text="Model" optional tooltip={MODEL_TOOLTIP} />
               <TextField
                 fullWidth
                 error={!!errors.personalInfo?.model}
@@ -229,7 +398,7 @@ const PersonalInfoForm = (_: { label?: string }) => {
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <FieldLabel text="Includes Case or Bag?" />
+              <FieldLabel text="Includes Case or Bag?" tooltip={CASE_TOOLTIP} />
               <Controller
                 name="personalInfo.includesCase"
                 control={control}
@@ -253,7 +422,7 @@ const PersonalInfoForm = (_: { label?: string }) => {
 
         <ContactFormSection title="Additional Information">
           <Box sx={{ width: 1 }}>
-            <FieldLabel text="Approx. Instrument Location" optional />
+            <FieldLabel text="Approx. Instrument Location" optional tooltip={LOCATION_TOOLTIP} />
             <TextField
               fullWidth
               error={!!errors.personalInfo?.location}
@@ -262,7 +431,7 @@ const PersonalInfoForm = (_: { label?: string }) => {
             />
           </Box>
           <Box sx={{ width: 1 }}>
-            <FieldLabel text="Guitar Notes" />
+            <FieldLabel text="Guitar Notes" tooltip={NOTES_TOOLTIP} />
             <TextField
               fullWidth
               multiline
@@ -273,7 +442,7 @@ const PersonalInfoForm = (_: { label?: string }) => {
             />
           </Box>
           <Box sx={{ width: 1 }}>
-            <FieldLabel text="Any Damage Worth Noting?" optional />
+            <FieldLabel text="Any Damage Worth Noting?" tooltip={DAMAGE_TOOLTIP} />
             <TextField
               fullWidth
               multiline
