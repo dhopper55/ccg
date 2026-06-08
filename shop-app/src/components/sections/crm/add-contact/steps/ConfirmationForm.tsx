@@ -5,18 +5,16 @@ import { loadStripe, Stripe } from '@stripe/stripe-js';
 import IconifyIcon from 'components/base/IconifyIcon';
 
 interface PaymentFormProps {
-  clientSecret: string;
   onSuccess: () => void;
 }
 
-const PaymentForm = ({ clientSecret, onSuccess }: PaymentFormProps) => {
+const PaymentForm = ({ onSuccess }: PaymentFormProps) => {
   const stripe = useStripe();
   const elements = useElements();
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handlePay = async () => {
     if (!stripe || !elements) return;
 
     setPaying(true);
@@ -37,7 +35,7 @@ const PaymentForm = ({ clientSecret, onSuccess }: PaymentFormProps) => {
   };
 
   return (
-    <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
+    <Box sx={{ mt: 2 }}>
       <PaymentElement options={{ layout: 'tabs' }} />
       {error && (
         <Typography variant="caption" color="error" display="block" sx={{ mt: 1 }}>
@@ -46,8 +44,9 @@ const PaymentForm = ({ clientSecret, onSuccess }: PaymentFormProps) => {
       )}
       <Box sx={{ mt: 2 }}>
         <button
-          type="submit"
+          type="button"
           disabled={!stripe || paying}
+          onClick={() => void handlePay()}
           style={{
             width: '100%',
             padding: '12px',
@@ -107,7 +106,7 @@ const ConfirmationForm = ({ evaluationId }: { evaluationId: number | null; label
   const [paid, setPaid] = useState(false);
 
   useEffect(() => {
-    // Returning from a Stripe redirect (e.g. Cash App Pay): check URL params.
+    // Returning from a Stripe redirect (e.g. Cash App Pay): resolve via URL params.
     const params = new URLSearchParams(window.location.search);
     const redirectStatus = params.get('redirect_status');
     if (redirectStatus === 'succeeded' || redirectStatus === 'processing') {
@@ -170,8 +169,14 @@ const ConfirmationForm = ({ evaluationId }: { evaluationId: number | null; label
           )}
 
           {stripePromise && clientSecret && (
-            <Elements stripe={stripePromise} options={{ clientSecret }}>
-              <PaymentForm clientSecret={clientSecret} onSuccess={() => setPaid(true)} />
+            <Elements
+              stripe={stripePromise}
+              options={{
+                clientSecret,
+                appearance: { theme: 'night' },
+              }}
+            >
+              <PaymentForm onSuccess={() => setPaid(true)} />
             </Elements>
           )}
         </>
