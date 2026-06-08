@@ -50,6 +50,7 @@ const paths = {
   pricingColumn: `/${rootPaths.pricingRoot}/column`,
   notifications: `/${rootPaths.pagesRoot}/notifications`, //? update path
 
+  categoryPage: (categorySlug: string) => `/${categorySlug}`,
   productDetails: (categorySlug: string, productSlug?: string) =>
     productSlug
       ? `/${encodeURIComponent(categorySlug)}/${encodeURIComponent(productSlug)}`

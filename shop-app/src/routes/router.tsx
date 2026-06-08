@@ -2,6 +2,7 @@ import { RouteObject, createBrowserRouter } from 'react-router';
 import App from 'App';
 import EcommerceLayout from 'layouts/ecommerce-layout';
 import Cart from 'pages/apps/ecommerce/customer/Cart';
+import CategoryPage from 'pages/apps/ecommerce/customer/CategoryPage';
 import CheckoutSuccess from 'pages/apps/ecommerce/customer/CheckoutSuccess';
 import ProductDetails from 'pages/apps/ecommerce/customer/ProductDetails';
 import Products from 'pages/apps/ecommerce/customer/Products';
@@ -43,6 +44,14 @@ export const routes: RouteObject[] = [
         ),
       },
       ...decoderRoutes,
+      {
+        path: '/:categorySlug',
+        element: (
+          <EcommerceLayout>
+            <CategoryPage />
+          </EcommerceLayout>
+        ),
+      },
       {
         path: '/:category/:slug',
         element: (

@@ -66,7 +66,7 @@ const index = () => (
   </ProductsProvider>
 );
 
-const Products = () => {
+const Products = ({ initialCategorySlug }: { initialCategorySlug?: string } = {}) => {
   const { up } = useBreakpoints();
   const upMd = up('md');
   const { isAssociateMode, isCheckingAssociateMode } = useAssociateMode();
@@ -197,6 +197,15 @@ const Products = () => {
     if (!matchedCategory) return;
     setValue('category', [String(matchedCategory.id)]);
   }, [categories, categoryParam, setValue]);
+
+  useEffect(() => {
+    if (!initialCategorySlug || categories.length === 0) return;
+    const matchedCategory = flattenCategoryNodes(categories).find(
+      (node) => slugifyCategory(node.name) === initialCategorySlug,
+    );
+    if (!matchedCategory) return;
+    setValue('category', [String(matchedCategory.id)]);
+  }, [categories, initialCategorySlug, setValue]);
 
   useEffect(() => {
     didInitializePriceRange.current = false;
@@ -602,4 +611,5 @@ const ProductCard = ({ product }: { product: ShopProduct }) => {
   );
 };
 
+export { Products };
 export default index;

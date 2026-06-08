@@ -5434,14 +5434,24 @@ async function handleShopReceiptTemplate(templateCode: string, env: Env): Promis
 
 async function handleSitemap(env: Env): Promise<Response> {
   const baseUrl = normalizeText(env.SITE_BASE_URL, 'https://www.coalcreekguitars.com').replace(/\/+$/, '');
-  const productRecords = await dbListShopSitemapProducts(env);
+  const [productRecords, categoryRows] = await Promise.all([
+    dbListShopSitemapProducts(env),
+    dbListInventoryCategories(env),
+  ]);
   const productUrls = productRecords.map((record) => ({
     loc: normalizeText(record.urlPath, ''),
     lastmod: toSitemapDate(record.updatedAt),
     changefreq: record.isSold || !record.forSale ? 'monthly' : 'daily',
     priority: record.isSold || !record.forSale ? '0.5' : '0.8',
   }));
-  const urls = [...SITEMAP_STATIC_URLS, ...productUrls];
+  const categoryUrls = categoryRows
+    .map((row) => {
+      const slug = slugifyShopCategory(row.name);
+      if (!slug) return null;
+      return { loc: `${SHOP_BASE_PATH}/${slug}`, changefreq: 'daily', priority: '0.7' };
+    })
+    .filter((entry): entry is { loc: string; changefreq: string; priority: string } => Boolean(entry));
+  const urls = [...SITEMAP_STATIC_URLS, ...categoryUrls, ...productUrls];
   const xml = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
@@ -5467,6 +5477,7 @@ function handleRobotsTxt(): Response {
       'Disallow: /admin/',
       'Disallow: /cdn-cgi/l/email-protection',
       `Disallow: ${SHOP_BASE_PATH}/cart`,
+      `Disallow: ${SHOP_BASE_PATH}/?`,
       '',
       'Sitemap: https://www.coalcreekguitars.com/sitemap.xml',
       '',
@@ -5480,12 +5491,21 @@ function handleRobotsTxt(): Response {
   );
 }
 
+// Slugs that are reserved by the shop router and must not be treated as category pages.
+const RESERVED_SHOP_SLUGS = new Set(['cart', 'checkout', 'assets']);
+
 async function handleShopPageRequest(request: Request, env: Env): Promise<Response> {
   const requestUrl = new URL(request.url);
   const path = requestUrl.pathname.replace(/\/+$/, '') || '/';
 
   if (path.startsWith(`${SHOP_BASE_PATH}/assets/`)) {
     return fetchShopStaticAsset(request);
+  }
+
+  // Redirect legacy ?category= query-param URLs to clean slug paths before
+  // touching the app shell fetch — saves a round-trip on every redirect.
+  if (path === SHOP_BASE_PATH && requestUrl.searchParams.has('category')) {
+    return handleShopCategoryParamRedirect(requestUrl, env);
   }
 
   const appResponse = await fetchShopAppShell(request);
@@ -5502,18 +5522,67 @@ async function handleShopPageRequest(request: Request, env: Env): Promise<Respon
     });
   }
 
-  const slug = getShopProductSlug(path);
-  if (!slug) return appResponse;
+  const remainder = path.slice(SHOP_BASE_PATH.length).replace(/^\/+|\/+$/g, '');
+  const parts = remainder.split('/').filter(Boolean);
 
-  const product = await dbGetShopProductDetail(
-    { slug },
-    env,
-    { includeInStoreOnly: await isAssociateModeRequest(request, env) },
-  );
-  if (!product) return appResponse;
+  if (parts.length === 1 && !RESERVED_SHOP_SLUGS.has(parts[0])) {
+    // Single segment → category page
+    const categorySlug = decodeURIComponent(parts[0]);
+    const categoryRows = await dbListInventoryCategories(env);
+    const matchedRow = categoryRows.find((row) => slugifyShopCategory(row.name) === categorySlug);
+    if (matchedRow) {
+      const html = await appResponse.text();
+      return htmlResponse(injectShopCategorySeo(html, matchedRow, categorySlug, env));
+    }
+    // Unknown slug — let the React app render (will hit the 404 route)
+    return appResponse;
+  }
 
-  const html = await appResponse.text();
-  return htmlResponse(injectShopProductSeo(html, product, env, requestUrl));
+  if (parts.length >= 2) {
+    // Two segments → product page
+    const productSlug = decodeURIComponent(parts[parts.length - 1]);
+    const product = await dbGetShopProductDetail(
+      { slug: productSlug },
+      env,
+      { includeInStoreOnly: await isAssociateModeRequest(request, env) },
+    );
+    if (!product) {
+      // Product not found or no longer active — redirect to shop root so
+      // Google drops the stale URL instead of indexing a generic-title page.
+      const baseUrl = normalizeText(env.SITE_BASE_URL, 'https://www.coalcreekguitars.com').replace(/\/+$/, '');
+      return new Response(null, { status: 301, headers: { Location: `${baseUrl}${SHOP_BASE_PATH}` } });
+    }
+    const html = await appResponse.text();
+    return htmlResponse(injectShopProductSeo(html, product, env, requestUrl));
+  }
+
+  return appResponse;
+}
+
+async function handleShopCategoryParamRedirect(requestUrl: URL, env: Env): Promise<Response> {
+  const baseUrl = normalizeText(env.SITE_BASE_URL, 'https://www.coalcreekguitars.com').replace(/\/+$/, '');
+  const shopRoot = `${baseUrl}${SHOP_BASE_PATH}`;
+  const categoryParam = (requestUrl.searchParams.get('category') ?? '').trim();
+
+  if (!categoryParam) {
+    return new Response(null, { status: 301, headers: { Location: shopRoot } });
+  }
+
+  const rows = await dbListInventoryCategories(env);
+  const normalized = categoryParam.toLowerCase();
+
+  // Match by full name, or by the leaf of a "Parent > Child" path string.
+  let matched = rows.find((row) => row.name.toLowerCase() === normalized);
+  if (!matched) {
+    const leaf = normalized.split('>').pop()?.trim() ?? '';
+    if (leaf) matched = rows.find((row) => row.name.toLowerCase() === leaf);
+  }
+
+  const target = matched
+    ? `${shopRoot}/${slugifyShopCategory(matched.name)}`
+    : shopRoot;
+
+  return new Response(null, { status: 301, headers: { Location: target } });
 }
 
 function fetchShopStaticAsset(request: Request): Promise<Response> {
@@ -5571,6 +5640,37 @@ function injectShopCartSeo(html: string, env: Env): string {
     jsonLd,
     robots: 'noindex, nofollow',
   });
+}
+
+function injectShopCategorySeo(
+  html: string,
+  category: InventoryCategoryRow,
+  categorySlug: string,
+  env: Env,
+): string {
+  const baseUrl = normalizeText(env.SITE_BASE_URL, 'https://www.coalcreekguitars.com').replace(/\/+$/, '');
+  const categoryName = normalizeText(category.name, '');
+  const title = `${categoryName} | Coal Creek Guitars`;
+  const canonicalUrl = `${baseUrl}${SHOP_BASE_PATH}/${categorySlug}`;
+  const description = `Browse ${categoryName} from Coal Creek Guitars in Englewood, Colorado. Quality used and new instruments and gear at fair prices.`;
+  const imageUrl = `${baseUrl}/images/coal-creek-logo.png`;
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: title,
+    description,
+    url: canonicalUrl,
+    breadcrumb: {
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Guitars and Gear for Sale', item: `${baseUrl}${SHOP_BASE_PATH}` },
+        { '@type': 'ListItem', position: 2, name: categoryName, item: canonicalUrl },
+      ],
+    },
+    isPartOf: { '@type': 'WebSite', name: 'Coal Creek Guitars', url: baseUrl },
+  };
+
+  return injectShopSeoTags(html, { title, description, canonicalUrl, imageUrl, ogType: 'website', jsonLd });
 }
 
 function injectShopProductSeo(

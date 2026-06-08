@@ -1,13 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Box, Button, Drawer, List, ListItemButton, ListItemText, Stack, drawerClasses } from '@mui/material';
-import { Link as RouterLink, useLocation } from 'react-router';
+import { Link as RouterLink, useParams } from 'react-router';
+import { slugifyCategory } from 'lib/utils';
 import paths from 'routes/paths';
 import IconifyIcon from 'components/base/IconifyIcon';
 
 type CategoryNode = {
   id: number;
   name: string;
-  path?: string;
   children?: CategoryNode[];
 };
 
@@ -20,14 +20,8 @@ interface ShopCategoryDrawerProps {
   onClose: () => void;
 }
 
-const normalizeCategoryQuery = (value: string): string =>
-  value.trim().toLowerCase().replace(/\s+/g, ' ');
-
-const getCategoryHref = (category: CategoryNode): string => {
-  const params = new URLSearchParams();
-  params.set('category', category.path || category.name);
-  return `${paths.products}?${params.toString()}`;
-};
+const getCategoryHref = (category: CategoryNode): string =>
+  paths.categoryPage(slugifyCategory(category.name));
 
 const CategoryItem = ({
   category,
@@ -40,9 +34,7 @@ const CategoryItem = ({
   activeCategory: string;
   onNavigate: () => void;
 }) => {
-  const isActive = [category.name, category.path || '']
-    .map(normalizeCategoryQuery)
-    .includes(activeCategory);
+  const isActive = Boolean(activeCategory) && slugifyCategory(category.name) === activeCategory;
 
   return (
     <>
@@ -81,7 +73,7 @@ const CategoryItem = ({
 };
 
 const ShopCategoryDrawer = ({ open, onClose }: ShopCategoryDrawerProps) => {
-  const { search } = useLocation();
+  const { categorySlug } = useParams<{ categorySlug?: string }>();
   const [categories, setCategories] = useState<CategoryNode[]>([]);
 
   useEffect(() => {
@@ -105,10 +97,7 @@ const ShopCategoryDrawer = ({ open, onClose }: ShopCategoryDrawerProps) => {
     };
   }, []);
 
-  const activeCategory = useMemo(() => {
-    const params = new URLSearchParams(search);
-    return normalizeCategoryQuery(params.get('category') || '');
-  }, [search]);
+  const activeCategory = categorySlug ?? '';
 
   return (
     <Drawer
