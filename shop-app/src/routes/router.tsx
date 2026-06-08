@@ -8,6 +8,7 @@ import ProductDetails from 'pages/apps/ecommerce/customer/ProductDetails';
 import Products from 'pages/apps/ecommerce/customer/Products';
 import DecoderPage, { DecoderConfig } from 'pages/decoders/DecoderPage';
 import decoderConfigs from 'pages/decoders/decoder-configs.json';
+import GuitarEvalPage from 'pages/guitar-eval/GuitarEvalPage';
 import Page404 from 'pages/errors/Page404';
 
 const decoderRoutes: RouteObject[] = (decoderConfigs as DecoderConfig[]).map((config) => ({
@@ -45,6 +46,10 @@ export const routes: RouteObject[] = [
       },
       ...decoderRoutes,
       {
+        path: '/guitar-value-report-evaluation',
+        element: <GuitarEvalPage />,
+      },
+      {
         path: '/:categorySlug',
         element: (
           <EcommerceLayout>
@@ -71,7 +76,8 @@ export const routes: RouteObject[] = [
 const rawBase = import.meta.env.VITE_BASENAME || '/';
 const configuredShopBasename = rawBase.length > 1 && rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
 const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
-const routerBasename = pathname.startsWith('/decoders') ? '/' : configuredShopBasename;
+const isRootPath = pathname.startsWith('/decoders') || pathname.startsWith('/guitar-value-report-evaluation');
+const routerBasename = isRootPath ? '/' : configuredShopBasename;
 
 if (typeof window !== 'undefined') {
   const isShopRoot =

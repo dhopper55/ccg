@@ -9,7 +9,23 @@ const sourceHtml = path.join(shopOutputRoot, 'index.html');
 const decoderConfigsPath = path.join(repoRoot, 'shop-app', 'src', 'pages', 'decoders', 'decoder-configs.json');
 const decoderConfigs = JSON.parse(fs.readFileSync(decoderConfigsPath, 'utf8'));
 
+const staticRouteConfigs = [
+  {
+    routeDir: 'guitar-value-report-evaluation',
+    routePath: '/guitar-value-report-evaluation',
+    title: 'Coal Creek Guitar Evaluation Report | Coal Creek Guitars',
+    description: 'Submit your guitar details and receive a professional evaluation report from Coal Creek Guitars — market value, condition analysis, and buying or selling recommendations.',
+    ogDescription: 'Tell us about your guitar and we\'ll send you a detailed market valuation, condition breakdown, and buying or selling guidance — from the team at Coal Creek Guitars.',
+    pageName: 'Coal Creek Guitar Evaluation Report',
+    brandName: 'Coal Creek Guitars',
+    faqJson: [],
+    seoBody: '',
+    breadcrumbMiddle: [],
+  },
+];
+
 const routeConfigs = [
+  ...staticRouteConfigs,
   ...decoderConfigs.map((config) => ({
     routeDir: config.routeDir,
     routePath: `/${config.routeDir}/`,
@@ -37,6 +53,14 @@ const stampedHtml = rawHtml.replace(
   `$1?v=${buildStamp}`,
 );
 fs.writeFileSync(sourceHtml, stampedHtml);
+
+function buildBreadcrumb(config, pageUrl) {
+  const home = { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://www.coalcreekguitars.com/index.html' };
+  const defaultMiddle = [{ '@type': 'ListItem', position: 2, name: 'Guitar Serial Number Lookup/Decoder', item: 'https://www.coalcreekguitars.com/decoders/guitar-serial-decoder-lookup' }];
+  const middle = config.breadcrumbMiddle !== undefined ? config.breadcrumbMiddle : defaultMiddle;
+  const leaf = { '@type': 'ListItem', position: middle.length + 2, name: config.pageName, item: pageUrl };
+  return [home, ...middle, leaf];
+}
 
 function injectRouteSeo(baseHtml, config) {
   const pageUrl = `https://www.coalcreekguitars.com${config.routePath}`;
@@ -96,28 +120,9 @@ function injectRouteSeo(baseHtml, config) {
       },
       {
         '@type': 'BreadcrumbList',
-        itemListElement: [
-          {
-            '@type': 'ListItem',
-            position: 1,
-            name: 'Home',
-            item: 'https://www.coalcreekguitars.com/index.html',
-          },
-          {
-            '@type': 'ListItem',
-            position: 2,
-            name: 'Guitar Serial Number Lookup/Decoder',
-            item: 'https://www.coalcreekguitars.com/decoders/guitar-serial-decoder-lookup',
-          },
-          {
-            '@type': 'ListItem',
-            position: 3,
-            name: config.pageName,
-            item: pageUrl,
-          },
-        ],
+        itemListElement: buildBreadcrumb(config, pageUrl),
       },
-      {
+      ...(config.faqJson.length > 0 ? [{
         '@type': 'FAQPage',
         mainEntity: config.faqJson.map((faq) => ({
           '@type': 'Question',
@@ -127,7 +132,7 @@ function injectRouteSeo(baseHtml, config) {
             text: faq.answer,
           },
         })),
-      },
+      }] : []),
     ],
   };
 
