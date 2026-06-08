@@ -18269,6 +18269,7 @@ async function handleGuitarEvaluationPaymentIntent(request: Request, env: Env): 
   params.append('payment_method_types[]', 'card');
   params.append('payment_method_types[]', 'cashapp');
   params.append('payment_method_types[]', 'us_bank_account');
+  params.append('payment_method_options[link][display_preference][value]', 'off');
 
   const stripeRes = await fetch('https://api.stripe.com/v1/payment_intents', {
     method: 'POST',
