@@ -9,7 +9,7 @@ import AddContactStepper from 'components/sections/crm/add-contact/AddContactSte
 const GuitarEvalPage = () => {
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', p: { xs: 2, md: 5 } }}>
+      <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', pt: '5px', px: { xs: 2, md: 5 }, pb: { xs: 2, md: 5 } }}>
         <Grid container sx={{ gap: 2 }}>
           <Grid size={12}>
             <Paper sx={{ px: { xs: 3, md: 5 }, py: 3 }}>
@@ -23,7 +23,7 @@ const GuitarEvalPage = () => {
                     component="img"
                     src="/images/coal-creek-logo.png"
                     alt="Coal Creek Guitars"
-                    sx={{ width: 32, height: 32, objectFit: 'contain', filter: 'invert(1)' }}
+                    sx={{ width: 32, height: 32, objectFit: 'contain' }}
                   />
                   <Typography fontWeight={700} fontSize={15} color="text.primary" sx={{ whiteSpace: 'nowrap' }}>
                     Coal Creek Guitars

@@ -20,7 +20,7 @@ const PageBreadcrumb = ({ items, sx }: PageBreadcrumbProps) => {
           key={kebabCase(label)}
           variant="body2"
           aria-current={active ? 'page' : undefined}
-          component={active ? 'span' : Link}
+          component={active ? 'span' : url?.startsWith('http') ? 'a' : Link}
           href={!active ? url : undefined}
           sx={{
             color: active ? 'text.primary' : 'primary.main',
