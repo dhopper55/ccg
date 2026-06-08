@@ -683,6 +683,61 @@ function decodeIndonesiaIE(serial: string): DecodeResult {
   return { success: true, info };
 }
 
+// Indonesian single I prefix: I + YYMMXXXXX (e.g. I250804919 = Indonesia, 2025, August, seq 04919)
+function decodeIndonesiaSingleI(serial: string): DecodeResult {
+  const yearDigits = serial.substring(1, 3);
+  const monthDigits = serial.substring(3, 5);
+  const sequence = serial.substring(5);
+
+  const year = 2000 + parseInt(yearDigits, 10);
+  const month = parseInt(monthDigits, 10);
+  const isAnomalousMonth = month < 1 || month > 12;
+
+  const monthDescription = isAnomalousMonth
+    ? `batch/export code "${monthDigits}" (a known anomaly on certain Cort Indonesia export runs)`
+    : getMonthName(month);
+
+  const info: GuitarInfo = {
+    brand: 'Cort',
+    serialNumber: serial,
+    year: year.toString(),
+    ...(isAnomalousMonth ? {} : { month: getMonthName(month) }),
+    factory: 'PT Cort Indonesia',
+    country: 'Indonesia',
+    notes: `Cort Indonesia single-letter I format (I + YYMMXXXXX). "I" identifies the Indonesian Cor-Tek/Cort facility. The digits ${yearDigits} indicate production year ${year}. The digits ${monthDigits} indicate ${monthDescription}. Production sequence: ${parseInt(sequence, 10)}. Cort serials identify production date and factory more reliably than exact model name; verify the model from the headstock, soundhole label, neck heel, or other physical markings.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'cort-indonesia-single-i-yymm-sequence',
+    patternLabel: 'Cort Indonesia single-letter I YYMM sequence',
+    additionalContext: {
+      title: 'Cort Indonesia single-letter I serial',
+      summary: 'This serial matches the Cort Indonesia single-letter I format: I + production year (YY) + month (MM) + sequence.',
+      highlights: [
+        '"I" prefix identifies the Indonesian Cor-Tek/Cort production facility.',
+        `The digits ${yearDigits} decode as production year ${year}.`,
+        isAnomalousMonth
+          ? `The digits ${monthDigits} are an anomalous batch/export code, not a calendar month.`
+          : `The digits ${monthDigits} decode as ${getMonthName(month)}.`,
+        `The remaining digits decode as production sequence ${parseInt(sequence, 10)}.`,
+      ],
+      caveats: [
+        'Cort serials identify production date and factory more reliably than exact model identity.',
+        'The serial does not identify the specific Cort model name.',
+        isAnomalousMonth ? 'The "month" field here is an anomalous export/batch code, not a standard calendar month.' : '',
+      ].filter(Boolean),
+      verificationTips: [
+        'Check the headstock, soundhole label, neck heel, or back of headstock for model and country markings.',
+        'Look for "Made in Indonesia" or PT Cort Indonesia markings near the serial.',
+        'Compare the instrument against Cort catalog specs from the decoded year.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches the Cort Indonesia single-letter I format: I + YY + MM + sequence.</p><h3>How This Pattern Is Typically Read</h3><p>"I" identifies the Indonesian Cor-Tek/Cort facility. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} indicate ${monthDescription}. The remaining digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Cort serials identify production date and factory more reliably than exact model identity.</li>${isAnomalousMonth ? '<li>The "month" field is an anomalous export/batch code, not a standard calendar month.</li>' : ''}<li>Confirm the model from headstock, label, or other physical markings.</li></ul>`,
+  };
+}
+
 // Chinese COS prefix
 function decodeIndonesiaISProductLine(serial: string): DecodeResult {
   // IS = Indonesia + S sub-factory, followed by 1-2 letter product/line code, then YY + sequence

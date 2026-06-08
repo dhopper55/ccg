@@ -59,8 +59,8 @@ export function decodeESP(serial: string): DecodeResult {
     }
   }
 
-  // Indonesia: IW, W, IC, C, IS, S + 7-8 digits
-  if (/^(IW|IC|IS|IR)\d{7,8}$/.test(normalized)) {
+  // Indonesia: IW, WI, IC, IS, IR + 7-8 digits
+  if (/^(IW|WI|IC|IS|IR)\d{7,8}$/.test(normalized)) {
     return decodeLTDIndonesia(normalized);
   }
 
@@ -115,6 +115,11 @@ export function decodeESP(serial: string): DecodeResult {
   // Pre-2000 format: 6-7 digits (DDMMYNNN or shorter variants)
   if (/^\d{6,7}$/.test(normalized)) {
     return decodePre2000(normalized);
+  }
+
+  // Vintage Custom Shop / Original Series sequential: 4 digits (e.g. 0085 = guitar #85)
+  if (/^\d{4}$/.test(normalized)) {
+    return decodeVintage4Digit(normalized);
   }
 
   // Older Japanese neck-plate numeric format: 5 digits
@@ -420,7 +425,7 @@ function decodeKirkHammett(serial: string): DecodeResult {
 }
 
 function decodeLTDIndonesia(serial: string): DecodeResult {
-  const prefix = serial.match(/^(IW|IC|IS|IR)/)?.[0] || '';
+  const prefix = serial.match(/^(IW|WI|IC|IS|IR)/)?.[0] || '';
   const digits = serial.substring(prefix.length);
 
   const { year, month, productionNum } = parseLTDDigits(digits);
@@ -903,6 +908,49 @@ function decodePre2000(serial: string): DecodeResult {
   return { success: true, info };
 }
 
+function decodeVintage4Digit(serial: string): DecodeResult {
+  const sequence = parseInt(serial, 10);
+
+  const info: GuitarInfo = {
+    brand: 'ESP',
+    serialNumber: serial,
+    year: 'late 1980s to early 1990s (estimated)',
+    factory: 'ESP Custom Shop / Original Series, Japan',
+    country: 'Japan',
+    model: 'Custom Shop / Original Series (early production)',
+    notes: `ESP vintage 4-digit sequential serial. These very short numeric serials appear on early Japanese ESP Custom Shop instruments and low-numbered Original Series guitars from the late 1980s and very early 1990s, when total production volume was still small enough that four digits sufficed. This is instrument #${sequence} in the production run. ESP serial records from this era are not consistently date-coded; confirm the exact date from neck-heel or neck-pocket markings, body cavity stamps, or ESP support when possible.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'esp-vintage-4-digit-custom-shop',
+    patternLabel: 'ESP vintage 4-digit Custom Shop / Original Series sequential',
+    additionalContext: {
+      title: 'ESP vintage 4-digit serial',
+      summary: 'This 4-digit serial appears on early Japanese ESP Custom Shop or Original Series instruments from the late 1980s to very early 1990s, when total production was low enough that four digits sufficed.',
+      highlights: [
+        `This is instrument number ${sequence} in the production run.`,
+        'Four-digit numeric serials are early production — typically late 1980s to early 1990s.',
+        'Common on Japanese Custom Shop and low-numbered Original Series guitars.',
+        'The serial is best treated as a sequential production number, not a date-encoded code.',
+      ],
+      caveats: [
+        'ESP historical records from this era are sparse and not public-facing.',
+        'The serial alone cannot confirm the exact year, model, or factory.',
+        'A 4-digit serial is a strong indicator of early/low production, but the exact date needs physical confirmation.',
+      ],
+      verificationTips: [
+        'Check whether the serial is stamped into a metal neck plate.',
+        'Inspect the neck heel or neck pocket for a handwritten or stamped production date.',
+        'Look for a Custom Shop certificate of authenticity or factory documentation.',
+        'Contact ESP customer service with clear photos of the serial, headstock, neck plate, and bridge if authenticity matters.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This 4-digit serial appears on early Japanese ESP Custom Shop or Original Series instruments from the late 1980s to very early 1990s, when total production was low enough that four digits sufficed.</p><h3>How This Pattern Is Typically Read</h3><p>Four-digit numeric serials are treated as sequential production numbers. This is instrument #${sequence} in the production run. These serials are not reliably date-coded, so exact year confirmation requires physical evidence.</p><h3>What To Verify</h3><ul><li>Check the neck plate, neck heel, or neck pocket for a stamped or handwritten production date.</li><li>ESP historical records from this era are sparse — contact ESP support with clear photos if authenticity matters.</li><li>Compare hardware, electronics, and construction against late-1980s/early-1990s ESP Original Series and Custom Shop specs.</li></ul>`,
+  };
+}
+
 function decodeVintageJapan5Digit(serial: string): DecodeResult {
   const sequence = parseInt(serial, 10);
 
@@ -984,6 +1032,7 @@ function getJapanFactory(code: string): string {
 function getLTDIndonesiaFactory(prefix: string): string {
   switch (prefix) {
     case 'IW':
+    case 'WI':
       return 'P.T. Wildwood, Indonesia';
     case 'IC':
       return 'Cor-tek, Indonesia';

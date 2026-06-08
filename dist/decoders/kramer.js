@@ -25,6 +25,45 @@ export function decodeKramer(serial) {
         };
         return { success: true, info };
     }
+    // H-prefix: late-era Japanese ESP-built Kramer (1990-1991)
+    if (/^H\d{3,6}$/.test(normalized)) {
+        const sequence = parseInt(normalized.substring(1), 10);
+        const info = {
+            brand: 'Kramer',
+            serialNumber: cleaned,
+            year: '1990–1991',
+            factory: 'ESP factory, Japan (contract build for Kramer)',
+            country: 'Japan',
+            notes: `H-prefix serial. These identify late-era Japanese Kramer exports built by ESP under contract, produced right at the end of the original Kramer company's lifespan before their bankruptcy in early 1991. Common on the Pacer Custom I and similar premium Japanese export models, typically featuring Seymour Duncan pickups and Floyd Rose tremolo. The serial number is usually deeply stamped into the back neck plate. Production sequence: ${sequence}. Because Kramer ceased operations shortly after these were made, H-prefix guitars are relatively rare and collectible.`,
+        };
+        return {
+            success: true,
+            info,
+            patternKey: 'kramer-h-prefix-japan-esp-1990-1991',
+            patternLabel: 'Kramer H-prefix late-era Japan ESP build (1990–1991)',
+            additionalContext: {
+                title: 'Kramer H-prefix Japan serial (1990–1991)',
+                summary: 'H-prefix Kramers are late-era Japanese export models built by ESP under contract, produced in the final period before Kramer\'s original company went bankrupt in early 1991.',
+                highlights: [
+                    '"H" identifies a late-era Japanese Kramer export built by ESP.',
+                    'Production year: 1990–1991.',
+                    `Production sequence: ${sequence}.`,
+                    'Common on Pacer Custom I and similar premium export models with Seymour Duncan pickups and Floyd Rose tremolo.',
+                ],
+                caveats: [
+                    'Kramer ceased operations in early 1991, making H-prefix guitars relatively rare.',
+                    'The serial alone does not confirm the exact model — verify from the headstock logo and body features.',
+                    'The neck plate is the most common location for this stamp.',
+                ],
+                verificationTips: [
+                    'Check the back neck plate for the deeply stamped H-prefix serial.',
+                    'Look for the classic Kramer banana/pointy headstock and a Floyd Rose-style tremolo.',
+                    'Compare the pickup configuration and hardware against known Pacer Custom I specs.',
+                ],
+            },
+            additionalContextRichText: `<h3>Overview</h3><p>H-prefix Kramers are late-era Japanese export models built by ESP under contract, produced in the final period before Kramer's original company went bankrupt in early 1991.</p><h3>How This Pattern Is Typically Read</h3><p>"H" identifies a late-era Japanese Kramer export built by ESP. Production year: 1990–1991. Production sequence: ${sequence}. Common on Pacer Custom I and similar premium export models.</p><h3>What To Verify</h3><ul><li>Check the back neck plate for the deeply stamped H-prefix serial.</li><li>Look for the classic Kramer banana/pointy headstock and Floyd Rose-style tremolo.</li><li>Compare the pickup configuration and hardware against known 1990–1991 Pacer Custom I specs.</li></ul>`,
+        };
+    }
     // V-prefix vintage/import plates (often Vanguard/Voyager-era, non-chronological)
     if (/^V\d{4,6}$/.test(normalized)) {
         const sequence = normalized.substring(1);
