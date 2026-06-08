@@ -4,29 +4,58 @@ import {
   Divider,
   FormHelperText,
   Stack,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import * as yup from 'yup';
 import AvatarDropBox from 'components/base/AvatarDropBox';
-import ContactFormSection from 'components/sections/crm/add-contact/ContactFormSection';
 
 export interface CompanyInfo {
   companyInfo: {
-    profileImage?: File | string;
-    avatar?: File | string;
+    mainPhoto?: File | string;
+    photos?: (File | string | undefined)[];
   };
 }
 
 export const companyInfoSchema = yup.object().shape({
   companyInfo: yup.object({
-    profileImage: yup.mixed().optional(),
-    avatar: yup.mixed().optional(),
+    mainPhoto: yup.mixed().required('A main photo is required'),
+    photos: yup.array().of(yup.mixed().optional()).optional(),
   }),
 });
 
-const CompanyInfoForm = ({ label }: { label: string }) => {
+const TooltipBubble = ({ title }: { title: string }) => (
+  <Tooltip title={title} placement="top" arrow>
+    <Box
+      component="span"
+      tabIndex={-1}
+      sx={{
+        px: 0.75,
+        py: 0.125,
+        borderRadius: 999,
+        fontSize: '0.7rem',
+        fontWeight: 700,
+        letterSpacing: 0.2,
+        color: 'primary.dark',
+        bgcolor: 'primary.lighter',
+        border: 1,
+        borderColor: 'primary.light',
+        display: 'inline-flex',
+        alignItems: 'center',
+        flexShrink: 0,
+        cursor: 'default',
+        userSelect: 'none',
+      }}
+    >
+      ?
+    </Box>
+  </Tooltip>
+);
+
+const ADDITIONAL_PHOTO_SIZE = 88;
+
+const CompanyInfoForm = ({ label: _label }: { label: string }) => {
   const {
-    register: _register,
     control,
     formState: { errors },
   } = useFormContext<CompanyInfo>();
@@ -34,57 +63,67 @@ const CompanyInfoForm = ({ label }: { label: string }) => {
   return (
     <div>
       <Box sx={{ mb: 4.5 }}>
-        <Typography variant="h6" sx={{ mb: 2 }}>
-          {label}
-        </Typography>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+          <Typography variant="h6">Guitar Photos</Typography>
+          <TooltipBubble title="Tooltip text coming soon" />
+        </Stack>
         <Divider />
       </Box>
 
-      <Stack direction="column" spacing={4}>
-        <ContactFormSection title="Profile Picture">
-          <Controller
-            control={control}
-            name="companyInfo.profileImage"
-            render={({ field: { value, onChange } }) => (
-              <AvatarDropBox
-                defaultFile={value}
-                onDrop={(acceptedFiles) => {
-                  if (acceptedFiles.length > 0) onChange(acceptedFiles[0]);
-                }}
-                sx={{ '& img': { objectFit: 'cover' } }}
-                error={errors.companyInfo?.profileImage ? 'Invalid image' : undefined}
-              />
-            )}
-          />
-          {errors.companyInfo?.profileImage?.message && (
-            <FormHelperText error>{String(errors.companyInfo.profileImage.message)}</FormHelperText>
-          )}
-          <Typography variant="caption" color="text.secondary">
-            JPG or PNG, Recommended size 1:1, Up to 10MB.
-          </Typography>
-        </ContactFormSection>
+      <Stack direction="column" spacing={3} alignItems="center">
+        <Typography variant="subtitle2" fontWeight={700} textAlign="center">
+          Main Photo
+        </Typography>
 
-        <ContactFormSection title="Guitar Photos">
-          <Controller
-            control={control}
-            name="companyInfo.avatar"
-            render={({ field: { value, onChange } }) => (
-              <AvatarDropBox
-                defaultFile={value}
-                onDrop={(acceptedFiles) => {
-                  if (acceptedFiles.length > 0) onChange(acceptedFiles[0]);
-                }}
-                error={errors.companyInfo?.avatar ? 'Invalid image' : undefined}
-              />
-            )}
-          />
-          {errors.companyInfo?.avatar?.message && (
-            <FormHelperText error>{String(errors.companyInfo.avatar.message)}</FormHelperText>
+        <Controller
+          control={control}
+          name="companyInfo.mainPhoto"
+          render={({ field: { value, onChange } }) => (
+            <AvatarDropBox
+              defaultFile={value}
+              onDrop={(acceptedFiles) => {
+                if (acceptedFiles.length > 0) onChange(acceptedFiles[0]);
+              }}
+              sx={{ '& img': { objectFit: 'cover' } }}
+              error={errors.companyInfo?.mainPhoto ? 'A main photo is required' : undefined}
+            />
           )}
-          <Typography variant="caption" color="text.secondary">
-            Upload photos of your guitar. JPG or PNG, Up to 10MB each.
-          </Typography>
-        </ContactFormSection>
+        />
+        {errors.companyInfo?.mainPhoto && (
+          <FormHelperText error sx={{ mt: -1 }}>
+            {String(errors.companyInfo.mainPhoto.message)}
+          </FormHelperText>
+        )}
+
+        <Typography variant="caption" color="text.secondary" textAlign="center">
+          Upload photos of your guitar. JPG or PNG, Up to 10MB each.
+        </Typography>
+
+        <Stack direction="column" spacing={1.5} alignItems="center" sx={{ width: 1 }}>
+          {[0, 1].map((row) => (
+            <Stack key={row} direction="row" spacing={1.5} justifyContent="center">
+              {Array.from({ length: 5 }, (_, col) => {
+                const index = row * 5 + col;
+                return (
+                  <Controller
+                    key={index}
+                    control={control}
+                    name={`companyInfo.photos.${index}` as any}
+                    render={({ field: { value, onChange } }) => (
+                      <AvatarDropBox
+                        defaultFile={value as File | string | undefined}
+                        onDrop={(acceptedFiles) => {
+                          if (acceptedFiles.length > 0) onChange(acceptedFiles[0]);
+                        }}
+                        sx={{ width: ADDITIONAL_PHOTO_SIZE, height: ADDITIONAL_PHOTO_SIZE }}
+                      />
+                    )}
+                  />
+                );
+              })}
+            </Stack>
+          ))}
+        </Stack>
       </Stack>
     </div>
   );

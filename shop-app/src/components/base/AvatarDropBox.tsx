@@ -123,7 +123,7 @@ const AvatarDropBox = ({ onDrop, error, defaultFile, sx, ...rest }: AvatarDropBo
             fontSize: 20,
           }}
         />
-        {!((sx as any)?.width < 100) && <Typography variant="caption">Upload Avatar</Typography>}
+        {!((sx as any)?.width < 100) && <Typography variant="caption">Upload Photo</Typography>}
       </Stack>
     </Box>
   );

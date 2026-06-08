@@ -91,7 +91,7 @@ const AddContactStepper = () => {
         serialNumber: searchParams.get('serial') ?? undefined,
         brand: searchParams.get('brand') ?? '',
       } as PersonalInfo['personalInfo'],
-      companyInfo: {},
+      companyInfo: { photos: [] },
       leadInfo: {},
     },
   });
