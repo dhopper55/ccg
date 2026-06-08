@@ -1,4 +1,4 @@
-import { JSX, useState } from 'react';
+import { JSX, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { FormProvider, useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -80,6 +80,14 @@ const AddContactStepper = () => {
   const [completedSteps, setCompletedSteps] = useState<Record<number, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
   const [evaluationId, setEvaluationId] = useState<number | null>(null);
+
+  // If returning from a Stripe redirect (e.g. Cash App Pay), jump straight to step 4.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('redirect_status')) {
+      setActiveStep(CONFIRMATION_STEP_INDEX);
+    }
+  }, []);
   const { enqueueSnackbar } = useSnackbar();
   const [searchParams] = useSearchParams();
   const methods = useForm<ContactForm>({

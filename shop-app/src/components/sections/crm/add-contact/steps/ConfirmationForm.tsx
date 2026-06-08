@@ -24,6 +24,7 @@ const PaymentForm = ({ clientSecret, onSuccess }: PaymentFormProps) => {
 
     const { error: stripeError } = await stripe.confirmPayment({
       elements,
+      confirmParams: { return_url: window.location.href },
       redirect: 'if_required',
     });
 
@@ -106,6 +107,18 @@ const ConfirmationForm = ({ evaluationId }: { evaluationId: number | null; label
   const [paid, setPaid] = useState(false);
 
   useEffect(() => {
+    // Returning from a Stripe redirect (e.g. Cash App Pay): check URL params.
+    const params = new URLSearchParams(window.location.search);
+    const redirectStatus = params.get('redirect_status');
+    if (redirectStatus === 'succeeded' || redirectStatus === 'processing') {
+      setPaid(true);
+      return;
+    }
+    if (redirectStatus) {
+      setLoadError('Payment was not completed. Please try again.');
+      return;
+    }
+
     if (!evaluationId) return;
 
     const init = async () => {
