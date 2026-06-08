@@ -111,7 +111,12 @@ const AddContactStepper = () => {
   };
 
   const onSubmit = (data: any) => {
-    console.log('Form data', data);
+    const resolvedBrand =
+      data.personalInfo?.brand === 'Other'
+        ? (data.personalInfo?.brandOther ?? 'Other')
+        : data.personalInfo?.brand;
+    const payload = { ...data, personalInfo: { ...data.personalInfo, brand: resolvedBrand } };
+    console.log('Form data', payload);
     enqueueSnackbar('Evaluation request submitted!', { variant: 'success' });
     setCompletedSteps((prev) => ({ ...prev, [activeStep]: true }));
     setSubmitted(true);

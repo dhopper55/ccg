@@ -19,6 +19,7 @@ export interface PersonalInfo {
   personalInfo: {
     serialNumber?: string;
     brand: string;
+    brandOther?: string;
     model?: string;
     includesCase: string;
     phoneNumber?: string;
@@ -33,6 +34,9 @@ export const personalInfoSchema = yup.object({
   personalInfo: yup.object({
     serialNumber: yup.string().optional(),
     brand: yup.string().required('Brand is required'),
+    brandOther: yup.string().when('brand', ([brand], schema) =>
+      brand === 'Other' ? schema.required('Please specify the brand') : schema.optional()
+    ),
     model: yup.string().optional(),
     includesCase: yup.string().required('This field is required'),
     phoneNumber: yup.string().optional(),
@@ -126,6 +130,20 @@ const SERIAL_NUMBER_TOOLTIP = (
   </Box>
 );
 
+const BRAND_TOOLTIP = (
+  <Box sx={{ p: 0.5, maxWidth: 320 }}>
+    <Typography variant="caption" display="block" sx={{ mb: 1 }}>
+      The guitar's brand is one of the most important pieces of information used in determining its value. In most cases, an accurate evaluation is not possible without knowing the manufacturer.
+    </Typography>
+    <Typography variant="caption" display="block" sx={{ mb: 1 }}>
+      The brand name is typically displayed on the headstock, but it may also appear on a label inside the soundhole of an acoustic guitar, on the neck plate, or elsewhere on the instrument.
+    </Typography>
+    <Typography variant="caption" display="block">
+      If you're unsure of the brand, review the instrument carefully for logos, decals, labels, or serial number markings. If the brand cannot be identified but you have provided clear, comprehensive photos, select "Other" and enter "N/A" in the brand field. Our evaluators may still be able to identify the instrument from the photos provided.
+    </Typography>
+  </Box>
+);
+
 const FieldLabel = ({ text, optional, tooltip }: { text: string; optional?: boolean; tooltip?: React.ReactNode }) => (
   <Stack direction="row" alignItems="center" spacing={0.75} sx={{ mb: 0.5 }}>
     <Typography variant="caption" fontWeight={600} sx={{ lineHeight: 1.4 }}>
@@ -144,8 +162,11 @@ const PersonalInfoForm = (_: { label?: string }) => {
   const {
     register,
     control,
+    watch,
     formState: { errors },
   } = useFormContext<PersonalInfo>();
+
+  const isOtherBrand = watch('personalInfo.brand') === 'Other';
 
   return (
     <div>
@@ -162,7 +183,7 @@ const PersonalInfoForm = (_: { label?: string }) => {
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <FieldLabel text="Brand" />
+              <FieldLabel text="Brand" tooltip={BRAND_TOOLTIP} />
               <Controller
                 name="personalInfo.brand"
                 control={control}
@@ -184,6 +205,18 @@ const PersonalInfoForm = (_: { label?: string }) => {
                     )}
                   </FormControl>
                 )}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }} sx={{ display: isOtherBrand ? undefined : 'none' }}>
+              {/* empty left column — intentional */}
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }} sx={{ display: isOtherBrand ? undefined : 'none' }}>
+              <FieldLabel text="Please specify brand" />
+              <TextField
+                fullWidth
+                error={!!errors.personalInfo?.brandOther}
+                helperText={errors.personalInfo?.brandOther?.message}
+                {...register('personalInfo.brandOther')}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
