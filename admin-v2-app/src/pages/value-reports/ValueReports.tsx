@@ -25,6 +25,7 @@ type ValueReportRecord = {
   brand: string | null;
   location: string | null;
   stripePaymentIntentId: string | null;
+  fulfilled: number;
 };
 
 type ValueReportsResponse = {
@@ -108,12 +109,13 @@ const ValueReports = () => {
                 <TableCell sx={{ fontWeight: 700 }}>Brand</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Location</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Paid?</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Fulfilled</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5}>
+                  <TableCell colSpan={6}>
                     <Stack direction="row" justifyContent="center" py={4}>
                       <CircularProgress size={26} />
                     </Stack>
@@ -121,7 +123,7 @@ const ValueReports = () => {
                 </TableRow>
               ) : records.length < 1 ? (
                 <TableRow>
-                  <TableCell colSpan={5}>
+                  <TableCell colSpan={6}>
                     <Typography variant="body2" color="text.secondary" py={2}>
                       No value reports found.
                     </Typography>
@@ -151,6 +153,15 @@ const ValueReports = () => {
                       <TableCell>{record.location || '—'}</TableCell>
                       <TableCell>
                         {record.stripePaymentIntentId ? (
+                          <IconifyIcon
+                            icon="material-symbols:check-circle-rounded"
+                            fontSize={20}
+                            style={{ color: '#4caf50' }}
+                          />
+                        ) : null}
+                      </TableCell>
+                      <TableCell>
+                        {record.fulfilled ? (
                           <IconifyIcon
                             icon="material-symbols:check-circle-rounded"
                             fontSize={20}
