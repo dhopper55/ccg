@@ -2,18 +2,21 @@ import { Controller, useFormContext } from 'react-hook-form';
 import {
   Box,
   Divider,
+  FormControl,
+  FormHelperText,
+  IconButton,
+  InputLabel,
   Link,
   MenuItem,
   Select,
-  FormControl,
-  FormHelperText,
-  InputLabel,
   Stack,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import * as yup from 'yup';
+import IconifyIcon from 'components/base/IconifyIcon';
 import ContactFormSection from 'components/sections/crm/add-contact/ContactFormSection';
 
 export interface PersonalInfo {
@@ -74,6 +77,28 @@ const GUITAR_BRANDS = [
 
 const SAMPLE_REPORT_URL = 'https://www.coalcreekguitars.com/guitar-value-report-evaluation/sample-report.pdf';
 
+const FieldTooltip = ({ title }: { title: string }) => (
+  <Tooltip title={title} placement="top" arrow>
+    <IconButton
+      size="small"
+      tabIndex={-1}
+      sx={{
+        width: 22,
+        height: 22,
+        bgcolor: 'text.disabled',
+        color: 'background.paper',
+        flexShrink: 0,
+        fontSize: '0.65rem',
+        fontWeight: 700,
+        alignSelf: 'center',
+        '&:hover': { bgcolor: 'primary.main' },
+      }}
+    >
+      ?
+    </IconButton>
+  </Tooltip>
+);
+
 const PersonalInfoForm = (_: { label?: string }) => {
   const {
     register,
@@ -86,15 +111,18 @@ const PersonalInfoForm = (_: { label?: string }) => {
       <Box sx={{ mb: 3 }}>
         <Divider />
         <Box sx={{ mt: 2 }}>
-          <Link
-            href={SAMPLE_REPORT_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            underline="always"
-            variant="body2"
-          >
-            Click here to view a sample evaluation report
-          </Link>
+          <Stack direction="row" alignItems="center" spacing={0.75}>
+            <IconifyIcon icon="mdi:file-pdf-box" sx={{ fontSize: 20, color: '#e53935', flexShrink: 0 }} />
+            <Link
+              href={SAMPLE_REPORT_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              underline="always"
+              variant="body2"
+            >
+              Click here to view a sample evaluation report
+            </Link>
+          </Stack>
           <Typography variant="body2" fontStyle="italic" sx={{ mt: 0.5 }}>
             Ready in less than 24 hours
           </Typography>
@@ -105,108 +133,126 @@ const PersonalInfoForm = (_: { label?: string }) => {
         <ContactFormSection title="Guitar Information">
           <Grid container spacing={2} sx={{ width: 1 }}>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label={
-                  <span>
-                    Serial #{' '}
-                    <Box component="span" sx={{ color: 'text.disabled' }}>
-                      ( optional )
-                    </Box>
-                  </span>
-                }
-                error={!!errors.personalInfo?.serialNumber}
-                helperText={errors.personalInfo?.serialNumber?.message}
-                {...register('personalInfo.serialNumber')}
-              />
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <TextField
+                  fullWidth
+                  label={
+                    <span>
+                      Serial #{' '}
+                      <Box component="span" sx={{ color: 'text.disabled' }}>
+                        ( optional )
+                      </Box>
+                    </span>
+                  }
+                  error={!!errors.personalInfo?.serialNumber}
+                  helperText={errors.personalInfo?.serialNumber?.message}
+                  {...register('personalInfo.serialNumber')}
+                />
+                <FieldTooltip title="Test text here for now" />
+              </Stack>
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <Controller
-                name="personalInfo.brand"
-                control={control}
-                defaultValue=""
-                render={({ field }) => (
-                  <FormControl fullWidth error={!!errors.personalInfo?.brand}>
-                    <InputLabel>Brand</InputLabel>
-                    <Select {...field} label="Brand">
-                      {GUITAR_BRANDS.map((brand) => (
-                        <MenuItem key={brand} value={brand}>
-                          {brand}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                    {errors.personalInfo?.brand?.message && (
-                      <FormHelperText>{errors.personalInfo.brand.message}</FormHelperText>
-                    )}
-                  </FormControl>
-                )}
-              />
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <Controller
+                  name="personalInfo.brand"
+                  control={control}
+                  defaultValue=""
+                  render={({ field }) => (
+                    <FormControl fullWidth error={!!errors.personalInfo?.brand}>
+                      <InputLabel>Brand</InputLabel>
+                      <Select {...field} label="Brand">
+                        {GUITAR_BRANDS.map((brand) => (
+                          <MenuItem key={brand} value={brand}>
+                            {brand}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                      {errors.personalInfo?.brand?.message && (
+                        <FormHelperText>{errors.personalInfo.brand.message}</FormHelperText>
+                      )}
+                    </FormControl>
+                  )}
+                />
+                <FieldTooltip title="Test text here for now" />
+              </Stack>
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label={
-                  <span>
-                    Model{' '}
-                    <Box component="span" sx={{ color: 'text.disabled' }}>
-                      ( optional )
-                    </Box>
-                  </span>
-                }
-                error={!!errors.personalInfo?.model}
-                helperText={errors.personalInfo?.model?.message}
-                {...register('personalInfo.model')}
-              />
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <TextField
+                  fullWidth
+                  label={
+                    <span>
+                      Model{' '}
+                      <Box component="span" sx={{ color: 'text.disabled' }}>
+                        ( optional )
+                      </Box>
+                    </span>
+                  }
+                  error={!!errors.personalInfo?.model}
+                  helperText={errors.personalInfo?.model?.message}
+                  {...register('personalInfo.model')}
+                />
+                <FieldTooltip title="Test text here for now" />
+              </Stack>
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <Controller
-                name="personalInfo.includesCase"
-                control={control}
-                defaultValue="no"
-                render={({ field }) => (
-                  <FormControl fullWidth error={!!errors.personalInfo?.includesCase}>
-                    <InputLabel>Includes Case or Bag?</InputLabel>
-                    <Select {...field} label="Includes Case or Bag?">
-                      <MenuItem value="no">No</MenuItem>
-                      <MenuItem value="gig_bag">Gig Bag</MenuItem>
-                      <MenuItem value="hard_case">Hard Case</MenuItem>
-                    </Select>
-                    {errors.personalInfo?.includesCase?.message && (
-                      <FormHelperText>{errors.personalInfo.includesCase.message}</FormHelperText>
-                    )}
-                  </FormControl>
-                )}
-              />
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <Controller
+                  name="personalInfo.includesCase"
+                  control={control}
+                  defaultValue="no"
+                  render={({ field }) => (
+                    <FormControl fullWidth error={!!errors.personalInfo?.includesCase}>
+                      <InputLabel>Includes Case or Bag?</InputLabel>
+                      <Select {...field} label="Includes Case or Bag?">
+                        <MenuItem value="no">No</MenuItem>
+                        <MenuItem value="gig_bag">Gig Bag</MenuItem>
+                        <MenuItem value="hard_case">Hard Case</MenuItem>
+                      </Select>
+                      {errors.personalInfo?.includesCase?.message && (
+                        <FormHelperText>{errors.personalInfo.includesCase.message}</FormHelperText>
+                      )}
+                    </FormControl>
+                  )}
+                />
+                <FieldTooltip title="Test text here for now" />
+              </Stack>
             </Grid>
           </Grid>
         </ContactFormSection>
 
         <ContactFormSection title="Additional Information">
-          <TextField
-            fullWidth
-            label="Guitar Notes"
-            multiline
-            rows={3}
-            error={!!errors.personalInfo?.note}
-            helperText={errors.personalInfo?.note?.message}
-            {...register('personalInfo.note')}
-          />
-          <TextField
-            fullWidth
-            label={
-              <span>
-                Any Damage Worth Noting?{' '}
-                <Box component="span" sx={{ color: 'text.disabled' }}>
-                  ( optional )
-                </Box>
-              </span>
-            }
-            multiline
-            rows={3}
-            error={!!errors.personalInfo?.damage}
-            helperText={errors.personalInfo?.damage?.message}
-            {...register('personalInfo.damage')}
-          />
+          <Stack direction="row" alignItems="flex-start" spacing={1}>
+            <TextField
+              fullWidth
+              label="Guitar Notes"
+              multiline
+              rows={3}
+              error={!!errors.personalInfo?.note}
+              helperText={errors.personalInfo?.note?.message}
+              {...register('personalInfo.note')}
+            />
+            <FieldTooltip title="Test text here for now" />
+          </Stack>
+          <Stack direction="row" alignItems="flex-start" spacing={1}>
+            <TextField
+              fullWidth
+              label={
+                <span>
+                  Any Damage Worth Noting?{' '}
+                  <Box component="span" sx={{ color: 'text.disabled' }}>
+                    ( optional )
+                  </Box>
+                </span>
+              }
+              multiline
+              rows={3}
+              error={!!errors.personalInfo?.damage}
+              helperText={errors.personalInfo?.damage?.message}
+              {...register('personalInfo.damage')}
+            />
+            <FieldTooltip title="Test text here for now" />
+          </Stack>
         </ContactFormSection>
       </Stack>
     </div>

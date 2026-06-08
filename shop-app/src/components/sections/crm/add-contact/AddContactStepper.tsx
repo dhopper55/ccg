@@ -1,4 +1,5 @@
 import { JSX, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { FormProvider, useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { Box, Button, Container, Stack, Step, StepLabel, Stepper, Typography } from '@mui/material';
@@ -79,12 +80,17 @@ const AddContactStepper = () => {
   const [completedSteps, setCompletedSteps] = useState<Record<number, boolean>>({});
   const [submitted, setSubmitted] = useState(false);
   const { enqueueSnackbar } = useSnackbar();
+  const [searchParams] = useSearchParams();
   const methods = useForm<ContactForm>({
     resolver: activeStep < validationSchemas.length
       ? yupResolver(validationSchemas[activeStep] as yup.ObjectSchema<ContactForm>)
       : undefined,
     defaultValues: {
-      personalInfo: { includesCase: 'no' } as PersonalInfo['personalInfo'],
+      personalInfo: {
+        includesCase: 'no',
+        serialNumber: searchParams.get('serial') ?? undefined,
+        brand: searchParams.get('brand') ?? '',
+      } as PersonalInfo['personalInfo'],
       companyInfo: {},
       leadInfo: {},
     },
