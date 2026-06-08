@@ -335,38 +335,41 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange }: 
               </Link>
             </Stack>
             <Stack direction="column" divider={<Divider sx={{ borderColor: 'dividerLight', opacity: 0.59 }} />}>
-              {resultFields.map((field) => (
-                <Stack
-                  key={field.label}
-                  direction="row"
-                  sx={{
-                    alignItems: 'baseline',
-                    justifyContent: 'space-between',
-                    gap: 2,
-                    py: 0.5,
-                    width: 1,
-                  }}
-                >
-                  <Typography
-                    variant="caption"
-                    sx={{ color: 'text.secondary', fontWeight: 400, flexShrink: 0 }}
-                  >
-                    {field.label}
-                  </Typography>
-                  <Typography
-                    variant="caption"
+              {resultFields.map((field) => {
+                const isNotes = field.label === 'Notes';
+                return (
+                  <Stack
+                    key={field.label}
+                    direction="row"
                     sx={{
-                      color: 'text.primary',
-                      fontWeight: 500,
-                      textAlign: 'right',
-                      wordBreak: 'break-word',
-                      maxWidth: { xs: '60%', md: '70%' },
+                      alignItems: 'baseline',
+                      justifyContent: 'space-between',
+                      gap: 2,
+                      py: 0.5,
+                      width: 1,
                     }}
                   >
-                    {field.value}
-                  </Typography>
-                </Stack>
-              ))}
+                    <Typography
+                      variant="body2"
+                      sx={{ color: 'text.secondary', fontWeight: 400, flexShrink: 0 }}
+                    >
+                      {field.label}
+                    </Typography>
+                    <Typography
+                      variant={isNotes ? 'caption' : 'body2'}
+                      sx={{
+                        color: 'text.primary',
+                        fontWeight: 500,
+                        textAlign: 'right',
+                        wordBreak: 'break-word',
+                        maxWidth: { xs: '60%', md: '70%' },
+                      }}
+                    >
+                      {field.value}
+                    </Typography>
+                  </Stack>
+                );
+              })}
               <Box sx={{ py: 0.75 }}>
                 <Typography
                   variant="caption"
