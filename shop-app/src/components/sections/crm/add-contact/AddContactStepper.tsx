@@ -189,7 +189,7 @@ const AddContactStepper = () => {
         <Box component="form" onSubmit={handleFormSubmit}>
           <Box sx={{ mb: 7 }}>
             {activeStep === CONFIRMATION_STEP_INDEX
-              ? <ConfirmationForm evaluationId={evaluationId} />
+              ? <ConfirmationForm evaluationId={evaluationId} onPaid={() => setCompletedSteps((prev) => ({ ...prev, [CONFIRMATION_STEP_INDEX]: true }))} />
               : steps[activeStep]?.content}
           </Box>
 

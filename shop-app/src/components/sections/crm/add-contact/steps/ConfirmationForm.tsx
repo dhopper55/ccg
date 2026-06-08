@@ -109,7 +109,7 @@ const ConfirmationBubble = () => (
   </Stack>
 );
 
-const ConfirmationForm = ({ evaluationId }: { evaluationId: number | null; label?: string }) => {
+const ConfirmationForm = ({ evaluationId, onPaid }: { evaluationId: number | null; label?: string; onPaid?: () => void }) => {
   const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -121,6 +121,7 @@ const ConfirmationForm = ({ evaluationId }: { evaluationId: number | null; label
     const redirectStatus = params.get('redirect_status');
     if (redirectStatus === 'succeeded' || redirectStatus === 'processing') {
       setPaid(true);
+      onPaid?.();
       return;
     }
     if (redirectStatus) {
@@ -186,7 +187,7 @@ const ConfirmationForm = ({ evaluationId }: { evaluationId: number | null; label
                 appearance: { theme: 'night' },
               }}
             >
-              <PaymentForm evaluationId={evaluationId} onSuccess={() => setPaid(true)} />
+              <PaymentForm evaluationId={evaluationId} onSuccess={() => { setPaid(true); onPaid?.(); }} />
             </Elements>
           )}
         </>

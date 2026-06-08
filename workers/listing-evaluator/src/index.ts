@@ -599,7 +599,7 @@ export default {
 
     if (path === '/api/guitar-evaluation/payment-intent' && request.method === 'POST') {
       const response = await handleGuitarEvaluationPaymentIntent(request, env);
-      return addCorsHeaders(response, request);
+      return withCors(response, request, env);
     }
     if (path === '/api/guitar-evaluation/confirm-payment' && request.method === 'POST') {
       const response = await handleGuitarEvaluationConfirmPayment(request, env);
