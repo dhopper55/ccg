@@ -21,7 +21,12 @@
       "Bash(python3 -c ' *)",
       "Bash(curl -s -X POST https://www.coalcreekguitars.com/api/guitar-evaluation -H 'Content-Type: application/json' -d '{\"brand\":\"Jackson\",\"serialNumber\":\"1203625\",\"model\":\"test\",\"includesCase\":\"no\",\"note\":\"test\",\"damage\":\"none\",\"firstName\":\"Test\",\"lastName\":\"User\",\"email\":\"test@test.com\",\"serialDecodeId\":3278}')",
       "Bash(curl -s -X POST https://www.coalcreekguitars.com/api/guitar-evaluation -H 'Content-Type: application/json' -d '{\"brand\":\"Jackson\",\"serialNumber\":\"1203625\",\"model\":\"test\",\"includesCase\":\"no\",\"note\":\"test\",\"damage\":\"none\",\"firstName\":\"Test\",\"lastName\":\"User\",\"email\":\"test@test.com\"}')",
-      "Bash(curl -s -X POST https://www.coalcreekguitars.com/api/guitar-evaluation -H 'Content-Type: application/json' -d '{\"brand\":\"Jackson\",\"serialNumber\":\"1203625\",\"includesCase\":\"no\",\"note\":\"test\",\"damage\":\"none\",\"firstName\":\"Test\",\"lastName\":\"User\",\"email\":\"test@test.com\",\"serialDecodeId\":3278}')"
+      "Bash(curl -s -X POST https://www.coalcreekguitars.com/api/guitar-evaluation -H 'Content-Type: application/json' -d '{\"brand\":\"Jackson\",\"serialNumber\":\"1203625\",\"includesCase\":\"no\",\"note\":\"test\",\"damage\":\"none\",\"firstName\":\"Test\",\"lastName\":\"User\",\"email\":\"test@test.com\",\"serialDecodeId\":3278}')",
+      "Bash(git -C /Users/davidhopper2/Documents/Code/ccg add guitars-and-gear-for-sale/ decoders/ guitar-value-report-evaluation/ shop-app/src/components/sections/crm/add-contact/AddContactStepper.tsx workers/listing-evaluator/src/index.ts)",
+      "Bash(git -C /Users/davidhopper2/Documents/Code/ccg push)",
+      "Bash(git -C /Users/davidhopper2/Documents/Code/ccg add guitars-and-gear-for-sale/ decoders/ guitar-value-report-evaluation/ shop-app/src/pages/guitar-eval/GuitarEvalPage.tsx images/report-sample.png)",
+      "Bash(git -C /Users/davidhopper2/Documents/Code/ccg add guitar-value-report-evaluation/index.html)",
+      "Bash(git -C /Users/davidhopper2/Documents/Code/ccg add -A)"
     ]
   }
 }

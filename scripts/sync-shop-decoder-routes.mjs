@@ -13,7 +13,7 @@ const staticRouteConfigs = [
   {
     routeDir: 'guitar-value-report-evaluation',
     routePath: '/guitar-value-report-evaluation',
-    title: 'Coal Creek Guitar Evaluation Report | Coal Creek Guitars',
+    title: "What's My Guitar Worth? - Comprehensive Guitar Evaluation Report",
     description: 'Submit your guitar details and receive a professional evaluation report from Coal Creek Guitars — market value, condition analysis, and buying or selling recommendations.',
     ogDescription: 'Tell us about your guitar and we\'ll send you a detailed market valuation, condition breakdown, and buying or selling guidance — from the team at Coal Creek Guitars.',
     pageName: 'Coal Creek Guitar Evaluation Report',
