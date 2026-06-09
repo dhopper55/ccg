@@ -153,11 +153,12 @@ const AddContactStepper = () => {
       const result = await res.json() as { id: number };
       setEvaluationId(result.id);
 
-      // Upload photos (best-effort — don't block confirmation if upload fails)
+      // Upload photos — read raw form state since yupResolver may strip companyInfo at submit time
       const photoFiles: File[] = [];
-      const mainPhoto = data.companyInfo?.mainPhoto;
+      const companyInfo = methods.getValues('companyInfo');
+      const mainPhoto = companyInfo?.mainPhoto;
       if (mainPhoto instanceof File) photoFiles.push(mainPhoto);
-      for (const p of data.companyInfo?.photos ?? []) {
+      for (const p of companyInfo?.photos ?? []) {
         if (p instanceof File) photoFiles.push(p);
       }
       if (photoFiles.length > 0) {
