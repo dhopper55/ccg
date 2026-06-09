@@ -24,19 +24,20 @@ import {
   TableHead,
   TableRow,
   TableSortLabel,
+  TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
 import { useNavigate } from 'react-router';
 import IconifyIcon from 'components/base/IconifyIcon';
-import { BarChart } from 'echarts/charts';
+import { BarChart, LineChart } from 'echarts/charts';
 import { GridComponent, TooltipComponent } from 'echarts/components';
 import * as echarts from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import ReactEchart from 'components/base/ReactEchart';
 import paths from 'routes/paths';
 
-echarts.use([TooltipComponent, GridComponent, BarChart, CanvasRenderer]);
+echarts.use([TooltipComponent, GridComponent, BarChart, LineChart, CanvasRenderer]);
 
 type SerialDecodeRecord = {
   id: number;
@@ -89,7 +90,59 @@ type LookupVolumeResponse = {
   message?: string;
 };
 
+type DailyVolumeResponse = {
+  date?: string;
+  buckets?: number[];
+  message?: string;
+};
+
 const PAGE_SIZE = 20;
+
+// 48 half-hour bucket labels, each label = end time of the block
+// Block 0: 12:00am–12:30am → "12:30am", Block 47: 11:30pm–midnight → "Midnight"
+const DAILY_VOLUME_TIME_LABELS: string[] = (() => {
+  const labels: string[] = [];
+  for (let i = 0; i < 48; i++) {
+    const endMinutes = ((i + 1) * 30) % (24 * 60);
+    if (endMinutes === 0) {
+      labels.push('Midnight');
+      continue;
+    }
+    const hour24 = Math.floor(endMinutes / 60);
+    const minute = endMinutes % 60;
+    if (hour24 === 12 && minute === 0) {
+      labels.push('Noon');
+      continue;
+    }
+    const period = hour24 < 12 ? 'am' : 'pm';
+    const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
+    if (minute === 0) {
+      labels.push(`${hour12}${period}`);
+    } else {
+      labels.push(`${hour12}:${String(minute).padStart(2, '0')}${period}`);
+    }
+  }
+  return labels;
+})();
+
+function shiftDateStr(dateStr: string, days: number): string {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const d = new Date(year, month - 1, day + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function getTodayMtn(): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Denver',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const year = parts.find((p) => p.type === 'year')?.value || '';
+  const month = parts.find((p) => p.type === 'month')?.value || '';
+  const day = parts.find((p) => p.type === 'day')?.value || '';
+  return `${year}-${month}-${day}`;
+}
 
 function parseTimestamp(value: string | null | undefined): Date | null {
   if (!value) return null;
@@ -143,12 +196,14 @@ function truncateBrandLabel(value: string, max = 13): string {
 
 const SerialDecodes = () => {
   const navigate = useNavigate();
+  const todayMtn = useMemo(getTodayMtn, []);
+
   const [records, setRecords] = useState<SerialDecodeRecord[]>([]);
   const [brandResponses, setBrandResponses] = useState<BrandResponsesRecord[]>([]);
   const [availableBrands, setAvailableBrands] = useState<string[]>([]);
   const [selectedBrand, setSelectedBrand] = useState('');
-  const [onlyErrors, setOnlyErrors] = useState(false);
-  const [onlyUnevaluated, setOnlyUnevaluated] = useState(false);
+  const [onlyErrors, setOnlyErrors] = useState(true);
+  const [onlyUnevaluated, setOnlyUnevaluated] = useState(true);
   const [timestampSortDir, setTimestampSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -167,6 +222,10 @@ const SerialDecodes = () => {
   const [lookupVolumeAvailableBrands, setLookupVolumeAvailableBrands] = useState<string[]>([]);
   const [lookupVolumeLoading, setLookupVolumeLoading] = useState(true);
   const [lookupVolumeErrorMessage, setLookupVolumeErrorMessage] = useState('');
+  const [dailyVolumeDate, setDailyVolumeDate] = useState(getTodayMtn);
+  const [dailyVolumeBuckets, setDailyVolumeBuckets] = useState<number[]>(new Array(48).fill(0));
+  const [dailyVolumeLoading, setDailyVolumeLoading] = useState(true);
+  const [dailyVolumeErrorMessage, setDailyVolumeErrorMessage] = useState('');
 
   useEffect(() => {
     document.title = 'CCG Admin | Serial Decodes';
@@ -303,6 +362,45 @@ const SerialDecodes = () => {
     };
   }, [lookupVolumeBrand, lookupVolumeView]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadDailyVolume = async () => {
+      setDailyVolumeLoading(true);
+      setDailyVolumeErrorMessage('');
+      try {
+        const params = new URLSearchParams();
+        params.set('date', dailyVolumeDate);
+        params.set('_', String(Date.now()));
+        const response = await fetch(`/api/admin-v2/serial-decodes/daily-volume?${params.toString()}`, {
+          method: 'GET',
+          credentials: 'same-origin',
+          cache: 'no-store',
+        });
+        const data = (await response.json()) as DailyVolumeResponse;
+        if (!response.ok) {
+          throw new Error(data.message || 'Unable to load daily decode volume.');
+        }
+        if (cancelled) return;
+        setDailyVolumeBuckets(Array.isArray(data.buckets) ? data.buckets : new Array(48).fill(0));
+      } catch (error) {
+        if (cancelled) return;
+        setDailyVolumeBuckets(new Array(48).fill(0));
+        setDailyVolumeErrorMessage(
+          error instanceof Error ? error.message : 'Unable to load daily decode volume.',
+        );
+      } finally {
+        if (!cancelled) setDailyVolumeLoading(false);
+      }
+    };
+
+    void loadDailyVolume();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dailyVolumeDate]);
+
   const pageStart = useMemo(() => (page - 1) * PAGE_SIZE + 1, [page]);
   const pageEnd = useMemo(() => Math.min(page * PAGE_SIZE, total), [page, total]);
   const chartRows = useMemo(
@@ -421,6 +519,81 @@ const SerialDecodes = () => {
     ],
   }), [lookupVolumeRecords]);
 
+  const dailyVolumeDateFormatted = useMemo(() => {
+    if (!dailyVolumeDate) return '';
+    const [year, month, day] = dailyVolumeDate.split('-').map(Number);
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    }).format(new Date(year, month - 1, day, 12));
+  }, [dailyVolumeDate]);
+
+  const dailyVolumeTotal = useMemo(
+    () => dailyVolumeBuckets.reduce((sum, n) => sum + n, 0),
+    [dailyVolumeBuckets],
+  );
+
+  const dailyVolumeOption = useMemo(() => ({
+    grid: { left: 8, right: 16, top: 10, bottom: 8, containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: DAILY_VOLUME_TIME_LABELS,
+      boundaryGap: false,
+      axisLabel: {
+        rotate: 45,
+        interval: 3,
+        fontSize: 11,
+        color: 'rgba(255, 255, 255, 0.7)',
+      },
+      axisLine: {
+        lineStyle: { color: 'rgba(255, 255, 255, 0.25)' },
+      },
+      axisTick: { show: false },
+    },
+    yAxis: {
+      type: 'value',
+      min: 0,
+      minInterval: 1,
+      splitNumber: 1,
+      axisLabel: { color: 'rgba(255, 255, 255, 0.8)', fontSize: 11 },
+      splitLine: {
+        lineStyle: { color: 'rgba(255, 255, 255, 0.12)' },
+      },
+    },
+    tooltip: {
+      trigger: 'axis',
+      formatter: (params: Array<{ axisValueLabel?: string; value?: number }>) => {
+        const point = params?.[0];
+        const label = point?.axisValueLabel || '';
+        const value = Number(point?.value || 0);
+        return `${label}<br/>Decodes: ${value}`;
+      },
+    },
+    series: [
+      {
+        type: 'line',
+        data: dailyVolumeBuckets,
+        smooth: true,
+        symbol: 'none',
+        lineStyle: { color: '#4361ee', width: 2.5 },
+        areaStyle: {
+          color: {
+            type: 'linear',
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
+            colorStops: [
+              { offset: 0, color: 'rgba(67, 97, 238, 0.45)' },
+              { offset: 1, color: 'rgba(67, 97, 238, 0.02)' },
+            ],
+          },
+        },
+      },
+    ],
+  }), [dailyVolumeBuckets]);
+
   const handleEvaluatedToggle = async (recordId: number, nextValue: boolean) => {
     setUpdatingEvaluatedIds((current) => [...current, recordId]);
     try {
@@ -487,23 +660,7 @@ const SerialDecodes = () => {
 
   return (
     <Stack direction="column" spacing={3} sx={{ width: 1 }}>
-      <Paper sx={{ pt: { xs: 2, md: 2.5 }, pb: { xs: 1, md: 1.25 }, px: { xs: 3, md: 4 }, width: 1, display: 'block' }}>
-        <Stack spacing={1.5} sx={{ width: 1 }}>
-          <Typography variant="h5">Brand Responses</Typography>
-          {chartErrorMessage ? <Alert severity="error">{chartErrorMessage}</Alert> : null}
-          {chartRows.length > 0 ? (
-            <ReactEchart
-              echarts={echarts}
-              option={chartOption}
-              onEvents={chartEvents}
-              sx={{ height: 220, width: '100%', minWidth: 0 }}
-            />
-          ) : (
-            <Typography variant="body2" color="text.secondary">No brand response data available.</Typography>
-          )}
-        </Stack>
-      </Paper>
-
+      {/* 1. Serial Decodes grid */}
       <Paper sx={{ p: { xs: 3, md: 4 }, width: 1, display: 'block' }}>
         <Stack
           direction={{ xs: 'column', sm: 'row' }}
@@ -741,6 +898,7 @@ const SerialDecodes = () => {
         </Stack>
       </Paper>
 
+      {/* 2. Serial Lookups Over Time */}
       <Paper sx={{ p: { xs: 3, md: 4 }, width: 1, display: 'block' }}>
         <Stack
           direction={{ xs: 'column', sm: 'row' }}
@@ -802,6 +960,85 @@ const SerialDecodes = () => {
         ) : (
           <Typography variant="body2" color="text.secondary">No serial lookup volume data available.</Typography>
         )}
+      </Paper>
+
+      {/* 3. Decodes by Time of Day */}
+      <Paper sx={{ p: { xs: 3, md: 4 }, width: 1, display: 'block' }}>
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          alignItems={{ xs: 'flex-start', sm: 'center' }}
+          justifyContent="space-between"
+          spacing={2}
+          mb={2.5}
+        >
+          <Stack spacing={0.5}>
+            <Typography variant="h5">Decodes by Time of Day</Typography>
+            <Typography variant="body2" color="text.secondary">
+              {dailyVolumeLoading ? 'Loading…' : `${dailyVolumeTotal} decode${dailyVolumeTotal !== 1 ? 's' : ''} on ${dailyVolumeDateFormatted} · Mountain Time`}
+            </Typography>
+          </Stack>
+          <Stack direction="row" alignItems="center" spacing={0.5}>
+            <TextField
+              type="date"
+              size="small"
+              value={dailyVolumeDate}
+              inputProps={{ max: todayMtn }}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (!val) return;
+                setDailyVolumeDate(val);
+              }}
+              sx={{ width: 160 }}
+            />
+            <IconButton
+              size="small"
+              aria-label="Next day"
+              disabled={dailyVolumeDate >= todayMtn}
+              onClick={() => setDailyVolumeDate((d) => shiftDateStr(d, 1))}
+            >
+              <IconifyIcon icon="mdi:chevron-left" fontSize={20} />
+            </IconButton>
+            <IconButton
+              size="small"
+              aria-label="Previous day"
+              onClick={() => setDailyVolumeDate((d) => shiftDateStr(d, -1))}
+            >
+              <IconifyIcon icon="mdi:chevron-right" fontSize={20} />
+            </IconButton>
+          </Stack>
+        </Stack>
+
+        {dailyVolumeErrorMessage ? <Alert severity="error" sx={{ mb: 2 }}>{dailyVolumeErrorMessage}</Alert> : null}
+
+        {dailyVolumeLoading ? (
+          <Stack direction="row" justifyContent="center" py={4}>
+            <CircularProgress size={26} />
+          </Stack>
+        ) : (
+          <ReactEchart
+            echarts={echarts}
+            option={dailyVolumeOption}
+            sx={{ height: 260, width: '100%', minWidth: 0 }}
+          />
+        )}
+      </Paper>
+
+      {/* 4. Brand Responses */}
+      <Paper sx={{ pt: { xs: 2, md: 2.5 }, pb: { xs: 1, md: 1.25 }, px: { xs: 3, md: 4 }, width: 1, display: 'block' }}>
+        <Stack spacing={1.5} sx={{ width: 1 }}>
+          <Typography variant="h5">Brand Responses</Typography>
+          {chartErrorMessage ? <Alert severity="error">{chartErrorMessage}</Alert> : null}
+          {chartRows.length > 0 ? (
+            <ReactEchart
+              echarts={echarts}
+              option={chartOption}
+              onEvents={chartEvents}
+              sx={{ height: 220, width: '100%', minWidth: 0 }}
+            />
+          ) : (
+            <Typography variant="body2" color="text.secondary">No brand response data available.</Typography>
+          )}
+        </Stack>
       </Paper>
 
       <Dialog open={Boolean(selectedRecord)} onClose={() => setSelectedRecord(null)} fullWidth maxWidth="sm">

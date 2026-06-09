@@ -61,6 +61,12 @@ export function decodeWashburn(serial: string): DecodeResult {
     return decodeZaozhuang(normalized);
   }
 
+  // Modern 2-character factory code (letter or leading digit) + YYMMRRRR (8 digits, 10 chars total)
+  // e.g., OC05012755 = OC factory, 2005, January, #2755; 0C05012755 = same factory written with zero
+  if (/^[A-Z0-9][A-Z]\d{8}$/.test(normalized)) {
+    return decodeModernTwoCharFactoryYYMMSeq(normalized);
+  }
+
   // Modern 2-letter factory code + YYWW + 3-digit unit (e.g., UO2045971)
   if (/^[A-Z]{2}\d{7}$/.test(normalized)) {
     return decodeModernTwoLetterYYWW(normalized);
@@ -275,6 +281,75 @@ function decodeZaozhuang(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+// Modern 2-char factory code (letter or leading digit) + YYMMRRRR (10-char total)
+const WASHBURN_MODERN_TWO_CHAR_FACTORY_MAP: Record<string, { factory: string; country: string }> = {
+  OC: { factory: 'Chinese contract factory (Qingdao or Cort/Cor-Tek China facility)', country: 'China' },
+  '0C': { factory: 'Chinese contract factory (Qingdao or Cort/Cor-Tek China facility)', country: 'China' },
+  SC: { factory: 'Asian contract factory (SC)', country: 'Asia' },
+  NC: { factory: 'Asian contract factory (NC)', country: 'Asia' },
+  YC: { factory: 'Asian contract factory (YC)', country: 'Asia' },
+  IC: { factory: 'Indonesian contract factory (IC)', country: 'Indonesia' },
+};
+
+function decodeModernTwoCharFactoryYYMMSeq(serial: string): DecodeResult {
+  const prefix = serial.substring(0, 2);
+  const yearDigits = serial.substring(2, 4);
+  const monthDigits = serial.substring(4, 6);
+  const sequence = serial.substring(6);
+
+  const yearNum = parseInt(yearDigits, 10);
+  const year = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum).toString();
+  const monthNum = parseInt(monthDigits, 10);
+  const isValidMonth = monthNum >= 1 && monthNum <= 12;
+  const monthName = isValidMonth ? getMonthName(monthNum) : undefined;
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const factoryInfo = WASHBURN_MODERN_TWO_CHAR_FACTORY_MAP[prefix];
+  const factory = factoryInfo?.factory ?? `Asian contract factory (${prefix})`;
+  const country = factoryInfo?.country ?? 'Asia';
+
+  const info: GuitarInfo = {
+    brand: 'Washburn',
+    serialNumber: serial,
+    year,
+    ...(monthName ? { month: monthName } : {}),
+    factory,
+    country,
+    notes: `Modern Washburn import serial format (2-character factory code + YYMMRRRR). "${prefix}" is the factory code indicating ${factory}. The digits ${yearDigits} indicate production year ${year}. The digits ${monthDigits} indicate ${isValidMonth ? monthName : `a batch or production code ("${monthDigits}") rather than a standard calendar month`}. Production sequence: ${sequenceNumber}. Since the early 2000s, Washburn's Asian contracted factories settled on this 10-character format — two characters (factory code) followed by 8 digits (YYMMRRRR). Washburn serial numbers identify where and when a guitar was made; the model name must be confirmed separately from the headstock, soundhole label, or hardware. Electrics typically have this serial stamped on the back of the headstock; acoustics will have it on the interior soundhole label.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: `washburn-modern-two-char-factory-yymm-sequence`,
+    patternLabel: `Washburn modern ${prefix} factory YYMMRRRR format`,
+    additionalContext: {
+      title: `Washburn modern ${prefix}-prefix serial`,
+      summary: `This serial matches the modern Washburn import format: 2-character factory code + YYMMRRRR. The digits encode production year, month, and 4-digit production ranking.`,
+      highlights: [
+        `"${prefix}" is the factory code indicating ${factory}.`,
+        `The digits ${yearDigits} decode as production year ${year}.`,
+        isValidMonth
+          ? `The digits ${monthDigits} decode as ${monthName}.`
+          : `The digits ${monthDigits} are a batch or production code, not a standard calendar month.`,
+        `The remaining digits decode as production ranking #${sequenceNumber} within that run.`,
+      ],
+      caveats: [
+        'Washburn serial numbers only identify when and where a guitar was built — not the model name.',
+        'Since Washburn has changed serial systems many times, the exact factory interpretation for some two-letter codes is approximate.',
+        'The serial can confirm the era of production, but model-specific details require the headstock logo, label, and hardware.',
+      ],
+      verificationTips: [
+        'For electrics: check the back of the headstock for the stamped or printed serial.',
+        'For acoustics: look at the paper label inside the soundhole.',
+        'Compare the body style, pickup configuration, and hardware against Washburn catalog specs for the decoded year.',
+        'Contact Washburn support with clear photos if exact factory confirmation is needed.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches the modern Washburn import format: 2-character factory code + YYMMRRRR. Since the early 2000s, Washburn's Asian contracted factories settled on this 10-character formula.</p><h3>How This Pattern Is Typically Read</h3><p>"${prefix}" is the factory code indicating ${factory}. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} indicate ${isValidMonth ? monthName : `a batch or production code, not a standard calendar month`}. The remaining digits decode as production ranking #${sequenceNumber} within that run.</p><h3>What To Verify</h3><ul><li>Washburn serial numbers only identify when and where a guitar was built — the model name must be confirmed separately.</li><li>For electrics, check the back of the headstock; for acoustics, check the soundhole label.</li><li>Compare the body style, pickups, and hardware against Washburn catalog specs for the decoded year.</li></ul>`,
+  };
 }
 
 // Modern 2-letter factory code + YYWW + 3-digit unit

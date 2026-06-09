@@ -171,14 +171,74 @@ function decodeSingleLetterFormat(factory, digits, serial) {
     };
     return { success: true, info };
 }
+// Vintage Japanese Epiphone format: Y(1) + ModelCode(1) + Sequence(5)
+// Used on Terada/FujiGen-built Epiphones from roughly 1987-1997
+const EPIPHONE_VINTAGE_JAPAN_MODEL_CODES = {
+    '0': 'Entry-level or unspecified model',
+    '1': 'Casino / ES-style thinline hollowbody',
+    '2': 'Riviera or Sheraton style',
+    '3': 'Riviera or Casino variant',
+    '5': 'SG or similar solidbody',
+    '6': 'Les Paul model',
+    '7': 'Flying V or angular style',
+    '8': 'Explorer or angular solidbody',
+    '9': 'Emperor-J or Emperor hollowbody',
+};
+function decodeVintageJapanese7Digit(yearDigit, remainingFiveDigits, serial) {
+    const yearNum = parseInt(yearDigit, 10);
+    const modelCode = remainingFiveDigits[0];
+    const sequence = remainingFiveDigits.substring(1);
+    const sequenceNumber = parseInt(sequence, 10);
+    // Year digit: ending in 7-9 = probably 1987-1989; ending in 0-6 = 1990-1996 or ambiguous
+    const possibleYear = yearNum >= 7
+        ? `198${yearNum} or 199${yearNum}`
+        : `199${yearNum}`;
+    const modelDescription = EPIPHONE_VINTAGE_JAPAN_MODEL_CODES[modelCode] ?? `Body style code ${modelCode}`;
+    const info = {
+        brand: 'Epiphone',
+        serialNumber: serial,
+        year: possibleYear,
+        factory: 'Terada or FujiGen, Japan',
+        country: 'Japan',
+        model: modelDescription,
+        notes: `Vintage Japanese Epiphone format (Terada or FujiGen production, roughly 1987–1997). Interpreted as: ${yearDigit} (year ending, pointing to ${possibleYear}), ${modelCode} (model/body style code = ${modelDescription}), ${sequence} (production sequence #${sequenceNumber}). This era produced some of Epiphone's most collectible instruments — hollow and semi-hollow Epiphones from Terada (Casino, Sheraton, Emperor) and solidbodies from FujiGen. Verify the exact year, model, and factory from the headstock logo, truss rod cover, interior soundhole or neck-heel label, and hardware details.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'epiphone-vintage-japanese-year-model-sequence',
+        patternLabel: 'Epiphone vintage Japan Y + model code + sequence (1987–1997)',
+        additionalContext: {
+            title: 'Epiphone vintage Japanese 7-digit serial (1987–1997)',
+            summary: 'This 7-digit all-numeric serial matches the vintage Japanese Epiphone format used on Terada and FujiGen-built instruments, decoded as a year digit, a body-style model code, and a 5-digit production sequence.',
+            highlights: [
+                `The year digit ${yearDigit} points to production year ${possibleYear}.`,
+                `The model code ${modelCode} indicates ${modelDescription}.`,
+                `The final five digits decode as production sequence #${sequenceNumber}.`,
+                'Vintage Japanese Epiphones from this era are often regarded as some of the brand\'s finest — particularly Terada-built hollowbodies.',
+            ],
+            caveats: [
+                'The year digit is ambiguous between the 1980s and 1990s without model context.',
+                'The model code identifies the body style category, not the exact model name.',
+                'This format applies to Japanese-built Epiphone instruments; later Chinese and Korean models use a different system.',
+            ],
+            verificationTips: [
+                'Check the soundhole label or back-of-headstock sticker for country-of-origin (Made in Japan).',
+                'Compare the neck-heel or neck-pocket markings for a handwritten or stamped production date.',
+                'For a Casino, Sheraton, or Emperor, Terada is the most common Japanese contract factory from this era.',
+                'For Les Paul, SG, and solidbodies, FujiGen is more common.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This 7-digit all-numeric serial matches the vintage Japanese Epiphone format used on Terada and FujiGen-built instruments from roughly 1987–1997.</p><h3>How This Pattern Is Typically Read</h3><p>The year digit ${yearDigit} points to production year ${possibleYear}. The model code ${modelCode} indicates ${modelDescription}. The final five digits decode as production sequence #${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the soundhole label or back-of-headstock sticker for "Made in Japan" markings.</li><li>Compare the neck-heel or neck-pocket for a handwritten or stamped production date.</li><li>Terada built most vintage Japanese hollowbodies (Casino, Sheraton, Emperor); FujiGen handled many solidbodies.</li></ul><h3>Coal Creek Guitars Note</h3><p>Vintage Japanese Epiphones are among the brand's most collectible instruments. Use the year and model code as a starting point, then confirm details from the label, hardware, and physical construction.</p>`,
+    };
+}
 function decode1990sNumericImportFormat(yearDigit, monthDigits, sequence, serial) {
     const year = `199${yearDigit}`;
     const month = parseInt(monthDigits, 10);
     if (month < 1 || month > 12) {
-        return {
-            success: false,
-            error: `Invalid month value: ${month}. Expected 01-12.`
-        };
+        // Month is invalid for a standard YMM#### format — fall back to vintage Japanese interpretation:
+        // Y(1) + ModelCode(1) + Sequence(5), as used on Terada/FujiGen builds ~1987-1997
+        return decodeVintageJapanese7Digit(yearDigit, monthDigits + sequence, serial);
     }
     const months = [
         'January', 'February', 'March', 'April', 'May', 'June',

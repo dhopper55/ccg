@@ -809,6 +809,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/serial-decodes/daily-volume' && request.method === 'GET') {
+      const response = await handleAdminV2SerialDecodeDailyVolume(request, env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/admin-v2/serial-pattern-text' && request.method === 'GET') {
       const response = await handleAdminV2SerialPatternTextList(request, env);
       return withCors(response, request, env);
@@ -7195,6 +7200,16 @@ async function handleAdminV2SerialDecodeLookupVolume(request: Request, env: Env)
   const brand = normalizeText(url.searchParams.get('brand'), '').slice(0, 120);
   const data = await dbGetAdminV2SerialDecodeLookupVolume(view, brand, env);
   return jsonResponse(data);
+}
+
+async function handleAdminV2SerialDecodeDailyVolume(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const dateParam = normalizeText(url.searchParams.get('date'), '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+    return jsonResponse({ message: 'Invalid date parameter. Use YYYY-MM-DD.' }, 400);
+  }
+  const buckets = await dbGetAdminV2SerialDecodeDailyVolume(dateParam, env);
+  return jsonResponse({ date: dateParam, buckets });
 }
 
 async function handleAdminV2ShopStatistics(request: Request, env: Env): Promise<Response> {
@@ -14922,6 +14937,31 @@ async function dbGetAdminV2SerialDecodeLookupVolume(
   };
 }
 
+async function dbGetAdminV2SerialDecodeDailyVolume(
+  dateStr: string,
+  env: Env,
+): Promise<number[]> {
+  const { startUtc, endUtc } = getDenverDayUtcBounds(dateStr);
+
+  const rows = await env.DB.prepare(
+    `SELECT event_time_utc
+     FROM serial_decode_events
+     WHERE event_time_utc >= ? AND event_time_utc < ?`,
+  ).bind(startUtc, endUtc).all<{ event_time_utc: string | null }>();
+
+  const buckets = new Array(48).fill(0) as number[];
+
+  for (const row of (rows.results ?? [])) {
+    if (!row.event_time_utc) continue;
+    const date = new Date(row.event_time_utc);
+    if (Number.isNaN(date.getTime())) continue;
+    const idx = getDenverHalfHourBucketIndex(date);
+    if (idx >= 0 && idx < 48) buckets[idx]++;
+  }
+
+  return buckets;
+}
+
 async function dbListAdminV2SerialPatternLookup(
   page: number,
   limit: number,
@@ -15144,6 +15184,49 @@ function parseSerialLookupTimestamp(input: string | null): Date | null {
   const parsed = new Date(year, month, day, hour, minute, second);
   if (Number.isNaN(parsed.getTime())) return null;
   return parsed;
+}
+
+function getDenverDayUtcBounds(dateStr: string): { startUtc: string; endUtc: string } {
+  const [yearStr, monthStr, dayStr] = dateStr.split('-');
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Denver',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+
+  for (const offsetHours of [6, 7]) {
+    const candidate = new Date(Date.UTC(year, month - 1, day, offsetHours, 0, 0));
+    const parts = fmt.formatToParts(candidate);
+    const h = parseInt(parts.find((p) => p.type === 'hour')?.value || '99', 10);
+    const m = parseInt(parts.find((p) => p.type === 'minute')?.value || '99', 10);
+    if (h === 0 && m === 0) {
+      const end = new Date(candidate.getTime() + 24 * 60 * 60 * 1000);
+      return { startUtc: candidate.toISOString(), endUtc: end.toISOString() };
+    }
+  }
+
+  // Fallback: assume MST (UTC-7)
+  const start = new Date(Date.UTC(year, month - 1, day, 7, 0, 0));
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return { startUtc: start.toISOString(), endUtc: end.toISOString() };
+}
+
+function getDenverHalfHourBucketIndex(date: Date): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Denver',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(date);
+
+  const hour = parseInt(parts.find((p) => p.type === 'hour')?.value || '0', 10);
+  const minute = parseInt(parts.find((p) => p.type === 'minute')?.value || '0', 10);
+  return Math.floor((hour * 60 + minute) / 30);
 }
 
 async function dbGetPublishedSerialPatternContext(

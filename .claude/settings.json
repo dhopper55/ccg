@@ -26,7 +26,14 @@
       "Bash(git -C /Users/davidhopper2/Documents/Code/ccg push)",
       "Bash(git -C /Users/davidhopper2/Documents/Code/ccg add guitars-and-gear-for-sale/ decoders/ guitar-value-report-evaluation/ shop-app/src/pages/guitar-eval/GuitarEvalPage.tsx images/report-sample.png)",
       "Bash(git -C /Users/davidhopper2/Documents/Code/ccg add guitar-value-report-evaluation/index.html)",
-      "Bash(git -C /Users/davidhopper2/Documents/Code/ccg add -A)"
+      "Bash(git -C /Users/davidhopper2/Documents/Code/ccg add -A)",
+      "Bash(git -C /Users/davidhopper2/Documents/Code/ccg add guitars-and-gear-for-sale/ decoders/ guitar-value-report-evaluation/ shop-app/src/pages/guitar-eval/GuitarEvalPage.tsx shop-app/src/components/sections/crm/add-contact/AddContactStepper.tsx)",
+      "Bash(git -C /Users/davidhopper2/Documents/Code/ccg add guitars-and-gear-for-sale/ decoders/ guitar-value-report-evaluation/ shop-app/src/pages/guitar-eval/GuitarEvalPage.tsx)",
+      "Bash(git -C /Users/davidhopper2/Documents/Code/ccg add index.html styles.css)",
+      "Bash(git -C /Users/davidhopper2/Documents/Code/ccg add index.html)",
+      "Bash(git -C /Users/davidhopper2/Documents/Code/ccg add guitars-and-gear-for-sale/ decoders/ guitar-value-report-evaluation/ shop-app/src/components/sections/crm/add-contact/AddContactStepper.tsx)",
+      "Bash(git -C /Users/davidhopper2/Documents/Code/ccg add index.html images/home-report-sample.png)",
+      "Bash(git -C /Users/davidhopper2/Documents/Code/ccg add guitars-and-gear-for-sale/ decoders/ guitar-value-report-evaluation/ shop-app/src/components/sections/crm/add-contact/AddContactStepper.tsx shop-app/src/pages/guitar-eval/GuitarEvalPage.tsx)"
     ]
   }
 }

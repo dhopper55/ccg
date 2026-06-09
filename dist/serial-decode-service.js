@@ -1,5 +1,5 @@
 import { decodeGibson } from './decoders/gibson.js?version=805837';
-import { decodeEpiphone } from './decoders/epiphone.js?version=592915';
+import { decodeEpiphone } from './decoders/epiphone.js?version=493352';
 import { decodeFender } from './decoders/fender.js?version=940349';
 import { decodeTaylor } from './decoders/taylor.js?version=378527';
 import { decodeMartin } from './decoders/martin.js?version=695834';
@@ -13,7 +13,7 @@ import { decodeJackson } from './decoders/jackson.js?version=141377';
 import { decodeSquier } from './decoders/squier.js?version=430608';
 import { decodeCort } from './decoders/cort.js?version=115015';
 import { decodeTakamine } from './decoders/takamine.js?version=847856';
-import { decodeWashburn } from './decoders/washburn.js?version=572134';
+import { decodeWashburn } from './decoders/washburn.js?version=026532';
 import { decodeDean } from './decoders/dean.js?version=568278';
 import { decodeErnieBall } from './decoders/ernieball.js?version=375548';
 import { decodeGuild } from './decoders/guild.js?version=242409';
