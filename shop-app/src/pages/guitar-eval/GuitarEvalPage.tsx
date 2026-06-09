@@ -43,32 +43,56 @@ const GuitarEvalPage = () => {
                   ]}
                 />
               </Stack>
-              <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5 }}>
-                <IconifyIcon
-                  icon="mdi:currency-usd"
-                  color="#b8960c"
-                  sx={{ fontSize: '2.125rem', flexShrink: 0 }}
-                />
-                <Typography variant="h4">
-                  Comprehensive Guitar Evaluation Report
-                </Typography>
-              </Stack>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5, lineHeight: 1.7 }}>
-                Answer a few questions about your instrument and get a professional-grade valuation report in less than 24 hours.
-                <br />
-                We identify your gear, price it across Reverb, eBay, dealers, and local sale, flag what raises or lowers its value, and hand you a ready-to-post listing for your area. Read it on screen, save it as a PDF, or print it.
-                <br />
-                <Box
-                  component="a"
-                  href="https://www.coalcreekguitars.com/guitar-value-report-evaluation/sample-report.html"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, color: 'primary.main', textDecoration: 'underline', verticalAlign: 'middle', mt: 0.5 }}
-                >
-                  <Box component="img" src="/images/html.png" alt="HTML" sx={{ width: 18, height: 18, objectFit: 'contain' }} />
-                  Click here to see a sample report.
-                </Box>
-              </Typography>
+              <Grid container spacing={3} sx={{ alignItems: 'center' }}>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5 }}>
+                    <IconifyIcon
+                      icon="mdi:currency-usd"
+                      color="#b8960c"
+                      sx={{ fontSize: '2.125rem', flexShrink: 0 }}
+                    />
+                    <Typography variant="h4">
+                      Comprehensive Guitar Evaluation Report
+                    </Typography>
+                  </Stack>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5, lineHeight: 1.7 }}>
+                    Answer a few questions about your instrument and get a professional-grade valuation report in less than 24 hours.
+                    <br />
+                    We identify your gear, price it across Reverb, eBay, dealers, and local sale, flag what raises or lowers its value, and hand you a ready-to-post listing for your area.
+                    <br />
+                    We also give you a professionally written title and description for an online marketplace listing if you plan on selling.
+                    <br />
+                    Read it on screen, save it as a PDF, or print it.
+                    <br />
+                    <Box
+                      component="a"
+                      href="https://www.coalcreekguitars.com/guitar-value-report-evaluation/sample-report.html"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, color: 'primary.main', textDecoration: 'underline', verticalAlign: 'middle', mt: 0.5 }}
+                    >
+                      <Box component="img" src="/images/html.png" alt="HTML" sx={{ width: 18, height: 18, objectFit: 'contain' }} />
+                      Click here to see a sample report.
+                    </Box>
+                  </Typography>
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }} sx={{ display: 'flex', justifyContent: 'center' }}>
+                  <Box
+                    component="a"
+                    href="https://www.coalcreekguitars.com/guitar-value-report-evaluation/sample-report.html"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{ display: 'block', width: 1 }}
+                  >
+                    <Box
+                      component="img"
+                      src="/images/report-sample.png"
+                      alt="Sample guitar evaluation report"
+                      sx={{ width: 1, height: 'auto', borderRadius: 2, display: 'block' }}
+                    />
+                  </Box>
+                </Grid>
+              </Grid>
             </Paper>
           </Grid>
           <Grid size={12}>
