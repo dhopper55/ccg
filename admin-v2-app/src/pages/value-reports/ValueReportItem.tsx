@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
+import Grid from '@mui/material/Grid';
 import {
   Alert,
   Box,
   CircularProgress,
+  Dialog,
+  DialogContent,
   IconButton,
   Paper,
   Stack,
@@ -11,7 +14,6 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import Grid from '@mui/material/Grid';
 import dayjs from 'dayjs';
 import IconifyIcon from 'components/base/IconifyIcon';
 import paths from 'routes/paths';
@@ -32,6 +34,7 @@ type ValueReportRecord = {
   damage: string | null;
   stripePaymentIntentId: string | null;
   fulfilled: number;
+  imageUrls: string[];
 };
 
 type ValueReportItemResponse = {
@@ -49,6 +52,7 @@ const ValueReportItem = () => {
   const [record, setRecord] = useState<ValueReportRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) {
@@ -77,8 +81,8 @@ const ValueReportItem = () => {
     return () => { cancelled = true; };
   }, [id]);
 
-  const pageTitle = record
-    ? [record.firstName, record.lastName].filter(Boolean).join(' ') || 'Value Report'
+  const formattedDate = record?.createdAt
+    ? dayjs(record.createdAt).format('MMM D, YYYY h:mm A')
     : 'Value Report';
 
   return (
@@ -88,7 +92,7 @@ const ValueReportItem = () => {
           direction={{ xs: 'column', sm: 'row' }}
           sx={{ gap: 2, alignItems: { sm: 'center' }, justifyContent: 'space-between' }}
         >
-          <Typography variant="h4">{pageTitle}</Typography>
+          <Typography variant="h4">{formattedDate}</Typography>
           <Tooltip title="Back to Value Reports">
             <IconButton
               aria-label="Back"
@@ -120,31 +124,66 @@ const ValueReportItem = () => {
         ) : record ? (
           <Grid container spacing={3}>
 
+            {/* Photos */}
+            {record.imageUrls.length > 0 ? (
+              <>
+                <Grid size={12}>
+                  <Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: 0.6 }}>
+                    Photos
+                  </Typography>
+                </Grid>
+                <Grid size={12}>
+                  <Stack direction="row" flexWrap="wrap" gap={1.5}>
+                    {record.imageUrls.map((url, index) => (
+                      <Box
+                        key={index}
+                        component="img"
+                        src={url}
+                        alt={`Photo ${index + 1}`}
+                        onClick={() => setLightboxUrl(url)}
+                        sx={{
+                          width: 120,
+                          height: 120,
+                          objectFit: 'cover',
+                          borderRadius: 2,
+                          cursor: 'pointer',
+                          border: 1,
+                          borderColor: 'divider',
+                          '&:hover': { opacity: 0.85 },
+                          transition: 'opacity 0.15s',
+                        }}
+                      />
+                    ))}
+                  </Stack>
+                </Grid>
+              </>
+            ) : null}
+
+            {/* Contact */}
             <Grid size={12}>
               <Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: 0.6 }}>
                 Contact
               </Typography>
             </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <TextField fullWidth label="First Name" value={record.firstName || '—'} InputProps={ro} />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <TextField fullWidth label="Last Name" value={record.lastName || '—'} InputProps={ro} />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <TextField fullWidth label="Email" value={record.email || '—'} InputProps={ro} />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <TextField fullWidth label="Location" value={record.location || '—'} InputProps={ro} />
+            </Grid>
 
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <TextField fullWidth label="First Name" value={record.firstName || '—'} InputProps={{ readOnly: true }} />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <TextField fullWidth label="Last Name" value={record.lastName || '—'} InputProps={{ readOnly: true }} />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <TextField fullWidth label="Email" value={record.email || '—'} InputProps={{ readOnly: true }} />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <TextField fullWidth label="Location" value={record.location || '—'} InputProps={{ readOnly: true }} />
-            </Grid>
-
+            {/* Guitar */}
             <Grid size={12}>
               <Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: 0.6 }}>
                 Guitar
               </Typography>
             </Grid>
-
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <TextField fullWidth label="Brand" value={record.brand || '—'} InputProps={ro} />
             </Grid>
@@ -163,12 +202,12 @@ const ValueReportItem = () => {
               <TextField fullWidth label="Includes Case?" value={record.includesCase || '—'} InputProps={ro} />
             </Grid>
 
+            {/* Condition */}
             <Grid size={12}>
               <Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: 0.6 }}>
                 Condition
               </Typography>
             </Grid>
-
             <Grid size={12}>
               <TextField fullWidth multiline minRows={3} label="Notes" value={record.note || '—'} InputProps={ro} />
             </Grid>
@@ -176,19 +215,11 @@ const ValueReportItem = () => {
               <TextField fullWidth multiline minRows={3} label="Damage / Wear" value={record.damage || '—'} InputProps={ro} />
             </Grid>
 
+            {/* Status */}
             <Grid size={12}>
               <Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: 0.6 }}>
                 Status
               </Typography>
-            </Grid>
-
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <TextField
-                fullWidth
-                label="Submitted"
-                value={record.createdAt ? dayjs(record.createdAt).format('MMM D, YYYY h:mm A') : '—'}
-                InputProps={ro}
-              />
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <TextField fullWidth label="Paid" value={record.stripePaymentIntentId ? 'Yes' : 'No'} InputProps={ro} />
@@ -205,6 +236,39 @@ const ValueReportItem = () => {
           </Grid>
         ) : null}
       </Box>
+
+      {/* Lightbox */}
+      <Dialog
+        open={Boolean(lightboxUrl)}
+        onClose={() => setLightboxUrl(null)}
+        maxWidth="lg"
+        PaperProps={{ sx: { bgcolor: 'transparent', boxShadow: 'none' } }}
+      >
+        <DialogContent sx={{ p: 1, position: 'relative' }}>
+          <IconButton
+            onClick={() => setLightboxUrl(null)}
+            sx={{
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              bgcolor: 'rgba(0,0,0,0.5)',
+              color: 'white',
+              zIndex: 1,
+              '&:hover': { bgcolor: 'rgba(0,0,0,0.75)' },
+            }}
+          >
+            <IconifyIcon icon="material-symbols:close-rounded" fontSize={22} />
+          </IconButton>
+          {lightboxUrl ? (
+            <Box
+              component="img"
+              src={lightboxUrl}
+              alt="Photo enlarged"
+              sx={{ maxWidth: '90vw', maxHeight: '85vh', display: 'block', borderRadius: 2 }}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </Stack>
   );
 };

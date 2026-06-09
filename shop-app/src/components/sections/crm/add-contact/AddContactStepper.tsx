@@ -125,6 +125,7 @@ const AddContactStepper = () => {
         ? (data.personalInfo?.brandOther ?? 'Other')
         : data.personalInfo?.brand;
 
+    const decodeIdParam = searchParams.get('decodeId');
     const payload = {
       serialNumber: data.personalInfo?.serialNumber || null,
       brand: resolvedBrand,
@@ -137,6 +138,7 @@ const AddContactStepper = () => {
       firstName: data.leadInfo?.firstName,
       lastName: data.leadInfo?.lastName,
       email: data.leadInfo?.email,
+      serialDecodeId: decodeIdParam ? Number(decodeIdParam) : null,
     };
 
     setSubmitting(true);

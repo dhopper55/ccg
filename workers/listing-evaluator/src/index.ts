@@ -6183,6 +6183,7 @@ const SHOP_ANALYTICS_EVENT_TYPES = new Set([
   'search',
   'add_to_cart',
   'checkout_start',
+  'value_report_initiate',
 ]);
 
 async function handleShopAnalyticsEvent(request: Request, env: Env): Promise<Response> {
@@ -6200,11 +6201,6 @@ async function handleShopAnalyticsEvent(request: Request, env: Env): Promise<Res
 
   if (await isAssociateModeRequest(request, env)) {
     return jsonResponse({ ok: true, skipped: true, reason: 'associate_mode' });
-  }
-
-  const stripeConfig = await getStripeRuntimeConfig(env);
-  if (stripeConfig.useSandbox) {
-    return jsonResponse({ ok: true, skipped: true, reason: 'stripe_sandbox' });
   }
 
   const userAgent = normalizeText(request.headers.get('user-agent'), '');
@@ -18194,7 +18190,7 @@ function isSuspiciousAnalyticsRequest(request: Request, pagePath: string): boole
   const secFetchMode = normalizeText(request.headers.get('sec-fetch-mode'), '').toLowerCase();
   const origin = normalizeText(request.headers.get('origin'), '');
   const referer = normalizeText(request.headers.get('referer'), '');
-  if (!pagePath.startsWith(SHOP_BASE_PATH)) return true;
+  if (!pagePath.startsWith(SHOP_BASE_PATH) && !pagePath.startsWith('/guitar-value-report-evaluation')) return true;
   if (secFetchDest && secFetchDest !== 'empty') return true;
   if (secFetchMode && !['cors', 'same-origin'].includes(secFetchMode)) return true;
   if (origin && !origin.includes('coalcreekguitars.com') && !origin.includes('ccg-2k1.pages.dev')) return true;
@@ -18232,7 +18228,7 @@ async function handleAdminV2ValueReportItem(id: string, env: Env): Promise<Respo
   const row = await env.DB.prepare(
     `SELECT id, created_at, first_name, last_name, email, brand, brand_other, model,
             serial_number, includes_case, location, note, damage,
-            stripe_payment_intent_id, fulfilled
+            stripe_payment_intent_id, fulfilled, image_keys
      FROM guitar_evaluations WHERE id = ?`
   ).bind(id).first<{
     id: number;
@@ -18250,9 +18246,18 @@ async function handleAdminV2ValueReportItem(id: string, env: Env): Promise<Respo
     damage: string | null;
     stripe_payment_intent_id: string | null;
     fulfilled: number;
+    image_keys: string | null;
   }>();
 
   if (!row) return jsonResponse({ message: 'Value report not found.' }, 404);
+
+  let imageUrls: string[] = [];
+  if (row.image_keys) {
+    try {
+      const keys: string[] = JSON.parse(row.image_keys);
+      imageUrls = keys.map((key) => `/api/guitar-evaluation-image?key=${encodeURIComponent(key)}`);
+    } catch { /* ignore malformed */ }
+  }
 
   return jsonResponse({
     record: {
@@ -18271,6 +18276,7 @@ async function handleAdminV2ValueReportItem(id: string, env: Env): Promise<Respo
       damage: row.damage,
       stripePaymentIntentId: row.stripe_payment_intent_id,
       fulfilled: row.fulfilled,
+      imageUrls,
     },
   });
 }
@@ -18333,12 +18339,13 @@ async function dbInsertGuitarEvaluation(env: Env, data: {
   firstName: string;
   lastName: string;
   email: string;
+  serialDecodeId: number | null;
 }): Promise<number | null> {
   const result = await env.DB.prepare(`
     INSERT INTO guitar_evaluations (
       serial_number, brand, brand_other, model, includes_case,
-      location, note, damage, first_name, last_name, email, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      location, note, damage, first_name, last_name, email, serial_decode_event_id, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     data.serialNumber,
     data.brand,
@@ -18351,6 +18358,7 @@ async function dbInsertGuitarEvaluation(env: Env, data: {
     data.firstName,
     data.lastName,
     data.email,
+    data.serialDecodeId,
     new Date().toISOString(),
   ).run();
   return (result.meta?.last_row_id as number) ?? null;
@@ -18421,7 +18429,54 @@ async function handleGuitarEvaluationConfirmPayment(request: Request, env: Env):
     `UPDATE guitar_evaluations SET stripe_payment_intent_id = ? WHERE id = ?`
   ).bind(paymentIntentId, evaluationId).run();
 
+  const row = await env.DB.prepare(
+    `SELECT first_name, email FROM guitar_evaluations WHERE id = ?`
+  ).bind(evaluationId).first<{ first_name: string | null; email: string | null }>();
+
+  if (row?.email) {
+    try {
+      await sendBrevoEvaluationConfirmationEmail(
+        normalizeText(row.first_name, ''),
+        row.email,
+        env,
+      );
+    } catch (err) {
+      console.error('Eval confirmation email failed:', err);
+    }
+  }
+
   return jsonResponse({ ok: true });
+}
+
+async function sendBrevoEvaluationConfirmationEmail(
+  firstName: string,
+  email: string,
+  env: Env,
+): Promise<void> {
+  const config = await getBrevoRuntimeConfig(env);
+  if (!config.apiKey || !config.senderEmail) return;
+
+  const resolvedFirstName = firstName.trim() || 'there';
+
+  await fetch('https://api.brevo.com/v3/contacts', {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      'api-key': config.apiKey,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      email,
+      attributes: { FIRSTNAME: resolvedFirstName },
+      updateEnabled: true,
+    }),
+  });
+
+  await sendBrevoTransactionalEmail(config, {
+    sender: { name: config.senderName, email: config.senderEmail },
+    to: [{ email, name: resolvedFirstName }],
+    templateId: 5,
+  });
 }
 
 async function handleGuitarEvaluationSubmit(request: Request, env: Env): Promise<Response> {
@@ -18432,7 +18487,7 @@ async function handleGuitarEvaluationSubmit(request: Request, env: Env): Promise
     return jsonResponse({ message: 'Invalid request body.' }, 400);
   }
 
-  const { serialNumber, brand, brandOther, model, includesCase, location, note, damage, firstName, lastName, email } = body ?? {};
+  const { serialNumber, brand, brandOther, model, includesCase, location, note, damage, firstName, lastName, email, serialDecodeId } = body ?? {};
 
   if (!brand || !includesCase || !note || !damage || !firstName || !lastName || !email) {
     return jsonResponse({ message: 'Missing required fields.' }, 400);
@@ -18450,6 +18505,7 @@ async function handleGuitarEvaluationSubmit(request: Request, env: Env): Promise
     firstName,
     lastName,
     email,
+    serialDecodeId: Number.isInteger(serialDecodeId) && serialDecodeId > 0 ? serialDecodeId : null,
   });
 
   if (!id) {

@@ -1,7 +1,15 @@
 import { Box, Typography } from '@mui/material';
+import IconifyIcon from 'components/base/IconifyIcon';
+
+interface EvalLinkInfo {
+  serial: string;
+  brand: string;
+  decodeEventId: number | null;
+}
 
 interface IbanezAdditionalInfoPanelProps {
   richText: string;
+  evalLink?: EvalLinkInfo | null;
 }
 
 function sanitizeAdditionalContextHtmlClient(input: string): string {
@@ -89,9 +97,43 @@ function formatAdditionalInfoHtml(text: string): string {
   return sanitizeAdditionalContextHtmlClient(html);
 }
 
-const IbanezAdditionalInfoPanel = ({ richText }: IbanezAdditionalInfoPanelProps) => {
+const IbanezAdditionalInfoPanel = ({ richText, evalLink }: IbanezAdditionalInfoPanelProps) => {
+  const evalHref = evalLink
+    ? (() => {
+        const params = new URLSearchParams({ brand: evalLink.brand, serial: evalLink.serial });
+        if (evalLink.decodeEventId != null) params.set('decodeId', String(evalLink.decodeEventId));
+        return `/guitar-value-report-evaluation/?${params.toString()}`;
+      })()
+    : null;
+
   return (
     <Box sx={{ p: { xs: 1, md: 2 } }}>
+      {evalHref ? (
+        <Box
+          component="a"
+          href={evalHref}
+          sx={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 0.75,
+            mb: 3,
+            color: 'warning.main',
+            textDecoration: 'none',
+            fontWeight: 700,
+            fontSize: '1rem',
+            border: 1,
+            borderColor: 'warning.main',
+            borderRadius: 2,
+            px: 2,
+            py: 1,
+            '&:hover': { bgcolor: 'rgba(184,150,12,0.08)' },
+            transition: 'background-color 0.15s',
+          }}
+        >
+          <IconifyIcon icon="mdi:currency-usd" fontSize={22} />
+          How much is my guitar worth?
+        </Box>
+      ) : null}
       <Typography variant="h6" sx={{ mb: 3, color: 'warning.main' }}>
         Additional decoded information
       </Typography>

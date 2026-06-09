@@ -31,6 +31,7 @@ interface DecoderPageProps {
 
 const DecoderPage = ({ config }: DecoderPageProps) => {
   const [additionalInfoRichText, setAdditionalInfoRichText] = useState('');
+  const [decodeSuccess, setDecodeSuccess] = useState<{ serial: string; decodeEventId: number | null } | null>(null);
 
   useEffect(() => {
     document.title = config.pageTitle;
@@ -49,13 +50,17 @@ const DecoderPage = ({ config }: DecoderPageProps) => {
               brand={config.brandKey}
               brandDisplayName={config.brandName}
               onAdditionalInfoChange={setAdditionalInfoRichText}
+              onDecodeSuccess={setDecodeSuccess}
             />
           </Grid>
           <Grid size={{ xs: 12, lg: 7, xl: 6 }}>
             <Grid container direction="column" rowSpacing={3}>
               {additionalInfoRichText && (
                 <Grid size={12}>
-                  <IbanezAdditionalInfoPanel richText={additionalInfoRichText} />
+                  <IbanezAdditionalInfoPanel
+                    richText={additionalInfoRichText}
+                    evalLink={decodeSuccess ? { ...decodeSuccess, brand: config.brandName } : null}
+                  />
                 </Grid>
               )}
               <Grid size={12}>

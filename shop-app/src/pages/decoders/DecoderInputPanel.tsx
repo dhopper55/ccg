@@ -39,9 +39,10 @@ interface DecoderInputPanelProps {
   brand: string;
   brandDisplayName: string;
   onAdditionalInfoChange: (richText: string) => void;
+  onDecodeSuccess?: (data: { serial: string; decodeEventId: number | null } | null) => void;
 }
 
-const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange }: DecoderInputPanelProps) => {
+const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange, onDecodeSuccess }: DecoderInputPanelProps) => {
   const [searchParams] = useSearchParams();
   const [serial, setSerial] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -78,6 +79,7 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange }: 
     setEmailSubmitMessage('');
     setEmailSubmitError('');
     onAdditionalInfoChange('');
+    onDecodeSuccess?.(null);
   };
 
   const handleDecode = async (serialOverride?: string) => {
@@ -114,8 +116,13 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange }: 
         setEmailAddress('');
         setEmailSubmitMessage('');
         setEmailSubmitError('');
-        setSerial(result.info.serialNumber?.trim() || trimmed);
+        const resolvedSerial = result.info.serialNumber?.trim() || trimmed;
+        setSerial(resolvedSerial);
         onAdditionalInfoChange((result.additionalContextRichText || '').trim());
+        onDecodeSuccess?.({
+          serial: resolvedSerial,
+          decodeEventId: typeof result.serialDecodeEventId === 'number' ? result.serialDecodeEventId : null,
+        });
         return;
       }
 

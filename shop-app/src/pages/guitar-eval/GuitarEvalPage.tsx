@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Box, Divider, Paper, Stack, Typography } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -5,8 +6,13 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import IconifyIcon from 'components/base/IconifyIcon';
 import PageBreadcrumb from 'components/sections/common/PageBreadcrumb';
 import AddContactStepper from 'components/sections/crm/add-contact/AddContactStepper';
+import { trackShopAnalyticsEvent } from 'lib/shopAnalytics';
 
 const GuitarEvalPage = () => {
+  useEffect(() => {
+    trackShopAnalyticsEvent({ eventType: 'value_report_initiate' });
+  }, []);
+
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', pt: '5px', px: { xs: 2, md: 5 }, pb: { xs: 2, md: 5 } }}>
