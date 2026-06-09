@@ -612,6 +612,12 @@ export default {
       return withCors(response, request, env);
     }
 
+    const guitarEvalUpdateMatch = path.match(/^\/api\/guitar-evaluation\/(\d+)$/);
+    if (guitarEvalUpdateMatch && request.method === 'PATCH') {
+      const response = await handleGuitarEvaluationUpdate(request, guitarEvalUpdateMatch[1], env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/guitar-evaluation-image' && request.method === 'GET') {
       const response = await handleGuitarEvaluationImage(request, env);
       return withCors(response, request, env);
@@ -18489,7 +18495,7 @@ async function handleGuitarEvaluationSubmit(request: Request, env: Env): Promise
 
   const { serialNumber, brand, brandOther, model, includesCase, location, note, damage, firstName, lastName, email, serialDecodeId } = body ?? {};
 
-  if (!brand || !includesCase || !note || !damage || !firstName || !lastName || !email) {
+  if (!brand || !includesCase || !note || !damage) {
     return jsonResponse({ message: 'Missing required fields.' }, 400);
   }
 
@@ -18502,9 +18508,9 @@ async function handleGuitarEvaluationSubmit(request: Request, env: Env): Promise
     location: location ?? null,
     note,
     damage,
-    firstName,
-    lastName,
-    email,
+    firstName: firstName ?? '',
+    lastName: lastName ?? '',
+    email: email ?? '',
     serialDecodeId: Number.isInteger(serialDecodeId) && serialDecodeId > 0 ? serialDecodeId : null,
   });
 
@@ -18513,6 +18519,58 @@ async function handleGuitarEvaluationSubmit(request: Request, env: Env): Promise
   }
 
   return jsonResponse({ id, message: 'Evaluation submitted successfully.' });
+}
+
+async function handleGuitarEvaluationUpdate(request: Request, evaluationId: string, env: Env): Promise<Response> {
+  const id = parseInt(evaluationId, 10);
+  if (!Number.isInteger(id) || id <= 0) {
+    return jsonResponse({ message: 'Invalid evaluation ID.' }, 400);
+  }
+
+  let body: any;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid request body.' }, 400);
+  }
+
+  const row = await env.DB.prepare('SELECT id FROM guitar_evaluations WHERE id = ?').bind(id).first<{ id: number }>();
+  if (!row) return jsonResponse({ message: 'Evaluation not found.' }, 404);
+
+  const fieldMap: Record<string, string> = {
+    serialNumber: 'serial_number',
+    brand: 'brand',
+    brandOther: 'brand_other',
+    model: 'model',
+    includesCase: 'includes_case',
+    location: 'location',
+    note: 'note',
+    damage: 'damage',
+    firstName: 'first_name',
+    lastName: 'last_name',
+    email: 'email',
+    serialDecodeId: 'serial_decode_event_id',
+  };
+
+  const setClauses: string[] = [];
+  const values: any[] = [];
+  for (const [jsKey, dbCol] of Object.entries(fieldMap)) {
+    if (jsKey in body) {
+      setClauses.push(`${dbCol} = ?`);
+      values.push(body[jsKey] ?? null);
+    }
+  }
+
+  if (setClauses.length === 0) {
+    return jsonResponse({ message: 'No fields to update.' }, 400);
+  }
+
+  values.push(id);
+  await env.DB.prepare(`UPDATE guitar_evaluations SET ${setClauses.join(', ')} WHERE id = ?`)
+    .bind(...values)
+    .run();
+
+  return jsonResponse({ ok: true });
 }
 
 async function handleGuitarEvaluationUploadImages(request: Request, evaluationId: string, env: Env): Promise<Response> {
@@ -18599,6 +18657,7 @@ function isPublicApiPath(path: string): boolean {
     || path === '/api/guitar-evaluation/payment-intent'
     || path === '/api/guitar-evaluation/confirm-payment'
     || /^\/api\/guitar-evaluation\/\d+\/upload-images$/.test(path)
+    || /^\/api\/guitar-evaluation\/\d+$/.test(path)
     || path === '/api/guitar-evaluation-image';
 }
 

@@ -88,6 +88,7 @@ const AddContactStepper = () => {
       setActiveStep(CONFIRMATION_STEP_INDEX);
     }
   }, []);
+
   const { enqueueSnackbar } = useSnackbar();
   const [searchParams] = useSearchParams();
   const methods = useForm<ContactForm>({
@@ -107,26 +108,18 @@ const AddContactStepper = () => {
 
   const { handleSubmit } = methods;
 
-  const handleNext = async () => {
-    const isValid = await methods.trigger();
-    if (isValid) {
-      setCompletedSteps((prev) => ({ ...prev, [activeStep]: true }));
-      setActiveStep((prevStep) => prevStep + 1);
-    }
-  };
-
   const handleBack = () => {
     setActiveStep((prevStep) => prevStep - 1);
   };
 
-  const onSubmit = async (data: ContactForm) => {
+  const persistGuitarInfo = async (data: ContactForm) => {
     const resolvedBrand =
       data.personalInfo?.brand === 'Other'
         ? (data.personalInfo?.brandOther ?? 'Other')
         : data.personalInfo?.brand;
 
     const decodeIdParam = searchParams.get('decodeId');
-    const payload = {
+    const guitarPayload = {
       serialNumber: data.personalInfo?.serialNumber || null,
       brand: resolvedBrand,
       brandOther: data.personalInfo?.brandOther || null,
@@ -135,55 +128,89 @@ const AddContactStepper = () => {
       location: data.personalInfo?.location || null,
       note: data.personalInfo?.note,
       damage: data.personalInfo?.damage,
-      firstName: data.leadInfo?.firstName,
-      lastName: data.leadInfo?.lastName,
-      email: data.leadInfo?.email,
       serialDecodeId: decodeIdParam ? Number(decodeIdParam) : null,
     };
 
-    setSubmitting(true);
-    try {
-      const res = await fetch('/api/guitar-evaluation', {
-        method: 'POST',
+    if (evaluationId) {
+      const res = await fetch(`/api/guitar-evaluation/${evaluationId}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(guitarPayload),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error((err as any).message || 'Submission failed');
+        throw new Error((err as any).message || 'Update failed. Please try again.');
       }
-      const result = await res.json() as { id: number };
+    } else {
+      const res = await fetch('/api/guitar-evaluation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...guitarPayload, firstName: '', lastName: '', email: '' }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as any).message || 'Submission failed. Please try again.');
+      }
+      const result = (await res.json()) as { id: number };
       setEvaluationId(result.id);
+    }
+  };
 
-      // Upload photos — read raw form state since yupResolver may strip companyInfo at submit time
-      const photoFiles: File[] = [];
-      const companyInfo = methods.getValues('companyInfo');
-      const mainPhoto = companyInfo?.mainPhoto;
-      console.log('[photo-upload] companyInfo', { mainPhoto, mainPhotoType: typeof mainPhoto, isFile: mainPhoto instanceof File, photos: companyInfo?.photos });
-      if (mainPhoto instanceof File) photoFiles.push(mainPhoto);
-      for (const p of companyInfo?.photos ?? []) {
-        if (p instanceof File) photoFiles.push(p);
-      }
-      if (photoFiles.length > 0) {
-        try {
-          const fd = new FormData();
-          for (const file of photoFiles) fd.append('photos', file);
-          const uploadRes = await fetch(`/api/guitar-evaluation/${result.id}/upload-images`, { method: 'POST', body: fd });
-          const uploadBody = await uploadRes.json().catch(() => ({}));
-          if (!uploadRes.ok) {
-            enqueueSnackbar(`Photo upload failed (${uploadRes.status}): ${(uploadBody as any)?.message ?? 'unknown error'}`, { variant: 'warning' });
-          } else {
-            enqueueSnackbar(`${photoFiles.length} photo(s) uploaded`, { variant: 'success' });
-          }
-        } catch (uploadError) {
-          enqueueSnackbar(`Photo upload error: ${String(uploadError)}`, { variant: 'warning' });
-        }
-      } else {
-        enqueueSnackbar(`No photos found to upload (mainPhoto type: ${typeof mainPhoto})`, { variant: 'warning' });
-      }
+  const persistPhotos = async () => {
+    if (!evaluationId) throw new Error('Evaluation record not found. Please go back and try again.');
 
+    const companyInfo = methods.getValues('companyInfo');
+    const photoFiles: File[] = [];
+    const mainPhoto = companyInfo?.mainPhoto;
+    if (mainPhoto instanceof File) photoFiles.push(mainPhoto);
+    for (const p of companyInfo?.photos ?? []) {
+      if (p instanceof File) photoFiles.push(p);
+    }
+
+    if (photoFiles.length === 0) return;
+
+    const fd = new FormData();
+    for (const file of photoFiles) fd.append('photos', file);
+    const uploadRes = await fetch(`/api/guitar-evaluation/${evaluationId}/upload-images`, {
+      method: 'POST',
+      body: fd,
+    });
+    if (!uploadRes.ok) {
+      const uploadBody = await uploadRes.json().catch(() => ({}));
+      throw new Error(`Photo upload failed: ${(uploadBody as any)?.message ?? 'unknown error'}`);
+    }
+  };
+
+  const persistContactInfo = async (data: ContactForm) => {
+    if (!evaluationId) throw new Error('Evaluation record not found. Please restart.');
+
+    const res = await fetch(`/api/guitar-evaluation/${evaluationId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        firstName: data.leadInfo?.firstName,
+        lastName: data.leadInfo?.lastName,
+        email: data.leadInfo?.email,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err as any).message || 'Contact info save failed. Please try again.');
+    }
+  };
+
+  const handleStepSubmit = async (data: ContactForm) => {
+    setSubmitting(true);
+    try {
+      if (activeStep === 0) {
+        await persistGuitarInfo(data);
+      } else if (activeStep === 1) {
+        await persistPhotos();
+      } else if (activeStep === 2) {
+        await persistContactInfo(data);
+      }
       setCompletedSteps((prev) => ({ ...prev, [activeStep]: true }));
-      setActiveStep(CONFIRMATION_STEP_INDEX);
+      setActiveStep((prev) => prev + 1);
     } catch (e: any) {
       enqueueSnackbar(e?.message ?? 'Something went wrong. Please try again.', { variant: 'error' });
     } finally {
@@ -193,14 +220,8 @@ const AddContactStepper = () => {
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
     if (activeStep === CONFIRMATION_STEP_INDEX) return;
-
-    if (activeStep === CONFIRMATION_STEP_INDEX - 1) {
-      handleSubmit(onSubmit)();
-    } else {
-      handleNext();
-    }
+    handleSubmit(handleStepSubmit)();
   };
 
   const isConfirmationStep = activeStep === CONFIRMATION_STEP_INDEX;
