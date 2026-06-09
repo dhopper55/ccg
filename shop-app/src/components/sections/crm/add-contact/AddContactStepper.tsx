@@ -114,6 +114,7 @@ const AddContactStepper = ({ onFirstAdvance }: AddContactStepperProps) => {
 
   const handleBack = () => {
     setActiveStep((prevStep) => prevStep - 1);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const persistGuitarInfo = async (data: ContactForm) => {
@@ -218,6 +219,7 @@ const AddContactStepper = ({ onFirstAdvance }: AddContactStepperProps) => {
         if (prev === 0) onFirstAdvance?.();
         return prev + 1;
       });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e: any) {
       enqueueSnackbar(e?.message ?? 'Something went wrong. Please try again.', { variant: 'error' });
     } finally {
