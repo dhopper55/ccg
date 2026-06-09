@@ -12,6 +12,7 @@
  * - B-prefix month-code import: BA09030385 (B + month letter + YY + sequence)
  * - Two-letter Hanser-era import: CO1093111 (month + plant + YY + sequence)
  * - Hanser-era single-letter calendar month import: C301288 (calendar month + YY + sequence)
+ * - Hanser-era short month-code import: J50212 (BC Rich month code + Y + 4-digit sequence)
  * - F-prefix six-digit import: F201422 (factory/line prefix + YY + sequence)
  * - Short modern month-code import: F2051631 (month + year + batch/factory + sequence)
  * - Class Axe/import B-prefix: B + 3-6 digits, including B007132
@@ -82,6 +83,9 @@ export function decodeBCRich(serial) {
     if (/^[ACEFGHJKLMNP]\d{7}$/.test(normalized)) {
         return decodeShortMonthCodeImport(normalized);
     }
+    if (/^[ACEFGHJKLMNP]\d{5}$/.test(normalized)) {
+        return decodeHanserShortMonthCodeImport(normalized);
+    }
     if (/^B[ACEFGHJKLMNP]\d{8}$/.test(normalized)) {
         return decodeBPrefixMonthCodeImport(normalized);
     }
@@ -126,7 +130,7 @@ export function decodeBCRich(serial) {
     }
     return {
         success: false,
-        error: 'Unable to decode this B.C. Rich serial number. Known formats include: 5-digit USA neck-through (YYXXX), F7/F8/F9/F0 import serials, F-prefix six-digit imports like F201422, 7-digit numeric imports like 0127150, 8-digit Hanser-era/import date stamps (e.g., Sr#41201627), month/factory codes like A08140023, two-letter Hanser-era imports like CO1093111, single-letter Hanser-era imports like C301288, B-prefix month-code imports like BA09030385, NJ series R/P + 6 digits, Class Axe BC/B0/B-prefix series like B007132, or short I-prefix import estimates (I + 5 digits).',
+        error: 'Unable to decode this B.C. Rich serial number. Known formats include: 5-digit USA neck-through (YYXXX), F7/F8/F9/F0 import serials, F-prefix six-digit imports like F201422, 7-digit numeric imports like 0127150, 8-digit Hanser-era/import date stamps (e.g., Sr#41201627), month/factory codes like A08140023, two-letter Hanser-era imports like CO1093111, single-letter Hanser-era imports like C301288, short Hanser-era month-code imports like J50212 (month + year digit + 4-digit sequence), B-prefix month-code imports like BA09030385, NJ series R/P + 6 digits, Class Axe BC/B0/B-prefix series like B007132, or short I-prefix import estimates (I + 5 digits).',
     };
 }
 const IMPORT_PREFIX_MAP = {
@@ -335,6 +339,49 @@ function decodeHanserSingleLetterCalendarMonthImport(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a B.C. Rich import format parsed as calendar month code, year digit, batch/filler digit, and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>The prefix ${monthCode} decodes as ${month}. The digit ${yearDigit} decodes as production year ${year}. The digit ${batchCode} is treated as a batch or filler code. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>B.C. Rich serial numbering is inconsistent across ownership eras and import series.</li><li>This pattern is commonly associated with early-to-mid 2000s Korean-made import models.</li><li>Check headstock series markings, country-of-origin labels, model features, and neck pocket or electronics-cavity dates where available.</li></ul>`,
+    };
+}
+function decodeHanserShortMonthCodeImport(serial) {
+    const monthCode = serial[0];
+    const yearDigit = parseInt(serial[1], 10);
+    const sequence = serial.slice(2);
+    const year = 2000 + yearDigit;
+    const month = MONTH_CODE_MAP[monthCode];
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'B.C. Rich',
+        serialNumber: serial,
+        year: year.toString(),
+        month,
+        factory: 'Hanser-era import production (short month-code format)',
+        country: 'China / Indonesia / South Korea',
+        notes: `Short Hanser-era B.C. Rich import format parsed as month code + single year digit + 4-digit sequence. ${monthCode} indicates ${month}; digit ${yearDigit} decodes as production year ${year}; remaining digits are production sequence ${sequenceNumber}. This format is associated with Hanser Music Group import models from the mid-2000s through approximately 2016. B.C. Rich serial numbering is inconsistent across eras, so verify with headstock series markings, country-of-origin labels, and model features.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'bcrich-hanser-short-month-code-import',
+        patternLabel: 'B.C. Rich Hanser-era short month-code import',
+        additionalContext: {
+            title: 'B.C. Rich Hanser-era short month-code serial',
+            summary: `This serial matches a short Hanser-era B.C. Rich import format parsed as month code, single year digit, and 4-digit production sequence.`,
+            highlights: [
+                `The month code ${monthCode} decodes as ${month}.`,
+                `The digit ${yearDigit} decodes as production year ${year}.`,
+                `The remaining digits decode as production sequence ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'B.C. Rich serial numbering is inconsistent across ownership eras and import series.',
+                'This format is associated with Hanser Music Group import production, typically mid-2000s through 2016.',
+                'The serial identifies date and import family, not the exact model name.',
+            ],
+            verificationTips: [
+                'Check headstock series markings such as NJ Series, Platinum, or Bronze.',
+                'Look for Made in China, Made in Indonesia, or Made in Korea markings.',
+                'Compare hardware, body style, and electronics against mid-2000s B.C. Rich import catalogs.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a short Hanser-era B.C. Rich import format parsed as month code, single year digit, and 4-digit production sequence.</p><h3>How This Pattern Is Typically Read</h3><p>The month code ${monthCode} decodes as ${month}. The digit ${yearDigit} decodes as production year ${year}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>B.C. Rich serial numbering is inconsistent across ownership eras.</li><li>This format is typically associated with Hanser Music Group import models from the mid-2000s through approximately 2016.</li><li>Check headstock series markings, country-of-origin labels, and model features.</li></ul>`,
     };
 }
 function decodeShortMonthCodeImport(serial) {

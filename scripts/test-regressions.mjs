@@ -1065,6 +1065,28 @@ function assertBCRichHanserTwoLetterMonthPlantImport(serialInput) {
   );
 }
 
+function assertBCRichHanserShortMonthCodeImport(serialInput, expectedYear, expectedMonth) {
+  const result = decodeBCRich(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.country === 'China / Indonesia / South Korea',
+    `Expected China / Indonesia / South Korea for ${serialInput}, got ${info.country}`
+  );
+  assert(
+    result.patternKey === 'bcrich-hanser-short-month-code-import',
+    `Expected B.C. Rich Hanser short month-code pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('Hanser Music Group import models'),
+    `Expected Hanser short month-code rich text for ${serialInput}`
+  );
+}
+
 function assertBCRichHanserSingleLetterCalendarMonthImport(serialInput) {
   const result = decodeBCRich(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -3113,6 +3135,7 @@ assertBCRichShortMonthCodeImport('F2051631');
 assertBCRichFPrefixSixDigitImport('F201422');
 assertBCRichBPrefixMonthCodeImport('BA09030385');
 assertBCRichHanserTwoLetterMonthPlantImport('co1093111');
+assertBCRichHanserShortMonthCodeImport('J50212', '2005', 'July');
 assertBCRichHanserSingleLetterCalendarMonthImport('C301288');
 assertBCRichHanserEraEightDigitImport('Sr#41201627');
 assertBCRichClassAxeBPrefixImport('B007132');
