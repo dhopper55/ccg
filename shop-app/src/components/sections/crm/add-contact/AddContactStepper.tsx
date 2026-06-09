@@ -75,7 +75,11 @@ const validationSchemas = [personalInfoSchema, companyInfoSchema, leadInfoSchema
 
 export interface ContactForm extends CompanyInfo, PersonalInfo, LeadInfo {}
 
-const AddContactStepper = () => {
+interface AddContactStepperProps {
+  onFirstAdvance?: () => void;
+}
+
+const AddContactStepper = ({ onFirstAdvance }: AddContactStepperProps) => {
   const [activeStep, setActiveStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<Record<number, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -210,7 +214,10 @@ const AddContactStepper = () => {
         await persistContactInfo(data);
       }
       setCompletedSteps((prev) => ({ ...prev, [activeStep]: true }));
-      setActiveStep((prev) => prev + 1);
+      setActiveStep((prev) => {
+        if (prev === 0) onFirstAdvance?.();
+        return prev + 1;
+      });
     } catch (e: any) {
       enqueueSnackbar(e?.message ?? 'Something went wrong. Please try again.', { variant: 'error' });
     } finally {

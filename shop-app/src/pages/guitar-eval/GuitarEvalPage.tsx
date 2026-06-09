@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { Box, Divider, Paper, Stack, Typography } from '@mui/material';
+import { useEffect, useState } from 'react';
+import { Box, Collapse, Divider, Paper, Stack, Typography } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
@@ -9,14 +9,22 @@ import AddContactStepper from 'components/sections/crm/add-contact/AddContactSte
 import { trackShopAnalyticsEvent } from 'lib/shopAnalytics';
 
 const GuitarEvalPage = () => {
+  const [headerVisible, setHeaderVisible] = useState(true);
+
   useEffect(() => {
     trackShopAnalyticsEvent({ eventType: 'value_report_initiate' });
   }, []);
+
+  const handleFirstAdvance = () => {
+    setHeaderVisible(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', pt: '5px', px: { xs: 2, md: 5 }, pb: { xs: 2, md: 5 } }}>
         <Grid container sx={{ gap: 2 }}>
+          <Collapse in={headerVisible} unmountOnExit>
           <Grid size={12}>
             <Paper sx={{ px: { xs: 3, md: 5 }, py: 3 }}>
               <Stack direction="row" sx={{ alignItems: 'center', gap: 2, mb: 1 }}>
@@ -95,9 +103,10 @@ const GuitarEvalPage = () => {
               </Grid>
             </Paper>
           </Grid>
+          </Collapse>
           <Grid size={12}>
             <Paper sx={{ p: { xs: 3, md: 5 } }}>
-              <AddContactStepper />
+              <AddContactStepper onFirstAdvance={handleFirstAdvance} />
             </Paper>
           </Grid>
         </Grid>
