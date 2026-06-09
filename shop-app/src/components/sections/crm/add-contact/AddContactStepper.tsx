@@ -157,6 +157,7 @@ const AddContactStepper = () => {
       const photoFiles: File[] = [];
       const companyInfo = methods.getValues('companyInfo');
       const mainPhoto = companyInfo?.mainPhoto;
+      console.log('[photo-upload] companyInfo', { mainPhoto, mainPhotoType: typeof mainPhoto, isFile: mainPhoto instanceof File, photos: companyInfo?.photos });
       if (mainPhoto instanceof File) photoFiles.push(mainPhoto);
       for (const p of companyInfo?.photos ?? []) {
         if (p instanceof File) photoFiles.push(p);
@@ -166,15 +167,17 @@ const AddContactStepper = () => {
           const fd = new FormData();
           for (const file of photoFiles) fd.append('photos', file);
           const uploadRes = await fetch(`/api/guitar-evaluation/${result.id}/upload-images`, { method: 'POST', body: fd });
+          const uploadBody = await uploadRes.json().catch(() => ({}));
           if (!uploadRes.ok) {
-            const uploadErr = await uploadRes.json().catch(() => ({}));
-            console.error('Photo upload failed', uploadRes.status, uploadErr);
+            enqueueSnackbar(`Photo upload failed (${uploadRes.status}): ${(uploadBody as any)?.message ?? 'unknown error'}`, { variant: 'warning' });
+          } else {
+            enqueueSnackbar(`${photoFiles.length} photo(s) uploaded`, { variant: 'success' });
           }
         } catch (uploadError) {
-          console.error('Photo upload error', uploadError);
+          enqueueSnackbar(`Photo upload error: ${String(uploadError)}`, { variant: 'warning' });
         }
       } else {
-        console.log('No photo files collected for upload', { mainPhoto: data.companyInfo?.mainPhoto, photos: data.companyInfo?.photos });
+        enqueueSnackbar(`No photos found to upload (mainPhoto type: ${typeof mainPhoto})`, { variant: 'warning' });
       }
 
       setCompletedSteps((prev) => ({ ...prev, [activeStep]: true }));
