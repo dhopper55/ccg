@@ -152,6 +152,24 @@ const AddContactStepper = () => {
       }
       const result = await res.json() as { id: number };
       setEvaluationId(result.id);
+
+      // Upload photos (best-effort — don't block confirmation if upload fails)
+      const photoFiles: File[] = [];
+      const mainPhoto = data.companyInfo?.mainPhoto;
+      if (mainPhoto instanceof File) photoFiles.push(mainPhoto);
+      for (const p of data.companyInfo?.photos ?? []) {
+        if (p instanceof File) photoFiles.push(p);
+      }
+      if (photoFiles.length > 0) {
+        try {
+          const fd = new FormData();
+          for (const file of photoFiles) fd.append('photos', file);
+          await fetch(`/api/guitar-evaluation/${result.id}/upload-images`, { method: 'POST', body: fd });
+        } catch {
+          // silent — text submission already succeeded
+        }
+      }
+
       setCompletedSteps((prev) => ({ ...prev, [activeStep]: true }));
       setActiveStep(CONFIRMATION_STEP_INDEX);
     } catch (e: any) {

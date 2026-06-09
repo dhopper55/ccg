@@ -606,6 +606,17 @@ export default {
       return withCors(response, request, env);
     }
 
+    const guitarEvalUploadMatch = path.match(/^\/api\/guitar-evaluation\/(\d+)\/upload-images$/);
+    if (guitarEvalUploadMatch && request.method === 'POST') {
+      const response = await handleGuitarEvaluationUploadImages(request, guitarEvalUploadMatch[1], env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/guitar-evaluation-image' && request.method === 'GET') {
+      const response = await handleGuitarEvaluationImage(request, env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/youtube/videos' && request.method === 'GET') {
       const response = await handleYoutubeVideos();
       return withCors(response, request, env);
@@ -18448,6 +18459,76 @@ async function handleGuitarEvaluationSubmit(request: Request, env: Env): Promise
   return jsonResponse({ id, message: 'Evaluation submitted successfully.' });
 }
 
+async function handleGuitarEvaluationUploadImages(request: Request, evaluationId: string, env: Env): Promise<Response> {
+  if (!env.CUSTOM_ITEMS_BUCKET) {
+    return jsonResponse({ message: 'Image storage is not configured.' }, 500);
+  }
+
+  const row = await env.DB.prepare(
+    `SELECT id FROM guitar_evaluations WHERE id = ?`
+  ).bind(evaluationId).first<{ id: number }>();
+  if (!row) return jsonResponse({ message: 'Evaluation not found.' }, 404);
+
+  let formData: FormData;
+  try {
+    formData = await request.formData();
+  } catch {
+    return jsonResponse({ message: 'Invalid form data.' }, 400);
+  }
+
+  const files = formData
+    .getAll('photos')
+    .filter((entry): entry is File => entry instanceof File && entry.size > 0);
+
+  if (files.length === 0) return jsonResponse({ ok: true, keys: [] });
+  if (files.length > 11) return jsonResponse({ message: 'Maximum 11 photos allowed.' }, 400);
+
+  for (const file of files) {
+    if (!file.type.startsWith('image/')) {
+      return jsonResponse({ message: 'Only image files are supported.' }, 400);
+    }
+  }
+
+  const keys: string[] = [];
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const ext = extensionFromContentType(file.type);
+    const key = `guitar-eval-images/${evaluationId}/${crypto.randomUUID()}-${i}.${ext}`;
+    await env.CUSTOM_ITEMS_BUCKET.put(key, await file.arrayBuffer(), {
+      httpMetadata: { contentType: file.type },
+    });
+    keys.push(key);
+  }
+
+  await env.DB.prepare(
+    `UPDATE guitar_evaluations SET image_keys = ? WHERE id = ?`
+  ).bind(JSON.stringify(keys), evaluationId).run();
+
+  return jsonResponse({ ok: true, keys });
+}
+
+async function handleGuitarEvaluationImage(request: Request, env: Env): Promise<Response> {
+  if (!env.CUSTOM_ITEMS_BUCKET) {
+    return jsonResponse({ message: 'Image storage is not configured.' }, 500);
+  }
+
+  const key = new URL(request.url).searchParams.get('key');
+  if (!key || !key.startsWith('guitar-eval-images/')) {
+    return jsonResponse({ message: 'Missing or invalid image key.' }, 400);
+  }
+
+  const object = await env.CUSTOM_ITEMS_BUCKET.get(key);
+  if (!object || !object.body) {
+    return jsonResponse({ message: 'Image not found.' }, 404);
+  }
+
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+  headers.set('etag', object.httpEtag);
+  headers.set('cache-control', 'public, max-age=86400');
+  return new Response(object.body, { headers });
+}
+
 function isPublicApiPath(path: string): boolean {
   return path.startsWith('/api/shop/')
     || path === '/api/youtube/videos'
@@ -18455,7 +18536,9 @@ function isPublicApiPath(path: string): boolean {
     || path === '/api/listing-image'
     || path === '/api/guitar-evaluation'
     || path === '/api/guitar-evaluation/payment-intent'
-    || path === '/api/guitar-evaluation/confirm-payment';
+    || path === '/api/guitar-evaluation/confirm-payment'
+    || /^\/api\/guitar-evaluation\/\d+\/upload-images$/.test(path)
+    || path === '/api/guitar-evaluation-image';
 }
 
 function formatMonthLabel(month: string): string {
