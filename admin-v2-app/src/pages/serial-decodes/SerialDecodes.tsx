@@ -81,6 +81,8 @@ type LookupVolumeRecord = {
   key: string;
   label: string;
   responseCount: number;
+  successCount?: number;
+  failureCount?: number;
 };
 
 type LookupVolumeResponse = {
@@ -222,6 +224,7 @@ const SerialDecodes = () => {
   const [lookupVolumeAvailableBrands, setLookupVolumeAvailableBrands] = useState<string[]>([]);
   const [lookupVolumeLoading, setLookupVolumeLoading] = useState(true);
   const [lookupVolumeErrorMessage, setLookupVolumeErrorMessage] = useState('');
+  const [avg30DailyLookups, setAvg30DailyLookups] = useState<number | null>(null);
   const [dailyVolumeDate, setDailyVolumeDate] = useState(getTodayMtn);
   const [dailyVolumeBuckets, setDailyVolumeBuckets] = useState<number[]>(new Array(48).fill(0));
   const [dailyVolumeLoading, setDailyVolumeLoading] = useState(true);
@@ -341,8 +344,13 @@ const SerialDecodes = () => {
           throw new Error(data.message || 'Unable to load serial lookup volume chart.');
         }
         if (cancelled) return;
-        setLookupVolumeRecords(Array.isArray(data.records) ? data.records : []);
+        const records = Array.isArray(data.records) ? data.records : [];
+        setLookupVolumeRecords(records);
         setLookupVolumeAvailableBrands(Array.isArray(data.availableBrands) ? data.availableBrands : []);
+        if (data.view === 'day' && !lookupVolumeBrand) {
+          const total = records.reduce((s, r) => s + Number(r.responseCount || 0), 0);
+          setAvg30DailyLookups(Math.round(total / 30));
+        }
       } catch (error) {
         if (cancelled) return;
         setLookupVolumeRecords([]);
@@ -474,7 +482,6 @@ const SerialDecodes = () => {
     [lookupVolumeRecords],
   );
   const lookupVolumeOption = useMemo(() => ({
-    color: ['#7e57c2'],
     grid: { left: 56, right: 20, top: 10, bottom: 10, containLabel: false },
     xAxis: {
       type: 'category',
@@ -499,20 +506,34 @@ const SerialDecodes = () => {
     },
     tooltip: {
       trigger: 'axis',
-      formatter: (params: Array<{ axisValueLabel?: string; value?: number }>) => {
-        const point = params?.[0];
-        const label = point?.axisValueLabel || '';
-        const value = Number(point?.value || 0);
-        return `${label}<br/>Lookups: ${value}`;
+      formatter: (params: Array<{ axisValueLabel?: string; value?: number; seriesIndex?: number }>) => {
+        const label = params?.[0]?.axisValueLabel || '';
+        const successVal = Number(params?.find((p) => p.seriesIndex === 0)?.value || 0);
+        const failureVal = Number(params?.find((p) => p.seriesIndex === 1)?.value || 0);
+        const total = successVal + failureVal;
+        return `${label}<br/>Lookups: ${total}<br/>Success: ${successVal}<br/>Failures: ${failureVal}`;
       },
     },
     series: [
       {
+        name: 'Success',
         type: 'bar',
-        data: lookupVolumeRecords.map((item) => item.responseCount),
+        stack: 'total',
+        data: lookupVolumeRecords.map((item) => item.successCount ?? item.responseCount),
         barWidth: '55%',
         itemStyle: {
           color: '#7e57c2',
+          borderRadius: [0, 0, 0, 0],
+        },
+      },
+      {
+        name: 'Failures',
+        type: 'bar',
+        stack: 'total',
+        data: lookupVolumeRecords.map((item) => item.failureCount ?? 0),
+        barWidth: '55%',
+        itemStyle: {
+          color: '#ef5350',
           borderRadius: [4, 4, 0, 0],
         },
       },
@@ -669,27 +690,15 @@ const SerialDecodes = () => {
           spacing={2}
           mb={3}
         >
-          <Typography variant="h4">Serial Decodes</Typography>
+          <Stack spacing={0.5}>
+            <Typography variant="h4">Serial Decodes</Typography>
+            {avg30DailyLookups !== null ? (
+              <Typography variant="body2" color="text.secondary">
+                Avg. Daily Lookups (last 30): {avg30DailyLookups}
+              </Typography>
+            ) : null}
+          </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2}>
-            <FormControl size="small" sx={{ minWidth: 220 }}>
-              <InputLabel id="serial-decodes-brand-filter-label">Brand</InputLabel>
-              <Select
-                labelId="serial-decodes-brand-filter-label"
-                value={selectedBrand}
-                label="Brand"
-                onChange={(event) => {
-                  setPage(1);
-                  setSelectedBrand(String(event.target.value || ''));
-                }}
-              >
-                <MenuItem value="">All brands</MenuItem>
-                {availableBrands.map((brand) => (
-                  <MenuItem key={brand} value={brand}>
-                    {formatBrandName(brand)}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
             <FormControlLabel
               sx={{ mr: 0 }}
               control={

@@ -3124,6 +3124,8 @@ type AdminV2SerialLookupVolumeBucket = {
   key: string;
   label: string;
   responseCount: number;
+  successCount: number;
+  failureCount: number;
 };
 
 type AdminV2SerialPatternLookupSortBy = 'brand' | 'pattern' | 'populated';
@@ -14912,10 +14914,11 @@ async function dbGetAdminV2SerialDecodeLookupVolume(
   const [eventRows, brandRows] = await Promise.all([
     db.prepare(
       `SELECT
-        client_timestamp AS lookup_ts
+        client_timestamp AS lookup_ts,
+        COALESCE(success, 0) AS success
        FROM serial_decode_events
        ${whereSql}`,
-    ).bind(...values).all<{ lookup_ts: string | null }>(),
+    ).bind(...values).all<{ lookup_ts: string | null; success: number | null }>(),
     db.prepare(
       `SELECT MIN(trim(brand)) AS brand
        FROM serial_decode_events
@@ -15076,13 +15079,18 @@ async function dbListAdminV2SerialPatternLookup(
 
 function buildSerialLookupVolumeBuckets(
   view: AdminV2SerialLookupVolumeView,
-  rows: Array<{ lookup_ts: string | null }>,
+  rows: Array<{ lookup_ts: string | null; success?: number | null }>,
 ): AdminV2SerialLookupVolumeBucket[] {
   const bucketCount = 30;
   const bucketDates = getRecentDenverBucketDates(view, bucketCount);
   const counts = new Map<string, number>();
+  const successCounts = new Map<string, number>();
+  const failureCounts = new Map<string, number>();
   for (const bucketDate of bucketDates) {
-    counts.set(getDenverBucketKey(view, bucketDate), 0);
+    const k = getDenverBucketKey(view, bucketDate);
+    counts.set(k, 0);
+    successCounts.set(k, 0);
+    failureCounts.set(k, 0);
   }
 
   for (const row of rows) {
@@ -15091,6 +15099,11 @@ function buildSerialLookupVolumeBuckets(
     const key = getDenverBucketKey(view, eventDate);
     if (!counts.has(key)) continue;
     counts.set(key, Number(counts.get(key) || 0) + 1);
+    if (Number(row.success) === 1) {
+      successCounts.set(key, Number(successCounts.get(key) || 0) + 1);
+    } else {
+      failureCounts.set(key, Number(failureCounts.get(key) || 0) + 1);
+    }
   }
 
   return bucketDates.map((bucketDate) => {
@@ -15099,6 +15112,8 @@ function buildSerialLookupVolumeBuckets(
       key,
       label: formatDenverBucketLabel(view, bucketDate),
       responseCount: Number(counts.get(key) || 0),
+      successCount: Number(successCounts.get(key) || 0),
+      failureCount: Number(failureCounts.get(key) || 0),
     };
   });
 }
