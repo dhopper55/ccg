@@ -18490,19 +18490,24 @@ async function handleGuitarEvaluationUploadImages(request: Request, evaluationId
   }
 
   const keys: string[] = [];
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    const ext = extensionFromContentType(file.type);
-    const key = `guitar-eval-images/${evaluationId}/${crypto.randomUUID()}-${i}.${ext}`;
-    await env.CUSTOM_ITEMS_BUCKET.put(key, await file.arrayBuffer(), {
-      httpMetadata: { contentType: file.type },
-    });
-    keys.push(key);
-  }
+  try {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const ext = extensionFromContentType(file.type);
+      const key = `guitar-eval-images/${evaluationId}/${crypto.randomUUID()}-${i}.${ext}`;
+      await env.CUSTOM_ITEMS_BUCKET.put(key, await file.arrayBuffer(), {
+        httpMetadata: { contentType: file.type },
+      });
+      keys.push(key);
+    }
 
-  await env.DB.prepare(
-    `UPDATE guitar_evaluations SET image_keys = ? WHERE id = ?`
-  ).bind(JSON.stringify(keys), evaluationId).run();
+    await env.DB.prepare(
+      `UPDATE guitar_evaluations SET image_keys = ? WHERE id = ?`
+    ).bind(JSON.stringify(keys), evaluationId).run();
+  } catch (error) {
+    console.error('guitar eval image upload failed', { evaluationId, error });
+    return jsonResponse({ message: 'Image upload failed.', detail: String(error) }, 500);
+  }
 
   return jsonResponse({ ok: true, keys });
 }

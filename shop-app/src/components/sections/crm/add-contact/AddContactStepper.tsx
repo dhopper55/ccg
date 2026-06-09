@@ -164,10 +164,16 @@ const AddContactStepper = () => {
         try {
           const fd = new FormData();
           for (const file of photoFiles) fd.append('photos', file);
-          await fetch(`/api/guitar-evaluation/${result.id}/upload-images`, { method: 'POST', body: fd });
-        } catch {
-          // silent — text submission already succeeded
+          const uploadRes = await fetch(`/api/guitar-evaluation/${result.id}/upload-images`, { method: 'POST', body: fd });
+          if (!uploadRes.ok) {
+            const uploadErr = await uploadRes.json().catch(() => ({}));
+            console.error('Photo upload failed', uploadRes.status, uploadErr);
+          }
+        } catch (uploadError) {
+          console.error('Photo upload error', uploadError);
         }
+      } else {
+        console.log('No photo files collected for upload', { mainPhoto: data.companyInfo?.mainPhoto, photos: data.companyInfo?.photos });
       }
 
       setCompletedSteps((prev) => ({ ...prev, [activeStep]: true }));
