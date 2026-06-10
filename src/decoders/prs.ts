@@ -57,6 +57,12 @@ export function decodePRS(serial: string): DecodeResult {
     return decodeUSASetNeck(normalized);
   }
 
+  // CE Models with year-digit prefix: single digit + CE + digits (1985-2009)
+  // e.g. 7CE17029 = year code 7 (1987/1997/2007) + CE model + sequence 17029
+  if (/^[0-9]CE\d+$/.test(normalized)) {
+    return decodeCEWithYearDigit(normalized);
+  }
+
   // Bolt-on models with prefix codes
   // CE prefix "7" (1988-1997)
   if (/^7\d{4,}$/.test(normalized)) {
@@ -451,6 +457,50 @@ function decodeSetNeckBass(serial: string): DecodeResult {
     notes: `PRS Set-Neck Bass. "9" prefix used 1986-1991. Serial on headstock. Sequence: ${sequence}.`
   };
   return { success: true, info };
+}
+
+function decodeCEWithYearDigit(serial: string): DecodeResult {
+  const yearDigit = parseInt(serial[0], 10);
+  const sequence = serial.substring(3);
+  const possibleYears = getYearsFromDigit(yearDigit);
+  const yearStr = possibleYears.length === 1 ? possibleYears[0].toString() : possibleYears.join(' or ');
+
+  const info: GuitarInfo = {
+    brand: 'PRS',
+    serialNumber: serial,
+    year: yearStr,
+    factory: 'PRS Factory, Stevensville, Maryland',
+    country: 'USA',
+    model: 'CE (Classic Electric) Bolt-On',
+    notes: `CE Series bolt-on neck model. First digit ${yearDigit} is a year code indicating ${yearStr}; "CE" identifies the Classic Electric bolt-on model; production sequence: ${sequence}. Serial is typically stamped on the neck plate (older models) or back of headstock (newer models). Exact model variant (CE 22, CE 24) must be confirmed from the guitar's physical specifications or MODCAT code.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'prs-ce-year-digit-prefix',
+    patternLabel: 'PRS CE bolt-on year-digit prefix',
+    additionalContext: {
+      title: 'PRS CE bolt-on year-digit serial',
+      summary: 'This serial matches the PRS CE (Classic Electric) bolt-on format where a single year-code digit precedes the CE model identifier and production sequence.',
+      highlights: [
+        `The leading digit ${yearDigit} is a PRS year code indicating ${yearStr}.`,
+        '"CE" identifies the Classic Electric bolt-on neck model.',
+        `The remaining digits are the production sequence: ${sequence}.`,
+      ],
+      caveats: [
+        'The year digit repeats across decades (e.g., 7 can mean 1987, 1997, or 2007), so the exact year requires cross-referencing with model features and documentation.',
+        'The serial does not specify the CE variant (CE 22 vs. CE 24).',
+        'PRS recommends using the MODCAT code (found in the bridge pickup cavity or on the original hang tag) to confirm exact model specs.',
+      ],
+      verificationTips: [
+        'Check the neck plate (older models) or back of headstock (newer models) for the stamped serial.',
+        'The MODCAT code in the bridge pickup cavity is the definitive way to identify the exact model, woods, and pickups.',
+        'Contact PRS support with photos if exact year and model confirmation matters.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches the PRS CE (Classic Electric) bolt-on format where a single year-code digit precedes the CE model identifier and production sequence.</p><h3>How This Pattern Is Typically Read</h3><p>The leading digit ${yearDigit} is a PRS year code indicating ${yearStr}. "CE" identifies the Classic Electric bolt-on neck model. The remaining digits are the production sequence: ${sequence}.</p><h3>What To Verify</h3><ul><li>The year digit can represent multiple decades — confirm the exact year from model features, documentation, or PRS support.</li><li>The serial does not specify the CE variant (CE 22 vs. CE 24).</li><li>The MODCAT code in the bridge pickup cavity is the definitive source for exact model specs.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a CE bolt-on production decode, then verify the exact year and model variant from the MODCAT code, case paperwork, or PRS support.</p>`,
+  };
 }
 
 function getYearsFromDigit(digit: number): number[] {

@@ -30,9 +30,9 @@ export function decodeCort(serial) {
     if (/^C[A-Z]\d{7,9}$/.test(normalized)) {
         return decodeModernTwoLetterFactoryLine(normalized);
     }
-    // Single-letter China factory prefix: C + YYMM + sequence (e.g. C125030418 = China 2012)
+    // Single-letter China factory prefix: C + YYMM + sequence (e.g. C125030418 = China 2012, C05010229 = 2005 Jan)
     // Month field may be an anomalous export/batch code (e.g. "50") rather than a calendar month.
-    if (/^C\d{9}$/.test(normalized)) {
+    if (/^C\d{8,9}$/.test(normalized)) {
         return decodeChinaSingleLetterC(normalized);
     }
     // Modern alphanumeric factory/line prefix: 1A + YYMM + sequence
@@ -66,6 +66,12 @@ export function decodeCort(serial) {
     // Indonesian Cort factory: IE prefix
     if (/^IE\d{8,9}$/.test(normalized)) {
         return decodeIndonesiaIE(normalized);
+    }
+    // Indonesian Cort factory: IA prefix (Indonesia factory line A, Surabaya)
+    // Only matches 8-digit sequences (10 chars total); 9-digit IA serials remain handled
+    // as likely transpositions of the AI prefix (Mojokerto facility) via retry logic.
+    if (/^IA\d{8}$/.test(normalized)) {
+        return decodeIndonesiaIA(normalized);
     }
     // Indonesian Cort factory: plain I prefix + YYMMXXXXX (e.g. I250804919 = Indonesia 2025 August)
     if (/^I\d{9}$/.test(normalized)) {
@@ -412,6 +418,58 @@ function decodeIndonesiaAI(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches an Indonesian Cort/Cor-Tek AI-prefix format parsed as factory prefix plus YYMM production date and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>AI indicates Indonesian Cort/Cor-Tek production. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} decode as ${getMonthName(month)}. The remaining digits are production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>Cort serials usually identify factory and date, not the exact model name.</li><li>Confirm the model from the headstock, soundhole label, neck heel, or other physical markings.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a practical factory/date decode, then verify the exact model from physical markings and catalog specs for the decoded year.</p>`,
+    };
+}
+// Indonesian IA prefix (Indonesia factory line A, PT Cort Indonesia Surabaya)
+function decodeIndonesiaIA(serial) {
+    const yearDigits = serial.substring(2, 4);
+    const monthDigits = serial.substring(4, 6);
+    const sequence = serial.substring(6);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const month = parseInt(monthDigits, 10);
+    if (month < 1 || month > 12) {
+        return {
+            success: false,
+            error: `Invalid month "${monthDigits}" in serial number. Month should be 01-12.`,
+        };
+    }
+    const info = {
+        brand: 'Cort',
+        serialNumber: serial,
+        year: year.toString(),
+        month: getMonthName(month),
+        factory: 'PT Cort Indonesia, Surabaya (factory line A)',
+        country: 'Indonesia',
+        notes: `IA prefix indicates Indonesian Cor-Tek/Cort production. "I" identifies Indonesia; "A" designates the specific factory line or production team inside the Surabaya facility. Parsed as IA + YYMM + sequence. Year: ${year}, month: ${getMonthName(month)}, sequence: ${parseInt(sequence, 10)}. This format is also shared by OEM contract instruments (Ibanez, Squier) built in the same facility. Verify the model from the headstock, label, or other physical markings.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'cort-ia-indonesia-yymm-sequence',
+        patternLabel: 'Cort IA Indonesia YYMM sequence',
+        additionalContext: {
+            title: 'Cort IA Indonesia serial',
+            summary: 'This serial matches an Indonesian Cort/Cor-Tek IA-prefix format where I identifies Indonesia and A identifies the factory line, parsed as IA + YYMM production date and sequence.',
+            highlights: [
+                '"I" identifies Indonesia as the country of manufacture.',
+                '"A" identifies the specific factory line or production team at PT Cort Indonesia, Surabaya.',
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                `The digits ${monthDigits} decode as ${getMonthName(month)}.`,
+                `The remaining digits are production sequence ${parseInt(sequence, 10)}.`,
+            ],
+            caveats: [
+                'Cort serials usually identify factory and date, not the exact model name.',
+                'This format is shared by OEM contract instruments (Ibanez, Squier, and others) built in the same Surabaya facility.',
+                'Confirm the model from the headstock, soundhole label, neck heel, or other physical markings.',
+            ],
+            verificationTips: [
+                'Check the headstock logo to determine whether the instrument is Cort-branded or an OEM brand.',
+                'Look for Made in Indonesia or PT Cort Indonesia markings near the serial.',
+                'Compare the model features against Cort catalog specs for the decoded year.',
+                'Contact Cort with photos if exact model or factory line confirmation is needed.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches an Indonesian Cort/Cor-Tek IA-prefix format where I identifies Indonesia and A identifies the factory line.</p><h3>How This Pattern Is Typically Read</h3><p>"I" identifies Indonesia. "A" identifies the specific factory line or production team at PT Cort Indonesia, Surabaya. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} decode as ${getMonthName(month)}. The remaining digits are production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Cort serials usually identify factory and date, not the exact model name.</li><li>This format is shared by OEM contract instruments built in the same facility.</li><li>Confirm the model from the headstock, soundhole label, neck heel, or other physical markings.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a practical factory/date decode, then verify the exact model from physical markings and catalog specs for the decoded year.</p>`,
     };
 }
 // W.O./W0 prefix - vintage Korean production
