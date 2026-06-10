@@ -34,7 +34,8 @@
       "Bash(git -C /Users/davidhopper2/Documents/Code/ccg add guitars-and-gear-for-sale/ decoders/ guitar-value-report-evaluation/ shop-app/src/components/sections/crm/add-contact/AddContactStepper.tsx)",
       "Bash(git -C /Users/davidhopper2/Documents/Code/ccg add index.html images/home-report-sample.png)",
       "Bash(git -C /Users/davidhopper2/Documents/Code/ccg add guitars-and-gear-for-sale/ decoders/ guitar-value-report-evaluation/ shop-app/src/components/sections/crm/add-contact/AddContactStepper.tsx shop-app/src/pages/guitar-eval/GuitarEvalPage.tsx)",
-      "Bash(npm --prefix admin-v2-app run build:ccg)"
+      "Bash(npm --prefix admin-v2-app run build:ccg)",
+      "Bash(awk '/INSERT INTO ccg_inventory_items/{found=1} found && /VALUES/{print; found=0}' /Users/davidhopper2/Documents/Code/ccg/workers/listing-evaluator/src/index.ts)"
     ]
   }
 }

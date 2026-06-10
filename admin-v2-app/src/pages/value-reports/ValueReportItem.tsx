@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import Grid from '@mui/material/Grid';
 import {
@@ -8,11 +8,20 @@ import {
   Checkbox,
   CircularProgress,
   Dialog,
+  DialogActions,
   DialogContent,
+  DialogTitle,
   FormControlLabel,
   IconButton,
+  Link,
   Paper,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   TextField,
   Tooltip,
   Typography,
@@ -40,6 +49,14 @@ type ValueReportRecord = {
   imageUrls: string[];
 };
 
+type EvalFile = {
+  id: number;
+  file_name: string;
+  r2_key: string;
+  content_type: string;
+  created_at: string;
+};
+
 type ValueReportItemResponse = {
   record?: ValueReportRecord;
   message?: string;
@@ -59,6 +76,15 @@ const ValueReportItem = () => {
   const [fulfilled, setFulfilled] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const [files, setFiles] = useState<EvalFile[]>([]);
+  const [isLoadingFiles, setIsLoadingFiles] = useState(false);
+  const [filesError, setFilesError] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<EvalFile | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!id) {
@@ -90,6 +116,29 @@ const ValueReportItem = () => {
     return () => { cancelled = true; };
   }, [id]);
 
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    const loadFiles = async () => {
+      setIsLoadingFiles(true);
+      setFilesError('');
+      try {
+        const res = await fetch(`/api/admin-v2/value-reports/${encodeURIComponent(id)}/files`, {
+          credentials: 'same-origin',
+        });
+        const data = (await res.json()) as { files?: EvalFile[]; message?: string };
+        if (!res.ok) throw new Error(data.message || 'Unable to load files.');
+        if (!cancelled) setFiles(data.files ?? []);
+      } catch (error) {
+        if (!cancelled) setFilesError(error instanceof Error ? error.message : 'Unable to load files.');
+      } finally {
+        if (!cancelled) setIsLoadingFiles(false);
+      }
+    };
+    void loadFiles();
+    return () => { cancelled = true; };
+  }, [id]);
+
   const handleSave = async () => {
     if (!id) return;
     setIsSaving(true);
@@ -107,6 +156,45 @@ const ValueReportItem = () => {
       setSaveMessage({ type: 'error', text: 'Failed to save.' });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !id) return;
+    setIsUploading(true);
+    setUploadError('');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`/api/admin-v2/value-reports/${encodeURIComponent(id)}/files`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        body: formData,
+      });
+      const data = (await res.json()) as { ok?: boolean; message?: string };
+      if (!res.ok || !data.ok) throw new Error(data.message || 'Upload failed.');
+      window.location.reload();
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Upload failed.');
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget || !id) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch(
+        `/api/admin-v2/value-reports/${encodeURIComponent(id)}/files/${deleteTarget.id}`,
+        { method: 'DELETE', credentials: 'same-origin' },
+      );
+      if (!res.ok) throw new Error('Delete failed.');
+      window.location.reload();
+    } catch {
+      setIsDeleting(false);
+      setDeleteTarget(null);
     }
   };
 
@@ -288,6 +376,98 @@ const ValueReportItem = () => {
               </Stack>
             </Grid>
 
+            {/* Files */}
+            <Grid size={12}>
+              <Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: 0.6 }}>
+                Files
+              </Typography>
+            </Grid>
+            <Grid size={12}>
+              <Stack spacing={2}>
+                <Box>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    style={{ display: 'none' }}
+                    onChange={handleFileChange}
+                  />
+                  <Button
+                    variant="outlined"
+                    startIcon={
+                      isUploading
+                        ? <CircularProgress size={16} color="inherit" />
+                        : <IconifyIcon icon="material-symbols:upload-rounded" fontSize={18} />
+                    }
+                    disabled={isUploading}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {isUploading ? 'Uploading…' : 'Upload File'}
+                  </Button>
+                  {uploadError ? (
+                    <Typography variant="body2" color="error.main" sx={{ mt: 1 }}>
+                      {uploadError}
+                    </Typography>
+                  ) : null}
+                </Box>
+
+                {isLoadingFiles ? (
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <CircularProgress size={16} />
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>Loading files…</Typography>
+                  </Stack>
+                ) : filesError ? (
+                  <Alert severity="error" sx={{ maxWidth: 480 }}>{filesError}</Alert>
+                ) : files.length > 0 ? (
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>File Name</TableCell>
+                          <TableCell>Uploaded</TableCell>
+                          <TableCell align="right" sx={{ width: 56 }} />
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {files.map((f) => (
+                          <TableRow key={f.id} hover>
+                            <TableCell>
+                              <Link
+                                href={`/api/admin-v2/value-report-files?key=${encodeURIComponent(f.r2_key)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                underline="hover"
+                                sx={{ wordBreak: 'break-all' }}
+                              >
+                                {f.file_name}
+                              </Link>
+                            </TableCell>
+                            <TableCell sx={{ whiteSpace: 'nowrap', color: 'text.secondary' }}>
+                              {dayjs(f.created_at).format('MMM D, YYYY h:mm A')}
+                            </TableCell>
+                            <TableCell align="right">
+                              <Tooltip title="Delete file">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => setDeleteTarget(f)}
+                                  sx={{ color: 'error.main' }}
+                                >
+                                  <IconifyIcon icon="material-symbols:delete-outline-rounded" fontSize={18} />
+                                </IconButton>
+                              </Tooltip>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                ) : (
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                    No files uploaded yet.
+                  </Typography>
+                )}
+              </Stack>
+            </Grid>
+
           </Grid>
         ) : null}
       </Box>
@@ -323,6 +503,30 @@ const ValueReportItem = () => {
             />
           ) : null}
         </DialogContent>
+      </Dialog>
+
+      {/* Delete confirm dialog */}
+      <Dialog open={Boolean(deleteTarget)} onClose={() => !isDeleting && setDeleteTarget(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Delete File</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete <strong>{deleteTarget?.file_name}</strong>? This cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteTarget(null)} disabled={isDeleting}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleDeleteConfirm}
+            disabled={isDeleting}
+            startIcon={isDeleting ? <CircularProgress size={16} color="inherit" /> : undefined}
+          >
+            {isDeleting ? 'Deleting…' : 'Delete'}
+          </Button>
+        </DialogActions>
       </Dialog>
     </Stack>
   );

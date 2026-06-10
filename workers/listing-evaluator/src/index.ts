@@ -986,6 +986,27 @@ export default {
       return withCors(response, request, env);
     }
 
+    const adminV2ValueReportFilesMatch = path.match(/^\/api\/admin-v2\/value-reports\/(\d+)\/files$/);
+    if (adminV2ValueReportFilesMatch && request.method === 'GET') {
+      const response = await handleAdminV2ValueReportFilesList(adminV2ValueReportFilesMatch[1], env);
+      return withCors(response, request, env);
+    }
+    if (adminV2ValueReportFilesMatch && request.method === 'POST') {
+      const response = await handleAdminV2ValueReportFileUpload(adminV2ValueReportFilesMatch[1], request, env);
+      return withCors(response, request, env);
+    }
+
+    const adminV2ValueReportFileDeleteMatch = path.match(/^\/api\/admin-v2\/value-reports\/(\d+)\/files\/(\d+)$/);
+    if (adminV2ValueReportFileDeleteMatch && request.method === 'DELETE') {
+      const response = await handleAdminV2ValueReportFileDelete(adminV2ValueReportFileDeleteMatch[1], adminV2ValueReportFileDeleteMatch[2], env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/value-report-files' && request.method === 'GET') {
+      const response = await handleAdminV2ValueReportFileServe(request, env);
+      return withCors(response, request, env);
+    }
+
     if (path.endsWith('/evaluated') && path.startsWith('/api/admin-v2/serial-decodes/') && request.method === 'POST') {
       const response = await handleAdminV2SerialDecodeEvaluatedUpdate(request, path, env);
       return withCors(response, request, env);
@@ -13346,6 +13367,7 @@ async function dbCreateInventoryItems(
     sell_notes: string | null;
     sale_url: string | null;
     sale_zip: string | null;
+    merchant_center_cat_code: string | null;
   },
   env: Env
 ): Promise<{ firstId: string; ccgNumber: string } | null> {
@@ -13369,9 +13391,9 @@ async function dbCreateInventoryItems(
         sales_channel_ccg, sales_channel_fbm, sales_channel_cl, sales_channel_reverb, sales_channel_gear_exchange,
         sales_channel_offerup, sales_channel_ebay, sales_channel_nextdoor, sales_channel_other,
         for_sale_date,
-        is_sold, sold_date, sold_amount, sell_notes, sale_url, sale_zip
+        is_sold, sold_date, sold_amount, sell_notes, sale_url, sale_zip, merchant_center_cat_code
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const result = await env.DB.prepare(statement).bind(
       fields.source_listing_id,
@@ -13456,6 +13478,7 @@ async function dbCreateInventoryItems(
       fields.sell_notes,
       fields.sale_url,
       fields.sale_zip,
+      fields.merchant_center_cat_code,
     ).run();
     const firstId = result.meta?.last_row_id ? String(result.meta.last_row_id) : null;
     if (!firstId) return null;
@@ -18401,6 +18424,91 @@ async function handleAdminV2ValueReportFulfilledUpdate(id: string, request: Requ
      WHERE id = ?`
   ).bind(fulfilled, fulfilled, now, id).run();
   return jsonResponse({ ok: true });
+}
+
+async function handleAdminV2ValueReportFilesList(evaluationId: string, env: Env): Promise<Response> {
+  const rows = await env.DB.prepare(
+    `SELECT id, file_name, r2_key, content_type, created_at
+     FROM guitar_evaluation_files
+     WHERE evaluation_id = ?
+     ORDER BY created_at ASC`
+  ).bind(evaluationId).all<{
+    id: number;
+    file_name: string;
+    r2_key: string;
+    content_type: string;
+    created_at: string;
+  }>();
+  return jsonResponse({ files: rows.results ?? [] });
+}
+
+async function handleAdminV2ValueReportFileUpload(evaluationId: string, request: Request, env: Env): Promise<Response> {
+  if (!env.CUSTOM_ITEMS_BUCKET) return jsonResponse({ message: 'File storage is not configured.' }, 500);
+
+  const evalRow = await env.DB.prepare(
+    `SELECT id FROM guitar_evaluations WHERE id = ?`
+  ).bind(evaluationId).first<{ id: number }>();
+  if (!evalRow) return jsonResponse({ message: 'Value report not found.' }, 404);
+
+  let formData: FormData;
+  try {
+    formData = await request.formData();
+  } catch {
+    return jsonResponse({ message: 'Invalid form data.' }, 400);
+  }
+
+  const file = formData.get('file');
+  if (!(file instanceof File) || file.size <= 0) {
+    return jsonResponse({ message: 'A file is required.' }, 400);
+  }
+  if (file.size > 50 * 1024 * 1024) {
+    return jsonResponse({ message: 'File must be 50 MB or smaller.' }, 400);
+  }
+
+  const safeName = file.name.replace(/[^a-zA-Z0-9._\-]/g, '_').slice(0, 200);
+  const key = `guitar-eval-files/${evaluationId}/${crypto.randomUUID()}-${safeName}`;
+  await env.CUSTOM_ITEMS_BUCKET.put(key, await file.arrayBuffer(), {
+    httpMetadata: { contentType: file.type || 'application/octet-stream' },
+  });
+
+  await env.DB.prepare(
+    `INSERT INTO guitar_evaluation_files (evaluation_id, r2_key, file_name, content_type, created_at)
+     VALUES (?, ?, ?, ?, ?)`
+  ).bind(evaluationId, key, file.name.slice(0, 500), file.type || 'application/octet-stream', new Date().toISOString()).run();
+
+  return jsonResponse({ ok: true });
+}
+
+async function handleAdminV2ValueReportFileDelete(evaluationId: string, fileId: string, env: Env): Promise<Response> {
+  if (!env.CUSTOM_ITEMS_BUCKET) return jsonResponse({ message: 'File storage is not configured.' }, 500);
+
+  const row = await env.DB.prepare(
+    `SELECT id, r2_key FROM guitar_evaluation_files WHERE id = ? AND evaluation_id = ?`
+  ).bind(fileId, evaluationId).first<{ id: number; r2_key: string }>();
+  if (!row) return jsonResponse({ message: 'File not found.' }, 404);
+
+  await env.CUSTOM_ITEMS_BUCKET.delete(row.r2_key);
+  await env.DB.prepare(`DELETE FROM guitar_evaluation_files WHERE id = ?`).bind(fileId).run();
+
+  return jsonResponse({ ok: true });
+}
+
+async function handleAdminV2ValueReportFileServe(request: Request, env: Env): Promise<Response> {
+  if (!env.CUSTOM_ITEMS_BUCKET) return jsonResponse({ message: 'File storage is not configured.' }, 500);
+
+  const key = new URL(request.url).searchParams.get('key');
+  if (!key || !key.startsWith('guitar-eval-files/')) {
+    return jsonResponse({ message: 'Missing or invalid file key.' }, 400);
+  }
+
+  const object = await env.CUSTOM_ITEMS_BUCKET.get(key);
+  if (!object || !object.body) return jsonResponse({ message: 'File not found.' }, 404);
+
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+  headers.set('etag', object.httpEtag);
+  headers.set('cache-control', 'private, max-age=300');
+  return new Response(object.body, { headers });
 }
 
 async function handleAdminV2ValueReports(request: Request, env: Env): Promise<Response> {
