@@ -690,14 +690,14 @@ const SerialDecodes = () => {
           spacing={2}
           mb={3}
         >
-          <Stack spacing={0.5}>
+          <Box>
             <Typography variant="h4">Serial Decodes</Typography>
             {avg30DailyLookups !== null ? (
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                 Avg. Daily Lookups (last 30): {avg30DailyLookups}
               </Typography>
             ) : null}
-          </Stack>
+          </Box>
           <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2}>
             <FormControlLabel
               sx={{ mr: 0 }}
@@ -916,12 +916,12 @@ const SerialDecodes = () => {
           spacing={2}
           mb={2.5}
         >
-          <Stack spacing={0.5}>
+          <Box>
             <Typography variant="h5">Serial Lookups Over Time</Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
               {lookupTotalResponses} lookups across {lookupVolumeRecords.length} {lookupVolumeView === 'day' ? 'days' : 'months'}
             </Typography>
-          </Stack>
+          </Box>
           <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'stretch', sm: 'center' }} spacing={2}>
             <FormControl size="small" sx={{ minWidth: 160 }}>
               <InputLabel id="serial-lookup-view-filter-label">View</InputLabel>

@@ -87,6 +87,10 @@ export function decodeJackson(serial) {
     if (/^RR\d{3,5}$/i.test(normalized)) {
         return decodeUSARandyRhoads(normalized);
     }
+    // USA Player's Choice Series Randy Rhoads (PCS + 4 digits, 1993 limited run of 150)
+    if (/^PCS\d{4}$/i.test(normalized)) {
+        return decodeUSAPlayerChoiceSeries(normalized);
+    }
     // Modern Indonesia J-prefix: J + YY + 5-digit sequence (2013+, e.g. J2245267)
     // Must be checked before USA Custom Shop J-prefix (which only matches 4-6 digits)
     if (/^J\d{7}$/i.test(normalized)) {
@@ -199,6 +203,47 @@ export function decodeJackson(serial) {
     return {
         success: false,
         error: 'Unable to decode this Jackson serial number. The format was not recognized. Please verify the serial number is correct.',
+    };
+}
+function decodeUSAPlayerChoiceSeries(serial) {
+    const unitNum = parseInt(serial.substring(3), 10);
+    const info = {
+        brand: 'Jackson',
+        serialNumber: serial,
+        year: '1993',
+        model: "Player's Choice Series Randy Rhoads",
+        factory: 'Jackson USA (Ontario, California)',
+        country: 'USA',
+        notes: `Player's Choice Series (PCS) Randy Rhoads — unit ${unitNum} of 150. Jackson built only 150 of these in 1993 at the Ontario, California factory as a tribute to Randy Rhoads using exact early-1980s specifications. Factory specs include a quartersawn maple neck-through design, bound ebony fingerboard, solid brass hardware (gold/brass pickguard, V-shaped tailpiece, Tune-O-Matic bridge), scaled-down mother-of-pearl shark fin inlays, and Seymour Duncan JB (neck) and Duncan Distortion (bridge) pickups. Because of the 150-unit production run and tribute pedigree, these are highly sought-after collector instruments. Verify originality by confirming the solid brass hardware, neck-through construction, ebony fingerboard, and the matching original hardshell case when possible.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'jackson-usa-player-choice-series-pcs',
+        patternLabel: "Jackson USA Player's Choice Series Randy Rhoads (1993)",
+        additionalContext: {
+            title: "Jackson Player's Choice Series Randy Rhoads",
+            summary: `This serial identifies a Player's Choice Series (PCS) Randy Rhoads, unit ${unitNum} of only 150 built in 1993 at the Jackson USA factory in Ontario, California.`,
+            highlights: [
+                "PCS stands for Player's Choice Series — a 1993 limited tribute run honoring Randy Rhoads.",
+                'Only 150 were built, making this one of the rarest production Jackson models.',
+                `This serial identifies unit number ${unitNum} of 150.`,
+                'Factory: Jackson USA, Ontario, California, 1993.',
+            ],
+            caveats: [
+                'Because of the rarity and collector value, verifying originality of all hardware, pickups, and case is important before purchase.',
+                'The solid brass hardware (pickguard, tailpiece, bridge) is a key authentication marker — replacements significantly affect collectibility.',
+                'These are not in Jackson\'s standard serial lookup and may require direct authentication from Jackson USA or a recognized collector registry.',
+            ],
+            verificationTips: [
+                'Confirm the neck-through quartersawn maple neck and bound ebony fingerboard.',
+                'Verify the solid brass hardware: gold/brass pickguard, V-shaped tailpiece, and Tune-O-Matic bridge.',
+                'Check for the scaled-down mother-of-pearl shark fin inlays that match Randy\'s personal guitar specs.',
+                'Look for the original hardshell case and factory hangtags, which significantly affect collector value.',
+                'Cross-reference the unit number against known PCS registry entries if available.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial identifies a Player's Choice Series (PCS) Randy Rhoads — unit ${unitNum} of only 150 built in 1993 at the Jackson USA factory in Ontario, California as a tribute to Randy Rhoads using exact early-1980s specifications.</p><h3>How This Pattern Is Typically Read</h3><p>PCS stands for Player's Choice Series. The four digits encode the unit number within the 150-guitar run. This serial is unit ${unitNum} of 150. Factory specs include a quartersawn maple neck-through design, bound ebony fingerboard, solid brass hardware (gold/brass pickguard, V-shaped tailpiece, Tune-O-Matic bridge), scaled-down mother-of-pearl shark fin inlays, and Seymour Duncan JB/Duncan Distortion pickups.</p><h3>What To Verify</h3><ul><li>Confirm the neck-through quartersawn maple neck and bound ebony fingerboard.</li><li>Verify the solid brass hardware: gold/brass pickguard, V-shaped tailpiece, and Tune-O-Matic bridge — these are the primary authentication markers.</li><li>Check for the original hardshell case and factory hangtags, which significantly affect collector value.</li><li>Cross-reference the unit number against known PCS registry entries if available.</li></ul><h3>Coal Creek Guitars Note</h3><p>These command significant collector value when original and complete. Solid brass hardware, correct inlays, and an original case are the most important factors when evaluating condition and price.</p>`,
     };
 }
 function decodeUSARandyRhoads(serial) {

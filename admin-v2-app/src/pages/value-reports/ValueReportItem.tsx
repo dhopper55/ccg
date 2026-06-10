@@ -4,9 +4,12 @@ import Grid from '@mui/material/Grid';
 import {
   Alert,
   Box,
+  Button,
+  Checkbox,
   CircularProgress,
   Dialog,
   DialogContent,
+  FormControlLabel,
   IconButton,
   Paper,
   Stack,
@@ -53,6 +56,9 @@ const ValueReportItem = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [fulfilled, setFulfilled] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     if (!id) {
@@ -70,7 +76,10 @@ const ValueReportItem = () => {
         });
         const payload = (await response.json()) as ValueReportItemResponse;
         if (!response.ok) throw new Error(payload.message || 'Unable to load value report.');
-        if (!cancelled) setRecord(payload.record ?? null);
+        if (!cancelled) {
+          setRecord(payload.record ?? null);
+          setFulfilled(Boolean(payload.record?.fulfilled));
+        }
       } catch (error) {
         if (!cancelled) setErrorMessage(error instanceof Error ? error.message : 'Unable to load value report.');
       } finally {
@@ -80,6 +89,26 @@ const ValueReportItem = () => {
     void load();
     return () => { cancelled = true; };
   }, [id]);
+
+  const handleSave = async () => {
+    if (!id) return;
+    setIsSaving(true);
+    setSaveMessage(null);
+    try {
+      const res = await fetch(`/api/admin-v2/value-reports/${encodeURIComponent(id)}/fulfilled`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fulfilled }),
+      });
+      if (!res.ok) throw new Error('Save failed.');
+      setSaveMessage({ type: 'success', text: 'Saved.' });
+    } catch {
+      setSaveMessage({ type: 'error', text: 'Failed to save.' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const formattedDate = record?.createdAt
     ? dayjs(record.createdAt).format('MMM D, YYYY h:mm A')
@@ -225,13 +254,39 @@ const ValueReportItem = () => {
               <TextField fullWidth label="Paid" value={record.stripePaymentIntentId ? 'Yes' : 'No'} InputProps={ro} />
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <TextField fullWidth label="Fulfilled" value={record.fulfilled ? 'Yes' : 'No'} InputProps={ro} />
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={fulfilled}
+                    onChange={(e) => setFulfilled(e.target.checked)}
+                  />
+                }
+                label="Fulfilled"
+              />
             </Grid>
             {record.stripePaymentIntentId ? (
               <Grid size={{ xs: 12, md: 6 }}>
                 <TextField fullWidth label="Stripe Payment Intent" value={record.stripePaymentIntentId} InputProps={ro} />
               </Grid>
             ) : null}
+
+            {/* Save */}
+            <Grid size={12}>
+              <Stack direction="row" spacing={2} alignItems="center">
+                <Button
+                  variant="contained"
+                  onClick={handleSave}
+                  disabled={isSaving}
+                >
+                  {isSaving ? 'Saving…' : 'Save'}
+                </Button>
+                {saveMessage ? (
+                  <Typography variant="body2" color={saveMessage.type === 'success' ? 'success.main' : 'error.main'}>
+                    {saveMessage.text}
+                  </Typography>
+                ) : null}
+              </Stack>
+            </Grid>
 
           </Grid>
         ) : null}

@@ -5,6 +5,7 @@ import { DecodeResult, GuitarInfo } from '../types.js';
  *
  * Supports:
  * - San Dimas USA (1981-1986): 4-digit serials 1001-5491
+ * - Japanese late-1980s YYMM date stamp: 4-digit YYMM (e.g. 8911 = November 1989)
  * - Japanese MIJ neck plate (1986-early 1990s): 5-digit and 7-digit serials
  * - Japanese neck-through (1986-1991): C + digit + sequential
  * - Japanese bolt-on (1986-1991): 6-digit sequential (220000+)
@@ -67,8 +68,14 @@ export function decodeCharvel(serial: string): DecodeResult {
     return decodeNumeric8Modern(normalized);
   }
 
-  // San Dimas USA: 4-digit (1001-5491)
+  // 4-digit: YYMM date-stamp (Japanese late-1980s) takes priority over San Dimas sequential.
+  // San Dimas tops out at 5491, so any YYMM serial with yy 83-99 (≥8301) cannot be San Dimas.
   if (/^\d{4}$/.test(normalized)) {
+    const yy = parseInt(normalized.slice(0, 2), 10);
+    const mm = parseInt(normalized.slice(2), 10);
+    if (yy >= 83 && yy <= 99 && mm >= 1 && mm <= 12) {
+      return decodeJapanYYMM(normalized);
+    }
     return decodeSanDimas(normalized);
   }
 
@@ -107,7 +114,53 @@ export function decodeCharvel(serial: string): DecodeResult {
 
   return {
     success: false,
-    error: 'Unable to decode this Charvel serial number. Common formats include: 4 digits (San Dimas USA 1981-1986), C + digit + numbers (Japan neck-through 1986-1991), 5-7 digit numeric MIJ neck plate/bolt-on serials, JC + numbers (Modern MIJ), MC + numbers (Mexico), ISC + YY + #### (modern Indonesia), or 10-character codes (modern imports). Note: Pre-1981 San Dimas guitars have no serial numbers.',
+    error: 'Unable to decode this Charvel serial number. Common formats include: 4-digit YYMM date stamps like 8911 (Japanese late-1980s), 4-digit sequentials 1001-5491 (San Dimas USA 1981-1986), C + digit + numbers (Japan neck-through 1986-1991), 5-7 digit numeric MIJ neck plate/bolt-on serials, JC + numbers (Modern MIJ), MC + numbers (Mexico), ISC + YY + #### (modern Indonesia), or 10-character codes (modern imports). Note: Pre-1981 San Dimas guitars have no serial numbers.',
+  };
+}
+
+// Japanese late-1980s YYMM date stamp: 4-digit (e.g. 8911 = November 1989)
+function decodeJapanYYMM(serial: string): DecodeResult {
+  const yy = parseInt(serial.slice(0, 2), 10);
+  const mm = parseInt(serial.slice(2), 10);
+  const year = (1900 + yy).toString();
+  const month = getMonthName(mm) as string;
+
+  const info: GuitarInfo = {
+    brand: 'Charvel',
+    serialNumber: serial,
+    year,
+    month,
+    factory: 'Chushin Gakki (Nagano Prefecture)',
+    country: 'Japan',
+    notes: `4-digit Japanese Charvel YYMM date-stamp format. The first two digits "${serial.slice(0, 2)}" decode as ${year}; the last two digits "${serial.slice(2)}" decode as ${month}. This format was used on Japanese-made Charvel models from approximately 1986 through the early 1990s, including the Model Series and Fusion Series. Despite the Fort Worth, Texas neck plate (corporate headquarters address), these guitars were manufactured at Chushin Gakki in Nagano Prefecture, Japan. Headstock logos from this era often feature the "toothpaste" script. Verify with neck plate text, headstock logo, tremolo type, and country-of-origin markings.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'charvel-japan-yymm-4-digit',
+    patternLabel: 'Charvel Japanese late-1980s YYMM date stamp',
+    additionalContext: {
+      title: 'Charvel Japanese YYMM date-stamp serial',
+      summary: `This 4-digit serial matches the Japanese Charvel YYMM date-stamp format: the first two digits encode the year and the last two encode the production month.`,
+      highlights: [
+        `The first two digits "${serial.slice(0, 2)}" decode as production year ${year}.`,
+        `The last two digits "${serial.slice(2)}" decode as ${month}.`,
+        'This format is associated with Japanese Charvel production at Chushin Gakki in the late 1980s.',
+        'The Fort Worth, Texas neck plate indicates the corporate address, not USA manufacture.',
+      ],
+      caveats: [
+        'The Fort Worth, Texas neck plate is a common source of confusion — it is the importer/corporate address, not a Made in USA indicator.',
+        'Headstock logo style ("toothpaste" vs standard script) and tremolo type help narrow the exact year and model within this era.',
+        'Blank or replacement neck plates can appear on these instruments, so physical feature verification matters.',
+      ],
+      verificationTips: [
+        'Check the headstock for the "toothpaste" Charvel script logo, which is characteristic of this era.',
+        'Look for a Made in Japan marking on the headstock back or in the neck pocket.',
+        'Compare the tremolo type (Kahler vs JT-6), pickup layout, and finish options against late-1980s Charvel catalogs.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This 4-digit serial matches the Japanese Charvel YYMM date-stamp format: the first two digits encode the year and the last two encode the production month.</p><h3>How This Pattern Is Typically Read</h3><p>The first two digits "${serial.slice(0, 2)}" decode as production year ${year}. The last two digits "${serial.slice(2)}" decode as ${month}. This format was used on Japanese-made Charvel models from approximately 1986 through the early 1990s, including the Model Series and Fusion Series. Despite the Fort Worth, Texas neck plate, these guitars were manufactured at Chushin Gakki in Nagano Prefecture, Japan.</p><h3>What To Verify</h3><ul><li>The Fort Worth, Texas neck plate is the corporate/importer address — it does not indicate USA manufacture.</li><li>Look for the "toothpaste" Charvel script logo on the headstock, which is characteristic of this era.</li><li>Check for a Made in Japan marking and compare the tremolo, pickups, and finish against late-1980s Charvel catalogs to narrow the exact model.</li></ul>`,
   };
 }
 

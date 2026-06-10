@@ -980,6 +980,12 @@ export default {
       return withCors(response, request, env);
     }
 
+    const adminV2ValueReportFulfilledMatch = path.match(/^\/api\/admin-v2\/value-reports\/(\d+)\/fulfilled$/);
+    if (adminV2ValueReportFulfilledMatch && request.method === 'POST') {
+      const response = await handleAdminV2ValueReportFulfilledUpdate(adminV2ValueReportFulfilledMatch[1], request, env);
+      return withCors(response, request, env);
+    }
+
     if (path.endsWith('/evaluated') && path.startsWith('/api/admin-v2/serial-decodes/') && request.method === 'POST') {
       const response = await handleAdminV2SerialDecodeEvaluatedUpdate(request, path, env);
       return withCors(response, request, env);
@@ -18383,6 +18389,18 @@ async function handleAdminV2ValueReportItem(id: string, env: Env): Promise<Respo
       imageUrls,
     },
   });
+}
+
+async function handleAdminV2ValueReportFulfilledUpdate(id: string, request: Request, env: Env): Promise<Response> {
+  const body = await request.json<{ fulfilled: boolean }>();
+  const fulfilled = body.fulfilled ? 1 : 0;
+  const now = new Date().toISOString();
+  await env.DB.prepare(
+    `UPDATE guitar_evaluations
+     SET fulfilled = ?, fulfilment_date = CASE WHEN ? = 1 THEN ? ELSE fulfilment_date END
+     WHERE id = ?`
+  ).bind(fulfilled, fulfilled, now, id).run();
+  return jsonResponse({ ok: true });
 }
 
 async function handleAdminV2ValueReports(request: Request, env: Env): Promise<Response> {

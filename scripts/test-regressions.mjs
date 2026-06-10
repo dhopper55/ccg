@@ -2005,6 +2005,26 @@ function assertCortEarly1990s7DigitYearSequence(serialInput) {
   );
 }
 
+function assertCharvelJapanYYMM(serialInput, expectedYear, expectedMonth) {
+  const result = decodeSerialForBackend('charvel', serialInput);
+  assert(result.success, `Expected decode success for charvel:${serialInput}`);
+  assert(result.info, `Expected decoded info for charvel:${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(info.factory === 'Chushin Gakki (Nagano Prefecture)', `Expected Chushin Gakki factory for ${serialInput}, got ${info.factory}`);
+  assert(info.country === 'Japan', `Expected Japan for ${serialInput}, got ${info.country}`);
+  assert(
+    result.patternKey === 'charvel-japan-yymm-4-digit',
+    `Expected charvel-japan-yymm-4-digit pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('Fort Worth, Texas neck plate'),
+    `Expected YYMM rich text for ${serialInput}`
+  );
+}
+
 function assertCharvelCFPrefix(serialInput, expectedYear) {
   const result = decodeSerialForBackend('charvel', serialInput);
   assert(result.success, `Expected decode success for charvel:${serialInput}`);
@@ -2566,6 +2586,29 @@ function assertJacksonTaiwanJSSeries(serialInput) {
   assert(
     result.additionalContextRichText && result.additionalContextRichText.includes('production sequence 50010694'),
     `Expected Jackson Taiwan JS-series rich text for ${serialInput}`
+  );
+}
+
+function assertJacksonPlayerChoiceSeries(serialInput, expectedUnit) {
+  const result = decodeJackson(serialInput);
+  assert(result.success, `Expected decode success for Jackson ${serialInput}`);
+  assert(result.info, `Expected decoded info for Jackson ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '1993', `Expected year 1993 for ${serialInput}, got ${info.year}`);
+  assert(info.country === 'USA', `Expected USA for ${serialInput}, got ${info.country}`);
+  assert(info.factory === 'Jackson USA (Ontario, California)', `Expected Ontario factory for ${serialInput}, got ${info.factory}`);
+  assert(
+    info.notes && info.notes.includes(`unit ${expectedUnit} of 150`),
+    `Expected unit ${expectedUnit} note for ${serialInput}`
+  );
+  assert(
+    result.patternKey === 'jackson-usa-player-choice-series-pcs',
+    `Expected PCS pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('150 built in 1993'),
+    `Expected PCS rich text for ${serialInput}`
   );
 }
 
@@ -3187,6 +3230,8 @@ assertCortVintageWOW0Prefix('W0 20881');
 assertCortEarly1980sFiveDigit('20881');
 assertCortVintage1990s7DigitYYMM('9202539');
 assertCortEarly1990s7DigitYearSequence('9000895');
+assertCharvelJapanYYMM('8911', '1989', 'November');
+assertCharvelJapanYYMM('8706', '1987', 'June');
 assertCharvelCFPrefix('CF22271', '2022');
 assertCharvelJapanIMC7Digit('0904460');
 assertSquierChinaSE9Digit('040811254', '2004', 'August');
@@ -3223,6 +3268,8 @@ assertJacksonMij1996Transition('600327');
 assertJacksonUSAUSeries('U15648');
 assertJacksonUSAUSeries('u17072', '2006-2007 (estimated)');
 assertJacksonTaiwanJSSeries('650010694');
+assertJacksonPlayerChoiceSeries('PCS0056', 56);
+assertJacksonPlayerChoiceSeries('pcs0001', 1);
 assertJacksonMij200C('200C00541');
 assertESPVintageJapan5Digit('22944');
 assertESPVintageJapan5Digit('29290');
