@@ -18571,6 +18571,7 @@ async function dbInsertGuitarEvaluation(env: Env, data: {
   brandOther: string | null;
   model: string | null;
   includesCase: string;
+  colorFinish: string | null;
   location: string | null;
   note: string;
   damage: string;
@@ -18581,15 +18582,16 @@ async function dbInsertGuitarEvaluation(env: Env, data: {
 }): Promise<number | null> {
   const result = await env.DB.prepare(`
     INSERT INTO guitar_evaluations (
-      serial_number, brand, brand_other, model, includes_case,
+      serial_number, brand, brand_other, model, includes_case, color_finish,
       location, note, damage, first_name, last_name, email, serial_decode_event_id, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     data.serialNumber,
     data.brand,
     data.brandOther,
     data.model,
     data.includesCase,
+    data.colorFinish,
     data.location,
     data.note,
     data.damage,
@@ -18775,6 +18777,7 @@ async function handleGuitarEvaluationUpdate(request: Request, evaluationId: stri
     brandOther: 'brand_other',
     model: 'model',
     includesCase: 'includes_case',
+    colorFinish: 'color_finish',
     location: 'location',
     note: 'note',
     damage: 'damage',

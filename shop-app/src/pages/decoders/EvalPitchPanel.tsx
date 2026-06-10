@@ -33,13 +33,17 @@ const EvalPitchPanel = ({ brand, year, serial, decodeEventId }: EvalPitchPanelPr
           mb: 3,
         }}
       >
-        <Typography variant="body2" sx={{ lineHeight: 1.9 }}>
+        <Box component="p" sx={{ m: 0, typography: 'body2', lineHeight: 1.9 }}>
           <Box component="strong" sx={{ color: 'text.primary' }}>
             {headline}
-          </Box>{' '}
+          </Box>
+        </Box>
+        <Box component="p" sx={{ m: 0, mt: 0.5, typography: 'body2', lineHeight: 1.9 }}>
           <Box component="span" sx={{ color: 'text.secondary' }}>
-            Get Reverb comps, dealer offers &amp; a ready-to-post listing &mdash; $2.99
-          </Box>{' '}
+            Get Reverb comps, dealer offers &amp; a ready-to-post listing &mdash; just $2.99
+          </Box>
+        </Box>
+        <Box sx={{ mt: 1 }}>
           <Box
             component="a"
             href={evalHref}
@@ -56,14 +60,13 @@ const EvalPitchPanel = ({ brand, year, serial, decodeEventId }: EvalPitchPanelPr
               py: 0.25,
               textDecoration: 'none',
               whiteSpace: 'nowrap',
-              verticalAlign: 'middle',
               '&:hover': { bgcolor: 'rgba(184,150,12,0.08)' },
               transition: 'background-color 0.15s',
             }}
           >
             → Get My Report
           </Box>
-        </Typography>
+        </Box>
       </Box>
 
       {/* Social proof */}

@@ -2,14 +2,16 @@ import { JSX, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { FormProvider, useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
-import { Box, Button, Container, Stack, Step, StepLabel, Stepper, Typography } from '@mui/material';
+import { Box, Button, Stack, Step, StepLabel, Stepper, Typography } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import * as yup from 'yup';
 import CompanyInfoForm, {
   CompanyInfo,
   companyInfoSchema,
 } from 'components/sections/crm/add-contact/steps/CompanyInfoForm';
-import ConfirmationForm from 'components/sections/crm/add-contact/steps/ConfirmationForm';
+import ConfirmationForm, {
+  ConfirmationBubble,
+} from 'components/sections/crm/add-contact/steps/ConfirmationForm';
 import LeadInfoForm, {
   LeadInfo,
   leadInfoSchema,
@@ -22,56 +24,43 @@ import PersonalInfoForm, {
 interface AddContactStepperStep {
   id: number;
   label: JSX.Element;
-  content: JSX.Element;
-  hasValidation: boolean;
+  content: JSX.Element | null;
 }
 
-const CONFIRMATION_STEP_INDEX = 3;
+// Step indices (0-based)
+const PAYMENT_STEP_INDEX = 2;
+const PHOTOS_STEP_INDEX = 3;
+const SUCCESS_STEP = 4; // past end of steps array — shows success screen
 
 const steps: AddContactStepperStep[] = [
   {
     id: 1,
-    label: (
-      <Typography variant="subtitle2" fontWeight={700}>
-        Guitar Info
-      </Typography>
-    ),
+    label: <Typography variant="subtitle2" fontWeight={700}>Guitar Info</Typography>,
     content: <PersonalInfoForm />,
-    hasValidation: true,
   },
   {
     id: 2,
-    label: (
-      <Typography variant="subtitle2" fontWeight={700}>
-        Photos
-      </Typography>
-    ),
-    content: <CompanyInfoForm label="Photos" />,
-    hasValidation: true,
+    label: <Typography variant="subtitle2" fontWeight={700}>Contact Info</Typography>,
+    content: <LeadInfoForm label="Contact Info" />,
   },
   {
     id: 3,
-    label: (
-      <Typography variant="subtitle2" fontWeight={700}>
-        Contact Info
-      </Typography>
-    ),
-    content: <LeadInfoForm label="Contact Info" />,
-    hasValidation: true,
+    label: <Typography variant="subtitle2" fontWeight={700}>Payment</Typography>,
+    content: null, // ConfirmationForm rendered directly by stepper
   },
   {
     id: 4,
-    label: (
-      <Typography variant="subtitle2" fontWeight={700}>
-        Finalize
-      </Typography>
-    ),
-    content: null,
-    hasValidation: false,
+    label: <Typography variant="subtitle2" fontWeight={700}>Photos</Typography>,
+    content: <CompanyInfoForm label="Photos" />,
   },
 ];
 
-const validationSchemas = [personalInfoSchema, companyInfoSchema, leadInfoSchema];
+const validationSchemas: (yup.ObjectSchema<any> | null)[] = [
+  personalInfoSchema,
+  leadInfoSchema,
+  null, // payment step — form validates internally
+  companyInfoSchema,
+];
 
 export interface ContactForm extends CompanyInfo, PersonalInfo, LeadInfo {}
 
@@ -85,20 +74,21 @@ const AddContactStepper = ({ onFirstAdvance }: AddContactStepperProps) => {
   const [submitting, setSubmitting] = useState(false);
   const [evaluationId, setEvaluationId] = useState<number | null>(null);
 
-  // If returning from a Stripe redirect (e.g. Cash App Pay), jump straight to step 4.
+  // If returning from a Stripe redirect (e.g. Cash App Pay), jump to the payment step
+  // so ConfirmationForm can resolve the redirect_status and advance to Photos.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('redirect_status')) {
-      setActiveStep(CONFIRMATION_STEP_INDEX);
+      setActiveStep(PAYMENT_STEP_INDEX);
     }
   }, []);
 
   const { enqueueSnackbar } = useSnackbar();
   const [searchParams] = useSearchParams();
+
+  const currentSchema = activeStep < validationSchemas.length ? validationSchemas[activeStep] : null;
   const methods = useForm<ContactForm>({
-    resolver: activeStep < validationSchemas.length
-      ? yupResolver(validationSchemas[activeStep] as yup.ObjectSchema<ContactForm>)
-      : undefined,
+    resolver: currentSchema ? yupResolver(currentSchema as yup.ObjectSchema<ContactForm>) : undefined,
     defaultValues: {
       personalInfo: {
         includesCase: 'no',
@@ -113,7 +103,7 @@ const AddContactStepper = ({ onFirstAdvance }: AddContactStepperProps) => {
   const { handleSubmit } = methods;
 
   const handleBack = () => {
-    setActiveStep((prevStep) => prevStep - 1);
+    setActiveStep((prev) => prev - 1);
     window.scrollTo({ top: 0, behavior: 'instant' });
   };
 
@@ -130,6 +120,7 @@ const AddContactStepper = ({ onFirstAdvance }: AddContactStepperProps) => {
       brandOther: data.personalInfo?.brandOther || null,
       model: data.personalInfo?.model || null,
       includesCase: data.personalInfo?.includesCase,
+      colorFinish: data.personalInfo?.colorFinish || null,
       location: data.personalInfo?.location || null,
       note: data.personalInfo?.note,
       damage: data.personalInfo?.damage,
@@ -161,6 +152,24 @@ const AddContactStepper = ({ onFirstAdvance }: AddContactStepperProps) => {
     }
   };
 
+  const persistContactInfo = async (data: ContactForm) => {
+    if (!evaluationId) throw new Error('Evaluation record not found. Please restart.');
+
+    const res = await fetch(`/api/guitar-evaluation/${evaluationId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        firstName: data.leadInfo?.firstName,
+        lastName: data.leadInfo?.lastName,
+        email: data.leadInfo?.email,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err as any).message || 'Contact info save failed. Please try again.');
+    }
+  };
+
   const persistPhotos = async () => {
     if (!evaluationId) throw new Error('Evaluation record not found. Please go back and try again.');
 
@@ -186,33 +195,15 @@ const AddContactStepper = ({ onFirstAdvance }: AddContactStepperProps) => {
     }
   };
 
-  const persistContactInfo = async (data: ContactForm) => {
-    if (!evaluationId) throw new Error('Evaluation record not found. Please restart.');
-
-    const res = await fetch(`/api/guitar-evaluation/${evaluationId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        firstName: data.leadInfo?.firstName,
-        lastName: data.leadInfo?.lastName,
-        email: data.leadInfo?.email,
-      }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error((err as any).message || 'Contact info save failed. Please try again.');
-    }
-  };
-
   const handleStepSubmit = async (data: ContactForm) => {
     setSubmitting(true);
     try {
       if (activeStep === 0) {
         await persistGuitarInfo(data);
       } else if (activeStep === 1) {
-        await persistPhotos();
-      } else if (activeStep === 2) {
         await persistContactInfo(data);
+      } else if (activeStep === PHOTOS_STEP_INDEX) {
+        await persistPhotos();
       }
       setCompletedSteps((prev) => ({ ...prev, [activeStep]: true }));
       setActiveStep((prev) => {
@@ -229,15 +220,23 @@ const AddContactStepper = ({ onFirstAdvance }: AddContactStepperProps) => {
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (activeStep === CONFIRMATION_STEP_INDEX) return;
+    if (activeStep === PAYMENT_STEP_INDEX) return; // payment form handles its own submit
+    if (activeStep === SUCCESS_STEP) return;
     handleSubmit(handleStepSubmit)();
   };
 
-  const isConfirmationStep = activeStep === CONFIRMATION_STEP_INDEX;
+  const isPaymentStep = activeStep === PAYMENT_STEP_INDEX;
+  const isSuccessStep = activeStep === SUCCESS_STEP;
+
+  const handlePaymentPaid = () => {
+    setCompletedSteps((prev) => ({ ...prev, [PAYMENT_STEP_INDEX]: true }));
+    setActiveStep(PHOTOS_STEP_INDEX);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  };
 
   return (
     <FormProvider {...methods}>
-      <Container maxWidth="sm" sx={{ p: 0 }}>
+      <Box sx={{ width: '80%', mx: 'auto' }}>
         <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 3 }}>
           {steps.map(({ id, label }, index) => (
             <Step key={id} completed={!!completedSteps[index]} sx={{ p: 0 }}>
@@ -248,26 +247,30 @@ const AddContactStepper = ({ onFirstAdvance }: AddContactStepperProps) => {
 
         <Box component="form" onSubmit={handleFormSubmit}>
           <Box sx={{ mb: 7 }}>
-            {activeStep === CONFIRMATION_STEP_INDEX
-              ? <ConfirmationForm evaluationId={evaluationId} onPaid={() => setCompletedSteps((prev) => ({ ...prev, [CONFIRMATION_STEP_INDEX]: true }))} />
-              : steps[activeStep]?.content}
+            {isSuccessStep ? (
+              <ConfirmationBubble />
+            ) : isPaymentStep ? (
+              <ConfirmationForm evaluationId={evaluationId} onPaid={handlePaymentPaid} />
+            ) : (
+              steps[activeStep]?.content
+            )}
           </Box>
 
           <Stack gap={2} justifyContent="flex-end">
-            {activeStep > 0 && !isConfirmationStep && (
+            {activeStep > 0 && !isPaymentStep && !isSuccessStep && (
               <Button variant="soft" color="neutral" onClick={handleBack} sx={{ px: 4 }} disabled={submitting}>
                 Back
               </Button>
             )}
 
-            {!isConfirmationStep && (
+            {!isPaymentStep && !isSuccessStep && (
               <Button type="submit" variant="soft" loading={submitting}>
                 Save & Continue
               </Button>
             )}
           </Stack>
         </Box>
-      </Container>
+      </Box>
     </FormProvider>
   );
 };

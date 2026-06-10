@@ -13,7 +13,7 @@ interface DecoderFaqPanelProps {
 const DecoderFaqPanel = ({ title, items }: DecoderFaqPanelProps) => {
   return (
     <Box sx={{ p: { xs: 1, md: 2 } }}>
-      <Typography variant="h6" mb={3}>
+      <Typography variant="h6" mb={3} sx={{ color: 'warning.main' }}>
         {title}
       </Typography>
 

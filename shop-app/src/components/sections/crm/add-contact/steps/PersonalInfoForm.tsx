@@ -22,6 +22,7 @@ export interface PersonalInfo {
     brandOther?: string;
     model?: string;
     includesCase: string;
+    colorFinish?: string;
     phoneNumber?: string;
     alternatePhoneNumber?: string;
     location?: string;
@@ -39,6 +40,7 @@ export const personalInfoSchema = yup.object({
     ),
     model: yup.string().optional(),
     includesCase: yup.string().required('This field is required'),
+    colorFinish: yup.string().max(100).optional(),
     phoneNumber: yup.string().optional(),
     alternatePhoneNumber: yup.string().optional(),
     location: yup.string().optional(),
@@ -313,6 +315,28 @@ const LOCATION_TOOLTIP = (
   </Box>
 );
 
+const COLOR_FINISH_TOOLTIP = (
+  <Box sx={{ p: 0.5, maxWidth: 320 }}>
+    <Typography variant="caption" display="block" sx={{ mb: 1 }}>
+      Please describe the guitar's color or finish. This helps us identify the specific variant and find accurate market comparables.
+    </Typography>
+    <Typography variant="caption" display="block" sx={{ mb: 0.75 }}>
+      Common examples include:
+    </Typography>
+    {[
+      'Sunburst', 'Black', 'Natural', 'Cherry Red',
+      'Vintage White', 'Lake Placid Blue', 'Tobacco Burst', '3-Color Sunburst',
+    ].map((item) => (
+      <Typography key={item} variant="caption" display="block" sx={{ pl: 1, mb: 0.25 }}>
+        • {item}
+      </Typography>
+    ))}
+    <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+      If the finish has any notable characteristics such as checking, aging, or custom refinishing, you can note that here or in the Guitar Notes field.
+    </Typography>
+  </Box>
+);
+
 const FieldLabel = ({ text, optional, tooltip }: { text: string; optional?: boolean; tooltip?: React.ReactNode }) => (
   <Stack direction="row" alignItems="center" spacing={0.75} sx={{ mb: 0.5 }}>
     <Typography variant="caption" fontWeight={600} sx={{ lineHeight: 1.4 }}>
@@ -342,7 +366,8 @@ const PersonalInfoForm = (_: { label?: string }) => {
       <Stack direction="column" spacing={4}>
         <ContactFormSection title="Guitar Information">
           <Grid container spacing={2} sx={{ width: 1 }}>
-            <Grid size={{ xs: 12, sm: 6 }}>
+            {/* Row 1: Serial # | Brand | Model */}
+            <Grid size={{ xs: 12, sm: 4 }}>
               <FieldLabel text="Serial #" optional tooltip={SERIAL_NUMBER_TOOLTIP} />
               <TextField
                 fullWidth
@@ -351,7 +376,7 @@ const PersonalInfoForm = (_: { label?: string }) => {
                 {...register('personalInfo.serialNumber')}
               />
             </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <FieldLabel text="Brand" tooltip={BRAND_TOOLTIP} />
               <Controller
                 name="personalInfo.brand"
@@ -376,9 +401,17 @@ const PersonalInfoForm = (_: { label?: string }) => {
                 )}
               />
             </Grid>
-            <Grid size={{ xs: 12, sm: 6 }} sx={{ display: isOtherBrand ? undefined : 'none' }}>
-              {/* empty left column — intentional */}
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <FieldLabel text="Model" optional tooltip={MODEL_TOOLTIP} />
+              <TextField
+                fullWidth
+                error={!!errors.personalInfo?.model}
+                helperText={errors.personalInfo?.model?.message}
+                {...register('personalInfo.model')}
+              />
             </Grid>
+
+            {/* Brand Other — shown only when brand = Other */}
             <Grid size={{ xs: 12, sm: 6 }} sx={{ display: isOtherBrand ? undefined : 'none' }}>
               <FieldLabel text="Please specify brand" />
               <TextField
@@ -388,16 +421,9 @@ const PersonalInfoForm = (_: { label?: string }) => {
                 {...register('personalInfo.brandOther')}
               />
             </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <FieldLabel text="Model" optional tooltip={MODEL_TOOLTIP} />
-              <TextField
-                fullWidth
-                error={!!errors.personalInfo?.model}
-                helperText={errors.personalInfo?.model?.message}
-                {...register('personalInfo.model')}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
+
+            {/* Row 2: Case/Bag | Color/Finish | Location */}
+            <Grid size={{ xs: 12, sm: 4 }}>
               <FieldLabel text="Includes Case or Bag?" tooltip={CASE_TOOLTIP} />
               <Controller
                 name="personalInfo.includesCase"
@@ -417,20 +443,31 @@ const PersonalInfoForm = (_: { label?: string }) => {
                 )}
               />
             </Grid>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <FieldLabel text="Color / Finish" optional tooltip={COLOR_FINISH_TOOLTIP} />
+              <TextField
+                fullWidth
+                inputProps={{ maxLength: 100 }}
+                placeholder="e.g. Sunburst, Black, Natural"
+                error={!!errors.personalInfo?.colorFinish}
+                helperText={errors.personalInfo?.colorFinish?.message}
+                {...register('personalInfo.colorFinish')}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <FieldLabel text="Approx. Instrument Location" optional tooltip={LOCATION_TOOLTIP} />
+              <TextField
+                fullWidth
+                error={!!errors.personalInfo?.location}
+                helperText={errors.personalInfo?.location?.message}
+                {...register('personalInfo.location')}
+              />
+            </Grid>
           </Grid>
         </ContactFormSection>
 
         <ContactFormSection title="Additional Information">
-          <Box sx={{ width: 1 }}>
-            <FieldLabel text="Approx. Instrument Location" optional tooltip={LOCATION_TOOLTIP} />
-            <TextField
-              fullWidth
-              error={!!errors.personalInfo?.location}
-              helperText={errors.personalInfo?.location?.message}
-              {...register('personalInfo.location')}
-            />
-          </Box>
-          <Box sx={{ width: 1 }}>
+          <Box sx={{ width: { xs: 1, sm: '80%' } }}>
             <FieldLabel text="Guitar Notes" tooltip={NOTES_TOOLTIP} />
             <TextField
               fullWidth
@@ -441,7 +478,7 @@ const PersonalInfoForm = (_: { label?: string }) => {
               {...register('personalInfo.note')}
             />
           </Box>
-          <Box sx={{ width: 1 }}>
+          <Box sx={{ width: { xs: 1, sm: '80%' } }}>
             <FieldLabel text="Any Damage Worth Noting?" tooltip={DAMAGE_TOOLTIP} />
             <TextField
               fullWidth

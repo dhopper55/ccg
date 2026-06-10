@@ -81,7 +81,7 @@ const PaymentForm = ({ evaluationId, onSuccess }: PaymentFormProps) => {
   );
 };
 
-const ConfirmationBubble = () => (
+export const ConfirmationBubble = () => (
   <Stack direction="column" alignItems="center" spacing={2} sx={{ py: 4, textAlign: 'center' }}>
     <IconifyIcon
       icon="material-symbols:check-circle-rounded"

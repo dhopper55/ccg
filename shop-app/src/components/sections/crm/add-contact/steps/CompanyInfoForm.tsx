@@ -70,6 +70,24 @@ const CompanyInfoForm = ({ label: _label }: { label: string }) => {
         <Divider />
       </Box>
 
+      <Box
+        sx={{
+          mb: 3,
+          p: 2,
+          border: '1px solid',
+          borderColor: 'warning.main',
+          borderRadius: 2,
+          bgcolor: 'rgba(184,150,12,0.06)',
+        }}
+      >
+        <Typography variant="body2" fontWeight={700} sx={{ color: 'warning.main', mb: 0.5 }}>
+          At least 1 photo is required — the more you provide, the better your report.
+        </Typography>
+        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+          We cannot process your report until at least 1 photo has been added.
+        </Typography>
+      </Box>
+
       <Stack direction="column" spacing={3} alignItems="center">
         <Typography variant="subtitle2" fontWeight={700} textAlign="center">
           Main Photo
