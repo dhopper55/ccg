@@ -1,9 +1,10 @@
 import { KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Button, Divider, Link, Stack, Typography } from '@mui/material';
+import { Box, Button, Dialog, DialogContent, Divider, Link, Stack, Typography } from '@mui/material';
 import { useSearchParams } from 'react-router';
 import IconifyIcon from 'components/base/IconifyIcon';
 import SectionHeader from 'components/common/SectionHeader';
 import StyledTextField from 'components/styled/StyledTextField';
+import IbanezAdditionalInfoPanel from './IbanezAdditionalInfoPanel';
 
 const GOOGLE_REVIEW_URL = 'https://g.page/r/CYgEveOaLAOjEBM/review';
 
@@ -38,11 +39,12 @@ interface DecodeResponse {
 interface DecoderInputPanelProps {
   brand: string;
   brandDisplayName: string;
+  additionalInfoRichText?: string;
   onAdditionalInfoChange: (richText: string) => void;
-  onDecodeSuccess?: (data: { serial: string; decodeEventId: number | null } | null) => void;
+  onDecodeSuccess?: (data: { serial: string; decodeEventId: number | null; year?: string } | null) => void;
 }
 
-const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange, onDecodeSuccess }: DecoderInputPanelProps) => {
+const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, onAdditionalInfoChange, onDecodeSuccess }: DecoderInputPanelProps) => {
   const [searchParams] = useSearchParams();
   const [serial, setSerial] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -53,6 +55,7 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange, on
   const [emailSubmitMessage, setEmailSubmitMessage] = useState('');
   const [emailSubmitError, setEmailSubmitError] = useState('');
   const [isSubmittingEmail, setIsSubmittingEmail] = useState(false);
+  const [additionalInfoModalOpen, setAdditionalInfoModalOpen] = useState(false);
   const initialSerial = searchParams.get('serial')?.trim() || '';
   const hasAutoDecodedRef = useRef(false);
 
@@ -122,6 +125,7 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange, on
         onDecodeSuccess?.({
           serial: resolvedSerial,
           decodeEventId: typeof result.serialDecodeEventId === 'number' ? result.serialDecodeEventId : null,
+          year: result.info.year?.trim() || undefined,
         });
         return;
       }
@@ -344,6 +348,7 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange, on
             <Stack direction="column" divider={<Divider sx={{ borderColor: 'dividerLight', opacity: 0.59 }} />}>
               {resultFields.map((field) => {
                 const isNotes = field.label === 'Notes';
+                const isSerialWithInfo = field.label === 'Serial Number' && Boolean(additionalInfoRichText);
                 return (
                   <Stack
                     key={field.label}
@@ -362,18 +367,37 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange, on
                     >
                       {field.label}
                     </Typography>
-                    <Typography
-                      variant={isNotes ? 'caption' : 'body2'}
-                      sx={{
-                        color: 'text.primary',
-                        fontWeight: 500,
-                        textAlign: 'right',
-                        wordBreak: 'break-word',
-                        maxWidth: { xs: '60%', md: '70%' },
-                      }}
-                    >
-                      {field.value}
-                    </Typography>
+                    {isSerialWithInfo ? (
+                      <Link
+                        component="button"
+                        type="button"
+                        onClick={() => setAdditionalInfoModalOpen(true)}
+                        underline="always"
+                        color="warning.main"
+                        sx={{
+                          fontSize: '0.875rem',
+                          fontWeight: 500,
+                          textAlign: 'right',
+                          wordBreak: 'break-word',
+                          maxWidth: { xs: '60%', md: '70%' },
+                        }}
+                      >
+                        {field.value}
+                      </Link>
+                    ) : (
+                      <Typography
+                        variant={isNotes ? 'caption' : 'body2'}
+                        sx={{
+                          color: 'text.primary',
+                          fontWeight: 500,
+                          textAlign: 'right',
+                          wordBreak: 'break-word',
+                          maxWidth: { xs: '60%', md: '70%' },
+                        }}
+                      >
+                        {field.value}
+                      </Typography>
+                    )}
                   </Stack>
                 );
               })}
@@ -403,6 +427,18 @@ const DecoderInputPanel = ({ brand, brandDisplayName, onAdditionalInfoChange, on
           </Box>
         )}
       </Box>
+
+      <Dialog
+        open={additionalInfoModalOpen}
+        onClose={() => setAdditionalInfoModalOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        scroll="paper"
+      >
+        <DialogContent sx={{ p: 0 }}>
+          <IbanezAdditionalInfoPanel richText={additionalInfoRichText || ''} />
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 };

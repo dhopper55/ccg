@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import Grid from '@mui/material/Grid';
 import DecoderPreviewLayout from 'layouts/decoder-layout/DecoderPreviewLayout';
 import DecoderInputPanel from './DecoderInputPanel';
-import IbanezAdditionalInfoPanel from './IbanezAdditionalInfoPanel';
+import EvalPitchPanel from './EvalPitchPanel';
 import DecoderFaqPanel from './DecoderFaqPanel';
 import DecoderHowToPanel from './DecoderHowToPanel';
 
@@ -31,7 +31,7 @@ interface DecoderPageProps {
 
 const DecoderPage = ({ config }: DecoderPageProps) => {
   const [additionalInfoRichText, setAdditionalInfoRichText] = useState('');
-  const [decodeSuccess, setDecodeSuccess] = useState<{ serial: string; decodeEventId: number | null } | null>(null);
+  const [decodeSuccess, setDecodeSuccess] = useState<{ serial: string; decodeEventId: number | null; year?: string } | null>(null);
 
   useEffect(() => {
     document.title = config.pageTitle;
@@ -49,17 +49,20 @@ const DecoderPage = ({ config }: DecoderPageProps) => {
             <DecoderInputPanel
               brand={config.brandKey}
               brandDisplayName={config.brandName}
+              additionalInfoRichText={additionalInfoRichText}
               onAdditionalInfoChange={setAdditionalInfoRichText}
               onDecodeSuccess={setDecodeSuccess}
             />
           </Grid>
           <Grid size={{ xs: 12, lg: 7, xl: 6 }}>
             <Grid container direction="column" rowSpacing={3}>
-              {additionalInfoRichText && (
+              {decodeSuccess && (
                 <Grid size={12}>
-                  <IbanezAdditionalInfoPanel
-                    richText={additionalInfoRichText}
-                    evalLink={decodeSuccess ? { ...decodeSuccess, brand: config.brandName } : null}
+                  <EvalPitchPanel
+                    brand={config.brandName}
+                    year={decodeSuccess.year}
+                    serial={decodeSuccess.serial}
+                    decodeEventId={decodeSuccess.decodeEventId}
                   />
                 </Grid>
               )}
