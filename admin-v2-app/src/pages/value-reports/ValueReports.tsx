@@ -5,6 +5,12 @@ import {
   Alert,
   Button,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  IconButton,
   Link,
   Paper,
   Stack,
@@ -17,6 +23,7 @@ import {
   Typography,
 } from '@mui/material';
 import IconifyIcon from 'components/base/IconifyIcon';
+import { useSnackbar } from 'notistack';
 import dayjs from 'dayjs';
 
 type ValueReportRecord = {
@@ -43,12 +50,15 @@ const PAGE_SIZE = 25;
 
 const ValueReports = () => {
   const navigate = useNavigate();
+  const { enqueueSnackbar } = useSnackbar();
   const [records, setRecords] = useState<ValueReportRecord[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<ValueReportRecord | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -85,6 +95,29 @@ const ValueReports = () => {
     };
   }, [page]);
 
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin-v2/value-reports/${deleteTarget.id}/delete`, {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as any).message || 'Delete failed.');
+      }
+      setRecords((prev) => prev.filter((r) => r.id !== deleteTarget.id));
+      setTotal((prev) => Math.max(0, prev - 1));
+      enqueueSnackbar('Report deleted.', { variant: 'success' });
+    } catch (e: any) {
+      enqueueSnackbar(e?.message ?? 'Delete failed. Please try again.', { variant: 'error' });
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  };
+
   const pageStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const pageEnd = Math.min(page * PAGE_SIZE, total);
 
@@ -113,12 +146,13 @@ const ValueReports = () => {
                 <TableCell sx={{ fontWeight: 700 }}>Location</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Paid?</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Fulfilled</TableCell>
+                <TableCell />
               </TableRow>
             </TableHead>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6}>
+                  <TableCell colSpan={7}>
                     <Stack direction="row" justifyContent="center" py={4}>
                       <CircularProgress size={26} />
                     </Stack>
@@ -126,7 +160,7 @@ const ValueReports = () => {
                 </TableRow>
               ) : records.length < 1 ? (
                 <TableRow>
-                  <TableCell colSpan={6}>
+                  <TableCell colSpan={7}>
                     <Typography variant="body2" color="text.secondary" py={2}>
                       No value reports found.
                     </Typography>
@@ -172,6 +206,16 @@ const ValueReports = () => {
                           />
                         ) : null}
                       </TableCell>
+                      <TableCell align="right" sx={{ py: 0 }}>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => setDeleteTarget(record)}
+                          aria-label="Delete report"
+                        >
+                          <IconifyIcon icon="material-symbols:delete-outline-rounded" fontSize={18} />
+                        </IconButton>
+                      </TableCell>
                     </TableRow>
                   );
                 })
@@ -204,6 +248,27 @@ const ValueReports = () => {
           </Stack>
         </Stack>
       </Paper>
+
+      <Dialog open={!!deleteTarget} onClose={() => !deleting && setDeleteTarget(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Delete Report?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            This will permanently delete the report
+            {deleteTarget
+              ? ` from ${dayjs(deleteTarget.createdAt).format('MMM D, YYYY h:mm A')}${deleteTarget.firstName || deleteTarget.lastName ? ` (${[deleteTarget.firstName, deleteTarget.lastName].filter(Boolean).join(' ')})` : ''}`
+              : ''}
+            , including all uploaded photos. This cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteTarget(null)} disabled={deleting}>
+            Cancel
+          </Button>
+          <Button color="error" variant="contained" onClick={() => void handleDeleteConfirm()} disabled={deleting}>
+            {deleting ? <CircularProgress size={16} sx={{ color: 'inherit' }} /> : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 };

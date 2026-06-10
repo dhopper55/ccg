@@ -1006,6 +1006,12 @@ export default {
       return withCors(response, request, env);
     }
 
+    const adminV2ValueReportDeleteMatch = path.match(/^\/api\/admin-v2\/value-reports\/(\d+)\/delete$/);
+    if (adminV2ValueReportDeleteMatch && request.method === 'POST') {
+      const response = await handleAdminV2ValueReportDelete(adminV2ValueReportDeleteMatch[1], env);
+      return withCors(response, request, env);
+    }
+
     if (path.endsWith('/evaluated') && path.startsWith('/api/admin-v2/serial-decodes/') && request.method === 'POST') {
       const response = await handleAdminV2SerialDecodeEvaluatedUpdate(request, path, env);
       return withCors(response, request, env);
@@ -15418,14 +15424,14 @@ async function dbSetSerialDecodeEvaluated(
 } | null> {
   const id = normalizeText(recordId, '');
   if (!/^\d+$/.test(id)) return null;
-  const db = env.DB.withSession('first-primary');
+  const numericId = parseInt(id, 10);
 
   if (evaluated) {
-    const keyRow = await db.prepare(
+    const keyRow = await env.DB.prepare(
       `SELECT brand, serial, normalized_brand, success, evaluated
        FROM serial_decode_events
        WHERE id = ?`
-    ).bind(parseInt(id, 10)).first<{
+    ).bind(numericId).first<{
       brand: string | null;
       serial: string | null;
       normalized_brand: string | null;
@@ -15441,7 +15447,7 @@ async function dbSetSerialDecodeEvaluated(
     const success = Number(keyRow.success || 0) === 1;
     const wasEvaluated = Number(keyRow.evaluated || 0) === 1;
 
-    const updateResult = await db.prepare(
+    const updateResult = await env.DB.prepare(
       `UPDATE serial_decode_events
        SET evaluated = 1
        WHERE lower(trim(brand)) = lower(trim(?))
@@ -15461,17 +15467,17 @@ async function dbSetSerialDecodeEvaluated(
     };
   }
 
-  const updateResult = await db.prepare(
+  const updateResult = await env.DB.prepare(
     `UPDATE serial_decode_events
      SET evaluated = 0
      WHERE id = ?`
-  ).bind(parseInt(id, 10)).run();
+  ).bind(numericId).run();
 
-  const row = await db.prepare(
+  const row = await env.DB.prepare(
     `SELECT evaluated
      FROM serial_decode_events
      WHERE id = ?`
-  ).bind(parseInt(id, 10)).first<{ evaluated: number | null }>();
+  ).bind(numericId).first<{ evaluated: number | null }>();
 
   if (!row) return null;
   return {
@@ -15487,8 +15493,7 @@ async function dbDeleteSerialDecodeRecord(
   const id = normalizeText(recordId, '');
   if (!/^\d+$/.test(id)) return null;
 
-  const db = env.DB.withSession('first-primary');
-  const deleteResult = await db.prepare(
+  const deleteResult = await env.DB.prepare(
     `DELETE FROM serial_decode_events
      WHERE id = ?`
   ).bind(parseInt(id, 10)).run();
@@ -18474,6 +18479,46 @@ async function handleAdminV2ValueReportFileUpload(evaluationId: string, request:
     `INSERT INTO guitar_evaluation_files (evaluation_id, r2_key, file_name, content_type, created_at)
      VALUES (?, ?, ?, ?, ?)`
   ).bind(evaluationId, key, file.name.slice(0, 500), file.type || 'application/octet-stream', new Date().toISOString()).run();
+
+  return jsonResponse({ ok: true });
+}
+
+async function handleAdminV2ValueReportDelete(evaluationId: string, env: Env): Promise<Response> {
+  const id = parseInt(evaluationId, 10);
+  if (isNaN(id)) return jsonResponse({ message: 'Invalid evaluation ID.' }, 400);
+
+  if (!env.CUSTOM_ITEMS_BUCKET) return jsonResponse({ message: 'File storage is not configured.' }, 500);
+
+  // Load image_keys (from customer-uploaded photos via upload-images endpoint)
+  const evalRow = await env.DB.prepare(
+    `SELECT id, image_keys FROM guitar_evaluations WHERE id = ?`
+  ).bind(id).first<{ id: number; image_keys: string | null }>();
+  if (!evalRow) return jsonResponse({ message: 'Evaluation not found.' }, 404);
+
+  // Delete customer-uploaded images from R2
+  if (evalRow.image_keys) {
+    let keys: string[] = [];
+    try { keys = JSON.parse(evalRow.image_keys); } catch { /* ignore */ }
+    for (const key of keys) {
+      if (typeof key === 'string' && key.startsWith('guitar-eval-images/')) {
+        await env.CUSTOM_ITEMS_BUCKET.delete(key);
+      }
+    }
+  }
+
+  // Delete admin-attached files from R2 + DB
+  const fileRows = await env.DB.prepare(
+    `SELECT id, r2_key FROM guitar_evaluation_files WHERE evaluation_id = ?`
+  ).bind(id).all<{ id: number; r2_key: string }>();
+  for (const file of fileRows.results ?? []) {
+    if (file.r2_key?.startsWith('guitar-eval-files/')) {
+      await env.CUSTOM_ITEMS_BUCKET.delete(file.r2_key);
+    }
+  }
+  await env.DB.prepare(`DELETE FROM guitar_evaluation_files WHERE evaluation_id = ?`).bind(id).run();
+
+  // Delete the evaluation record
+  await env.DB.prepare(`DELETE FROM guitar_evaluations WHERE id = ?`).bind(id).run();
 
   return jsonResponse({ ok: true });
 }
