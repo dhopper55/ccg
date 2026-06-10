@@ -15424,8 +15424,8 @@ async function dbSetSerialDecodeEvaluated(
     const keyRow = await db.prepare(
       `SELECT brand, serial, normalized_brand, success, evaluated
        FROM serial_decode_events
-       WHERE CAST(id AS TEXT) = ?`
-    ).bind(id).first<{
+       WHERE id = ?`
+    ).bind(parseInt(id, 10)).first<{
       brand: string | null;
       serial: string | null;
       normalized_brand: string | null;
@@ -15464,14 +15464,14 @@ async function dbSetSerialDecodeEvaluated(
   const updateResult = await db.prepare(
     `UPDATE serial_decode_events
      SET evaluated = 0
-     WHERE CAST(id AS TEXT) = ?`
-  ).bind(id).run();
+     WHERE id = ?`
+  ).bind(parseInt(id, 10)).run();
 
   const row = await db.prepare(
     `SELECT evaluated
      FROM serial_decode_events
-     WHERE CAST(id AS TEXT) = ?`
-  ).bind(id).first<{ evaluated: number | null }>();
+     WHERE id = ?`
+  ).bind(parseInt(id, 10)).first<{ evaluated: number | null }>();
 
   if (!row) return null;
   return {
@@ -15490,8 +15490,8 @@ async function dbDeleteSerialDecodeRecord(
   const db = env.DB.withSession('first-primary');
   const deleteResult = await db.prepare(
     `DELETE FROM serial_decode_events
-     WHERE CAST(id AS TEXT) = ?`
-  ).bind(id).run();
+     WHERE id = ?`
+  ).bind(parseInt(id, 10)).run();
 
   return {
     deletedCount: Number(deleteResult.meta.changes || 0),
@@ -18727,7 +18727,7 @@ async function handleGuitarEvaluationSubmit(request: Request, env: Env): Promise
     return jsonResponse({ message: 'Invalid request body.' }, 400);
   }
 
-  const { serialNumber, brand, brandOther, model, includesCase, location, note, damage, firstName, lastName, email, serialDecodeId } = body ?? {};
+  const { serialNumber, brand, brandOther, model, includesCase, colorFinish, location, note, damage, firstName, lastName, email, serialDecodeId } = body ?? {};
 
   if (!brand || !includesCase || !note || !damage) {
     return jsonResponse({ message: 'Missing required fields.' }, 400);
@@ -18739,6 +18739,7 @@ async function handleGuitarEvaluationSubmit(request: Request, env: Env): Promise
     brandOther: brandOther ?? null,
     model: model ?? null,
     includesCase,
+    colorFinish: colorFinish ?? null,
     location: location ?? null,
     note,
     damage,
