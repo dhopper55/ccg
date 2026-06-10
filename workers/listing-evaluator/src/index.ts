@@ -506,6 +506,10 @@ export default {
       return handleStripeWebhook(request, env);
     }
 
+    if (path === '/api/admin-v2/value-report-files' && request.method === 'GET') {
+      return await handleAdminV2ValueReportFileServe(request, env);
+    }
+
     if (path.startsWith('/api/') && !isPublicApiPath(path)) {
       const authResponse = await requireAuth(request, env, path);
       if (authResponse) {
@@ -999,11 +1003,6 @@ export default {
     const adminV2ValueReportFileDeleteMatch = path.match(/^\/api\/admin-v2\/value-reports\/(\d+)\/files\/(\d+)$/);
     if (adminV2ValueReportFileDeleteMatch && request.method === 'DELETE') {
       const response = await handleAdminV2ValueReportFileDelete(adminV2ValueReportFileDeleteMatch[1], adminV2ValueReportFileDeleteMatch[2], env);
-      return withCors(response, request, env);
-    }
-
-    if (path === '/api/admin-v2/value-report-files' && request.method === 'GET') {
-      const response = await handleAdminV2ValueReportFileServe(request, env);
       return withCors(response, request, env);
     }
 
@@ -18494,21 +18493,30 @@ async function handleAdminV2ValueReportFileDelete(evaluationId: string, fileId: 
 }
 
 async function handleAdminV2ValueReportFileServe(request: Request, env: Env): Promise<Response> {
-  if (!env.CUSTOM_ITEMS_BUCKET) return jsonResponse({ message: 'File storage is not configured.' }, 500);
+  try {
+    if (!env.CUSTOM_ITEMS_BUCKET) {
+      return new Response('File storage is not configured.', { status: 500 });
+    }
 
-  const key = new URL(request.url).searchParams.get('key');
-  if (!key || !key.startsWith('guitar-eval-files/')) {
-    return jsonResponse({ message: 'Missing or invalid file key.' }, 400);
+    const key = new URL(request.url).searchParams.get('key');
+    if (!key || !key.startsWith('guitar-eval-files/')) {
+      return new Response('Missing or invalid file key.', { status: 400 });
+    }
+
+    const object = await env.CUSTOM_ITEMS_BUCKET.get(key);
+    if (!object) return new Response('File not found.', { status: 404 });
+
+    const contentType = object.httpMetadata?.contentType || 'application/octet-stream';
+    const headers = new Headers({
+      'content-type': contentType,
+      'cache-control': 'private, max-age=300',
+      'etag': object.httpEtag,
+    });
+    return new Response(object.body, { headers });
+  } catch (error) {
+    console.error('value-report-files serve error', error);
+    return new Response('Failed to serve file.', { status: 500 });
   }
-
-  const object = await env.CUSTOM_ITEMS_BUCKET.get(key);
-  if (!object || !object.body) return jsonResponse({ message: 'File not found.' }, 404);
-
-  const headers = new Headers();
-  object.writeHttpMetadata(headers);
-  headers.set('etag', object.httpEtag);
-  headers.set('cache-control', 'private, max-age=300');
-  return new Response(object.body, { headers });
 }
 
 async function handleAdminV2ValueReports(request: Request, env: Env): Promise<Response> {
@@ -18882,7 +18890,8 @@ function isPublicApiPath(path: string): boolean {
     || path === '/api/guitar-evaluation/confirm-payment'
     || /^\/api\/guitar-evaluation\/\d+\/upload-images$/.test(path)
     || /^\/api\/guitar-evaluation\/\d+$/.test(path)
-    || path === '/api/guitar-evaluation-image';
+    || path === '/api/guitar-evaluation-image'
+    || path === '/api/admin-v2/value-report-files';
 }
 
 function formatMonthLabel(month: string): string {
