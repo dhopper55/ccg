@@ -13,7 +13,6 @@ import {
   DialogTitle,
   FormControlLabel,
   IconButton,
-  Link,
   Paper,
   Stack,
   Table,
@@ -431,15 +430,14 @@ const ValueReportItem = () => {
                         {files.map((f) => (
                           <TableRow key={f.id} hover>
                             <TableCell>
-                              <Link
+                              <a
                                 href={`/api/admin-v2/value-report-files?key=${encodeURIComponent(f.r2_key)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                underline="hover"
-                                sx={{ wordBreak: 'break-all' }}
+                                style={{ wordBreak: 'break-all' }}
                               >
                                 {f.file_name}
-                              </Link>
+                              </a>
                             </TableCell>
                             <TableCell sx={{ whiteSpace: 'nowrap', color: 'text.secondary' }}>
                               {dayjs(f.created_at).format('MMM D, YYYY h:mm A')}
