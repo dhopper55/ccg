@@ -1,13 +1,13 @@
-import { ReactNode } from 'react';
 import { Box } from '@mui/material';
 
 export type DecoderSlotName = 'aboveFaq';
 
-type BrandSlots = Partial<Record<DecoderSlotName, ReactNode>>;
+type SlotComponent = () => JSX.Element;
+type BrandSlots = Partial<Record<DecoderSlotName, SlotComponent>>;
 
 const registry: Record<string, BrandSlots> = {
   fender: {
-    aboveFaq: (
+    aboveFaq: () => (
       <Box
         component="a"
         href="https://www.coalcreekguitars.com/fender-guitar-serial-number-history.html"
@@ -16,10 +16,10 @@ const registry: Record<string, BrandSlots> = {
         sx={{
           display: 'inline-block',
           fontSize: '0.875rem',
-          color: 'text.secondary',
+          color: 'text.primary',
           textDecoration: 'underline',
           textUnderlineOffset: '0.2em',
-          '&:hover': { color: 'text.primary' },
+          '&:hover': { opacity: 0.75 },
         }}
       >
         Fender Guitar Serial Number History
@@ -27,7 +27,7 @@ const registry: Record<string, BrandSlots> = {
     ),
   },
   gibson: {
-    aboveFaq: (
+    aboveFaq: () => (
       <Box
         component="a"
         href="https://www.coalcreekguitars.com/gibson-guitar-serial-number-history.html"
@@ -36,10 +36,10 @@ const registry: Record<string, BrandSlots> = {
         sx={{
           display: 'inline-block',
           fontSize: '0.875rem',
-          color: 'text.secondary',
+          color: 'text.primary',
           textDecoration: 'underline',
           textUnderlineOffset: '0.2em',
-          '&:hover': { color: 'text.primary' },
+          '&:hover': { opacity: 0.75 },
         }}
       >
         Gibson Guitar Serial Number History
@@ -48,6 +48,6 @@ const registry: Record<string, BrandSlots> = {
   },
 };
 
-export function getDecoderSlot(brand: string, slot: DecoderSlotName): ReactNode | null {
+export function getDecoderSlot(brand: string, slot: DecoderSlotName): SlotComponent | null {
   return registry[brand.toLowerCase()]?.[slot] ?? null;
 }

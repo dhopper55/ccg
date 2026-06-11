@@ -7,9 +7,13 @@ interface DecoderSlotProps {
 }
 
 const DecoderSlot = ({ brand, name }: DecoderSlotProps) => {
-  const content = getDecoderSlot(brand, name);
-  if (!content) return null;
-  return <Box sx={{ mb: 1 }}>{content}</Box>;
+  const SlotContent = getDecoderSlot(brand, name);
+  if (!SlotContent) return null;
+  return (
+    <Box sx={{ mb: 1.5 }}>
+      <SlotContent />
+    </Box>
+  );
 };
 
 export default DecoderSlot;
