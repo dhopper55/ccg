@@ -143,6 +143,52 @@ body {
   margin-top: 40px;
 }
 
+.home-serial-history {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.home-serial-history-heading {
+  font-size: 0.7rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.home-serial-history-links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.home-serial-history-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  transition: all 0.2s ease;
+  max-width: 360px;
+}
+
+.home-serial-history-link:hover {
+  color: var(--text-light);
+  background: var(--accent-softer);
+}
+
+.home-serial-history-logo {
+  width: 52px;
+  height: 24px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
 .home-brand-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));

@@ -74,6 +74,8 @@ const SITEMAP_STATIC_URLS = [
   { loc: '/about-us.html', changefreq: 'monthly', priority: '0.6' },
   { loc: '/guitar-value-report-evaluation', changefreq: 'monthly', priority: '0.7' },
   { loc: '/how-to-list-a-guitar-for-sale.html', changefreq: 'monthly', priority: '0.7' },
+  { loc: '/fender-guitar-serial-number-history.html', changefreq: 'monthly', priority: '0.7' },
+  { loc: '/gibson-guitar-serial-number-history.html', changefreq: 'monthly', priority: '0.7' },
   { loc: '/new-guitarist-practice-resources', changefreq: 'monthly', priority: '0.7' },
   { loc: '/contact-us.html', changefreq: 'monthly', priority: '0.6' },
   { loc: '/privacy-policy.html', changefreq: 'monthly', priority: '0.3' },
