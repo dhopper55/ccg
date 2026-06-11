@@ -21,17 +21,6 @@ const faqItems = [
 const FenderFaqPanel = () => {
   return (
     <Paper sx={{ p: { xs: 3, md: 5 } }}>
-      <Box mb={2}>
-        <Box
-          component="a"
-          href="https://www.coalcreekguitars.com/fender-guitar-serial-number-history.html"
-          target="_blank"
-          rel="noreferrer"
-          sx={{ fontSize: '0.875rem', color: 'primary.main', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
-        >
-          Fender Guitar Serial Number History
-        </Box>
-      </Box>
       <Typography variant="h6" mb={3}>
         Fender Serial Number Lookup/Decoder FAQs
       </Typography>

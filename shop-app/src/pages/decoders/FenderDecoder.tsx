@@ -8,6 +8,7 @@ import { dealsData } from 'data/crm/dashboard';
 import IbanezAdditionalInfoPanel from './IbanezAdditionalInfoPanel';
 import FenderFaqPanel from './FenderFaqPanel';
 import FenderHowToPanel from './FenderHowToPanel';
+import DecoderSlot from './DecoderSlot';
 
 const FenderDecoder = () => {
   const [additionalInfoRichText, setAdditionalInfoRichText] = useState('');
@@ -79,6 +80,7 @@ const FenderDecoder = () => {
                 </Grid>
               )}
               <Grid size={12}>
+                <DecoderSlot brand="fender" name="aboveFaq" />
                 <FenderFaqPanel />
               </Grid>
               <Grid size={12}>

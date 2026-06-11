@@ -550,6 +550,23 @@ Build behavior:
 
 Legacy Nunjucks decoder `.html` output is no longer deployed. `/decoders/*.html` redirects to extensionless `/decoders/*`, and `/new/decoders/*` redirects to `/decoders/*`.
 
+### Decoder slot system
+Decoder pages support optional brand-specific content blocks injected at named positions without modifying shared panel components.
+
+Key files:
+- `shop-app/src/pages/decoders/decoder-slot-registry.tsx` — registry mapping brand name → slot name → ReactNode. Add new brands or new content here only.
+- `shop-app/src/pages/decoders/DecoderSlot.tsx` — renders `<DecoderSlot brand="fender" name="aboveFaq" />`. Returns null if nothing is registered for that brand/slot combo.
+
+Defined slot names (`DecoderSlotName` type):
+- `aboveFaq` — renders just above the FAQ panel card in the right column
+
+How to add a slot position to a new area of a decoder page:
+1. Add a new slot name to the `DecoderSlotName` union in `decoder-slot-registry.tsx`.
+2. Place `<DecoderSlot brand="<brand>" name="<slotName>" />` at the desired position in the brand's `<Brand>Decoder.tsx` page component.
+3. Add content to the registry for whichever brands need it. Brands with no registry entry for that slot render nothing.
+
+Important: The MUI `Link` component is overridden globally to use React Router's `Link` (internal nav only). For external URLs in slot content, always use `Box component="a"` with explicit `href`, `target="_blank"`, and `rel="noreferrer"` — never MUI `Link`.
+
 ## Deployment
 From `workers/listing-evaluator/`:
 - `npx wrangler deploy`
