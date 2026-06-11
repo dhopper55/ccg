@@ -1,4 +1,4 @@
-import { Box, Divider, Link, Paper, Typography } from '@mui/material';
+import { Box, Divider, Paper, Typography } from '@mui/material';
 
 const faqItems = [
   {
@@ -22,12 +22,15 @@ const FenderFaqPanel = () => {
   return (
     <Paper sx={{ p: { xs: 3, md: 5 } }}>
       <Box mb={2}>
-        <Link
+        <Box
+          component="a"
           href="https://www.coalcreekguitars.com/fender-guitar-serial-number-history.html"
-          sx={{ fontSize: '0.875rem' }}
+          target="_blank"
+          rel="noreferrer"
+          sx={{ fontSize: '0.875rem', color: 'primary.main', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
         >
           Fender Guitar Serial Number History
-        </Link>
+        </Box>
       </Box>
       <Typography variant="h6" mb={3}>
         Fender Serial Number Lookup/Decoder FAQs
