@@ -1,4 +1,4 @@
-import { Box, Divider, Paper, Typography } from '@mui/material';
+import { Box, Divider, Link, Paper, Typography } from '@mui/material';
 
 const faqItems = [
   {
@@ -21,6 +21,14 @@ const faqItems = [
 const GibsonFaqPanel = () => {
   return (
     <Paper sx={{ p: { xs: 3, md: 5 } }}>
+      <Box mb={2}>
+        <Link
+          href="https://www.coalcreekguitars.com/gibson-guitar-serial-number-history.html"
+          sx={{ fontSize: '0.875rem' }}
+        >
+          Gibson Guitar Serial Number History
+        </Link>
+      </Box>
       <Typography variant="h6" mb={3}>
         Gibson Serial Number Lookup/Decoder FAQs
       </Typography>
