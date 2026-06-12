@@ -91,7 +91,7 @@ export const ConfirmationBubble = () => (
       We've received your request!
     </Typography>
     <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 400 }}>
-      Your guitar evaluation report is being prepared. You'll receive it in less than 24 hours.
+      Your guitar evaluation report is being prepared. You'll typically receive it within 1–2 hours, at most a few hours.
     </Typography>
     <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 400, mt: 1 }}>
       If you have any questions in the meantime, feel free to contact us at{' '}
@@ -160,7 +160,7 @@ const ConfirmationForm = ({ evaluationId, onPaid }: { evaluationId: number | nul
           Comprehensive Report Payment ($2.99)
         </Typography>
         <Typography variant="body2" fontStyle="italic" color="text.secondary">
-          one-time charge — report ready in under 24 hours or it's free
+          one-time charge — report typically ready in 1–2 hours or it's free
         </Typography>
         <Divider sx={{ mt: 2 }} />
       </Box>
