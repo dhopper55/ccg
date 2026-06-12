@@ -5,6 +5,7 @@ import DecoderInputPanel from './DecoderInputPanel';
 import EvalPitchPanel from './EvalPitchPanel';
 import DecoderFaqPanel from './DecoderFaqPanel';
 import DecoderHowToPanel from './DecoderHowToPanel';
+import DecoderSlot from './DecoderSlot';
 
 interface DecoderFaqItem {
   question: string;
@@ -67,6 +68,7 @@ const DecoderPage = ({ config }: DecoderPageProps) => {
                 </Grid>
               )}
               <Grid size={12}>
+                <DecoderSlot brand={config.brandKey} name="aboveFaq" />
                 <DecoderFaqPanel title={config.faqTitle} items={config.faqItems} />
               </Grid>
               <Grid size={12}>
