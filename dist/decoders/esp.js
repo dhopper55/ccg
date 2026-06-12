@@ -718,9 +718,43 @@ function decode8DigitNumeric(serial) {
     const yearNum = parseInt(yearDigits, 10);
     const monthNum = parseInt(monthDigits, 10);
     if (monthNum < 1 || monthNum > 12) {
+        // Non-calendar "month" slot: treat as YY + factory/batch code + 4-digit sequence (Japan 2000s+)
+        // Example: 10901025 = year 10 (2010), batch/factory code 90, sequence 1025
+        const year2 = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum).toString();
+        const sequenceNumber2 = parseInt(sequence, 10);
         return {
-            success: false,
-            error: 'Unable to decode this ESP serial number. The date values appear invalid.',
+            success: true,
+            info: {
+                brand: 'ESP',
+                serialNumber: serial,
+                year: year2,
+                factory: 'ESP Japan',
+                country: 'Japan',
+                notes: `ESP 8-digit Japan format with batch/factory code. The digits ${yearDigits} indicate year ${year2}; ${monthDigits} is a batch or factory routing code (not a calendar month); ${sequence} is the production sequence (${sequenceNumber2}). This format is associated with ESP Japan Custom Shop and standard Japanese production from the 2000s–2010s. The month of production is not encoded in this serial. Verify the exact model from the headstock logo and any catalog reference for ${year2}.`,
+            },
+            patternKey: 'esp-japan-yy-batch-sequence-8digit',
+            patternLabel: 'ESP Japan 8-digit YY + batch code + sequence',
+            additionalContext: {
+                title: 'ESP Japan 8-digit serial with factory/batch code',
+                summary: `This serial matches an ESP Japan 8-digit format where the first two digits encode the year (${year2}), the next two digits are a factory or batch routing code rather than a calendar month, and the final four digits are the production sequence.`,
+                highlights: [
+                    `The digits ${yearDigits} decode as production year ${year2}.`,
+                    `The digits ${monthDigits} are a factory or batch routing code, not a calendar month.`,
+                    `The remaining digits decode as production sequence ${sequenceNumber2}.`,
+                    'This format is used on ESP Japan Custom Shop and Japanese-factory ESP instruments from the 2000s–2010s.',
+                ],
+                caveats: [
+                    'The exact production month is not encoded in this serial format.',
+                    'Batch code values vary; the specific meaning of the code is not publicly documented.',
+                    'The serial identifies the production year and sequence; confirm the exact model from physical features.',
+                ],
+                verificationTips: [
+                    'Check the back of the headstock for "Made in Japan" and the ESP or E-II logo.',
+                    'Look for a Custom Shop certificate or build sheet if the guitar was a special order.',
+                    `Compare the model shape, pickups, and hardware against ESP Japan catalog specs for ${year2}.`,
+                ],
+            },
+            additionalContextRichText: `<h3>Overview</h3><p>This serial matches an ESP Japan 8-digit format where the first two digits encode the year, the next two digits are a factory or batch routing code (not a calendar month), and the final four digits are the production sequence.</p><h3>How This Pattern Is Typically Read</h3><p>The digits ${yearDigits} decode as production year ${year2}. The digits ${monthDigits} are a factory or batch routing code — not a calendar month. The remaining digits decode as production sequence ${sequenceNumber2}. This format is used on ESP Japan Custom Shop and Japanese-factory instruments from the 2000s–2010s.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for "Made in Japan" and the ESP or E-II logo.</li><li>Look for a Custom Shop certificate or build sheet if the guitar was a special order.</li><li>Compare the model shape, pickups, and hardware against ESP Japan catalog specs for ${year2}.</li></ul>`,
         };
     }
     const year = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum).toString();

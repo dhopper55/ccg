@@ -22,6 +22,11 @@ export function decodeAlvarez(serial: string): DecodeResult {
   const cleaned = serial.trim().toUpperCase();
   const normalized = cleaned.replace(/[\s-]/g, '');
 
+  // Modern two-letter factory prefix + YYMM + sequence (e.g., FC081000213 = Fine China, 2008, Oct, seq 213)
+  if (/^[A-Z]{2}\d{9,10}$/.test(normalized)) {
+    return decodeModernTwoLetterPrefix(normalized);
+  }
+
   // Modern standard format: Letter prefix + 8-9 digits (e.g., E24113487, F606120413)
   if (/^[A-Z]\d{8,9}$/.test(normalized)) {
     return decodeModernStandard(normalized);
@@ -55,6 +60,79 @@ export function decodeAlvarez(serial: string): DecodeResult {
   return {
     success: false,
     error: 'Unable to decode this Alvarez serial number. Common formats include: letter prefix + 8-9 digits (modern), 4-5 digit numbers (Yairi Japan), or Emperor dating codes on heel block (Yairi). For vintage Japanese Alvarez guitars, the serial number may not be decodable - check inside the guitar for date stamps on braces or the label.',
+  };
+}
+
+const ALVAREZ_TWO_LETTER_FACTORY_MAP: Record<string, string> = {
+  FC: 'Fine Guitar Company, China',
+  FG: 'Chinese partner factory (FG line)',
+  ST: 'Asian partner factory (ST)',
+};
+
+// Modern two-letter factory prefix: XX + YYMM + sequence (e.g. FC081000213)
+function decodeModernTwoLetterPrefix(serial: string): DecodeResult {
+  const prefix = serial.substring(0, 2);
+  const digits = serial.substring(2);
+
+  const yearTwoDigits = digits.substring(0, 2);
+  const monthDigits = digits.substring(2, 4);
+  const yearTwoNum = parseInt(yearTwoDigits, 10);
+  const monthNum = parseInt(monthDigits, 10);
+  const isValidYear = (yearTwoNum >= 0 && yearTwoNum <= 30) || (yearTwoNum >= 85 && yearTwoNum <= 99);
+  const isValidMonth = monthNum >= 1 && monthNum <= 12;
+
+  const factoryLabel = ALVAREZ_TWO_LETTER_FACTORY_MAP[prefix] ?? `Partner factory (${prefix})`;
+
+  if (isValidYear && isValidMonth) {
+    const year = yearTwoNum <= 30 ? `20${yearTwoDigits.padStart(2, '0')}` : `19${yearTwoDigits}`;
+    const monthStr = getMonthName(monthNum);
+    const productionNum = digits.substring(4);
+    return {
+      success: true,
+      info: {
+        brand: 'Alvarez',
+        serialNumber: serial,
+        year,
+        month: monthStr,
+        factory: factoryLabel,
+        country: 'China or Asia (check label)',
+        notes: `Modern Alvarez two-letter factory prefix format. Prefix "${prefix}" = ${factoryLabel}. Year: ${year}, Month: ${monthStr}. Production sequence: ${productionNum}. Check the label inside the guitar to confirm country of origin and exact model.`,
+      },
+      patternKey: `alvarez-modern-two-letter-${prefix.toLowerCase()}-yymm-sequence`,
+      patternLabel: `Alvarez modern ${prefix} factory YYMM sequence`,
+      additionalContext: {
+        title: `Alvarez modern ${prefix}-prefix serial`,
+        summary: `This serial matches a modern Alvarez two-letter factory prefix format where the prefix identifies the manufacturing partner, followed by a two-digit year, two-digit month, and production sequence.`,
+        highlights: [
+          `Prefix "${prefix}" indicates ${factoryLabel}.`,
+          `The digits ${yearTwoDigits} decode as production year ${year}.`,
+          `The digits ${monthDigits} decode as ${monthStr}.`,
+          `The remaining digits are production sequence ${productionNum}.`,
+        ],
+        caveats: [
+          'The serial identifies production date and factory, not the exact model name.',
+          'Two-letter factory prefix usage varies across Alvarez production eras.',
+          'Confirm country of origin and model from the label inside the soundhole.',
+        ],
+        verificationTips: [
+          'Check the paper soundhole label for the model number and country-of-origin marking.',
+          'Compare the model features against Alvarez catalog specs from the decoded year.',
+          'Contact Alvarez support with photos if exact factory confirmation is needed.',
+        ],
+      },
+      additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern Alvarez two-letter factory prefix format: ${prefix} identifies the manufacturing partner, followed by YYMM and production sequence.</p><h3>How This Pattern Is Typically Read</h3><p>Prefix "${prefix}" indicates ${factoryLabel}. The digits ${yearTwoDigits} decode as production year ${year}. The digits ${monthDigits} decode as ${monthStr}. The remaining digits are production sequence ${productionNum}.</p><h3>What To Verify</h3><ul><li>The serial identifies production date and factory, not the exact model name.</li><li>Confirm the model and country of origin from the paper soundhole label.</li><li>Compare against Alvarez catalog specs for ${year}.</li></ul>`,
+    };
+  }
+
+  return {
+    success: true,
+    info: {
+      brand: 'Alvarez',
+      serialNumber: serial,
+      factory: factoryLabel,
+      country: 'China or Asia (check label)',
+      notes: `Modern Alvarez two-letter factory prefix format detected (${prefix}). Production date could not be parsed from this specific combination. Check the label inside the soundhole for model and date.`,
+    },
   };
 }
 

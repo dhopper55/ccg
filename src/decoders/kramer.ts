@@ -132,6 +132,11 @@ export function decodeKramer(serial: string): DecodeResult {
     return decodeSamickKoreaSD(normalized, cleaned);
   }
 
+  // SP-prefix: 1980s Korean Striker Plus/Striker import (Samick or similar Korean factory)
+  if (/^SP\d{4,6}$/.test(normalized)) {
+    return decodeKoreanStrikerSP(normalized, cleaned);
+  }
+
   // Two-letter overseas prefixes (e.g., FA, FB, CF)
   if (/^[A-Z]{2}\d+$/.test(normalized)) {
     const prefix = normalized.substring(0, 2);
@@ -269,6 +274,46 @@ export function decodeKramer(serial: string): DecodeResult {
   return {
     success: false,
     error: 'Unable to decode this Kramer serial number. Kramer serials vary by era, and many vintage records were lost. Try the Vintage Kramer registry or HTPG serial search for additional context.',
+  };
+}
+
+function decodeKoreanStrikerSP(normalized: string, cleaned: string): DecodeResult {
+  const sequence = parseInt(normalized.substring(2), 10);
+
+  return {
+    success: true,
+    info: {
+      brand: 'Kramer',
+      serialNumber: cleaned,
+      year: 'mid-1980s (estimated)',
+      factory: 'Korean contract factory (likely Samick or Young Chang)',
+      country: 'South Korea',
+      model: 'Striker Plus or Striker import series',
+      notes: `SP-prefix serials are associated with Korean-built Kramer Striker Plus and import-era Striker models from the mid-1980s. SP is believed to stand for "Striker Plus" or a Korean factory-line identifier. Production sequence: ${sequence}. These guitars were budget/mid-range import models sold under the Kramer brand. Confirm the specific model variant from the headstock logo, body shape, pickup configuration, and neck-plate details.`,
+    },
+    patternKey: 'kramer-sp-korean-striker-1980s',
+    patternLabel: 'Kramer SP Korean Striker import (mid-1980s)',
+    additionalContext: {
+      title: 'Kramer SP Korean Striker import serial',
+      summary: 'This serial matches a Korean-built Kramer SP-prefix format from the mid-1980s, associated with the Striker Plus and Striker import series.',
+      highlights: [
+        'SP-prefix serials are associated with Korean-built Kramer Striker Plus and import-era Striker models.',
+        'SP is believed to stand for "Striker Plus" or a Korean factory-line identifier.',
+        `The digits after SP are production sequence ${sequence}.`,
+        'These were mid-range import models sold under the Kramer brand in the mid-1980s.',
+      ],
+      caveats: [
+        'Korean Kramer import records from the mid-1980s are incomplete; exact dating is not possible from serial alone.',
+        'Multiple Korean factories (Samick, Young Chang, others) produced Kramer imports; the specific factory cannot be confirmed from serial alone.',
+        'The serial supports an estimated era; verify the exact model from physical features.',
+      ],
+      verificationTips: [
+        'Check the headstock logo style and any "Made in Korea" country-of-origin text.',
+        'Compare body shape (typically a Strat-style or offset variant), pickup layout, and hardware against known mid-1980s Striker specs.',
+        'Use online Kramer registry resources or the HTPG serial search for corroborating evidence.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Korean-built Kramer SP-prefix format from the mid-1980s, associated with the Striker Plus and Striker import series.</p><h3>How This Pattern Is Typically Read</h3><p>SP-prefix serials are associated with Korean-built Kramer Striker Plus and import-era Striker models. SP is believed to stand for "Striker Plus" or a Korean factory-line identifier. The digits after SP (${sequence}) are the production sequence. These were mid-range import models sold under the Kramer brand in the mid-1980s.</p><h3>What To Verify</h3><ul><li>Check the headstock logo style and any "Made in Korea" text on the neck plate.</li><li>Compare body shape, pickup layout, and hardware against known mid-1980s Striker specs.</li><li>Use online Kramer registry resources or the HTPG serial search for additional context.</li></ul>`,
   };
 }
 
