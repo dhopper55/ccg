@@ -64,7 +64,7 @@ const GuitarEvalPage = () => {
                       </Typography>
                     </Stack>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5, lineHeight: 1.7 }}>
-                      Answer a few questions about your instrument and get a professional-grade valuation report in less than 24 hours.
+                      Answer a few questions about your instrument and get a professional-grade valuation report — usually ready in 1–2 hours, at most a few hours.
                       <br />
                       We identify your gear, price it across Reverb, eBay, dealers, and local sale, flag what raises or lowers its value, and hand you a ready-to-post listing for your area.
                       <br />

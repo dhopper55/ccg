@@ -74,7 +74,7 @@ const EvalPitchPanel = ({ brand, year, serial, decodeEventId }: EvalPitchPanelPr
         We have checked many other {brand} sales recently so you don't have to.
       </Typography>
       <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-        100's of highly detailed reports delivered — ready in less than 24 hours.
+        100's of highly detailed reports delivered — usually ready in 1–2 hours, at most a few hours.
       </Typography>
 
       {/* Sample link */}
