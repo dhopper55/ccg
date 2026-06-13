@@ -634,7 +634,7 @@ nav .wrap {
 }
 .form-section .wrap {
   display: grid;
-  grid-template-columns: 1fr 440px;
+  grid-template-columns: 1fr 2fr;
   gap: 64px;
   align-items: start;
 }
@@ -860,6 +860,7 @@ nav .wrap {
 .field textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
 
 .help-icon {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -874,6 +875,26 @@ nav .wrap {
   cursor: help;
   text-decoration: none;
   flex-shrink: 0;
+}
+#tt {
+  position: fixed;
+  z-index: 9999;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.6;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 16px 18px;
+  border-radius: 6px;
+  max-width: 320px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.4);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .15s;
+  border: 1px solid rgba(244,239,228,.1);
 }
 
 .field-divider {
@@ -1252,7 +1273,7 @@ footer {
         <button class="btn-primary" onclick="document.getElementById('get-report').scrollIntoView({behavior:'smooth'})">
           Get My Report →
         </button>
-        <a href="../guitar-value-report-evaluation/sample-report.html" class="btn-ghost">See a sample report</a>
+        <a href="../guitar-value-report-evaluation/sample-report.html" class="btn-ghost" target="_blank" rel="noopener">See a sample report</a>
       </div>
     </div>
 
@@ -1442,7 +1463,7 @@ footer {
         <h3>See a complete sample report</h3>
         <p>Read an actual report — a 2024 Gibson Custom Shop Les Paul Custom Figured — before you decide.</p>
       </div>
-      <a href="../guitar-value-report-evaluation/sample-report.html" class="btn-outline">Open Sample Report →</a>
+      <a href="../guitar-value-report-evaluation/sample-report.html" class="btn-outline" target="_blank" rel="noopener">Open Sample Report →</a>
     </div>
   </div>
 </section>
@@ -1528,7 +1549,7 @@ footer {
 
           <div class="field-row three">
             <div class="field">
-              <label>Serial # <span class="opt">(optional)</span> <span class="help-icon" title="Found on the headstock or in the neck pocket. Helps us pinpoint the exact year and factory.">?</span></label>
+              <label>Serial # <span class="opt">(optional)</span> <span class="help-icon" data-tooltip="Found on the headstock or in the neck pocket. Helps us pinpoint the exact year and factory.">?</span></label>
               <input type="text" placeholder="e.g. CS403228">
             </div>
             <div class="field">
@@ -1561,7 +1582,7 @@ footer {
 
           <div class="field-row">
             <div class="field">
-              <label>Includes Case or Bag? <span class="help-icon" title="Original cases and COAs add meaningful value for many guitars.">?</span></label>
+              <label>Includes Case or Bag? <span class="help-icon" data-tooltip="Original cases and COAs add meaningful value for many guitars. An original hardshell case can add $100–$500+ to collector-grade instruments.">?</span></label>
               <select>
                 <option>No case or bag</option>
                 <option>Original hardshell case (OHSC)</option>
@@ -1571,14 +1592,14 @@ footer {
               </select>
             </div>
             <div class="field">
-              <label>Color / Finish <span class="opt">(optional)</span> <span class="help-icon" title="Unusual or rare finishes can significantly affect value in either direction.">?</span></label>
+              <label>Color / Finish <span class="opt">(optional)</span> <span class="help-icon" data-tooltip="Unusual or rare finishes can significantly affect value in either direction. Desirable colors (Inca Silver, Fiesta Red, certain bursts) command strong premiums. Odd or unpopular colors can suppress resale.">?</span></label>
               <input type="text" placeholder="e.g. Sunburst, Natural, Black">
             </div>
           </div>
 
           <div class="field-row one">
             <div class="field">
-              <label>Approx. Instrument Location <span class="opt">(optional)</span> <span class="help-icon" title="We use this to calibrate your local market pricing.">?</span></label>
+              <label>Approx. Instrument Location <span class="req">*</span> <span class="help-icon" data-tooltip="Your city or metro helps us calibrate local market pricing. Private sales in some markets run meaningfully higher or lower than national averages — knowing where you are makes the estimate sharper.">?</span></label>
               <input type="text" placeholder="e.g. Denver, CO or Chicago, IL">
             </div>
           </div>
@@ -1587,21 +1608,21 @@ footer {
 
           <div class="field-row one">
             <div class="field">
-              <label>Guitar Notes <span class="help-icon" title="Anything you know about the guitar — year, purchase history, pickups, mods, weight, unique features.">?</span></label>
+              <label>Guitar Notes <span class="help-icon" data-tooltip="Anything you know about the guitar — year, purchase history, pickups, mods, weight, unique features. The more context you provide, the more accurate and useful the report.">?</span></label>
               <textarea placeholder="Year, purchase history, known mods, pickup swaps, weight, anything you know about the guitar…" style="min-height:90px"></textarea>
             </div>
           </div>
 
           <div class="field-row one">
             <div class="field">
-              <label>Any Damage Worth Noting? <span class="help-icon" title="Be honest — we'll factor it into the report accurately regardless, and buyers will find it anyway.">?</span></label>
+              <label>Any Damage Worth Noting? <span class="help-icon" data-tooltip="Be honest — we'll factor it into the report accurately regardless, and buyers will find it anyway. Headstock repairs, refins, and structural damage affect value significantly; minor finish wear much less so.">?</span></label>
               <textarea placeholder="Finish cracks, dings, headstock repairs, fret wear, tuner issues, electronics problems…" style="min-height:72px"></textarea>
             </div>
           </div>
 
           <div class="field-row one">
             <div class="field">
-              <label>What are you looking to do? <span class="help-icon" title="We'll tailor the tone and emphasis of the report to your situation.">?</span></label>
+              <label>What are you looking to do? <span class="help-icon" data-tooltip="We tailor the tone and emphasis of the report to your situation — whether you need a realistic sell price, a trade estimate, or documentation for insurance purposes.">?</span></label>
               <select>
                 <option>Just curious what it's worth</option>
                 <option>Thinking about selling — want to price it right</option>
@@ -1648,7 +1669,7 @@ footer {
 
           <div class="field-row one">
             <div class="field">
-              <label>Phone <span class="opt">(optional)</span> <span class="help-icon" title="Only used if we have a question about your guitar — never for marketing.">?</span></label>
+              <label>Phone <span class="opt">(optional)</span> <span class="help-icon" data-tooltip="Only used if we have a question about your guitar — never for marketing or third-party contact.">?</span></label>
               <input type="tel" placeholder="(303) 555-0100">
             </div>
           </div>
@@ -1765,7 +1786,7 @@ footer {
       <div>
         <div class="footer-h">Valuation Report</div>
         <ul class="footer-links">
-          <li><a href="../guitar-value-report-evaluation/sample-report.html">See a Sample Report</a></li>
+          <li><a href="../guitar-value-report-evaluation/sample-report.html" target="_blank" rel="noopener">See a Sample Report</a></li>
           <li><a href="#get-report">Get My Report</a></li>
         </ul>
         <div class="footer-h" style="margin-top:24px">Reverb Shop</div>
@@ -1780,6 +1801,8 @@ footer {
     </div>
   </div>
 </footer>
+
+<div id="tt"></div>
 
 <script>
 let currentStep = 1;
@@ -1835,6 +1858,34 @@ zone.addEventListener('drop', e => {
 document.getElementById('card-number').addEventListener('input', function() {
   let v = this.value.replace(/\D/g, '').substring(0, 16);
   this.value = v.replace(/(.{4})/g, '$1 ').trim();
+});
+
+// Rich tooltip system
+const tt = document.getElementById('tt');
+let ttHide;
+document.querySelectorAll('.help-icon[data-tooltip]').forEach(el => {
+  el.addEventListener('mouseenter', function(e) {
+    clearTimeout(ttHide);
+    tt.textContent = this.dataset.tooltip;
+    tt.style.opacity = '0';
+    tt.style.display = 'block';
+    const r = this.getBoundingClientRect();
+    const tw = tt.offsetWidth;
+    const th = tt.offsetHeight;
+    let left = r.left + r.width / 2 - tw / 2;
+    let top = r.top - th - 10 + window.scrollY;
+    // Keep within viewport horizontally
+    if (left < 8) left = 8;
+    if (left + tw > window.innerWidth - 8) left = window.innerWidth - tw - 8;
+    // Flip below if not enough room above
+    if (r.top - th - 10 < 8) top = r.bottom + 10 + window.scrollY;
+    tt.style.left = left + 'px';
+    tt.style.top = top + 'px';
+    tt.style.opacity = '1';
+  });
+  el.addEventListener('mouseleave', function() {
+    ttHide = setTimeout(() => { tt.style.opacity = '0'; }, 100);
+  });
 });
 </script>
 </body>
