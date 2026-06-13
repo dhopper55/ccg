@@ -91,7 +91,7 @@ const validateCashCustomerForm = (values: CashCustomerForm) => {
 };
 
 const CartBottomBar = () => {
-  const { appliedCoupon, associateDiscount, cartItems, cartTotal, taxIncluded } = useEcommerce();
+  const { appliedCoupon, associateDiscount, cartItems, cartTotal, taxIncluded, otdMode } = useEcommerce();
   const { isAssociateMode } = useAssociateMode();
   const { up } = useBreakpoints();
   const { currencyFormat } = useNumberFormat();
@@ -144,6 +144,7 @@ const CartBottomBar = () => {
     couponCode: appliedCoupon?.code || undefined,
     discountCents: Math.round(associateDiscount * 100),
     taxIncluded,
+    otdMode,
     splitTender,
     items: selectedCartItems.map((item) => ({
       inventoryItemId: item.id,
@@ -374,6 +375,7 @@ const CartBottomBar = () => {
           couponCode: appliedCoupon?.code || undefined,
           discountCents: Math.round(associateDiscount * 100),
           taxIncluded,
+          otdMode,
           customer: {
             firstName: cashCustomer.firstName.trim(),
             lastName: cashCustomer.lastName.trim(),

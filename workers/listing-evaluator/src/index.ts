@@ -203,6 +203,7 @@ interface ShopCheckoutRequestPayload {
   couponCode?: unknown;
   discountCents?: unknown;
   taxIncluded?: unknown;
+  otdMode?: unknown;
   splitTender?: {
     cardAmountCents?: unknown;
   };
@@ -7016,10 +7017,33 @@ async function buildShopCheckoutDraft(
     });
   }
 
-  const subtotalCents = checkoutItems.reduce(
+  let subtotalCents = checkoutItems.reduce(
     (sum, item) => sum + item.unitAmountCents * item.quantity,
     0,
   );
+
+  const otdMode = options.allowManualDiscount && body?.otdMode === true;
+  if (otdMode) {
+    const hasEligibleItem = checkoutItems.some((item) => item.unitAmountCents > 10000);
+    if (!hasEligibleItem) {
+      return jsonResponse({ message: 'OTD mode requires at least one item priced over $100.' }, 400);
+    }
+    const expensiveIndex = checkoutItems.reduce(
+      (bestIdx, item, idx) =>
+        item.unitAmountCents > checkoutItems[bestIdx].unitAmountCents ? idx : bestIdx,
+      0,
+    );
+    const reducedSubtotalCents = Math.round(subtotalCents / (1 + SHOP_SALES_TAX_RATE));
+    const adjustmentCents = subtotalCents - reducedSubtotalCents;
+    const expensiveItem = checkoutItems[expensiveIndex];
+    const perUnitAdjCents = Math.round(adjustmentCents / expensiveItem.quantity);
+    checkoutItems[expensiveIndex] = {
+      ...expensiveItem,
+      unitAmountCents: Math.max(1, expensiveItem.unitAmountCents - perUnitAdjCents),
+    };
+    subtotalCents = checkoutItems.reduce((sum, item) => sum + item.unitAmountCents * item.quantity, 0);
+  }
+
   const couponCode = normalizeText(body?.couponCode, '').toUpperCase();
   const coupon = couponCode ? SHOP_COUPONS.get(couponCode) : null;
   if (couponCode && !coupon) {

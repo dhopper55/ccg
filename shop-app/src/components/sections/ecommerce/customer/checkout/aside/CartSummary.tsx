@@ -7,7 +7,7 @@ import Image from 'components/base/Image';
 import ProductVariantListItem from 'components/sections/ecommerce/admin/common/ProductVariantListItem';
 
 const CartSummary = () => {
-  const { cartItems } = useEcommerce();
+  const { cartItems, otdMode, otdExpensiveItemId, otdAdjustmentCents } = useEcommerce();
   const { currencyFormat } = useNumberFormat();
 
   return (
@@ -91,14 +91,37 @@ const CartSummary = () => {
                     </Link>
                   </Typography>
 
-                  <Typography
-                    variant="subtitle2"
-                    sx={{
-                      fontWeight: 700,
-                    }}
-                  >
-                    {currencyFormat(cartItem.price.discounted)}
-                  </Typography>
+                  {otdMode && cartItem.id === otdExpensiveItemId ? (
+                    <Stack direction="column" sx={{ alignItems: 'flex-end' }}>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          fontWeight: 700,
+                          textDecoration: 'line-through',
+                          color: 'text.disabled',
+                        }}
+                      >
+                        {currencyFormat(cartItem.price.discounted)}
+                      </Typography>
+                      <Typography
+                        variant="subtitle2"
+                        sx={{
+                          fontWeight: 700,
+                        }}
+                      >
+                        {currencyFormat(cartItem.price.discounted - otdAdjustmentCents / 100 / cartItem.quantity)}
+                      </Typography>
+                    </Stack>
+                  ) : (
+                    <Typography
+                      variant="subtitle2"
+                      sx={{
+                        fontWeight: 700,
+                      }}
+                    >
+                      {currencyFormat(cartItem.price.discounted)}
+                    </Typography>
+                  )}
                 </Stack>
 
                 <List dense disablePadding>

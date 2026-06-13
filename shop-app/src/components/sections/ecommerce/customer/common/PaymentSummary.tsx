@@ -51,6 +51,9 @@ const PaymentSummary = () => {
     cartFreeShippingRemaining,
     cartTotal,
     setTaxIncluded,
+    otdMode,
+    setOtdMode,
+    otdEligible,
   } = useEcommerce();
   const { enqueueSnackbar } = useSnackbar();
   const { currencyFormat } = useNumberFormat();
@@ -234,16 +237,41 @@ const PaymentSummary = () => {
               State, city, county taxes
             </Typography>
             {isAssociateMode && (
-              <Box>
-                <Link
-                  component="button"
-                  type="button"
-                  variant="caption"
-                  onClick={() => setTaxOptionsOpen(true)}
-                  sx={{ mt: 0.5 }}
-                >
-                  options
-                </Link>
+              <Box sx={{ mt: 0.5 }}>
+                {!otdMode && (
+                  <Link
+                    component="button"
+                    type="button"
+                    variant="caption"
+                    onClick={() => setTaxOptionsOpen(true)}
+                    sx={{ mr: 1 }}
+                  >
+                    options
+                  </Link>
+                )}
+                {otdEligible && !otdMode && (
+                  <Link
+                    component="button"
+                    type="button"
+                    variant="caption"
+                    onClick={() => setOtdMode(true)}
+                  >
+                    OTD
+                  </Link>
+                )}
+                {otdMode && (
+                  <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5 }}>
+                    <Chip label="OTD" size="small" color="success" variant="soft" />
+                    <Link
+                      component="button"
+                      type="button"
+                      variant="caption"
+                      onClick={() => setOtdMode(false)}
+                    >
+                      off
+                    </Link>
+                  </Stack>
+                )}
               </Box>
             )}
           </Box>

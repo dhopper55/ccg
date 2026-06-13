@@ -27,7 +27,12 @@ interface EcommerceContextInterface {
   associateDiscount: number;
   setAssociateDiscount: Dispatch<SetStateAction<number>>;
   taxIncluded: boolean;
-  setTaxIncluded: Dispatch<SetStateAction<boolean>>;
+  setTaxIncluded: (value: boolean) => void;
+  otdMode: boolean;
+  setOtdMode: (on: boolean) => void;
+  otdEligible: boolean;
+  otdExpensiveItemId: number | null;
+  otdAdjustmentCents: number;
   cartSubTotal: number;
   cartTax: number;
   cartTaxRate: number;
@@ -89,7 +94,18 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
   const [cartItems, setCartItems] = useState<CartItem[]>(getInitialCartItems);
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [associateDiscount, setAssociateDiscount] = useState(0);
-  const [taxIncluded, setTaxIncluded] = useState(false);
+  const [taxIncluded, setTaxIncludedState] = useState(false);
+  const [otdMode, setOtdModeState] = useState(false);
+
+  const setTaxIncluded = (value: boolean) => {
+    setTaxIncludedState(value);
+    if (value) setOtdModeState(false);
+  };
+
+  const setOtdMode = (on: boolean) => {
+    setOtdModeState(on);
+    if (on) setTaxIncludedState(false);
+  };
 
   const addItemToCart = useCallback(
     (product: ProductDetails, quantity = 1) => {
@@ -152,17 +168,38 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
     [cartItems],
   );
 
-  const cartSubTotal = useMemo(
+  const originalCartSubTotal = useMemo(
     () =>
       cartItems
         .filter((item) => item.selected)
-        .reduce((acc, item) => {
-          acc += item.price.discounted * item.quantity;
-
-          return acc;
-        }, 0),
+        .reduce((acc, item) => acc + item.price.discounted * item.quantity, 0),
     [cartItems],
   );
+
+  const otdEligible = useMemo(
+    () => cartItems.some((item) => item.selected && item.price.discounted > 100),
+    [cartItems],
+  );
+
+  const otdExpensiveItemId = useMemo(() => {
+    if (!otdMode || !otdEligible) return null;
+    const selected = cartItems.filter((item) => item.selected);
+    if (!selected.length) return null;
+    return selected.reduce((best, item) =>
+      item.price.discounted > best.price.discounted ? item : best,
+    ).id;
+  }, [otdMode, otdEligible, cartItems]);
+
+  const otdAdjustmentCents = useMemo(() => {
+    if (!otdMode || !otdEligible) return 0;
+    const origCents = Math.round(originalCartSubTotal * 100);
+    return origCents - Math.round(origCents / (1 + salesTaxRate));
+  }, [otdMode, otdEligible, originalCartSubTotal]);
+
+  const cartSubTotal = useMemo(() => {
+    if (!otdMode || !otdEligible) return originalCartSubTotal;
+    return (Math.round(originalCartSubTotal * 100) - otdAdjustmentCents) / 100;
+  }, [otdMode, otdEligible, originalCartSubTotal, otdAdjustmentCents]);
 
   const effectiveDiscount = associateDiscount > 0 ? associateDiscount : appliedCoupon?.appliedDiscount || 0;
 
@@ -227,9 +264,13 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
 
   useEffect(() => {
     setAssociateDiscount((currentDiscount) =>
-      cartSubTotal > 0 ? Math.min(currentDiscount, cartSubTotal) : 0,
+      originalCartSubTotal > 0 ? Math.min(currentDiscount, originalCartSubTotal) : 0,
     );
-  }, [cartSubTotal]);
+  }, [originalCartSubTotal]);
+
+  useEffect(() => {
+    if (!otdEligible) setOtdModeState(false);
+  }, [otdEligible]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -266,6 +307,11 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
         setAssociateDiscount,
         taxIncluded,
         setTaxIncluded,
+        otdMode,
+        setOtdMode,
+        otdEligible,
+        otdExpensiveItemId,
+        otdAdjustmentCents,
         cartSubTotal,
         cartTax,
         cartTaxRate: salesTaxRate,
@@ -273,7 +319,7 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
         cartShippingLabel: cartShippingDetails.label,
         cartShippingAddressRequired: cartShippingDetails.addressRequired,
         cartHasLocalPickupOnlyItems,
-        cartFreeShippingRemaining: Math.max(0, freeShippingThreshold - Math.max(0, cartSubTotal - effectiveDiscount)),
+        cartFreeShippingRemaining: Math.max(0, freeShippingThreshold - Math.max(0, originalCartSubTotal - effectiveDiscount)),
         cartTotal,
       }}
     >
