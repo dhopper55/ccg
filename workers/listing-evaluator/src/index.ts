@@ -7856,7 +7856,8 @@ async function handleAdminV2SerialDecodeEvaluatedUpdate(
   }
 
   const evaluated = toBooleanInput(body.evaluated, false);
-  const updateResult = await dbSetSerialDecodeEvaluated(recordId, evaluated, env);
+  const isValid = body.isValid === true ? true : body.isValid === false ? false : undefined;
+  const updateResult = await dbSetSerialDecodeEvaluated(recordId, evaluated, env, isValid);
   if (!updateResult) return jsonResponse({ message: 'Unable to update evaluated state.' }, 500);
 
   if (
@@ -15438,6 +15439,7 @@ async function dbSetSerialDecodeEvaluated(
   recordId: string,
   evaluated: boolean,
   env: Env,
+  isValid?: boolean,
 ): Promise<{
   evaluated: boolean;
   updatedCount: number;
@@ -15474,11 +15476,17 @@ async function dbSetSerialDecodeEvaluated(
     const success = Number(keyRow.success || 0) === 1;
     const wasEvaluated = Number(keyRow.evaluated || 0) === 1;
 
+    const isInvalidValue = isValid === true ? 0 : isValid === false ? 1 : null;
     const updateResult = await env.DB.prepare(
-      `UPDATE serial_decode_events
-       SET evaluated = 1
-       WHERE lower(trim(brand)) = lower(trim(?))
-         AND lower(trim(serial)) = lower(trim(?))`
+      isInvalidValue !== null
+        ? `UPDATE serial_decode_events
+           SET evaluated = 1, is_invalid = ${isInvalidValue}
+           WHERE lower(trim(brand)) = lower(trim(?))
+             AND lower(trim(serial)) = lower(trim(?))`
+        : `UPDATE serial_decode_events
+           SET evaluated = 1
+           WHERE lower(trim(brand)) = lower(trim(?))
+             AND lower(trim(serial)) = lower(trim(?))`
     ).bind(brand, serial).run();
 
     return {

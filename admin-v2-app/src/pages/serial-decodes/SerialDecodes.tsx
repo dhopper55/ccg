@@ -216,6 +216,7 @@ const SerialDecodes = () => {
   const [chartErrorMessage, setChartErrorMessage] = useState('');
   const [selectedRecord, setSelectedRecord] = useState<SerialDecodeRecord | null>(null);
   const [updatingEvaluatedIds, setUpdatingEvaluatedIds] = useState<number[]>([]);
+  const [evaluatedPendingRecordId, setEvaluatedPendingRecordId] = useState<number | null>(null);
   const [deletingRecordIds, setDeletingRecordIds] = useState<number[]>([]);
   const [deleteTargetRecord, setDeleteTargetRecord] = useState<SerialDecodeRecord | null>(null);
   const [lookupVolumeView, setLookupVolumeView] = useState<LookupVolumeView>('day');
@@ -616,22 +617,52 @@ const SerialDecodes = () => {
   }), [dailyVolumeBuckets]);
 
   const handleEvaluatedToggle = async (recordId: number, nextValue: boolean) => {
+    if (nextValue) {
+      setEvaluatedPendingRecordId(recordId);
+      return;
+    }
     setUpdatingEvaluatedIds((current) => [...current, recordId]);
     try {
       const response = await fetch(`/api/admin-v2/serial-decodes/${recordId}/evaluated`, {
         method: 'POST',
         credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ evaluated: nextValue }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ evaluated: false }),
       });
-
       const data = (await response.json()) as { evaluated?: boolean; updatedCount?: number; message?: string };
       if (!response.ok) {
         throw new Error(data.message || `Unable to update evaluated state (HTTP ${response.status}).`);
       }
+      setRecords((current) => current.map((row) => (
+        row.id === recordId ? { ...row, evaluated: Boolean(data.evaluated) } : row
+      )));
+      setSelectedRecord((current) => (
+        current && current.id === recordId ? { ...current, evaluated: Boolean(data.evaluated) } : current
+      ));
+      setRefreshKey((current) => current + 1);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to update evaluated state.');
+    } finally {
+      setUpdatingEvaluatedIds((current) => current.filter((id) => id !== recordId));
+    }
+  };
 
+  const handleValidityConfirm = async (isValid: boolean) => {
+    const recordId = evaluatedPendingRecordId;
+    setEvaluatedPendingRecordId(null);
+    if (recordId === null) return;
+    setUpdatingEvaluatedIds((current) => [...current, recordId]);
+    try {
+      const response = await fetch(`/api/admin-v2/serial-decodes/${recordId}/evaluated`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ evaluated: true, isValid }),
+      });
+      const data = (await response.json()) as { evaluated?: boolean; updatedCount?: number; message?: string };
+      if (!response.ok) {
+        throw new Error(data.message || `Unable to update evaluated state (HTTP ${response.status}).`);
+      }
       setRecords((current) => current.map((row) => (
         row.id === recordId ? { ...row, evaluated: Boolean(data.evaluated) } : row
       )));
@@ -1137,6 +1168,31 @@ const SerialDecodes = () => {
             onClick={() => void handleDeleteRecord()}
             disabled={Boolean(deleteTargetRecord && deletingRecordIds.includes(deleteTargetRecord.id))}
           >
+            Yes
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={evaluatedPendingRecordId !== null}
+        onClose={() => setEvaluatedPendingRecordId(null)}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>Is this serial number valid?</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2">
+            Mark this serial number as evaluated. Is the serial number valid?
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button variant="outlined" onClick={() => setEvaluatedPendingRecordId(null)}>
+            Cancel
+          </Button>
+          <Button variant="outlined" color="error" onClick={() => void handleValidityConfirm(false)}>
+            No
+          </Button>
+          <Button variant="contained" color="primary" onClick={() => void handleValidityConfirm(true)}>
             Yes
           </Button>
         </DialogActions>
