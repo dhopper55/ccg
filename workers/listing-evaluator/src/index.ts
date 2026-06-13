@@ -1433,6 +1433,19 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
     }
   }
 
+  let autoEvaluated = false;
+  let autoIsInvalid = false;
+  if (!result.success && normalizedBrand) {
+    const failurePatternId = await dbFindPatternLookupIdForFailure(normalizedBrand, serial, env);
+    if (failurePatternId !== null) {
+      patternLookupId = failurePatternId;
+      if (await dbPatternIsKnownInvalid(failurePatternId, env)) {
+        autoEvaluated = true;
+        autoIsInvalid = true;
+      }
+    }
+  }
+
   const eventPayload: SerialDecodeEventInsert = {
     brand: (result.info?.brand || brand).slice(0, 120),
     serial: (result.info?.serialNumber || serial).slice(0, 180),
@@ -1443,6 +1456,8 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
     normalizedBrand: normalizedBrand.slice(0, 120),
     normalizedSerial,
     success: result.success,
+    evaluated: autoEvaluated || undefined,
+    isInvalid: autoIsInvalid || undefined,
     needsContext: needsAdditionalContext,
     year: normalizeText(result.info?.year, '').slice(0, 120),
     month: normalizeText(result.info?.month, '').slice(0, 120),
@@ -1565,6 +1580,8 @@ interface SerialDecodeEventInsert {
   normalizedBrand?: string;
   normalizedSerial?: string;
   success: boolean;
+  evaluated?: boolean;
+  isInvalid?: boolean;
   needsContext?: boolean;
   year?: string;
   month?: string;
@@ -1743,7 +1760,8 @@ async function insertSerialDecodeEvent(env: Env, payload: SerialDecodeEventInser
     normalized_brand: payload.normalizedBrand || normalizeBrandKey(payload.brand),
     normalized_serial: payload.normalizedSerial || normalizeSerialKey(payload.serial),
     success: payload.success ? 1 : 0,
-    evaluated: 0,
+    evaluated: payload.evaluated ? 1 : 0,
+    is_invalid: payload.isInvalid ? 1 : 0,
     needs_context: payload.needsContext ? 1 : 0,
     used_ai: payload.usedAi ? 1 : 0,
     is_listing_eval: 0,
@@ -1809,6 +1827,50 @@ async function findRecentSerialDecodeDuplicateId(
     return Number(row.id);
   } catch {
     return null;
+  }
+}
+
+async function dbFindPatternLookupIdForFailure(
+  normalizedBrand: string,
+  serial: string,
+  env: Env,
+): Promise<number | null> {
+  if (!normalizedBrand || !serial) return null;
+  try {
+    const rows = await env.DB.prepare(
+      `SELECT id, regex_pattern
+       FROM serial_decode_pattern_lookup
+       WHERE normalized_brand = ?
+         AND regex_pattern IS NOT NULL
+         AND regex_pattern != ''`
+    ).bind(normalizedBrand).all<{ id: number; regex_pattern: string }>();
+    for (const row of rows.results ?? []) {
+      try {
+        if (new RegExp(row.regex_pattern, 'i').test(serial)) return Number(row.id);
+      } catch {
+        // skip invalid regex
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function dbPatternIsKnownInvalid(patternLookupId: number, env: Env): Promise<boolean> {
+  if (!(patternLookupId > 0)) return false;
+  try {
+    const row = await env.DB.prepare(
+      `SELECT 1 AS found
+       FROM serial_decode_events
+       WHERE pattern_lookup_id = ?
+         AND COALESCE(evaluated, 0) = 1
+         AND COALESCE(is_invalid, 0) = 1
+       LIMIT 1`
+    ).bind(patternLookupId).first<{ found: number }>();
+    return row?.found === 1;
+  } catch {
+    return false;
   }
 }
 

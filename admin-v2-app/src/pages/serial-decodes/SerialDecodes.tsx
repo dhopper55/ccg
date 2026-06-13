@@ -1182,7 +1182,7 @@ const SerialDecodes = () => {
         <DialogTitle>Is this serial number valid?</DialogTitle>
         <DialogContent dividers>
           <Typography variant="body2">
-            Mark this serial number as evaluated. Is the serial number valid?
+            Is this serial number valid?
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3 }}>
