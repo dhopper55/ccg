@@ -2052,10 +2052,10 @@ function showTooltip(el) {
   const tw = tt.offsetWidth;
   const th = tt.offsetHeight;
   let left = r.left + r.width / 2 - tw / 2;
-  let top = r.top - th - 10 + window.scrollY;
+  let top = r.top - th - 10;
   if (left < 8) left = 8;
   if (left + tw > window.innerWidth - 8) left = window.innerWidth - tw - 8;
-  if (r.top - th - 10 < 8) top = r.bottom + 10 + window.scrollY;
+  if (top < 8) top = r.bottom + 10;
   tt.style.left = left + 'px';
   tt.style.top = top + 'px';
   tt.style.opacity = '1';
