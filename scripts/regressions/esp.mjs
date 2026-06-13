@@ -156,10 +156,10 @@ function assertESPAmbiguous6DigitAllNumeric(serialInput) {
 
   const info = result.info;
   assert(
-    info.factory === 'ESP Japan Original/Custom Shop or Korean LTD partner factory (context-dependent)',
+    info.factory === 'ESP Japan Original/Custom Shop / Korean LTD import factory (context-dependent)',
     `Expected ambiguous factory for ${serialInput}, got ${info.factory}`
   );
-  assert(info.country === 'Japan or South Korea', `Expected Japan or South Korea for ${serialInput}, got ${info.country}`);
+  assert(info.country === 'Japan / South Korea', `Expected Japan / South Korea for ${serialInput}, got ${info.country}`);
   assert(
     result.patternKey === 'esp-ambiguous-6-digit-all-numeric',
     `Expected ESP ambiguous 6-digit pattern key for ${serialInput}, got ${result.patternKey}`
