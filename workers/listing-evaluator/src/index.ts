@@ -1498,6 +1498,31 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
     } catch (error) {
       console.error('serial decode event duplicate touch failed', { error, duplicateId });
     }
+    if (patternLookupId !== null || autoEvaluated) {
+      try {
+        const existingCols = await dbGetColumnNames('serial_decode_events', env);
+        const setClauses: string[] = [];
+        const binds: unknown[] = [];
+        if (patternLookupId !== null && existingCols.has('pattern_lookup_id')) {
+          setClauses.push('pattern_lookup_id = CASE WHEN pattern_lookup_id IS NULL OR pattern_lookup_id = 0 THEN ? ELSE pattern_lookup_id END');
+          binds.push(patternLookupId);
+        }
+        if (autoEvaluated && existingCols.has('evaluated')) {
+          setClauses.push('evaluated = CASE WHEN COALESCE(evaluated, 0) = 0 THEN 1 ELSE evaluated END');
+        }
+        if (autoIsInvalid && existingCols.has('is_invalid')) {
+          setClauses.push('is_invalid = CASE WHEN COALESCE(evaluated, 0) = 0 THEN 1 ELSE is_invalid END');
+        }
+        if (setClauses.length > 0) {
+          binds.push(duplicateId);
+          await env.DB.prepare(
+            `UPDATE serial_decode_events SET ${setClauses.join(', ')} WHERE id = ?`
+          ).bind(...binds).run();
+        }
+      } catch (error) {
+        console.error('duplicate row pattern/evaluation backfill failed', { error, duplicateId });
+      }
+    }
   } else {
     try {
       serialDecodeEventId = await insertSerialDecodeEvent(env, eventPayload);
@@ -15556,6 +15581,35 @@ async function dbSetSerialDecodeEvaluated(
            WHERE lower(trim(brand)) = lower(trim(?))
              AND lower(trim(serial)) = lower(trim(?))`
     ).bind(brand, serial).run();
+
+    if (isValid !== undefined) {
+      try {
+        let patternLookupId: number | null = null;
+        const existingMatch = await dbFindPatternLookupIdForFailure(normalizedBrand, serial, env);
+        if (existingMatch !== null) {
+          patternLookupId = existingMatch.id;
+        } else {
+          const patternMeta = deriveSerialPatternMeta(normalizedBrand, serial);
+          if (patternMeta.patternKey) {
+            patternLookupId = await ensureSerialDecodePatternLookup(normalizedBrand, patternMeta.patternKey, env);
+          }
+        }
+        if (patternLookupId !== null) {
+          const existingCols = await dbGetColumnNames('serial_decode_events', env);
+          if (existingCols.has('pattern_lookup_id')) {
+            await env.DB.prepare(
+              `UPDATE serial_decode_events
+               SET pattern_lookup_id = ?
+               WHERE lower(trim(brand)) = lower(trim(?))
+                 AND lower(trim(serial)) = lower(trim(?))
+                 AND (pattern_lookup_id IS NULL OR pattern_lookup_id = 0)`
+            ).bind(patternLookupId, brand, serial).run();
+          }
+        }
+      } catch (error) {
+        console.error('pattern linkage backfill failed', { error });
+      }
+    }
 
     return {
       evaluated: true,

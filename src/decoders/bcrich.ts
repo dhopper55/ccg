@@ -19,6 +19,7 @@ import { DecodeResult, GuitarInfo } from '../types.js';
  * - Short modern month-code import: F2051631 (month + year + batch/factory + sequence)
  * - Class Axe/import B-prefix: B + 3-6 digits, including B007132
  * - NJ Series: R/P + 6 digits with year in first two digits
+ * - Late 1980s–1990s import: 10-digit all-numeric (format-valid but serial not dateable; Class Axe/Platinum era)
  */
 
 const MONTH_CODE_MAP: Record<string, string> = {
@@ -116,6 +117,10 @@ export function decodeBCRich(serial: string): DecodeResult {
     return decodeBoltOn2000(normalized);
   }
 
+  if (/^\d{10}$/.test(normalized)) {
+    return decode10DigitNumericImport(normalized);
+  }
+
   if (/^\d{9}$/.test(normalized)) {
     return decodeNineDigitImport(normalized);
   }
@@ -158,7 +163,7 @@ export function decodeBCRich(serial: string): DecodeResult {
 
   return {
     success: false,
-    error: 'Unable to decode this B.C. Rich serial number. Known formats include: 5-digit USA neck-through (YYXXX), F7/F8/F9/F0 import serials, F-prefix six-digit imports like F201422, 7-digit numeric imports like 0127150, 8-digit Hanser-era/import date stamps (e.g., Sr#41201627), month/factory codes like A08140023, two-letter Hanser-era imports like CO1093111, single-letter Hanser-era imports like C301288, short Hanser-era month-code imports like J50212 (month + year digit + 4-digit sequence), B-prefix month-code imports like BA09030385, NJ series R/P + 6 digits, Class Axe BC/B0/B-prefix series like B007132, or short I-prefix import estimates (I + 5 digits).',
+    error: 'Unable to decode this B.C. Rich serial number. Known formats include: 5-digit USA neck-through (YYXXX), F7/F8/F9/F0 import serials, F-prefix six-digit imports like F201422, 7-digit numeric imports like 0127150, 8-digit Hanser-era/import date stamps (e.g., Sr#41201627), 9-digit or 10-digit all-numeric import serials, month/factory codes like A08140023, two-letter Hanser-era imports like CO1093111, single-letter Hanser-era imports like C301288, short Hanser-era month-code imports like J50212 (month + year digit + 4-digit sequence), B-prefix month-code imports like BA09030385, NJ series R/P + 6 digits, Class Axe BC/B0/B-prefix series like B007132, or short I-prefix import estimates (I + 5 digits).',
   };
 }
 
@@ -973,6 +978,44 @@ function decodeNJSeries(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+function decode10DigitNumericImport(serial: string): DecodeResult {
+  const info: GuitarInfo = {
+    brand: 'B.C. Rich',
+    serialNumber: serial,
+    year: 'Late 1980s–1990s (estimated)',
+    factory: 'Korea or China import production (bolt-on)',
+    country: 'South Korea / China',
+    notes: 'This 10-digit all-numeric serial is a format-valid B.C. Rich import number from the late 1980s through the 1990s. During the Class Axe era (roughly 1989–1993) and subsequent import runs, factories in Korea and China did not follow strict sequential logging. Workers frequently grabbed pre-stamped neck plates from a random box and attached them to bodies as they finished assembly — the number itself does not encode a year, factory, or sequence in a reliable way. A 10-digit all-numeric format typically indicates a budget-friendly import line such as the Platinum Series. Use headstock branding, hardware style, and wood-cavity markings to narrow down the exact model and era.',
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'bcrich-10-digit-numeric-import',
+    patternLabel: 'B.C. Rich 10-digit numeric import (late 1980s–1990s)',
+    additionalContext: {
+      title: 'B.C. Rich 10-digit import serial',
+      summary: 'This is a format-valid 10-digit B.C. Rich import serial from the late 1980s through the 1990s. The number itself does not reliably encode a year, factory, or production sequence.',
+      highlights: [
+        'Format is consistent with bolt-on neck import models from the late 1980s through the 1990s.',
+        'Typically associated with budget import lines such as the Platinum Series, NJ Series, or Bronze Series.',
+        'Country of origin is South Korea or China depending on the specific production run.',
+      ],
+      caveats: [
+        'During the Class Axe era (1989–1993) and subsequent import runs, neck plates were frequently assigned arbitrarily — the serial does not encode an exact year or factory.',
+        'This format does not carry the provenance or valuation of USA Custom Shop instruments.',
+        'Physical inspection is the most reliable way to identify the exact model and era.',
+      ],
+      verificationTips: [
+        'Check headstock branding for series labels such as "Platinum Series", "NJ Series", or "Bronze Series".',
+        'Unscrew the back electronics plate or neck pickup cavity cover — production dates were sometimes stamped or penciled into the raw wood.',
+        'Note the bridge style: a standard hardtail, licensed Floyd Rose, or proprietary Bendmaster bridge can help place the instrument in its production era.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This is a format-valid 10-digit serial number commonly found on imported, bolt-on neck B.C. Rich guitars manufactured during the late 1980s through the 1990s.</p><h3>Why This Number Can't Be Decoded Further</h3><p>B.C. Rich serial numbers from this era are notorious for being structurally meaningless for precise dating. During the Class Axe era (roughly 1989–1993) and subsequent import production runs, factories in Korea and China did not follow strict sequential logging. Workers frequently grabbed pre-stamped neck plates from a random box and attached them to bodies as they finished assembly — the number does not encode a year, factory, or sequence in a reliable way.</p><h3>What This Format Tells You</h3><p>A 10-digit all-numeric serial like this typically indicates a budget-friendly import line such as the Platinum Series. These are great workhorse guitars but do not carry the high valuation of USA Custom Shop models.</p><h3>How to Better Identify the Guitar</h3><ul><li><strong>Headstock Branding:</strong> Look for series labels printed near the B.C. Rich script, such as "Platinum Series", "NJ Series", or "Bronze Series".</li><li><strong>Wood Cavities:</strong> Unscrew the plastic plate over the back electronics or the neck pickup cavity. Production dates were sometimes stamped or penciled into the raw wood during construction.</li><li><strong>Hardware:</strong> Note the style of the bridge — a standard hardtail, a licensed Floyd Rose, or a proprietary Bendmaster bridge common to the early 1990s.</li></ul>`,
+  };
 }
 
 function MONTH_NAME(month: number): string {
