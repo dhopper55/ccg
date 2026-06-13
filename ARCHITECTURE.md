@@ -223,7 +223,7 @@ When asked to add support for a new serial format (e.g. "add decoding for 10-dig
 
 1. **Add the decoder branch** in `src/decoders/<brand>.ts`. This is what makes `decodeSerialForBackend` return `success: true` for the new format. Without this, the serial always fails regardless of any other changes. The function must return a full `DecodeResult` with `info`, `patternKey`, `patternLabel`, `additionalContext`, and `additionalContextRichText` matching the style of existing branches in that file.
 
-2. **Register the pattern regex** in `deriveExplicitRegexFromKnownPatternKey(...)` inside `workers/listing-evaluator/src/index.ts`. Add a `'<brand>-<pattern-key>': '^<regex>$'` entry so the pattern infrastructure can match future events to their pattern row by regex.
+2. **Register the pattern regex** in `deriveExplicitRegexFromKnownPatternKey(...)` inside `workers/listing-evaluator/src/serial-pattern-registry.ts`. Add a `'<brand>-<pattern-key>': '^<regex>$'` entry so the pattern infrastructure can match future events to their pattern row by regex.
 
 3. **Update the decoder header comment** at the top of `src/decoders/<brand>.ts` to document the new format in the supported-formats list.
 
@@ -603,5 +603,8 @@ Shop build:
 
 Verification defaults:
 - Serial decoder logic: `npm run test:regressions`
+  - Test suite is split into per-brand files under `scripts/regressions/<brand>.mjs`
+  - `scripts/test-regressions.mjs` is the thin orchestrator that imports and runs each brand module
+  - When adding a new serial format, add the assertion function and call site to the matching `scripts/regressions/<brand>.mjs` file
 - Worker/API surface: `npx wrangler deploy --dry-run` from `workers/listing-evaluator/`
 - Static/root changes: `npm run build:legacy`

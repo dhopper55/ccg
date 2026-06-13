@@ -204,7 +204,8 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | E1234162 | ESP Japan, 2016, Signatures Series |
 | ES1234173 | E-II Japan, 2017 |
 | E035054 | Ambiguous E-prefix 6-digit ESP-owned format: E-II Japan 2014 or LTD Korea 2000 |
-| ED0903516 | Edwards by ESP, Japan domestic market, 2009 |
+| ED0903516 | Edwards by ESP, Japan domestic market, 2009, week 3, Friday, guitar #16 |
+| ed212253 | Edwards by ESP, Japan domestic market, 2021, week 22 (late May/early June), Friday, guitar #3 |
 | K1507501 | Kiso Factory Japan, 2015, February |
 | K1234 | Kirk Hammett signature, 1993-1994 |
 | US15123 | ESP USA California, 2015 |
@@ -285,6 +286,7 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | SC9117 | Japanese overseas Focus/Striker-era plate serial, mid-to-late 1980s estimated |
 | SE8280 | Samick Korea SE-prefix import format, late 1980s to early 1990s estimated |
 | V9954 | V-prefix vintage/import plate serial, estimated mid-to-late 1980s (non-chronological plate numbering) |
+| SB 2063 | SB-prefix Striker import, mid-to-late 1980s (1986–1989), South Korea or Japan, sequence 2063 |
 
 ## B.C. Rich
 
@@ -353,6 +355,8 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | IE21051234 | Indonesia IE prefix, 2021, May |
 | 210812345 | 9-digit modern format, 2021, August |
 | 123456 | 6-digit older/ambiguous format |
+| IIA241190604 | Indonesia (IIA facility), 2024, November, sequence 90604 |
+| 5591410 | Korea, 1995, anomalous month code "59", sequence 1410 |
 
 ## Takamine
 
@@ -564,6 +568,7 @@ Sample serial numbers for testing the guitar serial decoder locally.
 | 11000123 | USA Pro-Mod, 2011 |
 | 110123456 | USA Pro-Mod, 2011 (9-digit 2010+ format) |
 | 370000 | Surfcaster, 1990s |
+| UC210191 | China (UC-prefix, Desolation era), 2021, sequence 0191 |
 
 ## Rickenbacker
 

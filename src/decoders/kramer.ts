@@ -4,7 +4,13 @@ import { DecodeResult, GuitarInfo } from '../types.js';
  * Kramer Guitar Serial Number Decoder
  *
  * Kramer serials are inconsistent across eras, so this decoder focuses on
- * broad ranges and common prefix patterns.
+ * broad ranges and common prefix patterns. Supported formats include:
+ * - Single-letter prefix A-F (USA Neptune, NJ era, early 1980s)
+ * - H-prefix (ESP Japan contract build, 1990-1991)
+ * - V-prefix (vintage/import plates, mid-to-late 1980s)
+ * - SB-prefix (mid-to-late 1980s Striker import, Samick Korea or Japan)
+ * - S-prefix variants: SE, SD, SP, SF, SC, SJ, SI (various import eras)
+ * - Modern Gibson/MusicYo-era numeric formats (9- and 11-digit)
  */
 export function decodeKramer(serial: string): DecodeResult {
   const cleaned = serial.trim().toUpperCase();
@@ -135,6 +141,11 @@ export function decodeKramer(serial: string): DecodeResult {
   // SP-prefix: 1980s Korean Striker Plus/Striker import (Samick or similar Korean factory)
   if (/^SP\d{4,6}$/.test(normalized)) {
     return decodeKoreanStrikerSP(normalized, cleaned);
+  }
+
+  // SB-prefix: mid-to-late 1980s Striker import, Samick Korea or Japanese factory
+  if (/^SB\d{3,6}$/.test(normalized)) {
+    return decodeVintage1980sSBStriker(normalized, cleaned);
   }
 
   // Two-letter overseas prefixes (e.g., FA, FB, CF)
@@ -273,7 +284,51 @@ export function decodeKramer(serial: string): DecodeResult {
 
   return {
     success: false,
-    error: 'Unable to decode this Kramer serial number. Kramer serials vary by era, and many vintage records were lost. Try the Vintage Kramer registry or HTPG serial search for additional context.',
+    error: 'Unable to decode this Kramer serial number. Kramer serials vary by era, and many vintage records were lost. Common known formats: single-letter A–F (USA era), H-prefix (Japan ESP build), SB/SE/SD/SP/SF/SC/SJ/SI-prefix (import eras), and numeric formats. Try the Vintage Kramer registry or HTPG serial search for additional context.',
+  };
+}
+
+function decodeVintage1980sSBStriker(normalized: string, cleaned: string): DecodeResult {
+  const sequence = normalized.substring(2);
+  const sequenceNumber = parseInt(sequence, 10);
+
+  return {
+    success: true,
+    info: {
+      brand: 'Kramer',
+      serialNumber: cleaned,
+      year: '1986–1989 (estimated)',
+      factory: 'Samick Korea or Japanese contracted facility',
+      country: 'South Korea or Japan',
+      model: 'Striker Series (Striker 100, 200, or 300) or related import line',
+      notes: `SB-prefix Kramer serial. The "SB" designation is primarily associated with the mid-to-late 1980s Striker series — Kramer's budget and mid-tier overseas import line designed to capture the 1980s shred market. Production sequence: ${sequenceNumber}. Unlike the premium American Series (which used single-letter prefixes A–F on thick die-cast neck plates), SB serials appear on narrower stamped chrome or black steel overseas neck plates typically manufactured at Samick in South Korea or at Japanese contracted facilities. Because Kramer's original records were largely lost when the company went bankrupt in 1991, exact production months and precise factory attribution cannot be confirmed from the serial alone. Cross-reference the headstock logo style (pointy/beak shape), neck plate dimensions, tremolo type, and body construction against known Striker variants for more precise dating. Community resources such as the Vintage Kramer Serial Guide can provide corroborating evidence.`,
+    },
+    patternKey: 'kramer-sb-striker-1980s-sequential',
+    patternLabel: 'Kramer SB Striker import 1980s sequential',
+    additionalContext: {
+      title: 'Kramer SB-prefix Striker import serial',
+      summary: 'This serial matches the Kramer SB-prefix import format primarily associated with mid-to-late 1980s Striker series models produced at Samick Korea or Japanese contracted facilities.',
+      highlights: [
+        '"SB" is primarily associated with the Kramer Striker Series — the budget/mid-tier overseas import line from the 1980s shred era.',
+        'Estimated production window: 1986–1989.',
+        `Production sequence: ${sequenceNumber}.`,
+        'Manufactured at Samick Korea or Japanese contracted facilities; not at the Neptune, NJ American Series production line.',
+        'Overseas neck plates from this era are narrower stamped steel (chrome or black) rather than the thicker USA die-cast plates.',
+      ],
+      caveats: [
+        'Kramer original factory records were largely lost when the company went bankrupt in 1991.',
+        'Exact production month and precise factory attribution cannot be confirmed from the serial alone.',
+        'Some SB neck plates display a Neptune, NJ address — this is the importer/corporate address and does not indicate USA manufacture.',
+      ],
+      verificationTips: [
+        'Check the headstock shape: the beak/pointy headstock is characteristic of late-1980s Striker/import models.',
+        'Compare the neck plate dimensions and finish (narrower stamped steel vs thick USA die-cast).',
+        'Identify the tremolo type and pickup count to narrow the exact Striker model (100, 200, or 300).',
+        'Look for Made in Korea or Made in Japan markings on the neck pocket or body cavity.',
+        'Consult the Vintage Kramer Serial Guide for corroborating serial examples.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches the Kramer SB-prefix import format primarily associated with mid-to-late 1980s Striker series models produced at Samick Korea or Japanese contracted facilities.</p><h3>How This Pattern Is Typically Read</h3><p>"SB" is primarily associated with the Kramer Striker Series — the budget/mid-tier overseas import line from the 1980s shred era. The estimated production window is 1986–1989. The digits after SB are the production sequence (${sequenceNumber}). These guitars were manufactured at Samick Korea or Japanese contracted facilities, not the Neptune, NJ American Series production line.</p><h3>What To Verify</h3><ul><li>Kramer original factory records were lost in the 1991 bankruptcy — exact month and factory attribution require physical evidence.</li><li>Check the headstock shape (beak/pointy), neck plate dimensions (narrower stamped steel vs thick die-cast USA plate), and tremolo type to narrow the Striker variant.</li><li>Look for Made in Korea or Made in Japan markings in the neck pocket or body cavity.</li><li>A Neptune, NJ neck plate address is the importer/corporate address, not a Made in USA indicator.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed mid-to-late 1980s Kramer Striker import decode. Physical inspection — headstock shape, neck plate, tremolo, pickup count, and country markings — is the most reliable way to pin down the exact model and year within this era.</p>`,
   };
 }
 

@@ -14,6 +14,7 @@ import { DecodeResult, GuitarInfo } from '../types.js';
  * - Mexican production (2013+): MC/CM prefix
  * - Indonesian Samick imports (2013+): ISC + YY + 4-digit sequence
  * - Indonesian/Chinese imports (2013+): 10-digit alphanumeric
+ * - UC-prefix China import (2010s+): UC + YY + sequence
  *
  * Note: Charvel was founded by Wayne Charvel in 1974, sold to Grover Jackson
  * in 1978, and acquired by Fender in 2002.
@@ -56,6 +57,11 @@ export function decodeCharvel(serial: string): DecodeResult {
   // Modern import: 10-digit alphanumeric (ICJ, ISJ, IWJ, CYJ, etc.)
   if (/^[ICMN][HWCS][JC]\d{7,8}$/.test(normalized)) {
     return decodeModernImport(normalized);
+  }
+
+  // UC-prefix: China import models (Desolation era and related, 2010s+)
+  if (/^UC\d{4,8}$/.test(normalized)) {
+    return decodeCharvelUCChina(normalized, cleaned);
   }
 
   // USA Select/Pro-Mod: 10-digit format similar to imports
@@ -114,7 +120,7 @@ export function decodeCharvel(serial: string): DecodeResult {
 
   return {
     success: false,
-    error: 'Unable to decode this Charvel serial number. Common formats include: 4-digit YYMM date stamps like 8911 (Japanese late-1980s), 4-digit sequentials 1001-5491 (San Dimas USA 1981-1986), C + digit + numbers (Japan neck-through 1986-1991), 5-7 digit numeric MIJ neck plate/bolt-on serials, JC + numbers (Modern MIJ), MC + numbers (Mexico), ISC + YY + #### (modern Indonesia), or 10-character codes (modern imports). Note: Pre-1981 San Dimas guitars have no serial numbers.',
+    error: 'Unable to decode this Charvel serial number. Common formats include: 4-digit YYMM date stamps like 8911 (Japanese late-1980s), 4-digit sequentials 1001-5491 (San Dimas USA 1981-1986), C + digit + numbers (Japan neck-through 1986-1991), 5-7 digit numeric MIJ neck plate/bolt-on serials, JC + numbers (Modern MIJ), MC + numbers (Mexico), UC + YY + sequence (China Desolation-era), ISC + YY + #### (modern Indonesia), or 10-character codes (modern imports). Note: Pre-1981 San Dimas guitars have no serial numbers.',
   };
 }
 
@@ -560,6 +566,51 @@ function decodeNumeric8Modern(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+// UC-prefix: China import models (Desolation era and related)
+function decodeCharvelUCChina(normalized: string, cleaned: string): DecodeResult {
+  const yearDigits = normalized.substring(2, 4);
+  const sequence = normalized.substring(4);
+  const yearNum = parseInt(yearDigits, 10);
+  const year = Number.isNaN(yearNum) ? undefined : (2000 + yearNum).toString();
+  const sequenceNumber = parseInt(sequence, 10);
+
+  return {
+    success: true,
+    info: {
+      brand: 'Charvel',
+      serialNumber: cleaned,
+      year: year ?? 'Unknown',
+      factory: 'China (UC-prefix import facility)',
+      country: 'China',
+      model: 'Desolation Series or related China import model',
+      notes: `UC-prefix Charvel import serial. UC identifies a Chinese-manufactured Charvel model (Desolation Series and related budget/mid-tier import lines). The digits ${yearDigits} decode as production year ${year ?? 'unknown'}. The remaining digits are production sequence ${sequenceNumber}. Verify with country-of-origin markings on the back of the headstock and compare specs against Desolation Series catalog entries for ${year ?? 'the decoded year'}.`,
+    },
+    patternKey: 'charvel-uc-china-yy-sequence',
+    patternLabel: 'Charvel UC-prefix China YY sequence',
+    additionalContext: {
+      title: 'Charvel UC-prefix China serial',
+      summary: 'This serial matches a Charvel UC-prefix format associated with Chinese-manufactured models, primarily the Desolation Series and related budget/mid-tier import lines.',
+      highlights: [
+        'UC identifies a Chinese-manufactured Charvel import model.',
+        `The digits ${yearDigits} decode as production year ${year ?? 'unknown'}.`,
+        `The remaining digits decode as production sequence ${sequenceNumber}.`,
+        'Associated primarily with the Charvel Desolation Series produced during the 2010s.',
+      ],
+      caveats: [
+        'The serial identifies factory origin and approximate year, not the exact model name or configuration.',
+        'UC-prefix instruments are Chinese factory builds under the Charvel brand, not Fender Mexico or USA Charvel production.',
+        'Confirm the model name from the headstock or body markings.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock for "Made in China" and the Charvel logo.',
+        'Use the Fender serial lookup tool — Charvel is a Fender-owned brand and some modern serials can be cross-referenced.',
+        `Compare body shape, pickup layout, and hardware against Charvel Desolation Series catalog specs from ${year ?? 'the decoded year'}.`,
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Charvel UC-prefix format associated with Chinese-manufactured models, primarily the Desolation Series and related budget/mid-tier import lines.</p><h3>How This Pattern Is Typically Read</h3><p>UC identifies a Chinese-manufactured Charvel import model. The digits ${yearDigits} decode as production year ${year ?? 'unknown'}. The remaining digits decode as production sequence ${sequenceNumber}. This format is primarily associated with the Charvel Desolation Series produced during the 2010s.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for "Made in China" and the Charvel logo.</li><li>The serial identifies origin and approximate year — confirm the exact model name from the headstock or body markings.</li><li>Compare the body shape, pickup layout, and hardware against Charvel Desolation Series catalog specs.</li></ul>`,
+  };
 }
 
 function getMonthName(monthValue: number): string | undefined {

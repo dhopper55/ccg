@@ -30,8 +30,8 @@ export function decodeESP(serial: string): DecodeResult {
     return decodeAmbiguousEPrefix6Digit(normalized);
   }
 
-  // Edwards by ESP format: ED + YY + 5-digit production sequence
-  if (/^ED\d{7}$/.test(normalized)) {
+  // Edwards by ESP format: ED + YY + WW + D + N[N] (week/day/daily sequence)
+  if (/^ED\d{6,7}$/.test(normalized)) {
     return decodeEdwardsEDPrefix(normalized);
   }
 
@@ -303,44 +303,62 @@ function decodeAmbiguousEPrefix6Digit(serial: string): DecodeResult {
 
 function decodeEdwardsEDPrefix(serial: string): DecodeResult {
   const yearDigits = serial.substring(2, 4);
-  const productionNum = serial.substring(4);
+  const weekDigits = serial.substring(4, 6);
+  const dayDigit = serial.charAt(6);
+  const productionNum = serial.substring(7);
   const yearNum = parseInt(yearDigits, 10);
-  const year = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum).toString();
+  const year = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum);
+  const week = parseInt(weekDigits, 10);
+  const day = parseInt(dayDigit, 10);
+  const dateInfo = (week >= 1 && week <= 53 && day >= 1 && day <= 7)
+    ? getDateFromWeekDay(year, week, day)
+    : { month: undefined, day: undefined };
+  const dayName = getDayOfWeekName(day);
 
   const info: GuitarInfo = {
     brand: 'ESP',
     serialNumber: serial,
-    year,
+    year: year.toString(),
+    month: dateInfo.month,
     factory: 'Edwards / ESP Japan domestic-market production',
     country: 'Japan',
     model: 'Edwards by ESP',
-    notes: `Edwards ED-prefix format. ED indicates Edwards, an ESP Guitar Company Japanese domestic-market line; ${yearDigits} indicates ${year}; ${productionNum} is the production sequence. These serials are commonly stamped on the back of the headstock or at the end of the fretboard.`
+    notes: `Edwards ED-prefix format (EDYYWWDN[N]). ED indicates Edwards, an ESP Guitar Company Japanese domestic-market line. Year: ${year}; production week: ${week}; day of week: ${dayName} (${dayDigit}); daily production number: ${productionNum || '(not encoded)'}. These serials are commonly stamped on the back of the headstock or at the end of the fretboard.`
   };
 
   return {
     success: true,
     info,
     patternKey: 'esp-edwards-ed-yy-sequence',
-    patternLabel: 'ESP Edwards ED YY sequence format',
+    patternLabel: 'ESP Edwards ED prefix YYWWDN[N] format',
     additionalContext: {
       title: 'ESP Edwards ED-prefix serial',
-      summary: 'Edwards guitars are Japanese domestic-market instruments produced and distributed by the ESP Guitar Company.',
+      summary: 'Edwards guitars are Japanese domestic-market instruments produced and distributed by the ESP Guitar Company. The serial encodes year, production week, day of week, and daily sequence.',
       highlights: [
-        'ED prefix identifies the Edwards line.',
+        'ED prefix identifies the Edwards line — a Japanese domestic-market ESP sub-brand.',
         `Year code ${yearDigits} decodes to ${year}.`,
-        `Production sequence: ${productionNum}.`
+        `Week ${weekDigits} decodes to production week ${week}${dateInfo.month ? `, approximately ${dateInfo.month}` : ''}.`,
+        `Day digit ${dayDigit} decodes to ${dayName}.`,
+        ...(productionNum ? [`Daily production number: ${productionNum}.`] : []),
       ],
       caveats: [
-        'Edwards serial documentation is less centralized than major export ESP lines.',
-        'The serial confirms the format, but model and market details should be checked against the instrument features.'
+        'Edwards guitars are Japan-only instruments — they are not officially exported and are not commonly found outside Japan.',
+        'The serial confirms the format, but model and specific finish details should be verified against the instrument.',
+        'Edwards model names typically reference classic guitar shapes (e.g., E-LP for Les Paul style, E-HR for Horizon).',
       ],
       verificationTips: [
         'Check the back of the headstock or fretboard end for the stamped serial.',
-        'Compare the model markings and specs against known Edwards model catalogs or ESP support.'
+        'Look for the small "Edwards by ESP" or "Designed and Built by ESP" marking near the headstock serial.',
+        'Compare the model markings and specs against known Edwards catalog references or ESP Japan support.',
       ]
     },
-    additionalContextRichText: `<h3>Overview</h3><p>This serial matches an Edwards ED-prefix format used on Japanese domestic-market guitars produced and distributed by ESP.</p><h3>How This Pattern Is Typically Read</h3><p>ED identifies Edwards. The next two digits, ${yearDigits}, indicate ${year}. The remaining digits are production sequence ${productionNum}.</p><h3>What To Verify</h3><ul><li>Confirm the serial location on the back of the headstock or at the fretboard end.</li><li>Compare the model, finish, hardware, and headstock markings against Edwards catalog references.</li><li>Contact ESP support with photos if authentication matters.</li></ul>`
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches the Edwards ED-prefix format used on Japanese domestic-market guitars produced and distributed by ESP. The format encodes year, production week, day of week, and daily sequence number.</p><h3>How This Pattern Is Typically Read</h3><p>ED identifies the Edwards line. The digits ${yearDigits} decode as production year ${year}. The digits ${weekDigits} decode as production week ${week}${dateInfo.month ? `, approximately ${dateInfo.month}` : ''}. The digit ${dayDigit} decodes as ${dayName}. ${productionNum ? `The remaining digit(s) ${productionNum} are the daily production number.` : ''}</p><h3>What To Verify</h3><ul><li>Edwards guitars are Japan-only instruments and are not officially exported.</li><li>Confirm the serial on the back of the headstock or at the fretboard end.</li><li>Look for an "Edwards by ESP" or "Designed and Built by ESP" marking alongside the serial.</li><li>Compare the model, finish, hardware, and headstock markings against Edwards catalog references.</li></ul>`
   };
+}
+
+function getDayOfWeekName(day: number): string {
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  return days[day - 1] || 'Unknown';
 }
 
 function decodeESPCustomShop(serial: string): DecodeResult {
