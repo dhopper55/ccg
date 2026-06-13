@@ -46,6 +46,8 @@ type ValueReportRecord = {
   stripePaymentIntentId: string | null;
   fulfilled: number;
   imageUrls: string[];
+  reportGuid: string | null;
+  reportR2Key: string | null;
 };
 
 type EvalFile = {
@@ -85,34 +87,39 @@ const ValueReportItem = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState('');
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const loadRecord = async (suppressLoading = false) => {
+    if (!id) return;
+    if (!suppressLoading) setIsLoading(true);
+    setErrorMessage('');
+    try {
+      const response = await fetch(`/api/admin-v2/value-reports/${encodeURIComponent(id)}`, {
+        credentials: 'same-origin',
+      });
+      const payload = (await response.json()) as ValueReportItemResponse;
+      if (!response.ok) throw new Error(payload.message || 'Unable to load value report.');
+      const rec = payload.record ?? null;
+      setRecord(rec);
+      setFulfilled(Boolean(rec?.fulfilled));
+      return rec;
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to load value report.');
+      return null;
+    } finally {
+      if (!suppressLoading) setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!id) {
       setErrorMessage('No record ID provided.');
       setIsLoading(false);
       return;
     }
-    let cancelled = false;
-    const load = async () => {
-      setIsLoading(true);
-      setErrorMessage('');
-      try {
-        const response = await fetch(`/api/admin-v2/value-reports/${encodeURIComponent(id)}`, {
-          credentials: 'same-origin',
-        });
-        const payload = (await response.json()) as ValueReportItemResponse;
-        if (!response.ok) throw new Error(payload.message || 'Unable to load value report.');
-        if (!cancelled) {
-          setRecord(payload.record ?? null);
-          setFulfilled(Boolean(payload.record?.fulfilled));
-        }
-      } catch (error) {
-        if (!cancelled) setErrorMessage(error instanceof Error ? error.message : 'Unable to load value report.');
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    };
-    void load();
-    return () => { cancelled = true; };
+    void loadRecord();
   }, [id]);
 
   useEffect(() => {
@@ -137,6 +144,37 @@ const ValueReportItem = () => {
     void loadFiles();
     return () => { cancelled = true; };
   }, [id]);
+
+  // Poll while generating — stop when reportGuid appears
+  useEffect(() => {
+    if (!generating) return;
+    pollRef.current = setInterval(async () => {
+      const rec = await loadRecord(true);
+      if (rec?.reportGuid) {
+        setGenerating(false);
+        if (pollRef.current) clearInterval(pollRef.current);
+      }
+    }, 4000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [generating]);
+
+  const handleGenerateReport = async () => {
+    if (!id) return;
+    setGenerateError('');
+    setGenerating(true);
+    try {
+      const res = await fetch(`/api/admin-v2/value-reports/${encodeURIComponent(id)}/generate-report`, {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+      const data = (await res.json()) as { generating?: boolean; message?: string };
+      if (!res.ok) throw new Error(data.message || 'Failed to start generation.');
+      // Generation is running in background — polling handles the rest
+    } catch (error) {
+      setGenerateError(error instanceof Error ? error.message : 'Failed to start report generation.');
+      setGenerating(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!id) return;
@@ -201,6 +239,10 @@ const ValueReportItem = () => {
     ? dayjs(record.createdAt).format('MMM D, YYYY h:mm A')
     : 'Value Report';
 
+  const reportUrl = record?.reportGuid
+    ? `/api/guitar-eval-report/${record.reportGuid}`
+    : null;
+
   return (
     <Stack direction="column" spacing={3} sx={{ width: 1 }}>
       <Paper sx={{ px: { xs: 3, md: 5 }, py: 3 }}>
@@ -208,7 +250,42 @@ const ValueReportItem = () => {
           direction={{ xs: 'column', sm: 'row' }}
           sx={{ gap: 2, alignItems: { sm: 'center' }, justifyContent: 'space-between' }}
         >
-          <Typography variant="h4">{formattedDate}</Typography>
+          <Box>
+            <Typography variant="h4">{formattedDate}</Typography>
+
+            {/* Generate / View Report */}
+            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mt: 1.5 }}>
+              {reportUrl ? (
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<IconifyIcon icon="material-symbols:open-in-new-rounded" fontSize={16} />}
+                  onClick={() => window.open(reportUrl, '_blank', 'noopener,noreferrer')}
+                >
+                  View Report
+                </Button>
+              ) : null}
+
+              <Button
+                variant={reportUrl ? 'text' : 'contained'}
+                size="small"
+                disabled={generating}
+                startIcon={
+                  generating
+                    ? <CircularProgress size={14} color="inherit" />
+                    : <IconifyIcon icon="material-symbols:auto-awesome-rounded" fontSize={16} />
+                }
+                onClick={() => void handleGenerateReport()}
+              >
+                {generating ? 'Generating… (2–4 min)' : reportUrl ? 'Regenerate' : 'Generate Report'}
+              </Button>
+
+              {generateError ? (
+                <Typography variant="caption" color="error.main">{generateError}</Typography>
+              ) : null}
+            </Stack>
+          </Box>
+
           <Tooltip title="Back to Value Reports">
             <IconButton
               aria-label="Back"

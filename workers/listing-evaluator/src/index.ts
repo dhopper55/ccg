@@ -38,6 +38,7 @@ interface Env {
   WEBHOOK_SECRET?: string;
   LISTING_JOBS: KVNamespace;
   GOOGLE_MAPS_API_KEY?: string;
+  ANTHROPIC_API_KEY?: string;
 }
 
 const SITEMAP_STATIC_URLS = [
@@ -513,6 +514,11 @@ export default {
 
     if (path === '/api/admin-v2/value-report-files' && request.method === 'GET') {
       return await handleAdminV2ValueReportFileServe(request, env);
+    }
+
+    const guitarEvalReportMatch = path.match(/^\/api\/guitar-eval-report\/([0-9a-f-]+)$/i);
+    if (guitarEvalReportMatch && request.method === 'GET') {
+      return handlePublicGuitarEvalReport(guitarEvalReportMatch[1], env);
     }
 
     if (path.startsWith('/api/') && !isPublicApiPath(path)) {
@@ -1014,6 +1020,12 @@ export default {
     const adminV2ValueReportDeleteMatch = path.match(/^\/api\/admin-v2\/value-reports\/(\d+)\/delete$/);
     if (adminV2ValueReportDeleteMatch && request.method === 'POST') {
       const response = await handleAdminV2ValueReportDelete(adminV2ValueReportDeleteMatch[1], env);
+      return withCors(response, request, env);
+    }
+
+    const adminV2ValueReportGenerateMatch = path.match(/^\/api\/admin-v2\/value-reports\/(\d+)\/generate-report$/);
+    if (adminV2ValueReportGenerateMatch && request.method === 'POST') {
+      const response = await handleAdminV2GenerateReport(adminV2ValueReportGenerateMatch[1], env, ctx);
       return withCors(response, request, env);
     }
 
@@ -18467,7 +18479,7 @@ async function handleAdminV2ValueReportItem(id: string, env: Env): Promise<Respo
   const row = await env.DB.prepare(
     `SELECT id, created_at, first_name, last_name, email, brand, brand_other, model,
             serial_number, includes_case, location, note, damage,
-            stripe_payment_intent_id, fulfilled, image_keys
+            stripe_payment_intent_id, fulfilled, image_keys, report_guid, report_r2_key
      FROM guitar_evaluations WHERE id = ?`
   ).bind(id).first<{
     id: number;
@@ -18486,6 +18498,8 @@ async function handleAdminV2ValueReportItem(id: string, env: Env): Promise<Respo
     stripe_payment_intent_id: string | null;
     fulfilled: number;
     image_keys: string | null;
+    report_guid: string | null;
+    report_r2_key: string | null;
   }>();
 
   if (!row) return jsonResponse({ message: 'Value report not found.' }, 404);
@@ -18516,6 +18530,8 @@ async function handleAdminV2ValueReportItem(id: string, env: Env): Promise<Respo
       stripePaymentIntentId: row.stripe_payment_intent_id,
       fulfilled: row.fulfilled,
       imageUrls,
+      reportGuid: row.report_guid,
+      reportR2Key: row.report_r2_key,
     },
   });
 }
@@ -18663,6 +18679,278 @@ async function handleAdminV2ValueReportFileServe(request: Request, env: Env): Pr
   } catch (error) {
     console.error('value-report-files serve error', error);
     return new Response('Failed to serve file.', { status: 500 });
+  }
+}
+
+// ── Guitar Eval Report Generation ─────────────────────────────────────────────
+
+const GUITAR_EVAL_REPORT_SYSTEM_PROMPT = `You are generating a professional instrument valuation report for Coal Creek Guitars. Using the photos and instrument details provided, produce one complete, self-contained HTML document.
+
+## CRITICAL OUTPUT RULES
+
+- Output ONLY raw HTML — no markdown code fences, no explanation, no preamble. The very first character must be < and the output must end with </html>.
+- Self-contained: all CSS inline in a <style> block in <head>. No external CSS links except Google Fonts.
+- For images, use placeholder tokens as img src values: {{PHOTO_0}}, {{PHOTO_1}}, {{PHOTO_2}}, etc. (one per photo provided). Choose the best full-front shot for the hero and reference it as {{PHOTO_HERO}}. Do NOT output any base64 data.
+- Use web search to research current market pricing for this specific instrument — search Reverb, eBay, Guitar Center, dealer sites. Always distinguish listed (asking) vs. sold (completed) prices. Do NOT rely on memory for prices.
+
+## STRUCTURE (8 sections in this order)
+
+01 Identity — instrument ID, hero photo, confidence statement
+02 Photos — masonry gallery of all provided photos with captions
+03 Specs — two-column spec table
+04 Market — comparable sales table (listed vs. sold, with source/status/price/notes columns)
+05 Valuation — three channel cards (dealer, private local, national Reverb)
+06 Helps & Hurts — two columns (adds value / caps value)
+07 Verify — numbered steps + feature→value-impact table
+08 Listing — copy-ready title + description card + per-platform notes
+
+Include a sticky jump-nav above section 01 with links to all 8 sections.
+
+## PALETTE & FONTS
+
+Load these from Google Fonts: Fraunces (display/headings), Hanken Grotesk (body), JetBrains Mono (labels/data).
+
+Use exactly these CSS variables:
+:root {
+  --paper:#F4EFE4; --paper-2:#ECE5D5; --paper-3:#E4DAC6;
+  --ink:#15181E; --ink-soft:#2C323C;
+  --creek:#235A6E; --creek-deep:#1B3957;
+  --brass:#A9823B; --brass-bright:#C79A47;
+  --clay:#9A4628; --green:#3F6B3A; --muted:#6E6557;
+  --line:rgba(21,24,30,.15); --line-soft:rgba(21,24,30,.08);
+  --display:'Fraunces',Georgia,serif;
+  --sans:'Hanken Grotesk',-apple-system,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+}
+
+Background: warm parchment (--paper). Masthead & footer: coal ink (--ink). Stats bar: --ink-soft with brass top border. Accent: creek blue and brass/gold.
+
+## MASTHEAD
+
+- Brand line: "Instrument Dossier" / "Coal Creek Guitar Appraisal & Market Valuation"
+- REF = serial number (or "—" if unknown)
+- ISSUED = today's date
+- REGION = owner's location
+
+## STAT BANNER (4 headline numbers, ink-soft background, brass top border)
+
+New/street price · Reverb recent sold · Private/local estimate · Dealer cash offer
+
+## FOOTER DISCLAIMER (include verbatim at bottom of every report)
+
+<div class="legal"><h4>Disclaimer</h4><p>This report is a subjective, good-faith estimate prepared by Coal Creek Guitars for general informational and planning purposes only. It is meant to be used as a tool and a guide — not gospel, not a certified or insurance appraisal, and not a binding offer to buy, sell, or consign. Every identification, specification, and value is based on the photographs and information provided to us, on third-party listings and sales data, and on market conditions at the time of writing — all of which may be incomplete, may change quickly, and may contain errors. Actual results depend on many factors outside our control, including the instrument's true condition, authenticity, originality, demand, timing, location, and exactly how and where it is ultimately sold. Coal Creek Guitars makes no representation or warranty, express or implied, as to the accuracy or completeness of this report, and accepts no liability for any loss, decision, or outcome arising from reliance on it. Always confirm the items flagged for verification, and for insurance, resale, or legal purposes obtain a certified independent appraisal.</p></div>
+
+## VOICE
+
+Confident, plain-spoken, dealer-savvy. Always distinguish listed vs. sold prices. Give ranges, not false precision. Flag unknowns honestly. Mention selling fees and friction.`;
+
+function buildGuitarEvalPrompt(
+  record: {
+    brand: string | null;
+    brand_other: string | null;
+    model: string | null;
+    serial_number: string | null;
+    includes_case: string | null;
+    location: string | null;
+    note: string | null;
+    damage: string | null;
+    color_finish: string | null;
+  },
+  photoCount: number,
+): string {
+  const brand = record.brand === 'Other'
+    ? (record.brand_other || 'Unknown')
+    : (record.brand || 'Unknown');
+  const includesCase = record.includes_case === 'hard_case' ? 'Original hard case'
+    : record.includes_case === 'gig_bag' ? 'Gig bag'
+    : record.includes_case === 'no' ? 'No case'
+    : 'Unknown';
+  const photoInstr = photoCount > 0
+    ? `${photoCount} photo(s) are attached to this message. Use {{PHOTO_0}} through {{PHOTO_${photoCount - 1}}} as img src values. Use {{PHOTO_HERO}} for the single best full-front shot (set it equal to whichever PHOTO_N is the best full-front).`
+    : 'No photos provided.';
+
+  return `Generate the Coal Creek Guitars valuation report for this instrument.
+
+PHOTOS: ${photoInstr}
+
+INSTRUMENT DETAILS:
+Brand: ${brand}
+Model (or "unsure"): ${record.model || 'unsure'}
+Instrument type: electric guitar (confirm from photos if possible)
+Serial number: ${record.serial_number || 'unknown'}
+Year (if known): unknown — decode from serial if possible
+Finish / color: ${record.color_finish || 'unknown'}
+Weight in lbs: unknown
+Location: ${record.location || 'unknown'}
+Overall condition: ${record.note || 'not specified'}
+Known damage / repairs: ${record.damage || 'none noted by owner'}
+Included extras: ${includesCase}
+Additional owner notes: ${record.note || 'none'}
+
+Search the web for current market pricing. Output only the complete HTML document — nothing else.`;
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  const CHUNK = 8192;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + CHUNK, bytes.length)));
+  }
+  return btoa(binary);
+}
+
+type AnthropicTextContent = { type: 'text'; text: string };
+type AnthropicImageContent = { type: 'image'; source: { type: 'base64'; media_type: string; data: string } };
+type AnthropicUserContent = AnthropicTextContent | AnthropicImageContent;
+
+async function callAnthropicForReport(userContent: AnthropicUserContent[], env: Env): Promise<string> {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': env.ANTHROPIC_API_KEY!,
+      'anthropic-version': '2023-06-01',
+      'anthropic-beta': 'web-search-2025-03-05',
+    },
+    body: JSON.stringify({
+      model: 'claude-opus-4-8',
+      max_tokens: 32000,
+      system: GUITAR_EVAL_REPORT_SYSTEM_PROMPT,
+      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+      messages: [{ role: 'user', content: userContent }],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text().catch(() => '');
+    throw new Error(`Anthropic API ${response.status}: ${errorBody}`);
+  }
+
+  const data = await response.json() as {
+    content: Array<{ type: string; text?: string }>;
+    stop_reason: string;
+  };
+
+  const textBlocks = (data.content ?? []).filter((b) => b.type === 'text' && b.text);
+  const raw = textBlocks.map((b) => b.text).join('').trim();
+
+  // Strip markdown fences if model added them despite instructions
+  const fenced = raw.match(/```(?:html)?\s*([\s\S]*?)```/);
+  return fenced ? fenced[1].trim() : raw;
+}
+
+async function handlePublicGuitarEvalReport(guid: string, env: Env): Promise<Response> {
+  if (!env.CUSTOM_ITEMS_BUCKET) {
+    return new Response('Storage not configured.', { status: 500 });
+  }
+  const key = `guitar-eval-reports/${guid}.html`;
+  const obj = await env.CUSTOM_ITEMS_BUCKET.get(key);
+  if (!obj) return new Response('Report not found.', { status: 404 });
+  return new Response(obj.body, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'public, max-age=3600',
+    },
+  });
+}
+
+async function handleAdminV2GenerateReport(
+  id: string,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<Response> {
+  if (!env.ANTHROPIC_API_KEY) {
+    return jsonResponse({ message: 'Anthropic API key not configured.' }, 500);
+  }
+  if (!env.CUSTOM_ITEMS_BUCKET) {
+    return jsonResponse({ message: 'Storage bucket not configured.' }, 500);
+  }
+  const row = await env.DB.prepare(
+    'SELECT id FROM guitar_evaluations WHERE id = ?',
+  ).bind(id).first<{ id: number }>();
+  if (!row) return jsonResponse({ message: 'Value report not found.' }, 404);
+
+  ctx.waitUntil(runGuitarEvalReportGeneration(Number(id), env));
+  return jsonResponse({ generating: true });
+}
+
+async function runGuitarEvalReportGeneration(id: number, env: Env): Promise<void> {
+  try {
+    const row = await env.DB.prepare(
+      `SELECT id, brand, brand_other, model, serial_number, includes_case,
+              location, note, damage, color_finish, image_keys, report_guid
+       FROM guitar_evaluations WHERE id = ?`,
+    ).bind(id).first<{
+      id: number;
+      brand: string | null;
+      brand_other: string | null;
+      model: string | null;
+      serial_number: string | null;
+      includes_case: string | null;
+      location: string | null;
+      note: string | null;
+      damage: string | null;
+      color_finish: string | null;
+      image_keys: string | null;
+      report_guid: string | null;
+    }>();
+    if (!row) return;
+
+    // Fetch photos from R2, convert to base64
+    const photoContent: AnthropicImageContent[] = [];
+    const photoKeys: string[] = [];
+
+    if (row.image_keys) {
+      let keys: string[] = [];
+      try { keys = JSON.parse(row.image_keys); } catch { /* ignore */ }
+      let totalBytes = 0;
+      const MAX_BYTES = 8 * 1024 * 1024; // 8 MB total across all photos
+
+      for (const key of keys) {
+        if (photoContent.length >= 10 || totalBytes >= MAX_BYTES) break;
+        const obj = await env.CUSTOM_ITEMS_BUCKET!.get(key);
+        if (!obj) continue;
+        const buffer = await obj.arrayBuffer();
+        if (totalBytes + buffer.byteLength > MAX_BYTES) continue;
+        totalBytes += buffer.byteLength;
+        const base64 = arrayBufferToBase64(buffer);
+        const mediaType = (obj.httpMetadata?.contentType || 'image/jpeg') as
+          'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+        photoContent.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } });
+        photoKeys.push(key);
+      }
+    }
+
+    const promptText = buildGuitarEvalPrompt(row, photoContent.length);
+    const userContent: AnthropicUserContent[] = [...photoContent, { type: 'text', text: promptText }];
+
+    let html = await callAnthropicForReport(userContent, env);
+
+    // Replace photo tokens with working image URLs
+    photoKeys.forEach((key, i) => {
+      const url = `/api/guitar-evaluation-image?key=${encodeURIComponent(key)}`;
+      html = html.replaceAll(`{{PHOTO_${i}}}`, url);
+    });
+    if (photoKeys.length > 0) {
+      html = html.replaceAll(
+        '{{PHOTO_HERO}}',
+        `/api/guitar-evaluation-image?key=${encodeURIComponent(photoKeys[0])}`,
+      );
+    }
+
+    const guid = row.report_guid || crypto.randomUUID();
+    const r2Key = `guitar-eval-reports/${guid}.html`;
+
+    await env.CUSTOM_ITEMS_BUCKET!.put(r2Key, html, {
+      httpMetadata: { contentType: 'text/html; charset=utf-8' },
+    });
+
+    await env.DB.prepare(
+      'UPDATE guitar_evaluations SET report_r2_key = ?, report_guid = ? WHERE id = ?',
+    ).bind(r2Key, guid, id).run();
+  } catch (err) {
+    console.error('Guitar eval report generation failed:', err);
   }
 }
 
@@ -19042,7 +19330,8 @@ function isPublicApiPath(path: string): boolean {
     || /^\/api\/guitar-evaluation\/\d+\/upload-images$/.test(path)
     || /^\/api\/guitar-evaluation\/\d+$/.test(path)
     || path === '/api/guitar-evaluation-image'
-    || path === '/api/admin-v2/value-report-files';
+    || path === '/api/admin-v2/value-report-files'
+    || /^\/api\/guitar-eval-report\/[0-9a-f-]+$/i.test(path);
 }
 
 function formatMonthLabel(month: string): string {
