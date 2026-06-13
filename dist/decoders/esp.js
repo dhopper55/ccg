@@ -1,3 +1,30 @@
+/**
+ * ESP Guitar Serial Number Decoder
+ *
+ * ESP serials vary significantly across eras and production lines. Supported formats include:
+ * - US-prefix 7-digit (ESP USA Custom Shop, California)
+ * - E + 7 digits (2016+ ESP Japan: production number, year, series code)
+ * - ES + 7 digits (E-II early 2013–2015 Japan; E-II 2016+ Japan)
+ * - E + 6 digits (ambiguous: early E-II Japan or early LTD Korea)
+ * - ED + 6-7 digits (Edwards by ESP Japan domestic, YYWWDN format)
+ * - SS + 7 digits (2000–2015 Japan Custom Shop)
+ * - K/N/S/T/CH/CS/TH + 7-8 digits (2000–2015 Japan factory, YYWWDN format)
+ * - K-prefix 4-5 digits (Kirk Hammett signature, early 1990s)
+ * - R + 7 digits (LTD Korea Peerless, YY + week + sequence)
+ * - IW/WI/IC/IS/IR + 7-8 digits (LTD Indonesia)
+ * - W + 9 digits (LTD Korea WMI, YY + week + sequence)
+ * - U + 6 digits (LTD Korea Unsung early sequential, 2000–2001)
+ * - W/E/U + 7-8 digits (LTD Korea various)
+ * - GC + 7 digits (LTD China G-Tone, YY + week + sequence)
+ * - C + 9 digits (LTD China single-letter, YY + week + sequence)
+ * - L/RS/SH/SX/SK/SP + 7-8 digits (LTD China various)
+ * - I + 7-8 digits (LTD Vietnam)
+ * - 7-digit all-numeric (LTD transitional YY + week + sequence, or pre-2000 DMMYNNN)
+ * - 8-digit all-numeric (pre-2000 DDMMYNNN day-first, or YYMM + sequence)
+ * - 6-digit all-numeric (ambiguous: early LTD 1998–1999, Japan Original Series neck plate, or early 2000s Korean LTD with missing/worn prefix)
+ * - 4-digit numeric (vintage Custom Shop / Original Series sequential, late 1980s–early 1990s)
+ * - 5-digit numeric (vintage Japan 400 Series / Traditional / early Custom Shop neck plate)
+ */
 export function decodeESP(serial) {
     const cleaned = serial.trim().toUpperCase();
     const normalized = cleaned.replace(/[\s-]/g, '');
@@ -90,9 +117,18 @@ export function decodeESP(serial) {
     if (/^\d{8}$/.test(normalized)) {
         return decode8DigitNumeric(normalized);
     }
-    // Pre-2000 format: 6-7 digits (DDMMYNNN or shorter variants)
-    if (/^\d{6,7}$/.test(normalized)) {
+    // 7-digit fallthrough: LTD transitional check above did not match (invalid week); try pre-2000 DMMYNNN
+    if (/^\d{7}$/.test(normalized)) {
         return decodePre2000(normalized);
+    }
+    // 6-digit all-numeric: try pre-2000 DMMYNNN shorthand first (single-digit day ≥ 1, single-digit month ≥ 1)
+    // Falls back to the ambiguous 6-digit handler when the date parse fails.
+    if (/^\d{6}$/.test(normalized)) {
+        const pre2000Result = decodePre2000(normalized);
+        if (pre2000Result.success) {
+            return pre2000Result;
+        }
+        return decode6DigitAllNumericAmbiguous(normalized, cleaned);
     }
     // Vintage Custom Shop / Original Series sequential: 4 digits (e.g. 0085 = guitar #85)
     if (/^\d{4}$/.test(normalized)) {
@@ -104,7 +140,7 @@ export function decodeESP(serial) {
     }
     return {
         success: false,
-        error: 'Unable to decode this ESP serial number. The format was not recognized. Please check the serial number and try again.'
+        error: 'Unable to decode this ESP serial number. The format was not recognized. Known formats include: US-prefix (ESP USA), E/ES-prefix (ESP Japan / E-II), ED-prefix (Edwards Japan), K-prefix (Kirk Hammett), letter-factory-prefixed (LTD Korea/Indonesia/China/Vietnam), 6-digit all-numeric (early LTD 1998–1999, Japan Original Series neck plate, or early 2000s Korean LTD with missing prefix), 7-digit all-numeric (LTD transitional or pre-2000 Japan), 8-digit all-numeric (pre-2000 Japan DDMMYNNN), and 4- or 5-digit numeric (vintage Japan Custom Shop / Original Series).',
     };
 }
 function decodeESPUSA(serial) {
@@ -812,6 +848,49 @@ function decode8DigitNumeric(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a late-1990s/early-2000s ESP 8-digit format where the first two digits encode the year, the next two encode the month, and the final four are the production sequence.</p><h3>How This Pattern Is Typically Read</h3><p>The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} decode as ${monthName}. The remaining digits decode as production sequence ${sequenceNumber}. This format is seen on both ESP Japan (Original/Standard series) and early ESP LTD Korean imports from this era.</p><h3>What To Verify</h3><ul><li>Check the headstock logo — "ESP" indicates the Original/Standard series; "LTD" indicates the import line.</li><li>Look for "Made in Japan" or "Made in Korea" on the back of the headstock or neck plate.</li><li>Compare the hardware, finishes, and construction against ESP and LTD catalog specs from the decoded year.</li></ul>`,
+    };
+}
+function decode6DigitAllNumericAmbiguous(normalized, cleaned) {
+    const firstTwo = normalized.substring(0, 2);
+    const remaining = normalized.substring(2);
+    const possibleYear = 2000 + parseInt(firstTwo, 10);
+    const info = {
+        brand: 'ESP',
+        serialNumber: cleaned,
+        year: `${possibleYear} (if Korean LTD with missing/worn letter prefix) or late 1980s–early 1990s (if ESP Japan Original/Custom Shop neck plate) or 1998–1999 (if early LTD pre-prefix era)`,
+        factory: 'ESP Japan Original/Custom Shop or Korean LTD partner factory (context-dependent)',
+        country: 'Japan or South Korea',
+        notes: `Six-digit all-numeric ESP serials span three documented interpretations. (1) Early ESP LTD (1998–1999): during the brief window just before ESP introduced factory letter prefixes (E, U, R) in 2000, some LTD models used 6-digit all-numeric serials as sequential production block numbers — in this reading the digits are a sequential identifier and "02" does not reliably indicate 2002. (2) ESP Japan Original/Custom Shop neck-plate sequential: early Japanese models, including bolt-on signature guitars like the Kirk Hammett KH-2, used 5- and 6-digit sequential numbers stamped directly into the metal neck plate — in this reading the full number is a guitar-level sequence number and the era is late 1980s to early 1990s. (3) Early 2000s Korean LTD with a missing or worn letter prefix: Korean LTDs from 2000–2003 used a factory letter (U, R, E) followed by 6 digits (e.g. U028304 or R028304); if the prefix is worn off or faded, the remaining 6 digits match this serial exactly — under this reading ${firstTwo} decodes as production year ${possibleYear} and ${remaining} is the factory tracking sequence. Verify with the headstock logo (ESP vs LTD), country-of-origin marking, and whether the serial is on a neck plate (Japan bolt-on) or back of headstock (LTD).`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'esp-ambiguous-6-digit-all-numeric',
+        patternLabel: 'ESP ambiguous 6-digit all-numeric (early LTD / Japan neck plate / missing prefix)',
+        additionalContext: {
+            title: 'ESP 6-digit all-numeric serial',
+            summary: 'Six-digit all-numeric ESP serials are ambiguous across three eras and production lines. The headstock logo, country marking, and serial placement (neck plate vs. headstock decal) are required to choose the correct interpretation.',
+            highlights: [
+                'Three valid interpretations: early LTD (1998–1999) pre-prefix sequential; ESP Japan Original/Custom Shop bolt-on neck plate; or early 2000s Korean LTD with a missing or worn factory letter prefix.',
+                `If this is a Korean LTD with a worn or missing prefix, ${firstTwo} decodes as production year ${possibleYear} and ${remaining} is the factory tracking sequence.`,
+                'Classic ESP Japan bolt-on neck plates (including early Kirk Hammett KH-2 models) used 5–6 digit sequential stamps pressed into the metal plate.',
+                'ESP introduced factory letter prefixes (U, R, E) on Korean LTD serials around 2000; a bare 6-digit number on an LTD from that era is a sign of a worn or missing prefix.',
+            ],
+            caveats: [
+                'The serial alone cannot distinguish Japan from Korean LTD production for this format.',
+                'If a letter prefix is partially visible or worn, re-read the full serial carefully before concluding it is purely numeric.',
+                'Early LTD serials from 1998–1999 used a sequential production block number where the first two digits are not a reliable year code.',
+                'ESP serial documentation for the 1998–2003 transition era is less consistent than later standardized formats.',
+            ],
+            verificationTips: [
+                'Check whether the serial is stamped into a metal neck plate (bolt-on Japan Original Series) or printed/stickered on the back of the headstock (typical LTD format).',
+                'Look at the headstock logo — "ESP" or "ESP Custom Shop" vs. "LTD" — and note the country-of-origin marking.',
+                'Inspect carefully for a worn or faded letter prefix before the first digit.',
+                'Compare the guitar against early LTD catalog specs (1998–2003) or late-1980s/early-1990s ESP Japan Original Series and Custom Shop models.',
+                'Contact ESP customer service with clear photos of the serial, headstock logo, and country marking if exact production confirmation is needed.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>Six-digit all-numeric ESP serials are ambiguous and match three different eras and production lines. The headstock logo, country-of-origin marking, and serial placement are required to determine the correct interpretation.</p><h3>How This Pattern Is Typically Read</h3><p>There are three contexts for this format. First: early ESP LTD models from 1998–1999, just before ESP introduced factory letter prefixes (E, U, R) around 2000, used 6-digit all-numeric serials as sequential production block numbers — in this context the digits are a sequential identifier and the first two digits are not a reliable year code. Second: ESP Japan Original Series and Custom Shop bolt-on guitars — including early Kirk Hammett KH-2 models — used 5–6 digit sequential numbers stamped directly into the metal neck plate, where the full 6-digit number is a guitar-level sequence. Third: Korean LTD models from 2000–2003 used a factory letter (U, R, or E) followed by 6 digits (e.g. U028304 or R028304); if the prefix is worn or faded, the remaining six digits match this serial exactly — under that reading, ${firstTwo} decodes as production year ${possibleYear} and ${remaining} is the factory tracking sequence.</p><h3>What To Verify</h3><ul><li>Check whether the serial is stamped into a metal neck plate (bolt-on Japan Original Series) or on the back of the headstock (typical LTD placement).</li><li>Look at the headstock logo and country-of-origin marking to identify the production line.</li><li>Inspect carefully for a worn or faded factory letter before the first digit.</li><li>Compare the hardware, construction, and finish against early LTD catalog specs (1998–2003) or late-1980s/early-1990s ESP Japan Original Series and Custom Shop models.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a starting point, then use the headstock logo, serial placement (neck plate vs. headstock), and country-of-origin marking to select the correct interpretation. Physical inspection is essential for this serial format.</p>`,
     };
 }
 function decodePre2000(serial) {

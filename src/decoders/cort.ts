@@ -5,7 +5,7 @@ import { DecodeResult, GuitarInfo } from '../types.js';
  *
  * Supports:
  * - Modern two-letter factory/line prefix: C[A-Z] + YYMM + sequence
- * - Modern format: YYMMXXXX (2000-2004)
+ * - Modern format: YYMMXXXX (2000-2004); impossible-future-year variant flagged as suspicious
  * - Modern format with omitted leading zero: YMMXXXXX (2000-2009)
  * - Modern numeric year/batch format: YY00XXXX
  * - Modern format extended: YYMMXXXXX (2005-present)
@@ -1210,6 +1210,11 @@ function decodeModern8Digit(serial: string): DecodeResult {
     };
   }
 
+  // Flag serials that decode to an impossible future year
+  if (year > new Date().getFullYear() + 5) {
+    return decodeModern8DigitSuspiciousFutureYear(serial, yearDigits, monthDigits, sequence, year, month);
+  }
+
   const info: GuitarInfo = {
     brand: 'Cort',
     serialNumber: serial,
@@ -1221,6 +1226,57 @@ function decodeModern8Digit(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+function decodeModern8DigitSuspiciousFutureYear(
+  serial: string,
+  yearDigits: string,
+  monthDigits: string,
+  sequence: string,
+  year: number,
+  month: number,
+): DecodeResult {
+  const monthName = getMonthName(month);
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Cort',
+    serialNumber: serial,
+    year: `${year} (impossible — strongly suggests counterfeit, factory second, or padded serial)`,
+    month: monthName,
+    factory: 'Unknown — origin not determinable from this serial',
+    country: 'Unknown',
+    notes: `This 8-digit serial parses as YYMMXXXX → year ${year}, ${monthName}, production sequence ${sequenceNumber}. A year of ${year} is impossibly far in the future for any genuine instrument. The most likely explanations are: (1) the serial is from a counterfeit or factory-second instrument stamped with a random or recycled number; (2) the number was padded from a genuine mid-1990s single-digit-year Cort serial — in the 1990s some Cort guitars used a single leading year digit (e.g. "5" = 1995), and counterfeit or misattributed stamps sometimes pad these to 8 digits, accidentally producing an impossible year marker; (3) an overseas unlicensed factory applied a fixed or arbitrary numeric stamp. Genuine Cort guitars built since 2000 use YYMMXXXX where YY is the two-digit year (e.g. 24 = 2024), and factory-letter prefixes (IC, AI, IE, CA, etc.) are common on Indonesian and Korean production runs.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'cort-8digit-suspicious-future-year',
+    patternLabel: 'Cort 8-digit serial with impossible future year',
+    additionalContext: {
+      title: 'Suspicious Cort serial — impossible future year',
+      summary: `This serial parses under the standard Cort YYMMXXXX format but decodes to the year ${year}, which is impossibly in the future. This is a strong indicator of a counterfeit, factory second, or padded/misattributed serial.`,
+      highlights: [
+        `The digits ${yearDigits} decode as production year ${year} under the YYMMXXXX format — an impossible date.`,
+        `The digits ${monthDigits} decode as ${monthName} and production sequence is ${sequenceNumber}.`,
+        'Genuine Cort guitars since 2000 use two-digit years in the range 00–current (e.g. 24 = 2024).',
+        'Counterfeit stamps sometimes pad 1990s single-digit-year serials (e.g. "5" = 1995) to 8 digits, accidentally creating an impossible year.',
+      ],
+      caveats: [
+        'This serial cannot correspond to a genuine Cort instrument manufactured in a real calendar year.',
+        'The production sequence and month fields are structurally valid but cannot be trusted on a suspicious serial.',
+        'Physical inspection and model verification are essential before any purchase or valuation decision.',
+      ],
+      verificationTips: [
+        'Inspect the headstock logo: genuine Cort logos transitioned to a sharp modern sans-serif block font around 2000; earlier guitars used a stylized cursive font.',
+        'Look for a factory-letter prefix: genuine Indonesian and Korean Cort production runs typically include a letter prefix (IC, AI, IE, CA, etc.) before the number.',
+        'Check the neck pocket and pickup cavities for raw wood production stamps or date codes from the build era.',
+        'Compare hardware, neck profile, fret work, and finish quality against known genuine Cort production from the model year claimed.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial parses under the standard Cort YYMMXXXX 8-digit format but decodes to the year <strong>${year}</strong> — an impossible future date. This is a strong indicator of a counterfeit, factory second, or padded/misattributed serial.</p><h3>How This Pattern Decodes</h3><p>The digits <strong>${yearDigits}</strong> decode as production year ${year}. The digits <strong>${monthDigits}</strong> decode as ${monthName}. The remaining digits decode as production sequence ${sequenceNumber}. All fields are structurally valid, but the year is impossible.</p><h3>Most Likely Explanations</h3><ul><li><strong>Counterfeit stamp:</strong> Unlicensed factories frequently apply fixed or random 8-digit strings without accurate knowledge of Cort's serial conventions.</li><li><strong>Padded 1990s serial:</strong> In the mid-1990s, some Cort guitars used a single-digit leading year (e.g. "5" = 1995). Counterfeit or misattributed stamps sometimes pad these to 8 digits, accidentally producing an impossible year marker like "52".</li><li><strong>Factory second or mismatched neck:</strong> Instruments assembled from rejected or surplus parts may carry non-standard stamps.</li></ul><h3>How To Verify</h3><ul><li>Inspect the headstock logo: genuine Cort logos transitioned to a sharp sans-serif block font around 2000.</li><li>Look for factory-letter prefixes (IC, AI, IE, CA) common on genuine Indonesian and Korean runs.</li><li>Check the neck pocket and pickup cavities for raw wood production stamps matching the claimed era.</li><li>Compare build quality, hardware, and specs against known genuine Cort production.</li></ul>`,
+  };
 }
 
 // Modern 2000s 8-digit year/sequence format: Y0 + sequence (e.g. 70514001 = 2007 + 514001)

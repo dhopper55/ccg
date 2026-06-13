@@ -435,6 +435,26 @@ function assertCort1990s7DigitAnomalousMonth(serialInput, expectedYear) {
   );
 }
 
+function assertCort8DigitSuspiciousFutureYear(serialInput, expectedDecodedYear) {
+  const result = decodeSerialForBackend('cort', serialInput);
+  assert(result.success, `Expected decode success for cort:${serialInput}`);
+  assert(result.info, `Expected decoded info for cort:${serialInput}`);
+
+  const info = result.info;
+  assert(
+    info.year && info.year.includes(expectedDecodedYear.toString()) && info.year.includes('impossible'),
+    `Expected year to include ${expectedDecodedYear} and 'impossible' for ${serialInput}, got ${info.year}`
+  );
+  assert(
+    result.patternKey === 'cort-8digit-suspicious-future-year',
+    `Expected cort-8digit-suspicious-future-year pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('impossible'),
+    `Expected suspicious rich text for ${serialInput}`
+  );
+}
+
 export function runTests() {
   assertCortIEPrefix('ie220403666', '2022', 'April');
   assertCortAIPrefix('AI200750591', '2020', 'July');
@@ -457,4 +477,5 @@ export function runTests() {
   assertCortEarly1990s7DigitYearSequence('9000895');
   assertCortIIAIndonesia('IIA241190604', '2024', 'November');
   assertCort1990s7DigitAnomalousMonth('5591410', '1995');
+  assertCort8DigitSuspiciousFutureYear('52030600', 2052);
 }

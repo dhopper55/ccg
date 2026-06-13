@@ -213,6 +213,23 @@ function assertKramerVintage5Digit(serialInput) {
   );
 }
 
+function assertKramerPlain4Digit(serialInput) {
+  const result = decodeKramer(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '1980s (estimated)', `Expected 1980s estimate for ${serialInput}, got ${info.year}`);
+  assert(
+    result.patternKey === 'kramer-plain-4-digit-plate-unverified',
+    `Expected Kramer plain 4-digit pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('plain 4-digit'),
+    `Expected Kramer plain 4-digit rich text for ${serialInput}`
+  );
+}
+
 function assertKramerSBStriker(serialInput) {
   const result = decodeKramer(serialInput);
   assert(result.success, `Expected decode success for kramer:${serialInput}`);
@@ -248,4 +265,5 @@ export function runTests() {
   assertKramerModernGibsonEraNumeric('25051300004', '2025', 'May', 'Factory 13');
   assertKramerModernGibsonEraFactoryNumeric('311763081', '2017', 'June', 'Qingdao');
   assertKramerSBStriker('SB 2063');
+  assertKramerPlain4Digit('8586');
 }

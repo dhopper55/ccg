@@ -120,12 +120,16 @@ export function decodeSerialForBackend(brandInput: string, serialInput: string):
   }
 
   if (result.success && result.info && isFutureYearResult(result.info, getAllowedFutureYearOffset(normalizedBrand))) {
-    return {
-      success: false,
-      error: 'Unable to decode this serial number.',
-      normalizedBrand,
-      correctedSerial,
-    };
+    // Decoders that already flag a serial as suspicious/impossible intentionally return a future year
+    // in the year field to convey the anomaly. Pass those through rather than silently dropping them.
+    if (!result.patternKey?.includes('suspicious')) {
+      return {
+        success: false,
+        error: 'Unable to decode this serial number.',
+        normalizedBrand,
+        correctedSerial,
+      };
+    }
   }
 
   if (result.success && result.info && !hasMeaningfulDecodedFields(result.info)) {

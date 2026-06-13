@@ -149,6 +149,27 @@ function assertESPJapanKisoFactory(serialInput) {
   );
 }
 
+function assertESPAmbiguous6DigitAllNumeric(serialInput) {
+  const result = decodeESP(serialInput);
+  assert(result.success, `Expected decode success for ESP ${serialInput}`);
+  assert(result.info, `Expected decoded info for ESP ${serialInput}`);
+
+  const info = result.info;
+  assert(
+    info.factory === 'ESP Japan Original/Custom Shop or Korean LTD partner factory (context-dependent)',
+    `Expected ambiguous factory for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'Japan or South Korea', `Expected Japan or South Korea for ${serialInput}, got ${info.country}`);
+  assert(
+    result.patternKey === 'esp-ambiguous-6-digit-all-numeric',
+    `Expected ESP ambiguous 6-digit pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('2002'),
+    `Expected ESP ambiguous 6-digit rich text with year reference for ${serialInput}`
+  );
+}
+
 function assertESPLTDEarlyKoreaUSequential(serialInput) {
   const result = decodeESP(serialInput);
   assert(result.success, `Expected decode success for ESP ${serialInput}`);
@@ -174,4 +195,5 @@ export function runTests() {
   assertESPLTDKoreaWMI9Digit('W120061141');
   assertESPJapanKisoFactory('K12211303');
   assertESPLTDEarlyKoreaUSequential('U080879');
+  assertESPAmbiguous6DigitAllNumeric('028304');
 }

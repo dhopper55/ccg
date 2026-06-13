@@ -8,6 +8,7 @@
  * - V-prefix (vintage/import plates, mid-to-late 1980s)
  * - SB-prefix (mid-to-late 1980s Striker import, Samick Korea or Japan)
  * - S-prefix variants: SE, SD, SP, SF, SC, SJ, SI (various import eras)
+ * - Plain 4-digit numeric (unverified era; import or USA with possible worn/missing prefix)
  * - Modern Gibson/MusicYo-era numeric formats (9- and 11-digit)
  */
 export function decodeKramer(serial) {
@@ -172,6 +173,47 @@ export function decodeKramer(serial) {
         };
         return { success: true, info };
     }
+    // Plain 4-digit numeric serials (no letter prefix)
+    // USA Series used A–F prefixes; a bare 4-digit number does not match that format.
+    // Some import models (Striker, Focus) used plain stamped plates with no date encoding.
+    if (/^\d{4}$/.test(normalized)) {
+        const sequence = parseInt(normalized, 10);
+        return {
+            success: true,
+            info: {
+                brand: 'Kramer',
+                serialNumber: cleaned,
+                year: '1980s (estimated)',
+                country: 'USA or import (unverified)',
+                notes: `Plain 4-digit numeric serials are ambiguous in Kramer's history. The USA Neptune, NJ American Series from the early-to-mid 1980s used single-letter prefixes (A, B, C, D, G, or S) before the number — a bare 4-digit number without a letter prefix does not match the official American Series format. Some 1980s import models (Striker, Focus) used plain stamped neck plates or stickers without clear sequential coding. Because Kramer's factory records from the Neptune, NJ era are largely lost, confirming authenticity or precise dating from an un-prefixed 4-digit serial is difficult. Sequence: ${sequence}. Check whether the serial appears on a stamped metal neck plate or headstock decal, look carefully for a worn or faint letter prefix, note the headstock shape (beak, pointy, or banana), and see if the neck plate references Neptune, NJ.`,
+            },
+            patternKey: 'kramer-plain-4-digit-plate-unverified',
+            patternLabel: 'Kramer plain 4-digit plate serial (unverified era)',
+            additionalContext: {
+                title: 'Kramer plain 4-digit serial',
+                summary: 'Plain 4-digit numeric serials are ambiguous in Kramer\'s history. The USA American Series used letter prefixes (A–F); a bare 4-digit number does not match that format and may indicate an import model or a plate with a worn/missing prefix.',
+                highlights: [
+                    'The USA Neptune, NJ American Series used single-letter prefixes (A, B, C, D, G, or S) before the number.',
+                    'A plain 4-digit number without a letter prefix does not match the official American Series format.',
+                    'Some 1980s import models (Striker, Focus) used plain stamped plates or stickers without clear date coding.',
+                    `Serial digits: ${sequence}.`,
+                ],
+                caveats: [
+                    'Kramer factory records from the Neptune, NJ era are largely lost — exact dating and provenance are difficult to confirm from a plain numeric serial alone.',
+                    'A letter prefix may be worn, faded, or partially obscured — inspect the neck plate or headstock carefully.',
+                    'Without a confirmed letter prefix, this serial cannot be verified as an American Series Kramer.',
+                ],
+                verificationTips: [
+                    'Check whether the serial is on a stamped metal neck plate (back of body) or a headstock decal.',
+                    'Look carefully for a worn or faint letter prefix before the digits.',
+                    'Note the headstock shape: beak, pointy, or banana-style.',
+                    'Check if the neck plate references Neptune, NJ.',
+                    'Compare against the Vintage Kramer Serial Numbers Guide or the Kramer Serial Number Research Database.',
+                ],
+            },
+            additionalContextRichText: `<h3>Overview</h3><p>Plain 4-digit numeric serials are ambiguous in Kramer's history. The USA Neptune, NJ American Series used single-letter prefixes (A, B, C, D, G, or S) before the number — a bare 4-digit number does not match the official American Series format and may indicate an import model or a plate with a worn or missing prefix.</p><h3>How This Pattern Is Typically Read</h3><p>The USA Neptune, NJ American Series used letter prefixes (A–F) preceding the number. A plain 4-digit serial does not fit the official American Series format. Some 1980s import models (Striker, Focus) used plain stamped plates or stickers without clear sequential coding. Because Kramer's factory records from this era are largely lost, exact dating requires physical verification. Serial digits: ${sequence}.</p><h3>What To Verify</h3><ul><li>Check whether the serial appears on a stamped metal neck plate (back of body) or a headstock decal.</li><li>Look carefully for a worn or faint letter prefix before the digits — a partially worn stamp could hide an A, B, C, D, G, or S prefix.</li><li>Note the headstock shape (beak, pointy, or banana-style) and whether the neck plate references Neptune, NJ.</li><li>Compare against the Vintage Kramer Serial Numbers Guide or the Kramer Serial Number Research Database.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a general 1980s Kramer estimate. Physical inspection — particularly checking for a worn letter prefix, headstock shape, and neck-plate markings — is the most reliable way to determine model and era.</p>`,
+        };
+    }
     // Musicyo reissue style (e.g., 04xxxx)
     if (/^\d{5,}$/.test(normalized)) {
         // 5-digit numeric plate serials are commonly seen on 1980s Neptune, NJ
@@ -254,7 +296,7 @@ export function decodeKramer(serial) {
     }
     return {
         success: false,
-        error: 'Unable to decode this Kramer serial number. Kramer serials vary by era, and many vintage records were lost. Common known formats: single-letter A–F (USA era), H-prefix (Japan ESP build), SB/SE/SD/SP/SF/SC/SJ/SI-prefix (import eras), and numeric formats. Try the Vintage Kramer registry or HTPG serial search for additional context.',
+        error: 'Unable to decode this Kramer serial number. Kramer serials vary by era, and many vintage records were lost. Common known formats: single-letter A–F (USA era), H-prefix (Japan ESP build), SB/SE/SD/SP/SF/SC/SJ/SI-prefix (import eras), plain 4-digit numeric (import or USA with possible worn prefix), and numeric formats. Try the Vintage Kramer registry or HTPG serial search for additional context.',
     };
 }
 function decodeVintage1980sSBStriker(normalized, cleaned) {
