@@ -18479,7 +18479,7 @@ async function handleAdminV2ValueReportItem(id: string, env: Env): Promise<Respo
   const row = await env.DB.prepare(
     `SELECT id, created_at, first_name, last_name, email, brand, brand_other, model,
             serial_number, includes_case, location, note, damage,
-            stripe_payment_intent_id, fulfilled, image_keys, report_guid, report_r2_key
+            stripe_payment_intent_id, fulfilled, image_keys, report_guid, report_r2_key, report_error
      FROM guitar_evaluations WHERE id = ?`
   ).bind(id).first<{
     id: number;
@@ -18500,6 +18500,7 @@ async function handleAdminV2ValueReportItem(id: string, env: Env): Promise<Respo
     image_keys: string | null;
     report_guid: string | null;
     report_r2_key: string | null;
+    report_error: string | null;
   }>();
 
   if (!row) return jsonResponse({ message: 'Value report not found.' }, 404);
@@ -18532,6 +18533,7 @@ async function handleAdminV2ValueReportItem(id: string, env: Env): Promise<Respo
       imageUrls,
       reportGuid: row.report_guid,
       reportR2Key: row.report_r2_key,
+      reportError: row.report_error,
     },
   });
 }
@@ -18871,6 +18873,11 @@ async function handleAdminV2GenerateReport(
   ).bind(id).first<{ id: number }>();
   if (!row) return jsonResponse({ message: 'Value report not found.' }, 404);
 
+  // Clear any previous error so the UI shows "generating" cleanly
+  await env.DB.prepare(
+    'UPDATE guitar_evaluations SET report_error = NULL WHERE id = ?',
+  ).bind(id).run();
+
   ctx.waitUntil(runGuitarEvalReportGeneration(Number(id), env));
   return jsonResponse({ generating: true });
 }
@@ -18950,7 +18957,13 @@ async function runGuitarEvalReportGeneration(id: number, env: Env): Promise<void
       'UPDATE guitar_evaluations SET report_r2_key = ?, report_guid = ? WHERE id = ?',
     ).bind(r2Key, guid, id).run();
   } catch (err) {
-    console.error('Guitar eval report generation failed:', err);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('Guitar eval report generation failed:', msg);
+    try {
+      await env.DB.prepare(
+        'UPDATE guitar_evaluations SET report_error = ? WHERE id = ?',
+      ).bind(msg.slice(0, 1000), id).run();
+    } catch { /* ignore secondary failure */ }
   }
 }
 

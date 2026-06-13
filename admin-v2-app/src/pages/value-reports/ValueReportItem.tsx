@@ -48,6 +48,7 @@ type ValueReportRecord = {
   imageUrls: string[];
   reportGuid: string | null;
   reportR2Key: string | null;
+  reportError: string | null;
 };
 
 type EvalFile = {
@@ -282,6 +283,11 @@ const ValueReportItem = () => {
 
               {generateError ? (
                 <Typography variant="caption" color="error.main">{generateError}</Typography>
+              ) : null}
+              {!generating && record?.reportError ? (
+                <Typography variant="caption" color="error.main">
+                  Last attempt failed: {record.reportError}
+                </Typography>
               ) : null}
             </Stack>
           </Box>
