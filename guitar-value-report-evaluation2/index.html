@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400&family=Hanken+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://js.stripe.com/v3/"></script>
 <style>
 :root {
   --paper: #F4EFE4;
@@ -882,7 +883,7 @@ nav .wrap {
   background: var(--ink);
   color: var(--paper);
   font-family: var(--sans);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 400;
   line-height: 1.6;
   letter-spacing: 0;
@@ -896,6 +897,77 @@ nav .wrap {
   transition: opacity .15s;
   border: 1px solid rgba(244,239,228,.1);
 }
+#tt strong { display: block; font-weight: 700; font-size: 13px; margin-bottom: 6px; color: var(--brass-bright); }
+#tt p { margin: 0 0 6px; }
+#tt p:last-child { margin-bottom: 0; }
+#tt ul { margin: 4px 0 6px 14px; padding: 0; list-style: disc; }
+#tt li { margin-bottom: 2px; }
+
+.field-err input,
+.field-err select,
+.field-err textarea {
+  border-color: var(--clay) !important;
+  box-shadow: 0 0 0 3px rgba(154,70,40,.1) !important;
+}
+.field-err-msg {
+  font-size: 11px;
+  color: var(--clay);
+  font-family: var(--mono);
+  letter-spacing: .04em;
+  margin-top: 3px;
+  display: none;
+}
+.field-err .field-err-msg { display: block; }
+
+#stripe-spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-family: var(--mono);
+  letter-spacing: .08em;
+  gap: 10px;
+}
+#stripe-spinner::before {
+  content: '';
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--line);
+  border-top-color: var(--creek);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+#stripe-error {
+  font-size: 13px;
+  color: var(--clay);
+  font-family: var(--mono);
+  letter-spacing: .04em;
+  margin-top: 12px;
+  display: none;
+  line-height: 1.5;
+}
+#btn-pay {
+  width: 100%;
+  padding: 14px;
+  background: var(--brass-bright);
+  color: var(--ink);
+  border: none;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  cursor: pointer;
+  margin-top: 18px;
+  transition: background .15s;
+}
+#btn-pay:hover:not(:disabled) { background: #D4A650; }
+#btn-pay:disabled { opacity: .55; cursor: not-allowed; }
 
 .field-divider {
   font-family: var(--mono);
@@ -1548,88 +1620,89 @@ footer {
           <div class="form-body-sub">Tell us about the instrument. The more detail, the sharper the report.</div>
 
           <div class="field-row three">
-            <div class="field">
-              <label>Serial # <span class="opt">(optional)</span> <span class="help-icon" data-tooltip="Found on the headstock or in the neck pocket. Helps us pinpoint the exact year and factory.">?</span></label>
-              <input type="text" placeholder="e.g. CS403228">
+            <div class="field" id="wrap-serial">
+              <label>Serial # <span class="opt">(optional)</span> <span class="help-icon" data-tooltip-key="serial">?</span></label>
+              <input id="field-serial" type="text" placeholder="e.g. CS403228">
+              <span class="field-err-msg">Required</span>
             </div>
-            <div class="field">
-              <label>Brand <span class="req">*</span></label>
-              <select>
+            <div class="field" id="wrap-brand">
+              <label>Brand <span class="req">*</span> <span class="help-icon" data-tooltip-key="brand">?</span></label>
+              <select id="field-brand">
                 <option value="">Select brand…</option>
-                <option>Gibson</option>
-                <option>Fender</option>
-                <option>Martin</option>
-                <option>Taylor</option>
-                <option>PRS</option>
-                <option>Gretsch</option>
-                <option>Rickenbacker</option>
+                <option>Alvarez</option>
+                <option>B.C. Rich</option>
+                <option>Charvel</option>
+                <option>Cort</option>
+                <option>Dean</option>
                 <option>Epiphone</option>
+                <option>Ernie Ball Music Man</option>
+                <option>ESP</option>
+                <option>Fender</option>
+                <option>Gibson</option>
+                <option>Godin</option>
+                <option>Gretsch</option>
                 <option>Guild</option>
                 <option>Ibanez</option>
-                <option>ESP</option>
                 <option>Jackson</option>
+                <option>Kramer</option>
+                <option>Martin</option>
+                <option>Ovation</option>
+                <option>PRS</option>
+                <option>Rickenbacker</option>
                 <option>Schecter</option>
+                <option>Squier</option>
+                <option>Takamine</option>
+                <option>Taylor</option>
+                <option>Washburn</option>
                 <option>Yamaha</option>
-                <option>Ernie Ball / Music Man</option>
                 <option>Other</option>
               </select>
+              <span class="field-err-msg">Brand is required</span>
             </div>
-            <div class="field">
-              <label>Model <span class="opt">(optional)</span></label>
-              <input type="text" placeholder="e.g. Les Paul Custom">
+            <div class="field" id="wrap-model">
+              <label>Model <span class="opt">(optional)</span> <span class="help-icon" data-tooltip-key="model">?</span></label>
+              <input id="field-model" type="text" placeholder="e.g. Les Paul Custom">
+              <span class="field-err-msg">Required</span>
             </div>
           </div>
 
-          <div class="field-row">
-            <div class="field">
-              <label>Includes Case or Bag? <span class="help-icon" data-tooltip="Original cases and COAs add meaningful value for many guitars. An original hardshell case can add $100–$500+ to collector-grade instruments.">?</span></label>
-              <select>
-                <option>No case or bag</option>
-                <option>Original hardshell case (OHSC)</option>
-                <option>Aftermarket hardshell case</option>
-                <option>Original gig bag</option>
-                <option>Aftermarket gig bag</option>
+          <div class="field-row three">
+            <div class="field" id="wrap-case">
+              <label>Includes Case or Bag? <span class="help-icon" data-tooltip-key="case">?</span></label>
+              <select id="field-case">
+                <option value="no">No</option>
+                <option value="gig_bag">Gig Bag</option>
+                <option value="hard_case">Hard Case</option>
               </select>
+              <span class="field-err-msg">Required</span>
             </div>
-            <div class="field">
-              <label>Color / Finish <span class="opt">(optional)</span> <span class="help-icon" data-tooltip="Unusual or rare finishes can significantly affect value in either direction. Desirable colors (Inca Silver, Fiesta Red, certain bursts) command strong premiums. Odd or unpopular colors can suppress resale.">?</span></label>
-              <input type="text" placeholder="e.g. Sunburst, Natural, Black">
+            <div class="field" id="wrap-finish">
+              <label>Color / Finish <span class="opt">(optional)</span> <span class="help-icon" data-tooltip-key="finish">?</span></label>
+              <input id="field-finish" type="text" placeholder="e.g. Sunburst, Natural, Black">
+              <span class="field-err-msg">Required</span>
             </div>
-          </div>
-
-          <div class="field-row one">
-            <div class="field">
-              <label>Approx. Instrument Location <span class="req">*</span> <span class="help-icon" data-tooltip="Your city or metro helps us calibrate local market pricing. Private sales in some markets run meaningfully higher or lower than national averages — knowing where you are makes the estimate sharper.">?</span></label>
-              <input type="text" placeholder="e.g. Denver, CO or Chicago, IL">
+            <div class="field" id="wrap-location">
+              <label>Approx. Instrument Location <span class="req">*</span> <span class="help-icon" data-tooltip-key="location">?</span></label>
+              <input id="field-location" type="text" placeholder="e.g. Denver, CO or Chicago, IL">
+              <span class="field-err-msg">Location is required</span>
             </div>
           </div>
 
           <div class="field-divider">Additional Information</div>
 
           <div class="field-row one">
-            <div class="field">
-              <label>Guitar Notes <span class="help-icon" data-tooltip="Anything you know about the guitar — year, purchase history, pickups, mods, weight, unique features. The more context you provide, the more accurate and useful the report.">?</span></label>
-              <textarea placeholder="Year, purchase history, known mods, pickup swaps, weight, anything you know about the guitar…" style="min-height:90px"></textarea>
+            <div class="field" id="wrap-notes">
+              <label>Guitar Notes <span class="req">*</span> <span class="help-icon" data-tooltip-key="notes">?</span></label>
+              <textarea id="field-notes" placeholder="Year, purchase history, known mods, pickup swaps, weight, anything you know about the guitar…" style="min-height:90px"></textarea>
+              <span class="field-err-msg">Guitar notes are required</span>
             </div>
           </div>
 
           <div class="field-row one">
-            <div class="field">
-              <label>Any Damage Worth Noting? <span class="help-icon" data-tooltip="Be honest — we'll factor it into the report accurately regardless, and buyers will find it anyway. Headstock repairs, refins, and structural damage affect value significantly; minor finish wear much less so.">?</span></label>
-              <textarea placeholder="Finish cracks, dings, headstock repairs, fret wear, tuner issues, electronics problems…" style="min-height:72px"></textarea>
-            </div>
-          </div>
-
-          <div class="field-row one">
-            <div class="field">
-              <label>What are you looking to do? <span class="help-icon" data-tooltip="We tailor the tone and emphasis of the report to your situation — whether you need a realistic sell price, a trade estimate, or documentation for insurance purposes.">?</span></label>
-              <select>
-                <option>Just curious what it's worth</option>
-                <option>Thinking about selling — want to price it right</option>
-                <option>Planning to sell — need the listing too</option>
-                <option>Considering a trade</option>
-                <option>Insurance or personal records</option>
-              </select>
+            <div class="field" id="wrap-damage">
+              <label>Any Damage Worth Noting? <span class="req">*</span> <span class="help-icon" data-tooltip-key="damage">?</span></label>
+              <textarea id="field-damage" placeholder="Finish cracks, dings, headstock repairs, fret wear, tuner issues, electronics problems… (enter 'None' if pristine)" style="min-height:72px"></textarea>
+              <span class="field-err-msg">Damage field is required (enter 'None' if pristine)</span>
             </div>
           </div>
 
@@ -1650,27 +1723,30 @@ footer {
           </div>
 
           <div class="field-row">
-            <div class="field">
+            <div class="field" id="wrap-firstname">
               <label>First Name <span class="req">*</span></label>
-              <input type="text" placeholder="Your first name">
+              <input id="field-firstname" type="text" placeholder="Your first name">
+              <span class="field-err-msg">First name is required</span>
             </div>
-            <div class="field">
+            <div class="field" id="wrap-lastname">
               <label>Last Name <span class="req">*</span></label>
-              <input type="text" placeholder="Your last name">
+              <input id="field-lastname" type="text" placeholder="Your last name">
+              <span class="field-err-msg">Last name is required</span>
             </div>
           </div>
 
           <div class="field-row one">
-            <div class="field">
+            <div class="field" id="wrap-email">
               <label>Email Address <span class="req">*</span></label>
-              <input type="email" placeholder="you@example.com">
+              <input id="field-email" type="email" placeholder="you@example.com">
+              <span class="field-err-msg">A valid email address is required</span>
             </div>
           </div>
 
           <div class="field-row one">
             <div class="field">
-              <label>Phone <span class="opt">(optional)</span> <span class="help-icon" data-tooltip="Only used if we have a question about your guitar — never for marketing or third-party contact.">?</span></label>
-              <input type="tel" placeholder="(303) 555-0100">
+              <label>Phone <span class="opt">(optional)</span> <span class="help-icon" data-tooltip-key="phone">?</span></label>
+              <input id="field-phone" type="tel" placeholder="(303) 555-0100">
             </div>
           </div>
 
@@ -1682,15 +1758,10 @@ footer {
 
         <!-- STEP 3: Payment -->
         <div class="step-panel" id="step-3">
-          <div class="form-body-title">Unlock Your Report</div>
-          <div class="form-body-sub">One-time fee. Delivered in seconds to minutes.</div>
+          <div class="form-body-title">Comprehensive Report Payment ($2.99)</div>
+          <div class="form-body-sub">One-time charge — report typically ready in 1–2 hours or it's free.</div>
 
-          <div class="price-display">
-            <span class="price-big">$29</span>
-            <span class="price-label">One report · Yours to keep</span>
-          </div>
-
-          <div class="price-includes">
+          <div class="price-includes" style="margin-bottom:18px">
             <div class="price-line"><span class="check">✓</span> Identity verification &amp; specs</div>
             <div class="price-line"><span class="check">✓</span> Actual sold market comps</div>
             <div class="price-line"><span class="check">✓</span> Four-channel valuation</div>
@@ -1699,30 +1770,13 @@ footer {
             <div class="price-line"><span class="check">✓</span> PDF you can save, print, or share</div>
           </div>
 
-          <div class="field-row one">
-            <div class="field">
-              <label>Card Number <span class="req">*</span></label>
-              <input type="text" id="card-number" placeholder="•••• •••• •••• ••••" maxlength="19">
-            </div>
-          </div>
-          <div class="field-row">
-            <div class="field">
-              <label>Expiration <span class="req">*</span></label>
-              <input type="text" placeholder="MM / YY" maxlength="7">
-            </div>
-            <div class="field">
-              <label>CVC <span class="req">*</span></label>
-              <input type="text" placeholder="•••" maxlength="4">
-            </div>
-          </div>
+          <div id="stripe-spinner">Loading payment form…</div>
+          <div id="stripe-payment-element"></div>
+          <div id="stripe-error"></div>
 
-          <div class="stripe-badge">
-            <span>🔒 Secured by Stripe · SSL encrypted</span>
-          </div>
-
-          <div class="form-actions">
+          <div class="form-actions" style="margin-top:18px">
             <button class="btn-back" onclick="goToStep(2)">← Back</button>
-            <button class="btn-next" onclick="goToStep(4)">Continue to Photos →</button>
+            <button id="btn-pay" disabled>Pay $2.99 →</button>
           </div>
         </div>
 
@@ -1805,9 +1859,102 @@ footer {
 <div id="tt"></div>
 
 <script>
+// ── State ────────────────────────────────────────────────────────────────────
 let currentStep = 1;
+let evaluationId = sessionStorage.getItem('evalId') ? Number(sessionStorage.getItem('evalId')) : null;
+let stripeInstance = null;
+let stripeElements = null;
 
-function goToStep(n) {
+// ── Tooltip content ──────────────────────────────────────────────────────────
+const TOOLTIPS = {
+  serial: `<strong>Serial Number</strong><p>Most major manufacturers assign a serial number to each instrument. Common locations:</p><ul><li>Front or back of the headstock</li><li>A label inside the soundhole (acoustics)</li><li>Neck plate on bolt-on guitars</li><li>Back of the neck near the body joint</li></ul><p>Enter it exactly as it appears. Leave blank if you can't find one.</p>`,
+  brand: `<strong>Brand</strong><p>The guitar's brand is one of the most important factors in determining value. An accurate evaluation isn't possible without it.</p><p>The brand is typically on the headstock, but may also appear on a label inside the soundhole or on the neck plate.</p><p>If you're unsure, select "Other" and enter "N/A." With clear photos, we can often identify the brand from the photos provided.</p>`,
+  model: `<strong>Model</strong><p>If you know the model, enter it here — it's often on the headstock, a label inside the soundhole, or identifiable from the serial number.</p><p>This field is optional. With clear photos we can usually identify it during the appraisal.</p><p>Examples: Stratocaster, Les Paul Standard, D-28, CE24, FG800</p>`,
+  case: `<strong>Case or Bag</strong><p>Cases and gig bags can have a meaningful impact on value, especially for higher-end or vintage instruments.</p><p>If the case is original, premium, or otherwise noteworthy, mention it in the Guitar Notes field below.</p><ul><li>Original factory hard case</li><li>Original molded case</li><li>Premium aftermarket hard case</li><li>Vintage period-correct case</li><li>Basic gig bag</li></ul>`,
+  finish: `<strong>Color / Finish</strong><p>Helps us identify the specific variant and find accurate market comparables.</p><p>Examples: Sunburst, Black, Natural, Cherry Red, Vintage White, Lake Placid Blue, Tobacco Burst</p><p>If the finish has notable characteristics (checking, aging, custom refinish) note that here or in Guitar Notes.</p>`,
+  location: `<strong>Instrument Location</strong><p>Your city or metro helps us calibrate local market pricing. Private sales in some markets run meaningfully higher or lower than national averages.</p><p>Location helps us:</p><ul><li>Estimate local/private-party value more accurately</li><li>Account for regional supply and demand</li><li>Consider shipping costs when relevant</li></ul><p>Examples: Denver, Colorado · Toronto, Ontario · Melbourne, Victoria</p><p>A general location is sufficient — no street address needed.</p>`,
+  notes: `<strong>Guitar Notes</strong><p>Tell us anything you know about the guitar, even if it seems minor. Helpful information includes:</p><ul><li>Any modifications, upgrades, repairs, or replaced parts</li><li>Recent setup or maintenance work</li><li>Whether the guitar has been professionally serviced</li><li>Any accessories included</li></ul><p>If you know the history — original owner, where/when purchased, provenance — we'd love to hear it. Ownership history can make a future listing more compelling.</p>`,
+  damage: `<strong>Damage &amp; Wear</strong><p>Please describe any damage, wear, or issues. Condition has a major impact on value. Examples:</p><ul><li>Cracks, breaks, or repaired damage</li><li>Headstock repairs</li><li>Neck issues, warping, or twisting</li><li>Loose, worn, or buzzing frets</li><li>Broken or missing hardware, knobs, switches</li><li>Electrical issues, scratchy pots, weak pickups</li><li>Scratches, dents, chips, buckle rash, finish checking</li><li>High action or tuning problems</li></ul><p>Be honest — we'll factor it in accurately regardless, and buyers will find it anyway. Enter "None" if the guitar is pristine.</p>`,
+  phone: `<strong>Phone Number</strong><p>Only used if we have a specific question about your guitar. Never used for marketing or shared with third parties.</p>`,
+};
+
+// ── Tooltip UI ───────────────────────────────────────────────────────────────
+const tt = document.getElementById('tt');
+let ttHide;
+
+function showTooltip(el) {
+  const key = el.dataset.tooltipKey;
+  if (!key || !TOOLTIPS[key]) return;
+  clearTimeout(ttHide);
+  tt.innerHTML = TOOLTIPS[key];
+  tt.style.opacity = '0';
+  tt.style.display = 'block';
+  const r = el.getBoundingClientRect();
+  const tw = tt.offsetWidth;
+  const th = tt.offsetHeight;
+  let left = r.left + r.width / 2 - tw / 2;
+  let top = r.top - th - 10 + window.scrollY;
+  if (left < 8) left = 8;
+  if (left + tw > window.innerWidth - 8) left = window.innerWidth - tw - 8;
+  if (r.top - th - 10 < 8) top = r.bottom + 10 + window.scrollY;
+  tt.style.left = left + 'px';
+  tt.style.top = top + 'px';
+  tt.style.opacity = '1';
+}
+
+document.querySelectorAll('.help-icon[data-tooltip-key]').forEach(el => {
+  el.addEventListener('mouseenter', () => showTooltip(el));
+  el.addEventListener('mouseleave', () => { ttHide = setTimeout(() => { tt.style.opacity = '0'; }, 120); });
+  el.addEventListener('click', (e) => { e.stopPropagation(); showTooltip(el); });
+});
+document.addEventListener('click', () => { tt.style.opacity = '0'; });
+
+// ── Validation ───────────────────────────────────────────────────────────────
+function validateStep1() {
+  let ok = true;
+  const required = [
+    { wrap: 'wrap-brand',    field: 'field-brand',    check: v => v !== '' },
+    { wrap: 'wrap-location', field: 'field-location', check: v => v.trim() !== '' },
+    { wrap: 'wrap-notes',    field: 'field-notes',    check: v => v.trim() !== '' },
+    { wrap: 'wrap-damage',   field: 'field-damage',   check: v => v.trim() !== '' },
+  ];
+  required.forEach(({ wrap, field, check }) => {
+    const w = document.getElementById(wrap);
+    const f = document.getElementById(field);
+    if (!check(f.value)) { w.classList.add('field-err'); ok = false; }
+    else w.classList.remove('field-err');
+  });
+  return ok;
+}
+
+function validateStep2() {
+  let ok = true;
+  const email = document.getElementById('field-email').value.trim();
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const required = [
+    { wrap: 'wrap-firstname', field: 'field-firstname', check: v => v.trim() !== '' },
+    { wrap: 'wrap-lastname',  field: 'field-lastname',  check: v => v.trim() !== '' },
+    { wrap: 'wrap-email',     field: 'field-email',     check: () => emailOk },
+  ];
+  required.forEach(({ wrap, field, check }) => {
+    const w = document.getElementById(wrap);
+    const f = document.getElementById(field);
+    if (!check(f.value)) { w.classList.add('field-err'); ok = false; }
+    else w.classList.remove('field-err');
+  });
+  return ok;
+}
+
+// Clear error on input
+['wrap-brand','wrap-location','wrap-notes','wrap-damage','wrap-firstname','wrap-lastname','wrap-email'].forEach(wrapId => {
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return;
+  const input = wrap.querySelector('input, select, textarea');
+  if (input) input.addEventListener('input', () => wrap.classList.remove('field-err'));
+});
+
+// ── Step navigation ───────────────────────────────────────────────────────────
+function activateStep(n) {
   document.getElementById('step-' + currentStep).classList.remove('active');
   document.getElementById('tab-' + currentStep).classList.remove('active');
   if (currentStep < n) {
@@ -1820,10 +1967,178 @@ function goToStep(n) {
   currentStep = n;
   document.getElementById('step-' + n).classList.add('active');
   document.getElementById('tab-' + n).classList.add('active');
-  document.getElementById('get-report').scrollIntoView({behavior:'smooth', block:'start'});
+  document.getElementById('get-report').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function submitForm() {
+function showStepError(msg) {
+  // re-use stripe-error div if on step 3, otherwise alert
+  alert(msg);
+}
+
+// ── Worker API calls ──────────────────────────────────────────────────────────
+async function persistGuitarInfo() {
+  const payload = {
+    serialNumber: document.getElementById('field-serial').value.trim() || null,
+    brand: document.getElementById('field-brand').value,
+    model: document.getElementById('field-model').value.trim() || null,
+    includesCase: document.getElementById('field-case').value,
+    colorFinish: document.getElementById('field-finish').value.trim() || null,
+    location: document.getElementById('field-location').value.trim() || null,
+    note: document.getElementById('field-notes').value.trim(),
+    damage: document.getElementById('field-damage').value.trim(),
+    firstName: '', lastName: '', email: '',
+  };
+
+  if (evaluationId) {
+    const res = await fetch('/api/guitar-evaluation/' + evaluationId, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Update failed.');
+  } else {
+    const res = await fetch('/api/guitar-evaluation', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Submission failed.');
+    const data = await res.json();
+    evaluationId = data.id;
+    sessionStorage.setItem('evalId', evaluationId);
+  }
+}
+
+async function persistContactInfo() {
+  if (!evaluationId) throw new Error('Evaluation record not found. Please restart.');
+  const res = await fetch('/api/guitar-evaluation/' + evaluationId, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      firstName: document.getElementById('field-firstname').value.trim(),
+      lastName: document.getElementById('field-lastname').value.trim(),
+      email: document.getElementById('field-email').value.trim(),
+    }),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Contact save failed.');
+}
+
+// ── Stripe payment ────────────────────────────────────────────────────────────
+async function initStripePayment() {
+  const spinner = document.getElementById('stripe-spinner');
+  const errEl = document.getElementById('stripe-error');
+  const payBtn = document.getElementById('btn-pay');
+  try {
+    const res = await fetch('/api/guitar-evaluation/payment-intent', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ evaluationId }),
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to load payment.');
+    const { clientSecret, publishableKey } = await res.json();
+    stripeInstance = Stripe(publishableKey);
+    stripeElements = stripeInstance.elements({
+      clientSecret,
+      appearance: {
+        theme: 'flat',
+        variables: {
+          colorPrimary: '#235A6E',
+          colorBackground: '#ECE5D5',
+          colorText: '#15181E',
+          colorTextSecondary: '#2C323C',
+          colorDanger: '#9A4628',
+          fontFamily: "'Hanken Grotesk', -apple-system, sans-serif",
+          borderRadius: '3px',
+        },
+        rules: {
+          '.Input': { border: '1px solid rgba(21,24,30,.15)', boxShadow: 'none' },
+          '.Input:focus': { border: '1px solid #235A6E', boxShadow: '0 0 0 3px rgba(35,90,110,.12)' },
+        }
+      },
+    });
+    const pe = stripeElements.create('payment', { layout: 'tabs', wallets: { link: 'never' } });
+    spinner.style.display = 'none';
+    pe.mount('#stripe-payment-element');
+    payBtn.disabled = false;
+  } catch (e) {
+    spinner.style.display = 'none';
+    errEl.textContent = e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+async function handlePay() {
+  const payBtn = document.getElementById('btn-pay');
+  const errEl = document.getElementById('stripe-error');
+  if (!stripeInstance || !stripeElements) return;
+  payBtn.disabled = true;
+  payBtn.textContent = 'Processing…';
+  errEl.style.display = 'none';
+  const { error, paymentIntent } = await stripeInstance.confirmPayment({
+    elements: stripeElements,
+    confirmParams: { return_url: window.location.href },
+    redirect: 'if_required',
+  });
+  if (error) {
+    errEl.textContent = error.message || 'Payment failed. Please try again.';
+    errEl.style.display = 'block';
+    payBtn.disabled = false;
+    payBtn.textContent = 'Pay $2.99 →';
+    return;
+  }
+  if (paymentIntent?.id && evaluationId) {
+    await fetch('/api/guitar-evaluation/confirm-payment', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ evaluationId, paymentIntentId: paymentIntent.id }),
+    }).catch(() => undefined);
+  }
+  activateStep(4);
+}
+document.getElementById('btn-pay').addEventListener('click', () => void handlePay());
+
+// ── Main step handler ─────────────────────────────────────────────────────────
+async function goToStep(n) {
+  // Validate & persist before advancing
+  if (n > currentStep) {
+    if (currentStep === 1) {
+      if (!validateStep1()) return;
+      const btn = document.querySelector('#step-1 .btn-next');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      try { await persistGuitarInfo(); }
+      catch (e) { alert(e.message); btn.disabled = false; btn.textContent = 'Continue to Contact Info →'; return; }
+      btn.disabled = false; btn.textContent = 'Continue to Contact Info →';
+    }
+    if (currentStep === 2) {
+      if (!validateStep2()) return;
+      const btn = document.querySelector('#step-2 .btn-next');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      try { await persistContactInfo(); }
+      catch (e) { alert(e.message); btn.disabled = false; btn.textContent = 'Continue to Payment →'; return; }
+      btn.disabled = false; btn.textContent = 'Continue to Payment →';
+    }
+  }
+  activateStep(n);
+  // Kick off Stripe init when entering payment step
+  if (n === 3) void initStripePayment();
+}
+
+// ── Photo submit ──────────────────────────────────────────────────────────────
+async function submitForm() {
+  const btn = document.querySelector('#step-4 .btn-submit');
+  btn.disabled = true; btn.textContent = 'Uploading…';
+
+  if (evaluationId) {
+    try {
+      const files = document.getElementById('photo-upload').files;
+      if (files.length > 0) {
+        const fd = new FormData();
+        for (const f of files) fd.append('photos', f);
+        const res = await fetch('/api/guitar-evaluation/' + evaluationId + '/upload-images', { method: 'POST', body: fd });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Upload failed.');
+      }
+    } catch (e) {
+      alert(e.message);
+      btn.disabled = false; btn.textContent = 'Submit for Evaluation →';
+      return;
+    }
+  }
+
+  sessionStorage.removeItem('evalId');
   document.getElementById('step-4').classList.remove('active');
   document.getElementById('tab-4').classList.remove('active');
   document.getElementById('tab-4').classList.add('done');
@@ -1831,6 +2146,7 @@ function submitForm() {
   document.getElementById('step-success').classList.add('active');
 }
 
+// ── Photo upload UX ───────────────────────────────────────────────────────────
 document.getElementById('photo-upload').addEventListener('change', function() {
   const count = this.files.length;
   if (count > 0) {
@@ -1855,38 +2171,22 @@ zone.addEventListener('drop', e => {
   }
 });
 
-document.getElementById('card-number').addEventListener('input', function() {
-  let v = this.value.replace(/\D/g, '').substring(0, 16);
-  this.value = v.replace(/(.{4})/g, '$1 ').trim();
-});
-
-// Rich tooltip system
-const tt = document.getElementById('tt');
-let ttHide;
-document.querySelectorAll('.help-icon[data-tooltip]').forEach(el => {
-  el.addEventListener('mouseenter', function(e) {
-    clearTimeout(ttHide);
-    tt.textContent = this.dataset.tooltip;
-    tt.style.opacity = '0';
-    tt.style.display = 'block';
-    const r = this.getBoundingClientRect();
-    const tw = tt.offsetWidth;
-    const th = tt.offsetHeight;
-    let left = r.left + r.width / 2 - tw / 2;
-    let top = r.top - th - 10 + window.scrollY;
-    // Keep within viewport horizontally
-    if (left < 8) left = 8;
-    if (left + tw > window.innerWidth - 8) left = window.innerWidth - tw - 8;
-    // Flip below if not enough room above
-    if (r.top - th - 10 < 8) top = r.bottom + 10 + window.scrollY;
-    tt.style.left = left + 'px';
-    tt.style.top = top + 'px';
-    tt.style.opacity = '1';
-  });
-  el.addEventListener('mouseleave', function() {
-    ttHide = setTimeout(() => { tt.style.opacity = '0'; }, 100);
-  });
-});
+// ── Handle Stripe redirect return (Cash App Pay, etc.) ────────────────────────
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const rs = params.get('redirect_status');
+  const savedId = sessionStorage.getItem('evalId');
+  if ((rs === 'succeeded' || rs === 'processing') && savedId) {
+    evaluationId = Number(savedId);
+    fetch('/api/guitar-evaluation/confirm-payment', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ evaluationId, paymentIntentId: params.get('payment_intent') }),
+    }).catch(() => undefined);
+    // Jump to photos step
+    currentStep = 3;
+    activateStep(4);
+  }
+})();
 </script>
 </body>
 </html>
