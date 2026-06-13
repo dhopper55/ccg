@@ -1114,51 +1114,165 @@ nav .wrap {
 }
 
 /* Photos step */
+.photos-alert {
+  background: rgba(169,130,59,.1);
+  border: 1px solid rgba(169,130,59,.4);
+  border-left: 4px solid var(--brass-bright);
+  border-radius: 3px;
+  padding: 12px 14px;
+  font-size: 13.5px;
+  color: var(--ink);
+  line-height: 1.55;
+  margin-bottom: 20px;
+}
+.photos-alert strong { font-weight: 700; color: var(--brass); }
+
 .upload-zone {
   border: 2px dashed var(--line);
   border-radius: 4px;
-  padding: 32px 20px;
+  padding: 28px 20px;
   text-align: center;
   background: var(--paper-2);
   transition: border-color .15s, background .15s;
   cursor: pointer;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 .upload-zone:hover { border-color: var(--creek); background: rgba(35,90,110,.04); }
-.upload-icon {
-  font-size: 28px;
-  margin-bottom: 10px;
-  opacity: .6;
-}
+.upload-zone.has-files { border-color: var(--green); background: rgba(63,107,58,.04); }
+.upload-icon { font-size: 24px; margin-bottom: 8px; opacity: .6; }
 .upload-title {
   font-family: var(--display);
   font-weight: 600;
-  font-size: 16px;
+  font-size: 15px;
   color: var(--ink);
-  margin-bottom: 4px;
+  margin-bottom: 3px;
 }
-.upload-sub {
-  font-size: 12.5px;
-  color: var(--muted);
-  line-height: 1.5;
-}
-.upload-sub a { color: var(--creek); text-decoration: underline; cursor: pointer; }
+.upload-sub { font-size: 12px; color: var(--muted); line-height: 1.5; }
 input[type="file"] { display: none; }
 
-.photo-tips {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: .08em;
-  color: var(--muted);
-  line-height: 1.8;
+.photo-previews {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 12px;
 }
-.photo-tips strong {
-  display: block;
-  text-transform: uppercase;
-  letter-spacing: .16em;
+.photo-thumb {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-thumb-rm {
+  position: absolute;
+  top: 2px; right: 2px;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: rgba(21,24,30,.72);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.photo-err-msg {
+  font-size: 11px;
+  color: var(--clay);
+  font-family: var(--mono);
+  letter-spacing: .04em;
+  margin-bottom: 10px;
+}
+
+.photo-guide { margin-top: 16px; }
+.photo-guide-hd {
+  font-family: var(--mono);
   font-size: 9.5px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
   color: var(--ink-soft);
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+}
+.photo-guide-body {
+  font-size: 13px;
+  color: var(--ink-soft);
+  line-height: 1.6;
+  margin-bottom: 14px;
+}
+.photo-guide-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.photo-ref-card {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+}
+.photo-ref-card:hover { border-color: var(--creek); box-shadow: 0 2px 8px rgba(35,90,110,.12); }
+.photo-ref-card img { width: 100%; height: 68px; object-fit: cover; display: block; }
+.photo-ref-label {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  padding: 5px 6px;
+  text-align: center;
+  line-height: 1.3;
+  background: var(--paper-2);
+}
+
+/* Lightbox */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.88);
+  z-index: 20000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  cursor: pointer;
+}
+.lightbox-img {
+  max-width: min(700px, 92vw);
+  max-height: 80vh;
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 8px 40px rgba(0,0,0,.5);
+  cursor: default;
+}
+.lightbox-caption {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: rgba(244,239,228,.6);
+  margin-top: 14px;
+}
+.lightbox-close {
+  position: absolute;
+  top: 16px; right: 20px;
+  font-size: 26px;
+  color: rgba(244,239,228,.7);
+  cursor: pointer;
+  line-height: 1;
+  font-weight: 300;
+}
+
+@media (max-width: 600px) {
+  .photo-guide-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 /* success step */
@@ -1745,7 +1859,7 @@ footer {
 
           <div class="field-row one">
             <div class="field">
-              <label>Phone <span class="opt">(optional)</span> <span class="help-icon" data-tooltip-key="phone">?</span></label>
+              <label>Phone <span class="opt">(optional)</span></label>
               <input id="field-phone" type="tel" placeholder="(303) 555-0100">
             </div>
           </div>
@@ -1782,23 +1896,62 @@ footer {
 
         <!-- STEP 4: Photos -->
         <div class="step-panel" id="step-4">
-          <div class="form-body-title">Upload Photos</div>
-          <div class="form-body-sub">The more you give us, the more precise the report. Shoot in good light.</div>
 
-          <div class="upload-zone" onclick="document.getElementById('photo-upload').click()">
+          <div class="photos-alert">
+            <strong>⚠ Not done yet!</strong> Your payment was received — but your report cannot be processed until you submit at least one photo below. Upload your photos and click "Submit for Evaluation" to complete your order.
+          </div>
+
+          <div class="form-body-title">Upload Photos</div>
+          <div class="form-body-sub">Photo quality directly impacts the accuracy of your report. We recommend all 7 shots shown below. Up to 10 photos accepted.</div>
+
+          <div class="upload-zone" id="upload-zone" onclick="document.getElementById('photo-upload').click()">
             <div class="upload-icon">📷</div>
-            <div class="upload-title">Drag photos here, or click to browse</div>
-            <div class="upload-sub">JPEG, PNG, HEIC · Up to 20 photos · 20MB each</div>
+            <div class="upload-title" id="upload-title">Drag photos here, or click to browse</div>
+            <div class="upload-sub" id="upload-sub">JPEG, PNG, HEIC · Up to 10 photos · 20MB each</div>
             <input type="file" id="photo-upload" multiple accept="image/*">
           </div>
 
-          <div class="photo-tips">
-            <strong>What to photograph</strong>
-            Front full-body · Back full-body · Headstock front · Headstock back (serial) · Neck / fretboard · Body front close-up · Any damage · Electronics cavity (optional) · Case / COA (if applicable)
+          <div class="photo-previews" id="photo-previews"></div>
+          <div class="photo-err-msg" id="photo-err-msg" style="display:none">At least one photo is required to process your report.</div>
+
+          <div class="photo-guide">
+            <div class="photo-guide-hd">What to photograph</div>
+            <div class="photo-guide-body">
+              The more photos you provide — and the better lit and focused they are — the more accurate your valuation will be. Shoot in natural light when possible. Avoid flash glare. A photo of any damage, even minor, helps us assess condition accurately. Click any example image below to see a larger version.
+            </div>
+            <div class="photo-guide-grid">
+              <div class="photo-ref-card" onclick="openLightbox('/images/evaluator_recommended_photos/front_full_body.jpeg','Front full-body')">
+                <img src="/images/evaluator_recommended_photos/front_full_body.jpeg" alt="Front full-body example" loading="lazy">
+                <div class="photo-ref-label">Front full-body</div>
+              </div>
+              <div class="photo-ref-card" onclick="openLightbox('/images/evaluator_recommended_photos/back_full_body.jpeg','Back full-body')">
+                <img src="/images/evaluator_recommended_photos/back_full_body.jpeg" alt="Back full-body example" loading="lazy">
+                <div class="photo-ref-label">Back full-body</div>
+              </div>
+              <div class="photo-ref-card" onclick="openLightbox('/images/evaluator_recommended_photos/headstock_front.jpeg','Headstock front')">
+                <img src="/images/evaluator_recommended_photos/headstock_front.jpeg" alt="Headstock front example" loading="lazy">
+                <div class="photo-ref-label">Headstock front</div>
+              </div>
+              <div class="photo-ref-card" onclick="openLightbox('/images/evaluator_recommended_photos/headstock_back.jpeg','Headstock back (serial #)')">
+                <img src="/images/evaluator_recommended_photos/headstock_back.jpeg" alt="Headstock back / serial number" loading="lazy">
+                <div class="photo-ref-label">Headstock back (serial #)</div>
+              </div>
+              <div class="photo-ref-card" onclick="openLightbox('/images/evaluator_recommended_photos/body_front_close_up.jpeg','Body close-up')">
+                <img src="/images/evaluator_recommended_photos/body_front_close_up.jpeg" alt="Body close-up example" loading="lazy">
+                <div class="photo-ref-label">Body close-up</div>
+              </div>
+              <div class="photo-ref-card" onclick="openLightbox('/images/evaluator_recommended_photos/damage.jpeg','Any damage or wear')">
+                <img src="/images/evaluator_recommended_photos/damage.jpeg" alt="Damage / wear example" loading="lazy">
+                <div class="photo-ref-label">Any damage / wear</div>
+              </div>
+              <div class="photo-ref-card" onclick="openLightbox('/images/evaluator_recommended_photos/case.jpeg','Case / COA / paperwork')">
+                <img src="/images/evaluator_recommended_photos/case.jpeg" alt="Case / COA / paperwork" loading="lazy">
+                <div class="photo-ref-label">Case / COA / paperwork</div>
+              </div>
+            </div>
           </div>
 
-          <div class="form-actions" style="margin-top:18px">
-            <button class="btn-back" onclick="goToStep(3)">← Back</button>
+          <div class="form-actions" style="margin-top:20px">
             <button class="btn-submit" onclick="submitForm()">Submit for Evaluation →</button>
           </div>
         </div>
@@ -1857,6 +2010,12 @@ footer {
 </footer>
 
 <div id="tt"></div>
+
+<div class="lightbox" id="lightbox" style="display:none" onclick="closeLightbox()">
+  <span class="lightbox-close" onclick="closeLightbox()">✕</span>
+  <img class="lightbox-img" id="lightbox-img" src="" alt="" onclick="event.stopPropagation()">
+  <div class="lightbox-caption" id="lightbox-caption"></div>
+</div>
 
 <script>
 // ── State ────────────────────────────────────────────────────────────────────
@@ -2120,17 +2279,24 @@ async function goToStep(n) {
 // ── Photo submit ──────────────────────────────────────────────────────────────
 async function submitForm() {
   const btn = document.querySelector('#step-4 .btn-submit');
+  const errEl = document.getElementById('photo-err-msg');
+
+  // Require at least 1 photo
+  if (photoFiles.length === 0) {
+    errEl.style.display = 'block';
+    document.getElementById('upload-zone').style.borderColor = 'var(--clay)';
+    return;
+  }
+  errEl.style.display = 'none';
+
   btn.disabled = true; btn.textContent = 'Uploading…';
 
   if (evaluationId) {
     try {
-      const files = document.getElementById('photo-upload').files;
-      if (files.length > 0) {
-        const fd = new FormData();
-        for (const f of files) fd.append('photos', f);
-        const res = await fetch('/api/guitar-evaluation/' + evaluationId + '/upload-images', { method: 'POST', body: fd });
-        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Upload failed.');
-      }
+      const fd = new FormData();
+      for (const f of photoFiles) fd.append('photos', f);
+      const res = await fetch('/api/guitar-evaluation/' + evaluationId + '/upload-images', { method: 'POST', body: fd });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Upload failed.');
     } catch (e) {
       alert(e.message);
       btn.disabled = false; btn.textContent = 'Submit for Evaluation →';
@@ -2147,29 +2313,84 @@ async function submitForm() {
 }
 
 // ── Photo upload UX ───────────────────────────────────────────────────────────
-document.getElementById('photo-upload').addEventListener('change', function() {
-  const count = this.files.length;
-  if (count > 0) {
-    document.querySelector('.upload-title').textContent = count + ' photo' + (count > 1 ? 's' : '') + ' selected';
-    document.querySelector('.upload-sub').textContent = 'Click to add more, or continue below';
-    document.querySelector('.upload-zone').style.borderColor = 'var(--green)';
-    document.querySelector('.upload-zone').style.background = 'rgba(63,107,58,.05)';
+let photoFiles = []; // our managed array of File objects (max 10)
+
+function renderPhotoPreviews() {
+  const container = document.getElementById('photo-previews');
+  const zone = document.getElementById('upload-zone');
+  const titleEl = document.getElementById('upload-title');
+  const subEl = document.getElementById('upload-sub');
+  container.innerHTML = '';
+
+  if (photoFiles.length === 0) {
+    container.style.display = 'none';
+    zone.classList.remove('has-files');
+    titleEl.textContent = 'Drag photos here, or click to browse';
+    subEl.textContent = 'JPEG, PNG, HEIC · Up to 10 photos · 20MB each';
+    return;
   }
+
+  container.style.display = 'flex';
+  zone.classList.add('has-files');
+  const remaining = 10 - photoFiles.length;
+  titleEl.textContent = photoFiles.length + ' photo' + (photoFiles.length > 1 ? 's' : '') + ' selected';
+  subEl.textContent = remaining > 0 ? 'Click to add more (' + remaining + ' remaining)' : 'Maximum 10 photos reached';
+
+  photoFiles.forEach((file, idx) => {
+    const url = URL.createObjectURL(file);
+    const thumb = document.createElement('div');
+    thumb.className = 'photo-thumb';
+    thumb.innerHTML = '<img src="' + url + '" alt="photo ' + (idx + 1) + '">' +
+      '<div class="photo-thumb-rm" title="Remove">✕</div>';
+    thumb.querySelector('.photo-thumb-rm').addEventListener('click', (e) => {
+      e.stopPropagation();
+      URL.revokeObjectURL(url);
+      photoFiles.splice(idx, 1);
+      renderPhotoPreviews();
+    });
+    // Click thumb to open lightbox
+    thumb.querySelector('img').addEventListener('click', () => openLightbox(url, file.name));
+    container.appendChild(thumb);
+  });
+}
+
+function addPhotoFiles(newFiles) {
+  const errEl = document.getElementById('photo-err-msg');
+  errEl.style.display = 'none';
+  for (const f of newFiles) {
+    if (photoFiles.length >= 10) break;
+    if (!f.type.startsWith('image/')) continue;
+    photoFiles.push(f);
+  }
+  renderPhotoPreviews();
+}
+
+document.getElementById('photo-upload').addEventListener('change', function() {
+  addPhotoFiles(Array.from(this.files));
+  this.value = ''; // reset so same file can be re-added after removal
 });
 
-const zone = document.querySelector('.upload-zone');
-zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor = 'var(--creek)'; });
-zone.addEventListener('dragleave', () => { zone.style.borderColor = 'var(--line)'; });
+const zone = document.getElementById('upload-zone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('upload-hover'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('upload-hover'));
 zone.addEventListener('drop', e => {
   e.preventDefault();
-  zone.style.borderColor = 'var(--green)';
-  const count = e.dataTransfer.files.length;
-  if (count > 0) {
-    document.querySelector('.upload-title').textContent = count + ' photo' + (count > 1 ? 's' : '') + ' ready';
-    document.querySelector('.upload-sub').textContent = 'Looking good — continue below';
-    zone.style.background = 'rgba(63,107,58,.05)';
-  }
+  zone.classList.remove('upload-hover');
+  addPhotoFiles(Array.from(e.dataTransfer.files));
 });
+
+// ── Lightbox ──────────────────────────────────────────────────────────────────
+function openLightbox(src, caption) {
+  document.getElementById('lightbox-img').src = src;
+  document.getElementById('lightbox-caption').textContent = caption || '';
+  document.getElementById('lightbox').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+function closeLightbox() {
+  document.getElementById('lightbox').style.display = 'none';
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
 
 // ── Handle Stripe redirect return (Cash App Pay, etc.) ────────────────────────
 (function() {

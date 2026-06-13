@@ -18816,22 +18816,6 @@ async function handleGuitarEvaluationConfirmPayment(request: Request, env: Env):
     `UPDATE guitar_evaluations SET stripe_payment_intent_id = ? WHERE id = ?`
   ).bind(paymentIntentId, evaluationId).run();
 
-  const row = await env.DB.prepare(
-    `SELECT first_name, email FROM guitar_evaluations WHERE id = ?`
-  ).bind(evaluationId).first<{ first_name: string | null; email: string | null }>();
-
-  if (row?.email) {
-    try {
-      await sendBrevoEvaluationConfirmationEmail(
-        normalizeText(row.first_name, ''),
-        row.email,
-        env,
-      );
-    } catch (err) {
-      console.error('Eval confirmation email failed:', err);
-    }
-  }
-
   return jsonResponse({ ok: true });
 }
 
@@ -19004,6 +18988,22 @@ async function handleGuitarEvaluationUploadImages(request: Request, evaluationId
   } catch (error) {
     console.error('guitar eval image upload failed', { evaluationId, error });
     return jsonResponse({ message: 'Image upload failed.', detail: String(error) }, 500);
+  }
+
+  // Send confirmation email now that photos are submitted and the order is complete
+  const emailRow = await env.DB.prepare(
+    `SELECT first_name, email FROM guitar_evaluations WHERE id = ?`
+  ).bind(evaluationId).first<{ first_name: string | null; email: string | null }>();
+  if (emailRow?.email) {
+    try {
+      await sendBrevoEvaluationConfirmationEmail(
+        normalizeText(emailRow.first_name, ''),
+        emailRow.email,
+        env,
+      );
+    } catch (err) {
+      console.error('Eval confirmation email failed after photo upload:', err);
+    }
   }
 
   return jsonResponse({ ok: true, keys });
