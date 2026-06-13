@@ -878,6 +878,28 @@ const SerialDecodes = () => {
                               Pattern
                             </Button>
                           ) : null}
+                          <Tooltip title="Search Google for this serial number">
+                            <IconButton
+                              size="small"
+                              aria-label="Search Google for this serial number"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                const query = `Is "${record.serial}" a valid serial number for a ${formatBrandName(record.brand)} guitar?`;
+                                window.open(`https://www.google.com/search?q=${encodeURIComponent(query)}`, '_blank', 'noopener,noreferrer');
+                              }}
+                              sx={{
+                                color: '#4cc9f0',
+                                border: '1px solid',
+                                borderColor: 'rgba(76, 201, 240, 0.35)',
+                                '&:hover': {
+                                  backgroundColor: 'rgba(76, 201, 240, 0.08)',
+                                  borderColor: '#4cc9f0',
+                                },
+                              }}
+                            >
+                              <IconifyIcon icon="mdi:file-multiple-outline" fontSize={18} />
+                            </IconButton>
+                          </Tooltip>
                           <Tooltip title="Delete decode record">
                             <span>
                               <IconButton
@@ -1180,11 +1202,6 @@ const SerialDecodes = () => {
         maxWidth="xs"
       >
         <DialogTitle>Is this serial number valid?</DialogTitle>
-        <DialogContent dividers>
-          <Typography variant="body2">
-            Is this serial number valid?
-          </Typography>
-        </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3 }}>
           <Button variant="outlined" onClick={() => setEvaluatedPendingRecordId(null)}>
             Cancel
