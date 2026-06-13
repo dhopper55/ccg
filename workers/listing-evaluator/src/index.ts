@@ -1436,12 +1436,16 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
   let autoEvaluated = false;
   let autoIsInvalid = false;
   if (!result.success && normalizedBrand) {
-    const failurePatternId = await dbFindPatternLookupIdForFailure(normalizedBrand, serial, env);
-    if (failurePatternId !== null) {
-      patternLookupId = failurePatternId;
-      if (await dbPatternIsKnownInvalid(failurePatternId, env)) {
+    const failureMatch = await dbFindPatternLookupIdForFailure(normalizedBrand, serial, env);
+    if (failureMatch !== null) {
+      patternLookupId = failureMatch.id;
+      patternKey = failureMatch.pattern;
+      if (await dbPatternIsKnownInvalid(failureMatch.id, env)) {
         autoEvaluated = true;
         autoIsInvalid = true;
+      }
+      if (!additionalContextRichText && failureMatch.pattern) {
+        additionalContextRichText = await getSerialDecodePatternRichText(normalizedBrand, failureMatch.pattern, env);
       }
     }
   }
@@ -1834,19 +1838,21 @@ async function dbFindPatternLookupIdForFailure(
   normalizedBrand: string,
   serial: string,
   env: Env,
-): Promise<number | null> {
+): Promise<{ id: number; pattern: string } | null> {
   if (!normalizedBrand || !serial) return null;
   try {
     const rows = await env.DB.prepare(
-      `SELECT id, regex_pattern
+      `SELECT id, pattern, regex_pattern
        FROM serial_decode_pattern_lookup
-       WHERE normalized_brand = ?
+       WHERE brand = ?
          AND regex_pattern IS NOT NULL
          AND regex_pattern != ''`
-    ).bind(normalizedBrand).all<{ id: number; regex_pattern: string }>();
+    ).bind(normalizedBrand).all<{ id: number; pattern: string; regex_pattern: string }>();
     for (const row of rows.results ?? []) {
       try {
-        if (new RegExp(row.regex_pattern, 'i').test(serial)) return Number(row.id);
+        if (new RegExp(row.regex_pattern, 'i').test(serial)) {
+          return { id: Number(row.id), pattern: normalizeText(row.pattern, '') };
+        }
       } catch {
         // skip invalid regex
       }
@@ -16026,6 +16032,7 @@ function deriveExplicitRegexFromKnownPatternKey(patternKey: string): string | nu
     'bcrich-hanser-two-letter-month-plant-import': '^[ACEFGHJKLMNP][A-Z]\\d{7}$',
     'bcrich-short-modern-month-code-import': '^[ACEFGHJKLMNP]\\d{7}$',
     'bcrich-short-numeric-import-y-filler-quarter-sequence': '^\\d{6}$',
+    'bcrich-10-digit-numeric-import': '^\\d{10}$',
     'cort-1980s-korea-7-digit-yy-sequence': '^8\\d{6}$',
     'cort-ai-indonesia-yymm-sequence': '^AI\\d{9}$',
     'cort-early-1980s-5-digit-neck-plate': '^\\d{5}$',
