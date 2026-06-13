@@ -66,6 +66,12 @@ nav .wrap {
   gap: 12px;
   text-decoration: none;
 }
+.nav-logo-img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
 .nav-logo {
   font-family: var(--display);
   font-weight: 600;
@@ -1413,6 +1419,7 @@ footer {
 <nav>
   <div class="wrap">
     <a href="https://www.coalcreekguitars.com" class="nav-brand">
+      <img src="/images/coal-creek-logo.png" alt="Coal Creek Guitars" class="nav-logo-img">
       <span class="nav-logo">Coal Creek <span>Guitars</span></span>
     </a>
     <div class="nav-sep"></div>
@@ -2391,6 +2398,29 @@ function closeLightbox() {
   document.body.style.overflow = '';
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+// ── Pre-populate from query string (?serial=CS403228&brand=Gibson) ────────────
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const serial = params.get('serial');
+  const brand  = params.get('brand');
+  if (serial) {
+    const f = document.getElementById('field-serial');
+    if (f) f.value = serial;
+  }
+  if (brand) {
+    const sel = document.getElementById('field-brand');
+    if (sel) {
+      // Try exact match first, then case-insensitive
+      for (const opt of sel.options) {
+        if (opt.value === brand || opt.value.toLowerCase() === brand.toLowerCase()) {
+          sel.value = opt.value;
+          break;
+        }
+      }
+    }
+  }
+})();
 
 // ── Handle Stripe redirect return (Cash App Pay, etc.) ────────────────────────
 (function() {
