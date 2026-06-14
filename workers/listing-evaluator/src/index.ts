@@ -39,6 +39,7 @@ interface Env {
   LISTING_JOBS: KVNamespace;
   GOOGLE_MAPS_API_KEY?: string;
   ANTHROPIC_API_KEY?: string;
+  REPORT_QUEUE?: Queue<{ evaluationId: number }>;
 }
 
 const SITEMAP_STATIC_URLS = [
@@ -1163,6 +1164,12 @@ export default {
   },
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     return;
+  },
+  async queue(batch: MessageBatch<{ evaluationId: number }>, env: Env): Promise<void> {
+    for (const message of batch.messages) {
+      await runGuitarEvalReportGeneration(message.body.evaluationId, env);
+      message.ack();
+    }
   },
 };
 
@@ -18817,7 +18824,8 @@ async function callAnthropicForReport(userContent: AnthropicUserContent[], env: 
     },
     body: JSON.stringify({
       model: 'claude-opus-4-8',
-      max_tokens: 32000,
+      max_tokens: 16000,
+      stream: true,
       system: GUITAR_EVAL_REPORT_SYSTEM_PROMPT,
       tools: [{ type: 'web_search_20250305', name: 'web_search' }],
       messages: [{ role: 'user', content: userContent }],
@@ -18829,17 +18837,50 @@ async function callAnthropicForReport(userContent: AnthropicUserContent[], env: 
     throw new Error(`Anthropic API ${response.status}: ${errorBody}`);
   }
 
-  const data = await response.json() as {
-    content: Array<{ type: string; text?: string }>;
-    stop_reason: string;
-  };
+  console.log('[report-gen] Anthropic stream open, reading…');
 
-  const textBlocks = (data.content ?? []).filter((b) => b.type === 'text' && b.text);
-  const raw = textBlocks.map((b) => b.text).join('').trim();
+  // Parse SSE stream — keeps the connection alive as Claude generates
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let fullText = '';
+  let buf = '';
+  let outputTokens = 0;
 
-  // Strip markdown fences if model added them despite instructions
-  const fenced = raw.match(/```(?:html)?\s*([\s\S]*?)```/);
-  return fenced ? fenced[1].trim() : raw;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop() ?? '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if (!data || data === '[DONE]') continue;
+        try {
+          const evt = JSON.parse(data) as {
+            type: string;
+            delta?: { type: string; text?: string };
+            usage?: { output_tokens?: number };
+          };
+          if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta' && evt.delta.text) {
+            fullText += evt.delta.text;
+          } else if (evt.type === 'message_delta' && evt.usage?.output_tokens) {
+            outputTokens = evt.usage.output_tokens;
+          }
+        } catch { /* ignore malformed SSE lines */ }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  console.log(`[report-gen] stream complete — ${outputTokens} output tokens, ${fullText.length} chars`);
+
+  const fenced = fullText.trim().match(/```(?:html)?\s*([\s\S]*?)```/);
+  return fenced ? fenced[1].trim() : fullText.trim();
 }
 
 async function handlePublicGuitarEvalReport(guid: string, env: Env): Promise<Response> {
@@ -18868,22 +18909,26 @@ async function handleAdminV2GenerateReport(
   if (!env.CUSTOM_ITEMS_BUCKET) {
     return jsonResponse({ message: 'Storage bucket not configured.' }, 500);
   }
+  if (!env.REPORT_QUEUE) {
+    return jsonResponse({ message: 'Report queue not configured.' }, 500);
+  }
   const row = await env.DB.prepare(
     'SELECT id FROM guitar_evaluations WHERE id = ?',
   ).bind(id).first<{ id: number }>();
   if (!row) return jsonResponse({ message: 'Value report not found.' }, 404);
 
-  // Clear any previous error so the UI shows "generating" cleanly
   await env.DB.prepare(
     'UPDATE guitar_evaluations SET report_error = NULL WHERE id = ?',
   ).bind(id).run();
 
-  ctx.waitUntil(runGuitarEvalReportGeneration(Number(id), env));
+  await env.REPORT_QUEUE.send({ evaluationId: Number(id) });
   return jsonResponse({ generating: true });
 }
 
 async function runGuitarEvalReportGeneration(id: number, env: Env): Promise<void> {
   try {
+    console.log(`[report-gen] starting for evaluation ${id}`);
+
     const row = await env.DB.prepare(
       `SELECT id, brand, brand_other, model, serial_number, includes_case,
               location, note, damage, color_finish, image_keys, report_guid
@@ -18902,7 +18947,7 @@ async function runGuitarEvalReportGeneration(id: number, env: Env): Promise<void
       image_keys: string | null;
       report_guid: string | null;
     }>();
-    if (!row) return;
+    if (!row) { console.log(`[report-gen] evaluation ${id} not found`); return; }
 
     // Fetch photos from R2, convert to base64
     const photoContent: AnthropicImageContent[] = [];
@@ -18912,7 +18957,7 @@ async function runGuitarEvalReportGeneration(id: number, env: Env): Promise<void
       let keys: string[] = [];
       try { keys = JSON.parse(row.image_keys); } catch { /* ignore */ }
       let totalBytes = 0;
-      const MAX_BYTES = 8 * 1024 * 1024; // 8 MB total across all photos
+      const MAX_BYTES = 8 * 1024 * 1024;
 
       for (const key of keys) {
         if (photoContent.length >= 10 || totalBytes >= MAX_BYTES) break;
@@ -18929,10 +18974,14 @@ async function runGuitarEvalReportGeneration(id: number, env: Env): Promise<void
       }
     }
 
+    console.log(`[report-gen] fetched ${photoContent.length} photo(s), calling Anthropic`);
+
     const promptText = buildGuitarEvalPrompt(row, photoContent.length);
     const userContent: AnthropicUserContent[] = [...photoContent, { type: 'text', text: promptText }];
 
     let html = await callAnthropicForReport(userContent, env);
+
+    console.log(`[report-gen] Anthropic returned ${html.length} chars`);
 
     // Replace photo tokens with working image URLs
     photoKeys.forEach((key, i) => {
@@ -18954,11 +19003,13 @@ async function runGuitarEvalReportGeneration(id: number, env: Env): Promise<void
     });
 
     await env.DB.prepare(
-      'UPDATE guitar_evaluations SET report_r2_key = ?, report_guid = ? WHERE id = ?',
+      'UPDATE guitar_evaluations SET report_r2_key = ?, report_guid = ?, report_error = NULL WHERE id = ?',
     ).bind(r2Key, guid, id).run();
+
+    console.log(`[report-gen] done — guid ${guid}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error('Guitar eval report generation failed:', msg);
+    console.error(`[report-gen] failed for evaluation ${id}:`, msg);
     try {
       await env.DB.prepare(
         'UPDATE guitar_evaluations SET report_error = ? WHERE id = ?',

@@ -35,3 +35,13 @@ database_id = "e509fd2e-31c6-4138-89bf-7e9d09679025"
 binding = "CUSTOM_ITEMS_BUCKET"
 bucket_name = "ccg-custom-items"
 preview_bucket_name = "ccg-custom-items-preview"
+
+[[queues.producers]]
+queue = "guitar-eval-report-queue"
+binding = "REPORT_QUEUE"
+
+[[queues.consumers]]
+queue = "guitar-eval-report-queue"
+max_batch_size = 1
+max_batch_timeout = 0
+max_retries = 2
