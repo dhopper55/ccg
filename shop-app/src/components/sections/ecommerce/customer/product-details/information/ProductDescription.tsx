@@ -14,12 +14,14 @@ const ProductDescription = ({ descriptions = [], description }: ProductDescripti
       {text ? (
         <Typography
           variant="body2"
-          sx={{
-            color: 'text.secondary',
-            whiteSpace: 'pre-line',
-          }}
+          sx={{ color: 'text.secondary' }}
         >
-          {text}
+          {text.split('\n').map((line, i, arr) => (
+            <span key={i}>
+              {line}
+              {i < arr.length - 1 && <br />}
+            </span>
+          ))}
         </Typography>
       ) : null}
       {descriptions.map(({ title, description }) => (
