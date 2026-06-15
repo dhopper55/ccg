@@ -35,6 +35,7 @@ type ValueReportRecord = {
   location: string | null;
   stripePaymentIntentId: string | null;
   fulfilled: number;
+  reportCost: number | null;
 };
 
 type ValueReportsResponse = {
@@ -141,11 +142,11 @@ const ValueReports = () => {
             <TableHead>
               <TableRow>
                 <TableCell sx={{ fontWeight: 700 }}>Created</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Name</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Brand</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Location</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Paid?</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Fulfilled</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Cost</TableCell>
                 <TableCell />
               </TableRow>
             </TableHead>
@@ -185,7 +186,6 @@ const ValueReports = () => {
                           {formattedDate}
                         </Link>
                       </TableCell>
-                      <TableCell>{fullName}</TableCell>
                       <TableCell>{record.brand || '—'}</TableCell>
                       <TableCell>{record.location || '—'}</TableCell>
                       <TableCell>
@@ -205,6 +205,9 @@ const ValueReports = () => {
                             style={{ color: '#4caf50' }}
                           />
                         ) : null}
+                      </TableCell>
+                      <TableCell sx={{ color: 'text.secondary', fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                        {record.reportCost != null ? `$${record.reportCost.toFixed(2)}` : '—'}
                       </TableCell>
                       <TableCell align="right" sx={{ py: 0 }}>
                         <IconButton

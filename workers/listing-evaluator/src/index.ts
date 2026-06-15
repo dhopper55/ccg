@@ -19055,7 +19055,7 @@ async function handleAdminV2ValueReports(request: Request, env: Env): Promise<Re
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   const rows = await env.DB.prepare(
-    `SELECT id, created_at, first_name, last_name, brand, location, stripe_payment_intent_id, fulfilled
+    `SELECT id, created_at, first_name, last_name, brand, location, stripe_payment_intent_id, fulfilled, report_cost
      FROM guitar_evaluations
      ORDER BY created_at DESC
      LIMIT ? OFFSET ?`
@@ -19068,6 +19068,7 @@ async function handleAdminV2ValueReports(request: Request, env: Env): Promise<Re
     location: string | null;
     stripe_payment_intent_id: string | null;
     fulfilled: number;
+    report_cost: number | null;
   }>();
 
   const records = (rows.results ?? []).map((row) => ({
@@ -19079,6 +19080,7 @@ async function handleAdminV2ValueReports(request: Request, env: Env): Promise<Re
     location: row.location,
     stripePaymentIntentId: row.stripe_payment_intent_id,
     fulfilled: row.fulfilled,
+    reportCost: row.report_cost,
   }));
 
   return jsonResponse({ records, page, limit, total, totalPages });
