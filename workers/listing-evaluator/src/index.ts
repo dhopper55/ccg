@@ -621,6 +621,10 @@ export default {
       const response = await handleGuitarEvaluationConfirmPayment(request, env);
       return withCors(response, request, env);
     }
+    if (path === '/api/guitar-evaluation/validate-coupon' && request.method === 'POST') {
+      const response = await handleGuitarEvaluationValidateCoupon(request, env);
+      return withCors(response, request, env);
+    }
 
     const guitarEvalUploadMatch = path.match(/^\/api\/guitar-evaluation\/(\d+)\/upload-images$/);
     if (guitarEvalUploadMatch && request.method === 'POST') {
@@ -19270,6 +19274,30 @@ async function handleGuitarEvaluationConfirmPayment(request: Request, env: Env):
   ).bind(paymentIntentId, evaluationId).run();
 
   return jsonResponse({ ok: true });
+}
+
+async function handleGuitarEvaluationValidateCoupon(request: Request, env: Env): Promise<Response> {
+  let body: any;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid request body.' }, 400);
+  }
+
+  const evaluationId = body?.evaluationId;
+  const couponCode = normalizeText(body?.couponCode, '');
+  if (!evaluationId || !couponCode) {
+    return jsonResponse({ message: 'evaluationId and couponCode are required.' }, 400);
+  }
+
+  if (couponCode.toUpperCase() === 'CCG_WORKER') {
+    await env.DB.prepare(
+      `UPDATE guitar_evaluations SET stripe_payment_intent_id = ? WHERE id = ?`
+    ).bind(couponCode, evaluationId).run();
+    return jsonResponse({ valid: true });
+  }
+
+  return jsonResponse({ valid: false });
 }
 
 async function sendBrevoEvaluationConfirmationEmail(
