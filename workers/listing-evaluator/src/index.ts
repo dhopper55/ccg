@@ -18704,7 +18704,7 @@ const GUITAR_EVAL_REPORT_SYSTEM_PROMPT = `You are generating a professional inst
 - For images, use placeholder tokens as img src values: {{PHOTO_0}}, {{PHOTO_1}}, {{PHOTO_2}}, etc. (one per photo provided). Choose the best full-front shot for the hero and reference it as {{PHOTO_HERO}}. Do NOT output any base64 data.
 - Use web search to research current market pricing for this specific instrument — search Reverb, eBay, Guitar Center, dealer sites. Always distinguish listed (asking) vs. sold (completed) prices. Do NOT rely on memory for prices.
 
-## STRUCTURE (8 sections in this order)
+## STRUCTURE (6 HTML sections + 1 JSON block)
 
 01 Identity — instrument ID, hero photo, confidence statement
 02 Photos — masonry gallery of all provided photos with captions
@@ -18712,10 +18712,10 @@ const GUITAR_EVAL_REPORT_SYSTEM_PROMPT = `You are generating a professional inst
 04 Market — comparable sales table (listed vs. sold, with source/status/price/notes columns)
 05 Valuation — three channel cards (dealer, private local, national Reverb)
 06 Helps & Hurts — two columns (adds value / caps value)
-07 Verify — numbered steps + feature→value-impact table
-08 Listing — copy-ready title + description card + per-platform notes
+07 Listing (JSON only — no HTML section body) — immediately before </body>, output this exact element:
+<script type="application/json" id="listing-data">{"year":"YYYY","model_confirmed":"Full confirmed model name","asking_price":"$XXX","top_sells":["top selling point 1","top selling point 2","top selling point 3"]}</script>
 
-Include a sticky jump-nav above section 01 with links to all 8 sections.
+Include a sticky jump-nav above section 01 with links to all 7 sections (01–07). The 07 nav link must be: <a href="#listing">07 Listing</a>
 
 ## PALETTE & FONTS
 
@@ -18828,7 +18828,7 @@ async function callAnthropicForReport(userContent: AnthropicUserContent[], env: 
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
-      max_tokens: 14000,
+      max_tokens: 15000,
       stream: true,
       system: GUITAR_EVAL_REPORT_SYSTEM_PROMPT,
       tools: [{ type: 'web_search_20250305', name: 'web_search' }],
@@ -18871,7 +18871,7 @@ async function callAnthropicForReport(userContent: AnthropicUserContent[], env: 
             message?: { usage?: { input_tokens?: number } };
             content_block?: { type: string; name?: string };
             delta?: { type: string; text?: string };
-            usage?: { output_tokens?: number };
+            usage?: { output_tokens?: number; input_tokens?: number };
           };
           if (evt.type === 'message_start' && evt.message?.usage?.input_tokens) {
             inputTokens = evt.message.usage.input_tokens;
@@ -18879,8 +18879,10 @@ async function callAnthropicForReport(userContent: AnthropicUserContent[], env: 
             searchCount++;
           } else if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta' && evt.delta.text) {
             fullText += evt.delta.text;
-          } else if (evt.type === 'message_delta' && evt.usage?.output_tokens) {
-            outputTokens = evt.usage.output_tokens;
+          } else if (evt.type === 'message_delta') {
+            if (evt.usage?.output_tokens) outputTokens = evt.usage.output_tokens;
+            // Capture cumulative input tokens if Anthropic reports them here (covers tool-result turns)
+            if (evt.usage?.input_tokens) inputTokens = evt.usage.input_tokens;
           }
         } catch { /* ignore malformed SSE lines */ }
       }
@@ -18936,6 +18938,51 @@ async function handleAdminV2GenerateReport(
 
   await env.REPORT_QUEUE.send({ evaluationId: Number(id) });
   return jsonResponse({ generating: true });
+}
+
+function escHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function buildListingSection(
+  data: { year: string; model_confirmed: string; asking_price: string; top_sells: string[] },
+  record: { color_finish: string | null; includes_case: string | null; location: string | null },
+): string {
+  const caseStr = record.includes_case === 'hard_case' ? 'hard case'
+    : record.includes_case === 'gig_bag' ? 'gig bag'
+    : null;
+
+  const titleParts = [data.year, data.model_confirmed];
+  if (record.color_finish) titleParts.push(`· ${record.color_finish}`);
+  if (caseStr) titleParts.push(`— w/ ${caseStr}`);
+  const title = titleParts.join(' ');
+
+  const bullets = data.top_sells.map((s) => `• ${s}`).join('\n');
+  const location = record.location || 'location on request';
+
+  const desc = `${data.year} ${data.model_confirmed}${record.color_finish ? ` in ${record.color_finish}` : ''}.
+
+${bullets}
+
+${caseStr ? `Includes ${caseStr}. ` : ''}Located in ${location}. Asking ${data.asking_price} — reasonable offers considered. Local pickup preferred or will ship.`;
+
+  return `
+  <section id="listing">
+    <div class="section-head">
+      <span class="section-num">07</span>
+      <h2 class="section-title">Listing</h2>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:1.25rem;margin-top:.25rem;">
+      <div style="background:var(--creek-deep);border-radius:6px;padding:1.25rem 1.5rem;">
+        <div style="font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;color:var(--brass-bright);margin-bottom:.5rem;">Suggested Title</div>
+        <div style="font-family:var(--display);font-size:1.05rem;font-weight:600;color:#fff;line-height:1.3;">${escHtml(title)}</div>
+      </div>
+      <div style="background:var(--paper-2);border:1px solid var(--line);border-radius:6px;padding:1.5rem;">
+        <div style="font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;color:var(--brass);margin-bottom:.75rem;">Copy-Ready Description</div>
+        <div style="font-size:.9rem;color:var(--ink);line-height:1.7;white-space:pre-wrap;">${escHtml(desc)}</div>
+      </div>
+    </div>
+  </section>`;
 }
 
 async function runGuitarEvalReportGeneration(id: number, env: Env): Promise<void> {
@@ -19017,6 +19064,28 @@ async function runGuitarEvalReportGeneration(id: number, env: Env): Promise<void
         '{{PHOTO_HERO}}',
         `/api/guitar-evaluation-image?key=${encodeURIComponent(photoKeys[0])}`,
       );
+    }
+
+    // Extract listing JSON from model output and inject templated Section 07
+    const listingMatch = html.match(/<script type="application\/json" id="listing-data">([\s\S]*?)<\/script>/);
+    if (listingMatch) {
+      try {
+        const listingData = JSON.parse(listingMatch[1]) as {
+          year: string; model_confirmed: string; asking_price: string; top_sells: string[];
+        };
+        const listingHtml = buildListingSection(listingData, {
+          color_finish: row.color_finish,
+          includes_case: row.includes_case,
+          location: row.location,
+        });
+        html = html.replace(listingMatch[0], '');
+        html = html.includes('</main>')
+          ? html.replace('</main>', listingHtml + '\n  </main>')
+          : html.replace('</body>', listingHtml + '\n</body>');
+        console.log('[report-gen] listing section injected');
+      } catch {
+        console.log('[report-gen] listing JSON parse failed — section 07 skipped');
+      }
     }
 
     const guid = row.report_guid || crypto.randomUUID();
