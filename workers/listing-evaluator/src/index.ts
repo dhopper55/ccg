@@ -18705,13 +18705,14 @@ const GUITAR_EVAL_REPORT_SYSTEM_PROMPT = `You are generating a professional inst
 
 - Output ONLY raw HTML — no markdown code fences, no explanation, no preamble. The very first character must be < and the output must end with </html>.
 - Self-contained: all CSS inline in a <style> block in <head>. No external CSS links except Google Fonts.
-- For images, use placeholder tokens as img src values: {{PHOTO_0}}, {{PHOTO_1}}, {{PHOTO_2}}, etc. (one per photo provided). Choose the best full-front shot for the hero and reference it as {{PHOTO_HERO}}. Do NOT output any base64 data.
+- For images, use placeholder tokens as img src values: {{PHOTO_0}}, {{PHOTO_1}}, {{PHOTO_2}}, etc. You MUST use every token from {{PHOTO_0}} through {{PHOTO_N-1}} where N is the total number of photos provided — include ALL of them, never skip any. Choose the best full-front shot for the hero and reference it as {{PHOTO_HERO}}. Do NOT output any base64 data.
+- Do NOT include any note, caption, or paragraph suggesting additional photos are needed or recommended. The customer has already submitted all available photos.
 - Use web search to research current market pricing for this specific instrument — search Reverb, eBay, Guitar Center, dealer sites. Always distinguish listed (asking) vs. sold (completed) prices. Do NOT rely on memory for prices.
 
 ## STRUCTURE (6 HTML sections + 1 JSON block)
 
 01 Identity — instrument ID, hero photo, confidence statement
-02 Photos — masonry gallery of all provided photos with captions
+02 Photos — masonry gallery containing every provided photo (all N tokens); each image gets a caption; include no fewer and no more photos than were provided
 03 Specs — two-column spec table
 04 Market — comparable sales table (listed vs. sold, with source/status/price/notes columns)
 05 Valuation — three channel cards (dealer, private local, national Reverb)
@@ -18740,6 +18741,8 @@ Use exactly these CSS variables:
 
 Background: warm parchment (--paper). Masthead & footer: coal ink (--ink). Stats bar: --ink-soft with brass top border. Accent: creek blue and brass/gold.
 
+Style the top notice like this: .top-notice { font-family:var(--mono); font-size:11px; color:var(--muted); line-height:1.5; padding:8px 12px; border:1px solid var(--line); border-radius:3px; margin:12px 0 20px; } .top-notice a { color:var(--muted); text-decoration:underline; }
+
 ## MASTHEAD
 
 - Brand line: "Instrument Dossier" / "Coal Creek Guitar Appraisal & Market Valuation"
@@ -18751,9 +18754,13 @@ Background: warm parchment (--paper). Masthead & footer: coal ink (--ink). Stats
 
 New/street price · Reverb recent sold · Private/local estimate · Dealer cash offer
 
+## TOP NOTICE (include verbatim immediately after the jump-nav, before section 01)
+
+<p class="top-notice">This report is a good-faith market estimate prepared by Coal Creek Guitars for informational purposes only — not a certified appraisal, not a binding offer to buy or sell. Values reflect market conditions at time of writing and may change. <a href="#disclaimer">Full disclaimer below.</a></p>
+
 ## FOOTER DISCLAIMER (include verbatim at bottom of every report)
 
-<div class="legal"><h4>Disclaimer</h4><p>This report is a subjective, good-faith estimate prepared by Coal Creek Guitars for general informational and planning purposes only. It is meant to be used as a tool and a guide — not gospel, not a certified or insurance appraisal, and not a binding offer to buy, sell, or consign. Every identification, specification, and value is based on the photographs and information provided to us, on third-party listings and sales data, and on market conditions at the time of writing — all of which may be incomplete, may change quickly, and may contain errors. Actual results depend on many factors outside our control, including the instrument's true condition, authenticity, originality, demand, timing, location, and exactly how and where it is ultimately sold. Coal Creek Guitars makes no representation or warranty, express or implied, as to the accuracy or completeness of this report, and accepts no liability for any loss, decision, or outcome arising from reliance on it. Always confirm the items flagged for verification, and for insurance, resale, or legal purposes obtain a certified independent appraisal.</p></div>
+<div class="legal" id="disclaimer"><h4>Disclaimer</h4><p>This report is a subjective, good-faith estimate prepared by Coal Creek Guitars for general informational and planning purposes only. It is meant to be used as a tool and a guide — not gospel, not a certified or insurance appraisal, and not a binding offer to buy, sell, or consign. Every identification, specification, and value is based on the photographs and information provided to us, on third-party listings and sales data, and on market conditions at the time of writing — all of which may be incomplete, may change quickly, and may contain errors. Actual results depend on many factors outside our control, including the instrument's true condition, authenticity, originality, demand, timing, location, and exactly how and where it is ultimately sold. Coal Creek Guitars makes no representation or warranty, express or implied, as to the accuracy or completeness of this report, and accepts no liability for any loss, decision, or outcome arising from reliance on it. Always confirm the items flagged for verification, and for insurance, resale, or legal purposes obtain a certified independent appraisal.</p></div>
 
 ## VOICE
 
