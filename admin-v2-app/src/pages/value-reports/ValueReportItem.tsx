@@ -164,6 +164,8 @@ const ValueReportItem = () => {
     if (!id) return;
     setGenerateError('');
     setGenerating(true);
+    // Clear guid locally so View Report disappears and poll waits for the new one
+    setRecord((prev) => prev ? { ...prev, reportGuid: null, reportR2Key: null } : prev);
     try {
       const res = await fetch(`/api/admin-v2/value-reports/${encodeURIComponent(id)}/generate-report`, {
         method: 'POST',

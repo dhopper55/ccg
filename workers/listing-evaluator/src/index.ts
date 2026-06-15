@@ -18828,7 +18828,7 @@ async function callAnthropicForReport(userContent: AnthropicUserContent[], env: 
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
-      max_tokens: 12000,
+      max_tokens: 14000,
       stream: true,
       system: GUITAR_EVAL_REPORT_SYSTEM_PROMPT,
       tools: [{ type: 'web_search_20250305', name: 'web_search' }],
@@ -18931,7 +18931,7 @@ async function handleAdminV2GenerateReport(
   if (!row) return jsonResponse({ message: 'Value report not found.' }, 404);
 
   await env.DB.prepare(
-    'UPDATE guitar_evaluations SET report_error = NULL WHERE id = ?',
+    'UPDATE guitar_evaluations SET report_guid = NULL, report_r2_key = NULL, report_error = NULL WHERE id = ?',
   ).bind(id).run();
 
   await env.REPORT_QUEUE.send({ evaluationId: Number(id) });
