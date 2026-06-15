@@ -207,7 +207,7 @@ const ValueReports = () => {
                         ) : null}
                       </TableCell>
                       <TableCell sx={{ color: 'text.secondary', fontFamily: 'monospace', fontSize: '0.8rem' }}>
-                        {record.reportCost != null ? `$${record.reportCost.toFixed(2)}` : '—'}
+                        {record.reportCost != null ? `~$${(Math.ceil(record.reportCost * 100) / 100).toFixed(2)}` : '—'}
                       </TableCell>
                       <TableCell align="right" sx={{ py: 0 }}>
                         <IconButton

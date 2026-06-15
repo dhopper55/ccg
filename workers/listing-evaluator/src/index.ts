@@ -18967,7 +18967,8 @@ ${bullets}
 ${caseStr ? `Includes ${caseStr}. ` : ''}Located in ${location}. Asking ${data.asking_price} — reasonable offers considered. Local pickup preferred or will ship.`;
 
   return `
-  <section id="listing">
+  <div style="max-width:1100px;margin:0 auto;padding:0 2rem;">
+  <section id="listing" style="padding:3rem 0 2rem;">
     <div class="section-head">
       <span class="section-num">07</span>
       <h2 class="section-title">Listing</h2>
@@ -18982,7 +18983,8 @@ ${caseStr ? `Includes ${caseStr}. ` : ''}Located in ${location}. Asking ${data.a
         <div style="font-size:.9rem;color:var(--ink);line-height:1.7;white-space:pre-wrap;">${escHtml(desc)}</div>
       </div>
     </div>
-  </section>`;
+  </section>
+  </div>`;
 }
 
 async function runGuitarEvalReportGeneration(id: number, env: Env): Promise<void> {
@@ -19079,9 +19081,13 @@ async function runGuitarEvalReportGeneration(id: number, env: Env): Promise<void
           location: row.location,
         });
         html = html.replace(listingMatch[0], '');
-        html = html.includes('</main>')
-          ? html.replace('</main>', listingHtml + '\n  </main>')
-          : html.replace('</body>', listingHtml + '\n</body>');
+        if (html.includes('</main>')) {
+          html = html.replace('</main>', listingHtml + '\n  </main>');
+        } else if (html.includes('<footer')) {
+          html = html.replace('<footer', listingHtml + '\n<footer');
+        } else {
+          html = html.replace('</body>', listingHtml + '\n</body>');
+        }
         console.log('[report-gen] listing section injected');
       } catch {
         console.log('[report-gen] listing JSON parse failed — section 07 skipped');
