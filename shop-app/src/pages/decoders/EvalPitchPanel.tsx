@@ -13,6 +13,9 @@ interface EvalPitchPanelProps {
 }
 
 const EvalPitchPanel = ({ brand, year, serial, decodeEventId }: EvalPitchPanelProps) => {
+  // Hidden until report pricing is finalized — restore by removing this line
+  return null;
+
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   const params = new URLSearchParams({ brand, serial });

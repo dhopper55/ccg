@@ -18486,7 +18486,7 @@ async function handleAdminV2ValueReportItem(id: string, env: Env): Promise<Respo
   const row = await env.DB.prepare(
     `SELECT id, created_at, first_name, last_name, email, brand, brand_other, model,
             serial_number, includes_case, location, note, damage,
-            stripe_payment_intent_id, fulfilled, image_keys, report_guid, report_r2_key, report_error
+            stripe_payment_intent_id, fulfilled, image_keys, report_guid, report_r2_key, report_error, report_cost
      FROM guitar_evaluations WHERE id = ?`
   ).bind(id).first<{
     id: number;
@@ -18508,6 +18508,7 @@ async function handleAdminV2ValueReportItem(id: string, env: Env): Promise<Respo
     report_guid: string | null;
     report_r2_key: string | null;
     report_error: string | null;
+    report_cost: number | null;
   }>();
 
   if (!row) return jsonResponse({ message: 'Value report not found.' }, 404);
@@ -18541,6 +18542,7 @@ async function handleAdminV2ValueReportItem(id: string, env: Env): Promise<Respo
       reportGuid: row.report_guid,
       reportR2Key: row.report_r2_key,
       reportError: row.report_error,
+      reportCost: row.report_cost,
     },
   });
 }
@@ -18796,7 +18798,7 @@ Known damage / repairs: ${record.damage || 'none noted by owner'}
 Included extras: ${includesCase}
 Additional owner notes: ${record.note || 'none'}
 
-Search the web for current market pricing. Output only the complete HTML document — nothing else.`;
+Search the web for current market pricing. Limit yourself to no more than 3 web searches total. Output only the complete HTML document — nothing else. Do NOT write any text, explanation, or preamble before the opening <!DOCTYPE html> tag.`;
 }
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -18813,7 +18815,9 @@ type AnthropicTextContent = { type: 'text'; text: string };
 type AnthropicImageContent = { type: 'image'; source: { type: 'base64'; media_type: string; data: string } };
 type AnthropicUserContent = AnthropicTextContent | AnthropicImageContent;
 
-async function callAnthropicForReport(userContent: AnthropicUserContent[], env: Env): Promise<string> {
+type ReportGenResult = { html: string; inputTokens: number; outputTokens: number; searchCount: number };
+
+async function callAnthropicForReport(userContent: AnthropicUserContent[], env: Env): Promise<ReportGenResult> {
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -18823,8 +18827,8 @@ async function callAnthropicForReport(userContent: AnthropicUserContent[], env: 
       'anthropic-beta': 'web-search-2025-03-05',
     },
     body: JSON.stringify({
-      model: 'claude-opus-4-8',
-      max_tokens: 16000,
+      model: 'claude-sonnet-4-6',
+      max_tokens: 12000,
       stream: true,
       system: GUITAR_EVAL_REPORT_SYSTEM_PROMPT,
       tools: [{ type: 'web_search_20250305', name: 'web_search' }],
@@ -18844,7 +18848,9 @@ async function callAnthropicForReport(userContent: AnthropicUserContent[], env: 
   const decoder = new TextDecoder();
   let fullText = '';
   let buf = '';
+  let inputTokens = 0;
   let outputTokens = 0;
+  let searchCount = 0;
 
   try {
     while (true) {
@@ -18862,10 +18868,16 @@ async function callAnthropicForReport(userContent: AnthropicUserContent[], env: 
         try {
           const evt = JSON.parse(data) as {
             type: string;
+            message?: { usage?: { input_tokens?: number } };
+            content_block?: { type: string; name?: string };
             delta?: { type: string; text?: string };
             usage?: { output_tokens?: number };
           };
-          if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta' && evt.delta.text) {
+          if (evt.type === 'message_start' && evt.message?.usage?.input_tokens) {
+            inputTokens = evt.message.usage.input_tokens;
+          } else if (evt.type === 'content_block_start' && evt.content_block?.type === 'tool_use' && evt.content_block.name === 'web_search') {
+            searchCount++;
+          } else if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta' && evt.delta.text) {
             fullText += evt.delta.text;
           } else if (evt.type === 'message_delta' && evt.usage?.output_tokens) {
             outputTokens = evt.usage.output_tokens;
@@ -18877,10 +18889,11 @@ async function callAnthropicForReport(userContent: AnthropicUserContent[], env: 
     reader.releaseLock();
   }
 
-  console.log(`[report-gen] stream complete — ${outputTokens} output tokens, ${fullText.length} chars`);
+  console.log(`[report-gen] stream complete — ${inputTokens} in / ${outputTokens} out / ${searchCount} searches`);
 
   const fenced = fullText.trim().match(/```(?:html)?\s*([\s\S]*?)```/);
-  return fenced ? fenced[1].trim() : fullText.trim();
+  const html = fenced ? fenced[1].trim() : fullText.trim();
+  return { html, inputTokens, outputTokens, searchCount };
 }
 
 async function handlePublicGuitarEvalReport(guid: string, env: Env): Promise<Response> {
@@ -18960,7 +18973,7 @@ async function runGuitarEvalReportGeneration(id: number, env: Env): Promise<void
       const MAX_BYTES = 8 * 1024 * 1024;
 
       for (const key of keys) {
-        if (photoContent.length >= 10 || totalBytes >= MAX_BYTES) break;
+        if (photoContent.length >= 5 || totalBytes >= MAX_BYTES) break;
         const obj = await env.CUSTOM_ITEMS_BUCKET!.get(key);
         if (!obj) continue;
         const buffer = await obj.arrayBuffer();
@@ -18979,7 +18992,18 @@ async function runGuitarEvalReportGeneration(id: number, env: Env): Promise<void
     const promptText = buildGuitarEvalPrompt(row, photoContent.length);
     const userContent: AnthropicUserContent[] = [...photoContent, { type: 'text', text: promptText }];
 
-    let html = await callAnthropicForReport(userContent, env);
+    const { html: rawHtml, inputTokens, outputTokens, searchCount } = await callAnthropicForReport(userContent, env);
+
+    // Sonnet 4.6: $3/M input, $15/M output, $0.01/search
+    const reportCost = Math.round(((inputTokens * 3 + outputTokens * 15) / 1_000_000 + searchCount * 0.01) * 10000) / 10000;
+    console.log(`[report-gen] cost $${reportCost} — ${inputTokens} in / ${outputTokens} out / ${searchCount} searches`);
+
+    // Strip any preamble text before the HTML document starts
+    let html = rawHtml;
+    const htmlStart = html.indexOf('<!DOCTYPE html>') !== -1
+      ? html.indexOf('<!DOCTYPE html>')
+      : html.indexOf('<html');
+    if (htmlStart > 0) html = html.slice(htmlStart);
 
     console.log(`[report-gen] Anthropic returned ${html.length} chars`);
 
@@ -19003,8 +19027,8 @@ async function runGuitarEvalReportGeneration(id: number, env: Env): Promise<void
     });
 
     await env.DB.prepare(
-      'UPDATE guitar_evaluations SET report_r2_key = ?, report_guid = ?, report_error = NULL WHERE id = ?',
-    ).bind(r2Key, guid, id).run();
+      'UPDATE guitar_evaluations SET report_r2_key = ?, report_guid = ?, report_cost = ?, report_error = NULL WHERE id = ?',
+    ).bind(r2Key, guid, reportCost, id).run();
 
     console.log(`[report-gen] done — guid ${guid}`);
   } catch (err) {

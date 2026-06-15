@@ -49,6 +49,7 @@ type ValueReportRecord = {
   reportGuid: string | null;
   reportR2Key: string | null;
   reportError: string | null;
+  reportCost: number | null;
 };
 
 type EvalFile = {
@@ -287,6 +288,11 @@ const ValueReportItem = () => {
               {!generating && record?.reportError ? (
                 <Typography variant="caption" color="error.main">
                   Last attempt failed: {record.reportError}
+                </Typography>
+              ) : null}
+              {!generating && record?.reportCost != null ? (
+                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                  Last run: ${record.reportCost.toFixed(4)}
                 </Typography>
               ) : null}
             </Stack>
