@@ -18489,7 +18489,7 @@ function clearAssociateModeCookie(): string {
 async function handleAdminV2ValueReportItem(id: string, env: Env): Promise<Response> {
   const row = await env.DB.prepare(
     `SELECT id, created_at, first_name, last_name, email, brand, brand_other, model,
-            serial_number, includes_case, location, note, damage,
+            serial_number, includes_case, color_finish, location, note, damage,
             stripe_payment_intent_id, fulfilled, image_keys, report_guid, report_r2_key, report_error, report_cost
      FROM guitar_evaluations WHERE id = ?`
   ).bind(id).first<{
@@ -18503,6 +18503,7 @@ async function handleAdminV2ValueReportItem(id: string, env: Env): Promise<Respo
     model: string | null;
     serial_number: string | null;
     includes_case: string | null;
+    color_finish: string | null;
     location: string | null;
     note: string | null;
     damage: string | null;
@@ -18537,6 +18538,7 @@ async function handleAdminV2ValueReportItem(id: string, env: Env): Promise<Respo
       model: row.model,
       serialNumber: row.serial_number,
       includesCase: row.includes_case,
+      colorFinish: row.color_finish,
       location: row.location,
       note: row.note,
       damage: row.damage,
@@ -18756,7 +18758,7 @@ New/street price · Reverb recent sold · Private/local estimate · Dealer cash 
 
 ## TOP NOTICE (include verbatim immediately after the jump-nav, before section 01)
 
-<p class="top-notice">This report is a good-faith market estimate prepared by Coal Creek Guitars for informational purposes only — not a certified appraisal, not a binding offer to buy or sell. Values reflect market conditions at time of writing and may change. <a href="#disclaimer">Full disclaimer below.</a></p>
+<p class="top-notice"><strong style="color:var(--clay);">DISCLAIMER</strong> — This report is a good-faith market estimate prepared by Coal Creek Guitars for informational purposes only — not a certified appraisal, not a binding offer to buy or sell. Values reflect market conditions at time of writing and may change. <a href="#disclaimer">Full disclaimer below.</a></p>
 
 ## FOOTER DISCLAIMER (include verbatim at bottom of every report)
 
@@ -18787,8 +18789,9 @@ function buildGuitarEvalPrompt(
     : record.includes_case === 'gig_bag' ? 'Gig bag'
     : record.includes_case === 'no' ? 'No case'
     : 'Unknown';
+  const photoTokens = Array.from({ length: photoCount }, (_, i) => `{{PHOTO_${i}}}`).join(', ');
   const photoInstr = photoCount > 0
-    ? `${photoCount} photo(s) are attached to this message. Use {{PHOTO_0}} through {{PHOTO_${photoCount - 1}}} as img src values. Use {{PHOTO_HERO}} for the single best full-front shot (set it equal to whichever PHOTO_N is the best full-front).`
+    ? `${photoCount} photos are attached. You MUST place ALL ${photoCount} of the following tokens as img src values in the Section 02 gallery — every single one, no exceptions: ${photoTokens}. Each token must appear exactly once in the gallery. {{PHOTO_HERO}} must equal whichever token is the best full-front shot.`
     : 'No photos provided.';
 
   return `Generate the Coal Creek Guitars valuation report for this instrument.
@@ -18801,7 +18804,7 @@ Model (or "unsure"): ${record.model || 'unsure'}
 Instrument type: electric guitar (confirm from photos if possible)
 Serial number: ${record.serial_number || 'unknown'}
 Year (if known): unknown — decode from serial if possible
-Finish / color: ${record.color_finish || 'unknown'}
+Finish / color (owner's description — not verified, use as a clue only): ${record.color_finish || 'unknown'}
 Weight in lbs: unknown
 Location: ${record.location || 'unknown'}
 Overall condition: ${record.note || 'not specified'}

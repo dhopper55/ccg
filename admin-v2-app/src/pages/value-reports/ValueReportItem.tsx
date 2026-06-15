@@ -37,6 +37,7 @@ type ValueReportRecord = {
   email: string | null;
   brand: string | null;
   brandOther: string | null;
+  colorFinish: string | null;
   model: string | null;
   serialNumber: string | null;
   includesCase: string | null;
@@ -399,6 +400,9 @@ const ValueReportItem = () => {
                 <TextField fullWidth label="Brand (Other)" value={record.brandOther} InputProps={ro} />
               </Grid>
             ) : null}
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <TextField fullWidth label="Color / Finish (owner's description)" value={record.colorFinish || '—'} InputProps={ro} />
+            </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <TextField fullWidth label="Model" value={record.model || '—'} InputProps={ro} />
             </Grid>
