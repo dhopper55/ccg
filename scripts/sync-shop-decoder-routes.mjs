@@ -9,20 +9,7 @@ const sourceHtml = path.join(shopOutputRoot, 'index.html');
 const decoderConfigsPath = path.join(repoRoot, 'shop-app', 'src', 'pages', 'decoders', 'decoder-configs.json');
 const decoderConfigs = JSON.parse(fs.readFileSync(decoderConfigsPath, 'utf8'));
 
-const staticRouteConfigs = [
-  {
-    routeDir: 'guitar-value-report-evaluation',
-    routePath: '/guitar-value-report-evaluation',
-    title: "What's My Guitar Worth? - Comprehensive Guitar Evaluation Report",
-    description: 'Submit your guitar details and receive a professional evaluation report from Coal Creek Guitars — market value, condition analysis, and buying or selling recommendations.',
-    ogDescription: 'Tell us about your guitar and we\'ll send you a detailed market valuation, condition breakdown, and buying or selling guidance — from the team at Coal Creek Guitars.',
-    pageName: 'Coal Creek Guitar Evaluation Report',
-    brandName: 'Coal Creek Guitars',
-    faqJson: [],
-    seoBody: '',
-    breadcrumbMiddle: [],
-  },
-];
+const staticRouteConfigs = [];
 
 const routeConfigs = [
   ...staticRouteConfigs,
