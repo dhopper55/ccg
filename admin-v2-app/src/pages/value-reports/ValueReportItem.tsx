@@ -294,7 +294,7 @@ const ValueReportItem = () => {
               ) : null}
               {!generating && record?.reportCost != null ? (
                 <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                  Last run: ~${(Math.ceil(record.reportCost * 100) / 100).toFixed(2)}
+                  Last run: ${(Math.ceil(record.reportCost * 100) / 100).toFixed(2)}
                 </Typography>
               ) : null}
             </Stack>

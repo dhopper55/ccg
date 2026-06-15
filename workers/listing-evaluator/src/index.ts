@@ -19043,8 +19043,8 @@ async function runGuitarEvalReportGeneration(id: number, env: Env): Promise<void
 
     const { html: rawHtml, inputTokens, outputTokens, searchCount } = await callAnthropicForReport(userContent, env);
 
-    // Sonnet 4.6: $3/M input, $15/M output, $0.01/search
-    const reportCost = Math.round(((inputTokens * 3 + outputTokens * 15) / 1_000_000 + searchCount * 0.01) * 10000) / 10000;
+    // Sonnet 4.6: $3/M input, $15/M output, $0.01/search + $0.02 offset for web-search result tokens not captured in stream
+    const reportCost = Math.round(((inputTokens * 3 + outputTokens * 15) / 1_000_000 + searchCount * 0.01 + 0.02) * 10000) / 10000;
     console.log(`[report-gen] cost $${reportCost} — ${inputTokens} in / ${outputTokens} out / ${searchCount} searches`);
 
     // Strip any preamble text before the HTML document starts
