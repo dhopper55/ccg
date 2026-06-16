@@ -831,11 +831,6 @@ const SerialDecodes = () => {
         </Stack>
 
         {errorMessage ? <Alert severity="error" sx={{ mb: 2 }}>{errorMessage}</Alert> : null}
-        {developerNeededMessage ? (
-          <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setDeveloperNeededMessage('')}>
-            {developerNeededMessage}
-          </Alert>
-        ) : null}
 
         <TableContainer>
           <Table size="small">
@@ -1257,6 +1252,23 @@ const SerialDecodes = () => {
             disabled={Boolean(deleteTargetRecord && deletingRecordIds.includes(deleteTargetRecord.id))}
           >
             Yes
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(developerNeededMessage)}
+        onClose={() => setDeveloperNeededMessage('')}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>Developer Required</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2">{developerNeededMessage}</Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button variant="contained" onClick={() => setDeveloperNeededMessage('')}>
+            Ok
           </Button>
         </DialogActions>
       </Dialog>
