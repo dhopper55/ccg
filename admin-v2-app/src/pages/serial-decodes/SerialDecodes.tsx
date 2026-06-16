@@ -226,6 +226,10 @@ const SerialDecodes = () => {
   const [lookupVolumeLoading, setLookupVolumeLoading] = useState(true);
   const [lookupVolumeErrorMessage, setLookupVolumeErrorMessage] = useState('');
   const [avg30DailyLookups, setAvg30DailyLookups] = useState<number | null>(null);
+  const [aiAnalysisText, setAiAnalysisText] = useState('');
+  const [aiAnalysisDialogError, setAiAnalysisDialogError] = useState('');
+  const [processingAI, setProcessingAI] = useState(false);
+  const [developerNeededMessage, setDeveloperNeededMessage] = useState('');
   const [dailyVolumeDate, setDailyVolumeDate] = useState(getTodayMtn);
   const [dailyVolumeBuckets, setDailyVolumeBuckets] = useState<number[]>(new Array(48).fill(0));
   const [dailyVolumeLoading, setDailyVolumeLoading] = useState(true);
@@ -616,6 +620,13 @@ const SerialDecodes = () => {
     ],
   }), [dailyVolumeBuckets]);
 
+  const closeValidityDialog = () => {
+    setEvaluatedPendingRecordId(null);
+    setAiAnalysisText('');
+    setAiAnalysisDialogError('');
+    setProcessingAI(false);
+  };
+
   const handleEvaluatedToggle = async (recordId: number, nextValue: boolean) => {
     if (nextValue) {
       setEvaluatedPendingRecordId(recordId);
@@ -647,9 +658,9 @@ const SerialDecodes = () => {
     }
   };
 
-  const handleValidityConfirm = async (isValid: boolean) => {
+  const handleValidityNo = async () => {
     const recordId = evaluatedPendingRecordId;
-    setEvaluatedPendingRecordId(null);
+    closeValidityDialog();
     if (recordId === null) return;
     setUpdatingEvaluatedIds((current) => [...current, recordId]);
     try {
@@ -657,7 +668,7 @@ const SerialDecodes = () => {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ evaluated: true, isValid }),
+        body: JSON.stringify({ evaluated: true, isValid: false }),
       });
       const data = (await response.json()) as { evaluated?: boolean; updatedCount?: number; message?: string };
       if (!response.ok) {
@@ -672,6 +683,53 @@ const SerialDecodes = () => {
       setRefreshKey((current) => current + 1);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to update evaluated state.');
+    } finally {
+      setUpdatingEvaluatedIds((current) => current.filter((id) => id !== recordId));
+    }
+  };
+
+  const handleValidityYes = async () => {
+    if (!aiAnalysisText.trim()) {
+      setAiAnalysisDialogError('Paste the AI analysis before confirming.');
+      return;
+    }
+    const recordId = evaluatedPendingRecordId;
+    if (recordId === null) return;
+    setAiAnalysisDialogError('');
+    setProcessingAI(true);
+    setUpdatingEvaluatedIds((current) => [...current, recordId]);
+    try {
+      const response = await fetch(`/api/admin-v2/serial-decodes/${recordId}/evaluated`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ evaluated: true, isValid: true, aiAnalysisText: aiAnalysisText.trim() }),
+      });
+      const data = (await response.json()) as {
+        evaluated?: boolean;
+        updatedCount?: number;
+        needsDeveloper?: boolean;
+        message?: string;
+      };
+      if (data.needsDeveloper) {
+        closeValidityDialog();
+        setDeveloperNeededMessage('This serial pattern requires a developer to implement. Serial not marked as evaluated.');
+        return;
+      }
+      if (!response.ok) {
+        throw new Error(data.message || `Unable to update evaluated state (HTTP ${response.status}).`);
+      }
+      closeValidityDialog();
+      setRecords((current) => current.map((row) => (
+        row.id === recordId ? { ...row, evaluated: Boolean(data.evaluated) } : row
+      )));
+      setSelectedRecord((current) => (
+        current && current.id === recordId ? { ...current, evaluated: Boolean(data.evaluated) } : current
+      ));
+      setRefreshKey((current) => current + 1);
+    } catch (error) {
+      setAiAnalysisDialogError(error instanceof Error ? error.message : 'Unable to process serial.');
+      setProcessingAI(false);
     } finally {
       setUpdatingEvaluatedIds((current) => current.filter((id) => id !== recordId));
     }
@@ -770,6 +828,11 @@ const SerialDecodes = () => {
         </Stack>
 
         {errorMessage ? <Alert severity="error" sx={{ mb: 2 }}>{errorMessage}</Alert> : null}
+        {developerNeededMessage ? (
+          <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setDeveloperNeededMessage('')}>
+            {developerNeededMessage}
+          </Alert>
+        ) : null}
 
         <TableContainer>
           <Table size="small">
@@ -1197,20 +1260,48 @@ const SerialDecodes = () => {
 
       <Dialog
         open={evaluatedPendingRecordId !== null}
-        onClose={() => setEvaluatedPendingRecordId(null)}
+        onClose={closeValidityDialog}
         fullWidth
-        maxWidth="xs"
+        maxWidth="sm"
       >
         <DialogTitle>Is this serial number valid?</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            Paste the Google AI analysis below, then click <strong>Yes</strong> to have the system attempt to add this pattern automatically.
+          </Typography>
+          <TextField
+            multiline
+            minRows={6}
+            maxRows={14}
+            fullWidth
+            placeholder="Paste AI analysis here..."
+            value={aiAnalysisText}
+            onChange={(e) => {
+              setAiAnalysisText(e.target.value);
+              if (aiAnalysisDialogError) setAiAnalysisDialogError('');
+            }}
+            disabled={processingAI}
+            sx={{ fontFamily: 'monospace', fontSize: '0.875rem' }}
+          />
+          {aiAnalysisDialogError ? (
+            <Alert severity="error" sx={{ mt: 1.5 }}>{aiAnalysisDialogError}</Alert>
+          ) : null}
+        </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3 }}>
-          <Button variant="outlined" onClick={() => setEvaluatedPendingRecordId(null)}>
+          <Button variant="outlined" disabled={processingAI} onClick={closeValidityDialog}>
             Cancel
           </Button>
-          <Button variant="outlined" color="error" onClick={() => void handleValidityConfirm(false)}>
+          <Button variant="outlined" color="error" disabled={processingAI} onClick={() => void handleValidityNo()}>
             No
           </Button>
-          <Button variant="contained" color="primary" onClick={() => void handleValidityConfirm(true)}>
-            Yes
+          <Button
+            variant="contained"
+            color="primary"
+            disabled={processingAI}
+            onClick={() => void handleValidityYes()}
+            startIcon={processingAI ? <CircularProgress size={16} color="inherit" /> : undefined}
+          >
+            {processingAI ? 'Processing…' : 'Yes'}
           </Button>
         </DialogActions>
       </Dialog>
