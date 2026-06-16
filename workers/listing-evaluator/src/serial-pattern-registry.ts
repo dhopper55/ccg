@@ -44,6 +44,8 @@ export function deriveExplicitRegexFromKnownPatternKey(patternKey: string): stri
     'esp-ltd-korea-wmi-w-yy-week-sequence': '^W\\d{9}$',
     'esp-ltd-transitional-yy-week-sequence': '^\\d{7}$',
     'gibson-modern-custom-shop-cs-prefix': '^CS\\d{5,6}$',
+    'jackson-china-cwj-yy-sequence': '^CWJ\\d{7,8}$',
+    'jackson-china-numeric-9digit-factory-sequence': '^3\\d{8}$',
     'jackson-modern-10digit-3letter-prefix-modelcode-yy-sequence': '^[A-Z]{3}\\d{7}$',
     'ibanez-china-gaoqing-grand-star-g-yymm-sequence': '^G\\d{8}$',
     'ibanez-ambiguous-6-digit-numeric-impossible-yy': '^\\d{6}$',

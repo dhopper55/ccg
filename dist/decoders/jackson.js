@@ -25,6 +25,8 @@
  * - Taiwan (8-9 digits starting with 6)
  * - Modern 10-digit alphanumeric (2013+)
  * - Modern 3-letter prefix + 7-digit (2013+, prefix+modelCode+YY+sequence, e.g. ICJ3215352)
+ * - China CWJ-prefix (CWJ + YY + sequence, 10-11 digits, 2022+)
+ * - China 9-digit factory sequence (3-digit factory code + 6-digit sequence, no year encoding)
  */
 // USA Neck-Through serial ranges (U0/UO prefix)
 const USA_NECK_THROUGH_RANGES = [
@@ -117,6 +119,12 @@ export function decodeJackson(serial) {
     if (/^NHJ\d{6,8}[A-Z]?$/i.test(normalized)) {
         return decodeIndia(normalized);
     }
+    // China CWJ-prefix: CWJ + YY + sequence (7 or 8 digits after prefix = 10-11 chars total)
+    // Must be checked BEFORE the generic 3-letter prefix handler, which would misparse CWJ2257232
+    // as modelCode=22, yearDigits=57 → year 2057. CWJ format uses prefix-yy-seq, not modelcode-yy-seq.
+    if (/^CWJ\d{7,8}$/i.test(normalized)) {
+        return decodeChinaCWJ(normalized);
+    }
     // Modern 3-letter prefix + 7-digit: prefix(3) + modelCode(2) + YY(2) + sequence(3)
     // Checked before the I[WSCHJ]J Indonesia and C[YJ]J China checks because serials like
     // ICJ3215352 and CYJ3215352 use the 3-letter prefix as a single country/factory/brand code.
@@ -179,6 +187,11 @@ export function decodeJackson(serial) {
     // India 9-digit (JS30xx, 2004-2007 prefix)
     if (/^200[4-7]\d{5}$/.test(normalized) && normalized.length === 9) {
         return decodeIndiaNumeric9(normalized);
+    }
+    // China 9-digit factory sequence: 3-digit factory code + 6-digit production sequence
+    // No year is encoded in this format; the factory code identifies the contracted facility.
+    if (/^3\d{8}$/.test(normalized)) {
+        return decodeChina3DigitFactorySequence(normalized);
     }
     // India 10-digit (JS30xx, 2008+ prefix)
     if (/^20(0[8-9]|[1-2]\d)\d{6}$/.test(normalized) && normalized.length === 10) {
@@ -1042,6 +1055,89 @@ function decodeModern10DigitThreeLetterPrefix(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern Jackson import format: 3-letter country/factory/brand prefix + 2-digit model code + 2-digit production year + 3-digit sequence.</p><h3>How This Pattern Is Typically Read</h3><p>"${letterPrefix}" encodes country, factory, and brand: ${letterPrefix[0]} = ${country}, ${letterPrefix[1]} = ${factory}. Model variation code is ${parseInt(modelCode, 10)}. The digits "${yearDigits}" decode as production year ${year}. The remaining digits are production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock or neck plate for a country-of-origin stamp.</li><li>The model code does not directly identify the guitar model name — verify from headstock, series name, and catalog.</li><li>Use the Jackson official serial lookup where available.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed modern Jackson import decode, then identify the exact model from physical markings and catalog comparison.</p>`,
+    };
+}
+function decodeChinaCWJ(serial) {
+    const yearDigits = serial.substring(3, 5);
+    const sequence = serial.substring(5);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Jackson',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'Chinese contracted factory (CWJ)',
+        country: 'China',
+        model: 'JS Series or X Series',
+        notes: `CWJ-prefix Jackson China import format. CWJ identifies the contracted Chinese production facility. The digits "${yearDigits}" decode as production year ${year}. The remaining ${sequence.length} digits are the sequential production number ${sequenceNumber}. This format is commonly seen on JS Series and X Series models built in China. Verify with a Made in China headstock marking and model specs.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'jackson-china-cwj-yy-sequence',
+        patternLabel: 'Jackson China CWJ YY sequence',
+        additionalContext: {
+            title: 'Jackson China CWJ-prefix serial',
+            summary: 'This serial matches a Jackson CWJ-prefix import format used on Chinese-built JS Series and X Series guitars.',
+            highlights: [
+                'CWJ identifies a contracted Chinese production facility.',
+                `The digits "${yearDigits}" decode as production year ${year}.`,
+                `The remaining digits decode as sequential production number ${sequenceNumber}.`,
+                'This format is used on Chinese-manufactured Jackson JS and X Series import guitars.',
+            ],
+            caveats: [
+                'The serial does not encode the exact factory name, model, or body shape.',
+                'CWJ-prefix serials may not appear in the Jackson USA Custom Shop database.',
+                'Quality and features vary by series; verify from the headstock, pickups, and hardware.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock or neck plate for a Made in China stamp.',
+                'Compare body shape, inlay style, pickup configuration, and headstock logo against Jackson catalog specs for the decoded year.',
+                'Use the Jackson official serial number lookup to attempt factory confirmation.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Jackson CWJ-prefix import format used on Chinese-built JS Series and X Series guitars.</p><h3>How This Pattern Is Typically Read</h3><p>CWJ identifies a contracted Chinese production facility. The digits "${yearDigits}" decode as production year ${year}. The remaining digits decode as sequential production number ${sequenceNumber}. This format is used on Chinese-manufactured Jackson JS and X Series import guitars.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock or neck plate for a Made in China stamp.</li><li>The serial does not encode the exact model name; verify body shape, inlays, and pickups against the Jackson catalog for the decoded year.</li><li>CWJ-prefix serials may not appear in Jackson's USA Custom Shop database.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed Chinese Jackson import decode, then identify the exact series and model from physical features and Jackson's catalog.</p>`,
+    };
+}
+function decodeChina3DigitFactorySequence(serial) {
+    const factoryCode = serial.substring(0, 3);
+    const sequence = serial.substring(3);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Jackson',
+        serialNumber: serial,
+        year: 'Unknown (factory sequence format, no year encoding)',
+        factory: `Chinese contracted facility (factory code ${factoryCode})`,
+        country: 'China',
+        model: 'JS Series or X Series import',
+        notes: `9-digit numeric Jackson China import format. The first three digits (${factoryCode}) identify the contracted manufacturing facility; the remaining six digits (${sequence}) are the sequential production number ${sequenceNumber}. This format does not encode the production year in the serial number itself — verify the approximate manufacturing date from the guitar's physical markings, neck pocket, or documentation. These instruments are commonly JS Series or X Series models built at contracted Chinese factories.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'jackson-china-numeric-9digit-factory-sequence',
+        patternLabel: 'Jackson China 9-digit factory sequence (no year)',
+        additionalContext: {
+            title: 'Jackson China 9-digit factory sequence serial',
+            summary: 'This serial matches a 9-digit numeric Jackson China import format where the first three digits identify the factory and the remaining digits are a pure production sequence with no year encoding.',
+            highlights: [
+                `The first three digits (${factoryCode}) identify the contracted Chinese manufacturing facility.`,
+                `The remaining six digits (${sequence}) form the sequential production number ${sequenceNumber}.`,
+                'This format does not encode a production year within the serial number itself.',
+                'These instruments are typically JS Series or X Series imports built at contracted Chinese factories.',
+            ],
+            caveats: [
+                'No production year can be decoded from this serial — the manufacture date is not embedded in the format.',
+                `The factory code (${factoryCode}) identifies the facility but may not match publicly documented factory identifiers.`,
+                'These serials may not appear in the Jackson USA Custom Shop lookup.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock or neck plate for a Made in China stamp and approximate production period.',
+                'Inspect the neck pocket or body cavity for internal date stamps when exact dating matters.',
+                'Compare model specs, hardware, and inlays to Jackson catalog entries to estimate the production era.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a 9-digit numeric Jackson China import format where the first three digits identify the factory and the remaining digits are a pure production sequence.</p><h3>How This Pattern Is Typically Read</h3><p>The first three digits (${factoryCode}) identify the contracted Chinese manufacturing facility. The remaining six digits (${sequence}) form the sequential production number ${sequenceNumber}. This format does not encode a production year within the serial number itself.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock or neck plate for a Made in China stamp.</li><li>Inspect the neck pocket or body cavity for internal date stamps when exact dating is important.</li><li>Compare model specs, hardware, and inlays to Jackson catalog entries to estimate the production era.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed Chinese Jackson import decode. Production year cannot be determined from the serial alone — verify from physical markings and model features.</p>`,
     };
 }
 function getMonthName(month) {

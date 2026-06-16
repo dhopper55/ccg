@@ -224,6 +224,54 @@ function assertJacksonMij200C(serialInput) {
   );
 }
 
+function assertJacksonChinaCWJPrefix(serialInput, expectedYear, expectedSequence) {
+  const result = decodeJackson(serialInput);
+  assert(result.success, `Expected decode success for Jackson ${serialInput}`);
+  assert(result.info, `Expected decoded info for Jackson ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(
+    info.factory === 'Chinese contracted factory (CWJ)',
+    `Expected CWJ China factory for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'China', `Expected China for ${serialInput}, got ${info.country}`);
+  assert(info.model === 'JS Series or X Series', `Expected JS/X Series for ${serialInput}, got ${info.model}`);
+  assert(
+    result.patternKey === 'jackson-china-cwj-yy-sequence',
+    `Expected CWJ pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes(`production number ${expectedSequence}`),
+    `Expected production number ${expectedSequence} in rich text for ${serialInput}`
+  );
+}
+
+function assertJacksonChinaNumeric9Digit(serialInput) {
+  const result = decodeJackson(serialInput);
+  assert(result.success, `Expected decode success for Jackson ${serialInput}`);
+  assert(result.info, `Expected decoded info for Jackson ${serialInput}`);
+
+  const info = result.info;
+  assert(
+    info.year === 'Unknown (factory sequence format, no year encoding)',
+    `Expected unknown year for ${serialInput}, got ${info.year}`
+  );
+  assert(
+    info.factory === 'Chinese contracted facility (factory code 311)',
+    `Expected factory code 311 for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'China', `Expected China for ${serialInput}, got ${info.country}`);
+  assert(
+    result.patternKey === 'jackson-china-numeric-9digit-factory-sequence',
+    `Expected 9-digit factory sequence pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('production number 740074'),
+    `Expected production number 740074 in rich text for ${serialInput}`
+  );
+}
+
 function assertJacksonModern10DigitThreeLetterPrefix(serialInput, expectedYear, expectedFactory, expectedCountry) {
   const result = decodeJackson(serialInput);
   assert(result.success, `Expected decode success for Jackson ${serialInput}`);
@@ -258,4 +306,7 @@ export function runTests() {
   assertJacksonPlayerChoiceSeries('pcs0001', 1);
   assertJacksonMij200C('200C00541');
   assertJacksonModern10DigitThreeLetterPrefix('ICJ3215352', '2015', 'Cort', 'Indonesia');
+  assertJacksonChinaCWJPrefix('CWJ2257232', '2022', 57232);
+  assertJacksonChinaCWJPrefix('CWJ25124694', '2025', 124694);
+  assertJacksonChinaNumeric9Digit('311740074');
 }
