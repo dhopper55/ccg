@@ -25,6 +25,7 @@ import { DecodeResult, GuitarInfo } from '../types.js';
  * - China COB/COS prefix (Cor-Tek)
  * - China CSS prefix (Samick)
  * - China CYK + letter prefix (Yako, 2020+)
+ * - China CRN + letter prefix (Re-New contracted facility, 2020+)
  * - China NC prefix (mid-90s)
  * - China SE Strat Pack numeric-only (9 digits, YYMM + sequence)
  * - Mexico MN prefix (1990s)
@@ -164,6 +165,12 @@ export function decodeSquier(serial: string): DecodeResult {
   const cykMatch = normalized.match(/^CYK([A-L])(\d{2})(\d+)$/);
   if (cykMatch) {
     return decodeChinaCYK(cykMatch[1], cykMatch[2], cykMatch[3], normalized);
+  }
+
+  // China CRN + letter prefix (Re-New contracted facility, 2020+: CRN + month-letter + YY + sequence)
+  const crnMatch = normalized.match(/^CRN([A-L])(\d{2})(\d+)$/);
+  if (crnMatch) {
+    return decodeChinaCRN(crnMatch[1], crnMatch[2], crnMatch[3], normalized);
   }
 
   // China CY prefix (Yako)
@@ -729,6 +736,50 @@ function decodeChinaCYK(monthLetter: string, yearDigits: string, sequence: strin
   };
 
   return { success: true, info };
+}
+
+function decodeChinaCRN(monthLetter: string, yearDigits: string, sequence: string, serial: string): DecodeResult {
+  const year = 2000 + parseInt(yearDigits, 10);
+  const month = MONTH_LETTERS[monthLetter] || 'Unknown';
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Squier',
+    serialNumber: serial,
+    year: year.toString(),
+    month,
+    factory: 'China RN contracted facility',
+    country: 'China',
+    notes: `Modern Squier CRN four-letter prefix format. "C" identifies China; "RN" identifies the contracted production facility; "${monthLetter}" indicates ${month} using alphabetical month coding (A=January through L=December); ${yearDigits} indicates ${year}; production sequence: ${sequenceNumber}. This format is used on modern entry-level Squier lines including Debut and Sonic series.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'squier-china-crn-month-letter-yy-sequence',
+    patternLabel: 'Squier China CRN month-letter YY sequence',
+    additionalContext: {
+      title: 'Squier China CRN serial',
+      summary: 'This serial matches the modern Squier four-letter CRN prefix format from a contracted Chinese production facility.',
+      highlights: [
+        '"C" identifies China; "RN" identifies the contracted production facility.',
+        `"${monthLetter}" decodes as ${month} using alphabetical month coding (A=January through L=December).`,
+        `The digits ${yearDigits} decode as production year ${year}.`,
+        `The remaining digits decode as production sequence ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'This serial identifies factory, production month, year, and sequence — not the exact model name.',
+        'The model series (Debut, Sonic, etc.) must be confirmed from the headstock or body markings.',
+        'CRN-prefix serials from modern Chinese production may not appear in all Fender serial databases.',
+      ],
+      verificationTips: [
+        'Check the headstock front for the Squier model series name.',
+        'Look for "Made in China" on the back of the headstock.',
+        'Compare the instrument against Squier catalog specs from the decoded year.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches the modern Squier four-letter CRN prefix format from a contracted Chinese production facility.</p><h3>How This Pattern Is Typically Read</h3><p>"C" identifies China; "RN" identifies the contracted production facility. "${monthLetter}" decodes as ${month} using alphabetical month coding (A=January through L=December). The digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the headstock front for the Squier model series name.</li><li>Look for "Made in China" on the back of the headstock.</li><li>Compare the instrument against Squier catalog specs from ${year}.</li></ul>`,
+  };
 }
 
 function decodeChinaCY(yearDigits: string, sequence: string, serial: string): DecodeResult {

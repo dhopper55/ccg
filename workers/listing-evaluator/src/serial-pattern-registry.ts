@@ -1,6 +1,7 @@
 export function deriveExplicitRegexFromKnownPatternKey(patternKey: string): string | null {
   const knownPatterns: Record<string, string> = {
     'bcrich-b-prefix-month-code-import': '^B[ACEFGHJKLMNP]\\d{8}$',
+    'bcrich-si-indonesia-yymm-sequence': '^SI\\d{8}$',
     'bcrich-7-digit-numeric-import-yy-sequence': '^\\d{7}$',
     'bcrich-class-axe-b-prefix-import': '^B\\d{3,6}$',
     'bcrich-f-prefix-six-digit-import': '^F\\d{6}$',
@@ -31,6 +32,7 @@ export function deriveExplicitRegexFromKnownPatternKey(patternKey: string): stri
     'cort-vintage-1990s-7-digit-yymm-sequence': '^9\\d{6}$',
     'cort-year-sequence-7-digit': '^00\\d{5}$',
     'dean-asian-partner-a-yymm-sequence': '^A\\d{8}$',
+    'squier-china-crn-month-letter-yy-sequence': '^CRN[A-L]\\d{8}$',
     'epiphone-korea-single-letter-factory-yymm-sequence': '^[A-Z]\\d{7,}$',
     'esp-ambiguous-6-digit-all-numeric': '^\\d{6}$',
     'esp-ambiguous-e-prefix-6-digit-eii-ltd': '^E\\d{6}$',

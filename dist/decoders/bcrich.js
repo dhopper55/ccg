@@ -16,6 +16,7 @@
  * - F-prefix six-digit import: F201422 (factory/line prefix + YY + sequence)
  * - Short modern month-code import: F2051631 (month + year + batch/factory + sequence)
  * - Class Axe/import B-prefix: B + 3-6 digits, including B007132
+ * - SI-prefix Indonesia (Samil factory, SI + YYMM + sequence)
  * - NJ Series: R/P + 6 digits with year in first two digits
  * - Late 1980s–1990s import: 10-digit all-numeric (format-valid but serial not dateable; Class Axe/Platinum era)
  */
@@ -68,6 +69,11 @@ export function decodeBCRich(serial) {
     // Class Axe era: CA prefix + sequential production number (1989-1993)
     if (/^CA\d{3,6}$/.test(normalized)) {
         return decodeClassAxeCA(normalized);
+    }
+    // Samil Indonesia 2-letter prefix: SI + YYMM + sequence (10 digits total)
+    // Must be checked before the single-letter [SIFN] handlers since SI is a 2-letter prefix
+    if (/^SI\d{8}$/.test(normalized)) {
+        return decodeSISamilIndonesiaImport(normalized);
     }
     if (/^[SIFN]\d{9}$/.test(normalized)) {
         return decodeImportLetterNineDigit(normalized);
@@ -759,6 +765,55 @@ function decodeClassAxeB(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a B-prefixed Class Axe-era import format commonly seen on late-1980s to early-1990s B.C. Rich bolt-on models.</p><h3>How This Pattern Is Typically Read</h3><p>The B prefix is treated as a Class Axe-era/import neck-plate prefix. The likely manufacturing window is 1989-1993. The remaining digits are treated as production or neck-plate sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>B.C. Rich serial records from this era are inconsistent and often not sequential.</li><li>The serial can support an era estimate, but it should not be treated as an exact production date.</li><li>Check bolt-on construction, neck plate style, country markings, and electronics-cavity or neck-pocket clues.</li></ul>`,
+    };
+}
+function decodeSISamilIndonesiaImport(serial) {
+    const yearDigits = serial.substring(2, 4);
+    const monthDigits = serial.substring(4, 6);
+    const sequence = serial.substring(6);
+    const yearNum = parseInt(yearDigits, 10);
+    const monthNum = parseInt(monthDigits, 10);
+    const year = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum).toString();
+    const isValidMonth = monthNum >= 1 && monthNum <= 12;
+    const monthName = isValidMonth ? MONTH_NAME(monthNum) : undefined;
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'B.C. Rich',
+        serialNumber: serial,
+        year,
+        ...(monthName ? { month: monthName } : {}),
+        factory: 'Samil (Indonesian contract factory)',
+        country: 'Indonesia',
+        notes: `SI-prefix B.C. Rich import format. "SI" identifies the Samil contracted factory in Indonesia. The digits "${yearDigits}" indicate ${year}; "${monthDigits}" indicates ${isValidMonth ? monthName : 'a production batch code'}; "${sequence}" is the factory sequence number (${sequenceNumber}). This format is associated with mid-2000s Indonesian B.C. Rich import models in the Bronze or Platinum series. Verify with headstock markings, country-of-origin labels, and body/neck construction details.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'bcrich-si-indonesia-yymm-sequence',
+        patternLabel: 'B.C. Rich SI Indonesia YYMM sequence',
+        additionalContext: {
+            title: 'B.C. Rich SI-prefix Indonesian import serial',
+            summary: 'This serial matches the B.C. Rich SI-prefix import format from the Samil contracted factory in Indonesia.',
+            highlights: [
+                '"SI" identifies the Samil contracted factory in Indonesia.',
+                `The digits "${yearDigits}" decode as production year ${year}.`,
+                isValidMonth
+                    ? `The digits "${monthDigits}" decode as ${monthName}.`
+                    : `The digits "${monthDigits}" appear to be a production batch code, not a standard calendar month.`,
+                `The remaining digits decode as factory sequence number ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'This serial identifies factory origin, year, month, and sequence — not the exact model name or series tier.',
+                'Common shapes from this era include Warlock, Mockingbird, and Beast in Bronze or Platinum lines.',
+                'B.C. Rich import serial numbering varied across ownership eras; verify with physical instrument markings.',
+            ],
+            verificationTips: [
+                'Check the headstock or truss-rod cover for series name markings (Bronze, Platinum, NJ).',
+                'Look for "Made in Indonesia" on the back of the headstock.',
+                `Compare body shape, hardware, and pickups against B.C. Rich import catalogs from ${year}.`,
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches the B.C. Rich SI-prefix import format from the Samil contracted factory in Indonesia.</p><h3>How This Pattern Is Typically Read</h3><p>"SI" identifies the Samil contracted factory in Indonesia. The digits "${yearDigits}" decode as production year ${year}. The digits "${monthDigits}" indicate ${isValidMonth ? monthName : 'a production batch code'}. The remaining digits decode as factory sequence number ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the headstock or truss-rod cover for series name markings (Bronze, Platinum, NJ).</li><li>Look for "Made in Indonesia" on the back of the headstock.</li><li>Compare body shape, hardware, and pickups against B.C. Rich import catalogs from ${year}.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed Indonesian B.C. Rich import decode. Verify the exact series and model from headstock markings and physical features.</p>`,
     };
 }
 function decodeIShortImport(serial) {

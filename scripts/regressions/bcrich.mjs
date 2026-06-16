@@ -310,6 +310,29 @@ function assertBCRichUSA5DigitOffset(serialInput, expectedYearRange) {
   );
 }
 
+function assertBCRichSISamilIndonesia(serialInput) {
+  const result = decodeSerialForBackend('bcrich', serialInput);
+  assert(result.success, `Expected decode success for BC Rich ${serialInput}`);
+  assert(result.info, `Expected decoded info for BC Rich ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '2005', `Expected year 2005 for ${serialInput}, got ${info.year}`);
+  assert(info.month === 'February', `Expected month February for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'Samil (Indonesian contract factory)',
+    `Expected Samil factory for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'Indonesia', `Expected Indonesia for ${serialInput}, got ${info.country}`);
+  assert(
+    result.patternKey === 'bcrich-si-indonesia-yymm-sequence',
+    `Expected SI pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('sequence number 494'),
+    `Expected sequence number 494 in rich text for ${serialInput}`
+  );
+}
+
 export function runTests() {
   assertBCRichIShortImport('i50311', '2005', 'March');
   assertBCRichShortNumericImport('150979');
@@ -323,4 +346,5 @@ export function runTests() {
   assertBCRichHanserEraEightDigitImport('Sr#41201627');
   assertBCRichClassAxeBPrefixImport('B007132');
   assertBCRichUSA5DigitOffset('36642', '1982-1983 (estimated)');
+  assertBCRichSISamilIndonesia('SI05020494');
 }

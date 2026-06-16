@@ -88,10 +88,34 @@ function assertSquierNumericOnly8DigitRejected(serialInput) {
   );
 }
 
+function assertSquierChinaCRN(serialInput) {
+  const result = decodeSerialForBackend('squier', serialInput);
+  assert(result.success, `Expected decode success for Squier ${serialInput}`);
+  assert(result.info, `Expected decoded info for Squier ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '2026', `Expected year 2026 for ${serialInput}, got ${info.year}`);
+  assert(info.month === 'January', `Expected month January for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'China RN contracted facility',
+    `Expected China RN factory for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'China', `Expected China for ${serialInput}, got ${info.country}`);
+  assert(
+    result.patternKey === 'squier-china-crn-month-letter-yy-sequence',
+    `Expected CRN pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('production sequence 7293'),
+    `Expected production sequence 7293 in rich text for ${serialInput}`
+  );
+}
+
 export function runTests() {
   assertSquierChinaSE9Digit('040811254', '2004', 'August');
   assertSquierChinaSE8Digit2004('04090431', 'September');
   assertSquierChinaCPrefix('c004039', '2000');
   assertSquierIndonesiaICSYear('ICS18291833', '2018');
   assertSquierNumericOnly8DigitRejected('05021913');
+  assertSquierChinaCRN('crna26007293');
 }

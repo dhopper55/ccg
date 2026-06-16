@@ -10,7 +10,7 @@ import { decodeESP } from './decoders/esp.js?version=568506';
 import { decodeSchecter } from './decoders/schecter.js?version=042948';
 import { decodeGretsch } from './decoders/gretsch.js?version=916316';
 import { decodeJackson } from './decoders/jackson.js?version=958041';
-import { decodeSquier } from './decoders/squier.js?version=430608';
+import { decodeSquier } from './decoders/squier.js?version=706014';
 import { decodeCort } from './decoders/cort.js?version=557654';
 import { decodeTakamine } from './decoders/takamine.js?version=847856';
 import { decodeWashburn } from './decoders/washburn.js?version=566695';
@@ -23,7 +23,7 @@ import { decodeOvation } from './decoders/ovation.js?version=695857';
 import { decodeCharvel } from './decoders/charvel.js?version=381205';
 import { decodeRickenbacker } from './decoders/rickenbacker.js?version=961802';
 import { decodeKramer } from './decoders/kramer.js?version=098263';
-import { decodeBCRich } from './decoders/bcrich.js?version=038990';
+import { decodeBCRich } from './decoders/bcrich.js?version=005221';
 const DECODER_MAP = {
     gibson: decodeGibson,
     epiphone: decodeEpiphone,
