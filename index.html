@@ -404,13 +404,12 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
     gap: 2px;
-    background: #2a2a2a;
-    border: 1px solid #2a2a2a;
+    background: rgba(21,24,30,.18);
     border-radius: 4px;
     overflow: hidden;
   }
   .decoder-item {
-    background: #1a1a1a;
+    background: #F4EFE4;
     padding: 20px 16px;
     display: flex;
     flex-direction: column;
@@ -419,26 +418,80 @@
     text-align: center;
     transition: background 0.2s;
     cursor: pointer;
+    text-decoration: none;
   }
-  .decoder-item:hover { background: #202018; }
+  .decoder-item:hover { background: #ECE5D5; }
   .decoder-item img {
-    height: 28px;
+    height: 32px;
     width: auto;
-    max-width: 90px;
+    max-width: 100px;
     object-fit: contain;
-    filter: brightness(0) invert(0.6);
-    transition: filter 0.2s;
+    transition: opacity 0.2s;
   }
-  .decoder-item:hover img { filter: brightness(0) invert(0.85) sepia(0.4) hue-rotate(5deg) saturate(2); }
+  .decoder-item:hover img { opacity: 0.8; }
   .decoder-item span {
     font-size: 11px;
     letter-spacing: 1px;
     text-transform: uppercase;
-    color: #5a5045;
+    color: #6E6557;
     font-weight: 600;
     transition: color 0.2s;
   }
-  .decoder-item:hover span { color: #8B6914; }
+  .decoder-item:hover span { color: #235A6E; }
+  .decoder-more-btn {
+    background: #F4EFE4;
+    border: none;
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .decoder-more-btn:hover { background: #ECE5D5; }
+  .decoder-more-btn .more-num {
+    font-size: 22px;
+    color: #A9823B;
+    font-weight: 700;
+    font-family: 'Playfair Display', serif;
+  }
+  .decoder-more-btn .more-label {
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #6E6557;
+    font-weight: 600;
+  }
+  .decoder-extra {
+    display: none;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 2px;
+    background: rgba(21,24,30,.18);
+    border-radius: 0 0 4px 4px;
+    overflow: hidden;
+    margin-top: 2px;
+  }
+  .decoder-extra.open { display: grid; }
+  .decoder-history-links {
+    margin-top: 20px;
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .decoder-history-links a {
+    font-size: 12px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #8B6914;
+    text-decoration: none;
+    border-bottom: 1px solid rgba(139,105,20,.3);
+    padding-bottom: 2px;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .decoder-history-links a:hover { color: #d4a820; border-color: #d4a820; }
   .decoder-cta { text-align: center; margin-top: 36px; }
 
   /* ── MILITARY ── */
@@ -756,11 +809,64 @@
         <img src="https://www.coalcreekguitars.com/images/brand-logos/Guild-logo.png" alt="Guild">
         <span>Guild</span>
       </a>
-      <a href="https://www.coalcreekguitars.com/decoders/guitar-serial-decoder-lookup.html" class="decoder-item" style="background:#141414;">
-        <span style="font-size:22px; color:#8B6914;">+10</span>
-        <span>More →</span>
+      <button class="decoder-more-btn" onclick="toggleDecoderExtra(this)" aria-expanded="false">
+        <span class="more-num">+11</span>
+        <span class="more-label">More →</span>
+      </button>
+    </div>
+
+    <div class="decoder-extra" id="decoder-extra">
+      <a href="https://www.coalcreekguitars.com/decoders/squier-guitar-serial-number-decoder.html" class="decoder-item">
+        <img src="https://www.coalcreekguitars.com/images/brand-logos/Squier_guitars_logo.png" alt="Squier">
+        <span>Squier</span>
+      </a>
+      <a href="https://www.coalcreekguitars.com/decoders/kramer-guitar-serial-number-decoder.html" class="decoder-item">
+        <img src="https://www.coalcreekguitars.com/images/brand-logos/Kramer_guitars_logo.png" alt="Kramer">
+        <span>Kramer</span>
+      </a>
+      <a href="https://www.coalcreekguitars.com/decoders/charvel-guitar-serial-number-decoder.html" class="decoder-item">
+        <img src="https://www.coalcreekguitars.com/images/brand-logos/Charvel-Logo.jpg" alt="Charvel">
+        <span>Charvel</span>
+      </a>
+      <a href="https://www.coalcreekguitars.com/decoders/dean-guitar-serial-number-decoder.html" class="decoder-item">
+        <img src="https://www.coalcreekguitars.com/images/brand-logos/Dean_Guitars_logo.png" alt="Dean">
+        <span>Dean</span>
+      </a>
+      <a href="https://www.coalcreekguitars.com/decoders/takamine-guitar-serial-number-decoder.html" class="decoder-item">
+        <img src="https://www.coalcreekguitars.com/images/brand-logos/Takamine_guitar_logo.png" alt="Takamine">
+        <span>Takamine</span>
+      </a>
+      <a href="https://www.coalcreekguitars.com/decoders/washburn-guitar-serial-number-decoder.html" class="decoder-item">
+        <img src="https://www.coalcreekguitars.com/images/brand-logos/Washburn_Guitars_logo.png" alt="Washburn">
+        <span>Washburn</span>
+      </a>
+      <a href="https://www.coalcreekguitars.com/decoders/bc-rich-guitar-serial-number-decoder.html" class="decoder-item">
+        <img src="https://www.coalcreekguitars.com/images/brand-logos/bc-rich.jpg" alt="B.C. Rich">
+        <span>B.C. Rich</span>
+      </a>
+      <a href="https://www.coalcreekguitars.com/decoders/alvarez-guitar-serial-number-decoder.html" class="decoder-item">
+        <img src="https://www.coalcreekguitars.com/images/brand-logos/alvarez.png" alt="Alvarez">
+        <span>Alvarez</span>
+      </a>
+      <a href="https://www.coalcreekguitars.com/decoders/godin-guitar-serial-number-decoder.html" class="decoder-item">
+        <img src="https://www.coalcreekguitars.com/images/brand-logos/Godin_guitars_logo.png" alt="Godin">
+        <span>Godin</span>
+      </a>
+      <a href="https://www.coalcreekguitars.com/decoders/ovation-guitar-serial-number-decoder.html" class="decoder-item">
+        <img src="https://www.coalcreekguitars.com/images/brand-logos/Ovation_Logo.png" alt="Ovation">
+        <span>Ovation</span>
+      </a>
+      <a href="https://www.coalcreekguitars.com/decoders/cort-guitar-serial-number-decoder.html" class="decoder-item">
+        <img src="https://www.coalcreekguitars.com/images/brand-logos/Cort_Logo.png" alt="Cort">
+        <span>Cort</span>
       </a>
     </div>
+
+    <div class="decoder-history-links">
+      <a href="https://www.coalcreekguitars.com/gibson-guitar-serial-number-history.html">Gibson Serial Number History →</a>
+      <a href="https://www.coalcreekguitars.com/fender-guitar-serial-number-history.html">Fender Serial Number History →</a>
+    </div>
+
     <div class="decoder-cta">
       <a href="https://www.coalcreekguitars.com/decoders/guitar-serial-decoder-lookup.html" class="btn-outline">Browse All Decoders</a>
     </div>
@@ -843,7 +949,20 @@
     <span><a href="https://www.coalcreekguitars.com/privacy-policy.html">Privacy</a> · <a href="https://www.coalcreekguitars.com/terms-conditions.html">Terms</a></span>
   </div>
 </footer>
-<script>document.getElementById('yr').textContent = new Date().getFullYear();</script>
+<script>
+document.getElementById('yr').textContent = new Date().getFullYear();
+function toggleDecoderExtra(btn) {
+  var extra = document.getElementById('decoder-extra');
+  var open = extra.classList.toggle('open');
+  btn.setAttribute('aria-expanded', open);
+  var label = btn.querySelector('.more-label');
+  if (open) {
+    label.textContent = 'Show Less ↑';
+  } else {
+    label.textContent = 'More →';
+  }
+}
+</script>
 
 </body>
 </html>
