@@ -88,6 +88,12 @@ type StripeConfigResponse = {
   message?: string;
 };
 
+type V2DecodeConfigResponse = {
+  useV2DecodeLogic?: boolean;
+  ok?: boolean;
+  message?: string;
+};
+
 const defaultForm: SystemSettingsForm = {
   brevoOrderConfirmationTemplateId: '',
   brevoSenderName: '',
@@ -109,6 +115,8 @@ const SystemSettings = () => {
   const [stripePublishableKeySandbox, setStripePublishableKeySandbox] = useState('');
   const [stripePublishableKey, setStripePublishableKey] = useState('');
   const [isUpdatingStripeEnv, setIsUpdatingStripeEnv] = useState(false);
+  const [useV2DecodeLogic, setUseV2DecodeLogic] = useState(false);
+  const [isUpdatingV2Decode, setIsUpdatingV2Decode] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [isPrintingReceipt, setIsPrintingReceipt] = useState(false);
   const [isKickingDrawer, setIsKickingDrawer] = useState(false);
@@ -117,12 +125,14 @@ const SystemSettings = () => {
     setIsLoading(true);
     setErrorMessage('');
     try {
-      const [settingsResponse, stripeResponse] = await Promise.all([
+      const [settingsResponse, stripeResponse, v2DecodeResponse] = await Promise.all([
         fetch('/api/admin-v2/system-settings', { credentials: 'same-origin' }),
         fetch('/api/admin-v2/stripe-config', { credentials: 'same-origin' }),
+        fetch('/api/admin-v2/v2-decode-config', { credentials: 'same-origin' }),
       ]);
       const payload = (await settingsResponse.json()) as SystemSettingsResponse;
       const stripePayload = (await stripeResponse.json()) as StripeConfigResponse;
+      const v2DecodePayload = (await v2DecodeResponse.json()) as V2DecodeConfigResponse;
       if (!settingsResponse.ok) throw new Error(payload.message || 'Unable to load system settings.');
       if (!stripeResponse.ok) throw new Error(stripePayload.message || 'Unable to load Stripe config.');
       setForm({
@@ -139,6 +149,7 @@ const SystemSettings = () => {
       setUseStripeSandbox(stripePayload.useStripeSandbox ?? true);
       setStripePublishableKeySandbox(stripePayload.stripePublishableKeySandbox ?? '');
       setStripePublishableKey(stripePayload.stripePublishableKey ?? '');
+      setUseV2DecodeLogic(v2DecodePayload.useV2DecodeLogic ?? false);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to load system settings.');
     } finally {
@@ -231,6 +242,30 @@ const SystemSettings = () => {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to update Stripe environment.');
     } finally {
       setIsUpdatingStripeEnv(false);
+    }
+  };
+
+  const handleV2DecodeToggle = async (checked: boolean) => {
+    const previous = useV2DecodeLogic;
+    setUseV2DecodeLogic(checked);
+    setIsUpdatingV2Decode(true);
+    setErrorMessage('');
+    try {
+      const response = await fetch('/api/admin-v2/v2-decode-config', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ useV2DecodeLogic: checked }),
+      });
+      const payload = (await response.json()) as V2DecodeConfigResponse;
+      if (!response.ok) throw new Error(payload.message || 'Unable to update V2 decode logic.');
+      setUseV2DecodeLogic(payload.useV2DecodeLogic ?? checked);
+      enqueueSnackbar(`V2 decode logic ${checked ? 'enabled' : 'disabled'}.`, { variant: 'success' });
+    } catch (error) {
+      setUseV2DecodeLogic(previous);
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to update V2 decode logic.');
+    } finally {
+      setIsUpdatingV2Decode(false);
     }
   };
 
@@ -392,6 +427,16 @@ const SystemSettings = () => {
               />
             }
             label={useStripeSandbox ? 'Stripe sandbox' : 'Stripe production'}
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={useV2DecodeLogic}
+                disabled={isLoading || isSaving || isUpdatingV2Decode}
+                onChange={(event) => void handleV2DecodeToggle(event.target.checked)}
+              />
+            }
+            label={useV2DecodeLogic ? 'V2 Decode Logic (on)' : 'V2 Decode Logic (off)'}
           />
           <TextField
             fullWidth

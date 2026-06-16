@@ -73,6 +73,12 @@ export function decodeWashburn(serial: string): DecodeResult {
     return decodeModernTwoCharFactoryYYMMSeq(normalized);
   }
 
+  // China BC factory prefix: BC + plant(1) + YY(2) + sequence(4)
+  // e.g. BC6061796 = China factory, plant 6, year 2006, sequence 1796
+  if (/^BC\d{7}$/.test(normalized)) {
+    return decodeWashburnBCChina(normalized);
+  }
+
   // Modern 2-letter factory code + YYWW + 3-digit unit (e.g., UO2045971)
   if (/^[A-Z]{2}\d{7}$/.test(normalized)) {
     return decodeModernTwoLetterYYWW(normalized);
@@ -640,7 +646,7 @@ function decodeModernNumeric(serial: string): DecodeResult {
     const yearNum = parseInt(yearDigits, 10);
 
     let year: string;
-    if (yearNum >= 70 && yearNum <= 99) {
+    if (yearNum >= 60 && yearNum <= 99) {
       year = `19${yearDigits}`;
     } else if (yearNum >= 0 && yearNum <= 30) {
       year = `20${yearDigits.padStart(2, '0')}`;
@@ -834,6 +840,52 @@ function decodeShort(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+// China BC factory prefix: BC + plant(1) + YY(2) + sequence(4)
+function decodeWashburnBCChina(serial: string): DecodeResult {
+  const plant = serial[2];
+  const yearDigits = serial.substring(3, 5);
+  const sequence = serial.substring(5);
+  const year = 2000 + parseInt(yearDigits, 10);
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Washburn',
+    serialNumber: serial,
+    year: year.toString(),
+    factory: 'China factory (BC series)',
+    country: 'China',
+    notes: `BC prefix indicates a Chinese Washburn factory series using a shifted encoding. Parsed as BC + plant code ${plant} + YY${yearDigits} (${year}) + sequence ${sequence}. The plant code precedes the year digits, so the year appears at positions 3-4 of the digit block rather than positions 1-2. Production sequence: ${sequenceNumber}. Verify with a Made in China marking on the headstock or soundhole label.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'washburn-bc-china-plant-yy-sequence',
+    patternLabel: 'Washburn BC China plant YY sequence',
+    additionalContext: {
+      title: 'Washburn BC-prefix China serial',
+      summary: 'This serial matches a Washburn BC-prefix format associated with Chinese factory production, where the year digits appear at positions 3-4 after a plant code.',
+      highlights: [
+        'BC indicates a Chinese contracted factory series.',
+        `Plant code ${plant} identifies the production line or sub-facility.`,
+        `The digits "${yearDigits}" decode as production year ${year}.`,
+        `The remaining digits decode as production sequence ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'Washburn BC-prefix serials use a shifted encoding where a plant code precedes the year digits.',
+        'The exact factory name within China is not encoded in the serial.',
+        'The serial does not encode the exact model name.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock or soundhole label for Made in China marking.',
+        'Compare the body style, hardware, and finish against Washburn catalog specs for the decoded year.',
+        'Contact Washburn support with clear photos if exact factory confirmation is needed.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Washburn BC-prefix format associated with Chinese factory production, where the year digits appear at positions 3-4 of the digit block after a plant code.</p><h3>How This Pattern Is Typically Read</h3><p>BC indicates a Chinese contracted factory series. Plant code ${plant} identifies the production line or sub-facility. The digits "${yearDigits}" decode as production year ${year}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Washburn BC-prefix serials use a shifted encoding where a plant code precedes the year digits.</li><li>Check the back of the headstock or soundhole label for Made in China marking.</li><li>Compare the body style, hardware, and finish against Washburn catalog specs for the decoded year.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed mid-2000s Chinese Washburn production decode, then confirm the exact model from the headstock, label, or Washburn support.</p>`,
+  };
 }
 
 // Helper: Parse year, month, sequence from digit string

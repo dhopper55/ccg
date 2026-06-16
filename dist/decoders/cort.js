@@ -7,6 +7,7 @@
  * - Modern format with omitted leading zero: YMMXXXXX (2000-2009)
  * - Modern numeric year/batch format: YY00XXXX
  * - Modern format extended: YYMMXXXXX (2005-present)
+ * - Modern 10-digit format: YYMMXXXXXX (2004-era, 6-digit sequence)
  * - Modern 12-digit logistics/tracking format: YY + 10-digit sequence
  * - Late 1990s format: YYMMXXXX (1990-1999)
  * - 1980s Korean 7-digit year/sequence format: 88XXXXX
@@ -100,6 +101,10 @@ export function decodeCort(serial) {
     // Modern 12-digit logistics/tracking format: YY + 10-digit sequence
     if (/^\d{12}$/.test(normalized)) {
         return decodeModern12DigitTracking(normalized);
+    }
+    // Modern format with 10 digits: YYMMXXXXXX (2004-era, 6-digit sequence)
+    if (/^\d{10}$/.test(normalized)) {
+        return decodeModern10Digit(normalized);
     }
     // Modern format with 9 digits: YYMMXXXXX (2005-present)
     if (/^\d{9}$/.test(normalized)) {
@@ -936,6 +941,55 @@ function decodeModern9Digit(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern Cort numeric format where the first four digits identify production year and month.</p><h3>How This Pattern Is Typically Read</h3><p>The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} indicate ${monthDescription}. The remaining digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Cort serials usually identify production date more reliably than exact model identity.</li>${isAnomalousMonth ? '<li>The month field is an anomalous export/batch code, not a standard calendar month.</li>' : ''}<li>The serial does not identify the specific Cort model name.</li><li>Production location requires country-of-origin markings or other physical evidence.</li></ul>`,
+    };
+}
+// Modern 10-digit format: YYMMXXXXXX (2004-era, 6-digit production sequence)
+function decodeModern10Digit(serial) {
+    const yearDigits = serial.substring(0, 2);
+    const monthDigits = serial.substring(2, 4);
+    const sequence = serial.substring(4);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const month = parseInt(monthDigits, 10);
+    const isAnomalousMonth = month < 1 || month > 12;
+    const monthDescription = isAnomalousMonth
+        ? `batch/export code "${monthDigits}" (a known anomaly on certain Cort export runs, used as a special batch marker or production placeholder)`
+        : getMonthName(month);
+    const info = {
+        brand: 'Cort',
+        serialNumber: serial,
+        year: year.toString(),
+        ...(isAnomalousMonth ? {} : { month: getMonthName(month) }),
+        factory: 'Cort (location varies - Korea, Indonesia, or China)',
+        country: 'Korea, Indonesia, or China',
+        notes: `Modern 10-digit format (YYMMXXXXXX) used in the 2004 era. The digits ${yearDigits} indicate ${year}; ${monthDigits} indicates ${monthDescription}. Production sequence: ${parseInt(sequence, 10)}. According to the official Cort FAQ, this YYMMXXXXX+ format encodes only production date and sequence, not model or factory location. Verify the model from the headstock, soundhole label, or other physical markings.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'cort-modern-10-digit-yymm-sequence',
+        patternLabel: 'Cort modern 10-digit YYMM sequence',
+        additionalContext: {
+            title: 'Cort modern 10-digit serial',
+            summary: 'This serial matches a modern Cort numeric format where the first four digits identify production year and month, followed by a 6-digit production sequence.',
+            highlights: [
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                isAnomalousMonth
+                    ? `The digits ${monthDigits} are an anomalous batch/export code, not a calendar month — a known occurrence on certain Cort export runs.`
+                    : `The digits ${monthDigits} decode as ${getMonthName(month)}.`,
+                `The remaining six digits decode as production sequence ${parseInt(sequence, 10)}.`,
+            ],
+            caveats: [
+                'Cort serials usually identify production date more reliably than exact model identity.',
+                'The serial does not identify the specific Cort model name.',
+                ...(isAnomalousMonth ? ['The month field here is an anomalous export/batch code, not a standard calendar month.'] : []),
+                'Production location requires country-of-origin markings or other physical evidence.',
+            ],
+            verificationTips: [
+                'Check the headstock, soundhole label, neck heel, or back of headstock for model and country markings.',
+                'Compare the instrument against Cort catalog specs from the decoded year.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern Cort numeric format where the first four digits identify production year and month, followed by a 6-digit production sequence.</p><h3>How This Pattern Is Typically Read</h3><p>The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} indicate ${monthDescription}. The remaining six digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Cort serials usually identify production date more reliably than exact model identity.</li>${isAnomalousMonth ? '<li>The month field is an anomalous export/batch code, not a standard calendar month.</li>' : ''}<li>The serial does not identify the specific Cort model name.</li><li>Production location requires country-of-origin markings or other physical evidence.</li></ul>`,
     };
 }
 // Modern 12-digit tracking/logistics format: YY + 10-digit sequence

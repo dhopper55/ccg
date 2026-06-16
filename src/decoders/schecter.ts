@@ -61,6 +61,11 @@ export function decodeSchecter(serial: string): DecodeResult {
     return decodeChinaCA(normalized);
   }
 
+  // China/Indonesia CS prefix: CS + YYMM + sequence
+  if (/^CS\d{8}$/.test(normalized)) {
+    return decodeChinaCS(normalized);
+  }
+
   // Indonesia newer import RN prefix: RN + YYMM + sequence
   if (/^RN\d{8}$/.test(normalized)) {
     return decodeIndonesiaRN(normalized);
@@ -480,6 +485,58 @@ function decodeChinaCA(serial: string): DecodeResult {
       ],
     },
     additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Schecter CA-prefix import format parsed as factory prefix plus YYMM production date and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>CA indicates a Schecter import production run, commonly associated with newer China factory partners. The digits ${digits.substring(0, 2)} decode as production year ${year}. The digits ${digits.substring(2, 4)} decode as ${month}. The final four digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This format identifies production date and factory family, not the exact model name.</li><li>Most CA-prefix examples are import/Diamond Series instruments rather than USA Custom Shop guitars.</li><li>Factory-code usage can vary by production run, so confirm with physical markings when provenance matters.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a practical import production decode, then verify the exact model from the headstock, truss rod cover, label, or Schecter support.</p>`,
+  };
+}
+
+function decodeChinaCS(serial: string): DecodeResult {
+  const digits = serial.substring(2);
+  const { year, month, sequence } = parseStandardDigits(digits);
+
+  if (!month) {
+    return {
+      success: false,
+      error: 'Unable to decode this Schecter CS serial number. The month field appears invalid.',
+    };
+  }
+
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Schecter',
+    serialNumber: serial,
+    year,
+    month,
+    factory: 'China or Indonesia partner factory (CS)',
+    country: 'China or Indonesia',
+    model: 'Diamond Series import',
+    notes: `CS prefix indicates a Schecter import production run, commonly associated with China or Indonesia-based partner factories. Parsed as CS + YYMM + sequence. Sequence: ${sequence}. Verify the exact model and factory from the headstock, truss rod cover, label, or Schecter support.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'schecter-cs-yymm-sequence',
+    patternLabel: 'Schecter CS YYMM sequence',
+    additionalContext: {
+      title: 'Schecter CS serial',
+      summary: 'This serial matches a Schecter CS-prefix import format parsed as factory prefix plus YYMM production date and sequence.',
+      highlights: [
+        'CS indicates a Schecter import production run, associated with China or Indonesia partner factories.',
+        `The digits ${digits.substring(0, 2)} decode as production year ${year}.`,
+        `The digits ${digits.substring(2, 4)} decode as ${month}.`,
+        `The final digits decode as production sequence ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'This format identifies production date and factory family, not the exact model name.',
+        'CS-prefix examples are import/Diamond Series instruments rather than USA Custom Shop guitars.',
+        'The country and factory should be confirmed from the headstock or label.',
+      ],
+      verificationTips: [
+        'Check the headstock, truss rod cover, or label for the model name and country marking.',
+        'Contact Schecter support with photos of the serial and full instrument if exact factory confirmation is needed.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Schecter CS-prefix import format parsed as factory prefix plus YYMM production date and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>CS indicates a Schecter import production run, associated with China or Indonesia partner factories. The digits ${digits.substring(0, 2)} decode as production year ${year}. The digits ${digits.substring(2, 4)} decode as ${month}. The final digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This format identifies production date and factory family, not the exact model name.</li><li>CS-prefix examples are import/Diamond Series instruments rather than USA Custom Shop guitars.</li><li>Confirm the country and factory from the headstock or label.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a practical Schecter import production decode, then verify the exact model from the headstock, truss rod cover, label, or Schecter support.</p>`,
   };
 }
 

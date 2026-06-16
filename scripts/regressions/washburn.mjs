@@ -74,8 +74,35 @@ function assertWashburn1990s10DigitYYMM(serialInput) {
   );
 }
 
+function assertWashburnNumeric8Vintage1960s(serialInput, expectedYear) {
+  const result = decodeSerialForBackend('washburn', serialInput);
+  assert(result.success, `Expected decode success for Washburn ${serialInput}`);
+  assert(result.info, `Expected decoded info for Washburn ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.brand === 'Washburn', `Expected Washburn brand for ${serialInput}, got ${info.brand}`);
+}
+
+function assertWashburnBCChina(serialInput, expectedYear) {
+  const result = decodeSerialForBackend('washburn', serialInput);
+  assert(result.success, `Expected decode success for Washburn ${serialInput}`);
+  assert(result.info, `Expected decoded info for Washburn ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.factory === 'China factory (BC series)', `Expected BC China factory for ${serialInput}, got ${info.factory}`);
+  assert(info.country === 'China', `Expected China for ${serialInput}, got ${info.country}`);
+  assert(
+    result.patternKey === 'washburn-bc-china-plant-yy-sequence',
+    `Expected BC China pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
 export function runTests() {
   assertWashburnIndonesiaYearLetter('I8C112846');
   assertWashburnLegacyJapan6Digit('298093');
   assertWashburn1990s10DigitYYMM('9212000236');
+  assertWashburnNumeric8Vintage1960s('66810111', '1966');
+  assertWashburnBCChina('BC6061796', '2006');
 }

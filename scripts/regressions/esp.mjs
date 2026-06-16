@@ -186,6 +186,45 @@ function assertESPLTDEarlyKoreaUSequential(serialInput) {
   );
 }
 
+function assertESPLTDIndonesiaSamickIS(serialInput, expectedYear, expectedMonth) {
+  const result = decodeESP(serialInput);
+  assert(result.success, `Expected decode success for ESP ${serialInput}`);
+  assert(result.info, `Expected decoded info for ESP ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(info.factory === 'Samick, Indonesia', `Expected Samick Indonesia for ${serialInput}, got ${info.factory}`);
+  assert(info.country === 'Indonesia', `Expected Indonesia for ${serialInput}, got ${info.country}`);
+  assert(info.model === 'LTD', `Expected LTD model for ${serialInput}, got ${info.model}`);
+  assert(
+    result.patternKey === 'esp-ltd-indonesia-is-samick-yymm-sequence',
+    `Expected IS Samick pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
+function assertESPLTDNumeric9Digit(serialInput, expectedYear, expectedMonth, expectedDay) {
+  const result = decodeESP(serialInput);
+  assert(result.success, `Expected decode success for ESP ${serialInput}`);
+  assert(result.info, `Expected decoded info for ESP ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'ESP LTD partner factory (Korea or Indonesia)',
+    `Expected LTD partner factory for ${serialInput}, got ${info.factory}`
+  );
+  assert(
+    result.patternKey === 'esp-ltd-numeric-9digit-yy-ww-d-sequence',
+    `Expected 9-digit numeric pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes(expectedDay),
+    `Expected day ${expectedDay} in rich text for ${serialInput}`
+  );
+}
+
 export function runTests() {
   assertESPVintageJapan5Digit('22944');
   assertESPVintageJapan5Digit('29290');
@@ -196,4 +235,6 @@ export function runTests() {
   assertESPJapanKisoFactory('K12211303');
   assertESPLTDEarlyKoreaUSequential('U080879');
   assertESPAmbiguous6DigitAllNumeric('028304');
+  assertESPLTDIndonesiaSamickIS('IS090417067', '2009', 'April');
+  assertESPLTDNumeric9Digit('090417067', '2009', 'January', 'Monday');
 }

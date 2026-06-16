@@ -11,8 +11,10 @@
  * - K/N/S/T/CH/CS/TH + 7-8 digits (2000–2015 Japan factory, YYWWDN format)
  * - K-prefix 4-5 digits (Kirk Hammett signature, early 1990s)
  * - R + 7 digits (LTD Korea Peerless, YY + week + sequence)
- * - IW/WI/IC/IS/IR + 7-8 digits (LTD Indonesia)
+ * - IW/WI/IC/IR + 7-8 digits (LTD Indonesia various)
+ * - IS + 7-9 digits (LTD Indonesia Samick, YYMM format)
  * - W + 9 digits (LTD Korea WMI, YY + week + sequence)
+ * - 9-digit all-numeric (LTD Korea/Indonesia, YY + week + day + sequence)
  * - U + 6 digits (LTD Korea Unsung early sequential, 2000–2001)
  * - W/E/U + 7-8 digits (LTD Korea various)
  * - GC + 7 digits (LTD China G-Tone, YY + week + sequence)
@@ -74,8 +76,12 @@ export function decodeESP(serial) {
             return decodeLTDKoreaPeerlessR(normalized);
         }
     }
-    // Indonesia: IW, WI, IC, IS, IR + 7-8 digits
-    if (/^(IW|WI|IC|IS|IR)\d{7,8}$/.test(normalized)) {
+    // Indonesia: IS + 7-9 digits (Samick, YYMM format — handled separately for full decode)
+    if (/^IS\d{7,9}$/.test(normalized)) {
+        return decodeLTDIndonesiaSamickIS(normalized);
+    }
+    // Indonesia: IW, WI, IC, IR + 7-8 digits
+    if (/^(IW|WI|IC|IR)\d{7,8}$/.test(normalized)) {
         return decodeLTDIndonesia(normalized);
     }
     // Korea: W + YY + week + 5-digit sequence (World Musical Instruments)
@@ -117,6 +123,14 @@ export function decodeESP(serial) {
     if (/^\d{8}$/.test(normalized)) {
         return decode8DigitNumeric(normalized);
     }
+    // 9-digit all-numeric LTD factory format: YY + WW + D + NNNN (Korea/Indonesia, week-based)
+    if (/^\d{9}$/.test(normalized)) {
+        const week9 = parseInt(normalized.substring(2, 4), 10);
+        const day9 = parseInt(normalized.charAt(4), 10);
+        if (week9 >= 1 && week9 <= 53 && day9 >= 1 && day9 <= 7) {
+            return decodeLTDNumeric9Digit(normalized);
+        }
+    }
     // 7-digit fallthrough: LTD transitional check above did not match (invalid week); try pre-2000 DMMYNNN
     if (/^\d{7}$/.test(normalized)) {
         return decodePre2000(normalized);
@@ -140,7 +154,7 @@ export function decodeESP(serial) {
     }
     return {
         success: false,
-        error: 'Unable to decode this ESP serial number. The format was not recognized. Known formats include: US-prefix (ESP USA), E/ES-prefix (ESP Japan / E-II), ED-prefix (Edwards Japan), K-prefix (Kirk Hammett), letter-factory-prefixed (LTD Korea/Indonesia/China/Vietnam), 6-digit all-numeric (early LTD 1998–1999, Japan Original Series neck plate, or early 2000s Korean LTD with missing prefix), 7-digit all-numeric (LTD transitional or pre-2000 Japan), 8-digit all-numeric (pre-2000 Japan DDMMYNNN), and 4- or 5-digit numeric (vintage Japan Custom Shop / Original Series).',
+        error: 'Unable to decode this ESP serial number. The format was not recognized. Known formats include: US-prefix (ESP USA), E/ES-prefix (ESP Japan / E-II), ED-prefix (Edwards Japan), K-prefix (Kirk Hammett), IS-prefix (LTD Indonesia Samick), letter-factory-prefixed (LTD Korea/Indonesia/China/Vietnam), 9-digit all-numeric (LTD Korea/Indonesia YY+WW+D+NNNN), 6-digit all-numeric (early LTD 1998–1999, Japan Original Series neck plate, or early 2000s Korean LTD with missing prefix), 7-digit all-numeric (LTD transitional or pre-2000 Japan), 8-digit all-numeric (pre-2000 Japan DDMMYNNN), and 4- or 5-digit numeric (vintage Japan Custom Shop / Original Series).',
     };
 }
 function decodeESPUSA(serial) {
@@ -441,6 +455,108 @@ function decodeLTDIndonesia(serial) {
         notes: `LTD series. Production number: ${productionNum}.`
     };
     return { success: true, info };
+}
+function decodeLTDIndonesiaSamickIS(serial) {
+    const digits = serial.substring(2);
+    const yearDigits = digits.substring(0, 2);
+    const monthDigits = digits.substring(2, 4);
+    const productionNum = digits.substring(4);
+    const yearNum = parseInt(yearDigits, 10);
+    const fullYear = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum).toString();
+    const monthNum = parseInt(monthDigits, 10);
+    const monthName = monthNum >= 1 && monthNum <= 12 ? getMonthName(monthNum) : '';
+    const sequenceNumber = parseInt(productionNum, 10);
+    const info = {
+        brand: 'ESP',
+        serialNumber: serial,
+        year: fullYear,
+        month: monthName || undefined,
+        factory: 'Samick, Indonesia',
+        country: 'Indonesia',
+        model: 'LTD',
+        notes: `LTD Indonesia Samick format interpreted as IS + YYMM + sequence. IS identifies the Samick factory in Indonesia; ${yearDigits} indicates ${fullYear}; ${monthDigits} indicates ${monthName || 'the production month'}; ${productionNum} is the rolling production sequence (${sequenceNumber}). This format is used on ESP LTD models manufactured at Samick's Indonesian facility. Verify the exact model from the headstock or 12th-fret inlay and confirm "Made in Indonesia" on the back of the headstock.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'esp-ltd-indonesia-is-samick-yymm-sequence',
+        patternLabel: 'ESP LTD Indonesia Samick IS + YYMM + sequence',
+        additionalContext: {
+            title: 'ESP LTD Indonesia Samick IS serial',
+            summary: 'This serial matches the ESP LTD IS-prefix format used on instruments built at the Samick factory in Indonesia. The digits encode year, month, and a rolling production sequence.',
+            highlights: [
+                'IS identifies the Samick factory in Indonesia.',
+                `The digits ${yearDigits} decode as production year ${fullYear}.`,
+                `The digits ${monthDigits} decode as ${monthName || 'the production month'}.`,
+                `The remaining digits decode as production sequence ${sequenceNumber}.`,
+                'This format is used on LTD-branded instruments, not ESP Original, E-II, or Custom Shop models.',
+            ],
+            caveats: [
+                'The serial identifies factory, year, and month, not the exact model name or series number.',
+                'An IS prefix on a guitar branded ESP (rather than LTD) is a red flag for a counterfeit.',
+                'Confirm the exact model from the headstock or 12th-fret inlay markings.',
+            ],
+            verificationTips: [
+                'Check the front of the headstock for LTD branding.',
+                'Look for a "Made in Indonesia" stamp or decal on the back of the headstock.',
+                'Compare the hardware, pickups, and construction against ESP LTD catalog specs for the decoded year.',
+                'Contact ESP support at techinfo@espguitars.com with clear photos if authenticity confirmation is needed.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches the ESP LTD IS-prefix format used on instruments built at the Samick factory in Indonesia. The digits encode year, month, and a rolling production sequence.</p><h3>How This Pattern Is Typically Read</h3><p>IS identifies the Samick factory in Indonesia. The digits ${yearDigits} decode as production year ${fullYear}. The digits ${monthDigits} decode as ${monthName || 'the production month'}. The remaining digits decode as production sequence ${sequenceNumber}. This format is used on LTD-branded instruments, not ESP Original, E-II, or Custom Shop models.</p><h3>What To Verify</h3><ul><li>Check the front of the headstock for LTD branding — an IS prefix on an ESP-branded guitar is a counterfeit warning sign.</li><li>Look for a "Made in Indonesia" stamp or decal on the back of the headstock.</li><li>Compare the hardware, pickups, and construction against ESP LTD catalog specs for ${fullYear}.</li><li>Contact ESP support at techinfo@espguitars.com with clear photos if authenticity confirmation is needed.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed Samick Indonesia LTD decode, then identify the exact model from the headstock or 12th-fret inlay and verify "Made in Indonesia" on the back of the headstock.</p>`,
+    };
+}
+function decodeLTDNumeric9Digit(serial) {
+    const yearDigits = serial.substring(0, 2);
+    const weekDigits = serial.substring(2, 4);
+    const dayDigit = serial.charAt(4);
+    const productionNum = serial.substring(5);
+    const yearNum = parseInt(yearDigits, 10);
+    const fullYear = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum);
+    const week = parseInt(weekDigits, 10);
+    const day = parseInt(dayDigit, 10);
+    const dayName = getDayOfWeekName(day);
+    const dateInfo = getDateFromWeekDay(fullYear, week, day);
+    const sequenceNumber = parseInt(productionNum, 10);
+    const info = {
+        brand: 'ESP',
+        serialNumber: serial,
+        year: fullYear.toString(),
+        month: dateInfo.month,
+        factory: 'ESP LTD partner factory (Korea or Indonesia)',
+        country: 'South Korea or Indonesia',
+        model: 'LTD',
+        notes: `Nine-digit numeric LTD factory format interpreted as YY + WW + D + NNNN. The digits ${yearDigits} indicate ${fullYear}; ${weekDigits} indicates production week ${week}${dateInfo.month ? `, approximately ${dateInfo.month}` : ''}; ${dayDigit} indicates ${dayName}; ${productionNum} is the production sequence (${sequenceNumber}). This week-and-day-based format is used across multiple LTD partner factories in Korea and Indonesia. Without a leading factory letter the exact factory cannot be determined from the serial alone. Verify with "Made in Korea" or "Made in Indonesia" on the back of the headstock.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'esp-ltd-numeric-9digit-yy-ww-d-sequence',
+        patternLabel: 'ESP LTD 9-digit numeric YY + WW + D + NNNN',
+        additionalContext: {
+            title: 'ESP LTD 9-digit numeric serial',
+            summary: 'This serial matches a 9-digit all-numeric ESP LTD factory format that encodes year, production week, day of week, and a 4-digit production sequence. The format is used across multiple LTD partner factories.',
+            highlights: [
+                `The digits ${yearDigits} decode as production year ${fullYear}.`,
+                `The digits ${weekDigits} decode as production week ${week}${dateInfo.month ? ` (approximately ${dateInfo.month})` : ''}.`,
+                `The digit ${dayDigit} decodes as ${dayName}.`,
+                `The final four digits decode as production sequence ${sequenceNumber}.`,
+                'This week-and-day-based format is used across LTD partner factories in Korea and Indonesia.',
+            ],
+            caveats: [
+                'Without a leading factory letter (such as W for WMI Korea or IS for Samick Indonesia), the exact factory cannot be confirmed from the serial alone.',
+                'This is an LTD import format — not ESP Original, E-II, Custom Shop, or Edwards.',
+                'High production sequence numbers (above 3000–4000) can indicate shared line numbering across multiple production runs rather than a single day\'s output.',
+            ],
+            verificationTips: [
+                'Check the front of the headstock for LTD branding.',
+                'Look for "Made in Korea" or "Made in Indonesia" on the back of the headstock to narrow the factory.',
+                'Compare the model specs against ESP LTD catalog offerings for the decoded year.',
+                'If the exact factory matters, contact ESP support at techinfo@espguitars.com with clear headstock photos.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a 9-digit all-numeric ESP LTD factory format that encodes year, production week, day of week, and a 4-digit production sequence. The format is used across multiple LTD partner factories in Korea and Indonesia.</p><h3>How This Pattern Is Typically Read</h3><p>The digits ${yearDigits} decode as production year ${fullYear}. The digits ${weekDigits} decode as production week ${week}${dateInfo.month ? ` (approximately ${dateInfo.month})` : ''}. The digit ${dayDigit} decodes as ${dayName}. The final four digits decode as production sequence ${sequenceNumber}. This week-and-day-based format is consistent with large-volume LTD partner factories such as World Musical Instruments (WMI) in Korea and Samick-adjacent Indonesia facilities.</p><h3>What To Verify</h3><ul><li>Check the front of the headstock for LTD branding — this is not an ESP Original, E-II, or Custom Shop format.</li><li>Look for "Made in Korea" or "Made in Indonesia" on the back of the headstock to narrow the factory.</li><li>High sequence numbers (above ~3000–4000) may reflect shared line numbering across multiple production runs, not single-day output.</li><li>Compare specs against ESP LTD catalog offerings for ${fullYear} to identify the exact model.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed LTD factory decode for ${fullYear}. The country-of-origin marking on the back of the headstock is the most reliable way to narrow the factory. For exact authenticity confirmation, contact ESP support at techinfo@espguitars.com.</p>`,
+    };
 }
 function decodeLTDKorea(serial) {
     const prefix = serial[0];

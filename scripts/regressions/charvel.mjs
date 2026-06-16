@@ -91,6 +91,25 @@ function assertCharvelUCChina(serialInput, expectedYear) {
   );
 }
 
+function assertCharvelSanDimasFenderEra(serialInput, expectedYear) {
+  const result = decodeSerialForBackend('charvel', serialInput);
+  assert(result.success, `Expected decode success for charvel:${serialInput}`);
+  assert(result.info, `Expected decoded info for charvel:${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.model === 'San Dimas reissue', `Expected San Dimas reissue model for ${serialInput}, got ${info.model}`);
+  assert(info.country === 'USA', `Expected USA for ${serialInput}, got ${info.country}`);
+  assert(
+    result.patternKey === 'charvel-san-dimas-fender-era-reissue-4digit',
+    `Expected Fender-era reissue pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('2002'),
+    `Expected 2002 acquisition reference in rich text for ${serialInput}`
+  );
+}
+
 export function runTests() {
   assertCharvelJapanYYMM('8911', '1989', 'November');
   assertCharvelJapanYYMM('8706', '1987', 'June');
@@ -98,4 +117,5 @@ export function runTests() {
   assertCharvelJapanIMC7Digit('0904460');
   assertCharvelUCChina('UC210191', '2021');
   assertCharvelNumeric8('05050187', '2005', 'May');
+  assertCharvelSanDimasFenderEra('6719', '2002-2005 (estimated)');
 }

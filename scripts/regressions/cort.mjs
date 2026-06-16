@@ -478,4 +478,23 @@ export function runTests() {
   assertCortIIAIndonesia('IIA241190604', '2024', 'November');
   assertCort1990s7DigitAnomalousMonth('5591410', '1995');
   assertCort8DigitSuspiciousFutureYear('52030600', 2052);
+  assertCortModern10DigitYYMM('0404704234', '2004', 'April');
+}
+
+function assertCortModern10DigitYYMM(serialInput, expectedYear, expectedMonth) {
+  const result = decodeSerialForBackend('cort', serialInput);
+  assert(result.success, `Expected decode success for cort:${serialInput}`);
+  assert(result.info, `Expected decoded info for cort:${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    result.patternKey === 'cort-modern-10-digit-yymm-sequence',
+    `Expected 10-digit YYMM pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('production sequence 704234'),
+    `Expected production sequence 704234 in rich text for ${serialInput}`
+  );
 }

@@ -8,6 +8,7 @@
  * - V-prefix (vintage/import plates, mid-to-late 1980s)
  * - SB-prefix (mid-to-late 1980s Striker import, Samick Korea or Japan)
  * - S-prefix variants: SE, SD, SP, SF, SC, SJ, SI (various import eras)
+ * - JK-prefix (Gibson/Epiphone-era Indonesian factory, YYMM format, late 1990s–2000s)
  * - Plain 4-digit numeric (unverified era; import or USA with possible worn/missing prefix)
  * - Modern Gibson/MusicYo-era numeric formats (9- and 11-digit)
  */
@@ -131,6 +132,10 @@ export function decodeKramer(serial) {
     // SB-prefix: mid-to-late 1980s Striker import, Samick Korea or Japanese factory
     if (/^SB\d{3,6}$/.test(normalized)) {
         return decodeVintage1980sSBStriker(normalized, cleaned);
+    }
+    // Gibson/Epiphone-era Indonesian factory format: JK + YYMM + sequence
+    if (/^JK\d{8}$/.test(normalized)) {
+        return decodeGibsonEraJKIndonesia(normalized, cleaned);
     }
     // Two-letter overseas prefixes (e.g., FA, FB, CF)
     if (/^[A-Z]{2}\d+$/.test(normalized)) {
@@ -296,7 +301,7 @@ export function decodeKramer(serial) {
     }
     return {
         success: false,
-        error: 'Unable to decode this Kramer serial number. Kramer serials vary by era, and many vintage records were lost. Common known formats: single-letter A–F (USA era), H-prefix (Japan ESP build), SB/SE/SD/SP/SF/SC/SJ/SI-prefix (import eras), plain 4-digit numeric (import or USA with possible worn prefix), and numeric formats. Try the Vintage Kramer registry or HTPG serial search for additional context.',
+        error: 'Unable to decode this Kramer serial number. Kramer serials vary by era, and many vintage records were lost. Common known formats: single-letter A–F (USA era), H-prefix (Japan ESP build), JK-prefix (Indonesian factory, Gibson/Epiphone era), SB/SE/SD/SP/SF/SC/SJ/SI-prefix (import eras), plain 4-digit numeric (import or USA with possible worn prefix), and numeric formats. Try the Vintage Kramer registry or HTPG serial search for additional context.',
     };
 }
 function decodeVintage1980sSBStriker(normalized, cleaned) {
@@ -697,6 +702,59 @@ function decodeSamickIndonesiaSI(normalized, cleaned) {
         notes: `SI-prefix import format interpreted as SI + YYMM + sequence. Sequence: ${sequence}. SI is commonly associated with Samick Indonesia production on modern/import-era Kramer runs.`,
     };
     return { success: true, info };
+}
+function decodeGibsonEraJKIndonesia(normalized, cleaned) {
+    const yearPart = normalized.substring(2, 4);
+    const monthPart = normalized.substring(4, 6);
+    const sequence = normalized.substring(6);
+    const yy = parseInt(yearPart, 10);
+    const monthValue = parseInt(monthPart, 10);
+    const monthName = getMonthName(monthValue);
+    const fullYear = Number.isNaN(yy)
+        ? undefined
+        : yy <= 24
+            ? 2000 + yy
+            : 1900 + yy;
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Kramer',
+        serialNumber: cleaned,
+        year: fullYear ? fullYear.toString() : undefined,
+        month: monthName,
+        factory: 'Indonesian factory (Gibson/Epiphone era)',
+        country: 'Indonesia',
+        model: 'Modern Gibson/Epiphone-era import model, commonly Focus, Striker, or Pacer Classic',
+        notes: `JK-prefix Kramer import format interpreted as JK + YYMM + sequence. The JK prefix identifies an Indonesian factory used during the Gibson/Epiphone ownership era for entry-to-mid tier Kramer models (Focus, Striker, Pacer Classic). This is not a vintage 1980s American Series neck-plate format. Year: ${fullYear ?? 'unknown'}; month: ${monthName || 'unknown'}; production sequence: ${sequenceNumber}. Verify with the back-of-headstock serial placement, country-of-origin marking, and model specs.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'kramer-jk-indonesia-gibson-era-yymm-sequence',
+        patternLabel: 'Kramer JK Indonesian factory Gibson/Epiphone era YYMM sequence',
+        additionalContext: {
+            title: 'Kramer JK Indonesian factory import serial',
+            summary: 'This serial matches the Kramer JK-prefix import format used on Gibson/Epiphone-era Indonesian factory instruments. JK identifies a specific Indonesian production facility, and the remaining digits encode year, month, and a rolling production sequence.',
+            highlights: [
+                'JK identifies an Indonesian factory used during the Gibson/Epiphone ownership era.',
+                `The digits ${yearPart} decode as production year ${fullYear ?? 'unknown'}.`,
+                `The digits ${monthPart} decode as ${monthName || 'unknown month'}.`,
+                `The final four digits decode as production sequence ${sequenceNumber}.`,
+                'Common on entry-to-mid tier models: Focus, Striker, and Pacer Classic.',
+            ],
+            caveats: [
+                'This is not the classic 1980s American Series letter-prefix neck-plate system.',
+                'The serial identifies production date and factory origin, not the exact model by itself.',
+                'Verify country-of-origin from the headstock decal or body markings rather than the serial prefix alone.',
+            ],
+            verificationTips: [
+                'Check for a printed or stickered serial on the back of the headstock.',
+                'Look for a "Made in Indonesia" country-of-origin stamp or sticker.',
+                'Compare headstock logo style, hardware, and pickup layout against known Focus, Striker, and Pacer Classic specs from this era.',
+                'The serial placement and headstock logo style help distinguish this from vintage 1980s Kramer formats.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches the Kramer JK-prefix import format used on Gibson/Epiphone-era Indonesian factory instruments. JK identifies a specific Indonesian production facility, and the remaining digits encode year, month, and a rolling production sequence.</p><h3>How This Pattern Is Typically Read</h3><p>JK identifies an Indonesian factory used during the Gibson/Epiphone ownership era. The digits ${yearPart} decode as production year ${fullYear ?? 'unknown'}. The digits ${monthPart} decode as ${monthName || 'unknown month'}. The final four digits decode as production sequence ${sequenceNumber}. Common on entry-to-mid tier models such as the Focus, Striker, and Pacer Classic.</p><h3>What To Verify</h3><ul><li>This is not the classic 1980s American Series letter-prefix neck-plate system.</li><li>Check for a printed or stickered serial on the back of the headstock and a "Made in Indonesia" country-of-origin marking.</li><li>Compare headstock logo style, hardware, and pickup layout against known Focus, Striker, and Pacer Classic specs from this era.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed Gibson/Epiphone-era Indonesian import decode. Physical features — headstock logo, country marking, hardware, and model name — are the most reliable ways to confirm the exact model and variant.</p>`,
+    };
 }
 function decodeVintage1980sSStrikerSequential(normalized, cleaned) {
     const sequence = normalized.substring(1);

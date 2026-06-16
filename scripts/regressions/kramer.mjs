@@ -251,6 +251,25 @@ function assertKramerSBStriker(serialInput) {
   );
 }
 
+function assertKramerJKIndonesia(serialInput, expectedYear, expectedMonth) {
+  const result = decodeKramer(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'Indonesian factory (Gibson/Epiphone era)',
+    `Expected Indonesian factory for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'Indonesia', `Expected Indonesia for ${serialInput}, got ${info.country}`);
+  assert(
+    result.patternKey === 'kramer-jk-indonesia-gibson-era-yymm-sequence',
+    `Expected JK Indonesia pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
 export function runTests() {
   assertKramerModernS('S106020848', '2010', 'June');
   assertKramerSJSaemyungChina('SJ03120763', '2003', 'December');
@@ -266,4 +285,6 @@ export function runTests() {
   assertKramerModernGibsonEraFactoryNumeric('311763081', '2017', 'June', 'Qingdao');
   assertKramerSBStriker('SB 2063');
   assertKramerPlain4Digit('8586');
+  assertKramerJKIndonesia('JK99100467', '1999', 'October');
+  assertKramerJKIndonesia('JK99090162', '1999', 'September');
 }

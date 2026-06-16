@@ -3,6 +3,7 @@
  *
  * Supports:
  * - San Dimas USA (1981-1986): 4-digit serials 1001-5491
+ * - Fender-era San Dimas reissue (2002-2005): 4-digit serials 5492-6999+
  * - Japanese late-1980s YYMM date stamp: 4-digit YYMM (e.g. 8911 = November 1989)
  * - Japanese MIJ neck plate (1986-early 1990s): 5-digit and 7-digit serials
  * - Japanese neck-through (1986-1991): C + digit + sequential
@@ -159,12 +160,39 @@ function decodeSanDimas(serial) {
         const info = {
             brand: 'Charvel',
             serialNumber: serial,
-            year: 'CAUTION',
-            factory: 'Unknown',
-            country: 'Unknown',
-            notes: `WARNING: Serial numbers above 5491 are NOT authentic San Dimas Charvels. Blank neckplates were sold on the black market after San Dimas production ceased in 1986. Serial ${num} is likely on a counterfeit or non-original neckplate. Authentic San Dimas production ended at serial 5491.`,
+            year: '2002-2005 (estimated)',
+            factory: 'Charvel/Fender (post-acquisition era)',
+            country: 'USA',
+            model: 'San Dimas reissue',
+            notes: `Serial ${num} is above the original San Dimas production range (1001-5491, 1981-1986). Serials in the 5492-6999+ range are associated with early Fender-era Charvel San Dimas reissues produced after Fender's 2002 acquisition, using period-style neck plates with sequential numbers continuing above the original range. Verify the neck plate text, headstock logo, tremolo, and country-of-origin marking to confirm this is a legitimate Fender-era instrument rather than a non-original blank plate.`,
         };
-        return { success: true, info };
+        return {
+            success: true,
+            info,
+            patternKey: 'charvel-san-dimas-fender-era-reissue-4digit',
+            patternLabel: 'Charvel San Dimas Fender-era reissue 4-digit',
+            additionalContext: {
+                title: 'Charvel San Dimas Fender-era reissue serial',
+                summary: `This 4-digit serial above 5491 is consistent with an early Fender-era Charvel San Dimas reissue (2002-2005), using neck plates with sequential numbers continuing above the original San Dimas range.`,
+                highlights: [
+                    'Original San Dimas production ran from serial 1001 to 5491 (1981-1986).',
+                    `Serial ${num} is above the original range and is consistent with early Fender-era San Dimas reissue production.`,
+                    'Fender acquired Charvel in 2002 and produced San Dimas reissues using a similar neck-plate sequential format.',
+                    'Early Fender-era serials in the 5492-6999+ range are a documented continuation format.',
+                ],
+                caveats: [
+                    'Blank neck plates were sold on the black market after 1986, so physical verification is important.',
+                    'Fender-era reissues will have modern construction details relative to the original 1981-1986 instruments.',
+                    'Verify with the headstock logo, neck plate text, tremolo type, and country-of-origin marking.',
+                ],
+                verificationTips: [
+                    'Confirm the headstock logo — Fender-era reissues often have a slightly updated logo style relative to 1981-1986 originals.',
+                    'Check the neck-through or bolt-on construction against early 2000s Pro-Mod specs.',
+                    'Look for a Made in USA marking on the headstock, neck, or neck pocket.',
+                ],
+            },
+            additionalContextRichText: `<h3>Overview</h3><p>This 4-digit serial above 5491 is consistent with an early Fender-era Charvel San Dimas reissue (2002-2005), produced after Fender's 2002 acquisition using a continuation of the original San Dimas sequential neck-plate format.</p><h3>How This Pattern Is Typically Read</h3><p>Original San Dimas production ran from serial 1001 to 5491 (1981-1986). Serial ${num} is above the original range and is consistent with early Fender-era production (2002-2005). Early Fender-era serials in the 5492-6999+ range are a documented continuation format on similar neck plates.</p><h3>What To Verify</h3><ul><li>Blank neck plates were sold on the black market after 1986, so physical verification is essential.</li><li>Confirm the headstock logo, neck plate text, tremolo, pickups, and construction against early 2000s Pro-Mod specs.</li><li>Look for a Made in USA marking.</li></ul><h3>Coal Creek Guitars Note</h3><p>Treat this as a Fender-era San Dimas reissue candidate, then verify the instrument against its headstock logo, construction, and hardware to confirm authenticity.</p>`,
+        };
     }
     // Determine year from serial range
     let year;

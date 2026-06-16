@@ -1,5 +1,6 @@
 import { decodeSerialForBackend, normalizeBrandKey } from '../../../src/serial-decode-service.js';
 import { deriveExplicitRegexFromKnownPatternKey } from './serial-pattern-registry.js';
+import { decodeSerialV2 } from './v2-serial-decode.js';
 import {
   buildMultiPricingPrompt,
   buildMainUserPrompt,
@@ -926,6 +927,16 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/v2-decode-config' && request.method === 'GET') {
+      const response = await handleAdminV2V2DecodeConfig(env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/v2-decode-config' && request.method === 'POST') {
+      const response = await handleAdminV2V2DecodeConfigUpdate(request, env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/admin-v2/system-settings' && request.method === 'GET') {
       const response = await handleAdminV2SystemSettings(env);
       return withCors(response, request, env);
@@ -1393,7 +1404,10 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
   const normalizedBrand = normalizeBrandKey(brand);
   const normalizedSerial = normalizeSerialKey(serial).slice(0, 180);
 
-  let result = decodeSerialForBackend(brand, serial);
+  const useV2 = await dbGetV2DecodeLogicEnabled(env);
+  let result = useV2
+    ? ((await decodeSerialV2(normalizedBrand, serial, env)) ?? decodeSerialForBackend(brand, serial))
+    : decodeSerialForBackend(brand, serial);
   if (result.success && result.info && !hasMeaningfulServerDecodeInfo(result.info)) {
     result = {
       success: false,
@@ -3853,6 +3867,29 @@ async function handleAdminV2StripeConfigUpdate(request: Request, env: Env): Prom
   }
 }
 
+async function handleAdminV2V2DecodeConfig(env: Env): Promise<Response> {
+  const enabled = await dbGetV2DecodeLogicEnabled(env);
+  return jsonResponse({ useV2DecodeLogic: enabled });
+}
+
+async function handleAdminV2V2DecodeConfigUpdate(request: Request, env: Env): Promise<Response> {
+  let body: Record<string, unknown> = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+  const enabled = toBooleanInput(body.useV2DecodeLogic, false);
+  try {
+    await dbSetV2DecodeLogic(enabled, env);
+    return jsonResponse({ ok: true, useV2DecodeLogic: enabled });
+  } catch (error) {
+    return jsonResponse({
+      message: error instanceof Error ? error.message : 'Unable to update V2 decode logic setting.',
+    }, 500);
+  }
+}
+
 async function handleAdminV2SystemSettings(env: Env): Promise<Response> {
   try {
     const settings = await dbGetSystemSettings(env);
@@ -4867,6 +4904,25 @@ function parseSysInfoBoolean(value: unknown, fallback: boolean): boolean {
   if (['1', 'true', 'yes', 'y', 'sandbox'].includes(normalized)) return true;
   if (['0', 'false', 'no', 'n', 'prod', 'production'].includes(normalized)) return false;
   return fallback;
+}
+
+async function dbGetV2DecodeLogicEnabled(env: Env): Promise<boolean> {
+  try {
+    const row = await env.DB.prepare('SELECT use_v2_decode_logic FROM sys_info LIMIT 1').first<Record<string, unknown>>();
+    return parseSysInfoBoolean(row?.use_v2_decode_logic, false);
+  } catch {
+    return false;
+  }
+}
+
+async function dbSetV2DecodeLogic(enabled: boolean, env: Env): Promise<void> {
+  await env.DB.prepare(
+    `INSERT INTO sys_info (id, use_v2_decode_logic)
+     VALUES (1, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       use_v2_decode_logic = excluded.use_v2_decode_logic,
+       updated_at = CURRENT_TIMESTAMP`,
+  ).bind(enabled ? 1 : 0).run();
 }
 
 async function dbSetStripeSandboxMode(useSandbox: boolean, env: Env): Promise<void> {

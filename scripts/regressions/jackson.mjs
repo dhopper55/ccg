@@ -224,6 +224,25 @@ function assertJacksonMij200C(serialInput) {
   );
 }
 
+function assertJacksonModern10DigitThreeLetterPrefix(serialInput, expectedYear, expectedFactory, expectedCountry) {
+  const result = decodeJackson(serialInput);
+  assert(result.success, `Expected decode success for Jackson ${serialInput}`);
+  assert(result.info, `Expected decoded info for Jackson ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.factory === expectedFactory, `Expected factory ${expectedFactory} for ${serialInput}, got ${info.factory}`);
+  assert(info.country === expectedCountry, `Expected country ${expectedCountry} for ${serialInput}, got ${info.country}`);
+  assert(
+    result.patternKey === 'jackson-modern-10digit-3letter-prefix-modelcode-yy-sequence',
+    `Expected 3-letter prefix pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('production sequence 352'),
+    `Expected production sequence 352 in rich text for ${serialInput}`
+  );
+}
+
 export function runTests() {
   assertJacksonMijSevenDigit1990s('9405251', '1994');
   assertJacksonMijSevenPrefixSixDigit('702728');
@@ -238,4 +257,5 @@ export function runTests() {
   assertJacksonPlayerChoiceSeries('PCS0056', 56);
   assertJacksonPlayerChoiceSeries('pcs0001', 1);
   assertJacksonMij200C('200C00541');
+  assertJacksonModern10DigitThreeLetterPrefix('ICJ3215352', '2015', 'Cort', 'Indonesia');
 }

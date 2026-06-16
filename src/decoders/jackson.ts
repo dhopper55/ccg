@@ -26,6 +26,7 @@ import { DecodeResult, GuitarInfo } from '../types.js';
  * - Korea (7-digit starting with 1)
  * - Taiwan (8-9 digits starting with 6)
  * - Modern 10-digit alphanumeric (2013+)
+ * - Modern 3-letter prefix + 7-digit (2013+, prefix+modelCode+YY+sequence, e.g. ICJ3215352)
  */
 
 // USA Neck-Through serial ranges (U0/UO prefix)
@@ -128,24 +129,26 @@ export function decodeJackson(serial: string): DecodeResult {
     return decodeJacksonJunior(normalized);
   }
 
-  // Indonesia format (I + factory code + J + digits)
-  if (/^I[WSCHJ]J?\d{7,8}$/i.test(normalized)) {
-    return decodeIndonesia(normalized);
-  }
-
-  // China format (C + factory code + J + digits)
-  if (/^C[YJ]J?\d{7,8}$/i.test(normalized)) {
-    return decodeChina(normalized);
-  }
-
   // India format (NHJ prefix — digits with optional trailing batch letter)
   if (/^NHJ\d{6,8}[A-Z]?$/i.test(normalized)) {
     return decodeIndia(normalized);
   }
 
-  // Modern 10-digit alphanumeric (2013+)
-  if (/^[A-Z]{2,3}\d{7,8}$/i.test(normalized) && normalized.length >= 9) {
-    return decodeModern(normalized);
+  // Modern 3-letter prefix + 7-digit: prefix(3) + modelCode(2) + YY(2) + sequence(3)
+  // Checked before the I[WSCHJ]J Indonesia and C[YJ]J China checks because serials like
+  // ICJ3215352 and CYJ3215352 use the 3-letter prefix as a single country/factory/brand code.
+  if (/^[A-Z]{3}\d{7}$/i.test(normalized)) {
+    return decodeModern10DigitThreeLetterPrefix(normalized);
+  }
+
+  // Indonesia format (I + factory code + optional J + digits)
+  if (/^I[WSCHJ]J?\d{7,8}$/i.test(normalized)) {
+    return decodeIndonesia(normalized);
+  }
+
+  // China format (C + factory code + optional J + digits)
+  if (/^C[YJ]J?\d{7,8}$/i.test(normalized)) {
+    return decodeChina(normalized);
   }
 
   // Japan mid-1990s MIJ 7-digit (90-95 prefix, commonly Professional/Performer)
@@ -1114,6 +1117,66 @@ function decodeModernIndonesiaKorea8Digit(serial: string): DecodeResult {
       ],
     },
     additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern Jackson 8-digit import format where the first two digits identify the production year.</p><h3>How This Pattern Is Typically Read</h3><p>The first two digits ${yearDigits} decode as production year ${year}. The remaining digits decode as sequential production number ${sequenceNumber}. This format is commonly seen on JS, X Series, and entry-level Pro Series models built at contracted Asian factories.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock or neck plate for a country-of-origin stamp.</li><li>Remove the neck and check the neck pocket for a date stamp and model designation.</li><li>Compare body shape, inlays, pickup configuration, and hardware to Jackson catalog specs for the decoded year.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed modern Jackson import decode, then identify the exact model and factory from physical markings and catalog comparison.</p>`,
+  };
+}
+
+function decodeModern10DigitThreeLetterPrefix(serial: string): DecodeResult {
+  const letterPrefix = serial.substring(0, 3);
+  const modelCode = serial.substring(3, 5);
+  const yearDigits = serial.substring(5, 7);
+  const sequenceStr = serial.substring(7);
+  const year = 2000 + parseInt(yearDigits, 10);
+  const sequence = parseInt(sequenceStr, 10);
+
+  let country = 'Unknown';
+  let factory = 'Unknown';
+
+  if (letterPrefix[0] === 'I') {
+    country = 'Indonesia';
+    factory = INDONESIA_FACTORY_CODES[letterPrefix[1]] || `Indonesian factory (${letterPrefix[1]})`;
+  } else if (letterPrefix[0] === 'C') {
+    country = 'China';
+    factory = CHINA_FACTORY_CODES[letterPrefix[1]] || `Chinese factory (${letterPrefix[1]})`;
+  } else if (letterPrefix[0] === 'N') {
+    country = 'India';
+    factory = 'Jackson India';
+  }
+
+  const info: GuitarInfo = {
+    brand: 'Jackson',
+    serialNumber: serial,
+    year: year.toString(),
+    factory: factory !== 'Unknown' ? factory : undefined,
+    country,
+    notes: `Modern Jackson 10-digit format (3-letter prefix variant). "${letterPrefix}" encodes country/factory/brand (${letterPrefix[0]} = ${country}${factory !== 'Unknown' ? `, ${letterPrefix[1]} = ${factory}` : ''}). Model variation code: ${parseInt(modelCode, 10)}. Year digits "${yearDigits}" decode as ${year}. Production sequence: ${sequence}. This format is common on modern Jackson import models built at contracted Asian facilities after 2013.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'jackson-modern-10digit-3letter-prefix-modelcode-yy-sequence',
+    patternLabel: 'Jackson modern 10-digit 3-letter prefix (2013+)',
+    additionalContext: {
+      title: 'Jackson modern 3-letter prefix 10-digit serial',
+      summary: 'This serial matches a modern Jackson import format: 3-letter country/factory/brand prefix + 2-digit model code + 2-digit production year + 3-digit sequence.',
+      highlights: [
+        `"${letterPrefix}" encodes country, factory, and brand: ${letterPrefix[0]} = ${country}, ${letterPrefix[1]} = ${factory}.`,
+        `Model variation code is ${parseInt(modelCode, 10)}.`,
+        `The digits "${yearDigits}" decode as production year ${year}.`,
+        `The remaining digits are production sequence ${sequence}.`,
+      ],
+      caveats: [
+        'The model code does not directly identify the guitar model name or series.',
+        'Country and factory confirm Asian import production, not USA Custom Shop.',
+        'Verify the exact model from the headstock, series name, and catalog specs for the decoded year.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock or neck plate for a country-of-origin stamp.',
+        'Compare the body shape, pickup configuration, and hardware against Jackson catalog specs for the decoded year.',
+        'Use the Jackson official serial lookup where available.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern Jackson import format: 3-letter country/factory/brand prefix + 2-digit model code + 2-digit production year + 3-digit sequence.</p><h3>How This Pattern Is Typically Read</h3><p>"${letterPrefix}" encodes country, factory, and brand: ${letterPrefix[0]} = ${country}, ${letterPrefix[1]} = ${factory}. Model variation code is ${parseInt(modelCode, 10)}. The digits "${yearDigits}" decode as production year ${year}. The remaining digits are production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock or neck plate for a country-of-origin stamp.</li><li>The model code does not directly identify the guitar model name — verify from headstock, series name, and catalog.</li><li>Use the Jackson official serial lookup where available.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed modern Jackson import decode, then identify the exact model from physical markings and catalog comparison.</p>`,
   };
 }
 
