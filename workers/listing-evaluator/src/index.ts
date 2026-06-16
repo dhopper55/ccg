@@ -833,6 +833,11 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path === '/api/admin-v2/serial-decodes/dev-handoff' && request.method === 'GET') {
+      const response = await handleAdminV2SerialDecodeDevHandoff(env);
+      return withCors(response, request, env);
+    }
+
     if (path === '/api/admin-v2/serial-pattern-text' && request.method === 'GET') {
       const response = await handleAdminV2SerialPatternTextList(request, env);
       return withCors(response, request, env);
@@ -7452,6 +7457,40 @@ async function handleAdminV2SerialDecodeDailyVolume(request: Request, env: Env):
   }
   const buckets = await dbGetAdminV2SerialDecodeDailyVolume(dateParam, env);
   return jsonResponse({ date: dateParam, buckets });
+}
+
+async function handleAdminV2SerialDecodeDevHandoff(env: Env): Promise<Response> {
+  let rows: { results?: Array<{ brand: string | null; serial: string | null; g_ai_analysis: string | null }> };
+  try {
+    rows = await env.DB.prepare(
+      `SELECT brand, serial, g_ai_analysis
+       FROM serial_decode_events
+       WHERE COALESCE(success, 0) = 0
+         AND COALESCE(evaluated, 0) = 0
+         AND COALESCE(g_ai_analysis, '') <> ''
+       ORDER BY lower(trim(brand)) ASC, serial ASC`
+    ).all<{ brand: string | null; serial: string | null; g_ai_analysis: string | null }>();
+  } catch {
+    return jsonResponse({ message: 'Failed to query serial decode events.' }, 500);
+  }
+
+  const records = (rows.results ?? []).filter((r) => r.brand && r.serial && r.g_ai_analysis);
+
+  if (records.length === 0) {
+    return jsonResponse({ text: '', count: 0 });
+  }
+
+  const DELIM = '———————';
+  const preamble =
+    `We have some serial numbers that customers attempted to decode, but our system did not recognize and marked them as failures.   In these cases, they are valid serial numbers.   The following is a list of these cases.  Each one starts with the brand, followed by the serial number on the next line, then followed by some AI analysis on the next line describing WHY this is a valid serial number.    After the AI text, we do a hard return and then: ${DELIM} followed by another hard return.  This delimits the serial numbers we are working with here.`;
+
+  const entries = records
+    .map((r) => `${r.brand}\n${r.serial}\n${r.g_ai_analysis}\n${DELIM}`)
+    .join('\n');
+
+  const text = `${preamble}\n\n${entries}`;
+
+  return jsonResponse({ text, count: records.length });
 }
 
 async function handleAdminV2ShopStatistics(request: Request, env: Env): Promise<Response> {

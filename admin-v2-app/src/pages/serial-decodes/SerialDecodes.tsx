@@ -231,6 +231,9 @@ const SerialDecodes = () => {
   const [aiAnalysisDialogError, setAiAnalysisDialogError] = useState('');
   const [processingAI, setProcessingAI] = useState(false);
   const [developerNeededMessage, setDeveloperNeededMessage] = useState('');
+  const [devHandoffOpen, setDevHandoffOpen] = useState(false);
+  const [devHandoffText, setDevHandoffText] = useState('');
+  const [devHandoffLoading, setDevHandoffLoading] = useState(false);
   const [dailyVolumeDate, setDailyVolumeDate] = useState(getTodayMtn);
   const [dailyVolumeBuckets, setDailyVolumeBuckets] = useState<number[]>(new Array(48).fill(0));
   const [dailyVolumeLoading, setDailyVolumeLoading] = useState(true);
@@ -621,6 +624,21 @@ const SerialDecodes = () => {
     ],
   }), [dailyVolumeBuckets]);
 
+  const handleDevHandoff = async () => {
+    setDevHandoffLoading(true);
+    try {
+      const response = await fetch('/api/admin-v2/serial-decodes/dev-handoff');
+      const data = (await response.json()) as { text?: string; count?: number; message?: string };
+      if (!response.ok) throw new Error(data.message || `HTTP ${response.status}`);
+      setDevHandoffText(data.text || '');
+      setDevHandoffOpen(true);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to generate dev handoff.');
+    } finally {
+      setDevHandoffLoading(false);
+    }
+  };
+
   const closeValidityDialog = () => {
     setEvaluatedPendingRecordId(null);
     setAiAnalysisText('');
@@ -792,6 +810,15 @@ const SerialDecodes = () => {
             ) : null}
           </Box>
           <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2}>
+            <Button
+              variant="outlined"
+              size="small"
+              disabled={devHandoffLoading}
+              onClick={() => void handleDevHandoff()}
+              startIcon={devHandoffLoading ? <CircularProgress size={14} /> : undefined}
+            >
+              Dev Handoff
+            </Button>
             <FormControlLabel
               sx={{ mr: 0 }}
               control={
@@ -1278,6 +1305,43 @@ const SerialDecodes = () => {
           >
             Yes
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={devHandoffOpen} onClose={() => setDevHandoffOpen(false)} fullWidth maxWidth="md">
+        <DialogTitle>
+          <Stack direction="row" alignItems="center" justifyContent="space-between">
+            <span>Dev Handoff</span>
+            <Tooltip title="Copy to clipboard">
+              <IconButton
+                size="small"
+                onClick={() => { void navigator.clipboard.writeText(devHandoffText); }}
+                sx={{ color: '#4cc9f0' }}
+              >
+                <IconifyIcon icon="mdi:content-copy" fontSize={18} />
+              </IconButton>
+            </Tooltip>
+          </Stack>
+        </DialogTitle>
+        <DialogContent dividers>
+          {devHandoffText ? (
+            <TextField
+              multiline
+              fullWidth
+              value={devHandoffText}
+              inputProps={{ readOnly: true, style: { fontFamily: 'monospace', fontSize: 13 } }}
+              minRows={12}
+              maxRows={28}
+              variant="outlined"
+            />
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              No unevaluated error records with AI analysis found.
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button variant="contained" onClick={() => setDevHandoffOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
 
