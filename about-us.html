@@ -12,15 +12,15 @@
 
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="apple-touch-icon" sizes="180x180" href="images/favicon/apple-touch-icon.png">
-<link rel="icon" type="image/png" sizes="32x32" href="images/favicon/favicon-32x32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="images/favicon/favicon-16x16.png">
-<link rel="shortcut icon" href="images/favicon/favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="/images/favicon/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/images/favicon/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/images/favicon/favicon-16x16.png">
+<link rel="shortcut icon" href="/images/favicon/favicon.ico">
 <title>About Us | Coal Creek Guitars</title>
 <meta name="description" content="Coal Creek Guitars is an Englewood, Colorado guitar shop founded in 2017. We buy, sell, trade, and repair quality instruments, and build free tools for the guitar community.">
 <link rel="canonical" href="https://www.coalcreekguitars.com/about-us.html">
 
-<!-- Open Graph / Facebook -->
+<!-- Open Graph -->
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://www.coalcreekguitars.com/about-us.html">
 <meta property="og:title" content="About Us | Coal Creek Guitars">
@@ -40,13 +40,15 @@
   "@context": "https://schema.org",
   "@graph": [
     {
-      "@type": "LocalBusiness",
+      "@type": "Organization",
       "name": "Coal Creek Guitars",
       "url": "https://www.coalcreekguitars.com",
       "logo": "https://www.coalcreekguitars.com/images/coal-creek-logo.png",
       "image": "https://www.coalcreekguitars.com/images/coal-creek-logo.png",
-      "description": "Coal Creek Guitars is an Englewood, Colorado guitar shop founded in 2017. We buy, sell, trade, and repair quality instruments, connect players with instructors, and build free tools for the guitar community including serial number decoders for 25+ major brands.",
+      "email": "info@coalcreekguitars.com",
+      "telephone": "+13033769214",
       "foundingDate": "2017",
+      "description": "Coal Creek Guitars is an Englewood, Colorado guitar shop founded in 2017. We buy, sell, trade, and repair quality instruments, connect players with instructors, and build free tools for the guitar community.",
       "address": {
         "@type": "PostalAddress",
         "addressLocality": "Englewood",
@@ -59,481 +61,829 @@
       ]
     },
     {
+      "@type": "WebSite",
+      "url": "https://www.coalcreekguitars.com",
+      "name": "Coal Creek Guitars"
+    },
+    {
+      "@type": "WebPage",
+      "url": "https://www.coalcreekguitars.com/about-us.html",
+      "name": "About Us | Coal Creek Guitars",
+      "description": "Coal Creek Guitars is an Englewood, Colorado guitar shop founded in 2017. We buy, sell, trade, and repair quality instruments, and build free tools for the guitar community."
+    },
+    {
       "@type": "BreadcrumbList",
       "itemListElement": [
-        {
-          "@type": "ListItem",
-          "position": 1,
-          "name": "Home",
-          "item": "https://www.coalcreekguitars.com"
-        },
-        {
-          "@type": "ListItem",
-          "position": 2,
-          "name": "About Us",
-          "item": "https://www.coalcreekguitars.com/about-us.html"
-        }
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.coalcreekguitars.com" },
+        { "@type": "ListItem", "position": 2, "name": "About Us", "item": "https://www.coalcreekguitars.com/about-us.html" }
       ]
     }
   ]
 }
 </script>
 
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,400&family=Source+Sans+3:wght@300;400;600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,600&family=Hanken+Grotesk:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  :root {
-    --bg:       #18150f;
-    --bg2:      #221e16;
-    --bg3:      #2e2820;
-    --gold:     #c9a84c;
-    --gold-lt:  #e0c16a;
-    --cream:    #f0e8d0;
-    --text:     #d4cab8;
-    --muted:    #7a7060;
-    --border:   #3a3228;
-    --green:    #4a8a3a;
-    --green-bg: #0e1a12;
-    --green-border: #1e3a22;
-  }
+:root {
+  --paper:        #F4EFE4;
+  --paper-2:      #ECE5D5;
+  --paper-3:      #E4DAC6;
+  --ink:          #15181E;
+  --ink-soft:     #2C323C;
+  --creek:        #235A6E;
+  --creek-deep:   #1B3957;
+  --brass:        #A9823B;
+  --brass-bright: #C79A47;
+  --clay:         #9A4628;
+  --green:        #3F6B3A;
+  --muted:        #6E6557;
+  --line:         rgba(21,24,30,.15);
+  --line-soft:    rgba(21,24,30,.08);
+}
 
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Source Sans 3', sans-serif;
-    font-weight: 300;
-    line-height: 1.75;
-    font-size: 17px;
-  }
+html { scroll-behavior: smooth; }
 
-  /* ── HEADER ── */
-  header {
-    background: var(--bg);
-    border-bottom: 1px solid var(--border);
-    padding: 0 28px;
-    height: 52px;
-    display: flex;
-    align-items: center;
-  }
-  .header-brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    text-decoration: none;
-    flex-shrink: 0;
-  }
-  header img.logo {
-    height: 30px;
-    width: auto;
-    display: block;
-  }
-  .header-brand-name {
-    font-family: 'Source Sans 3', sans-serif;
-    font-weight: 600;
-    font-size: 15px;
-    color: var(--cream);
-    letter-spacing: .01em;
-  }
-  .header-divider {
-    width: 1px;
-    height: 20px;
-    background: var(--border);
-    margin: 0 18px;
-    flex-shrink: 0;
-  }
-  .header-breadcrumb {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 14px;
-    color: var(--muted);
-  }
-  .header-breadcrumb a { color: #6ea8d4; text-decoration: none; font-weight: 400; }
-  .header-breadcrumb a:hover { text-decoration: underline; }
-  .header-breadcrumb .sep { color: var(--muted); font-size: 13px; }
-  .header-breadcrumb .current { color: var(--text); font-weight: 400; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-weight: 400;
+  line-height: 1.7;
+  font-size: 16px;
+}
 
-  /* ── HERO ── */
+/* ── NAV ── */
+.site-nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--ink);
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  height: 57px;
+  display: flex;
+  align-items: center;
+  padding: 0 28px;
+}
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.nav-logo { height: 28px; width: auto; display: block; }
+.nav-brand-name {
+  font-family: 'Fraunces', serif;
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -.01em;
+}
+.nav-brand-name span { color: var(--brass-bright); }
+.nav-sep {
+  width: 1px;
+  height: 20px;
+  background: rgba(255,255,255,.15);
+  margin: 0 20px;
+  flex-shrink: 0;
+}
+.nav-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: rgba(255,255,255,.4);
+  flex: 1;
+}
+.nav-breadcrumb a { color: rgba(255,255,255,.55); text-decoration: none; }
+.nav-breadcrumb a:hover { color: var(--brass-bright); }
+.nav-breadcrumb .sep { opacity: .35; }
+.nav-breadcrumb .current { color: rgba(255,255,255,.75); }
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+.nav-link {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.5);
+  text-decoration: none;
+  transition: color .2s;
+}
+.nav-link:hover { color: rgba(255,255,255,.85); }
+.nav-link.active { color: var(--brass-bright); }
+
+/* ── HERO SHELL ── */
+.hero-shell {
+  background: var(--ink);
+  background-image:
+    radial-gradient(ellipse at 20% 50%, rgba(35,90,110,.5) 0%, transparent 55%),
+    radial-gradient(ellipse at 80% 20%, rgba(27,57,87,.4) 0%, transparent 50%),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 79px,
+      rgba(199,154,71,.04) 79px,
+      rgba(199,154,71,.04) 80px
+    );
+}
+.hero {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 72px 40px 80px;
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 52px;
+  align-items: start;
+}
+.hero-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--brass-bright);
+  margin-bottom: 20px;
+}
+.hero-eyebrow::before {
+  content: '';
+  display: block;
+  width: 32px;
+  height: 1px;
+  background: var(--brass-bright);
+  opacity: .6;
+}
+.hero h1 {
+  font-family: 'Fraunces', serif;
+  font-size: clamp(2.4rem, 5vw, 3.6rem);
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.1;
+  margin-bottom: 22px;
+  letter-spacing: -.02em;
+}
+.hero h1 em { font-style: italic; color: var(--brass-bright); font-weight: 400; }
+.hero-lead {
+  font-size: 17px;
+  color: rgba(255,255,255,.65);
+  line-height: 1.7;
+  max-width: 520px;
+  margin-bottom: 32px;
+}
+.hero-proofs { display: flex; flex-direction: column; gap: 10px; }
+.hero-proof {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14.5px;
+  color: rgba(255,255,255,.6);
+  line-height: 1.5;
+}
+.hero-proof::before {
+  content: '·';
+  color: var(--brass-bright);
+  font-size: 20px;
+  line-height: 1.15;
+  flex-shrink: 0;
+}
+
+/* ── HERO PANEL ── */
+.hero-panel {
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.1);
+  padding: 28px 26px;
+  margin-top: 8px;
+}
+.hero-panel-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.35);
+  margin-bottom: 18px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+.panel-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  gap: 12px;
+}
+.panel-row:last-child { border-bottom: none; }
+.panel-row-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: rgba(255,255,255,.4);
+  letter-spacing: .04em;
+  flex-shrink: 0;
+}
+.panel-row-value {
+  font-family: 'Fraunces', serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  text-align: right;
+}
+.panel-row-value.brass { color: var(--brass-bright); }
+
+/* ── PAGE WRAP ── */
+.page-wrap {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 40px;
+}
+
+/* ── SECTION ── */
+.section {
+  padding: 64px 0;
+  border-bottom: 1px solid var(--line);
+}
+.section:last-child { border-bottom: none; }
+.section-inner {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 56px;
+  align-items: start;
+}
+.section-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--brass);
+  margin-bottom: 10px;
+}
+.section-h2 {
+  font-family: 'Fraunces', serif;
+  font-size: 1.55rem;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.2;
+  margin-bottom: 8px;
+  letter-spacing: -.01em;
+}
+.section-h2 em { font-style: italic; font-weight: 400; color: var(--creek); }
+.section-aside-note {
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.section-aside-note a { color: var(--creek); text-decoration: underline; text-underline-offset: 2px; }
+.section-body p {
+  color: var(--ink-soft);
+  margin-bottom: 1.3em;
+  line-height: 1.75;
+}
+.section-body p:last-child { margin-bottom: 0; }
+.section-body a { color: var(--creek); text-decoration: underline; text-underline-offset: 3px; }
+.section-body a:hover { color: var(--creek-deep); }
+.section-body strong { color: var(--ink); font-weight: 600; }
+
+/* ── NEIGHBORHOOD BLOCK ── */
+.neighborhood-block {
+  background: var(--paper-2);
+  border-left: 3px solid var(--creek);
+  padding: 20px 22px;
+  margin-top: 24px;
+}
+.nb-eye {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--creek);
+  margin-bottom: 8px;
+  display: block;
+}
+.neighborhood-block p {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.65;
+  margin: 0;
+}
+.neighborhood-block a { color: var(--creek); }
+
+/* ── PILLAR GRID ── */
+.pillar-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  background: var(--line);
+  margin-top: 28px;
+}
+.pillar-card {
+  background: var(--paper);
+  padding: 22px 20px;
+  transition: background .2s;
+}
+.pillar-card:hover { background: var(--paper-2); }
+.pillar-eye {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--brass);
+  margin-bottom: 8px;
+  display: block;
+}
+.pillar-card h3 {
+  font-family: 'Fraunces', serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+.pillar-card p {
+  font-size: 13.5px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ── TOOL GRID ── */
+.tool-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  background: var(--line);
+  margin-top: 28px;
+}
+.tool-card {
+  background: var(--paper);
+  padding: 24px 22px;
+  transition: background .2s;
+}
+.tool-card:hover { background: var(--paper-2); }
+.tool-eye {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--brass);
+  margin-bottom: 10px;
+  display: block;
+}
+.tool-card h3 {
+  font-family: 'Fraunces', serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 10px;
+}
+.tool-card p {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.65;
+  margin-bottom: 14px;
+}
+.tool-link {
+  display: inline-block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--creek);
+  text-decoration: none;
+  border-bottom: 1px solid var(--creek);
+  padding-bottom: 1px;
+}
+.tool-link:hover { color: var(--creek-deep); border-color: var(--creek-deep); }
+
+/* ── MILITARY CALLOUT ── */
+.military-callout {
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--brass);
+  padding: 24px 22px;
+  margin-top: 20px;
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+}
+.mc-flag { font-size: 24px; flex-shrink: 0; line-height: 1; margin-top: 3px; }
+.military-callout h3 {
+  font-family: 'Fraunces', serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+.military-callout p {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.65;
+  margin: 0;
+}
+
+/* ── CTA BAND ── */
+.cta-band {
+  background: var(--creek-deep);
+  background-image: radial-gradient(ellipse at 20% 50%, rgba(35,90,110,.6) 0%, transparent 60%);
+  padding: 72px 40px;
+  text-align: center;
+}
+.cta-band-eye {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--brass-bright);
+  margin-bottom: 16px;
+  opacity: .8;
+}
+.cta-band h2 {
+  font-family: 'Fraunces', serif;
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 12px;
+  letter-spacing: -.02em;
+}
+.cta-band h2 em { font-style: italic; color: var(--brass-bright); font-weight: 400; }
+.cta-band p {
+  color: rgba(255,255,255,.6);
+  font-size: 16px;
+  max-width: 460px;
+  margin: 0 auto 28px;
+}
+.cta-btn {
+  display: inline-block;
+  background: var(--brass);
+  color: #fff;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  text-decoration: none;
+  padding: 13px 32px;
+  transition: background .2s;
+}
+.cta-btn:hover { background: var(--brass-bright); }
+
+/* ── FOOTER ── */
+footer {
+  background: var(--ink);
+  color: rgba(255,255,255,.45);
+  padding: 56px 40px 32px;
+}
+.footer-grid {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 48px;
+  padding-bottom: 40px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+.footer-brand-name {
+  font-family: 'Fraunces', serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 8px;
+}
+.footer-brand-name span { color: var(--brass-bright); }
+.footer-location {
+  font-size: 13px;
+  color: rgba(255,255,255,.4);
+  line-height: 1.7;
+}
+.footer-location a { color: rgba(255,255,255,.4); text-decoration: none; }
+.footer-col-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.3);
+  margin-bottom: 16px;
+  display: block;
+}
+.footer-links { list-style: none; }
+.footer-links li { margin-bottom: 10px; }
+.footer-links a {
+  font-size: 14px;
+  color: rgba(255,255,255,.5);
+  text-decoration: none;
+  transition: color .2s;
+}
+.footer-links a:hover { color: rgba(255,255,255,.85); }
+.footer-bottom {
+  max-width: 1100px;
+  margin: 28px auto 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  color: rgba(255,255,255,.25);
+  letter-spacing: .05em;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.footer-bottom a { color: rgba(255,255,255,.35); text-decoration: none; }
+.footer-bottom a:hover { color: rgba(255,255,255,.6); }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 900px) {
   .hero {
-    background: linear-gradient(160deg, #1f1a10 0%, #0d0b07 60%, #1a1108 100%);
-    border-bottom: 1px solid var(--border);
-    padding: 64px 40px 56px;
-    text-align: center;
-    position: relative;
-    overflow: hidden;
+    grid-template-columns: 1fr;
+    padding: 52px 24px 56px;
   }
-  .hero::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(ellipse at 50% 0%, rgba(201,168,76,.13) 0%, transparent 65%);
-    pointer-events: none;
+  .hero-panel { display: none; }
+  .section-inner {
+    grid-template-columns: 1fr;
+    gap: 2px;
   }
-  .hero .kicker {
-    display: inline-block;
-    font-size: 11px;
-    letter-spacing: .25em;
-    text-transform: uppercase;
-    color: var(--gold);
-    border: 1px solid var(--gold);
-    padding: 4px 14px;
-    margin-bottom: 22px;
-  }
-  .hero h1 {
-    font-family: 'Playfair Display', serif;
-    font-size: clamp(2rem, 5vw, 3.4rem);
-    font-weight: 900;
-    color: var(--cream);
-    line-height: 1.12;
-    margin-bottom: 18px;
-    text-shadow: 0 2px 24px rgba(0,0,0,.8);
-  }
-  .hero h1 span { color: var(--gold); }
-  .hero p.lead {
-    max-width: 620px;
-    margin: 0 auto;
-    font-size: 18px;
-    color: var(--text);
-    opacity: .85;
-  }
-
-  /* ── CONTENT ── */
-  .content {
-    max-width: 860px;
-    margin: 0 auto;
-    padding: 56px 24px 80px;
-  }
-  .content p { margin-bottom: 1.4em; }
-
-  /* ── SECTION HEADING ── */
-  .section-heading {
-    font-family: 'Playfair Display', serif;
-    font-size: 1.65rem;
-    color: var(--cream);
-    margin: 52px 0 16px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  /* ── PILLAR BLOCKS (service areas) ── */
-  .pillar {
-    border-left: 3px solid var(--gold);
-    padding: 22px 26px;
-    background: var(--bg2);
-    margin: 24px 0;
-    border-radius: 0 6px 6px 0;
-  }
-  .pillar-label {
-    font-size: 10.5px;
-    letter-spacing: .22em;
-    text-transform: uppercase;
-    color: var(--gold);
-    margin-bottom: 6px;
-    display: block;
-  }
-  .pillar h3 {
-    font-family: 'Playfair Display', serif;
-    font-size: 1.2rem;
-    color: var(--cream);
-    margin-bottom: 10px;
-  }
-  .pillar p { margin: 0; font-size: 15.5px; }
-  .pillar a { color: var(--gold-lt); }
-
-  /* ── CALLOUT ── */
-  .callout {
-    background: var(--bg3);
-    border: 1px solid var(--gold);
-    border-radius: 6px;
-    padding: 22px 26px;
-    margin: 28px 0;
-    display: flex;
-    gap: 16px;
-    align-items: flex-start;
-  }
-  .callout .icon { font-size: 22px; flex-shrink: 0; margin-top: 2px; }
-  .callout-body { flex: 1; }
-  .callout-body strong { color: var(--cream); font-weight: 600; display: block; margin-bottom: 6px; font-size: 15px; }
-  .callout p { margin: 0; font-size: 15px; }
-  .callout a { color: var(--gold-lt); }
-
-  /* ── NEIGHBORHOOD HIGHLIGHT ── */
-  .neighborhood {
-    background: var(--green-bg);
-    border: 1px solid var(--green-border);
-    border-left: 3px solid var(--green);
-    border-radius: 0 6px 6px 0;
-    padding: 20px 24px;
-    margin: 32px 0;
-  }
-  .neighborhood .label {
-    font-size: 10px;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    color: var(--green);
-    margin-bottom: 8px;
-    font-weight: 600;
-  }
-  .neighborhood p { color: #b0ccb0; margin: 0; font-size: 15px; }
-  .neighborhood a { color: #7ec87e; }
-
-  /* ── STAT STRIP ── */
-  .stat-strip {
-    display: flex;
-    gap: 0;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    overflow: hidden;
-    margin: 36px 0;
-  }
-  .stat-item {
-    flex: 1;
-    padding: 20px 16px;
-    text-align: center;
-    border-right: 1px solid var(--border);
-  }
-  .stat-item:last-child { border-right: none; }
-  .stat-item .num {
-    font-family: 'Playfair Display', serif;
-    font-size: 2rem;
-    font-weight: 700;
-    color: var(--gold);
-    display: block;
-    line-height: 1.1;
-  }
-  .stat-item .label {
-    font-size: 11px;
-    letter-spacing: .14em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-top: 4px;
-    display: block;
-  }
-
-  /* ── DIVIDER ── */
-  .divider {
-    border: none;
-    border-top: 1px solid var(--border);
-    margin: 48px 0;
-  }
-
-  /* ── CONTACT CTA ── */
-  .contact-cta {
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-top: 3px solid var(--gold);
-    border-radius: 0 0 6px 6px;
-    padding: 36px 32px;
-    text-align: center;
-    margin-top: 52px;
-  }
-  .contact-cta h2 {
-    font-family: 'Playfair Display', serif;
-    font-size: 1.5rem;
-    color: var(--cream);
-    margin-bottom: 10px;
-  }
-  .contact-cta p { color: var(--muted); margin-bottom: 22px; font-size: 15px; }
-  .contact-btn {
-    display: inline-block;
-    background: var(--gold);
-    color: #100e08;
-    font-family: 'Source Sans 3', sans-serif;
-    font-weight: 600;
-    font-size: 14px;
-    letter-spacing: .08em;
-    text-transform: uppercase;
-    text-decoration: none;
-    padding: 12px 32px;
-    border-radius: 4px;
-    transition: background .2s;
-  }
-  .contact-btn:hover { background: var(--gold-lt); }
-
-  /* ── FOOTER ── */
-  footer {
-    background: var(--bg2);
-    border-top: 1px solid var(--border);
-    text-align: center;
-    padding: 28px 20px;
-    font-size: 12.5px;
-    color: var(--muted);
-    letter-spacing: .06em;
-  }
-  footer a { color: var(--gold); text-decoration: none; }
-
-  strong { color: var(--cream); font-weight: 600; }
-
-  @media (max-width: 600px) {
-    .hero { padding: 44px 20px 40px; }
-    .stat-strip { flex-direction: column; }
-    .stat-item { border-right: none; border-bottom: 1px solid var(--border); }
-    .stat-item:last-child { border-bottom: none; }
-  }
+  .section-aside-note { display: none; }
+  .pillar-grid { grid-template-columns: 1fr; }
+  .tool-grid { grid-template-columns: 1fr; }
+  .footer-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 600px) {
+  .page-wrap { padding: 0 20px; }
+  .site-nav { padding: 0 16px; }
+  .nav-links { display: none; }
+  .section { padding: 48px 0; }
+  .cta-band { padding: 52px 20px; }
+  footer { padding: 40px 20px 24px; }
+  .footer-grid { grid-template-columns: 1fr; gap: 32px; }
+}
 </style>
 </head>
 <body>
 
-<!-- HEADER -->
-<header>
-  <a class="header-brand" href="https://www.coalcreekguitars.com">
-    <img class="logo" src="https://www.coalcreekguitars.com/images/coal-creek-logo.png" alt="Coal Creek Guitars logo">
-    <span class="header-brand-name">Coal Creek Guitars</span>
+<!-- NAV -->
+<nav class="site-nav">
+  <a class="nav-brand" href="https://www.coalcreekguitars.com">
+    <img class="nav-logo" src="https://www.coalcreekguitars.com/images/coal-creek-logo.png" alt="Coal Creek Guitars">
+    <span class="nav-brand-name">Coal Creek <span>Guitars</span></span>
   </a>
-  <div class="header-divider"></div>
-  <nav class="header-breadcrumb">
+  <div class="nav-sep"></div>
+  <div class="nav-breadcrumb">
     <a href="https://www.coalcreekguitars.com">Home</a>
     <span class="sep">/</span>
     <span class="current">About Us</span>
-  </nav>
-</header>
+  </div>
+  <div class="nav-links">
+    <a class="nav-link" href="https://www.coalcreekguitars.com/guitars-and-gear-for-sale/">Shop</a>
+    <a class="nav-link" href="https://www.coalcreekguitars.com/guitar-repair-services-pricing/">Repair</a>
+    <a class="nav-link" href="https://www.coalcreekguitars.com/guitar-value-report-evaluation/">Valuation</a>
+    <a class="nav-link active" href="https://www.coalcreekguitars.com/about-us.html">About</a>
+    <a class="nav-link" href="https://www.coalcreekguitars.com/contact-us.html">Contact</a>
+  </div>
+</nav>
 
 <!-- HERO -->
-<div class="hero">
-  <div class="kicker">Englewood, Colorado &nbsp;·&nbsp; Est. 2017</div>
-  <h1>Built by Players,<br><span>For Players</span></h1>
-  <p class="lead">A guitar shop rooted in genuine love for the instrument — buying, selling, trading, repairing, and giving great gear a second life since 2017.</p>
+<div class="hero-shell">
+  <div class="hero">
+    <div class="hero-content">
+      <div class="hero-eyebrow">Englewood, Colorado &nbsp;·&nbsp; Est. 2017</div>
+      <h1>Built by players,<br>for <em>players.</em></h1>
+      <p class="hero-lead">A guitar shop rooted in genuine love for the instrument — buying, selling, trading, repairing, and giving great gear a second life since 2017.</p>
+      <div class="hero-proofs">
+        <div class="hero-proof">Buy, sell, trade — quality instruments only</div>
+        <div class="hero-proof">Full repair shop with real diagnostics before any work begins</div>
+        <div class="hero-proof">Free tools for the community: serial decoders, valuations, and more</div>
+        <div class="hero-proof">Showroom in Englewood — by appointment now, public hours Summer 2026</div>
+      </div>
+    </div>
+    <div class="hero-panel">
+      <div class="hero-panel-label">At a Glance</div>
+      <div class="panel-row">
+        <span class="panel-row-label">Founded</span>
+        <span class="panel-row-value brass">2017</span>
+      </div>
+      <div class="panel-row">
+        <span class="panel-row-label">Location</span>
+        <span class="panel-row-value">Englewood, CO</span>
+      </div>
+      <div class="panel-row">
+        <span class="panel-row-label">Brands decoded</span>
+        <span class="panel-row-value brass">25+</span>
+      </div>
+      <div class="panel-row">
+        <span class="panel-row-label">Repair shop</span>
+        <span class="panel-row-value">Active</span>
+      </div>
+      <div class="panel-row">
+        <span class="panel-row-label">Military discount</span>
+        <span class="panel-row-value brass">12% off</span>
+      </div>
+      <div class="panel-row">
+        <span class="panel-row-label">Showroom</span>
+        <span class="panel-row-value">By appointment</span>
+      </div>
+    </div>
+  </div>
 </div>
 
-<!-- MAIN CONTENT -->
-<div class="content">
+<!-- SECTIONS -->
+<div class="page-wrap">
 
-  <!-- Stat strip -->
-  <div class="stat-strip">
-    <div class="stat-item">
-      <span class="num">2017</span>
-      <span class="label">Founded</span>
+  <!-- 01 Story -->
+  <section class="section" id="story">
+    <div class="section-inner">
+      <div>
+        <div class="section-label">01 / Our Story</div>
+        <h2 class="section-h2">Where it <em>started</em></h2>
+        <p class="section-aside-note">Founded in 2017 by lifelong players. Englewood, Colorado.</p>
+      </div>
+      <div class="section-body">
+        <p>Coal Creek Guitars was founded in 2017 by lifelong players and music enthusiasts who wanted to build something more personal than a typical gear dealer. What started as a passion project has grown into a full-service guitar shop based in Englewood, Colorado — a trusted destination for players at every level who are looking for quality instruments, honest expertise, and a place that takes the instrument seriously.</p>
+        <p>Our team has been immersed in the world of guitars for decades. Playing, collecting, restoring, and chasing tone are not things we do on the side — they are what we do. That experience shapes everything from how we evaluate a used instrument to how we talk with a first-time buyer trying to figure out what guitar is right for them.</p>
+      </div>
     </div>
-    <div class="stat-item">
-      <span class="num">25+</span>
-      <span class="label">Brands Decoded</span>
+  </section>
+
+  <!-- 02 Showroom -->
+  <section class="section" id="showroom">
+    <div class="section-inner">
+      <div>
+        <div class="section-label">02 / Showroom</div>
+        <h2 class="section-h2">Come <em>play</em> something</h2>
+        <p class="section-aside-note">South Broadway corridor, Englewood. Appointment now — public hours Summer 2026.</p>
+      </div>
+      <div class="section-body">
+        <p>We are located in Englewood, Colorado, just south of Denver along the South Broadway corridor. Coal Creek Guitars has a dedicated showroom where players can come in, plug into a real amp, and spend unhurried time with the gear. We keep a selection of guitars, amps, and effects on hand so you can actually dial in tone and feel — not just look at something hanging on a wall.</p>
+        <p>The showroom is currently open by appointment, with regular public hours planned for Summer 2026. If you see something you are interested in or just want to come by and look around, reach out and we will set up a time.</p>
+        <div class="neighborhood-block">
+          <span class="nb-eye">Our Neighborhood</span>
+          <p>Englewood and the South Broadway corridor have a long history tied to music, live performance, and the kind of independent businesses that give a neighborhood its character. The <a href="https://www.coalcreekguitars.com/ccg-englewood-broadway-gothic-theatre-history.html">Gothic Theatre</a> — one of Colorado's most iconic live music venues — sits just down the road from our shop. <a href="https://www.coalcreekguitars.com/ccg-englewood-broadway-gothic-theatre-history.html">Read about Englewood, South Broadway, and the Gothic Theatre</a> and the century of music and culture that defines the neighborhood we call home.</p>
+        </div>
+      </div>
     </div>
-    <div class="stat-item">
-      <span class="num">100s</span>
-      <span class="label">Reports Delivered</span>
+  </section>
+
+  <!-- 03 Buying / Selling -->
+  <section class="section" id="buying-selling">
+    <div class="section-inner">
+      <div>
+        <div class="section-label">03 / Inventory</div>
+        <h2 class="section-h2">Buy, sell, <em>trade</em></h2>
+        <p class="section-aside-note">Quality used guitars, amps, pedals, and accessories. Ships within the 50 US states.</p>
+      </div>
+      <div class="section-body">
+        <p>Buying, selling, and trading quality used guitars, amps, pedals, effects, and accessories is at the core of what we do. We are selective in what we acquire — every piece goes through a careful evaluation of condition, originality, playability, and value before we commit. From there, each instrument gets cleaned, detailed, and properly set up before it goes up for sale.</p>
+        <p>We ship eligible items within the 50 US states, so finding great gear at Coal Creek Guitars does not require a drive to Englewood. We also document the restoration process in free videos — from initial pickup through the final play test — so players can see exactly what went into bringing an instrument back to life.</p>
+      </div>
     </div>
-    <div class="stat-item">
-      <span class="num">Englewood</span>
-      <span class="label">Colorado</span>
+  </section>
+
+  <!-- 04 Repair -->
+  <section class="section" id="repair">
+    <div class="section-inner">
+      <div>
+        <div class="section-label">04 / Repair Shop</div>
+        <h2 class="section-h2">Repair &amp; <em>setup</em></h2>
+        <p class="section-aside-note">We diagnose before we quote. <a href="https://www.coalcreekguitars.com/guitar-repair-services-pricing/">See full pricing →</a></p>
+      </div>
+      <div class="section-body">
+        <p>Coal Creek Guitars is an active repair shop. Whether a guitar is buzzing, cutting out, or simply not playing the way it should, we can diagnose the problem and recommend the right fix before any work begins.</p>
+        <div class="pillar-grid">
+          <div class="pillar-card">
+            <span class="pillar-eye">Setup</span>
+            <h3>Playability</h3>
+            <p>Full setups for electric, acoustic, and bass. Floyd Rose and locking tremolo. Seasonal neck adjustments, nut work, and action optimization.</p>
+          </div>
+          <div class="pillar-card">
+            <span class="pillar-eye">Electronics</span>
+            <h3>Diagnostics</h3>
+            <p>Hum, crackle, signal loss, tuning instability. Pickup swaps, wiring work, output jack replacement, potentiometers, and shielding.</p>
+          </div>
+          <div class="pillar-card">
+            <span class="pillar-eye">Hardware</span>
+            <h3>Upgrades</h3>
+            <p>Locking tuners, bridge and tailpiece replacement, strap lock installs, nut upgrades, and hardware swaps.</p>
+          </div>
+        </div>
+      </div>
     </div>
-  </div>
+  </section>
 
-  <h2 class="section-heading">Our Story</h2>
-
-  <p>Coal Creek Guitars was founded in 2017 by lifelong players and music enthusiasts who wanted to build something more personal than a typical gear dealer. What started as a passion project has grown into a full-service guitar shop based in Englewood, Colorado — a trusted destination for players at every level who are looking for quality instruments, honest expertise, and a place that takes the instrument seriously.</p>
-
-  <p>Our team has been immersed in the world of guitars for decades. Playing, collecting, restoring, and chasing tone are not things we do on the side — they are what we do. That experience shapes everything from how we evaluate a used instrument to how we talk with a first-time buyer trying to figure out what guitar is right for them.</p>
-
-  <h2 class="section-heading">Our Showroom in Englewood</h2>
-
-  <p>We are located in Englewood, Colorado, just south of Denver along the South Broadway corridor. Coal Creek Guitars now has a dedicated showroom where players can come in, plug into a real amp, and spend unhurried time with the gear. We keep a selection of guitars, amps, and effects on hand so you can actually dial in tone and feel — not just look at something hanging on a wall.</p>
-
-  <p>The showroom is currently open by appointment, with regular public hours planned for Summer 2026. If you see something you are interested in or just want to come by and look around, reach out and we will set up a time.</p>
-
-  <div class="neighborhood">
-    <div class="label">Our Neighborhood</div>
-    <p>Englewood and the South Broadway corridor have a long history tied to music, live performance, and the kind of independent businesses that give a neighborhood its character. The <a href="https://www.coalcreekguitars.com/ccg-englewood-broadway-gothic-theatre-history.html">Gothic Theatre</a> — one of Colorado's most iconic live music venues — sits just down the road from our shop. <a href="https://www.coalcreekguitars.com/ccg-englewood-broadway-gothic-theatre-history.html">Read more about Englewood, South Broadway, and the Gothic Theatre</a> and the century of music and culture that defines the neighborhood we call home.</p>
-  </div>
-
-  <h2 class="section-heading">Buying, Selling &amp; Trading</h2>
-
-  <p>Buying, selling, and trading quality used guitars, amps, pedals, effects, and accessories is at the core of what we do. We are selective in what we acquire — every piece goes through a careful evaluation of condition, originality, playability, and value before we commit. From there, each instrument gets cleaned, detailed, and properly set up before it goes up for sale.</p>
-
-  <p>We ship eligible items within the 50 US states, so finding great gear at Coal Creek Guitars does not require a drive to Englewood. We also document the restoration process in free videos — from initial pickup through the final play test — so players can see exactly what went into bringing an instrument back to life.</p>
-
-  <h2 class="section-heading">Repair &amp; Setup Services</h2>
-
-  <p>Coal Creek Guitars is an active repair shop. Whether a guitar is buzzing, cutting out, or simply not playing the way it should, we can diagnose the problem and recommend the right fix before any work begins. See our full <a href="https://www.coalcreekguitars.com/guitar-repair-services-pricing">repair services and pricing</a> for details.</p>
-
-  <div class="pillar">
-    <span class="pillar-label">Service Area</span>
-    <h3>Setup &amp; Playability</h3>
-    <p>Full setups for electric, acoustic, and bass guitars. Floyd Rose and locking tremolo setups. Seasonal neck adjustments and fret buzz correction. Nut work and action optimization so every guitar plays at its best.</p>
-  </div>
-
-  <div class="pillar">
-    <span class="pillar-label">Service Area</span>
-    <h3>Electronics &amp; Diagnostics</h3>
-    <p>Diagnostics for any playability or electronics issue — hum, crackle, signal loss, tuning instability. Pickup swaps, wiring work, output jack replacement, potentiometer repairs, and shielding. We inspect first and recommend before any work begins.</p>
-  </div>
-
-  <div class="pillar">
-    <span class="pillar-label">Service Area</span>
-    <h3>Hardware &amp; Upgrades</h3>
-    <p>Locking tuner installs, bridge and tailpiece replacement, strap lock installs, nut upgrades, and hardware swaps. Practical upgrades that make a real difference in how a guitar plays, stays in tune, and holds up over time.</p>
-  </div>
-
-  <h2 class="section-heading">Guitar Lessons</h2>
-
-  <p>Coal Creek Guitars maintains a local instructor network and can connect students with qualified teachers for guitar, bass, voice, and many other instruments. Teaching styles, formats, and rates vary by instructor. <a href="https://www.coalcreekguitars.com/contact-us.html">Contact us</a> with your goals, experience level, and schedule and we will help find the right fit.</p>
-
-  <hr class="divider">
-
-  <h2 class="section-heading">Free Tools &amp; Resources</h2>
-
-  <p>One of the things that sets Coal Creek Guitars apart is the library of free tools and resources we build for the guitar community. We create the same kind of tools we want when we are researching gear ourselves — practical, accurate, and genuinely useful.</p>
-
-  <div class="callout">
-    <div class="icon">🔍</div>
-    <div class="callout-body">
-      <strong>Serial Number Decoders — 25+ Brands</strong>
-      <p>Free serial number lookup tools for Gibson, Fender, Ibanez, Taylor, Martin, PRS, Epiphone, Gretsch, Rickenbacker, and 15+ more. Continuously updated as we research new formats. If a serial number fails to decode, it enters a review queue and we work to add support so future lookups succeed. <a href="https://www.coalcreekguitars.com/guitars-and-gear-for-sale/decoders/guitar-serial-decoder-lookup/">Browse the decoder library →</a></p>
+  <!-- 05 Free Tools -->
+  <section class="section" id="tools">
+    <div class="section-inner">
+      <div>
+        <div class="section-label">05 / Free Tools</div>
+        <h2 class="section-h2">Built for the <em>community</em></h2>
+        <p class="section-aside-note">Serial decoders, valuations, and practice resources — all free, no account required.</p>
+      </div>
+      <div class="section-body">
+        <p>One of the things that sets Coal Creek Guitars apart is the library of free tools and resources we build for the guitar community. We create the same kind of tools we want when we are researching gear ourselves — practical, accurate, and genuinely useful.</p>
+        <div class="tool-grid">
+          <div class="tool-card">
+            <span class="tool-eye">Decoder Library</span>
+            <h3>Serial Number Decoders — 25+ Brands</h3>
+            <p>Free serial number lookup tools for Gibson, Fender, Ibanez, Taylor, Martin, PRS, Epiphone, Gretsch, Rickenbacker, and 15+ more. Continuously updated as we research new formats.</p>
+            <a class="tool-link" href="https://www.coalcreekguitars.com/guitars-and-gear-for-sale/decoders/guitar-serial-decoder-lookup/">Browse decoders →</a>
+          </div>
+          <div class="tool-card">
+            <span class="tool-eye">Valuation</span>
+            <h3>Guitar Evaluation Report</h3>
+            <p>A free, no-obligation assessment of what your instrument is worth in today's used market. Personalized research based on current sales data — usually ready in 1–2 hours.</p>
+            <a class="tool-link" href="https://www.coalcreekguitars.com/guitar-value-report-evaluation/">Request a free evaluation →</a>
+          </div>
+          <div class="tool-card">
+            <span class="tool-eye">Learning Resources</span>
+            <h3>New Guitarist Practice Resources</h3>
+            <p>A free collection of practice resources covering the fundamentals that matter most in the early stages of learning. A clear place to begin.</p>
+            <a class="tool-link" href="https://www.coalcreekguitars.com/new-guitarist-practice-resources/">View practice resources →</a>
+          </div>
+          <div class="tool-card">
+            <span class="tool-eye">Lessons</span>
+            <h3>Instructor Network</h3>
+            <p>Coal Creek Guitars maintains a local instructor network and can connect students with qualified teachers for guitar, bass, voice, and other instruments.</p>
+            <a class="tool-link" href="https://www.coalcreekguitars.com/contact-us.html">Get connected →</a>
+          </div>
+        </div>
+      </div>
     </div>
-  </div>
+  </section>
 
-  <div class="callout">
-    <div class="icon">📋</div>
-    <div class="callout-body">
-      <strong>Guitar Evaluation Report</strong>
-      <p>A free, no-obligation assessment of what your instrument is worth in today's used market. We research current sales data and comparable listings to build a personalized valuation — usually ready in 1–2 hours, at most a few hours. No obligation to sell or trade. <a href="https://www.coalcreekguitars.com/guitar-value-report-evaluation">Request a free evaluation →</a></p>
+  <!-- 06 Community -->
+  <section class="section" id="community">
+    <div class="section-inner">
+      <div>
+        <div class="section-label">06 / Community</div>
+        <h2 class="section-h2">Colorado music &amp; <em>beyond</em></h2>
+      </div>
+      <div class="section-body">
+        <p>Colorado has one of the most vibrant music communities in the country, and the Denver south metro area is a big part of that. The South Broadway corridor in Englewood has long been a hub for independent music businesses, live venues, and the kind of eclectic creative energy that draws musicians. The <a href="https://www.coalcreekguitars.com/ccg-englewood-broadway-gothic-theatre-history.html">Gothic Theatre</a> down the road has hosted some of the most important artists in rock, metal, indie, and alternative music for decades — and the neighborhood around it reflects that same spirit.</p>
+        <p>We believe strongly in the power of music education. Learning to play develops creativity, discipline, and emotional expression in ways that benefit students long after the lesson ends. Coal Creek Guitars actively supports music programs in local schools because we believe every child deserves the chance to discover what music can do for them.</p>
+        <div class="military-callout">
+          <div class="mc-flag">🇺🇸</div>
+          <div>
+            <h3>Military Discount — 12% Off</h3>
+            <p>The owners of Coal Creek Guitars come from a proud military family, and we have an enormous amount of respect for the men and women who serve — and for the families who stand behind them. As a small way of saying thank you, we offer a <strong>12% discount off our lowest price</strong> on eligible items for active duty, veterans, and immediate family members. That is a higher rate than most major retailers offer, and we do not cap the maximum dollar amount. Just let us know when you reach out.</p>
+          </div>
+        </div>
+      </div>
     </div>
-  </div>
-
-  <div class="callout">
-    <div class="icon">🎸</div>
-    <div class="callout-body">
-      <strong>New Guitarist Practice Resources</strong>
-      <p>A free collection of practice resources covering the fundamentals that matter most in the early stages of learning. Built for players who are just getting started and want a clear place to begin. <a href="https://www.coalcreekguitars.com/new-guitarist-practice-resources">View practice resources →</a></p>
-    </div>
-  </div>
-
-  <hr class="divider">
-
-  <h2 class="section-heading">Colorado's Music Community</h2>
-
-  <p>Colorado has one of the most vibrant music communities in the country, and the Denver south metro area is a big part of that. The South Broadway corridor in Englewood has long been a hub for independent music businesses, live venues, and the kind of eclectic creative energy that draws musicians. The <a href="https://www.coalcreekguitars.com/ccg-englewood-broadway-gothic-theatre-history.html">Gothic Theatre</a> down the road has hosted some of the most important artists in rock, metal, indie, and alternative music for decades — and the neighborhood around it reflects that same spirit.</p>
-
-  <p>We are proud to be part of this community, serving players of all genres and skill levels who share a genuine appreciation for the instrument. Whether you are a seasoned collector, a gigging musician, or someone picking up a guitar for the first time, you belong here.</p>
-
-  <h2 class="section-heading">Supporting Music Education</h2>
-
-  <p>We believe strongly in the power of music education. Learning to play an instrument develops creativity, discipline, and emotional expression in ways that benefit students long after the lesson ends. Music education is not a luxury — it is an essential part of a well-rounded childhood, and far too many schools are cutting programs that deserve to thrive.</p>
-
-  <p>Coal Creek Guitars actively supports music programs in local schools because we believe every child deserves the chance to discover what music can do for them. When you do business with us, you are part of that too.</p>
-
-  <h2 class="section-heading">A Proud Military Family</h2>
-
-  <div class="callout">
-    <div class="icon">🇺🇸</div>
-    <div class="callout-body">
-      <strong>Military Discount — 12% Off</strong>
-      <p>The owners of Coal Creek Guitars come from a proud military family, and we have an enormous amount of respect for the men and women who serve — and for the families who stand behind them. As a small way of saying thank you, we offer a <strong>12% discount off our lowest price</strong> on eligible items for active duty, veterans, and immediate family members. That is a higher rate than most major retailers offer, and we do not cap the maximum dollar amount. Just let us know when you reach out.</p>
-    </div>
-  </div>
-
-  <!-- Contact CTA -->
-  <div class="contact-cta">
-    <h2>Get in Touch</h2>
-    <p>Whether you are looking to buy, sell, trade, get a repair done, or just talk guitars — we would love to hear from you.</p>
-    <a class="contact-btn" href="https://www.coalcreekguitars.com/contact-us.html">Contact Us</a>
-  </div>
+  </section>
 
 </div>
 
+<!-- CTA BAND -->
+<div class="cta-band">
+  <div class="cta-band-eye">Get in Touch</div>
+  <h2>Let's talk <em>guitars.</em></h2>
+  <p>Whether you are looking to buy, sell, trade, get a repair done, or just talk — we would love to hear from you.</p>
+  <a class="cta-btn" href="https://www.coalcreekguitars.com/contact-us.html">Contact Us</a>
+</div>
+
+<!-- FOOTER -->
 <footer>
-  <p>© <span id="yr"></span> Coal Creek Guitars &nbsp;·&nbsp; Englewood, Colorado &nbsp;·&nbsp; <a href="https://www.coalcreekguitars.com">coalcreekguitars.com</a> &nbsp;·&nbsp; <a href="https://www.coalcreekguitars.com/privacy-policy.html">Privacy Policy</a></p>
+  <div class="footer-grid">
+    <div>
+      <div class="footer-brand-name">Coal Creek <span>Guitars</span></div>
+      <div class="footer-location">
+        Englewood, Colorado<br>
+        South Broadway Corridor<br>
+        <a href="mailto:info@coalcreekguitars.com">info@coalcreekguitars.com</a>
+      </div>
+    </div>
+    <div>
+      <span class="footer-col-label">Quick Links</span>
+      <ul class="footer-links">
+        <li><a href="https://www.coalcreekguitars.com/guitars-and-gear-for-sale/">Shop Inventory</a></li>
+        <li><a href="https://www.coalcreekguitars.com/guitar-repair-services-pricing/">Repair Services</a></li>
+        <li><a href="https://www.coalcreekguitars.com/guitar-value-report-evaluation/">Guitar Valuation</a></li>
+        <li><a href="https://www.coalcreekguitars.com/guitars-and-gear-for-sale/decoders/guitar-serial-decoder-lookup/">Serial Decoders</a></li>
+        <li><a href="https://www.coalcreekguitars.com/contact-us.html">Contact</a></li>
+      </ul>
+    </div>
+    <div>
+      <span class="footer-col-label">About</span>
+      <ul class="footer-links">
+        <li><a href="#story">Our Story</a></li>
+        <li><a href="#showroom">Showroom</a></li>
+        <li><a href="#repair">Repair Shop</a></li>
+        <li><a href="#tools">Free Tools</a></li>
+        <li><a href="https://www.coalcreekguitars.com/ccg-englewood-broadway-gothic-theatre-history.html">Englewood &amp; South Broadway</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© <span id="yr"></span> Coal Creek Guitars &nbsp;·&nbsp; Englewood, Colorado</span>
+    <span><a href="https://www.coalcreekguitars.com/privacy-policy.html">Privacy Policy</a></span>
+  </div>
 </footer>
 <script>document.getElementById('yr').textContent = new Date().getFullYear();</script>
+
 </body>
 </html>
