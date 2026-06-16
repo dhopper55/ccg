@@ -35,7 +35,7 @@ const STATIC_URLS = [
   { loc: '/about-us.html', changefreq: 'monthly', priority: '0.6' },
   { loc: '/guitar-value-report-evaluation', changefreq: 'monthly', priority: '0.7' },
   { loc: '/how-to-list-a-guitar-for-sale.html', changefreq: 'monthly', priority: '0.7' },
-  { loc: '/sell-guitar-gear-denver-englewood/', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/we-buy-music-gear-denver-englewood/', changefreq: 'monthly', priority: '0.8' },
   { loc: '/fender-guitar-serial-number-history.html', changefreq: 'monthly', priority: '0.7' },
   { loc: '/gibson-guitar-serial-number-history.html', changefreq: 'monthly', priority: '0.7' },
   { loc: '/ccg-englewood-broadway-gothic-theatre-history.html', changefreq: 'monthly', priority: '0.6' },
