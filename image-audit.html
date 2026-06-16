@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Coal Creek Guitars — Image Audit</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, -apple-system, sans-serif; background: #0f1117; color: #e2e8f0; line-height: 1.5; }
+  .header { background: linear-gradient(135deg, #1a1f2e 0%, #0f1117 100%); border-bottom: 1px solid #2d3748; padding: 2rem; }
+  .header h1 { font-size: 1.8rem; font-weight: 700; color: #f7fafc; margin-bottom: 0.25rem; }
+  .header p { color: #718096; font-size: 0.9rem; }
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; padding: 2rem; }
+  .stat { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 10px; padding: 1.25rem; text-align: center; }
+  .stat .num { font-size: 2.5rem; font-weight: 800; color: #63b3ed; }
+  .stat.warn .num { color: #fc8181; }
+  .stat.ok .num { color: #68d391; }
+  .stat .label { font-size: 0.8rem; color: #718096; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.25rem; }
+  .section { padding: 0 2rem 2rem; }
+  .section-title { font-size: 1.3rem; font-weight: 700; margin-bottom: 1.25rem; padding: 1rem 0 0.75rem; border-bottom: 1px solid #2d3748; display: flex; align-items: center; gap: 0.6rem; }
+  .section-title .badge { font-size: 0.7rem; padding: 0.2rem 0.6rem; border-radius: 999px; font-weight: 600; }
+  .badge-warn { background: #742a2a; color: #fc8181; }
+  .badge-ok { background: #1c4532; color: #68d391; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.25rem; }
+  .card { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; }
+  .card.third-party { border-color: #742a2a; box-shadow: 0 0 0 1px #742a2a; }
+  .card-img { background: #111827; display: flex; align-items: center; justify-content: center; min-height: 180px; max-height: 240px; overflow: hidden; position: relative; }
+  .card-img img { max-width: 100%; max-height: 240px; width: auto; height: auto; object-fit: contain; display: block; }
+  .warn-badge { position: absolute; top: 8px; right: 8px; background: #742a2a; color: #fc8181; font-size: 0.65rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .card-body { padding: 0.85rem; flex: 1; display: flex; flex-direction: column; gap: 0.5rem; }
+  .img-url { font-family: monospace; font-size: 0.7rem; color: #90cdf4; word-break: break-all; background: #0f1117; padding: 0.4rem 0.5rem; border-radius: 4px; }
+  .img-url.external { color: #fc8181; }
+  .pages-label { font-size: 0.7rem; color: #718096; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 0.25rem; }
+  .page-tag { display: inline-block; font-size: 0.68rem; background: #2d3748; color: #a0aec0; padding: 0.15rem 0.4rem; border-radius: 3px; margin: 0.1rem 0.1rem 0 0; word-break: break-all; }
+  .page-tag a { color: inherit; text-decoration: none; }
+  .page-tag a:hover { color: #63b3ed; }
+  .subsection-title { font-size: 1rem; font-weight: 600; color: #a0aec0; margin: 1.5rem 0 0.75rem; padding-bottom: 0.4rem; border-bottom: 1px solid #1a1f2e; }
+  .note { background: #1a1f2e; border: 1px solid #2d3748; border-left: 3px solid #d69e2e; border-radius: 6px; padding: 0.75rem 1rem; font-size: 0.82rem; color: #e2c06b; margin-bottom: 1.5rem; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Coal Creek Guitars — Image Audit</h1>
+  <p>Generated 2026-06-15 &mdash; covers all public pages except /guitars-and-gear-for-sale/ and /admin</p>
+</div>
+
+<!-- SUMMARY STATS -->
+<div class="summary">
+  <div class="stat">
+    <div class="num">61</div>
+    <div class="label">Total unique real images</div>
+  </div>
+  <div class="stat ok">
+    <div class="num">61</div>
+    <div class="label">Self-hosted (coalcreekguitars.com)</div>
+  </div>
+  <div class="stat warn">
+    <div class="num">0</div>
+    <div class="label">Third-party hosted images</div>
+  </div>
+  <div class="stat">
+    <div class="num">14</div>
+    <div class="label">Pages audited</div>
+  </div>
+</div>
+
+<!-- THIRD PARTY SECTION -->
+<div class="section">
+  <div class="section-title">
+    Third-Party Hosted Images
+    <span class="badge badge-ok">0 found</span>
+  </div>
+  <div class="note">
+    No third-party hosted images were found. All images are served from coalcreekguitars.com. Note: the Guitar Repair Demo &amp; Lesson Videos page loads YouTube video thumbnails dynamically at runtime via the /api/youtube/videos endpoint (from i.ytimg.com), but these are not embedded as static &lt;img&gt; tags in the HTML source — they are injected by JavaScript after the page loads.
+  </div>
+</div>
+
+<!-- SELF-HOSTED SECTION -->
+<div class="section">
+  <div class="section-title">
+    Self-Hosted Images
+    <span class="badge badge-ok">61 images</span>
+  </div>
+
+  <!-- SHOWROOM / SHOP PHOTOS -->
+  <div class="subsection-title">Showroom &amp; Shop Photos</div>
+  <div class="grid">
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/showroom/guitars_front_showroom.jpeg" alt="Guitars front showroom" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/showroom/guitars_front_showroom.jpeg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/" target="_blank">/ (Homepage)</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/showroom/showroom_more_guitars_electric.jpeg" alt="Showroom electric guitars" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/showroom/showroom_more_guitars_electric.jpeg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/" target="_blank">/ (Homepage)</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/showroom/headstock_back.jpeg" alt="Headstock back" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/showroom/headstock_back.jpeg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/" target="_blank">/ (Homepage)</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/showroom/showroom_amp_marshall_jcm_800.jpeg" alt="Marshall JCM 800 amp" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/showroom/showroom_amp_marshall_jcm_800.jpeg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/" target="_blank">/ (Homepage)</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/showroom/gibson_les_paul_custom_blue_widow.jpeg" alt="Gibson Les Paul Custom Blue Widow" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/showroom/gibson_les_paul_custom_blue_widow.jpeg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/" target="_blank">/ (Homepage)</a></span></div>
+      </div>
+    </div>
+
+  </div><!-- /showroom grid -->
+
+  <!-- REPAIR IMAGES -->
+  <div class="subsection-title">Repair Services Images</div>
+  <div class="grid">
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/repair/pickup_change_fender_strat.png" alt="Pickup change fender strat" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/repair/pickup_change_fender_strat.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div>
+          <span class="page-tag"><a href="https://www.coalcreekguitars.com/" target="_blank">/ (Homepage)</a></span>
+          <span class="page-tag"><a href="https://www.coalcreekguitars.com/guitar-repair-services-pricing/" target="_blank">/guitar-repair-services-pricing/</a></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/repair/setup-playability.png" alt="Setup and playability" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/repair/setup-playability.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/guitar-repair-services-pricing/" target="_blank">/guitar-repair-services-pricing/</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/repair/fretwork-neck-care.png" alt="Fretwork and neck care" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/repair/fretwork-neck-care.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/guitar-repair-services-pricing/" target="_blank">/guitar-repair-services-pricing/</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/repair/hardware-guitar-upgrades.png" alt="Hardware and guitar upgrades" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/repair/hardware-guitar-upgrades.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/guitar-repair-services-pricing/" target="_blank">/guitar-repair-services-pricing/</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/repair/string-change.png" alt="String change" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/repair/string-change.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/guitar-repair-services-pricing/" target="_blank">/guitar-repair-services-pricing/</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/repair/diagnostics.png" alt="Diagnostics" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/repair/diagnostics.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/guitar-repair-services-pricing/" target="_blank">/guitar-repair-services-pricing/</a></span></div>
+      </div>
+    </div>
+
+  </div><!-- /repair grid -->
+
+  <!-- GUITAR EVALUATOR PHOTOS -->
+  <div class="subsection-title">Guitar Value Evaluator — Recommended Photos Guide</div>
+  <div class="grid">
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/evaluator_recommended_photos/front_full_body.jpeg" alt="Front full body" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/evaluator_recommended_photos/front_full_body.jpeg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/guitar-value-report-evaluation/" target="_blank">/guitar-value-report-evaluation/</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/evaluator_recommended_photos/back_full_body.jpeg" alt="Back full body" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/evaluator_recommended_photos/back_full_body.jpeg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/guitar-value-report-evaluation/" target="_blank">/guitar-value-report-evaluation/</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/evaluator_recommended_photos/headstock_front.jpeg" alt="Headstock front" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/evaluator_recommended_photos/headstock_front.jpeg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/guitar-value-report-evaluation/" target="_blank">/guitar-value-report-evaluation/</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/evaluator_recommended_photos/headstock_back.jpeg" alt="Headstock back" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/evaluator_recommended_photos/headstock_back.jpeg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/guitar-value-report-evaluation/" target="_blank">/guitar-value-report-evaluation/</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/evaluator_recommended_photos/damage.jpeg" alt="Damage photo example" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/evaluator_recommended_photos/damage.jpeg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/guitar-value-report-evaluation/" target="_blank">/guitar-value-report-evaluation/</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/home-report-sample.png" alt="Home report sample" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/home-report-sample.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/" target="_blank">/ (Homepage)</a></span></div>
+      </div>
+    </div>
+
+  </div><!-- /evaluator grid -->
+
+  <!-- HOW TO LIST / SELL -->
+  <div class="subsection-title">How to List a Guitar for Sale — Step Photos</div>
+  <div class="grid">
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/how-to-sell/sg1.png" alt="How to sell - step 1" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/how-to-sell/sg1.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/how-to-list-a-guitar-for-sale.html" target="_blank">/how-to-list-a-guitar-for-sale.html</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/how-to-sell/sg2.png" alt="How to sell - step 2" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/how-to-sell/sg2.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/how-to-list-a-guitar-for-sale.html" target="_blank">/how-to-list-a-guitar-for-sale.html</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/how-to-sell/sg3.png" alt="How to sell - step 3" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/how-to-sell/sg3.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/how-to-list-a-guitar-for-sale.html" target="_blank">/how-to-list-a-guitar-for-sale.html</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/how-to-sell/sg4.png" alt="How to sell - step 4" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/how-to-sell/sg4.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/how-to-list-a-guitar-for-sale.html" target="_blank">/how-to-list-a-guitar-for-sale.html</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/how-to-sell/sg5.png" alt="How to sell - step 5" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/how-to-sell/sg5.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/how-to-list-a-guitar-for-sale.html" target="_blank">/how-to-list-a-guitar-for-sale.html</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/how-to-sell/sg6.png" alt="How to sell - step 6" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/how-to-sell/sg6.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/how-to-list-a-guitar-for-sale.html" target="_blank">/how-to-list-a-guitar-for-sale.html</a></span></div>
+      </div>
+    </div>
+
+  </div><!-- /how-to-sell grid -->
+
+  <!-- PRACTICE RESOURCES -->
+  <div class="subsection-title">New Guitarist Practice Resources — Chord/Lesson Images</div>
+  <div class="grid">
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/practice-images/1.png" alt="Practice resource 1" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/practice-images/1.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/new-guitarist-practice-resources.html" target="_blank">/new-guitarist-practice-resources.html</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/practice-images/2.png" alt="Practice resource 2" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/practice-images/2.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/new-guitarist-practice-resources.html" target="_blank">/new-guitarist-practice-resources.html</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/practice-images/3.png" alt="Practice resource 3" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/practice-images/3.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/new-guitarist-practice-resources.html" target="_blank">/new-guitarist-practice-resources.html</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/practice-images/4.png" alt="Practice resource 4" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/practice-images/4.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/new-guitarist-practice-resources.html" target="_blank">/new-guitarist-practice-resources.html</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/practice-images/5.png" alt="Practice resource 5" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/practice-images/5.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/new-guitarist-practice-resources.html" target="_blank">/new-guitarist-practice-resources.html</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/practice-images/6.png" alt="Practice resource 6" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/practice-images/6.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/new-guitarist-practice-resources.html" target="_blank">/new-guitarist-practice-resources.html</a></span></div>
+      </div>
+    </div>
+
+  </div><!-- /practice grid -->
+
+  <!-- ENGLEWOOD / HISTORY -->
+  <div class="subsection-title">Englewood History &amp; Venue</div>
+  <div class="grid">
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/englewood-gothic.jpg" alt="Englewood Gothic Theatre" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/englewood-gothic.jpg</div>
+        <div class="pages-label">Appears on:</div>
+        <div>
+          <span class="page-tag"><a href="https://www.coalcreekguitars.com/" target="_blank">/ (Homepage)</a></span>
+          <span class="page-tag"><a href="https://www.coalcreekguitars.com/ccg-englewood-broadway-gothic-theatre-history.html" target="_blank">/ccg-englewood-broadway-gothic-theatre-history.html</a></span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /englewood grid -->
+
+  <!-- FENDER SERIAL HISTORY -->
+  <div class="subsection-title">Fender Guitar Serial Number History — Article Photos</div>
+  <div class="grid">
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/serial-history/fender-history-01.png" alt="Fender CD-60SCE soundhole label" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/serial-history/fender-history-01.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/fender-guitar-serial-number-history.html" target="_blank">/fender-guitar-serial-number-history.html</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/serial-history/fender-history-02.jpg" alt="Fender CG-7 classical guitar soundhole label" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/serial-history/fender-history-02.jpg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/fender-guitar-serial-number-history.html" target="_blank">/fender-guitar-serial-number-history.html</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/serial-history/fender-history-03.jpg" alt="Fender DG-60 acoustic soundhole label" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/serial-history/fender-history-03.jpg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/fender-guitar-serial-number-history.html" target="_blank">/fender-guitar-serial-number-history.html</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/serial-history/fender-history-04.jpg" alt="Fender Paramount PM-3C soundhole label" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/serial-history/fender-history-04.jpg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/fender-guitar-serial-number-history.html" target="_blank">/fender-guitar-serial-number-history.html</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/serial-history/fender-history-05.jpg" alt="Fender JV Modified 50s Stratocaster neck plate serial" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/serial-history/fender-history-05.jpg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/fender-guitar-serial-number-history.html" target="_blank">/fender-guitar-serial-number-history.html</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/serial-history/fender-history-06.jpg" alt="Fender USA Telecaster headstock serial number" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/serial-history/fender-history-06.jpg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/fender-guitar-serial-number-history.html" target="_blank">/fender-guitar-serial-number-history.html</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/serial-history/fender-history-07.jpg" alt="Fender Standard Telecaster 1999 MN headstock serial" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/serial-history/fender-history-07.jpg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/fender-guitar-serial-number-history.html" target="_blank">/fender-guitar-serial-number-history.html</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/serial-history/fender-history-08.jpg" alt="Fender Standard Stratocaster 2000 MZ headstock serial" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/serial-history/fender-history-08.jpg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/fender-guitar-serial-number-history.html" target="_blank">/fender-guitar-serial-number-history.html</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/serial-history/fender-history-09.jpg" alt="Fender Telecaster Cabronita Special Edition neck plate" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/serial-history/fender-history-09.jpg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/fender-guitar-serial-number-history.html" target="_blank">/fender-guitar-serial-number-history.html</a></span></div>
+      </div>
+    </div>
+
+  </div><!-- /fender history grid -->
+
+  <!-- GIBSON SERIAL HISTORY -->
+  <div class="subsection-title">Gibson Guitar Serial Number History — Article Photos</div>
+  <div class="grid">
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/serial-history/gibson-history-01.jpg" alt="2002 Gibson Les Paul Studio headstock serial" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/serial-history/gibson-history-01.jpg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/gibson-guitar-serial-number-history.html" target="_blank">/gibson-guitar-serial-number-history.html</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/serial-history/gibson-history-02.jpg" alt="2024 Gibson Les Paul Custom headstock serial" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/serial-history/gibson-history-02.jpg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/gibson-guitar-serial-number-history.html" target="_blank">/gibson-guitar-serial-number-history.html</a></span></div>
+      </div>
+    </div>
+
+  </div><!-- /gibson history grid -->
+
+  <!-- BRAND LOGOS (content use — decoder navigation) -->
+  <div class="subsection-title">Brand Logos — Used as Content Images (Decoder Navigation &amp; History Articles)</div>
+  <div class="grid">
+
+    <div class="card">
+      <div class="card-img" style="background:#fff;">
+        <img src="https://www.coalcreekguitars.com/images/brand-logos/Gibson-logo.png" alt="Gibson logo" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/brand-logos/Gibson-logo.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div>
+          <span class="page-tag"><a href="https://www.coalcreekguitars.com/" target="_blank">/ (Homepage)</a></span>
+          <span class="page-tag"><a href="https://www.coalcreekguitars.com/gibson-guitar-serial-number-history.html" target="_blank">/gibson-guitar-serial-number-history.html</a></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img" style="background:#fff;">
+        <img src="https://www.coalcreekguitars.com/images/brand-logos/Fender-logo.jpg" alt="Fender logo" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/brand-logos/Fender-logo.jpg</div>
+        <div class="pages-label">Appears on:</div>
+        <div>
+          <span class="page-tag"><a href="https://www.coalcreekguitars.com/" target="_blank">/ (Homepage)</a></span>
+          <span class="page-tag"><a href="https://www.coalcreekguitars.com/fender-guitar-serial-number-history.html" target="_blank">/fender-guitar-serial-number-history.html</a></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img" style="background:#fff;">
+        <img src="https://www.coalcreekguitars.com/images/brand-logos/Taylor_guitar_logo.png" alt="Taylor logo" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/brand-logos/Taylor_guitar_logo.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/" target="_blank">/ (Homepage)</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img" style="background:#fff;">
+        <img src="https://www.coalcreekguitars.com/images/brand-logos/Martin_guitar_logo.png" alt="Martin logo" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/brand-logos/Martin_guitar_logo.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/" target="_blank">/ (Homepage)</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img" style="background:#fff;">
+        <img src="https://www.coalcreekguitars.com/images/brand-logos/Epiphone-Logo.png" alt="Epiphone logo" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/brand-logos/Epiphone-Logo.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/" target="_blank">/ (Homepage)</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img" style="background:#fff;">
+        <img src="https://www.coalcreekguitars.com/images/brand-logos/Prs_guitars_logo.png" alt="PRS logo" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/brand-logos/Prs_guitars_logo.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/" target="_blank">/ (Homepage)</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img" style="background:#fff;">
+        <img src="https://www.coalcreekguitars.com/images/brand-logos/Ibanez_guitars_logo.webp" alt="Ibanez logo" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/brand-logos/Ibanez_guitars_logo.webp</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/" target="_blank">/ (Homepage)</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img" style="background:#fff;">
+        <img src="https://www.coalcreekguitars.com/images/brand-logos/gretsch-guitars-logo.png" alt="Gretsch logo" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/brand-logos/gretsch-guitars-logo.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/" target="_blank">/ (Homepage)</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img" style="background:#fff;">
+        <img src="https://www.coalcreekguitars.com/images/brand-logos/Rickenbacker-logo.png" alt="Rickenbacker logo" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/brand-logos/Rickenbacker-logo.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/" target="_blank">/ (Homepage)</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img" style="background:#fff;">
+        <img src="https://www.coalcreekguitars.com/images/brand-logos/Jackson_guitars_logo.png" alt="Jackson logo" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/brand-logos/Jackson_guitars_logo.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/" target="_blank">/ (Homepage)</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img" style="background:#fff;">
+        <img src="https://www.coalcreekguitars.com/images/brand-logos/esp-logo.png" alt="ESP logo" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/brand-logos/esp-logo.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/" target="_blank">/ (Homepage)</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img" style="background:#fff;">
+        <img src="https://www.coalcreekguitars.com/images/brand-logos/Schecter_Guitar_Research_logo.svg" alt="Schecter logo" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/brand-logos/Schecter_Guitar_Research_logo.svg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/" target="_blank">/ (Homepage)</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img" style="background:#fff;">
+        <img src="https://www.coalcreekguitars.com/images/brand-logos/yamaha-logo.jpg" alt="Yamaha logo" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/brand-logos/yamaha-logo.jpg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/" target="_blank">/ (Homepage)</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img" style="background:#fff;">
+        <img src="https://www.coalcreekguitars.com/images/brand-logos/Ernie_ball_music_man_logo.png" alt="Ernie Ball Music Man logo" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/brand-logos/Ernie_ball_music_man_logo.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/" target="_blank">/ (Homepage)</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img" style="background:#fff;">
+        <img src="https://www.coalcreekguitars.com/images/brand-logos/Guild-logo.png" alt="Guild logo" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/brand-logos/Guild-logo.png</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/" target="_blank">/ (Homepage)</a></span></div>
+      </div>
+    </div>
+
+  </div><!-- /brand logos grid -->
+
+  <!-- SERIAL NUMBER EXAMPLES (decoder pages) -->
+  <div class="subsection-title">Serial Number Example Photos — Decoder Pages</div>
+  <div class="grid">
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/serial-number-examples/epiphone-electric.jpg" alt="Epiphone electric serial example" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/serial-number-examples/epiphone-electric.jpg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/decoders/epiphone-guitar-serial-number-decoder/" target="_blank">/decoders/epiphone-guitar-serial-number-decoder/</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/serial-number-examples/epiphone-acoustic.jpeg" alt="Epiphone acoustic serial example" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/serial-number-examples/epiphone-acoustic.jpeg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/decoders/epiphone-guitar-serial-number-decoder/" target="_blank">/decoders/epiphone-guitar-serial-number-decoder/</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/serial-number-examples/esp-serial.webp" alt="ESP serial example" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/serial-number-examples/esp-serial.webp</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/decoders/esp-guitar-serial-number-decoder/" target="_blank">/decoders/esp-guitar-serial-number-decoder/</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/serial-number-examples/fender-us-tele.jpeg" alt="Fender US Telecaster serial" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/serial-number-examples/fender-us-tele.jpeg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/decoders/fender-guitar-serial-number-decoder/" target="_blank">/decoders/fender-guitar-serial-number-decoder/</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/serial-number-examples/fender-california-label-closeup.jpg" alt="Fender California label closeup" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/serial-number-examples/fender-california-label-closeup.jpg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/decoders/fender-guitar-serial-number-decoder/" target="_blank">/decoders/fender-guitar-serial-number-decoder/</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/serial-number-examples/gibson-sg-serial-1984.jpg" alt="Gibson SG serial 1984" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/serial-number-examples/gibson-sg-serial-1984.jpg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/decoders/gibson-guitar-serial-number-decoder/" target="_blank">/decoders/gibson-guitar-serial-number-decoder/</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/serial-number-examples/gibson-les-paul-deluxe-serial.jpg" alt="Gibson Les Paul Deluxe serial" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/serial-number-examples/gibson-les-paul-deluxe-serial.jpg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/decoders/gibson-guitar-serial-number-decoder/" target="_blank">/decoders/gibson-guitar-serial-number-decoder/</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/serial-number-examples/gibson-j200-soundhole-label.jpg" alt="Gibson J200 soundhole label" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/serial-number-examples/gibson-j200-soundhole-label.jpg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/decoders/gibson-guitar-serial-number-decoder/" target="_blank">/decoders/gibson-guitar-serial-number-decoder/</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/serial-number-examples/ibanez-serial-example.jpg" alt="Ibanez serial example" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/serial-number-examples/ibanez-serial-example.jpg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/decoders/ibanez-guitar-serial-number-decoder/" target="_blank">/decoders/ibanez-guitar-serial-number-decoder/</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/serial-number-examples/jackson-serial.jpeg" alt="Jackson serial example" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/serial-number-examples/jackson-serial.jpeg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/decoders/jackson-guitar-serial-number-decoder/" target="_blank">/decoders/jackson-guitar-serial-number-decoder/</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/serial-number-examples/prs_serial.jpg" alt="PRS serial example" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/serial-number-examples/prs_serial.jpg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/decoders/prs-guitar-serial-number-decoder/" target="_blank">/decoders/prs-guitar-serial-number-decoder/</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/serial-number-examples/schecter-serial.jpg" alt="Schecter serial example" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/serial-number-examples/schecter-serial.jpg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/decoders/schecter-guitar-serial-number-decoder/" target="_blank">/decoders/schecter-guitar-serial-number-decoder/</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/serial-number-examples/squier-serial.jpeg" alt="Squier serial example" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/serial-number-examples/squier-serial.jpeg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/decoders/squier-guitar-serial-number-decoder/" target="_blank">/decoders/squier-guitar-serial-number-decoder/</a></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-img">
+        <img src="https://www.coalcreekguitars.com/images/serial-number-examples/taylor-serial.jpeg" alt="Taylor serial example" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="img-url">https://www.coalcreekguitars.com/images/serial-number-examples/taylor-serial.jpeg</div>
+        <div class="pages-label">Appears on:</div>
+        <div><span class="page-tag"><a href="https://www.coalcreekguitars.com/decoders/taylor-guitar-serial-number-decoder/" target="_blank">/decoders/taylor-guitar-serial-number-decoder/</a></span></div>
+      </div>
+    </div>
+
+  </div><!-- /serial examples grid -->
+
+</div><!-- /self-hosted section -->
+
+<div style="padding: 1rem 2rem 3rem; color: #4a5568; font-size: 0.78rem;">
+  <strong>Audit notes:</strong>
+  The guitar-value-report-evaluation/sample-report.html page contains 9 base64-encoded inline images (embedded directly in the HTML, no external URL) — these are omitted from this audit as they have no URL to review.
+  The guitar-repair-demo-lesson-videos.html page fetches YouTube video thumbnails at runtime from i.ytimg.com via the /api/youtube/videos endpoint; these are dynamically injected and not present in the static HTML source.
+  Pages with only the site logo image (about-us, contact-us, faq, privacy-policy, terms-conditions) are excluded from the image grid as the CCG logo is a site-chrome element.
+  Brand logos in /images/brand-logos/ are included because they are used as navigational content images linking to decoder pages, not as decorative icons.
+  Serial-number-example images on decoder pages are included as they are substantive content photos.
+</div>
+
+</body>
+</html>

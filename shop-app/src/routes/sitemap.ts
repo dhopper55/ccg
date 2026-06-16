@@ -45,14 +45,6 @@ const sitemap: MenuItem[] = [
         active: true,
       },
       {
-        name: 'Repair Videos',
-        key: 'repair_videos',
-        path: 'https://www.coalcreekguitars.com/guitar-repair-demo-lesson-videos',
-        pathName: 'repair-videos',
-        icon: 'material-symbols:play-circle-outline-rounded',
-        active: true,
-      },
-      {
         name: 'About Us',
         key: 'about_us',
         path: 'https://www.coalcreekguitars.com/about-us',

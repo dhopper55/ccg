@@ -81,11 +81,9 @@ const SITEMAP_STATIC_URLS = [
   { loc: '/fender-guitar-serial-number-history.html', changefreq: 'monthly', priority: '0.7' },
   { loc: '/gibson-guitar-serial-number-history.html', changefreq: 'monthly', priority: '0.7' },
   { loc: '/ccg-englewood-broadway-gothic-theatre-history.html', changefreq: 'monthly', priority: '0.6' },
-  { loc: '/new-guitarist-practice-resources', changefreq: 'monthly', priority: '0.7' },
   { loc: '/contact-us.html', changefreq: 'monthly', priority: '0.6' },
   { loc: '/privacy-policy.html', changefreq: 'monthly', priority: '0.3' },
   { loc: '/terms-conditions.html', changefreq: 'monthly', priority: '0.3' },
-  { loc: '/guitar-repair-demo-lesson-videos.html', priority: '0.6' },
 ];
 const SHOP_BASE_PATH = '/guitars-and-gear-for-sale';
 const SHOP_STATIC_ORIGIN = 'https://ccg-2k1.pages.dev';
