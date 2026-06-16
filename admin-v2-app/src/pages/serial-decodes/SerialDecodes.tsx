@@ -53,6 +53,7 @@ type SerialDecodeRecord = {
   factory: string | null;
   country: string | null;
   error: string | null;
+  hasGAiAnalysis: boolean;
 };
 
 type SerialDecodesResponse = {
@@ -938,6 +939,30 @@ const SerialDecodes = () => {
                             >
                               Pattern
                             </Button>
+                          ) : null}
+                          {record.hasGAiAnalysis ? (
+                            <Tooltip title="AI analysis stored for this record">
+                              <IconButton
+                                size="small"
+                                aria-label="AI analysis stored"
+                                onClick={(event) => event.stopPropagation()}
+                                sx={{
+                                  color: '#ff9800',
+                                  border: '1px solid',
+                                  borderColor: 'rgba(255, 152, 0, 0.4)',
+                                  width: 30,
+                                  height: 30,
+                                  '&:hover': {
+                                    backgroundColor: 'rgba(255, 152, 0, 0.08)',
+                                    borderColor: '#ff9800',
+                                  },
+                                }}
+                              >
+                                <Typography sx={{ fontSize: '10px', fontWeight: 700, lineHeight: 1, color: '#ff9800' }}>
+                                  AI
+                                </Typography>
+                              </IconButton>
+                            </Tooltip>
                           ) : null}
                           <Tooltip title="Search Google for this serial number">
                             <IconButton

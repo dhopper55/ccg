@@ -8149,6 +8149,17 @@ async function handleAdminV2SerialDecodeEvaluatedUpdate(
 
   // Yes path: try decode first, then AI if needed
   if (evaluated && isValid === true) {
+    // Persist AI analysis text immediately (best-effort — column may not exist yet)
+    if (aiAnalysisText && aiAnalysisText.toLowerCase() !== 'n/a') {
+      try {
+        await env.DB.prepare(
+          `UPDATE serial_decode_events SET g_ai_analysis = ? WHERE id = ?`
+        ).bind(aiAnalysisText.slice(0, 20000), parseInt(recordId, 10)).run();
+      } catch {
+        // g_ai_analysis column not yet added — safe to ignore
+      }
+    }
+
     const keyRow = await env.DB.prepare(
       `SELECT brand, serial, normalized_brand FROM serial_decode_events WHERE id = ?`
     ).bind(parseInt(recordId, 10)).first<{ brand: string | null; serial: string | null; normalized_brand: string | null }>();
@@ -15062,6 +15073,7 @@ async function dbListAdminV2SerialDecodes(
         e.factory,
         e.country,
         e.error,
+        CASE WHEN COALESCE(e.g_ai_analysis, '') <> '' THEN 1 ELSE 0 END AS has_g_ai_analysis,
         COALESCE(
           datetime(e.client_timestamp),
           datetime(e.event_time_utc),
@@ -15085,6 +15097,7 @@ async function dbListAdminV2SerialDecodes(
       factory: string | null;
       country: string | null;
       error: string | null;
+      has_g_ai_analysis: number | null;
     }>();
   } catch (error) {
     console.warn('Serial decode list query fell back to legacy schema', { error });
@@ -15139,6 +15152,7 @@ async function dbListAdminV2SerialDecodes(
     factory: normalizeText(row.factory, '') || null,
     country: normalizeText(row.country, '') || null,
     error: normalizeText(row.error, '') || null,
+    hasGAiAnalysis: Number((row as { has_g_ai_analysis?: number | null }).has_g_ai_analysis || 0) === 1,
   }));
 
   return {
