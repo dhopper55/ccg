@@ -59,6 +59,7 @@ export function deriveExplicitRegexFromKnownPatternKey(patternKey: string): stri
     'schecter-rn-yymm-sequence': '^RN\\d{8}$',
     'schecter-ro-indonesia-yy-sequence': '^RO\\d{8}$',
     'schecter-st-yymm-sequence': '^ST\\d{8}$',
+    'schecter-wa-korea-yymm-sequence': '^WA\\d{8}$',
     'schecter-usa-5-digit-yy-sequence': '^\\d{5}$',
     'schecter-vintage-van-nuys-s-sequence': '^S\\d{3,6}$',
     'taylor-legacy-9-digit-year-code': '^\\d{9}$',

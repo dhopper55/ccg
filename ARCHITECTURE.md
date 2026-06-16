@@ -192,44 +192,72 @@ All `/api/*` endpoints require auth except:
 - Wrangler config: `workers/listing-evaluator/wrangler.toml`
 - Routes include `https://www.coalcreekguitars.com/api/*`, `https://www.coalcreekguitars.com/sitemap.xml`, `https://www.coalcreekguitars.com/robots.txt`, and shop route handling for dynamic SEO fallbacks.
 
-### Serial decoding flow
-The serial decoder feature spans both the static site and the worker:
+### Serial decoding flow (V1 and V2)
+The serial decoder feature spans both the static site and the worker. There are two decode paths: V1 (default) and V2 (feature-flagged via `sys_info.use_v2_decode_logic`).
 
 1. Decoder page UI
    - React UI in `shop-app/src/pages/decoders/`
    - Collects `brand`, `serial`, `pagePath`, `userAgent`, and `clientTimestamp`
    - Sends them to `POST /api/decode`
 
-2. Server-side decode
-   - Worker handler: `handleDecodeRequest(...)` in `workers/listing-evaluator/src/index.ts`
+2. Server-side decode — V2 path (feature-flagged)
+   - `handleDecodeRequest(...)` checks `sys_info.use_v2_decode_logic`
+   - If V2 is ON: calls `decodeSerialV2(brand, serial, env)` from `workers/listing-evaluator/src/v2-serial-decode.ts`
+   - V2 queries `serial_patterns_v2` in D1 for the brand's patterns (60-second in-memory cache per brand)
+   - Loops through patterns by priority, tests regex, applies template type to decode
+   - Template types: `prefix-yymm-seq`, `prefix-yy-seq`, `numeric-yymm-seq`, `three-letter-prefix-modelcode-yy-seq`, `bespoke`
+   - `bespoke` rows match the serial but always return null — V2 hands off to V1
+   - If V2 returns null (no match or bespoke), falls through to V1
+
+3. Server-side decode — V1 path (default)
    - Calls `decodeSerialForBackend(...)` from `src/serial-decode-service.ts`
    - `decodeSerialForBackend(...)` selects the brand decoder from `src/decoders/*.ts`
    - Backend can still reject a brand-decoder match if the result is too ambiguous for server acceptance
    - Worker may optionally try AI fallback if rule-based decoding fails
 
-3. Persistence/context
+4. Persistence/context
    - Worker logs decode attempts to `serial_decode_events`
    - On successful decodes, worker derives pattern keys and upserts `serial_decode_pattern_lookup`
    - Rich text from `serial_decode_pattern_lookup` can be returned as additional decoder context
 
-Practical rule:
+Toggle: V2 is enabled/disabled from Admin V2 → System Settings → "V2 Decode Logic". The fallback chain means no regression risk: if V2 returns null, V1 handles it.
+
+Practical rules:
 - If you change `src/decoders/*.ts` or `src/serial-decode-service.ts`, assume `/api/decode` behavior changed and deploy the worker.
+- If you add/change rows in `serial_patterns_v2` (D1), V2 behavior changes after the 60-second cache expires — no worker deploy needed.
+- If you change `v2-serial-decode.ts` (template types, engine), deploy the worker.
 - If you change decoder page markup, styling, or browser-side UX in `shop-app/src/pages/decoders/`, deploy Pages.
 - Some changes touch both and require both deploy paths.
 
 ### Adding support for a new serial number pattern
 
-When asked to add support for a new serial format (e.g. "add decoding for 10-digit BC Rich serials"), all of the following steps are required — skipping any one of them leaves the feature incomplete:
+There are two paths depending on whether the pattern fits V2 templates or requires custom logic.
 
-1. **Add the decoder branch** in `src/decoders/<brand>.ts`. This is what makes `decodeSerialForBackend` return `success: true` for the new format. Without this, the serial always fails regardless of any other changes. The function must return a full `DecodeResult` with `info`, `patternKey`, `patternLabel`, `additionalContext`, and `additionalContextRichText` matching the style of existing branches in that file.
+**Path A — V2 D1 insert (preferred, no deploy needed)**
+
+If the serial has a fixed letter prefix + fixed-century year (YYMM or YY) + sequence, it can be added as a row in `serial_patterns_v2` using an existing template type. This is the preferred path when V2 is active — no code change, no worker deploy.
+
+1. Determine the template type: `prefix-yymm-seq`, `prefix-yy-seq`, or `numeric-yymm-seq`.
+2. Insert a row into `serial_patterns_v2` via `npx wrangler d1 execute listing_evaluator --remote --command="INSERT OR IGNORE ..."`.
+3. V2 picks it up within 60 seconds (cache TTL). If an admin marked a serial as valid via the Admin evaluate flow with AI analysis, this insert may have already happened automatically.
+
+Patterns that do NOT fit V2 templates (require Path B): dynamic/threshold-based century, factory map lookups, week-based formats (YYWW), letter-code year systems, month encoded as a single digit or letter, interleaved year digits, range-based year lookups.
+
+**Path B — V1 code change (required for complex patterns)**
+
+When asked to add support for a new serial format that requires custom decode logic, all of the following steps are required — skipping any one leaves the feature incomplete:
+
+1. **Add the decoder branch** in `src/decoders/<brand>.ts`. This is what makes `decodeSerialForBackend` return `success: true` for the new format. The function must return a full `DecodeResult` with `info`, `patternKey`, `patternLabel`, `additionalContext`, and `additionalContextRichText` matching the style of existing branches in that file.
 
 2. **Register the pattern regex** in `deriveExplicitRegexFromKnownPatternKey(...)` inside `workers/listing-evaluator/src/serial-pattern-registry.ts`. Add a `'<brand>-<pattern-key>': '^<regex>$'` entry so the pattern infrastructure can match future events to their pattern row by regex.
 
-3. **Update the decoder header comment** at the top of `src/decoders/<brand>.ts` to document the new format in the supported-formats list.
+3. **Add a bespoke row** in `serial_patterns_v2` for the new pattern so V2 knows to hand it off to V1 rather than returning null for unrecognized serials.
 
-4. **Update the fallback error message** at the bottom of the brand's `decode<Brand>(...)` function to mention the new format so users get an accurate "known formats" hint on a true failure.
+4. **Update the decoder header comment** at the top of `src/decoders/<brand>.ts` to document the new format in the supported-formats list.
 
-5. **Deploy both the worker and the decoder source** — the decoder lives in `src/` (compiled into the worker bundle) so a worker deploy is always required. If the decoder page UI is also changing, deploy Pages too.
+5. **Update the fallback error message** at the bottom of the brand's `decode<Brand>(...)` function to mention the new format.
+
+6. **Deploy the worker** — the decoder lives in `src/` (compiled into the worker bundle).
 
 The `serial_decode_pattern_lookup` table does not need manual SQL for new patterns — rows are created automatically the first time a serial matching the new format is decoded successfully.
 
@@ -389,7 +417,13 @@ The `serial_decode_pattern_lookup` table does not need manual SQL for new patter
 - `GET /api/admin-v2/serial-decodes/brand-responses`
   - Admin V2 chart payload for response counts by brand (descending)
 - `POST /api/admin-v2/serial-decodes/:id/evaluated`
-  - Toggle one serial decode row `evaluated` state (`true/false`)
+  - Toggle one serial decode row `evaluated` state
+  - Body `{ evaluated: false }` — marks row as not evaluated
+  - Body `{ evaluated: true, isValid: false }` — marks serial as invalid, no AI call
+  - Body `{ evaluated: true, isValid: true, aiAnalysisText: "..." }` — AI-assisted evaluation:
+    - Calls Claude (`claude-haiku-4-5-20251001`) to classify the serial as Bucket 1 (D1 insert) or Bucket 2 (needs developer)
+    - Bucket 1: auto-inserts a row into `serial_patterns_v2`, then marks serial evaluated + valid
+    - Bucket 2: returns `{ needsDeveloper: true }` without marking the serial as evaluated
 - `GET /api/admin-v2/serial-pattern-text`
   - Admin V2 serial pattern text grid data (paged/sorted, optional show-all)
 - `POST /api/admin-v2/serial-pattern-text`
@@ -486,6 +520,14 @@ Tables:
   - Content fields: `regex_pattern`, `rich_text`, timestamps
   - Populated automatically from successful decode traffic (upsert on pattern)
   - Edited from Admin V2 Serial Pattern Text page
+- `serial_patterns_v2`
+  - D1-backed pattern registry for the V2 serial decode engine
+  - Fields: `brand`, `pattern_key` (UNIQUE), `pattern_label`, `regex`, `template_type`, `params` (JSON), `priority`, `active`
+  - One row per known serial pattern per brand; brand-scoped queries prevent cross-brand regex conflicts
+  - Template types: `prefix-yymm-seq`, `prefix-yy-seq`, `numeric-yymm-seq`, `three-letter-prefix-modelcode-yy-seq`, `bespoke`
+  - `bespoke` rows match serials but always return null so V1 handles decode; used to document known-complex patterns
+  - All 26 supported brands have full pattern coverage (350 rows across all brands as of initial migration)
+  - New rows inserted automatically by the Admin evaluate+AI flow for Bucket 1 patterns
 - `sys_info`
   - One-row system configuration table
   - Stores Stripe production/sandbox secret keys and tax rate ids
@@ -543,6 +585,7 @@ D1 workflow rules:
 - `AUTH_PASS`
 - `AUTH_SECRET`
 Optional:
+- `ANTHROPIC_API_KEY` (optional) — used by the Admin serial evaluate flow to classify failed serials via Claude
 - `REVERB_API_TOKEN`
 - `STRIPE_CO_SALES_TAX_RATE_ID` fallback only; D1 `sys_info` is the Stripe tax id source of truth once populated
 - `STRIPE_TERMINAL_READER_ID`

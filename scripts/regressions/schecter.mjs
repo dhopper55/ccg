@@ -268,6 +268,30 @@ function assertSchecterLongNumericImport(serialInput, expectedYear) {
   );
 }
 
+function assertSchecterWAPrefix(serialInput) {
+  const result = decodeSchecter(serialInput);
+  assert(result.success, `Expected decode success for Schecter ${serialInput}`);
+  assert(result.info, `Expected decoded info for Schecter ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '2025', `Expected year 2025 for ${serialInput}, got ${info.year}`);
+  assert(info.month === 'December', `Expected month December for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'World Audio / Korean import factory',
+    `Expected World Audio / Korean import factory for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'South Korea', `Expected South Korea for ${serialInput}, got ${info.country}`);
+  assert(info.model === 'Diamond Series import', `Expected Diamond Series import for ${serialInput}, got ${info.model}`);
+  assert(
+    result.patternKey === 'schecter-wa-korea-yymm-sequence',
+    `Expected Schecter WA pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('production sequence 53'),
+    `Expected production sequence 53 in rich text for ${serialInput}`
+  );
+}
+
 function assertSchecterCSPrefix(serialInput, expectedYear, expectedMonth) {
   const result = decodeSchecter(serialInput);
   assert(result.success, `Expected decode success for Schecter ${serialInput}`);
@@ -305,4 +329,5 @@ export function runTests() {
   assertSchecterLegacy6Digit('527007');
   assertSchecterLongNumericImport('178152249447', '2017');
   assertSchecterCSPrefix('CS22100612', '2022', 'October');
+  assertSchecterWAPrefix('wa25120053');
 }

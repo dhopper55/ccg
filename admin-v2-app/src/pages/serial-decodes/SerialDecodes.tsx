@@ -630,6 +630,7 @@ const SerialDecodes = () => {
   const handleEvaluatedToggle = async (recordId: number, nextValue: boolean) => {
     if (nextValue) {
       setEvaluatedPendingRecordId(recordId);
+      setAiAnalysisText('N/A');
       return;
     }
     setUpdatingEvaluatedIds((current) => [...current, recordId]);
@@ -689,10 +690,6 @@ const SerialDecodes = () => {
   };
 
   const handleValidityYes = async () => {
-    if (!aiAnalysisText.trim()) {
-      setAiAnalysisDialogError('Paste the AI analysis before confirming.');
-      return;
-    }
     const recordId = evaluatedPendingRecordId;
     if (recordId === null) return;
     setAiAnalysisDialogError('');
@@ -709,11 +706,17 @@ const SerialDecodes = () => {
         evaluated?: boolean;
         updatedCount?: number;
         needsDeveloper?: boolean;
+        decodeFailed?: boolean;
         message?: string;
       };
       if (data.needsDeveloper) {
         closeValidityDialog();
         setDeveloperNeededMessage('This serial pattern requires a developer to implement. Serial not marked as evaluated.');
+        return;
+      }
+      if (data.decodeFailed) {
+        setAiAnalysisDialogError(data.message || 'This serial still did not decode. Paste AI analysis text to continue.');
+        setProcessingAI(false);
         return;
       }
       if (!response.ok) {

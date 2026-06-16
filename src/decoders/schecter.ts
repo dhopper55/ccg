@@ -45,6 +45,11 @@ export function decodeSchecter(serial: string): DecodeResult {
     return decodeIndonesiaN(normalized);
   }
 
+  // Korea WA prefix: WA + YYMM + 4-digit sequence (World Audio / Korean factory)
+  if (/^WA\d{8}$/.test(normalized)) {
+    return decodeKoreaWA(normalized);
+  }
+
   // Korea/Indonesia W prefix: W + 8-9 digits (World/Wildwood)
   // 8 digits = Korea, 9 digits = Indonesia
   if (/^W\d{8,9}$/.test(normalized)) {
@@ -393,6 +398,59 @@ function decodeIndonesiaN(serial: string): DecodeResult {
     notes: `N prefix = Indonesia, exact factory unknown. Commonly seen on bolt-on models. Sequence: ${sequence}.`
   };
   return { success: true, info };
+}
+
+function decodeKoreaWA(serial: string): DecodeResult {
+  const digits = serial.substring(2);
+  const { year, month, sequence } = parseStandardDigits(digits);
+
+  if (!month) {
+    return {
+      success: false,
+      error: 'Unable to decode this Schecter WA serial number. The month field appears invalid.',
+    };
+  }
+
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Schecter',
+    serialNumber: serial,
+    year,
+    month,
+    factory: 'World Audio / Korean import factory',
+    country: 'South Korea',
+    model: 'Diamond Series import',
+    notes: `WA prefix indicates a Schecter import production run associated with World Audio or a related Korean factory partner. Parsed as WA + YYMM + sequence. Sequence: ${sequence}. This format identifies production date and factory family, not the exact model name; verify the exact model from the headstock, truss rod cover, or label.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'schecter-wa-korea-yymm-sequence',
+    patternLabel: 'Schecter WA Korea YYMM sequence',
+    additionalContext: {
+      title: 'Schecter WA serial',
+      summary: 'This serial matches a Schecter WA-prefix Korean import format parsed as factory prefix plus YYMM production date and sequence.',
+      highlights: [
+        'WA indicates a Schecter import production run associated with World Audio or a related Korean factory partner.',
+        `The digits ${digits.substring(0, 2)} decode as production year ${year}.`,
+        `The digits ${digits.substring(2, 4)} decode as ${month}.`,
+        `The final four digits decode as production sequence ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'This format identifies production date and factory family, not the exact model name.',
+        'WA-prefix examples are import/Diamond Series instruments rather than USA Custom Shop guitars.',
+        'Factory-code usage can vary by production run, so confirm with physical markings when provenance matters.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock for the country-of-origin marking.',
+        'Check the headstock, truss rod cover, or label for the model name.',
+        'Contact Schecter support with photos of the serial and full instrument if exact factory confirmation is needed.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Schecter WA-prefix Korean import format parsed as factory prefix plus YYMM production date and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>WA indicates a Schecter import production run associated with World Audio or a related Korean factory partner. The digits ${digits.substring(0, 2)} decode as production year ${year}. The digits ${digits.substring(2, 4)} decode as ${month}. The final four digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This format identifies production date and factory family, not the exact model name.</li><li>WA-prefix examples are import/Diamond Series instruments rather than USA Custom Shop guitars.</li><li>Factory-code usage can vary by production run, so confirm with physical markings when provenance matters.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a practical Korean Schecter production decode, then verify the exact model from the headstock, truss rod cover, label, or Schecter support.</p>`,
+  };
 }
 
 function decodeW(serial: string): DecodeResult {

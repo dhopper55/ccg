@@ -1588,6 +1588,16 @@ async function handleDecodeRequest(request: Request, env: Env): Promise<Response
     });
   }
 
+  if (result.success) {
+    const successBrand = (result.info?.brand || brand).slice(0, 120);
+    const successSerial = (result.info?.serialNumber || serial).slice(0, 180);
+    try {
+      await dbMarkPriorDecodeFailuresAsValid(successBrand, successSerial, env);
+    } catch (error) {
+      console.error('prior failure auto-mark failed', { error });
+    }
+  }
+
   return jsonResponse({
     ...result,
     patternKey: patternKey || undefined,
@@ -8137,8 +8147,8 @@ async function handleAdminV2SerialDecodeEvaluatedUpdate(
   const isValid = body.isValid === true ? true : body.isValid === false ? false : undefined;
   const aiAnalysisText = typeof body.aiAnalysisText === 'string' ? body.aiAnalysisText.trim() : '';
 
-  // Yes + AI text path: classify the serial and try a D1 insert before marking evaluated
-  if (evaluated && isValid === true && aiAnalysisText) {
+  // Yes path: try decode first, then AI if needed
+  if (evaluated && isValid === true) {
     const keyRow = await env.DB.prepare(
       `SELECT brand, serial, normalized_brand FROM serial_decode_events WHERE id = ?`
     ).bind(parseInt(recordId, 10)).first<{ brand: string | null; serial: string | null; normalized_brand: string | null }>();
@@ -8151,6 +8161,33 @@ async function handleAdminV2SerialDecodeEvaluatedUpdate(
     const serial = keyRow.serial;
     const normalizedBrand = keyRow.normalized_brand || normalizeBrandKey(brand);
 
+    // Try decode with V1 backend — if it works now, mark valid without needing AI text
+    const decodeCheck = decodeSerialForBackend(brand, serial);
+    if (decodeCheck.success && decodeCheck.info && hasMeaningfulServerDecodeInfo(decodeCheck.info)) {
+      const autoResult = await dbSetSerialDecodeEvaluated(recordId, true, env, true);
+      if (!autoResult) return jsonResponse({ message: 'Unable to update evaluated state.' }, 500);
+      if (autoResult.activityCandidate && !autoResult.activityCandidate.wasEvaluated && !autoResult.activityCandidate.success) {
+        const brandCtx = buildBrandActivityContext(autoResult.activityCandidate.brand, autoResult.activityCandidate.normalizedBrand);
+        await insertActivityLogBestEffort(env, {
+          eventKey: 'failed_serial_evaluated',
+          eventText: `Failed ${brandCtx.brandLabel} Serial Number ${autoResult.activityCandidate.serial} evaluated by an admin.`,
+          eventUrl: brandCtx.decoderUrl,
+          imageUrl: brandCtx.imageUrl,
+          entityType: 'serial_decode',
+          entityId: recordId,
+          metadata: { brand: brandCtx.brandLabel, serial: autoResult.activityCandidate.serial },
+        });
+      }
+      return jsonResponse({ ok: true, evaluated: autoResult.evaluated, updatedCount: autoResult.updatedCount });
+    }
+
+    // Decode still failed — require meaningful AI text (not empty and not the N/A default)
+    const isNaOrEmpty = !aiAnalysisText || aiAnalysisText.trim().toLowerCase() === 'n/a';
+    if (isNaOrEmpty) {
+      return jsonResponse({ message: 'This serial still did not decode. Paste AI analysis text to continue.', decodeFailed: true }, 422);
+    }
+
+    // AI bucket classification
     const bucketResult = await callAnthropicForSerialPatternBucket(brand, serial, aiAnalysisText, env);
 
     if (bucketResult.bucket === 2) {
@@ -8176,7 +8213,6 @@ async function handleAdminV2SerialDecodeEvaluatedUpdate(
       console.log('[serial-bucket] bucket 1 — pattern inserted', { pattern_key: bucketResult.pattern_key });
     } catch (error) {
       console.error('[serial-bucket] D1 insert failed', { error });
-      // Continue to mark as evaluated even if insert fails
     }
   }
 
@@ -15871,6 +15907,18 @@ async function dbSetSerialDecodeEvaluated(
     evaluated: Number(row.evaluated || 0) === 1,
     updatedCount: Number(updateResult.meta.changes || 0),
   };
+}
+
+async function dbMarkPriorDecodeFailuresAsValid(brand: string, serial: string, env: Env): Promise<void> {
+  if (!brand || !serial) return;
+  await env.DB.prepare(
+    `UPDATE serial_decode_events
+     SET evaluated = 1, is_invalid = 0
+     WHERE lower(trim(brand)) = lower(trim(?))
+       AND lower(trim(serial)) = lower(trim(?))
+       AND COALESCE(success, 0) = 0
+       AND COALESCE(evaluated, 0) = 0`
+  ).bind(brand, serial).run();
 }
 
 async function dbDeleteSerialDecodeRecord(
