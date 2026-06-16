@@ -5,9 +5,11 @@
  * Returns null when no D1 pattern matches — caller falls through to V1 code.
  *
  * Template types:
- *   prefix-yymm-seq  — fixed prefix + YY + MM + sequence (most common import format)
- *   prefix-yy-seq    — fixed prefix + YY + sequence (no month)
- *   numeric-yymm-seq — all-numeric, year/month at specified positions
+ *   prefix-yymm-seq                    — fixed prefix + YY + MM + sequence
+ *   prefix-yy-seq                      — fixed prefix + YY + sequence (no month)
+ *   numeric-yymm-seq                   — all-numeric, year/month at specified positions
+ *   three-letter-prefix-modelcode-yy-seq — Jackson 3-letter country/factory/brand prefix
+ *   bespoke                            — regex acts as exclusion guard; always returns null (V1 handles it)
  */
 
 import { DecodeResult, GuitarInfo } from '../../../src/types.js';
@@ -46,13 +48,20 @@ interface PrefixYYParams {
 
 interface NumericYYMMParams {
   yearStart: number;
-  monthStart: number;
+  monthStart?: number;
   seqStart: number;
   brand: string;
   factory: string;
   country: string;
   model?: string;
   yearCentury: number;
+}
+
+interface ThreeLetterPrefixParams {
+  brand: string;
+  yearCentury: number;
+  indonesiaFactoryCodes: Record<string, string>;
+  chinaFactoryCodes: Record<string, string>;
 }
 
 const MONTH_NAMES = [
@@ -97,7 +106,6 @@ function decodePrefixYY(serial: string, patternKey: string, patternLabel: string
   if (Number.isNaN(yy)) return null;
 
   const year = (params.yearCentury + yy).toString();
-  const sequence = digits.substring(2);
 
   const info: GuitarInfo = {
     brand: params.brand,
@@ -113,20 +121,23 @@ function decodePrefixYY(serial: string, patternKey: string, patternLabel: string
 
 function decodeNumericYYMM(serial: string, patternKey: string, patternLabel: string, params: NumericYYMMParams): DecodeResult | null {
   const yy = parseInt(serial.substring(params.yearStart, params.yearStart + 2), 10);
-  const mm = parseInt(serial.substring(params.monthStart, params.monthStart + 2), 10);
-  if (Number.isNaN(yy) || Number.isNaN(mm)) return null;
-
-  const month = monthName(mm);
-  if (!month) return null;
+  if (Number.isNaN(yy)) return null;
 
   const year = (params.yearCentury + yy).toString();
-  const sequence = serial.substring(params.seqStart);
+
+  let month: string | undefined;
+  if (params.monthStart !== undefined && params.monthStart >= 0) {
+    const mm = parseInt(serial.substring(params.monthStart, params.monthStart + 2), 10);
+    if (Number.isNaN(mm)) return null;
+    month = monthName(mm);
+    if (!month) return null;
+  }
 
   const info: GuitarInfo = {
     brand: params.brand,
     serialNumber: serial,
     year,
-    month,
+    ...(month ? { month } : {}),
     factory: params.factory,
     country: params.country,
     ...(params.model ? { model: params.model } : {}),
@@ -135,7 +146,42 @@ function decodeNumericYYMM(serial: string, patternKey: string, patternLabel: str
   return { success: true, info, patternKey, patternLabel };
 }
 
+function decodeThreeLetterPrefix(serial: string, patternKey: string, patternLabel: string, params: ThreeLetterPrefixParams): DecodeResult | null {
+  const letterPrefix = serial.substring(0, 3);
+  const yearDigits = serial.substring(5, 7);
+  const year = params.yearCentury + parseInt(yearDigits, 10);
+
+  if (Number.isNaN(year)) return null;
+
+  let country = 'Unknown';
+  let factory: string | undefined;
+
+  if (letterPrefix[0] === 'I') {
+    country = 'Indonesia';
+    factory = params.indonesiaFactoryCodes[letterPrefix[1]] ?? `Indonesian factory (${letterPrefix[1]})`;
+  } else if (letterPrefix[0] === 'C') {
+    country = 'China';
+    factory = params.chinaFactoryCodes[letterPrefix[1]] ?? `Chinese factory (${letterPrefix[1]})`;
+  } else if (letterPrefix[0] === 'N') {
+    country = 'India';
+    factory = 'Jackson India';
+  }
+
+  const info: GuitarInfo = {
+    brand: params.brand,
+    serialNumber: serial,
+    year: year.toString(),
+    country,
+    ...(factory ? { factory } : {}),
+  };
+
+  return { success: true, info, patternKey, patternLabel };
+}
+
 function applyTemplate(serial: string, row: SerialPatternV2Row): DecodeResult | null {
+  // bespoke patterns always defer to V1
+  if (row.template_type === 'bespoke') return null;
+
   let params: unknown;
   try {
     params = JSON.parse(row.params);
@@ -150,6 +196,8 @@ function applyTemplate(serial: string, row: SerialPatternV2Row): DecodeResult | 
       return decodePrefixYY(serial, row.pattern_key, row.pattern_label, params as PrefixYYParams);
     case 'numeric-yymm-seq':
       return decodeNumericYYMM(serial, row.pattern_key, row.pattern_label, params as NumericYYMMParams);
+    case 'three-letter-prefix-modelcode-yy-seq':
+      return decodeThreeLetterPrefix(serial, row.pattern_key, row.pattern_label, params as ThreeLetterPrefixParams);
     default:
       return null;
   }
