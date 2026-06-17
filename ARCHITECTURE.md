@@ -160,6 +160,33 @@ Implementation notes:
   - Add mode behavior: if row had empty rich text, server runs AI paraphrase into standardized Coal Creek structure before save
   - Update mode behavior: if row already had content, server saves edited HTML directly (sanitized)
 
+## Template dead code
+
+Both `admin-v2-app` and `shop-app` were built on a purchased React template.
+The following directories contain template demo code that is never imported by
+production routes and should be ignored:
+
+**admin-v2-app/src/**
+- `docs/` — component documentation pages
+- `pages/dashboards/` — CRM, HRM, ECommerce, Hiring, TimeTracker, Analytics demos
+- `pages/apps/` — calendar, chat, email, file-manager, kanban demos
+- `pages/landing/`, `pages/changelog/`, `pages/events/`, `pages/misc/`, `pages/pricing/`
+- `data/crm/`, `data/calendar`, `data/chat`, `data/email`, `data/events`,
+  `data/file-manager`, `data/hiring/`, `data/hrm/`, `data/kanban/`, `data/landing/`,
+  `data/project/`, `data/social`, `data/time-tracker/`, `data/users`
+- `components/sections/` subdirectories mirroring the above (dashboards/, calendar/,
+  chat/, crm/, email/, events/, file-manager/, hiring/, hrm/, kanban/, landing/,
+  time-tracker/)
+
+**Production code lives in:**
+- `pages/inventory-manager/`, `pages/listing-evaluator/`, `pages/order-manager/`
+- `pages/serial-decodes/`, `pages/serial-pattern-text/`, `pages/value-reports/`
+- `pages/shop-statistics/`, `pages/system-settings/`, `pages/mfr-orders/`
+- `pages/payment-links/`, `pages/others/Starter.tsx`, `pages/authentication/`
+- `components/base/`, `components/common/`, `components/guard/`
+- `layouts/main-layout/`, `layouts/auth-layout/`
+- `providers/`, `routes/`, `lib/`
+
 ## Auth
 The public site and the admin surfaces do not use the same access model.
 
