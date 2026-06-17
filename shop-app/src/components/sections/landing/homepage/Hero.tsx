@@ -286,8 +286,8 @@ const Hero = () => {
             <RevealImage>
               <Image
                 src={{
-                  light: `${assetsDir}/images/landing/hero/1.webp`,
-                  dark: `${assetsDir}/images/landing/hero/1-dark.webp`,
+                  light: `https://www.coalcreekguitars.com/images/showroom/multi-headstock.jpeg`,
+                  dark: `https://www.coalcreekguitars.com/images/showroom/multi-headstock.jpeg`,
                 }}
                 sx={{
                   position: { lg: 'absolute' },
