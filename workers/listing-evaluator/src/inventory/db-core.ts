@@ -4,6 +4,7 @@ import type { InventoryItemRow, InventoryItemImageRow } from '../types/inventory
 import { INVENTORY_UNIT_COST_BASIS_SQL } from '../types/inventory.js';
 import { parseStoredInventoryImageUrls } from './db-images.js';
 import { dbListInventoryImagesForItemIds } from './db-write.js';
+import { toAdminImageUrl } from '../utils/image.js';
 
 export const INVENTORY_QUEUE_OPTIONS = new Set([
   'Triage',
@@ -208,22 +209,6 @@ export function mapInventoryRow(
     updatedAt: row.updated_at || '',
     sourceListingPriceAsking: row.source_listing_price_asking ?? null,
   };
-}
-
-type CloudflareImagePreset = 'thumb' | 'card' | 'detail';
-
-const CLOUDFLARE_IMAGE_TRANSFORM_OPTIONS: Record<CloudflareImagePreset, string> = {
-  thumb: 'fit=scale-down,width=180,quality=80,format=auto,onerror=redirect',
-  card: 'fit=scale-down,width=640,quality=82,format=auto,onerror=redirect',
-  detail: 'fit=scale-down,width=1400,quality=85,format=auto,onerror=redirect',
-};
-
-function toAdminImageUrl(value: unknown, preset?: CloudflareImagePreset): string {
-  const raw = typeof value === 'string' ? value.trim() : '';
-  if (!raw) return '';
-  if (!preset) return raw;
-  const options = CLOUDFLARE_IMAGE_TRANSFORM_OPTIONS[preset];
-  return `/cdn-cgi/image/${options}/${raw}`;
 }
 
 export async function dbListInventoryItems(

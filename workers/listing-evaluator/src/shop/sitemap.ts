@@ -106,7 +106,11 @@ export async function handleShopPageRequest(request: Request, env: Env): Promise
   const remainder = path.slice(SHOP_BASE_PATH.length).replace(/^\/+|\/+$/g, '');
   const parts = remainder.split('/').filter(Boolean);
 
-  if (parts.length === 1 && !RESERVED_SHOP_SLUGS.has(parts[0])) {
+  if (parts.length >= 1 && RESERVED_SHOP_SLUGS.has(parts[0])) {
+    return appResponse;
+  }
+
+  if (parts.length === 1) {
     // Single segment → category page
     const categorySlug = decodeURIComponent(parts[0]);
     const categoryRows = await dbListInventoryCategories(env);

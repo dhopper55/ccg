@@ -1,5 +1,6 @@
 import type { Env } from '../env.js';
 import { toAdminImageUrl } from '../utils/image.js';
+import { normalizeInventoryDate } from '../utils/misc.js';
 
 export type AdminV2DashboardSummary = {
   inventoryCostBasis: number;
@@ -131,9 +132,9 @@ async function dbGetInventorySummary(env: Env): Promise<{
 
 async function dbGetSystemSettings(env: Env): Promise<{ postStoreLaunchDate: string }> {
   const row = await env.DB.prepare(
-    `SELECT value FROM system_settings WHERE key = 'post_store_launch_date' LIMIT 1`
-  ).first<{ value: string | null }>();
-  return { postStoreLaunchDate: row?.value || '2000-01-01' };
+    `SELECT post_store_launch_date FROM sys_info LIMIT 1`
+  ).first<{ post_store_launch_date: string | null }>();
+  return { postStoreLaunchDate: normalizeInventoryDate(row?.post_store_launch_date) || '2026-06-01' };
 }
 
 export async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2DashboardSummary> {
