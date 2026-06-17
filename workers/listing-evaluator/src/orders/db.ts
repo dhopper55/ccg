@@ -7,6 +7,16 @@ import { SHOP_BASE_PATH, ACTIVITY_BASE_URL } from '../constants.js';
 
 import { toPublicShopImageUrl } from '../utils/image.js';
 import { sendBrevoOrderConfirmationEmailForOrder } from './email.js';
+import {
+  dbGetOrderStatus,
+  dbGetOrderIdByStripeCheckoutSessionId,
+  parseStripeInventoryItemIds,
+  buildPaymentLinkCheckoutOrderItems,
+  dbListOrderInventoryQuantities,
+  dbApplyPaidOrderInventoryAdjustments,
+  dbApplyPaidInventoryItems,
+  dbUpdateInventoryColumns,
+} from './db2.js';
 
 export async function dbCountOrderItems(orderIds: string[], env: Env): Promise<Map<string, number>> {
   const counts = new Map<string, number>();

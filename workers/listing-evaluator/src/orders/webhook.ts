@@ -42,29 +42,39 @@ export async function handleStripeWebhook(request: Request, env: Env): Promise<R
   const session = event?.data?.object;
   const orderId = normalizeText(session?.metadata?.order_id, '') || normalizeText(session?.client_reference_id, '');
 
-  if (orderId && eventType === 'checkout.session.completed') {
-    if (normalizeText(session?.payment_status, '') === 'paid') {
+  try {
+    if (orderId && eventType === 'checkout.session.completed') {
+      if (normalizeText(session?.payment_status, '') === 'paid') {
+        await dbMarkStripeCheckoutOrderPaid(orderId, session, env);
+      } else {
+        await dbUpdateStripeOrderStatus(orderId, 'payment_processing', session, env);
+      }
+    } else if (orderId && eventType === 'checkout.session.async_payment_succeeded') {
       await dbMarkStripeCheckoutOrderPaid(orderId, session, env);
-    } else {
-      await dbUpdateStripeOrderStatus(orderId, 'payment_processing', session, env);
+    } else if (orderId && eventType === 'checkout.session.async_payment_failed') {
+      await dbReleaseStripeCheckoutOrder(orderId, 'payment_failed', session, env);
+    } else if (orderId && eventType === 'checkout.session.expired') {
+      await dbReleaseStripeCheckoutOrder(orderId, 'expired', session, env);
+    } else if (isAdminPaymentLinkCheckoutSession(session)) {
+      if (
+        (eventType === 'checkout.session.completed' && normalizeText(session?.payment_status, '') === 'paid')
+        || eventType === 'checkout.session.async_payment_succeeded'
+      ) {
+        const paymentLinkOrderId = await dbEnsurePaymentLinkCheckoutOrder(session, event, env);
+        await dbMarkStripeCheckoutOrderPaid(paymentLinkOrderId, session, env);
+        return jsonResponse({ received: true, orderId: paymentLinkOrderId });
+      }
+    } else if (!orderId) {
+      return jsonResponse({ received: true, ignored: true, message: 'No order_id metadata.' });
     }
-  } else if (orderId && eventType === 'checkout.session.async_payment_succeeded') {
-    await dbMarkStripeCheckoutOrderPaid(orderId, session, env);
-  } else if (orderId && eventType === 'checkout.session.async_payment_failed') {
-    await dbReleaseStripeCheckoutOrder(orderId, 'payment_failed', session, env);
-  } else if (orderId && eventType === 'checkout.session.expired') {
-    await dbReleaseStripeCheckoutOrder(orderId, 'expired', session, env);
-  } else if (isAdminPaymentLinkCheckoutSession(session)) {
-    if (
-      (eventType === 'checkout.session.completed' && normalizeText(session?.payment_status, '') === 'paid')
-      || eventType === 'checkout.session.async_payment_succeeded'
-    ) {
-      const paymentLinkOrderId = await dbEnsurePaymentLinkCheckoutOrder(session, event, env);
-      await dbMarkStripeCheckoutOrderPaid(paymentLinkOrderId, session, env);
-      return jsonResponse({ received: true, orderId: paymentLinkOrderId });
-    }
-  } else if (!orderId) {
-    return jsonResponse({ received: true, ignored: true, message: 'No order_id metadata.' });
+  } catch (error) {
+    console.error('Stripe webhook processing failed', {
+      eventType,
+      orderId,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    return jsonResponse({ error: 'Webhook processing failed.' }, 500);
   }
 
   return jsonResponse({ received: true });
