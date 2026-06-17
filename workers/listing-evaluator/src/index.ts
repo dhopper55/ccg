@@ -20,7 +20,6 @@ interface Env {
   DB: D1Database;
   CUSTOM_ITEMS_BUCKET?: R2Bucket;
   REVERB_API_TOKEN?: string;
-  OPENAI_API_KEY: string;
   APIFY_TOKEN: string;
   APIFY_FACEBOOK_ACTOR: string;
   APIFY_CRAIGSLIST_ACTOR: string;
@@ -7778,14 +7777,14 @@ async function runOpenAIUpcProductEnrichment(
   product: Record<string, unknown>,
   env: Env,
 ): Promise<UpcAiEnrichment | null> {
-  if (!env.OPENAI_API_KEY) return null;
+  if (!env.ANTHROPIC_API_KEY) return null;
 
   const prompt = [
     'Create clean ecommerce copy for a music store product draft.',
     'Use only the provided product data. Do not invent specs.',
-    'Return JSON only.',
+    'Return JSON only — no markdown, no explanation.',
     '',
-    'Requirements:',
+    'Keys required:',
     '- clean_title: concise retail product title.',
     '- clean_description: 1-2 short paragraphs, plain text.',
     '- clean_bullets: exactly 5 useful bullets, each 60 characters or less.',
@@ -7805,38 +7804,17 @@ async function runOpenAIUpcProductEnrichment(
   ].join('\n');
 
   try {
-    const response = await fetch('https://api.openai.com/v1/responses', {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
+        'x-api-key': env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
-        input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }],
-        temperature: 0.2,
-        max_output_tokens: 700,
-        text: {
-          format: {
-            type: 'json_schema',
-            name: 'upc_product_enrichment',
-            schema: {
-              type: 'object',
-              additionalProperties: false,
-              properties: {
-                clean_title: { type: 'string' },
-                clean_description: { type: 'string' },
-                clean_bullets: {
-                  type: 'array',
-                  minItems: 5,
-                  maxItems: 5,
-                  items: { type: 'string', maxLength: 60 },
-                },
-              },
-              required: ['clean_title', 'clean_description', 'clean_bullets'],
-            },
-          },
-        },
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 700,
+        messages: [{ role: 'user', content: prompt }],
       }),
     });
 
@@ -7846,8 +7824,9 @@ async function runOpenAIUpcProductEnrichment(
       return null;
     }
 
-    const data = await response.json();
-    const parsed = JSON.parse(extractOpenAIText(data)) as UpcAiEnrichment;
+    const data = await response.json() as { content?: Array<{ type: string; text?: string }> };
+    const text = data.content?.find((b) => b.type === 'text')?.text?.trim() ?? '';
+    const parsed = JSON.parse(text) as UpcAiEnrichment;
     return {
       clean_title: normalizeText(parsed.clean_title, '').slice(0, 200),
       clean_description: normalizeText(parsed.clean_description, '').slice(0, 4000),
@@ -16700,222 +16679,27 @@ async function isAiSerialDecodeRateLimited(env: Env, ipAddress: string): Promise
 }
 
 async function runOpenAISerialDecodeFallback(
-  brand: string,
-  serial: string,
-  env: Env,
+  _brand: string,
+  _serial: string,
+  _env: Env,
 ): Promise<{ payload: AiSerialDecodeParsed; model: string; rawResponseJson: string; logText: string }> {
-  if (!env.OPENAI_API_KEY) {
-    return {
-      payload: {
-        success: false,
-        year: null,
-        month: null,
-        factory: null,
-        country: null,
-        model: null,
-        notes: null,
-        error: 'AI fallback unavailable: missing OPENAI_API_KEY.',
-      },
-      model: 'gpt-4o',
-      rawResponseJson: '',
-      logText: 'AI fallback unavailable: missing OPENAI_API_KEY.',
-    };
-  }
-
-  const userPrompt = [
-    `I have a ${brand} guitar with serial number "${serial}".`,
-    'Decode this serial number.',
-    'Return year, month (if available), factory, country, model (if inferable), and useful notes.',
-    'If the serial cannot be decoded reliably, set success=false and explain why in error and notes.',
-    'Also include concise information that could help decode similar serials in the future.',
-  ].join('\n');
-
-  const response = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o',
-      input: [{ role: 'user', content: [{ type: 'input_text', text: userPrompt }] }],
-      temperature: 0.1,
-      max_output_tokens: 700,
-      text: {
-        format: {
-          type: 'json_schema',
-          name: 'serial_decode_fallback',
-          schema: {
-            type: 'object',
-            additionalProperties: false,
-            properties: {
-              success: { type: 'boolean' },
-              year: { type: ['string', 'null'] },
-              month: { type: ['string', 'null'] },
-              factory: { type: ['string', 'null'] },
-              country: { type: ['string', 'null'] },
-              model: { type: ['string', 'null'] },
-              notes: { type: ['string', 'null'] },
-              error: { type: ['string', 'null'] },
-            },
-            required: ['success', 'year', 'month', 'factory', 'country', 'model', 'notes', 'error'],
-          },
-        },
-      },
-    }),
-  });
-
-  if (!response.ok) {
-    return {
-      payload: {
-        success: false,
-        year: null,
-        month: null,
-        factory: null,
-        country: null,
-        model: null,
-        notes: null,
-        error: `AI fallback request failed (${response.status}).`,
-      },
-      model: 'gpt-4o',
-      rawResponseJson: '',
-      logText: `AI fallback request failed (${response.status}).`,
-    };
-  }
-
-  const data = await response.json();
-  const rawResponseJson = JSON.stringify(data);
-  const text = extractOpenAIText(data);
-
-  try {
-    const parsed = JSON.parse(text) as AiSerialDecodeParsed;
-    const logText = normalizeText(parsed.error, '') || normalizeText(parsed.notes, '') || 'AI fallback attempted.';
-    return {
-      payload: parsed,
-      model: 'gpt-4o',
-      rawResponseJson,
-      logText,
-    };
-  } catch {
-    return {
-      payload: {
-        success: false,
-        year: null,
-        month: null,
-        factory: null,
-        country: null,
-        model: null,
-        notes: null,
-        error: 'AI fallback returned invalid JSON.',
-      },
-      model: 'gpt-4o',
-      rawResponseJson,
-      logText: 'AI fallback returned invalid JSON.',
-    };
-  }
+  return {
+    payload: { success: false, year: null, month: null, factory: null, country: null, model: null, notes: null, error: 'Serial AI fallback is disabled.' },
+    model: '',
+    rawResponseJson: '',
+    logText: 'Serial AI fallback is disabled.',
+  };
 }
 
 async function runOpenAISerialPatternContextFromScreenshots(
-  brand: string,
-  serial: string,
-  patternLabel: string,
-  titleHint: string,
-  screenshots: File[],
-  env: Env,
+  _brand: string,
+  _serial: string,
+  _patternLabel: string,
+  _titleHint: string,
+  _screenshots: File[],
+  _env: Env,
 ): Promise<{ payload: SerialPatternContextPayload | null; model: string; rawResponseJson: string; error?: string }> {
-  if (!env.OPENAI_API_KEY) {
-    return {
-      payload: null,
-      model: 'gpt-4o',
-      rawResponseJson: '',
-      error: 'OPENAI_API_KEY is not configured.',
-    };
-  }
-
-  const prompt = [
-    `You are helping build reusable serial-decoder context for ${brand}.`,
-    `Serial sample: ${serial}`,
-    `Detected pattern: ${patternLabel}`,
-    'Use only the uploaded screenshots as source material.',
-    'Paraphrase and consolidate; do not quote long passages.',
-    'If data conflicts across screenshots, mention that as a caveat.',
-    'Keep output concise and useful for end-users doing a lookup.',
-    titleHint ? `Optional editor hint: ${titleHint}` : '',
-  ].filter(Boolean).join('\n');
-
-  const content: Array<Record<string, unknown>> = [{ type: 'input_text', text: prompt }];
-  for (const shot of screenshots.slice(0, 6)) {
-    const bytes = new Uint8Array(await shot.arrayBuffer());
-    const mime = normalizeText(shot.type, '').toLowerCase().startsWith('image/')
-      ? shot.type
-      : 'image/jpeg';
-    const b64 = toBase64(bytes);
-    content.push({
-      type: 'input_image',
-      image_url: `data:${mime};base64,${b64}`,
-    });
-  }
-
-  const response = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o',
-      input: [{ role: 'user', content }],
-      temperature: 0.2,
-      max_output_tokens: 900,
-      text: {
-        format: {
-          type: 'json_schema',
-          name: 'serial_pattern_context',
-          schema: {
-            type: 'object',
-            additionalProperties: false,
-            properties: {
-              title: { type: 'string' },
-              summary: { type: 'string' },
-              highlights: { type: 'array', items: { type: 'string' } },
-              caveats: { type: 'array', items: { type: 'string' } },
-              verificationTips: { type: 'array', items: { type: 'string' } },
-            },
-            required: ['title', 'summary', 'highlights', 'caveats', 'verificationTips'],
-          },
-        },
-      },
-    }),
-  });
-
-  if (!response.ok) {
-    return {
-      payload: null,
-      model: 'gpt-4o',
-      rawResponseJson: '',
-      error: `OpenAI request failed (${response.status}).`,
-    };
-  }
-
-  const data = await response.json();
-  const rawResponseJson = JSON.stringify(data);
-  const text = extractOpenAIText(data);
-
-  try {
-    const parsed = JSON.parse(text) as Partial<SerialPatternContextPayload>;
-    return {
-      payload: sanitizePatternContextPayload(parsed, brand, patternLabel),
-      model: 'gpt-4o',
-      rawResponseJson,
-    };
-  } catch {
-    return {
-      payload: null,
-      model: 'gpt-4o',
-      rawResponseJson,
-      error: 'OpenAI returned invalid JSON.',
-    };
-  }
+  return { payload: null, model: '', rawResponseJson: '', error: 'Screenshot analysis is disabled.' };
 }
 
 async function maybeParaphrasePatternLookupHtml(
@@ -16924,7 +16708,7 @@ async function maybeParaphrasePatternLookupHtml(
   richHtml: string,
   env: Env,
 ): Promise<string | null> {
-  if (!env.OPENAI_API_KEY) return null;
+  if (!env.ANTHROPIC_API_KEY) return null;
   const rawSourceText = htmlToPromptText(richHtml);
   // Strip the boilerplate "Based on the provided regex ..." opener that AI tools often prepend
   const sourceText = rawSourceText.replace(/^Based on the provided regex\b[^.]*\.\s*/i, '').slice(0, 9000);
@@ -16949,41 +16733,24 @@ async function maybeParaphrasePatternLookupHtml(
     '5) additionalInfo bullet list (use for overflow/extra details)',
     '6) one short Coal Creek Guitars note based on hands-on experience language',
     '',
+    'Return JSON only — no markdown, no explanation.',
+    '',
     'Source text:',
     sourceText,
   ].join('\n');
 
   try {
-    const response = await fetch('https://api.openai.com/v1/responses', {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
+        'x-api-key': env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
-        input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }],
-        temperature: 0.2,
-        max_output_tokens: 1000,
-        text: {
-          format: {
-            type: 'json_schema',
-            name: 'serial_pattern_rich_text',
-            schema: {
-              type: 'object',
-              additionalProperties: false,
-              properties: {
-                overview: { type: 'string' },
-                serialStructure: { type: 'string' },
-                keyIndicators: { type: 'array', items: { type: 'string' } },
-                caveats: { type: 'array', items: { type: 'string' } },
-                additionalInfo: { type: 'array', items: { type: 'string' } },
-                coalCreekNote: { type: 'string' },
-              },
-              required: ['overview', 'serialStructure', 'keyIndicators', 'caveats', 'additionalInfo', 'coalCreekNote'],
-            },
-          },
-        },
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }],
       }),
     });
 
@@ -16993,8 +16760,8 @@ async function maybeParaphrasePatternLookupHtml(
       return null;
     }
 
-    const data = await response.json();
-    const output = extractOpenAIText(data);
+    const data = await response.json() as { content?: Array<{ type: string; text?: string }> };
+    const output = data.content?.find((b) => b.type === 'text')?.text?.trim() ?? '';
     const parsed = JSON.parse(output) as {
       overview?: string;
       serialStructure?: string;
@@ -20443,300 +20210,34 @@ function isSponsoredListing(item: any): boolean {
   return labels.some((value) => /sponsored|promoted|ad/i.test(value));
 }
 
-async function runOpenAI(listing: ListingData, env: Env, options?: { isMulti?: boolean }): Promise<AiResult> {
-  const maxImages = Number.parseInt(env.MAX_IMAGES || '3', 10);
-  const images = listing.images.slice(0, Number.isFinite(maxImages) ? maxImages : 3);
-  const isMulti = options?.isMulti ?? false;
-
-  const systemPrompt = buildSystemPrompt(isMulti);
-  const userPrompt = buildMainUserPrompt(listing, isMulti, CATEGORY_OPTIONS, CONDITION_OPTIONS);
-
-  if (!env.OPENAI_API_KEY) {
-    console.error('OpenAI API key missing');
-    return 'AI analysis failed.';
+async function runOpenAI(_listing: ListingData, _env: Env, options?: { isMulti?: boolean }): Promise<AiResult> {
+  if (options?.isMulti) {
+    return { kind: 'multi', summary: '' };
   }
-
-  const content: any[] = [{ type: 'input_text', text: userPrompt }];
-
-  for (const imageUrl of images) {
-    content.push({ type: 'input_image', image_url: imageUrl });
-  }
-
-  console.info('OpenAI request', {
-    images: images.length,
-    title: listing.title?.slice(0, 80) || 'unknown',
-  });
-
-  const response = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
+  return {
+    kind: 'single',
+    data: {
+      category: 'Other', brand: '', model: '', finish: '', year: '', condition: 'Good',
+      serial: '', serial_brand: '', serial_year: '', serial_model: '',
+      value_private_party_low: null, value_private_party_low_notes: '',
+      value_private_party_medium: null, value_private_party_medium_notes: '',
+      value_private_party_high: null, value_private_party_high_notes: '',
+      value_pawn_shop_notes: '', value_online_notes: '',
+      known_weak_points: '', typical_repair_needs: '', buyers_worry: '',
+      og_specs_pickups: '', og_specs_tuners: '', og_specs_common_mods: '',
+      buyer_what_to_check: '', buyer_common_misrepresent: '',
+      seller_how_to_price_realistic: '', seller_fixes_add_value_or_waste: '',
+      seller_as_is_notes: '', asking_price: null,
     },
-    body: JSON.stringify({
-      model: 'gpt-4o',
-      input: [
-        {
-          role: 'system',
-          content: [{ type: 'input_text', text: systemPrompt }],
-        },
-        {
-          role: 'user',
-          content,
-        },
-      ],
-      temperature: 0.4,
-      max_output_tokens: 2000,
-      text: isMulti
-        ? undefined
-        : {
-            format: {
-              type: 'json_schema',
-              name: 'single_listing',
-              schema: {
-                type: 'object',
-                additionalProperties: false,
-                properties: {
-                  category: { type: 'string' },
-                  brand: { type: 'string' },
-                  model: { type: 'string' },
-                  finish: { type: 'string' },
-                  year: { type: 'string' },
-                  condition: { type: 'string' },
-                  serial: { type: 'string' },
-                  serial_brand: { type: 'string' },
-                  serial_year: { type: 'string' },
-                  serial_model: { type: 'string' },
-                  value_private_party_low: { type: ['number', 'string', 'null'] },
-                  value_private_party_low_notes: { type: 'string' },
-                  value_private_party_medium: { type: ['number', 'string', 'null'] },
-                  value_private_party_medium_notes: { type: 'string' },
-                  value_private_party_high: { type: ['number', 'string', 'null'] },
-                  value_private_party_high_notes: { type: 'string' },
-                  value_pawn_shop_notes: { type: 'string' },
-                  value_online_notes: { type: 'string' },
-                  known_weak_points: { type: 'string' },
-                  typical_repair_needs: { type: 'string' },
-                  buyers_worry: { type: 'string' },
-                  og_specs_pickups: { type: 'string' },
-                  og_specs_tuners: { type: 'string' },
-                  og_specs_common_mods: { type: 'string' },
-                  buyer_what_to_check: { type: 'string' },
-                  buyer_common_misrepresent: { type: 'string' },
-                  seller_how_to_price_realistic: { type: 'string' },
-                  seller_fixes_add_value_or_waste: { type: 'string' },
-                  seller_as_is_notes: { type: 'string' },
-                  asking_price: { type: ['number', 'string', 'null'] },
-                },
-                required: [
-                  'category',
-                  'brand',
-                  'model',
-                  'finish',
-                  'year',
-                  'condition',
-                  'serial',
-                  'serial_brand',
-                  'serial_year',
-                  'serial_model',
-                  'value_private_party_low',
-                  'value_private_party_low_notes',
-                  'value_private_party_medium',
-                  'value_private_party_medium_notes',
-                  'value_private_party_high',
-                  'value_private_party_high_notes',
-                  'value_pawn_shop_notes',
-                  'value_online_notes',
-                  'known_weak_points',
-                  'typical_repair_needs',
-                  'buyers_worry',
-                  'og_specs_pickups',
-                  'og_specs_tuners',
-                  'og_specs_common_mods',
-                  'buyer_what_to_check',
-                  'buyer_common_misrepresent',
-                  'seller_how_to_price_realistic',
-                  'seller_fixes_add_value_or_waste',
-                  'seller_as_is_notes',
-                  'asking_price',
-                ],
-              },
-            },
-          },
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('OpenAI response failed', {
-      status: response.status,
-      statusText: response.statusText,
-      body: errorText,
-    });
-    if (isMulti) {
-      return { kind: 'multi', summary: 'AI analysis failed.' };
-    }
-    return {
-      kind: 'single',
-      data: {
-        category: 'Other',
-        brand: 'Unknown',
-        model: 'Unknown',
-        finish: 'Unknown',
-        year: 'Unknown',
-        condition: 'Good',
-        serial: '',
-        serial_brand: '',
-        serial_year: '',
-        serial_model: '',
-        value_private_party_low: null,
-        value_private_party_low_notes: '',
-        value_private_party_medium: null,
-        value_private_party_medium_notes: '',
-        value_private_party_high: null,
-        value_private_party_high_notes: '',
-        value_pawn_shop_notes: '',
-        value_online_notes: '',
-        known_weak_points: '',
-        typical_repair_needs: '',
-        buyers_worry: '',
-        og_specs_pickups: '',
-        og_specs_tuners: '',
-        og_specs_common_mods: '',
-        buyer_what_to_check: '',
-        buyer_common_misrepresent: '',
-        seller_how_to_price_realistic: '',
-        seller_fixes_add_value_or_waste: '',
-        seller_as_is_notes: '',
-        asking_price: null,
-      },
-    };
-  }
-
-  const data = await response.json();
-  if (isMulti) {
-    return { kind: 'multi', summary: extractOpenAIText(data) || 'AI analysis returned no text.' };
-  }
-
-  const text = extractOpenAIText(data);
-  try {
-    let parsed = JSON.parse(text) as SingleAiResult;
-    if (needsModelDisambiguation(parsed)) {
-      parsed = await runOpenAIModelDisambiguation(listing, parsed, env);
-    }
-    return { kind: 'single', data: parsed };
-  } catch (error) {
-    console.error('OpenAI JSON parse failed', { error, text: text?.slice(0, 200) });
-    const fallback: SingleAiResult = {
-      category: 'Other',
-      brand: 'Unknown',
-      model: 'Unknown',
-      finish: 'Unknown',
-      year: 'Unknown',
-      condition: 'Good',
-      serial: '',
-      serial_brand: '',
-      serial_year: '',
-      serial_model: '',
-      value_private_party_low: null,
-      value_private_party_low_notes: '',
-      value_private_party_medium: null,
-      value_private_party_medium_notes: '',
-      value_private_party_high: null,
-      value_private_party_high_notes: '',
-      value_pawn_shop_notes: '',
-      value_online_notes: '',
-      known_weak_points: '',
-      typical_repair_needs: '',
-      buyers_worry: '',
-      og_specs_pickups: '',
-      og_specs_tuners: '',
-      og_specs_common_mods: '',
-      buyer_what_to_check: '',
-      buyer_common_misrepresent: '',
-      seller_how_to_price_realistic: '',
-      seller_fixes_add_value_or_waste: '',
-      seller_as_is_notes: '',
-      asking_price: null,
-    };
-    return { kind: 'single', data: fallback };
-  }
+  };
 }
 
 async function runOpenAIModelDisambiguation(
-  listing: ListingData,
+  _listing: ListingData,
   base: SingleAiResult,
-  env: Env
+  _env: Env
 ): Promise<SingleAiResult> {
-  if (!env.OPENAI_API_KEY) return base;
-  const maxImages = Number.parseInt(env.MAX_IMAGES || '3', 10);
-  const images = listing.images.slice(0, Number.isFinite(maxImages) ? maxImages : 3);
-  const prompt = [
-    'Identify the most likely exact guitar model/variant from this listing text and images.',
-    'Prefer specific model names (example: "Les Paul Studio"), but only if you are sure.  If you are not sure, use base model (example: "Les Paul").',
-    'If uncertain, provide your best guess and include "(NOT DEFINITIVE)" in model text.',
-    'Do not return "Unknown" when brand and images are provided; return the most likely model guess.',
-    '',
-    `Listing title: ${listing.title || 'Unknown'}`,
-    `Listing description: ${listing.description || 'Not provided'}`,
-    `User-provided brand hint: ${listing.brandHint || 'Not provided'}`,
-    `User-provided model hint: ${listing.modelHint || 'Not provided'}`,
-    `Known brand: ${base.brand || 'Unknown'}`,
-    `Current model: ${base.model || 'Unknown'}`,
-    `Known serial: ${base.serial || 'Unknown'}`,
-    `Known serial brand: ${base.serial_brand || 'Unknown'}`,
-    `Known serial model: ${base.serial_model || 'Unknown'}`,
-    '',
-    'Return JSON only with keys: brand, model, year, finish, condition, serial_model',
-  ].join('\n');
-
-  const content: any[] = [{ type: 'input_text', text: prompt }];
-  for (const imageUrl of images) {
-    content.push({ type: 'input_image', image_url: imageUrl });
-  }
-
-  const response = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o',
-      input: [{ role: 'user', content }],
-      temperature: 0.1,
-      max_output_tokens: 600,
-      text: {
-        format: {
-          type: 'json_schema',
-          name: 'model_disambiguation',
-          schema: {
-            type: 'object',
-            additionalProperties: false,
-            properties: {
-              brand: { type: 'string' },
-              model: { type: 'string' },
-              year: { type: 'string' },
-              finish: { type: 'string' },
-              condition: { type: 'string' },
-              serial_model: { type: 'string' },
-            },
-            required: ['brand', 'model', 'year', 'finish', 'condition', 'serial_model'],
-          },
-        },
-      },
-    }),
-  });
-
-  if (!response.ok) return base;
-  const data = await response.json();
-  const text = extractOpenAIText(data);
-  try {
-    const patch = JSON.parse(text) as Partial<SingleAiResult>;
-    return mergeModelDisambiguation(base, patch);
-  } catch {
-    return base;
-  }
+  return base;
 }
 
 function stripEmptyFallback(fallback: Partial<SingleAiResult>): Partial<SingleAiResult> {
@@ -21100,76 +20601,8 @@ async function fetchReverbPricingListings(query: string, env: Env): Promise<Reve
   return Array.isArray(data.listings) ? data.listings : [];
 }
 
-async function getSinglePricingFromOpenAI(base: SingleAiResult, env: Env): Promise<Partial<SingleAiResult> | null> {
-  if (!env.OPENAI_API_KEY) return null;
-
-  const response = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o',
-      input: [
-        {
-          role: 'user',
-          content: [{ type: 'input_text', text: buildSinglePricingPrompt(base) }],
-        },
-      ],
-      temperature: 0.2,
-      max_output_tokens: 900,
-      text: {
-        format: {
-          type: 'json_schema',
-          name: 'single_pricing',
-          schema: {
-            type: 'object',
-            additionalProperties: false,
-            properties: {
-              value_private_party_low: { type: ['number', 'string', 'null'] },
-              value_private_party_low_notes: { type: 'string' },
-              value_private_party_medium: { type: ['number', 'string', 'null'] },
-              value_private_party_medium_notes: { type: 'string' },
-              value_private_party_high: { type: ['number', 'string', 'null'] },
-              value_private_party_high_notes: { type: 'string' },
-              pricing_source: { type: 'string' },
-              pricing_confidence: { type: 'string' },
-              pricing_comp_count: { type: ['number', 'string', 'null'] },
-              pricing_notes: { type: 'string' },
-            },
-            required: [
-              'value_private_party_low',
-              'value_private_party_low_notes',
-              'value_private_party_medium',
-              'value_private_party_medium_notes',
-              'value_private_party_high',
-              'value_private_party_high_notes',
-              'pricing_source',
-              'pricing_confidence',
-              'pricing_comp_count',
-              'pricing_notes',
-            ],
-          },
-        },
-      },
-    }),
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    console.error('OpenAI pricing response failed', { status: response.status, statusText: response.statusText, body });
-    return null;
-  }
-
-  const data = await response.json();
-  const text = extractOpenAIText(data);
-  try {
-    return JSON.parse(text) as Partial<SingleAiResult>;
-  } catch (error) {
-    console.error('OpenAI pricing JSON parse failed', { error, text: text?.slice(0, 200) });
-    return null;
-  }
+async function getSinglePricingFromOpenAI(_base: SingleAiResult, _env: Env): Promise<Partial<SingleAiResult> | null> {
+  return null;
 }
 
 async function getRealisticPrivatePartyPricing(base: SingleAiResult, env: Env): Promise<Partial<SingleAiResult> | null> {
@@ -21216,63 +20649,11 @@ async function getRealisticPrivatePartyPricing(base: SingleAiResult, env: Env): 
 }
 
 async function runOpenAIMultiRangePricing(
-  listing: ListingData,
-  aiSummary: string,
-  env: Env
+  _listing: ListingData,
+  _aiSummary: string,
+  _env: Env
 ): Promise<{ low: number; high: number } | null> {
-  if (!env.OPENAI_API_KEY) return null;
-
-  try {
-    const response = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        input: [
-          {
-            role: 'user',
-            content: [{ type: 'input_text', text: buildMultiPricingPrompt(listing, aiSummary) }],
-          },
-        ],
-        temperature: 0.2,
-        max_output_tokens: 500,
-        text: {
-          format: {
-            type: 'json_schema',
-            name: 'multi_pricing',
-            schema: {
-              type: 'object',
-              additionalProperties: false,
-              properties: {
-                low: { type: ['number', 'string', 'null'] },
-                high: { type: ['number', 'string', 'null'] },
-              },
-              required: ['low', 'high'],
-            },
-          },
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      const body = await response.text();
-      console.error('OpenAI multi pricing response failed', { status: response.status, statusText: response.statusText, body });
-      return null;
-    }
-
-    const data = await response.json();
-    const parsed = JSON.parse(extractOpenAIText(data)) as { low?: unknown; high?: unknown };
-    const low = normalizeMoneyValue(parsed.low);
-    const high = normalizeMoneyValue(parsed.high);
-    if (low == null || high == null) return null;
-    return { low: Math.min(low, high), high: Math.max(low, high) };
-  } catch (error) {
-    console.error('OpenAI multi pricing failed', { error });
-    return null;
-  }
+  return null;
 }
 
 function applyMultiRangeToSummary(aiSummary: string, low: number, high: number): string {
@@ -21319,17 +20700,6 @@ function redactPricingInput(input: string): string {
   output = output.replace(/\b\d{2,5}\b/g, '[num]');
 
   return output;
-}
-
-function extractOpenAIText(response: any): string {
-  const output = response?.output || [];
-  for (const item of output) {
-    if (item?.type === 'message' && Array.isArray(item.content)) {
-      const textPart = item.content.find((part: any) => part.type === 'output_text');
-      if (textPart?.text) return textPart.text;
-    }
-  }
-  return '';
 }
 
 function jsonResponse(body: any, status = 200, headers: Record<string, string> = {}): Response {
