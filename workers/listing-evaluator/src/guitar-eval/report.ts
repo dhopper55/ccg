@@ -355,10 +355,14 @@ export async function runGuitarEvalReportGeneration(id: number, env: Env): Promi
           location: row.location,
         });
         html = html.replace(listingMatch[0], '');
-        if (html.includes('</main>')) {
-          html = html.replace('</main>', listingHtml + '\n  </main>');
+        // Inject before the footer disclaimer div first, then the footer element,
+        // then </main> (Claude often puts the footer inside <main>), then </body> as last resort.
+        if (html.includes('<div class="legal"')) {
+          html = html.replace('<div class="legal"', listingHtml + '\n<div class="legal"');
         } else if (html.includes('<footer')) {
           html = html.replace('<footer', listingHtml + '\n<footer');
+        } else if (html.includes('</main>')) {
+          html = html.replace('</main>', listingHtml + '\n  </main>');
         } else {
           html = html.replace('</body>', listingHtml + '\n</body>');
         }
@@ -407,8 +411,12 @@ export async function runGuitarEvalReportGeneration(id: number, env: Env): Promi
             }),
           });
 
+          // Make image URLs absolute so they resolve when the attachment is opened from an email client
+          const siteBase = (env.SITE_BASE_URL || 'https://www.coalcreekguitars.com').replace(/\/$/, '');
+          const emailHtml = html.replaceAll('/api/guitar-evaluation-image?', `${siteBase}/api/guitar-evaluation-image?`);
+
           // Base64-encode the HTML for the attachment
-          const htmlBytes = new TextEncoder().encode(html);
+          const htmlBytes = new TextEncoder().encode(emailHtml);
           const htmlBase64 = arrayBufferToBase64(htmlBytes.buffer);
 
           await sendBrevoTransactionalEmail(config, {
