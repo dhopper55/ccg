@@ -1,4 +1,7 @@
 import type { Env } from '../env.js';
+import { normalizeText } from '../utils/text.js';
+import { getBrevoRuntimeConfig } from '../system/runtime.js';
+import { sendBrevoTransactionalEmail } from '../orders/email.js';
 
 export const GUITAR_EVAL_REPORT_SYSTEM_PROMPT = `You are generating a professional instrument valuation report for Coal Creek Guitars. Using the photos and instrument details provided, produce one complete, self-contained HTML document.
 
@@ -377,6 +380,50 @@ export async function runGuitarEvalReportGeneration(id: number, env: Env): Promi
     ).bind(r2Key, guid, reportCost, id).run();
 
     console.log(`[report-gen] done — guid ${guid}`);
+
+    // Send report-ready email with the finished HTML attached
+    try {
+      const emailRow = await env.DB.prepare(
+        `SELECT first_name, email FROM guitar_evaluations WHERE id = ?`,
+      ).bind(id).first<{ first_name: string | null; email: string | null }>();
+
+      if (emailRow?.email) {
+        const config = await getBrevoRuntimeConfig(env);
+        if (config.apiKey && config.senderEmail) {
+          const resolvedFirstName = normalizeText(emailRow.first_name, '') || 'there';
+
+          // Upsert Brevo contact
+          await fetch('https://api.brevo.com/v3/contacts', {
+            method: 'POST',
+            headers: {
+              accept: 'application/json',
+              'api-key': config.apiKey,
+              'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: emailRow.email,
+              attributes: { FIRSTNAME: resolvedFirstName },
+              updateEnabled: true,
+            }),
+          });
+
+          // Base64-encode the HTML for the attachment
+          const htmlBytes = new TextEncoder().encode(html);
+          const htmlBase64 = arrayBufferToBase64(htmlBytes.buffer);
+
+          await sendBrevoTransactionalEmail(config, {
+            sender: { name: config.senderName, email: config.senderEmail },
+            to: [{ email: emailRow.email, name: resolvedFirstName }],
+            templateId: 5,
+            attachment: [{ content: htmlBase64, name: 'guitar-valuation-report.html' }],
+          });
+
+          console.log(`[report-gen] report-ready email sent to ${emailRow.email}`);
+        }
+      }
+    } catch (err) {
+      console.error(`[report-gen] email send failed for evaluation ${id}:`, err);
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[report-gen] failed for evaluation ${id}:`, msg);

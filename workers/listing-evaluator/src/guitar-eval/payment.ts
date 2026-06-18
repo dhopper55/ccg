@@ -1,8 +1,7 @@
 import type { Env } from '../env.js';
 import { jsonResponse } from '../utils/misc.js';
 import { normalizeText } from '../utils/text.js';
-import { getStripeRuntimeConfig, getBrevoRuntimeConfig } from '../system/runtime.js';
-import { sendBrevoTransactionalEmail } from '../orders/email.js';
+import { getStripeRuntimeConfig } from '../system/runtime.js';
 import { extensionFromContentType } from '../utils/image.js';
 
 export async function dbInsertGuitarEvaluation(env: Env, data: {
@@ -136,36 +135,6 @@ export async function handleGuitarEvaluationValidateCoupon(request: Request, env
   return jsonResponse({ valid: false });
 }
 
-export async function sendBrevoEvaluationConfirmationEmail(
-  firstName: string,
-  email: string,
-  env: Env,
-): Promise<void> {
-  const config = await getBrevoRuntimeConfig(env);
-  if (!config.apiKey || !config.senderEmail) return;
-
-  const resolvedFirstName = firstName.trim() || 'there';
-
-  await fetch('https://api.brevo.com/v3/contacts', {
-    method: 'POST',
-    headers: {
-      accept: 'application/json',
-      'api-key': config.apiKey,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({
-      email,
-      attributes: { FIRSTNAME: resolvedFirstName },
-      updateEnabled: true,
-    }),
-  });
-
-  await sendBrevoTransactionalEmail(config, {
-    sender: { name: config.senderName, email: config.senderEmail },
-    to: [{ email, name: resolvedFirstName }],
-    templateId: 5,
-  });
-}
 
 export async function handleGuitarEvaluationSubmit(request: Request, env: Env): Promise<Response> {
   let body: any;
@@ -307,20 +276,15 @@ export async function handleGuitarEvaluationUploadImages(request: Request, evalu
     return jsonResponse({ message: 'Image upload failed.', detail: String(error) }, 500);
   }
 
-  // Send confirmation email now that photos are submitted and the order is complete
-  const emailRow = await env.DB.prepare(
-    `SELECT first_name, email FROM guitar_evaluations WHERE id = ?`
-  ).bind(evaluationId).first<{ first_name: string | null; email: string | null }>();
-  if (emailRow?.email) {
+  // Kick off report generation now that photos are uploaded; email with attached report is sent when generation completes
+  if (env.REPORT_QUEUE) {
     try {
-      await sendBrevoEvaluationConfirmationEmail(
-        normalizeText(emailRow.first_name, ''),
-        emailRow.email,
-        env,
-      );
+      await env.REPORT_QUEUE.send({ evaluationId: Number(evaluationId) });
     } catch (err) {
-      console.error('Eval confirmation email failed after photo upload:', err);
+      console.error('Failed to enqueue report generation after photo upload:', err);
     }
+  } else {
+    console.warn('REPORT_QUEUE not configured — report generation not triggered after photo upload');
   }
 
   return jsonResponse({ ok: true, keys });
