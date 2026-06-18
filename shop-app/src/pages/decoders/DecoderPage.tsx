@@ -57,16 +57,14 @@ const DecoderPage = ({ config }: DecoderPageProps) => {
           </Grid>
           <Grid size={{ xs: 12, lg: 7, xl: 6 }}>
             <Grid container direction="column" rowSpacing={3}>
-              {decodeSuccess && (
-                <Grid size={12}>
-                  <EvalPitchPanel
-                    brand={config.brandName}
-                    year={decodeSuccess.year}
-                    serial={decodeSuccess.serial}
-                    decodeEventId={decodeSuccess.decodeEventId}
-                  />
-                </Grid>
-              )}
+              <Grid size={12}>
+                <EvalPitchPanel
+                  brand={config.brandName}
+                  year={decodeSuccess?.year}
+                  serial={decodeSuccess?.serial}
+                  decodeEventId={decodeSuccess?.decodeEventId ?? null}
+                />
+              </Grid>
               <Grid size={12}>
                 <DecoderSlot brand={config.brandKey} name="aboveFaq" />
                 <DecoderFaqPanel title={config.faqTitle} items={config.faqItems} />

@@ -8,17 +8,15 @@ const EVAL_SAMPLE_IMAGES = [1, 2, 3, 4, 5].map((n) => `/images/eval-samples/${n}
 interface EvalPitchPanelProps {
   brand: string;
   year?: string;
-  serial: string;
+  serial?: string;
   decodeEventId: number | null;
 }
 
 const EvalPitchPanel = ({ brand, year, serial, decodeEventId }: EvalPitchPanelProps) => {
-  // Hidden until report pricing is finalized — restore by removing this line
-  return null;
-
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
-  const params = new URLSearchParams({ brand, serial });
+  const params = new URLSearchParams({ brand });
+  if (serial) params.set('serial', serial);
   if (decodeEventId != null) params.set('decodeId', String(decodeEventId));
   const evalHref = `/guitar-value-report-evaluation/?${params.toString()}`;
   const headline = year ? `What's your ${year} ${brand} worth?` : `What's your ${brand} worth?`;
