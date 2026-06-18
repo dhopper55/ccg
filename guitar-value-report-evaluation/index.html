@@ -1545,6 +1545,33 @@ footer {
   *, *::before, *::after { transition: none !important; }
 }
 </style>
+<script>
+(function () {
+  try { if (window.localStorage.getItem('ccgAssociateMode') === '1') return; } catch (_) {}
+  var key = 'ccg-shop-analytics-session';
+  var sessionId;
+  try {
+    sessionId = window.localStorage.getItem(key);
+    if (!sessionId) {
+      sessionId = (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(16).slice(2));
+      window.localStorage.setItem(key, sessionId);
+    }
+  } catch (_) { sessionId = ''; }
+  var payload = JSON.stringify({
+    eventType: 'value_report_initiate',
+    sessionId: sessionId,
+    pagePath: window.location.pathname + window.location.search + window.location.hash,
+    referrer: document.referrer || '',
+  });
+  try {
+    if (navigator.sendBeacon) {
+      var blob = new Blob([payload], { type: 'application/json' });
+      if (navigator.sendBeacon('/api/shop/analytics/event', blob)) return;
+    }
+  } catch (_) {}
+  fetch('/api/shop/analytics/event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true }).catch(function () {});
+})();
+</script>
 </head>
 <body>
 
