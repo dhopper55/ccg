@@ -74,7 +74,7 @@ const PaymentForm = ({ evaluationId, onSuccess }: PaymentFormProps) => {
           }}
         >
           {paying && <CircularProgress size={16} sx={{ color: '#fff' }} />}
-          {paying ? 'Processing…' : 'Pay $2.99'}
+          {paying ? 'Processing…' : 'Pay $1.99'}
         </button>
       </Box>
     </Box>
@@ -157,7 +157,7 @@ const ConfirmationForm = ({ evaluationId, onPaid }: { evaluationId: number | nul
     <div>
       <Box sx={{ mb: 3 }}>
         <Typography variant="h6" sx={{ mb: 0.5 }}>
-          Comprehensive Report Payment ($2.99)
+          Comprehensive Report Payment ($1.99)
         </Typography>
         <Typography variant="body2" fontStyle="italic" color="text.secondary">
           one-time charge — report typically ready in 1–2 hours or it's free

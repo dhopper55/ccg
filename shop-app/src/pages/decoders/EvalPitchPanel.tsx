@@ -43,7 +43,7 @@ const EvalPitchPanel = ({ brand, year, serial, decodeEventId }: EvalPitchPanelPr
         </Box>
         <Box component="p" sx={{ m: 0, mt: 0.5, typography: 'body2', lineHeight: 1.9 }}>
           <Box component="span" sx={{ color: 'text.secondary' }}>
-            Get Reverb comps, dealer offers &amp; a ready-to-post listing &mdash; just $2.99
+            Get Reverb comps, dealer offers &amp; a ready-to-post listing &mdash; just $1.99
           </Box>
         </Box>
         <Box sx={{ mt: 1 }}>

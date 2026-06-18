@@ -63,7 +63,7 @@ export async function handleGuitarEvaluationPaymentIntent(request: Request, env:
   }
 
   const params = new URLSearchParams({
-    amount: '299',
+    amount: '199',
     currency: 'usd',
     'metadata[evaluation_id]': String(evaluationId),
     'metadata[source]': 'guitar_evaluation',
