@@ -2286,7 +2286,14 @@ function activateStep(n) {
   currentStep = n;
   document.getElementById('step-' + n).classList.add('active');
   document.getElementById('tab-' + n).classList.add('active');
-  document.getElementById('get-report').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Collapse marketing sections above the form once the user advances past step 1
+  if (n > 1) {
+    ['hero', 'what', 'breakdown'].forEach(function(cls) {
+      var el = document.querySelector('section.' + cls);
+      if (el) el.style.display = 'none';
+    });
+  }
+  window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
 function showStepError(msg) {

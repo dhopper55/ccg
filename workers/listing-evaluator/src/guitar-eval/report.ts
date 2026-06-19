@@ -411,19 +411,14 @@ export async function runGuitarEvalReportGeneration(id: number, env: Env): Promi
             }),
           });
 
-          // Make image URLs absolute so they resolve when the attachment is opened from an email client
           const siteBase = (env.SITE_BASE_URL || 'https://www.coalcreekguitars.com').replace(/\/$/, '');
-          const emailHtml = html.replaceAll('/api/guitar-evaluation-image?', `${siteBase}/api/guitar-evaluation-image?`);
-
-          // Base64-encode the HTML for the attachment
-          const htmlBytes = new TextEncoder().encode(emailHtml);
-          const htmlBase64 = arrayBufferToBase64(htmlBytes.buffer);
+          const reportUrl = `${siteBase}/api/guitar-eval-report/${guid}`;
 
           await sendBrevoTransactionalEmail(config, {
             sender: { name: config.senderName, email: config.senderEmail },
             to: [{ email: emailRow.email, name: resolvedFirstName }],
             templateId: 5,
-            attachment: [{ content: htmlBase64, name: 'guitar-valuation-report.html' }],
+            params: { REPORT_URL: reportUrl },
           });
 
           console.log(`[report-gen] report-ready email sent to ${emailRow.email}`);

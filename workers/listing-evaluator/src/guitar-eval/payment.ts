@@ -61,6 +61,10 @@ export async function handleGuitarEvaluationPaymentIntent(request: Request, env:
     return jsonResponse({ message: 'Payment processing is not configured.' }, 503);
   }
 
+  const evalRow = await env.DB.prepare(
+    'SELECT email FROM guitar_evaluations WHERE id = ?'
+  ).bind(evaluationId).first<{ email: string | null }>();
+
   const params = new URLSearchParams({
     amount: '199',
     currency: 'usd',
@@ -68,6 +72,7 @@ export async function handleGuitarEvaluationPaymentIntent(request: Request, env:
     'metadata[source]': 'guitar_evaluation',
     description: 'Comprehensive Guitar Evaluation Report',
   });
+  if (evalRow?.email) params.set('receipt_email', evalRow.email);
   params.append('payment_method_types[]', 'card');
   params.append('payment_method_types[]', 'cashapp');
   params.append('payment_method_types[]', 'us_bank_account');

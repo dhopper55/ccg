@@ -132,6 +132,7 @@ export function isPublicApiPath(path: string): boolean {
     || path === '/api/guitar-evaluation'
     || path === '/api/guitar-evaluation/payment-intent'
     || path === '/api/guitar-evaluation/confirm-payment'
+    || path === '/api/guitar-evaluation/validate-coupon'
     || /^\/api\/guitar-evaluation\/\d+\/upload-images$/.test(path)
     || /^\/api\/guitar-evaluation\/\d+$/.test(path)
     || path === '/api/guitar-evaluation-image'
