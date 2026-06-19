@@ -330,4 +330,15 @@ export function runTests() {
   assertSchecterLongNumericImport('178152249447', '2017');
   assertSchecterCSPrefix('CS22100612', '2022', 'October');
   assertSchecterWAPrefix('wa25120053');
+  assertSchecterUnsungUPrefix('u080901104', '2008', 'September');
+}
+
+function assertSchecterUnsungUPrefix(serialInput, expectedYear, expectedMonth) {
+  const result = decodeSerialForBackend('schecter', serialInput);
+  assert(result.success, `Expected decode success for schecter:${serialInput}`);
+  assert(result.info, `Expected decoded info for schecter:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${result.info.month}`);
+  assert(result.info.country === 'South Korea', `Expected South Korea for ${serialInput}, got ${result.info.country}`);
+  assert(result.patternKey === 'schecter-u-unsung-korea-yymm-sequence', `Expected U-prefix pattern key for ${serialInput}, got ${result.patternKey}`);
 }

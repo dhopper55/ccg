@@ -17,4 +17,14 @@ function assertTakamine8DigitYYMM(serialInput, expectedYear, expectedMonth) {
 
 export function runTests() {
   assertTakamine8DigitYYMM('93041401', '1993', 'April');
+  assertTakamine8DigitNonStandardMonth('91216031', '1991');
+}
+
+function assertTakamine8DigitNonStandardMonth(serialInput, expectedYear) {
+  const result = decodeSerialForBackend('takamine', serialInput);
+  assert(result.success, `Expected decode success for takamine:${serialInput}`);
+  assert(result.info, `Expected decoded info for takamine:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.country === 'Japan', `Expected Japan for ${serialInput}, got ${result.info.country}`);
+  assert(!result.info.month, `Expected no month for non-standard month code ${serialInput}, got ${result.info.month}`);
 }

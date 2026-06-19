@@ -71,6 +71,15 @@ export function deriveExplicitRegexFromKnownPatternKey(patternKey: string): stri
     'taylor-modern-short-9': '^[12]\\d{8}$',
     'washburn-1990s-10-digit-yymm-sequence': '^[89]\\d{9}$',
     'washburn-bc-china-plant-yy-sequence': '^BC\\d{7}$',
+    'bcrich-early-usa-4-digit-sequential': '^\\d{4}$',
+    'bcrich-bw-prefix-import': '^BW\\d{2,6}$',
+    'cort-indonesia-f-prefix-yy-sequence': '^F\\d{6}$',
+    'dean-cort-korea-c-yy-batch-sequence': '^C\\d{7}$',
+    'epiphone-mirc-311-refurb': '^311\\d{6}$',
+    'esp-kiso-custom-k-yy-special': '^K\\d{8}[A-Z]\\d{2}$',
+    'jackson-njhk-korea-yy-sequence': '^NJHK\\d{8}$',
+    'prs-se-cort-indonesia-cti-numeric-year': '^CTI\\d{5,}$',
+    'schecter-u-unsung-korea-yymm-sequence': '^U\\d{9}$',
   };
 
   return knownPatterns[patternKey] || null;

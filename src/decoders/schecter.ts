@@ -111,6 +111,11 @@ export function decodeSchecter(serial: string): DecodeResult {
     return decodeJapanSA(normalized);
   }
 
+  // Korea Unsung: U + YYMM + sequence (e.g. U080901104 = Unsung 2008, September)
+  if (/^U\d{9}$/.test(normalized)) {
+    return decodeKoreaUnsungU(normalized);
+  }
+
   // Pure numeric modern import: YY + long internal production/factory code
   if (/^\d{10,12}$/.test(normalized)) {
     return decodeNumericLongImport(normalized);
@@ -130,7 +135,7 @@ export function decodeSchecter(serial: string): DecodeResult {
 
   return {
     success: false,
-    error: 'Unable to decode this Schecter serial number. The format was not recognized. Please check the serial number and try again.'
+    error: 'Unable to decode this Schecter serial number. The format was not recognized. Known formats include: USA Custom Shop (A/B/C/G + 4-5 digits), Korea Unsung (U + 9 digits), Korea WA/H/R/C prefix, Indonesia IM/RN/RO/IW/N prefix, China CA/CS/ST prefix, Japan SA prefix, numeric 6-9 digits (Korean/Indonesian). Please check the serial number and try again.'
   };
 }
 
@@ -941,6 +946,36 @@ function decodeNumeric(serial: string): DecodeResult {
     notes: `Numeric-only serial indicates Korean manufacture (typically early 2000s or late 1990s). Sequence: ${sequence}.`
   };
   return { success: true, info };
+}
+
+function decodeKoreaUnsungU(serial: string): DecodeResult {
+  const yearDigits = serial.substring(1, 3);
+  const monthDigits = serial.substring(3, 5);
+  const sequence = serial.substring(5);
+  const year = 2000 + parseInt(yearDigits, 10);
+  const monthNum = parseInt(monthDigits, 10);
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+  const month = monthNum >= 1 && monthNum <= 12 ? months[monthNum - 1] : undefined;
+
+  const info: GuitarInfo = {
+    brand: 'Schecter',
+    serialNumber: serial,
+    year: year.toString(),
+    ...(month ? { month } : {}),
+    factory: 'Unsung, Incheon, South Korea',
+    country: 'South Korea',
+    notes: `U prefix identifies the Unsung factory in Incheon, South Korea. Format: U + YYMM + sequence. The digits ${yearDigits} decode as production year ${year}${month ? `, ${monthDigits} as ${month}` : ''}. Production sequence: ${sequence}. Schecter Diamond Series and other import models were produced at this facility during the 2000s.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'schecter-u-unsung-korea-yymm-sequence',
+    patternLabel: 'Schecter Unsung Korea U-prefix YYMM sequence',
+  };
 }
 
 function decodeNumericLongImport(serial: string): DecodeResult {

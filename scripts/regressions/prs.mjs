@@ -27,4 +27,14 @@ export function runTests() {
   assertPRSUsaCoreSingleYearDigit('7126922');
   assertPRSUsaCoreSingleYearDigit('7 126922');
   assertPRSUsaCoreSingleYearDigit('7/126922');
+  assertPRSSECortIndonesiaCTINumeric('CTI02544', '2002');
+}
+
+function assertPRSSECortIndonesiaCTINumeric(serialInput, expectedYear) {
+  const result = decodeSerialForBackend('prs', serialInput);
+  assert(result.success, `Expected decode success for prs:${serialInput}`);
+  assert(result.info, `Expected decoded info for prs:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.country === 'Indonesia', `Expected Indonesia for ${serialInput}, got ${result.info.country}`);
+  assert(result.patternKey === 'prs-se-cort-indonesia-cti-numeric-year', `Expected CTI numeric pattern key for ${serialInput}, got ${result.patternKey}`);
 }

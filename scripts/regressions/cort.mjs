@@ -457,6 +457,8 @@ function assertCort8DigitSuspiciousFutureYear(serialInput, expectedDecodedYear) 
 
 export function runTests() {
   assertCortIEPrefix('ie220403666', '2022', 'April');
+  assertCortIEPrefixTenDigit('IE2200604870', '2022');
+  assertCortFPrefixYearSequence('F034130', '2003');
   assertCortAIPrefix('AI200750591', '2020', 'July');
   assertCortICSEPrefix('ICSE21003319');
   assertCortIATransposedPrefix('IA200750591', 'AI200750591', '2020', 'July');
@@ -479,6 +481,23 @@ export function runTests() {
   assertCort1990s7DigitAnomalousMonth('5591410', '1995');
   assertCort8DigitSuspiciousFutureYear('52030600', 2052);
   assertCortModern10DigitYYMM('0404704234', '2004', 'April');
+}
+
+function assertCortIEPrefixTenDigit(serialInput, expectedYear) {
+  const result = decodeSerialForBackend('cort', serialInput);
+  assert(result.success, `Expected decode success for cort:${serialInput}`);
+  assert(result.info, `Expected decoded info for cort:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.country === 'Indonesia', `Expected Indonesia for ${serialInput}, got ${result.info.country}`);
+}
+
+function assertCortFPrefixYearSequence(serialInput, expectedYear) {
+  const result = decodeSerialForBackend('cort', serialInput);
+  assert(result.success, `Expected decode success for cort:${serialInput}`);
+  assert(result.info, `Expected decoded info for cort:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.country === 'Indonesia', `Expected Indonesia for ${serialInput}, got ${result.info.country}`);
+  assert(result.patternKey === 'cort-indonesia-f-prefix-yy-sequence', `Expected F-prefix pattern key for ${serialInput}, got ${result.patternKey}`);
 }
 
 function assertCortModern10DigitYYMM(serialInput, expectedYear, expectedMonth) {

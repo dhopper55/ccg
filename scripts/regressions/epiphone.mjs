@@ -55,4 +55,13 @@ export function runTests() {
   assertEpiphoneKoreaSingleLetter('U97040128', '1997', 'April', 'Unsung', 128);
   assertEpiphoneKoreaSingleLetter('U97040228', '1997', 'April', 'Unsung', 228);
   assertEpiphone1990sNumeric('6043399', '1996', 'April', 3399);
+  assertEpiphoneMIRC311('311619011');
+}
+
+function assertEpiphoneMIRC311(serialInput) {
+  const result = decodeSerialForBackend('epiphone', serialInput);
+  assert(result.success, `Expected decode success for epiphone:${serialInput}`);
+  assert(result.info, `Expected decoded info for epiphone:${serialInput}`);
+  assert(result.info.country === 'USA', `Expected USA for ${serialInput}, got ${result.info.country}`);
+  assert(result.patternKey === 'epiphone-mirc-311-refurb', `Expected MIRC pattern key for ${serialInput}, got ${result.patternKey}`);
 }

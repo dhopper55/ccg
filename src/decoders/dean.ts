@@ -62,6 +62,11 @@ export function decodeDean(serial: string): DecodeResult {
     return decodeAsianPartnerD(normalized);
   }
 
+  // Cort Korea: C + YY + batch + sequence (e.g. C2122845 = Cort 2021, batch 22, seq 845)
+  if (/^C\d{7}$/.test(normalized)) {
+    return decodeCortKoreaC(normalized);
+  }
+
   // Indonesia: IW prefix
   if (/^IW\d{8,10}$/.test(normalized)) {
     return decodeIndonesiaIW(normalized);
@@ -119,7 +124,7 @@ export function decodeDean(serial: string): DecodeResult {
 
   return {
     success: false,
-    error: 'Unable to decode this Dean serial number. The format was not recognized. Common formats include: 7-digit (USA), US prefix (UnSung Korea), WK prefix (World Korea), Z/O/Y prefix (China imports), IW/CT prefix (Indonesia), or 5-6 digit (Czech Republic 1997-2000). Note: Guitars from 1986-1995 with serial numbers on the last fret cannot be reliably dated.',
+    error: 'Unable to decode this Dean serial number. The format was not recognized. Common formats include: 7-digit (USA), US prefix (UnSung Korea), WK prefix (World Korea), Z/O/Y prefix (China imports), IW/CT prefix (Indonesia), C-prefix 8-digit (Cort Korea), or 5-6 digit (Czech Republic 1997-2000). Note: Guitars from 1986-1995 with serial numbers on the last fret cannot be reliably dated.',
   };
 }
 
@@ -796,6 +801,29 @@ function decodeNumericGeneral(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+function decodeCortKoreaC(serial: string): DecodeResult {
+  const yearDigits = serial.substring(1, 3);
+  const batchDigits = serial.substring(3, 5);
+  const sequence = serial.substring(5);
+  const year = 2000 + parseInt(yearDigits, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Dean',
+    serialNumber: serial,
+    year: year.toString(),
+    factory: 'Cort, Daejeon, South Korea',
+    country: 'South Korea',
+    notes: `C prefix identifies the Cort/Cor-Tek facility in Daejeon, South Korea. Format: C + YY + batch + sequence. The digits ${yearDigits} decode as production year ${year}. Batch code: ${batchDigits}. Production sequence: ${sequence}. Dean has used Cort as a manufacturing partner for many mid-range and import models.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'dean-cort-korea-c-yy-batch-sequence',
+    patternLabel: 'Dean Cort Korea C-prefix YY batch sequence',
+  };
 }
 
 // Helper function for month names

@@ -60,6 +60,11 @@ export function decodeESP(serial) {
     if (/^SS\d{7}$/.test(normalized)) {
         return decodeESPCustomShop(normalized);
     }
+    // ESP Custom Shop Japan special format: K + 8 digits + letter + 2 digits
+    // Kiso Custom Shop with embedded WMI/factory suffix (e.g. K09164080W15)
+    if (/^K\d{8}[A-Z]\d{2}$/.test(normalized)) {
+        return decodeESPKisoCustomSpecial(normalized);
+    }
     // 2000-2015 Japan factory formats: K/N/S/T/CH/CS/TH + 7-8 digits
     if (/^(K|N|S|T|CH|CS|TH)\d{7,8}$/.test(normalized)) {
         return decodeESPJapanFactory(normalized);
@@ -154,7 +159,7 @@ export function decodeESP(serial) {
     }
     return {
         success: false,
-        error: 'Unable to decode this ESP serial number. The format was not recognized. Known formats include: US-prefix (ESP USA), E/ES-prefix (ESP Japan / E-II), ED-prefix (Edwards Japan), K-prefix (Kirk Hammett), IS-prefix (LTD Indonesia Samick), letter-factory-prefixed (LTD Korea/Indonesia/China/Vietnam), 9-digit all-numeric (LTD Korea/Indonesia YY+WW+D+NNNN), 6-digit all-numeric (early LTD 1998–1999, Japan Original Series neck plate, or early 2000s Korean LTD with missing prefix), 7-digit all-numeric (LTD transitional or pre-2000 Japan), 8-digit all-numeric (pre-2000 Japan DDMMYNNN), and 4- or 5-digit numeric (vintage Japan Custom Shop / Original Series).',
+        error: 'Unable to decode this ESP serial number. The format was not recognized. Known formats include: US-prefix (ESP USA), E/ES-prefix (ESP Japan / E-II), ED-prefix (Edwards Japan), K-prefix (Kirk Hammett or Kiso Custom Shop), IS-prefix (LTD Indonesia Samick), letter-factory-prefixed (LTD Korea/Indonesia/China/Vietnam), 9-digit all-numeric (LTD Korea/Indonesia YY+WW+D+NNNN), 6-digit all-numeric (early LTD 1998–1999, Japan Original Series neck plate, or early 2000s Korean LTD with missing prefix), 7-digit all-numeric (LTD transitional or pre-2000 Japan), 8-digit all-numeric (pre-2000 Japan DDMMYNNN), and 4- or 5-digit numeric (vintage Japan Custom Shop / Original Series).',
     };
 }
 function decodeESPUSA(serial) {
@@ -1236,6 +1241,24 @@ function getDateFromWeekDay(year, week, dayOfWeek) {
     return {
         month: monthNames[targetDate.getMonth()],
         day: targetDate.getDate().toString()
+    };
+}
+function decodeESPKisoCustomSpecial(serial) {
+    const yearDigits = serial.substring(1, 3);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const info = {
+        brand: 'ESP',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'ESP Custom Shop, Kiso, Japan',
+        country: 'Japan',
+        notes: `ESP Custom Shop Japan special production format. K indicates the Kiso Custom Shop facility. The digits ${yearDigits} decode as production year ${year}. The trailing letter and digits appear to encode additional factory or batch identifiers not used in standard ESP serial conventions. Verify authenticity from the headstock logo, body binding, and ESP Custom Shop paperwork.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'esp-kiso-custom-k-yy-special',
+        patternLabel: 'ESP Kiso Custom Shop K-YY special format',
     };
 }
 function getMonthName(month) {

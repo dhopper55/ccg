@@ -131,6 +131,12 @@ export function decodeJackson(serial: string): DecodeResult {
     return decodeJacksonJunior(normalized);
   }
 
+  // Korea/Sung-Eum 4-letter NJHK prefix: NJHK + YY + sequence (e.g. NJHK08007429 = 2008)
+  // Must be checked before the NHJ India handler and the 3-letter prefix handler
+  if (/^NJHK\d{8}$/i.test(normalized)) {
+    return decodeKoreaNJHK(normalized);
+  }
+
   // India format (NHJ prefix — digits with optional trailing batch letter)
   if (/^NHJ\d{6,8}[A-Z]?$/i.test(normalized)) {
     return decodeIndia(normalized);
@@ -257,7 +263,7 @@ export function decodeJackson(serial: string): DecodeResult {
 
   return {
     success: false,
-    error: 'Unable to decode this Jackson serial number. The format was not recognized. Please verify the serial number is correct.',
+    error: 'Unable to decode this Jackson serial number. The format was not recognized. Known formats include: USA Custom Shop (J/RR/PCS prefix), Indonesia J-prefix modern, Korea NJHK-prefix, 3-letter prefix modern imports (ICJ, CYJ, CWJ, etc.), NHJ India prefix, numeric Japan/Indonesia/India. Please verify the serial number is correct.',
   };
 }
 
@@ -1281,6 +1287,28 @@ function decodeChina3DigitFactorySequence(serial: string): DecodeResult {
       ],
     },
     additionalContextRichText: `<h3>Overview</h3><p>This serial matches a 9-digit numeric Jackson China import format where the first three digits identify the factory and the remaining digits are a pure production sequence.</p><h3>How This Pattern Is Typically Read</h3><p>The first three digits (${factoryCode}) identify the contracted Chinese manufacturing facility. The remaining six digits (${sequence}) form the sequential production number ${sequenceNumber}. This format does not encode a production year within the serial number itself.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock or neck plate for a Made in China stamp.</li><li>Inspect the neck pocket or body cavity for internal date stamps when exact dating is important.</li><li>Compare model specs, hardware, and inlays to Jackson catalog entries to estimate the production era.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed Chinese Jackson import decode. Production year cannot be determined from the serial alone — verify from physical markings and model features.</p>`,
+  };
+}
+
+function decodeKoreaNJHK(serial: string): DecodeResult {
+  const yearDigits = serial.substring(4, 6);
+  const sequence = serial.substring(6);
+  const year = 2000 + parseInt(yearDigits, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Jackson',
+    serialNumber: serial,
+    year: year.toString(),
+    factory: 'Sung-Eum, Incheon, South Korea',
+    country: 'South Korea',
+    notes: `NJHK prefix identifies Korean production at the Sung-Eum (also associated with Samick-era Korean contracting) facility. Format: NJHK + YY + sequence. The digits ${yearDigits} decode as production year ${year}. Production sequence: ${sequence}. This format appears on Jackson Pro Series and similar mid-range Korean-built instruments.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'jackson-njhk-korea-yy-sequence',
+    patternLabel: 'Jackson NJHK Korea YY sequence',
   };
 }
 

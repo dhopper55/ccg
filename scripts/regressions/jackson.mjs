@@ -309,4 +309,14 @@ export function runTests() {
   assertJacksonChinaCWJPrefix('CWJ2257232', '2022', 57232);
   assertJacksonChinaCWJPrefix('CWJ25124694', '2025', 124694);
   assertJacksonChinaNumeric9Digit('311740074');
+  assertJacksonKoreaNJHK('NJHK08007429', '2008');
+}
+
+function assertJacksonKoreaNJHK(serialInput, expectedYear) {
+  const result = decodeSerialForBackend('jackson', serialInput);
+  assert(result.success, `Expected decode success for jackson:${serialInput}`);
+  assert(result.info, `Expected decoded info for jackson:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.country === 'South Korea', `Expected South Korea for ${serialInput}, got ${result.info.country}`);
+  assert(result.patternKey === 'jackson-njhk-korea-yy-sequence', `Expected NJHK pattern key for ${serialInput}, got ${result.patternKey}`);
 }

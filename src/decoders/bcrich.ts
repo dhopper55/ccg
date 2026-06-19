@@ -4,9 +4,12 @@ import { DecodeResult, GuitarInfo } from '../types.js';
  * B.C. Rich Guitar Serial Number Decoder
  *
  * Supported formats (based on published B.C. Rich serial number guides and NJ series references):
+ * - Early USA 4-digit sequential: hand-numbered 1970s–early 1980s Los Angeles production
  * - USA neck-through: 5-digit YYXXX format (year + production sequence)
  * - Class Axe era: B0XXX / BXXXXX / BCXXXXX (year not encoded)
+ * - BW-prefix import: BW + sequential number (Korean contract, Class Axe era)
  * - Import pre-2000: F7XXXXX/F8XXXXX/F9XXXXX/F0XXXXX (year in second digit)
+ * - Letter-prefix 9-digit import: [SIFN] + YY + sequence (year definitively resolved when YY > 30)
  * - Early-2000s short numeric import: 6 digits like 150979
  * - 2000s 7-digit numeric import: 01XXXXX style serials like 0127150
  * - Hanser-era/date-stamp numeric: 8 digits like 41201627 (year digit + quarter + production)
@@ -112,6 +115,11 @@ export function decodeBCRich(serial: string): DecodeResult {
     return decodeBPrefixMonthCodeImport(normalized);
   }
 
+  // BW-prefix import: BW + sequential number (Class Axe era or specific Korean contractor)
+  if (/^BW\d{2,6}$/.test(normalized)) {
+    return decodeBWPrefixImport(normalized);
+  }
+
   if (/^F[7890]\d{5}$/.test(normalized)) {
     return decodeFSeries(normalized);
   }
@@ -168,9 +176,14 @@ export function decodeBCRich(serial: string): DecodeResult {
     return decodeUSA5Digit(normalized);
   }
 
+  // Early USA 4-digit sequential: hand-crafted 1970s–early 1980s Los Angeles production
+  if (/^\d{4}$/.test(normalized)) {
+    return decodeEarlyUSA4Digit(normalized);
+  }
+
   return {
     success: false,
-    error: 'Unable to decode this B.C. Rich serial number. Known formats include: 5-digit USA neck-through (YYXXX), F7/F8/F9/F0 import serials, F-prefix six-digit imports like F201422, 7-digit numeric imports like 0127150, 8-digit Hanser-era/import date stamps (e.g., Sr#41201627), 9-digit or 10-digit all-numeric import serials, month/factory codes like A08140023, two-letter Hanser-era imports like CO1093111, single-letter Hanser-era imports like C301288, short Hanser-era month-code imports like J50212 (month + year digit + 4-digit sequence), B-prefix month-code imports like BA09030385, NJ series R/P + 6 digits, Class Axe BC/B0/B-prefix series like B007132, or short I-prefix import estimates (I + 5 digits).',
+    error: 'Unable to decode this B.C. Rich serial number. Known formats include: 4-digit early USA sequential, 5-digit USA neck-through (YYXXX), BW-prefix import series, F7/F8/F9/F0 import serials, F-prefix six-digit imports like F201422, 7-digit numeric imports like 0127150, 8-digit Hanser-era/import date stamps (e.g., Sr#41201627), 9-digit or 10-digit all-numeric import serials, month/factory codes like A08140023, two-letter Hanser-era imports like CO1093111, single-letter Hanser-era imports like C301288, short Hanser-era month-code imports like J50212 (month + year digit + 4-digit sequence), B-prefix month-code imports like BA09030385, NJ series R/P + 6 digits, Class Axe BC/B0/B-prefix series like B007132, or short I-prefix import estimates (I + 5 digits).',
   };
 }
 
@@ -251,18 +264,10 @@ function decodeImportLetterPrefix(serial: string): DecodeResult {
   const production = serial.slice(3);
   const prefixDesc = IMPORT_PREFIX_MAP[prefix] || `${prefix}-prefix`;
 
-  // Year digits 00-30 map to 2000-2030; higher values could be 1990s
-  let year: string;
-  let yearNote: string;
-  if (yearNum <= 30) {
-    year = `${2000 + yearNum}`;
-    yearNote = `Digits "${yearDigits}" interpreted as ${year}`;
-  } else {
-    const year2k = 2000 + yearNum;
-    const year19 = 1900 + yearNum;
-    year = `${year19} or ${year2k}`;
-    yearNote = `Digits "${yearDigits}" could indicate ${year19} or ${year2k}`;
-  }
+  // Year digits 00-30 map to 2000-2030; higher values are definitively 1900s
+  // (2000 + yearNum exceeds any plausible production year for yearNum > 30)
+  const year = yearNum <= 30 ? `${2000 + yearNum}` : `${1900 + yearNum}`;
+  const yearNote = `Digits "${yearDigits}" interpreted as ${year}`;
 
   const info: GuitarInfo = {
     brand: 'B.C. Rich',
@@ -1074,6 +1079,42 @@ function decode10DigitNumericImport(serial: string): DecodeResult {
       ],
     },
     additionalContextRichText: `<h3>Overview</h3><p>This is a format-valid 10-digit serial number commonly found on imported, bolt-on neck B.C. Rich guitars manufactured during the late 1980s through the 1990s.</p><h3>Why This Number Can't Be Decoded Further</h3><p>B.C. Rich serial numbers from this era are notorious for being structurally meaningless for precise dating. During the Class Axe era (roughly 1989–1993) and subsequent import production runs, factories in Korea and China did not follow strict sequential logging. Workers frequently grabbed pre-stamped neck plates from a random box and attached them to bodies as they finished assembly — the number does not encode a year, factory, or sequence in a reliable way.</p><h3>What This Format Tells You</h3><p>A 10-digit all-numeric serial like this typically indicates a budget-friendly import line such as the Platinum Series. These are great workhorse guitars but do not carry the high valuation of USA Custom Shop models.</p><h3>How to Better Identify the Guitar</h3><ul><li><strong>Headstock Branding:</strong> Look for series labels printed near the B.C. Rich script, such as "Platinum Series", "NJ Series", or "Bronze Series".</li><li><strong>Wood Cavities:</strong> Unscrew the plastic plate over the back electronics or the neck pickup cavity. Production dates were sometimes stamped or penciled into the raw wood during construction.</li><li><strong>Hardware:</strong> Note the style of the bridge — a standard hardtail, a licensed Floyd Rose, or a proprietary Bendmaster bridge common to the early 1990s.</li></ul>`,
+  };
+}
+
+function decodeBWPrefixImport(serial: string): DecodeResult {
+  const sequence = serial.substring(2);
+  const info: GuitarInfo = {
+    brand: 'B.C. Rich',
+    serialNumber: serial,
+    year: '1980s',
+    factory: 'B.C. Rich import (BW-prefix series)',
+    country: 'South Korea',
+    notes: `BW-prefix serial number. The BW prefix appears on B.C. Rich import production, associated with the Class Axe era or a specific Korean contract manufacturing run (circa 1980s). Production sequence: ${sequence}. Exact factory and precise year cannot be determined from this format alone; verify with headstock markings, country-of-origin sticker, or neck pocket stamps.`,
+  };
+  return {
+    success: true,
+    info,
+    patternKey: 'bcrich-bw-prefix-import',
+    patternLabel: 'B.C. Rich BW-prefix Korean import (1980s)',
+  };
+}
+
+function decodeEarlyUSA4Digit(serial: string): DecodeResult {
+  const num = parseInt(serial, 10);
+  const info: GuitarInfo = {
+    brand: 'B.C. Rich',
+    serialNumber: serial,
+    year: '1970s-1980s',
+    factory: 'B.C. Rich, Los Angeles, California',
+    country: 'USA',
+    notes: `4-digit sequential serial number. These early USA serials are associated with hand-crafted B.C. Rich guitars from the 1970s to early 1980s, when Bernie Rico numbered instruments in simple sequential order out of the Los Angeles shop. Lower numbers indicate earlier production. Unit ${num}. These guitars are highly sought after and typically feature neck-through construction, korina or mahogany bodies, and hand-wound pickups.`,
+  };
+  return {
+    success: true,
+    info,
+    patternKey: 'bcrich-early-usa-4-digit-sequential',
+    patternLabel: 'B.C. Rich early USA 4-digit sequential (1970s–1980s)',
   };
 }
 

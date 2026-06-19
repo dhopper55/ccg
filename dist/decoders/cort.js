@@ -64,8 +64,8 @@ export function decodeCort(serial) {
     if (/^ICF\d{8}$/.test(normalized)) {
         return decodeIndonesiaICF(normalized);
     }
-    // Indonesian Cort factory: IE prefix
-    if (/^IE\d{8,9}$/.test(normalized)) {
+    // Indonesian Cort factory: IE prefix (10-digit IE serials seen on some 2022+ runs)
+    if (/^IE\d{8,10}$/.test(normalized)) {
         return decodeIndonesiaIE(normalized);
     }
     // Indonesian Cort factory: IA prefix (Indonesia factory line A, Surabaya)
@@ -97,6 +97,10 @@ export function decodeCort(serial) {
     // R prefix: factory/line prefix + YY + sequence (e.g. R0611374 = 2006)
     if (/^R\d{7}$/.test(normalized)) {
         return decodeRPrefixYearSequence(normalized);
+    }
+    // F prefix: Indonesian factory + YY + sequence (e.g. F034130 = 2003)
+    if (/^F\d{6}$/.test(normalized)) {
+        return decodeIndonesiaFPrefix(normalized);
     }
     // Modern 12-digit logistics/tracking format: YY + 10-digit sequence
     if (/^\d{12}$/.test(normalized)) {
@@ -704,6 +708,25 @@ function decodeRPrefixYearSequence(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Cort/Cor-Tek R-prefix format where the letter prefix is followed by a two-digit production year and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>R is treated as a Cort/Cor-Tek factory, production line, or internal prefix. The digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>The serial does not identify the exact Cort model name.</li><li>The R prefix alone is not enough to confirm the exact factory location.</li><li>Check the headstock, soundhole label, neck heel, or other physical markings for model and country-of-origin details.</li></ul>`,
+    };
+}
+function decodeIndonesiaFPrefix(serial) {
+    const yearDigits = serial.substring(1, 3);
+    const sequence = serial.substring(3);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const info = {
+        brand: 'Cort',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'PT. Cort Indonesia',
+        country: 'Indonesia',
+        notes: `F prefix indicates Indonesian Cort/Cor-Tek facility production (F + YY + sequence). The digits ${yearDigits} decode as production year ${year}. Production sequence: ${sequence}. Cort serials identify production year and factory more reliably than exact model name; verify the model from the headstock, soundhole label, or neck heel.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'cort-indonesia-f-prefix-yy-sequence',
+        patternLabel: 'Cort Indonesia F-prefix YY sequence',
     };
 }
 // Indonesian IE prefix

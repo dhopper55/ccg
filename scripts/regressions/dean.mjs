@@ -125,4 +125,14 @@ export function runTests() {
   assertDeanAsianPartnerAPrefix('a10091499', '2010', 'September');
   assertDeanAsianPartnerDPrefix('D21010091', '2021', 'January');
   assertDeanFiveDigitSequential('52760');
+  assertDeanCortKoreaC('C2122845', '2021');
+}
+
+function assertDeanCortKoreaC(serialInput, expectedYear) {
+  const result = decodeSerialForBackend('dean', serialInput);
+  assert(result.success, `Expected decode success for dean:${serialInput}`);
+  assert(result.info, `Expected decoded info for dean:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.country === 'South Korea', `Expected South Korea for ${serialInput}, got ${result.info.country}`);
+  assert(result.patternKey === 'dean-cort-korea-c-yy-batch-sequence', `Expected C-prefix pattern key for ${serialInput}, got ${result.patternKey}`);
 }

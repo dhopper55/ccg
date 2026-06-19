@@ -333,6 +333,32 @@ function assertBCRichSISamilIndonesia(serialInput) {
   );
 }
 
+function assertBCRichEarlyUSA4Digit(serialInput) {
+  const result = decodeBCRich(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+  assert(result.info.year === '1970s-1980s', `Expected 1970s-1980s year for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.country === 'USA', `Expected USA for ${serialInput}, got ${result.info.country}`);
+  assert(result.patternKey === 'bcrich-early-usa-4-digit-sequential', `Expected 4-digit pattern key for ${serialInput}, got ${result.patternKey}`);
+}
+
+function assertBCRichBWPrefixImport(serialInput) {
+  const result = decodeBCRich(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+  assert(result.info.year === '1980s', `Expected 1980s year for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.country === 'South Korea', `Expected South Korea for ${serialInput}, got ${result.info.country}`);
+  assert(result.patternKey === 'bcrich-bw-prefix-import', `Expected BW pattern key for ${serialInput}, got ${result.patternKey}`);
+}
+
+function assertBCRichImportLetterPrefixYear(serialInput, expectedYear) {
+  const result = decodeBCRich(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(!result.info.year.includes(' or '), `Expected unambiguous year for ${serialInput}, got ${result.info.year}`);
+}
+
 export function runTests() {
   assertBCRichIShortImport('i50311', '2005', 'March');
   assertBCRichShortNumericImport('150979');
@@ -347,4 +373,7 @@ export function runTests() {
   assertBCRichClassAxeBPrefixImport('B007132');
   assertBCRichUSA5DigitOffset('36642', '1982-1983 (estimated)');
   assertBCRichSISamilIndonesia('SI05020494');
+  assertBCRichEarlyUSA4Digit('4500');
+  assertBCRichBWPrefixImport('BW4500');
+  assertBCRichImportLetterPrefixYear('F99000283', '1999');
 }

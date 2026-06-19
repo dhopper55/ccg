@@ -9,6 +9,11 @@ export function decodePRS(serial) {
     if (/^A\d{5,}$/.test(normalized)) {
         return decodeAcoustic(normalized);
     }
+    // SE Series: CTI + numeric digits only (no year letter — e.g. CTI02544 = Cort Indonesia 2002)
+    // Must be checked before the CT[CI][A-Z] handler which requires a letter after the factory code
+    if (/^CTI\d{5,}$/.test(normalized)) {
+        return decodeSECortIndonesiaNumericYear(normalized);
+    }
     // SE Series with factory code: CTC/CTI + letter + digits (China/Indonesia)
     if (/^CT[CI][A-Z]\d+$/.test(normalized)) {
         return decodeSECort(normalized);
@@ -72,7 +77,7 @@ export function decodePRS(serial) {
     }
     return {
         success: false,
-        error: 'Unable to decode this PRS serial number. The format was not recognized. Please check the serial number and try again.'
+        error: 'Unable to decode this PRS serial number. The format was not recognized. Known formats include: S2-prefix (USA S2 Series), CTC/CTI-prefix (SE Cort China/Indonesia), single letter (SE Korea), numeric 5-7 digits (USA Core), 2-digit year prefix (USA Core 2008+). Please check the serial number and try again.'
     };
 }
 // USA Set-Neck Sequential Ranges (1985-2006+)
@@ -244,6 +249,27 @@ function decodeSEKorea(serial) {
         notes: `SE Series import model. Letter "${yearLetter}" indicates ${year}. Sequence: ${sequence}.`
     };
     return { success: true, info };
+}
+function decodeSECortIndonesiaNumericYear(serial) {
+    const yearDigits = serial.substring(3, 5);
+    const sequence = serial.substring(5);
+    const yearNum = parseInt(yearDigits, 10);
+    const year = yearNum <= 30 ? 2000 + yearNum : 1900 + yearNum;
+    const info = {
+        brand: 'PRS',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'Cort, Cikarang, Indonesia',
+        country: 'Indonesia',
+        model: 'SE Series',
+        notes: `CTI prefix identifies the Cort Indonesia facility in Cikarang. Format: CTI + YY + sequence. The digits ${yearDigits} decode as production year ${year}. Production sequence: ${sequence}. This variant of the Cort Indonesia format uses a 2-digit year directly rather than a letter year code. Verify the model from the headstock and body markings.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'prs-se-cort-indonesia-cti-numeric-year',
+        patternLabel: 'PRS SE Cort Indonesia CTI numeric year sequence',
+    };
 }
 function decodeSECort(serial) {
     const factoryCode = serial.substring(0, 3);

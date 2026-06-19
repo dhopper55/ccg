@@ -152,13 +152,6 @@ function decode8Digit(serial) {
     const remaining = serial.substring(4);
     const yearNum = parseInt(yearDigits, 10);
     const month = parseInt(monthDigits, 10);
-    // Validate month
-    if (month < 1 || month > 12) {
-        return {
-            success: false,
-            error: `Invalid month "${monthDigits}" in serial number. Month should be 01-12.`,
-        };
-    }
     // Determine year
     let year;
     let yearNote;
@@ -182,6 +175,18 @@ function decode8Digit(serial) {
         // But these would more likely be from 2013+ using offset
         year = 1962 + yearNum;
         yearNote = 'Year calculated using offset from 1962.';
+    }
+    // Validate month — some vintage serials use non-standard codes in the month position
+    if (month < 1 || month > 12) {
+        const info = {
+            brand: 'Takamine',
+            serialNumber: serial,
+            year: year.toString(),
+            factory: 'Takamine, Sakashita, Japan',
+            country: 'Japan',
+            notes: `8-digit format. Year decoded as ${year}. The digits "${monthDigits}" in the month position are non-standard and cannot be interpreted as a calendar month (01–12); they may encode a batch or production-line code used in certain vintage runs. Remaining digits: ${remaining}.${yearNote ? ' ' + yearNote : ''}`,
+        };
+        return { success: true, info };
     }
     // Check if this could be YYMMDDXX format (day + 2-digit sequence)
     const possibleDay = parseInt(remaining.substring(0, 2), 10);

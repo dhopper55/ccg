@@ -68,6 +68,11 @@ export function decodeEpiphone(serial: string): DecodeResult {
     );
   }
 
+  // MIRC format: 311 + 6 digits (Manufacturer's Inspection and Repair Center — Gibson refurbishment)
+  if (/^311\d{6}$/.test(normalized)) {
+    return decodeMIRCRefurb(normalized);
+  }
+
   // Format 3: YYMM + 2-digit factory code + 3-6 digits (since 2008)
   // e.g., 0807230809 = July 2008, factory 23, #809
   // e.g., 08121512345 = Dec 2008, factory 15, #12345
@@ -100,7 +105,7 @@ export function decodeEpiphone(serial: string): DecodeResult {
 
   return {
     success: false,
-    error: 'Unrecognized Epiphone serial number format. Modern Epiphone serials typically start with 1-2 letters (factory code) followed by digits indicating year, month, and production number.'
+    error: 'Unrecognized Epiphone serial number format. Modern Epiphone serials typically start with 1-2 letters (factory code) followed by digits indicating year, month, and production number. MIRC refurbishment units begin with 311 (9 digits total).'
   };
 }
 
@@ -393,6 +398,23 @@ function decodeLetterYearFormat(factory: string, yearDigit: string, sequence: st
   };
 
   return { success: true, info };
+}
+
+function decodeMIRCRefurb(serial: string): DecodeResult {
+  const info: GuitarInfo = {
+    brand: 'Epiphone',
+    serialNumber: serial,
+    factory: 'Gibson MIRC (Manufacturer\'s Inspection and Repair Center)',
+    country: 'USA',
+    notes: 'The 311 prefix identifies this as a MIRC (Manufacturer\'s Inspection and Repair Center) refurbishment serial. These numbers are assigned by Gibson\'s repair and refurbishment center to Epiphone instruments that were processed for quality remediation, warranty repair, or factory refurbishment. The serial does not encode a standard production year or factory — the 311 prefix is the MIRC identifier. Verify the guitar\'s model and year from the label inside the body.',
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'epiphone-mirc-311-refurb',
+    patternLabel: 'Epiphone MIRC 311-prefix refurbishment',
+  };
 }
 
 function decodeFSerialFormat(serial: string): DecodeResult {

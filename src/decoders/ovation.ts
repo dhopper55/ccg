@@ -397,21 +397,39 @@ function decodeKoreanImport7Digit(serial: string): DecodeResult {
 
 // Import models (7+ digits without prefix)
 function decodeImport(serial: string): DecodeResult {
-  // Try to extract year from first 2 digits if they look like a year
   const firstTwo = serial.substring(0, 2);
   const yearNum = parseInt(firstTwo, 10);
 
-  let yearGuess = 'Unknown';
-  if (yearNum >= 0 && yearNum <= 25) {
-    yearGuess = `Possibly 20${firstTwo.padStart(2, '0')}`;
-  } else if (yearNum >= 90 && yearNum <= 99) {
-    yearGuess = `Possibly 19${firstTwo}`;
+  // 8-digit serials with valid YYMM encoding (e.g. 14100207 = Oct 2014)
+  if (serial.length === 8 && yearNum >= 0 && yearNum <= 25) {
+    const monthDigits = serial.substring(2, 4);
+    const monthNum = parseInt(monthDigits, 10);
+    if (monthNum >= 1 && monthNum <= 12) {
+      const months = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December',
+      ];
+      const year = 2000 + yearNum;
+      const sequence = serial.substring(4);
+      const info: GuitarInfo = {
+        brand: 'Ovation / Celebrity / Applause',
+        serialNumber: serial,
+        year: year.toString(),
+        month: months[monthNum - 1],
+        factory: 'Un Sung, South Korea',
+        country: 'South Korea',
+        notes: `8-digit YYMM import format. The digits ${firstTwo} decode as production year ${year}; digits ${monthDigits} decode as ${months[monthNum - 1]}. Production sequence: ${sequence}. Common on Celebrity and import Ovation models built at the Un Sung facility in South Korea. Verify the exact model from the soundhole label.`,
+      };
+      return { success: true, info };
+    }
   }
 
+  // Fall back for other formats — intentionally returns info that fails hasMeaningfulServerDecodeInfo
+  // so generic 7+ digit Ovation serials that cannot be decoded return failure to the user
   const info: GuitarInfo = {
     brand: 'Ovation / Celebrity / Applause',
     serialNumber: serial,
-    year: yearGuess,
+    year: 'Unknown',
     factory: 'Korea or China',
     country: 'Import (check label)',
     notes: `7+ digit serial number indicates an import model. Could be Celebrity (Korea/China), Applause (China), or import Ovation. Check the label inside the soundhole for country of origin. Import serial numbers are less standardized than USA production.`,

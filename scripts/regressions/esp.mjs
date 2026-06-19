@@ -237,4 +237,14 @@ export function runTests() {
   assertESPAmbiguous6DigitAllNumeric('028304');
   assertESPLTDIndonesiaSamickIS('IS090417067', '2009', 'April');
   assertESPLTDNumeric9Digit('090417067', '2009', 'January', 'Monday');
+  assertESPKisoCustomSpecial('K09164080W15', '2009');
+}
+
+function assertESPKisoCustomSpecial(serialInput, expectedYear) {
+  const result = decodeSerialForBackend('esp', serialInput);
+  assert(result.success, `Expected decode success for esp:${serialInput}`);
+  assert(result.info, `Expected decoded info for esp:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.country === 'Japan', `Expected Japan for ${serialInput}, got ${result.info.country}`);
+  assert(result.patternKey === 'esp-kiso-custom-k-yy-special', `Expected Kiso Custom pattern key for ${serialInput}, got ${result.patternKey}`);
 }
