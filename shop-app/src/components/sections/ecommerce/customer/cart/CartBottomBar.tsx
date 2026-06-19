@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
   Button,
@@ -29,7 +29,7 @@ type CashCustomerForm = {
 
 type CashCustomerFormErrors = Partial<Record<keyof CashCustomerForm, string>>;
 type AssociateStripeFlow = 'checkout' | 'split';
-type TerminalPaymentStatus = 'idle' | 'waiting' | 'succeeded' | 'failed';
+type TerminalPaymentStatus = 'idle' | 'waiting' | 'cancelling' | 'succeeded' | 'failed';
 
 type TerminalPaymentState = {
   open: boolean;
@@ -92,7 +92,7 @@ const validateCashCustomerForm = (values: CashCustomerForm) => {
 
 const CartBottomBar = () => {
   const { appliedCoupon, associateDiscount, cartItems, cartTotal, taxIncluded, otdMode } = useEcommerce();
-  const { isAssociateMode } = useAssociateMode();
+  const { isAssociateMode, stripeSandbox } = useAssociateMode();
   const { up } = useBreakpoints();
   const { currencyFormat } = useNumberFormat();
   const { enqueueSnackbar } = useSnackbar();
@@ -111,6 +111,8 @@ const CartBottomBar = () => {
   const [cashCustomerErrors, setCashCustomerErrors] = useState<CashCustomerFormErrors>({});
   const [terminalCustomer, setTerminalCustomer] = useState<CashCustomerForm>(defaultCashCustomerForm);
   const [terminalCustomerErrors, setTerminalCustomerErrors] = useState<CashCustomerFormErrors>({});
+  const [terminalCancelUnlocked, setTerminalCancelUnlocked] = useState(false);
+  const terminalPollCancelledRef = useRef(false);
   const upSm = up('sm');
   const selectedCartItems = useMemo(() => cartItems.filter((item) => item.selected), [cartItems]);
   const cartTotalCents = Math.max(0, Math.round(cartTotal * 100));
@@ -256,6 +258,7 @@ const CartBottomBar = () => {
         throw new Error(data.message || 'Unable to start terminal payment.');
       }
 
+      terminalPollCancelledRef.current = false;
       setTerminalPayment({
         open: true,
         status: 'waiting',
@@ -284,7 +287,9 @@ const CartBottomBar = () => {
   const handleTerminalCancel = async () => {
     if (!terminalPayment.orderId || isCancelingTerminalPayment) return;
 
+    terminalPollCancelledRef.current = true;
     setIsCancelingTerminalPayment(true);
+    setTerminalPayment((current) => ({ ...current, status: 'cancelling' }));
     try {
       const response = await fetch(`/api/shop/orders/${encodeURIComponent(terminalPayment.orderId)}/terminal-payment/cancel`, {
         method: 'POST',
@@ -308,7 +313,7 @@ const CartBottomBar = () => {
   useEffect(() => {
     if (!terminalPayment.open || terminalPayment.status !== 'waiting' || !terminalPayment.orderId) return undefined;
 
-    let cancelled = false;
+    let effectCancelled = false;
     const poll = async () => {
       try {
         const response = await fetch(`/api/shop/orders/${encodeURIComponent(terminalPayment.orderId)}/terminal-payment`, {
@@ -319,7 +324,7 @@ const CartBottomBar = () => {
           successUrl?: string;
           message?: string;
         };
-        if (cancelled) return;
+        if (effectCancelled || terminalPollCancelledRef.current) return;
         if (!response.ok) {
           throw new Error(data.message || 'Unable to check terminal payment.');
         }
@@ -336,7 +341,7 @@ const CartBottomBar = () => {
           setIsCheckingOut(false);
         }
       } catch (error) {
-        if (cancelled) return;
+        if (effectCancelled || terminalPollCancelledRef.current) return;
         setTerminalPayment((current) => ({
           ...current,
           status: 'failed',
@@ -352,10 +357,19 @@ const CartBottomBar = () => {
     void poll();
 
     return () => {
-      cancelled = true;
+      effectCancelled = true;
       window.clearInterval(intervalId);
     };
   }, [terminalPayment.open, terminalPayment.orderId, terminalPayment.status, terminalPayment.successUrl]);
+
+  useEffect(() => {
+    if (!terminalPayment.open || terminalPayment.status !== 'waiting') {
+      setTerminalCancelUnlocked(false);
+      return undefined;
+    }
+    const timer = window.setTimeout(() => setTerminalCancelUnlocked(true), 30_000);
+    return () => window.clearTimeout(timer);
+  }, [terminalPayment.open, terminalPayment.status]);
 
   const handleCashCheckout = async () => {
     if (selectedCartItems.length === 0 || isCashCheckingOut) return;
@@ -387,7 +401,7 @@ const CartBottomBar = () => {
           })),
         }),
       });
-      const data = (await response.json()) as { url?: string; message?: string };
+      const data = (await response.json()) as { url?: string; orderNumber?: string; message?: string };
 
       if (!response.ok || !data.url) {
         throw new Error(data.message || 'Unable to record cash checkout.');
@@ -424,6 +438,23 @@ const CartBottomBar = () => {
             }}
           >
             {cartItems.length} item{cartItems.length > 1 ? 's' : ''} selected
+          </Typography>
+        )}
+        {isAssociateMode && stripeSandbox && (
+          <Typography
+            variant="h6"
+            sx={{
+              fontWeight: 900,
+              color: 'warning.dark',
+              bgcolor: 'warning.light',
+              px: 2,
+              py: 0.5,
+              borderRadius: 1,
+              letterSpacing: 2,
+              flexShrink: 0,
+            }}
+          >
+            SANDBOX
           </Typography>
         )}
         <Stack
@@ -637,7 +668,6 @@ const CartBottomBar = () => {
           variant="contained"
           onClick={() => {
             setPaymentRouteOpen(false);
-            setTerminalCustomer(defaultCashCustomerForm);
             setTerminalCustomerErrors({});
             setTerminalCustomerOpen(true);
           }}
@@ -650,15 +680,18 @@ const CartBottomBar = () => {
     <Dialog
       open={terminalPayment.open}
       onClose={() => {
-        if (terminalPayment.status !== 'waiting' && !isCancelingTerminalPayment) {
+        if (terminalPayment.status !== 'waiting' && terminalPayment.status !== 'cancelling' && !isCancelingTerminalPayment) {
           setTerminalPayment(defaultTerminalPaymentState);
         }
       }}
+      disableEscapeKeyDown={terminalPayment.status === 'waiting' || terminalPayment.status === 'cancelling'}
       fullWidth
       maxWidth="xs"
     >
       <DialogTitle>
-        {terminalPayment.status === 'failed' ? 'Terminal payment failed' : 'Waiting for terminal payment'}
+        {terminalPayment.status === 'failed' ? 'Terminal payment failed'
+          : terminalPayment.status === 'cancelling' ? 'Cancelling terminal payment…'
+          : 'Waiting for terminal payment'}
       </DialogTitle>
       <DialogContent sx={{ pt: 1 }}>
         <Stack direction="column" sx={{ gap: 1 }}>
@@ -674,9 +707,13 @@ const CartBottomBar = () => {
             color="neutral"
             variant="soft"
             onClick={handleTerminalCancel}
-            loading={isCancelingTerminalPayment}
+            disabled={!terminalCancelUnlocked}
           >
             Cancel terminal payment
+          </Button>
+        ) : terminalPayment.status === 'cancelling' ? (
+          <Button color="neutral" variant="soft" loading disabled>
+            Cancelling…
           </Button>
         ) : (
           <Button

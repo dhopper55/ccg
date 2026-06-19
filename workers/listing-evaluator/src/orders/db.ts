@@ -488,6 +488,13 @@ export async function dbMarkManualCheckoutOrderPaid(
 export async function dbMarkTerminalCheckoutOrderPaid(orderId: string, paymentIntent: any, env: Env): Promise<void> {
   const currentStatus = await dbGetOrderStatus(orderId, env);
   if (currentStatus === 'paid') return;
+  if (currentStatus === 'cancelled' || currentStatus === 'canceled') {
+    console.error('Refused to mark cancelled terminal order as paid — Stripe PaymentIntent may have succeeded after local cancel; manual review required', {
+      orderId,
+      paymentIntentId: normalizeText(paymentIntent?.id, ''),
+    });
+    return;
+  }
 
   const paidAt = new Date().toISOString();
   const session = {

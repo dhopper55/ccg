@@ -5,6 +5,7 @@ type AssociateModeContextValue = {
   isCheckingAssociateMode: boolean;
   associateScreensaverIdleMs: number;
   customProductBarcode: string;
+  stripeSandbox: boolean;
   disableAssociateMode: () => Promise<void>;
 };
 
@@ -15,6 +16,7 @@ type AssociateModeResponse = {
 type ShopSettingsResponse = {
   associateScreensaverIdleMs?: number;
   customProductBarcode?: string;
+  stripeSandbox?: boolean;
 };
 
 const associateModeStorageKey = 'ccgAssociateMode';
@@ -25,6 +27,7 @@ const AssociateModeContext = createContext<AssociateModeContextValue>({
   isCheckingAssociateMode: false,
   associateScreensaverIdleMs: defaultAssociateScreensaverIdleMs,
   customProductBarcode: '',
+  stripeSandbox: false,
   disableAssociateMode: async () => undefined,
 });
 
@@ -52,6 +55,7 @@ const AssociateModeProvider = ({ children }: { children: ReactNode }) => {
   const [isCheckingAssociateMode, setIsCheckingAssociateMode] = useState(false);
   const [associateScreensaverIdleMs, setAssociateScreensaverIdleMs] = useState(defaultAssociateScreensaverIdleMs);
   const [customProductBarcode, setCustomProductBarcode] = useState('');
+  const [stripeSandbox, setStripeSandbox] = useState(false);
 
   const disableAssociateMode = useCallback(async () => {
     setIsCheckingAssociateMode(true);
@@ -79,10 +83,12 @@ const AssociateModeProvider = ({ children }: { children: ReactNode }) => {
           ? Math.floor(idleMs)
           : defaultAssociateScreensaverIdleMs);
         setCustomProductBarcode(typeof data.customProductBarcode === 'string' ? data.customProductBarcode.trim() : '');
+        setStripeSandbox(data.stripeSandbox === true);
       } catch {
         if (!cancelled) {
           setAssociateScreensaverIdleMs(defaultAssociateScreensaverIdleMs);
           setCustomProductBarcode('');
+          setStripeSandbox(false);
         }
       }
     };
@@ -168,6 +174,7 @@ const AssociateModeProvider = ({ children }: { children: ReactNode }) => {
       isCheckingAssociateMode,
       associateScreensaverIdleMs,
       customProductBarcode,
+      stripeSandbox,
       disableAssociateMode,
     }),
     [
@@ -175,6 +182,7 @@ const AssociateModeProvider = ({ children }: { children: ReactNode }) => {
       isCheckingAssociateMode,
       associateScreensaverIdleMs,
       customProductBarcode,
+      stripeSandbox,
       disableAssociateMode,
     ],
   );

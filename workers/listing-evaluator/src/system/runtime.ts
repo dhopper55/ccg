@@ -82,11 +82,13 @@ export async function getShopRuntimeSettings(env: Env): Promise<{
   associateScreensaverIdleMs: number;
   customProductBarcode: string;
   saleDescriptionPostfix: string;
+  stripeSandbox: boolean;
 }> {
   const fallback = {
     associateScreensaverIdleMs: 60_000,
     customProductBarcode: '',
     saleDescriptionPostfix: DEFAULT_SALE_DESCRIPTION_POSTFIX,
+    stripeSandbox: false,
   };
 
   try {
@@ -100,6 +102,7 @@ export async function getShopRuntimeSettings(env: Env): Promise<{
         : fallback.associateScreensaverIdleMs,
       customProductBarcode: normalizeText(row.custom_product_barcode, '').slice(0, 80),
       saleDescriptionPostfix: normalizeText(row.sale_description_postfix, DEFAULT_SALE_DESCRIPTION_POSTFIX),
+      stripeSandbox: parseSysInfoBoolean(row.use_stripe_sandbox, false),
     };
   } catch (error) {
     console.warn('Shop sys_info settings lookup failed.', { error });
