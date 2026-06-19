@@ -2292,6 +2292,8 @@ function activateStep(n) {
       var el = document.querySelector('section.' + cls);
       if (el) el.style.display = 'none';
     });
+    var speedBand = document.querySelector('.speed-band');
+    if (speedBand) speedBand.style.display = 'none';
   }
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
