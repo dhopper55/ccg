@@ -99,10 +99,35 @@ function assertWashburnBCChina(serialInput, expectedYear) {
   );
 }
 
+function assertWashburnCOVariantFactory(serialInput, expectedPrefix, expectedYear, expectedSequence) {
+  const result = decodeWashburn(serialInput);
+  assert(result.success, `Expected decode success for Washburn ${serialInput}`);
+  assert(result.info, `Expected decoded info for Washburn ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(
+    info.factory === 'Chinese contract factory (CO/OC overseas facility, Qingdao or Cort China)',
+    `Expected CO-variant factory for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'China', `Expected China for ${serialInput}, got ${info.country}`);
+  assert(
+    result.patternKey === 'washburn-co-variant-factory-y-sequence',
+    `Expected CO-variant pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes(`production sequence (unit ${expectedSequence})`),
+    `Expected production sequence ${expectedSequence} in rich text for ${serialInput}`
+  );
+}
+
 export function runTests() {
   assertWashburnIndonesiaYearLetter('I8C112846');
   assertWashburnLegacyJapan6Digit('298093');
   assertWashburn1990s10DigitYYMM('9212000236');
   assertWashburnNumeric8Vintage1960s('66810111', '1966');
   assertWashburnBCChina('BC6061796', '2006');
+  assertWashburnCOVariantFactory('CO7052236', 'CO', '2007', 52236);
+  assertWashburnCOVariantFactory('O7052236', 'O', '2007', 52236);
+  assertWashburnCOVariantFactory('OCO7052236', 'OCO', '2007', 52236);
 }

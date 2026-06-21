@@ -270,6 +270,32 @@ function assertKramerJKIndonesia(serialInput, expectedYear, expectedMonth) {
   );
 }
 
+function assertKramerSASamickKorea(serialInput) {
+  const result = decodeKramer(serialInput);
+  assert(result.success, `Expected decode success for kramer:${serialInput}`);
+  assert(result.info, `Expected decoded info for kramer:${serialInput}`);
+
+  const info = result.info;
+  assert(
+    info.year === 'mid-to-late 1980s (estimated)',
+    `Expected mid-to-late 1980s estimate for ${serialInput}, got ${info.year}`
+  );
+  assert(info.factory === 'Samick Korea', `Expected Samick Korea factory for ${serialInput}, got ${info.factory}`);
+  assert(info.country === 'South Korea', `Expected South Korea for ${serialInput}, got ${info.country}`);
+  assert(
+    info.model === 'Striker Series (Striker 100, 200, or 300) or related import line',
+    `Expected Striker model guidance for ${serialInput}, got ${info.model}`
+  );
+  assert(
+    result.patternKey === 'kramer-sa-samick-korea-striker-sequence',
+    `Expected Kramer SA Samick Korea pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('production sequence (9933)'),
+    `Expected production sequence 9933 in rich text for ${serialInput}`
+  );
+}
+
 export function runTests() {
   assertKramerModernS('S106020848', '2010', 'June');
   assertKramerSJSaemyungChina('SJ03120763', '2003', 'December');
@@ -284,6 +310,7 @@ export function runTests() {
   assertKramerModernGibsonEraNumeric('25051300004', '2025', 'May', 'Factory 13');
   assertKramerModernGibsonEraFactoryNumeric('311763081', '2017', 'June', 'Qingdao');
   assertKramerSBStriker('SB 2063');
+  assertKramerSASamickKorea('Sa9933');
   assertKramerPlain4Digit('8586');
   assertKramerJKIndonesia('JK99100467', '1999', 'October');
   assertKramerJKIndonesia('JK99090162', '1999', 'September');

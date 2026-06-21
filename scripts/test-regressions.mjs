@@ -1,3 +1,4 @@
+import { runTests as runAlvarezTests } from './regressions/alvarez.mjs';
 import { runTests as runIbanezTests } from './regressions/ibanez.mjs';
 import { runTests as runBCRichTests } from './regressions/bcrich.mjs';
 import { runTests as runEpiphoneTests } from './regressions/epiphone.mjs';
@@ -21,6 +22,7 @@ import { runTests as runFenderTests } from './regressions/fender.mjs';
 import { runTests as runPRSTests } from './regressions/prs.mjs';
 import { runTests as runYamahaTests } from './regressions/yamaha.mjs';
 
+runAlvarezTests();
 runIbanezTests();
 runBCRichTests();
 runEpiphoneTests();

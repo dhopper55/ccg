@@ -56,6 +56,17 @@ export function runTests() {
   assertEpiphoneKoreaSingleLetter('U97040228', '1997', 'April', 'Unsung', 228);
   assertEpiphone1990sNumeric('6043399', '1996', 'April', 3399);
   assertEpiphoneMIRC311('311619011');
+  assertEpiphonePeerlessLMisread('R94l158', '1994', 'November', 'Peerless');
+}
+
+function assertEpiphonePeerlessLMisread(serialInput, expectedYear, expectedMonth, expectedFactoryPartial) {
+  const result = decodeSerialForBackend('epiphone', serialInput);
+  assert(result.success, `Expected decode success for epiphone:${serialInput}`);
+  assert(result.info, `Expected decoded info for epiphone:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${result.info.month}`);
+  assert(result.info.factory && result.info.factory.includes(expectedFactoryPartial), `Expected factory containing "${expectedFactoryPartial}" for ${serialInput}, got ${result.info.factory}`);
+  assert(result.info.country === 'South Korea', `Expected South Korea for ${serialInput}, got ${result.info.country}`);
 }
 
 function assertEpiphoneMIRC311(serialInput) {

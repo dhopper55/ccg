@@ -376,4 +376,13 @@ export function runTests() {
   assertBCRichEarlyUSA4Digit('4500');
   assertBCRichBWPrefixImport('BW4500');
   assertBCRichImportLetterPrefixYear('F99000283', '1999');
+  assertBCRichBWithTrailingLetter('B164u');
+}
+
+function assertBCRichBWithTrailingLetter(serialInput) {
+  const result = decodeBCRich(serialInput);
+  assert(result.success, `Expected decode success for bcrich:${serialInput}`);
+  assert(result.info, `Expected decoded info for bcrich:${serialInput}`);
+  assert(result.info.country === 'South Korea', `Expected South Korea for ${serialInput}, got ${result.info.country}`);
+  assert(result.patternKey === 'bcrich-b-prefix-trailing-letter-import', `Expected B-trailing-letter pattern key for ${serialInput}, got ${result.patternKey}`);
 }

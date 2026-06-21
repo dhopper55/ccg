@@ -8,6 +8,7 @@
  * - Indonesian generic: I prefix
  * - Chinese production: G prefix
  * - Cort production: C prefix
+ * - Chinese CO/O/OCO variant prefix (single-digit year + 6-digit sequence)
  * - 1980s-1990s numeric formats
  * - Short serial numbers (4-5 digits) from 1970s-1980s
  *
@@ -63,6 +64,12 @@ export function decodeWashburn(serial) {
     // e.g. BC6061796 = China factory, plant 6, year 2006, sequence 1796
     if (/^BC\d{7}$/.test(normalized)) {
         return decodeWashburnBCChina(normalized);
+    }
+    // CO/O/OCO overseas China factory: prefix + single-digit year + 6-digit sequence
+    // CO7052236 = CO factory, year 2007, sequence 052236; O and OCO are prefix variants
+    // Must come before generic 2-letter YYWW handler which would misparse CO prefix as year 1970
+    if (/^(OCO|CO|O)\d{7}$/.test(normalized)) {
+        return decodeCOVariantFactory(normalized);
     }
     // Modern 2-letter factory code + YYWW + 3-digit unit (e.g., UO2045971)
     if (/^[A-Z]{2}\d{7}$/.test(normalized)) {
@@ -411,6 +418,52 @@ function decodeModernTwoLetterYYWW(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern Washburn import format using a 2-letter factory code, 2-digit year, 2-digit production week, and 3-digit unit number.</p><h3>How This Pattern Is Typically Read</h3><p>${prefix} is the factory code indicating ${factory}. The digits ${yearDigits} decode as production year ${year}. The digits ${weekDigits} decode as production week ${week}${month ? `, approximately ${month}` : ''}. The final digits ${unit} are the unit number within that batch.</p><h3>What To Verify</h3><ul><li>Washburn has used many 2-letter factory codes across different Asian facilities.</li><li>The week number gives an approximate month rather than an exact date.</li><li>This format does not encode the exact model name — confirm it from headstock, label, and hardware.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a modern Washburn import decode, then confirm the exact model and factory from the headstock, soundhole label, or Washburn support if needed.</p>`,
+    };
+}
+function decodeCOVariantFactory(serial) {
+    const prefixMatch = serial.match(/^(OCO|CO|O)(\d)(\d{6})$/);
+    if (!prefixMatch)
+        return { success: false, error: 'Unable to decode CO-variant factory serial.' };
+    const prefix = prefixMatch[1];
+    const yearDigit = prefixMatch[2];
+    const sequence = prefixMatch[3];
+    const year = 2000 + parseInt(yearDigit, 10);
+    const sequenceNumber = parseInt(sequence, 10);
+    const factory = 'Chinese contract factory (CO/OC overseas facility, Qingdao or Cort China)';
+    const country = 'China';
+    const info = {
+        brand: 'Washburn',
+        serialNumber: serial,
+        year: year.toString(),
+        factory,
+        country,
+        notes: `Washburn CO-variant factory prefix format. ${prefix} identifies a Chinese contracted production facility. ${yearDigit} is the single-digit year code indicating ${year}. ${sequence} is the 6-digit production sequence number ${sequenceNumber}.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'washburn-co-variant-factory-y-sequence',
+        patternLabel: 'Washburn CO-variant overseas factory single-year sequence',
+        additionalContext: {
+            title: `Washburn ${prefix}-prefix serial (CO-variant overseas factory)`,
+            summary: `This serial follows a Washburn import format using a factory prefix (${prefix}), a single-digit year code, and a 6-digit production sequence number.`,
+            highlights: [
+                `${prefix} is the factory prefix indicating a Chinese contracted production facility.`,
+                `${yearDigit} is the single-digit year code decoding as production year ${year}.`,
+                `${sequence} is the 6-digit production sequence number (unit ${sequenceNumber}).`,
+            ],
+            caveats: [
+                `The single-digit year is ambiguous — "${yearDigit}" most commonly indicates ${year} but could also indicate ${year + 10} for newer guitars.`,
+                'CO, O, and OCO are all variants of the same Chinese overseas factory code used by Washburn on different label and stamp conventions.',
+                'This format does not encode the exact model name.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock or soundhole label for country-of-origin and year markings.',
+                'Compare hardware, pickups, and finish against the Washburn catalog for the decoded year.',
+                'Contact Washburn support with clear photos if exact factory confirmation is needed.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial follows a Washburn import format using a factory prefix (${prefix}), a single-digit year code, and a 6-digit production sequence number.</p><h3>How This Pattern Is Typically Read</h3><p>${prefix} is the factory prefix identifying a Chinese contracted production facility. The digit ${yearDigit} is the single-digit year code decoding as production year ${year}. The remaining digits ${sequence} are the 6-digit production sequence (unit ${sequenceNumber}).</p><h3>What To Verify</h3><ul><li>The single-digit year is somewhat ambiguous — "${yearDigit}" most commonly indicates ${year} but could indicate ${year + 10} for guitars that appear to be from a decade later.</li><li>CO, O, and OCO are all variants of the same Chinese overseas factory code used on different Washburn label and stamp conventions.</li><li>This format does not encode the exact model name — confirm from headstock, label, and hardware.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a modern Washburn China import decode from ${year}. Verify the exact model and year from the guitar itself if needed.</p>`,
     };
 }
 // Late-1980s Japanese: single letter + 1-digit year + 5-digit sequence

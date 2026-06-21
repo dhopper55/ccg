@@ -118,4 +118,22 @@ export function runTests() {
   assertSquierIndonesiaICSYear('ICS18291833', '2018');
   assertSquierNumericOnly8DigitRejected('05021913');
   assertSquierChinaCRN('crna26007293');
+  assertSquierChinaCYFutureYearRemap('CY31117497', '2003');
+  assertSquierChinaCYWithSnPrefix('s/n CY31117497', '2003');
+}
+
+function assertSquierChinaCYFutureYearRemap(serialInput, expectedYear) {
+  const result = decodeSerialForBackend('squier', serialInput);
+  assert(result.success, `Expected decode success for squier:${serialInput}`);
+  assert(result.info, `Expected decoded info for squier:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.country === 'China', `Expected China for ${serialInput}, got ${result.info.country}`);
+}
+
+function assertSquierChinaCYWithSnPrefix(serialInput, expectedYear) {
+  const result = decodeSerialForBackend('squier', serialInput);
+  assert(result.success, `Expected decode success for squier:${serialInput}`);
+  assert(result.info, `Expected decoded info for squier:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.country === 'China', `Expected China for ${serialInput}, got ${result.info.country}`);
 }

@@ -99,9 +99,19 @@ export function decodeESP(serial: string): DecodeResult {
     return decodeLTDIndonesiaSamickIS(normalized);
   }
 
-  // Indonesia: IW, WI, IC, IR + 7-8 digits
-  if (/^(IW|WI|IC|IR)\d{7,8}$/.test(normalized)) {
+  // Indonesia: IW, WI, IC, IR + 7-9 digits (9 digits for higher-volume recent runs)
+  if (/^(IW|WI|IC|IR)\d{7,9}$/.test(normalized)) {
     return decodeLTDIndonesia(normalized);
+  }
+
+  // Indonesia: CI + 7-9 digits (Cort/Cor-Tek Indonesia, YYMM format)
+  if (/^CI\d{7,9}$/.test(normalized)) {
+    return decodeLTDIndonesiaCI(normalized);
+  }
+
+  // Indonesia: IM + 7-9 digits (Cor-Tek/Cort Indonesia, YYMM format)
+  if (/^IM\d{7,9}$/.test(normalized)) {
+    return decodeLTDIndonesiaIM(normalized);
   }
 
   // Korea: W + YY + week + 5-digit sequence (World Musical Instruments)
@@ -519,6 +529,92 @@ function decodeLTDIndonesia(serial: string): DecodeResult {
     notes: `LTD series. Production number: ${productionNum}.`
   };
   return { success: true, info };
+}
+
+function decodeLTDIndonesiaCI(serial: string): DecodeResult {
+  const digits = serial.substring(2);
+  const { year, month, productionNum } = parseLTDDigits(digits);
+
+  const info: GuitarInfo = {
+    brand: 'ESP',
+    serialNumber: serial,
+    year,
+    month: month || undefined,
+    factory: 'Cort / Cor-Tek, Indonesia',
+    country: 'Indonesia',
+    model: 'LTD',
+    notes: `CI prefix identifies a Cort/Cor-Tek Indonesia factory ESP LTD serial. Parsed as CI + YYMM + sequence. ${digits.substring(0, 2)} indicates ${year}; ${digits.substring(2, 4)} indicates ${month || 'the production month'}; ${productionNum} is the production sequence. LTD Diamond Series import.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'esp-ltd-indonesia-ci-cort-yymm-sequence',
+    patternLabel: 'ESP LTD Indonesia Cort CI + YYMM + sequence',
+    additionalContext: {
+      title: 'ESP LTD Indonesia Cort CI serial',
+      summary: 'This serial matches the ESP LTD CI-prefix format used on instruments built at the Cort/Cor-Tek factory in Indonesia.',
+      highlights: [
+        'CI identifies the Cort/Cor-Tek factory in Indonesia.',
+        `The digits ${digits.substring(0, 2)} decode as production year ${year}.`,
+        `The digits ${digits.substring(2, 4)} decode as ${month || 'the production month'}.`,
+        `The remaining digits decode as production sequence ${parseInt(productionNum, 10)}.`,
+      ],
+      caveats: [
+        'This format is used on LTD-branded instruments, not ESP Original, E-II, or Custom Shop models.',
+        'Verify "Made in Indonesia" on the back of the headstock.',
+      ],
+      verificationTips: [
+        'Check the front of the headstock for LTD branding.',
+        'Look for "Made in Indonesia" on the back of the headstock.',
+        'Compare hardware and specs against ESP LTD catalog offerings for the decoded year.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches the ESP LTD CI-prefix format used on instruments built at the Cort/Cor-Tek factory in Indonesia.</p><h3>How This Pattern Is Typically Read</h3><p>CI identifies the Cort/Cor-Tek factory in Indonesia. The digits ${digits.substring(0, 2)} decode as production year ${year}. The digits ${digits.substring(2, 4)} decode as ${month || 'the production month'}. The remaining digits decode as production sequence ${parseInt(productionNum, 10)}.</p><h3>What To Verify</h3><ul><li>Check the front of the headstock for LTD branding.</li><li>Look for "Made in Indonesia" on the back of the headstock.</li><li>Compare specs against ESP LTD catalog offerings for the decoded year.</li></ul>`,
+  };
+}
+
+function decodeLTDIndonesiaIM(serial: string): DecodeResult {
+  const digits = serial.substring(2);
+  const { year, month, productionNum } = parseLTDDigits(digits);
+
+  const info: GuitarInfo = {
+    brand: 'ESP',
+    serialNumber: serial,
+    year,
+    month: month || undefined,
+    factory: 'Cor-Tek / Cort, Indonesia',
+    country: 'Indonesia',
+    model: 'LTD',
+    notes: `IM prefix identifies a Cor-Tek/Cort Indonesia factory ESP LTD serial. Parsed as IM + YYMM + sequence. ${digits.substring(0, 2)} indicates ${year}; ${digits.substring(2, 4)} indicates ${month || 'the production month'}; ${productionNum} is the production sequence. LTD Diamond Series import.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'esp-ltd-indonesia-im-cort-yymm-sequence',
+    patternLabel: 'ESP LTD Indonesia Cort IM + YYMM + sequence',
+    additionalContext: {
+      title: 'ESP LTD Indonesia Cort IM serial',
+      summary: 'This serial matches the ESP LTD IM-prefix format used on instruments built at the Cor-Tek/Cort factory in Indonesia.',
+      highlights: [
+        'IM identifies a Cor-Tek/Cort factory in Indonesia.',
+        `The digits ${digits.substring(0, 2)} decode as production year ${year}.`,
+        `The digits ${digits.substring(2, 4)} decode as ${month || 'the production month'}.`,
+        `The remaining digits decode as production sequence ${parseInt(productionNum, 10)}.`,
+      ],
+      caveats: [
+        'This format is used on LTD-branded instruments, not ESP Original, E-II, or Custom Shop models.',
+        'Verify "Made in Indonesia" on the back of the headstock.',
+      ],
+      verificationTips: [
+        'Check the front of the headstock for LTD branding.',
+        'Look for "Made in Indonesia" on the back of the headstock.',
+        'Compare hardware and specs against ESP LTD catalog offerings for the decoded year.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches the ESP LTD IM-prefix format used on instruments built at the Cor-Tek/Cort factory in Indonesia.</p><h3>How This Pattern Is Typically Read</h3><p>IM identifies the Cor-Tek/Cort factory in Indonesia. The digits ${digits.substring(0, 2)} decode as production year ${year}. The digits ${digits.substring(2, 4)} decode as ${month || 'the production month'}. The remaining digits decode as production sequence ${parseInt(productionNum, 10)}.</p><h3>What To Verify</h3><ul><li>Check the front of the headstock for LTD branding.</li><li>Look for "Made in Indonesia" on the back of the headstock.</li><li>Compare specs against ESP LTD catalog offerings for the decoded year.</li></ul>`,
+  };
 }
 
 function decodeLTDIndonesiaSamickIS(serial: string): DecodeResult {

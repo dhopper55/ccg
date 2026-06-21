@@ -36,6 +36,13 @@ export function decodeEpiphone(serial) {
     const cleaned = serial.trim().toUpperCase();
     const normalized = cleaned.replace(/[\s-]/g, '');
     // Try different formats
+    // Pre-check: correct 'L' (uppercase) misread as '1' in the digit portion of letter-factory serials.
+    // e.g. R94l158 → normalized to R94L158 → L is a worn/misread '1' → treat digits as R941158.
+    const lMisreadMatch = normalized.match(/^([A-Z])(\d+)L(\d+)$/);
+    if (lMisreadMatch) {
+        const correctedDigits = lMisreadMatch[2] + '1' + lMisreadMatch[3];
+        return decodeSingleLetterFormat(lMisreadMatch[1], correctedDigits, normalized);
+    }
     // Format 1: Two letters + 8+ digits (e.g., SI02060234)
     // Common modern format: FF YYMMNNNN
     const twoLetterMatch = normalized.match(/^([A-Z]{2})(\d{8,})$/);

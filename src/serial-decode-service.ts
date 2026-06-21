@@ -243,6 +243,20 @@ function buildRetrySerials(serial: string, normalizedBrand: string): string[] {
     }
   }
 
+  if (normalizedBrand === 'esp') {
+    const alnumUpper = serial.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    // Common OCR/stamp misread on ESP LTD Indonesia serials: leading '1' instead of 'I'.
+    // e.g. 1W211112431 → IW211112431 (P.T. Wildwood Indonesia)
+    if (/^1[WCRI]\d{7,9}$/.test(alnumUpper)) {
+      addCandidate(`I${alnumUpper.slice(1)}`);
+    }
+
+    const lastPartAlnumUpper = lastSpaceSeparatedPart.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    if (/^1[WCRI]\d{7,9}$/.test(lastPartAlnumUpper)) {
+      addCandidate(`I${lastPartAlnumUpper.slice(1)}`);
+    }
+  }
+
   return candidates;
 }
 

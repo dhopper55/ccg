@@ -118,4 +118,14 @@ export function runTests() {
   assertCharvelUCChina('UC210191', '2021');
   assertCharvelNumeric8('05050187', '2005', 'May');
   assertCharvelSanDimasFenderEra('6719', '2002-2005 (estimated)');
+  assertCharvelIMCAddressMark('TX76113');
+}
+
+function assertCharvelIMCAddressMark(serialInput) {
+  const result = decodeSerialForBackend('charvel', serialInput);
+  assert(result.success, `Expected decode success for charvel:${serialInput}`);
+  assert(result.info, `Expected decoded info for charvel:${serialInput}`);
+  assert(result.info.country === 'Japan', `Expected Japan for ${serialInput}, got ${result.info.country}`);
+  assert(result.info.factory.includes('Chushin'), `Expected Chushin factory for ${serialInput}, got ${result.info.factory}`);
+  assert(result.patternKey === 'charvel-imc-address-tx-mark', `Expected IMC pattern key for ${serialInput}, got ${result.patternKey}`);
 }

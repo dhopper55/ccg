@@ -9,7 +9,7 @@ import { DecodeResult, GuitarInfo } from '../types.js';
  * - H-prefix (ESP Japan contract build, 1990-1991)
  * - V-prefix (vintage/import plates, mid-to-late 1980s)
  * - SB-prefix (mid-to-late 1980s Striker import, Samick Korea or Japan)
- * - S-prefix variants: SE, SD, SP, SF, SC, SJ, SI (various import eras)
+ * - S-prefix variants: SA, SE, SD, SP, SF, SC, SJ, SI (various import eras)
  * - JK-prefix (Gibson/Epiphone-era Indonesian factory, YYMM format, late 1990s–2000s)
  * - Plain 4-digit numeric (unverified era; import or USA with possible worn/missing prefix)
  * - Modern Gibson/MusicYo-era numeric formats (9- and 11-digit)
@@ -143,6 +143,11 @@ export function decodeKramer(serial: string): DecodeResult {
   // SP-prefix: 1980s Korean Striker Plus/Striker import (Samick or similar Korean factory)
   if (/^SP\d{4,6}$/.test(normalized)) {
     return decodeKoreanStrikerSP(normalized, cleaned);
+  }
+
+  // SA-prefix: mid-to-late 1980s Striker import, Samick Korea (A sub-batch variant)
+  if (/^SA\d{3,6}$/.test(normalized)) {
+    return decodeKoreanStrikerSA(normalized, cleaned);
   }
 
   // SB-prefix: mid-to-late 1980s Striker import, Samick Korea or Japanese factory
@@ -378,6 +383,50 @@ function decodeVintage1980sSBStriker(normalized: string, cleaned: string): Decod
       ],
     },
     additionalContextRichText: `<h3>Overview</h3><p>This serial matches the Kramer SB-prefix import format primarily associated with mid-to-late 1980s Striker series models produced at Samick Korea or Japanese contracted facilities.</p><h3>How This Pattern Is Typically Read</h3><p>"SB" is primarily associated with the Kramer Striker Series — the budget/mid-tier overseas import line from the 1980s shred era. The estimated production window is 1986–1989. The digits after SB are the production sequence (${sequenceNumber}). These guitars were manufactured at Samick Korea or Japanese contracted facilities, not the Neptune, NJ American Series production line.</p><h3>What To Verify</h3><ul><li>Kramer original factory records were lost in the 1991 bankruptcy — exact month and factory attribution require physical evidence.</li><li>Check the headstock shape (beak/pointy), neck plate dimensions (narrower stamped steel vs thick die-cast USA plate), and tremolo type to narrow the Striker variant.</li><li>Look for Made in Korea or Made in Japan markings in the neck pocket or body cavity.</li><li>A Neptune, NJ neck plate address is the importer/corporate address, not a Made in USA indicator.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed mid-to-late 1980s Kramer Striker import decode. Physical inspection — headstock shape, neck plate, tremolo, pickup count, and country markings — is the most reliable way to pin down the exact model and year within this era.</p>`,
+  };
+}
+
+function decodeKoreanStrikerSA(normalized: string, cleaned: string): DecodeResult {
+  const sequence = normalized.substring(2);
+  const sequenceNumber = parseInt(sequence, 10);
+
+  return {
+    success: true,
+    info: {
+      brand: 'Kramer',
+      serialNumber: cleaned,
+      year: 'mid-to-late 1980s (estimated)',
+      factory: 'Samick Korea',
+      country: 'South Korea',
+      model: 'Striker Series (Striker 100, 200, or 300) or related import line',
+      notes: `SA-prefix Kramer serial. The SA designation is associated with mid-to-late 1980s Striker series imports built at the Samick plant in South Korea. The "S" prefix identifies the Samick/Striker overseas import line and "A" denotes a sub-batch production window. Production sequence: ${sequenceNumber}. Because Kramer's original records were lost when the company went bankrupt in 1991, exact production months cannot be confirmed from the serial alone. Cross-reference headstock shape, neck-plate dimensions, tremolo type, and body construction against known Striker variants. Community resources such as the Vintage Kramer Serial Guide can provide corroborating evidence.`,
+    },
+    patternKey: 'kramer-sa-samick-korea-striker-sequence',
+    patternLabel: 'Kramer SA Samick Korea Striker import 1980s sequential',
+    additionalContext: {
+      title: 'Kramer SA-prefix Striker import serial',
+      summary: 'This serial matches the Kramer SA-prefix import format associated with mid-to-late 1980s Striker series models built at Samick Korea.',
+      highlights: [
+        '"SA" is associated with the Kramer Striker Series — the budget/mid-tier overseas import line from the 1980s shred era.',
+        '"S" identifies the Samick/Striker import line; "A" denotes a sub-batch production window.',
+        'Estimated production window: mid-to-late 1980s.',
+        `Production sequence: ${sequenceNumber}.`,
+        'Manufactured at Samick Korea; not the Neptune, NJ American Series production line.',
+      ],
+      caveats: [
+        'Kramer original factory records were lost when the company went bankrupt in 1991.',
+        'Exact production month and year cannot be confirmed from the serial alone.',
+        'Some SA neck plates display a Neptune, NJ address — this is the importer/corporate address, not a USA manufacture indicator.',
+      ],
+      verificationTips: [
+        'Check the headstock shape: beak/pointy style is characteristic of late-1980s Striker/import models.',
+        'Compare neck-plate dimensions and finish (narrower stamped steel vs thick USA die-cast).',
+        'Identify the tremolo type and pickup count to narrow the exact Striker model (100, 200, or 300).',
+        'Look for Made in Korea markings on the neck pocket or body cavity.',
+        'Consult the Vintage Kramer Serial Guide for corroborating serial examples.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches the Kramer SA-prefix import format associated with mid-to-late 1980s Striker series models built at Samick Korea.</p><h3>How This Pattern Is Typically Read</h3><p>"SA" is associated with the Kramer Striker Series — the budget/mid-tier overseas import line from the 1980s. "S" identifies the Samick/Striker import line and "A" denotes a sub-batch production window. The digits after SA are the production sequence (${sequenceNumber}). These guitars were built at Samick Korea, not the Neptune, NJ American Series line.</p><h3>What To Verify</h3><ul><li>Kramer original factory records were lost in the 1991 bankruptcy — exact month and year require physical evidence.</li><li>Check the headstock shape (beak/pointy), neck-plate dimensions, and tremolo type to narrow the Striker variant.</li><li>Look for Made in Korea markings in the neck pocket or body cavity.</li><li>A Neptune, NJ neck plate address is the importer/corporate address, not a Made in USA indicator.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed mid-to-late 1980s Kramer Striker import decode. Physical inspection — headstock shape, neck plate, tremolo, pickup count, and country markings — is the most reliable way to pin down the exact model and year.</p>`,
   };
 }
 

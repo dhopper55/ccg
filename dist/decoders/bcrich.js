@@ -127,6 +127,10 @@ export function decodeBCRich(serial) {
     if (/^BC\d{5}$/.test(normalized)) {
         return decodeClassAxeBC(normalized);
     }
+    // B-prefix with trailing letter suffix (e.g. B164U): Class Axe / Korean import with line code
+    if (/^B\d{2,6}[A-Z]$/.test(normalized)) {
+        return decodeBWithTrailingLetter(normalized);
+    }
     if (/^B\d{3,6}$/.test(normalized)) {
         return decodeClassAxeB(normalized);
     }
@@ -767,6 +771,46 @@ function decodeClassAxeB(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a B-prefixed Class Axe-era import format commonly seen on late-1980s to early-1990s B.C. Rich bolt-on models.</p><h3>How This Pattern Is Typically Read</h3><p>The B prefix is treated as a Class Axe-era/import neck-plate prefix. The likely manufacturing window is 1989-1993. The remaining digits are treated as production or neck-plate sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>B.C. Rich serial records from this era are inconsistent and often not sequential.</li><li>The serial can support an era estimate, but it should not be treated as an exact production date.</li><li>Check bolt-on construction, neck plate style, country markings, and electronics-cavity or neck-pocket clues.</li></ul>`,
+    };
+}
+function decodeBWithTrailingLetter(serial) {
+    const digits = serial.slice(1, -1);
+    const suffix = serial.slice(-1);
+    const sequenceNumber = parseInt(digits, 10);
+    const info = {
+        brand: 'B.C. Rich',
+        serialNumber: serial,
+        year: '1980s-1990s (estimated)',
+        factory: 'Class Axe / Korean import facility (B-prefix series)',
+        country: 'South Korea',
+        notes: `B-prefix serial with trailing letter suffix "${suffix}". The B prefix indicates the Class Axe or early Korean import era. The trailing letter is a factory code or production-run designation. Sequence: ${sequenceNumber}. Confirm with headstock markings, neck plate style, and country-of-origin markings.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'bcrich-b-prefix-trailing-letter-import',
+        patternLabel: 'B.C. Rich B-prefix import with trailing letter suffix',
+        additionalContext: {
+            title: 'B.C. Rich B-prefix serial with letter suffix',
+            summary: 'This serial matches a B-prefixed B.C. Rich import format where the trailing letter is a factory code or run designation.',
+            highlights: [
+                'The B prefix with a trailing letter suffix is associated with Class Axe or Korean import production.',
+                `The trailing letter "${suffix}" identifies the factory line or production run code.`,
+                `The numeric portion ${sequenceNumber} is treated as the production sequence.`,
+                'The likely manufacturing window is the 1980s to mid-1990s.',
+            ],
+            caveats: [
+                'B.C. Rich serial records from this era are inconsistent and not fully documented.',
+                'The trailing letter suffix convention is not officially published; treat as a production-line marker.',
+                'Physical inspection of construction, hardware, and country markings is the best confirmation method.',
+            ],
+            verificationTips: [
+                'Check whether the serial appears on a bolt-on neck plate or stamped on the body.',
+                'Look for "Made in Korea" or other country-of-origin markings.',
+                'Compare hardware, pickups, and construction style against known Class Axe-era examples.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a B-prefixed B.C. Rich import format where a trailing letter identifies a factory line or production run code.</p><h3>How This Pattern Is Typically Read</h3><p>The B prefix with trailing letter "${suffix}" is associated with Class Axe or Korean import production from the 1980s to mid-1990s. The numeric portion ${sequenceNumber} is the production sequence. The trailing letter is a factory code or run designation not publicly documented by B.C. Rich.</p><h3>What To Verify</h3><ul><li>Check whether the serial appears on a bolt-on neck plate or stamped directly on the body.</li><li>Look for "Made in Korea" or other country-of-origin markings on the body or neck pocket.</li><li>Compare hardware, pickups, and construction style against known Class Axe-era examples.</li></ul>`,
     };
 }
 function decodeSISamilIndonesiaImport(serial) {

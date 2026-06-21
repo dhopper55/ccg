@@ -1,29 +1,29 @@
-import { decodeGibson } from './decoders/gibson.js?version=805837';
-import { decodeEpiphone } from './decoders/epiphone.js?version=662901';
-import { decodeFender } from './decoders/fender.js?version=940349';
-import { decodeTaylor } from './decoders/taylor.js?version=378527';
-import { decodeMartin } from './decoders/martin.js?version=695834';
-import { decodeIbanez } from './decoders/ibanez.js?version=316960';
-import { decodeYamaha } from './decoders/yamaha.js?version=073362';
-import { decodePRS } from './decoders/prs.js?version=185839';
-import { decodeESP } from './decoders/esp.js?version=483033';
-import { decodeSchecter } from './decoders/schecter.js?version=355747';
-import { decodeGretsch } from './decoders/gretsch.js?version=916316';
-import { decodeJackson } from './decoders/jackson.js?version=731877';
-import { decodeSquier } from './decoders/squier.js?version=706014';
-import { decodeCort } from './decoders/cort.js?version=056852';
-import { decodeTakamine } from './decoders/takamine.js?version=714117';
-import { decodeWashburn } from './decoders/washburn.js?version=566695';
-import { decodeDean } from './decoders/dean.js?version=076749';
-import { decodeErnieBall } from './decoders/ernieball.js?version=375548';
-import { decodeGuild } from './decoders/guild.js?version=242409';
-import { decodeAlvarez } from './decoders/alvarez.js?version=962736';
-import { decodeGodin } from './decoders/godin.js?version=247017';
-import { decodeOvation } from './decoders/ovation.js?version=718807';
-import { decodeCharvel } from './decoders/charvel.js?version=381205';
-import { decodeRickenbacker } from './decoders/rickenbacker.js?version=961802';
-import { decodeKramer } from './decoders/kramer.js?version=098263';
-import { decodeBCRich } from './decoders/bcrich.js?version=343704';
+import { decodeGibson } from './decoders/gibson.js';
+import { decodeEpiphone } from './decoders/epiphone.js';
+import { decodeFender } from './decoders/fender.js';
+import { decodeTaylor } from './decoders/taylor.js';
+import { decodeMartin } from './decoders/martin.js';
+import { decodeIbanez } from './decoders/ibanez.js';
+import { decodeYamaha } from './decoders/yamaha.js';
+import { decodePRS } from './decoders/prs.js';
+import { decodeESP } from './decoders/esp.js';
+import { decodeSchecter } from './decoders/schecter.js';
+import { decodeGretsch } from './decoders/gretsch.js';
+import { decodeJackson } from './decoders/jackson.js';
+import { decodeSquier } from './decoders/squier.js';
+import { decodeCort } from './decoders/cort.js';
+import { decodeTakamine } from './decoders/takamine.js';
+import { decodeWashburn } from './decoders/washburn.js';
+import { decodeDean } from './decoders/dean.js';
+import { decodeErnieBall } from './decoders/ernieball.js';
+import { decodeGuild } from './decoders/guild.js';
+import { decodeAlvarez } from './decoders/alvarez.js';
+import { decodeGodin } from './decoders/godin.js';
+import { decodeOvation } from './decoders/ovation.js';
+import { decodeCharvel } from './decoders/charvel.js';
+import { decodeRickenbacker } from './decoders/rickenbacker.js';
+import { decodeKramer } from './decoders/kramer.js';
+import { decodeBCRich } from './decoders/bcrich.js';
 const DECODER_MAP = {
     gibson: decodeGibson,
     epiphone: decodeEpiphone,
@@ -204,6 +204,18 @@ function buildRetrySerials(serial, normalizedBrand) {
         const lastPartAlnumUpper = lastSpaceSeparatedPart.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
         if (/^1W\d{8,9}$/.test(lastPartAlnumUpper)) {
             addCandidate(`IW${lastPartAlnumUpper.slice(2)}`);
+        }
+    }
+    if (normalizedBrand === 'esp') {
+        const alnumUpper = serial.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+        // Common OCR/stamp misread on ESP LTD Indonesia serials: leading '1' instead of 'I'.
+        // e.g. 1W211112431 → IW211112431 (P.T. Wildwood Indonesia)
+        if (/^1[WCRI]\d{7,9}$/.test(alnumUpper)) {
+            addCandidate(`I${alnumUpper.slice(1)}`);
+        }
+        const lastPartAlnumUpper = lastSpaceSeparatedPart.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+        if (/^1[WCRI]\d{7,9}$/.test(lastPartAlnumUpper)) {
+            addCandidate(`I${lastPartAlnumUpper.slice(1)}`);
         }
     }
     return candidates;

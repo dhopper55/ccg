@@ -32,6 +32,9 @@ export function deriveExplicitRegexFromKnownPatternKey(patternKey: string): stri
     'cort-vintage-1990s-7-digit-yymm-sequence': '^9\\d{6}$',
     'cort-year-sequence-7-digit': '^00\\d{5}$',
     'dean-asian-partner-a-yymm-sequence': '^A\\d{8}$',
+    'dean-world-korea-wk-yymm-sequence': '^WK\\d{8,9}$',
+    'dean-world-korea-kw-yymm-sequence': '^KW\\d{8,9}$',
+    'dean-numeric-9digit-yymm-sequence': '^\\d{9}$',
     'squier-china-crn-month-letter-yy-sequence': '^CRN[A-L]\\d{8}$',
     'epiphone-korea-single-letter-factory-yymm-sequence': '^[A-Z]\\d{7,}$',
     'esp-ambiguous-6-digit-all-numeric': '^\\d{6}$',
@@ -41,6 +44,7 @@ export function deriveExplicitRegexFromKnownPatternKey(patternKey: string): stri
     'esp-ltd-numeric-9digit-yy-ww-d-sequence': '^\\d{9}$',
     'kramer-jk-indonesia-gibson-era-yymm-sequence': '^JK\\d{8}$',
     'kramer-plain-4-digit-plate-unverified': '^\\d{4}$',
+    'kramer-sa-samick-korea-striker-sequence': '^SA\\d{3,6}$',
     'kramer-sb-striker-1980s-sequential': '^SB\\d{3,6}$',
     'esp-ltd-korea-peerless-r-yy-week-sequence': '^R\\d{7}$',
     'esp-ltd-korea-wmi-w-yy-week-sequence': '^W\\d{9}$',
@@ -71,6 +75,7 @@ export function deriveExplicitRegexFromKnownPatternKey(patternKey: string): stri
     'taylor-modern-short-9': '^[12]\\d{8}$',
     'washburn-1990s-10-digit-yymm-sequence': '^[89]\\d{9}$',
     'washburn-bc-china-plant-yy-sequence': '^BC\\d{7}$',
+    'washburn-co-variant-factory-y-sequence': '^(OCO|CO|O)\\d{7}$',
     'bcrich-early-usa-4-digit-sequential': '^\\d{4}$',
     'bcrich-bw-prefix-import': '^BW\\d{2,6}$',
     'cort-indonesia-f-prefix-yy-sequence': '^F\\d{6}$',
@@ -80,6 +85,11 @@ export function deriveExplicitRegexFromKnownPatternKey(patternKey: string): stri
     'jackson-njhk-korea-yy-sequence': '^NJHK\\d{8}$',
     'prs-se-cort-indonesia-cti-numeric-year': '^CTI\\d{5,}$',
     'schecter-u-unsung-korea-yymm-sequence': '^U\\d{9}$',
+    'alvarez-modern-two-letter-prefix-yymm': '^[A-Z]{2}\\d{8,10}$',
+    'bcrich-b-prefix-trailing-letter-import': '^B\\d{2,6}[A-Z]$',
+    'charvel-imc-address-tx-mark': '^TX\\d{5}$',
+    'esp-ltd-indonesia-ci-cort-yymm-sequence': '^CI\\d{7,9}$',
+    'esp-ltd-indonesia-im-cort-yymm-sequence': '^IM\\d{7,9}$',
   };
 
   return knownPatterns[patternKey] || null;

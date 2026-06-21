@@ -21,4 +21,14 @@ function assertGodinAmbiguous7Digit(serialInput) {
 
 export function runTests() {
   assertGodinAmbiguous7Digit('4284009');
+  assertGodin8DigitPre2000('98196441', '1997');
+}
+
+function assertGodin8DigitPre2000(serialInput, expectedYear) {
+  const result = decodeSerialForBackend('godin', serialInput);
+  assert(result.success, `Expected decode success for godin:${serialInput}`);
+  assert(result.info, `Expected decoded info for godin:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.country === 'Canada', `Expected Canada for ${serialInput}, got ${result.info.country}`);
+  assert(!result.info.year.includes(' or '), `Expected unambiguous year for ${serialInput}, got ${result.info.year}`);
 }

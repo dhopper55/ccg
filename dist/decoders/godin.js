@@ -120,7 +120,7 @@ function decode8Digit(serial) {
     // Week 1 = first week of August
     // So year code 06 means Aug 2005 - Jul 2006 production year
     // Calculate approximate calendar date
-    const fiscalYearEnd = 2000 + yearCode; // e.g., 06 = 2006 fiscal year (ends July 2006)
+    const fiscalYearEnd = yearCode >= 50 ? 1900 + yearCode : 2000 + yearCode; // e.g., 06 = 2006; 98 = 1998
     const fiscalYearStart = fiscalYearEnd - 1; // Starts August of previous year
     // Approximate month based on week
     // Week 1 = August, Week 5 = September, Week 9 = October, etc.
@@ -139,9 +139,9 @@ function decode8Digit(serial) {
         serialNumber: serial,
         year: calendarYear.toString(),
         month: month,
-        factory: 'Quebec, Canada (various) or Berlin, NH',
-        country: 'Canada (or USA assembly)',
-        notes: `8-digit format (YYWWDRRR). Fiscal year ${yearCode} (Aug ${fiscalYearStart} - Jul ${fiscalYearEnd}), Week ${weekCode}, ${dayName}. Production rank: ${parseInt(rankCode, 10)}${getOrdinalSuffix(parseInt(rankCode, 10))} guitar that week. Approximate date: ${month} ${calendarYear}. Note: Godin uses fiscal years (Aug-Jul), so "year 06" means production during Aug 2005-Jul 2006.`,
+        factory: 'Godin (Canada)',
+        country: 'Canada',
+        notes: `8-digit format (YYWWDRRR). Fiscal year ${yearCode} (Aug ${fiscalYearStart} - Jul ${fiscalYearEnd}), Week ${weekCode}, ${dayName}. Production rank: ${parseInt(rankCode, 10)}${getOrdinalSuffix(parseInt(rankCode, 10))} guitar that week. Approximate date: ${month} ${calendarYear}. Note: Godin uses fiscal years (Aug-Jul), so "year 06" means production during Aug 2005-Jul 2006. Godin manufactures at facilities in Quebec, Canada and Berlin, NH (USA).`,
     };
     return { success: true, info };
 }

@@ -6,7 +6,8 @@ import { DecodeResult, GuitarInfo } from '../types.js';
  * Supports:
  * - USA-made guitars (7-digit format, 1977-1985 and 1996+)
  * - UnSung Korea (US prefix, 2006+)
- * - World Korea (E prefix, WK prefix)
+ * - World Korea (E prefix, WK prefix, KW prefix)
+ * - 9-digit numeric import (YYMM + 5-digit sequence, China or Indonesia)
  * - Legacy Korea E-prefix import line (E + Y + 5 digits)
  * - China imports (Z prefix, O prefix; YooJin Y prefix, 2006+)
  * - Indonesia (CT, IW prefixes)
@@ -27,9 +28,14 @@ export function decodeDean(serial: string): DecodeResult {
     return decodeUnSungKorea(normalized);
   }
 
-  // World Korea: WK prefix (newer format)
-  if (/^WK\d{8}$/.test(normalized)) {
+  // World Korea: WK prefix (newer format, 8 or 9 digits after prefix)
+  if (/^WK\d{8,9}$/.test(normalized)) {
     return decodeWorldKoreaWK(normalized);
+  }
+
+  // World Korea: KW prefix (same factory as WK, alternate prefix convention)
+  if (/^KW\d{8,9}$/.test(normalized)) {
+    return decodeWorldKoreaKW(normalized);
   }
 
   // Legacy Korea E-prefix import line: E + single year digit + 5-digit sequence
@@ -107,6 +113,11 @@ export function decodeDean(serial: string): DecodeResult {
     return decodeIndiaH(normalized);
   }
 
+  // 9-digit numeric import: YYMM + 5-digit sequence (e.g., 170303338 = 2017, March, seq 03338)
+  if (/^\d{9}$/.test(normalized)) {
+    return decodeNumeric9DigitYYMMSeq(normalized);
+  }
+
   // USA-made: 7-digit numeric (standard format)
   if (/^\d{7}$/.test(normalized)) {
     return decodeUSA7Digit(normalized);
@@ -162,14 +173,10 @@ function decodeWorldKoreaWK(serial: string): DecodeResult {
   const yearDigits = digits.substring(0, 2);
   const monthDigits = digits.substring(2, 4);
   const sequence = digits.substring(4);
-
   const year = 2000 + parseInt(yearDigits, 10);
   const month = parseInt(monthDigits, 10);
-
-  let monthName: string | undefined;
-  if (month >= 1 && month <= 12) {
-    monthName = getMonthName(month);
-  }
+  const monthName = month >= 1 && month <= 12 ? getMonthName(month) : undefined;
+  const sequenceNumber = parseInt(sequence, 10);
 
   const info: GuitarInfo = {
     brand: 'Dean',
@@ -178,10 +185,132 @@ function decodeWorldKoreaWK(serial: string): DecodeResult {
     month: monthName,
     factory: 'World Musical Instruments Co Ltd',
     country: 'South Korea',
-    notes: `WK prefix indicates World factory in Korea (newer designation, 2017+). Production sequence: ${sequence}.`,
+    notes: `WK prefix indicates World Musical Instruments Co Ltd in South Korea. Production sequence: ${sequence}.`,
   };
 
-  return { success: true, info };
+  return {
+    success: true,
+    info,
+    patternKey: 'dean-world-korea-wk-yymm-sequence',
+    patternLabel: 'Dean World Korea WK-prefix YYMM sequence',
+    additionalContext: {
+      title: 'Dean WK-prefix (World Korea) serial',
+      summary: `This serial follows the WK-prefix format used by Dean for guitars manufactured at World Musical Instruments Co Ltd in South Korea.`,
+      highlights: [
+        'WK identifies World Musical Instruments Co Ltd, a respected Korean factory also used by PRS SE, Schecter, and ESP LTD.',
+        `${yearDigits} decodes as production year ${year}.`,
+        monthName ? `${monthDigits} decodes as ${monthName}.` : `${monthDigits} is the month code.`,
+        `${sequence} is the production sequence number (unit ${sequenceNumber}).`,
+      ],
+      caveats: [
+        'WK and KW are both seen on World factory guitars — same facility, alternate prefix convention.',
+        'This format does not encode the exact model name.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock for a Made in Korea stamp.',
+        'Compare hardware and finish against Dean Korea import catalog from the decoded year.',
+        'Contact Dean support with photos if exact authentication is needed.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial follows the WK-prefix format used by Dean for guitars manufactured at World Musical Instruments Co Ltd in South Korea.</p><h3>How This Pattern Is Typically Read</h3><p>WK identifies World Musical Instruments Co Ltd, a respected Korean factory also used by PRS SE, Schecter, and ESP LTD. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} decode as ${monthName || 'the month code'}. The final digits ${sequence} are the production sequence (unit ${sequenceNumber}).</p><h3>What To Verify</h3><ul><li>WK and KW are both seen on World factory guitars — same facility, alternate prefix convention.</li><li>This format does not encode the exact model name — confirm from headstock, label, and hardware.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a South Korea import decode from ${year}. Verify the model from the headstock and compare against Dean's Korea import lineup.</p>`,
+  };
+}
+
+// World Korea: KW prefix (same factory as WK, alternate prefix convention)
+function decodeWorldKoreaKW(serial: string): DecodeResult {
+  const digits = serial.substring(2);
+  const yearDigits = digits.substring(0, 2);
+  const monthDigits = digits.substring(2, 4);
+  const sequence = digits.substring(4);
+  const year = 2000 + parseInt(yearDigits, 10);
+  const month = parseInt(monthDigits, 10);
+  const monthName = month >= 1 && month <= 12 ? getMonthName(month) : undefined;
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Dean',
+    serialNumber: serial,
+    year: year.toString(),
+    month: monthName,
+    factory: 'World Musical Instruments Co Ltd',
+    country: 'South Korea',
+    notes: `KW prefix is an alternate convention for World Musical Instruments Co Ltd in South Korea (same factory as WK prefix). Production sequence: ${sequence}.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'dean-world-korea-kw-yymm-sequence',
+    patternLabel: 'Dean World Korea KW-prefix YYMM sequence',
+    additionalContext: {
+      title: 'Dean KW-prefix (World Korea) serial',
+      summary: `This serial follows the KW-prefix format — an alternate prefix convention for World Musical Instruments Co Ltd in South Korea, the same facility as WK-prefix guitars.`,
+      highlights: [
+        'KW is an alternate prefix convention for World Musical Instruments Co Ltd (same factory as WK).',
+        `${yearDigits} decodes as production year ${year}.`,
+        monthName ? `${monthDigits} decodes as ${monthName}.` : `${monthDigits} is the month code.`,
+        `${sequence} is the production sequence number (unit ${sequenceNumber}).`,
+      ],
+      caveats: [
+        'KW and WK are both seen on World factory guitars — the initials may be reversed depending on the stamping convention used.',
+        'This format does not encode the exact model name.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock for a Made in Korea stamp.',
+        'Compare hardware and finish against Dean Korea import catalog from the decoded year.',
+        'Contact Dean support with photos if exact authentication is needed.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial follows the KW-prefix format — an alternate prefix convention for World Musical Instruments Co Ltd in South Korea, the same facility as WK-prefix guitars.</p><h3>How This Pattern Is Typically Read</h3><p>KW identifies World Musical Instruments Co Ltd (same factory as WK). The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} decode as ${monthName || 'the month code'}. The final digits ${sequence} are the production sequence (unit ${sequenceNumber}).</p><h3>What To Verify</h3><ul><li>KW and WK are both seen on World factory guitars — the initials may be reversed depending on the label stamping convention used.</li><li>This format does not encode the exact model name — confirm from headstock, label, and hardware.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a South Korea import decode from ${year}. Verify the model from the headstock and compare against Dean's Korea import lineup.</p>`,
+  };
+}
+
+// 9-digit numeric import: YYMM + 5-digit sequence
+function decodeNumeric9DigitYYMMSeq(serial: string): DecodeResult {
+  const yearDigits = serial.substring(0, 2);
+  const monthDigits = serial.substring(2, 4);
+  const sequence = serial.substring(4);
+  const year = 2000 + parseInt(yearDigits, 10);
+  const month = parseInt(monthDigits, 10);
+  const monthName = month >= 1 && month <= 12 ? getMonthName(month) : undefined;
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Dean',
+    serialNumber: serial,
+    year: year.toString(),
+    month: monthName,
+    factory: 'Asian import factory (China or Indonesia)',
+    country: 'China or Indonesia',
+    notes: `9-digit numeric import format: YYMM + 5-digit sequence. ${yearDigits} = ${year}, ${monthDigits} = ${monthName || 'month code'}, ${sequence} = production sequence ${sequenceNumber}.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'dean-numeric-9digit-yymm-sequence',
+    patternLabel: 'Dean 9-digit numeric import YYMM sequence',
+    additionalContext: {
+      title: 'Dean 9-digit numeric import serial',
+      summary: `This serial follows a 9-digit numeric import format used by Dean for guitars manufactured in Asian factories.`,
+      highlights: [
+        `${yearDigits} decodes as production year ${year}.`,
+        monthName ? `${monthDigits} decodes as ${monthName}.` : `${monthDigits} is the month code.`,
+        `${sequence} is the 5-digit production sequence (unit ${sequenceNumber}).`,
+      ],
+      caveats: [
+        '9-digit numeric Dean serials without a factory prefix are seen on import guitars from China and Indonesia.',
+        'Country of origin should be confirmed from headstock or label markings.',
+        'This format does not encode the exact model name.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock or a neck label for the country of origin.',
+        'Compare hardware and model design against Dean import catalog from the decoded year.',
+        'Contact Dean support if factory identification is needed.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial follows a 9-digit numeric import format used by Dean for guitars manufactured in Asian factories.</p><h3>How This Pattern Is Typically Read</h3><p>The first two digits ${yearDigits} decode as production year ${year}. The next two digits ${monthDigits} decode as ${monthName || 'the month code'}. The remaining digits ${sequence} are the production sequence (unit ${sequenceNumber}).</p><h3>What To Verify</h3><ul><li>9-digit numeric Dean serials without a prefix are seen on import guitars from China and Indonesia — check headstock or label for country of origin.</li><li>This format does not encode the exact model name — confirm from headstock markings and catalog specs.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a Dean import decode from ${year}. Verify the model and country from the guitar's physical markings.</p>`,
+  };
 }
 
 // World Korea: E prefix (older format, 2000-2015)

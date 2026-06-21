@@ -786,6 +786,12 @@ function decodeChinaCY(yearDigits: string, sequence: string, serial: string): De
   let year = parseInt(yearDigits, 10);
   year = year >= 90 ? 1900 + year : 2000 + year;
 
+  // If the decoded year is implausibly far in the future, re-interpret using a single-digit year.
+  // e.g. CY31117497: 2-digit year 31 → 2031 (impossible); try year=3 → 2003 instead.
+  if (year > new Date().getFullYear() + 2 && yearDigits.length >= 2) {
+    return decodeChinaCY(yearDigits[0], yearDigits.slice(1) + sequence, serial);
+  }
+
   const info: GuitarInfo = {
     brand: 'Squier',
     serialNumber: serial,

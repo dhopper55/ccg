@@ -50,9 +50,9 @@ export function decodeSchecter(serial: string): DecodeResult {
     return decodeKoreaWA(normalized);
   }
 
-  // Korea/Indonesia W prefix: W + 8-9 digits (World/Wildwood)
-  // 8 digits = Korea, 9 digits = Indonesia
-  if (/^W\d{8,9}$/.test(normalized)) {
+  // Korea/Indonesia W prefix: W + 7-9 digits (World/Wildwood)
+  // 7-8 digits = Korea, 9 digits = Indonesia
+  if (/^W\d{7,9}$/.test(normalized)) {
     return decodeW(normalized);
   }
 
@@ -462,9 +462,9 @@ function decodeW(serial: string): DecodeResult {
   const digits = serial.substring(1);
   const digitCount = digits.length;
 
-  // 8 digits = Korea, 9 digits = Indonesia
-  const country = digitCount === 8 ? 'South Korea' : 'Indonesia';
-  const factory = digitCount === 8
+  // 7-8 digits = Korea, 9 digits = Indonesia
+  const country = digitCount <= 8 ? 'South Korea' : 'Indonesia';
+  const factory = digitCount <= 8
     ? 'World/Wildwood Korea'
     : 'World Musical Instruments (WMI)';
 

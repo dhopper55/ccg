@@ -65,6 +65,12 @@ export function decodeCharvel(serial: string): DecodeResult {
     return decodeCharvelUCChina(normalized, cleaned);
   }
 
+  // TX76113 is the IMC Fort Worth TX zip code stamped on neck plates of Japanese Charvels (1986-1991).
+  // Customers sometimes enter this as a serial number; it is an importer address mark, not a serial.
+  if (/^TX\d{5}$/.test(normalized)) {
+    return decodeIMCAddressMark(normalized);
+  }
+
   // USA Select/Pro-Mod: 10-digit format similar to imports
   if (/^[A-Z]{2,3}\d{7,8}$/.test(normalized)) {
     return decodeUSASelect(normalized);
@@ -670,4 +676,41 @@ function getMonthName(monthValue: number): string | undefined {
     default:
       return undefined;
   }
+}
+
+function decodeIMCAddressMark(serial: string): DecodeResult {
+  return {
+    success: true,
+    info: {
+      brand: 'Charvel',
+      serialNumber: serial,
+      year: '1986-1991 (estimated)',
+      factory: 'Chushin Gakki, Nagano Prefecture',
+      country: 'Japan',
+      notes: 'TX76113 is not a serial number — it is the Fort Worth, Texas zip code (P.O. Box 2344, Fort Worth, TX 76113) stamped on the neck plate by U.S. importer IMC Inc. This identifies a genuine vintage Japanese-made Charvel from the Chushin Gakki era (1986–1991). The actual serial number is typically found on the headstock, body cavity, or neck heel of the instrument.',
+    },
+    patternKey: 'charvel-imc-address-tx-mark',
+    patternLabel: 'Charvel IMC address mark (TX + 5-digit zip)',
+    additionalContext: {
+      title: 'Charvel IMC Fort Worth address stamp',
+      summary: 'TX76113 is the Fort Worth, TX zip code of Charvel\'s U.S. importer IMC Inc., stamped on vintage Japanese neck plates. It identifies the era and origin but is not a serial number.',
+      highlights: [
+        'TX76113 = IMC Inc., P.O. Box 2344, Fort Worth, TX 76113 — the U.S. importer.',
+        'Guitars with this stamp were built by Chushin Gakki in Nagano Prefecture, Japan.',
+        'Production window: approximately 1986–1991.',
+        'The actual serial number is located elsewhere — headstock, body cavity, or neck heel.',
+      ],
+      caveats: [
+        'This is an importer address stamp, not a production serial number.',
+        'The real serial number encodes more specific production date and factory information.',
+        'Chushin Gakki also built guitars for other brands during this era (e.g. BC Rich, Westone, Grover Jackson).',
+      ],
+      verificationTips: [
+        'Look for the actual serial number on the headstock (ink stamp or sticker) or inside the body cavity.',
+        'Check the neck heel or neck pocket for a date stamp.',
+        'Compare hardware, logo style, and body construction against known Chushin-built Charvel examples from 1986–1991.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>TX76113 is not a serial number — it is the U.S. zip code of Charvel's importer IMC Inc. (P.O. Box 2344, Fort Worth, TX 76113), stamped on the neck plates of vintage Japanese-made Charvels from 1986–1991. The guitar was built by Chushin Gakki in Nagano Prefecture, Japan.</p><h3>Finding the Real Serial Number</h3><p>The actual serial number is typically found on the headstock (ink stamp or sticker), inside the body cavity, or at the neck heel. The real serial encodes more specific production information.</p><h3>What To Verify</h3><ul><li>Look for the serial on the headstock, body cavity, or neck heel rather than the neck plate.</li><li>Check for any date stamps at the neck pocket.</li><li>Compare hardware, logo style, and construction against known Chushin-built Charvel examples from 1986–1991.</li></ul>`,
+  };
 }

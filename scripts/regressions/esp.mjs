@@ -238,6 +238,38 @@ export function runTests() {
   assertESPLTDIndonesiaSamickIS('IS090417067', '2009', 'April');
   assertESPLTDNumeric9Digit('090417067', '2009', 'January', 'Monday');
   assertESPKisoCustomSpecial('K09164080W15', '2009');
+  assertESPLTDIndonesiaCIPrefix('CI25100523', '2025', 'October');
+  assertESPLTDIndonesiaIMPrefix('IM24120398', '2024', 'December');
+  assertESP1WCorrectsToIW('1W211112431', '2021', 'November');
+}
+
+function assertESPLTDIndonesiaCIPrefix(serialInput, expectedYear, expectedMonth) {
+  const result = decodeSerialForBackend('esp', serialInput);
+  assert(result.success, `Expected decode success for esp:${serialInput}`);
+  assert(result.info, `Expected decoded info for esp:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${result.info.month}`);
+  assert(result.info.country === 'Indonesia', `Expected Indonesia for ${serialInput}, got ${result.info.country}`);
+  assert(result.patternKey === 'esp-ltd-indonesia-ci-cort-yymm-sequence', `Expected CI pattern key for ${serialInput}, got ${result.patternKey}`);
+}
+
+function assertESPLTDIndonesiaIMPrefix(serialInput, expectedYear, expectedMonth) {
+  const result = decodeSerialForBackend('esp', serialInput);
+  assert(result.success, `Expected decode success for esp:${serialInput}`);
+  assert(result.info, `Expected decoded info for esp:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${result.info.month}`);
+  assert(result.info.country === 'Indonesia', `Expected Indonesia for ${serialInput}, got ${result.info.country}`);
+  assert(result.patternKey === 'esp-ltd-indonesia-im-cort-yymm-sequence', `Expected IM pattern key for ${serialInput}, got ${result.patternKey}`);
+}
+
+function assertESP1WCorrectsToIW(serialInput, expectedYear, expectedMonth) {
+  const result = decodeSerialForBackend('esp', serialInput);
+  assert(result.success, `Expected decode success for esp:${serialInput}`);
+  assert(result.info, `Expected decoded info for esp:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${result.info.month}`);
+  assert(result.info.country === 'Indonesia', `Expected Indonesia for ${serialInput}, got ${result.info.country}`);
 }
 
 function assertESPKisoCustomSpecial(serialInput, expectedYear) {

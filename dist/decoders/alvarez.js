@@ -19,7 +19,8 @@ export function decodeAlvarez(serial) {
     const cleaned = serial.trim().toUpperCase();
     const normalized = cleaned.replace(/[\s-]/g, '');
     // Modern two-letter factory prefix + YYMM + sequence (e.g., FC081000213 = Fine China, 2008, Oct, seq 213)
-    if (/^[A-Z]{2}\d{9,10}$/.test(normalized)) {
+    // Also handles 8-digit suffix (e.g. CC05046845 = Partner factory CC, 2005, April)
+    if (/^[A-Z]{2}\d{8,10}$/.test(normalized)) {
         return decodeModernTwoLetterPrefix(normalized);
     }
     // Modern standard format: Letter prefix + 8-9 digits (e.g., E24113487, F606120413)
