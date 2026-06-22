@@ -7,6 +7,7 @@ import StyledTextField from 'components/styled/StyledTextField';
 import IbanezAdditionalInfoPanel from './IbanezAdditionalInfoPanel';
 
 const GOOGLE_REVIEW_URL = 'https://g.page/r/CYgEveOaLAOjEBM/review';
+const EMAIL_SIGNUP_URL = 'https://www.coalcreekguitars.com/api/email-signup';
 
 const DECODE_URL = 'https://www.coalcreekguitars.com/api/decode';
 const DECODE_EMAIL_URL = 'https://www.coalcreekguitars.com/api/decode/email';
@@ -55,6 +56,9 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
   const [emailSubmitMessage, setEmailSubmitMessage] = useState('');
   const [emailSubmitError, setEmailSubmitError] = useState('');
   const [isSubmittingEmail, setIsSubmittingEmail] = useState(false);
+  const [listEmail, setListEmail] = useState('');
+  const [isSubmittingListEmail, setIsSubmittingListEmail] = useState(false);
+  const [listEmailDone, setListEmailDone] = useState(false);
   const [additionalInfoModalOpen, setAdditionalInfoModalOpen] = useState(false);
   const initialSerial = searchParams.get('serial')?.trim() || '';
   const hasAutoDecodedRef = useRef(false);
@@ -181,6 +185,24 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
       setEmailSubmitError('Unable to submit email address.');
     } finally {
       setIsSubmittingEmail(false);
+    }
+  };
+
+  const handleListSignup = async () => {
+    const trimmed = listEmail.trim().toLowerCase();
+    if (!isValidEmailAddress(trimmed)) return;
+    setIsSubmittingListEmail(true);
+    try {
+      const response = await fetch(EMAIL_SIGNUP_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trimmed }),
+      });
+      if (response.ok) setListEmailDone(true);
+    } catch {
+      // silently fail — user can retry
+    } finally {
+      setIsSubmittingListEmail(false);
     }
   };
 
@@ -401,28 +423,78 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
                   </Stack>
                 );
               })}
-              <Box sx={{ py: 0.75 }}>
-                <Typography
-                  variant="caption"
-                  sx={{ color: 'text.secondary', fontStyle: 'italic', lineHeight: 1.6 }}
-                >
-                  This decode was completely free — no catch. If it helped you, 30 seconds on Google goes a long way for us.
-                </Typography>
-              </Box>
             </Stack>
-            <Box sx={{ mt: 2 }}>
-              <Button
-                variant="soft"
-                color="warning"
-                startIcon={<IconifyIcon icon="logos:google-icon" />}
-                component="a"
-                href={GOOGLE_REVIEW_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                sx={{ fontWeight: 700 }}
-              >
-                Leave a Google Review
-              </Button>
+            <Box
+              sx={{
+                mt: 2,
+                p: 2,
+                borderRadius: 2,
+                bgcolor: 'warning.lighter',
+                border: '1px solid',
+                borderColor: 'warning.light',
+              }}
+            >
+              <Typography variant="body2" sx={{ fontWeight: 700, color: 'warning.dark', mb: 0.5 }}>
+                This decode was completely free.
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary', lineHeight: 1.6 }}>
+                If it helped, a quick Google review makes a real difference for a small shop like ours.
+              </Typography>
+              <Box sx={{ mt: 1.5 }}>
+                <Button
+                  variant="contained"
+                  color="warning"
+                  size="small"
+                  startIcon={<IconifyIcon icon="logos:google-icon" />}
+                  component="a"
+                  href={GOOGLE_REVIEW_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  sx={{ fontWeight: 700 }}
+                >
+                  Leave a Google Review
+                </Button>
+              </Box>
+            </Box>
+            <Box sx={{ mt: 2.5 }}>
+              <Divider sx={{ borderColor: 'dividerLight', opacity: 0.59, mb: 2 }} />
+              <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                Get our free 5-point fretboard care guide
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary', lineHeight: 1.6 }}>
+                Join our list for first access to new acquisitions — some items go to the list before they hit the shop.
+              </Typography>
+              {listEmailDone ? (
+                <Typography variant="caption" sx={{ color: 'success.main', display: 'block', mt: 1.5, fontWeight: 600 }}>
+                  ✓ You're on the list — guide on its way!
+                </Typography>
+              ) : (
+                <Stack
+                  direction={{ xs: 'column', sm: 'row' }}
+                  spacing={1.5}
+                  sx={{ mt: 1.5, alignItems: { sm: 'flex-start' } }}
+                >
+                  <StyledTextField
+                    type="email"
+                    value={listEmail}
+                    placeholder="Email address"
+                    onChange={(e) => setListEmail(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') void handleListSignup(); }}
+                    disabled={isSubmittingListEmail}
+                    inputProps={{ maxLength: 200 }}
+                    sx={{ maxWidth: 300, width: 1 }}
+                  />
+                  <Button
+                    variant="soft"
+                    color="warning"
+                    onClick={() => void handleListSignup()}
+                    disabled={isSubmittingListEmail || !isValidEmailAddress(listEmail.trim())}
+                    sx={{ fontWeight: 700, minWidth: 80, mt: { sm: 0.5 } }}
+                  >
+                    {isSubmittingListEmail ? '...' : 'Join'}
+                  </Button>
+                </Stack>
+              )}
             </Box>
           </Box>
         )}

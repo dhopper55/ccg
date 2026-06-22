@@ -101,7 +101,7 @@ import {
   handleAdminV2OrderRefund,
 } from './orders/handlers.js';
 import { handleStripeWebhook } from './orders/webhook.js';
-import { handleAdminV2OrderConfirmationEmailTest } from './orders/email.js';
+import { handleAdminV2OrderConfirmationEmailTest, handleAdminV2BrevoMarketingSubscribe, handlePublicEmailSignup } from './orders/email.js';
 import { handleAdminV2OrderAccountFunds } from './orders/funds.js';
 
 // Shop
@@ -275,6 +275,11 @@ export default {
     const guitarEvalReportMatch = path.match(/^\/api\/guitar-eval-report\/([0-9a-f-]+)$/i);
     if (guitarEvalReportMatch && request.method === 'GET') {
       return handlePublicGuitarEvalReport(guitarEvalReportMatch[1], env);
+    }
+
+    if (path === '/api/email-signup' && request.method === 'POST') {
+      const response = await handlePublicEmailSignup(request, env);
+      return withCors(response, request, env);
     }
 
     if (path.startsWith('/api/') && !isPublicApiPath(path)) {
@@ -708,6 +713,11 @@ export default {
 
     if (path === '/api/admin-v2/order-confirmation-email/test' && request.method === 'POST') {
       const response = await handleAdminV2OrderConfirmationEmailTest(env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/marketing/subscribe' && request.method === 'POST') {
+      const response = await handleAdminV2BrevoMarketingSubscribe(request, env);
       return withCors(response, request, env);
     }
 

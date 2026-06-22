@@ -674,6 +674,14 @@ body {
   .footer-grid { grid-template-columns: 1fr; }
   .footer-bottom { flex-direction: column; gap: 8px; text-align: center; }
 }
+.footer-email-signup { margin-top: 16px; }
+.footer-email-label { font-size: 12px; color: rgba(255,255,255,.35); margin-bottom: 6px; }
+.footer-email-row { display: flex; gap: 6px; }
+.footer-email-input { flex: 1; min-width: 0; background: transparent; border: 1px solid rgba(255,255,255,.15); color: rgba(255,255,255,.65); padding: 6px 10px; font-size: 12px; border-radius: 3px; outline: none; }
+.footer-email-input:focus { border-color: #8B6914; }
+.footer-email-btn { background: #8B6914; color: #fff; border: none; padding: 6px 12px; font-size: 12px; cursor: pointer; border-radius: 3px; white-space: nowrap; }
+.footer-email-btn:hover { background: #a07820; }
+.footer-email-msg { font-size: 11px; margin-top: 4px; min-height: 14px; }
 </style>
 </head>
 <body>
@@ -917,6 +925,14 @@ body {
       <div class="footer-col-label">Coal Creek Guitars</div>
       <div class="footer-brand">Coal Creek <span>Guitars</span></div>
       <div class="footer-loc">Englewood, Colorado<br>South Broadway corridor<br>Est. 2017</div>
+      <div class="footer-email-signup">
+        <div class="footer-email-label">Join our email list:</div>
+        <div class="footer-email-row">
+          <input type="email" class="footer-email-input" placeholder="your@email.com" aria-label="Email address">
+          <button class="footer-email-btn" type="button">Join</button>
+        </div>
+        <div class="footer-email-msg"></div>
+      </div>
     </div>
     <div class="footer-col">
       <div class="footer-col-label">Quick Links</div>
@@ -957,6 +973,7 @@ body {
       el.textContent = new Date().getFullYear();
     });
   })();
+  (function(){document.querySelectorAll('.footer-email-signup').forEach(function(el){var input=el.querySelector('.footer-email-input'),btn=el.querySelector('.footer-email-btn'),msg=el.querySelector('.footer-email-msg');function submit(){var email=input.value.trim();if(!email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){msg.style.color='#c04040';msg.textContent='Please enter a valid email.';return;}btn.disabled=true;btn.textContent='…';fetch('/api/email-signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email})}).then(function(r){return r.json();}).then(function(d){if(d.ok){msg.style.color='#6a9a5a';msg.textContent="You're on the list!";input.value='';}else{msg.style.color='#c04040';msg.textContent=d.message||'Something went wrong.';}btn.disabled=false;btn.textContent='Join';}).catch(function(){msg.style.color='#c04040';msg.textContent='Something went wrong. Try again.';btn.disabled=false;btn.textContent='Join';});}btn.addEventListener('click',submit);input.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});});})();
 
   (function() {
     var categories = Array.from(document.querySelectorAll('.faq-category'));

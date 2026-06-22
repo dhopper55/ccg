@@ -257,6 +257,84 @@ export async function sendBrevoOrderConfirmationEmailForOrder(orderId: string, e
   }
 }
 
+// ---------------------------------------------------------------------------
+// Marketing subscribe
+// ---------------------------------------------------------------------------
+
+const BREVO_MARKETING_LIST_ID = 4;
+
+export async function handlePublicEmailSignup(request: Request, env: Env): Promise<Response> {
+  const body = await request.json<{ email?: unknown }>().catch(() => ({}));
+  const email = normalizeEmailAddress(body?.email);
+  if (!email) {
+    return jsonResponse({ message: 'A valid email address is required.' }, 400);
+  }
+
+  const config = await getBrevoRuntimeConfig(env);
+  if (!config.apiKey) {
+    return jsonResponse({ message: 'Email signup is temporarily unavailable.' }, 503);
+  }
+
+  const contactRes = await fetch('https://api.brevo.com/v3/contacts', {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      'api-key': config.apiKey,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      email,
+      listIds: [BREVO_MARKETING_LIST_ID],
+      updateEnabled: true,
+    }),
+  });
+  if (!contactRes.ok) {
+    const err = await contactRes.json<{ message?: string }>().catch(() => ({}));
+    const msg = normalizeText(err?.message, `Signup failed. Please try again.`);
+    return jsonResponse({ message: msg }, 502);
+  }
+
+  return jsonResponse({ ok: true, email });
+}
+
+export async function handleAdminV2BrevoMarketingSubscribe(request: Request, env: Env): Promise<Response> {
+  const body = await request.json<{ email?: unknown }>().catch(() => ({}));
+  const email = normalizeEmailAddress(body?.email);
+  if (!email) {
+    return jsonResponse({ message: 'A valid email address is required.' }, 400);
+  }
+
+  const config = await getBrevoRuntimeConfig(env);
+  if (!config.apiKey) {
+    return jsonResponse({ message: 'Brevo API key is not configured in sys_info.' }, 503);
+  }
+  if (!config.senderEmail) {
+    return jsonResponse({ message: 'Brevo sender email is not configured in sys_info.' }, 503);
+  }
+
+  // Upsert contact and add to marketing list
+  const contactRes = await fetch('https://api.brevo.com/v3/contacts', {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      'api-key': config.apiKey,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      email,
+      listIds: [BREVO_MARKETING_LIST_ID],
+      updateEnabled: true,
+    }),
+  });
+  if (!contactRes.ok) {
+    const err = await contactRes.json<{ message?: string }>().catch(() => ({}));
+    const msg = normalizeText(err?.message, `Brevo contact upsert failed with status ${contactRes.status}.`);
+    return jsonResponse({ message: msg }, 502);
+  }
+
+  return jsonResponse({ ok: true, email });
+}
+
 export function formatBrevoOrderDate(value: string): string {
   const date = value ? new Date(value) : new Date();
   if (Number.isNaN(date.getTime())) return value || new Date().toISOString().slice(0, 10);
