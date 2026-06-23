@@ -45,6 +45,7 @@ type InventoryItemRecord = {
   salePrice?: number | null;
   condition?: string;
   allowShipping?: boolean;
+  salesTaxIncluded?: boolean;
   saleDescription?: string;
   clearance?: boolean;
   bullet1Text?: string;
@@ -189,6 +190,7 @@ type FormState = {
   salePrice: string;
   condition: string;
   allowShipping: boolean;
+  salesTaxIncluded: boolean;
   saleDescription: string;
   clearance: boolean;
   bullet1Text: string;
@@ -449,6 +451,7 @@ const DEFAULT_FORM: FormState = {
   salePrice: '0',
   condition: '',
   allowShipping: false,
+  salesTaxIncluded: false,
   saleDescription: '',
   clearance: false,
   bullet1Text: '',
@@ -1245,6 +1248,7 @@ const InventoryItem = () => {
             salePrice: record.salePrice != null ? String(record.salePrice) : '0',
             condition: record.condition || '',
             allowShipping: Boolean(record.allowShipping),
+            salesTaxIncluded: Boolean(record.salesTaxIncluded),
             saleDescription: record.saleDescription || '',
             clearance: Boolean(record.clearance),
             bullet1Text: record.bullet1Text || '',
@@ -1370,6 +1374,7 @@ const InventoryItem = () => {
             salePrice: record.salePrice != null ? String(record.salePrice) : '0',
             condition: record.condition || '',
             allowShipping: Boolean(record.allowShipping),
+            salesTaxIncluded: Boolean(record.salesTaxIncluded),
             saleDescription: record.saleDescription || '',
             clearance: Boolean(record.clearance),
             bullet1Text: record.bullet1Text || '',
@@ -1686,6 +1691,7 @@ const InventoryItem = () => {
     salePrice: form.salePrice.trim(),
     condition: form.condition.trim(),
     allowShipping: form.allowShipping,
+    salesTaxIncluded: form.salesTaxIncluded,
     saleDescription: form.saleDescription.trim(),
     clearance: form.clearance,
     bullet1Text: form.bullet1Text.trim(),
@@ -3259,6 +3265,15 @@ const InventoryItem = () => {
                               />
                             )}
                             label="Allow Shipping"
+                          />
+                          <FormControlLabel
+                            control={(
+                              <Checkbox
+                                checked={form.salesTaxIncluded}
+                                onChange={(event) => setField('salesTaxIncluded', event.target.checked)}
+                              />
+                            )}
+                            label="Sales Tax Included"
                           />
                         </Box>
                       </Grid>

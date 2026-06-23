@@ -45,6 +45,7 @@ export async function dbCreateInventoryItems(
     sale_price: number | null;
     condition: string | null;
     allow_shipping?: number;
+    sales_tax_included?: number;
     sale_description: string | null;
     clearance: number;
     bullet_1_text: string | null;
@@ -116,7 +117,7 @@ export async function dbCreateInventoryItems(
         source_listing_id, ccg_number, image_url, title, quantity, category_id, brand, queue, year_range, model, finish,
         secondary_category_id,
         image_urls,
-        repair_notes, original_listing_desc, video_url, sale_title, regular_price, sale_price, "condition", allow_shipping, sale_description, clearance,
+        repair_notes, original_listing_desc, video_url, sale_title, regular_price, sale_price, "condition", allow_shipping, sales_tax_included, sale_description, clearance,
         bullet_1_text, bullet_1_danger, bullet_1_highlight,
         bullet_2_text, bullet_2_danger, bullet_2_highlight,
         bullet_3_text, bullet_3_danger, bullet_3_highlight,
@@ -132,7 +133,7 @@ export async function dbCreateInventoryItems(
         for_sale_date,
         is_sold, sold_date, sold_amount, sell_notes, sale_url, sale_zip, merchant_center_cat_code
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const result = await env.DB.prepare(statement).bind(
       fields.source_listing_id,
@@ -156,6 +157,7 @@ export async function dbCreateInventoryItems(
       fields.sale_price,
       fields.condition,
       fields.allow_shipping ?? 0,
+      fields.sales_tax_included ?? 0,
       fields.sale_description,
       fields.clearance,
       fields.bullet_1_text,
@@ -286,6 +288,7 @@ export async function dbUpdateInventoryById(
     sale_price: number | null;
     condition: string | null;
     allow_shipping: number;
+    sales_tax_included: number;
     sale_description: string | null;
     clearance: number;
     bullet_1_text: string | null;
@@ -335,7 +338,7 @@ export async function dbUpdateInventoryById(
          sales_channel_ccg = ?, sales_channel_fbm = ?, sales_channel_cl = ?, sales_channel_reverb = ?, sales_channel_gear_exchange = ?,
          sales_channel_offerup = ?, sales_channel_ebay = ?, sales_channel_nextdoor = ?, sales_channel_other = ?,
          for_sale_date = ?,
-         source_listing_id = ?, video_url = ?, sale_title = ?, regular_price = ?, sale_price = ?, "condition" = ?, allow_shipping = ?, sale_description = ?,
+         source_listing_id = ?, video_url = ?, sale_title = ?, regular_price = ?, sale_price = ?, "condition" = ?, allow_shipping = ?, sales_tax_included = ?, sale_description = ?,
          clearance = ?,
          bullet_1_text = ?, bullet_1_danger = ?, bullet_1_highlight = ?,
          bullet_2_text = ?, bullet_2_danger = ?, bullet_2_highlight = ?,
@@ -405,6 +408,7 @@ export async function dbUpdateInventoryById(
       fields.sale_price,
       fields.condition,
       fields.allow_shipping,
+      fields.sales_tax_included,
       fields.sale_description,
       fields.clearance,
       fields.bullet_1_text,
