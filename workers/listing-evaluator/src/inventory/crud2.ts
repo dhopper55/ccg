@@ -556,6 +556,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
     sale_price: salePrice,
     condition: condition || null,
     allow_shipping: allowShipping ? 1 : 0,
+    sales_tax_included: salesTaxIncluded ? 1 : 0,
     sale_description: saleDescription || null,
     clearance: clearance ? 1 : 0,
     bullet_1_text: bullet1Text || null,
