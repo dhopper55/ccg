@@ -121,6 +121,13 @@ const CartItem = ({ item }: CartItemProps) => {
                         sx={{ fontWeight: 700 }}
                       />
                     )}
+                    {item.salesTaxIncluded && (
+                      <Chip
+                        variant="soft"
+                        color="info"
+                        label="Tax Included"
+                      />
+                    )}
                   </Stack>
 
                   {item.variants && (

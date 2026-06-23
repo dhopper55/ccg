@@ -299,7 +299,24 @@ export async function dbApplyPaidInventoryItems(
   const paidChannel = getPaidInventoryChannel(session, normalizeText(order?.channel, ''));
   let totalImplicitTaxCents = 0;
   for (const item of items) {
-    totalImplicitTaxCents += await dbApplyPaidInventoryItemAdjustment(orderId, item, session, paidChannel, env);
+    const implicitTaxCents = await dbApplyPaidInventoryItemAdjustment(orderId, item, session, paidChannel, env);
+    if (implicitTaxCents > 0) {
+      totalImplicitTaxCents += implicitTaxCents;
+      const perUnitTaxCents = Math.round(implicitTaxCents / Math.max(1, item.quantity));
+      await env.DB.prepare(
+        `UPDATE order_items
+         SET subtotal_cents    = MAX(0, COALESCE(subtotal_cents, 0) - ?),
+             total_cents       = MAX(0, COALESCE(total_cents, 0) - ?),
+             line_total_cents  = MAX(0, COALESCE(line_total_cents, 0) - ?),
+             unit_amount_cents = MAX(0, COALESCE(unit_amount_cents, 0) - ?),
+             unit_price_cents  = MAX(0, COALESCE(unit_price_cents, 0) - ?)
+         WHERE order_id = ? AND inventory_item_id = ?`,
+      ).bind(
+        implicitTaxCents, implicitTaxCents, implicitTaxCents,
+        perUnitTaxCents, perUnitTaxCents,
+        normalizeText(orderId, ''), item.inventoryItemId,
+      ).run();
+    }
   }
   if (totalImplicitTaxCents > 0) {
     await env.DB.prepare(
