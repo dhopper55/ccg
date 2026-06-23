@@ -7,6 +7,7 @@ import { numberOrZero, parseOptionalPositiveInt, dbGetColumnNames } from '../uti
 import { toPublicShopImageUrl } from '../utils/image.js';
 import { getStripeRuntimeConfigForLivemode } from '../system/runtime.js';
 import { generateUniqueCcgNumber } from '../inventory/db-write.js';
+import { SHOP_SALES_TAX_RATE } from '../constants.js';
 import type { ShopCheckoutLineItem, ShopCheckoutInventoryRow } from '../types/orders.js';
 
 // ---------------------------------------------------------------------------
@@ -296,8 +297,18 @@ export async function dbApplyPaidInventoryItems(
     .bind(normalizeText(orderId, ''))
     .first<Record<string, unknown>>();
   const paidChannel = getPaidInventoryChannel(session, normalizeText(order?.channel, ''));
+  let totalImplicitTaxCents = 0;
   for (const item of items) {
-    await dbApplyPaidInventoryItemAdjustment(orderId, item, session, paidChannel, env);
+    totalImplicitTaxCents += await dbApplyPaidInventoryItemAdjustment(orderId, item, session, paidChannel, env);
+  }
+  if (totalImplicitTaxCents > 0) {
+    await env.DB.prepare(
+      `UPDATE orders
+       SET tax_cents = COALESCE(tax_cents, 0) + ?,
+           subtotal_cents = COALESCE(subtotal_cents, 0) - ?,
+           updated_at = ?
+       WHERE id = ?`,
+    ).bind(totalImplicitTaxCents, totalImplicitTaxCents, new Date().toISOString(), normalizeText(orderId, '')).run();
   }
 }
 
@@ -458,19 +469,25 @@ export async function dbApplyPaidInventoryItemAdjustment(
   session: any,
   paidChannel: string,
   env: Env,
-): Promise<void> {
+): Promise<number> {
   const row = await env.DB.prepare(
     'SELECT * FROM ccg_inventory_items WHERE id = ? LIMIT 1'
   ).bind(item.inventoryItemId).first<Record<string, unknown>>();
-  if (!row) return;
+  if (!row) return 0;
 
   const purchasedQuantity = Math.max(1, item.quantity);
   const currentQuantity = Math.max(0, Number(row.quantity ?? 1));
   const remainingQuantity = Math.max(0, currentQuantity - purchasedQuantity);
   const soldDate = new Date().toISOString();
-  const soldAmount = item.subtotalCents > 0
-    ? item.subtotalCents / 100
-    : Number(row.sale_price || row.regular_price || 0) * purchasedQuantity;
+
+  const effectiveSubtotalCents = item.subtotalCents > 0
+    ? item.subtotalCents
+    : Math.round(Number(row.sale_price || row.regular_price || 0) * purchasedQuantity * 100);
+  const salesTaxIncluded = Number(row.sales_tax_included) === 1;
+  const implicitTaxCents = salesTaxIncluded && effectiveSubtotalCents > 0
+    ? Math.round(effectiveSubtotalCents * SHOP_SALES_TAX_RATE / (1 + SHOP_SALES_TAX_RATE))
+    : 0;
+  const soldAmount = (effectiveSubtotalCents - implicitTaxCents) / 100;
 
   if (remainingQuantity > 0) {
     await dbUpdateOriginalInventoryAfterPartialSale(
@@ -489,7 +506,7 @@ export async function dbApplyPaidInventoryItemAdjustment(
       paidChannel,
       env,
     });
-    return;
+    return implicitTaxCents;
   }
 
   await dbUpdateOriginalInventoryAfterFullSale(
@@ -502,4 +519,5 @@ export async function dbApplyPaidInventoryItemAdjustment(
     paidChannel,
     env,
   );
+  return implicitTaxCents;
 }

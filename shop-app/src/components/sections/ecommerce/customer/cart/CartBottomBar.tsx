@@ -91,7 +91,7 @@ const validateCashCustomerForm = (values: CashCustomerForm) => {
 };
 
 const CartBottomBar = () => {
-  const { appliedCoupon, associateDiscount, cartItems, cartTotal, taxIncluded, otdMode } = useEcommerce();
+  const { appliedCoupon, cartItems, cartTotal, taxIncluded, otdMode } = useEcommerce();
   const { isAssociateMode, stripeSandbox } = useAssociateMode();
   const { up } = useBreakpoints();
   const { currencyFormat } = useNumberFormat();
@@ -144,7 +144,6 @@ const CartBottomBar = () => {
   ) => ({
     fulfillmentType: 'pickup',
     couponCode: appliedCoupon?.code || undefined,
-    discountCents: Math.round(associateDiscount * 100),
     taxIncluded,
     otdMode,
     splitTender,
@@ -387,7 +386,6 @@ const CartBottomBar = () => {
         body: JSON.stringify({
           fulfillmentType: 'pickup',
           couponCode: appliedCoupon?.code || undefined,
-          discountCents: Math.round(associateDiscount * 100),
           taxIncluded,
           otdMode,
           customer: {

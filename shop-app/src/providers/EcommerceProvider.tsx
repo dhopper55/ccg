@@ -24,8 +24,6 @@ interface EcommerceContextInterface {
   updateCartItem: (itemId: number, updatedData: Partial<CartItem>) => void;
   appliedCoupon: Coupon | null;
   setAppliedCoupon: Dispatch<SetStateAction<Coupon | null>>;
-  associateDiscount: number;
-  setAssociateDiscount: Dispatch<SetStateAction<number>>;
   taxIncluded: boolean;
   setTaxIncluded: (value: boolean) => void;
   otdMode: boolean;
@@ -96,7 +94,6 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
   const [product, setProduct] = useState<CartItem | null>(null);
   const [cartItems, setCartItems] = useState<CartItem[]>(getInitialCartItems);
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
-  const [associateDiscount, setAssociateDiscount] = useState(0);
   const [taxIncluded, setTaxIncludedState] = useState(false);
   const [otdMode, setOtdModeState] = useState(false);
 
@@ -207,7 +204,7 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
     return (Math.round(originalCartSubTotal * 100) - otdAdjustmentCents) / 100;
   }, [otdMode, otdEligible, originalCartSubTotal, otdAdjustmentCents]);
 
-  const effectiveDiscount = associateDiscount > 0 ? associateDiscount : appliedCoupon?.appliedDiscount || 0;
+  const effectiveDiscount = appliedCoupon?.appliedDiscount || 0;
 
   const cartShippingDetails = useMemo(() => {
     const selectedItems = cartItems.filter((item) => item.selected);
@@ -275,12 +272,6 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
         : prevCoupon,
     );
   }, [cartSubTotal]);
-
-  useEffect(() => {
-    setAssociateDiscount((currentDiscount) =>
-      originalCartSubTotal > 0 ? Math.min(currentDiscount, originalCartSubTotal) : 0,
-    );
-  }, [originalCartSubTotal]);
 
   useEffect(() => {
     if (!otdEligible) setOtdModeState(false);
@@ -360,8 +351,6 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
         updateCartItem,
         appliedCoupon,
         setAppliedCoupon,
-        associateDiscount,
-        setAssociateDiscount,
         taxIncluded,
         setTaxIncluded,
         otdMode,

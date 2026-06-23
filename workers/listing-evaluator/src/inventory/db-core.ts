@@ -343,6 +343,7 @@ export async function dbGetInventoryItem(recordId: string, env: Env): Promise<Re
       i.sale_price,
       i."condition",
       i.allow_shipping,
+      i.sales_tax_included,
       i.sale_description,
       i.clearance,
       i.bullet_1_text,
