@@ -61,29 +61,32 @@ const getInitialCartItems = (): CartItem[] => {
   }
 };
 
-const hydrateCartShippingFlags = async (items: CartItem[], signal: AbortSignal) => {
-  const itemsMissingShipping = items.filter((item) => typeof item.allowShipping !== 'boolean');
-  if (itemsMissingShipping.length === 0) return null;
+const hydrateCartFlags = async (items: CartItem[], signal: AbortSignal) => {
+  const itemsMissingFlags = items.filter(
+    (item) => typeof item.allowShipping !== 'boolean' || typeof item.salesTaxIncluded !== 'boolean',
+  );
+  if (itemsMissingFlags.length === 0) return null;
 
   const updates = await Promise.all(
-    itemsMissingShipping.map(async (item) => {
+    itemsMissingFlags.map(async (item) => {
       try {
         const response = await fetch(`/api/shop/products/${encodeURIComponent(item.id)}`, {
           credentials: 'same-origin',
           signal,
         });
         if (!response.ok) return null;
-        const payload = (await response.json()) as { record?: { allowShipping?: boolean } };
-        if (typeof payload.record?.allowShipping !== 'boolean') return null;
-        return [item.id, payload.record.allowShipping] as const;
+        const payload = (await response.json()) as { record?: { allowShipping?: boolean; salesTaxIncluded?: boolean } };
+        const { allowShipping, salesTaxIncluded } = payload.record ?? {};
+        if (typeof allowShipping !== 'boolean' && typeof salesTaxIncluded !== 'boolean') return null;
+        return [item.id, { allowShipping, salesTaxIncluded }] as const;
       } catch {
         return null;
       }
     }),
   );
 
-  const shippingById = new Map(updates.filter((update): update is readonly [number, boolean] => update != null));
-  return shippingById.size > 0 ? shippingById : null;
+  const flagsById = new Map(updates.filter((u): u is readonly [number, { allowShipping?: boolean; salesTaxIncluded?: boolean }] => u != null));
+  return flagsById.size > 0 ? flagsById : null;
 };
 
 const EcommerceProvider = ({ children }: PropsWithChildren) => {
@@ -192,9 +195,12 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
 
   const otdAdjustmentCents = useMemo(() => {
     if (!otdMode || !otdEligible) return 0;
-    const origCents = Math.round(originalCartSubTotal * 100);
-    return origCents - Math.round(origCents / (1 + salesTaxRate));
-  }, [otdMode, otdEligible, originalCartSubTotal]);
+    // Only back out tax from taxable items (salesTaxIncluded=false)
+    const taxableOrigCents = cartItems
+      .filter((item) => item.selected && !item.salesTaxIncluded)
+      .reduce((sum, item) => sum + Math.round(item.price.discounted * 100) * item.quantity, 0);
+    return taxableOrigCents - Math.round(taxableOrigCents / (1 + salesTaxRate));
+  }, [otdMode, otdEligible, cartItems]);
 
   const cartSubTotal = useMemo(() => {
     if (!otdMode || !otdEligible) return originalCartSubTotal;
@@ -242,9 +248,17 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
 
   const cartTax = useMemo(() => {
     if (taxIncluded) return 0;
-    const taxableTotal = Math.max(0, cartSubTotal - effectiveDiscount + cartShippingDetails.amount);
+    // Only tax items where salesTaxIncluded is not true
+    const taxableSubtotal = cartItems
+      .filter((item) => item.selected && !item.salesTaxIncluded)
+      .reduce((sum, item) => sum + item.price.discounted * item.quantity, 0);
+    // Pro-rate discount across taxable items
+    const taxableDiscount = originalCartSubTotal > 0
+      ? effectiveDiscount * (taxableSubtotal / originalCartSubTotal)
+      : 0;
+    const taxableTotal = Math.max(0, taxableSubtotal - taxableDiscount + cartShippingDetails.amount);
     return Math.round(taxableTotal * salesTaxRate * 100) / 100;
-  }, [cartSubTotal, effectiveDiscount, cartShippingDetails.amount, taxIncluded]);
+  }, [cartItems, originalCartSubTotal, effectiveDiscount, cartShippingDetails.amount, taxIncluded]);
 
   const cartTotal = useMemo(() => {
     return Math.max(0, cartSubTotal - effectiveDiscount + cartShippingDetails.amount) + cartTax;
@@ -274,14 +288,18 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
 
   useEffect(() => {
     const controller = new AbortController();
-    void hydrateCartShippingFlags(cartItems, controller.signal).then((shippingById) => {
-      if (!shippingById || controller.signal.aborted) return;
+    void hydrateCartFlags(cartItems, controller.signal).then((flagsById) => {
+      if (!flagsById || controller.signal.aborted) return;
       setCartItems((currentItems) =>
-        currentItems.map((item) =>
-          shippingById.has(item.id)
-            ? { ...item, allowShipping: shippingById.get(item.id) }
-            : item,
-        ),
+        currentItems.map((item) => {
+          const flags = flagsById.get(item.id);
+          if (!flags) return item;
+          return {
+            ...item,
+            ...(typeof flags.allowShipping === 'boolean' && { allowShipping: flags.allowShipping }),
+            ...(typeof flags.salesTaxIncluded === 'boolean' && { salesTaxIncluded: flags.salesTaxIncluded }),
+          };
+        }),
       );
     });
     return () => controller.abort();

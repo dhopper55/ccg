@@ -47,6 +47,7 @@ export interface ProductDetails {
   category?: string[];
   features?: string[];
   allowShipping?: boolean;
+  salesTaxIncluded?: boolean;
 }
 export interface ProductListAdmin {
   id: number;

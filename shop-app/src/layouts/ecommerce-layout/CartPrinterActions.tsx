@@ -82,7 +82,7 @@ const parseTextDirectiveAttributes = (value: string) => {
 const CartPrinterActions = () => {
   const location = useLocation();
   const { enqueueSnackbar } = useSnackbar();
-  const { cartItems, cartSubTotal } = useEcommerce();
+  const { cartItems, cartSubTotal, cartTax } = useEcommerce();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -165,8 +165,8 @@ const CartPrinterActions = () => {
 
   const renderReceiptTemplate = (template: string) => {
     const selectedCartItems = cartItems.filter((item) => item.selected);
-    const salesTax = Math.round(cartSubTotal * 0.0805 * 100) / 100;
-    const total = cartSubTotal + salesTax;
+    const salesTax = cartTax;
+    const total = cartSubTotal + cartTax;
     const now = new Date();
     const receiptDate = now.toLocaleDateString('en-US', {
       month: '2-digit',

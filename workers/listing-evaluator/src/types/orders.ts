@@ -66,6 +66,7 @@ export interface ShopCheckoutInventoryRow {
   active_order_id: string | null;
   reserved_until: string | null;
   allow_shipping?: number | null;
+  sales_tax_included?: number | null;
   sale_url?: string | null;
   primaryCategoryName?: string | null;
 }

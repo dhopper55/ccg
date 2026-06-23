@@ -119,8 +119,13 @@ export async function buildShopCheckoutDraft(
         item.unitAmountCents > checkoutItems[bestIdx].unitAmountCents ? idx : bestIdx,
       0,
     );
-    const reducedSubtotalCents = Math.round(subtotalCents / (1 + SHOP_SALES_TAX_RATE));
-    const adjustmentCents = subtotalCents - reducedSubtotalCents;
+    // OTD: only back out tax from taxable items (sales_tax_included=0)
+    const taxableForOtdCents = checkoutItems.reduce(
+      (sum, item) => Number(item.row.sales_tax_included) === 1 ? sum : sum + item.unitAmountCents * item.quantity,
+      0,
+    );
+    const reducedTaxableCents = Math.round(taxableForOtdCents / (1 + SHOP_SALES_TAX_RATE));
+    const adjustmentCents = taxableForOtdCents - reducedTaxableCents;
     const expensiveItem = checkoutItems[expensiveIndex];
     const perUnitAdjCents = Math.round(adjustmentCents / expensiveItem.quantity);
     checkoutItems[expensiveIndex] = {
@@ -152,13 +157,20 @@ export async function buildShopCheckoutDraft(
     discountCents,
     isAssociateMode: options.includeInStoreOnly,
   });
-  const taxableCents = Math.max(0, subtotalCents - discountCents + shipping.shippingCents);
+  // Only items where sales_tax_included=0 are subject to sales tax
+  const taxableItemsCents = checkoutItems.reduce(
+    (sum, item) => Number(item.row.sales_tax_included) === 1 ? sum : sum + item.unitAmountCents * item.quantity,
+    0,
+  );
+  // Pro-rate the discount proportionally across taxable vs tax-included items
+  const taxableDiscountCents = subtotalCents > 0 ? Math.round(discountCents * taxableItemsCents / subtotalCents) : 0;
+  const taxableBaseCents = Math.max(0, taxableItemsCents - taxableDiscountCents + shipping.shippingCents);
   const taxIncluded = options.allowTaxIncluded && body?.taxIncluded === true;
-  const taxCents = taxIncluded ? 0 : Math.round(taxableCents * SHOP_SALES_TAX_RATE);
+  const taxCents = taxIncluded ? 0 : Math.round(taxableBaseCents * SHOP_SALES_TAX_RATE);
   const shippingTaxCents = taxIncluded || shipping.shippingCents <= 0
     ? 0
     : Math.round(shipping.shippingCents * SHOP_SALES_TAX_RATE);
-  const totalCents = taxableCents + taxCents;
+  const totalCents = Math.max(0, subtotalCents - discountCents + shipping.shippingCents) + taxCents;
 
   return {
     items: checkoutItems,
