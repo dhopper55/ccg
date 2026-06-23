@@ -305,6 +305,45 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
     return () => controller.abort();
   }, [cartItems]);
 
+  // Always re-fetch salesTaxIncluded from the server when the cart item set changes so admin
+  // changes take effect on the next page load without requiring items to be re-added.
+  const cartItemIdKey = cartItems.map((item) => item.id).join(',');
+  useEffect(() => {
+    if (!cartItemIdKey) return;
+    const controller = new AbortController();
+    const snapshot = cartItems;
+    Promise.all(
+      snapshot.map(async (item) => {
+        try {
+          const response = await fetch(`/api/shop/products/${encodeURIComponent(item.id)}`, {
+            credentials: 'same-origin',
+            signal: controller.signal,
+          });
+          if (!response.ok) return null;
+          const payload = (await response.json()) as { record?: { salesTaxIncluded?: boolean } };
+          const { salesTaxIncluded } = payload.record ?? {};
+          if (typeof salesTaxIncluded !== 'boolean') return null;
+          return [item.id, salesTaxIncluded] as const;
+        } catch {
+          return null;
+        }
+      }),
+    ).then((results) => {
+      if (controller.signal.aborted) return;
+      const taxById = new Map(results.filter((r): r is readonly [number, boolean] => r != null));
+      if (taxById.size === 0) return;
+      setCartItems((current) =>
+        current.map((item) => {
+          const next = taxById.get(item.id);
+          if (typeof next !== 'boolean' || item.salesTaxIncluded === next) return item;
+          return { ...item, salesTaxIncluded: next };
+        }),
+      );
+    });
+    return () => controller.abort();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartItemIdKey]);
+
   useEffect(() => {
     window.localStorage.setItem(cartStorageKey, JSON.stringify(cartItems));
   }, [cartItems]);
