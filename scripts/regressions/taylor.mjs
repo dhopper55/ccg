@@ -134,4 +134,17 @@ export function runTests() {
   assertTaylorLegacy9Digit('980311301', '1998', 'March', '11');
   assertTaylorLegacy9DigitYearCode('050913155', '1993', 'September', '13');
   assertTaylorModernExtended11Digit('21092006138', '2016', 'September', '20');
+  assertTaylorEarly4Digit('3289', '1985 (approximate)');
+}
+
+function assertTaylorEarly4Digit(serialInput, expectedYear) {
+  const result = decodeSerialForBackend('taylor', serialInput);
+  assert(result.success, `Expected decode success for taylor:${serialInput}`);
+  assert(result.info, `Expected decoded info for taylor:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.country === 'USA', `Expected USA for ${serialInput}, got ${result.info.country}`);
+  assert(
+    result.patternKey === 'taylor-early-sequential-4-8-digit',
+    `Expected early sequential patternKey for ${serialInput}, got ${result.patternKey}`
+  );
 }

@@ -45,7 +45,7 @@ export function decodeGodin(serial) {
         return result;
     }
     // 12-digit format: SKU-based (2007-2022)
-    if (/^\d{12}$/.test(normalized)) {
+    if (/^\d{12,13}$/.test(normalized)) {
         return decode12Digit(normalized);
     }
     // 8-digit format: YYWWDRRR (1993-2007, 2023+)
@@ -92,15 +92,18 @@ function decode12Digit(serial) {
     const factorySecond = serial.charAt(6);
     const productionCount = serial.substring(7);
     const isSecond = factorySecond === '9';
+    const is13 = serial.length === 13;
+    const eraLabel = is13 ? '13-digit SKU-based format (extended production count)' : '12-digit SKU-based format (late 2007-2022)';
+    const yearLabel = is13 ? '2007-present (SKU era, extended 13-digit)' : '2007-2022 (12-digit era)';
     const info = {
         brand: GODIN_FAMILY_BRAND_LABEL,
         serialNumber: serial,
-        year: '2007-2022 (12-digit era)',
+        year: yearLabel,
         factory: 'Quebec, Canada (various) or Berlin, NH',
         country: 'Canada (or USA assembly)',
-        notes: `12-digit SKU-based format (late 2007-2022). SKU: ${sku} (check godinguitars.com or brand website to identify model). ${isSecond ? 'FACTORY SECOND (digit 7 = 9).' : 'Standard production (digit 7 = 0).'} This is the ${parseInt(productionCount, 10).toLocaleString()}${getOrdinalSuffix(parseInt(productionCount, 10))} unit of this model since 2007. No production date encoded in this format.`,
+        notes: `${eraLabel}. SKU: ${sku} (check godinguitars.com or brand website to identify model). ${isSecond ? 'FACTORY SECOND (digit 7 = 9).' : 'Standard production (digit 7 = 0).'} This is the ${parseInt(productionCount, 10).toLocaleString()}${getOrdinalSuffix(parseInt(productionCount, 10))} unit of this model since 2007. No production date encoded in this format.`,
     };
-    return { success: true, info };
+    return { success: true, info, patternKey: is13 ? 'godin-sku-quality-sequence-13-digit' : 'godin-12-digit-sku-era' };
 }
 // 8-digit format: YYWWDRRR (1993-2007, 2023+)
 function decode8Digit(serial) {

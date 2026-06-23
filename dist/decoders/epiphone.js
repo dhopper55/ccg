@@ -79,6 +79,10 @@ export function decodeEpiphone(serial) {
     if (normalized.startsWith('F')) {
         return decodeFSerialFormat(normalized);
     }
+    // Kalamazoo-era Epiphone (Gibson ownership, 1958-1969): 6-digit all-numeric serials
+    if (/^\d{6}$/.test(normalized)) {
+        return decodeKalamazooSixDigit(normalized);
+    }
     // Vintage Epiphone (pre-Gibson ownership, 1930s-1957)
     if (/^\d{4,5}$/.test(normalized)) {
         return decodeVintageEpiphone(normalized);
@@ -358,6 +362,62 @@ function decodeFSerialFormat(serial) {
         notes: 'F-serial format used on Les Paul Standard \'59/\'60 models and Tribute/Plus models. This format does not clearly encode the year or month. Typically made in China.'
     };
     return { success: true, info };
+}
+function decodeKalamazooSixDigit(serial) {
+    const num = parseInt(serial, 10);
+    let year;
+    if (num >= 100000 && num <= 199999) {
+        year = '1960–1964 (Kalamazoo estimate)';
+    }
+    else if (num >= 200000 && num <= 299999) {
+        year = '1963–1967 (Kalamazoo estimate)';
+    }
+    else if (num >= 300000 && num <= 599999) {
+        year = '1965–1969 (Kalamazoo estimate)';
+    }
+    else if (num >= 600000 && num <= 799999) {
+        year = '1966–1969 (Kalamazoo estimate)';
+    }
+    else if (num >= 800000 && num <= 843835) {
+        year = '1966 or 1969 (Kalamazoo estimate)';
+    }
+    else {
+        year = 'Late 1950s–1969 (Kalamazoo era, range unclear)';
+    }
+    const info = {
+        brand: 'Epiphone',
+        serialNumber: serial,
+        year,
+        factory: 'Gibson Kalamazoo plant, Kalamazoo, Michigan',
+        country: 'USA',
+        notes: `6-digit all-numeric serial in the Kalamazoo era range. Epiphone guitars were made alongside Gibson instruments at the Kalamazoo, Michigan factory from 1958 until production moved overseas in the early 1970s. Serial number ${serial} falls in the ${year} production window. Confirm authenticity with the headstock logo style, neck binding, hardware finish, and internal label. Kalamazoo-era Epiphones are highly collectible.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'epiphone-kalamazoo-usa-6digit-1960s',
+        patternLabel: 'Epiphone Kalamazoo USA 6-digit 1958–1969',
+        additionalContext: {
+            title: 'Epiphone Kalamazoo USA serial',
+            summary: 'This 6-digit numeric serial falls in the Kalamazoo-era range for Epiphone guitars made at the Gibson plant in Michigan from 1958 into the early 1970s.',
+            highlights: [
+                'Kalamazoo-era Epiphones were made alongside Gibson instruments at the Kalamazoo, Michigan factory.',
+                `Serial ${serial} falls in the estimated production window: ${year}.`,
+                'This era covers models like the Casino, Riviera, Sheraton, and Rivoli Bass.',
+            ],
+            caveats: [
+                'Serial number ranges from this era overlapped — the same number could appear across multiple years.',
+                'Dating requires cross-referencing the number with the headstock logo, hardware, and internal label.',
+                'A Union Made or Kalamazoo, Michigan label inside the body is a strong authenticity indicator for hollow-body models.',
+            ],
+            verificationTips: [
+                'Check inside the body for a Union Made label reading "Kalamazoo, Michigan."',
+                'Compare the headstock logo style and inlay pattern against known 1960s Epiphone catalog examples.',
+                'Contact Gibson/Epiphone customer service with photos for official verification.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This 6-digit numeric serial falls in the Kalamazoo-era range for Epiphone guitars made at the Gibson plant in Michigan from 1958 into the early 1970s.</p><h3>How This Pattern Is Typically Read</h3><p>Kalamazoo-era Epiphones were made alongside Gibson instruments at the Kalamazoo, Michigan factory. Serial ${serial} falls in the estimated production window: ${year}. This era covers highly collectible models such as the Casino, Riviera, Sheraton, and Rivoli Bass.</p><h3>What To Verify</h3><ul><li>Serial number ranges from this era overlapped — the same number could appear in multiple years, so dating requires additional physical evidence.</li><li>Check inside the body for a "Union Made" label reading "Kalamazoo, Michigan" as a strong authenticity indicator.</li><li>Compare the headstock logo style and inlay pattern against known 1960s Epiphone catalog examples.</li></ul><h3>Coal Creek Guitars Note</h3><p>If confirmed as a Kalamazoo-era Epiphone, this is a highly collectible vintage instrument. Contact Gibson/Epiphone customer service with clear photos for official verification and model identification.</p>`,
+    };
 }
 function decodeVintageEpiphone(serial) {
     const num = parseInt(serial, 10);

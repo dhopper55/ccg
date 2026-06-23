@@ -152,6 +152,10 @@ export function decodeJackson(serial) {
     if (/^(9[6-9]|0[0-9]|1[0-9]|2[0-5])\d{5}$/i.test(normalized) && normalized.length === 7) {
         return decodeJapan1996Plus(normalized);
     }
+    // Japan 7-digit bolt-on import (3-prefix, early-to-mid 1990s)
+    if (/^3\d{6}$/.test(normalized) && normalized.length === 7) {
+        return decodeJapanMijThreePrefix(normalized);
+    }
     // Japan Professional 6-digit (1990-1995, first digit 0-5)
     if (/^[0-5]\d{5}$/.test(normalized) && normalized.length === 6) {
         return decodeJapanProfessional(normalized);
@@ -214,10 +218,10 @@ export function decodeJackson(serial) {
     if (/^00\d{4}$/.test(normalized)) {
         return decodeUSABoltOnProduction(normalized);
     }
-    // USA Custom Shop Bolt-On (4-digit, 1001-8999)
+    // USA Custom Shop Bolt-On (4-digit, 1-8999 including early sub-1001 plates)
     if (/^\d{4}$/.test(normalized)) {
         const num = parseInt(normalized, 10);
-        if (num >= 1001 && num <= 8999) {
+        if (num >= 1 && num <= 8999) {
             return decodeUSACustomBoltOn(normalized);
         }
     }
@@ -718,6 +722,40 @@ function decodeJapan1996Plus(serial) {
         notes: 'Made in Japan (1996 or later). Includes JS, Stars, and other import series.',
     };
     return { success: true, info };
+}
+function decodeJapanMijThreePrefix(serial) {
+    const info = {
+        brand: 'Jackson',
+        serialNumber: serial,
+        year: '1993-1995 (estimated)',
+        factory: 'Japanese contract manufacturer (Akai or Yamano Music-era production)',
+        country: 'Japan',
+        notes: 'Japan-made bolt-on import with a 3-prefix 7-digit serial (Dinky XL and related bolt-on series era, early-to-mid 1990s). The 3-prefix was used by certain Japanese OEM contractors during this period. No encoded year, month, or factory in this format.',
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'jackson-japan-mij-3prefix-7digit-1993-1995',
+        patternLabel: 'Jackson Japan MIJ 3-prefix 7-digit (1993–1995)',
+        additionalContext: {
+            title: 'Jackson Japan MIJ bolt-on serial (3-prefix)',
+            summary: 'This 7-digit serial starting with 3 indicates a Japan-made Jackson bolt-on import from the early-to-mid 1990s.',
+            highlights: [
+                'The 3-prefix was used by certain Japanese OEM contractors during the 1993–1995 era.',
+                'Models from this period include the Dinky XL, Performer, and related bolt-on series.',
+                'Made in Japan instruments from this era are generally well-regarded for quality.',
+            ],
+            caveats: [
+                'No year, month, or factory code is directly encoded in this serial format.',
+                'Physical dating features (headstock logo, finish, hardware) should be used to narrow the production year.',
+            ],
+            verificationTips: [
+                'Compare the headstock logo style against known 1993–1995 Jackson catalog images for the Dinky XL and Performer series.',
+                'Check the tuner brand and headstock shape — Japanese-made Jacksons from this era typically used Gotoh or Schaller hardware.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This 7-digit serial beginning with 3 identifies a Japan-made Jackson bolt-on import from roughly 1993–1995. The 3-prefix was used by certain Japanese OEM contractors producing models like the Dinky XL and Performer series.</p><h3>What's Encoded</h3><p>No year, month, or factory is encoded in this format — it is a plain sequential serial. Physical features (headstock logo style, finish quality, hardware) will help narrow the production year.</p><h3>Coal Creek Guitars Note</h3><p>Japanese Jackson instruments from this era are well-regarded. Compare the headstock logo, tuner style, and pickguard configuration against known 1993–1995 Jackson catalog images to confirm the model and era.</p>`,
+    };
 }
 function decodeJapanChushin200C(serial) {
     const sequence = parseInt(serial.substring(4), 10);

@@ -22,6 +22,22 @@ function assertGodinAmbiguous7Digit(serialInput) {
 export function runTests() {
   assertGodinAmbiguous7Digit('4284009');
   assertGodin8DigitPre2000('98196441', '1997');
+  assertGodin13Digit('0319860009106');
+}
+
+function assertGodin13Digit(serialInput) {
+  const result = decodeSerialForBackend('godin', serialInput);
+  assert(result.success, `Expected decode success for godin:${serialInput}`);
+  assert(result.info, `Expected decoded info for godin:${serialInput}`);
+  assert(result.info.country === 'Canada (or USA assembly)', `Expected Canada for ${serialInput}, got ${result.info.country}`);
+  assert(
+    result.info.year && result.info.year.includes('13-digit'),
+    `Expected 13-digit year label for ${serialInput}, got ${result.info.year}`
+  );
+  assert(
+    result.patternKey === 'godin-sku-quality-sequence-13-digit',
+    `Expected 13-digit patternKey for ${serialInput}, got ${result.patternKey}`
+  );
 }
 
 function assertGodin8DigitPre2000(serialInput, expectedYear) {

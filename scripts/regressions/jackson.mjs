@@ -297,6 +297,7 @@ export function runTests() {
   assertJacksonMijLate1990sSixDigit('985400', '1998');
   assertJacksonMijProfessionalFiveDigit('11394', '1991');
   assertJacksonUSACustomBoltOn('8274', '1994-1995 (estimated)');
+  assertJacksonUSACustomBoltOn('0788', '1986-1989');
   assertJacksonMij1996Transition('600503');
   assertJacksonMij1996Transition('600327');
   assertJacksonUSAUSeries('U15648');
@@ -310,6 +311,22 @@ export function runTests() {
   assertJacksonChinaCWJPrefix('CWJ25124694', '2025', 124694);
   assertJacksonChinaNumeric9Digit('311740074');
   assertJacksonKoreaNJHK('NJHK08007429', '2008');
+  assertJacksonMijThreePrefix('3064460');
+}
+
+function assertJacksonMijThreePrefix(serialInput) {
+  const result = decodeSerialForBackend('jackson', serialInput);
+  assert(result.success, `Expected decode success for jackson:${serialInput}`);
+  assert(result.info, `Expected decoded info for jackson:${serialInput}`);
+  assert(result.info.country === 'Japan', `Expected Japan for ${serialInput}, got ${result.info.country}`);
+  assert(
+    result.info.year === '1993-1995 (estimated)',
+    `Expected 1993-1995 estimate for ${serialInput}, got ${result.info.year}`
+  );
+  assert(
+    result.patternKey === 'jackson-japan-mij-3prefix-7digit-1993-1995',
+    `Expected MIJ 3-prefix patternKey for ${serialInput}, got ${result.patternKey}`
+  );
 }
 
 function assertJacksonKoreaNJHK(serialInput, expectedYear) {

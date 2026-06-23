@@ -314,4 +314,23 @@ export function runTests() {
   assertKramerPlain4Digit('8586');
   assertKramerJKIndonesia('JK99100467', '1999', 'October');
   assertKramerJKIndonesia('JK99090162', '1999', 'September');
+  assertKramerKBModernImport('kb202363');
+}
+
+function assertKramerKBModernImport(serialInput) {
+  const result = decodeKramer(serialInput);
+  assert(result.success, `Expected decode success for kramer:${serialInput}`);
+  assert(result.info, `Expected decoded info for kramer:${serialInput}`);
+  assert(
+    result.info.country === 'South Korea or Indonesia',
+    `Expected South Korea or Indonesia for ${serialInput}, got ${result.info.country}`
+  );
+  assert(
+    result.patternKey === 'kramer-kb-modern-gibson-era-import',
+    `Expected KB modern import patternKey for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.additionalContextRichText && result.additionalContextRichText.includes('202,363'),
+    `Expected sequence in rich text for ${serialInput}`
+  );
 }

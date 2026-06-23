@@ -160,6 +160,12 @@ export function decodeKramer(serial: string): DecodeResult {
     return decodeGibsonEraJKIndonesia(normalized, cleaned);
   }
 
+  // KB-prefix: Gibson/MusicYo-era budget import line (Korean or Indonesian)
+  // Must come before generic ^[A-Z]{2}\d+ handler which returns a vague result
+  if (/^KB\d{4,8}$/.test(normalized)) {
+    return decodeKBModernImport(normalized, cleaned);
+  }
+
   // Two-letter overseas prefixes (e.g., FA, FB, CF)
   if (/^[A-Z]{2}\d+$/.test(normalized)) {
     const prefix = normalized.substring(0, 2);
@@ -1020,6 +1026,45 @@ function getOverseasYearRange(prefix: string): string | undefined {
 function getOverseasCountry(prefix: string): string | undefined {
   if (prefix === 'CF') return 'Japan';
   return undefined;
+}
+
+function decodeKBModernImport(normalized: string, cleaned: string): DecodeResult {
+  const sequence = normalized.substring(2);
+
+  const info: GuitarInfo = {
+    brand: 'Kramer',
+    serialNumber: cleaned,
+    year: '2000s-2010s (estimated)',
+    factory: 'Korean or Indonesian import factory (Gibson/Epiphone era)',
+    country: 'South Korea or Indonesia',
+    model: 'Modern budget/import line (Kramer under Gibson ownership)',
+    notes: `KB-prefix Kramer serial from the Gibson/MusicYo ownership era. KB-prefix instruments are associated with budget and mid-range import lines produced in Korea or Indonesia during the 2000s–2010s. Production sequence: ${parseInt(sequence, 10).toLocaleString()}.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'kramer-kb-modern-gibson-era-import',
+    patternLabel: 'Kramer KB modern import (Gibson era)',
+    additionalContext: {
+      title: 'Kramer KB modern import serial',
+      summary: 'This KB-prefix serial indicates a Kramer produced under Gibson ownership, likely in Korea or Indonesia during the 2000s–2010s budget import era.',
+      highlights: [
+        'KB-prefix Kramers were produced in Korea or Indonesia as part of the brand\'s budget and mid-range import lines.',
+        'Gibson acquired Kramer in 1997 and re-launched the brand around 2009–2010 with a mix of import and USA models.',
+        `Production sequence: ${parseInt(sequence, 10).toLocaleString()}.`,
+      ],
+      caveats: [
+        'No year, month, or specific factory is encoded directly in this KB serial format.',
+        'Physical features (headstock logo, hardware style, neck plate) can help narrow the production year.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock and neck plate for country of origin markings (Made in Korea or Made in Indonesia).',
+        'Compare the headstock logo and body routing against Gibson-era Kramer catalog images from 2009–2015.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This KB-prefix serial identifies a Kramer built under Gibson ownership during the 2000s–2010s import era. KB-prefix instruments were produced in Korea or Indonesia as budget and mid-range offerings.</p><h3>Production Context</h3><p>Gibson re-acquired and relaunched the Kramer brand around 2009–2010, producing a range of import instruments alongside USA Custom Shop models. KB-prefix serials are associated with the Korean/Indonesian import side of that lineup.</p><h3>What's Encoded</h3><p>This format is a plain sequential prefix — no year or factory is directly encoded. Check the headstock logo, hardware details, and neck plate against known Gibson-era Kramer catalog images to identify the specific model and approximate year.</p><h3>Coal Creek Guitars Note</h3><p>Production sequence: ${parseInt(sequence, 10).toLocaleString()}.</p>`,
+  };
 }
 
 function getMonthName(monthValue: number): string | undefined {

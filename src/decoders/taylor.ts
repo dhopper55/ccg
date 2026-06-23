@@ -45,8 +45,8 @@ export function decodeTaylor(serial: string): DecodeResult {
     return legacyResult;
   }
 
-  // Early serials (pre-1993) - typically 5-8 digits
-  if (/^\d{5,8}$/.test(normalized)) {
+  // Early serials (pre-1993) - 4-8 digits
+  if (/^\d{4,8}$/.test(normalized)) {
     return decodeEarlyTaylor(normalized);
   }
 
@@ -651,8 +651,14 @@ function decodeEarlyTaylor(serial: string): DecodeResult {
   if (num < 1000) {
     year = '1974-1979 (approximate)';
     notes += 'Very early Taylor production. The company was founded in 1974 by Bob Taylor and Kurt Listug.';
-  } else if (num < 5000) {
+  } else if (num < 3207) {
     year = '1979-1984 (approximate)';
+    notes += 'Early Taylor production from the first decade of the company.';
+  } else if (num <= 3888) {
+    year = '1985 (approximate)';
+    notes += 'Early Taylor production; the documented 1985 production window runs roughly serial 3207-3888.';
+  } else if (num < 5000) {
+    year = '1984-1986 (approximate)';
     notes += 'Early Taylor production from the first decade of the company.';
   } else if (num < 15000) {
     year = '1984-1988 (approximate)';
@@ -676,5 +682,5 @@ function decodeEarlyTaylor(serial: string): DecodeResult {
     notes
   };
 
-  return { success: true, info };
+  return { success: true, info, patternKey: 'taylor-early-sequential-4-8-digit' };
 }

@@ -60,7 +60,8 @@ export function decodeSchecter(serial) {
         return decodeIndonesiaRN(normalized);
     }
     // Indonesia RO prefix: RO + YY + sequence
-    if (/^RO\d{8}$/.test(normalized)) {
+    // Also matches R0 (digit zero) in position 2 — a common OCR/typo variant of letter O
+    if (/^R[O0]\d{8}$/.test(normalized)) {
         return decodeIndonesiaRO(normalized);
     }
     // China/import ST prefix: ST + YYMM + sequence

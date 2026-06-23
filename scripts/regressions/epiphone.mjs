@@ -57,6 +57,20 @@ export function runTests() {
   assertEpiphone1990sNumeric('6043399', '1996', 'April', 3399);
   assertEpiphoneMIRC311('311619011');
   assertEpiphonePeerlessLMisread('R94l158', '1994', 'November', 'Peerless');
+  assertEpiphoneKalamazoo6Digit('810386', '1966 or 1969 (Kalamazoo estimate)');
+}
+
+function assertEpiphoneKalamazoo6Digit(serialInput, expectedYear) {
+  const result = decodeSerialForBackend('epiphone', serialInput);
+  assert(result.success, `Expected decode success for epiphone:${serialInput}`);
+  assert(result.info, `Expected decoded info for epiphone:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.factory === 'Gibson Kalamazoo plant, Kalamazoo, Michigan', `Expected Kalamazoo factory for ${serialInput}, got ${result.info.factory}`);
+  assert(result.info.country === 'USA', `Expected USA for ${serialInput}, got ${result.info.country}`);
+  assert(
+    result.patternKey === 'epiphone-kalamazoo-usa-6digit-1960s',
+    `Expected Kalamazoo patternKey for ${serialInput}, got ${result.patternKey}`
+  );
 }
 
 function assertEpiphonePeerlessLMisread(serialInput, expectedYear, expectedMonth, expectedFactoryPartial) {
