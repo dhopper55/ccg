@@ -58,6 +58,19 @@ export function runTests() {
   assertEpiphoneMIRC311('311619011');
   assertEpiphonePeerlessLMisread('R94l158', '1994', 'November', 'Peerless');
   assertEpiphoneKalamazoo6Digit('810386', '1966 or 1969 (Kalamazoo estimate)');
+  assertEpiphone8DigitNumericImport('60010859', '1996', 'January');
+}
+
+function assertEpiphone8DigitNumericImport(serialInput, expectedYear, expectedMonth) {
+  const result = decodeSerialForBackend('epiphone', serialInput);
+  assert(result.success, `Expected decode success for epiphone:${serialInput}`);
+  assert(result.info, `Expected decoded info for epiphone:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${result.info.month}`);
+  assert(
+    result.patternKey === 'epiphone-8digit-numeric-import-y-mm-sequence',
+    `Expected 8-digit numeric import patternKey for ${serialInput}, got ${result.patternKey}`
+  );
 }
 
 function assertEpiphoneKalamazoo6Digit(serialInput, expectedYear) {

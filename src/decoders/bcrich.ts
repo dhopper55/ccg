@@ -144,7 +144,7 @@ export function decodeBCRich(serial: string): DecodeResult {
     return decodeHanserEraNumericImport(normalized);
   }
 
-  if (/^[RP]\d{6}$/.test(normalized)) {
+  if (/^[RP]\d{5,6}$/.test(normalized)) {
     return decodeNJSeries(normalized);
   }
 
@@ -1077,6 +1077,7 @@ function decodeSevenDigitNumericImport(serial: string): DecodeResult {
 }
 
 function decodeNJSeries(serial: string): DecodeResult {
+  const prefix = serial[0];
   const yearDigits = serial.slice(1, 3);
   const sequence = serial.slice(3);
   const yearNum = parseInt(yearDigits, 10);
@@ -1085,11 +1086,38 @@ function decodeNJSeries(serial: string): DecodeResult {
   const info: GuitarInfo = {
     brand: 'B.C. Rich',
     serialNumber: serial,
-    year: yearNum >= 70 ? year : year,
-    notes: `Likely NJ Series serial (R/P prefix). The first two digits often indicate the year. Production sequence: ${sequence}. NJ Series production spans Japan and later Korea, so confirm with headstock markings.`,
+    year,
+    factory: yearNum >= 83 && yearNum <= 93 ? 'NJ Series Japan (early years) or Korea (later Class Axe-era reissues)' : 'NJ Series Japan or Korean contractor',
+    country: 'Japan or South Korea',
+    notes: `NJ Series serial (${prefix} prefix). The first two digits after the prefix indicate the year. Year: ${year}. Production sequence: ${sequence}. NJ Series production originated in Japan (1983–early 1990s) and later shifted to Korean contractors. Confirm with headstock NJ Series marking and Made in Japan/Korea stamp.`,
   };
 
-  return { success: true, info };
+  return {
+    success: true,
+    info,
+    patternKey: 'bcrich-nj-series-r-prefix-japan-import',
+    patternLabel: 'B.C. Rich NJ Series R/P-prefix Japan/Korea import',
+    additionalContext: {
+      title: 'B.C. Rich NJ Series R/P-prefix serial',
+      summary: `This serial uses the B.C. Rich NJ Series R/P-prefix format. The first two digits after the prefix (${yearDigits}) indicate the production year (${year}).`,
+      highlights: [
+        `${prefix} prefix identifies an NJ Series or related Japan/Korea import serial.`,
+        `${yearDigits} decodes as production year ${year}.`,
+        `${sequence} is the production sequence number.`,
+      ],
+      caveats: [
+        'NJ Series guitars were originally made in Japan (1983–early 1990s) and later sourced from Korean contractors during the Class Axe era.',
+        'Some R-prefix serials from the 1989–1993 Class Axe era use random neck-plate stamps not tied to a specific year.',
+        'The physical Made in Japan or Made in Korea stamp and headstock markings are the most reliable verification.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock or neck plate for a Made in Japan or Made in Korea country-of-origin marking.',
+        'Look for an NJ Series logo printed near the B.C. Rich script on the headstock face.',
+        'Remove the neck to check for a date stamp inked or stamped in the neck pocket.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This is a B.C. Rich NJ Series R/P-prefix serial. The prefix ${prefix} followed by a two-digit year code and production sequence is characteristic of Japanese-made NJ Series guitars from 1983 through the early 1990s, with some later Korean contractor production during the Class Axe era (1989–1993).</p><h3>How It Decodes</h3><p>The first two digits after the prefix decode as the production year: ${yearDigits} = ${year}. The remaining digits (${sequence}) are the production sequence number.</p><h3>Coal Creek Guitars Note</h3><p>Check the headstock for an NJ Series marking and the neck plate or back of the headstock for a country-of-origin stamp. Japanese NJ Series guitars from this era are generally considered good-quality imports with playability above the B.C. Rich budget lines.</p>`,
+  };
 }
 
 function decode10DigitNumericImport(serial: string): DecodeResult {

@@ -76,6 +76,18 @@ export function decodeEpiphone(serial: string): DecodeResult {
     );
   }
 
+  // Format 2c: 8-digit all-numeric import format, Y + batch + MM + RRRR (e.g., 60010859 = 1996 Jan unit 859)
+  const numeric8digitMatch = normalized.match(/^(\d)(\d)(\d{2})(\d{4})$/);
+  if (numeric8digitMatch) {
+    return decode8DigitNumericImport(
+      numeric8digitMatch[1],
+      numeric8digitMatch[2],
+      numeric8digitMatch[3],
+      numeric8digitMatch[4],
+      normalized
+    );
+  }
+
   // MIRC format: 311 + 6 digits (Manufacturer's Inspection and Repair Center — Gibson refurbishment)
   if (/^311\d{6}$/.test(normalized)) {
     return decodeMIRCRefurb(normalized);
@@ -355,6 +367,68 @@ function decode1990sNumericImportFormat(
       ],
     },
     additionalContextRichText: `<h3>Overview</h3><p>This serial matches a 1990s all-numeric Epiphone import format parsed as single-digit year, month, and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>The first digit ${yearDigit} decodes as production year ${year}. The next two digits ${monthDigits} decode as ${monthName}. The final four digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This format does not identify a specific factory by letter code.</li><li>Factory attribution is usually Korean, with some uncertainty across 1990s contract production.</li><li>Confirm model and country from the headstock, label, hardware, and other physical markings.</li></ul>`,
+  };
+}
+
+function decode8DigitNumericImport(
+  yearDigit: string,
+  batchDigit: string,
+  monthStr: string,
+  seqStr: string,
+  serial: string
+): DecodeResult {
+  const year = `199${yearDigit}`;
+  const month = parseInt(monthStr, 10);
+
+  if (month < 1 || month > 12) {
+    return {
+      success: false,
+      error: `Unrecognized Epiphone serial number format. The 8-digit all-numeric format did not yield a valid month (positions 3–4 decoded as ${monthStr}).`,
+    };
+  }
+
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+  const monthName = months[month - 1];
+  const sequenceNumber = parseInt(seqStr, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Epiphone',
+    serialNumber: serial,
+    year,
+    month: monthName,
+    factory: 'Unknown Korean or Japanese contract factory',
+    country: 'South Korea or Japan',
+    notes: `8-digit all-numeric Epiphone import format. Interpreted as Y + batch + MM + production sequence. Year digit ${yearDigit} → ${year}; month ${monthStr} → ${monthName}; production sequence ${sequenceNumber}. This pre-1994 all-numeric format does not include a factory-letter code. Verify country and factory from headstock markings.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'epiphone-8digit-numeric-import-y-mm-sequence',
+    patternLabel: 'Epiphone 8-digit numeric import Y+batch+MM+seq',
+    additionalContext: {
+      title: 'Epiphone 8-digit numeric serial',
+      summary: 'This serial matches an 8-digit all-numeric Epiphone import format, extending the 7-digit YMM#### pattern with an additional batch/filler digit.',
+      highlights: [
+        `Year digit ${yearDigit} decodes as production year ${year}.`,
+        `Month code ${monthStr} decodes as ${monthName}.`,
+        `Production sequence: unit ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'This format does not include a factory-letter code.',
+        'Factory attribution is typically Korean for mid-1990s all-numeric serials.',
+        'The year is estimated based on the first digit mapping to 199X.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock for a Made in Korea or Made in Japan country-of-origin marking.',
+        'Compare truss rod cover, headstock shape, and hardware against mid-1990s Epiphone specs.',
+        'Contact Gibson/Epiphone support with photos if exact factory confirmation is needed.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches an 8-digit all-numeric Epiphone import format associated with pre-1994 to mid-1990s production.</p><h3>How This Pattern Is Typically Read</h3><p>The first digit ${yearDigit} decodes as production year ${year}. An intermediate batch digit (${batchDigit}) follows. The next two digits ${monthStr} decode as ${monthName}. The final four digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This format does not identify a specific factory by letter code.</li><li>Factory attribution is typically Korean for mid-1990s all-numeric serials.</li><li>Confirm model and country from the headstock, label, hardware, and other physical markings.</li></ul>`,
   };
 }
 

@@ -160,6 +160,10 @@ export function decodeJackson(serial) {
     if (/^8\d{6}$/.test(normalized) && normalized.length === 7) {
         return decodeJapanEightPrefixSevenDigit(normalized);
     }
+    // Japan MIJ sequential (7-digit 7 prefix, Chushin Gakki bolt-on production 2002-2005)
+    if (/^7\d{6}$/.test(normalized) && normalized.length === 7) {
+        return decodeJapanMijSevenPrefixSevenDigit(normalized);
+    }
     // Japan Professional 6-digit (1990-1995, first digit 0-5)
     if (/^[0-5]\d{5}$/.test(normalized) && normalized.length === 6) {
         return decodeJapanProfessional(normalized);
@@ -620,6 +624,43 @@ function decodeJapanMijSevenPrefixSixDigit(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a 6-digit 7-prefix Japanese Jackson import sequence associated with late-1990s to late-2000s bolt-on models.</p><h3>How This Pattern Is Typically Read</h3><p>The leading 7 points to a Japanese import sequence rather than a precise calendar year. This style is commonly associated with MIJ bolt-on Jackson models from the late 1990s through the late 2000s. The full number is treated as production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>Exact dating is limited because many Japanese Jackson factory records from this era are incomplete or unavailable.</li><li>Some references describe related 7-prefix MIJ serials as 7-digit numbers; this serial has 6 digits.</li><li>Use this as a likely MIJ era/origin decode, not exact model authentication.</li></ul><h3>Coal Creek Guitars Note</h3><p>Check for Made in Japan markings, compare the guitar to DKMG, DXMG, DX10, or related MIJ specs, and inspect neck-pocket or heel stamps when possible.</p>`,
+    };
+}
+function decodeJapanMijSevenPrefixSevenDigit(serial) {
+    const sequence = parseInt(serial, 10);
+    const info = {
+        brand: 'Jackson',
+        serialNumber: serial,
+        year: '2002-2005 (estimated)',
+        factory: 'Chushin Gakki, Japan',
+        country: 'Japan',
+        notes: `This 7-digit serial beginning with 7 is consistent with Chushin Gakki bolt-on production in Japan, approximately 2002–2005. The number is treated as a purely sequential production counter (${sequence}) rather than an encoded year or date. Confirm with neck pocket stamps, Made in Japan markings, and headstock model label.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'jackson-mij-7digit-7prefix-chushin-sequential',
+        patternLabel: 'Jackson MIJ 7-digit 7-prefix Chushin sequential (2002-2005)',
+        additionalContext: {
+            title: 'Jackson MIJ 7-prefix 7-digit sequential serial',
+            summary: 'This serial matches a 7-digit 7-prefix Japanese Jackson sequential format associated with Chushin Gakki bolt-on production approximately 2002–2005.',
+            highlights: [
+                'The leading 7 prefix identifies this as a Japanese import bolt-on production sequence.',
+                'Numbers in this format are purely sequential — they do not encode a year or month.',
+                `Full production sequence: ${sequence}.`,
+            ],
+            caveats: [
+                'The 2002–2005 date range is an estimate based on known production records; exact year dating is not possible from the serial alone.',
+                'A similar 6-digit 7-prefix format also exists for slightly earlier production — verify the digit count from the physical instrument.',
+                'Use this as a likely MIJ era/origin decode, not exact model authentication.',
+            ],
+            verificationTips: [
+                'Unscrew the neck and check the neck pocket or heel for a stamped or inked production date.',
+                'Look for a Made in Japan stamp on the back of the headstock or the neck plate.',
+                'Compare the hardware and spec sheet to Chushin-era Jackson bolt-on models (DKMG, DXMG, DX10, etc.).',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This 7-digit serial beginning with 7 matches a Chushin Gakki Japan bolt-on production sequence associated with approximately 2002–2005. Jackson guitars made at Chushin Gakki during this era are considered high-quality MIJ instruments.</p><h3>How This Pattern Is Typically Read</h3><p>The leading 7 points to a Japanese import sequential serial rather than an encoded calendar date. The full 7 digits (${sequence}) represent the cumulative production count. No year or month is embedded in the number.</p><h3>What To Verify</h3><ul><li>Remove the neck and inspect the pocket or heel for a stamped/inked date code — Chushin workers often dated necks directly.</li><li>Check for a Made in Japan marking on the back of the headstock or neck plate.</li><li>Compare specifications against Chushin-era Jackson bolt-on catalog models such as DKMG, DXMG, and DX10.</li></ul><h3>Coal Creek Guitars Note</h3><p>Japanese Jackson bolt-on models from the Chushin Gakki era (early to mid 2000s) are well-regarded for build quality and playability. Authenticate with the physical markings above before confirming origin.</p>`,
     };
 }
 function decodeJapanMijLate1990sSixDigit(serial) {

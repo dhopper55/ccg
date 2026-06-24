@@ -91,6 +91,10 @@ export function decodeDean(serial) {
     if (/^H\d{5,10}$/.test(normalized)) {
         return decodeIndiaH(normalized);
     }
+    // KH factory: KH + YY + MM + 5-digit sequence (overseas import, e.g. KH190630183 = 2019 June)
+    if (/^KH\d{9}$/.test(normalized)) {
+        return decodeKHFactory(normalized);
+    }
     // 9-digit numeric import: YYMM + 5-digit sequence (e.g., 170303338 = 2017, March, seq 03338)
     if (/^\d{9}$/.test(normalized)) {
         return decodeNumeric9DigitYYMMSeq(normalized);
@@ -854,6 +858,51 @@ function decodeCortKoreaC(serial) {
         info,
         patternKey: 'dean-cort-korea-c-yy-batch-sequence',
         patternLabel: 'Dean Cort Korea C-prefix YY batch sequence',
+    };
+}
+function decodeKHFactory(serial) {
+    const digits = serial.substring(2);
+    const yearDigits = digits.substring(0, 2);
+    const monthDigits = digits.substring(2, 4);
+    const sequence = digits.substring(4);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const month = parseInt(monthDigits, 10);
+    const monthName = month >= 1 && month <= 12 ? getMonthName(month) : undefined;
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Dean',
+        serialNumber: serial,
+        year: year.toString(),
+        month: monthName,
+        factory: 'KH overseas import factory (Korea or China)',
+        country: 'South Korea or China',
+        notes: `KH prefix identifies an overseas import factory (Korea or China). Format: KH + YY + MM + 5-digit sequence. Year digits ${yearDigits} decode as ${year}. Month digits ${monthDigits} decode as ${monthName || monthDigits}. Production sequence: ${sequence} (unit ${sequenceNumber}).`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'dean-kh-factory-yymm-sequence',
+        patternLabel: 'Dean KH factory YYMM sequence',
+        additionalContext: {
+            title: 'Dean KH-prefix serial',
+            summary: `This serial uses the KH-prefix format identifying an overseas import factory (Korea or China). Year ${year}, ${monthName || `month ${monthDigits}`}.`,
+            highlights: [
+                `KH prefix designates an overseas import manufacturing facility.`,
+                `${yearDigits} decodes as production year ${year}.`,
+                monthName ? `${monthDigits} decodes as ${monthName}.` : `${monthDigits} is the month code.`,
+                `${sequence} is the production sequence number (unit ${sequenceNumber}).`,
+            ],
+            caveats: [
+                'The specific KH factory (Korean or Chinese) is not publicly documented; the import country should be confirmed from headstock or inside-label markings.',
+                'This format does not encode the exact model name.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock or inside the body for a Made in Korea or Made in China marking.',
+                'Compare hardware and finish against Dean import catalog from the decoded year.',
+                'Contact Dean support with photos if exact factory authentication is needed.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial uses the KH-prefix format, which identifies an overseas import manufacturing facility for Dean guitars. The specific factory is either in South Korea or China.</p><h3>How It Decodes</h3><p>KH identifies the import factory. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} decode as ${monthName || 'the production month'}. The final five digits ${sequence} are the production sequence (unit ${sequenceNumber}).</p><h3>Coal Creek Guitars Note</h3><p>Verify the country of manufacture from the headstock or inside-label markings. Compare the serial format and hardware against Dean's import catalog for ${year} to confirm model identification.</p>`,
     };
 }
 // Helper function for month names

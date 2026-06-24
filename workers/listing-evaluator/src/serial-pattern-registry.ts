@@ -101,6 +101,10 @@ export function deriveExplicitRegexFromKnownPatternKey(patternKey: string): stri
     'charvel-imc-address-tx-mark': '^TX\\d{5}$',
     'esp-ltd-indonesia-ci-cort-yymm-sequence': '^CI\\d{7,9}$',
     'esp-ltd-indonesia-im-cort-yymm-sequence': '^IM\\d{7,9}$',
+    'bcrich-nj-series-r-prefix-japan-import': '^[RP]\\d{5,6}$',
+    'dean-kh-factory-yymm-sequence': '^KH\\d{9}$',
+    'epiphone-8digit-numeric-import-y-mm-sequence': '^\\d{8}$',
+    'jackson-mij-7digit-7prefix-chushin-sequential': '^7\\d{6}$',
   };
 
   return knownPatterns[patternKey] || null;

@@ -193,6 +193,19 @@ export function runTests() {
   assertDeanWorldKoreaWK('WK170303338', '2017', 'March');
   assertDeanWorldKoreaKW('kw170303338', '2017', 'March');
   assertDeanNumeric9DigitYYMM('170303338', '2017', 'March');
+  assertDeanKHFactory('Kh190630183', '2019', 'June');
+}
+
+function assertDeanKHFactory(serialInput, expectedYear, expectedMonth) {
+  const result = decodeSerialForBackend('dean', serialInput);
+  assert(result.success, `Expected decode success for dean:${serialInput}`);
+  assert(result.info, `Expected decoded info for dean:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${result.info.month}`);
+  assert(
+    result.patternKey === 'dean-kh-factory-yymm-sequence',
+    `Expected KH factory patternKey for ${serialInput}, got ${result.patternKey}`
+  );
 }
 
 function assertDeanCortKoreaC(serialInput, expectedYear) {

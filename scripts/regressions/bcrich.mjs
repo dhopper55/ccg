@@ -377,6 +377,19 @@ export function runTests() {
   assertBCRichBWPrefixImport('BW4500');
   assertBCRichImportLetterPrefixYear('F99000283', '1999');
   assertBCRichBWithTrailingLetter('B164u');
+  assertBCRichNJSeriesRPrefix('R85090', '1985');
+}
+
+function assertBCRichNJSeriesRPrefix(serialInput, expectedYear) {
+  const result = decodeBCRich(serialInput);
+  assert(result.success, `Expected decode success for bcrich:${serialInput}`);
+  assert(result.info, `Expected decoded info for bcrich:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.country === 'Japan or South Korea', `Expected Japan or South Korea for ${serialInput}, got ${result.info.country}`);
+  assert(
+    result.patternKey === 'bcrich-nj-series-r-prefix-japan-import',
+    `Expected NJ Series R-prefix patternKey for ${serialInput}, got ${result.patternKey}`
+  );
 }
 
 function assertBCRichBWithTrailingLetter(serialInput) {

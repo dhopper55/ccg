@@ -314,6 +314,19 @@ export function runTests() {
   assertJacksonMijThreePrefix('3064460');
   assertJacksonEightPrefix7Digit('8633116');
   assertJacksonNinePrefixNineDigit('900500961');
+  assertJacksonMijSevenPrefixSevenDigit('7050100');
+}
+
+function assertJacksonMijSevenPrefixSevenDigit(serialInput) {
+  const result = decodeSerialForBackend('jackson', serialInput);
+  assert(result.success, `Expected decode success for jackson:${serialInput}`);
+  assert(result.info, `Expected decoded info for jackson:${serialInput}`);
+  assert(result.info.country === 'Japan', `Expected Japan for ${serialInput}, got ${result.info.country}`);
+  assert(result.info.factory === 'Chushin Gakki, Japan', `Expected Chushin Gakki for ${serialInput}, got ${result.info.factory}`);
+  assert(
+    result.patternKey === 'jackson-mij-7digit-7prefix-chushin-sequential',
+    `Expected 7-prefix 7-digit patternKey for ${serialInput}, got ${result.patternKey}`
+  );
 }
 
 function assertJacksonEightPrefix7Digit(serialInput) {
