@@ -312,6 +312,30 @@ export function runTests() {
   assertJacksonChinaNumeric9Digit('311740074');
   assertJacksonKoreaNJHK('NJHK08007429', '2008');
   assertJacksonMijThreePrefix('3064460');
+  assertJacksonEightPrefix7Digit('8633116');
+  assertJacksonNinePrefixNineDigit('900500961');
+}
+
+function assertJacksonEightPrefix7Digit(serialInput) {
+  const result = decodeSerialForBackend('jackson', serialInput);
+  assert(result.success, `Expected decode success for jackson:${serialInput}`);
+  assert(result.info, `Expected decoded info for jackson:${serialInput}`);
+  assert(result.info.country === 'Japan (likely)', `Expected Japan for ${serialInput}, got ${result.info.country}`);
+  assert(
+    result.patternKey === 'jackson-japan-8prefix-7digit-late1980s-early1990s',
+    `Expected 8-prefix 7-digit patternKey for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
+function assertJacksonNinePrefixNineDigit(serialInput) {
+  const result = decodeSerialForBackend('jackson', serialInput);
+  assert(result.success, `Expected decode success for jackson:${serialInput}`);
+  assert(result.info, `Expected decoded info for jackson:${serialInput}`);
+  assert(result.info.country === 'Japan', `Expected Japan for ${serialInput}, got ${result.info.country}`);
+  assert(
+    result.patternKey === 'jackson-japan-9prefix-9digit-1990s',
+    `Expected 9-prefix 9-digit patternKey for ${serialInput}, got ${result.patternKey}`
+  );
 }
 
 function assertJacksonMijThreePrefix(serialInput) {

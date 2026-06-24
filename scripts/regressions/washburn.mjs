@@ -130,4 +130,17 @@ export function runTests() {
   assertWashburnCOVariantFactory('CO7052236', 'CO', '2007', 52236);
   assertWashburnCOVariantFactory('O7052236', 'O', '2007', 52236);
   assertWashburnCOVariantFactory('OCO7052236', 'OCO', '2007', 52236);
+  assertWashburnNFactoryYYMM('NO6050166', '2006', 'May');
+}
+
+function assertWashburnNFactoryYYMM(serialInput, expectedYear, expectedMonth) {
+  const result = decodeSerialForBackend('washburn', serialInput);
+  assert(result.success, `Expected decode success for washburn:${serialInput}`);
+  assert(result.info, `Expected decoded info for washburn:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${result.info.month}`);
+  assert(
+    result.patternKey === 'washburn-n-factory-yymm-sequence',
+    `Expected N-factory patternKey for ${serialInput}, got ${result.patternKey}`
+  );
 }

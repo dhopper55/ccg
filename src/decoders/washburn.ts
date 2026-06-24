@@ -87,6 +87,13 @@ export function decodeWashburn(serial: string): DecodeResult {
     return decodeCOVariantFactory(normalized);
   }
 
+  // N-factory YYMM sequence: N + [O0] + YYMM + 4-digit sequence
+  // The second character is digit '0' commonly misread/entered as letter 'O'.
+  // Must precede the generic 2-letter YYWW handler, which would parse NO as prefix and give year 2060.
+  if (/^N[O0]\d{7}$/.test(normalized)) {
+    return decodeNFactoryYYMMSequence(normalized);
+  }
+
   // Modern 2-letter factory code + YYWW + 3-digit unit (e.g., UO2045971)
   if (/^[A-Z]{2}\d{7}$/.test(normalized)) {
     return decodeModernTwoLetterYYWW(normalized);
@@ -425,6 +432,52 @@ function decodeModernTwoCharFactoryYYSeq(serial: string): DecodeResult {
 }
 
 // Modern 2-letter factory code + YYWW + 3-digit unit
+function decodeNFactoryYYMMSequence(serial: string): DecodeResult {
+  // Treat position 2 as digit '0' regardless of whether 'O' or '0' was entered
+  const digits = '0' + serial.substring(2);
+  const yy = parseInt(digits.substring(0, 2), 10);
+  const mm = parseInt(digits.substring(2, 4), 10);
+  const seq = digits.substring(4);
+  const year = 2000 + yy;
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const month = mm >= 1 && mm <= 12 ? monthNames[mm - 1] : undefined;
+
+  const info: GuitarInfo = {
+    brand: 'Washburn',
+    serialNumber: serial,
+    year: year.toString(),
+    month,
+    factory: 'Asian contracted factory (N-series)',
+    country: 'Asia (China, Korea, or Indonesia)',
+    notes: `N-factory YYMM sequence format. The second character may be the digit 0 entered or printed as the letter O — both are treated identically. N is the factory prefix code. ${String(yy).padStart(2,'0')} indicates ${year}. ${String(mm).padStart(2,'0')} indicates ${month ?? 'unknown month'}. Production sequence: ${seq}.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'washburn-n-factory-yymm-sequence',
+    patternLabel: 'Washburn N-factory YYMM sequence',
+    additionalContext: {
+      title: 'Washburn N-factory YYMM serial',
+      summary: 'This serial matches a Washburn N-factory YYMM sequence format where the second character (O or 0) is the digit zero.',
+      highlights: [
+        `N is the factory prefix code for the contracted Asian manufacturing facility.`,
+        `Production year: ${year}.`,
+        `Production month: ${month ?? 'unknown'}.`,
+        `Production sequence: ${seq}.`,
+      ],
+      caveats: [
+        'The second character is frequently entered as the letter O when it is actually the digit 0 — both are decoded identically.',
+        'Factory identification beyond the N-prefix requires the specific model label or factory sticker.',
+      ],
+      verificationTips: [
+        'Check the label inside the body or the back of the headstock for the exact model name and country of manufacture.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Washburn N-factory YYMM sequence. The second character is the digit zero, which is commonly entered or printed as the letter O — both decode identically.</p><h3>How It Decodes</h3><p>N is the factory prefix. The digit string after N decodes as: year ${year}, month ${month ?? 'unknown'}, production sequence ${seq}.</p><h3>Coal Creek Guitars Note</h3><p>Confirm the model with the inside label or headstock markings. The N-prefix identifies the contracted Asian factory (Cort, Samick, or related) but the specific facility varies by year and model.</p>`,
+  };
+}
+
 function decodeModernTwoLetterYYWW(serial: string): DecodeResult {
   const prefix = serial.substring(0, 2);
   const yearDigits = serial.substring(2, 4);

@@ -241,6 +241,28 @@ export function runTests() {
   assertESPLTDIndonesiaCIPrefix('CI25100523', '2025', 'October');
   assertESPLTDIndonesiaIMPrefix('IM24120398', '2024', 'December');
   assertESP1WCorrectsToIW('1W211112431', '2021', 'November');
+  assertESPSSCustomShop8Digit('ss06105647', '2006', 'Week 10', '647');
+}
+
+function assertESPSSCustomShop8Digit(serialInput, expectedYear, expectedWeekNote, expectedProductionSuffix) {
+  const result = decodeSerialForBackend('esp', serialInput);
+  assert(result.success, `Expected decode success for esp:${serialInput}`);
+  assert(result.info, `Expected decoded info for esp:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.factory === 'ESP Custom Shop, Tokyo', `Expected ESP Custom Shop factory for ${serialInput}, got ${result.info.factory}`);
+  assert(result.info.country === 'Japan', `Expected Japan for ${serialInput}, got ${result.info.country}`);
+  assert(
+    result.info.notes && result.info.notes.includes(expectedWeekNote),
+    `Expected "${expectedWeekNote}" in notes for ${serialInput}, got ${result.info.notes}`
+  );
+  assert(
+    result.info.notes && result.info.notes.includes(expectedProductionSuffix),
+    `Expected production suffix "${expectedProductionSuffix}" in notes for ${serialInput}, got ${result.info.notes}`
+  );
+  assert(
+    result.patternKey === 'esp-ss-custom-shop-japan-yywwd-seq',
+    `Expected ESP SS patternKey for ${serialInput}, got ${result.patternKey}`
+  );
 }
 
 function assertESPLTDIndonesiaCIPrefix(serialInput, expectedYear, expectedMonth) {

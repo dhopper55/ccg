@@ -60,6 +60,13 @@ export function decodeYamaha(serial) {
     if (/^[A-Z][O0][A-Z]\d{6}$/.test(normalized)) {
         return decodeLetterZeroLetter6(normalized);
     }
+    // Extended 2-letter year code format: YYM + 7 digits (3 letters + 7 digits = 10 chars)
+    // First 2 letters encode a 2-digit year via getYearDigit (e.g., HN = 17 = 2017)
+    // Third letter encodes month via getMonthFromLetter (e.g., I = February)
+    // 7 digits = DD (day, 2 digits) + unit number (5 digits)
+    if (/^[A-Z]{3}\d{7}$/.test(normalized)) {
+        return decodeThreeLetterYearExtended(normalized);
+    }
     // Taiwan 2002+: Letter-Letter-Letter-###### (e.g., QJM120013)
     if (/^[A-Z]{3}\d{6}$/.test(normalized)) {
         return decodeTaiwan2002(normalized);
@@ -188,6 +195,48 @@ function decodeStandardExtended(serial) {
         notes: `Unit #${unit} built on day ${day}. Extended standard format (2-letter year/month code + 7-digit production block). Used on mid-range to premium Yamaha acoustics, electrics, and basses from Taiwan, Indonesia, and China factories. Yamaha serial years repeat on a 10-year cycle, so the exact decade should be confirmed from the model name and the country-of-origin label inside the body or on the back of the headstock.`,
     };
     return { success: true, info };
+}
+// Extended 2-letter year code: YYM-DD-NNNNN (3 letters + 7 digits)
+// Letters use same digit mapping as Japan Custom Shop (H=1, I=2, ..., Q=0)
+function decodeThreeLetterYearExtended(serial) {
+    const yearLetter1 = serial[0];
+    const yearLetter2 = serial[1];
+    const monthLetter = serial[2];
+    const day = parseInt(serial.substring(3, 5), 10);
+    const unit = parseInt(serial.substring(5), 10);
+    const yearDigit1 = getYearDigit(yearLetter1);
+    const yearDigit2 = getYearDigit(yearLetter2);
+    const month = getMonthFromLetter(monthLetter);
+    if (yearDigit1 === -1 || yearDigit2 === -1) {
+        return {
+            success: false,
+            error: 'Invalid year code in serial number.'
+        };
+    }
+    if (month === 0) {
+        return {
+            success: false,
+            error: 'Invalid month code in serial number.'
+        };
+    }
+    const twoDigitYear = yearDigit1 * 10 + yearDigit2;
+    const year = 2000 + twoDigitYear;
+    const info = {
+        brand: 'Yamaha',
+        serialNumber: serial,
+        year: year.toString(),
+        month: getMonthName(month),
+        day: day > 0 && day <= 31 ? day.toString() : undefined,
+        factory: 'Taiwan, Indonesia, or China (Yamaha import factory)',
+        country: 'Taiwan, Indonesia, or China',
+        notes: `Extended 3-letter year/month code format. ${yearLetter1}${yearLetter2} encodes production year ${year} (${yearDigit1}${yearDigit2}). ${monthLetter} encodes ${getMonthName(month)}. Day: ${day}. Unit #${unit}. This format is used on mid-range to premium Yamaha instruments from Asian factories.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'yamaha-three-letter-year-month-7digit',
+        patternLabel: 'Yamaha 3-letter YYM extended format (2000s+)',
+    };
 }
 // Japan Custom Shop 2004+: Letter-Letter-Letter-###-Letter
 function decodeJapanCustomShop2004(serial) {

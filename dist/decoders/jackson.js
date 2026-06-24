@@ -156,6 +156,10 @@ export function decodeJackson(serial) {
     if (/^3\d{6}$/.test(normalized) && normalized.length === 7) {
         return decodeJapanMijThreePrefix(normalized);
     }
+    // Japan/import 7-digit (8-prefix, late 1980s-early 1990s era)
+    if (/^8\d{6}$/.test(normalized) && normalized.length === 7) {
+        return decodeJapanEightPrefixSevenDigit(normalized);
+    }
     // Japan Professional 6-digit (1990-1995, first digit 0-5)
     if (/^[0-5]\d{5}$/.test(normalized) && normalized.length === 6) {
         return decodeJapanProfessional(normalized);
@@ -201,6 +205,10 @@ export function decodeJackson(serial) {
     // No year is encoded in this format; the factory code identifies the contracted facility.
     if (/^3\d{8}$/.test(normalized)) {
         return decodeChina3DigitFactorySequence(normalized);
+    }
+    // Japan MIJ 9-digit sequential (9-prefix, 1990s era)
+    if (/^9\d{8}$/.test(normalized)) {
+        return decodeJapanNinePrefixNineDigit(normalized);
     }
     // India 10-digit (JS30xx, 2008+ prefix)
     if (/^20(0[8-9]|[1-2]\d)\d{6}$/.test(normalized) && normalized.length === 10) {
@@ -755,6 +763,80 @@ function decodeJapanMijThreePrefix(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This 7-digit serial beginning with 3 identifies a Japan-made Jackson bolt-on import from roughly 1993–1995. The 3-prefix was used by certain Japanese OEM contractors producing models like the Dinky XL and Performer series.</p><h3>What's Encoded</h3><p>No year, month, or factory is encoded in this format — it is a plain sequential serial. Physical features (headstock logo style, finish quality, hardware) will help narrow the production year.</p><h3>Coal Creek Guitars Note</h3><p>Japanese Jackson instruments from this era are well-regarded. Compare the headstock logo, tuner style, and pickguard configuration against known 1993–1995 Jackson catalog images to confirm the model and era.</p>`,
+    };
+}
+function decodeJapanEightPrefixSevenDigit(serial) {
+    const yearDigits = serial.substring(0, 2);
+    const possibleYear = 1900 + parseInt(yearDigits, 10);
+    const sequence = parseInt(serial.substring(2), 10);
+    const info = {
+        brand: 'Jackson',
+        serialNumber: serial,
+        year: `${possibleYear} (estimated)`,
+        factory: 'Japanese or early import factory (late 1980s–early 1990s)',
+        country: 'Japan (likely)',
+        notes: `7-digit serial with an 8-prefix. If the first two digits encode the year, ${yearDigits} indicates ${possibleYear}. These serials are associated with late 1980s to early 1990s Japanese production or early import bolt-on lines. No exact factory documentation is available for this prefix range. Physical markings (Made in Japan/India/etc. stamp) should be used to confirm country of origin.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'jackson-japan-8prefix-7digit-late1980s-early1990s',
+        patternLabel: 'Jackson 7-digit 8-prefix (late 1980s–early 1990s)',
+        additionalContext: {
+            title: 'Jackson 7-digit 8-prefix serial',
+            summary: 'This 7-digit serial with an 8 prefix indicates late 1980s to early 1990s Jackson production, likely Japanese.',
+            highlights: [
+                `First two digits (${yearDigits}) may indicate production year ${possibleYear}.`,
+                'Production sequence: ' + sequence.toLocaleString() + '.',
+                'These serials appear on Japanese bolt-on and import models from this era.',
+            ],
+            caveats: [
+                'Exact factory records for this serial range are not fully documented.',
+                'Check the headstock, neck plate, and body for country of origin markings.',
+            ],
+            verificationTips: [
+                'Look for a "Made in Japan" or "Made in India" stamp on the back of the headstock or neck plate.',
+                'Inspect the neck pocket for a factory-stamped date or model code.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This 7-digit serial with an 8-prefix indicates a Jackson from the late 1980s to early 1990s, likely Japanese in origin. If the first two digits encode the year, ${yearDigits} points to ${possibleYear}.</p><h3>What To Verify</h3><ul><li>Look for a "Made in Japan" or "Made in India" stamp on the back of the headstock or neck plate to confirm country of origin.</li><li>Inspect the neck pocket for a factory-stamped date or model code for more precise dating.</li><li>Exact factory records for this prefix range are incomplete — physical features are the best dating tool.</li></ul><h3>Coal Creek Guitars Note</h3><p>Production sequence: ${sequence.toLocaleString()}. Late 1980s to early 1990s Japanese Jacksons are generally well-regarded instruments.</p>`,
+    };
+}
+function decodeJapanNinePrefixNineDigit(serial) {
+    const yearDigits = serial.substring(0, 2);
+    const possibleYear = 1900 + parseInt(yearDigits, 10);
+    const sequence = parseInt(serial.substring(2), 10);
+    const info = {
+        brand: 'Jackson',
+        serialNumber: serial,
+        year: `${possibleYear} (estimated)`,
+        factory: 'Japanese bolt-on factory (Chushin Gakki era or related)',
+        country: 'Japan',
+        notes: `9-digit serial with a 9-prefix. If the first two digits encode the year, ${yearDigits} indicates ${possibleYear}. The Chushin Gakki factory produced Jackson bolt-on models under sequential serial numbering during the 1990s era, and 9-prefix 9-digit serials are consistent with late production from that era. Exact dating should be confirmed from physical markings and neck-pocket stamps.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'jackson-japan-9prefix-9digit-1990s',
+        patternLabel: 'Jackson Japan MIJ 9-prefix 9-digit (1990s)',
+        additionalContext: {
+            title: 'Jackson Japan MIJ 9-prefix 9-digit serial',
+            summary: 'This 9-digit serial with a 9-prefix is consistent with 1990s Japanese Jackson bolt-on production, potentially from the Chushin Gakki era.',
+            highlights: [
+                `First two digits (${yearDigits}) may indicate production year ${possibleYear}.`,
+                'Production sequence: ' + sequence.toLocaleString() + '.',
+                '9-prefix serials appear on MIJ bolt-on and import models from the 1990s.',
+            ],
+            caveats: [
+                'Exact year dating from 9-prefix 9-digit serials is uncertain — physical features and neck-pocket stamps are more reliable.',
+                'Check for a "Made in Japan" label on the headstock or neck plate.',
+            ],
+            verificationTips: [
+                'Unscrew the neck and check the neck pocket or neck heel for a factory-stamped date code.',
+                'Compare headstock logo style, hardware, and specs against known 1990s Jackson Japan bolt-on catalog images.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This 9-digit serial with a 9-prefix is consistent with 1990s Japanese Jackson bolt-on production, potentially from the Chushin Gakki era. If the first two digits encode the year, ${yearDigits} points to ${possibleYear}.</p><h3>What To Verify</h3><ul><li>Unscrew the neck and check the neck pocket or neck heel for a factory-stamped date code — Chushin Gakki workers often stamped dates directly into the wood.</li><li>Look for a "Made in Japan" label on the back of the headstock or neck plate.</li><li>Exact year dating from this serial format is uncertain — physical features are the most reliable guide.</li></ul><h3>Coal Creek Guitars Note</h3><p>Production sequence: ${sequence.toLocaleString()}. 1990s Japanese Jacksons are generally well-built instruments.</p>`,
     };
 }
 function decodeJapanChushin200C(serial) {

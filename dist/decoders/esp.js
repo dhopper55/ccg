@@ -56,8 +56,9 @@ export function decodeESP(serial) {
     if (/^ED\d{6,7}$/.test(normalized)) {
         return decodeEdwardsEDPrefix(normalized);
     }
-    // 2000-2015 Japan ESP Custom Shop format: SS + 7 digits
-    if (/^SS\d{7}$/.test(normalized)) {
+    // 2000-2015 Japan ESP Custom Shop format: SS + 7-8 digits
+    // 7-digit: SS + YY + WW + D + NNN (3-digit production); 8-digit: NNN extends to NNNN
+    if (/^SS\d{7,8}$/.test(normalized)) {
         return decodeESPCustomShop(normalized);
     }
     // ESP Custom Shop Japan special format: K + 8 digits + letter + 2 digits
@@ -398,7 +399,11 @@ function decodeESPCustomShop(serial) {
         model: 'ESP Custom Shop',
         notes: `Week ${week}, Day ${dayOfWeek} of week. Production #${productionNum} that day.`
     };
-    return { success: true, info };
+    return {
+        success: true,
+        info,
+        patternKey: 'esp-ss-custom-shop-japan-yywwd-seq',
+    };
 }
 function decodeESPJapanFactory(serial) {
     // Extract factory code (1 or 2 letters)
