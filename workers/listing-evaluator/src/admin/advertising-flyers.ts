@@ -10,6 +10,7 @@ type FlyerLocationRow = {
   google_url: string | null;
   photo_url: string | null;
   map_url: string | null;
+  to_visit: number;
   evaluated: number;
   flyer_placed: number;
   notes: string | null;
@@ -55,7 +56,7 @@ export async function handleAdminV2AdvertisingFlyersList(request: Request, env: 
       'SELECT COUNT(*) as total, SUM(evaluated) as evaluated, SUM(flyer_placed) as flyer_placed FROM south_broadway_locations',
     ).first<GlobalStatsRow>(),
     env.DB.prepare(
-      `SELECT id, name, address, types, google_url, photo_url, map_url, evaluated, flyer_placed, notes
+      `SELECT id, name, address, types, google_url, photo_url, map_url, to_visit, evaluated, flyer_placed, notes
        FROM south_broadway_locations ${whereStr}
        ORDER BY id ASC
        LIMIT ? OFFSET ?`,
@@ -223,6 +224,15 @@ export async function handleAdminV2AdvertisingFlyersUpdate(path: string, request
 
   const setClauses: string[] = [];
   const params: (string | number | null)[] = [];
+
+  if ('to_visit' in body) {
+    const toVisit = body.to_visit ? 1 : 0;
+    setClauses.push('to_visit = ?');
+    params.push(toVisit);
+    if (toVisit === 1) {
+      setClauses.push('evaluated = 1');
+    }
+  }
 
   if ('evaluated' in body) {
     setClauses.push('evaluated = ?');

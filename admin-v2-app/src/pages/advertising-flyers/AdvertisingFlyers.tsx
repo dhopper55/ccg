@@ -40,6 +40,7 @@ type FlyerLocation = {
   google_url: string | null;
   photo_url: string | null;
   map_url: string | null;
+  to_visit: number;
   evaluated: number;
   flyer_placed: number;
   notes: string | null;
@@ -201,14 +202,19 @@ const AdvertisingFlyers = () => {
     }, 300);
   };
 
-  const handleToggle = async (id: number, field: 'evaluated' | 'flyer_placed', value: boolean) => {
+  const handleToggle = async (id: number, field: 'to_visit' | 'evaluated' | 'flyer_placed', value: boolean) => {
     setUpdatingIds((prev) => {
       const next = new Set(prev);
       next.add(id);
       return next;
     });
     setRecords((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, [field]: value ? 1 : 0 } : r)),
+      prev.map((r) => {
+        if (r.id !== id) return r;
+        const updated = { ...r, [field]: value ? 1 : 0 };
+        if (field === 'to_visit' && value) updated.evaluated = 1;
+        return updated;
+      }),
     );
 
     try {
@@ -239,7 +245,12 @@ const AdvertisingFlyers = () => {
       }
     } catch (error) {
       setRecords((prev) =>
-        prev.map((r) => (r.id === id ? { ...r, [field]: value ? 0 : 1 } : r)),
+        prev.map((r) => {
+          if (r.id !== id) return r;
+          const rolled = { ...r, [field]: value ? 0 : 1 };
+          if (field === 'to_visit' && value) rolled.evaluated = r.evaluated;
+          return rolled;
+        }),
       );
       enqueueSnackbar(error instanceof Error ? error.message : 'Update failed.', { variant: 'error' });
     } finally {
@@ -424,6 +435,7 @@ const AdvertisingFlyers = () => {
             <TableCell sx={{ width: '100%' }}>Business</TableCell>
             <TableCell sx={{ whiteSpace: 'nowrap', minWidth: 180 }}>Types</TableCell>
             <TableCell align="center" sx={{ width: 52 }}>Map</TableCell>
+            <TableCell align="center" sx={{ whiteSpace: 'nowrap', width: 90 }}>To Visit</TableCell>
             <TableCell align="center" sx={{ whiteSpace: 'nowrap', width: 100 }}>Evaluated</TableCell>
             <TableCell align="center" sx={{ whiteSpace: 'nowrap', width: 120 }}>Flyer Placed</TableCell>
             <TableCell sx={{ whiteSpace: 'nowrap', width: 120 }}>Notes</TableCell>
@@ -433,7 +445,7 @@ const AdvertisingFlyers = () => {
         <TableBody>
           {isLoading ? (
             <TableRow>
-              <TableCell colSpan={8}>
+              <TableCell colSpan={9}>
                 <Stack sx={{ alignItems: 'center', py: 6 }} spacing={2}>
                   <CircularProgress size={28} />
                   <Typography sx={{ color: 'text.secondary' }}>Loading locations…</Typography>
@@ -442,7 +454,7 @@ const AdvertisingFlyers = () => {
             </TableRow>
           ) : records.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={8}>
+              <TableCell colSpan={9}>
                 <Typography sx={{ py: 4, color: 'text.secondary' }}>
                   No locations match the selected filters.
                 </Typography>
@@ -484,6 +496,15 @@ const AdvertisingFlyers = () => {
                   </Typography>
                 </TableCell>
                 <TableCell align="center">{renderMapButton(record)}</TableCell>
+                <TableCell align="center">
+                  <Checkbox
+                    size="small"
+                    checked={Boolean(record.to_visit)}
+                    disabled={updatingIds.has(record.id)}
+                    onChange={(e) => handleToggle(record.id, 'to_visit', e.target.checked)}
+                    color="warning"
+                  />
+                </TableCell>
                 <TableCell align="center">
                   <Checkbox
                     size="small"
@@ -587,6 +608,17 @@ const AdvertisingFlyers = () => {
                 </Box>
               </Stack>
               <Stack direction="row" sx={{ alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5 }}>
+                  <Checkbox
+                    size="small"
+                    checked={Boolean(record.to_visit)}
+                    disabled={updatingIds.has(record.id)}
+                    onChange={(e) => handleToggle(record.id, 'to_visit', e.target.checked)}
+                    color="warning"
+                    sx={{ p: 0.5 }}
+                  />
+                  <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>To Visit</Typography>
+                </Stack>
                 <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5 }}>
                   <Checkbox
                     size="small"
