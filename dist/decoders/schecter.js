@@ -811,11 +811,12 @@ function decodeNumeric(serial) {
     if (yearNum >= 90 && yearNum <= 99) {
         year = (1900 + yearNum).toString();
     }
-    else if (yearNum >= 0 && yearNum <= 50) {
+    else if (yearNum >= 0 && yearNum <= 30) {
         year = (2000 + yearNum).toString();
     }
     else {
-        year = 'Unknown';
+        // Year code 31-89 maps to future or implausible years — treat as sequential without year encoding
+        year = 'early 2000s (estimated; year not directly encoded)';
     }
     // Check if next two digits could be month
     let month;
@@ -834,16 +835,19 @@ function decodeNumeric(serial) {
     else {
         sequence = serial.substring(2);
     }
+    const patternKey = serial.length === 7 ? 'schecter-7digit-numeric-korea-wmi-sequential'
+        : serial.length === 8 ? 'schecter-8digit-numeric-korea-wmi-sequential'
+            : 'schecter-9digit-numeric-korea-wmi-sequential';
     const info = {
         brand: 'Schecter',
         serialNumber: serial,
-        year: year,
-        month: month,
-        factory: 'Korea Factory',
+        year,
+        month,
+        factory: 'Korea factory (likely World Musical Instruments or Unsung)',
         country: 'South Korea',
-        notes: `Numeric-only serial indicates Korean manufacture (typically early 2000s or late 1990s). Sequence: ${sequence}.`
+        notes: `All-numeric serial indicates Korean import manufacture, typically pre-2008 era (WMI or similar factory). Sequence: ${sequence}. Verify exact year and model from headstock markings.`,
     };
-    return { success: true, info };
+    return { success: true, info, patternKey };
 }
 function decodeKoreaUnsungU(serial) {
     const yearDigits = serial.substring(1, 3);

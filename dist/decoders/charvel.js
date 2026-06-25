@@ -154,11 +154,41 @@ function decodeJapanYYMM(serial) {
 // San Dimas USA: 4-digit (1001-5491)
 function decodeSanDimas(serial) {
     const num = parseInt(serial, 10);
-    // Validate authentic San Dimas range
+    // Sub-1001: very early Charvel pre-production or early Japanese import convention
     if (num < 1001) {
+        const info = {
+            brand: 'Charvel',
+            serialNumber: serial,
+            year: 'circa 1979-1981 (very early or pre-production)',
+            factory: 'San Dimas, California (pre-production) or early Japanese import',
+            country: 'USA or Japan',
+            notes: `Serial ${num} is below the main San Dimas production range (1001-5491, 1981-1986). Very low 4-digit serials in this range are consistent with pre-production USA prototypes from approximately 1979-1981, before the official serialized production began in November 1981. Some early Japanese import Charvels also used a leading-zero prefix convention for initial production years. Verify with neck plate markings, headstock logo, tremolo type, and country-of-origin stamp.`,
+        };
         return {
-            success: false,
-            error: `Serial ${num} is below the San Dimas production range (starts at 1001). Pre-serial guitars (before late 1981) have no serial numbers.`,
+            success: true,
+            info,
+            patternKey: 'charvel-early-pre-production-4digit',
+            patternLabel: 'Charvel early pre-production or very early 4-digit serial',
+            additionalContext: {
+                title: 'Charvel very early 4-digit serial',
+                summary: `Serial ${num} falls below the main San Dimas range (1001-5491) and is consistent with very early Charvel pre-production (circa 1979-1981) or an early Japanese import format.`,
+                highlights: [
+                    'Serials below 1001 predate the official San Dimas serialized production that began in November 1981.',
+                    'Very early USA pre-production Charvels and some early Japanese imports may use serials in this range.',
+                    `Serial ${num} should be verified against the physical instrument for conclusive dating.`,
+                ],
+                caveats: [
+                    'Pre-1981 guitars typically have no serial numbers at all — sub-1001 serials may be from custom orders or prototypes.',
+                    'Some early Japanese import Charvels used a leading-zero convention for first-year production runs.',
+                    'Blank neck plates were available on the market; physical verification is important for any early Charvel.',
+                ],
+                verificationTips: [
+                    'Check the neck plate for the Charvel name and San Dimas, California address.',
+                    'Inspect for USA-made construction details: hand-shaped neck, alder or ash body, Floyd Rose or Kahler tremolo.',
+                    'The headstock logo style helps distinguish USA production (toothpaste/hockey-stick script) from early Japanese imports.',
+                ],
+            },
+            additionalContextRichText: `<h3>Overview</h3><p>This 4-digit serial below 1001 is consistent with very early Charvel pre-production (circa 1979-1981) or an early Japanese import format. The main San Dimas production range (1001-5491) officially began in November 1981.</p><h3>What To Verify</h3><ul><li>Check the neck plate for the Charvel name — original San Dimas plates carry a San Dimas, California address.</li><li>Inspect for USA-made construction: hand-shaped neck, alder or ash body, Floyd Rose or Kahler tremolo.</li><li>The headstock logo style helps distinguish USA production from early Japanese imports.</li></ul><h3>Coal Creek Guitars Note</h3><p>Charvels with sub-1001 serials are rare and should be authenticated against the physical instrument. If it is a genuine USA pre-production piece, it may have significant collector value.</p>`,
         };
     }
     if (num > 5491) {

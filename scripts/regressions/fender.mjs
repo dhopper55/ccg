@@ -64,4 +64,17 @@ export function runTests() {
   assertFenderJDPrefix('JD13006111', '2013');
   assertFenderICSPrefix('ICS11185000', '2011');
   assertFenderInternalPartNumber('0060579747');
+  assertFenderCortChinaCC('CC210709447', '2021');
+}
+
+function assertFenderCortChinaCC(serialInput, expectedYear) {
+  const result = decodeSerialForBackend('fender', serialInput);
+  assert(result.success, `Expected decode success for fender:${serialInput}`);
+  assert(result.info, `Expected decoded info for fender:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.country === 'China', `Expected China for ${serialInput}, got ${result.info.country}`);
+  assert(
+    result.patternKey === 'fender-cc-cort-china-yy-sequence',
+    `Expected CC Cort China patternKey for ${serialInput}, got ${result.patternKey}`
+  );
 }

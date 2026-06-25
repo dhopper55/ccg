@@ -166,6 +166,10 @@ export function decodeCort(serial) {
     if (/^\d{6}$/.test(normalized)) {
         return decode6Digit(normalized);
     }
+    // Matt Guitar Murphy signature series: MGM + 3-4 digit production number (early 2000s Korea)
+    if (/^MGM\d{3,4}$/.test(normalized)) {
+        return decodeMGMSignatureSeries(normalized);
+    }
     return {
         success: false,
         error: 'Unable to decode this Cort serial number. The format was not recognized. Common formats include: YYMMXXXX (8 digits, 2000-2004), YYMMXXXXX (9 digits, 2005+), YY + 10-digit tracking codes, RYYXXXXX (R prefix year/sequence), YMMXXXX (7 digits, 1990s), or W.O. prefix (1970s-80s). Note: Pre-mid-1990s guitars often have randomly generated serial numbers.',
@@ -1583,6 +1587,45 @@ function decode6Digit(serial) {
         notes: 'This 6-digit serial number may be from the pre-mid-1990s era when Cort used randomly generated serial numbers. Contact Cort customer service with photos of the instrument for more accurate identification.',
     };
     return { success: true, info };
+}
+function decodeMGMSignatureSeries(serial) {
+    const sequence = serial.substring(3);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Cort',
+        serialNumber: serial,
+        year: 'early 2000s (estimated)',
+        factory: 'Cort, South Korea (signature series production)',
+        country: 'South Korea',
+        model: 'MGM-1 (Matt Guitar Murphy Signature)',
+        notes: `MGM prefix identifies the Matt "Guitar" Murphy Signature Model (MGM-1), a limited-production signature guitar from the early 2000s. This model tracked production with a model-specific stamp (MGM + sequential number) rather than the standard Cort factory YYMM date sequence. Production unit: ${sequenceNumber}. Physical indicators include a PRS-style carved maple top, gold hardware, dual humbuckers with push-pull coil tap, and "MGM Matt Guitar Murphy" headstock text.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'cort-mgm-signature-series-sequential',
+        patternLabel: 'Cort MGM Matt Guitar Murphy Signature Series',
+        additionalContext: {
+            title: 'Cort MGM Matt Guitar Murphy Signature (MGM-1)',
+            summary: `This serial identifies a Matt "Guitar" Murphy Signature Model (MGM-1) from Cort Korea's limited early-2000s production run. The MGM prefix replaces the standard date-based sequence for this signature series.`,
+            highlights: [
+                'MGM prefix stands for Matt "Guitar" Murphy, the Blues Brothers guitarist.',
+                'Production unit number: ' + sequenceNumber + '.',
+                'Made in South Korea by Cort, early 2000s production.',
+                'Known physical identifiers: carved figured maple top, gold hardware, dual humbuckers with coil-tap.',
+            ],
+            caveats: [
+                'No year is encoded in the serial — early 2000s is an estimate based on the known production window.',
+                'This is a limited run; authentication should rely on the headstock text and construction details.',
+            ],
+            verificationTips: [
+                'Check the headstock face for "MGM Matt Guitar Murphy" text — this is the primary identifier.',
+                'The top finish is typically quilted maple in Amber Burst, Sunburst, or Blue — verify against known examples.',
+                'Push-pull coil tap on the tone knob is a documented feature of this model.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial identifies a Cort MGM-1 — the Matt "Guitar" Murphy Signature Model, a limited-production Korean guitar from the early 2000s. Matt Murphy was the legendary blues guitarist associated with the Blues Brothers, Muddy Waters, and Howlin' Wolf.</p><h3>What This Serial Tells You</h3><p>The MGM prefix is model-specific rather than date-coded. Cort tracked this signature run with a sequential model stamp (MGM + production number) rather than their standard YYMMXXXXXX factory format. Production unit: ${sequenceNumber}.</p><h3>Physical Identifiers</h3><ul><li><strong>Headstock:</strong> "MGM Matt Guitar Murphy" text on the headstock face.</li><li><strong>Top:</strong> Carved figured/quilted maple in Amber Burst, Sunburst, or Blue.</li><li><strong>Hardware:</strong> Gold-plated throughout.</li><li><strong>Electronics:</strong> Dual humbuckers with a push-pull coil-tap tone knob.</li><li><strong>Neck:</strong> Set-in neck construction.</li></ul><h3>Coal Creek Guitars Note</h3><p>This is a rare and collectible signature model. Authenticate using the headstock text, maple top, and gold hardware before completing any sale or purchase.</p>`,
+    };
 }
 // Helper function for month names
 function getMonthName(month) {

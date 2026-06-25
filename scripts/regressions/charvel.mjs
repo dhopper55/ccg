@@ -119,6 +119,21 @@ export function runTests() {
   assertCharvelNumeric8('05050187', '2005', 'May');
   assertCharvelSanDimasFenderEra('6719', '2002-2005 (estimated)');
   assertCharvelIMCAddressMark('TX76113');
+  assertCharvelEarlyPreProduction('0539');
+}
+
+function assertCharvelEarlyPreProduction(serialInput) {
+  const result = decodeSerialForBackend('charvel', serialInput);
+  assert(result.success, `Expected decode success for charvel:${serialInput}`);
+  assert(result.info, `Expected decoded info for charvel:${serialInput}`);
+  assert(
+    result.info.year.includes('1979-1981'),
+    `Expected pre-production year for ${serialInput}, got ${result.info.year}`
+  );
+  assert(
+    result.patternKey === 'charvel-early-pre-production-4digit',
+    `Expected pre-production patternKey for ${serialInput}, got ${result.patternKey}`
+  );
 }
 
 function assertCharvelIMCAddressMark(serialInput) {

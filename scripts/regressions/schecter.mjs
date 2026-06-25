@@ -333,6 +333,22 @@ export function runTests() {
   assertSchecterWAPrefix('wa25120053');
   assertSchecterUnsungUPrefix('u080901104', '2008', 'September');
   assertSchecterWPrefixShort('W0924045', '2009');
+  assertSchecterNumericKoreaWMI('4111051');
+}
+
+function assertSchecterNumericKoreaWMI(serialInput) {
+  const result = decodeSerialForBackend('schecter', serialInput);
+  assert(result.success, `Expected decode success for schecter:${serialInput}`);
+  assert(result.info, `Expected decoded info for schecter:${serialInput}`);
+  assert(result.info.country === 'South Korea', `Expected South Korea for ${serialInput}, got ${result.info.country}`);
+  assert(
+    result.info.year.includes('early 2000s'),
+    `Expected early 2000s year for ${serialInput}, got ${result.info.year}`
+  );
+  assert(
+    result.patternKey === 'schecter-7digit-numeric-korea-wmi-sequential',
+    `Expected 7-digit numeric WMI patternKey for ${serialInput}, got ${result.patternKey}`
+  );
 }
 
 function assertSchecterRODigitZeroVariant(serialInput) {

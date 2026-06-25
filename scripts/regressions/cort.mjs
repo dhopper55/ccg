@@ -481,6 +481,22 @@ export function runTests() {
   assertCort1990s7DigitAnomalousMonth('5591410', '1995');
   assertCort8DigitSuspiciousFutureYear('52030600', 2052);
   assertCortModern10DigitYYMM('0404704234', '2004', 'April');
+  assertCortMGMSignatureSeries('mgm 822');
+}
+
+function assertCortMGMSignatureSeries(serialInput) {
+  const result = decodeSerialForBackend('cort', serialInput);
+  assert(result.success, `Expected decode success for cort:${serialInput}`);
+  assert(result.info, `Expected decoded info for cort:${serialInput}`);
+  assert(result.info.country === 'South Korea', `Expected South Korea for ${serialInput}, got ${result.info.country}`);
+  assert(
+    result.info.model && result.info.model.includes('MGM'),
+    `Expected MGM model for ${serialInput}, got ${result.info.model}`
+  );
+  assert(
+    result.patternKey === 'cort-mgm-signature-series-sequential',
+    `Expected MGM patternKey for ${serialInput}, got ${result.patternKey}`
+  );
 }
 
 function assertCortIEPrefixTenDigit(serialInput, expectedYear) {

@@ -105,6 +105,12 @@ export function deriveExplicitRegexFromKnownPatternKey(patternKey: string): stri
     'dean-kh-factory-yymm-sequence': '^KH\\d{9}$',
     'epiphone-8digit-numeric-import-y-mm-sequence': '^\\d{8}$',
     'jackson-mij-7digit-7prefix-chushin-sequential': '^7\\d{6}$',
+    'charvel-early-pre-production-4digit': '^\\d{4}$',
+    'cort-mgm-signature-series-sequential': '^MGM\\d{3,4}$',
+    'fender-cc-cort-china-yy-sequence': '^CC\\d{9}$',
+    'schecter-7digit-numeric-korea-wmi-sequential': '^\\d{7}$',
+    'schecter-8digit-numeric-korea-wmi-sequential': '^\\d{8}$',
+    'schecter-9digit-numeric-korea-wmi-sequential': '^\\d{9}$',
   };
 
   return knownPatterns[patternKey] || null;

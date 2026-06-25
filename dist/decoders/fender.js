@@ -89,6 +89,10 @@ export function decodeFender(serial) {
     if (indoMatch) {
         return decodeIndonesianPrefix(indoMatch[1], indoMatch[2], normalized);
     }
+    // Cort China factory for Fender/Squier: CC + YY + 7-digit sequence (e.g. CC210709447 = 2021)
+    if (/^CC\d{9}$/.test(normalized)) {
+        return decodeCortChinaCC(normalized);
+    }
     // Fender internal part-number style: 00 + 8 digits (not date-coded serial)
     if (/^00\d{8}$/.test(normalized)) {
         return decodeInternalPartNumber(normalized);
@@ -338,6 +342,45 @@ function decodeIndonesianPrefix(year, sequence, serial) {
         notes: `Indonesian-made Fender (typically Squier line). Production sequence: ${sequence}.`
     };
     return { success: true, info };
+}
+function decodeCortChinaCC(serial) {
+    const yearDigits = serial.substring(2, 4);
+    const sequence = serial.substring(4);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Fender',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'Cort, China (CC factory prefix)',
+        country: 'China',
+        notes: `CC-prefix serial identifies a Cort China factory instrument made for Fender or Squier. Format: CC + YY (production year) + 7-digit sequence. Year code ${yearDigits} decodes as ${year}. Production sequence: ${sequence} (unit ${sequenceNumber}).`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'fender-cc-cort-china-yy-sequence',
+        patternLabel: 'Fender/Squier Cort China CC-prefix YY sequence',
+        additionalContext: {
+            title: 'Fender/Squier Cort China (CC-prefix) serial',
+            summary: `This serial uses the CC-prefix format identifying a Cort China factory instrument produced for Fender or Squier. CC = Cort China, ${yearDigits} = ${year}.`,
+            highlights: [
+                'CC prefix indicates the Cort manufacturing facility in China.',
+                `${yearDigits} decodes as production year ${year}.`,
+                `${sequence} is the production sequence number (unit ${sequenceNumber}).`,
+            ],
+            caveats: [
+                'Cort China produces instruments for multiple brands; the exact model should be confirmed from headstock and label markings.',
+                'This format is used on both Fender and Squier branded instruments from this factory.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for "Made in China" and the Fender or Squier brand name.',
+                'Compare hardware, finish, and specs against Fender/Squier China import catalog from the decoded year.',
+                'Use the Fender serial number lookup tool to cross-reference this serial against indexed records.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial uses the CC-prefix format, identifying an instrument produced at the Cort manufacturing facility in China for Fender or its Squier sub-brand.</p><h3>How It Decodes</h3><p>CC identifies the Cort China factory. The digits ${yearDigits} decode as production year ${year}. The remaining seven digits (${sequence}) are the production sequence number (unit ${sequenceNumber}).</p><h3>Coal Creek Guitars Note</h3><p>Verify the brand (Fender or Squier) and model from the headstock and any interior labels. Compare the decoded year (${year}) against the catalog to confirm model specifications.</p>`,
+    };
 }
 function decodeInternalPartNumber(serial) {
     const info = {
