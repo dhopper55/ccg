@@ -61,7 +61,7 @@ type FlyerListResponse = {
   message?: string;
 };
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 100;
 
 const FILTER_OPTIONS: { value: FlyerFilter; label: string }[] = [
   { value: 'all', label: 'All' },
