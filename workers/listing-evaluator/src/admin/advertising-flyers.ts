@@ -197,6 +197,16 @@ export async function handleAdminV2AdvertisingFlyersCreate(request: Request, env
   return jsonResponse({ id: result.meta.last_row_id, ok: true }, 201);
 }
 
+export async function handleAdminV2AdvertisingFlyersDelete(path: string, env: Env): Promise<Response> {
+  const idStr = path.split('/').filter(Boolean).pop() ?? '';
+  const id = Number.parseInt(idStr, 10);
+  if (!Number.isFinite(id) || id <= 0) {
+    return jsonResponse({ message: 'Invalid location ID.' }, 400);
+  }
+  await env.DB.prepare('DELETE FROM south_broadway_locations WHERE id = ?').bind(id).run();
+  return jsonResponse({ ok: true });
+}
+
 export async function handleAdminV2AdvertisingFlyersUpdate(path: string, request: Request, env: Env): Promise<Response> {
   const idStr = path.split('/').filter(Boolean).pop() ?? '';
   const id = Number.parseInt(idStr, 10);

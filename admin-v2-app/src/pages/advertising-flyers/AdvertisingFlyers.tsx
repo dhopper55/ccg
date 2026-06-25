@@ -121,6 +121,9 @@ const AdvertisingFlyers = () => {
   } | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
+  const [isDeletingId, setIsDeletingId] = useState<number | null>(null);
+
   const [notesModalOpen, setNotesModalOpen] = useState(false);
   const [notesRecord, setNotesRecord] = useState<FlyerLocation | null>(null);
   const [notesDraft, setNotesDraft] = useState('');
@@ -313,6 +316,40 @@ const AdvertisingFlyers = () => {
     }
   };
 
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    const { id, name } = deleteTarget;
+    setDeleteTarget(null);
+    setIsDeletingId(id);
+    try {
+      const response = await fetch(`/api/admin-v2/advertising-flyers/${id}`, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      });
+      if (!response.ok) {
+        const d = (await response.json()) as { message?: string };
+        throw new Error(d.message || 'Delete failed.');
+      }
+      setRecords((prev) => prev.filter((r) => r.id !== id));
+      setTotal((t) => Math.max(0, t - 1));
+      setGlobalStats((prev) => {
+        if (!prev) return prev;
+        const wasEvaluated = records.find((r) => r.id === id)?.evaluated ?? 0;
+        const wasFlyerPlaced = records.find((r) => r.id === id)?.flyer_placed ?? 0;
+        return {
+          total: Math.max(0, prev.total - 1),
+          evaluated: Math.max(0, prev.evaluated - (wasEvaluated ? 1 : 0)),
+          flyerPlaced: Math.max(0, prev.flyerPlaced - (wasFlyerPlaced ? 1 : 0)),
+        };
+      });
+      enqueueSnackbar(`${name} deleted.`, { variant: 'success' });
+    } catch (error) {
+      enqueueSnackbar(error instanceof Error ? error.message : 'Delete failed.', { variant: 'error' });
+    } finally {
+      setIsDeletingId(null);
+    }
+  };
+
   const openNotesModal = (record: FlyerLocation) => {
     setNotesRecord(record);
     setNotesDraft(record.notes || '');
@@ -390,12 +427,13 @@ const AdvertisingFlyers = () => {
             <TableCell align="center" sx={{ whiteSpace: 'nowrap', width: 100 }}>Evaluated</TableCell>
             <TableCell align="center" sx={{ whiteSpace: 'nowrap', width: 120 }}>Flyer Placed</TableCell>
             <TableCell sx={{ whiteSpace: 'nowrap', width: 120 }}>Notes</TableCell>
+            <TableCell sx={{ width: 48 }} />
           </TableRow>
         </TableHead>
         <TableBody>
           {isLoading ? (
             <TableRow>
-              <TableCell colSpan={7}>
+              <TableCell colSpan={8}>
                 <Stack sx={{ alignItems: 'center', py: 6 }} spacing={2}>
                   <CircularProgress size={28} />
                   <Typography sx={{ color: 'text.secondary' }}>Loading locations…</Typography>
@@ -404,7 +442,7 @@ const AdvertisingFlyers = () => {
             </TableRow>
           ) : records.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={7}>
+              <TableCell colSpan={8}>
                 <Typography sx={{ py: 4, color: 'text.secondary' }}>
                   No locations match the selected filters.
                 </Typography>
@@ -474,6 +512,22 @@ const AdvertisingFlyers = () => {
                   >
                     {record.notes ? 'Edit Notes' : 'Add Notes'}
                   </Button>
+                </TableCell>
+                <TableCell align="center">
+                  <Tooltip title="Delete">
+                    <span>
+                      <IconButton
+                        size="small"
+                        color="error"
+                        disabled={isDeletingId === record.id}
+                        onClick={() => setDeleteTarget({ id: record.id, name: record.name })}
+                      >
+                        {isDeletingId === record.id
+                          ? <CircularProgress size={16} color="error" />
+                          : <IconifyIcon icon="material-symbols:delete-outline-rounded" fontSize={18} />}
+                      </IconButton>
+                    </span>
+                  </Tooltip>
                 </TableCell>
               </TableRow>
             ))
@@ -564,6 +618,16 @@ const AdvertisingFlyers = () => {
                 >
                   {record.notes ? 'Edit Notes' : 'Add Notes'}
                 </Button>
+                <IconButton
+                  size="small"
+                  color="error"
+                  disabled={isDeletingId === record.id}
+                  onClick={() => setDeleteTarget({ id: record.id, name: record.name })}
+                >
+                  {isDeletingId === record.id
+                    ? <CircularProgress size={16} color="error" />
+                    : <IconifyIcon icon="material-symbols:delete-outline-rounded" fontSize={18} />}
+                </IconButton>
               </Stack>
             </Stack>
           </Paper>
@@ -716,6 +780,19 @@ const AdvertisingFlyers = () => {
           ) : null}
         </Stack>
       </Box>
+
+      <Dialog open={Boolean(deleteTarget)} onClose={() => setDeleteTarget(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Delete location?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            <Box component="span" sx={{ fontWeight: 600 }}>{deleteTarget?.name}</Box> will be permanently removed.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button variant="outlined" color="inherit" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+          <Button variant="contained" color="error" onClick={handleDelete}>Delete</Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog
         open={addDialogOpen}

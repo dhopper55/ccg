@@ -164,6 +164,7 @@ import {
   handleAdminV2AdvertisingFlyersList,
   handleAdminV2AdvertisingFlyersLookup,
   handleAdminV2AdvertisingFlyersCreate,
+  handleAdminV2AdvertisingFlyersDelete,
   handleAdminV2AdvertisingFlyersUpdate,
 } from './admin/advertising-flyers.js';
 
@@ -967,9 +968,13 @@ export default {
       return withCors(response, request, env);
     }
 
-    const advertisingFlyerUpdateMatch = path.match(/^\/api\/admin-v2\/advertising-flyers\/(\d+)$/);
-    if (advertisingFlyerUpdateMatch && request.method === 'PATCH') {
+    const advertisingFlyerItemMatch = path.match(/^\/api\/admin-v2\/advertising-flyers\/(\d+)$/);
+    if (advertisingFlyerItemMatch && request.method === 'PATCH') {
       const response = await handleAdminV2AdvertisingFlyersUpdate(path, request, env);
+      return withCors(response, request, env);
+    }
+    if (advertisingFlyerItemMatch && request.method === 'DELETE') {
+      const response = await handleAdminV2AdvertisingFlyersDelete(path, env);
       return withCors(response, request, env);
     }
 
