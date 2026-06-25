@@ -105,6 +105,22 @@ const AdvertisingFlyers = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [updatingIds, setUpdatingIds] = useState<Set<number>>(new Set());
 
+  const [fetchKey, setFetchKey] = useState(0);
+
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [addStep, setAddStep] = useState<'input' | 'review'>('input');
+  const [addGoogleUrl, setAddGoogleUrl] = useState('');
+  const [isLookingUp, setIsLookingUp] = useState(false);
+  const [lookupError, setLookupError] = useState('');
+  const [addForm, setAddForm] = useState<{
+    name: string;
+    address: string;
+    types: string;
+    google_url: string;
+    photo_url: string | null;
+  } | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+
   const [notesModalOpen, setNotesModalOpen] = useState(false);
   const [notesRecord, setNotesRecord] = useState<FlyerLocation | null>(null);
   const [notesDraft, setNotesDraft] = useState('');
@@ -171,7 +187,7 @@ const AdvertisingFlyers = () => {
     return () => {
       cancelled = true;
     };
-  }, [page, search, filter]);
+  }, [page, search, filter, fetchKey]);
 
   const handleSearchInputChange = (value: string) => {
     setSearchInput(value);
@@ -229,6 +245,71 @@ const AdvertisingFlyers = () => {
         next.delete(id);
         return next;
       });
+    }
+  };
+
+  const openAddDialog = () => {
+    setAddGoogleUrl('');
+    setAddStep('input');
+    setLookupError('');
+    setAddForm(null);
+    setAddDialogOpen(true);
+  };
+
+  const handleLookup = async () => {
+    setIsLookingUp(true);
+    setLookupError('');
+    try {
+      const response = await fetch('/api/admin-v2/advertising-flyers/lookup', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ google_url: addGoogleUrl }),
+      });
+      const data = (await response.json()) as {
+        name?: string;
+        address?: string;
+        types?: string;
+        google_url?: string;
+        photo_url?: string | null;
+        message?: string;
+      };
+      if (!response.ok) throw new Error(data.message || 'Lookup failed.');
+      setAddForm({
+        name: data.name ?? '',
+        address: data.address ?? '',
+        types: data.types ?? '[]',
+        google_url: data.google_url ?? addGoogleUrl,
+        photo_url: data.photo_url ?? null,
+      });
+      setAddStep('review');
+    } catch (error) {
+      setLookupError(error instanceof Error ? error.message : 'Lookup failed.');
+    } finally {
+      setIsLookingUp(false);
+    }
+  };
+
+  const handleCreate = async () => {
+    if (!addForm) return;
+    setIsCreating(true);
+    try {
+      const response = await fetch('/api/admin-v2/advertising-flyers', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(addForm),
+      });
+      const data = (await response.json()) as { message?: string };
+      if (!response.ok) throw new Error(data.message || 'Failed to add location.');
+      setAddDialogOpen(false);
+      enqueueSnackbar('Location added.', { variant: 'success' });
+      setPage(1);
+      setFetchKey((k) => k + 1);
+    } catch (error) {
+      enqueueSnackbar(error instanceof Error ? error.message : 'Failed to add location.', { variant: 'error' });
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -498,7 +579,17 @@ const AdvertisingFlyers = () => {
           direction={{ xs: 'column', sm: 'row' }}
           sx={{ gap: 2, alignItems: { sm: 'center' }, justifyContent: 'space-between' }}
         >
-          <Typography variant="h4">Advertising Flyers</Typography>
+          <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+            <Typography variant="h4">Advertising Flyers</Typography>
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<IconifyIcon icon="material-symbols:add-rounded" />}
+              onClick={openAddDialog}
+            >
+              Add
+            </Button>
+          </Stack>
           {globalStats ? (
             <Stack direction="row" spacing={3} sx={{ flexWrap: 'wrap' }}>
               <Typography variant="body2" sx={{ color: 'text.secondary' }}>
@@ -625,6 +716,98 @@ const AdvertisingFlyers = () => {
           ) : null}
         </Stack>
       </Box>
+
+      <Dialog
+        open={addDialogOpen}
+        onClose={() => { if (!isLookingUp && !isCreating) setAddDialogOpen(false); }}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle sx={{ pb: 0.5 }}>
+          Add Location
+          <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 400, mt: 0.25 }}>
+            {addStep === 'input' ? 'Paste a Google Maps URL to look up the business.' : 'Review and confirm the details below.'}
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          {addStep === 'input' ? (
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              <TextField
+                fullWidth
+                label="Google Maps URL"
+                placeholder="https://www.google.com/maps/place/..."
+                value={addGoogleUrl}
+                onChange={(e) => { setAddGoogleUrl(e.target.value); setLookupError(''); }}
+                disabled={isLookingUp}
+                error={Boolean(lookupError)}
+                helperText={lookupError || ''}
+                autoFocus
+              />
+            </Stack>
+          ) : addForm ? (
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              {addForm.photo_url && (
+                <Avatar
+                  variant="rounded"
+                  src={addForm.photo_url}
+                  alt={addForm.name}
+                  sx={{ width: 80, height: 80, borderRadius: 2 }}
+                />
+              )}
+              <TextField
+                fullWidth
+                label="Business Name"
+                value={addForm.name}
+                onChange={(e) => setAddForm((f) => f ? { ...f, name: e.target.value } : f)}
+              />
+              <TextField
+                fullWidth
+                label="Address"
+                value={addForm.address}
+                onChange={(e) => setAddForm((f) => f ? { ...f, address: e.target.value } : f)}
+              />
+              <TextField
+                fullWidth
+                label="Types"
+                value={parseTypes(addForm.types)}
+                slotProps={{ input: { readOnly: true } }}
+                sx={{ '& .MuiInputBase-input': { color: 'text.secondary' } }}
+              />
+            </Stack>
+          ) : null}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button variant="outlined" color="inherit" onClick={() => setAddDialogOpen(false)} disabled={isLookingUp || isCreating}>
+            Cancel
+          </Button>
+          {addStep === 'review' && (
+            <Button variant="outlined" color="inherit" onClick={() => setAddStep('input')} disabled={isCreating}>
+              Back
+            </Button>
+          )}
+          {addStep === 'input' ? (
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={handleLookup}
+              disabled={!addGoogleUrl.trim() || isLookingUp}
+              startIcon={isLookingUp ? <CircularProgress size={16} color="inherit" /> : null}
+            >
+              {isLookingUp ? 'Looking up…' : 'Look Up'}
+            </Button>
+          ) : (
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={handleCreate}
+              disabled={!addForm?.name.trim() || !addForm?.address.trim() || isCreating}
+              startIcon={isCreating ? <CircularProgress size={16} color="inherit" /> : null}
+            >
+              {isCreating ? 'Adding…' : 'Add Location'}
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
 
       <Dialog
         open={notesModalOpen}

@@ -162,6 +162,8 @@ import {
 // Advertising Flyers
 import {
   handleAdminV2AdvertisingFlyersList,
+  handleAdminV2AdvertisingFlyersLookup,
+  handleAdminV2AdvertisingFlyersCreate,
   handleAdminV2AdvertisingFlyersUpdate,
 } from './admin/advertising-flyers.js';
 
@@ -952,6 +954,16 @@ export default {
 
     if (path === '/api/admin-v2/advertising-flyers' && request.method === 'GET') {
       const response = await handleAdminV2AdvertisingFlyersList(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/advertising-flyers' && request.method === 'POST') {
+      const response = await handleAdminV2AdvertisingFlyersCreate(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/advertising-flyers/lookup' && request.method === 'POST') {
+      const response = await handleAdminV2AdvertisingFlyersLookup(request, env);
       return withCors(response, request, env);
     }
 

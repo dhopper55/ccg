@@ -81,6 +81,122 @@ export async function handleAdminV2AdvertisingFlyersList(request: Request, env: 
   });
 }
 
+export async function handleAdminV2AdvertisingFlyersLookup(request: Request, env: Env): Promise<Response> {
+  let body: Record<string, unknown>;
+  try {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON body.' }, 400);
+  }
+
+  const googleUrl = typeof body.google_url === 'string' ? body.google_url.trim() : '';
+  if (!googleUrl) {
+    return jsonResponse({ message: 'google_url is required.' }, 400);
+  }
+
+  let placeName = '';
+  try {
+    const parsed = new URL(googleUrl);
+    const match = parsed.pathname.match(/\/maps\/place\/([^/]+)/);
+    if (match) {
+      placeName = decodeURIComponent(match[1].replace(/\+/g, ' '));
+    }
+  } catch {
+    return jsonResponse({ message: 'Invalid URL.' }, 400);
+  }
+
+  if (!placeName) {
+    return jsonResponse({ message: 'Could not extract place name from URL.' }, 400);
+  }
+
+  const apiKey = env.GOOGLE_MAPS_API_KEY;
+  if (!apiKey) {
+    return jsonResponse({ message: 'Google Places API key not configured.' }, 500);
+  }
+
+  const searchResponse = await fetch('https://places.googleapis.com/v1/places:searchText', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': apiKey,
+      'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.types,places.photos',
+    },
+    body: JSON.stringify({ textQuery: placeName, maxResultCount: 1 }),
+  });
+
+  if (!searchResponse.ok) {
+    const errText = await searchResponse.text();
+    return jsonResponse({ message: `Places API error: ${errText}` }, 502);
+  }
+
+  const searchData = (await searchResponse.json()) as {
+    places?: Array<{
+      displayName?: { text?: string };
+      formattedAddress?: string;
+      types?: string[];
+      photos?: Array<{ name: string }>;
+    }>;
+  };
+
+  if (!searchData.places?.length) {
+    return jsonResponse({ message: 'No places found for this URL.' }, 404);
+  }
+
+  const place = searchData.places[0];
+
+  let photoUrl: string | null = null;
+  if (place.photos?.length) {
+    try {
+      const photoResponse = await fetch(
+        `https://places.googleapis.com/v1/${place.photos[0].name}/media?maxWidthPx=600&skipHttpRedirect=true`,
+        { headers: { 'X-Goog-Api-Key': apiKey } },
+      );
+      if (photoResponse.ok) {
+        const photoData = (await photoResponse.json()) as { photoUri?: string };
+        photoUrl = photoData.photoUri ?? null;
+      }
+    } catch {
+      // photo is optional
+    }
+  }
+
+  return jsonResponse({
+    name: place.displayName?.text ?? placeName,
+    address: place.formattedAddress ?? '',
+    types: JSON.stringify(place.types ?? []),
+    google_url: googleUrl,
+    photo_url: photoUrl,
+  });
+}
+
+export async function handleAdminV2AdvertisingFlyersCreate(request: Request, env: Env): Promise<Response> {
+  let body: Record<string, unknown>;
+  try {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON body.' }, 400);
+  }
+
+  const name = typeof body.name === 'string' ? body.name.trim() : '';
+  const address = typeof body.address === 'string' ? body.address.trim() : '';
+  if (!name || !address) {
+    return jsonResponse({ message: 'name and address are required.' }, 400);
+  }
+
+  const types = typeof body.types === 'string' ? body.types : '[]';
+  const googleUrl = typeof body.google_url === 'string' ? body.google_url.trim() || null : null;
+  const photoUrl = typeof body.photo_url === 'string' ? body.photo_url.trim() || null : null;
+
+  const result = await env.DB.prepare(
+    `INSERT INTO south_broadway_locations (name, address, types, google_url, photo_url)
+     VALUES (?, ?, ?, ?, ?)`,
+  )
+    .bind(name, address, types, googleUrl, photoUrl)
+    .run();
+
+  return jsonResponse({ id: result.meta.last_row_id, ok: true }, 201);
+}
+
 export async function handleAdminV2AdvertisingFlyersUpdate(path: string, request: Request, env: Env): Promise<Response> {
   const idStr = path.split('/').filter(Boolean).pop() ?? '';
   const id = Number.parseInt(idStr, 10);
