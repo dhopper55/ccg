@@ -17,6 +17,7 @@ const routeDirs = [
   'mfr-orders',
   'payment-links',
   'shop-statistics',
+  'advertising-flyers',
   'system-settings',
   'listing-evaluator',
   'listing-evaluator-results',
