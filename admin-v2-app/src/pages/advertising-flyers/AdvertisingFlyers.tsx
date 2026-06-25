@@ -110,7 +110,7 @@ const AdvertisingFlyers = () => {
 
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [addStep, setAddStep] = useState<'input' | 'review'>('input');
-  const [addGoogleUrl, setAddGoogleUrl] = useState('');
+  const [addPlaceId, setAddPlaceId] = useState('');
   const [isLookingUp, setIsLookingUp] = useState(false);
   const [lookupError, setLookupError] = useState('');
   const [addForm, setAddForm] = useState<{
@@ -263,7 +263,7 @@ const AdvertisingFlyers = () => {
   };
 
   const openAddDialog = () => {
-    setAddGoogleUrl('');
+    setAddPlaceId('');
     setAddStep('input');
     setLookupError('');
     setAddForm(null);
@@ -278,7 +278,7 @@ const AdvertisingFlyers = () => {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ google_url: addGoogleUrl }),
+        body: JSON.stringify({ place_id: addPlaceId }),
       });
       const data = (await response.json()) as {
         name?: string;
@@ -835,7 +835,7 @@ const AdvertisingFlyers = () => {
         <DialogTitle sx={{ pb: 0.5 }}>
           Add Location
           <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 400, mt: 0.25 }}>
-            {addStep === 'input' ? 'Paste a Google Maps URL to look up the business.' : 'Review and confirm the details below.'}
+            {addStep === 'input' ? 'Paste a Google Place ID to look up the business.' : 'Review and confirm the details below.'}
           </Typography>
         </DialogTitle>
         <DialogContent>
@@ -843,13 +843,13 @@ const AdvertisingFlyers = () => {
             <Stack spacing={2} sx={{ mt: 1 }}>
               <TextField
                 fullWidth
-                label="Google Maps URL"
-                placeholder="https://www.google.com/maps/place/..."
-                value={addGoogleUrl}
-                onChange={(e) => { setAddGoogleUrl(e.target.value); setLookupError(''); }}
+                label="Google Place ID"
+                placeholder="ChIJ..."
+                value={addPlaceId}
+                onChange={(e) => { setAddPlaceId(e.target.value.trim()); setLookupError(''); }}
                 disabled={isLookingUp}
                 error={Boolean(lookupError)}
-                helperText={lookupError || ''}
+                helperText={lookupError || 'Right-click the pin on Google Maps → "Copy Place ID"'}
                 autoFocus
               />
             </Stack>
@@ -899,7 +899,7 @@ const AdvertisingFlyers = () => {
               variant="contained"
               color="primary"
               onClick={handleLookup}
-              disabled={!addGoogleUrl.trim() || isLookingUp}
+              disabled={!addPlaceId.trim() || isLookingUp}
               startIcon={isLookingUp ? <CircularProgress size={16} color="inherit" /> : null}
             >
               {isLookingUp ? 'Looking up…' : 'Look Up'}

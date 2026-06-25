@@ -90,24 +90,9 @@ export async function handleAdminV2AdvertisingFlyersLookup(request: Request, env
     return jsonResponse({ message: 'Invalid JSON body.' }, 400);
   }
 
-  const googleUrl = typeof body.google_url === 'string' ? body.google_url.trim() : '';
-  if (!googleUrl) {
-    return jsonResponse({ message: 'google_url is required.' }, 400);
-  }
-
-  let placeName = '';
-  try {
-    const parsed = new URL(googleUrl);
-    const match = parsed.pathname.match(/\/maps\/place\/([^/]+)/);
-    if (match) {
-      placeName = decodeURIComponent(match[1].replace(/\+/g, ' '));
-    }
-  } catch {
-    return jsonResponse({ message: 'Invalid URL.' }, 400);
-  }
-
-  if (!placeName) {
-    return jsonResponse({ message: 'Could not extract place name from URL.' }, 400);
+  const placeId = typeof body.place_id === 'string' ? body.place_id.trim() : '';
+  if (!placeId) {
+    return jsonResponse({ message: 'place_id is required.' }, 400);
   }
 
   const apiKey = env.GOOGLE_MAPS_API_KEY;
@@ -115,35 +100,31 @@ export async function handleAdminV2AdvertisingFlyersLookup(request: Request, env
     return jsonResponse({ message: 'Google Places API key not configured.' }, 500);
   }
 
-  const searchResponse = await fetch('https://places.googleapis.com/v1/places:searchText', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Goog-Api-Key': apiKey,
-      'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.types,places.photos',
+  const detailsResponse = await fetch(
+    `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`,
+    {
+      headers: {
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': 'displayName,formattedAddress,types,photos',
+      },
     },
-    body: JSON.stringify({ textQuery: placeName, maxResultCount: 1 }),
-  });
+  );
 
-  if (!searchResponse.ok) {
-    const errText = await searchResponse.text();
+  if (!detailsResponse.ok) {
+    const errText = await detailsResponse.text();
     return jsonResponse({ message: `Places API error: ${errText}` }, 502);
   }
 
-  const searchData = (await searchResponse.json()) as {
-    places?: Array<{
-      displayName?: { text?: string };
-      formattedAddress?: string;
-      types?: string[];
-      photos?: Array<{ name: string }>;
-    }>;
+  const place = (await detailsResponse.json()) as {
+    displayName?: { text?: string };
+    formattedAddress?: string;
+    types?: string[];
+    photos?: Array<{ name: string }>;
   };
 
-  if (!searchData.places?.length) {
-    return jsonResponse({ message: 'No places found for this URL.' }, 404);
+  if (!place.displayName?.text) {
+    return jsonResponse({ message: 'Place not found.' }, 404);
   }
-
-  const place = searchData.places[0];
 
   let photoUrl: string | null = null;
   if (place.photos?.length) {
@@ -162,10 +143,10 @@ export async function handleAdminV2AdvertisingFlyersLookup(request: Request, env
   }
 
   return jsonResponse({
-    name: place.displayName?.text ?? placeName,
+    name: place.displayName.text,
     address: place.formattedAddress ?? '',
     types: JSON.stringify(place.types ?? []),
-    google_url: googleUrl,
+    google_url: `https://www.google.com/maps/place/?q=place_id:${placeId}`,
     photo_url: photoUrl,
   });
 }
