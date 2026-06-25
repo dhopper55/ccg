@@ -90,7 +90,7 @@ const AdvertisingFlyers = () => {
   const [search, setSearch] = useState(() => searchParams.get('search') || '');
   const [filter, setFilter] = useState<FlyerFilter>(() => {
     const f = searchParams.get('filter');
-    return f === 'unevaluated' || f === 'evaluated' || f === 'flyer_placed' ? f : 'all';
+    return f === 'all' || f === 'evaluated' || f === 'flyer_placed' ? f : 'unevaluated';
   });
   const [page, setPage] = useState(() => {
     const p = Number.parseInt(searchParams.get('page') || '1', 10);
@@ -120,7 +120,7 @@ const AdvertisingFlyers = () => {
     const next = new URLSearchParams();
     if (page > 1) next.set('page', String(page));
     if (search) next.set('search', search);
-    if (filter !== 'all') next.set('filter', filter);
+    if (filter !== 'unevaluated') next.set('filter', filter);
     if (next.toString() !== searchParams.toString()) {
       setSearchParams(next, { replace: true });
     }
