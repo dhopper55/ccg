@@ -159,6 +159,12 @@ import {
   handleAdminV2MfrOrderFileDelete,
 } from './mfr-orders/handlers.js';
 
+// Advertising Flyers
+import {
+  handleAdminV2AdvertisingFlyersList,
+  handleAdminV2AdvertisingFlyersUpdate,
+} from './admin/advertising-flyers.js';
+
 // System
 import {
   handleAdminV2StripeConfig,
@@ -941,6 +947,17 @@ export default {
 
     if (path.startsWith('/api/inventory/') && request.method === 'GET') {
       const response = await handleInventoryGet(path, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/advertising-flyers' && request.method === 'GET') {
+      const response = await handleAdminV2AdvertisingFlyersList(request, env);
+      return withCors(response, request, env);
+    }
+
+    const advertisingFlyerUpdateMatch = path.match(/^\/api\/admin-v2\/advertising-flyers\/(\d+)$/);
+    if (advertisingFlyerUpdateMatch && request.method === 'PATCH') {
+      const response = await handleAdminV2AdvertisingFlyersUpdate(path, request, env);
       return withCors(response, request, env);
     }
 

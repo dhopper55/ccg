@@ -25,6 +25,7 @@ import SerialPatternText from 'pages/serial-pattern-text/SerialPatternText';
 import ValueReports from 'pages/value-reports/ValueReports';
 import ValueReportItem from 'pages/value-reports/ValueReportItem';
 import ShopStatistics from 'pages/shop-statistics/ShopStatistics';
+import AdvertisingFlyers from 'pages/advertising-flyers/AdvertisingFlyers';
 import SystemSettings from 'pages/system-settings/SystemSettings';
 import LoggedOut from 'pages/authentication/default/LoggedOut';
 import Logout from 'pages/authentication/default/Logout';
@@ -120,6 +121,10 @@ export const routes: RouteObject[] = [
           {
             path: paths.shopStatistics,
             element: <ShopStatistics />,
+          },
+          {
+            path: paths.advertisingFlyers,
+            element: <AdvertisingFlyers />,
           },
           {
             path: paths.systemSettings,

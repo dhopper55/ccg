@@ -39,6 +39,7 @@ const paths = {
   valueReportItem: '/value-report-item',
   valueReportItemWithId: (id: string | number) => `/value-report-item?id=${encodeURIComponent(String(id))}`,
   shopStatistics: '/shop-statistics',
+  advertisingFlyers: '/advertising-flyers',
   systemSettings: '/system-settings',
   inventoryItem: '/inventory-item',
   inventoryItemWithId: (id: string) => `/inventory-item?id=${encodeURIComponent(id)}`,

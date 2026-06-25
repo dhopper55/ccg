@@ -173,6 +173,14 @@ const sitemap: MenuItem[] = [
         active: true,
       },
       {
+        name: 'Advertising Flyers',
+        key: 'advertising_flyers',
+        path: paths.advertisingFlyers,
+        pathName: 'advertising-flyers',
+        icon: 'material-symbols:article-outline-rounded',
+        active: true,
+      },
+      {
         name: 'System Settings',
         key: 'system_settings',
         path: paths.systemSettings,
