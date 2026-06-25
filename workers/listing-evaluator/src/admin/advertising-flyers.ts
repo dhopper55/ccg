@@ -90,10 +90,17 @@ export async function handleAdminV2AdvertisingFlyersLookup(request: Request, env
     return jsonResponse({ message: 'Invalid JSON body.' }, 400);
   }
 
-  const placeId = typeof body.place_id === 'string' ? body.place_id.trim() : '';
-  if (!placeId) {
-    return jsonResponse({ message: 'place_id is required.' }, 400);
+  const googleUrl = typeof body.google_url === 'string' ? body.google_url.trim() : '';
+  if (!googleUrl) {
+    return jsonResponse({ message: 'google_url is required.' }, 400);
   }
+
+  // Extract the /g/ feature ID from !16s%2Fg%2F{id} or !16s/g/{id} in the URL
+  const featureMatch = googleUrl.match(/!16s(?:%2Fg%2F|\/g\/)([a-zA-Z0-9_]+)/i);
+  if (!featureMatch) {
+    return jsonResponse({ message: 'Could not extract place identifier from URL. Make sure to copy the full Google Maps URL for a specific business.' }, 400);
+  }
+  const placeId = encodeURIComponent(`/g/${featureMatch[1]}`);
 
   const apiKey = env.GOOGLE_MAPS_API_KEY;
   if (!apiKey) {
@@ -101,7 +108,7 @@ export async function handleAdminV2AdvertisingFlyersLookup(request: Request, env
   }
 
   const detailsResponse = await fetch(
-    `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`,
+    `https://places.googleapis.com/v1/places/${placeId}`,
     {
       headers: {
         'X-Goog-Api-Key': apiKey,
@@ -146,7 +153,7 @@ export async function handleAdminV2AdvertisingFlyersLookup(request: Request, env
     name: place.displayName.text,
     address: place.formattedAddress ?? '',
     types: JSON.stringify(place.types ?? []),
-    google_url: `https://www.google.com/maps/place/?q=place_id:${placeId}`,
+    google_url: googleUrl,
     photo_url: photoUrl,
   });
 }
