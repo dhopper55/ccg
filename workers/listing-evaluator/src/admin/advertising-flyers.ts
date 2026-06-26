@@ -111,20 +111,27 @@ export async function handleAdminV2AdvertisingFlyersLookup(request: Request, env
     return jsonResponse({ message: 'Could not extract business name from URL.' }, 400);
   }
 
-  // Extract lat/lng from @{lat},{lng} in the URL
+  // Extract lat/lng from @{lat},{lng} in the URL — optional, used to bias the search
   const coordMatch = googleUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-  if (!coordMatch) {
-    return jsonResponse({ message: 'Could not extract location coordinates from URL. Open the business page on Google Maps and copy the full URL.' }, 400);
-  }
-  const latitude = parseFloat(coordMatch[1]);
-  const longitude = parseFloat(coordMatch[2]);
+  const latitude = coordMatch ? parseFloat(coordMatch[1]) : null;
+  const longitude = coordMatch ? parseFloat(coordMatch[2]) : null;
 
   const apiKey = env.GOOGLE_MAPS_API_KEY;
   if (!apiKey) {
     return jsonResponse({ message: 'Google Places API key not configured.' }, 500);
   }
 
-  // Text search biased to a 100m radius around the exact coordinates — reliable match
+  const searchBody: Record<string, unknown> = {
+    textQuery: placeName,
+    maxResultCount: 1,
+  };
+  if (latitude !== null && longitude !== null) {
+    searchBody.locationBias = {
+      circle: { center: { latitude, longitude }, radius: 100.0 },
+    };
+  }
+
+  // Text search — biased to exact coordinates when available, name-only otherwise
   const searchResponse = await fetch('https://places.googleapis.com/v1/places:searchText', {
     method: 'POST',
     headers: {
@@ -132,16 +139,7 @@ export async function handleAdminV2AdvertisingFlyersLookup(request: Request, env
       'X-Goog-Api-Key': apiKey,
       'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.types,places.photos',
     },
-    body: JSON.stringify({
-      textQuery: placeName,
-      locationBias: {
-        circle: {
-          center: { latitude, longitude },
-          radius: 100.0,
-        },
-      },
-      maxResultCount: 1,
-    }),
+    body: JSON.stringify(searchBody),
   });
 
   if (!searchResponse.ok) {
