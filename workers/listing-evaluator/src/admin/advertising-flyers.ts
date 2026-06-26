@@ -40,6 +40,8 @@ export async function handleAdminV2AdvertisingFlyersList(request: Request, env: 
 
   if (filter === 'unevaluated') {
     whereClauses.push('evaluated = 0');
+  } else if (filter === 'to_visit') {
+    whereClauses.push('to_visit = 1');
   } else if (filter === 'evaluated') {
     whereClauses.push('evaluated = 1');
   } else if (filter === 'flyer_placed') {

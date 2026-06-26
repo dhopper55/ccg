@@ -30,7 +30,7 @@ import {
 import { useBreakpoints } from 'providers/BreakpointsProvider';
 import IconifyIcon from 'components/base/IconifyIcon';
 
-type FlyerFilter = 'all' | 'unevaluated' | 'evaluated' | 'flyer_placed';
+type FlyerFilter = 'all' | 'unevaluated' | 'evaluated' | 'flyer_placed' | 'to_visit';
 
 type FlyerLocation = {
   id: number;
@@ -67,6 +67,7 @@ const PAGE_SIZE = 100;
 const FILTER_OPTIONS: { value: FlyerFilter; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'unevaluated', label: 'Not Evaluated' },
+  { value: 'to_visit', label: 'To Visit' },
   { value: 'evaluated', label: 'Evaluated' },
   { value: 'flyer_placed', label: 'Flyer Placed' },
 ];
