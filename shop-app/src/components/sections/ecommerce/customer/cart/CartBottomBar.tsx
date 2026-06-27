@@ -19,6 +19,7 @@ import { useBreakpoints } from 'providers/BreakpointsProvider';
 import { useEcommerce } from 'providers/EcommerceProvider';
 
 const cashOrderNumberStorageKey = 'ccg-last-cash-order-number';
+const terminalCustomerStorageKey = 'ccg-terminal-customer';
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type CashCustomerForm = {
@@ -109,7 +110,13 @@ const CartBottomBar = () => {
   const [terminalCustomerOpen, setTerminalCustomerOpen] = useState(false);
   const [cashCustomer, setCashCustomer] = useState<CashCustomerForm>(defaultCashCustomerForm);
   const [cashCustomerErrors, setCashCustomerErrors] = useState<CashCustomerFormErrors>({});
-  const [terminalCustomer, setTerminalCustomer] = useState<CashCustomerForm>(defaultCashCustomerForm);
+  const [terminalCustomer, setTerminalCustomer] = useState<CashCustomerForm>(() => {
+    try {
+      const stored = window.sessionStorage.getItem(terminalCustomerStorageKey);
+      if (stored) return JSON.parse(stored) as CashCustomerForm;
+    } catch {}
+    return defaultCashCustomerForm;
+  });
   const [terminalCustomerErrors, setTerminalCustomerErrors] = useState<CashCustomerFormErrors>({});
   const [terminalCancelUnlocked, setTerminalCancelUnlocked] = useState(false);
   const terminalPollCancelledRef = useRef(false);
@@ -304,6 +311,8 @@ const CartBottomBar = () => {
       enqueueSnackbar(error instanceof Error ? error.message : 'Unable to cancel terminal payment.', {
         variant: 'error',
       });
+      terminalPollCancelledRef.current = false;
+      setTerminalPayment((current) => ({ ...current, status: 'waiting' }));
     } finally {
       setIsCancelingTerminalPayment(false);
     }
@@ -328,6 +337,7 @@ const CartBottomBar = () => {
           throw new Error(data.message || 'Unable to check terminal payment.');
         }
         if (data.status === 'succeeded') {
+          try { window.sessionStorage.removeItem(terminalCustomerStorageKey); } catch {}
           window.location.assign(data.successUrl || terminalPayment.successUrl);
           return;
         }
@@ -369,6 +379,17 @@ const CartBottomBar = () => {
     const timer = window.setTimeout(() => setTerminalCancelUnlocked(true), 30_000);
     return () => window.clearTimeout(timer);
   }, [terminalPayment.open, terminalPayment.status]);
+
+  useEffect(() => {
+    try {
+      const { firstName, lastName, email } = terminalCustomer;
+      if (!firstName && !lastName && !email) {
+        window.sessionStorage.removeItem(terminalCustomerStorageKey);
+      } else {
+        window.sessionStorage.setItem(terminalCustomerStorageKey, JSON.stringify(terminalCustomer));
+      }
+    } catch {}
+  }, [terminalCustomer]);
 
   const handleCashCheckout = async () => {
     if (selectedCartItems.length === 0 || isCashCheckingOut) return;
@@ -666,8 +687,12 @@ const CartBottomBar = () => {
           variant="contained"
           onClick={() => {
             setPaymentRouteOpen(false);
-            setTerminalCustomerErrors({});
-            setTerminalCustomerOpen(true);
+            if (Object.keys(validateCashCustomerForm(terminalCustomer)).length === 0) {
+              void handleTerminalCheckout(terminalCustomer);
+            } else {
+              setTerminalCustomerErrors({});
+              setTerminalCustomerOpen(true);
+            }
           }}
           loading={isCheckingOut}
         >

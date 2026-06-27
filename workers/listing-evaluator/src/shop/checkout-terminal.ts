@@ -289,14 +289,20 @@ export async function handleShopTerminalPaymentCancel(orderId: string, request: 
     return jsonResponse({ message: 'Stripe Terminal is not configured.' }, 503);
   }
 
-  const readerResult = await resolveStripeTerminalReader({
-    stripeSecretKey: stripeConfig.secretKey,
-    requestedReaderId: '',
-    useSandbox: stripeConfig.useSandbox,
-    env,
-  });
-  if (readerResult.ok) {
-    await cancelStripeTerminalReaderAction(stripeConfig.secretKey, readerResult.reader.id);
+  let readerId = '';
+  try {
+    const readerResult = await resolveStripeTerminalReader({
+      stripeSecretKey: stripeConfig.secretKey,
+      requestedReaderId: '',
+      useSandbox: stripeConfig.useSandbox,
+      env,
+    });
+    if (readerResult.ok) {
+      readerId = readerResult.reader.id;
+      await cancelStripeTerminalReaderAction(stripeConfig.secretKey, readerResult.reader.id);
+    }
+  } catch (error) {
+    console.warn('Terminal reader cancel failed; proceeding with order cancel', { orderId, error });
   }
 
   const paymentIntentId = normalizeText(order.stripe_payment_intent_id, '');
@@ -310,7 +316,7 @@ export async function handleShopTerminalPaymentCancel(orderId: string, request: 
     fromStatus: currentStatus || null,
     toStatus: 'cancelled',
     source: 'associate_checkout',
-    sourceId: readerResult.ok ? readerResult.reader.id : '',
+    sourceId: readerId,
     message: 'Stripe Terminal payment cancelled from cart.',
     payloadJson: JSON.stringify({ paymentIntentId }),
   }, env);

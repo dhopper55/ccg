@@ -70,8 +70,7 @@ const isWebPrntBrowser = () =>
   typeof window !== 'undefined' &&
   (
     Boolean(window.webkit?.messageHandlers?.sendMessageHandler) ||
-    window.localStorage.getItem(printerUrlStorageKey) === defaultStarEndpoints[0] ||
-    window.localStorage.getItem(printerUrlStorageKey) === defaultStarEndpoints[1] ||
+    Boolean(window.localStorage.getItem(printerUrlStorageKey)) ||
     Boolean(window.__STAR_WEBPRNT_URL__)
   );
 
@@ -323,14 +322,16 @@ const CheckoutSuccess = () => {
     receiptAttemptedRef.current = true;
     const printReceipt = async () => {
       try {
-        const shouldKickCashDrawer =
-          receiptRecord.checkoutProvider === 'cash' ||
-          Math.max(0, Number(receiptRecord.cashAmountCents || 0)) > 0;
-        const templateCode = receiptRecord.checkoutProvider === 'cash'
+        const preferredCode = receiptRecord.checkoutProvider === 'cash'
           ? 'base_cash_receipt'
           : 'base_credit_receipt';
-        const template = await fetchReceiptTemplate(templateCode);
-        await sendToWebPrnt(await buildReceiptRequest(renderReceiptTemplate(template, receiptRecord), shouldKickCashDrawer));
+        let template: string;
+        try {
+          template = await fetchReceiptTemplate(preferredCode);
+        } catch {
+          template = await fetchReceiptTemplate('base_cash_receipt');
+        }
+        await sendToWebPrnt(await buildReceiptRequest(renderReceiptTemplate(template, receiptRecord), true));
       } catch {
         // Receipt printing and cash drawer commands are best-effort on the success screen.
       }
