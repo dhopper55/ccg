@@ -22,7 +22,7 @@ import Grid from '@mui/material/Grid';
 import QRCode from 'qrcode';
 import type { PDFDocument as PdfLibDocument, PDFForm, PDFFont } from 'pdf-lib';
 import liberationSansBoldUrl from 'pdfjs-dist/standard_fonts/LiberationSans-Bold.ttf?url';
-import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
+import PdfjsWorker from 'pdfjs-dist/build/pdf.worker.mjs?worker';
 import IconifyIcon from 'components/base/IconifyIcon';
 import paths from 'routes/paths';
 
@@ -177,7 +177,7 @@ function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
 
 async function renderPdfBytesToPng(pdfBytes: Uint8Array): Promise<Blob> {
   const pdfjs = await import('pdfjs-dist');
-  pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
+  pdfjs.GlobalWorkerOptions.workerPort = new PdfjsWorker();
   const pdf = await pdfjs.getDocument({ data: pdfBytes }).promise;
   const page = await pdf.getPage(1);
   const viewport = page.getViewport({ scale: 8 });
