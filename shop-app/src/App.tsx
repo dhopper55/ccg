@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Outlet, useNavigate } from 'react-router';
+import { Outlet, useLocation, useNavigate } from 'react-router';
 import { Box } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import GoogleAnalytics from 'components/common/GoogleAnalytics';
@@ -11,8 +11,8 @@ import { slugifyCategory } from 'lib/utils';
 import paths from 'routes/paths';
 
 const BARCODE_MIN_LENGTH = 8;
-const BARCODE_MAX_INTER_KEY_MS = 65;
-const BARCODE_QUIET_MS = 140;
+const BARCODE_MAX_INTER_KEY_MS = 100;
+const BARCODE_QUIET_MS = 200;
 const CCG_LOGO_URL = 'https://www.coalcreekguitars.com/images/coal-creek-logo.png';
 
 type BarcodeSearchProduct = {
@@ -27,8 +27,10 @@ type BarcodeSearchResponse = {
 
 const ShopBarcodeScanner = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { enqueueSnackbar } = useSnackbar();
   const { isAssociateMode, isCheckingAssociateMode, customProductBarcode } = useAssociateMode();
+  const inputRef = useRef<HTMLInputElement>(null);
   const scanBufferRef = useRef('');
   const scanStartedAtRef = useRef(0);
   const lastKeyAtRef = useRef(0);
@@ -101,65 +103,99 @@ const ShopBarcodeScanner = () => {
     resetScan,
   ]);
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.ctrlKey || event.metaKey || event.altKey) {
-        resetScan();
-        return;
-      }
-
-      if (event.key === 'Enter') {
-        const configuredCustomBarcode = customProductBarcode.trim();
-        if (
-          scanBufferRef.current.length >= BARCODE_MIN_LENGTH ||
-          (configuredCustomBarcode && scanBufferRef.current === configuredCustomBarcode)
-        ) {
-          event.preventDefault();
-          void submitScan();
-        } else {
-          resetScan();
-        }
-        return;
-      }
-
-      if (event.key.length !== 1) return;
-
-      const now = performance.now();
-      if (!scanBufferRef.current || now - lastKeyAtRef.current > BARCODE_MAX_INTER_KEY_MS) {
-        scanBufferRef.current = event.key;
-        scanStartedAtRef.current = now;
-      } else {
-        scanBufferRef.current += event.key;
-        if (scanBufferRef.current.length >= 3) {
-          event.preventDefault();
-        }
-      }
-      lastKeyAtRef.current = now;
-
-      if (quietTimerRef.current !== null) {
-        window.clearTimeout(quietTimerRef.current);
-      }
-      quietTimerRef.current = window.setTimeout(() => {
-        const configuredCustomBarcode = customProductBarcode.trim();
-        if (
-          scanBufferRef.current.length >= BARCODE_MIN_LENGTH ||
-          (configuredCustomBarcode && scanBufferRef.current === configuredCustomBarcode)
-        ) {
-          void submitScan();
-        } else {
-          resetScan();
-        }
-      }, BARCODE_QUIET_MS);
-    };
-
-    window.addEventListener('keydown', handleKeyDown, { capture: true });
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown, { capture: true });
+  const handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.ctrlKey || event.metaKey || event.altKey) {
       resetScan();
-    };
+      return;
+    }
+
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      const configuredCustomBarcode = customProductBarcode.trim();
+      if (
+        scanBufferRef.current.length >= BARCODE_MIN_LENGTH ||
+        (configuredCustomBarcode && scanBufferRef.current === configuredCustomBarcode)
+      ) {
+        void submitScan();
+      } else {
+        resetScan();
+      }
+      return;
+    }
+
+    if (event.key.length !== 1) return;
+
+    const now = performance.now();
+    if (!scanBufferRef.current || now - lastKeyAtRef.current > BARCODE_MAX_INTER_KEY_MS) {
+      scanBufferRef.current = event.key;
+      scanStartedAtRef.current = now;
+    } else {
+      scanBufferRef.current += event.key;
+    }
+    lastKeyAtRef.current = now;
+
+    if (quietTimerRef.current !== null) {
+      window.clearTimeout(quietTimerRef.current);
+    }
+    quietTimerRef.current = window.setTimeout(() => {
+      const configuredCustomBarcode = customProductBarcode.trim();
+      if (
+        scanBufferRef.current.length >= BARCODE_MIN_LENGTH ||
+        (configuredCustomBarcode && scanBufferRef.current === configuredCustomBarcode)
+      ) {
+        void submitScan();
+      } else {
+        resetScan();
+      }
+    }, BARCODE_QUIET_MS);
   }, [customProductBarcode, resetScan, submitScan]);
 
-  return null;
+  const refocusScanInput = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    const active = document.activeElement;
+    const tag = (active?.tagName ?? '').toLowerCase();
+    if (['input', 'textarea', 'select'].includes(tag)) return;
+    if ((active as HTMLElement | null)?.isContentEditable) return;
+    if (document.querySelector('[role="dialog"]')) return;
+    el.focus();
+  }, []);
+
+  // Focus the scan input on mount and after every navigation
+  useEffect(() => {
+    refocusScanInput();
+  }, [location.pathname, refocusScanInput]);
+
+  // Re-focus after any click that doesn't land on an interactive element or open dialog
+  useEffect(() => {
+    document.addEventListener('click', refocusScanInput);
+    return () => {
+      document.removeEventListener('click', refocusScanInput);
+      resetScan();
+    };
+  }, [refocusScanInput, resetScan]);
+
+  return (
+    <input
+      ref={inputRef}
+      readOnly
+      onKeyDown={handleKeyDown}
+      aria-hidden="true"
+      tabIndex={-1}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: 1,
+        height: 1,
+        opacity: 0,
+        pointerEvents: 'none',
+        padding: 0,
+        border: 0,
+        outline: 'none',
+      }}
+    />
+  );
 };
 
 const AssociateScreensaver = () => {

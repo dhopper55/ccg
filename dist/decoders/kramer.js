@@ -8,9 +8,11 @@
  * - V-prefix (vintage/import plates, mid-to-late 1980s)
  * - SB-prefix (mid-to-late 1980s Striker import, Samick Korea or Japan)
  * - S-prefix variants: SA, SE, SD, SP, SF, SC, SJ, SI (various import eras)
+ * - Short S-prefix 1-4 digits (vintage Striker sequential, no year encoding)
  * - JK-prefix (Gibson/Epiphone-era Indonesian factory, YYMM format, late 1990s–2000s)
+ * - U-prefix (Unsung Korea factory, Gibson/MusicYo era, YYMM format)
  * - Plain 4-digit numeric (unverified era; import or USA with possible worn/missing prefix)
- * - Modern Gibson/MusicYo-era numeric formats (9- and 11-digit)
+ * - Modern Gibson/MusicYo-era numeric formats (8-, 9-, and 11-digit YYMM)
  */
 export function decodeKramer(serial) {
     const cleaned = serial.trim().toUpperCase();
@@ -145,6 +147,19 @@ export function decodeKramer(serial) {
     // Must come before generic ^[A-Z]{2}\d+ handler which returns a vague result
     if (/^KB\d{4,8}$/.test(normalized)) {
         return decodeKBModernImport(normalized, cleaned);
+    }
+    // Short S-prefix import/Striker serials (1-4 digits): S + short sequence, no year encoding.
+    // Covers short plates from the 1980s Striker/Samick era (e.g. S356, S0356).
+    // Must come after all two-letter S+letter handlers (SA, SB, SC, SD, SE, SF, SI, SJ, SP)
+    // which are already dispatched above.
+    if (/^S\d{1,4}$/.test(normalized)) {
+        return decodeShortSPlateSerial(normalized, cleaned);
+    }
+    // Unsung Korea factory / Gibson-era YYMM format: U + YYMM + sequence
+    // e.g. U04020181 = Unsung Korea, 2004, February, seq 0181
+    // Must come before the generic two-letter handler and after USA U-prefix handlers above.
+    if (/^U\d{7,9}$/.test(normalized)) {
+        return decodeUnsungKoreaU(normalized, cleaned);
     }
     // Two-letter overseas prefixes (e.g., FA, FB, CF)
     if (/^[A-Z]{2}\d+$/.test(normalized)) {
@@ -292,14 +307,27 @@ export function decodeKramer(serial) {
         }
         const yearPrefix = normalized.substring(0, 2);
         const yearValue = parseInt(yearPrefix, 10);
-        if (!Number.isNaN(yearValue) && yearValue <= 24) {
+        // Accept year digits 00-35 as modern production year codes (covers up to 2035).
+        // Values in the 36-89 range are ambiguous (could be 1980s-era) and fall to the generic note.
+        if (!Number.isNaN(yearValue) && (yearValue <= 35 || yearValue >= 90)) {
+            const fullYear = yearValue >= 90 ? 1900 + yearValue : 2000 + yearValue;
+            const monthDigits = normalized.substring(2, 4);
+            const monthNum = parseInt(monthDigits, 10);
+            const monthName = (monthNum >= 1 && monthNum <= 12) ? getMonthName(monthNum) : undefined;
+            const sequence = normalized.substring(monthName ? 4 : 2);
             const info = {
                 brand: 'Kramer',
                 serialNumber: cleaned,
-                year: `20${yearPrefix}`,
-                notes: 'Numeric serials with a two-digit year prefix often indicate Musicyo-era reissues (early 2000s). Confirm with model features and hardware details.',
+                year: fullYear.toString(),
+                ...(monthName ? { month: monthName } : {}),
+                notes: `Numeric Kramer serial. Year decoded from first two digits: ${fullYear}${monthName ? `, month: ${monthName}` : ''}. Sequence: ${parseInt(sequence, 10)}. Confirm with model features and hardware details.`,
             };
-            return { success: true, info };
+            return {
+                success: true,
+                info,
+                patternKey: 'kramer-modern-numeric-yymm-sequence',
+                patternLabel: 'Kramer modern numeric YYMM sequence',
+            };
         }
         const info = {
             brand: 'Kramer',
@@ -982,6 +1010,86 @@ function decodeKBModernImport(normalized, cleaned) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This KB-prefix serial identifies a Kramer built under Gibson ownership during the 2000s–2010s import era. KB-prefix instruments were produced in Korea or Indonesia as budget and mid-range offerings.</p><h3>Production Context</h3><p>Gibson re-acquired and relaunched the Kramer brand around 2009–2010, producing a range of import instruments alongside USA Custom Shop models. KB-prefix serials are associated with the Korean/Indonesian import side of that lineup.</p><h3>What's Encoded</h3><p>This format is a plain sequential prefix — no year or factory is directly encoded. Check the headstock logo, hardware details, and neck plate against known Gibson-era Kramer catalog images to identify the specific model and approximate year.</p><h3>Coal Creek Guitars Note</h3><p>Production sequence: ${parseInt(sequence, 10).toLocaleString()}.</p>`,
+    };
+}
+function decodeShortSPlateSerial(normalized, cleaned) {
+    const sequence = normalized.substring(1);
+    const sequenceNumber = parseInt(sequence, 10);
+    return {
+        success: true,
+        info: {
+            brand: 'Kramer',
+            serialNumber: cleaned,
+            year: '1980s (estimated)',
+            country: 'South Korea or Japan',
+            model: 'Striker Series or related import line',
+            notes: `Short S-prefix Kramer serial. The "S" prefix is associated with the Striker import series and overseas Samick/Korean-era production. Short S serials (1–4 digits after the prefix) do not encode a production year; they are treated as sequential plate numbers. Sequence: ${sequenceNumber}. Because Kramer's factory records from this era are largely incomplete, exact dating requires physical inspection — headstock shape, neck-plate dimensions, tremolo type, and country-of-origin markings.`,
+        },
+        patternKey: 'kramer-short-s-striker-import-sequential',
+        patternLabel: 'Kramer short S-prefix Striker import sequential',
+        additionalContext: {
+            title: 'Kramer short S-prefix serial',
+            summary: 'Short S-prefix Kramer serials (1–4 digits) are associated with the Striker import series. These are sequential plate numbers without encoded production dates.',
+            highlights: [
+                '"S" prefix identifies the Striker import line or Samick/Korean-era Kramer production.',
+                `Plate sequence: ${sequenceNumber}.`,
+                'These short serials do not encode a production year — era is estimated as 1980s.',
+            ],
+            caveats: [
+                'Kramer factory records from this era are largely incomplete.',
+                'Exact year and factory cannot be confirmed from the serial alone.',
+            ],
+            verificationTips: [
+                'Check the headstock shape (beak/pointy) and neck-plate details.',
+                'Look for Made in Korea or Made in Japan markings.',
+                'Compare hardware and pickup configuration against known Striker series specs.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>Short S-prefix Kramer serials (1–4 digits) are associated with the Striker import series and Samick/Korean-era production. These are sequential plate numbers without encoded production dates.</p><h3>How This Pattern Is Typically Read</h3><p>"S" identifies the Striker import line or Samick/Korean-era Kramer production. Plate sequence: ${sequenceNumber}. These short serials do not encode a production year — era is estimated as 1980s.</p><h3>What To Verify</h3><ul><li>Kramer factory records from this era are largely incomplete — exact year requires physical evidence.</li><li>Check the headstock shape, neck-plate dimensions, and tremolo type to identify the Striker model.</li><li>Look for Made in Korea or Made in Japan markings in the neck pocket or on the neck plate.</li></ul>`,
+    };
+}
+function decodeUnsungKoreaU(normalized, cleaned) {
+    const digits = normalized.substring(1);
+    const yearDigits = digits.substring(0, 2);
+    const monthDigits = digits.substring(2, 4);
+    const sequence = digits.substring(4);
+    const yearNum = parseInt(yearDigits, 10);
+    const monthNum = parseInt(monthDigits, 10);
+    const year = (2000 + yearNum).toString();
+    const monthName = (monthNum >= 1 && monthNum <= 12) ? getMonthName(monthNum) : undefined;
+    const sequenceNumber = parseInt(sequence, 10);
+    return {
+        success: true,
+        info: {
+            brand: 'Kramer',
+            serialNumber: cleaned,
+            year,
+            ...(monthName ? { month: monthName } : {}),
+            factory: 'Unsung Co., South Korea',
+            country: 'South Korea',
+            notes: `U-prefix Kramer serial. "U" identifies the Unsung factory in South Korea, which produced Kramer instruments under Gibson/MusicYo-era ownership (late 1990s–2000s). Parsed as U + YYMM + sequence. Year: ${year}${monthName ? `, month: ${monthName}` : ''}. Sequence: ${sequenceNumber}. These are import models — not USA Custom Shop guitars.`,
+        },
+        patternKey: 'kramer-u-unsung-korea-gibson-era-yymm-sequence',
+        patternLabel: 'Kramer Unsung Korea U-prefix YYMM sequence (Gibson era)',
+        additionalContext: {
+            title: 'Kramer Unsung Korea serial',
+            summary: 'U-prefix Kramer serials are associated with the Unsung factory in South Korea, which produced Kramer instruments during the Gibson/MusicYo era (late 1990s–2000s).',
+            highlights: [
+                '"U" identifies the Unsung Co. factory in South Korea.',
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                ...(monthName ? [`The digits ${monthDigits} decode as ${monthName}.`] : []),
+                `Production sequence: ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'These are Gibson/MusicYo-era import models, not USA Custom Shop guitars.',
+                'Confirm the specific model from headstock markings and hardware details.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for "Made in Korea" markings.',
+                'Compare the model and hardware against Gibson-era Kramer catalog offerings for the decoded year.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>U-prefix Kramer serials are associated with the Unsung factory in South Korea, which produced Kramer instruments during the Gibson/MusicYo ownership era (late 1990s–2000s).</p><h3>How This Pattern Is Typically Read</h3><p>"U" identifies the Unsung Co. factory in South Korea. The digits ${yearDigits} decode as production year ${year}.${monthName ? ` The digits ${monthDigits} decode as ${monthName}.` : ''} Production sequence: ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for "Made in Korea" markings.</li><li>These are Gibson/MusicYo-era import instruments — not USA Custom Shop guitars.</li><li>Compare against Gibson-era Kramer catalog specs for ${year}.</li></ul>`,
     };
 }
 function getMonthName(monthValue) {

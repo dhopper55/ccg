@@ -1,29 +1,29 @@
-import { decodeGibson } from './decoders/gibson.js?version=805837';
-import { decodeEpiphone } from './decoders/epiphone.js?version=182091';
-import { decodeFender } from './decoders/fender.js?version=950347';
-import { decodeTaylor } from './decoders/taylor.js?version=143238';
-import { decodeMartin } from './decoders/martin.js?version=695834';
-import { decodeIbanez } from './decoders/ibanez.js?version=316960';
-import { decodeYamaha } from './decoders/yamaha.js?version=404457';
-import { decodePRS } from './decoders/prs.js?version=185839';
-import { decodeESP } from './decoders/esp.js?version=414051';
-import { decodeSchecter } from './decoders/schecter.js?version=064491';
-import { decodeGretsch } from './decoders/gretsch.js?version=916316';
-import { decodeJackson } from './decoders/jackson.js?version=376890';
-import { decodeSquier } from './decoders/squier.js?version=614467';
-import { decodeCort } from './decoders/cort.js?version=032505';
-import { decodeTakamine } from './decoders/takamine.js?version=714117';
-import { decodeWashburn } from './decoders/washburn.js?version=344190';
-import { decodeDean } from './decoders/dean.js?version=609326';
-import { decodeErnieBall } from './decoders/ernieball.js?version=375548';
-import { decodeGuild } from './decoders/guild.js?version=242409';
-import { decodeAlvarez } from './decoders/alvarez.js?version=379581';
-import { decodeGodin } from './decoders/godin.js?version=605103';
-import { decodeOvation } from './decoders/ovation.js?version=718807';
-import { decodeCharvel } from './decoders/charvel.js?version=788939';
-import { decodeRickenbacker } from './decoders/rickenbacker.js?version=961802';
-import { decodeKramer } from './decoders/kramer.js?version=244401';
-import { decodeBCRich } from './decoders/bcrich.js?version=497472';
+import { decodeGibson } from './decoders/gibson.js';
+import { decodeEpiphone } from './decoders/epiphone.js';
+import { decodeFender } from './decoders/fender.js';
+import { decodeTaylor } from './decoders/taylor.js';
+import { decodeMartin } from './decoders/martin.js';
+import { decodeIbanez } from './decoders/ibanez.js';
+import { decodeYamaha } from './decoders/yamaha.js';
+import { decodePRS } from './decoders/prs.js';
+import { decodeESP } from './decoders/esp.js';
+import { decodeSchecter } from './decoders/schecter.js';
+import { decodeGretsch } from './decoders/gretsch.js';
+import { decodeJackson } from './decoders/jackson.js';
+import { decodeSquier } from './decoders/squier.js';
+import { decodeCort } from './decoders/cort.js';
+import { decodeTakamine } from './decoders/takamine.js';
+import { decodeWashburn } from './decoders/washburn.js';
+import { decodeDean } from './decoders/dean.js';
+import { decodeErnieBall } from './decoders/ernieball.js';
+import { decodeGuild } from './decoders/guild.js';
+import { decodeAlvarez } from './decoders/alvarez.js';
+import { decodeGodin } from './decoders/godin.js';
+import { decodeOvation } from './decoders/ovation.js';
+import { decodeCharvel } from './decoders/charvel.js';
+import { decodeRickenbacker } from './decoders/rickenbacker.js';
+import { decodeKramer } from './decoders/kramer.js';
+import { decodeBCRich } from './decoders/bcrich.js';
 const DECODER_MAP = {
     gibson: decodeGibson,
     epiphone: decodeEpiphone,
@@ -213,8 +213,28 @@ function buildRetrySerials(serial, normalizedBrand) {
         if (/^1[WCRI]\d{7,9}$/.test(alnumUpper)) {
             addCandidate(`I${alnumUpper.slice(1)}`);
         }
+        // Common OCR/stamp misread on ESP LTD IW serials: 'I' (letter) at position 3 instead of '1' (digit).
+        // e.g. IWI4071639 → IW14071639 (P.T. Wildwood Indonesia, year 2014)
+        if (/^IWI\d{7}$/.test(alnumUpper)) {
+            addCandidate(`IW1${alnumUpper.slice(3)}`);
+        }
         const lastPartAlnumUpper = lastSpaceSeparatedPart.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
         if (/^1[WCRI]\d{7,9}$/.test(lastPartAlnumUpper)) {
+            addCandidate(`I${lastPartAlnumUpper.slice(1)}`);
+        }
+        if (/^IWI\d{7}$/.test(lastPartAlnumUpper)) {
+            addCandidate(`IW1${lastPartAlnumUpper.slice(3)}`);
+        }
+    }
+    if (normalizedBrand === 'jackson') {
+        const alnumUpper = serial.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+        // Common OCR/stamp misread on Jackson modern import serials: leading '1' instead of 'I'.
+        // e.g. 1CJ1705071 → ICJ1705071 (Indonesia/Cor-Tek/Jackson, 3-letter prefix format)
+        if (/^1[A-Z]{2}\d{7}$/.test(alnumUpper)) {
+            addCandidate(`I${alnumUpper.slice(1)}`);
+        }
+        const lastPartAlnumUpper = lastSpaceSeparatedPart.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+        if (/^1[A-Z]{2}\d{7}$/.test(lastPartAlnumUpper)) {
             addCandidate(`I${lastPartAlnumUpper.slice(1)}`);
         }
     }
@@ -224,6 +244,10 @@ function getAllowedFutureYearOffset(normalizedBrand) {
     // Cort often ships upcoming model-year inventory before that calendar year starts.
     if (normalizedBrand === 'cort') {
         return 1;
+    }
+    // Kramer modern numeric serials can encode near-future model years (factory pre-production batches).
+    if (normalizedBrand === 'kramer') {
+        return 5;
     }
     return 0;
 }

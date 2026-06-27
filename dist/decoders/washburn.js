@@ -3,7 +3,7 @@
  *
  * Supports:
  * - Modern letter prefix format: F + YYMMRRRR (factory + year + month + sequence)
- * - Korean Samick: S prefix
+ * - Korean Samick: S prefix (3-9 digits, including short vintage sequences like S0237)
  * - Indonesian Samick: SI prefix
  * - Indonesian generic: I prefix
  * - Chinese production: G prefix
@@ -22,8 +22,8 @@ export function decodeWashburn(serial) {
     if (/^SI\d{7,9}$/.test(normalized)) {
         return decodeSamickIndonesia(normalized);
     }
-    // Samick Korea: S prefix followed by digits
-    if (/^S\d{7,9}$/.test(normalized)) {
+    // Samick Korea: S prefix followed by digits (3+ to include short vintage sequences like S0237)
+    if (/^S\d{3,9}$/.test(normalized)) {
         return decodeSamickKorea(normalized);
     }
     // Indonesian: I + year digit + factory/batch letter + sequence

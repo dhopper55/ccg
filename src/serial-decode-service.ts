@@ -250,9 +250,31 @@ function buildRetrySerials(serial: string, normalizedBrand: string): string[] {
     if (/^1[WCRI]\d{7,9}$/.test(alnumUpper)) {
       addCandidate(`I${alnumUpper.slice(1)}`);
     }
+    // Common OCR/stamp misread on ESP LTD IW serials: 'I' (letter) at position 3 instead of '1' (digit).
+    // e.g. IWI4071639 → IW14071639 (P.T. Wildwood Indonesia, year 2014)
+    if (/^IWI\d{7}$/.test(alnumUpper)) {
+      addCandidate(`IW1${alnumUpper.slice(3)}`);
+    }
 
     const lastPartAlnumUpper = lastSpaceSeparatedPart.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
     if (/^1[WCRI]\d{7,9}$/.test(lastPartAlnumUpper)) {
+      addCandidate(`I${lastPartAlnumUpper.slice(1)}`);
+    }
+    if (/^IWI\d{7}$/.test(lastPartAlnumUpper)) {
+      addCandidate(`IW1${lastPartAlnumUpper.slice(3)}`);
+    }
+  }
+
+  if (normalizedBrand === 'jackson') {
+    const alnumUpper = serial.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    // Common OCR/stamp misread on Jackson modern import serials: leading '1' instead of 'I'.
+    // e.g. 1CJ1705071 → ICJ1705071 (Indonesia/Cor-Tek/Jackson, 3-letter prefix format)
+    if (/^1[A-Z]{2}\d{7}$/.test(alnumUpper)) {
+      addCandidate(`I${alnumUpper.slice(1)}`);
+    }
+
+    const lastPartAlnumUpper = lastSpaceSeparatedPart.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    if (/^1[A-Z]{2}\d{7}$/.test(lastPartAlnumUpper)) {
       addCandidate(`I${lastPartAlnumUpper.slice(1)}`);
     }
   }
@@ -264,6 +286,10 @@ function getAllowedFutureYearOffset(normalizedBrand: string): number {
   // Cort often ships upcoming model-year inventory before that calendar year starts.
   if (normalizedBrand === 'cort') {
     return 1;
+  }
+  // Kramer modern numeric serials can encode near-future model years (factory pre-production batches).
+  if (normalizedBrand === 'kramer') {
+    return 5;
   }
   return 0;
 }

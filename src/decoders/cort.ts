@@ -4,7 +4,7 @@ import { DecodeResult, GuitarInfo } from '../types.js';
  * Cort Guitar Serial Number Decoder
  *
  * Supports:
- * - Modern two-letter factory/line prefix: C[A-Z] + YYMM + sequence
+ * - Modern two-letter factory/line prefix: C[A-Z] + YYMM + sequence; generic two-letter fallback (e.g. PO acoustic line)
  * - Modern format: YYMMXXXX (2000-2004); impossible-future-year variant flagged as suspicious
  * - Modern format with omitted leading zero: YMMXXXXX (2000-2009)
  * - Modern numeric year/batch format: YY00XXXX
@@ -123,6 +123,13 @@ export function decodeCort(serial: string): DecodeResult {
   // F prefix: Indonesian factory + YY + sequence (e.g. F034130 = 2003)
   if (/^F\d{6}$/.test(normalized)) {
     return decodeIndonesiaFPrefix(normalized);
+  }
+
+  // Generic two-letter factory prefix + 8 digits (e.g. PO prefix acoustic/open-pore line).
+  // Must come after all specific two-letter prefix handlers (CA/CI/CK/CC via C[A-Z], IC, AI, etc.)
+  // so only genuinely unrecognized two-letter codes reach here.
+  if (/^[A-Z]{2}\d{8}$/.test(normalized)) {
+    return decodeModernTwoLetterFactoryLine(normalized);
   }
 
   // Modern 12-digit logistics/tracking format: YY + 10-digit sequence
@@ -284,6 +291,7 @@ const CORT_TWO_LETTER_FACTORY_MAP: Record<string, { factory: string; country: st
   CI: { factory: 'PT Cort Indonesia', country: 'Indonesia' },
   CK: { factory: 'Cort Korea', country: 'South Korea' },
   CC: { factory: 'Cort China', country: 'China' },
+  PO: { factory: 'Cor-Tek production line (open-pore / acoustic series)', country: 'Korea, Indonesia, or China' },
 };
 
 function decodeModernTwoLetterFactoryLine(serial: string): DecodeResult {
@@ -293,26 +301,24 @@ function decodeModernTwoLetterFactoryLine(serial: string): DecodeResult {
   const sequence = serial.substring(6);
   const year = 2000 + parseInt(yearDigits, 10);
   const month = parseInt(monthDigits, 10);
-
-  if (month < 1 || month > 12) {
-    return {
-      success: false,
-      error: `Invalid month "${monthDigits}" in serial number. Month should be 01-12.`,
-    };
-  }
+  const isAnomalousMonth = month < 1 || month > 12;
 
   const knownFactory = CORT_TWO_LETTER_FACTORY_MAP[prefix];
   const factory = knownFactory ? knownFactory.factory : 'Cort modern factory/production line';
   const country = knownFactory ? knownFactory.country : 'Korea, Indonesia, or China';
 
+  const monthDescription = isAnomalousMonth
+    ? `production/batch code "${monthDigits}" (non-standard field — may be a line code, export batch marker, or production-schedule identifier rather than a calendar month)`
+    : getMonthName(month);
+
   const info: GuitarInfo = {
     brand: 'Cort',
     serialNumber: serial,
     year: year.toString(),
-    month: getMonthName(month),
+    ...(isAnomalousMonth ? {} : { month: getMonthName(month) }),
     factory,
     country,
-    notes: `Modern Cort two-letter factory/line format interpreted as prefix + YYMM + sequence. Prefix ${prefix} indicates ${factory}. The digits ${yearDigits} indicate production year ${year}; ${monthDigits} indicates ${getMonthName(month)}. Production sequence: ${parseInt(sequence, 10)}. Cort serials identify production date more reliably than exact model name, so verify the model from the headstock, label, or other physical markings.`,
+    notes: `Modern Cort two-letter factory/line format interpreted as prefix + YYMM + sequence. Prefix ${prefix} indicates ${factory}. The digits ${yearDigits} indicate production year ${year}; ${monthDigits} indicates ${monthDescription}. Production sequence: ${parseInt(sequence, 10)}. Cort serials identify production date more reliably than exact model name, so verify the model from the headstock, label, or other physical markings.`,
   };
 
   return {
@@ -326,13 +332,17 @@ function decodeModernTwoLetterFactoryLine(serial: string): DecodeResult {
       highlights: [
         `Prefix ${prefix} is treated as an internal factory or production line code.`,
         `The digits ${yearDigits} decode as production year ${year}.`,
-        `The digits ${monthDigits} decode as ${getMonthName(month)}.`,
+        isAnomalousMonth
+          ? `The digits ${monthDigits} are a non-standard production or batch code, not a calendar month.`
+          : `The digits ${monthDigits} decode as ${getMonthName(month)}.`,
         `The remaining digits decode as production sequence ${parseInt(sequence, 10)}.`,
       ],
       caveats: [
         'Cort serials usually identify production date more reliably than exact model identity.',
         'The serial does not identify the specific Cort model name.',
-        'Production location requires country-of-origin markings or other physical evidence.',
+        isAnomalousMonth
+          ? `The field "${monthDigits}" in the month position is a non-standard production or batch code.`
+          : 'Production location requires country-of-origin markings or other physical evidence.',
       ],
       verificationTips: [
         'Check the headstock, soundhole label, neck heel, or back of headstock for model and country markings.',
@@ -340,7 +350,7 @@ function decodeModernTwoLetterFactoryLine(serial: string): DecodeResult {
         'Contact Cort with photos if exact model confirmation is needed.',
       ],
     },
-    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern Cort two-letter factory/line format parsed as prefix, production year and month, and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>Prefix ${prefix} is treated as an internal factory or production line code. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} decode as ${getMonthName(month)}. The remaining digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Cort serials usually identify production date more reliably than exact model identity.</li><li>The serial does not identify the specific Cort model name.</li><li>Confirm the model from headstock, label, or other physical markings.</li></ul>`,
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern Cort two-letter factory/line format parsed as prefix, production year and month, and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>Prefix ${prefix} is treated as an internal factory or production line code. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} indicate ${monthDescription}. The remaining digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Cort serials usually identify production date more reliably than exact model identity.</li><li>The serial does not identify the specific Cort model name.</li><li>Confirm the model from headstock, label, or other physical markings.</li></ul>`,
   };
 }
 

@@ -111,6 +111,9 @@ export function deriveExplicitRegexFromKnownPatternKey(patternKey: string): stri
     'schecter-7digit-numeric-korea-wmi-sequential': '^\\d{7}$',
     'schecter-8digit-numeric-korea-wmi-sequential': '^\\d{8}$',
     'schecter-9digit-numeric-korea-wmi-sequential': '^\\d{9}$',
+    'kramer-short-s-striker-import-sequential': '^S\\d{1,4}$',
+    'kramer-u-unsung-korea-gibson-era-yymm-sequence': '^U\\d{7,9}$',
+    'kramer-modern-numeric-yymm-sequence': '^\\d{8,11}$',
   };
 
   return knownPatterns[patternKey] || null;
