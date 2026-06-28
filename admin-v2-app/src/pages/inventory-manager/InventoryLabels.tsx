@@ -15,6 +15,7 @@ import {
   MenuItem,
   Paper,
   Select,
+  Snackbar,
   Stack,
   Typography,
 } from '@mui/material';
@@ -49,6 +50,7 @@ type InventoryListResponse = {
 type TagTextColor = 'black' | 'red' | 'blue';
 
 const TAG_TEMPLATE_SMALL = '/templates/template_small_tag.pdf';
+const TAG_TEMPLATE_SMALL_NO_SALE = '/templates/template_small_tag_no_sale.pdf';
 const SMALL_TAG_TITLE_MAX_WIDTH = 126;
 const SMALL_TAG_TITLE_FONT_SIZE = 12;
 const SHOP_ORIGIN = 'https://www.coalcreekguitars.com';
@@ -89,6 +91,12 @@ function formatTagPrice(value: number | null): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(cents / 100);
+}
+
+function isOnSale(record: MarkedRecord): boolean {
+  const reg = parseTagPrice(record.regularPrice);
+  const sale = parseTagPrice(record.salePrice);
+  return reg !== null && sale !== null && sale < reg;
 }
 
 function truncateToPdfWidth(text: string, font: PDFFont, fontSize: number, maxWidth: number): string {
@@ -325,6 +333,7 @@ async function setSmallTagProductFields(
   productNumber: 1 | 2,
   boldFont: PDFFont,
   skipQr = false,
+  noSale = false,
 ): Promise<void> {
   const title = splitTextForPdfLines(
     (record.saleTitle || record.title || '').trim(),
@@ -336,14 +345,19 @@ async function setSmallTagProductFields(
   setPdfTextField(pdfForm, `Product${productNumber}Name1`, title.line1, boldFont);
   setPdfTextField(pdfForm, `Product${productNumber}Name2`, title.line2, boldFont);
   setPdfTextField(pdfForm, `Product${productNumber}CCGNum`, record.ccgNumber.trim(), boldFont);
-  setPdfTextField(pdfForm, `Product${productNumber}RegPrice`, formatTagPrice(parseTagPrice(record.regularPrice)), boldFont);
-  setPdfTextField(pdfForm, `Product${productNumber}SalePrice`, formatTagPrice(parseTagPrice(record.salePrice)), boldFont);
+  if (noSale) {
+    setPdfTextField(pdfForm, `Product${productNumber}SalePrice`, formatTagPrice(parseTagPrice(record.regularPrice)), boldFont);
+  } else {
+    setPdfTextField(pdfForm, `Product${productNumber}RegPrice`, formatTagPrice(parseTagPrice(record.regularPrice)), boldFont);
+    setPdfTextField(pdfForm, `Product${productNumber}SalePrice`, formatTagPrice(parseTagPrice(record.salePrice)), boldFont);
+  }
   if (!skipQr) await drawProductQrCode(pdfDoc, productNumber, buildShopProductUrl(record));
   await drawProductBarcode(pdfDoc, pdfForm, record, productNumber, boldFont);
 }
 
-async function buildSmallInventoryTagsPng(records: MarkedRecord[], skipQr = false): Promise<Blob> {
-  const response = await fetch(TAG_TEMPLATE_SMALL);
+async function buildSmallInventoryTagsPng(records: MarkedRecord[], skipQr = false, noSale = false): Promise<Blob> {
+  const templateUrl = noSale ? TAG_TEMPLATE_SMALL_NO_SALE : TAG_TEMPLATE_SMALL;
+  const response = await fetch(templateUrl);
   if (!response.ok) throw new Error('Unable to load small inventory tag template.');
 
   const [{ PDFDocument }, fontkitModule] = await Promise.all([
@@ -357,8 +371,8 @@ async function buildSmallInventoryTagsPng(records: MarkedRecord[], skipQr = fals
   const boldFontBytes = await fetchArrayBuffer(liberationSansBoldUrl);
   const boldFont = await pdfDoc.embedFont(boldFontBytes);
 
-  if (records[0]) await setSmallTagProductFields(pdfDoc, pdfForm, records[0], 1, boldFont, skipQr);
-  if (records[1]) await setSmallTagProductFields(pdfDoc, pdfForm, records[1], 2, boldFont, skipQr);
+  if (records[0]) await setSmallTagProductFields(pdfDoc, pdfForm, records[0], 1, boldFont, skipQr, noSale);
+  if (records[1]) await setSmallTagProductFields(pdfDoc, pdfForm, records[1], 2, boldFont, skipQr, noSale);
 
   const bytes = await pdfDoc.save();
   return renderPdfBytesToPng(bytes);
@@ -389,6 +403,7 @@ const InventoryLabels = () => {
   const [isUnmarking, setIsUnmarking] = useState(false);
   const [unmarkConfirmOpen, setUnmarkConfirmOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [toastMessage, setToastMessage] = useState('');
 
   useEffect(() => {
     document.title = 'CCG Admin | Inventory Labels';
@@ -567,11 +582,18 @@ const InventoryLabels = () => {
 
   const handlePrintSmallTag = async () => {
     if (!canPrintSmallTag || isPrintingSmallTag) return;
+    const [rec1, rec2] = smallTagSelectedRecords;
+    const sale1 = isOnSale(rec1);
+    const sale2 = isOnSale(rec2);
+    if (sale1 !== sale2) {
+      setToastMessage('Both products must be on sale or both be regular price.');
+      return;
+    }
     setErrorMessage('');
     setIsPrintingSmallTag(true);
-
+    const noSale = !sale1;
     try {
-      const blob = await buildSmallInventoryTagsPng(smallTagSelectedRecords.slice(0, 2));
+      const blob = await buildSmallInventoryTagsPng(smallTagSelectedRecords.slice(0, 2), false, noSale);
       const suffix = smallTagSelectedRecords.map((record) => record.ccgNumber.trim()).filter(Boolean).join('-') || 'inventory';
       downloadBlob(blob, `${suffix}-small-tag.png`);
     } catch (error) {
@@ -583,11 +605,18 @@ const InventoryLabels = () => {
 
   const handlePrintSmallTagNoQr = async () => {
     if (!canPrintSmallTag || isPrintingSmallTagNoQr) return;
+    const [rec1, rec2] = smallTagSelectedRecords;
+    const sale1 = isOnSale(rec1);
+    const sale2 = isOnSale(rec2);
+    if (sale1 !== sale2) {
+      setToastMessage('Both products must be on sale or both be regular price.');
+      return;
+    }
     setErrorMessage('');
     setIsPrintingSmallTagNoQr(true);
-
+    const noSale = !sale1;
     try {
-      const blob = await buildSmallInventoryTagsPng(smallTagSelectedRecords.slice(0, 2), true);
+      const blob = await buildSmallInventoryTagsPng(smallTagSelectedRecords.slice(0, 2), true, noSale);
       const suffix = smallTagSelectedRecords.map((record) => record.ccgNumber.trim()).filter(Boolean).join('-') || 'inventory';
       downloadBlob(blob, `${suffix}-small-tag-noqr.png`);
     } catch (error) {
@@ -851,6 +880,16 @@ const InventoryLabels = () => {
           )}
         </Grid>
       </Grid>
+      <Snackbar
+        open={Boolean(toastMessage)}
+        autoHideDuration={4000}
+        onClose={() => setToastMessage('')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="warning" onClose={() => setToastMessage('')} sx={{ width: '100%' }}>
+          {toastMessage}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };
