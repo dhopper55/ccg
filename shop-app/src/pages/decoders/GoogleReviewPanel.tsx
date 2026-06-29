@@ -48,7 +48,7 @@ const GoogleReviewPanel = () => {
           </Typography>
         </Box>
 
-        <Typography variant="caption" sx={{ color: 'text.secondary', lineHeight: 1.6, display: 'block', mb: 1.75 }}>
+        <Typography variant="body2" sx={{ color: 'text.secondary', lineHeight: 1.6, display: 'block', mb: 1.75 }}>
           If we've helped you, a quick review makes a real difference for a small shop like ours.
         </Typography>
 
@@ -70,7 +70,7 @@ const GoogleReviewPanel = () => {
             },
           }}
         >
-          Leave a Google Review
+          Please Leave a Google Review
         </Button>
       </Box>
     </Box>
