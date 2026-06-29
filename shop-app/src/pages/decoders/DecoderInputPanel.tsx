@@ -6,7 +6,6 @@ import SectionHeader from 'components/common/SectionHeader';
 import StyledTextField from 'components/styled/StyledTextField';
 import IbanezAdditionalInfoPanel from './IbanezAdditionalInfoPanel';
 
-const GOOGLE_REVIEW_URL = 'https://g.page/r/CYgEveOaLAOjEBM/review';
 const EMAIL_SIGNUP_URL = 'https://www.coalcreekguitars.com/api/email-signup';
 
 const DECODE_URL = 'https://www.coalcreekguitars.com/api/decode';
@@ -424,38 +423,6 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
                 );
               })}
             </Stack>
-            <Box
-              sx={{
-                mt: 2,
-                p: 2,
-                borderRadius: 2,
-                bgcolor: 'warning.lighter',
-                border: '1px solid',
-                borderColor: 'warning.light',
-              }}
-            >
-              <Typography variant="body2" sx={{ fontWeight: 700, color: 'warning.dark', mb: 0.5 }}>
-                This decode was completely free.
-              </Typography>
-              <Typography variant="caption" sx={{ color: 'text.secondary', lineHeight: 1.6 }}>
-                If it helped, a quick Google review makes a real difference for a small shop like ours.
-              </Typography>
-              <Box sx={{ mt: 1.5 }}>
-                <Button
-                  variant="contained"
-                  color="warning"
-                  size="small"
-                  startIcon={<IconifyIcon icon="logos:google-icon" />}
-                  component="a"
-                  href={GOOGLE_REVIEW_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  sx={{ fontWeight: 700 }}
-                >
-                  Leave a Google Review
-                </Button>
-              </Box>
-            </Box>
             <Box sx={{ mt: 2.5 }}>
               <Divider sx={{ borderColor: 'dividerLight', opacity: 0.59, mb: 2 }} />
               <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>

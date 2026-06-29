@@ -6,6 +6,7 @@ import EvalPitchPanel from './EvalPitchPanel';
 import DecoderFaqPanel from './DecoderFaqPanel';
 import DecoderHowToPanel from './DecoderHowToPanel';
 import DecoderSlot from './DecoderSlot';
+import GoogleReviewPanel from './GoogleReviewPanel';
 
 interface DecoderFaqItem {
   question: string;
@@ -46,24 +47,36 @@ const DecoderPage = ({ config }: DecoderPageProps) => {
     >
       <Grid container>
         <Grid container size={12}>
+          {/* Left column: input/results + eval pitch after decode */}
           <Grid size={{ xs: 12, lg: 5, xl: 6 }}>
-            <DecoderInputPanel
-              brand={config.brandKey}
-              brandDisplayName={config.brandName}
-              additionalInfoRichText={additionalInfoRichText}
-              onAdditionalInfoChange={setAdditionalInfoRichText}
-              onDecodeSuccess={setDecodeSuccess}
-            />
+            <Grid container direction="column">
+              <Grid size={12}>
+                <DecoderInputPanel
+                  brand={config.brandKey}
+                  brandDisplayName={config.brandName}
+                  additionalInfoRichText={additionalInfoRichText}
+                  onAdditionalInfoChange={setAdditionalInfoRichText}
+                  onDecodeSuccess={setDecodeSuccess}
+                />
+              </Grid>
+              {decodeSuccess && (
+                <Grid size={12}>
+                  <EvalPitchPanel
+                    brand={config.brandName}
+                    year={decodeSuccess.year}
+                    serial={decodeSuccess.serial}
+                    decodeEventId={decodeSuccess.decodeEventId ?? null}
+                  />
+                </Grid>
+              )}
+            </Grid>
           </Grid>
+
+          {/* Right column: Google review (always) + FAQ + HowTo */}
           <Grid size={{ xs: 12, lg: 7, xl: 6 }}>
             <Grid container direction="column" rowSpacing={3}>
               <Grid size={12}>
-                <EvalPitchPanel
-                  brand={config.brandName}
-                  year={decodeSuccess?.year}
-                  serial={decodeSuccess?.serial}
-                  decodeEventId={decodeSuccess?.decodeEventId ?? null}
-                />
+                <GoogleReviewPanel />
               </Grid>
               <Grid size={12}>
                 <DecoderSlot brand={config.brandKey} name="aboveFaq" />
