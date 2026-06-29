@@ -59,6 +59,11 @@ export function decodeDean(serial) {
     if (/^C\d{7}$/.test(normalized)) {
         return decodeCortKoreaC(normalized);
     }
+    // World factory numeric-prefix: digit + W + YYMM + sequence (e.g. 1W18120157)
+    // The leading digit is a production batch code at the World Musical Instruments facility
+    if (/^\dW\d{8}$/.test(normalized)) {
+        return decodeWorldNumericPrefixYYMM(normalized);
+    }
     // Indonesia: IW prefix
     if (/^IW\d{8,10}$/.test(normalized)) {
         return decodeIndonesiaIW(normalized);
@@ -903,6 +908,53 @@ function decodeKHFactory(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial uses the KH-prefix format, which identifies an overseas import manufacturing facility for Dean guitars. The specific factory is either in South Korea or China.</p><h3>How It Decodes</h3><p>KH identifies the import factory. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} decode as ${monthName || 'the production month'}. The final five digits ${sequence} are the production sequence (unit ${sequenceNumber}).</p><h3>Coal Creek Guitars Note</h3><p>Verify the country of manufacture from the headstock or inside-label markings. Compare the serial format and hardware against Dean's import catalog for ${year} to confirm model identification.</p>`,
+    };
+}
+// World factory numeric-prefix: [digit]W + YYMM + sequence
+function decodeWorldNumericPrefixYYMM(serial) {
+    const batchCode = serial[0];
+    const digits = serial.substring(2);
+    const yearDigits = digits.substring(0, 2);
+    const monthDigits = digits.substring(2, 4);
+    const sequence = digits.substring(4);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const month = parseInt(monthDigits, 10);
+    const monthName = month >= 1 && month <= 12 ? getMonthName(month) : undefined;
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Dean',
+        serialNumber: serial,
+        year: year.toString(),
+        month: monthName,
+        factory: `World Musical Instruments Co Ltd (batch ${batchCode})`,
+        country: 'South Korea',
+        notes: `Numeric-prefix World factory format (${batchCode}W + YYMM + sequence). The leading digit "${batchCode}" identifies a production batch at World Musical Instruments in South Korea. ${yearDigits} decodes as production year ${year}; ${monthDigits} decodes as ${monthName || 'the production month'}; ${sequence} is the production sequence (unit ${sequenceNumber}).`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'dean-world-numeric-prefix-yymm-sequence',
+        patternLabel: 'Dean World factory numeric-prefix YYMM sequence',
+        additionalContext: {
+            title: 'Dean numeric-prefix World factory serial',
+            summary: `This serial uses a numeric-prefix World factory format: a leading batch digit, then W, then YYMM, then sequence. Manufactured at World Musical Instruments Co Ltd in South Korea.`,
+            highlights: [
+                `The leading digit "${batchCode}" identifies a production batch at World Musical Instruments Co Ltd.`,
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                monthName ? `The digits ${monthDigits} decode as ${monthName}.` : `The digits ${monthDigits} are the month code.`,
+                `The remaining digits decode as production sequence ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'The leading digit is a batch identifier at the World factory, not a standalone year.',
+                'This format does not encode the exact model name.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for a Made in Korea stamp.',
+                'Compare hardware and finish against Dean Korea import catalog from the decoded year.',
+                'Contact Dean support with photos if exact factory authentication is needed.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial uses a numeric-prefix World factory format where the leading digit identifies a production batch at World Musical Instruments Co Ltd in South Korea.</p><h3>How This Pattern Is Typically Read</h3><p>The leading digit "${batchCode}" identifies a production batch at World Musical Instruments. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} decode as ${monthName || 'the production month'}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for a Made in Korea stamp.</li><li>Compare hardware and finish against Dean Korea import catalog from the decoded year.</li><li>Contact Dean support with photos if exact factory authentication is needed.</li></ul>`,
     };
 }
 // Helper function for month names

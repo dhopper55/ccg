@@ -54,6 +54,11 @@ export function decodeESP(serial: string): DecodeResult {
     return decodeEII2016Plus(normalized);
   }
 
+  // E-II extended 10-char: ES + 8 digits (year in last 2 digits, e.g. ES63155223 = 2023)
+  if (/^ES\d{8}$/.test(normalized)) {
+    return decodeEII10Char(normalized);
+  }
+
   // Ambiguous ESP-owned E-prefix 6-digit format: early E-II Japan or early LTD Korea
   if (/^E\d{6}$/.test(normalized)) {
     return decodeAmbiguousEPrefix6Digit(normalized);
@@ -84,6 +89,12 @@ export function decodeESP(serial: string): DecodeResult {
   // Kirk Hammett Signature: K- + 4-5 digits or K + 4-5 digits
   if (/^K-?\d{4,5}$/.test(normalized)) {
     return decodeKirkHammett(normalized);
+  }
+
+  // LTD Korean H-prefix factory: H + 7 digits (Hatone/Hanko Korea or GrassRoots-adjacent)
+  // e.g. H0210967 = 2002, seq 10967; H0906045 = 2009, week 06, seq 045
+  if (/^H\d{7}$/.test(normalized)) {
+    return decodeLTDHPrefixFactory(normalized);
   }
 
   // LTD Asian formats with letter prefixes
@@ -325,6 +336,101 @@ function decodeEIIEarly(serial: string): DecodeResult {
       ],
     },
     additionalContextRichText: `<h3>Overview</h3><p>This serial matches the early E-II Japan format where ES identifies the production line, the first two digits encode the year, and the final five digits are the sequential production number.</p><h3>How This Pattern Is Typically Read</h3><p>ES identifies this as an E-II model, the successor to the ESP Standard series. The digits ${yearDigits} decode as production year ${year}. The digits ${productionNum} decode as sequential production number ${sequenceNumber}. This format was used during the early E-II era (roughly 2013–2015) before ESP unified their Japanese serial system around 2016, at which point the year moved to near the end of the serial.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for the E-II logo and Made in Japan stamp.</li><li>Look for the "Designed and built by ESP" marking alongside the serial.</li><li>Compare the model shape, pickups, and hardware against the 2014 E-II Japan catalog to confirm the exact model.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed early E-II Japan decode, then identify the exact model from physical features and the catalog for the decoded year.</p>`,
+  };
+}
+
+function decodeEII10Char(serial: string): DecodeResult {
+  // 10-char E-II: ES + 4-digit prod num + 2-digit line code + 2-digit year
+  // The year appears in the last 2 digits (similar to 2016+ E-II logic, extended one field)
+  const productionNum = serial.substring(2, 6);
+  const lineCode = serial.substring(6, 8);
+  const yearDigits = serial.substring(8, 10);
+  const yearNum = parseInt(yearDigits, 10);
+  const year = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum).toString();
+  const sequenceNumber = parseInt(productionNum, 10);
+
+  const info: GuitarInfo = {
+    brand: 'ESP',
+    serialNumber: serial,
+    year,
+    factory: 'ESP Japan',
+    country: 'Japan',
+    model: 'E-II Series',
+    notes: `ESP E-II 10-character extended format. ES identifies the E-II production line. Production number: ${sequenceNumber}. Line/factory code: ${lineCode}. Year digits ${yearDigits} decode as ${year}. This 10-character variant extends the standard 9-character 2016+ E-II format with an additional factory or line routing code.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'esp-eii-japan-es-8digit-extended',
+    patternLabel: 'ESP E-II Japan ES + 8-digit extended format',
+    additionalContext: {
+      title: 'ESP E-II extended 10-char serial',
+      summary: 'This serial matches the E-II extended 10-character format where ES identifies the production line, four digits encode the production number, two digits encode a line/factory routing code, and the last two digits encode the year.',
+      highlights: [
+        'ES identifies the E-II production line (successor to ESP Standard).',
+        `Production number: ${sequenceNumber}.`,
+        `Line/factory routing code: ${lineCode}.`,
+        `Year digits ${yearDigits} decode as ${year}.`,
+      ],
+      caveats: [
+        'This 10-character variant is less common than the standard 9-character 2016+ E-II format.',
+        'The serial identifies the production line and year; the exact model shape must be confirmed from physical features.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock for the E-II logo and a Made in Japan stamp.',
+        'Look for the "Designed and built by ESP" marking alongside the serial.',
+        `Compare the model shape, pickups, and hardware against the E-II Japan catalog for ${year}.`,
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches the E-II extended 10-character format: ES identifies the production line, four digits are the production number, two digits are a factory/line routing code, and the last two digits encode the year.</p><h3>How This Pattern Is Typically Read</h3><p>ES identifies the E-II production line. The production number is ${sequenceNumber}. The line/factory routing code is ${lineCode}. The year digits ${yearDigits} decode as ${year}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for the E-II logo and Made in Japan stamp.</li><li>Compare the model shape, pickups, and hardware against the E-II Japan catalog for ${year}.</li></ul>`,
+  };
+}
+
+function decodeLTDHPrefixFactory(serial: string): DecodeResult {
+  // H-prefix LTD Korea/Japan factory (Hatone, Hanko, or similar)
+  // 8 chars: H + YY(2) + rolling sequence(5)
+  // e.g. H0210967 = 2002, sequence 10967; H0906045 = 2009, sequence 06045
+  const yearDigits = serial.substring(1, 3);
+  const sequence = serial.substring(3);
+  const yearNum = parseInt(yearDigits, 10);
+  const year = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum).toString();
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'ESP',
+    serialNumber: serial,
+    year,
+    factory: 'H-prefix factory (Hatone/Hanko Korea or related LTD production)',
+    country: 'South Korea',
+    model: 'LTD or GrassRoots',
+    notes: `H-prefix ESP LTD factory format. H identifies a Korean production facility (often cited as Hatone or Hanko). Year digits ${yearDigits} decode as ${year}. Rolling production sequence: ${sequenceNumber}. This format is associated with Korean LTD production and, on Japanese-domestic-market instruments, with GrassRoots by ESP. Verify from the headstock logo (LTD or GrassRoots) and the country-of-origin marking.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'esp-ltd-korea-h-factory-yy-sequence',
+    patternLabel: 'ESP LTD Korea H-prefix factory YY sequence',
+    additionalContext: {
+      title: 'ESP LTD H-prefix Korea factory serial',
+      summary: 'This serial matches the ESP LTD H-prefix format associated with the Hatone or Hanko Korean factory, or GrassRoots Japanese domestic production.',
+      highlights: [
+        'H identifies a Korean production facility (Hatone or Hanko) or GrassRoots Japan.',
+        `Year digits ${yearDigits} decode as ${year}.`,
+        `Rolling production sequence: ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'H-prefix instruments may be branded LTD (Korean) or GrassRoots (Japanese domestic-market only).',
+        'The serial identifies factory and year; the exact model must be confirmed from the headstock logo and physical features.',
+      ],
+      verificationTips: [
+        'Check the headstock for LTD or GrassRoots branding.',
+        'Look for a Made in Korea or Made in Japan country-of-origin stamp.',
+        `Compare hardware, pickups, and construction against ESP LTD or GrassRoots catalog specs for ${year}.`,
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches the ESP LTD H-prefix format associated with the Hatone or Hanko Korean factory (or GrassRoots Japanese domestic-market instruments).</p><h3>How This Pattern Is Typically Read</h3><p>H identifies a Korean production facility. Year digits ${yearDigits} decode as ${year}. Rolling production sequence: ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the headstock for LTD or GrassRoots branding.</li><li>Look for a Made in Korea or Made in Japan stamp.</li><li>Compare against ESP LTD or GrassRoots catalog specs for ${year}.</li></ul>`,
   };
 }
 

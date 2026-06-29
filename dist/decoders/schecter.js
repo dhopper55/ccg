@@ -88,6 +88,11 @@ export function decodeSchecter(serial) {
     if (/^SA\d{6,8}$/.test(normalized)) {
         return decodeJapanSA(normalized);
     }
+    // Korea Y-prefix factory (Yeou-Tone or contracted facility): Y + YYMM + sequence
+    // e.g. Y080501933 = 2008, May, sequence 01933
+    if (/^Y\d{9}$/.test(normalized)) {
+        return decodeKoreaYFactory(normalized);
+    }
     // Korea Unsung: U + YYMM + sequence (e.g. U080901104 = Unsung 2008, September)
     if (/^U\d{9}$/.test(normalized)) {
         return decodeKoreaUnsungU(normalized);
@@ -851,6 +856,51 @@ function decodeNumeric(serial) {
         notes: `All-numeric serial indicates Korean import manufacture, typically pre-2008 era (WMI or similar factory). Sequence: ${sequence}. Verify exact year and model from headstock markings.`,
     };
     return { success: true, info, patternKey };
+}
+function decodeKoreaYFactory(serial) {
+    const yearDigits = serial.substring(1, 3);
+    const monthDigits = serial.substring(3, 5);
+    const sequence = serial.substring(5);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const monthNum = parseInt(monthDigits, 10);
+    const monthName = monthNum >= 1 && monthNum <= 12 ? getMonthName(monthNum) : undefined;
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Schecter',
+        serialNumber: serial,
+        year: year.toString(),
+        month: monthName,
+        factory: 'Yeou-Tone or contracted Korean facility (Y-prefix)',
+        country: 'South Korea',
+        notes: `Y-prefix Schecter Korea factory serial. The Y identifies a contracted Korean production facility, commonly cited as Yeou-Tone Music. Year digits ${yearDigits} decode as ${year}. Month digits ${monthDigits} decode as ${monthName || 'the production month'}. Sequence: ${sequenceNumber}. Schecter used several Korean contracted factories during the 2000s; the Y prefix is distinct from the Unsung (U prefix) designation but follows the same YYMM+sequence layout.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'schecter-y-factory-yymm-sequence',
+        patternLabel: 'Schecter Y-prefix Korea factory YYMM sequence',
+        additionalContext: {
+            title: 'Schecter Y-prefix Korea factory serial',
+            summary: 'This serial uses the Schecter Y-prefix Korea factory format: a Korean contracted facility (commonly cited as Yeou-Tone), with the year, month, and sequential production number encoded after the prefix.',
+            highlights: [
+                'Y identifies a contracted Korean production facility, commonly cited as Yeou-Tone Music.',
+                `Year digits ${yearDigits} decode as ${year}.`,
+                monthName ? `Month digits ${monthDigits} decode as ${monthName}.` : `Month digits ${monthDigits} are the production month code.`,
+                `Production sequence: unit ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'The Y prefix is a contracted Korean facility distinct from the Unsung (U prefix) factory that Schecter also used in this era.',
+                "Schecter's serial database may not have records for all Korean contracted factory runs.",
+                'The serial identifies the production period and factory; the exact model must be confirmed from headstock markings, body shape, and hardware.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for a Made in Korea stamp.',
+                'Compare the body shape, headstock logo, pickups, and hardware against Schecter Diamond Series catalog specs from the decoded year.',
+                'Contact Schecter customer support with the serial for official confirmation — Korean contracted factory records may be accessible.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial uses the Schecter Y-prefix Korea factory format: Y identifies a contracted Korean production facility (commonly cited as Yeou-Tone Music), with the production year, month, and sequential production number encoded after the prefix.</p><h3>How This Pattern Is Typically Read</h3><p>Year digits ${yearDigits} decode as ${year}. Month digits ${monthDigits} decode as ${monthName || 'the production month'}. Production sequence: ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for a Made in Korea stamp.</li><li>Compare the body shape, headstock logo, pickups, and hardware against Schecter Diamond Series catalog specs for ${year}.</li><li>Contact Schecter support for official confirmation from Korean contracted factory records.</li></ul>`,
+    };
 }
 function decodeKoreaUnsungU(serial) {
     const yearDigits = serial.substring(1, 3);

@@ -22,7 +22,8 @@ export function decodeCharvel(serial) {
     const cleaned = serial.trim().toUpperCase();
     const normalized = cleaned.replace(/[\s-]/g, '');
     // Japanese neck-through: C + year digit + sequential (1986-1991)
-    if (/^C[0-9]\d{4,6}$/.test(normalized)) {
+    // Minimum 3 trailing digits to cover short early-run plates (e.g. C6208 = 1986, seq 208)
+    if (/^C[0-9]\d{3,6}$/.test(normalized)) {
         return decodeJapanNeckThrough(normalized);
     }
     // Modern Korea/WMI run seen as CF + YY + sequence

@@ -295,6 +295,24 @@ export function decodeKramer(serial) {
             };
             return { success: true, info };
         }
+        // 7-digit numeric that doesn't start with 5: Gibson/MusicYo era import
+        // e.g. 4081404 — exact year encoding unclear, era ~2000-2015
+        if (/^\d{7}$/.test(normalized) && !/^5\d{6}$/.test(normalized)) {
+            const info = {
+                brand: 'Kramer',
+                serialNumber: cleaned,
+                year: '2000–2015 (estimated Gibson/MusicYo era)',
+                factory: 'Gibson/MusicYo-era import factory (Korea, China, or Indonesia)',
+                country: 'South Korea',
+                notes: `7-digit numeric Kramer serial from the Gibson/MusicYo production era (approximately 2000–2015). The exact date-code convention for this run is not publicly documented and the year cannot be extracted reliably from digit positions alone. Confirm the era from the headstock markings, model features, and Kramer label text. Gibson reacquired the Kramer brand from MusicYo in 2009; instruments from this period range from Korean and Chinese factory builds to later Indonesian production.`,
+            };
+            return {
+                success: true,
+                info,
+                patternKey: 'kramer-modern-numeric-yymm-sequence',
+                patternLabel: 'Kramer modern numeric YYMM sequence',
+            };
+        }
         // Modern Gibson/Epiphone-era 9-digit import format:
         // FF YY M SSSS (e.g., 311763081 => factory 31, 2017, June, sequence 3081).
         if (/^\d{9}$/.test(normalized)) {

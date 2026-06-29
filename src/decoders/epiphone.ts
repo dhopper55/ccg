@@ -52,6 +52,19 @@ export function decodeEpiphone(serial: string): DecodeResult {
     return decodeSingleLetterFormat(lMisreadMatch[1], correctedDigits, normalized);
   }
 
+  // Letter-month format: factory(1) + YY(2) + month-letter(1, A–L) + sequence(4)
+  // e.g. R03F0484 = Peerless Korea (R), 2003, June (F=6th letter), unit 484
+  const letterMonthMatch = normalized.match(/^([A-Z])(\d{2})([A-L])(\d{4})$/);
+  if (letterMonthMatch) {
+    return decodeLetterMonthFormat(
+      letterMonthMatch[1],
+      letterMonthMatch[2],
+      letterMonthMatch[3],
+      letterMonthMatch[4],
+      normalized,
+    );
+  }
+
   // Format 1: Two letters + 8+ digits (e.g., SI02060234)
   // Common modern format: FF YYMMNNNN
   const twoLetterMatch = normalized.match(/^([A-Z]{2})(\d{8,})$/);
@@ -131,6 +144,65 @@ export function decodeEpiphone(serial: string): DecodeResult {
   return {
     success: false,
     error: 'Unrecognized Epiphone serial number format. Modern Epiphone serials typically start with 1-2 letters (factory code) followed by digits indicating year, month, and production number. MIRC refurbishment units begin with 311 (9 digits total).'
+  };
+}
+
+const LETTER_MONTH_NAMES: Record<string, string> = {
+  'A': 'January', 'B': 'February', 'C': 'March', 'D': 'April',
+  'E': 'May', 'F': 'June', 'G': 'July', 'H': 'August',
+  'I': 'September', 'J': 'October', 'K': 'November', 'L': 'December',
+};
+
+function decodeLetterMonthFormat(
+  factory: string,
+  yearStr: string,
+  monthLetter: string,
+  sequence: string,
+  serial: string,
+): DecodeResult {
+  const factoryInfo = FACTORY_CODES[factory];
+  const yearNum = parseInt(yearStr, 10);
+  const year = (yearNum >= 80 ? 1900 : 2000) + yearNum;
+  const monthName = LETTER_MONTH_NAMES[monthLetter];
+  const sequenceNumber = parseInt(sequence, 10);
+  const factoryName = factoryInfo?.name || 'Unknown';
+  const country = factoryInfo?.country || 'Unknown';
+
+  const info: GuitarInfo = {
+    brand: 'Epiphone',
+    serialNumber: serial,
+    year: year.toString(),
+    month: monthName,
+    factory: factoryName,
+    country,
+    notes: `Epiphone letter-month serial format. Factory code ${factory} = ${factoryName}, ${country}. Year digits ${yearStr} = ${year}. Month letter ${monthLetter} = ${monthName}. Production sequence: ${sequenceNumber}. This format uses a letter (A–L) rather than two digits for the month code.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'epiphone-letter-month-factory-yy-sequence',
+    patternLabel: 'Epiphone letter-month factory YY sequence',
+    additionalContext: {
+      title: 'Epiphone letter-month factory serial',
+      summary: 'This serial matches the Epiphone letter-month format: single factory letter, two-digit year, one letter for month (A=Jan through L=Dec), four-digit sequence.',
+      highlights: [
+        `Factory code ${factory} identifies ${factoryName}, ${country}.`,
+        `Year digits ${yearStr} decode as ${year}.`,
+        `Month letter ${monthLetter} decodes as ${monthName} (A=January through L=December).`,
+        `Production sequence: unit ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'The serial identifies factory, year, and month — not the exact model name.',
+        'Letter-month codes (A–L for Jan–Dec) were used on some Korean-factory Epiphones from the late 1990s to mid-2000s.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock for a gold or silver silkscreened serial and factory/country stamp.',
+        'Confirm the model from body style, pickups, bridge, and headstock markings.',
+        'Use label details and cavity markings to verify the exact instrument and production run.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches the Epiphone letter-month format: a single factory letter, two-digit year, one letter for month (A=Jan through L=Dec), and a four-digit production sequence.</p><h3>How This Pattern Is Typically Read</h3><p>Factory code ${factory} identifies ${factoryName} in ${country}. The year digits ${yearStr} decode as ${year}. The month letter ${monthLetter} decodes as ${monthName}. The production sequence is ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for country-of-origin markings and the serial placement.</li><li>Confirm the model from body style, pickups, bridge, headstock shape, and truss rod cover.</li><li>Contact Gibson/Epiphone support with clear photos if exact authentication is needed.</li></ul>`,
   };
 }
 

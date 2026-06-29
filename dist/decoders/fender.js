@@ -89,6 +89,11 @@ export function decodeFender(serial) {
     if (indoMatch) {
         return decodeIndonesianPrefix(indoMatch[1], indoMatch[2], normalized);
     }
+    // Grand Reward China factory for Squier: CGS + YY + 5-digit sequence (e.g. CGS0928207 = 2009)
+    // C = China, G = Grand Reward factory, S = Squier brand line
+    if (/^CGS\d{7}$/.test(normalized)) {
+        return decodeCGSSquierGrandReward(normalized);
+    }
     // Cort China factory for Fender/Squier: CC + YY + 7-digit sequence (e.g. CC210709447 = 2021)
     if (/^CC\d{9}$/.test(normalized)) {
         return decodeCortChinaCC(normalized);
@@ -342,6 +347,48 @@ function decodeIndonesianPrefix(year, sequence, serial) {
         notes: `Indonesian-made Fender (typically Squier line). Production sequence: ${sequence}.`
     };
     return { success: true, info };
+}
+function decodeCGSSquierGrandReward(serial) {
+    const yearDigits = serial.substring(3, 5);
+    const sequence = serial.substring(5);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Fender',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'Grand Reward Musical Instruments, China',
+        country: 'China',
+        model: 'Squier (CGS prefix)',
+        notes: `CGS-prefix serial identifies a Squier instrument made at the Grand Reward factory in China. C = China, G = Grand Reward factory, S = Squier brand. Year code ${yearDigits} decodes as ${year}. Production sequence: ${sequenceNumber}. Instruments with this prefix are typically Squier Classic Vibe or related China-built Squier models. Verify the model and branding from the headstock logo.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'fender-squier-cgs-grand-reward-china-yy-sequence',
+        patternLabel: 'Fender/Squier Grand Reward China CGS-prefix YY sequence',
+        additionalContext: {
+            title: 'Squier Grand Reward China (CGS-prefix) serial',
+            summary: `This serial uses the CGS-prefix format: C=China, G=Grand Reward factory, S=Squier. Year ${year}, sequence ${sequenceNumber}.`,
+            highlights: [
+                'CGS: C=China, G=Grand Reward factory, S=Squier brand line.',
+                `Year code ${yearDigits} decodes as ${year}.`,
+                `Production sequence: unit ${sequenceNumber}.`,
+                'Associated with Squier Classic Vibe and related China-built Squier models from this era.',
+            ],
+            caveats: [
+                'CGS is a Squier prefix, not a Fender USA prefix — the headstock should say Squier.',
+                'A CGS serial on a guitar with a Fender (not Squier) headstock is a counterfeit warning sign.',
+                'Some Fender Modern Player China-built instruments use a CGF prefix (F=Fender) rather than CGS.',
+            ],
+            verificationTips: [
+                'Verify the headstock reads Squier, not Fender.',
+                'Check the back of the headstock for a Made in China stamp.',
+                'Compare the model, hardware, and finish against Squier Classic Vibe catalog specs from the decoded year.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial uses the CGS-prefix format identifying a Squier instrument made at the Grand Reward factory in China: C=China, G=Grand Reward, S=Squier.</p><h3>How It Decodes</h3><p>Year code ${yearDigits} decodes as ${year}. Production sequence: ${sequenceNumber}. This format is associated with Squier Classic Vibe and related Squier models manufactured at Grand Reward in China.</p><h3>What To Verify</h3><ul><li>Verify the headstock reads Squier — CGS is a Squier prefix, and a Fender logo with a CGS serial is a counterfeit red flag.</li><li>Check the back of the headstock for a Made in China marking.</li><li>Compare the model against Squier Classic Vibe catalog specs for ${year}.</li></ul>`,
+    };
 }
 function decodeCortChinaCC(serial) {
     const yearDigits = serial.substring(2, 4);

@@ -253,9 +253,21 @@ export function decodeJackson(serial: string): DecodeResult {
     return decodeJapanNinePrefixNineDigit(normalized);
   }
 
+  // Early India/budget factory 9-digit (0-prefix, year ~2000-2004)
+  // e.g. 030020750: first 2 digits approximate year, rest is factory-routed sequence
+  if (/^0\d{8}$/.test(normalized) && normalized.length === 9) {
+    return decodeEarlyBudgetNineDigit(normalized);
+  }
+
   // India 10-digit (JS30xx, 2008+ prefix)
   if (/^20(0[8-9]|[1-2]\d)\d{6}$/.test(normalized) && normalized.length === 10) {
     return decodeIndiaNumeric10(normalized);
+  }
+
+  // Modern all-numeric 11-digit: YY + MM + factory/sequence (2010s JS/X Series imports)
+  // e.g. 14051508209 = 2014, May, factory-seq 1508209
+  if (/^\d{11}$/.test(normalized)) {
+    return decodeModern11DigitNumeric(normalized);
   }
 
   // Korea 7-digit (Performers, starts with 1)
@@ -1419,6 +1431,99 @@ function decodeChinaCWJ(serial: string): DecodeResult {
       ],
     },
     additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Jackson CWJ-prefix import format used on Chinese-built JS Series and X Series guitars.</p><h3>How This Pattern Is Typically Read</h3><p>CWJ identifies a contracted Chinese production facility. The digits "${yearDigits}" decode as production year ${year}. The remaining digits decode as sequential production number ${sequenceNumber}. This format is used on Chinese-manufactured Jackson JS and X Series import guitars.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock or neck plate for a Made in China stamp.</li><li>The serial does not encode the exact model name; verify body shape, inlays, and pickups against the Jackson catalog for the decoded year.</li><li>CWJ-prefix serials may not appear in Jackson's USA Custom Shop database.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed Chinese Jackson import decode, then identify the exact series and model from physical features and Jackson's catalog.</p>`,
+  };
+}
+
+function decodeEarlyBudgetNineDigit(serial: string): DecodeResult {
+  const yearDigits = serial.substring(0, 2);
+  const sequence = serial.substring(2);
+  const yearNum = parseInt(yearDigits, 10);
+  const year = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum).toString();
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Jackson',
+    serialNumber: serial,
+    year,
+    factory: 'India or early budget import factory',
+    country: 'India',
+    notes: `9-digit numeric import format with leading zero. First two digits ${yearDigits} are interpreted as production year ${year}. The remaining digits ${sequence} (${sequenceNumber}) encode the factory routing code and sequential production number. This format is associated with early-2000s Jackson budget and entry-level imports (JS Series) manufactured in India. Year attribution is an estimate; exact factory routing is not publicly documented for this era. Verify with a Made in India stamp on the headstock, neck pocket, or inside label.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'jackson-india-early-budget-9digit',
+    patternLabel: 'Jackson India early budget 9-digit serial',
+    additionalContext: {
+      title: 'Jackson early India budget 9-digit serial',
+      summary: 'This 9-digit serial with a leading zero is associated with early-2000s Jackson budget and entry-level imports (JS Series) manufactured in India.',
+      highlights: [
+        `First two digits ${yearDigits} decode as approximate production year ${year}.`,
+        `The remaining digits ${sequence} encode the factory routing and sequential production number.`,
+        'This format is associated with early-2000s Jackson JS Series India imports.',
+      ],
+      caveats: [
+        'Year attribution from the first two digits is an estimate — India factory records for this era are not publicly documented.',
+        'Serial format documentation for India-built Jackson JS Series from the early 2000s is incomplete.',
+        'The guitar may not appear in Jackson\'s serial lookup database, as India-factory records were managed regionally.',
+      ],
+      verificationTips: [
+        'Look for a Made in India stamp on the back of the headstock, neck pocket, or body label.',
+        'Compare the body shape (Dinky, King V, Rhoads, etc.) and hardware against Jackson JS Series catalog specs from the decoded year.',
+        'A "Jackson" or "Jackson JS" label inside the neck pocket or body cavity can confirm the factory origin.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This 9-digit serial with a leading zero is associated with early-2000s Jackson budget and entry-level imports (JS Series) manufactured in India.</p><h3>How This Pattern Is Typically Read</h3><p>The first two digits ${yearDigits} are interpreted as approximate production year ${year}. The remaining digits ${sequence} encode the factory routing code and sequential production number. India factory records for this format are not publicly documented, so the year is an estimate.</p><h3>What To Verify</h3><ul><li>Look for a Made in India stamp on the headstock, neck pocket, or body label.</li><li>Compare the body shape and hardware against Jackson JS Series catalog specs from the decoded year.</li><li>The guitar may not appear in Jackson's serial lookup database, as India-factory records were managed regionally.</li></ul>`,
+  };
+}
+
+function decodeModern11DigitNumeric(serial: string): DecodeResult {
+  const yearDigits = serial.substring(0, 2);
+  const monthDigits = serial.substring(2, 4);
+  const sequence = serial.substring(4);
+  const yearNum = parseInt(yearDigits, 10);
+  const year = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum).toString();
+  const monthNum = parseInt(monthDigits, 10);
+  const monthName = monthNum >= 1 && monthNum <= 12 ? getMonthName(monthNum) : undefined;
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Jackson',
+    serialNumber: serial,
+    year,
+    month: monthName,
+    factory: 'China or Indonesia import factory',
+    country: 'China or Indonesia',
+    notes: `11-digit all-numeric import format: YYMM + factory/sequence. Year digits ${yearDigits} decode as ${year}; month digits ${monthDigits} decode as ${monthName || 'the production month'}; the remaining digits ${sequence} (${sequenceNumber}) encode the factory identifier and sequential production number. This format is used on modern Jackson JS Series and X Series imports from China or Indonesia. Verify the exact country from the Made in marking on the headstock or neck pocket.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'jackson-modern-11digit-yymm-sequence',
+    patternLabel: 'Jackson modern 11-digit YYMM + factory/sequence',
+    additionalContext: {
+      title: 'Jackson modern 11-digit all-numeric serial',
+      summary: 'This 11-digit serial follows a YYMM + factory/sequence format used on modern Jackson JS Series and X Series imports from China or Indonesia.',
+      highlights: [
+        `Year digits ${yearDigits} decode as ${year}.`,
+        monthName ? `Month digits ${monthDigits} decode as ${monthName}.` : `Month digits ${monthDigits} are the production month code.`,
+        `The remaining digits decode as factory identifier and sequential production number.`,
+        'This format is used on modern Jackson JS and X Series China/Indonesia imports.',
+      ],
+      caveats: [
+        'The exact factory within China or Indonesia is not encoded in a publicly documented way for this format.',
+        'Modern China/Indonesia-built JS and X Series guitars may not appear in Jackson\'s serial lookup database.',
+        'This format does not encode the exact model name or body shape.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock or neck pocket for a Made in China or Made in Indonesia stamp.',
+        'Compare the body shape, bridge type, pickups, and hardware against Jackson JS/X Series catalog specs from the decoded year.',
+        'Use the Jackson official serial lookup as a first check, acknowledging results may be unavailable for import models.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This 11-digit serial follows a YYMM + factory/sequence format used on modern Jackson JS Series and X Series imports from China or Indonesia.</p><h3>How This Pattern Is Typically Read</h3><p>Year digits ${yearDigits} decode as ${year}. Month digits ${monthDigits} decode as ${monthName || 'the production month'}. The remaining digits encode the factory identifier and sequential production number.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock or neck pocket for a Made in China or Made in Indonesia stamp.</li><li>Compare the body shape, bridge, pickups, and hardware against Jackson JS/X Series catalog specs for ${year}.</li><li>Modern China/Indonesia-built JS and X Series may not appear in Jackson's serial lookup database.</li></ul>`,
   };
 }
 
