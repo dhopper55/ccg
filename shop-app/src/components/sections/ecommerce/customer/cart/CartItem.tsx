@@ -1,17 +1,26 @@
+import { useState } from 'react';
 import {
   Box,
   Button,
   Checkbox,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  IconButton,
+  InputAdornment,
   Link,
   List,
   Stack,
+  TextField,
   Typography,
   listItemTextClasses,
 } from '@mui/material';
 import useNumberFormat from 'hooks/useNumberFormat';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
 import { useEcommerce } from 'providers/EcommerceProvider';
+import { useAssociateMode } from 'providers/AssociateModeProvider';
 import paths from 'routes/paths';
 import { CartItem as CartItemType } from 'types/ecommerce';
 import IconifyIcon from 'components/base/IconifyIcon';
@@ -27,11 +36,28 @@ const CartItem = ({ item }: CartItemProps) => {
   const { updateCartItem, removeItemFromCart } = useEcommerce();
   const { currencyFormat } = useNumberFormat();
   const { up } = useBreakpoints();
+  const { isAssociateMode } = useAssociateMode();
   const upLg = up('lg');
   const upSm = up('sm');
 
+  const [editOpen, setEditOpen] = useState(false);
+  const [editValue, setEditValue] = useState('');
+
   const { id, name, images, price, stock, quantity } = item;
   const hasDiscount = Number(price.regular) > Number(price.discounted);
+
+  const openEditModal = () => {
+    setEditValue(String(price.discounted));
+    setEditOpen(true);
+  };
+
+  const handleEditConfirm = () => {
+    const parsed = parseFloat(editValue);
+    if (!isNaN(parsed) && parsed >= 0 && parsed <= 99000) {
+      updateCartItem(id, { price: { ...price, discounted: Math.round(parsed * 100) / 100 } });
+    }
+    setEditOpen(false);
+  };
 
   const handleQuantityChange = (quantity: number) => {
     updateCartItem(item.id, { quantity: Math.min(quantity, Math.max(1, Number(stock || 1))) });
@@ -176,23 +202,30 @@ const CartItem = ({ item }: CartItemProps) => {
                     alignItems: 'center',
                   }}
                 >
-                  <Typography
-                    variant="subtitle1"
-                    sx={{
-                      color: 'text.secondary',
-                    }}
-                  >
-                    Each
-                    <Box
-                      component="strong"
+                  <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5 }}>
+                    <Typography
+                      variant="subtitle1"
                       sx={{
-                        color: 'text.primary',
-                        ml: 1,
+                        color: 'text.secondary',
                       }}
                     >
-                      {currencyFormat(price.discounted)}
-                    </Box>
-                  </Typography>
+                      Each
+                      <Box
+                        component="strong"
+                        sx={{
+                          color: 'text.primary',
+                          ml: 1,
+                        }}
+                      >
+                        {currencyFormat(price.discounted)}
+                      </Box>
+                    </Typography>
+                    {isAssociateMode && (
+                      <IconButton size="small" onClick={openEditModal} sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}>
+                        <IconifyIcon icon="material-symbols:edit-outline-rounded" fontSize={15} />
+                      </IconButton>
+                    )}
+                  </Stack>
                   {hasDiscount && item.price.offer && (
                     <Chip variant="soft" color="success" label={`Save ${item.price.offer}`} />
                   )}
@@ -273,6 +306,30 @@ const CartItem = ({ item }: CartItemProps) => {
           </Stack>
         </Box>
       </Stack>
+
+      <Dialog open={editOpen} onClose={() => setEditOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Edit Unit Price</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            fullWidth
+            type="number"
+            label="Unit price"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleEditConfirm(); }}
+            inputProps={{ min: 0, max: 99000, step: 0.01 }}
+            InputProps={{
+              startAdornment: <InputAdornment position="start">$</InputAdornment>,
+            }}
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button variant="text" color="inherit" onClick={() => setEditOpen(false)}>Cancel</Button>
+          <Button variant="contained" color="primary" onClick={handleEditConfirm}>OK</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
