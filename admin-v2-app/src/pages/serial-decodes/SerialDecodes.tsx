@@ -99,7 +99,7 @@ type DailyVolumeResponse = {
   message?: string;
 };
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 50;
 
 // 48 half-hour bucket labels, each label = end time of the block
 // Block 0: 12:00am–12:30am → "12:30am", Block 47: 11:30pm–midnight → "Midnight"
