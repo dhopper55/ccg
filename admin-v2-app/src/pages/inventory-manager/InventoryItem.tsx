@@ -122,6 +122,7 @@ type InventoryItemRecord = {
   soldDate?: string | null;
   soldAmount?: number | null;
   sellNotes?: string;
+  tagReprint?: boolean;
 };
 
 type InventoryRecordResponse = {
@@ -265,6 +266,7 @@ type FormState = {
   saleZip: string;
   storageLocation: string;
   soldChannel: string;
+  tagReprint: boolean;
 };
 
 const INVENTORY_MAX_IMAGES = 20;
@@ -526,7 +528,73 @@ const DEFAULT_FORM: FormState = {
   saleZip: '80113',
   storageLocation: '',
   soldChannel: '',
+  tagReprint: false,
 };
+
+type SaleFieldsSnapshot = {
+  forSale: boolean;
+  salePrice: string;
+  regularPrice: string;
+  saleTitle: string;
+  bullet1Text: string;
+  bullet2Text: string;
+  bullet3Text: string;
+  bullet4Text: string;
+  bullet5Text: string;
+  bullet6Text: string;
+  clearance: boolean;
+};
+
+const SALE_TRIGGER_KEYS = new Set<string>([
+  'salePrice', 'regularPrice', 'saleTitle',
+  'bullet1Text', 'bullet2Text', 'bullet3Text',
+  'bullet4Text', 'bullet5Text', 'bullet6Text',
+  'clearance',
+]);
+
+function isSaleFieldsDirty(form: FormState, saved: SaleFieldsSnapshot): boolean {
+  return (
+    form.forSale !== saved.forSale ||
+    form.salePrice !== saved.salePrice ||
+    form.regularPrice !== saved.regularPrice ||
+    form.saleTitle !== saved.saleTitle ||
+    form.bullet1Text !== saved.bullet1Text ||
+    form.bullet2Text !== saved.bullet2Text ||
+    form.bullet3Text !== saved.bullet3Text ||
+    form.bullet4Text !== saved.bullet4Text ||
+    form.bullet5Text !== saved.bullet5Text ||
+    form.bullet6Text !== saved.bullet6Text ||
+    form.clearance !== saved.clearance
+  );
+}
+
+function buildSaleSnapshot(record: {
+  forSale?: boolean;
+  salePrice?: number | null;
+  regularPrice?: number | null;
+  saleTitle?: string;
+  bullet1Text?: string;
+  bullet2Text?: string;
+  bullet3Text?: string;
+  bullet4Text?: string;
+  bullet5Text?: string;
+  bullet6Text?: string;
+  clearance?: boolean;
+}): SaleFieldsSnapshot {
+  return {
+    forSale: Boolean(record.forSale),
+    salePrice: record.salePrice != null ? String(record.salePrice) : '0',
+    regularPrice: record.regularPrice != null ? String(record.regularPrice) : '',
+    saleTitle: record.saleTitle || '',
+    bullet1Text: record.bullet1Text || '',
+    bullet2Text: record.bullet2Text || '',
+    bullet3Text: record.bullet3Text || '',
+    bullet4Text: record.bullet4Text || '',
+    bullet5Text: record.bullet5Text || '',
+    bullet6Text: record.bullet6Text || '',
+    clearance: Boolean(record.clearance),
+  };
+}
 
 const notesFieldSx = {
   '& .MuiInputBase-root.MuiInputBase-multiline': {
@@ -1087,6 +1155,8 @@ const InventoryItem = () => {
   const saleUrlInputRef = useRef<HTMLInputElement | null>(null);
   const aiAnalysisEditorRef = useRef<HTMLDivElement | null>(null);
   const wasForSaleOnLoadRef = useRef(false);
+  const saleSnapshotOnLoadRef = useRef<SaleFieldsSnapshot | null>(null);
+  const savedSaleSnapshotRef = useRef<SaleFieldsSnapshot | null>(null);
   const saleTitleWasEmptyOnFocusRef = useRef(false);
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
   const [saleUrlReadOnly, setSaleUrlReadOnly] = useState(false);
@@ -1221,6 +1291,8 @@ const InventoryItem = () => {
       setIsLoading(true);
       setMessage(null);
       wasForSaleOnLoadRef.current = false;
+      saleSnapshotOnLoadRef.current = null;
+      savedSaleSnapshotRef.current = null;
 
       try {
         if (id) {
@@ -1326,7 +1398,11 @@ const InventoryItem = () => {
             saleZip: record.saleZip || '',
             storageLocation: record.storageLocation || '',
             soldChannel: record.soldChannel || '',
+            tagReprint: Boolean(record.tagReprint),
           });
+          const snapshot = buildSaleSnapshot(record);
+          saleSnapshotOnLoadRef.current = snapshot;
+          savedSaleSnapshotRef.current = snapshot;
           setWasSoldOnLoad(Boolean(record.isSold));
 
           const existingImages = Array.isArray(record.images) && record.images.length
@@ -1452,6 +1528,7 @@ const InventoryItem = () => {
             saleZip: record.saleZip || DEFAULT_FORM.saleZip,
             storageLocation: record.storageLocation || '',
             soldChannel: '',
+            tagReprint: false,
           });
           setWasSoldOnLoad(false);
 
@@ -1581,6 +1658,7 @@ const InventoryItem = () => {
             return {
               ...current,
               forSale: true,
+              tagReprint: true,
               salesChannelCcg: true,
               queue: 'For Sale',
               bullet6Text: 'FINANCING AVAILABLE!',
@@ -1588,11 +1666,18 @@ const InventoryItem = () => {
               bullet6Highlight: true,
             };
           }
-          return { ...current, forSale: true, salesChannelCcg: true, queue: 'For Sale' };
+          return { ...current, forSale: true, tagReprint: true, salesChannelCcg: true, queue: 'For Sale' };
         }
         if (current.forSale && !nextForSale) {
           return { ...current, forSale: false, queue: 'To Sell' };
         }
+      }
+      if (SALE_TRIGGER_KEYS.has(key as string) && wasForSaleOnLoadRef.current && saleSnapshotOnLoadRef.current) {
+        const nextForm = { ...current, [key]: value };
+        if (isSaleFieldsDirty(nextForm, saleSnapshotOnLoadRef.current)) {
+          return { ...nextForm, tagReprint: true };
+        }
+        return nextForm;
       }
       return { ...current, [key]: value };
     });
@@ -1619,6 +1704,8 @@ const InventoryItem = () => {
       setSourceImageUrl(null);
       setWasSoldOnLoad(false);
       wasForSaleOnLoadRef.current = false;
+      saleSnapshotOnLoadRef.current = null;
+      savedSaleSnapshotRef.current = null;
       setSaleUrlReadOnly(Boolean(form.saleUrl.trim()));
       setForm((current) => ({
         ...current,
@@ -1766,6 +1853,7 @@ const InventoryItem = () => {
     saleZip: form.saleZip.trim(),
     storageLocation: form.storageLocation || null,
     soldChannel: form.soldChannel || null,
+    tagReprint: form.tagReprint || (!wasForSaleOnLoadRef.current && form.forSale),
   });
 
   const persistImages = async (
@@ -2203,6 +2291,12 @@ const InventoryItem = () => {
 
   const handleGenerateLargeTag = async () => {
     if (isGeneratingTag) return;
+
+    if (savedSaleSnapshotRef.current && isSaleFieldsDirty(form, savedSaleSnapshotRef.current)) {
+      enqueueSnackbar('There are unsaved changes. Please save first before printing a tag.', { variant: 'warning' });
+      return;
+    }
+
     setIsGeneratingTag(true);
     setMessage(null);
 
@@ -2211,6 +2305,14 @@ const InventoryItem = () => {
       const ccgNumber = form.ccgNumber.trim() || 'inventory';
       downloadBlob(blob, `${ccgNumber}-large-tag.pdf`);
       enqueueSnackbar('Large tag generated.', { variant: 'success' });
+
+      if (editId) {
+        setField('tagReprint', false);
+        fetch(`/api/admin-v2/inventory/${encodeURIComponent(editId)}/clear-tag-reprint`, {
+          method: 'POST',
+          credentials: 'same-origin',
+        }).catch(() => {});
+      }
     } catch (error) {
       const text = error instanceof Error ? error.message : 'Unable to generate inventory tag.';
       setMessage({ severity: 'error', text });
@@ -3065,6 +3167,15 @@ const InventoryItem = () => {
                         />
                       }
                       label="Only in-store"
+                    />
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={form.tagReprint}
+                          onChange={(event) => setField('tagReprint', event.target.checked)}
+                        />
+                      }
+                      label="Tag Reprint"
                     />
                   </Stack>
 

@@ -4,6 +4,7 @@ import { normalizeText } from '../utils/text.js';
 import { dbGetInventoryItem } from '../inventory/db-core.js';
 import {
   dbSetInventoryMarked,
+  dbClearInventoryTagReprint,
   dbListMarkedInventoryRowsForPackage,
   dbListInventoryImagesForItemIds,
   dbReplaceInventoryImagesByItemIds,
@@ -255,6 +256,19 @@ export async function handleAdminV2InventoryMarkUpdate(
   const updated = await dbSetInventoryMarked(recordId, isMarked, env);
   if (!updated) return jsonResponse({ message: 'Unable to update marked state.' }, 500);
   return jsonResponse({ ok: true, isMarked });
+}
+
+export async function handleAdminV2InventoryClearTagReprint(
+  path: string,
+  env: Env,
+): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const clearIndex = parts.indexOf('clear-tag-reprint');
+  const recordId = clearIndex > 0 ? parts[clearIndex - 1] : '';
+  if (!recordId) return jsonResponse({ message: 'Missing inventory ID.' }, 400);
+  const ok = await dbClearInventoryTagReprint(recordId, env);
+  if (!ok) return jsonResponse({ message: 'Unable to clear tag reprint flag.' }, 500);
+  return jsonResponse({ ok: true });
 }
 
 export async function handleAdminV2InventoryLabelsPdf(env: Env): Promise<Response> {

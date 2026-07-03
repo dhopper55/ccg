@@ -33,6 +33,7 @@ export type InventoryListFilters = {
   active: InventoryTriState;
   marked: InventoryTriState;
   personal: InventoryTriState;
+  tagReprint: boolean;
   page: number;
   limit: number;
   sortBy: InventorySortKey;
@@ -110,7 +111,7 @@ export function inventoryOrderBySql(sortBy: InventorySortKey, sortDir: Inventory
   }
 }
 
-export function inventoryFilterClause(filters: Pick<InventoryListFilters, 'categoryId' | 'brand' | 'queue' | 'sold' | 'active' | 'marked' | 'personal'>): { sql: string; binds: unknown[] } {
+export function inventoryFilterClause(filters: Pick<InventoryListFilters, 'categoryId' | 'brand' | 'queue' | 'sold' | 'active' | 'marked' | 'personal' | 'tagReprint'>): { sql: string; binds: unknown[] } {
   const clauses: string[] = ['1 = 1'];
   const binds: unknown[] = [];
 
@@ -143,6 +144,9 @@ export function inventoryFilterClause(filters: Pick<InventoryListFilters, 'categ
   if (filters.personal !== 'all') {
     clauses.push('COALESCE(i.is_personal, 0) = ?');
     binds.push(filters.personal === 'yes' ? 1 : 0);
+  }
+  if (filters.tagReprint) {
+    clauses.push('COALESCE(i.tag_reprint, 0) = 1');
   }
   return {
     sql: clauses.join(' AND '),
@@ -301,7 +305,7 @@ export async function dbListInventoryItems(
 }
 
 export async function dbListInventoryBrands(
-  filters: Pick<InventoryListFilters, 'categoryId' | 'sold' | 'active' | 'marked' | 'personal' | 'queue'>,
+  filters: Pick<InventoryListFilters, 'categoryId' | 'sold' | 'active' | 'marked' | 'personal' | 'queue' | 'tagReprint'>,
   env: Env,
 ): Promise<string[]> {
   const clause = inventoryFilterClause({ ...filters, brand: '' });
@@ -410,6 +414,7 @@ export async function dbGetInventoryItem(recordId: string, env: Env): Promise<Re
       i.storage_location,
       i.sold_channel,
       i.merchant_center_cat_code,
+      i.tag_reprint,
       i.created_at,
       i.updated_at
      FROM ccg_inventory_items i
@@ -516,6 +521,7 @@ export async function dbGetInventoryItem(recordId: string, env: Env): Promise<Re
     saleZip: row.sale_zip || '',
     storageLocation: row.storage_location || '',
     soldChannel: row.sold_channel || '',
+    tagReprint: Boolean(row.tag_reprint),
     merchantCenterCatCode: row.merchant_center_cat_code || null,
     createdAt: row.created_at || '',
     updatedAt: row.updated_at || '',

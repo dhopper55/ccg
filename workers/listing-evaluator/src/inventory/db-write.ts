@@ -318,6 +318,7 @@ export async function dbUpdateInventoryById(
     sale_url: string | null;
     sale_zip: string | null;
     sold_channel: string | null;
+    tag_reprint: number;
     merchant_center_cat_code: string | null;
   },
   env: Env,
@@ -349,6 +350,7 @@ export async function dbUpdateInventoryById(
          barcode = ?,
          is_sold = ?, sold_date = ?, sold_amount = ?, sell_notes = ?, subscription_id = ?,
          sale_url = ?, sale_zip = ?, sold_channel = ?,
+         tag_reprint = ?,
          merchant_center_cat_code = ?,
          updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
@@ -438,6 +440,7 @@ export async function dbUpdateInventoryById(
       fields.sale_url,
       fields.sale_zip,
       fields.sold_channel,
+      fields.tag_reprint,
       fields.merchant_center_cat_code,
       idValue,
     ).run();
@@ -478,6 +481,20 @@ export async function dbSetInventorySoldAvailability(
          updated_at = CURRENT_TIMESTAMP
      WHERE id = ?`
   ).bind(idValue).run();
+}
+
+export async function dbClearInventoryTagReprint(recordId: string, env: Env): Promise<boolean> {
+  const idValue = Number.parseInt(recordId, 10);
+  if (!Number.isFinite(idValue)) return false;
+  try {
+    await env.DB.prepare(
+      `UPDATE ccg_inventory_items SET tag_reprint = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+    ).bind(idValue).run();
+    return true;
+  } catch (error) {
+    console.error('Failed to clear tag_reprint', { error });
+    return false;
+  }
 }
 
 export async function dbSetInventoryMarked(recordId: string, isMarked: boolean, env: Env): Promise<boolean> {

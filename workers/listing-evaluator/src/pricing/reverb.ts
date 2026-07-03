@@ -331,6 +331,14 @@ export function rangeFromReverbComps(comps: ReverbComp[], base: SingleAiResult):
   high = Math.max(low, high);
   medium = Math.min(high, Math.max(low, medium));
 
+  // Apply 15% retail premium, ceiling-rounded (e.g. $100 → $115, $125 → $144).
+  low = Math.ceil(low * 1.15);
+  medium = Math.ceil(medium * 1.15);
+  high = Math.ceil(high * 1.15);
+  // Re-normalize order in case ceiling nudged values out of sequence at very small amounts.
+  high = Math.max(low, high);
+  medium = Math.min(high, Math.max(low, medium));
+
   const confidence = comps.length >= 5 ? 'High' : comps.length >= 3 ? 'Medium' : 'Low';
   const notes = `Reverb listings context (${comps.length} matches). Converted to local private-party with conservative online-to-local discount and uncertainty penalties.`;
   return { low, medium, high, confidence, notes };

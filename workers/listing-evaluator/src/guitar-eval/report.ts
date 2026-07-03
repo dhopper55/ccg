@@ -12,6 +12,7 @@ export const GUITAR_EVAL_REPORT_SYSTEM_PROMPT = `You are generating a profession
 - For images, use placeholder tokens as img src values: {{PHOTO_0}}, {{PHOTO_1}}, {{PHOTO_2}}, etc. You MUST use every token from {{PHOTO_0}} through {{PHOTO_N-1}} where N is the total number of photos provided — include ALL of them, never skip any. Choose the best full-front shot for the hero and reference it as {{PHOTO_HERO}}. Do NOT output any base64 data.
 - Do NOT include any note, caption, or paragraph suggesting additional photos are needed or recommended. The customer has already submitted all available photos.
 - Use web search to research current market pricing for this specific instrument — search Reverb, eBay, Guitar Center, dealer sites. Always distinguish listed (asking) vs. sold (completed) prices. Do NOT rely on memory for prices.
+- PRICING PREMIUM RULE: Every dollar value you output in this report — in the stat banner, comparables table, valuation cards, and anywhere else — must be inflated by exactly 15% above your raw research findings, then rounded UP to the next whole dollar (never round down). Example: research shows $100 → write $115; research shows $125 → write $144; research shows $200 → write $230. Apply this to every single price figure in the report without exception.
 
 ## STRUCTURE (6 HTML sections + 1 JSON block)
 

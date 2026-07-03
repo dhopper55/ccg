@@ -39,10 +39,12 @@ export async function handleInventoryList(request: Request, env: Env): Promise<R
   const active = parseInventoryTriState(url.searchParams.get('active'), 'yes');
   const marked = parseInventoryTriState(url.searchParams.get('marked') ?? url.searchParams.get('onlyMarked'), 'all');
   const personal = parseInventoryTriState(url.searchParams.get('personal') ?? url.searchParams.get('onlyPersonal'), 'all');
+  const tagReprintParam = url.searchParams.get('tagReprint');
+  const tagReprint = tagReprintParam === '1' || tagReprintParam === 'true' || tagReprintParam === 'yes';
   const sortBy = parseInventorySortKey(url.searchParams.get('sortBy'));
   const sortDir = parseInventorySortDir(url.searchParams.get('sortDir'));
 
-  const availableBrands = await dbListInventoryBrands({ categoryId, sold, active, marked, personal, queue }, env);
+  const availableBrands = await dbListInventoryBrands({ categoryId, sold, active, marked, personal, queue, tagReprint }, env);
 
   const result = await dbListInventoryItems({
     categoryId,
@@ -52,6 +54,7 @@ export async function handleInventoryList(request: Request, env: Env): Promise<R
     active,
     marked,
     personal,
+    tagReprint,
     page,
     limit,
     sortBy,

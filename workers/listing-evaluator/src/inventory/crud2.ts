@@ -115,6 +115,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
   const saleZip = normalizeText(body.saleZip, '').slice(0, 10);
   const storageLocation = normalizeText(body.storageLocation, '').slice(0, 100);
   const soldChannel = normalizeText(body.soldChannel, '').slice(0, 100);
+  const tagReprint = toBooleanInput(body.tagReprint, false);
   const merchantCenterCatCode = normalizeText(body.merchantCenterCatCode, '').slice(0, 50) || null;
   const salesChannelFields = {
     sales_channel_ccg: salesChannelCcg ? 1 : 0,
@@ -306,6 +307,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       sale_url: saleUrl || null,
       sale_zip: saleZip || null,
       sold_channel: null,
+      tag_reprint: tagReprint ? 1 : 0,
       merchant_center_cat_code: merchantCenterCatCode,
     }, env);
     if (!remainingUpdateOk) return jsonResponse({ message: 'Unable to update remaining inventory item.' }, 500);
@@ -590,6 +592,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
     sale_url: saleUrl || null,
     sale_zip: saleZip || null,
     sold_channel: soldChannel || null,
+    tag_reprint: tagReprint ? 1 : 0,
     merchant_center_cat_code: merchantCenterCatCode,
   }, env);
   if (!updateOk) return jsonResponse({ message: 'Unable to update inventory item.' }, 500);

@@ -89,6 +89,7 @@ import {
   handleAdminV2InventoryBackfillBarcodes,
   handleAdminV2InventoryMergeMarked,
   handleAdminV2InventoryMarkUpdate,
+  handleAdminV2InventoryClearTagReprint,
   handleAdminV2InventoryLabelsPdf,
   handleAdminV2InventoryLabelsPdfPost,
 } from './admin/inventory.js';
@@ -895,6 +896,11 @@ export default {
 
     if (path.endsWith('/mark') && path.startsWith('/api/admin-v2/inventory/') && request.method === 'POST') {
       const response = await handleAdminV2InventoryMarkUpdate(request, path, env);
+      return withCors(response, request, env);
+    }
+
+    if (path.endsWith('/clear-tag-reprint') && path.startsWith('/api/admin-v2/inventory/') && request.method === 'POST') {
+      const response = await handleAdminV2InventoryClearTagReprint(path, env);
       return withCors(response, request, env);
     }
 

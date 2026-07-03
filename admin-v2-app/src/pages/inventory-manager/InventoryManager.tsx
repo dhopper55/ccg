@@ -9,6 +9,7 @@ import {
   Collapse,
   CircularProgress,
   FormControl,
+  FormControlLabel,
   Avatar,
   IconButton,
   MenuItem,
@@ -75,6 +76,7 @@ type InventoryFilters = {
   active: 'all' | 'yes' | 'no';
   marked: 'all' | 'yes' | 'no';
   personal: 'all' | 'yes' | 'no';
+  tagReprint: boolean;
 };
 
 type InventoryCategoryNode = {
@@ -107,6 +109,7 @@ const DEFAULT_FILTERS: InventoryFilters = {
   active: 'yes',
   marked: 'all',
   personal: 'all',
+  tagReprint: false,
 };
 
 function formatAddDate(value: string | null | undefined): string {
@@ -180,6 +183,7 @@ const InventoryManager = () => {
       : searchParams.get('personal') === 'no'
         ? 'no'
         : 'all',
+    tagReprint: searchParams.get('tagReprint') === '1' || searchParams.get('tagReprint') === 'true',
   }));
   const [page, setPage] = useState(() => {
     const parsed = Number.parseInt(searchParams.get('page') || '1', 10);
@@ -211,6 +215,8 @@ const InventoryManager = () => {
       || searchParams.get('onlyMarked') === '1'
       || searchParams.get('personal')
       || searchParams.get('onlyPersonal') === '1'
+      || searchParams.get('tagReprint') === '1'
+      || searchParams.get('tagReprint') === 'true'
     );
   });
   const [selectAllChecked, setSelectAllChecked] = useState(false);
@@ -236,6 +242,7 @@ const InventoryManager = () => {
     if (filters.active !== 'yes') nextParams.set('active', filters.active);
     if (filters.marked !== 'all') nextParams.set('marked', filters.marked);
     if (filters.personal !== 'all') nextParams.set('personal', filters.personal);
+    if (filters.tagReprint) nextParams.set('tagReprint', '1');
 
     if (nextParams.toString() !== searchParams.toString()) {
       setSearchParams(nextParams, { replace: true });
@@ -305,6 +312,7 @@ const InventoryManager = () => {
         params.set('active', filters.active);
         params.set('marked', filters.marked);
         params.set('personal', filters.personal);
+        if (filters.tagReprint) params.set('tagReprint', '1');
         if (filters.categoryId) params.set('categoryId', filters.categoryId);
         if (filters.brand) params.set('brand', filters.brand);
         if (filters.queue) params.set('queue', filters.queue);
@@ -1122,6 +1130,18 @@ const InventoryManager = () => {
                             <MenuItem value="no">Not Personal</MenuItem>
                           </Select>
                         </FormControl>
+                      </Grid>
+
+                      <Grid size={{ xs: 12, md: 'auto' }} sx={{ flexGrow: 0, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={filters.tagReprint}
+                              onChange={(event) => handleFilterChange('tagReprint', event.target.checked)}
+                            />
+                          }
+                          label="Tag Reprints"
+                        />
                       </Grid>
 
                     </Grid>
