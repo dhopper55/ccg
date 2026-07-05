@@ -115,8 +115,8 @@ export function decodeKramer(serial) {
         };
         return { success: true, info };
     }
-    // SC-prefix: Japanese overseas Focus/Striker-era plate serials
-    if (/^SC\d{4}$/.test(normalized)) {
+    // SC-prefix: Japanese overseas Focus/Striker-era plate serials (2-4 digit sequence)
+    if (/^SC\d{2,4}$/.test(normalized)) {
         return decodeJapanSC(normalized, cleaned);
     }
     // SE-prefix: Samick Korea overseas models, commonly late-1980s Striker/Aerostar/Focus era

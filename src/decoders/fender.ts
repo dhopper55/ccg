@@ -109,6 +109,12 @@ export function decodeFender(serial: string): DecodeResult {
     return decodeIndonesianPrefix(indoMatch[1], indoMatch[2], normalized);
   }
 
+  // Signature Edition (USA): SE + single year digit + 5-digit sequence
+  // SE9 decals were ordered in 1989 but used on instruments through ~1994
+  if (/^SE\d{6}$/.test(normalized)) {
+    return decodeSignatureEditionSE(normalized);
+  }
+
   // Grand Reward China factory for Squier: CGS + YY + 5-digit sequence (e.g. CGS0928207 = 2009)
   // C = China, G = Grand Reward factory, S = Squier brand line
   if (/^CGS\d{7}$/.test(normalized)) {
@@ -423,6 +429,55 @@ function decodeIndonesianPrefix(year: string, sequence: string, serial: string):
   };
 
   return { success: true, info };
+}
+
+function decodeSignatureEditionSE(serial: string): DecodeResult {
+  const yearDigit = serial.charAt(2);
+  const sequence = serial.substring(3);
+  const yearNum = parseInt(yearDigit, 10);
+  // SE9 was ordered in 1989 but used through ~1994; SE0 would be 1990, etc.
+  const baseYear = yearNum === 0 ? 1990 : 1980 + yearNum;
+  const year = baseYear === 1989 ? '1989' : baseYear.toString();
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Fender',
+    serialNumber: serial,
+    year,
+    factory: 'Fender USA (Corona, California)',
+    country: 'USA',
+    model: 'Artist Signature Series',
+    notes: `SE-prefix Fender Signature Edition serial. SE indicates an American-made artist signature model. The digit ${yearDigit} indicates a ${year} production batch. Sequence number: ${sequenceNumber}. Fender over-ordered SE9 headstock decals in 1989 and continued using them on signature models into the early-to-mid 1990s, so the actual build date may be 1989–1994 regardless of the decade digit. Common signature models using this prefix include the Eric Clapton, Yngwie Malmsteen, and Jeff Beck Stratocasters. Remove the neck and check the heel date stamp for the exact build date.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'fender-se-signature-edition-usa-year-sequence',
+    patternLabel: 'Fender SE Signature Edition USA year sequence',
+    additionalContext: {
+      title: 'Fender SE Signature Edition serial',
+      summary: 'This serial uses the Fender SE (Signature Edition) prefix identifying an American-made artist signature model from around 1989 onward.',
+      highlights: [
+        `SE identifies a Fender USA artist Signature Edition instrument.`,
+        `Year digit ${yearDigit} indicates a ${year} production batch code.`,
+        `Sequence number: ${sequenceNumber}.`,
+        'The SE9 decal batch was produced in 1989 but continued in use on signature models into the early-to-mid 1990s.',
+      ],
+      caveats: [
+        'Because Fender over-ordered SE9 decals, the actual build date may be 1989–1994 even though the digit reads 9.',
+        'The serial alone does not identify the artist signature (e.g., Clapton, Malmsteen, Beck) — confirm from the headstock logo and model features.',
+        "For the exact build date, remove the neck and check the date stamp on the neck heel.",
+      ],
+      verificationTips: [
+        'Confirm the headstock logo to identify the specific signature artist and model.',
+        'Remove the neck and look for a handwritten or stamped date on the heel for the precise manufacture date.',
+        'Check the back of the headstock for a Made in USA stamp.',
+        'Compare the electronics, hardware, and finish against known specs for the identified signature model.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial uses the Fender SE (Signature Edition) prefix for American-made artist signature models. SE + a single year digit + a five-digit sequence number.</p><h3>How This Pattern Is Typically Read</h3><p>SE indicates a Fender USA Signature Edition instrument. Year digit ${yearDigit} indicates a ${year} production batch. Sequence number: ${sequenceNumber}. Fender over-ordered SE9 headstock decals in 1989 and continued using them through the early-to-mid 1990s, so the actual build date may span 1989–1994.</p><h3>What To Verify</h3><ul><li>Confirm the headstock logo to identify the specific signature artist and model.</li><li>Remove the neck and check the date stamp on the neck heel for the precise build date.</li><li>Verify the electronics, hardware, and finish against known specs for the identified signature model.</li></ul>`,
+  };
 }
 
 function decodeCGSSquierGrandReward(serial: string): DecodeResult {

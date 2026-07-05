@@ -124,11 +124,26 @@ export function decodeJackson(serial) {
     if (/^NHJ\d{6,8}[A-Z]?$/i.test(normalized)) {
         return decodeIndia(normalized);
     }
-    // China CWJ-prefix: CWJ + YY + sequence (7 or 8 digits after prefix = 10-11 chars total)
+    // China GWC-prefix: GWC + YY + sequence (same format as GWJ/CWJ, C-variant factory)
+    // e.g. GWC25089446 = 2025, seq 089446
+    if (/^GWC\d{8}$/i.test(normalized)) {
+        return decodeChinaGWC(normalized);
+    }
+    // China GWJ-prefix: GWJ + YY + sequence (same format/factory logic as CWJ, G-variant)
+    // e.g. GWJ212978 = 2021, seq 2978
+    if (/^GWJ\d{6,8}$/i.test(normalized)) {
+        return decodeChinaGWJ(normalized);
+    }
+    // China CWJ-prefix: CWJ + YY + sequence (6-8 digits after prefix)
     // Must be checked BEFORE the generic 3-letter prefix handler, which would misparse CWJ2257232
     // as modelCode=22, yearDigits=57 → year 2057. CWJ format uses prefix-yy-seq, not modelcode-yy-seq.
-    if (/^CWJ\d{7,8}$/i.test(normalized)) {
+    if (/^CWJ\d{6,8}$/i.test(normalized)) {
         return decodeChinaCWJ(normalized);
+    }
+    // Indonesia Samick Jackson short format: ISJ + YYMM (4 digits) with optional trailing sequence
+    // e.g. ISJ1903 = 2019, March (may be truncated/no sequence on some labels)
+    if (/^ISJ\d{4,}$/.test(normalized)) {
+        return decodeISJIndonesiaSamick(normalized);
     }
     // Modern 3-letter prefix + 7-digit: prefix(3) + modelCode(2) + YY(2) + sequence(3)
     // Checked before the I[WSCHJ]J Indonesia and C[YJ]J China checks because serials like
@@ -1231,6 +1246,135 @@ function decodeModern10DigitThreeLetterPrefix(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern Jackson import format: 3-letter country/factory/brand prefix + 2-digit model code + 2-digit production year + 3-digit sequence.</p><h3>How This Pattern Is Typically Read</h3><p>"${letterPrefix}" encodes country, factory, and brand: ${letterPrefix[0]} = ${country}, ${letterPrefix[1]} = ${factory}. Model variation code is ${parseInt(modelCode, 10)}. The digits "${yearDigits}" decode as production year ${year}. The remaining digits are production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock or neck plate for a country-of-origin stamp.</li><li>The model code does not directly identify the guitar model name — verify from headstock, series name, and catalog.</li><li>Use the Jackson official serial lookup where available.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed modern Jackson import decode, then identify the exact model from physical markings and catalog comparison.</p>`,
+    };
+}
+function decodeChinaGWC(serial) {
+    const yearDigits = serial.substring(3, 5);
+    const sequence = serial.substring(5);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Jackson',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'Chinese contracted factory (GWC)',
+        country: 'China',
+        model: 'JS Series or X Series',
+        notes: `GWC-prefix Jackson China import format. GWC identifies a contracted Chinese production facility (C-variant of the GWJ/CWJ factory codes). Year digits "${yearDigits}" decode as ${year}. Sequential production number: ${sequenceNumber}. Associated with JS Series and X Series models built in China. Verify with a Made in China headstock marking and model specs.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'jackson-china-gwc-yy-sequence',
+        patternLabel: 'Jackson China GWC YY sequence',
+        additionalContext: {
+            title: 'Jackson China GWC-prefix serial',
+            summary: 'This serial matches a Jackson GWC-prefix import format used on Chinese-built JS Series and X Series guitars.',
+            highlights: [
+                'GWC identifies a contracted Chinese production facility (C-variant of the GWJ/CWJ factory codes).',
+                `Year digits ${yearDigits} decode as ${year}.`,
+                `Sequential production number: ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'Jackson explicitly states that guitars manufactured in China do not appear in the central Jackson serial database.',
+                'The GWC, GWJ, and CWJ prefixes all refer to related Chinese contracted facilities.',
+                'The serial identifies factory and year; the exact model must be confirmed from the headstock and body specs.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for a Made in China stamp.',
+                'Confirm the model from body shape, pickups, and headstock markings.',
+                `Compare the model against Jackson JS/X Series China catalog specs for ${year}.`,
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches the Jackson GWC-prefix China import format used on JS Series and X Series guitars. GWC identifies a contracted Chinese facility related to the GWJ/CWJ family of factory codes.</p><h3>How This Pattern Is Typically Read</h3><p>GWC is the factory prefix. Year digits ${yearDigits} decode as ${year}. Sequential production number: ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for a Made in China stamp.</li><li>These guitars do not appear in the Jackson central serial database — that is expected.</li><li>Confirm the model from body shape, pickups, and headstock markings.</li></ul>`,
+    };
+}
+function decodeChinaGWJ(serial) {
+    const yearDigits = serial.substring(3, 5);
+    const sequence = serial.substring(5);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Jackson',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'Chinese contracted factory (GWJ)',
+        country: 'China',
+        model: 'JS Series or X Series',
+        notes: `GWJ-prefix Jackson China import format. GWJ identifies a contracted Chinese production facility (G-variant of the CWJ factory code). Year digits "${yearDigits}" decode as ${year}. Sequential production number: ${sequenceNumber}. This prefix is associated with JS Series and X Series models built in China. Verify with a Made in China headstock marking and model specs.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'jackson-china-gwj-yy-sequence',
+        patternLabel: 'Jackson China GWJ YY sequence',
+        additionalContext: {
+            title: 'Jackson China GWJ-prefix serial',
+            summary: 'This serial matches a Jackson GWJ-prefix import format used on Chinese-built JS Series and X Series guitars.',
+            highlights: [
+                'GWJ identifies a contracted Chinese production facility (G-variant of the CWJ factory code).',
+                `Year digits ${yearDigits} decode as ${year}.`,
+                `Sequential production number: ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'Jackson explicitly states that guitars manufactured in China and Indonesia do not appear in the central Jackson serial database.',
+                'The GWJ prefix is the G-variant of the CWJ code — same production context, different facility routing.',
+                'The serial identifies factory and year; the exact model must be confirmed from the headstock and body specs.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for a Made in China stamp.',
+                'Confirm the model (Dinky, King V, Rhoads, etc.) from body shape, pickups, and headstock markings.',
+                `Compare the model against Jackson JS/X Series China catalog specs for ${year}.`,
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches the Jackson GWJ-prefix China import format used on JS Series and X Series guitars. GWJ identifies the contracted Chinese facility (a G-variant of the CWJ code).</p><h3>How This Pattern Is Typically Read</h3><p>GWJ is the factory prefix. Year digits ${yearDigits} decode as ${year}. Sequential production number: ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for a Made in China stamp.</li><li>These guitars do not appear in the Jackson central serial database — that is expected, not a counterfeit indicator.</li><li>Confirm the model from body shape, pickups, and headstock markings.</li></ul>`,
+    };
+}
+function decodeISJIndonesiaSamick(serial) {
+    const yearDigits = serial.substring(3, 5);
+    const monthDigits = serial.substring(5, 7);
+    const sequence = serial.length > 7 ? serial.substring(7) : '';
+    const yearNum = parseInt(yearDigits, 10);
+    const year = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum).toString();
+    const monthNum = parseInt(monthDigits, 10);
+    const monthName = monthNum >= 1 && monthNum <= 12 ? getMonthName(monthNum) : undefined;
+    const sequenceNumber = sequence ? parseInt(sequence, 10) : undefined;
+    const info = {
+        brand: 'Jackson',
+        serialNumber: serial,
+        year,
+        month: monthName,
+        factory: 'Indonesia Samick factory (ISJ)',
+        country: 'Indonesia',
+        model: 'X Series or Pro Series',
+        notes: `ISJ-prefix Jackson Indonesia Samick format. ISJ = Indonesia, Samick factory, Jackson. Year digits ${yearDigits} decode as ${year}. Month digits ${monthDigits} decode as ${monthName || 'the production month'}${sequenceNumber !== undefined ? `. Production sequence: ${sequenceNumber}` : ' (sequence digits may be missing or worn)'}. Modern Indonesian Jackson serials are typically 10 or more characters — if yours ends after the month digits, a few digits may have rubbed off the headstock.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'jackson-isj-indonesia-samick-yymm-sequence',
+        patternLabel: 'Jackson ISJ Indonesia Samick YYMM sequence',
+        additionalContext: {
+            title: 'Jackson ISJ Indonesia Samick serial',
+            summary: 'This serial uses the Jackson ISJ-prefix format for instruments manufactured at the Samick facility in Indonesia: ISJ + two-digit year + two-digit month + production sequence.',
+            highlights: [
+                'ISJ = Indonesia, Samick factory, Jackson brand.',
+                `Year digits ${yearDigits} decode as ${year}.`,
+                monthName ? `Month digits ${monthDigits} decode as ${monthName}.` : `Month digits ${monthDigits} are the production month code.`,
+                sequenceNumber !== undefined ? `Production sequence: ${sequenceNumber}.` : 'Sequence digits appear to be missing — check the headstock for additional worn digits.',
+            ],
+            caveats: [
+                'Indonesian Jackson serials do not appear in the Jackson central serial database — that is normal for Samick-built models.',
+                'Full ISJ serials are typically 10+ characters; if yours ends at 7 characters, a few production sequence digits may have worn off.',
+                'The serial identifies the factory and production date; the exact model must be confirmed from the headstock and body specs.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for a Made in Indonesia stamp.',
+                'Remove the neck and check the neck pocket for a factory date stamp if the serial appears short.',
+                `Compare the model against Jackson X Series or Pro Series Indonesia catalog specs for ${year}.`,
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial uses the Jackson ISJ-prefix format: ISJ = Indonesia, Samick factory, Jackson. The format encodes year, month, and production sequence.</p><h3>How This Pattern Is Typically Read</h3><p>Year digits ${yearDigits} decode as ${year}. Month digits ${monthDigits} decode as ${monthName || 'the production month'}. ${sequenceNumber !== undefined ? `Production sequence: ${sequenceNumber}.` : 'Sequence digits appear to be missing — check for worn digits on the headstock.'}</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for a Made in Indonesia stamp.</li><li>Indonesian Jackson serials do not appear in the Jackson central serial database — that is expected.</li><li>Compare the model against Jackson X Series or Pro Series specs for ${year}.</li></ul>`,
     };
 }
 function decodeChinaCWJ(serial) {

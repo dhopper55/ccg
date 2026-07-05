@@ -127,8 +127,8 @@ export function decodeKramer(serial: string): DecodeResult {
     return { success: true, info };
   }
 
-  // SC-prefix: Japanese overseas Focus/Striker-era plate serials
-  if (/^SC\d{4}$/.test(normalized)) {
+  // SC-prefix: Japanese overseas Focus/Striker-era plate serials (2-4 digit sequence)
+  if (/^SC\d{2,4}$/.test(normalized)) {
     return decodeJapanSC(normalized, cleaned);
   }
 

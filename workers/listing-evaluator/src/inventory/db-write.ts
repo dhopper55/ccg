@@ -108,6 +108,7 @@ export async function dbCreateInventoryItems(
     sale_url: string | null;
     sale_zip: string | null;
     merchant_center_cat_code: string | null;
+    tag_reprint?: number;
   },
   env: Env
 ): Promise<{ firstId: string; ccgNumber: string } | null> {
@@ -131,9 +132,10 @@ export async function dbCreateInventoryItems(
         sales_channel_ccg, sales_channel_fbm, sales_channel_cl, sales_channel_reverb, sales_channel_gear_exchange,
         sales_channel_offerup, sales_channel_ebay, sales_channel_nextdoor, sales_channel_other,
         for_sale_date,
-        is_sold, sold_date, sold_amount, sell_notes, sale_url, sale_zip, merchant_center_cat_code
+        is_sold, sold_date, sold_amount, sell_notes, sale_url, sale_zip, merchant_center_cat_code,
+        tag_reprint
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const result = await env.DB.prepare(statement).bind(
       fields.source_listing_id,
@@ -220,6 +222,7 @@ export async function dbCreateInventoryItems(
       fields.sale_url,
       fields.sale_zip,
       fields.merchant_center_cat_code,
+      fields.tag_reprint ?? 0,
     ).run();
     const firstId = result.meta?.last_row_id ? String(result.meta.last_row_id) : null;
     if (!firstId) return null;

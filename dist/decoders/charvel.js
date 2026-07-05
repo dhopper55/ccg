@@ -34,8 +34,8 @@ export function decodeCharvel(serial) {
     if (/^JC\d{8,10}$/.test(normalized)) {
         return decodeModernJapan(normalized);
     }
-    // Mexican production: MC + year + production
-    if (/^MC\d{6,8}$/.test(normalized)) {
+    // Mexican production: MC + year + production (up to 9 trailing digits for newer long serials)
+    if (/^MC\d{6,9}$/.test(normalized)) {
         return decodeMexico(normalized);
     }
     // Mexican early 2013: CM prefix

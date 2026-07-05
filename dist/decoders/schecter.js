@@ -18,6 +18,11 @@ export function decodeSchecter(serial) {
     if (/^\d{5}$/.test(normalized)) {
         return decodeUSA5DigitNumeric(normalized);
     }
+    // Indonesia WI prefix: WI + 8-9 digits (World Musical Instruments, reversed prefix variant)
+    // e.g. WI15070398 = 2015, July, seq 0398
+    if (/^WI\d{8,9}$/.test(normalized)) {
+        return decodeIndonesiaWI(normalized);
+    }
     // Indonesia IW prefix: IW + 8-9 digits (World Musical Instruments)
     if (/^IW\d{8,9}$/.test(normalized)) {
         return decodeIndonesiaIW(normalized);
@@ -42,6 +47,11 @@ export function decodeSchecter(serial) {
     // 7-8 digits = Korea, 9 digits = Indonesia
     if (/^W\d{7,9}$/.test(normalized)) {
         return decodeW(normalized);
+    }
+    // China CC-prefix factory: CC + YY + MM + sequence (9 digits = 11 chars total)
+    // e.g. CC230803781 = 2023, August, seq 03781
+    if (/^CC\d{9}$/.test(normalized)) {
+        return decodeChinaCCFactory(normalized);
     }
     // Korea C prefix: C + 7-8 digits (Cort Korea)
     if (/^C\d{7,8}$/.test(normalized)) {
@@ -89,8 +99,8 @@ export function decodeSchecter(serial) {
         return decodeJapanSA(normalized);
     }
     // Korea Y-prefix factory (Yeou-Tone or contracted facility): Y + YYMM + sequence
-    // e.g. Y080501933 = 2008, May, sequence 01933
-    if (/^Y\d{9}$/.test(normalized)) {
+    // e.g. Y080501933 = 2008, May, sequence 01933; Y0808141 = 2008, August, seq 141
+    if (/^Y\d{7,9}$/.test(normalized)) {
         return decodeKoreaYFactory(normalized);
     }
     // Korea Unsung: U + YYMM + sequence (e.g. U080901104 = Unsung 2008, September)
@@ -270,6 +280,46 @@ function decodeIndonesiaIW(serial) {
         notes: `IW prefix = Indonesia, World Musical Instruments. Sequence: ${sequence}.`
     };
     return { success: true, info };
+}
+function decodeIndonesiaWI(serial) {
+    // WI prefix = Indonesia, World Musical Instruments (reversed prefix variant of IW)
+    const digits = serial.substring(2);
+    const { year, month, sequence } = parseStandardDigits(digits);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Schecter',
+        serialNumber: serial,
+        year,
+        ...(month ? { month } : {}),
+        factory: 'World Musical Instruments (WMI)',
+        country: 'Indonesia',
+        model: 'Diamond Series or similar',
+        notes: `WI prefix = Indonesia, World Musical Instruments (reversed-letter variant of IW prefix). Year: ${year}${month ? `, Month: ${month}` : ''}. Sequence: ${sequenceNumber}.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'schecter-wi-indonesia-yymm-sequence',
+        patternLabel: 'Schecter WI Indonesia YYMM sequence',
+        additionalContext: {
+            title: 'Schecter WI serial',
+            summary: 'This serial matches a Schecter WI-prefix Indonesian import format — WI is the reversed-letter variant of the IW factory prefix, both referring to World Musical Instruments Indonesia.',
+            highlights: [
+                'WI identifies World Musical Instruments (WMI) Indonesia — the reversed-letter variant of the IW prefix.',
+                `Year: ${year}${month ? `. Month: ${month}` : ''}.`,
+                `Production sequence: ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'WI and IW both refer to the same World Musical Instruments Indonesia factory.',
+                'This format identifies production date and factory; the exact model must be confirmed from headstock markings.',
+            ],
+            verificationTips: [
+                'Check the headstock, truss rod cover, or label for model name and country marking.',
+                'Contact Schecter support with the serial for official confirmation.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Schecter WI-prefix Indonesian import format. WI is the reversed-letter variant of the IW prefix, both referring to World Musical Instruments Indonesia.</p><h3>How This Pattern Is Typically Read</h3><p>WI indicates World Musical Instruments Indonesia. Year: ${year}${month ? `. Month: ${month}` : ''}. Production sequence: ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check headstock markings and the label for model name and country.</li><li>WI and IW both refer to the same factory — either prefix decodes the same way.</li></ul>`,
+    };
 }
 function decodeIndonesiaIM(serial) {
     const digits = serial.substring(2);
@@ -856,6 +906,51 @@ function decodeNumeric(serial) {
         notes: `All-numeric serial indicates Korean import manufacture, typically pre-2008 era (WMI or similar factory). Sequence: ${sequence}. Verify exact year and model from headstock markings.`,
     };
     return { success: true, info, patternKey };
+}
+function decodeChinaCCFactory(serial) {
+    const yearDigits = serial.substring(2, 4);
+    const monthDigits = serial.substring(4, 6);
+    const sequence = serial.substring(6);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const monthNum = parseInt(monthDigits, 10);
+    const monthName = monthNum >= 1 && monthNum <= 12 ? getMonthName(monthNum) : undefined;
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Schecter',
+        serialNumber: serial,
+        year: year.toString(),
+        month: monthName,
+        factory: 'Chinese contracted factory (CC prefix)',
+        country: 'China',
+        notes: `CC-prefix Schecter China factory serial. CC identifies a contracted Chinese manufacturing facility used by Schecter for Diamond Series imports. Year digits ${yearDigits} decode as ${year}. Month digits ${monthDigits} decode as ${monthName || 'the production month'}. Production sequence: ${sequenceNumber}. Verify with a Made in China stamp on the back of the headstock.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'schecter-cc-china-yymm-sequence',
+        patternLabel: 'Schecter CC China factory YYMM sequence',
+        additionalContext: {
+            title: 'Schecter CC-prefix China factory serial',
+            summary: 'This serial uses the Schecter CC-prefix format for Chinese-manufactured Diamond Series instruments: CC + two-digit year + two-digit month + production sequence.',
+            highlights: [
+                'CC identifies a contracted Chinese production facility used for Schecter Diamond Series imports.',
+                `Year digits ${yearDigits} decode as ${year}.`,
+                monthName ? `Month digits ${monthDigits} decode as ${monthName}.` : `Month digits ${monthDigits} are the production month code.`,
+                `Production sequence: unit ${sequenceNumber}.`,
+            ],
+            caveats: [
+                "Schecter's serial database may have records for this serial — contact tech@schecterguitars.com with the serial and photos for official confirmation.",
+                'The CC prefix distinguishes this from the CY (Cor-tek China) and CA prefixes used on other Schecter China-built instruments.',
+                'The serial identifies the factory and production date; the exact model must be confirmed from headstock markings and body specs.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for a Made in China stamp.',
+                'Compare the body shape, headstock logo, pickups, and hardware against Schecter Diamond Series catalog specs from the decoded year.',
+                'Email tech@schecterguitars.com with the serial number and photos for official model and finish confirmation.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial uses the Schecter CC-prefix format for Chinese-manufactured Diamond Series instruments. CC identifies the contracted Chinese facility; the year, month, and production sequence follow.</p><h3>How This Pattern Is Typically Read</h3><p>Year digits ${yearDigits} decode as ${year}. Month digits ${monthDigits} decode as ${monthName || 'the production month'}. Production sequence: ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for a Made in China stamp.</li><li>Compare the model against Schecter Diamond Series China catalog specs for ${year}.</li><li>Email tech@schecterguitars.com for official confirmation.</li></ul>`,
+    };
 }
 function decodeKoreaYFactory(serial) {
     const yearDigits = serial.substring(1, 3);

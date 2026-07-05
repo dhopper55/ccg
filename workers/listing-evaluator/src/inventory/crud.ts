@@ -247,6 +247,7 @@ export async function handleInventoryCreate(request: Request, env: Env): Promise
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
   const saleUrl = normalizeText(body.saleUrl, '').slice(0, 150);
   const saleZip = normalizeText(body.saleZip, '').slice(0, 10);
+  const tagReprint = toBooleanInput(body.tagReprint, false);
   const salesChannelFields = {
     sales_channel_ccg: salesChannelCcg ? 1 : 0,
     sales_channel_fbm: salesChannelFbm ? 1 : 0,
@@ -430,6 +431,7 @@ export async function handleInventoryCreate(request: Request, env: Env): Promise
     sale_url: saleUrl || null,
     sale_zip: saleZip || null,
     merchant_center_cat_code: normalizeText(body.merchantCenterCatCode, '').slice(0, 50) || null,
+    tag_reprint: tagReprint ? 1 : 0,
   }, env);
 
   if (!inserted) {

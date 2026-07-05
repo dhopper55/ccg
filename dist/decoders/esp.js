@@ -52,11 +52,24 @@ export function decodeESP(serial) {
     if (/^ES\d{8}$/.test(normalized)) {
         return decodeEII10Char(normalized);
     }
+    // Early E-II EL-prefix format: EL + YY + 5-digit sequence (2013-2015 era, alternate prefix)
+    // e.g. EL1321202 = 2013, seq 21202
+    if (/^EL\d{7}$/.test(normalized)) {
+        return decodeELPrefixEarlyEII(normalized);
+    }
     // Ambiguous ESP-owned E-prefix 6-digit format: early E-II Japan or early LTD Korea
     if (/^E\d{6}$/.test(normalized)) {
         return decodeAmbiguousEPrefix6Digit(normalized);
     }
     // Edwards by ESP format: ED + YY + WW + D + N[N] (week/day/daily sequence)
+    // 7-digit variant: if front-parsed year would be future (>2027), try alternate layout
+    // where year is at positions [6:8] (e.g. ED3221253 = seq 3221, year 2025, series 3)
+    if (/^ED\d{7}$/.test(normalized)) {
+        const frontYear = 2000 + parseInt(normalized.substring(2, 4), 10);
+        if (frontYear > 2027) {
+            return decodeEdwardsEDNewFormat(normalized);
+        }
+    }
     if (/^ED\d{6,7}$/.test(normalized)) {
         return decodeEdwardsEDPrefix(normalized);
     }
@@ -107,6 +120,11 @@ export function decodeESP(serial) {
     if (/^IM\d{7,9}$/.test(normalized)) {
         return decodeLTDIndonesiaIM(normalized);
     }
+    // Korea: W + YY + week + short sequence (5-6 digit total, short-run or early WMI batches)
+    // e.g. W04082 = 2004, week 08, seq 2; W084082 = 2008, week 40, seq 82
+    if (/^W\d{5,6}$/.test(normalized)) {
+        return decodeLTDKoreaWShort(normalized);
+    }
     // Korea: W + YY + week + 5-digit sequence (World Musical Instruments)
     if (/^W\d{9}$/.test(normalized)) {
         return decodeLTDKoreaWMI9Digit(normalized);
@@ -134,6 +152,15 @@ export function decodeESP(serial) {
     // Vietnam: I + 7-8 digits (but not IW, IC, IS, IR)
     if (/^I\d{7,8}$/.test(normalized)) {
         return decodeLTDVietnam(normalized);
+    }
+    // Vintage Japan ESP format: first digit = last digit of year (e.g. 9→1989), next 2 digits = week,
+    // last 4 digits = production sequence. Detected when the LTD positional week (pos 2-4) is invalid
+    // but the vintage positional week (pos 1-3) is valid and first digit is 7-9 (late 1980s/early 1990s).
+    if (/^[789]\d{6}$/.test(normalized)) {
+        const vintageWeek = parseInt(normalized.substring(1, 3), 10);
+        if (vintageWeek >= 1 && vintageWeek <= 53) {
+            return decodeJapanVintage7Digit(normalized);
+        }
     }
     // LTD transitional Korean/Indonesian format: YY + week + 3-digit sequence
     if (/^\d{7}$/.test(normalized)) {
@@ -473,6 +500,97 @@ function decodeEdwardsEDPrefix(serial) {
             ]
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches the Edwards ED-prefix format used on Japanese domestic-market guitars produced and distributed by ESP. The format encodes year, production week, day of week, and daily sequence number.</p><h3>How This Pattern Is Typically Read</h3><p>ED identifies the Edwards line. The digits ${yearDigits} decode as production year ${year}. The digits ${weekDigits} decode as production week ${week}${dateInfo.month ? `, approximately ${dateInfo.month}` : ''}. The digit ${dayDigit} decodes as ${dayName}. ${productionNum ? `The remaining digit(s) ${productionNum} are the daily production number.` : ''}</p><h3>What To Verify</h3><ul><li>Edwards guitars are Japan-only instruments and are not officially exported.</li><li>Confirm the serial on the back of the headstock or at the fretboard end.</li><li>Look for an "Edwards by ESP" or "Designed and Built by ESP" marking alongside the serial.</li><li>Compare the model, finish, hardware, and headstock markings against Edwards catalog references.</li></ul>`
+    };
+}
+function decodeEdwardsEDNewFormat(serial) {
+    // Alternate Edwards 7-digit layout: ED + seq(4) + year(2) + seriesCode(1)
+    // e.g. ED3221253 = production seq 3221, year 2025, series code 3
+    const sequenceDigits = serial.substring(2, 6);
+    const yearDigits = serial.substring(6, 8);
+    const seriesCode = serial.charAt(8);
+    const yearNum = parseInt(yearDigits, 10);
+    const year = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum).toString();
+    const sequenceNumber = parseInt(sequenceDigits, 10);
+    const info = {
+        brand: 'ESP',
+        serialNumber: serial,
+        year,
+        factory: 'Edwards / ESP Japan domestic-market production',
+        country: 'Japan',
+        model: 'Edwards by ESP',
+        notes: `Edwards ED-prefix alternate format: ED + 4-digit production sequence + 2-digit year + 1-digit series code. ED identifies the Edwards Japanese domestic-market line. Production sequence: ${sequenceNumber}. Year digits ${yearDigits} decode as ${year}. Series code: ${seriesCode}.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'esp-edwards-ed-yy-sequence',
+        patternLabel: 'ESP Edwards ED prefix alternate year-at-end format',
+        additionalContext: {
+            title: 'ESP Edwards ED-prefix serial (alternate format)',
+            summary: 'This serial matches an alternate Edwards ED-prefix layout where the production sequence comes first, followed by the year code and a series digit at the end.',
+            highlights: [
+                'ED prefix identifies the Edwards line — a Japanese domestic-market ESP sub-brand.',
+                `Production sequence: ${sequenceNumber}.`,
+                `Year code ${yearDigits} decodes as ${year}.`,
+                `Series/factory code digit: ${seriesCode}.`,
+            ],
+            caveats: [
+                'Edwards guitars are Japan-only instruments — they are not officially exported and are rarely found outside Japan.',
+                'This alternate serial layout differs from the more common week/day-encoded format.',
+                'Model and finish details should be verified against the instrument and Japanese Edwards catalog references.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock or fretboard end for the stamped serial.',
+                'Look for the small "Edwards by ESP" or "Designed and Built by ESP" marking alongside the serial.',
+                `Compare the model markings and specs against Edwards catalog references for ${year}.`,
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches an alternate Edwards ED-prefix layout used on Japanese domestic-market guitars. The production sequence is encoded first, followed by the year code and a series digit.</p><h3>How This Pattern Is Typically Read</h3><p>ED identifies the Edwards line. Production sequence: ${sequenceNumber}. Year code ${yearDigits} decodes as ${year}. Series/factory code: ${seriesCode}.</p><h3>What To Verify</h3><ul><li>Edwards guitars are Japan-only instruments and are not officially exported.</li><li>Confirm the serial on the back of the headstock or at the fretboard end.</li><li>Look for an "Edwards by ESP" or "Designed and Built by ESP" marking.</li><li>Compare against Edwards catalog references for ${year}.</li></ul>`,
+    };
+}
+function decodeJapanVintage7Digit(serial) {
+    // Vintage Japan ESP 7-digit: first digit = last digit of manufacture year (9→1989),
+    // next 2 digits = production week, last 4 digits = sequential production number
+    const yearLastDigit = parseInt(serial.charAt(0), 10);
+    const year = 1980 + yearLastDigit;
+    const weekDigits = serial.substring(1, 3);
+    const week = parseInt(weekDigits, 10);
+    const sequence = serial.substring(3);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'ESP',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'ESP Japan production',
+        country: 'Japan',
+        notes: `Vintage Japan ESP 7-digit serial format. First digit ${yearLastDigit} indicates production year ${year}. Week digits ${weekDigits} indicate production week ${week}. Production sequence: ${sequenceNumber}. This numeric-only format was used on Japanese-made ESP Standard and Custom Shop instruments in the late 1980s and very early 1990s.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'esp-japan-vintage-7digit-year-week-sequence',
+        patternLabel: 'ESP Japan vintage 7-digit year-week sequence',
+        additionalContext: {
+            title: 'ESP Japan vintage 7-digit serial',
+            summary: 'This serial matches the vintage Japan ESP 7-digit format where the first digit encodes the production year (e.g. 9 = 1989), the next two digits encode the production week, and the final four digits are the sequential production number.',
+            highlights: [
+                `First digit ${yearLastDigit} indicates production year ${year}.`,
+                `Week digits ${weekDigits} indicate production week ${week}.`,
+                `Sequential production number: ${sequenceNumber}.`,
+                'This format was used on Japanese-made ESP Standard and Custom Shop instruments in the late 1980s to early 1990s.',
+            ],
+            caveats: [
+                'This format pre-dates ESP\'s modern serial encoding and is based on community-documented conventions rather than official published records.',
+                'The serial identifies the year and week; the exact model must be confirmed from physical features, headstock markings, and hardware.',
+                'Vintage Japan ESP instruments are highly collectible — verify against original catalogs and consider professional authentication for high-value specimens.',
+            ],
+            verificationTips: [
+                'The serial is typically stamped on the back of the headstock or on the neck plate (bolt-on models).',
+                'Look for the ESP logo style consistent with the identified year.',
+                `Compare the body shape, hardware, electronics, and construction against ESP Japan catalog specs for ${year}.`,
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches the vintage Japan ESP 7-digit format used in the late 1980s to early 1990s. The first digit encodes the production year, the next two digits encode the production week, and the final four digits are the sequential production number.</p><h3>How This Pattern Is Typically Read</h3><p>First digit ${yearLastDigit} indicates production year ${year}. Week digits ${weekDigits} indicate production week ${week}. Sequential production number: ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>The serial is typically stamped on the back of the headstock or on the neck plate.</li><li>Compare the body shape, hardware, and construction against ESP Japan catalog specs for ${year}.</li><li>Vintage Japan ESP instruments are highly collectible — consider professional authentication for high-value specimens.</li></ul>`,
     };
 }
 function getDayOfWeekName(day) {
@@ -1456,4 +1574,88 @@ function getMonthName(month) {
     const months = ['January', 'February', 'March', 'April', 'May', 'June',
         'July', 'August', 'September', 'October', 'November', 'December'];
     return months[month - 1] || '';
+}
+function decodeELPrefixEarlyEII(serial) {
+    // EL + YY(2) + 5-digit sequence — early E-II era (2013-2015), alternate EL prefix
+    const yearDigits = serial.substring(2, 4);
+    const productionNum = serial.substring(4);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const sequenceNumber = parseInt(productionNum, 10);
+    const info = {
+        brand: 'ESP',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'ESP Japan (Tokyo)',
+        country: 'Japan',
+        model: 'E-II Series',
+        notes: `Early ESP E-II Japan format with EL prefix (2013–2015 era). EL identifies the E-II production line (alternate prefix to ES). Year digits ${yearDigits} decode as ${year}. Sequential production number: ${sequenceNumber}. This predates ESP's unified 2016+ serial format.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'esp-early-eii-el-prefix-yy-sequence',
+        patternLabel: 'ESP early E-II EL-prefix YY + sequence (2013–2015)',
+        additionalContext: {
+            title: 'ESP early E-II EL-prefix serial',
+            summary: 'This serial matches the early E-II Japan format with EL prefix: year digits followed by sequential production number.',
+            highlights: [
+                'EL identifies an E-II production line — an alternate prefix to the more common ES used during the same era.',
+                `Year digits ${yearDigits} decode as production year ${year}.`,
+                `Sequential production number: ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'Post-2016 E-II serials use a different layout where the year appears near the end.',
+                'The serial does not encode the exact model shape; confirm from physical features and the E-II catalog.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for the E-II logo and a Made in Japan stamp.',
+                `Compare model shape, pickup configuration, and hardware against the E-II Japan catalog for ${year}.`,
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches the early E-II Japan format with EL prefix used in roughly 2013–2015.</p><h3>How This Pattern Is Typically Read</h3><p>EL identifies the E-II production line. Year digits ${yearDigits} decode as ${year}. Sequential production number: ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for the E-II logo and Made in Japan stamp.</li><li>Compare model shape, pickups, and hardware against the E-II Japan catalog for ${year}.</li></ul>`,
+    };
+}
+function decodeLTDKoreaWShort(serial) {
+    // W + YY(2) + WW(2) + short-seq (1-2 digits) — shorter WMI Korea batches
+    const yearDigits = serial.substring(1, 3);
+    const weekDigits = serial.substring(3, 5);
+    const sequence = serial.substring(5);
+    const yearNum = parseInt(yearDigits, 10);
+    const year = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum).toString();
+    const week = parseInt(weekDigits, 10);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'ESP',
+        serialNumber: serial,
+        year,
+        factory: 'World Musical Instruments (WMI), South Korea',
+        country: 'South Korea',
+        model: 'LTD Series',
+        notes: `LTD Korea WMI short-format serial. W identifies World Musical Instruments Korea. Year digits ${yearDigits} decode as ${year}. Week digits ${weekDigits} decode as week ${week}. Production sequence: ${sequenceNumber}. Short-run WMI batches use abbreviated sequences.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'esp-ltd-korea-w-short-yy-week-sequence',
+        patternLabel: 'ESP LTD Korea WMI W-prefix short YY + week + sequence',
+        additionalContext: {
+            title: 'ESP LTD Korea WMI short serial',
+            summary: 'This serial matches a short-format LTD Korea WMI serial with W prefix, year, week number, and abbreviated production sequence.',
+            highlights: [
+                'W identifies World Musical Instruments (WMI), a major Korean ESP LTD contractor.',
+                `Year digits ${yearDigits} decode as ${year}.`,
+                `Week digits ${weekDigits} decode as week ${week}.`,
+                `Production sequence: ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'Short-sequence WMI serials are less common than the full 9-digit WMI format.',
+                'Exact model identity requires physical inspection — headstock logo and hardware spec.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for a Made in Korea stamp and the LTD logo.',
+                `Compare body shape, pickups, and hardware against LTD Korea specs from ${year}.`,
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a short-format LTD Korea WMI serial with W prefix, year, week, and abbreviated sequence.</p><h3>How This Pattern Is Typically Read</h3><p>W identifies World Musical Instruments Korea. Year digits ${yearDigits} decode as ${year}. Week digits ${weekDigits} decode as week ${week}. Production sequence: ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for Made in Korea stamp and LTD logo.</li><li>Compare model shape and hardware against LTD Korea specs from ${year}.</li></ul>`,
+    };
 }

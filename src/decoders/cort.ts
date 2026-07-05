@@ -125,6 +125,12 @@ export function decodeCort(serial: string): DecodeResult {
     return decodeIndonesiaFPrefix(normalized);
   }
 
+  // LA-prefix Cor-tek factory line: LA + YY + MM + sequence (9 digits = 11 chars total)
+  // e.g. LA220687942 = 2022, June, seq 87942
+  if (/^LA\d{9}$/.test(normalized)) {
+    return decodeLAFactoryYYMM(normalized);
+  }
+
   // Generic two-letter factory prefix + 8 digits (e.g. PO prefix acoustic/open-pore line).
   // Must come after all specific two-letter prefix handlers (CA/CI/CK/CC via C[A-Z], IC, AI, etc.)
   // so only genuinely unrecognized two-letter codes reach here.
@@ -293,6 +299,53 @@ const CORT_TWO_LETTER_FACTORY_MAP: Record<string, { factory: string; country: st
   CC: { factory: 'Cort China', country: 'China' },
   PO: { factory: 'Cor-Tek production line (open-pore / acoustic series)', country: 'Korea, Indonesia, or China' },
 };
+
+function decodeLAFactoryYYMM(serial: string): DecodeResult {
+  const yearDigits = serial.substring(2, 4);
+  const monthDigits = serial.substring(4, 6);
+  const sequence = serial.substring(6);
+  const year = 2000 + parseInt(yearDigits, 10);
+  const monthNum = parseInt(monthDigits, 10);
+  const month = monthNum >= 1 && monthNum <= 12 ? getMonthName(monthNum) : undefined;
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Cort',
+    serialNumber: serial,
+    year: year.toString(),
+    month,
+    factory: 'Cor-tek LA factory line',
+    country: 'South Korea',
+    notes: `LA-prefix Cor-tek/Cort factory serial. LA identifies a specific production line within the Cor-tek facility. Year digits ${yearDigits} decode as ${year}. Month digits ${monthDigits} decode as ${month || 'the production month'}. Production sequence: ${sequenceNumber}. Cor-tek manufactures guitars for many brands under the Cort umbrella in Korea.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'cort-la-factory-yymm-sequence',
+    patternLabel: 'Cort LA-prefix factory YYMM sequence',
+    additionalContext: {
+      title: 'Cort LA-prefix Korea factory serial',
+      summary: 'This serial uses the LA-prefix Cor-tek/Cort factory format: LA identifies a specific production line, followed by two-digit year, two-digit month, and production sequence.',
+      highlights: [
+        'LA identifies a Cor-tek/Cort production line within the Korea facility.',
+        `Year digits ${yearDigits} decode as ${year}.`,
+        month ? `Month digits ${monthDigits} decode as ${month}.` : `Month digits ${monthDigits} are the production month code.`,
+        `Production sequence: unit ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'The serial identifies factory line and production date; the exact model must be confirmed from headstock markings and body specs.',
+        'Cor-tek manufactures guitars for many brands — confirm the headstock logo to identify the brand.',
+      ],
+      verificationTips: [
+        'Check the headstock logo to confirm the brand (Cort, Ibanez, Jackson, etc.).',
+        'Check the back of the headstock or inside a label for a Made in Korea stamp.',
+        `Compare the model, hardware, and construction against ${year} catalog specs for the confirmed brand.`,
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial uses the LA-prefix Cor-tek/Cort factory format. LA identifies a specific Cor-tek production line in Korea. The year, month, and sequential production number are encoded after the prefix.</p><h3>How This Pattern Is Typically Read</h3><p>Year digits ${yearDigits} decode as ${year}. Month digits ${monthDigits} decode as ${month || 'the production month'}. Production sequence: ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the headstock logo to confirm the brand.</li><li>Look for a Made in Korea stamp on the back of the headstock.</li><li>Compare the model against catalog specs for ${year}.</li></ul>`,
+  };
+}
 
 function decodeModernTwoLetterFactoryLine(serial: string): DecodeResult {
   const prefix = serial.substring(0, 2);

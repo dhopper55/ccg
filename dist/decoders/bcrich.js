@@ -99,6 +99,11 @@ export function decodeBCRich(serial) {
     if (/^B[ACEFGHJKLMNP]\d{8}$/.test(normalized)) {
         return decodeBPrefixMonthCodeImport(normalized);
     }
+    // B-prefix 8-digit plain numeric: B + YY + MM + 4-digit sequence (no month-code letter)
+    // e.g. B01081196 = 2001, August, seq 1196
+    if (/^B\d{8}$/.test(normalized)) {
+        return decodeBNumericYYMM(normalized);
+    }
     // BW-prefix import: BW + sequential number (Class Axe era or specific Korean contractor)
     if (/^BW\d{2,6}$/.test(normalized)) {
         return decodeBWPrefixImport(normalized);
@@ -1085,4 +1090,48 @@ function MONTH_NAME(month) {
         'July', 'August', 'September', 'October', 'November', 'December',
     ];
     return months[month - 1];
+}
+function decodeBNumericYYMM(serial) {
+    // B + YY(2) + MM(2) + seq(4) — plain numeric, no month-code letter
+    const yearDigits = serial.substring(1, 3);
+    const monthDigits = serial.substring(3, 5);
+    const sequence = serial.substring(5);
+    const yearNum = parseInt(yearDigits, 10);
+    const year = (yearNum <= 30 ? 2000 + yearNum : 1900 + yearNum).toString();
+    const monthNum = parseInt(monthDigits, 10);
+    const month = monthNum >= 1 && monthNum <= 12 ? MONTH_NAME(monthNum) : undefined;
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'B.C. Rich',
+        serialNumber: serial,
+        year,
+        ...(month ? { month } : {}),
+        factory: 'China import production (B-prefix)',
+        country: 'China',
+        notes: `B-prefix numeric import format parsed as B + YY + MM + sequence. Year digits ${yearDigits} decode as ${year}${month ? `; month digits ${monthDigits} decode as ${month}` : ''}. Production sequence: ${sequenceNumber}. B.C. Rich import serials can be inconsistent; verify with country-of-origin markings and model features.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'bcrich-b-prefix-numeric-yymm-import',
+        patternLabel: 'B.C. Rich B-prefix plain numeric YYMM import',
+        additionalContext: {
+            title: 'B.C. Rich B-prefix numeric import serial',
+            summary: 'This serial matches a B.C. Rich import format with B prefix followed by plain year, month, and production sequence digits.',
+            highlights: [
+                `Year digits ${yearDigits} decode as ${year}.`,
+                month ? `Month digits ${monthDigits} decode as ${month}.` : `Month digits ${monthDigits} do not correspond to a standard calendar month.`,
+                `Production sequence: ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'B.C. Rich import serial numbering is inconsistent across eras and ownership periods.',
+                'This decode identifies likely production date and import family, not the exact model.',
+            ],
+            verificationTips: [
+                'Check for Made in China or country-of-origin markings near the serial or on the headstock.',
+                'Compare body shape, pickups, and hardware against B.C. Rich import catalogs from the decoded year.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a B.C. Rich import format with B prefix followed by plain year, month, and production sequence digits.</p><h3>How This Pattern Is Typically Read</h3><p>Year digits ${yearDigits} decode as ${year}${month ? `. Month digits ${monthDigits} decode as ${month}` : ''}. Production sequence: ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>B.C. Rich import serial numbering is inconsistent across eras and ownership periods.</li><li>Check country-of-origin markings, model features, and any neck pocket or cavity dates.</li></ul>`,
+    };
 }

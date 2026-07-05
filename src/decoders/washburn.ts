@@ -761,7 +761,10 @@ function decodeModernNumeric(serial: string): DecodeResult {
     } else if (yearNum >= 0 && yearNum <= 30) {
       year = `20${yearDigits.padStart(2, '0')}`;
     } else {
-      year = `Possibly 19${yearDigits} or 20${yearDigits}`;
+      // yearNum 31-59: ambiguous as a two-digit year; try single-digit year prefix convention
+      // (first digit = last digit of year in the 1990s, e.g. 4 → 1994)
+      const firstDigit = parseInt(serial.charAt(0), 10);
+      year = firstDigit > 0 ? `199${firstDigit}` : '1990';
     }
 
     const remaining = serial.substring(2);

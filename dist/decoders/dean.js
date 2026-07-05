@@ -48,7 +48,7 @@ export function decodeDean(serial) {
         return decodeChinaZ(normalized);
     }
     // Asian partner import line: A + YYMM + sequence
-    if (/^A\d{8}$/.test(normalized)) {
+    if (/^A\d{8,9}$/.test(normalized)) {
         return decodeAsianPartnerA(normalized);
     }
     // Asian partner import line: D + YYMM + sequence
@@ -79,6 +79,10 @@ export function decodeDean(serial) {
     // Japan: J prefix
     if (/^J\d{6,8}$/.test(normalized)) {
         return decodeJapanJ(normalized);
+    }
+    // Samick World Korea: SW prefix + YYMM + 4-digit sequence (e.g. SW09040062 = 2009, April, unit 62)
+    if (/^SW\d{8}$/.test(normalized)) {
+        return decodeSamickWorldSW(normalized);
     }
     // Samick Korea: S prefix (1993-1996)
     if (/^S\d{6,8}$/.test(normalized)) {
@@ -411,9 +415,11 @@ function decodeChinaZ(serial) {
 }
 function decodeAsianPartnerA(serial) {
     const digits = serial.substring(1);
-    const yearDigits = digits.substring(0, 2);
-    const monthDigits = digits.substring(2, 4);
-    const sequence = digits.substring(4);
+    // 9-digit variant encodes a factory/line code at position 0 before YY+MM+seq
+    const offset = digits.length === 9 ? 1 : 0;
+    const yearDigits = digits.substring(offset, offset + 2);
+    const monthDigits = digits.substring(offset + 2, offset + 4);
+    const sequence = digits.substring(offset + 4);
     const year = 2000 + parseInt(yearDigits, 10);
     const month = parseInt(monthDigits, 10);
     const monthName = month >= 1 && month <= 12 ? getMonthName(month) : undefined;
@@ -599,6 +605,51 @@ function decodeJapanJ(serial) {
     return { success: true, info };
 }
 // Samick Korea: S prefix (1993-1996)
+function decodeSamickWorldSW(serial) {
+    const yearDigits = serial.substring(2, 4);
+    const monthDigits = serial.substring(4, 6);
+    const sequence = serial.substring(6);
+    const yearNum = parseInt(yearDigits, 10);
+    const year = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum).toString();
+    const monthNum = parseInt(monthDigits, 10);
+    const month = monthNum >= 1 && monthNum <= 12 ? getMonthName(monthNum) : undefined;
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Dean',
+        serialNumber: serial,
+        year,
+        month,
+        factory: 'Samick World Musical Instruments Co. Ltd (SW)',
+        country: 'South Korea',
+        notes: `SW-prefix Dean import serial. SW identifies the Samick World Musical Instruments facility in Korea. Year digits ${yearDigits} decode as ${year}. Month digits ${monthDigits} decode as ${month || 'the production month'}. Unit sequence: ${sequenceNumber}. Samick World produced Dean import models throughout the 2000s and early 2010s.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'dean-sw-samick-world-yymm-sequence',
+        patternLabel: 'Dean SW Samick World Korea YYMM sequence',
+        additionalContext: {
+            title: 'Dean SW Samick World Korea serial',
+            summary: 'This serial uses the Dean SW-prefix format identifying a guitar built at the Samick World Musical Instruments facility in Korea.',
+            highlights: [
+                'SW identifies the Samick World Musical Instruments production facility in South Korea.',
+                `Year digits ${yearDigits} decode as ${year}.`,
+                month ? `Month digits ${monthDigits} decode as ${month}.` : `Month digits ${monthDigits} are the production month code.`,
+                `Unit production sequence: ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'The serial identifies the factory and production date; the exact model must be confirmed from the headstock markings and body specs.',
+                'Samick World produced Dean import models across multiple body shapes — the serial alone does not identify the model.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for a Made in Korea stamp.',
+                'Confirm the model (Z-shape, ML, V, Razorback, etc.) from body shape, pickups, and headstock markings.',
+                `Compare the model against Dean import catalog specs for ${year}.`,
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial uses the Dean SW-prefix format for guitars built at the Samick World Musical Instruments facility in South Korea. SW + two-digit year + two-digit month + production sequence.</p><h3>How This Pattern Is Typically Read</h3><p>Year digits ${yearDigits} decode as ${year}. Month digits ${monthDigits} decode as ${month || 'the production month'}. Unit sequence: ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for a Made in Korea stamp.</li><li>Confirm the model from body shape, pickups, and headstock markings.</li><li>Compare against Dean import catalog specs for ${year}.</li></ul>`,
+    };
+}
 function decodeSamickKorea(serial) {
     const digits = serial.substring(1);
     const info = {
