@@ -146,6 +146,7 @@ export function deriveExplicitRegexFromKnownPatternKey(patternKey: string): stri
     'prs-private-stock-sequential': '^PRIVATESTOCK\\d+$',
     'squier-china-crn-numeric-month-yy-sequence': '^CRN[A-L0-9]\\d{8,9}$',
     'squier-indonesia-iss-month-letter-yy-sequence': '^ISS[A-L]\\d{8,9}$',
+    'washburn-ic3-indonesia-cort-yymm-sequence': '^IC[A-Z]\\d{7,9}$',
   };
 
   return knownPatterns[patternKey] || null;

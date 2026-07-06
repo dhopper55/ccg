@@ -105,7 +105,12 @@ export function decodeWashburn(serial: string): DecodeResult {
   }
 
   // One-to-three letter prefix format (e.g., OC, SC, N, YBJ + digits)
-  if (/^[A-Z]{1,3}\d{8,10}$/.test(normalized)) {
+  // Indonesia Cort IC-family 3-letter factory prefix: ICJ, ICC, ICO, etc. + YYMM + sequence
+  if (/^IC[A-Z]\d{7,9}$/.test(normalized)) {
+    return decodeIndonesiaCortIC3Prefix(normalized);
+  }
+
+  if (/^[A-Z]{1,3}\d{7,10}$/.test(normalized)) {
     return decodeLetterPrefix(normalized);
   }
 
@@ -642,6 +647,49 @@ function decodeLate80sJapaneseSingleLetter(serial: string): DecodeResult {
 }
 
 // One-to-three letter prefix format
+function decodeIndonesiaCortIC3Prefix(serial: string): DecodeResult {
+  const factoryVariant = serial[2];
+  const digits = serial.substring(3);
+  const { year, month, sequence } = parseYearMonthSequence(digits);
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Washburn',
+    serialNumber: serial,
+    year,
+    ...(month ? { month } : {}),
+    factory: 'Cort (Indonesia)',
+    country: 'Indonesia',
+    notes: `IC${factoryVariant}-prefix Washburn serial from the Cort facility in Indonesia. "IC" identifies the Indonesian Cort factory; "${factoryVariant}" is a production line or facility sub-code; ${digits.substring(0, 2)} indicates ${year}${month ? `; ${digits.substring(2, 4)} indicates ${month}` : ''}; production sequence: ${sequenceNumber}. This format is used on Washburn import instruments from the 2010s.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'washburn-ic3-indonesia-cort-yymm-sequence',
+    patternLabel: 'Washburn Indonesia Cort IC3-prefix YYMM sequence',
+    additionalContext: {
+      title: 'Washburn Indonesia Cort IC-prefix serial',
+      summary: 'This serial matches the IC3-prefix format used on Washburn instruments made at the Cort factory in Indonesia.',
+      highlights: [
+        `"IC${factoryVariant}" identifies the Cort factory in Indonesia (${factoryVariant} = production line/facility sub-code).`,
+        `The first two digits after the prefix decode as production year ${year}.`,
+        ...(month ? [`The next two digits decode as ${month}.`] : []),
+        `The remaining digits decode as production sequence ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'Confirm Indonesian origin from headstock or label markings.',
+        'The Cort factory in Mojokerto, Indonesia produces instruments for multiple brands.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock or inside the sound hole for "Made in Indonesia".',
+        'Compare model features against Washburn catalog from the decoded year.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches the IC3-prefix format used on Washburn instruments made at the Cort factory in Indonesia.</p><h3>How This Pattern Is Typically Read</h3><p>"IC${factoryVariant}" identifies the Cort factory in Indonesia. The first two digits after the prefix decode as production year ${year}. ${month ? `The next two digits decode as ${month}. ` : ''}The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock or inside the sound hole for "Made in Indonesia".</li><li>Compare model features against Washburn catalog from the decoded year.</li></ul>`,
+  };
+}
+
 function decodeLetterPrefix(serial: string): DecodeResult {
   const match = serial.match(/^([A-Z]{1,3})(\d+)$/);
   if (!match) {
