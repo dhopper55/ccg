@@ -1878,11 +1878,11 @@ footer {
           </div>
           <div class="step-tab" id="tab-3">
             <div class="step-tab-num">3</div>
-            <div class="step-tab-label">Payment</div>
+            <div class="step-tab-label">Photos</div>
           </div>
           <div class="step-tab" id="tab-4">
             <div class="step-tab-num">4</div>
-            <div class="step-tab-label">Photos</div>
+            <div class="step-tab-label">Payment</div>
           </div>
         </div>
       </div>
@@ -2027,50 +2027,14 @@ footer {
 
           <div class="form-actions">
             <button class="btn-back" onclick="goToStep(1)">← Back</button>
-            <button class="btn-next" onclick="goToStep(3)">Continue to Payment →</button>
+            <button class="btn-next" onclick="goToStep(3)">Continue to Photos →</button>
           </div>
         </div>
 
-        <!-- STEP 3: Payment -->
+        <!-- STEP 3: Photos -->
         <div class="step-panel" id="step-3">
-          <div class="form-body-title">Comprehensive Report Payment ($2.99)</div>
-          <div class="form-body-sub">One-time charge — report typically ready in 1–2 hours or it's free.</div>
-
-          <div class="price-includes" style="margin-bottom:18px">
-            <div class="price-line"><span class="check">✓</span> Identity verification &amp; specs</div>
-            <div class="price-line"><span class="check">✓</span> Actual sold market comps</div>
-            <div class="price-line"><span class="check">✓</span> Four-channel valuation</div>
-            <div class="price-line"><span class="check">✓</span> What helps and hurts your value</div>
-            <div class="price-line"><span class="check">✓</span> Copy-ready listing for Reverb, eBay, Facebook &amp; Craigslist</div>
-            <div class="price-line"><span class="check">✓</span> PDF you can save, print, or share</div>
-          </div>
-
-          <div class="coupon-row">
-            <label class="coupon-label" for="field-coupon">Coupon Code</label>
-            <input id="field-coupon" type="text" class="coupon-input" placeholder="Enter code" autocomplete="off" oninput="document.getElementById('btn-apply-coupon').disabled = !this.value.trim()">
-            <button id="btn-apply-coupon" class="btn-apply-coupon" disabled onclick="void applyCoupon()">Apply</button>
-          </div>
-          <div id="coupon-msg" style="display:none"></div>
-
-          <div id="stripe-spinner">Loading payment form…</div>
-          <div id="stripe-payment-element"></div>
-          <div id="stripe-error"></div>
-
-          <div class="form-actions" style="margin-top:18px">
-            <button class="btn-back" onclick="goToStep(2)">← Back</button>
-            <button id="btn-pay" disabled>Pay $2.99 →</button>
-          </div>
-        </div>
-
-        <!-- STEP 4: Photos -->
-        <div class="step-panel" id="step-4">
-
-          <div class="photos-alert">
-            <strong>⚠ Not done yet!</strong> Your payment was received — but your report cannot be processed until you submit at least one photo below. Upload your photos and click "Submit for Evaluation" to complete your order.
-          </div>
-
           <div class="form-body-title">Upload Photos</div>
-          <div class="form-body-sub">Photo quality directly impacts the accuracy of your report. We recommend all 5 shots shown below. Up to 5 photos accepted.</div>
+          <div class="form-body-sub">At least one photo is required before you can proceed to payment. Photo quality directly impacts the accuracy of your report. We recommend all 5 shots shown below. Up to 5 photos accepted.</div>
 
           <div class="upload-zone" id="upload-zone" onclick="document.getElementById('photo-upload').click()">
             <div class="upload-icon">📷</div>
@@ -2080,7 +2044,7 @@ footer {
           </div>
 
           <div class="photo-previews" id="photo-previews"></div>
-          <div class="photo-err-msg" id="photo-err-msg" style="display:none">At least one photo is required to process your report.</div>
+          <div class="photo-err-msg" id="photo-err-msg" style="display:none">At least one photo is required to continue.</div>
 
           <div class="photo-guide">
             <div class="photo-guide-hd">What to photograph</div>
@@ -2112,7 +2076,39 @@ footer {
           </div>
 
           <div class="form-actions" style="margin-top:20px">
-            <button class="btn-submit" onclick="submitForm()">Submit for Evaluation →</button>
+            <button class="btn-back" onclick="goToStep(2)">← Back</button>
+            <button class="btn-next" onclick="void goToStep(4)">Continue to Payment →</button>
+          </div>
+        </div>
+
+        <!-- STEP 4: Payment -->
+        <div class="step-panel" id="step-4">
+          <div class="form-body-title">Comprehensive Report Payment ($2.99)</div>
+          <div class="form-body-sub">One-time charge — report typically ready in 1–2 hours or it's free.</div>
+
+          <div class="price-includes" style="margin-bottom:18px">
+            <div class="price-line"><span class="check">✓</span> Identity verification &amp; specs</div>
+            <div class="price-line"><span class="check">✓</span> Actual sold market comps</div>
+            <div class="price-line"><span class="check">✓</span> Four-channel valuation</div>
+            <div class="price-line"><span class="check">✓</span> What helps and hurts your value</div>
+            <div class="price-line"><span class="check">✓</span> Copy-ready listing for Reverb, eBay, Facebook &amp; Craigslist</div>
+            <div class="price-line"><span class="check">✓</span> PDF you can save, print, or share</div>
+          </div>
+
+          <div class="coupon-row">
+            <label class="coupon-label" for="field-coupon">Coupon Code</label>
+            <input id="field-coupon" type="text" class="coupon-input" placeholder="Enter code" autocomplete="off" oninput="document.getElementById('btn-apply-coupon').disabled = !this.value.trim()">
+            <button id="btn-apply-coupon" class="btn-apply-coupon" disabled onclick="void applyCoupon()">Apply</button>
+          </div>
+          <div id="coupon-msg" style="display:none"></div>
+
+          <div id="stripe-spinner">Loading payment form…</div>
+          <div id="stripe-payment-element"></div>
+          <div id="stripe-error"></div>
+
+          <div class="form-actions" style="margin-top:18px">
+            <button class="btn-back" onclick="goToStep(3)">← Back</button>
+            <button id="btn-pay" disabled>Pay $2.99 →</button>
           </div>
         </div>
 
@@ -2416,7 +2412,7 @@ async function applyCoupon() {
       msgEl.style.display = 'block';
       input.disabled = true;
       btn.textContent = 'Applied';
-      activateStep(4);
+      showSuccess();
     } else {
       msgEl.textContent = 'Invalid coupon code.';
       msgEl.className = 'coupon-err';
@@ -2458,7 +2454,7 @@ async function handlePay() {
       body: JSON.stringify({ evaluationId, paymentIntentId: paymentIntent.id }),
     }).catch(() => undefined);
   }
-  activateStep(4);
+  showSuccess();
 }
 document.getElementById('btn-pay').addEventListener('click', () => void handlePay());
 
@@ -2479,48 +2475,48 @@ async function goToStep(n) {
       const btn = document.querySelector('#step-2 .btn-next');
       btn.disabled = true; btn.textContent = 'Saving…';
       try { await persistContactInfo(); }
-      catch (e) { alert(e.message); btn.disabled = false; btn.textContent = 'Continue to Payment →'; return; }
+      catch (e) { alert(e.message); btn.disabled = false; btn.textContent = 'Continue to Photos →'; return; }
+      btn.disabled = false; btn.textContent = 'Continue to Photos →';
+    }
+    if (currentStep === 3) {
+      // Require at least 1 photo before proceeding to payment
+      const errEl = document.getElementById('photo-err-msg');
+      if (photoFiles.length === 0) {
+        errEl.style.display = 'block';
+        document.getElementById('upload-zone').style.borderColor = 'var(--clay)';
+        return;
+      }
+      errEl.style.display = 'none';
+      // Upload photos now, before payment
+      const btn = document.querySelector('#step-3 .btn-next');
+      btn.disabled = true; btn.textContent = 'Uploading…';
+      try {
+        if (evaluationId) {
+          const fd = new FormData();
+          for (const f of photoFiles) fd.append('photos', f);
+          const res = await fetch('/api/guitar-evaluation/' + evaluationId + '/upload-images', { method: 'POST', body: fd });
+          if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Upload failed.');
+        }
+      } catch (e) {
+        alert(e.message);
+        btn.disabled = false; btn.textContent = 'Continue to Payment →';
+        return;
+      }
       btn.disabled = false; btn.textContent = 'Continue to Payment →';
     }
   }
   activateStep(n);
   // Kick off Stripe init when entering payment step
-  if (n === 3) void initStripePayment();
+  if (n === 4) void initStripePayment();
 }
 
-// ── Photo submit ──────────────────────────────────────────────────────────────
-async function submitForm() {
-  const btn = document.querySelector('#step-4 .btn-submit');
-  const errEl = document.getElementById('photo-err-msg');
-
-  // Require at least 1 photo
-  if (photoFiles.length === 0) {
-    errEl.style.display = 'block';
-    document.getElementById('upload-zone').style.borderColor = 'var(--clay)';
-    return;
-  }
-  errEl.style.display = 'none';
-
-  btn.disabled = true; btn.textContent = 'Uploading…';
-
-  if (evaluationId) {
-    try {
-      const fd = new FormData();
-      for (const f of photoFiles) fd.append('photos', f);
-      const res = await fetch('/api/guitar-evaluation/' + evaluationId + '/upload-images', { method: 'POST', body: fd });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Upload failed.');
-    } catch (e) {
-      alert(e.message);
-      btn.disabled = false; btn.textContent = 'Submit for Evaluation →';
-      return;
-    }
-  }
-
+// ── Success transition ────────────────────────────────────────────────────────
+function showSuccess() {
   sessionStorage.removeItem('evalId');
-  document.getElementById('step-4').classList.remove('active');
-  document.getElementById('tab-4').classList.remove('active');
-  document.getElementById('tab-4').classList.add('done');
-  document.querySelector('#tab-4 .step-tab-num').textContent = '✓';
+  document.getElementById('step-' + currentStep).classList.remove('active');
+  document.getElementById('tab-' + currentStep).classList.remove('active');
+  document.getElementById('tab-' + currentStep).classList.add('done');
+  document.querySelector('#tab-' + currentStep + ' .step-tab-num').textContent = '✓';
   document.getElementById('step-success').classList.add('active');
 }
 
@@ -2638,9 +2634,9 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbo
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ evaluationId, paymentIntentId: params.get('payment_intent') }),
     }).catch(() => undefined);
-    // Jump to photos step
-    currentStep = 3;
-    activateStep(4);
+    // Photos were uploaded before payment; jump straight to success
+    currentStep = 4;
+    showSuccess();
   }
 })();
 </script>
