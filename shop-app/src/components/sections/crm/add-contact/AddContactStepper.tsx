@@ -28,8 +28,8 @@ interface AddContactStepperStep {
 }
 
 // Step indices (0-based)
-const PAYMENT_STEP_INDEX = 2;
-const PHOTOS_STEP_INDEX = 3;
+const PHOTOS_STEP_INDEX = 2;
+const PAYMENT_STEP_INDEX = 3;
 const SUCCESS_STEP = 4; // past end of steps array — shows success screen
 
 const steps: AddContactStepperStep[] = [
@@ -45,21 +45,21 @@ const steps: AddContactStepperStep[] = [
   },
   {
     id: 3,
-    label: <Typography variant="subtitle2" fontWeight={700}>Payment</Typography>,
-    content: null, // ConfirmationForm rendered directly by stepper
+    label: <Typography variant="subtitle2" fontWeight={700}>Photos</Typography>,
+    content: <CompanyInfoForm label="Photos" />,
   },
   {
     id: 4,
-    label: <Typography variant="subtitle2" fontWeight={700}>Photos</Typography>,
-    content: <CompanyInfoForm label="Photos" />,
+    label: <Typography variant="subtitle2" fontWeight={700}>Payment</Typography>,
+    content: null, // ConfirmationForm rendered directly by stepper
   },
 ];
 
 const validationSchemas: (yup.ObjectSchema<any> | null)[] = [
   personalInfoSchema,
   leadInfoSchema,
-  null, // payment step — form validates internally
   companyInfoSchema,
+  null, // payment step — form validates internally
 ];
 
 export interface ContactForm extends CompanyInfo, PersonalInfo, LeadInfo {}
@@ -75,7 +75,7 @@ const AddContactStepper = ({ onFirstAdvance }: AddContactStepperProps) => {
   const [evaluationId, setEvaluationId] = useState<number | null>(null);
 
   // If returning from a Stripe redirect (e.g. Cash App Pay), jump to the payment step
-  // so ConfirmationForm can resolve the redirect_status and advance to Photos.
+  // so ConfirmationForm can resolve the redirect_status and advance to success.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('redirect_status')) {
@@ -230,7 +230,7 @@ const AddContactStepper = ({ onFirstAdvance }: AddContactStepperProps) => {
 
   const handlePaymentPaid = () => {
     setCompletedSteps((prev) => ({ ...prev, [PAYMENT_STEP_INDEX]: true }));
-    setActiveStep(PHOTOS_STEP_INDEX);
+    setActiveStep(SUCCESS_STEP);
     window.scrollTo({ top: 0, behavior: 'instant' });
   };
 
