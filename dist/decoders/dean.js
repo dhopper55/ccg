@@ -76,6 +76,10 @@ export function decodeDean(serial) {
     if (/^JF\d{6,8}$/.test(normalized)) {
         return decodeJapanFujiGen(normalized);
     }
+    // India JI/JL prefix: JI or JL + YY + 5-digit sequence (Indian factory, 2010s)
+    if (/^J[IL]\d{7}$/.test(normalized)) {
+        return decodeIndiaJIL(normalized);
+    }
     // Japan: J prefix
     if (/^J\d{6,8}$/.test(normalized)) {
         return decodeJapanJ(normalized);
@@ -578,6 +582,46 @@ function decodeJapanFujiGen(serial) {
     };
     return { success: true, info };
 }
+// India JI/JL prefix: JI or JL + YY + 5-digit sequence
+function decodeIndiaJIL(serial) {
+    const factoryLetter = serial[1];
+    const yearDigits = serial.substring(2, 4);
+    const sequence = serial.substring(4);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Dean',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'Indian production facility',
+        country: 'India',
+        notes: `JI/JL prefix indicates Indian factory production. The letter "${factoryLetter}" identifies the factory or production line; ${yearDigits} indicates year ${year}; ${sequence} is the production sequence (unit ${sequenceNumber}). Dean introduced Indian-made budget lines in the early 2010s.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'dean-india-jil-yy-sequence',
+        patternLabel: 'Dean India JI/JL-prefix YY sequence format',
+        additionalContext: {
+            title: 'Dean India JI/JL-prefix serial',
+            summary: 'This serial matches the JI/JL prefix format used on Indian-made Dean guitars.',
+            highlights: [
+                `The prefix J${factoryLetter} indicates Indian factory production.`,
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                `The remaining digits decode as production sequence ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'Indian-made Dean guitars are primarily entry-level and mid-range import instruments.',
+                'Country of origin should be confirmed from headstock or neck label markings.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock or a neck label for "Made in India".',
+                'Compare hardware and finish against Dean import catalog for the decoded year.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches the JI/JL prefix format used on Indian-made Dean guitars.</p><h3>How This Pattern Is Typically Read</h3><p>The prefix J${factoryLetter} indicates Indian factory production. The digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock or a neck label for "Made in India".</li><li>Indian-made Dean guitars are primarily entry-level and mid-range import instruments.</li></ul>`,
+    };
+}
 // Japan: J prefix
 function decodeJapanJ(serial) {
     const digits = serial.substring(1);
@@ -801,6 +845,12 @@ function decode5or6Digit(serial) {
         country = 'Czech Republic or USA';
         factory = 'Dean European Custom Select / Strunal Schönbach or Dean USA';
         notes = `5-digit numeric Dean serial treated as a sequential production number rather than a reliable embedded date. This format is seen on some Czech Republic European Custom Select instruments from the late 1990s to early 2000s, and can overlap visually with older USA Dean numeric stamps. Sequence/tracking number: ${parseInt(serial, 10)}. Check for "Handcrafted in the Czech Republic", "Made in USA", headstock markings, and model details before assigning a factory or year.`;
+    }
+    else if (yearNum >= 1 && yearNum <= 30) {
+        year = `20${yearDigits}`;
+        country = 'USA or Asian import';
+        factory = 'Dean USA or Asian import facility';
+        notes = `5-6 digit format. First two digits (${yearDigits}) interpreted as year 20${yearDigits}. Verify country of origin from "Made in" marking on the instrument. Production sequence: ${sequence}.`;
     }
     else {
         year = `Possibly 19${yearDigits} or 20${yearDigits}`;

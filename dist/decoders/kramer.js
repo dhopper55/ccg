@@ -123,8 +123,8 @@ export function decodeKramer(serial) {
     if (/^SE\d{4}$/.test(normalized)) {
         return decodeSamickKoreaSE(normalized, cleaned);
     }
-    // SD-prefix Samick Korea Striker/import-era plates
-    if (/^SD\d{4,6}$/.test(normalized)) {
+    // SD-prefix Samick Korea Striker/import-era plates (trailing letter variant: SD704D)
+    if (/^SD\d{3,6}[A-Z]?$/.test(normalized)) {
         return decodeSamickKoreaSD(normalized, cleaned);
     }
     // SP-prefix: 1980s Korean Striker Plus/Striker import (Samick or similar Korean factory)
@@ -242,6 +242,11 @@ export function decodeKramer(serial) {
             },
             additionalContextRichText: `<h3>Overview</h3><p>Plain 4-digit numeric serials are ambiguous in Kramer's history. The USA Neptune, NJ American Series used single-letter prefixes (A, B, C, D, G, or S) before the number — a bare 4-digit number does not match the official American Series format and may indicate an import model or a plate with a worn or missing prefix.</p><h3>How This Pattern Is Typically Read</h3><p>The USA Neptune, NJ American Series used letter prefixes (A–F) preceding the number. A plain 4-digit serial does not fit the official American Series format. Some 1980s import models (Striker, Focus) used plain stamped plates or stickers without clear sequential coding. Because Kramer's factory records from this era are largely lost, exact dating requires physical verification. Serial digits: ${sequence}.</p><h3>What To Verify</h3><ul><li>Check whether the serial appears on a stamped metal neck plate (back of body) or a headstock decal.</li><li>Look carefully for a worn or faint letter prefix before the digits — a partially worn stamp could hide an A, B, C, D, G, or S prefix.</li><li>Note the headstock shape (beak, pointy, or banana-style) and whether the neck plate references Neptune, NJ.</li><li>Compare against the Vintage Kramer Serial Numbers Guide or the Kramer Serial Number Research Database.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a general 1980s Kramer estimate. Physical inspection — particularly checking for a worn letter prefix, headstock shape, and neck-plate markings — is the most reliable way to determine model and era.</p>`,
         };
+    }
+    // 10-digit numeric + single suffix letter: YYMM + factory(2) + seq(4) + letter
+    // e.g. 2206290147S = 2022, June, factory 29, seq 0147, suffix S
+    if (/^\d{10}[A-Z]$/.test(normalized)) {
+        return decodeModernNumericWithSuffix(normalized, cleaned);
     }
     // Musicyo reissue style (e.g., 04xxxx)
     if (/^\d{5,}$/.test(normalized)) {
@@ -479,6 +484,52 @@ function decodeKoreanStrikerSP(normalized, cleaned) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Korean-built Kramer SP-prefix format from the mid-1980s, associated with the Striker Plus and Striker import series.</p><h3>How This Pattern Is Typically Read</h3><p>SP-prefix serials are associated with Korean-built Kramer Striker Plus and import-era Striker models. SP is believed to stand for "Striker Plus" or a Korean factory-line identifier. The digits after SP (${sequence}) are the production sequence. These were mid-range import models sold under the Kramer brand in the mid-1980s.</p><h3>What To Verify</h3><ul><li>Check the headstock logo style and any "Made in Korea" text on the neck plate.</li><li>Compare body shape, pickup layout, and hardware against known mid-1980s Striker specs.</li><li>Use online Kramer registry resources or the HTPG serial search for additional context.</li></ul>`,
+    };
+}
+function decodeModernNumericWithSuffix(normalized, cleaned) {
+    const yearDigits = normalized.substring(0, 2);
+    const monthDigits = normalized.substring(2, 4);
+    const factoryCode = normalized.substring(4, 6);
+    const sequence = normalized.substring(6, 10);
+    const suffix = normalized[10];
+    const yearNum = parseInt(yearDigits, 10);
+    const monthNum = parseInt(monthDigits, 10);
+    const year = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum).toString();
+    const monthName = (monthNum >= 1 && monthNum <= 12) ? getMonthName(monthNum) : undefined;
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Kramer',
+        serialNumber: cleaned,
+        year,
+        ...(monthName ? { month: monthName } : {}),
+        factory: 'Gibson/Epiphone-era import facility',
+        country: 'South Korea, China, or Indonesia',
+        notes: `Modern 10-digit Kramer serial with suffix letter. Year: ${year}${monthName ? `, month: ${monthName}` : ''}; factory code: ${factoryCode}; production sequence: ${sequenceNumber}; suffix: "${suffix}" (may indicate production shift or batch). This format is associated with Gibson/Epiphone-era import production. Verify with headstock markings and model features.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'kramer-modern-10digit-suffix-letter-yymm-sequence',
+        patternLabel: 'Kramer modern 10-digit YYMM+factory+sequence+suffix',
+        additionalContext: {
+            title: 'Kramer modern 10-digit serial with suffix letter',
+            summary: 'This serial matches a modern 10-digit Kramer format with a trailing suffix letter, associated with Gibson/Epiphone-era import production.',
+            highlights: [
+                `Year decoded from first two digits: ${year}.`,
+                ...(monthName ? [`Month decoded as ${monthName}.`] : []),
+                `Factory code: ${factoryCode}; production sequence: ${sequenceNumber}.`,
+                `Suffix letter "${suffix}" may indicate production shift or batch designation.`,
+            ],
+            caveats: [
+                'The suffix letter meaning is not publicly documented for all Kramer import runs.',
+                'Country of origin should be confirmed from headstock markings.',
+            ],
+            verificationTips: [
+                'Check the headstock for "Made in Korea", "Made in China", or "Made in Indonesia".',
+                'Compare model features against Kramer catalog from the decoded year.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern 10-digit Kramer format with a trailing suffix letter, associated with Gibson/Epiphone-era import production.</p><h3>How This Pattern Is Typically Read</h3><p>Year: ${year}${monthName ? `, month: ${monthName}` : ''}. Factory code: ${factoryCode}. Production sequence: ${sequenceNumber}. Suffix letter "${suffix}" may indicate production shift or batch designation.</p><h3>What To Verify</h3><ul><li>Check the headstock for country-of-origin marking.</li><li>Compare model features against Kramer catalog from the decoded year.</li></ul>`,
     };
 }
 function decodeSamickKoreaSD(normalized, cleaned) {

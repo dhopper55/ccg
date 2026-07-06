@@ -95,9 +95,54 @@ export function decodePRS(serial: string): DecodeResult {
     return decodeSetNeckBass(normalized);
   }
 
+  // Private Stock: "Private Stock" + number (entered as text with number, e.g. "Private stock 9973")
+  if (/^PRIVATESTOCK\d+$/.test(normalized)) {
+    return decodePrivateStock(normalized);
+  }
+
   return {
     success: false,
     error: 'Unable to decode this PRS serial number. The format was not recognized. Known formats include: S2-prefix (USA S2 Series), CTC/CTI-prefix (SE Cort China/Indonesia), single letter (SE Korea), numeric 5-7 digits (USA Core), 2-digit year prefix (USA Core 2008+). Please check the serial number and try again.'
+  };
+}
+
+function decodePrivateStock(normalized: string): DecodeResult {
+  const numStr = normalized.substring('PRIVATESTOCK'.length);
+  const psNumber = parseInt(numStr, 10);
+
+  const info: GuitarInfo = {
+    brand: 'PRS',
+    serialNumber: normalized,
+    factory: 'PRS Guitars (Stevensville, Maryland)',
+    country: 'USA',
+    model: 'Private Stock',
+    notes: `PRS Private Stock guitar, number ${psNumber}. Private Stock instruments are hand-built at PRS headquarters in Stevensville, Maryland using premium tonewoods and customized specifications. Each Private Stock piece is individually crafted to the customer's or artist's specifications. Contact PRS directly at privatestock@prsguitars.com for detailed build history and specifications for this instrument.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'prs-private-stock-sequential',
+    patternLabel: 'PRS Private Stock sequential number',
+    additionalContext: {
+      title: 'PRS Private Stock serial',
+      summary: 'This is a PRS Private Stock serial — a hand-built custom instrument from PRS Guitars in Stevensville, Maryland.',
+      highlights: [
+        `Private Stock number: ${psNumber}.`,
+        'Private Stock instruments are hand-built at PRS headquarters in Stevensville, Maryland.',
+        'Each piece uses premium, hand-selected tonewoods and custom specifications.',
+      ],
+      caveats: [
+        'Private Stock production numbers do not directly encode the production year.',
+        'Exact build date, wood selection, and specifications require PRS records lookup.',
+      ],
+      verificationTips: [
+        'Contact PRS directly at privatestock@prsguitars.com for detailed build history.',
+        'Look for the Private Stock certificate or documentation that accompanied the guitar.',
+        'Confirm authenticity from the PRS Private Stock headstock inlay and label inside the body.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This is a PRS Private Stock serial — a hand-built custom instrument from PRS Guitars in Stevensville, Maryland.</p><h3>How This Pattern Is Typically Read</h3><p>Private Stock number ${psNumber}. Private Stock instruments are individually crafted at PRS headquarters using premium, hand-selected tonewoods and customer-specified configurations.</p><h3>What To Verify</h3><ul><li>Contact PRS directly at privatestock@prsguitars.com for detailed build history.</li><li>Look for the Private Stock certificate or documentation that accompanied the guitar.</li><li>Confirm authenticity from the PRS Private Stock headstock inlay and label inside the body.</li></ul>`,
   };
 }
 

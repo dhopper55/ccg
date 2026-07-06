@@ -286,6 +286,11 @@ export function decodeIbanez(serial: string): DecodeResult {
     return decodeYeouChern(normalized);
   }
 
+  // China: CD + 9 digits (Dalian factory, YY+MM+seq)
+  if (/^CD\d{9}$/.test(normalized)) {
+    return decodeChinaCD(normalized);
+  }
+
   // China: A + 8 digits (2005-present)
   if (/^A\d{8}$/.test(normalized)) {
     return decodeChinaA(normalized);
@@ -1838,6 +1843,52 @@ function decodeYeouChern(serial: string): DecodeResult {
 }
 
 // China A format: A + 8 digits (2005-present)
+function decodeChinaCD(serial: string): DecodeResult {
+  const yearNum = parseInt(serial.substring(2, 4), 10);
+  const monthNum = parseInt(serial.substring(4, 6), 10);
+  const sequence = serial.substring(6);
+  const year = 2000 + yearNum;
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const monthName = monthNum >= 1 && monthNum <= 12 ? months[monthNum - 1] : undefined;
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Ibanez',
+    serialNumber: serial,
+    year: year.toString(),
+    ...(monthName ? { month: monthName } : {}),
+    factory: 'Dalian, China (CD factory)',
+    country: 'China',
+    notes: `CD-prefix Ibanez serial from Dalian, China. "CD" identifies the Dalian production facility; the digits ${serial.substring(2, 4)} indicate year ${year}; ${serial.substring(4, 6)} indicates ${monthName || 'month code'}; ${sequence} is the production sequence (unit ${sequenceNumber}). This format is used on mid-range Ibanez instruments from the 2010s.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'ibanez-china-cd-dalian-yymm-sequence',
+    patternLabel: 'Ibanez China CD Dalian YY+MM+sequence',
+    additionalContext: {
+      title: 'Ibanez China CD-prefix serial',
+      summary: 'This serial matches the CD-prefix format used on Ibanez guitars made at the Dalian facility in China.',
+      highlights: [
+        '"CD" identifies the Dalian, China production facility.',
+        `The digits ${serial.substring(2, 4)} decode as production year ${year}.`,
+        ...(monthName ? [`The digits ${serial.substring(4, 6)} decode as ${monthName}.`] : []),
+        `The remaining digits decode as production sequence ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'Confirm Chinese origin from headstock or neck label markings.',
+        'The CD factory produced mid-range Ibanez instruments during the 2010s.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock for "Made in China".',
+        'Compare the model, hardware, and finish against Ibanez catalog specs for the decoded year.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches the CD-prefix format used on Ibanez guitars made at the Dalian facility in China.</p><h3>How This Pattern Is Typically Read</h3><p>"CD" identifies the Dalian, China production facility. The digits ${serial.substring(2, 4)} decode as production year ${year}. ${monthName ? `The digits ${serial.substring(4, 6)} decode as ${monthName}. ` : ''}The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for "Made in China".</li><li>Compare the model, hardware, and finish against Ibanez catalog specs for the decoded year.</li></ul>`,
+  };
+}
+
 function decodeChinaA(serial: string): DecodeResult {
   const year = parseInt(serial.substring(1, 3), 10) + 2000;
   const month = parseInt(serial.substring(3, 5), 10);

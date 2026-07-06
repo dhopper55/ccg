@@ -124,6 +124,10 @@ export function decodeJackson(serial) {
     if (/^NHJ\d{6,8}[A-Z]?$/i.test(normalized)) {
         return decodeIndia(normalized);
     }
+    // India XN prefix: XN + YY + 5-digit sequence (alternate Indian factory prefix, 2000s)
+    if (/^XN\d{7}$/i.test(normalized)) {
+        return decodeIndiaXN(normalized);
+    }
     // China GWC-prefix: GWC + YY + sequence (same format as GWJ/CWJ, C-variant factory)
     // e.g. GWC25089446 = 2025, seq 089446
     if (/^GWC\d{8}$/i.test(normalized)) {
@@ -991,6 +995,44 @@ function decodeChina(serial) {
         country: 'China',
     };
     return { success: true, info };
+}
+function decodeIndiaXN(serial) {
+    const yearDigits = serial.substring(2, 4);
+    const sequence = serial.substring(4);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Jackson',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'Indian production facility (XN line)',
+        country: 'India',
+        notes: `XN-prefix Jackson serial from Indian production. The digits ${yearDigits} indicate year ${year}; ${sequence} is the production sequence (unit ${sequenceNumber}). XN-prefix serials are associated with early-to-mid 2000s budget/entry-level Jackson guitars made in India.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'jackson-india-xn-yy-sequence',
+        patternLabel: 'Jackson India XN-prefix YY sequence',
+        additionalContext: {
+            title: 'Jackson India XN-prefix serial',
+            summary: 'This serial matches the XN prefix used on Indian-made Jackson guitars.',
+            highlights: [
+                '"XN" identifies Indian production, an alternate prefix to the NHJ series.',
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                `The remaining digits decode as production sequence ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'XN-prefix Jackson guitars are entry-level import instruments from the early-to-mid 2000s.',
+                'Country of origin should be confirmed from headstock or neck label markings.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for "Made in India".',
+                'Compare hardware and model features against Jackson import catalog for the decoded year.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches the XN prefix used on Indian-made Jackson guitars.</p><h3>How This Pattern Is Typically Read</h3><p>"XN" identifies Indian production. The digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for "Made in India".</li><li>Compare hardware and model features against Jackson import catalog for the decoded year.</li></ul>`,
+    };
 }
 function decodeIndia(serial) {
     // Format: NHJ + year(2) + sequence + optional batch letter suffix

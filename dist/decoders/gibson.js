@@ -174,6 +174,23 @@ function decode9Digit(serial) {
     const yearSuffix = yearDigit1 + yearDigit2;
     let year = determineYear(parseInt(yearSuffix, 10), 2005, 2029);
     if (dayOfYear < 1 || dayOfYear > 366) {
+        // YDDDYBRRR parse gave invalid day — fall back to treating first 2 digits as YY and rest as sequence
+        const altYearNum = parseInt(serial.substring(0, 2), 10);
+        const altYear = determineYear(altYearNum, 1960, 2029);
+        const altSeq = parseInt(serial.substring(2), 10);
+        if (altYear) {
+            return {
+                success: true,
+                info: {
+                    brand: 'Gibson',
+                    serialNumber: serial,
+                    year: altYear,
+                    factory: 'Nashville, Tennessee (electric) or Bozeman, Montana (acoustic)',
+                    country: 'USA',
+                    notes: `9-digit serial interpreted as YY+sequence (day-of-year ${dayOfYear} exceeded valid range for standard YDDDYBRRR format). Year decoded from first two digits: ${altYear}. Production sequence: ${altSeq}. Verify with headstock logo, model, and factory markings.`,
+                },
+            };
+        }
         return {
             success: false,
             error: `Invalid day of year: ${dayOfYear}. Must be between 1 and 366.`

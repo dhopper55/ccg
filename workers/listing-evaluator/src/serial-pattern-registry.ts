@@ -135,6 +135,17 @@ export function deriveExplicitRegexFromKnownPatternKey(patternKey: string): stri
     'jackson-china-gwc-yy-sequence': '^GWC\\d{8}$',
     'schecter-wi-indonesia-yymm-sequence': '^WI\\d{8,9}$',
     'squier-china-csv-month-letter-yy-sequence': '^CSV[A-L]\\d{7,8}$',
+    'dean-india-jil-yy-sequence': '^J[IL]\\d{7}$',
+    'esp-khwz-signature-japan-sequential': '^KHWZ\\d+$',
+    'esp-ltd-8digit-factory-yy-week-sequence': '^\\d{8}$',
+    'epiphone-usa-ydddyrrrr-nashville': '^\\d{9}$',
+    'epiphone-early-korean-y-mm-sequence': '^\\d{9}$',
+    'ibanez-china-cd-dalian-yymm-sequence': '^CD\\d{9}$',
+    'jackson-india-xn-yy-sequence': '^XN\\d{7}$',
+    'kramer-modern-10digit-suffix-letter-yymm-sequence': '^\\d{10}[A-Z]$',
+    'prs-private-stock-sequential': '^PRIVATESTOCK\\d+$',
+    'squier-china-crn-numeric-month-yy-sequence': '^CRN[A-L0-9]\\d{8,9}$',
+    'squier-indonesia-iss-month-letter-yy-sequence': '^ISS[A-L]\\d{8,9}$',
   };
 
   return knownPatterns[patternKey] || null;

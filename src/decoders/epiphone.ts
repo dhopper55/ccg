@@ -106,6 +106,19 @@ export function decodeEpiphone(serial: string): DecodeResult {
     return decodeMIRCRefurb(normalized);
   }
 
+  // Epiphone USA YDDDYRRRR (same as Gibson 9-digit, 2020+ Nashville production)
+  // Y1+DDD+Y2+RRRR where year = "Y1Y2", day = DDD (1-366)
+  const usaFormatMatch = normalized.match(/^(\d)(\d{3})(\d)(\d{4})$/);
+  if (usaFormatMatch) {
+    const ddd = parseInt(usaFormatMatch[2], 10);
+    const ySuffix = usaFormatMatch[1] + usaFormatMatch[3];
+    const yNum = parseInt(ySuffix, 10);
+    const fullYearNum = yNum >= 20 ? 2000 + yNum : 1900 + yNum;
+    if (ddd >= 1 && ddd <= 366 && fullYearNum >= 2020) {
+      return decodeEpiphoneUSAFormat(usaFormatMatch[1], usaFormatMatch[2], usaFormatMatch[3], usaFormatMatch[4], normalized);
+    }
+  }
+
   // Format 3: YYMM + 2-digit factory code + 3-6 digits (since 2008)
   // e.g., 0807230809 = July 2008, factory 23, #809
   // e.g., 08121512345 = Dec 2008, factory 15, #12345
@@ -258,6 +271,33 @@ function decodeSingleLetterFormat(factory: string, digits: string, serial: strin
 
   let factoryName = factoryInfo?.name || 'Unknown';
   let country = factoryInfo?.country || 'Unknown';
+
+  // If 2-digit year gives a future year, try single-digit year interpretation (Korean 1990s/2000s)
+  const currentYear = new Date().getFullYear();
+  if (parseInt(year, 10) > currentYear + 2 && digits.length >= 5) {
+    const yDigit = digits[0];
+    const yNum = parseInt(yDigit, 10);
+    const altYear = yNum >= 5 ? `199${yDigit}` : `200${yDigit}`;
+    const altMonth = parseInt(digits.substring(1, 3), 10);
+    const altSeq = digits.substring(3);
+    if (altMonth >= 1 && altMonth <= 12) {
+      const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      return {
+        success: true,
+        info: {
+          brand: 'Epiphone',
+          serialNumber: serial,
+          year: altYear,
+          month: months[altMonth - 1],
+          factory: factoryName,
+          country,
+          notes: `Korean single-letter factory format (single-digit year). Factory code ${factory} = ${factoryName}, ${country}. Year digit "${yDigit}" indicates ${altYear}; month "${digits.substring(1, 3)}" indicates ${months[altMonth - 1]}; production sequence: ${parseInt(altSeq, 10)}.`,
+        },
+        patternKey: 'epiphone-korea-single-letter-factory-yymm-sequence',
+        patternLabel: 'Epiphone Korean single-letter factory YYMM sequence',
+      };
+    }
+  }
 
   if (month >= 1 && month <= 12) {
     const months = [
@@ -504,6 +544,59 @@ function decode8DigitNumericImport(
   };
 }
 
+function decodeEpiphoneUSAFormat(y1: string, ddd: string, y2: string, rrrr: string, serial: string): DecodeResult {
+  const yearSuffix = y1 + y2;
+  const yNum = parseInt(yearSuffix, 10);
+  const year = (yNum >= 20 ? 2000 + yNum : 1900 + yNum).toString();
+  const dayOfYear = parseInt(ddd, 10);
+  const ranking = parseInt(rrrr, 10);
+
+  // Convert day-of-year to month/day
+  const date = new Date(parseInt(year, 10), 0);
+  date.setDate(dayOfYear);
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const month = months[date.getMonth()];
+  const day = date.getDate();
+
+  const info: GuitarInfo = {
+    brand: 'Epiphone',
+    serialNumber: serial,
+    year,
+    month,
+    day: day.toString(),
+    factory: 'Epiphone USA (Nashville, Tennessee)',
+    country: 'USA',
+    notes: `Epiphone USA YDDDYRRRR format (same encoding as Gibson Nashville 9-digit serials). Year: ${year}; day of year: ${dayOfYear} (${month} ${day}); production ranking: ${ranking}. Epiphone USA guitars are premium American-made instruments from the 2020+ Nashville production run.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'epiphone-usa-ydddyrrrr-nashville',
+    patternLabel: 'Epiphone USA YDDDYRRRR Nashville format',
+    additionalContext: {
+      title: 'Epiphone USA Nashville serial',
+      summary: 'This serial matches the Epiphone USA YDDDYRRRR format — the same encoding used by Gibson Nashville since 2005.',
+      highlights: [
+        `Year digit positions 1 and 5 combine to give year ${year}.`,
+        `Day-of-year ${dayOfYear} decodes as ${month} ${day}.`,
+        `Production ranking: ${ranking}.`,
+        'Epiphone USA guitars are American-made premium instruments from the 2020+ Nashville production run.',
+      ],
+      caveats: [
+        'Epiphone USA production is limited — verify the guitar is marked "Made in USA" or "Assembled in USA".',
+        'Compare against the Epiphone USA model lineup from the decoded year.',
+      ],
+      verificationTips: [
+        'Look for "Epiphone USA" or "Made in USA" on the headstock or inside the body.',
+        'Confirm the model from headstock markings and physical construction quality.',
+        'Cross-reference production number with Epiphone USA serial documentation if available.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches the Epiphone USA YDDDYRRRR format — the same encoding used by Gibson Nashville since 2005.</p><h3>How This Pattern Is Typically Read</h3><p>Year digit positions 1 and 5 combine to give year ${year}. Day-of-year ${dayOfYear} decodes as ${month} ${day}. Production ranking: ${ranking}.</p><h3>What To Verify</h3><ul><li>Look for "Epiphone USA" or "Made in USA" on the headstock or inside the body.</li><li>Confirm the model from headstock markings and physical construction quality.</li></ul>`,
+  };
+}
+
 function decodeNumericFactoryFormat(
   year: string,
   month: string,
@@ -517,6 +610,30 @@ function decodeNumericFactoryFormat(
   const monthNum = parseInt(month, 10);
 
   if (monthNum < 1 || monthNum > 12) {
+    // Try early Korean Y(1)+MM(2)+seq(6) format: serial[1:3] as month
+    const altMMStr = serial.substring(1, 3);
+    const altMM = parseInt(altMMStr, 10);
+    if (altMM >= 1 && altMM <= 12) {
+      const yDigit = serial[0];
+      const yNum = parseInt(yDigit, 10);
+      const altYearNum = yNum <= 4 ? 2000 + yNum : 1990 + yNum;
+      const altSeq = serial.substring(3);
+      const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      return {
+        success: true,
+        info: {
+          brand: 'Epiphone',
+          serialNumber: serial,
+          year: altYearNum.toString(),
+          month: months[altMM - 1],
+          factory: 'Korean import facility',
+          country: 'South Korea',
+          notes: `Early Korean import format Y+MM+seq. Year digit "${yDigit}" indicates ${altYearNum}; month "${altMMStr}" indicates ${months[altMM - 1]}; production sequence: ${parseInt(altSeq, 10)}. This format predates the 2008 numeric-factory code system.`,
+        },
+        patternKey: 'epiphone-early-korean-y-mm-sequence',
+        patternLabel: 'Epiphone early Korean Y+MM+sequence',
+      };
+    }
     return {
       success: false,
       error: `Invalid month value: ${monthNum}. Expected 01-12.`

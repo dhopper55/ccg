@@ -449,15 +449,20 @@ function decodeMexico(serial: string): DecodeResult {
   const yearDigits = serial.substring(2, 4);
   const production = serial.substring(4);
   const year = `20${yearDigits}`;
+  const yearInt = parseInt(year, 10);
+  const currentYear = new Date().getFullYear();
+  const yearIsFuture = yearInt > currentYear + 2;
 
   const info: GuitarInfo = {
     brand: 'Charvel',
     serialNumber: serial,
-    year: year,
+    ...(yearIsFuture ? {} : { year }),
     factory: 'Fender Mexico (Ensenada)',
     country: 'Mexico',
     model: 'Pro-Mod Series',
-    notes: `Mexican-made Pro-Mod. "MC" prefix indicates Mexico/Charvel. Year: ${year}. Production number: ${production}. Made at Fender's Ensenada facility. Models include Pro-Mod Style 1, Style 2, DK22, DK24, and So-Cal series.`,
+    notes: yearIsFuture
+      ? `Mexican-made Pro-Mod. "MC" prefix indicates Mexico/Charvel. Production number: ${production}. Made at Fender's Ensenada facility. The digits ${yearDigits} encode a year "${year}" which appears to be in the future — this may indicate a misread digit or a non-standard serial encoding. Models include Pro-Mod Style 1, Style 2, DK22, DK24, and So-Cal series.`
+      : `Mexican-made Pro-Mod. "MC" prefix indicates Mexico/Charvel. Year: ${year}. Production number: ${production}. Made at Fender's Ensenada facility. Models include Pro-Mod Style 1, Style 2, DK22, DK24, and So-Cal series.`,
   };
 
   return { success: true, info };

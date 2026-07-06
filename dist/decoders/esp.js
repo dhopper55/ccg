@@ -97,12 +97,16 @@ export function decodeESP(serial) {
         return decodeLTDHPrefixFactory(normalized);
     }
     // LTD Asian formats with letter prefixes
-    // Korea: R + YY + week + 3-digit sequence (Peerless)
-    if (/^R\d{7}$/.test(normalized)) {
+    // Korea: R + YY + week + 2-3 digit sequence (Peerless; short-run variant is 6 digits after R)
+    if (/^R\d{6,7}$/.test(normalized)) {
         const week = parseInt(normalized.substring(3, 5), 10);
         if (week >= 1 && week <= 53) {
             return decodeLTDKoreaPeerlessR(normalized);
         }
+    }
+    // Kirk Hammett White Zombie signature: KHWZ + sequence
+    if (/^KHWZ\d+$/.test(normalized)) {
+        return decodeKHWZSignature(normalized);
     }
     // Indonesia: IS + 7-9 digits (Samick, YYMM format — handled separately for full decode)
     if (/^IS\d{7,9}$/.test(normalized)) {
@@ -177,7 +181,7 @@ export function decodeESP(serial) {
     if (/^\d{9}$/.test(normalized)) {
         const week9 = parseInt(normalized.substring(2, 4), 10);
         const day9 = parseInt(normalized.charAt(4), 10);
-        if (week9 >= 1 && week9 <= 53 && day9 >= 1 && day9 <= 7) {
+        if (week9 >= 1 && week9 <= 53 && day9 >= 0 && day9 <= 7) {
             return decodeLTDNumeric9Digit(normalized);
         }
     }
@@ -672,6 +676,43 @@ function decodeKirkHammett(serial) {
         notes: `Kirk Hammett Signature model. Production number: ${productionNum}. Early models (1993) used 4 digits; after 1995 launch, expanded to 5 digits.`
     };
     return { success: true, info };
+}
+function decodeKHWZSignature(serial) {
+    const numPart = serial.substring(4);
+    const productionNum = parseInt(numPart, 10);
+    const info = {
+        brand: 'ESP',
+        serialNumber: serial,
+        factory: 'ESP Japan',
+        country: 'Japan',
+        model: 'Kirk Hammett White Zombie (KHWZ Signature)',
+        notes: `Kirk Hammett White Zombie signature model. The "KHWZ" prefix identifies this as the White Zombie artist series. Production number: ${productionNum}. These are limited-edition signature instruments built at ESP Japan. Verify with model features including the distinctive White Zombie artwork and artist signature on the headstock or body.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'esp-khwz-signature-japan-sequential',
+        patternLabel: 'ESP Kirk Hammett White Zombie signature sequential',
+        additionalContext: {
+            title: 'ESP Kirk Hammett White Zombie signature serial',
+            summary: 'This serial matches the KHWZ prefix used on Kirk Hammett White Zombie signature ESP guitars.',
+            highlights: [
+                'The KHWZ prefix identifies this as the Kirk Hammett White Zombie artist signature series.',
+                `The remaining digits decode as production number ${productionNum}.`,
+                'These are limited-edition signature instruments built at ESP Japan.',
+            ],
+            caveats: [
+                'Production quantities are limited — verify the serial against known KHWZ production records.',
+                'The production number alone does not confirm the model variant or finish.',
+            ],
+            verificationTips: [
+                'Look for the White Zombie-themed artwork on the body and Kirk Hammett headstock signature.',
+                'Confirm "Made in Japan" on the back of the headstock.',
+                'Cross-reference with ESP signature model documentation for the KHWZ series.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches the KHWZ prefix used on Kirk Hammett White Zombie signature ESP guitars.</p><h3>How This Pattern Is Typically Read</h3><p>The "KHWZ" prefix identifies this as the Kirk Hammett White Zombie artist signature series. The remaining digits decode as production number ${productionNum}. These are limited-edition signature instruments built at ESP Japan.</p><h3>What To Verify</h3><ul><li>Look for the White Zombie-themed artwork on the body and Kirk Hammett headstock signature.</li><li>Confirm "Made in Japan" on the back of the headstock.</li><li>Cross-reference with ESP signature model documentation for the KHWZ series.</li></ul>`,
+    };
 }
 function decodeLTDIndonesia(serial) {
     const prefix = serial.match(/^(IW|WI|IC|IS|IR)/)?.[0] || '';
@@ -1240,7 +1281,32 @@ function decode8DigitNumeric(serial) {
             additionalContextRichText: `<h3>Overview</h3><p>This serial matches an ESP Japan 8-digit format where the first two digits encode the year, the next two digits are a factory or batch routing code (not a calendar month), and the final four digits are the production sequence.</p><h3>How This Pattern Is Typically Read</h3><p>The digits ${yearDigits} decode as production year ${year2}. The digits ${monthDigits} are a factory or batch routing code — not a calendar month. The remaining digits decode as production sequence ${sequenceNumber2}. This format is used on ESP Japan Custom Shop and Japanese-factory instruments from the 2000s–2010s.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for "Made in Japan" and the ESP or E-II logo.</li><li>Look for a Custom Shop certificate or build sheet if the guitar was a special order.</li><li>Compare the model shape, pickups, and hardware against ESP Japan catalog specs for ${year2}.</li></ul>`,
         };
     }
-    const year = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum).toString();
+    const yearInt = yearNum < 50 ? 2000 + yearNum : 1900 + yearNum;
+    const currentYear = new Date().getFullYear();
+    if (yearInt > currentYear + 2) {
+        // YYMM gives a future year — try factory(1)+YY(2)+WW(2)+seq(3) instead
+        const factoryCode = serial[0];
+        const altYearNum = parseInt(serial.substring(1, 3), 10);
+        const altWeek = parseInt(serial.substring(3, 5), 10);
+        const altSeq = serial.substring(5);
+        const altYear = (altYearNum < 50 ? 2000 + altYearNum : 1900 + altYearNum).toString();
+        if (altWeek >= 1 && altWeek <= 53) {
+            return {
+                success: true,
+                info: {
+                    brand: 'ESP',
+                    serialNumber: serial,
+                    year: altYear,
+                    factory: 'ESP LTD Korea or Indonesia',
+                    country: 'South Korea or Indonesia',
+                    notes: `ESP LTD 8-digit factory+YY+WW+seq format. Factory/line code: ${factoryCode}; year: ${altYear}; production week: ${altWeek}; sequence: ${parseInt(altSeq, 10)}. Verify with headstock logo and country-of-origin marking.`,
+                },
+                patternKey: 'esp-ltd-8digit-factory-yy-week-sequence',
+                patternLabel: 'ESP LTD 8-digit factory+YY+week+sequence',
+            };
+        }
+    }
+    const year = yearInt.toString();
     const monthName = getMonthName(monthNum);
     const sequenceNumber = parseInt(sequence, 10);
     const info = {

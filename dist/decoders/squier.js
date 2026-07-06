@@ -119,6 +119,11 @@ export function decodeSquier(serial) {
     if (icMatch) {
         return decodeIndonesiaIC(icMatch[1], icMatch[2], normalized);
     }
+    // Indonesia ISS + month-letter prefix (Samick, 2020+ format: ISS + month-letter + YY + seq)
+    const issLetterMatch = normalized.match(/^ISS([A-L])(\d{2})(\d+)$/);
+    if (issLetterMatch) {
+        return decodeIndonesiaISSLetter(issLetterMatch[1], issLetterMatch[2], issLetterMatch[3], normalized);
+    }
     // Indonesia ISS prefix (Samick)
     if (/^ISS\d{6}$/.test(normalized)) {
         return decodeIndonesiaISS(normalized);
@@ -143,8 +148,9 @@ export function decodeSquier(serial) {
     if (cykMatch) {
         return decodeChinaCYK(cykMatch[1], cykMatch[2], cykMatch[3], normalized);
     }
-    // China CRN + letter prefix (Re-New contracted facility, 2020+: CRN + month-letter + YY + sequence)
-    const crnMatch = normalized.match(/^CRN([A-L])(\d{2})(\d+)$/);
+    // China CRN + letter/digit prefix (Re-New contracted facility, 2020+: CRN + month-code + YY + sequence)
+    // Month code is normally A-L (alphabetical), but some serials use a digit (e.g. '0' for January/October)
+    const crnMatch = normalized.match(/^CRN([A-L0-9])(\d{2})(\d+)$/);
     if (crnMatch) {
         return decodeChinaCRN(crnMatch[1], crnMatch[2], crnMatch[3], normalized);
     }
@@ -413,8 +419,44 @@ function decodeChinaSquierSE9Digit(serial) {
     const yearDigits = serial.substring(0, 2);
     const monthDigits = serial.substring(2, 4);
     const sequence = serial.substring(4);
-    const year = 2000 + parseInt(yearDigits, 10);
-    const month = getMonthName(parseInt(monthDigits, 10));
+    const yearNum = parseInt(yearDigits, 10);
+    const monthNum = parseInt(monthDigits, 10);
+    const year = 2000 + yearNum;
+    const month = getMonthName(monthNum);
+    const currentYear = new Date().getFullYear();
+    // If YYMM parse gives invalid month or future year, try factory(2)+YY(2)+seq(5)
+    if (year > currentYear + 2 || monthNum < 1 || monthNum > 12) {
+        const altYearNum = parseInt(serial.substring(2, 4), 10);
+        const altYear = 2000 + altYearNum;
+        if (altYear <= currentYear + 2) {
+            return {
+                success: true,
+                info: {
+                    brand: 'Squier',
+                    serialNumber: serial,
+                    year: altYear.toString(),
+                    factory: 'China Squier production',
+                    country: 'China',
+                    notes: `9-digit numeric Squier serial. Standard YYMM decode gave a future or invalid date; interpreted as factory-code(2)+YY(2)+seq(5). Year from digits 3-4: ${altYear}. Production sequence: ${serial.substring(4)}. Verify with model features and "Made in China" marking on the headstock.`,
+                },
+                patternKey: 'squier-china-se-9-digit-yymm-sequence',
+                patternLabel: 'Squier China SE 9-digit YYMM sequence format',
+            };
+        }
+        // Both parses give future/invalid — return with just country/factory
+        return {
+            success: true,
+            info: {
+                brand: 'Squier',
+                serialNumber: serial,
+                factory: 'China Squier production',
+                country: 'China',
+                notes: `9-digit numeric Squier serial from Chinese production. The year could not be determined from standard YYMM encoding. Verify with "Made in China" marking on the headstock and model features.`,
+            },
+            patternKey: 'squier-china-se-9-digit-yymm-sequence',
+            patternLabel: 'Squier China SE 9-digit YYMM sequence format',
+        };
+    }
     const info = {
         brand: 'Squier',
         serialNumber: serial,
@@ -513,6 +555,44 @@ function decodeIndonesiaIC(yearDigits, sequence, serial) {
         notes: 'IC prefix indicates Indonesian production at the Cort factory.',
     };
     return { success: true, info };
+}
+function decodeIndonesiaISSLetter(monthLetter, yearDigits, sequence, serial) {
+    const year = 2000 + parseInt(yearDigits, 10);
+    const month = MONTH_LETTERS[monthLetter] || 'Unknown';
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Squier',
+        serialNumber: serial,
+        year: year.toString(),
+        ...(month !== 'Unknown' ? { month } : {}),
+        factory: 'Samick',
+        country: 'Indonesia',
+        notes: `ISS prefix with month-letter code (modern Indonesian Samick format). "ISS" identifies Indonesian production at the Samick factory; "${monthLetter}" indicates ${month} using alphabetical month coding (A=January through L=December); ${yearDigits} indicates ${year}; production sequence: ${sequenceNumber}.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'squier-indonesia-iss-month-letter-yy-sequence',
+        patternLabel: 'Squier Indonesia ISS month-letter YY sequence',
+        additionalContext: {
+            title: 'Squier Indonesia ISS-prefix serial with month code',
+            summary: 'This serial matches the modern ISS-prefix Squier format from the Indonesian Samick facility with an alphabetical month code.',
+            highlights: [
+                '"ISS" identifies Indonesian production at the Samick factory.',
+                `"${monthLetter}" decodes as ${month} using alphabetical month coding.`,
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                `The remaining digits decode as production sequence ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'Confirm Indonesian origin from headstock or neck label markings.',
+            ],
+            verificationTips: [
+                'Look for "Made in Indonesia" on the back of the headstock.',
+                'Compare model features against Squier catalog from the decoded year.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches the modern ISS-prefix Squier format from the Indonesian Samick facility with an alphabetical month code.</p><h3>How This Pattern Is Typically Read</h3><p>"ISS" identifies Indonesian production at Samick. "${monthLetter}" decodes as ${month}. The digits ${yearDigits} decode as year ${year}. The remaining digits are production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Look for "Made in Indonesia" on the back of the headstock.</li></ul>`,
+    };
 }
 function decodeIndonesiaISS(serial) {
     const info = {
@@ -682,16 +762,17 @@ function decodeChinaCSV(monthLetter, yearDigits, sequence, serial) {
 }
 function decodeChinaCRN(monthLetter, yearDigits, sequence, serial) {
     const year = 2000 + parseInt(yearDigits, 10);
-    const month = MONTH_LETTERS[monthLetter] || 'Unknown';
+    const month = MONTH_LETTERS[monthLetter];
     const sequenceNumber = parseInt(sequence, 10);
+    const monthDesc = month || (monthLetter.match(/\d/) ? `numeric code ${monthLetter}` : 'Unknown');
     const info = {
         brand: 'Squier',
         serialNumber: serial,
         year: year.toString(),
-        month,
+        ...(month ? { month } : {}),
         factory: 'China RN contracted facility',
         country: 'China',
-        notes: `Modern Squier CRN four-letter prefix format. "C" identifies China; "RN" identifies the contracted production facility; "${monthLetter}" indicates ${month} using alphabetical month coding (A=January through L=December); ${yearDigits} indicates ${year}; production sequence: ${sequenceNumber}. This format is used on modern entry-level Squier lines including Debut and Sonic series.`,
+        notes: `Modern Squier CRN four-letter prefix format. "C" identifies China; "RN" identifies the contracted production facility; "${monthLetter}" indicates ${monthDesc}${month ? ' using alphabetical month coding (A=January through L=December)' : ' (numeric month variant)'}; ${yearDigits} indicates ${year}; production sequence: ${sequenceNumber}. This format is used on modern entry-level Squier lines including Debut and Sonic series.`,
     };
     return {
         success: true,
