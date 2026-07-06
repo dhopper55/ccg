@@ -2,6 +2,8 @@ User-agent: *
 Allow: /
 Disallow: /admin/
 Disallow: /cdn-cgi/
+Allow: /guitars-and-gear-for-sale/assets/
+Disallow: /guitars-and-gear-for-sale/*/
 Disallow: /guitars-and-gear-for-sale/cart
 
 Sitemap: https://www.coalcreekguitars.com/sitemap.xml

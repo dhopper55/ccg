@@ -16,21 +16,30 @@ import type {
   ShopCheckoutInventoryRow,
 } from '../types/orders.js';
 
-function normalizeCheckoutItems(input: unknown): Array<{ inventoryItemId: number; quantity: number }> {
+function normalizeCheckoutItems(input: unknown): Array<{ inventoryItemId: number; quantity: number; overrideUnitPriceCents: number | null }> {
   if (!Array.isArray(input)) return [];
 
-  const byInventoryItemId = new Map<number, number>();
+  const byInventoryItemId = new Map<number, { quantity: number; overrideUnitPriceCents: number | null }>();
   for (const item of input) {
     const inventoryItemId = parseOptionalPositiveInt((item as any)?.inventoryItemId);
     if (!inventoryItemId) continue;
     const quantityValue = Number((item as any)?.quantity ?? 1);
     const quantity = Math.max(1, Math.min(99, Math.floor(Number.isFinite(quantityValue) ? quantityValue : 1)));
-    byInventoryItemId.set(inventoryItemId, (byInventoryItemId.get(inventoryItemId) || 0) + quantity);
+    const overrideRaw = Number((item as any)?.overrideUnitPriceCents);
+    const overrideUnitPriceCents = Number.isFinite(overrideRaw) && overrideRaw >= 0
+      ? Math.round(overrideRaw)
+      : null;
+    const existing = byInventoryItemId.get(inventoryItemId);
+    byInventoryItemId.set(inventoryItemId, {
+      quantity: (existing?.quantity || 0) + quantity,
+      overrideUnitPriceCents,
+    });
   }
 
-  return Array.from(byInventoryItemId.entries()).map(([inventoryItemId, quantity]) => ({
+  return Array.from(byInventoryItemId.entries()).map(([inventoryItemId, { quantity, overrideUnitPriceCents }]) => ({
     inventoryItemId,
     quantity,
+    overrideUnitPriceCents,
   }));
 }
 
@@ -89,7 +98,10 @@ export async function buildShopCheckoutDraft(
       return jsonResponse({ message: unavailableReason }, 409);
     }
     const price = Number(row.sale_price || row.regular_price || 0);
-    const unitAmountCents = Math.round(price * 100);
+    const dbUnitAmountCents = Math.round(price * 100);
+    const unitAmountCents = options.allowManualDiscount && requestedItem.overrideUnitPriceCents != null
+      ? requestedItem.overrideUnitPriceCents
+      : dbUnitAmountCents;
     if (!Number.isFinite(unitAmountCents) || unitAmountCents <= 0) {
       return jsonResponse({ message: `${getCheckoutItemTitle(row)} is missing a checkout price.` }, 409);
     }

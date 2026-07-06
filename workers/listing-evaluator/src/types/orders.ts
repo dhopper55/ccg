@@ -17,6 +17,7 @@ export interface ShopCheckoutRequestPayload {
   items?: Array<{
     inventoryItemId?: unknown;
     quantity?: unknown;
+    overrideUnitPriceCents?: unknown;
   }>;
 }
 

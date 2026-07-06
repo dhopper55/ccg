@@ -157,6 +157,7 @@ const CartBottomBar = () => {
     items: selectedCartItems.map((item) => ({
       inventoryItemId: item.id,
       quantity: item.quantity,
+      overrideUnitPriceCents: Math.round(item.price.discounted * 100),
     })),
   });
 
@@ -417,6 +418,7 @@ const CartBottomBar = () => {
           items: selectedCartItems.map((item) => ({
             inventoryItemId: item.id,
             quantity: item.quantity,
+            overrideUnitPriceCents: Math.round(item.price.discounted * 100),
           })),
         }),
       });
