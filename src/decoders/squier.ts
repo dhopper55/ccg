@@ -90,6 +90,12 @@ export function decodeSquier(serial: string): DecodeResult {
     return decodeJapanLetter(japanLetterMatch[1], japanLetterMatch[2], normalized);
   }
 
+  // K prefix: Japan MIJ era 1990-1991 (FujiGen Gakki) or early Korean production
+  // K is not in the CIJ table (which starts at A=1997) but was used in the earlier MIJ/Squier Japan run.
+  if (/^K\d{6,7}$/.test(normalized)) {
+    return decodeJapanOrKoreaMIJK(normalized);
+  }
+
   // Korea VN prefix (Sunghan, 1990s)
   if (/^VN\d{6,7}$/.test(normalized)) {
     return decodeKoreaVN(normalized);
@@ -336,6 +342,43 @@ function decodeJapanLetter(letter: string, sequence: string, serial: string): De
   };
 
   return { success: true, info };
+}
+
+function decodeJapanOrKoreaMIJK(serial: string): DecodeResult {
+  const info: GuitarInfo = {
+    brand: 'Squier',
+    serialNumber: serial,
+    year: '1990-1991 (Japan MIJ) or 1987/1997 (Korea)',
+    factory: 'FujiGen Gakki (Japan, MIJ era) or Korean contracted factory',
+    country: 'Japan or South Korea',
+    notes: `K-prefix Squier serial. The "K" prefix was used by FujiGen Gakki in Japan for the Squier MIJ (Made in Japan) run circa 1990-1991, following Fender Japan's letter-year conventions. Some Korean Squier II production from 1987 or 1997 also used a K prefix. Check the headstock for "Made in Japan" or "Made in Korea" to confirm origin. The digit after K may indicate year (e.g., K7 = 1997 in Korean dating, or K follows the Japan sequence). Confirm with neck-pocket markings or body label.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'squier-japan-mij-k-prefix-sequence',
+    patternLabel: 'Squier K-prefix Japan MIJ or Korea sequence',
+    additionalContext: {
+      title: 'Squier K-prefix serial (Japan MIJ or Korea)',
+      summary: 'K-prefix Squiers are associated with Japanese MIJ production circa 1990-1991 (FujiGen) or early Korean production from 1987/1997.',
+      highlights: [
+        '"K" prefix identifies either Japan MIJ (FujiGen Gakki, 1990-1991) or Korean contracted production.',
+        'FujiGen-built MIJ Squiers are among the most collectible and highest-quality Squier instruments.',
+        'Check the headstock or neck heel for "Made in Japan" or "Made in Korea" to confirm origin.',
+      ],
+      caveats: [
+        'Without a country-of-origin marking, exact factory attribution is uncertain.',
+        'Squier serial number documentation from the late 1980s–early 1990s is incomplete in official records.',
+      ],
+      verificationTips: [
+        'Look for "Made in Japan" or "Made in Korea" on the headstock, neck heel, or label.',
+        'FujiGen-built MIJ Squiers typically have superior fretwork, fit, and finish compared to Korean imports.',
+        'Unscrew the neck to check for a date stamp in the neck pocket (common on Japanese production).',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>The "K" prefix identifies either Japan MIJ production (FujiGen Gakki, circa 1990-1991) or early Korean contracted Squier production. Check the headstock or neck heel for "Made in Japan" or "Made in Korea" to confirm.</p><h3>What To Verify</h3><ul><li>Check the headstock or neck heel for "Made in Japan" or "Made in Korea".</li><li>FujiGen MIJ Squiers typically have very clean fretwork and Japanese-standard construction quality.</li><li>Unscrew the neck — Japanese factories frequently date-stamped the neck pocket.</li></ul>`,
+  };
 }
 
 function decodeKoreaVN(serial: string): DecodeResult {

@@ -1,6 +1,11 @@
 export function decodePRS(serial) {
     const cleaned = serial.trim().toUpperCase();
-    const normalized = cleaned.replace(/[^A-Z0-9]/g, '');
+    let normalized = cleaned.replace(/[^A-Z0-9]/g, '');
+    // CTI/CTC + year-letter: '0' is often entered as 'O' in sequences like 'CTI G012618' → 'CTIGO12618'
+    // Treat the character in position 4 as digit 0 so the rest of the sequence is all digits.
+    if (/^CT[CI][A-Z]O\d+$/.test(normalized)) {
+        normalized = normalized.substring(0, 4) + '0' + normalized.substring(5);
+    }
     // S2 Series: S2 + 6 digits (2013+)
     if (/^S2\d{6}$/.test(normalized)) {
         return decodeS2Series(normalized);
@@ -147,9 +152,16 @@ const USA_SERIAL_RANGES = [
     { start: 103104, end: 115000, year: 2006 },
     { start: 115001, end: 128000, year: 2007 },
 ];
-// SE Letter year codes (A=2000, B=2001, etc.)
+// SE Letter year codes (A=2000, B=2001, etc.) — used for CTC China early format
 function getSEYear(letter) {
     const baseYear = 2000;
+    const letterCode = letter.charCodeAt(0) - 'A'.charCodeAt(0);
+    return baseYear + letterCode;
+}
+// Modern CTI Indonesia letter year codes (A=2018, B=2019, etc.) — started ~2018 when Cort Indonesia
+// began using letter codes instead of 2-digit numeric year prefix for PRS SE builds.
+function getSEYearModern(letter) {
+    const baseYear = 2018;
     const letterCode = letter.charCodeAt(0) - 'A'.charCodeAt(0);
     return baseYear + letterCode;
 }
@@ -315,7 +327,8 @@ function decodeSECortIndonesiaNumericYear(serial) {
 function decodeSECort(serial) {
     const factoryCode = serial.substring(0, 3);
     const yearLetter = serial[3];
-    const year = getSEYear(yearLetter);
+    // CTI (Indonesia) switched to A=2018 letter codes ~2018; CTC (China) uses the older A=2000 mapping.
+    const year = factoryCode === 'CTI' ? getSEYearModern(yearLetter) : getSEYear(yearLetter);
     const sequence = serial.substring(4);
     let factory;
     let country;
@@ -324,7 +337,7 @@ function decodeSECort(serial) {
         country = 'China';
     }
     else {
-        factory = 'Cort Indonesia';
+        factory = 'Cort Indonesia (Cikarang)';
         country = 'Indonesia';
     }
     const info = {
@@ -334,9 +347,14 @@ function decodeSECort(serial) {
         factory: factory,
         country: country,
         model: 'SE Series',
-        notes: `SE Series import. Factory code "${factoryCode}". Year letter "${yearLetter}" = ${year}. Sequence: ${sequence}.`
+        notes: `SE Series import. Factory code "${factoryCode}" (${country}). Year letter "${yearLetter}" decodes as ${year} (${factoryCode === 'CTI' ? 'A=2018 modern Indonesia letter code' : 'A=2000 letter code'}). Sequence: ${sequence}.`,
     };
-    return { success: true, info };
+    return {
+        success: true,
+        info,
+        patternKey: 'prs-se-cort-letter-year-sequence',
+        patternLabel: 'PRS SE Cort letter year sequence',
+    };
 }
 function decodeAcoustic(serial) {
     const yearDigits = serial.substring(1, 3);

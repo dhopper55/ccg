@@ -634,6 +634,33 @@ function decodeNumericFactoryFormat(
         patternLabel: 'Epiphone early Korean Y+MM+sequence',
       };
     }
+
+    // Try YY(2) + single-digit-factory + MM(2) + seq variant where the factory digit sits between year and month.
+    // e.g. 098080129 → YY=09(2009), F=8, MM=08(August), seq=0129
+    const altYY2 = year; // already the first 2 digits of the serial
+    const altF2 = serial[2]; // character after the 2-digit year
+    const altMMStr2 = serial.substring(3, 5);
+    const altMM2 = parseInt(altMMStr2, 10);
+    if (altMM2 >= 1 && altMM2 <= 12) {
+      const altFullYear2 = '20' + altYY2;
+      const altSeq2 = serial.substring(5);
+      const months2 = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      return {
+        success: true,
+        info: {
+          brand: 'Epiphone',
+          serialNumber: serial,
+          year: altFullYear2,
+          month: months2[altMM2 - 1],
+          factory: `Import facility (factory code ${altF2})`,
+          country: 'China or Korea',
+          notes: `Numeric import format interpreted as YY + single-digit factory + MM + sequence. Year digits "${altYY2}" decode as ${altFullYear2}; factory code "${altF2}"; month digits "${altMMStr2}" decode as ${months2[altMM2 - 1]}; production sequence: ${parseInt(altSeq2, 10)}.`,
+        },
+        patternKey: 'epiphone-numeric-yy-single-factory-mm-sequence',
+        patternLabel: 'Epiphone numeric YY + single factory + MM + sequence',
+      };
+    }
+
     return {
       success: false,
       error: `Invalid month value: ${monthNum}. Expected 01-12.`

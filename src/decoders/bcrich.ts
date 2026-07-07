@@ -95,7 +95,7 @@ export function decodeBCRich(serial: string): DecodeResult {
     return decodeImportLetterPrefix(normalized);
   }
 
-  if (/^[ACEFGHJKLMNP][A-Z]\d{7}$/.test(normalized)) {
+  if (/^[ACEFGHJKLMNP][A-Z]\d{5,7}$/.test(normalized)) {
     return decodeHanserTwoLetterMonthPlantImport(normalized);
   }
 

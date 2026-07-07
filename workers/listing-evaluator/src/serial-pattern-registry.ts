@@ -7,7 +7,7 @@ export function deriveExplicitRegexFromKnownPatternKey(patternKey: string): stri
     'bcrich-f-prefix-six-digit-import': '^F\\d{6}$',
     'bcrich-hanser-era-8-digit-import': '^\\d{8}$',
     'bcrich-hanser-single-letter-calendar-month-import': '^[A-L]\\d{6}$',
-    'bcrich-hanser-two-letter-month-plant-import': '^[ACEFGHJKLMNP][A-Z]\\d{7}$',
+    'bcrich-hanser-two-letter-month-plant-import': '^[ACEFGHJKLMNP][A-Z]\\d{5,7}$',
     'bcrich-short-modern-month-code-import': '^[ACEFGHJKLMNP]\\d{7}$',
     'bcrich-short-numeric-import-y-filler-quarter-sequence': '^\\d{6}$',
     'bcrich-10-digit-numeric-import': '^\\d{10}$',
@@ -147,6 +147,14 @@ export function deriveExplicitRegexFromKnownPatternKey(patternKey: string): stri
     'squier-china-crn-numeric-month-yy-sequence': '^CRN[A-L0-9]\\d{8,9}$',
     'squier-indonesia-iss-month-letter-yy-sequence': '^ISS[A-L]\\d{8,9}$',
     'washburn-ic3-indonesia-cort-yymm-sequence': '^IC[A-Z]\\d{7,9}$',
+    'cort-us-prefix-yymm-sequence': '^US\\d{7}$',
+    'jackson-india-njhjl-yy-sequence': '^NJH[JL]\\d{8}$',
+    'prs-se-cort-letter-year-sequence': '^CT[CI][A-Z]\\d+$',
+    'washburn-vintage-yamaki-japan-digit-letter': '^\\d{4,6}[A-Z]$',
+    'yamaha-japan-electric-digit-2letter-6digit': '^\\d[A-Z]{2}\\d{6}$',
+    'bcrich-hanser-two-letter-month-plant-import-short': '^[ACEFGHJKLMNP][A-Z]\\d{5,7}$',
+    'epiphone-numeric-yy-single-factory-mm-sequence': '^\\d{9}$',
+    'squier-japan-mij-k-prefix-sequence': '^K\\d{6,7}$',
   };
 
   return knownPatterns[patternKey] || null;

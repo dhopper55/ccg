@@ -18,6 +18,11 @@ export function decodeYamaha(serial) {
     }
     // Japan Electric 2002+: Letter-Letter-Letter-###-Letter (e.g., QJM111E)
     // Same as custom shop format, handled above
+    // Japan Electric extended: #-Letter-Letter-###### (digit + 2 letters + 6 digits, e.g. 0JN169005)
+    // Extended version of the Japan Electric 1997+ format with a 6-digit unit block instead of 4.
+    if (/^\d[A-Z]{2}\d{6}$/.test(normalized)) {
+        return decodeJapanElectricExtended(normalized);
+    }
     // Japan Electric 1997+: #-Letter-Letter-#### (e.g., 8FJ0013)
     if (/^\d[A-Z]{2}\d{4}$/.test(normalized)) {
         return decodeJapanElectric1997(normalized);
@@ -317,6 +322,34 @@ function decodeJapanCustomShop1991(serial) {
         notes: `Unit #${unit}. Custom Shop format used 1991-1996.`
     };
     return { success: true, info };
+}
+// Japan Electric extended: #-Letter-Letter-###### (e.g. 0JN169005)
+// Extended version of the Japan Electric format with a 6-digit unit block (day 2 + unit 4).
+function decodeJapanElectricExtended(serial) {
+    const yearDigit = parseInt(serial[0], 10);
+    const factoryLetter = serial[1];
+    const monthLetter = serial[2];
+    const day = parseInt(serial.substring(3, 5), 10);
+    const unit = parseInt(serial.substring(5), 10);
+    const month = getMonthFromLetter(monthLetter);
+    // Year: single digit cycles every 10 years; use getPossibleYears for ambiguity.
+    const possibleYears = getPossibleYears(yearDigit);
+    const info = {
+        brand: 'Yamaha',
+        serialNumber: serial,
+        year: possibleYears,
+        month: month > 0 ? getMonthName(month) : undefined,
+        day: day > 0 && day <= 31 ? day.toString() : undefined,
+        factory: 'Japan Electric Guitar Factory',
+        country: 'Japan',
+        notes: `Extended Japan Electric format (digit + 2 letters + 6 digits). Year digit "${serial[0]}" gives possible years: ${possibleYears}. Factory code: ${factoryLetter}. Month code "${monthLetter}"${month > 0 ? ` = ${getMonthName(month)}` : ' (unrecognized)'}. Day: ${day}. Unit #${unit}. Yamaha serial years repeat on a 10-year cycle — confirm the decade from the model name and country-of-origin label.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'yamaha-japan-electric-digit-2letter-6digit',
+        patternLabel: 'Yamaha Japan Electric digit + 2-letter + 6-digit unit',
+    };
 }
 // Japan Electric 1997+: #-Letter-Letter-####
 function decodeJapanElectric1997(serial) {

@@ -84,7 +84,7 @@ export function decodeBCRich(serial) {
     if (/^[SIFN]\d{8}$/.test(normalized)) {
         return decodeImportLetterPrefix(normalized);
     }
-    if (/^[ACEFGHJKLMNP][A-Z]\d{7}$/.test(normalized)) {
+    if (/^[ACEFGHJKLMNP][A-Z]\d{5,7}$/.test(normalized)) {
         return decodeHanserTwoLetterMonthPlantImport(normalized);
     }
     if (/^[ACEFGHJKLMNP][0-9]{8}$/.test(normalized)) {

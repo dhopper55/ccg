@@ -120,12 +120,16 @@ export function decodeJackson(serial) {
     if (/^NJHK\d{8}$/i.test(normalized)) {
         return decodeKoreaNJHK(normalized);
     }
+    // India NJH-family variants: NJHJ / NJHL + YY + sequence (Harmony/contracted India factory)
+    if (/^NJH[JL]\d{8}$/i.test(normalized)) {
+        return decodeIndiaNJHJL(normalized);
+    }
     // India format (NHJ prefix — digits with optional trailing batch letter)
     if (/^NHJ\d{6,8}[A-Z]?$/i.test(normalized)) {
         return decodeIndia(normalized);
     }
-    // India XN prefix: XN + YY + 5-digit sequence (alternate Indian factory prefix, 2000s)
-    if (/^XN\d{7}$/i.test(normalized)) {
+    // India XN prefix: XN + YY + sequence (alternate Indian factory prefix, 2000s)
+    if (/^XN\d{5,7}$/i.test(normalized)) {
         return decodeIndiaXN(normalized);
     }
     // China GWC-prefix: GWC + YY + sequence (same format as GWJ/CWJ, C-variant factory)
@@ -220,8 +224,8 @@ export function decodeJackson(serial) {
     if (/^(0[5-9]|[12]\d)\d{6}$/.test(normalized) && normalized.length === 8) {
         return decodeModernIndonesiaKorea8Digit(normalized);
     }
-    // India 9-digit (JS30xx, 2004-2007 prefix)
-    if (/^200[4-7]\d{5}$/.test(normalized) && normalized.length === 9) {
+    // India 9-digit (JS30xx, 2004-2029 prefix: year(4) + seq(5))
+    if (/^20(?:0[4-9]|[12]\d)\d{5}$/.test(normalized) && normalized.length === 9) {
         return decodeIndiaNumeric9(normalized);
     }
     // China 9-digit factory sequence: 3-digit factory code + 6-digit production sequence
@@ -1587,6 +1591,46 @@ function decodeChina3DigitFactorySequence(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a 9-digit numeric Jackson China import format where the first three digits identify the factory and the remaining digits are a pure production sequence.</p><h3>How This Pattern Is Typically Read</h3><p>The first three digits (${factoryCode}) identify the contracted Chinese manufacturing facility. The remaining six digits (${sequence}) form the sequential production number ${sequenceNumber}. This format does not encode a production year within the serial number itself.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock or neck plate for a Made in China stamp.</li><li>Inspect the neck pocket or body cavity for internal date stamps when exact dating is important.</li><li>Compare model specs, hardware, and inlays to Jackson catalog entries to estimate the production era.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed Chinese Jackson import decode. Production year cannot be determined from the serial alone — verify from physical markings and model features.</p>`,
+    };
+}
+function decodeIndiaNJHJL(serial) {
+    const prefix = serial.substring(0, 4);
+    const yearDigits = serial.substring(4, 6);
+    const sequence = serial.substring(6);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const info = {
+        brand: 'Jackson',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'Contracted Indian production facility (Harmony or associated factory)',
+        country: 'India',
+        notes: `${prefix} prefix identifies contracted Indian production. Format: ${prefix} + YY + sequence. The digits ${yearDigits} decode as production year ${year}. Production sequence: ${sequence}. This format appears on Jackson JS Series and similar budget import models from India. These serials are not in the official Jackson online lookup — verify with headstock markings and model features.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'jackson-india-njhjl-yy-sequence',
+        patternLabel: 'Jackson India NJH[JL]-prefix YY sequence',
+        additionalContext: {
+            title: 'Jackson India NJH-family serial',
+            summary: 'This serial uses a NJH-family prefix (NJHJ or NJHL) identifying Indian contracted production for Jackson JS Series imports.',
+            highlights: [
+                `"${prefix}" prefix identifies contracted Indian production (Harmony or associated factory).`,
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                `The remaining digits decode as production sequence ${sequence}.`,
+            ],
+            caveats: [
+                'NJH-family prefix guitars are entry-level import instruments from the mid-to-late 2000s.',
+                'These serials are not in the official Jackson online lookup.',
+                'Country of origin should be confirmed from headstock or neck label markings.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for "Made in India".',
+                'Unscrew the neck to inspect neck-pocket or heel stamps for the model name and production date.',
+                'Compare hardware and model features against Jackson JS Series import catalog for the decoded year.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial uses a NJH-family prefix (NJHJ or NJHL) identifying Indian contracted production for Jackson JS Series imports.</p><h3>How This Pattern Is Typically Read</h3><p>"${prefix}" prefix identifies contracted Indian production. The digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for "Made in India".</li><li>Unscrew the neck to inspect neck-pocket or heel stamps for the model name.</li><li>Compare hardware and model features against Jackson JS Series catalog for ${year}.</li></ul>`,
     };
 }
 function decodeKoreaNJHK(serial) {

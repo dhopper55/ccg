@@ -109,6 +109,10 @@ export function decodeWashburn(serial) {
     if (/^\d{6}$/.test(normalized)) {
         return decode6Digit(normalized);
     }
+    // Vintage digits + factory letter (e.g. 79709E): year from first 2 digits + Yamaki/Japan factory suffix
+    if (/^\d{4,6}[A-Z]$/.test(normalized)) {
+        return decodeVintageYamakiJapan(normalized);
+    }
     // Short 4-5 digit format (1970s-early 1980s)
     if (/^\d{4,5}$/.test(normalized)) {
         return decodeShort(normalized);
@@ -981,6 +985,53 @@ function getMonthName(month) {
         'July', 'August', 'September', 'October', 'November', 'December'
     ];
     return months[month - 1] || 'Unknown';
+}
+function decodeVintageYamakiJapan(serial) {
+    const digits = serial.slice(0, -1);
+    const suffix = serial.slice(-1);
+    const yearDigits = digits.substring(0, 2);
+    const yearNum = parseInt(yearDigits, 10);
+    const year = yearNum >= 60 ? `19${yearDigits}` : `20${yearDigits}`;
+    const YAMAKI_SUFFIX_MAP = {
+        E: 'Yamaki (Japan)',
+        J: 'Japan (factory unspecified)',
+        K: 'Japan (Kasuga or Yamaki)',
+        N: 'Japan (factory unspecified)',
+    };
+    const factory = YAMAKI_SUFFIX_MAP[suffix] || `Japan (suffix code "${suffix}")`;
+    const info = {
+        brand: 'Washburn',
+        serialNumber: serial,
+        year,
+        factory,
+        country: 'Japan',
+        notes: `Vintage Washburn serial with factory suffix letter "${suffix}". The digits ${yearDigits} decode as production year ${year}. The suffix letter "${suffix}" is a factory identifier — "E" is commonly associated with the Yamaki factory in Japan, which was Washburn's primary Japanese manufacturer in the late 1970s and early 1980s. Confirm the exact model by cross-referencing physical features with original Washburn catalogs from the decoded year.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'washburn-vintage-yamaki-japan-digit-letter',
+        patternLabel: 'Washburn vintage Japan digit + factory letter suffix',
+        additionalContext: {
+            title: 'Vintage Washburn Japan serial',
+            summary: 'This serial matches a vintage Washburn format with numeric body followed by a Japanese factory suffix letter.',
+            highlights: [
+                `First two digits ${yearDigits} decode as production year ${year}.`,
+                `Suffix "${suffix}" identifies ${factory}.`,
+                'This format is associated with late 1970s–early 1980s Japanese Washburn production.',
+            ],
+            caveats: [
+                'Washburn\'s pre-1985 serial records are very limited — exact year and model verification may require catalog cross-reference.',
+                'Factory suffix conventions were not standardized across all Japanese contractor factories.',
+            ],
+            verificationTips: [
+                'Cross-reference physical features (body shape, inlays, hardware) with original Washburn catalogs from the decoded year.',
+                'Check the inside of the soundhole or back of the headstock for additional model markings.',
+                'Contact Washburn customer support with photos for vintage authentication.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a vintage Washburn format with a numeric body followed by a Japanese factory suffix letter.</p><h3>How This Pattern Is Typically Read</h3><p>First two digits ${yearDigits} decode as production year ${year}. Suffix "${suffix}" identifies ${factory}. This format is associated with late 1970s–early 1980s Japanese Washburn production, particularly by the Yamaki factory.</p><h3>What To Verify</h3><ul><li>Cross-reference physical features with original Washburn catalogs from ${year}.</li><li>Check the inside of the soundhole or back of the headstock for additional model markings.</li><li>Contact Washburn customer support with photos for vintage authentication.</li></ul>`,
+    };
 }
 function getSingleDigitImportYears(yearDigit) {
     if (Number.isNaN(yearDigit))

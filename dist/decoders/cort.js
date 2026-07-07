@@ -107,6 +107,10 @@ export function decodeCort(serial) {
     if (/^LA\d{9}$/.test(normalized)) {
         return decodeLAFactoryYYMM(normalized);
     }
+    // US factory/distribution code prefix: US + YYMM + sequence (e.g. US1906282 = 2019, June)
+    if (/^US\d{7}$/.test(normalized)) {
+        return decodeCortUSPrefix(normalized);
+    }
     // Generic two-letter factory prefix + 8 digits (e.g. PO prefix acoustic/open-pore line).
     // Must come after all specific two-letter prefix handlers (CA/CI/CK/CC via C[A-Z], IC, AI, etc.)
     // so only genuinely unrecognized two-letter codes reach here.
@@ -1683,6 +1687,51 @@ function decodeMGMSignatureSeries(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial identifies a Cort MGM-1 — the Matt "Guitar" Murphy Signature Model, a limited-production Korean guitar from the early 2000s. Matt Murphy was the legendary blues guitarist associated with the Blues Brothers, Muddy Waters, and Howlin' Wolf.</p><h3>What This Serial Tells You</h3><p>The MGM prefix is model-specific rather than date-coded. Cort tracked this signature run with a sequential model stamp (MGM + production number) rather than their standard YYMMXXXXXX factory format. Production unit: ${sequenceNumber}.</p><h3>Physical Identifiers</h3><ul><li><strong>Headstock:</strong> "MGM Matt Guitar Murphy" text on the headstock face.</li><li><strong>Top:</strong> Carved figured/quilted maple in Amber Burst, Sunburst, or Blue.</li><li><strong>Hardware:</strong> Gold-plated throughout.</li><li><strong>Electronics:</strong> Dual humbuckers with a push-pull coil-tap tone knob.</li><li><strong>Neck:</strong> Set-in neck construction.</li></ul><h3>Coal Creek Guitars Note</h3><p>This is a rare and collectible signature model. Authenticate using the headstock text, maple top, and gold hardware before completing any sale or purchase.</p>`,
+    };
+}
+function decodeCortUSPrefix(serial) {
+    const yearDigits = serial.substring(2, 4);
+    const monthDigits = serial.substring(4, 6);
+    const sequence = serial.substring(6);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const monthNum = parseInt(monthDigits, 10);
+    const month = monthNum >= 1 && monthNum <= 12 ? getMonthName(monthNum) : undefined;
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Cort',
+        serialNumber: serial,
+        year: year.toString(),
+        ...(month ? { month } : {}),
+        factory: 'Cor-tek (Cort) international production',
+        country: 'Korea, Indonesia, or China',
+        notes: `US-prefix Cort serial. "US" is a factory or distribution market code used by Cor-tek, not a country-of-origin indicator — Cort does not manufacture production guitars in the United States. Year digits ${yearDigits} decode as ${year}. Month digits ${monthDigits} decode as ${month || 'the production month'}. Production sequence: ${sequenceNumber}. Verify the model and production country from the headstock, soundhole label, or neck markings.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'cort-us-prefix-yymm-sequence',
+        patternLabel: 'Cort US-prefix YYMM sequence (factory/distribution code)',
+        additionalContext: {
+            title: 'Cort US-prefix serial',
+            summary: '"US" is a Cor-tek factory/distribution code, not a country of origin. This serial decodes as a standard Cort YYMM production format.',
+            highlights: [
+                '"US" is a factory or distribution market code — Cort does not build production guitars in the USA.',
+                `Year digits ${yearDigits} decode as ${year}.`,
+                month ? `Month digits ${monthDigits} decode as ${month}.` : `Month digits ${monthDigits} are the production month code.`,
+                `Production sequence: ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'The "US" prefix does not indicate USA manufacture.',
+                'Cort serials identify production date more reliably than exact model identity.',
+                'The serial does not identify the specific Cort model name.',
+            ],
+            verificationTips: [
+                'Check the headstock, soundhole label, or back of headstock for country-of-origin markings.',
+                'Compare the instrument against Cort catalog specs for the decoded year.',
+                'Contact Cort with photos if exact model confirmation is needed.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial uses a "US" factory or distribution market prefix used by Cor-tek (Cort). "US" does not mean USA manufacture — Cort does not build production guitars in the United States.</p><h3>How This Pattern Is Typically Read</h3><p>Year digits ${yearDigits} decode as ${year}. Month digits ${monthDigits} decode as ${month || 'the production month'}. Production sequence: ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the headstock, soundhole label, or back of headstock for actual country-of-origin markings.</li><li>Compare the instrument against Cort catalog specs for ${year}.</li></ul>`,
     };
 }
 // Helper function for month names

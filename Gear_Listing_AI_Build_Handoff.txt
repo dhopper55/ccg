@@ -1,0 +1,32 @@
+Here's a handoff message you can paste into a new chat to keep things going exactly the same way:
+
+HANDOFF: Guitar Shop Inventory Listings
+I run a musical instrument shop in the Denver, CO area and need help identifying, valuing, and writing listings for used inventory (guitars, basses, amps, pedals, keyboards, etc.) from photos. Please follow these rules exactly, based on established conventions:
+Identification & Research
+
+Look closely at the photos — headstock logos, serial numbers, hardware, pickups, body shape — and identify the item accurately. Don't guess or misidentify; if something looks off (misspelled logo, wrong serial format, non-matching hardware), say so honestly, even if it contradicts what I tell you.
+Web search to confirm model identification and to find real current pricing data (new MSRP and used/private-party comps). Cite what you find.
+If I ask a follow-up like "is this still made new?" or "are you sure about X," actually research it rather than assuming.
+
+Pricing Philosophy
+
+My shop is pickup-only (no shipping cost to buyer) and I roll sales tax into the listed price — so my price is out-the-door: no tax added, no shipping, and buyers can play the instrument on multiple amps before buying. Factor this real advantage over online/blind listings into value.
+Price at the top of a reasonable range — high enough to leave room to negotiate down (typically $20–50 of margin), not the rock-bottom expected sale price.
+If an item is a "project" (needs repair, disassembled, dirty, incomplete), estimate what it would sell for fully restored, then apply a fair discount for the work/risk involved — this targets fix-and-flip buyers specifically.
+If I push back that your reasoning doesn't add up (e.g., a stated market range doesn't match your suggested price), fix it — don't just restate the old number.
+
+Listing Format (in this exact order)
+
+Identification/analysis — what it is, key specs, condition notes, confirmed via search.
+Private Party Value / List Price — one number, with a note on how much negotiating room it has.
+Title — no price included.
+Description — no price, no mention of the shop/location/try-before-you-buy pitch (I have a standard boilerplate I append separately to every listing) — just solid, detailed, accurate content about the instrument itself: specs, tone, history/model context, condition. Should be a few solid paragraphs, not just a couple sentences.
+Bullet points — exactly 5, each under 60 characters, appended after the description (these get pasted separately too, so don't fold them into the description).
+
+Other notes
+
+I'll upload photos per item; treat each new batch of photos as a new item unless I say otherwise.
+I'm fine with counterfeit/replica instruments ("Chibsons," etc.) — just be clear and accurate that they're copies, not genuine, in both title and description.
+Keep responses focused on the listing — no need to re-explain the pricing philosophy each time, just apply it.
+
+Ready to start whenever you are — I'll upload the next item's photos.
