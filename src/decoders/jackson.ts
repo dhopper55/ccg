@@ -180,7 +180,7 @@ export function decodeJackson(serial: string): DecodeResult {
   // Modern 3-letter prefix + 7-digit: prefix(3) + modelCode(2) + YY(2) + sequence(3)
   // Checked before the I[WSCHJ]J Indonesia and C[YJ]J China checks because serials like
   // ICJ3215352 and CYJ3215352 use the 3-letter prefix as a single country/factory/brand code.
-  if (/^[A-Z]{3}\d{7}$/i.test(normalized)) {
+  if (/^[A-Z]{3}\d{7,9}$/i.test(normalized)) {
     return decodeModern10DigitThreeLetterPrefix(normalized);
   }
 
@@ -1400,9 +1400,23 @@ function decodeModernIndonesiaKorea8Digit(serial: string): DecodeResult {
 
 function decodeModern10DigitThreeLetterPrefix(serial: string): DecodeResult {
   const letterPrefix = serial.substring(0, 3);
-  const modelCode = serial.substring(3, 5);
-  const yearDigits = serial.substring(5, 7);
-  const sequenceStr = serial.substring(7);
+  const isExtended = serial.length === 12; // 3-letter + 9-digit variant
+
+  let modelCode: string | undefined;
+  let yearDigits: string;
+  let sequenceStr: string;
+
+  if (isExtended) {
+    // 12-char: prefix(3) + YY(2) + seq(7) — no model code
+    yearDigits = serial.substring(3, 5);
+    sequenceStr = serial.substring(5);
+  } else {
+    // 10-char: prefix(3) + modelCode(2) + YY(2) + seq(3)
+    modelCode = serial.substring(3, 5);
+    yearDigits = serial.substring(5, 7);
+    sequenceStr = serial.substring(7);
+  }
+
   const year = 2000 + parseInt(yearDigits, 10);
   const sequence = parseInt(sequenceStr, 10);
 
@@ -1420,26 +1434,40 @@ function decodeModern10DigitThreeLetterPrefix(serial: string): DecodeResult {
     factory = 'Jackson India';
   }
 
+  const modelCodeNote = modelCode !== undefined ? ` Model variation code: ${parseInt(modelCode, 10)}.` : '';
   const info: GuitarInfo = {
     brand: 'Jackson',
     serialNumber: serial,
     year: year.toString(),
     factory: factory !== 'Unknown' ? factory : undefined,
     country,
-    notes: `Modern Jackson 10-digit format (3-letter prefix variant). "${letterPrefix}" encodes country/factory/brand (${letterPrefix[0]} = ${country}${factory !== 'Unknown' ? `, ${letterPrefix[1]} = ${factory}` : ''}). Model variation code: ${parseInt(modelCode, 10)}. Year digits "${yearDigits}" decode as ${year}. Production sequence: ${sequence}. This format is common on modern Jackson import models built at contracted Asian facilities after 2013.`,
+    notes: `Modern Jackson ${serial.length}-digit format (3-letter prefix variant). "${letterPrefix}" encodes country/factory/brand (${letterPrefix[0]} = ${country}${factory !== 'Unknown' ? `, ${letterPrefix[1]} = ${factory}` : ''}).${modelCodeNote} Year digits "${yearDigits}" decode as ${year}. Production sequence: ${sequence}. This format is common on modern Jackson import models built at contracted Asian facilities after 2013.`,
   };
+
+  const patternKey = isExtended
+    ? 'jackson-modern-12digit-3letter-prefix-yy-sequence'
+    : 'jackson-modern-10digit-3letter-prefix-modelcode-yy-sequence';
+  const patternLabel = isExtended
+    ? 'Jackson modern 12-digit 3-letter prefix (2013+)'
+    : 'Jackson modern 10-digit 3-letter prefix (2013+)';
+
+  const modelHighlight = modelCode !== undefined
+    ? [`Model variation code is ${parseInt(modelCode, 10)}.`]
+    : [];
 
   return {
     success: true,
     info,
-    patternKey: 'jackson-modern-10digit-3letter-prefix-modelcode-yy-sequence',
-    patternLabel: 'Jackson modern 10-digit 3-letter prefix (2013+)',
+    patternKey,
+    patternLabel,
     additionalContext: {
-      title: 'Jackson modern 3-letter prefix 10-digit serial',
-      summary: 'This serial matches a modern Jackson import format: 3-letter country/factory/brand prefix + 2-digit model code + 2-digit production year + 3-digit sequence.',
+      title: `Jackson modern 3-letter prefix ${serial.length}-digit serial`,
+      summary: isExtended
+        ? 'This serial matches a modern Jackson import format: 3-letter country/factory/brand prefix + 2-digit production year + 7-digit sequence.'
+        : 'This serial matches a modern Jackson import format: 3-letter country/factory/brand prefix + 2-digit model code + 2-digit production year + 3-digit sequence.',
       highlights: [
         `"${letterPrefix}" encodes country, factory, and brand: ${letterPrefix[0]} = ${country}, ${letterPrefix[1]} = ${factory}.`,
-        `Model variation code is ${parseInt(modelCode, 10)}.`,
+        ...modelHighlight,
         `The digits "${yearDigits}" decode as production year ${year}.`,
         `The remaining digits are production sequence ${sequence}.`,
       ],
@@ -1454,7 +1482,9 @@ function decodeModern10DigitThreeLetterPrefix(serial: string): DecodeResult {
         'Use the Jackson official serial lookup where available.',
       ],
     },
-    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern Jackson import format: 3-letter country/factory/brand prefix + 2-digit model code + 2-digit production year + 3-digit sequence.</p><h3>How This Pattern Is Typically Read</h3><p>"${letterPrefix}" encodes country, factory, and brand: ${letterPrefix[0]} = ${country}, ${letterPrefix[1]} = ${factory}. Model variation code is ${parseInt(modelCode, 10)}. The digits "${yearDigits}" decode as production year ${year}. The remaining digits are production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock or neck plate for a country-of-origin stamp.</li><li>The model code does not directly identify the guitar model name — verify from headstock, series name, and catalog.</li><li>Use the Jackson official serial lookup where available.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed modern Jackson import decode, then identify the exact model from physical markings and catalog comparison.</p>`,
+    additionalContextRichText: isExtended
+      ? `<h3>Overview</h3><p>This serial matches a modern Jackson import format: 3-letter country/factory/brand prefix + 2-digit production year + 7-digit sequence.</p><h3>How This Pattern Is Typically Read</h3><p>"${letterPrefix}" encodes country, factory, and brand: ${letterPrefix[0]} = ${country}, ${letterPrefix[1]} = ${factory}. The digits "${yearDigits}" decode as production year ${year}. The remaining digits are production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock or neck plate for a country-of-origin stamp.</li><li>Verify the exact model from the headstock, series name, and catalog.</li><li>Use the Jackson official serial lookup where available.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed modern Jackson import decode, then identify the exact model from physical markings and catalog comparison.</p>`
+      : `<h3>Overview</h3><p>This serial matches a modern Jackson import format: 3-letter country/factory/brand prefix + 2-digit model code + 2-digit production year + 3-digit sequence.</p><h3>How This Pattern Is Typically Read</h3><p>"${letterPrefix}" encodes country, factory, and brand: ${letterPrefix[0]} = ${country}, ${letterPrefix[1]} = ${factory}. Model variation code is ${parseInt(modelCode!, 10)}. The digits "${yearDigits}" decode as production year ${year}. The remaining digits are production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock or neck plate for a country-of-origin stamp.</li><li>The model code does not directly identify the guitar model name — verify from headstock, series name, and catalog.</li><li>Use the Jackson official serial lookup where available.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed modern Jackson import decode, then identify the exact model from physical markings and catalog comparison.</p>`,
   };
 }
 

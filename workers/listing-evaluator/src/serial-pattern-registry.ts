@@ -155,6 +155,7 @@ export function deriveExplicitRegexFromKnownPatternKey(patternKey: string): stri
     'bcrich-hanser-two-letter-month-plant-import-short': '^[ACEFGHJKLMNP][A-Z]\\d{5,7}$',
     'epiphone-numeric-yy-single-factory-mm-sequence': '^\\d{9}$',
     'squier-japan-mij-k-prefix-sequence': '^K\\d{6,7}$',
+    'jackson-modern-12digit-3letter-prefix-yy-sequence': '^[A-Z]{3}\\d{9}$',
   };
 
   return knownPatterns[patternKey] || null;

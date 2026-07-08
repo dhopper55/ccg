@@ -469,7 +469,7 @@ function decodeTenryu1969(serial) {
     const month = parseInt(serial.substring(2, 4), 10);
     const unit = parseInt(serial.substring(4), 10);
     const year = parseInt(yearDigits, 10);
-    const fullYear = year >= 69 ? 1900 + year : 2000 + year;
+    const fullYear = year >= 46 ? 1900 + year : 2000 + year;
     const info = {
         brand: 'Yamaha',
         serialNumber: serial,
