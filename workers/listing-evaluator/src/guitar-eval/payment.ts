@@ -109,9 +109,36 @@ export async function handleGuitarEvaluationConfirmPayment(request: Request, env
     return jsonResponse({ message: 'evaluationId and paymentIntentId are required.' }, 400);
   }
 
+  // Verify payment status with Stripe before recording or triggering report generation
+  const stripeConfig = await getStripeRuntimeConfig(env);
+  if (!stripeConfig.secretKey) {
+    return jsonResponse({ message: 'Payment processing is not configured.' }, 503);
+  }
+
+  const stripeRes = await fetch(`https://api.stripe.com/v1/payment_intents/${encodeURIComponent(paymentIntentId)}`, {
+    headers: { Authorization: `Bearer ${stripeConfig.secretKey}` },
+  });
+  if (!stripeRes.ok) {
+    return jsonResponse({ message: 'Failed to verify payment with Stripe.' }, 502);
+  }
+  const intent: any = await stripeRes.json();
+  const status: string = intent?.status ?? '';
+
+  if (status !== 'succeeded' && status !== 'processing') {
+    return jsonResponse({ message: `Payment not completed (status: ${status}).`, status }, 402);
+  }
+
   await env.DB.prepare(
     `UPDATE guitar_evaluations SET stripe_payment_intent_id = ? WHERE id = ?`
   ).bind(paymentIntentId, evaluationId).run();
+
+  if (env.REPORT_QUEUE) {
+    try {
+      await env.REPORT_QUEUE.send({ evaluationId: Number(evaluationId) });
+    } catch (err) {
+      console.error('Failed to enqueue report generation after payment confirmation:', err);
+    }
+  }
 
   return jsonResponse({ ok: true });
 }
@@ -134,6 +161,13 @@ export async function handleGuitarEvaluationValidateCoupon(request: Request, env
     await env.DB.prepare(
       `UPDATE guitar_evaluations SET stripe_payment_intent_id = ? WHERE id = ?`
     ).bind(couponCode, evaluationId).run();
+    if (env.REPORT_QUEUE) {
+      try {
+        await env.REPORT_QUEUE.send({ evaluationId: Number(evaluationId) });
+      } catch (err) {
+        console.error('Failed to enqueue report generation after coupon:', err);
+      }
+    }
     return jsonResponse({ valid: true });
   }
 
@@ -279,17 +313,6 @@ export async function handleGuitarEvaluationUploadImages(request: Request, evalu
   } catch (error) {
     console.error('guitar eval image upload failed', { evaluationId, error });
     return jsonResponse({ message: 'Image upload failed.', detail: String(error) }, 500);
-  }
-
-  // Kick off report generation now that photos are uploaded; email with attached report is sent when generation completes
-  if (env.REPORT_QUEUE) {
-    try {
-      await env.REPORT_QUEUE.send({ evaluationId: Number(evaluationId) });
-    } catch (err) {
-      console.error('Failed to enqueue report generation after photo upload:', err);
-    }
-  } else {
-    console.warn('REPORT_QUEUE not configured — report generation not triggered after photo upload');
   }
 
   return jsonResponse({ ok: true, keys });

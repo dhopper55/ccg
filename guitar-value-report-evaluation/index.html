@@ -2448,11 +2448,26 @@ async function handlePay() {
     payBtn.textContent = 'Pay $2.99 →';
     return;
   }
+  if (paymentIntent?.status !== 'succeeded' && paymentIntent?.status !== 'processing') {
+    errEl.textContent = 'Payment did not complete. Please try again.';
+    errEl.style.display = 'block';
+    payBtn.disabled = false;
+    payBtn.textContent = 'Pay $2.99 →';
+    return;
+  }
   if (paymentIntent?.id && evaluationId) {
-    await fetch('/api/guitar-evaluation/confirm-payment', {
+    const confirmRes = await fetch('/api/guitar-evaluation/confirm-payment', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ evaluationId, paymentIntentId: paymentIntent.id }),
-    }).catch(() => undefined);
+    });
+    if (!confirmRes.ok) {
+      const confirmErr = await confirmRes.json().catch(() => ({}));
+      errEl.textContent = (confirmErr as any)?.message || 'Payment verification failed. Please contact us.';
+      errEl.style.display = 'block';
+      payBtn.disabled = false;
+      payBtn.textContent = 'Pay $2.99 →';
+      return;
+    }
   }
   showSuccess();
 }
