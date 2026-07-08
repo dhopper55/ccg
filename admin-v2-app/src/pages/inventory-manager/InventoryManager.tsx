@@ -32,7 +32,7 @@ import { useBreakpoints } from 'providers/BreakpointsProvider';
 import IconifyIcon from 'components/base/IconifyIcon';
 import paths from 'routes/paths';
 
-type InventorySortKey = 'ccgNumber' | 'title' | 'paid' | 'private' | 'addDate';
+type InventorySortKey = 'ccgNumber' | 'title' | 'paid' | 'private' | 'addDate' | 'updateDate';
 type InventorySortDir = 'asc' | 'desc';
 
 type InventoryRecord = {
@@ -191,9 +191,9 @@ const InventoryManager = () => {
   });
   const [sortBy, setSortBy] = useState<InventorySortKey>(() => {
     const value = searchParams.get('sortBy');
-    return value === 'ccgNumber' || value === 'title' || value === 'paid' || value === 'private' || value === 'addDate'
+    return value === 'ccgNumber' || value === 'title' || value === 'paid' || value === 'private' || value === 'addDate' || value === 'updateDate'
       ? value
-      : 'addDate';
+      : 'updateDate';
   });
   const [sortDir, setSortDir] = useState<InventorySortDir>(() => (
     searchParams.get('sortDir') === 'asc' ? 'asc' : 'desc'
@@ -233,7 +233,7 @@ const InventoryManager = () => {
   useEffect(() => {
     const nextParams = new URLSearchParams();
     if (page > 1) nextParams.set('page', String(page));
-    if (sortBy !== 'addDate') nextParams.set('sortBy', sortBy);
+    if (sortBy !== 'updateDate') nextParams.set('sortBy', sortBy);
     if (sortDir !== 'desc') nextParams.set('sortDir', sortDir);
     if (filters.categoryId) nextParams.set('categoryId', filters.categoryId);
     if (filters.brand) nextParams.set('brand', filters.brand);
@@ -381,7 +381,7 @@ const InventoryManager = () => {
 
   const clearFilters = () => {
     setPage(1);
-    setSortBy('addDate');
+    setSortBy('updateDate');
     setSortDir('desc');
     setFilters(DEFAULT_FILTERS);
     setActionErrorMessage('');

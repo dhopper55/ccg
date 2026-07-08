@@ -23,6 +23,12 @@ export function decodeDean(serial: string): DecodeResult {
   const cleaned = serial.trim().toUpperCase();
   const normalized = cleaned.replace(/[\s-]/g, '');
 
+  // WSM factory (World Sound Music / Yeou Chern Instruments, China)
+  // Handles both plain form (WSM2308B01) and unit-suffix form (WSM2308B01.0001)
+  if (/^WSM/.test(normalized)) {
+    return decodeWSMFactory(normalized.replace(/\./g, ''));
+  }
+
   // UnSung Korea: US prefix (don't confuse with USA!)
   if (/^US\d{8,10}$/.test(normalized)) {
     return decodeUnSungKorea(normalized);
@@ -1169,6 +1175,36 @@ function decodeWorldNumericPrefixYYMM(serial: string): DecodeResult {
       ],
     },
     additionalContextRichText: `<h3>Overview</h3><p>This serial uses a numeric-prefix World factory format where the leading digit identifies a production batch at World Musical Instruments Co Ltd in South Korea.</p><h3>How This Pattern Is Typically Read</h3><p>The leading digit "${batchCode}" identifies a production batch at World Musical Instruments. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} decode as ${monthName || 'the production month'}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for a Made in Korea stamp.</li><li>Compare hardware and finish against Dean Korea import catalog from the decoded year.</li><li>Contact Dean support with photos if exact factory authentication is needed.</li></ul>`,
+  };
+}
+
+// WSM factory (World Sound Music / Yeou Chern Instruments, China)
+// Serial format: WSM + YY(2) + MM(2) + batch-letter + 2-digit batch-seq [+ optional unit]
+function decodeWSMFactory(serial: string): DecodeResult {
+  const suffix = serial.substring(3);
+  const yearDigits = suffix.substring(0, 2);
+  const monthDigits = suffix.substring(2, 4);
+  const batchCode = suffix.substring(4);
+
+  const year = 2000 + parseInt(yearDigits, 10);
+  const month = parseInt(monthDigits, 10);
+  const monthName = month >= 1 && month <= 12 ? getMonthName(month) : undefined;
+
+  const info: GuitarInfo = {
+    brand: 'Dean',
+    serialNumber: serial,
+    year: year.toString(),
+    month: monthName,
+    factory: 'World Sound Music (Yeou Chern Instruments)',
+    country: 'China',
+    notes: `WSM prefix identifies the World Sound Music factory (also known as Yeou Chern Instruments), a major Chinese OEM producer for Dean import lines such as the Vendetta XM. Year: ${year}. Month: ${monthName ?? monthDigits}. Batch/sequence code: ${batchCode}.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'dean-wsm-china-yymm-batch-sequence',
+    patternLabel: 'Dean WSM (World Sound Music) China YYMM + batch',
   };
 }
 

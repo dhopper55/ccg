@@ -156,6 +156,7 @@ export function deriveExplicitRegexFromKnownPatternKey(patternKey: string): stri
     'epiphone-numeric-yy-single-factory-mm-sequence': '^\\d{9}$',
     'squier-japan-mij-k-prefix-sequence': '^K\\d{6,7}$',
     'jackson-modern-12digit-3letter-prefix-yy-sequence': '^[A-Z]{3}\\d{9}$',
+    'dean-wsm-china-yymm-batch-sequence': '^WSM\\d{4}[A-Z][A-Z0-9.]+$',
   };
 
   return knownPatterns[patternKey] || null;

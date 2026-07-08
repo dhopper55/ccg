@@ -22,7 +22,7 @@ export function normalizeInventoryQueue(input: unknown): string {
 }
 
 export type InventoryTriState = 'all' | 'yes' | 'no';
-export type InventorySortKey = 'ccgNumber' | 'title' | 'paid' | 'private' | 'soldPrice' | 'addDate';
+export type InventorySortKey = 'ccgNumber' | 'title' | 'paid' | 'private' | 'soldPrice' | 'addDate' | 'updateDate';
 export type InventorySortDir = 'asc' | 'desc';
 
 export type InventoryListFilters = {
@@ -52,6 +52,8 @@ export function parseInventorySortKey(input: string | null): InventorySortKey {
       return 'soldPrice';
     case 'addDate':
       return 'addDate';
+    case 'updateDate':
+      return 'updateDate';
     case 'title':
     default:
       return 'title';
@@ -105,6 +107,8 @@ export function inventoryOrderBySql(sortBy: InventorySortKey, sortDir: Inventory
       return `COALESCE(i.sold_amount, 0) ${dir}, LOWER(i.title) ASC, i.id DESC`;
     case 'addDate':
       return `COALESCE(i.created_at, '') ${dir}, i.id ${dir}`;
+    case 'updateDate':
+      return `COALESCE(i.updated_at, i.created_at, '') ${dir}, i.id ${dir}`;
     case 'title':
     default:
       return `LOWER(i.title) ${dir}, LOWER(i.ccg_number) ASC, i.id DESC`;
