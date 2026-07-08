@@ -55,13 +55,14 @@ export function parseInventorySortKey(input: string | null): InventorySortKey {
     case 'updateDate':
       return 'updateDate';
     case 'title':
-    default:
       return 'title';
+    default:
+      return 'updateDate';
   }
 }
 
 export function parseInventorySortDir(input: string | null): InventorySortDir {
-  return (input || '').trim().toLowerCase() === 'desc' ? 'desc' : 'asc';
+  return (input || '').trim().toLowerCase() === 'asc' ? 'asc' : 'desc';
 }
 
 export function parseInventoryTriState(input: string | null, defaultValue: InventoryTriState): InventoryTriState {
