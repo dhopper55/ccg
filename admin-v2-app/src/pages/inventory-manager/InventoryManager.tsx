@@ -532,8 +532,6 @@ const InventoryManager = () => {
   const inventoryItemHref = (recordId: string) =>
     `${paths.inventoryItemWithId(recordId)}${location.search || ''}`;
 
-  const showMarkedCheckboxes = filters.marked !== 'yes';
-
   const renderDesktopTable = () => (
     <TableContainer>
       <Table>
@@ -541,15 +539,13 @@ const InventoryManager = () => {
           <TableRow>
             <TableCell sx={{ whiteSpace: 'nowrap' }}>
               <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5 }}>
-                {showMarkedCheckboxes ? (
-                  <Checkbox
-                    size="small"
-                    checked={selectAllChecked}
-                    disabled={isUnmarkingAll || records.length === 0 || isLoading}
-                    onChange={(event) => handleSelectAll(event.target.checked)}
-                    sx={{ p: 0.25 }}
-                  />
-                ) : null}
+                <Checkbox
+                  size="small"
+                  checked={selectAllChecked}
+                  disabled={isUnmarkingAll || records.length === 0 || isLoading}
+                  onChange={(event) => handleSelectAll(event.target.checked)}
+                  sx={{ p: 0.25 }}
+                />
                 <TableSortLabel
                   active={sortBy === 'ccgNumber'}
                   direction={sortBy === 'ccgNumber' ? sortDir : 'asc'}
@@ -614,16 +610,14 @@ const InventoryManager = () => {
               <TableRow key={record.id} hover>
                 <TableCell sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
                   <Stack direction="row" sx={{ alignItems: 'center', gap: 0.75 }}>
-                    {showMarkedCheckboxes ? (
-                      <Checkbox
-                        size="small"
-                        checked={Boolean(record.isMarked)}
-                        disabled={isUnmarkingAll || togglingMarkedIds.includes(record.id)}
-                        onChange={(event) => handleToggleMarked(record.id, event.target.checked)}
-                        onClick={(event) => event.stopPropagation()}
-                        sx={{ p: 0.25, mr: 0.25 }}
-                      />
-                    ) : null}
+                    <Checkbox
+                      size="small"
+                      checked={Boolean(record.isMarked)}
+                      disabled={isUnmarkingAll || togglingMarkedIds.includes(record.id)}
+                      onChange={(event) => handleToggleMarked(record.id, event.target.checked)}
+                      onClick={(event) => event.stopPropagation()}
+                      sx={{ p: 0.25, mr: 0.25 }}
+                    />
                     <Link
                       underline="none"
                       color="text.primary"
@@ -826,21 +820,19 @@ const InventoryManager = () => {
                     ) : null}
                   </Stack>
                   <Stack direction="row" sx={{ alignItems: 'center', gap: 0.75 }}>
-                    {showMarkedCheckboxes ? (
-                      <Checkbox
-                        size="small"
-                        checked={Boolean(record.isMarked)}
-                        disabled={isUnmarkingAll || togglingMarkedIds.includes(record.id)}
-                        onChange={(event) => handleToggleMarked(record.id, event.target.checked)}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                        }}
-                        onMouseDown={(event) => {
-                          event.stopPropagation();
-                        }}
-                        sx={{ p: 0.25, ml: -0.5 }}
-                      />
-                    ) : null}
+                    <Checkbox
+                      size="small"
+                      checked={Boolean(record.isMarked)}
+                      disabled={isUnmarkingAll || togglingMarkedIds.includes(record.id)}
+                      onChange={(event) => handleToggleMarked(record.id, event.target.checked)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                      }}
+                      onMouseDown={(event) => {
+                        event.stopPropagation();
+                      }}
+                      sx={{ p: 0.25, ml: -0.5 }}
+                    />
                     <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                       {record.ccgNumber || '—'}
                     </Typography>
