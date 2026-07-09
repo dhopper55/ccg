@@ -121,6 +121,11 @@ export function decodeBCRich(serial: string): DecodeResult {
     return decodeBNumericYYMM(normalized);
   }
 
+  // WMI factory (World Musical Instruments, South Korea): W + factory-code(2) + month-letter(A-L) + YY(2) + seq
+  if (/^W\d{2}[A-L]\d{4,8}$/.test(normalized)) {
+    return decodeWMIFactory(normalized);
+  }
+
   // BW-prefix import: BW + sequential number (Class Axe era or specific Korean contractor)
   if (/^BW\d{2,6}$/.test(normalized)) {
     return decodeBWPrefixImport(normalized);
@@ -739,10 +744,54 @@ function decodeHanserEraNumericImport(serial: string): DecodeResult {
   };
 }
 
+function decodeWMIFactory(serial: string): DecodeResult {
+  const MONTH_LETTERS: Record<string, string> = {
+    'A': 'January', 'B': 'February', 'C': 'March', 'D': 'April',
+    'E': 'May', 'F': 'June', 'G': 'July', 'H': 'August',
+    'I': 'September', 'J': 'October', 'K': 'November', 'L': 'December',
+  };
+  const factoryCode = serial.substring(1, 3);
+  const monthLetter = serial[3];
+  const yearDigits = serial.substring(4, 6);
+  const seq = serial.substring(6);
+  const month = MONTH_LETTERS[monthLetter];
+  const year = '20' + yearDigits;
+
+  const info: GuitarInfo = {
+    brand: 'B.C. Rich',
+    serialNumber: serial,
+    year,
+    month,
+    factory: 'World Musical Instruments (WMI), South Korea',
+    country: 'South Korea',
+    notes: `W prefix identifies World Musical Instruments (WMI), a South Korean factory that produced B.C. Rich guitars under Hanser Music Group ownership. Factory sub-code: ${factoryCode}. Month: ${month ?? monthLetter}. Year: ${year}. Sequence: ${seq}.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'bcrich-wmi-korea-factory-code-month-yy-sequence',
+    patternLabel: 'B.C. Rich WMI Korea (W + factory-code + month + YY + seq)',
+  };
+}
+
 function decodeUSA5Digit(serial: string): DecodeResult {
   const yearDigits = serial.slice(0, 2);
   const sequence = serial.slice(2);
   const yearNum = parseInt(yearDigits, 10);
+
+  // yearNum 50-69 gives year 2050-2069 (impossible/future). These are import sequentials.
+  if (yearNum >= 50 && yearNum <= 69) {
+    const info: GuitarInfo = {
+      brand: 'B.C. Rich',
+      serialNumber: serial,
+      year: '1985-2000 (estimated)',
+      factory: 'Import production (NJ Series, Platinum, or Bronze series)',
+      country: 'South Korea',
+      notes: `5-digit serial on an import model. On B.C. Rich bolt-on import models from the 1980s-1990s, numeric neck plate codes were sequential production numbers without reliable date encoding. The first two digits "${yearDigits}" do not correspond to a known BC Rich USA production year, indicating import origin. Sequence: ${parseInt(sequence, 10)}.`,
+    };
+    return { success: true, info, patternKey: 'bcrich-5digit-import-sequential', patternLabel: 'B.C. Rich 5-digit import sequential' };
+  }
 
   // B.C. Rich 5-digit neck-through serials can drift ahead of actual build year
   // in the early/mid-1980s due to numbering inconsistencies.

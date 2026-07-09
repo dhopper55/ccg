@@ -10,6 +10,7 @@ const FACTORY_CODES = {
     'F': { name: 'Fine Guitars', country: 'South Korea' },
     'C': { name: 'Unknown Korean Factory', country: 'South Korea' },
     // Chinese factories (letter codes)
+    'SJ': { name: 'SaeJun (China)', country: 'China' },
     'MR': { name: 'Unknown Chinese Factory', country: 'China' },
     'DW': { name: 'DaeWon', country: 'China' },
     'EA': { name: 'Qingdao (Acoustic)', country: 'China' },

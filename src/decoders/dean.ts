@@ -23,6 +23,11 @@ export function decodeDean(serial: string): DecodeResult {
   const cleaned = serial.trim().toUpperCase();
   const normalized = cleaned.replace(/[\s-]/g, '');
 
+  // USA Custom Shop (Tampa, Florida): USA + YY + sequence
+  if (/^USA\d{6,8}$/.test(normalized)) {
+    return decodeUSACustomShop(normalized);
+  }
+
   // WSM factory (World Sound Music / Yeou Chern Instruments, China)
   // Handles both plain form (WSM2308B01) and unit-suffix form (WSM2308B01.0001)
   if (/^WSM/.test(normalized)) {
@@ -133,6 +138,11 @@ export function decodeDean(serial: string): DecodeResult {
   // India import line: H prefix (modern import pattern)
   if (/^H\d{5,10}$/.test(normalized)) {
     return decodeIndiaH(normalized);
+  }
+
+  // Korean/Asian import: K + YY + MM + 4-digit sequence
+  if (/^K\d{8}$/.test(normalized)) {
+    return decodeKoreanImportK(normalized);
   }
 
   // KH factory: KH + YY + MM + 5-digit sequence (overseas import, e.g. KH190630183 = 2019 June)
@@ -1175,6 +1185,54 @@ function decodeWorldNumericPrefixYYMM(serial: string): DecodeResult {
       ],
     },
     additionalContextRichText: `<h3>Overview</h3><p>This serial uses a numeric-prefix World factory format where the leading digit identifies a production batch at World Musical Instruments Co Ltd in South Korea.</p><h3>How This Pattern Is Typically Read</h3><p>The leading digit "${batchCode}" identifies a production batch at World Musical Instruments. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} decode as ${monthName || 'the production month'}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for a Made in Korea stamp.</li><li>Compare hardware and finish against Dean Korea import catalog from the decoded year.</li><li>Contact Dean support with photos if exact factory authentication is needed.</li></ul>`,
+  };
+}
+
+function decodeUSACustomShop(serial: string): DecodeResult {
+  const yearDigits = serial.substring(3, 5);
+  const sequence = serial.substring(5);
+  const year = 2000 + parseInt(yearDigits, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Dean',
+    serialNumber: serial,
+    year: year.toString(),
+    factory: 'Dean USA Custom Shop, Tampa, Florida',
+    country: 'United States',
+    notes: `USA prefix confirms hand-crafted production at the Dean USA Custom Shop in Tampa, Florida. Year: ${year}. Production sequence: ${parseInt(sequence, 10)}.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'dean-usa-custom-shop-yy-sequence',
+    patternLabel: 'Dean USA Custom Shop YY + sequence',
+  };
+}
+
+function decodeKoreanImportK(serial: string): DecodeResult {
+  const yearDigits = serial.substring(1, 3);
+  const monthDigits = serial.substring(3, 5);
+  const sequence = serial.substring(5);
+  const year = 2000 + parseInt(yearDigits, 10);
+  const month = parseInt(monthDigits, 10);
+  const monthName = month >= 1 && month <= 12 ? getMonthName(month) : undefined;
+
+  const info: GuitarInfo = {
+    brand: 'Dean',
+    serialNumber: serial,
+    year: year.toString(),
+    month: monthName,
+    factory: 'Asian contracted facility (K-prefix)',
+    country: 'South Korea',
+    notes: `K prefix indicates an Asian contracted facility used by Dean for import production. Year: ${year}. Month: ${monthName ?? monthDigits}. Sequence: ${parseInt(sequence, 10)}.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'dean-k-prefix-asian-import-yymm-sequence',
+    patternLabel: 'Dean K-prefix Asian import YYMM + sequence',
   };
 }
 

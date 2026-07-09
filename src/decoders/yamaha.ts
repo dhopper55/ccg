@@ -58,6 +58,11 @@ export function decodeYamaha(serial: string): DecodeResult {
     return decodeJapanElectric1984(normalized);
   }
 
+  // Japan Short Electric: Letter-#### (e.g., Y1809) — single letter year + day + unit
+  if (/^[A-Z]\d{4}$/.test(normalized)) {
+    return decodeShortJapanElectric(normalized);
+  }
+
   // Japan Tenryu 1969-1984: 6 digits YYMMUU (e.g., 710502)
   if (/^\d{6}$/.test(normalized)) {
     return decodeTenryu1969(normalized);
@@ -130,11 +135,12 @@ export function decodeYamaha(serial: string): DecodeResult {
   };
 }
 
-// Year letter mapping (H=1, I=2, ... Q=0)
+// Year letter mapping (H=1, I=2, ... Q=0, X=10, Y=11, Z=12)
 function getYearDigit(letter: string): number {
   const mapping: Record<string, number> = {
     'H': 1, 'I': 2, 'J': 3, 'K': 4, 'L': 5,
-    'M': 6, 'N': 7, 'O': 8, 'P': 9, 'Q': 0
+    'M': 6, 'N': 7, 'O': 8, 'P': 9, 'Q': 0,
+    'X': 10, 'Y': 11, 'Z': 12,
   };
   return mapping[letter] ?? -1;
 }
@@ -739,6 +745,39 @@ function decodeIndonesia1990(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+// Japan Short Electric: Letter-#### (single letter year code + day + unit)
+function decodeShortJapanElectric(serial: string): DecodeResult {
+  const yearLetter = serial[0];
+  const day = parseInt(serial.substring(1, 3), 10);
+  const unit = parseInt(serial.substring(3), 10);
+
+  const yearDigit = getYearDigit(yearLetter);
+
+  if (yearDigit === -1) {
+    return {
+      success: false,
+      error: 'Invalid year code in serial number.',
+    };
+  }
+
+  const possibleYears = getPossibleYears(yearDigit);
+
+  const info: GuitarInfo = {
+    brand: 'Yamaha',
+    serialNumber: serial,
+    year: possibleYears,
+    country: 'Japan',
+    notes: `Short Japan Electric format (letter + 4 digits). Year letter "${yearLetter}" encodes possible years: ${possibleYears}. Day: ${day}. Unit #${unit}. Yamaha serial years repeat on a 10-year cycle — confirm the decade from the model name and country-of-origin label.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'yamaha-japan-short-electric-letter-4digit',
+    patternLabel: 'Yamaha Japan Short Electric letter + 4-digit',
+  };
 }
 
 // Korea/China 2003+: Letter-Letter-Letter-####-Letter

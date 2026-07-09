@@ -1,7 +1,9 @@
 import type { Env } from '../env.js';
 import { normalizeText } from '../utils/text.js';
 import { isValidEmailAddress } from '../utils/text.js';
-import { jsonResponse, parseBoundedInt, dbGetColumnNames } from '../utils/misc.js';
+import { jsonResponse, parseBoundedInt } from '../utils/misc.js';
+
+const SERIAL_DECODE_EVENT_COLS = new Set(['pattern_lookup_id', 'evaluated', 'is_invalid']);
 import type { SerialDecodeEventPayload, DecodeRequestPayload, DecodeEmailRequestPayload, SerialDecodeEventInsert, SerialPatternContextPayload, ActivityLogInsert } from '../types/core.js';
 import type { ActivityEventKey } from '../constants.js';
 import { ACTIVITY_BASE_URL, BRAND_ACTIVITY_META, ACTIVITY_EVENT_TYPE_SEEDS } from '../constants.js';
@@ -369,7 +371,7 @@ export async function handleDecodeRequest(request: Request, env: Env): Promise<R
     }
     if (patternLookupId !== null || autoEvaluated) {
       try {
-        const existingCols = await dbGetColumnNames('serial_decode_events', env);
+        const existingCols = SERIAL_DECODE_EVENT_COLS;
         const setClauses: string[] = [];
         const binds: unknown[] = [];
         if (patternLookupId !== null && existingCols.has('pattern_lookup_id')) {

@@ -1122,6 +1122,7 @@ function getPrefixYearRange(prefix: string): string {
 }
 
 function getOverseasYearRange(prefix: string): string | undefined {
+  if (prefix === 'AB') return '1980-1992 (estimated)';
   if (prefix === 'CF') return '1985-1989 (estimated)';
   if (prefix === 'FA') return 'late 1985–1986';
   if (prefix === 'FB') return '1987–1988';
@@ -1129,6 +1130,7 @@ function getOverseasYearRange(prefix: string): string | undefined {
 }
 
 function getOverseasCountry(prefix: string): string | undefined {
+  if (prefix === 'AB') return 'South Korea';
   if (prefix === 'CF') return 'Japan';
   return undefined;
 }

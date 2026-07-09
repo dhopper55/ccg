@@ -43,6 +43,10 @@ export function decodeYamaha(serial) {
     if (/^[A-Z]{2}\d{4}$/.test(normalized)) {
         return decodeJapanElectric1984(normalized);
     }
+    // Japan Short Electric: Letter-#### (e.g., Y1809) — single letter year + day + unit
+    if (/^[A-Z]\d{4}$/.test(normalized)) {
+        return decodeShortJapanElectric(normalized);
+    }
     // Japan Tenryu 1969-1984: 6 digits YYMMUU (e.g., 710502)
     if (/^\d{6}$/.test(normalized)) {
         return decodeTenryu1969(normalized);
@@ -101,11 +105,12 @@ export function decodeYamaha(serial) {
         error: 'Unrecognized Yamaha serial number format. Yamaha has used many different serial number systems across factories in Japan, Taiwan, Indonesia, Korea, and China. Common formats include: 2 letters + 5 digits (standard), 3 letters + 6 digits (Taiwan/Indonesia 2001+), or various numeric formats.'
     };
 }
-// Year letter mapping (H=1, I=2, ... Q=0)
+// Year letter mapping (H=1, I=2, ... Q=0, X=10, Y=11, Z=12)
 function getYearDigit(letter) {
     const mapping = {
         'H': 1, 'I': 2, 'J': 3, 'K': 4, 'L': 5,
-        'M': 6, 'N': 7, 'O': 8, 'P': 9, 'Q': 0
+        'M': 6, 'N': 7, 'O': 8, 'P': 9, 'Q': 0,
+        'X': 10, 'Y': 11, 'Z': 12,
     };
     return mapping[letter] ?? -1;
 }
@@ -614,6 +619,33 @@ function decodeIndonesia1990(serial) {
         notes: `Unit #${unit}. 8-digit format used 1990-1996.`
     };
     return { success: true, info };
+}
+// Japan Short Electric: Letter-#### (single letter year code + day + unit)
+function decodeShortJapanElectric(serial) {
+    const yearLetter = serial[0];
+    const day = parseInt(serial.substring(1, 3), 10);
+    const unit = parseInt(serial.substring(3), 10);
+    const yearDigit = getYearDigit(yearLetter);
+    if (yearDigit === -1) {
+        return {
+            success: false,
+            error: 'Invalid year code in serial number.',
+        };
+    }
+    const possibleYears = getPossibleYears(yearDigit);
+    const info = {
+        brand: 'Yamaha',
+        serialNumber: serial,
+        year: possibleYears,
+        country: 'Japan',
+        notes: `Short Japan Electric format (letter + 4 digits). Year letter "${yearLetter}" encodes possible years: ${possibleYears}. Day: ${day}. Unit #${unit}. Yamaha serial years repeat on a 10-year cycle — confirm the decade from the model name and country-of-origin label.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'yamaha-japan-short-electric-letter-4digit',
+        patternLabel: 'Yamaha Japan Short Electric letter + 4-digit',
+    };
 }
 // Korea/China 2003+: Letter-Letter-Letter-####-Letter
 function decodeKoreaChina2003(serial) {

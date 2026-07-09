@@ -207,20 +207,32 @@ interface Env {
   DB: D1Database;
 }
 
-const patternCache = new Map<string, { rows: SerialPatternV2Row[]; expiresAt: number }>();
+interface CompiledPattern {
+  row: SerialPatternV2Row;
+  regex: RegExp;
+}
+
+const patternCache = new Map<string, { patterns: CompiledPattern[]; expiresAt: number }>();
 const CACHE_TTL_MS = 60_000;
 
-async function getPatterns(brand: string, env: Env): Promise<SerialPatternV2Row[]> {
+async function getPatterns(brand: string, env: Env): Promise<CompiledPattern[]> {
   const cached = patternCache.get(brand);
-  if (cached && cached.expiresAt > Date.now()) return cached.rows;
+  if (cached && cached.expiresAt > Date.now()) return cached.patterns;
 
   const result = await env.DB.prepare(
     'SELECT * FROM serial_patterns_v2 WHERE brand = ? AND active = 1 ORDER BY priority ASC',
   ).bind(brand).all<SerialPatternV2Row>();
 
-  const rows = result.results ?? [];
-  patternCache.set(brand, { rows, expiresAt: Date.now() + CACHE_TTL_MS });
-  return rows;
+  const patterns: CompiledPattern[] = [];
+  for (const row of result.results ?? []) {
+    try {
+      patterns.push({ row, regex: new RegExp(row.regex, 'i') });
+    } catch {
+      // skip rows with invalid regex
+    }
+  }
+  patternCache.set(brand, { patterns, expiresAt: Date.now() + CACHE_TTL_MS });
+  return patterns;
 }
 
 export async function decodeSerialV2(
@@ -228,7 +240,7 @@ export async function decodeSerialV2(
   serial: string,
   env: Env,
 ): Promise<DecodeResult | null> {
-  let patterns: SerialPatternV2Row[];
+  let patterns: CompiledPattern[];
   try {
     patterns = await getPatterns(brand, env);
   } catch {
@@ -239,13 +251,7 @@ export async function decodeSerialV2(
 
   const normalized = serial.trim().toUpperCase();
 
-  for (const row of patterns) {
-    let regex: RegExp;
-    try {
-      regex = new RegExp(row.regex, 'i');
-    } catch {
-      continue;
-    }
+  for (const { row, regex } of patterns) {
     if (!regex.test(normalized)) continue;
 
     const result = applyTemplate(normalized, row);

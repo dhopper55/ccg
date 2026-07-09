@@ -39,11 +39,16 @@ export function decodeESP(serial) {
         return decodeESP2016Plus(normalized);
     }
     // E-II format: ES + 7 digits
-    // Early E-II (2013-2015): ES + YY + 5-digit sequence (year at front)
+    // Pre-2016 (2009-2015): ES + YY + 5-digit sequence (year at front)
     // 2016+ E-II: ES + 4-digit prod num + YY + series code (year near end)
+    // Fallback: if 2016+ parsing gives a future year, fall back to front-loaded year format.
     if (/^ES\d{7}$/.test(normalized)) {
         const earlyYear = parseInt(normalized.substring(2, 4), 10);
-        if (earlyYear >= 13 && earlyYear <= 15) {
+        if (earlyYear >= 9 && earlyYear <= 15) {
+            return decodeEIIEarly(normalized);
+        }
+        const lateYear = parseInt(normalized.substring(6, 8), 10) + 2000;
+        if (lateYear > new Date().getFullYear() + 2) {
             return decodeEIIEarly(normalized);
         }
         return decodeEII2016Plus(normalized);
@@ -288,28 +293,32 @@ function decodeEIIEarly(serial) {
     const productionNum = serial.substring(4);
     const year = 2000 + parseInt(yearDigits, 10);
     const sequenceNumber = parseInt(productionNum, 10);
+    const model = year < 2013 ? 'ESP Standard Series (Japan)' : 'E-II Series';
+    const seriesNote = year < 2013
+        ? 'ES identifies Japanese production at the ESP facility. Before the E-II brand was introduced in 2013, these instruments were sold as the ESP Standard series.'
+        : 'ES identifies the E-II production line, which replaced the legacy ESP Standard series in 2013.';
     const info = {
         brand: 'ESP',
         serialNumber: serial,
         year: year.toString(),
         factory: 'ESP Japan (Tokyo)',
         country: 'Japan',
-        model: 'E-II Series',
-        notes: `Early ESP E-II Japan format (2013–2015). ES identifies the E-II production line, which replaced the legacy ESP Standard series. ${yearDigits} indicates ${year}. ${productionNum} is the sequential production number (${sequenceNumber}). This era predates ESP's unified serial format change around 2016; the year digits appear at the front of the numeric portion rather than near the end as in later E-II serials.`,
+        model,
+        notes: `Pre-2016 ESP Japan format. ${seriesNote} ${yearDigits} indicates ${year}. ${productionNum} is the sequential production number (${sequenceNumber}). The year digits appear at the front of the numeric portion; post-2016 E-II serials move the year to the end.`,
     };
     return {
         success: true,
         info,
         patternKey: 'esp-eii-early-es-yy-sequence',
-        patternLabel: 'ESP early E-II ES + YY + sequence (2013-2015)',
+        patternLabel: 'ESP Japan ES + YY + sequence (pre-2016)',
         additionalContext: {
-            title: 'ESP early E-II serial (2013–2015)',
-            summary: 'This serial matches the early E-II Japan format where ES identifies the production line, the first two digits encode the year, and the final five digits are the sequential production number.',
+            title: `ESP Japan ${model} serial (pre-2016)`,
+            summary: 'This serial matches the pre-2016 ESP Japan format where ES identifies the production line, the first two digits encode the year, and the final five digits are the sequential production number.',
             highlights: [
-                'ES identifies this as an E-II model, the successor to the ESP Standard series.',
+                `ES identifies this as ${year < 2013 ? 'an ESP Standard Series' : 'an E-II'} model built in Japan.`,
                 `The digits ${yearDigits} decode as production year ${year}.`,
                 `The digits ${productionNum} decode as sequential production number ${sequenceNumber}.`,
-                'This format was used during the early E-II era (roughly 2013–2015) before ESP unified their Japanese serial system.',
+                'This front-loaded year format predates the 2016 serial layout change.',
             ],
             caveats: [
                 'Post-2016 E-II serials use a different layout where the year appears near the end of the serial.',

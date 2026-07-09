@@ -107,6 +107,10 @@ export function decodeFender(serial) {
     if (/^00\d{8}$/.test(normalized)) {
         return decodeInternalPartNumber(normalized);
     }
+    // Custom Shop CZ prefix: sequential production number (year not encoded in serial)
+    if (/^CZ\d{6,8}$/.test(normalized)) {
+        return decodeCZCustomShop(normalized);
+    }
     // Vintage 5-6 digit serials (pre-1976)
     if (/^\d{5,6}$/.test(normalized)) {
         return decodeVintageFender(normalized);
@@ -124,6 +128,23 @@ export function decodeFender(serial) {
     return {
         success: false,
         error: 'Unrecognized Fender serial number format. Fender serials typically start with a letter prefix (US, MX, S, E, N, Z, J, etc.) followed by digits.'
+    };
+}
+function decodeCZCustomShop(serial) {
+    const sequence = serial.substring(2);
+    const info = {
+        brand: 'Fender',
+        serialNumber: serial,
+        factory: 'Fender Custom Shop, Corona, California',
+        country: 'United States',
+        model: 'Fender Custom Shop',
+        notes: `CZ prefix identifies Fender Custom Shop instruments. The digits ${sequence} are a sequential production number. Custom Shop serials do not encode the build year in the serial itself — the date appears on the neck heel or in the case paperwork. Contact Fender Customer Relations with photos for official build record verification.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'fender-custom-shop-cz-sequential',
+        patternLabel: 'Fender Custom Shop CZ sequential',
     };
 }
 function decodeUSPrefix(year, sequence, serial) {

@@ -1400,14 +1400,14 @@ function decodeModernIndonesiaKorea8Digit(serial: string): DecodeResult {
 
 function decodeModern10DigitThreeLetterPrefix(serial: string): DecodeResult {
   const letterPrefix = serial.substring(0, 3);
-  const isExtended = serial.length === 12; // 3-letter + 9-digit variant
+  const isExtended = serial.length >= 11; // 3-letter + 8 or 9-digit variant
 
   let modelCode: string | undefined;
   let yearDigits: string;
   let sequenceStr: string;
 
   if (isExtended) {
-    // 12-char: prefix(3) + YY(2) + seq(7) — no model code
+    // 11-char (8 digits) and 12-char (9 digits): prefix(3) + YY(2) + seq(6 or 7) — no model code
     yearDigits = serial.substring(3, 5);
     sequenceStr = serial.substring(5);
   } else {
@@ -1445,10 +1445,10 @@ function decodeModern10DigitThreeLetterPrefix(serial: string): DecodeResult {
   };
 
   const patternKey = isExtended
-    ? 'jackson-modern-12digit-3letter-prefix-yy-sequence'
+    ? (serial.length === 12 ? 'jackson-modern-12digit-3letter-prefix-yy-sequence' : 'jackson-modern-11digit-3letter-prefix-yy-sequence')
     : 'jackson-modern-10digit-3letter-prefix-modelcode-yy-sequence';
   const patternLabel = isExtended
-    ? 'Jackson modern 12-digit 3-letter prefix (2013+)'
+    ? `Jackson modern ${serial.length}-digit 3-letter prefix (2013+)`
     : 'Jackson modern 10-digit 3-letter prefix (2013+)';
 
   const modelHighlight = modelCode !== undefined

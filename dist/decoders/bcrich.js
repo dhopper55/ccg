@@ -104,6 +104,10 @@ export function decodeBCRich(serial) {
     if (/^B\d{8}$/.test(normalized)) {
         return decodeBNumericYYMM(normalized);
     }
+    // WMI factory (World Musical Instruments, South Korea): W + factory-code(2) + month-letter(A-L) + YY(2) + seq
+    if (/^W\d{2}[A-L]\d{4,8}$/.test(normalized)) {
+        return decodeWMIFactory(normalized);
+    }
     // BW-prefix import: BW + sequential number (Class Axe era or specific Korean contractor)
     if (/^BW\d{2,6}$/.test(normalized)) {
         return decodeBWPrefixImport(normalized);
@@ -660,10 +664,50 @@ function decodeHanserEraNumericImport(serial) {
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches an 8-digit B.C. Rich import format often associated with Hanser-era bolt-on and import models.</p><h3>How This Pattern Is Typically Read</h3><p>The first digit ${serial[0]} is interpreted as the year code: ${yearText}. ${quarter ? `The second digit ${serial[1]} is interpreted as ${quarter}.` : `The second digit ${serial[1]} is not a clean Q1-Q4 quarter code.`} The remaining digits decode as production sequence ${parseInt(production, 10)}.</p><h3>What To Verify</h3><ul><li>B.C. Rich import serial numbering is inconsistent across ownership eras.</li><li>This format helps estimate date and import family, not the exact model name.</li><li>Check country-of-origin markings, model features, and neck pocket or electronics-cavity dates where available.</li></ul>`,
     };
 }
+function decodeWMIFactory(serial) {
+    const MONTH_LETTERS = {
+        'A': 'January', 'B': 'February', 'C': 'March', 'D': 'April',
+        'E': 'May', 'F': 'June', 'G': 'July', 'H': 'August',
+        'I': 'September', 'J': 'October', 'K': 'November', 'L': 'December',
+    };
+    const factoryCode = serial.substring(1, 3);
+    const monthLetter = serial[3];
+    const yearDigits = serial.substring(4, 6);
+    const seq = serial.substring(6);
+    const month = MONTH_LETTERS[monthLetter];
+    const year = '20' + yearDigits;
+    const info = {
+        brand: 'B.C. Rich',
+        serialNumber: serial,
+        year,
+        month,
+        factory: 'World Musical Instruments (WMI), South Korea',
+        country: 'South Korea',
+        notes: `W prefix identifies World Musical Instruments (WMI), a South Korean factory that produced B.C. Rich guitars under Hanser Music Group ownership. Factory sub-code: ${factoryCode}. Month: ${month ?? monthLetter}. Year: ${year}. Sequence: ${seq}.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'bcrich-wmi-korea-factory-code-month-yy-sequence',
+        patternLabel: 'B.C. Rich WMI Korea (W + factory-code + month + YY + seq)',
+    };
+}
 function decodeUSA5Digit(serial) {
     const yearDigits = serial.slice(0, 2);
     const sequence = serial.slice(2);
     const yearNum = parseInt(yearDigits, 10);
+    // yearNum 50-69 gives year 2050-2069 (impossible/future). These are import sequentials.
+    if (yearNum >= 50 && yearNum <= 69) {
+        const info = {
+            brand: 'B.C. Rich',
+            serialNumber: serial,
+            year: '1985-2000 (estimated)',
+            factory: 'Import production (NJ Series, Platinum, or Bronze series)',
+            country: 'South Korea',
+            notes: `5-digit serial on an import model. On B.C. Rich bolt-on import models from the 1980s-1990s, numeric neck plate codes were sequential production numbers without reliable date encoding. The first two digits "${yearDigits}" do not correspond to a known BC Rich USA production year, indicating import origin. Sequence: ${parseInt(sequence, 10)}.`,
+        };
+        return { success: true, info, patternKey: 'bcrich-5digit-import-sequential', patternLabel: 'B.C. Rich 5-digit import sequential' };
+    }
     // B.C. Rich 5-digit neck-through serials can drift ahead of actual build year
     // in the early/mid-1980s due to numbering inconsistencies.
     if (yearNum >= 30 && yearNum <= 49) {

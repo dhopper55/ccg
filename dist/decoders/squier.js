@@ -199,7 +199,12 @@ export function decodeSquier(serial) {
     if (coMatch) {
         return decodeChinaCO(coMatch[1], coMatch[2], normalized);
     }
-    // China CSS prefix (Samick)
+    // China CSS + month-letter prefix (Samick/Axl, 2020+): CSS + [A-L] + YY + sequence
+    const cssLetterMatch = normalized.match(/^CSS([A-L])(\d{2})(\d+)$/);
+    if (cssLetterMatch) {
+        return decodeChinaCSSLetterMonth(cssLetterMatch[1], cssLetterMatch[2], cssLetterMatch[3], normalized);
+    }
+    // China CSS prefix (Samick) — older numeric-only format
     const cssMatch = normalized.match(/^CSS(\d{2})(\d+)$/);
     if (cssMatch) {
         return decodeChinaCSS(cssMatch[1], cssMatch[2], normalized);
@@ -922,6 +927,30 @@ function decodeChinaCO(yearDigits, sequence, serial) {
         notes: 'COB/COS prefix indicates Chinese production at the Cor-Tek factory.',
     };
     return { success: true, info };
+}
+function decodeChinaCSSLetterMonth(monthLetter, yearDigits, sequence, serial) {
+    const MONTH_LETTERS = {
+        'A': 'January', 'B': 'February', 'C': 'March', 'D': 'April',
+        'E': 'May', 'F': 'June', 'G': 'July', 'H': 'August',
+        'I': 'September', 'J': 'October', 'K': 'November', 'L': 'December',
+    };
+    const month = MONTH_LETTERS[monthLetter];
+    const year = '20' + yearDigits;
+    const info = {
+        brand: 'Squier',
+        serialNumber: serial,
+        year,
+        month,
+        factory: 'Samick China (Axl factory, CSS line)',
+        country: 'China',
+        notes: `CSS prefix with month code indicates Samick-contracted (Axl) Chinese production (2020+ format). Month: ${monthLetter} = ${month ?? 'unknown'}. Year: ${year}. Sequence: ${parseInt(sequence, 10)}.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'squier-china-css-month-letter-yy-sequence',
+        patternLabel: 'Squier China CSS month-letter YY + sequence',
+    };
 }
 function decodeChinaCSS(yearDigits, sequence, serial) {
     const year = 2000 + parseInt(yearDigits, 10);

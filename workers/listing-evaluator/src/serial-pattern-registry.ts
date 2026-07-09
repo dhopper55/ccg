@@ -157,6 +157,14 @@ export function deriveExplicitRegexFromKnownPatternKey(patternKey: string): stri
     'squier-japan-mij-k-prefix-sequence': '^K\\d{6,7}$',
     'jackson-modern-12digit-3letter-prefix-yy-sequence': '^[A-Z]{3}\\d{9}$',
     'dean-wsm-china-yymm-batch-sequence': '^WSM\\d{4}[A-Z][A-Z0-9.]+$',
+    'bcrich-wmi-korea-factory-code-month-yy-sequence': '^W\\d{2}[A-L]\\d{4,8}$',
+    'bcrich-5digit-import-sequential': '^\\d{5}$',
+    'dean-usa-custom-shop-yy-sequence': '^USA\\d{6,8}$',
+    'dean-k-prefix-asian-import-yymm-sequence': '^K\\d{8}$',
+    'fender-custom-shop-cz-sequential': '^CZ\\d{6,8}$',
+    'jackson-modern-11digit-3letter-prefix-yy-sequence': '^[A-Z]{3}\\d{8}$',
+    'squier-china-css-month-letter-yy-sequence': '^CSS[A-L]\\d{8,9}$',
+    'yamaha-japan-short-electric-letter-4digit': '^[A-Z]\\d{4}$',
   };
 
   return knownPatterns[patternKey] || null;
