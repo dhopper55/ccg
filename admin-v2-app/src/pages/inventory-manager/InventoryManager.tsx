@@ -225,6 +225,7 @@ const InventoryManager = () => {
   const [togglingMarkedIds, setTogglingMarkedIds] = useState<string[]>([]);
   const [errorMessage, setErrorMessage] = useState('');
   const [actionErrorMessage, setActionErrorMessage] = useState('');
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     document.title = 'CCG Admin | Inventory Manager';
@@ -358,7 +359,7 @@ const InventoryManager = () => {
     return () => {
       cancelled = true;
     };
-  }, [filters, page, sortBy, sortDir]);
+  }, [filters, page, sortBy, sortDir, reloadToken]);
 
   const handleSort = (key: InventorySortKey) => {
     setPage(1);
@@ -413,6 +414,10 @@ const InventoryManager = () => {
           // Ignore parse failures and use fallback message.
         }
         throw new Error(message);
+      }
+
+      if (filters.marked !== 'all' && (filters.marked === 'yes') !== isMarked) {
+        setReloadToken((current) => current + 1);
       }
     } catch (error) {
       setRecords((current) =>
