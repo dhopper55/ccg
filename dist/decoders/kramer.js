@@ -140,7 +140,7 @@ export function decodeKramer(serial) {
         return decodeVintage1980sSBStriker(normalized, cleaned);
     }
     // Gibson/Epiphone-era Indonesian factory format: JK + YYMM + sequence
-    if (/^JK\d{8}$/.test(normalized)) {
+    if (/^JK\d{7,8}$/.test(normalized)) {
         return decodeGibsonEraJKIndonesia(normalized, cleaned);
     }
     // KB-prefix: Gibson/MusicYo-era budget import line (Korean or Indonesian)

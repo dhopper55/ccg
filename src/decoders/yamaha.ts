@@ -629,7 +629,13 @@ function decodeTaiwan2002(serial: string): DecodeResult {
   }
 
   const twoDigitYear = yearDigit1 * 10 + yearDigit2;
-  const year = 2000 + twoDigitYear;
+  const currentYear = new Date().getFullYear();
+  let year = 2000 + twoDigitYear;
+  // Roll back by decades when the computed year is implausibly far in the future
+  while (year > currentYear + 2) {
+    year -= 10;
+  }
+  const decadeAmbiguous = twoDigitYear > 30;
 
   // Could be Taiwan or Indonesia - both use this format
   const info: GuitarInfo = {
@@ -638,9 +644,9 @@ function decodeTaiwan2002(serial: string): DecodeResult {
     year: year.toString(),
     month: month > 0 ? getMonthName(month) : undefined,
     day: day > 0 && day <= 31 ? day.toString() : undefined,
-    factory: 'Kaohsiung (Taiwan) or YMMI (Indonesia)',
-    country: 'Taiwan or Indonesia',
-    notes: `Unit #${unit}. This format is used by both Taiwan and Indonesia factories from 2001/2002 onwards. Check the label inside your guitar for exact origin.`
+    factory: 'Kaohsiung, Taiwan (or YMMI, Indonesia)',
+    country: 'Taiwan',
+    notes: `Unit #${unit}. This format is used by both Taiwan and Indonesia factories from 2001/2002 onwards. Check the label inside your guitar for exact origin.${decadeAmbiguous ? ' Year is approximate — Yamaha letter codes cycle every decade, so the year may be 10 years earlier or later than shown.' : ''}`
   };
 
   return { success: true, info };

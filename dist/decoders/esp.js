@@ -138,6 +138,10 @@ export function decodeESP(serial) {
     if (/^W\d{9}$/.test(normalized)) {
         return decodeLTDKoreaWMI9Digit(normalized);
     }
+    // Indonesia: WT + YY + week + 4-digit sequence (WMI Indonesia factory)
+    if (/^WT\d{8}$/.test(normalized)) {
+        return decodeLTDIndonesiaWT(normalized);
+    }
     // Early Korea: U + 6-digit sequential tracking number (Unsung-era LTD)
     if (/^U\d{6}$/.test(normalized)) {
         return decodeLTDEarlyKoreaUSequential(normalized);
@@ -979,6 +983,47 @@ function decodeLTDKoreaWMI9Digit(serial) {
             ]
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern ESP LTD Korean W-prefix format associated with World Musical Instruments.</p><h3>How This Pattern Is Typically Read</h3><p>W indicates World Musical Instruments in South Korea. The digits ${yearDigits} decode as production year ${year}. The digits ${weekDigits} decode as the production week or early-year run code. The final digits decode as tracking sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>The serial identifies factory timing and sequence, not the exact model name.</li><li>Week 00 is best read as very early-year production or wood/prep run timing.</li><li>Check for LTD branding and Made in Korea markings.</li></ul>`
+    };
+}
+function decodeLTDIndonesiaWT(serial) {
+    const yearDigits = serial.substring(2, 4);
+    const weekDigits = serial.substring(4, 6);
+    const sequence = serial.substring(6);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const week = parseInt(weekDigits, 10);
+    const info = {
+        brand: 'ESP',
+        serialNumber: serial,
+        year: year.toString(),
+        month: week === 0 ? 'January' : undefined,
+        factory: 'World Musical Instruments, Indonesia',
+        country: 'Indonesia',
+        model: 'LTD import',
+        notes: `ESP LTD Indonesian WT-prefix format. WT indicates World Musical Instruments (WMI) Indonesia; ${yearDigits} indicates ${year}; ${weekDigits} is the production week; ${sequence} is the factory tracking sequence.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'esp-ltd-indonesia-wt-yy-week-sequence',
+        patternLabel: 'ESP LTD Indonesia WMI WT + YY + week + sequence',
+        additionalContext: {
+            title: 'ESP LTD Indonesia WMI serial',
+            summary: 'This serial matches the ESP LTD Indonesian WT-prefix format associated with World Musical Instruments (WMI).',
+            highlights: [
+                'WT indicates World Musical Instruments (WMI) Indonesia factory.',
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                `The digits ${weekDigits} decode as production week.`,
+                `The final digits decode as tracking sequence ${sequence}.`,
+            ],
+            caveats: [
+                'The serial identifies factory timing and sequence, not the exact model name.',
+            ],
+            verificationTips: [
+                'Check the headstock for LTD branding and the back of the headstock for Made in Indonesia markings.',
+                'Compare the guitar against LTD model specs from the decoded year.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches the ESP LTD Indonesian WT-prefix format associated with World Musical Instruments (WMI).</p><h3>How This Pattern Is Typically Read</h3><p>WT indicates World Musical Instruments Indonesia. The digits ${yearDigits} decode as production year ${year}. The digits ${weekDigits} decode as the production week. The final digits decode as tracking sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>Check for LTD branding and Made in Indonesia markings.</li><li>Compare the guitar against LTD model specs from ${year}.</li></ul>`,
     };
 }
 function decodeLTDEarlyKoreaUSequential(serial) {

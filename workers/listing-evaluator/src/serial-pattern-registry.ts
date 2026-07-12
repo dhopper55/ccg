@@ -55,7 +55,7 @@ export function deriveExplicitRegexFromKnownPatternKey(patternKey: string): stri
     'jackson-india-early-budget-9digit': '^0\\d{8}$',
     'jackson-isj-indonesia-samick-yymm-sequence': '^ISJ\\d{4,}$',
     'jackson-modern-11digit-yymm-sequence': '^\\d{11}$',
-    'kramer-jk-indonesia-gibson-era-yymm-sequence': '^JK\\d{8}$',
+    'kramer-jk-indonesia-gibson-era-yymm-sequence': '^JK\\d{7,8}$',
     'kramer-plain-4-digit-plate-unverified': '^\\d{4}$',
     'kramer-sa-samick-korea-striker-sequence': '^SA\\d{3,6}$',
     'kramer-sb-striker-1980s-sequential': '^SB\\d{3,6}$',
@@ -170,6 +170,11 @@ export function deriveExplicitRegexFromKnownPatternKey(patternKey: string): stri
     'yamaha-vintage-7digit-sequential': '^\\d{7}$',
     'squier-china-se-10-digit-yymm-sequence': '^\\d{10}$',
     'washburn-model-number-designation': '^[A-Z]\\d{2,4}[A-Z]{2,}$',
+    'esp-ltd-indonesia-wt-yy-week-sequence': '^WT\\d{8}$',
+    'fender-china-csj-yy-sequence': '^CSJ\\d{7}$',
+    'schecter-p-factory-yymm-sequence': '^P\\d{8}$',
+    'squier-china-cyk-month-yy-sequence': '^CYK[A-L0-9]\\d{7,}$',
+    'squier-china-csk-yy-sequence': '^CSK\\d{8}$',
   };
 
   return knownPatterns[patternKey] || null;

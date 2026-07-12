@@ -148,10 +148,14 @@ export function decodeSquier(serial) {
     if (cmcMatch) {
         return decodeChinaCMC(cmcMatch[1], cmcMatch[2], cmcMatch[3], normalized);
     }
-    // China CYK + letter prefix (Yako, 2020+)
-    const cykMatch = normalized.match(/^CYK([A-L])(\d{2})(\d+)$/);
+    // China CYK + letter or digit prefix (Yako, 2020+)
+    const cykMatch = normalized.match(/^CYK([A-L0-9])(\d{2})(\d+)$/);
     if (cykMatch) {
         return decodeChinaCYK(cykMatch[1], cykMatch[2], cykMatch[3], normalized);
+    }
+    // China CSK prefix (SK contracted facility): CSK + YY + sequence
+    if (/^CSK\d{8}$/.test(normalized)) {
+        return decodeChinaCSK(normalized);
     }
     // China CRN + letter/digit prefix (Re-New contracted facility, 2020+: CRN + month-code + YY + sequence)
     // Month code is normally A-L (alphabetical), but some serials use a digit (e.g. '0' for January/October)
@@ -813,17 +817,65 @@ function decodeChinaCMC(monthLetter, yearDigits, sequence, serial) {
 }
 function decodeChinaCYK(monthLetter, yearDigits, sequence, serial) {
     const year = 2000 + parseInt(yearDigits, 10);
-    const month = MONTH_LETTERS[monthLetter] || 'Unknown';
+    const MONTH_NAMES_LIST = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const isDigitMonth = /\d/.test(monthLetter);
+    const month = isDigitMonth
+        ? (MONTH_NAMES_LIST[parseInt(monthLetter, 10) - 1] || undefined)
+        : (MONTH_LETTERS[monthLetter] || 'Unknown');
+    const sequenceNumber = parseInt(sequence, 10);
     const info = {
         brand: 'Squier',
         serialNumber: serial,
         year: year.toString(),
-        month,
+        ...(month ? { month } : {}),
         factory: 'Yako',
         country: 'China',
-        notes: 'CYK prefix indicates Chinese Yako factory production (2020+). Uses modern 4-letter prefix format with month code.',
+        notes: `CYK prefix indicates Chinese Yako factory production (2020+). C=China, YK=Yako factory; "${monthLetter}" indicates ${month || 'month'} using ${isDigitMonth ? 'numeric month coding' : 'alphabetical month coding (A=January through L=December)'}; ${yearDigits} indicates ${year}; production sequence: ${sequenceNumber}.`,
     };
-    return { success: true, info };
+    return {
+        success: true,
+        info,
+        patternKey: 'squier-china-cyk-month-yy-sequence',
+        patternLabel: 'Squier China CYK Yako month YY sequence',
+    };
+}
+function decodeChinaCSK(serial) {
+    const yearDigits = serial.substring(3, 5);
+    const sequence = serial.substring(5);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Squier',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'China SK contracted facility',
+        country: 'China',
+        notes: `Modern Squier CSK prefix format. "C" identifies China; "SK" identifies the contracted production facility; ${yearDigits} indicates ${year}; production sequence: ${sequenceNumber}. This format is used on modern Squier lines.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'squier-china-csk-yy-sequence',
+        patternLabel: 'Squier China CSK YY sequence',
+        additionalContext: {
+            title: 'Squier China CSK serial',
+            summary: `This serial matches the Squier CSK-prefix format: C=China, SK=facility, ${yearDigits}=${year}.`,
+            highlights: [
+                '"C" identifies China; "SK" identifies the contracted production facility.',
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                `The remaining digits decode as production sequence ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'The serial identifies factory, year, and sequence — not the specific model name.',
+            ],
+            verificationTips: [
+                'Check the headstock for the Squier model series name.',
+                'Look for "Made in China" on the back of the headstock.',
+                'Compare the instrument against Squier catalog specs for the decoded year.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches the Squier CSK-prefix format from a contracted Chinese production facility. C=China, SK=facility, ${yearDigits}=${year}.</p><h3>How This Pattern Is Typically Read</h3><p>"C" identifies China; "SK" identifies the contracted production facility. The digits ${yearDigits} decode as ${year}. The remaining digits are production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the headstock front for the Squier model series name.</li><li>Look for "Made in China" on the back of the headstock.</li><li>Compare the instrument against Squier catalog specs from ${year}.</li></ul>`,
+    };
 }
 function decodeChinaCSV(monthLetter, yearDigits, sequence, serial) {
     const year = 2000 + parseInt(yearDigits, 10);

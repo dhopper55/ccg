@@ -78,6 +78,10 @@ export function decodeSchecter(serial) {
     if (/^ST\d{8}$/.test(normalized)) {
         return decodeChinaST(normalized);
     }
+    // Import P prefix: P + YYMM + sequence
+    if (/^P\d{8}$/.test(normalized)) {
+        return decodeImportPFactory(normalized);
+    }
     // Korea/import H prefix: H + YYMM + sequence
     if (/^H\d{7,9}$/.test(normalized)) {
         return decodeKoreaH(normalized);
@@ -760,6 +764,51 @@ function decodeChinaST(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Schecter ST-prefix import format parsed as factory prefix plus YYMM production date and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>ST indicates a Schecter import production run, commonly associated with China-made Diamond Series instruments. The digits ${digits.substring(0, 2)} decode as production year ${year}. The digits ${digits.substring(2, 4)} decode as ${month}. The final four digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This format identifies production date and factory family, not the exact model name.</li><li>ST-prefix examples are import/Diamond Series instruments rather than USA Custom Shop guitars.</li><li>Factory-code usage can vary by production run, so confirm with physical markings when provenance matters.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a practical Schecter import production decode, then verify the exact model from the headstock, truss rod cover, label, or Schecter support.</p>`,
+    };
+}
+function decodeImportPFactory(serial) {
+    const digits = serial.substring(1);
+    const yearDigits = digits.substring(0, 2);
+    const monthDigits = digits.substring(2, 4);
+    const sequence = digits.substring(4);
+    const yy = parseInt(yearDigits, 10);
+    const monthValue = parseInt(monthDigits, 10);
+    const year = (yy >= 90 ? 1900 + yy : 2000 + yy).toString();
+    const month = monthValue >= 1 && monthValue <= 12 ? getMonthName(monthValue) : undefined;
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Schecter',
+        serialNumber: serial,
+        year,
+        ...(month ? { month } : {}),
+        factory: 'Asian import factory (P-prefix)',
+        country: 'South Korea',
+        model: 'Diamond Series or similar import',
+        notes: `P-prefix Schecter import format interpreted as P + YYMM + sequence. Year: ${year}; month: ${month || monthDigits}; production sequence: ${sequenceNumber}. Verify model from the headstock or interior label.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'schecter-p-factory-yymm-sequence',
+        patternLabel: 'Schecter P-prefix import YYMM sequence',
+        additionalContext: {
+            title: 'Schecter P-prefix import serial',
+            summary: 'This serial matches the Schecter P-prefix import format with YYMM production date encoding.',
+            highlights: [
+                'P identifies a contracted Asian import production facility.',
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                `The digits ${monthDigits} decode as ${month || 'production month'}.`,
+                `The final digits decode as production sequence ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'The serial identifies factory timing and sequence, not the exact model name.',
+            ],
+            verificationTips: [
+                'Check the headstock for the model name and the back for Made in Korea markings.',
+                'Compare the guitar against Schecter Diamond Series specs for the decoded year.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches the Schecter P-prefix import format, parsed as P + YYMM + sequence.</p><h3>How This Pattern Is Typically Read</h3><p>P identifies a contracted Asian import facility. The digits ${yearDigits} decode as ${year}. The digits ${monthDigits} decode as ${month || 'the production month'}. The final digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Verify the model from the headstock or interior label.</li><li>Check for Made in Korea markings on the back of the headstock.</li></ul>`,
     };
 }
 function decodeKoreaH(serial) {

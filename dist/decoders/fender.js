@@ -69,8 +69,8 @@ export function decodeFender(serial) {
     if (jMatch) {
         return decodeJPrefix(jMatch[1], normalized);
     }
-    // A, B, C, etc prefixes for Japan (CIJ era)
-    const japanLetterMatch = normalized.match(/^([A-H])(\d+)$/);
+    // A, B, C, etc prefixes for Japan (CIJ era); Y also used on Fender Japan
+    const japanLetterMatch = normalized.match(/^([A-HY])(\d+)$/);
     if (japanLetterMatch) {
         return decodeJapanLetterPrefix(japanLetterMatch[1], japanLetterMatch[2], normalized);
     }
@@ -102,6 +102,10 @@ export function decodeFender(serial) {
     // Cort China factory for Fender/Squier: CC + YY + 7-digit sequence (e.g. CC210709447 = 2021)
     if (/^CC\d{9}$/.test(normalized)) {
         return decodeCortChinaCC(normalized);
+    }
+    // China acoustic factory CSJ prefix: C=China, SJ=factory, YY + sequence
+    if (/^CSJ\d{7}$/.test(normalized)) {
+        return decodeChinaCSJAcoustic(normalized);
     }
     // Fender internal part-number style: 00 + 8 digits (not date-coded serial)
     if (/^00\d{8}$/.test(normalized)) {
@@ -328,6 +332,7 @@ function decodeJapanLetterPrefix(letter, sequence, serial) {
         'F': '1986-1987 (MIJ)',
         'G': '1987-1988 (MIJ)',
         'H': '1988-1989 (MIJ)',
+        'Y': 'Late 1980s–1990s (Japan, Crafted in Japan era)',
     };
     const info = {
         brand: 'Fender',
@@ -499,6 +504,44 @@ function decodeCortChinaCC(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial uses the CC-prefix format, identifying an instrument produced at the Cort manufacturing facility in China for Fender or its Squier sub-brand.</p><h3>How It Decodes</h3><p>CC identifies the Cort China factory. The digits ${yearDigits} decode as production year ${year}. The remaining seven digits (${sequence}) are the production sequence number (unit ${sequenceNumber}).</p><h3>Coal Creek Guitars Note</h3><p>Verify the brand (Fender or Squier) and model from the headstock and any interior labels. Compare the decoded year (${year}) against the catalog to confirm model specifications.</p>`,
+    };
+}
+function decodeChinaCSJAcoustic(serial) {
+    const yearDigits = serial.substring(3, 5);
+    const sequence = serial.substring(5);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Fender',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'China SJ acoustic factory',
+        country: 'China',
+        notes: `CSJ-prefix Fender acoustic format. C = China; SJ = factory code for the acoustic production facility (associated with T-Bucket and related Chinese acoustic lines); ${yearDigits} = ${year}; production sequence: ${sequenceNumber}. Verify model name from the headstock or interior label.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'fender-china-csj-yy-sequence',
+        patternLabel: 'Fender China CSJ acoustic YY sequence',
+        additionalContext: {
+            title: 'Fender China CSJ acoustic serial',
+            summary: `This serial matches the Fender China CSJ-prefix format for acoustic guitars. C=China, SJ=factory, ${yearDigits}=${year}.`,
+            highlights: [
+                'C identifies China; SJ identifies the acoustic production facility.',
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                `The remaining digits decode as production sequence ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'CSJ-prefix serials are associated with acoustic models such as the T-Bucket series.',
+                'The serial encodes factory, year, and sequence — not the specific model name.',
+            ],
+            verificationTips: [
+                'Check the headstock or interior label for the model name and Made in China marking.',
+                'Compare the instrument against Fender acoustic catalog specs for the decoded year.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches the Fender China CSJ-prefix format associated with acoustic guitar production. C=China, SJ=factory code, ${yearDigits}=${year}.</p><h3>How This Pattern Is Typically Read</h3><p>C identifies China; SJ identifies the acoustic facility. The digits ${yearDigits} decode as ${year}. The remaining digits are production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the headstock or interior label for the model name.</li><li>Look for "Made in China" on the back of the headstock.</li><li>Compare the instrument against Fender acoustic specs from ${year}.</li></ul>`,
     };
 }
 function decodeInternalPartNumber(serial) {

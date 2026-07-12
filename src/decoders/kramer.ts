@@ -158,7 +158,7 @@ export function decodeKramer(serial: string): DecodeResult {
   }
 
   // Gibson/Epiphone-era Indonesian factory format: JK + YYMM + sequence
-  if (/^JK\d{8}$/.test(normalized)) {
+  if (/^JK\d{7,8}$/.test(normalized)) {
     return decodeGibsonEraJKIndonesia(normalized, cleaned);
   }
 
