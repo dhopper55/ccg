@@ -1,20 +1,20 @@
 import { decodeGibson } from './decoders/gibson.js?version=728124';
 import { decodeEpiphone } from './decoders/epiphone.js?version=562204';
 import { decodeFender } from './decoders/fender.js?version=517357';
-import { decodeTaylor } from './decoders/taylor.js?version=660622';
+import { decodeTaylor } from './decoders/taylor.js?version=689652';
 import { decodeMartin } from './decoders/martin.js?version=695834';
 import { decodeIbanez } from './decoders/ibanez.js?version=718039';
-import { decodeYamaha } from './decoders/yamaha.js?version=950893';
+import { decodeYamaha } from './decoders/yamaha.js?version=610530';
 import { decodePRS } from './decoders/prs.js?version=423429';
 import { decodeESP } from './decoders/esp.js?version=536068';
-import { decodeSchecter } from './decoders/schecter.js?version=141347';
+import { decodeSchecter } from './decoders/schecter.js?version=622606';
 import { decodeGretsch } from './decoders/gretsch.js?version=916316';
 import { decodeJackson } from './decoders/jackson.js?version=065277';
-import { decodeSquier } from './decoders/squier.js?version=187642';
+import { decodeSquier } from './decoders/squier.js?version=096151';
 import { decodeCort } from './decoders/cort.js?version=606151';
 import { decodeTakamine } from './decoders/takamine.js?version=714117';
-import { decodeWashburn } from './decoders/washburn.js?version=671941';
-import { decodeDean } from './decoders/dean.js?version=060445';
+import { decodeWashburn } from './decoders/washburn.js?version=235855';
+import { decodeDean } from './decoders/dean.js?version=756146';
 import { decodeErnieBall } from './decoders/ernieball.js?version=375548';
 import { decodeGuild } from './decoders/guild.js?version=242409';
 import { decodeAlvarez } from './decoders/alvarez.js?version=379581';
@@ -23,7 +23,7 @@ import { decodeOvation } from './decoders/ovation.js?version=718807';
 import { decodeCharvel } from './decoders/charvel.js?version=152588';
 import { decodeRickenbacker } from './decoders/rickenbacker.js?version=961802';
 import { decodeKramer } from './decoders/kramer.js?version=703165';
-import { decodeBCRich } from './decoders/bcrich.js?version=402481';
+import { decodeBCRich } from './decoders/bcrich.js?version=734333';
 const DECODER_MAP = {
     gibson: decodeGibson,
     epiphone: decodeEpiphone,

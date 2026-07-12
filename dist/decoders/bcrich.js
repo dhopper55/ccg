@@ -93,7 +93,7 @@ export function decodeBCRich(serial) {
     if (/^[ACEFGHJKLMNP]\d{7}$/.test(normalized)) {
         return decodeShortMonthCodeImport(normalized);
     }
-    if (/^[ACEFGHJKLMNP]\d{5}$/.test(normalized)) {
+    if (/^[ACEFGHJKLMNP]\d{4,5}$/.test(normalized)) {
         return decodeHanserShortMonthCodeImport(normalized);
     }
     if (/^B[ACEFGHJKLMNP]\d{8}$/.test(normalized)) {

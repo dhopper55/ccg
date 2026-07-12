@@ -6,7 +6,21 @@ export function decodeTaylor(serial: string): DecodeResult {
 
   // 10-digit format (November 2009 - present)
   if (/^\d{10}$/.test(normalized)) {
-    return decode10Digit(normalized);
+    const tenResult = decode10Digit(normalized);
+    if (!tenResult.info || tenResult.info.country !== 'Unknown') {
+      return tenResult;
+    }
+    // Factory code not recognized as modern Taylor (1 = El Cajon, 2 = Tecate) — try
+    // treating the first 9 digits as a legacy format. This handles serials like
+    // "960611301-1" where hyphen stripping appends a suffix digit.
+    const nineDigit = normalized.substring(0, 9);
+    const nineResult = decode9Digit(nineDigit);
+    if (nineResult.success) return nineResult;
+    const modernShortResult = decodeModernShort9Digit(nineDigit);
+    if (modernShortResult.success) return modernShortResult;
+    const legacyYearCodeResult = decodeLegacy9DigitYearCode(nineDigit);
+    if (legacyYearCodeResult.success) return legacyYearCodeResult;
+    return tenResult;
   }
 
   // 11-digit format (January 2000 - October 2009), with a fallback for

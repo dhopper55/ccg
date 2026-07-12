@@ -50,6 +50,12 @@ export function decodeWashburn(serial) {
     if (/^Z\d{7,9}$/.test(normalized)) {
         return decodeZaozhuang(normalized);
     }
+    // GO factory prefix: GO + single-digit year + 5-7 digit sequence
+    // e.g. GO350118 = GO factory, year 2003, seq 50118; GO8050118 = year 2008, seq 050118
+    // Must precede the generic 2-char factory handlers which would misparse the year.
+    if (/^GO\d{6,8}$/.test(normalized)) {
+        return decodeGOPrefixFactory(normalized);
+    }
     // Modern 2-character factory code + YYRRRR (6 digits, 8 chars total — no month segment)
     // e.g., 0C060872 = 0C factory, 2006, sequence 0872
     if (/^[A-Z0-9][A-Z]\d{6}$/.test(normalized)) {
@@ -101,6 +107,11 @@ export function decodeWashburn(serial) {
     if (/^\d{8,12}$/.test(normalized)) {
         return decodeModernNumeric(normalized);
     }
+    // 7-digit serial with model suffix appended (e.g., "8720125 D14N" → "8720125D14N"):
+    // strip everything after the 7th digit and decode the base serial.
+    if (/^\d{7}[A-Z][\dA-Z]*$/.test(normalized)) {
+        return decode7Digit(normalized.substring(0, 7));
+    }
     // 7-digit format (1990s)
     if (/^\d{7}$/.test(normalized)) {
         return decode7Digit(normalized);
@@ -116,6 +127,26 @@ export function decodeWashburn(serial) {
     // Short 4-5 digit format (1970s-early 1980s)
     if (/^\d{4,5}$/.test(normalized)) {
         return decodeShort(normalized);
+    }
+    // Model number detection: single letter + 2-4 digits + 2+ trailing letters (e.g., R320SWRK)
+    // These are Washburn model designators, not serial numbers — return success with context.
+    if (/^[A-Z]\d{2,4}[A-Z]{2,}$/.test(normalized)) {
+        const modelDesignator = normalized;
+        const knownModels = {
+            'R320SWRK': 'Washburn Vintage Series 125th Anniversary Parlor Acoustic',
+        };
+        const modelName = knownModels[modelDesignator] || `Washburn model ${modelDesignator}`;
+        return {
+            success: true,
+            info: {
+                brand: 'Washburn',
+                serialNumber: serial.trim(),
+                model: modelName,
+                notes: `"${serial.trim()}" is a Washburn model number (${modelName}), not a serial number. Washburn model numbers follow patterns like ${modelDesignator} — a letter prefix, digits, and a finish/variant suffix. The actual serial number is located on the back of the headstock (electrics) or on the soundhole label (acoustics). Serial numbers are usually all-numeric or begin with factory-code letters such as S, SI, I, G, C, or GO followed by digits.`,
+            },
+            patternKey: 'washburn-model-number-designation',
+            patternLabel: 'Washburn model number (not a serial)',
+        };
     }
     return {
         success: false,
@@ -933,6 +964,46 @@ function decodeWashburnBCChina(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Washburn BC-prefix format associated with Chinese factory production, where the year digits appear at positions 3-4 of the digit block after a plant code.</p><h3>How This Pattern Is Typically Read</h3><p>BC indicates a Chinese contracted factory series. Plant code ${plant} identifies the production line or sub-facility. The digits "${yearDigits}" decode as production year ${year}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Washburn BC-prefix serials use a shifted encoding where a plant code precedes the year digits.</li><li>Check the back of the headstock or soundhole label for Made in China marking.</li><li>Compare the body style, hardware, and finish against Washburn catalog specs for the decoded year.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed mid-2000s Chinese Washburn production decode, then confirm the exact model from the headstock, label, or Washburn support.</p>`,
+    };
+}
+// GO factory prefix: GO + single-digit year + 5-7 digit sequence
+function decodeGOPrefixFactory(serial) {
+    const digits = serial.substring(2);
+    const yearDigit = parseInt(digits[0], 10);
+    const year = (2000 + yearDigit).toString();
+    const sequence = digits.substring(1);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Washburn',
+        serialNumber: serial,
+        year,
+        factory: 'Asian contracted factory (GO series)',
+        country: 'Asia (China, Korea, or Indonesia)',
+        notes: `GO factory prefix with single-digit year code. "GO" identifies a Washburn import contracted facility; "${digits[0]}" is the single-digit year code indicating ${year}; "${sequence}" is the production sequence (${sequenceNumber}). Verify the exact country of origin from the headstock or soundhole label.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'washburn-go-factory-y-sequence',
+        patternLabel: 'Washburn GO factory single-year sequence',
+        additionalContext: {
+            title: 'Washburn GO-prefix serial',
+            summary: 'This serial matches a Washburn GO-prefix import format with a single-digit year code and production sequence.',
+            highlights: [
+                '"GO" identifies an Asian contracted production facility.',
+                `The digit "${digits[0]}" decodes as production year ${year}.`,
+                `The remaining digits decode as production sequence ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'The single-digit year is somewhat ambiguous — it most commonly indicates ' + year + ' but could indicate ' + (parseInt(year, 10) + 10) + ' for newer instruments.',
+                'GO-prefix Washburn serials are not widely documented; verify from the instrument label.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock or soundhole label for country-of-origin markings.',
+                'Compare model features against Washburn catalog specs from the decoded year.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Washburn GO-prefix import format with a single-digit year code and production sequence.</p><h3>How This Pattern Is Typically Read</h3><p>"GO" identifies an Asian contracted production facility. The digit "${digits[0]}" decodes as production year ${year}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>The single-digit year is somewhat ambiguous — verify decade from model features and label.</li><li>Check the back of the headstock or soundhole label for country-of-origin markings.</li></ul>`,
     };
 }
 // Helper: Parse year, month, sequence from digit string

@@ -864,9 +864,23 @@ function decodeKoreaH(serial: string): DecodeResult {
   const { year, month, sequence } = parseStandardDigits(digits);
 
   if (!month) {
+    // Month field is invalid (e.g. "00") — fall back to H + YY + remaining sequence.
+    const yearNum = parseInt(digits.substring(0, 2), 10);
+    const fallbackYear = (yearNum >= 90 ? 1900 + yearNum : 2000 + yearNum).toString();
+    const fallbackSeq = digits.substring(2);
     return {
-      success: false,
-      error: 'Unable to decode this Schecter H serial number. The month field appears invalid.',
+      success: true,
+      info: {
+        brand: 'Schecter',
+        serialNumber: serial,
+        year: fallbackYear,
+        factory: 'Korea / Asian import factory',
+        country: 'South Korea',
+        model: 'Diamond Series or similar import',
+        notes: `H prefix Schecter import format. The standard YYMM month field "${digits.substring(2, 4)}" is not a valid month, so this is decoded as H + YY + sequence without a month component. Year: ${fallbackYear}. Sequence: ${parseInt(fallbackSeq, 10)}. Verify from country-of-origin markings and model features.`,
+      },
+      patternKey: 'schecter-h-yymm-sequence',
+      patternLabel: 'Schecter H YYMM sequence',
     };
   }
 

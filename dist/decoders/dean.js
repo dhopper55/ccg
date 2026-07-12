@@ -64,6 +64,10 @@ export function decodeDean(serial) {
     if (/^D\d{8}$/.test(normalized)) {
         return decodeAsianPartnerD(normalized);
     }
+    // Asian partner import line: P + YYMM + sequence (e.g. P20110214 = 2020, November, seq 0214)
+    if (/^P\d{8}$/.test(normalized)) {
+        return decodeAsianPartnerP(normalized);
+    }
     // Cort Korea: C + YY + batch + sequence (e.g. C2122845 = Cort 2021, batch 22, seq 845)
     if (/^C\d{7}$/.test(normalized)) {
         return decodeCortKoreaC(normalized);
@@ -521,6 +525,52 @@ function decodeAsianPartnerD(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a D-prefix Dean import format used by Asian manufacturing partners.</p><h3>How This Pattern Is Typically Read</h3><p>D is treated as an Asian partner factory code. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits}${monthName ? ` decode as ${monthName}` : ' are treated as a month or internal production code'}. The final digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Dean import prefix letters can vary by partner and production run.</li><li>This decode identifies likely production timing, not the exact model name.</li><li>Confirm country of origin from headstock, neck plate, label, or other physical markings.</li></ul>`,
+    };
+}
+function decodeAsianPartnerP(serial) {
+    const digits = serial.substring(1);
+    const yearDigits = digits.substring(0, 2);
+    const monthDigits = digits.substring(2, 4);
+    const sequence = digits.substring(4);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const month = parseInt(monthDigits, 10);
+    const monthName = month >= 1 && month <= 12 ? getMonthName(month) : undefined;
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Dean',
+        serialNumber: serial,
+        year: year.toString(),
+        month: monthName,
+        factory: 'Asian partner import production line',
+        country: 'China, South Korea, or Indonesia',
+        notes: `P-prefix Dean import format interpreted as P + YYMM + production sequence. The P prefix identifies an Asian partner factory code; ${yearDigits} indicates ${year}; ${monthDigits} indicates ${monthName || 'an unverified month code'}; ${sequence} is production sequence ${sequenceNumber}. Verify country and exact model from headstock markings and catalog specs.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'dean-asian-partner-p-yymm-sequence',
+        patternLabel: 'Dean Asian partner P-prefix YYMM sequence',
+        additionalContext: {
+            title: 'Dean P-prefix import serial',
+            summary: 'This serial matches a P-prefix Dean import format used by Asian manufacturing partners.',
+            highlights: [
+                'P is treated as an Asian partner factory code.',
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                monthName ? `The digits ${monthDigits} decode as ${monthName}.` : `The digits ${monthDigits} are treated as a month or internal production code.`,
+                `The final digits decode as production sequence ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'Dean import prefix letters can vary by partner and production run.',
+                'This decode identifies likely production timing, not the exact model name.',
+                'Country should be confirmed from Made in markings, label, or headstock details.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for country-of-origin markings.',
+                'Compare hardware, body shape, and finish against Dean import specs from the decoded year.',
+                'Contact Dean support with photos if exact factory confirmation is needed.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a P-prefix Dean import format used by Asian manufacturing partners.</p><h3>How This Pattern Is Typically Read</h3><p>P is treated as an Asian partner factory code. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits}${monthName ? ` decode as ${monthName}` : ' are treated as a month or internal production code'}. The final digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Dean import prefix letters can vary by partner and production run.</li><li>Confirm country of origin from headstock, neck plate, label, or other physical markings.</li></ul>`,
     };
 }
 // Indonesia: IW prefix

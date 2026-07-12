@@ -96,6 +96,10 @@ export function decodeYamaha(serial) {
     if (/^\d{8}$/.test(normalized)) {
         return decodeIndonesia1990(normalized);
     }
+    // Vintage Japan acoustic 1967-1976: 7-digit sequential (no date encoding)
+    if (/^\d{7}$/.test(normalized)) {
+        return decodeVintage7DigitSequential(normalized);
+    }
     // Korea/China 2003+: Letter-Letter-Letter-####-Letter (e.g., QKJ0011Y)
     if (/^[A-Z]{3}\d{4}[A-Z]$/.test(normalized)) {
         return decodeKoreaChina2003(normalized);
@@ -602,6 +606,23 @@ function decodeIndonesia1997(serial) {
     return { success: true, info };
 }
 // Indonesia 1990-1996: 8 digits YMMDDXXX
+function decodeVintage7DigitSequential(serial) {
+    const num = parseInt(serial, 10);
+    const info = {
+        brand: 'Yamaha',
+        serialNumber: serial,
+        year: '1967-1976 (estimated)',
+        factory: 'Nippon Gakki (Hamamatsu, Japan)',
+        country: 'Japan',
+        notes: `Seven-digit sequential Yamaha serial number. This format is associated with vintage acoustic guitars produced at the Nippon Gakki factory in Hamamatsu, Japan, approximately 1967-1976. These guitars used purely sequential numbering without embedded date codes. Serial ${num.toLocaleString()} is in the range consistent with this era. The exact production year can sometimes be narrowed from original receipts, body label, or Yamaha archives. Verify the decade from model name and hardware.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'yamaha-vintage-7digit-sequential',
+        patternLabel: 'Yamaha vintage Japan acoustic 7-digit sequential',
+    };
+}
 function decodeIndonesia1990(serial) {
     const yearDigit = parseInt(serial[0], 10);
     const month = parseInt(serial.substring(1, 3), 10);

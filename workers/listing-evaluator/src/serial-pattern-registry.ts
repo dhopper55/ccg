@@ -165,6 +165,11 @@ export function deriveExplicitRegexFromKnownPatternKey(patternKey: string): stri
     'jackson-modern-11digit-3letter-prefix-yy-sequence': '^[A-Z]{3}\\d{8}$',
     'squier-china-css-month-letter-yy-sequence': '^CSS[A-L]\\d{8,9}$',
     'yamaha-japan-short-electric-letter-4digit': '^[A-Z]\\d{4}$',
+    'dean-asian-partner-p-yymm-sequence': '^P\\d{8}$',
+    'washburn-go-factory-y-sequence': '^GO\\d{6,8}$',
+    'yamaha-vintage-7digit-sequential': '^\\d{7}$',
+    'squier-china-se-10-digit-yymm-sequence': '^\\d{10}$',
+    'washburn-model-number-designation': '^[A-Z]\\d{2,4}[A-Z]{2,}$',
   };
 
   return knownPatterns[patternKey] || null;

@@ -206,7 +206,7 @@ export function decodeSquier(serial: string): DecodeResult {
   }
 
   // China YN prefix (Yako)
-  if (/^YN\d{6,7}$/.test(normalized)) {
+  if (/^YN\d{5,7}$/.test(normalized)) {
     return decodeChinaYN(normalized);
   }
 
@@ -266,6 +266,11 @@ export function decodeSquier(serial: string): DecodeResult {
   // USA N prefix (1990s) - rare for Squier
   if (/^N\d{6,7}$/.test(normalized)) {
     return decodeUSAN(normalized);
+  }
+
+  // China Squier SE 10-digit numeric: YYMM + 6-digit sequence
+  if (/^\d{10}$/.test(normalized)) {
+    return decodeChinaSquierSE10Digit(normalized);
   }
 
   // China Squier SE / Strat Pack numeric-only format: YYMM + sequence
@@ -538,6 +543,67 @@ function decodeChinaSquierSE8Digit2004(serial: string): DecodeResult {
       ],
     },
     additionalContextRichText: `<h3>Overview</h3><p>This serial matches a known 8-digit numeric sticker format associated with 2004 Chinese-made Squier SE Strat Pack guitars.</p><h3>How This Pattern Is Typically Read</h3><p>The first two digits decode as production year 2004. The next two digits decode as ${month}. The remaining digits decode as production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Look for a headstock that says Squier Strat rather than Squier Stratocaster.</li><li>Check for a full-thickness body, commonly associated with the SE.</li><li>Confirm the serial is on a headstock sticker and compare against known 2004 Strat Pack SE features.</li></ul>`,
+  };
+}
+
+// China Squier SE 10-digit: YYMM + 6-digit sequence
+function decodeChinaSquierSE10Digit(serial: string): DecodeResult {
+  const yearDigits = serial.substring(0, 2);
+  const monthDigits = serial.substring(2, 4);
+  const sequence = serial.substring(4);
+  const yearNum = parseInt(yearDigits, 10);
+  const monthNum = parseInt(monthDigits, 10);
+  const year = 2000 + yearNum;
+  const month = getMonthName(monthNum);
+  const currentYear = new Date().getFullYear();
+
+  if (year > currentYear + 2 || monthNum < 1 || monthNum > 12) {
+    const altYearNum = parseInt(serial.substring(2, 4), 10);
+    const altYear = 2000 + altYearNum;
+    if (altYear <= currentYear + 2) {
+      return {
+        success: true,
+        info: {
+          brand: 'Squier',
+          serialNumber: serial,
+          year: altYear.toString(),
+          factory: 'China Squier production',
+          country: 'China',
+          notes: `10-digit numeric Squier serial. Standard YYMM decode gave an invalid date; interpreted as factory-code(2) + YY(2) + seq(6). Year: ${altYear}. Sequence: ${serial.substring(4)}. Verify with "Made in China" marking on the headstock.`,
+        },
+        patternKey: 'squier-china-se-10-digit-yymm-sequence',
+        patternLabel: 'Squier China SE 10-digit YYMM sequence format',
+      };
+    }
+    return {
+      success: true,
+      info: {
+        brand: 'Squier',
+        serialNumber: serial,
+        factory: 'China Squier production',
+        country: 'China',
+        notes: '10-digit numeric Squier serial from Chinese production. The year could not be determined. Verify with "Made in China" marking on the headstock.',
+      },
+      patternKey: 'squier-china-se-10-digit-yymm-sequence',
+      patternLabel: 'Squier China SE 10-digit YYMM sequence format',
+    };
+  }
+
+  const info: GuitarInfo = {
+    brand: 'Squier',
+    serialNumber: serial,
+    year: year.toString(),
+    month,
+    factory: 'China Strat Pack / SE production',
+    country: 'China',
+    notes: `10-digit numeric Squier serial interpreted as YYMM + 6-digit sequence. This format is associated with Chinese-made Squier SE Strat Pack instruments. Year: ${year}; month: ${month}; production sequence: ${sequence}. Verify with model features such as the Squier Strat headstock logo and "Made in China" marking.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'squier-china-se-10-digit-yymm-sequence',
+    patternLabel: 'Squier China SE 10-digit YYMM sequence format',
   };
 }
 
