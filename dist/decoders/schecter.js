@@ -53,6 +53,10 @@ export function decodeSchecter(serial) {
     if (/^CC\d{9}$/.test(normalized)) {
         return decodeChinaCCFactory(normalized);
     }
+    // Contracted Asian factory CJ prefix: CJ + YYMM + sequence (10 chars, e.g. CJ24070261 = 2024, July)
+    if (/^CJ\d{8}$/.test(normalized)) {
+        return decodeCJFactory(normalized);
+    }
     // Korea C prefix: C + 7-8 digits (Cort Korea)
     if (/^C\d{7,8}$/.test(normalized)) {
         return decodeKoreaC(normalized);
@@ -482,6 +486,55 @@ function decodeW(serial) {
         notes: `W prefix. ${digitCount} digits indicates ${country} manufacture. Sequence: ${sequence}.`
     };
     return { success: true, info };
+}
+function decodeCJFactory(serial) {
+    const yearDigits = serial.substring(2, 4);
+    const monthDigits = serial.substring(4, 6);
+    const sequence = serial.substring(6);
+    const yearNum = parseInt(yearDigits, 10);
+    const year = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum).toString();
+    const monthNum = parseInt(monthDigits, 10);
+    const isValidMonth = monthNum >= 1 && monthNum <= 12;
+    const monthName = isValidMonth ? getMonthName(monthNum) : undefined;
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Schecter',
+        serialNumber: serial,
+        year,
+        ...(monthName ? { month: monthName } : {}),
+        factory: 'Contracted Asian facility (CJ prefix)',
+        country: 'China, South Korea, or Indonesia (check label)',
+        notes: `Schecter CJ-prefix import format. "CJ" identifies a contracted Asian manufacturing facility. The digits "${yearDigits}" indicate production year ${year}. The digits "${monthDigits}" indicate ${isValidMonth ? monthName : 'a production batch code'}. Production sequence: ${sequenceNumber}. Confirm country of origin from the back of the headstock or the interior label.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'schecter-cj-factory-yymm-sequence',
+        patternLabel: 'Schecter CJ factory YYMM sequence',
+        additionalContext: {
+            title: 'Schecter CJ-prefix contracted factory serial',
+            summary: 'This serial matches a Schecter CJ-prefix format associated with a contracted Asian factory, followed by a two-digit year, two-digit month, and production sequence.',
+            highlights: [
+                '"CJ" identifies a contracted Asian manufacturing facility.',
+                `The digits "${yearDigits}" decode as production year ${year}.`,
+                isValidMonth
+                    ? `The digits "${monthDigits}" decode as ${monthName}.`
+                    : `The digits "${monthDigits}" appear to be a production batch code, not a standard calendar month.`,
+                `The remaining digits decode as production sequence ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'The exact country of origin for CJ-prefix serials must be confirmed from the headstock or interior label.',
+                'Schecter has contracted with multiple Asian factories over the years.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for country-of-origin markings.',
+                'Look for interior labels inside the control cavity.',
+                `Compare the model against Schecter Diamond Series import catalogs from ${year}.`,
+                'Contact Schecter Guitar Research for official factory confirmation.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Schecter CJ-prefix format associated with a contracted Asian factory.</p><h3>How This Pattern Is Typically Read</h3><p>"CJ" identifies a contracted Asian manufacturing facility. The digits "${yearDigits}" decode as production year ${year}. The digits "${monthDigits}" indicate ${isValidMonth ? monthName : 'a production batch code'}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for country-of-origin markings.</li><li>Compare the model against Schecter import catalogs from ${year}.</li></ul>`,
+    };
 }
 function decodeKoreaC(serial) {
     const digits = serial.substring(1);

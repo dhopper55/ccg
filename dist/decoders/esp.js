@@ -66,6 +66,10 @@ export function decodeESP(serial) {
     if (/^E\d{6}$/.test(normalized)) {
         return decodeAmbiguousEPrefix6Digit(normalized);
     }
+    // Early LTD Korea E-prefix 5-digit sequential: E + 5 digits (~1999–2003)
+    if (/^E\d{5}$/.test(normalized)) {
+        return decodeEarlyLTDKoreaEShort(normalized);
+    }
     // Edwards by ESP format: ED + YY + WW + D + N[N] (week/day/daily sequence)
     // 7-digit variant: if front-parsed year would be future (>2027), try alternate layout
     // where year is at positions [6:8] (e.g. ED3221253 = seq 3221, year 2025, series 3)
@@ -116,6 +120,10 @@ export function decodeESP(serial) {
     // Indonesia: IS + 7-9 digits (Samick, YYMM format — handled separately for full decode)
     if (/^IS\d{7,9}$/.test(normalized)) {
         return decodeLTDIndonesiaSamickIS(normalized);
+    }
+    // Indonesia: IWI + 8 digits (Wildwood variant with single-digit year)
+    if (/^IWI\d{8}$/.test(normalized)) {
+        return decodeLTDIndonesiaIWI(normalized);
     }
     // Indonesia: IW, WI, IC, IR + 7-9 digits (9 digits for higher-volume recent runs)
     if (/^(IW|WI|IC|IR)\d{7,9}$/.test(normalized)) {
@@ -425,6 +433,44 @@ function decodeLTDHPrefixFactory(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches the ESP LTD H-prefix format associated with the Hatone or Hanko Korean factory (or GrassRoots Japanese domestic-market instruments).</p><h3>How This Pattern Is Typically Read</h3><p>H identifies a Korean production facility. Year digits ${yearDigits} decode as ${year}. Rolling production sequence: ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the headstock for LTD or GrassRoots branding.</li><li>Look for a Made in Korea or Made in Japan stamp.</li><li>Compare against ESP LTD or GrassRoots catalog specs for ${year}.</li></ul>`,
+    };
+}
+function decodeEarlyLTDKoreaEShort(serial) {
+    const sequence = serial.substring(1);
+    const info = {
+        brand: 'ESP',
+        serialNumber: serial,
+        year: '1999-2003 (estimated)',
+        factory: 'Korean factory (E-prefix, possibly Peerless)',
+        country: 'South Korea',
+        model: 'LTD import (early series)',
+        notes: `E-prefix 5-digit sequential format associated with early LTD Korea import production from approximately 1999–2003. The "E" prefix identifies an early Korean contracted factory (likely Peerless or similar). The digits "${sequence}" are a sequential production number. This format predates the longer structured serial systems. Verify the model and production year with headstock markings, hardware, and pickup configuration.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'esp-ltd-korea-e-prefix-5digit-sequential',
+        patternLabel: 'ESP LTD early Korea E-prefix 5-digit sequential',
+        additionalContext: {
+            title: 'ESP LTD early Korea E-prefix 5-digit serial',
+            summary: 'This serial matches an early ESP LTD E-prefix sequential format associated with Korean factory production from approximately 1999–2003.',
+            highlights: [
+                'The "E" prefix identifies an early Korean contracted factory, likely Peerless or a similar facility.',
+                `The digits "${sequence}" form a sequential production number without a date code.`,
+                'This format is associated with early LTD import series from approximately 1999–2003.',
+            ],
+            caveats: [
+                'The exact production year cannot be determined from this serial alone — the sequence number provides relative ordering only.',
+                'Early ESP LTD serials used several different formats, and not all are definitively documented.',
+            ],
+            verificationTips: [
+                'Check the headstock for "LTD" or "ESP" branding and the model name.',
+                'Look for "Made in Korea" on the headstock back or interior label.',
+                'Hardware, pickup, and construction details can help narrow the production year range.',
+                'Contact ESP/LTD support with photos for official factory confirmation.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches an early ESP LTD E-prefix sequential format associated with Korean factory production from approximately 1999–2003.</p><h3>How This Pattern Is Typically Read</h3><p>The "E" prefix identifies an early Korean contracted factory (likely Peerless or similar). The digits "${sequence}" form a sequential production number. This format predates the longer structured ESP/LTD serial systems.</p><h3>What To Verify</h3><ul><li>Check the headstock for "LTD" or "ESP" branding and the model name.</li><li>Look for "Made in Korea" on the headstock back.</li><li>Hardware, pickup, and construction details can help narrow the year range.</li></ul>`,
     };
 }
 function decodeAmbiguousEPrefix6Digit(serial) {
@@ -743,6 +789,53 @@ function decodeLTDIndonesia(serial) {
         notes: `LTD series. Production number: ${productionNum}.`
     };
     return { success: true, info };
+}
+function decodeLTDIndonesiaIWI(serial) {
+    const yearDigit = parseInt(serial[3], 10);
+    const monthNum = parseInt(serial.substring(4, 6), 10);
+    const sequence = serial.substring(6);
+    // Single-digit year: find the most recent past year ending in that digit
+    const currentYear = new Date().getFullYear();
+    const decadeBase = Math.floor(currentYear / 10) * 10;
+    let year = decadeBase + yearDigit;
+    if (year > currentYear + 1)
+        year -= 10;
+    const month = monthNum >= 1 && monthNum <= 12 ? getMonthName(monthNum) : undefined;
+    const info = {
+        brand: 'ESP',
+        serialNumber: serial,
+        year: year.toString(),
+        ...(month ? { month } : {}),
+        factory: 'P.T. Wildwood, Indonesia',
+        country: 'Indonesia',
+        model: 'LTD import',
+        notes: `IWI-prefix ESP LTD format. IW identifies P.T. Wildwood Indonesia; the third I is a factory sub-code; "${serial[3]}" is a single production year digit (decoded as ${year}); "${serial.substring(4, 6)}" indicates ${month || 'the production month'}; "${sequence}" is the production sequence. Verify with Made in Indonesia headstock markings.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'esp-ltd-indonesia-iwi-single-year-sequence',
+        patternLabel: 'ESP LTD Indonesia IWI Wildwood single-digit year sequence',
+        additionalContext: {
+            title: 'ESP LTD Indonesia IWI Wildwood serial',
+            summary: 'This serial matches the ESP LTD IWI-prefix format from the P.T. Wildwood factory in Indonesia.',
+            highlights: [
+                'IWI identifies P.T. Wildwood, Indonesia.',
+                `The digit "${serial[3]}" decodes as production year ${year}.`,
+                `The digits "${serial.substring(4, 6)}" decode as ${month || 'the production month'}.`,
+                `The remaining digits "${sequence}" are the production sequence.`,
+            ],
+            caveats: [
+                'Single-digit year codes repeat every decade; the year shown is the most recent plausible match.',
+                'The serial identifies factory, date, and sequence — not the exact model name.',
+            ],
+            verificationTips: [
+                'Check the headstock for LTD branding and the back for "Made in Indonesia" markings.',
+                'Compare specs against LTD catalog offerings from the decoded year.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches the ESP LTD IWI-prefix format from the P.T. Wildwood factory in Indonesia.</p><h3>How This Pattern Is Typically Read</h3><p>IWI identifies P.T. Wildwood Indonesia. The digit "${serial[3]}" decodes as year ${year}. The digits "${serial.substring(4, 6)}" decode as ${month || 'the production month'}. The remaining digits are production sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>Check the headstock for LTD branding and "Made in Indonesia" on the back.</li><li>Compare specs against LTD catalog offerings from ${year}.</li></ul>`,
+    };
 }
 function decodeLTDIndonesiaCI(serial) {
     const digits = serial.substring(2);

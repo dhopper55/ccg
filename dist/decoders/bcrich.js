@@ -78,6 +78,10 @@ export function decodeBCRich(serial) {
     if (/^SI\d{8}$/.test(normalized)) {
         return decodeSISamilIndonesiaImport(normalized);
     }
+    // WMI Indonesia: WI + YYMM + sequence (11 chars, e.g. WI230701772 = 2023, July, seq 01772)
+    if (/^WI\d{9}$/.test(normalized)) {
+        return decodeWMIIndonesiaWI(normalized);
+    }
     if (/^[SIFN]\d{9}$/.test(normalized)) {
         return decodeImportLetterNineDigit(normalized);
     }
@@ -87,7 +91,7 @@ export function decodeBCRich(serial) {
     if (/^[ACEFGHJKLMNP][A-Z]\d{5,7}$/.test(normalized)) {
         return decodeHanserTwoLetterMonthPlantImport(normalized);
     }
-    if (/^[ACEFGHJKLMNP][0-9]{8}$/.test(normalized)) {
+    if (/^[ACEFGHJKLMNPU][0-9]{8}$/.test(normalized)) {
         return decodeMonthFactory(normalized);
     }
     if (/^[ACEFGHJKLMNP]\d{7}$/.test(normalized)) {
@@ -909,6 +913,54 @@ function decodeSISamilIndonesiaImport(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches the B.C. Rich SI-prefix import format from the Samil contracted factory in Indonesia.</p><h3>How This Pattern Is Typically Read</h3><p>"SI" identifies the Samil contracted factory in Indonesia. The digits "${yearDigits}" decode as production year ${year}. The digits "${monthDigits}" indicate ${isValidMonth ? monthName : 'a production batch code'}. The remaining digits decode as factory sequence number ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the headstock or truss-rod cover for series name markings (Bronze, Platinum, NJ).</li><li>Look for "Made in Indonesia" on the back of the headstock.</li><li>Compare body shape, hardware, and pickups against B.C. Rich import catalogs from ${year}.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed Indonesian B.C. Rich import decode. Verify the exact series and model from headstock markings and physical features.</p>`,
+    };
+}
+function decodeWMIIndonesiaWI(serial) {
+    const yearDigits = serial.substring(2, 4);
+    const monthDigits = serial.substring(4, 6);
+    const sequence = serial.substring(6);
+    const yearNum = parseInt(yearDigits, 10);
+    const year = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum).toString();
+    const monthNum = parseInt(monthDigits, 10);
+    const isValidMonth = monthNum >= 1 && monthNum <= 12;
+    const monthName = isValidMonth ? MONTH_NAME(monthNum) : undefined;
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'B.C. Rich',
+        serialNumber: serial,
+        year,
+        ...(monthName ? { month: monthName } : {}),
+        factory: 'World Musical Instruments (WMI), Indonesia',
+        country: 'Indonesia',
+        notes: `WI-prefix B.C. Rich import format. "WI" identifies the World Musical Instruments (WMI) factory in Indonesia. The digits "${yearDigits}" indicate ${year}; "${monthDigits}" indicates ${isValidMonth ? monthName : 'a production batch code'}; "${sequence}" is the factory sequence number (${sequenceNumber}). Verify with headstock markings, country-of-origin labels, and body/neck construction details.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'bcrich-wmi-indonesia-wi-yymm-sequence',
+        patternLabel: 'B.C. Rich WMI Indonesia WI YYMM sequence',
+        additionalContext: {
+            title: 'B.C. Rich WI-prefix Indonesian import serial',
+            summary: 'This serial matches the B.C. Rich WI-prefix import format from the World Musical Instruments (WMI) factory in Indonesia.',
+            highlights: [
+                '"WI" identifies the World Musical Instruments (WMI) factory in Indonesia.',
+                `The digits "${yearDigits}" decode as production year ${year}.`,
+                isValidMonth
+                    ? `The digits "${monthDigits}" decode as ${monthName}.`
+                    : `The digits "${monthDigits}" appear to be a production batch code, not a standard calendar month.`,
+                `The remaining digits decode as factory sequence number ${sequenceNumber}.`,
+            ],
+            caveats: [
+                'This serial identifies factory origin, year, month, and sequence — not the exact model name or series tier.',
+                'B.C. Rich import serial numbering varied across ownership eras; verify with physical instrument markings.',
+            ],
+            verificationTips: [
+                'Check the headstock for series name markings.',
+                'Look for "Made in Indonesia" on the back of the headstock.',
+                `Compare body shape, hardware, and pickups against B.C. Rich import catalogs from ${year}.`,
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches the B.C. Rich WI-prefix import format from the World Musical Instruments (WMI) factory in Indonesia.</p><h3>How This Pattern Is Typically Read</h3><p>"WI" identifies the WMI factory in Indonesia. The digits "${yearDigits}" decode as production year ${year}. The digits "${monthDigits}" indicate ${isValidMonth ? monthName : 'a production batch code'}. The remaining digits decode as factory sequence number ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the headstock for series markings.</li><li>Look for "Made in Indonesia" on the back of the headstock.</li><li>Compare body shape, hardware, and pickups against B.C. Rich import catalogs from ${year}.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed Indonesian B.C. Rich import decode. Verify the exact series and model from headstock markings and physical features.</p>`,
     };
 }
 function decodeIShortImport(serial) {

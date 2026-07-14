@@ -85,6 +85,12 @@ export function decodeFender(serial: string): DecodeResult {
     return decodeJPrefix(jMatch[1], normalized);
   }
 
+  // Vintage L-series neck plate (1963–1965): L + sequential number
+  const lVintageMatch = normalized.match(/^L(\d{3,6})$/);
+  if (lVintageMatch) {
+    return decodeVintageLSeries(lVintageMatch[1], normalized);
+  }
+
   // A, B, C, etc prefixes for Japan (CIJ era); Y also used on Fender Japan
   const japanLetterMatch = normalized.match(/^([A-HY])(\d+)$/);
   if (japanLetterMatch) {
@@ -161,6 +167,55 @@ export function decodeFender(serial: string): DecodeResult {
   return {
     success: false,
     error: 'Unrecognized Fender serial number format. Fender serials typically start with a letter prefix (US, MX, S, E, N, Z, J, etc.) followed by digits.'
+  };
+}
+
+function decodeVintageLSeries(sequence: string, serial: string): DecodeResult {
+  const seqNum = parseInt(sequence, 10);
+  let year: string;
+  if (seqNum <= 20000) {
+    year = '1963';
+  } else if (seqNum <= 55000) {
+    year = '1964';
+  } else {
+    year = '1965';
+  }
+
+  const info: GuitarInfo = {
+    brand: 'Fender',
+    serialNumber: serial,
+    year,
+    factory: 'Fender, Fullerton, California',
+    country: 'USA',
+    notes: `Vintage Fender L-series neck plate serial. The "L" prefix was used from mid-1963 through 1965 on the metal neck plate. Sequence number ${seqNum} falls in the approximate range for ${year}. L1–L20000 = 1963; L20001–L55000 = 1964; L55001+ = 1965. These ranges are approximate as Fender used serial blocks non-linearly. Confirm with pot date codes, neck date stamps, and body features.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'fender-vintage-l-series-neck-plate-1963-1965',
+    patternLabel: 'Fender vintage L-series neck plate 1963–1965',
+    additionalContext: {
+      title: 'Fender vintage L-series neck plate serial',
+      summary: 'This serial matches the Fender vintage L-series neck plate format used from mid-1963 through 1965 on American-made Fender instruments.',
+      highlights: [
+        'The "L" prefix was used on Fender neck plates from approximately mid-1963 through 1965.',
+        `Sequence ${seqNum} places this guitar in approximately ${year}.`,
+        'L-series guitars were made in Fullerton, California.',
+      ],
+      caveats: [
+        'Fender L-series serial ranges are approximate — Fender used blocks of pre-stamped necks non-linearly.',
+        'Verify the year with pot date codes, the neck heel date stamp, and body features.',
+        'A guitar with an L-series neck plate may have had its neck replaced — verify all components.',
+      ],
+      verificationTips: [
+        'Check the pot date codes: the code on the back of the volume pot encodes the year and week.',
+        'Look for a penciled date stamp on the heel of the neck inside the neck pocket.',
+        'Compare the body contours, pickguard, tuner buttons, and pickup covers to known period examples.',
+        'Consider a professional appraisal or consultation with a Fender vintage specialist for high-value instruments.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches the Fender vintage L-series neck plate format used from mid-1963 through 1965 on American-made Fender instruments.</p><h3>How This Pattern Is Typically Read</h3><p>The "L" prefix was applied to neck plates from approximately mid-1963 through 1965. Sequence ${seqNum} places this guitar in approximately ${year}. Ranges: L1–L20000 (1963), L20001–L55000 (1964), L55001+ (1965). These ranges are approximate.</p><h3>What To Verify</h3><ul><li>Check pot date codes on the back of the volume pot.</li><li>Look for a neck heel date stamp inside the neck pocket.</li><li>Compare body contours, pickguard, and tuner buttons to known period examples.</li><li>Consider professional appraisal for high-value instruments.</li></ul>`,
   };
 }
 

@@ -184,6 +184,11 @@ export function decodeJackson(serial: string): DecodeResult {
     return decodeModern10DigitThreeLetterPrefix(normalized);
   }
 
+  // Short I-prefix import: I + YY + 3-digit seq (6 chars, India or Indonesia entry-level import)
+  if (/^I\d{5}$/i.test(normalized)) {
+    return decodeImportIShort(normalized);
+  }
+
   // Indonesia format (I + factory code + optional J + digits)
   if (/^I[WSCHJ]J?\d{7,8}$/i.test(normalized)) {
     return decodeIndonesia(normalized);
@@ -407,6 +412,49 @@ function decodeUSACustomNeckThrough(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+function decodeImportIShort(serial: string): DecodeResult {
+  const yearDigits = serial.substring(1, 3);
+  const sequence = serial.substring(3);
+  const yearNum = parseInt(yearDigits, 10);
+  const year = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum).toString();
+
+  const info: GuitarInfo = {
+    brand: 'Jackson',
+    serialNumber: serial,
+    year,
+    factory: 'Jackson import facility (I-prefix, India or Indonesia)',
+    country: 'India or Indonesia (check label)',
+    notes: `Short I-prefix Jackson import format. The "I" prefix identifies an overseas import facility in India or Indonesia. The digits "${yearDigits}" indicate production year ${year}. The remaining digits "${sequence}" are the production sequence. Confirm the country of origin from the back of the headstock or interior label.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'jackson-import-i-prefix-yy-sequence-short',
+    patternLabel: 'Jackson I-prefix import YY sequence (short)',
+    additionalContext: {
+      title: 'Jackson short I-prefix import serial',
+      summary: 'This serial matches a short Jackson I-prefix import format where "I" identifies an overseas factory in India or Indonesia and the following digits encode the production year and sequence.',
+      highlights: [
+        'The "I" prefix identifies an overseas import facility (India or Indonesia).',
+        `The digits "${yearDigits}" decode as production year ${year}.`,
+        `The remaining digits "${sequence}" are the production sequence.`,
+      ],
+      caveats: [
+        'Short I-prefix serials can appear on entry-level Jackson import models from multiple factories.',
+        'The exact country of origin must be confirmed from the headstock label or interior markings.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock for country-of-origin markings.',
+        'Look for the interior label inside the electronics cavity or control cavity.',
+        `Compare the body style, hardware, and pickups against Jackson import catalogs from ${year}.`,
+        'Contact Jackson/Fender with photos for official factory confirmation.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a short Jackson I-prefix import format. "I" identifies an overseas factory in India or Indonesia.</p><h3>How This Pattern Is Typically Read</h3><p>The "I" prefix identifies an overseas import facility. The digits "${yearDigits}" decode as production year ${year}. The remaining digits "${sequence}" are the production sequence.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for country-of-origin markings.</li><li>Compare the body style and hardware against Jackson import catalogs from ${year}.</li></ul>`,
+  };
 }
 
 function decodeModernJIndonesia(serial: string): DecodeResult {

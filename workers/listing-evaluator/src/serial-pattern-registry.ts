@@ -175,6 +175,15 @@ export function deriveExplicitRegexFromKnownPatternKey(patternKey: string): stri
     'schecter-p-factory-yymm-sequence': '^P\\d{8}$',
     'squier-china-cyk-month-yy-sequence': '^CYK[A-L0-9]\\d{7,}$',
     'squier-china-csk-yy-sequence': '^CSK\\d{8}$',
+    'esp-ltd-indonesia-iwi-single-year-sequence': '^IWI\\d{8}$',
+    'squier-china-cws-yy-sequence': '^CWS\\d{7}$',
+    'bcrich-wmi-indonesia-wi-yymm-sequence': '^WI\\d{9}$',
+    'dean-f-prefix-yy-sequence': '^F\\d{7}$',
+    'esp-ltd-korea-e-prefix-5digit-sequential': '^E\\d{5}$',
+    'fender-vintage-l-series-neck-plate-1963-1965': '^L\\d{3,6}$',
+    'jackson-import-i-prefix-yy-sequence-short': '^I\\d{5}$',
+    'schecter-cj-factory-yymm-sequence': '^CJ\\d{8}$',
+    'yamaha-letter-year-month-day-unit4-factory2-suffix': '^[A-Z]{3}\\d{4}[A-Z]{2}$',
   };
 
   return knownPatterns[patternKey] || null;

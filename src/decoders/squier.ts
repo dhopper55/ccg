@@ -184,6 +184,11 @@ export function decodeSquier(serial: string): DecodeResult {
     return decodeChinaCSK(normalized);
   }
 
+  // China CWS prefix (WS contracted facility): CWS + YY + sequence
+  if (/^CWS\d{7}$/.test(normalized)) {
+    return decodeChinaCWS(normalized);
+  }
+
   // China CRN + letter/digit prefix (Re-New contracted facility, 2020+: CRN + month-code + YY + sequence)
   // Month code is normally A-L (alphabetical), but some serials use a digit (e.g. '0' for January/October)
   const crnMatch = normalized.match(/^CRN([A-L0-9])(\d{2})(\d+)$/);
@@ -998,6 +1003,48 @@ function decodeChinaCSK(serial: string): DecodeResult {
       ],
     },
     additionalContextRichText: `<h3>Overview</h3><p>This serial matches the Squier CSK-prefix format from a contracted Chinese production facility. C=China, SK=facility, ${yearDigits}=${year}.</p><h3>How This Pattern Is Typically Read</h3><p>"C" identifies China; "SK" identifies the contracted production facility. The digits ${yearDigits} decode as ${year}. The remaining digits are production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the headstock front for the Squier model series name.</li><li>Look for "Made in China" on the back of the headstock.</li><li>Compare the instrument against Squier catalog specs from ${year}.</li></ul>`,
+  };
+}
+
+function decodeChinaCWS(serial: string): DecodeResult {
+  const yearDigits = serial.substring(3, 5);
+  const sequence = serial.substring(5);
+  const year = 2000 + parseInt(yearDigits, 10);
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Squier',
+    serialNumber: serial,
+    year: year.toString(),
+    factory: 'China WS contracted facility',
+    country: 'China',
+    notes: `CWS-prefix Squier format. "C" identifies China; "WS" identifies the contracted production facility (associated with Starcaster and starter-pack Stratocaster lines); ${yearDigits} indicates ${year}; production sequence: ${sequenceNumber}. Verify model from the headstock or interior label.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'squier-china-cws-yy-sequence',
+    patternLabel: 'Squier China CWS YY sequence',
+    additionalContext: {
+      title: 'Squier China CWS serial',
+      summary: `This serial matches the Squier CWS-prefix format: C=China, WS=facility, ${yearDigits}=${year}.`,
+      highlights: [
+        '"C" identifies China; "WS" identifies the contracted production facility.',
+        `The digits ${yearDigits} decode as production year ${year}.`,
+        `The remaining digits decode as production sequence ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'CWS-prefix serials are associated with budget Squier lines including the Starcaster and starter-pack Stratocasters.',
+        'The serial identifies factory, year, and sequence — not the specific model name.',
+      ],
+      verificationTips: [
+        'Check the headstock for the Squier model name.',
+        'Look for "Made in China" on the back of the headstock.',
+        'Compare against Squier catalog specs for the decoded year.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches the Squier CWS-prefix format from a contracted Chinese production facility. C=China, WS=facility, ${yearDigits}=${year}.</p><h3>How This Pattern Is Typically Read</h3><p>"C" identifies China; "WS" identifies the contracted production facility associated with Starcaster and starter-pack Stratocaster lines. The digits ${yearDigits} decode as ${year}. The remaining digits are production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the headstock for the Squier model series name.</li><li>Look for "Made in China" on the back of the headstock.</li><li>Compare against Squier catalog specs from ${year}.</li></ul>`,
   };
 }
 

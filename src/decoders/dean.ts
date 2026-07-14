@@ -155,6 +155,11 @@ export function decodeDean(serial: string): DecodeResult {
     return decodeKHFactory(normalized);
   }
 
+  // China/Asia factory: F + YY + 5-digit sequence (8 chars total, e.g. F2230859 = 2022, seq 30859)
+  if (/^F\d{7}$/.test(normalized)) {
+    return decodeFPrefixFactory(normalized);
+  }
+
   // 9-digit numeric import: YYMM + 5-digit sequence (e.g., 170303338 = 2017, March, seq 03338)
   if (/^\d{9}$/.test(normalized)) {
     return decodeNumeric9DigitYYMMSeq(normalized);
@@ -304,6 +309,48 @@ function decodeWorldKoreaKW(serial: string): DecodeResult {
       ],
     },
     additionalContextRichText: `<h3>Overview</h3><p>This serial follows the KW-prefix format — an alternate prefix convention for World Musical Instruments Co Ltd in South Korea, the same facility as WK-prefix guitars.</p><h3>How This Pattern Is Typically Read</h3><p>KW identifies World Musical Instruments Co Ltd (same factory as WK). The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} decode as ${monthName || 'the month code'}. The final digits ${sequence} are the production sequence (unit ${sequenceNumber}).</p><h3>What To Verify</h3><ul><li>KW and WK are both seen on World factory guitars — the initials may be reversed depending on the label stamping convention used.</li><li>This format does not encode the exact model name — confirm from headstock, label, and hardware.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a South Korea import decode from ${year}. Verify the model from the headstock and compare against Dean's Korea import lineup.</p>`,
+  };
+}
+
+function decodeFPrefixFactory(serial: string): DecodeResult {
+  const yearDigits = serial.substring(1, 3);
+  const sequence = serial.substring(3);
+  const yearNum = parseInt(yearDigits, 10);
+  const year = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum).toString();
+
+  const info: GuitarInfo = {
+    brand: 'Dean',
+    serialNumber: serial,
+    year,
+    factory: 'F-prefix import factory (China or Indonesia)',
+    country: 'China or Indonesia (check label)',
+    notes: `Dean F-prefix import format. The "F" prefix identifies an overseas contract factory. The digits "${yearDigits}" indicate production year ${year}. The remaining digits "${sequence}" are the production sequence. Confirm the country of origin from the label inside the guitar or the back of the headstock.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'dean-f-prefix-yy-sequence',
+    patternLabel: 'Dean F-prefix import factory YY sequence',
+    additionalContext: {
+      title: 'Dean F-prefix import serial',
+      summary: 'This serial matches a Dean F-prefix import format where "F" identifies an overseas contracted factory and the following digits encode the production year and sequence.',
+      highlights: [
+        'The "F" prefix identifies a contracted overseas factory (China or Indonesia).',
+        `The digits "${yearDigits}" decode as production year ${year}.`,
+        `The remaining digits "${sequence}" are the production sequence.`,
+      ],
+      caveats: [
+        'The exact factory and country of origin should be confirmed from the interior label or headstock markings.',
+        'Dean has used F-prefix serials across multiple factories over the years.',
+      ],
+      verificationTips: [
+        'Check the interior label or back of the headstock for country-of-origin markings.',
+        `Compare the body style, pickups, and hardware against Dean import catalogs from ${year}.`,
+        'Contact Dean Guitars support with photos if exact factory confirmation is needed.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Dean F-prefix import format. The "F" prefix identifies a contracted overseas factory, followed by a two-digit year and production sequence.</p><h3>How This Pattern Is Typically Read</h3><p>The "F" prefix identifies a contracted overseas factory (China or Indonesia). The digits "${yearDigits}" decode as production year ${year}. The remaining digits "${sequence}" are the production sequence.</p><h3>What To Verify</h3><ul><li>Check the interior label or back of the headstock for country-of-origin markings.</li><li>Compare the body style and hardware against Dean import catalogs from ${year}.</li></ul>`,
   };
 }
 

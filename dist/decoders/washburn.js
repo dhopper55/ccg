@@ -61,9 +61,9 @@ export function decodeWashburn(serial) {
     if (/^[A-Z0-9][A-Z]\d{6}$/.test(normalized)) {
         return decodeModernTwoCharFactoryYYSeq(normalized);
     }
-    // Modern 2-character factory code (letter or leading digit) + YYMMRRRR (8 digits, 10 chars total)
-    // e.g., OC05012755 = OC factory, 2005, January, #2755; 0C05012755 = same factory written with zero
-    if (/^[A-Z0-9][A-Z]\d{8}$/.test(normalized)) {
+    // Modern 2-character factory code (letter or leading digit) + YYMMRRRR (8-11 digits after prefix)
+    // e.g., OC05012755 = OC factory, 2005, January, #2755; CC17101013647 = CC factory, 2017, October
+    if (/^[A-Z0-9][A-Z]\d{8,11}$/.test(normalized)) {
         return decodeModernTwoCharFactoryYYMMSeq(normalized);
     }
     // China BC factory prefix: BC + plant(1) + YY(2) + sequence(4)
@@ -307,6 +307,7 @@ const WASHBURN_MODERN_TWO_CHAR_FACTORY_MAP = {
     NC: { factory: 'Asian contract factory (NC)', country: 'Asia' },
     YC: { factory: 'Asian contract factory (YC)', country: 'Asia' },
     IC: { factory: 'Indonesian contract factory (IC)', country: 'Indonesia' },
+    CC: { factory: 'Cort China contracted factory (CC)', country: 'China' },
 };
 function decodeModernTwoCharFactoryYYMMSeq(serial) {
     const prefix = serial.substring(0, 2);

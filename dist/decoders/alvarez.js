@@ -23,8 +23,8 @@ export function decodeAlvarez(serial) {
     if (/^[A-Z]{2}\d{8,10}$/.test(normalized)) {
         return decodeModernTwoLetterPrefix(normalized);
     }
-    // Modern standard format: Letter prefix + 8-9 digits (e.g., E24113487, F606120413)
-    if (/^[A-Z]\d{8,9}$/.test(normalized)) {
+    // Modern standard format: Letter prefix + 7-9 digits (e.g., E24113487, F606120413, S2107111)
+    if (/^[A-Z]\d{7,9}$/.test(normalized)) {
         return decodeModernStandard(normalized);
     }
     // Emperor dating code format: 4 digits YYMM (heel block stamp)

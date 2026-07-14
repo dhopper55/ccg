@@ -28,8 +28,8 @@ export function decodeAlvarez(serial: string): DecodeResult {
     return decodeModernTwoLetterPrefix(normalized);
   }
 
-  // Modern standard format: Letter prefix + 8-9 digits (e.g., E24113487, F606120413)
-  if (/^[A-Z]\d{8,9}$/.test(normalized)) {
+  // Modern standard format: Letter prefix + 7-9 digits (e.g., E24113487, F606120413, S2107111)
+  if (/^[A-Z]\d{7,9}$/.test(normalized)) {
     return decodeModernStandard(normalized);
   }
 

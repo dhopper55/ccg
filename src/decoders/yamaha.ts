@@ -134,6 +134,11 @@ export function decodeYamaha(serial: string): DecodeResult {
     return decodeKoreaChina2003(normalized);
   }
 
+  // 3-letter year/month/day + 4-digit unit + 2-letter factory suffix (e.g. HMP0176WW)
+  if (/^[A-Z]{3}\d{4}[A-Z]{2}$/.test(normalized)) {
+    return decodeLetterYearMonthDayUnit4Factory2(normalized);
+  }
+
   return {
     success: false,
     error: 'Unrecognized Yamaha serial number format. Yamaha has used many different serial number systems across factories in Japan, Taiwan, Indonesia, Korea, and China. Common formats include: 2 letters + 5 digits (standard), 3 letters + 6 digits (Taiwan/Indonesia 2001+), or various numeric formats.'
@@ -841,4 +846,62 @@ function decodeKoreaChina2003(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+function decodeLetterYearMonthDayUnit4Factory2(serial: string): DecodeResult {
+  const yearLetter = serial[0];
+  const monthLetter = serial[1];
+  const dayLetter = serial[2];
+  const unitStr = serial.substring(3, 7);
+  const factoryCode = serial.substring(7);
+
+  const yearDigit = getYearDigit(yearLetter);
+  const monthNum = getMonthFromLetter(monthLetter);
+  const dayNum = getYearDigit(dayLetter);
+
+  const currentYear = new Date().getFullYear();
+  const decadeBase = Math.floor(currentYear / 10) * 10;
+  let year = decadeBase + yearDigit;
+  if (year > currentYear + 1) year -= 10;
+
+  const monthName = (monthNum >= 1 && monthNum <= 12) ? getMonthName(monthNum) : undefined;
+  const unitNum = parseInt(unitStr, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Yamaha',
+    serialNumber: serial,
+    year: year.toString(),
+    ...(monthName ? { month: monthName } : {}),
+    factory: `Contracted import facility (${factoryCode} factory code)`,
+    country: 'Indonesia or China (check label)',
+    notes: `Yamaha import serial format: year letter (${yearLetter}=${yearDigit}→${year}) + month letter (${monthLetter}→${monthName ?? 'unknown'}) + day letter (${dayLetter}→day ${dayNum}) + unit ${unitNum} + factory code "${factoryCode}". This format is associated with Yamaha import production from contracted Asian facilities. Verify the production year and factory from the interior label or headstock markings.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'yamaha-letter-year-month-day-unit4-factory2-suffix',
+    patternLabel: 'Yamaha letter year-month-day + 4-digit unit + 2-letter factory suffix',
+    additionalContext: {
+      title: 'Yamaha 3-letter year/month/day + unit + factory serial',
+      summary: 'This serial matches a Yamaha import format using letter codes for year, month, and day, followed by a 4-digit unit number and a 2-letter factory suffix.',
+      highlights: [
+        `Year letter "${yearLetter}" decodes as the digit ${yearDigit}, placing production in ${year}.`,
+        monthName ? `Month letter "${monthLetter}" decodes as ${monthName}.` : `Month letter "${monthLetter}" could not be decoded to a standard month.`,
+        `Day letter "${dayLetter}" decodes as day ${dayNum}.`,
+        `Unit number: ${unitNum}. Factory code: "${factoryCode}".`,
+      ],
+      caveats: [
+        'The year is estimated from the letter code and may represent the most recent decade in which this digit appears.',
+        'Factory codes identify production batches but are not always publicly documented.',
+        'Yamaha has used many import serial formats across different factories; verify from the interior label.',
+      ],
+      verificationTips: [
+        'Check the interior label (soundhole for acoustics, electronics cavity for electrics) for the model and factory details.',
+        `Compare the instrument features against Yamaha import catalogs from ${year}.`,
+        'Contact Yamaha support with photos for official factory confirmation.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Yamaha import format using letter codes for year, month, and day, followed by a 4-digit unit number and a 2-letter factory suffix.</p><h3>How This Pattern Is Typically Read</h3><p>Year letter "${yearLetter}" → digit ${yearDigit} → production year ${year}. Month letter "${monthLetter}" → ${monthName ?? 'unknown month'}. Day letter "${dayLetter}" → day ${dayNum}. Unit: ${unitNum}. Factory: "${factoryCode}".</p><h3>What To Verify</h3><ul><li>Check the interior label for the model and factory details.</li><li>Compare the instrument features against Yamaha import catalogs from ${year}.</li></ul>`,
+  };
 }
