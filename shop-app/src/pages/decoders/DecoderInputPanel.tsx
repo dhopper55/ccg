@@ -6,8 +6,6 @@ import SectionHeader from 'components/common/SectionHeader';
 import StyledTextField from 'components/styled/StyledTextField';
 import IbanezAdditionalInfoPanel from './IbanezAdditionalInfoPanel';
 
-const EMAIL_SIGNUP_URL = 'https://www.coalcreekguitars.com/api/email-signup';
-
 const DECODE_URL = 'https://www.coalcreekguitars.com/api/decode';
 const DECODE_EMAIL_URL = 'https://www.coalcreekguitars.com/api/decode/email';
 const FAILED_DECODE_EMAIL_PROMPT =
@@ -55,9 +53,7 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
   const [emailSubmitMessage, setEmailSubmitMessage] = useState('');
   const [emailSubmitError, setEmailSubmitError] = useState('');
   const [isSubmittingEmail, setIsSubmittingEmail] = useState(false);
-  const [listEmail, setListEmail] = useState('');
-  const [isSubmittingListEmail, setIsSubmittingListEmail] = useState(false);
-  const [listEmailDone, setListEmailDone] = useState(false);
+  const [decodeEventId, setDecodeEventId] = useState<number | null>(null);
   const [additionalInfoModalOpen, setAdditionalInfoModalOpen] = useState(false);
   const initialSerial = searchParams.get('serial')?.trim() || '';
   const hasAutoDecodedRef = useRef(false);
@@ -77,6 +73,13 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
     [decodedInfo],
   );
 
+  const worthHref = useMemo(() => {
+    const params = new URLSearchParams({ brand });
+    if (serial.trim()) params.set('serial', serial.trim());
+    if (decodeEventId != null) params.set('decodeId', String(decodeEventId));
+    return `/guitar-value-report-evaluation/?${params.toString()}`;
+  }, [brand, serial, decodeEventId]);
+
   const clearDecodeOutput = () => {
     setDecodedInfo(null);
     setErrorMessage('');
@@ -84,6 +87,7 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
     setEmailAddress('');
     setEmailSubmitMessage('');
     setEmailSubmitError('');
+    setDecodeEventId(null);
     onAdditionalInfoChange('');
     onDecodeSuccess?.(null);
   };
@@ -117,17 +121,19 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
       }
 
       if (result?.success && result.info) {
+        const resolvedDecodeEventId = typeof result.serialDecodeEventId === 'number' ? result.serialDecodeEventId : null;
         setDecodedInfo(result.info);
         setFailedDecodeEventId(null);
         setEmailAddress('');
         setEmailSubmitMessage('');
         setEmailSubmitError('');
+        setDecodeEventId(resolvedDecodeEventId);
         const resolvedSerial = result.info.serialNumber?.trim() || trimmed;
         setSerial(resolvedSerial);
         onAdditionalInfoChange((result.additionalContextRichText || '').trim());
         onDecodeSuccess?.({
           serial: resolvedSerial,
-          decodeEventId: typeof result.serialDecodeEventId === 'number' ? result.serialDecodeEventId : null,
+          decodeEventId: resolvedDecodeEventId,
           year: result.info.year?.trim() || undefined,
         });
         return;
@@ -187,24 +193,6 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
     }
   };
 
-  const handleListSignup = async () => {
-    const trimmed = listEmail.trim().toLowerCase();
-    if (!isValidEmailAddress(trimmed)) return;
-    setIsSubmittingListEmail(true);
-    try {
-      const response = await fetch(EMAIL_SIGNUP_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: trimmed }),
-      });
-      if (response.ok) setListEmailDone(true);
-    } catch {
-      // silently fail — user can retry
-    } finally {
-      setIsSubmittingListEmail(false);
-    }
-  };
-
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') {
       event.preventDefault();
@@ -223,6 +211,62 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
     hasAutoDecodedRef.current = true;
     void handleDecode(initialSerial);
   }, [decodedInfo, errorMessage, initialSerial, isLoading]);
+
+  const renderFieldRow = (field: { label: string; value?: string }) => {
+    const isNotes = field.label === 'Notes';
+    const isSerialWithInfo = field.label === 'Serial Number' && Boolean(additionalInfoRichText);
+    return (
+      <Stack
+        key={field.label}
+        direction="row"
+        sx={{
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          gap: 2,
+          py: 0.5,
+          width: 1,
+        }}
+      >
+        <Typography
+          variant="body2"
+          sx={{ color: 'text.secondary', fontWeight: 400, flexShrink: 0 }}
+        >
+          {field.label}
+        </Typography>
+        {isSerialWithInfo ? (
+          <Link
+            component="button"
+            type="button"
+            onClick={() => setAdditionalInfoModalOpen(true)}
+            underline="always"
+            color="warning.main"
+            sx={{
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              textAlign: 'right',
+              wordBreak: 'break-word',
+              maxWidth: { xs: '60%', md: '70%' },
+            }}
+          >
+            {field.value}
+          </Link>
+        ) : (
+          <Typography
+            variant={isNotes ? 'caption' : 'body2'}
+            sx={{
+              color: 'text.primary',
+              fontWeight: 500,
+              textAlign: 'right',
+              wordBreak: 'break-word',
+              maxWidth: { xs: '60%', md: '70%' },
+            }}
+          >
+            {field.value}
+          </Typography>
+        )}
+      </Stack>
+    );
+  };
 
   return (
     <Box
@@ -367,102 +411,29 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
               </Link>
             </Stack>
             <Stack direction="column" divider={<Divider sx={{ borderColor: 'dividerLight', opacity: 0.59 }} />}>
-              {resultFields.map((field) => {
-                const isNotes = field.label === 'Notes';
-                const isSerialWithInfo = field.label === 'Serial Number' && Boolean(additionalInfoRichText);
-                return (
-                  <Stack
-                    key={field.label}
-                    direction="row"
-                    sx={{
-                      alignItems: 'baseline',
-                      justifyContent: 'space-between',
-                      gap: 2,
-                      py: 0.5,
-                      width: 1,
-                    }}
-                  >
-                    <Typography
-                      variant="body2"
-                      sx={{ color: 'text.secondary', fontWeight: 400, flexShrink: 0 }}
-                    >
-                      {field.label}
-                    </Typography>
-                    {isSerialWithInfo ? (
-                      <Link
-                        component="button"
-                        type="button"
-                        onClick={() => setAdditionalInfoModalOpen(true)}
-                        underline="always"
-                        color="warning.main"
-                        sx={{
-                          fontSize: '0.875rem',
-                          fontWeight: 500,
-                          textAlign: 'right',
-                          wordBreak: 'break-word',
-                          maxWidth: { xs: '60%', md: '70%' },
-                        }}
-                      >
-                        {field.value}
-                      </Link>
-                    ) : (
-                      <Typography
-                        variant={isNotes ? 'caption' : 'body2'}
-                        sx={{
-                          color: 'text.primary',
-                          fontWeight: 500,
-                          textAlign: 'right',
-                          wordBreak: 'break-word',
-                          maxWidth: { xs: '60%', md: '70%' },
-                        }}
-                      >
-                        {field.value}
-                      </Typography>
-                    )}
-                  </Stack>
-                );
-              })}
-            </Stack>
-            <Box sx={{ mt: 2.5 }}>
-              <Divider sx={{ borderColor: 'dividerLight', opacity: 0.59, mb: 2 }} />
-              <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>
-                Get our free 5-point fretboard care guide
-              </Typography>
-              <Typography variant="caption" sx={{ color: 'text.secondary', lineHeight: 1.6 }}>
-                Join our list for first access to new acquisitions — some items go to the list before they hit the shop.
-              </Typography>
-              {listEmailDone ? (
-                <Typography variant="caption" sx={{ color: 'success.main', display: 'block', mt: 1.5, fontWeight: 600 }}>
-                  ✓ You're on the list — guide on its way!
-                </Typography>
-              ) : (
-                <Stack
-                  direction={{ xs: 'column', sm: 'row' }}
-                  spacing={1.5}
-                  sx={{ mt: 1.5, alignItems: { sm: 'flex-start' } }}
+              {resultFields
+                .filter((field) => field.label !== 'Notes')
+                .map((field) => renderFieldRow(field))}
+              <Stack direction="row" sx={{ justifyContent: 'center', py: 0.75, width: 1 }}>
+                <Box
+                  component="a"
+                  href={worthHref}
+                  sx={{
+                    color: 'warning.main',
+                    fontWeight: 700,
+                    fontSize: '0.875rem',
+                    textDecoration: 'underline',
+                    textAlign: 'center',
+                    '&:hover': { color: 'warning.dark' },
+                  }}
                 >
-                  <StyledTextField
-                    type="email"
-                    value={listEmail}
-                    placeholder="Email address"
-                    onChange={(e) => setListEmail(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') void handleListSignup(); }}
-                    disabled={isSubmittingListEmail}
-                    inputProps={{ maxLength: 200 }}
-                    sx={{ maxWidth: 300, width: 1 }}
-                  />
-                  <Button
-                    variant="soft"
-                    color="warning"
-                    onClick={() => void handleListSignup()}
-                    disabled={isSubmittingListEmail || !isValidEmailAddress(listEmail.trim())}
-                    sx={{ fontWeight: 700, minWidth: 80, mt: { sm: 0.5 } }}
-                  >
-                    {isSubmittingListEmail ? '...' : 'Join'}
-                  </Button>
-                </Stack>
-              )}
-            </Box>
+                  What's my guitar worth?
+                </Box>
+              </Stack>
+              {resultFields
+                .filter((field) => field.label === 'Notes')
+                .map((field) => renderFieldRow(field))}
+            </Stack>
           </Box>
         )}
       </Box>

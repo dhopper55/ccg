@@ -3,6 +3,7 @@ import Grid from '@mui/material/Grid';
 import DecoderPreviewLayout from 'layouts/decoder-layout/DecoderPreviewLayout';
 import DecoderInputPanel from './DecoderInputPanel';
 import EvalPitchPanel from './EvalPitchPanel';
+import EmailSignupPanel from './EmailSignupPanel';
 import DecoderFaqPanel from './DecoderFaqPanel';
 import DecoderHowToPanel from './DecoderHowToPanel';
 import DecoderSlot from './DecoderSlot';
@@ -45,48 +46,51 @@ const DecoderPage = ({ config }: DecoderPageProps) => {
       headerLogoSrc={config.logoSrc}
       headerLogoAlt={config.brandName}
     >
-      <Grid container>
-        <Grid container size={12}>
-          {/* Left column: input/results + eval pitch after decode */}
-          <Grid size={{ xs: 12, lg: 5, xl: 6 }}>
-            <Grid container direction="column">
-              <Grid size={12}>
-                <DecoderInputPanel
-                  brand={config.brandKey}
-                  brandDisplayName={config.brandName}
-                  additionalInfoRichText={additionalInfoRichText}
-                  onAdditionalInfoChange={setAdditionalInfoRichText}
-                  onDecodeSuccess={setDecodeSuccess}
-                />
-              </Grid>
-              {decodeSuccess && (
-                <Grid size={12}>
-                  <EvalPitchPanel
-                    brand={config.brandName}
-                    year={decodeSuccess.year}
-                    serial={decodeSuccess.serial}
-                    decodeEventId={decodeSuccess.decodeEventId ?? null}
-                  />
-                </Grid>
-              )}
-            </Grid>
-          </Grid>
+      {/*
+        Single flat, order-controlled grid so item sequence can differ between
+        mobile (stacked) and desktop (two-column) layouts without duplicating
+        stateful panels. Desktop pairs items row-by-row (5+7 / 6+6 = 12 per
+        row) in `lg` order; mobile uses `xs` order for a single vertical flow.
+      */}
+      <Grid container rowSpacing={3}>
+        <Grid size={{ xs: 12, lg: 5, xl: 6 }} sx={{ order: { xs: 1, lg: 1 } }}>
+          <DecoderInputPanel
+            brand={config.brandKey}
+            brandDisplayName={config.brandName}
+            additionalInfoRichText={additionalInfoRichText}
+            onAdditionalInfoChange={setAdditionalInfoRichText}
+            onDecodeSuccess={setDecodeSuccess}
+          />
+        </Grid>
 
-          {/* Right column: Google review (always) + FAQ + HowTo */}
-          <Grid size={{ xs: 12, lg: 7, xl: 6 }}>
-            <Grid container direction="column" rowSpacing={3}>
-              <Grid size={12}>
-                <GoogleReviewPanel />
-              </Grid>
-              <Grid size={12}>
-                <DecoderSlot brand={config.brandKey} name="aboveFaq" />
-                <DecoderFaqPanel title={config.faqTitle} items={config.faqItems} />
-              </Grid>
-              <Grid size={12}>
-                <DecoderHowToPanel title={config.howToTitle} html={config.howToHtml} />
-              </Grid>
-            </Grid>
+        <Grid size={{ xs: 12, lg: 7, xl: 6 }} sx={{ order: { xs: 2, lg: 2 } }}>
+          <GoogleReviewPanel />
+        </Grid>
+
+        {decodeSuccess && (
+          <Grid size={{ xs: 12, lg: 5, xl: 6 }} sx={{ order: { xs: 3, lg: 5 } }}>
+            <EmailSignupPanel />
           </Grid>
+        )}
+
+        {decodeSuccess && (
+          <Grid size={{ xs: 12, lg: 5, xl: 6 }} sx={{ order: { xs: 4, lg: 3 } }}>
+            <EvalPitchPanel
+              brand={config.brandName}
+              year={decodeSuccess.year}
+              serial={decodeSuccess.serial}
+              decodeEventId={decodeSuccess.decodeEventId ?? null}
+            />
+          </Grid>
+        )}
+
+        <Grid size={{ xs: 12, lg: 7, xl: 6 }} sx={{ order: { xs: 5, lg: 4 } }}>
+          <DecoderSlot brand={config.brandKey} name="aboveFaq" />
+          <DecoderFaqPanel title={config.faqTitle} items={config.faqItems} />
+        </Grid>
+
+        <Grid size={{ xs: 12, lg: 7, xl: 6 }} sx={{ order: { xs: 6, lg: 6 } }}>
+          <DecoderHowToPanel title={config.howToTitle} html={config.howToHtml} />
         </Grid>
       </Grid>
     </DecoderPreviewLayout>
