@@ -13,7 +13,7 @@
  * - Hanser-era/date-stamp numeric: 8 digits like 41201627 (year digit + quarter + production)
  * - Month/factory code: A08140023 (month letter + factory + year + production)
  * - B-prefix month-code import: BA09030385 (B + month letter + YY + sequence)
- * - Two-letter Hanser-era import: CO1093111 (month + plant + YY + sequence)
+ * - Two-letter Hanser-era import: CO1093111 (month + plant + YY + 3-6 digit sequence, e.g. FC01100404)
  * - Hanser-era single-letter calendar month import: C301288 (calendar month + YY + sequence)
  * - Hanser-era short month-code import: J50212 (BC Rich month code + Y + 4-digit sequence)
  * - F-prefix six-digit import: F201422 (factory/line prefix + YY + sequence)
@@ -88,7 +88,7 @@ export function decodeBCRich(serial) {
     if (/^[SIFN]\d{8}$/.test(normalized)) {
         return decodeImportLetterPrefix(normalized);
     }
-    if (/^[ACEFGHJKLMNP][A-Z]\d{5,7}$/.test(normalized)) {
+    if (/^[ACEFGHJKLMNP][A-Z]\d{5,8}$/.test(normalized)) {
         return decodeHanserTwoLetterMonthPlantImport(normalized);
     }
     if (/^[ACEFGHJKLMNPU][0-9]{8}$/.test(normalized)) {

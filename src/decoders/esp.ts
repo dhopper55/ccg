@@ -13,6 +13,7 @@ import { DecodeResult, GuitarInfo } from '../types.js';
  * - K/N/S/T/CH/CS/TH + 7-8 digits (2000–2015 Japan factory, YYWWDN format)
  * - K-prefix 4-5 digits (Kirk Hammett signature, early 1990s)
  * - R + 7 digits (LTD Korea Peerless, YY + week + sequence)
+ * - GW + 8 digits (LTD Korea Gilmour, YY + week + day + 3-digit sequence)
  * - IW/WI/IC/IR + 7-8 digits (LTD Indonesia various)
  * - IS + 7-9 digits (LTD Indonesia Samick, YYMM format)
  * - W + 9 digits (LTD Korea WMI, YY + week + sequence)
@@ -119,6 +120,15 @@ export function decodeESP(serial: string): DecodeResult {
   // e.g. H0210967 = 2002, seq 10967; H0906045 = 2009, week 06, seq 045
   if (/^H\d{7}$/.test(normalized)) {
     return decodeLTDHPrefixFactory(normalized);
+  }
+
+  // LTD Korean GW-prefix factory (Gilmour): GW + YY + WW + D + 3-digit sequence
+  // e.g. GW07165724 = 2007, week 16, Friday, seq 724
+  if (/^GW\d{8}$/.test(normalized)) {
+    const week = parseInt(normalized.substring(4, 6), 10);
+    if (week >= 1 && week <= 53) {
+      return decodeLTDKoreaGWGilmour(normalized);
+    }
   }
 
   // LTD Asian formats with letter prefixes
@@ -265,7 +275,7 @@ export function decodeESP(serial: string): DecodeResult {
 
   return {
     success: false,
-    error: 'Unable to decode this ESP serial number. The format was not recognized. Known formats include: US-prefix (ESP USA), E/ES-prefix (ESP Japan / E-II), ED-prefix (Edwards Japan), K-prefix (Kirk Hammett or Kiso Custom Shop), IS-prefix (LTD Indonesia Samick), letter-factory-prefixed (LTD Korea/Indonesia/China/Vietnam), 9-digit all-numeric (LTD Korea/Indonesia YY+WW+D+NNNN), 6-digit all-numeric (early LTD 1998–1999, Japan Original Series neck plate, or early 2000s Korean LTD with missing prefix), 7-digit all-numeric (LTD transitional or pre-2000 Japan), 8-digit all-numeric (pre-2000 Japan DDMMYNNN), and 4- or 5-digit numeric (vintage Japan Custom Shop / Original Series).',
+    error: 'Unable to decode this ESP serial number. The format was not recognized. Known formats include: US-prefix (ESP USA), E/ES-prefix (ESP Japan / E-II), ED-prefix (Edwards Japan), K-prefix (Kirk Hammett or Kiso Custom Shop), IS-prefix (LTD Indonesia Samick), GW-prefix (LTD Korea Gilmour, YY+WW+D+sequence), letter-factory-prefixed (LTD Korea/Indonesia/China/Vietnam), 9-digit all-numeric (LTD Korea/Indonesia YY+WW+D+NNNN), 6-digit all-numeric (early LTD 1998–1999, Japan Original Series neck plate, or early 2000s Korean LTD with missing prefix), 7-digit all-numeric (LTD transitional or pre-2000 Japan), 8-digit all-numeric (pre-2000 Japan DDMMYNNN), and 4- or 5-digit numeric (vintage Japan Custom Shop / Original Series).',
   };
 }
 
@@ -491,6 +501,60 @@ function decodeLTDHPrefixFactory(serial: string): DecodeResult {
       ],
     },
     additionalContextRichText: `<h3>Overview</h3><p>This serial matches the ESP LTD H-prefix format associated with the Hatone or Hanko Korean factory (or GrassRoots Japanese domestic-market instruments).</p><h3>How This Pattern Is Typically Read</h3><p>H identifies a Korean production facility. Year digits ${yearDigits} decode as ${year}. Rolling production sequence: ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the headstock for LTD or GrassRoots branding.</li><li>Look for a Made in Korea or Made in Japan stamp.</li><li>Compare against ESP LTD or GrassRoots catalog specs for ${year}.</li></ul>`,
+  };
+}
+
+function decodeLTDKoreaGWGilmour(serial: string): DecodeResult {
+  // GW-prefix LTD Korea (Gilmour factory): GW + YY(2) + WW(2) + D(1) + sequence(3)
+  // e.g. GW07165724 = 2007, week 16, Friday, seq 724
+  const yearDigits = serial.substring(2, 4);
+  const weekDigits = serial.substring(4, 6);
+  const dayDigit = serial.charAt(6);
+  const productionNum = serial.substring(7);
+  const year = parseInt(yearDigits, 10) + 2000;
+  const week = parseInt(weekDigits, 10);
+  const day = parseInt(dayDigit, 10);
+  const dateInfo = (day >= 1 && day <= 7) ? getDateFromWeekDay(year, week, day) : { month: undefined, day: undefined };
+  const dayName = getDayOfWeekName(day);
+  const sequenceNumber = parseInt(productionNum, 10);
+
+  const info: GuitarInfo = {
+    brand: 'ESP',
+    serialNumber: serial,
+    year: year.toString(),
+    month: dateInfo.month,
+    factory: 'Gilmour factory, South Korea',
+    country: 'South Korea',
+    model: 'LTD',
+    notes: `GW-prefix ESP LTD Korea format. GW identifies the Gilmour factory in Korea, which produced mid-to-high-tier LTD models for ESP. Year digits ${yearDigits} decode as ${year}. Week digits ${weekDigits} decode as production week ${week}${dateInfo.month ? `, approximately ${dateInfo.month}` : ''}. Day digit ${dayDigit} decodes as ${dayName}. Production number that day: ${sequenceNumber}.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'esp-ltd-korea-gw-gilmour-yywwd-sequence',
+    patternLabel: 'ESP LTD Korea GW Gilmour factory YYWWD sequence',
+    additionalContext: {
+      title: 'ESP LTD Korea GW-prefix (Gilmour) serial',
+      summary: 'This serial matches the GW-prefix format used by ESP LTD guitars built at the Gilmour factory in Korea during the mid-2000s.',
+      highlights: [
+        'GW identifies the Gilmour factory in Korea, a contractor for mid-to-high-tier LTD models.',
+        `Year digits ${yearDigits} decode as ${year}.`,
+        `Week digits ${weekDigits} decode as production week ${week}${dateInfo.month ? `, approximately ${dateInfo.month}` : ''}.`,
+        `Day digit ${dayDigit} decodes as ${dayName}.`,
+        `Production number that day: ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'The serial identifies factory, date, and production sequence, not the exact model shape.',
+        'Confirm the model from the headstock logo and body shape.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock for "LTD" branding and a Made in Korea stamp.',
+        'Compare body shape (e.g. Eclipse, Horizon, Viper) against 2007 Korean LTD catalog specs.',
+        'Check hardware quality (TonePros, Grover, or Sperzel tuners; EMG or Seymour Duncan pickups) consistent with Korean-built LTD models from this era.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches the GW-prefix format used by ESP LTD guitars built at the Gilmour factory in Korea during the mid-2000s.</p><h3>How This Pattern Is Typically Read</h3><p>GW identifies the Gilmour factory in Korea. Year digits ${yearDigits} decode as ${year}. Week digits ${weekDigits} decode as production week ${week}${dateInfo.month ? `, approximately ${dateInfo.month}` : ''}. Day digit ${dayDigit} decodes as ${dayName}. Production number that day: ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for "LTD" branding and a Made in Korea stamp.</li><li>Compare body shape against 2007 Korean LTD catalog specs.</li><li>Check hardware quality consistent with Korean-built LTD models from this era.</li></ul>`,
   };
 }
 

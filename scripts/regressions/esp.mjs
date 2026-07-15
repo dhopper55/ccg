@@ -225,6 +225,32 @@ function assertESPLTDNumeric9Digit(serialInput, expectedYear, expectedMonth, exp
   );
 }
 
+function assertESPLTDKoreaGWGilmour(serialInput, expectedYear, expectedWeek, expectedDay) {
+  const result = decodeESP(serialInput);
+  assert(result.success, `Expected decode success for ESP ${serialInput}`);
+  assert(result.info, `Expected decoded info for ESP ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(
+    info.factory === 'Gilmour factory, South Korea',
+    `Expected Gilmour factory for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'South Korea', `Expected South Korea for ${serialInput}, got ${info.country}`);
+  assert(
+    info.notes && info.notes.includes(`production week ${expectedWeek}`),
+    `Expected production week ${expectedWeek} for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    info.notes && info.notes.includes(expectedDay),
+    `Expected day ${expectedDay} for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    result.patternKey === 'esp-ltd-korea-gw-gilmour-yywwd-sequence',
+    `Expected GW Gilmour pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
 export function runTests() {
   assertESPVintageJapan5Digit('22944');
   assertESPVintageJapan5Digit('29290');
@@ -242,6 +268,7 @@ export function runTests() {
   assertESPLTDIndonesiaIMPrefix('IM24120398', '2024', 'December');
   assertESP1WCorrectsToIW('1W211112431', '2021', 'November');
   assertESPSSCustomShop8Digit('ss06105647', '2006', 'Week 10', '647');
+  assertESPLTDKoreaGWGilmour('GW07165724', '2007', '16', 'Friday');
 }
 
 function assertESPSSCustomShop8Digit(serialInput, expectedYear, expectedWeekNote, expectedProductionSuffix) {

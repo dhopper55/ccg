@@ -161,19 +161,23 @@ export function decodeKramer(serial) {
     if (/^U\d{7,9}$/.test(normalized)) {
         return decodeUnsungKoreaU(normalized, cleaned);
     }
-    // Two-letter overseas prefixes (e.g., FA, FB, CF)
+    // Two-letter overseas prefixes (e.g., FA, FB, CF, XL)
     if (/^[A-Z]{2}\d+$/.test(normalized)) {
         const prefix = normalized.substring(0, 2);
         const yearRange = getOverseasYearRange(prefix);
         const country = getOverseasCountry(prefix);
+        const model = prefix === 'XL' ? 'XL Series (budget import line)' : undefined;
         const info = {
             brand: 'Kramer',
             serialNumber: cleaned,
             year: yearRange,
             country,
+            ...(model ? { model } : {}),
             notes: prefix === 'CF'
                 ? `Overseas model prefix ${prefix}. This prefix is commonly associated with Japan-built Focus/Striker-era instruments from the mid-to-late 1980s (often around 1985-1989). Verify with headstock shape, neck-plate details, and hardware.`
-                : `Overseas model prefix ${prefix}. The second letter often indicates the production year range, but verification with features is recommended.`,
+                : prefix === 'XL'
+                    ? `Overseas model prefix XL. Kramer's XL Series (XL I, XL II, XL III) was a budget-friendly entry-level line built overseas during the late 1980s to capture the entry-level shred market. Unlike premium American Kramers, the neck plate is typically a plain stamped chrome or black plate without a "Neptune, N.J." factory stamp. Verify with headstock shape (pointy/beak-style), neck-plate finish, and whether a Floyd Rose tremolo is present.`
+                    : `Overseas model prefix ${prefix}. The second letter often indicates the production year range, but verification with features is recommended.`,
         };
         return { success: true, info };
     }
@@ -1042,6 +1046,8 @@ function getOverseasYearRange(prefix) {
         return 'late 1985–1986';
     if (prefix === 'FB')
         return '1987–1988';
+    if (prefix === 'XL')
+        return 'late 1980s (estimated)';
     return undefined;
 }
 function getOverseasCountry(prefix) {
@@ -1051,6 +1057,8 @@ function getOverseasCountry(prefix) {
         return 'South Korea';
     if (prefix === 'CF')
         return 'Japan';
+    if (prefix === 'XL')
+        return 'South Korea';
     return undefined;
 }
 function decodeKBModernImport(normalized, cleaned) {

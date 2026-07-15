@@ -224,6 +224,25 @@ function assertJacksonMij200C(serialInput) {
   );
 }
 
+function assertJacksonMijChushinCPrefix(serialInput, expectedSequenceNumber) {
+  const result = decodeJackson(serialInput);
+  assert(result.success, `Expected decode success for Jackson ${serialInput}`);
+  assert(result.info, `Expected decoded info for Jackson ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === undefined, `Expected no year encoded for ${serialInput}, got ${info.year}`);
+  assert(info.factory === 'Chushin Gakki', `Expected Chushin Gakki factory for ${serialInput}, got ${info.factory}`);
+  assert(info.country === 'Japan', `Expected Japan country for ${serialInput}, got ${info.country}`);
+  assert(
+    info.notes && info.notes.includes(`sequential production number (${expectedSequenceNumber})`),
+    `Expected sequential production number ${expectedSequenceNumber} for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    result.patternKey === 'jackson-mij-c-prefix-chushin-sequential',
+    `Expected Jackson Chushin C-prefix pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
 function assertJacksonChinaCWJPrefix(serialInput, expectedYear, expectedSequence) {
   const result = decodeJackson(serialInput);
   assert(result.success, `Expected decode success for Jackson ${serialInput}`);
@@ -315,6 +334,7 @@ export function runTests() {
   assertJacksonEightPrefix7Digit('8633116');
   assertJacksonNinePrefixNineDigit('900500961');
   assertJacksonMijSevenPrefixSevenDigit('7050100');
+  assertJacksonMijChushinCPrefix('C010484', 10484);
 }
 
 function assertJacksonMijSevenPrefixSevenDigit(serialInput) {

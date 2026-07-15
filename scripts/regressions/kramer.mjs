@@ -74,6 +74,21 @@ function assertKramerCFPrefix(serialInput, expectedYearRange) {
   );
 }
 
+function assertKramerXLPrefix(serialInput, expectedYearRange) {
+  const result = decodeKramer(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYearRange, `Expected year range ${expectedYearRange} for ${serialInput}, got ${info.year}`);
+  assert(info.country === 'South Korea', `Expected country South Korea for ${serialInput}, got ${info.country}`);
+  assert(info.model === 'XL Series (budget import line)', `Expected XL Series model for ${serialInput}, got ${info.model}`);
+  assert(
+    info.notes && info.notes.includes('XL Series'),
+    `Expected XL Series note for ${serialInput}, got ${info.notes}`
+  );
+}
+
 function assertKramerSESamickKorea(serialInput) {
   const result = decodeKramer(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -302,6 +317,7 @@ export function runTests() {
   assertKramerMusicYoStrikerS('S01517', '2001');
   assertKramerVPrefix('V9954', 'mid-to-late 1980s (estimated)');
   assertKramerCFPrefix('CF22271', '1985-1989 (estimated)');
+  assertKramerXLPrefix('XL 02374', 'late 1980s (estimated)');
   assertKramerSESamickKorea('se 8280');
   assertKramerSCJapanImport('SC9117');
   assertKramerVintage5Digit('70630');

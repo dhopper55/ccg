@@ -18,6 +18,7 @@
  * - Japan mid-1990s MIJ (7-digit, 90-95 prefix)
  * - Japan 1996+ (7-digit, 96+ prefix)
  * - Japan Chushin 200C import format (early-mid 2000s)
+ * - Japan Chushin Gakki C-prefix (C + 6-digit sequential number, no year encoded, 1990-2011)
  * - Indonesia (I prefix with factory codes)
  * - China (C prefix with factory codes)
  * - India (N prefix or 8-10 digit numeric)
@@ -171,6 +172,11 @@ export function decodeJackson(serial) {
     if (/^C[YJ]J?\d{7,8}$/i.test(normalized)) {
         return decodeChina(normalized);
     }
+    // Japan MIJ Chushin Gakki C-prefix: C + 6-digit sequential number (no year encoded)
+    // e.g. C010484 = Chushin Gakki import line (Professional/MG series), 1990-2011
+    if (/^C\d{6}$/i.test(normalized)) {
+        return decodeJapanChushinCPrefix(normalized);
+    }
     // Japan mid-1990s MIJ 7-digit (90-95 prefix, commonly Professional/Performer)
     if (/^9[0-5]\d{5}$/.test(normalized) && normalized.length === 7) {
         return decodeJapanMij1990to1995SevenDigit(normalized);
@@ -276,7 +282,7 @@ export function decodeJackson(serial) {
     }
     return {
         success: false,
-        error: 'Unable to decode this Jackson serial number. The format was not recognized. Known formats include: USA Custom Shop (J/RR/PCS prefix), Indonesia J-prefix modern, Korea NJHK-prefix, 3-letter prefix modern imports (ICJ, CYJ, CWJ, etc.), NHJ India prefix, numeric Japan/Indonesia/India. Please verify the serial number is correct.',
+        error: 'Unable to decode this Jackson serial number. The format was not recognized. Known formats include: USA Custom Shop (J/RR/PCS prefix), Indonesia J-prefix modern, Korea NJHK-prefix, Japan Chushin Gakki C-prefix (C + 6-digit sequence, no year encoded), 3-letter prefix modern imports (ICJ, CYJ, CWJ, etc.), NHJ India prefix, numeric Japan/Indonesia/India. Please verify the serial number is correct.',
     };
 }
 function decodeUSAPlayerChoiceSeries(serial) {
@@ -991,6 +997,44 @@ function decodeJapanChushin200C(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Jackson Japanese import pattern seen as 200C plus a 5-digit sequence, commonly associated with Chushin Gakki production in the early-to-mid 2000s.</p><h3>How This Pattern Is Typically Read</h3><p>The 200C prefix is treated as a Japanese import-era identifier rather than a strict year code. The C is commonly associated with Chushin Gakki production. The remaining digits decode as production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>Jackson import serial records from this era are incomplete, and official lookup coverage is limited.</li><li>This pattern supports era/factory attribution more confidently than an exact calendar year.</li><li>Exact model confirmation should come from physical markings, specs, and neck-pocket or heel stamps.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as an early-to-mid 2000s MIJ Jackson decode, then confirm the exact model and production details from the instrument itself.</p>`,
+    };
+}
+function decodeJapanChushinCPrefix(serial) {
+    const sequence = serial.substring(1);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Jackson',
+        serialNumber: serial,
+        factory: 'Chushin Gakki',
+        country: 'Japan',
+        model: 'Professional or MG Series (MIJ import)',
+        notes: `C-prefix Jackson MIJ import format. "C" identifies Chushin Gakki, the Japanese factory that produced Jackson's import lines (Professional and MG series) between 1990 and 2011. Unlike modern 10-digit serials, this format does not encode the production year in the digits — the remaining digits are a sequential production number (${sequenceNumber}). Dating a C-series guitar precisely usually requires removing the neck to check for a factory date stamp in the neck pocket or heel.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'jackson-mij-c-prefix-chushin-sequential',
+        patternLabel: 'Jackson MIJ Chushin Gakki C-prefix sequential (no year encoded)',
+        additionalContext: {
+            title: 'Jackson MIJ Chushin Gakki C-prefix serial',
+            summary: 'This serial matches the C-prefix format used by Chushin Gakki, the Japanese factory behind Jackson\'s Professional and MG import series (1990-2011). Unlike newer 10-digit serials, this format does not encode the production year.',
+            highlights: [
+                '"C" identifies Chushin Gakki, the Japanese factory for Jackson\'s import lines.',
+                `The remaining digits decode as sequential production number ${sequenceNumber}, not a date code.`,
+                'This format was used between 1990 and 2011.',
+            ],
+            caveats: [
+                'The serial does not encode the year — dating requires physical inspection.',
+                'Pre-2002 Jackson Japanese import records are incomplete.',
+                'The serial identifies factory and production sequence, not the exact model.',
+            ],
+            verificationTips: [
+                'Remove the neck and check the neck pocket or heel for a factory date stamp — the most reliable way to date a C-series guitar.',
+                'Check the Jackson Serial Number Lookup tool for any registry match.',
+                'Compare specs and colors against Jackson catalogs to narrow the production years.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches the C-prefix format used by Chushin Gakki, the Japanese factory behind Jackson's Professional and MG import series (1990-2011).</p><h3>How This Pattern Is Typically Read</h3><p>"C" identifies Chushin Gakki. Unlike modern 10-digit serials, this format does not encode the production year — the remaining digits (${sequenceNumber}) are a sequential production number.</p><h3>What To Verify</h3><ul><li>Remove the neck and check the neck pocket or heel for a factory date stamp — the most reliable way to date a C-series guitar.</li><li>Check the Jackson Serial Number Lookup tool for a registry match.</li><li>Compare specs and colors against Jackson catalogs to narrow the production years.</li></ul>`,
     };
 }
 function decodeIndonesia(serial) {

@@ -187,6 +187,29 @@ function assertBCRichHanserTwoLetterMonthPlantImport(serialInput) {
   );
 }
 
+function assertBCRichHanserTwoLetterMonthPlantImportEightDigitSequence(serialInput) {
+  const result = decodeBCRich(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '2001', `Expected year 2001 for ${serialInput}, got ${info.year}`);
+  assert(info.month === 'April', `Expected month April for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'Hanser-era import plant/contract code C',
+    `Expected Hanser-era C plant code for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'China / Indonesia', `Expected China / Indonesia for ${serialInput}, got ${info.country}`);
+  assert(
+    info.notes && info.notes.includes('production sequence 100404'),
+    `Expected production sequence 100404 for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    result.patternKey === 'bcrich-hanser-two-letter-month-plant-import',
+    `Expected B.C. Rich two-letter Hanser pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
 function assertBCRichHanserShortMonthCodeImport(serialInput, expectedYear, expectedMonth) {
   const result = decodeBCRich(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -367,6 +390,7 @@ export function runTests() {
   assertBCRichFPrefixSixDigitImport('F201422');
   assertBCRichBPrefixMonthCodeImport('BA09030385');
   assertBCRichHanserTwoLetterMonthPlantImport('co1093111');
+  assertBCRichHanserTwoLetterMonthPlantImportEightDigitSequence('fc01100404');
   assertBCRichHanserShortMonthCodeImport('J50212', '2005', 'July');
   assertBCRichHanserSingleLetterCalendarMonthImport('C301288');
   assertBCRichHanserEraEightDigitImport('Sr#41201627');
