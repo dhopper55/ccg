@@ -1631,7 +1631,7 @@ footer {
         <a href="sample-report.html" class="btn-ghost" target="_blank" rel="noopener">See a sample report</a>
       </div>
       <div class="contact-note" style="margin-top:28px;max-width:52ch">
-        <strong>Our guarantee:</strong> if we can't reach a confident, 100% identification of your instrument or a 100% determination of its authenticity, you get a full refund — no questions asked.
+        <strong>Our guarantee:</strong> if we can't reach a confident identification of your instrument or a confident determination of its authenticity, you get a full refund — no questions asked.
       </div>
     </div>
 
@@ -1994,7 +1994,7 @@ footer {
         <!-- STEP 2: Photos -->
         <div class="step-panel" id="step-2">
           <div class="form-body-title">Upload Photos</div>
-          <div class="form-body-sub">At least one photo is required before you can continue. Up to 20 photos accepted.</div>
+          <div class="form-body-sub">At least 4 photos are required before you can continue. Up to 20 photos accepted.</div>
 
           <div class="photos-alert">
             <strong>Clear, well-lit photos matter more than anything else in this report.</strong> Blurry or dark photos are the #1 reason a report comes back inconclusive instead of certain. Please include close-ups of the headstock (front and back), the serial number, any labels or stamps inside the body or on the neck plate, hardware markings, and anything else that identifies the instrument. When in doubt, send more photos, not fewer.
@@ -2008,7 +2008,7 @@ footer {
           </div>
 
           <div class="photo-previews" id="photo-previews"></div>
-          <div class="photo-err-msg" id="photo-err-msg" style="display:none">At least one photo is required to continue.</div>
+          <div class="photo-err-msg" id="photo-err-msg" style="display:none">At least 4 photos are required to continue.</div>
 
           <div class="photo-guide">
             <div class="photo-guide-hd">What to photograph</div>
@@ -2103,7 +2103,7 @@ footer {
           </div>
 
           <div class="contact-note" style="margin-bottom:18px">
-            <strong>Our guarantee:</strong> delivered within 12 hours, or the report is on us. And if our expert can't reach a confident, 100% identification or a 100% authenticity determination, you'll be refunded in full regardless.
+            <strong>Our guarantee:</strong> delivered within 12 hours, or the report is on us. And if our expert can't reach a confident identification or a confident authenticity determination, you'll be refunded in full regardless.
           </div>
 
           <div class="coupon-row">
@@ -2499,9 +2499,9 @@ async function goToStep(n) {
       btn.disabled = false; btn.textContent = 'Continue to Photos →';
     }
     if (currentStep === 2) {
-      // Require at least 1 photo before proceeding to contact info
+      // Require at least 4 photos before proceeding to contact info
       const errEl = document.getElementById('photo-err-msg');
-      if (photoFiles.length === 0) {
+      if (photoFiles.length < 4) {
         errEl.style.display = 'block';
         document.getElementById('upload-zone').style.borderColor = 'var(--clay)';
         return;
