@@ -284,7 +284,7 @@ export async function callAnthropicForReport(userContent: AnthropicUserContent[]
   return { html, inputTokens, outputTokens, searchCount };
 }
 
-function escHtml(s: string): string {
+export function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 

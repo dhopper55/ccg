@@ -228,6 +228,11 @@ import {
   handleGuitarEvaluationValidateCoupon,
 } from './guitar-eval/payment.js';
 import { runGuitarEvalReportGeneration } from './guitar-eval/report.js';
+import {
+  handleAdminV2AuthenticityDraftSave,
+  handleAdminV2AuthenticityPreview,
+  handleAdminV2AuthenticitySend,
+} from './guitar-eval/authenticity-report.js';
 
 // Apify
 import {
@@ -821,6 +826,24 @@ export default {
     const adminV2ValueReportGenerateMatch = path.match(/^\/api\/admin-v2\/value-reports\/(\d+)\/generate-report$/);
     if (adminV2ValueReportGenerateMatch && request.method === 'POST') {
       const response = await handleAdminV2GenerateReport(adminV2ValueReportGenerateMatch[1], env, ctx);
+      return withCors(response, request, env);
+    }
+
+    const adminV2AuthDraftMatch = path.match(/^\/api\/admin-v2\/value-reports\/(\d+)\/authenticity-draft$/);
+    if (adminV2AuthDraftMatch && request.method === 'POST') {
+      const response = await handleAdminV2AuthenticityDraftSave(adminV2AuthDraftMatch[1], request, env);
+      return withCors(response, request, env);
+    }
+
+    const adminV2AuthPreviewMatch = path.match(/^\/api\/admin-v2\/value-reports\/(\d+)\/authenticity-preview$/);
+    if (adminV2AuthPreviewMatch && request.method === 'POST') {
+      const response = await handleAdminV2AuthenticityPreview(adminV2AuthPreviewMatch[1], request, env);
+      return withCors(response, request, env);
+    }
+
+    const adminV2AuthSendMatch = path.match(/^\/api\/admin-v2\/value-reports\/(\d+)\/authenticity-send$/);
+    if (adminV2AuthSendMatch && request.method === 'POST') {
+      const response = await handleAdminV2AuthenticitySend(adminV2AuthSendMatch[1], request, env);
       return withCors(response, request, env);
     }
 

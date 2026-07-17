@@ -5,6 +5,7 @@ export async function handleAdminV2ValueReportItem(id: string, env: Env): Promis
   const row = await env.DB.prepare(
     `SELECT id, created_at, first_name, last_name, email, brand, brand_other, model,
             serial_number, includes_case, color_finish, location, note, damage, type, curiosity_reason,
+            authenticity_report_data,
             stripe_payment_intent_id, fulfilled, image_keys, report_guid, report_r2_key, report_error, report_cost
      FROM guitar_evaluations WHERE id = ?`
   ).bind(id).first<{
@@ -24,6 +25,7 @@ export async function handleAdminV2ValueReportItem(id: string, env: Env): Promis
     damage: string | null;
     type: string | null;
     curiosity_reason: string | null;
+    authenticity_report_data: string | null;
     stripe_payment_intent_id: string | null;
     fulfilled: number;
     image_keys: string | null;
@@ -40,6 +42,13 @@ export async function handleAdminV2ValueReportItem(id: string, env: Env): Promis
     try {
       const keys: string[] = JSON.parse(row.image_keys);
       imageUrls = keys.map((key) => `/api/guitar-evaluation-image?key=${encodeURIComponent(key)}`);
+    } catch { /* ignore malformed */ }
+  }
+
+  let authenticityReportData: unknown = null;
+  if (row.authenticity_report_data) {
+    try {
+      authenticityReportData = JSON.parse(row.authenticity_report_data);
     } catch { /* ignore malformed */ }
   }
 
@@ -61,6 +70,7 @@ export async function handleAdminV2ValueReportItem(id: string, env: Env): Promis
       damage: row.damage,
       type: row.type,
       curiosityReason: row.curiosity_reason,
+      authenticityReportData,
       stripePaymentIntentId: row.stripe_payment_intent_id,
       fulfilled: row.fulfilled,
       imageUrls,

@@ -11,10 +11,16 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
+  FormControl,
   FormControlLabel,
   IconButton,
+  InputLabel,
+  MenuItem,
   Paper,
+  Select,
   Stack,
+  Switch,
   Table,
   TableBody,
   TableCell,
@@ -46,6 +52,7 @@ type ValueReportRecord = {
   damage: string | null;
   type: string | null;
   curiosityReason: string | null;
+  authenticityReportData: AuthenticityReportData | null;
   stripePaymentIntentId: string | null;
   fulfilled: number;
   imageUrls: string[];
@@ -53,6 +60,33 @@ type ValueReportRecord = {
   reportR2Key: string | null;
   reportError: string | null;
   reportCost: number | null;
+};
+
+// ── Authenticity report (human-forward, zero-AI) ────────────────────────────
+type SpecRow = { label: string; expected: string; observed: string };
+type MarkerStatus = 'consistent' | 'inconsistent' | 'unable_to_verify';
+type MarkerRow = { marker: string; status: MarkerStatus; note: string };
+type Severity = 'minor' | 'moderate' | 'major';
+type RedFlagRow = { description: string; severity: Severity };
+type VerdictValue = 'genuine' | 'likely_genuine' | 'inconclusive' | 'likely_not_authentic';
+type Confidence = 'high' | 'medium' | 'low';
+
+type AuthenticityReportData = {
+  identity: { modelConfirmed: string; yearConfirmed: string; variantNotes: string; confidenceStatement: string };
+  specs: SpecRow[];
+  markers: MarkerRow[];
+  redFlags: { none: boolean; items: RedFlagRow[] };
+  verdict: { determination: VerdictValue; confidence: Confidence; reasoning: string; raiseConfidenceNote: string };
+  certificateSummary: string;
+};
+
+const DEFAULT_AUTH_DATA: AuthenticityReportData = {
+  identity: { modelConfirmed: '', yearConfirmed: '', variantNotes: '', confidenceStatement: '' },
+  specs: [],
+  markers: [],
+  redFlags: { none: true, items: [] },
+  verdict: { determination: 'inconclusive', confidence: 'medium', reasoning: '', raiseConfidenceNote: '' },
+  certificateSummary: '',
 };
 
 type EvalFile = {
@@ -96,6 +130,16 @@ const ValueReportItem = () => {
   const [generateError, setGenerateError] = useState('');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Authenticity report (human-forward, zero-AI)
+  const [authData, setAuthData] = useState<AuthenticityReportData>(DEFAULT_AUTH_DATA);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [draftMessage, setDraftMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const [previewError, setPreviewError] = useState('');
+  const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState('');
+
   const loadRecord = async (suppressLoading = false) => {
     if (!id) return;
     if (!suppressLoading) setIsLoading(true);
@@ -109,6 +153,17 @@ const ValueReportItem = () => {
       const rec = payload.record ?? null;
       setRecord(rec);
       setFulfilled(Boolean(rec?.fulfilled));
+      if (rec?.authenticityReportData) {
+        const d = rec.authenticityReportData;
+        setAuthData({
+          identity: { ...DEFAULT_AUTH_DATA.identity, ...d.identity },
+          specs: d.specs ?? [],
+          markers: d.markers ?? [],
+          redFlags: { ...DEFAULT_AUTH_DATA.redFlags, ...d.redFlags },
+          verdict: { ...DEFAULT_AUTH_DATA.verdict, ...d.verdict },
+          certificateSummary: d.certificateSummary ?? '',
+        });
+      }
       return rec;
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to load value report.');
@@ -200,6 +255,91 @@ const ValueReportItem = () => {
       setSaveMessage({ type: 'error', text: 'Failed to save.' });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // ── Authenticity report row helpers ─────────────────────────────────────
+  const addSpecRow = () => setAuthData((prev) => ({ ...prev, specs: [...prev.specs, { label: '', expected: '', observed: '' }] }));
+  const updateSpecRow = (idx: number, field: keyof SpecRow, value: string) =>
+    setAuthData((prev) => ({ ...prev, specs: prev.specs.map((r, i) => (i === idx ? { ...r, [field]: value } : r)) }));
+  const removeSpecRow = (idx: number) => setAuthData((prev) => ({ ...prev, specs: prev.specs.filter((_, i) => i !== idx) }));
+
+  const addMarkerRow = () => setAuthData((prev) => ({ ...prev, markers: [...prev.markers, { marker: '', status: 'consistent', note: '' }] }));
+  const updateMarkerRow = (idx: number, field: keyof MarkerRow, value: string) =>
+    setAuthData((prev) => ({ ...prev, markers: prev.markers.map((r, i) => (i === idx ? { ...r, [field]: value } : r)) }));
+  const removeMarkerRow = (idx: number) => setAuthData((prev) => ({ ...prev, markers: prev.markers.filter((_, i) => i !== idx) }));
+
+  const addRedFlagRow = () =>
+    setAuthData((prev) => ({ ...prev, redFlags: { ...prev.redFlags, items: [...prev.redFlags.items, { description: '', severity: 'minor' }] } }));
+  const updateRedFlagRow = (idx: number, field: keyof RedFlagRow, value: string) =>
+    setAuthData((prev) => ({
+      ...prev,
+      redFlags: { ...prev.redFlags, items: prev.redFlags.items.map((r, i) => (i === idx ? { ...r, [field]: value } : r)) },
+    }));
+  const removeRedFlagRow = (idx: number) =>
+    setAuthData((prev) => ({ ...prev, redFlags: { ...prev.redFlags, items: prev.redFlags.items.filter((_, i) => i !== idx) } }));
+
+  const handleSaveAuthDraft = async () => {
+    if (!id) return;
+    setIsSavingDraft(true);
+    setDraftMessage(null);
+    try {
+      const res = await fetch(`/api/admin-v2/value-reports/${encodeURIComponent(id)}/authenticity-draft`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: authData }),
+      });
+      if (!res.ok) throw new Error('Save failed.');
+      setDraftMessage({ type: 'success', text: 'Draft saved.' });
+    } catch {
+      setDraftMessage({ type: 'error', text: 'Failed to save draft.' });
+    } finally {
+      setIsSavingDraft(false);
+    }
+  };
+
+  const handlePreviewAuthReport = async () => {
+    if (!id) return;
+    setIsPreviewing(true);
+    setPreviewError('');
+    try {
+      const res = await fetch(`/api/admin-v2/value-reports/${encodeURIComponent(id)}/authenticity-preview`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: authData }),
+      });
+      const payload = (await res.json()) as { html?: string; message?: string };
+      if (!res.ok || !payload.html) throw new Error(payload.message || 'Preview failed.');
+      const blobUrl = URL.createObjectURL(new Blob([payload.html], { type: 'text/html' }));
+      window.open(blobUrl, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      setPreviewError(error instanceof Error ? error.message : 'Preview failed.');
+    } finally {
+      setIsPreviewing(false);
+    }
+  };
+
+  const handleSendAuthReport = async () => {
+    if (!id) return;
+    setIsSending(true);
+    setSendError('');
+    try {
+      const res = await fetch(`/api/admin-v2/value-reports/${encodeURIComponent(id)}/authenticity-send`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: authData }),
+      });
+      const payload = (await res.json()) as { ok?: boolean; message?: string };
+      if (!res.ok || !payload.ok) throw new Error(payload.message || 'Send failed.');
+      setSendConfirmOpen(false);
+      await loadRecord(true);
+    } catch (error) {
+      setSendError(error instanceof Error ? error.message : 'Send failed.');
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -443,6 +583,256 @@ const ValueReportItem = () => {
               </Grid>
             )}
 
+            {/* Complete Authenticity Report — human-forward, zero-AI */}
+            {record.type === 'AUTHENTICITY' ? (
+              <Grid size={12}>
+                <Paper variant="outlined" sx={{ p: 3 }}>
+                  <Typography variant="h6" sx={{ mb: 2 }}>Complete Authenticity Report</Typography>
+
+                  <Typography variant="overline" sx={{ color: 'text.secondary' }}>01 · Identity</Typography>
+                  <Grid container spacing={2} sx={{ mt: 0.5, mb: 3 }}>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <TextField
+                        fullWidth
+                        label="Model Confirmed"
+                        value={authData.identity.modelConfirmed}
+                        onChange={(e) => setAuthData((p) => ({ ...p, identity: { ...p.identity, modelConfirmed: e.target.value } }))}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <TextField
+                        fullWidth
+                        label="Year Confirmed"
+                        value={authData.identity.yearConfirmed}
+                        onChange={(e) => setAuthData((p) => ({ ...p, identity: { ...p.identity, yearConfirmed: e.target.value } }))}
+                      />
+                    </Grid>
+                    <Grid size={12}>
+                      <TextField
+                        fullWidth
+                        label="Build / Variant Notes"
+                        value={authData.identity.variantNotes}
+                        onChange={(e) => setAuthData((p) => ({ ...p, identity: { ...p.identity, variantNotes: e.target.value } }))}
+                      />
+                    </Grid>
+                    <Grid size={12}>
+                      <TextField
+                        fullWidth
+                        multiline
+                        minRows={2}
+                        label="Confidence Statement"
+                        value={authData.identity.confidenceStatement}
+                        onChange={(e) => setAuthData((p) => ({ ...p, identity: { ...p.identity, confidenceStatement: e.target.value } }))}
+                      />
+                    </Grid>
+                  </Grid>
+
+                  <Divider sx={{ mb: 3 }} />
+
+                  <Typography variant="overline" sx={{ color: 'text.secondary' }}>03 · Specifications</Typography>
+                  <Stack spacing={1.5} sx={{ mt: 1, mb: 2 }}>
+                    {authData.specs.map((row, idx) => (
+                      <Stack key={idx} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                        <TextField label="Spec" value={row.label} onChange={(e) => updateSpecRow(idx, 'label', e.target.value)} sx={{ flex: 1 }} />
+                        <TextField label="Expected" value={row.expected} onChange={(e) => updateSpecRow(idx, 'expected', e.target.value)} sx={{ flex: 1 }} />
+                        <TextField label="Observed" value={row.observed} onChange={(e) => updateSpecRow(idx, 'observed', e.target.value)} sx={{ flex: 1 }} />
+                        <IconButton size="small" color="error" onClick={() => removeSpecRow(idx)}>
+                          <IconifyIcon icon="material-symbols:delete-outline-rounded" fontSize={18} />
+                        </IconButton>
+                      </Stack>
+                    ))}
+                  </Stack>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<IconifyIcon icon="material-symbols:add-rounded" fontSize={16} />}
+                    onClick={addSpecRow}
+                  >
+                    Add Spec
+                  </Button>
+
+                  <Divider sx={{ my: 3 }} />
+
+                  <Typography variant="overline" sx={{ color: 'text.secondary' }}>04 · Authenticity Markers</Typography>
+                  <Stack spacing={1.5} sx={{ mt: 1, mb: 2 }}>
+                    {authData.markers.map((row, idx) => (
+                      <Stack key={idx} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                        <TextField label="Marker" value={row.marker} onChange={(e) => updateMarkerRow(idx, 'marker', e.target.value)} sx={{ flex: 1 }} />
+                        <FormControl sx={{ minWidth: 190 }}>
+                          <InputLabel>Status</InputLabel>
+                          <Select
+                            label="Status"
+                            value={row.status}
+                            onChange={(e) => updateMarkerRow(idx, 'status', e.target.value)}
+                          >
+                            <MenuItem value="consistent">Consistent</MenuItem>
+                            <MenuItem value="inconsistent">Inconsistent</MenuItem>
+                            <MenuItem value="unable_to_verify">Unable to Verify</MenuItem>
+                          </Select>
+                        </FormControl>
+                        <TextField label="Note" value={row.note} onChange={(e) => updateMarkerRow(idx, 'note', e.target.value)} sx={{ flex: 2 }} />
+                        <IconButton size="small" color="error" onClick={() => removeMarkerRow(idx)}>
+                          <IconifyIcon icon="material-symbols:delete-outline-rounded" fontSize={18} />
+                        </IconButton>
+                      </Stack>
+                    ))}
+                  </Stack>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<IconifyIcon icon="material-symbols:add-rounded" fontSize={16} />}
+                    onClick={addMarkerRow}
+                  >
+                    Add Marker
+                  </Button>
+
+                  <Divider sx={{ my: 3 }} />
+
+                  <Typography variant="overline" sx={{ color: 'text.secondary' }}>05 · Red Flags &amp; Inconsistencies</Typography>
+                  <FormControlLabel
+                    sx={{ display: 'block', mt: 1 }}
+                    control={
+                      <Switch
+                        checked={authData.redFlags.none}
+                        onChange={(e) => setAuthData((p) => ({ ...p, redFlags: { ...p.redFlags, none: e.target.checked } }))}
+                      />
+                    }
+                    label="No red flags found"
+                  />
+                  {!authData.redFlags.none ? (
+                    <>
+                      <Stack spacing={1.5} sx={{ mt: 1, mb: 2 }}>
+                        {authData.redFlags.items.map((row, idx) => (
+                          <Stack key={idx} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                            <TextField
+                              label="Description"
+                              value={row.description}
+                              onChange={(e) => updateRedFlagRow(idx, 'description', e.target.value)}
+                              sx={{ flex: 1 }}
+                            />
+                            <FormControl sx={{ minWidth: 160 }}>
+                              <InputLabel>Severity</InputLabel>
+                              <Select
+                                label="Severity"
+                                value={row.severity}
+                                onChange={(e) => updateRedFlagRow(idx, 'severity', e.target.value)}
+                              >
+                                <MenuItem value="minor">Minor</MenuItem>
+                                <MenuItem value="moderate">Moderate</MenuItem>
+                                <MenuItem value="major">Major</MenuItem>
+                              </Select>
+                            </FormControl>
+                            <IconButton size="small" color="error" onClick={() => removeRedFlagRow(idx)}>
+                              <IconifyIcon icon="material-symbols:delete-outline-rounded" fontSize={18} />
+                            </IconButton>
+                          </Stack>
+                        ))}
+                      </Stack>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<IconifyIcon icon="material-symbols:add-rounded" fontSize={16} />}
+                        onClick={addRedFlagRow}
+                      >
+                        Add Red Flag
+                      </Button>
+                    </>
+                  ) : null}
+
+                  <Divider sx={{ my: 3 }} />
+
+                  <Typography variant="overline" sx={{ color: 'text.secondary' }}>06 · Expert Verdict</Typography>
+                  <Grid container spacing={2} sx={{ mt: 0.5, mb: 3 }}>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <FormControl fullWidth>
+                        <InputLabel>Determination</InputLabel>
+                        <Select
+                          label="Determination"
+                          value={authData.verdict.determination}
+                          onChange={(e) =>
+                            setAuthData((p) => ({ ...p, verdict: { ...p.verdict, determination: e.target.value as VerdictValue } }))
+                          }
+                        >
+                          <MenuItem value="genuine">Genuine</MenuItem>
+                          <MenuItem value="likely_genuine">Likely Genuine</MenuItem>
+                          <MenuItem value="inconclusive">Inconclusive</MenuItem>
+                          <MenuItem value="likely_not_authentic">Likely Not Authentic</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <FormControl fullWidth>
+                        <InputLabel>Confidence</InputLabel>
+                        <Select
+                          label="Confidence"
+                          value={authData.verdict.confidence}
+                          onChange={(e) =>
+                            setAuthData((p) => ({ ...p, verdict: { ...p.verdict, confidence: e.target.value as Confidence } }))
+                          }
+                        >
+                          <MenuItem value="high">High</MenuItem>
+                          <MenuItem value="medium">Medium</MenuItem>
+                          <MenuItem value="low">Low</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid size={12}>
+                      <TextField
+                        fullWidth
+                        multiline
+                        minRows={3}
+                        label="Reasoning"
+                        value={authData.verdict.reasoning}
+                        onChange={(e) => setAuthData((p) => ({ ...p, verdict: { ...p.verdict, reasoning: e.target.value } }))}
+                      />
+                    </Grid>
+                    <Grid size={12}>
+                      <TextField
+                        fullWidth
+                        multiline
+                        minRows={2}
+                        label="What Would Raise Confidence (optional)"
+                        value={authData.verdict.raiseConfidenceNote}
+                        onChange={(e) => setAuthData((p) => ({ ...p, verdict: { ...p.verdict, raiseConfidenceNote: e.target.value } }))}
+                      />
+                    </Grid>
+                  </Grid>
+
+                  <Divider sx={{ mb: 3 }} />
+
+                  <Typography variant="overline" sx={{ color: 'text.secondary' }}>07 · Certificate &amp; Summary</Typography>
+                  <Box sx={{ mt: 1, mb: 3 }}>
+                    <TextField
+                      fullWidth
+                      multiline
+                      minRows={3}
+                      label="Certificate Summary"
+                      value={authData.certificateSummary}
+                      onChange={(e) => setAuthData((p) => ({ ...p, certificateSummary: e.target.value }))}
+                    />
+                  </Box>
+
+                  <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
+                    <Button variant="outlined" onClick={() => void handleSaveAuthDraft()} disabled={isSavingDraft}>
+                      {isSavingDraft ? 'Saving…' : 'Save Draft'}
+                    </Button>
+                    <Button variant="outlined" onClick={() => void handlePreviewAuthReport()} disabled={isPreviewing}>
+                      {isPreviewing ? 'Rendering…' : 'Preview Report'}
+                    </Button>
+                    <Button variant="contained" color="primary" onClick={() => setSendConfirmOpen(true)}>
+                      Send to Customer
+                    </Button>
+                    {draftMessage ? (
+                      <Typography variant="body2" color={draftMessage.type === 'success' ? 'success.main' : 'error.main'}>
+                        {draftMessage.text}
+                      </Typography>
+                    ) : null}
+                    {previewError ? <Typography variant="body2" color="error.main">{previewError}</Typography> : null}
+                  </Stack>
+                </Paper>
+              </Grid>
+            ) : null}
+
             {/* Status */}
             <Grid size={12}>
               <Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: 0.6 }}>
@@ -635,6 +1025,34 @@ const ValueReportItem = () => {
             startIcon={isDeleting ? <CircularProgress size={16} color="inherit" /> : undefined}
           >
             {isDeleting ? 'Deleting…' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Send authenticity report confirm dialog */}
+      <Dialog open={sendConfirmOpen} onClose={() => !isSending && setSendConfirmOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Send Report to Customer?</DialogTitle>
+        <DialogContent>
+          <Typography>
+            This emails the finished authenticity report to {record?.email || 'the customer'} right now. Make sure
+            you've previewed it first — this cannot be unsent.
+          </Typography>
+          {sendError ? (
+            <Alert severity="error" sx={{ mt: 2 }}>{sendError}</Alert>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSendConfirmOpen(false)} disabled={isSending}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => void handleSendAuthReport()}
+            disabled={isSending}
+            startIcon={isSending ? <CircularProgress size={16} color="inherit" /> : undefined}
+          >
+            {isSending ? 'Sending…' : 'Send to Customer'}
           </Button>
         </DialogActions>
       </Dialog>
