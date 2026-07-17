@@ -19,12 +19,13 @@ export async function dbInsertGuitarEvaluation(env: Env, data: {
   email: string;
   serialDecodeId: number | null;
   type: 'VALUE' | 'AUTHENTICITY';
+  curiosityReason: string;
 }): Promise<number | null> {
   const result = await env.DB.prepare(`
     INSERT INTO guitar_evaluations (
       serial_number, brand, brand_other, model, includes_case, color_finish,
-      location, note, damage, first_name, last_name, email, serial_decode_event_id, type, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      location, note, damage, first_name, last_name, email, serial_decode_event_id, type, curiosity_reason, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     data.serialNumber,
     data.brand,
@@ -40,6 +41,7 @@ export async function dbInsertGuitarEvaluation(env: Env, data: {
     data.email,
     data.serialDecodeId,
     data.type,
+    data.curiosityReason,
     new Date().toISOString(),
   ).run();
   return (result.meta?.last_row_id as number) ?? null;
@@ -64,15 +66,16 @@ export async function handleGuitarEvaluationPaymentIntent(request: Request, env:
   }
 
   const evalRow = await env.DB.prepare(
-    'SELECT email FROM guitar_evaluations WHERE id = ?'
-  ).bind(evaluationId).first<{ email: string | null }>();
+    'SELECT email, type FROM guitar_evaluations WHERE id = ?'
+  ).bind(evaluationId).first<{ email: string | null; type: string | null }>();
 
+  const isAuthenticity = evalRow?.type === 'AUTHENTICITY';
   const params = new URLSearchParams({
-    amount: '299',
+    amount: isAuthenticity ? '1200' : '299',
     currency: 'usd',
     'metadata[evaluation_id]': String(evaluationId),
     'metadata[source]': 'guitar_evaluation',
-    description: 'Comprehensive Guitar Evaluation Report',
+    description: isAuthenticity ? 'Comprehensive Guitar Authenticity Report' : 'Comprehensive Guitar Evaluation Report',
   });
   if (evalRow?.email) params.set('receipt_email', evalRow.email);
   params.append('payment_method_types[]', 'card');
@@ -192,10 +195,29 @@ export async function handleGuitarEvaluationSubmit(request: Request, env: Env): 
     return jsonResponse({ message: 'Invalid request body.' }, 400);
   }
 
-  const { serialNumber, brand, brandOther, model, includesCase, colorFinish, location, note, damage, firstName, lastName, email, serialDecodeId, type } = body ?? {};
+  const { serialNumber, brand, brandOther, model, includesCase, colorFinish, location, note, damage, firstName, lastName, email, serialDecodeId, type: rawType, curiosityReason } = body ?? {};
 
-  if (!brand || !includesCase || !note || !damage) {
+  if (!brand || !includesCase || !note) {
     return jsonResponse({ message: 'Missing required fields.' }, 400);
+  }
+
+  const type: 'VALUE' | 'AUTHENTICITY' = rawType === 'AUTHENTICITY' ? 'AUTHENTICITY' : 'VALUE';
+
+  let finalDamage: string;
+  let finalCuriosityReason: string;
+  if (type === 'AUTHENTICITY') {
+    const trimmedReason = typeof curiosityReason === 'string' ? curiosityReason.trim() : '';
+    if (!trimmedReason) {
+      return jsonResponse({ message: 'Missing required fields.' }, 400);
+    }
+    finalDamage = 'N/A';
+    finalCuriosityReason = trimmedReason;
+  } else {
+    if (!damage) {
+      return jsonResponse({ message: 'Missing required fields.' }, 400);
+    }
+    finalDamage = damage;
+    finalCuriosityReason = 'N/A';
   }
 
   const id = await dbInsertGuitarEvaluation(env, {
@@ -207,12 +229,13 @@ export async function handleGuitarEvaluationSubmit(request: Request, env: Env): 
     colorFinish: colorFinish ?? null,
     location: location ?? null,
     note,
-    damage,
+    damage: finalDamage,
     firstName: firstName ?? '',
     lastName: lastName ?? '',
     email: email ?? '',
     serialDecodeId: Number.isInteger(serialDecodeId) && serialDecodeId > 0 ? serialDecodeId : null,
-    type: type === 'AUTHENTICITY' ? 'AUTHENTICITY' : 'VALUE',
+    type,
+    curiosityReason: finalCuriosityReason,
   });
 
   if (!id) {
@@ -252,6 +275,7 @@ export async function handleGuitarEvaluationUpdate(request: Request, evaluationI
     lastName: 'last_name',
     email: 'email',
     serialDecodeId: 'serial_decode_event_id',
+    curiosityReason: 'curiosity_reason',
   };
 
   const setClauses: string[] = [];
@@ -297,7 +321,7 @@ export async function handleGuitarEvaluationUploadImages(request: Request, evalu
     .filter((entry): entry is File => entry instanceof File && entry.size > 0);
 
   if (files.length === 0) return jsonResponse({ ok: true, keys: [] });
-  if (files.length > 11) return jsonResponse({ message: 'Maximum 11 photos allowed.' }, 400);
+  if (files.length > 20) return jsonResponse({ message: 'Maximum 20 photos allowed.' }, 400);
 
   for (const file of files) {
     if (!file.type.startsWith('image/')) {

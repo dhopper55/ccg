@@ -2462,7 +2462,7 @@ async function handlePay() {
     });
     if (!confirmRes.ok) {
       const confirmErr = await confirmRes.json().catch(() => ({}));
-      errEl.textContent = (confirmErr as any)?.message || 'Payment verification failed. Please contact us.';
+      errEl.textContent = confirmErr?.message || 'Payment verification failed. Please contact us.';
       errEl.style.display = 'block';
       payBtn.disabled = false;
       payBtn.textContent = 'Pay $2.99 →';

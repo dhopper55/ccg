@@ -1877,11 +1877,11 @@ footer {
           </div>
           <div class="step-tab" id="tab-2">
             <div class="step-tab-num">2</div>
-            <div class="step-tab-label">Contact</div>
+            <div class="step-tab-label">Photos</div>
           </div>
           <div class="step-tab" id="tab-3">
             <div class="step-tab-num">3</div>
-            <div class="step-tab-label">Photos</div>
+            <div class="step-tab-label">Contact</div>
           </div>
           <div class="step-tab" id="tab-4">
             <div class="step-tab-num">4</div>
@@ -1977,22 +1977,76 @@ footer {
           </div>
 
           <div class="field-row one">
-            <div class="field" id="wrap-damage">
-              <label>Any Damage Worth Noting? <span class="req">*</span> <span class="help-icon" data-tooltip-key="damage">?</span></label>
-              <textarea id="field-damage" placeholder="Finish cracks, dings, headstock repairs, fret wear, tuner issues, electronics problems… (enter 'None' if pristine)" style="min-height:72px"></textarea>
-              <span class="field-err-msg">Damage field is required (enter 'None' if pristine)</span>
+            <div class="field" id="wrap-curiosity">
+              <label>What Made You Curious About This Guitar's Authenticity? <span class="req">*</span> <span class="help-icon" data-tooltip-key="curiosity">?</span></label>
+              <textarea id="field-curiosity" placeholder="e.g. Serial number doesn't match what I'd expect, price seemed too good to be true, a friend/tech questioned it, logo or hardware looks off, no paperwork included…" style="min-height:72px"></textarea>
+              <span class="field-err-msg">Please tell us what prompted this check</span>
             </div>
           </div>
 
           <div class="form-actions">
             <button class="btn-next" onclick="goToStep(2)">
-              Continue to Contact Info →
+              Continue to Photos →
             </button>
           </div>
         </div>
 
-        <!-- STEP 2: Contact Info -->
+        <!-- STEP 2: Photos -->
         <div class="step-panel" id="step-2">
+          <div class="form-body-title">Upload Photos</div>
+          <div class="form-body-sub">At least one photo is required before you can continue. Up to 20 photos accepted.</div>
+
+          <div class="photos-alert">
+            <strong>Clear, well-lit photos matter more than anything else in this report.</strong> Blurry or dark photos are the #1 reason a report comes back inconclusive instead of certain. Please include close-ups of the headstock (front and back), the serial number, any labels or stamps inside the body or on the neck plate, hardware markings, and anything else that identifies the instrument. When in doubt, send more photos, not fewer.
+          </div>
+
+          <div class="upload-zone" id="upload-zone" onclick="document.getElementById('photo-upload').click()">
+            <div class="upload-icon">📷</div>
+            <div class="upload-title" id="upload-title">Drag photos here, or click to browse</div>
+            <div class="upload-sub" id="upload-sub">JPEG, PNG, HEIC · Up to 20 photos · 20MB each</div>
+            <input type="file" id="photo-upload" multiple accept="image/*">
+          </div>
+
+          <div class="photo-previews" id="photo-previews"></div>
+          <div class="photo-err-msg" id="photo-err-msg" style="display:none">At least one photo is required to continue.</div>
+
+          <div class="photo-guide">
+            <div class="photo-guide-hd">What to photograph</div>
+            <div class="photo-guide-body">
+              These five shots are the minimum starting point — for an authenticity check, more is always better. Shoot in natural light when possible, avoid flash glare, and get close enough that fine details (logo font, serial digits, hardware stamps, wood grain) are actually legible, not just visible. Click any example below to see a larger version.
+            </div>
+            <div class="photo-guide-grid">
+              <div class="photo-ref-card" onclick="openLightbox('/images/evaluator_recommended_photos/front_full_body.jpeg','Front full-body')">
+                <img src="/images/evaluator_recommended_photos/front_full_body.jpeg" alt="Front full-body example" loading="lazy">
+                <div class="photo-ref-label">Front full-body</div>
+              </div>
+              <div class="photo-ref-card" onclick="openLightbox('/images/evaluator_recommended_photos/back_full_body.jpeg','Back full-body')">
+                <img src="/images/evaluator_recommended_photos/back_full_body.jpeg" alt="Back full-body example" loading="lazy">
+                <div class="photo-ref-label">Back full-body</div>
+              </div>
+              <div class="photo-ref-card" onclick="openLightbox('/images/evaluator_recommended_photos/headstock_front.jpeg','Headstock front')">
+                <img src="/images/evaluator_recommended_photos/headstock_front.jpeg" alt="Headstock front example" loading="lazy">
+                <div class="photo-ref-label">Headstock front</div>
+              </div>
+              <div class="photo-ref-card" onclick="openLightbox('/images/evaluator_recommended_photos/headstock_back.jpeg','Headstock back (serial #)')">
+                <img src="/images/evaluator_recommended_photos/headstock_back.jpeg" alt="Headstock back / serial number" loading="lazy">
+                <div class="photo-ref-label">Headstock back (serial #)</div>
+              </div>
+              <div class="photo-ref-card" onclick="openLightbox('/images/evaluator_recommended_photos/damage.jpeg','Any damage or wear')">
+                <img src="/images/evaluator_recommended_photos/damage.jpeg" alt="Damage / wear example" loading="lazy">
+                <div class="photo-ref-label">Any damage / wear</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-actions" style="margin-top:20px">
+            <button class="btn-back" onclick="goToStep(1)">← Back</button>
+            <button class="btn-next" onclick="void goToStep(3)">Continue to Contact Info →</button>
+          </div>
+        </div>
+
+        <!-- STEP 3: Contact Info -->
+        <div class="step-panel" id="step-3">
           <div class="form-body-title">Contact Information</div>
           <div class="form-body-sub">Where should we send your report?</div>
 
@@ -2029,58 +2083,8 @@ footer {
           </div>
 
           <div class="form-actions">
-            <button class="btn-back" onclick="goToStep(1)">← Back</button>
-            <button class="btn-next" onclick="goToStep(3)">Continue to Photos →</button>
-          </div>
-        </div>
-
-        <!-- STEP 3: Photos -->
-        <div class="step-panel" id="step-3">
-          <div class="form-body-title">Upload Photos</div>
-          <div class="form-body-sub">At least one photo is required before you can proceed to payment. Photo quality directly impacts the accuracy of your report. We recommend all 5 shots shown below. Up to 5 photos accepted.</div>
-
-          <div class="upload-zone" id="upload-zone" onclick="document.getElementById('photo-upload').click()">
-            <div class="upload-icon">📷</div>
-            <div class="upload-title" id="upload-title">Drag photos here, or click to browse</div>
-            <div class="upload-sub" id="upload-sub">JPEG, PNG, HEIC · Up to 5 photos · 20MB each</div>
-            <input type="file" id="photo-upload" multiple accept="image/*">
-          </div>
-
-          <div class="photo-previews" id="photo-previews"></div>
-          <div class="photo-err-msg" id="photo-err-msg" style="display:none">At least one photo is required to continue.</div>
-
-          <div class="photo-guide">
-            <div class="photo-guide-hd">What to photograph</div>
-            <div class="photo-guide-body">
-              These five shots give us everything needed to accurately identify and value your guitar. Shoot in natural light when possible, avoid flash glare, and include a damage photo even if wear is minor — condition has a major impact on value. Click any example below to see a larger version.
-            </div>
-            <div class="photo-guide-grid">
-              <div class="photo-ref-card" onclick="openLightbox('/images/evaluator_recommended_photos/front_full_body.jpeg','Front full-body')">
-                <img src="/images/evaluator_recommended_photos/front_full_body.jpeg" alt="Front full-body example" loading="lazy">
-                <div class="photo-ref-label">Front full-body</div>
-              </div>
-              <div class="photo-ref-card" onclick="openLightbox('/images/evaluator_recommended_photos/back_full_body.jpeg','Back full-body')">
-                <img src="/images/evaluator_recommended_photos/back_full_body.jpeg" alt="Back full-body example" loading="lazy">
-                <div class="photo-ref-label">Back full-body</div>
-              </div>
-              <div class="photo-ref-card" onclick="openLightbox('/images/evaluator_recommended_photos/headstock_front.jpeg','Headstock front')">
-                <img src="/images/evaluator_recommended_photos/headstock_front.jpeg" alt="Headstock front example" loading="lazy">
-                <div class="photo-ref-label">Headstock front</div>
-              </div>
-              <div class="photo-ref-card" onclick="openLightbox('/images/evaluator_recommended_photos/headstock_back.jpeg','Headstock back (serial #)')">
-                <img src="/images/evaluator_recommended_photos/headstock_back.jpeg" alt="Headstock back / serial number" loading="lazy">
-                <div class="photo-ref-label">Headstock back (serial #)</div>
-              </div>
-              <div class="photo-ref-card" onclick="openLightbox('/images/evaluator_recommended_photos/damage.jpeg','Any damage or wear')">
-                <img src="/images/evaluator_recommended_photos/damage.jpeg" alt="Damage / wear example" loading="lazy">
-                <div class="photo-ref-label">Any damage / wear</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="form-actions" style="margin-top:20px">
             <button class="btn-back" onclick="goToStep(2)">← Back</button>
-            <button class="btn-next" onclick="void goToStep(4)">Continue to Payment →</button>
+            <button class="btn-next" onclick="goToStep(4)">Continue to Payment →</button>
           </div>
         </div>
 
@@ -2196,7 +2200,7 @@ const TOOLTIPS = {
   finish: `<strong>Color / Finish</strong><p>Helps us identify the specific variant and find accurate market comparables.</p><p>Examples: Sunburst, Black, Natural, Cherry Red, Vintage White, Lake Placid Blue, Tobacco Burst</p><p>If the finish has notable characteristics (checking, aging, custom refinish) note that here or in Guitar Notes.</p>`,
   location: `<strong>Instrument Location</strong><p>Your city or metro helps us calibrate local market pricing. Private sales in some markets run meaningfully higher or lower than national averages.</p><p>Location helps us:</p><ul><li>Estimate local/private-party value more accurately</li><li>Account for regional supply and demand</li><li>Consider shipping costs when relevant</li></ul><p>Examples: Denver, Colorado · Toronto, Ontario · Melbourne, Victoria</p><p>A general location is sufficient — no street address needed.</p>`,
   notes: `<strong>Guitar Notes</strong><p>Tell us anything you know about the guitar, even if it seems minor. Helpful information includes:</p><ul><li>Any modifications, upgrades, repairs, or replaced parts</li><li>Recent setup or maintenance work</li><li>Whether the guitar has been professionally serviced</li><li>Any accessories included</li></ul><p>If you know the history — original owner, where/when purchased, provenance — we'd love to hear it. Ownership history can make a future listing more compelling.</p>`,
-  damage: `<strong>Damage &amp; Wear</strong><p>Please describe any damage, wear, or issues. Condition has a major impact on value. Examples:</p><ul><li>Cracks, breaks, or repaired damage</li><li>Headstock repairs</li><li>Neck issues, warping, or twisting</li><li>Loose, worn, or buzzing frets</li><li>Broken or missing hardware, knobs, switches</li><li>Electrical issues, scratchy pots, weak pickups</li><li>Scratches, dents, chips, buckle rash, finish checking</li><li>High action or tuning problems</li></ul><p>Be honest — we'll factor it in accurately regardless, and buyers will find it anyway. Enter "None" if the guitar is pristine.</p>`,
+  curiosity: `<strong>What made you curious?</strong><p>This is the single most useful thing you can tell us. Examples of what prompted people to check:</p><ul><li>The serial number doesn't match the format you'd expect for this brand/year</li><li>The price seemed too good to be true</li><li>A friend, tech, or forum questioned it</li><li>The logo, font, hardware, or finish looks slightly off</li><li>Missing paperwork, case candy, or documentation that should be included</li><li>You inherited or bought it secondhand with no history</li></ul><p>Whatever raised the question for you helps our expert know exactly where to look first.</p>`,
   phone: `<strong>Phone Number</strong><p>Only used if we have a specific question about your guitar. Never used for marketing or shared with third parties.</p>`,
 };
 
@@ -2235,10 +2239,10 @@ document.addEventListener('click', () => { tt.style.opacity = '0'; });
 function validateStep1() {
   let ok = true;
   const required = [
-    { wrap: 'wrap-brand',    field: 'field-brand',    check: v => v !== '' },
-    { wrap: 'wrap-location', field: 'field-location', check: v => v.trim() !== '' },
-    { wrap: 'wrap-notes',    field: 'field-notes',    check: v => v.trim() !== '' },
-    { wrap: 'wrap-damage',   field: 'field-damage',   check: v => v.trim() !== '' },
+    { wrap: 'wrap-brand',     field: 'field-brand',     check: v => v !== '' },
+    { wrap: 'wrap-location',  field: 'field-location',  check: v => v.trim() !== '' },
+    { wrap: 'wrap-notes',     field: 'field-notes',     check: v => v.trim() !== '' },
+    { wrap: 'wrap-curiosity', field: 'field-curiosity', check: v => v.trim() !== '' },
   ];
   required.forEach(({ wrap, field, check }) => {
     const w = document.getElementById(wrap);
@@ -2249,7 +2253,7 @@ function validateStep1() {
   return ok;
 }
 
-function validateStep2() {
+function validateContactInfo() {
   let ok = true;
   const email = document.getElementById('field-email').value.trim();
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -2268,7 +2272,7 @@ function validateStep2() {
 }
 
 // Clear error on input
-['wrap-brand','wrap-location','wrap-notes','wrap-damage','wrap-firstname','wrap-lastname','wrap-email'].forEach(wrapId => {
+['wrap-brand','wrap-location','wrap-notes','wrap-curiosity','wrap-firstname','wrap-lastname','wrap-email'].forEach(wrapId => {
   const wrap = document.getElementById(wrapId);
   if (!wrap) return;
   const input = wrap.querySelector('input, select, textarea');
@@ -2316,7 +2320,8 @@ async function persistGuitarInfo() {
     colorFinish: document.getElementById('field-finish').value.trim() || null,
     location: document.getElementById('field-location').value.trim() || null,
     note: document.getElementById('field-notes').value.trim(),
-    damage: document.getElementById('field-damage').value.trim(),
+    damage: 'N/A',
+    curiosityReason: document.getElementById('field-curiosity').value.trim(),
     firstName: '', lastName: '', email: '',
     type: 'AUTHENTICITY',
   };
@@ -2470,7 +2475,7 @@ async function handlePay() {
     });
     if (!confirmRes.ok) {
       const confirmErr = await confirmRes.json().catch(() => ({}));
-      errEl.textContent = (confirmErr as any)?.message || 'Payment verification failed. Please contact us.';
+      errEl.textContent = confirmErr?.message || 'Payment verification failed. Please contact us.';
       errEl.style.display = 'block';
       payBtn.disabled = false;
       payBtn.textContent = 'Pay $12 →';
@@ -2490,19 +2495,11 @@ async function goToStep(n) {
       const btn = document.querySelector('#step-1 .btn-next');
       btn.disabled = true; btn.textContent = 'Saving…';
       try { await persistGuitarInfo(); }
-      catch (e) { alert(e.message); btn.disabled = false; btn.textContent = 'Continue to Contact Info →'; return; }
-      btn.disabled = false; btn.textContent = 'Continue to Contact Info →';
-    }
-    if (currentStep === 2) {
-      if (!validateStep2()) return;
-      const btn = document.querySelector('#step-2 .btn-next');
-      btn.disabled = true; btn.textContent = 'Saving…';
-      try { await persistContactInfo(); }
       catch (e) { alert(e.message); btn.disabled = false; btn.textContent = 'Continue to Photos →'; return; }
       btn.disabled = false; btn.textContent = 'Continue to Photos →';
     }
-    if (currentStep === 3) {
-      // Require at least 1 photo before proceeding to payment
+    if (currentStep === 2) {
+      // Require at least 1 photo before proceeding to contact info
       const errEl = document.getElementById('photo-err-msg');
       if (photoFiles.length === 0) {
         errEl.style.display = 'block';
@@ -2510,8 +2507,8 @@ async function goToStep(n) {
         return;
       }
       errEl.style.display = 'none';
-      // Upload photos now, before payment
-      const btn = document.querySelector('#step-3 .btn-next');
+      // Upload photos now
+      const btn = document.querySelector('#step-2 .btn-next');
       btn.disabled = true; btn.textContent = 'Uploading…';
       try {
         if (evaluationId) {
@@ -2522,9 +2519,17 @@ async function goToStep(n) {
         }
       } catch (e) {
         alert(e.message);
-        btn.disabled = false; btn.textContent = 'Continue to Payment →';
+        btn.disabled = false; btn.textContent = 'Continue to Contact Info →';
         return;
       }
+      btn.disabled = false; btn.textContent = 'Continue to Contact Info →';
+    }
+    if (currentStep === 3) {
+      if (!validateContactInfo()) return;
+      const btn = document.querySelector('#step-3 .btn-next');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      try { await persistContactInfo(); }
+      catch (e) { alert(e.message); btn.disabled = false; btn.textContent = 'Continue to Payment →'; return; }
       btn.disabled = false; btn.textContent = 'Continue to Payment →';
     }
   }
@@ -2557,15 +2562,15 @@ function renderPhotoPreviews() {
     container.style.display = 'none';
     zone.classList.remove('has-files');
     titleEl.textContent = 'Drag photos here, or click to browse';
-    subEl.textContent = 'JPEG, PNG, HEIC · Up to 5 photos · 20MB each';
+    subEl.textContent = 'JPEG, PNG, HEIC · Up to 20 photos · 20MB each';
     return;
   }
 
   container.style.display = 'flex';
   zone.classList.add('has-files');
-  const remaining = 5 - photoFiles.length;
+  const remaining = 20 - photoFiles.length;
   titleEl.textContent = photoFiles.length + ' photo' + (photoFiles.length > 1 ? 's' : '') + ' selected';
-  subEl.textContent = remaining > 0 ? 'Click to add more (' + remaining + ' remaining)' : 'Maximum 5 photos reached';
+  subEl.textContent = remaining > 0 ? 'Click to add more (' + remaining + ' remaining)' : 'Maximum 20 photos reached';
 
   photoFiles.forEach((file, idx) => {
     const url = URL.createObjectURL(file);
@@ -2589,7 +2594,7 @@ function addPhotoFiles(newFiles) {
   const errEl = document.getElementById('photo-err-msg');
   errEl.style.display = 'none';
   for (const f of newFiles) {
-    if (photoFiles.length >= 5) break;
+    if (photoFiles.length >= 20) break;
     if (!f.type.startsWith('image/')) continue;
     photoFiles.push(f);
   }
