@@ -13,14 +13,36 @@ import { DecodeResult, GuitarInfo } from '../types.js';
  * - Chinese CO/O/OCO variant prefix (single-digit year + 6-digit sequence)
  * - 1980s-1990s numeric formats
  * - Short serial numbers (4-5 digits) from 1970s-1980s
+ * - Trailing model-feature suffix (e.g., -S Solid Top, -E Electric, -S.E both): base serial decoded normally, suffix noted separately
  *
  * Note: Pre-1978 guitars have no reliable serial number system.
  * Washburn has used many formats over the years (4-12 characters).
  */
 
+const WASHBURN_SUFFIX_MEANINGS: Record<string, string> = {
+  S: 'Solid Top (solid spruce or cedar top, rather than laminate)',
+  E: 'Electric (built-in pickup/preamp system, acoustic-electric)',
+};
+
 export function decodeWashburn(serial: string): DecodeResult {
   const cleaned = serial.trim().toUpperCase();
   const normalized = cleaned.replace(/[\s-]/g, '');
+
+  // Trailing model-feature suffix (e.g., -S for Solid Top, -E for Electric, -S.E for both):
+  // strip the suffix, decode the base numeric serial normally, and note what the suffix means.
+  const suffixMatch = normalized.match(/^(\d{7,10})([A-Z](?:\.[A-Z])*)$/);
+  if (suffixMatch) {
+    const [, base, suffixCodes] = suffixMatch;
+    const baseResult = decodeWashburn(base);
+    if (baseResult.success && baseResult.info) {
+      const codes = suffixCodes.split('.');
+      const meanings = codes.map((code) => WASHBURN_SUFFIX_MEANINGS[code] ?? `${code} (unrecognized suffix code)`);
+      const suffixNote = `Suffix "-${suffixCodes}" indicates: ${meanings.join(', ')}.`;
+      baseResult.info.notes = baseResult.info.notes ? `${baseResult.info.notes} ${suffixNote}` : suffixNote;
+      baseResult.info.serialNumber = serial.trim();
+    }
+    return baseResult;
+  }
 
   // Samick Indonesia: SI prefix
   if (/^SI\d{7,9}$/.test(normalized)) {

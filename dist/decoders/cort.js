@@ -14,6 +14,7 @@
  * - 1990s format: YMMXXXX (early 1990s-1999)
  * - R prefix year/sequence format: RYYXXXXX
  * - W.O. prefix: 1970s-1980s Korean production
+ * - WMI Korea: W + month-letter(A-L) + YY + 3-digit sequence (shared OEM factory with Schecter, PRS SE, ESP LTD)
  * - Indonesian production: Various prefixes (AI, I, IA, IIA, IC, ICS, ICSE, etc.)
  * - Chinese production: COS, COB prefixes
  *
@@ -43,6 +44,10 @@ export function decodeCort(serial) {
     // W.O./W0 prefix - vintage 1970s/1980s Korean production
     if (/^W(?:\.?O\.?|0)\s*\d+/i.test(cleaned)) {
         return decodeWOPrefix(cleaned);
+    }
+    // WMI Korea: W + month-letter(A-L) + YY + 3-digit sequence (e.g. WD20185 = April 2020, seq 185)
+    if (/^W[A-L]\d{5}$/.test(normalized)) {
+        return decodeWMIKoreaMonthLetter(normalized);
     }
     // Indonesian Cort factory: ICSE prefix (IC + SE production line/series)
     if (/^ICSE\d{8}$/.test(normalized)) {
@@ -187,7 +192,7 @@ export function decodeCort(serial) {
     }
     return {
         success: false,
-        error: 'Unable to decode this Cort serial number. The format was not recognized. Common formats include: YYMMXXXX (8 digits, 2000-2004), YYMMXXXXX (9 digits, 2005+), YY + 10-digit tracking codes, RYYXXXXX (R prefix year/sequence), YMMXXXX (7 digits, 1990s), or W.O. prefix (1970s-80s). Note: Pre-mid-1990s guitars often have randomly generated serial numbers.',
+        error: 'Unable to decode this Cort serial number. The format was not recognized. Common formats include: YYMMXXXX (8 digits, 2000-2004), YYMMXXXXX (9 digits, 2005+), YY + 10-digit tracking codes, RYYXXXXX (R prefix year/sequence), YMMXXXX (7 digits, 1990s), W.O. prefix (1970s-80s), or WMI Korea (W + month-letter + YY + sequence). Note: Pre-mid-1990s guitars often have randomly generated serial numbers.',
     };
 }
 // Modern two-letter factory/line prefix: C[A-Z] + YYMM + sequence
@@ -648,6 +653,54 @@ function decodeWOPrefix(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a vintage Cort W.O./W0-prefix format associated with Korean Cor-Tek production.</p><h3>How This Pattern Is Typically Read</h3><p>${prefix} is treated as a vintage Cort/Cor-Tek prefix rather than a modern date code. The era is estimated as 1984-1989. The digits after the prefix are treated as a production or batch sequence${sequenceNumber !== undefined ? ` (${sequenceNumber})` : ''}.</p><h3>What To Verify</h3><ul><li>The sequence is not a reliable exact month or day code.</li><li>This format verifies vintage Korean-era production more reliably than exact model identity.</li><li>Check the headstock logo, sticker or neck plate, country markings, and catalog features to narrow the exact model.</li></ul>`,
+    };
+}
+const CORT_MONTH_LETTERS = {
+    A: 'January', B: 'February', C: 'March', D: 'April',
+    E: 'May', F: 'June', G: 'July', H: 'August',
+    I: 'September', J: 'October', K: 'November', L: 'December',
+};
+// WMI Korea: W + month-letter(A-L) + YY + 3-digit sequence
+function decodeWMIKoreaMonthLetter(serial) {
+    const monthLetter = serial[1];
+    const yearDigits = serial.substring(2, 4);
+    const sequence = serial.substring(4);
+    const month = CORT_MONTH_LETTERS[monthLetter];
+    const year = 2000 + parseInt(yearDigits, 10);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Cort',
+        serialNumber: serial,
+        year: year.toString(),
+        month,
+        factory: 'World Musical Instruments (WMI), South Korea',
+        country: 'South Korea',
+        notes: `WMI Korea format: W + month-letter + YY + sequence. "W" identifies World Musical Instruments (WMI), a South Korean OEM manufacturer that produces guitars for Cort and several other brands (PRS SE, Schecter, ESP LTD). The letter "${monthLetter}" decodes as ${month}. The digits "${yearDigits}" decode as production year ${year}. The remaining digits are the factory production sequence for that month (${sequenceNumber}).`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'cort-wmi-korea-w-month-letter-yy-sequence',
+        patternLabel: 'Cort WMI Korea W + month-letter + YY + sequence',
+        additionalContext: {
+            title: 'Cort WMI Korea W-prefix serial',
+            summary: 'This serial matches the WMI Korea format used across several brands built at the same World Musical Instruments (WMI) contract factory in South Korea.',
+            highlights: [
+                '"W" identifies World Musical Instruments (WMI), a South Korean OEM manufacturer.',
+                `The letter "${monthLetter}" decodes as ${month}.`,
+                `The digits "${yearDigits}" decode as production year ${year}.`,
+                `The remaining digits decode as factory production sequence ${sequenceNumber} for that month.`,
+            ],
+            caveats: [
+                'WMI produces guitars for multiple brands (Cort, PRS SE, Schecter, ESP LTD) using the same serial convention, so the prefix alone does not confirm the brand.',
+                'This format identifies date and factory, not the exact model.',
+            ],
+            verificationTips: [
+                'Check the headstock or interior label for the Cort brand name and country-of-origin marking.',
+                `Compare the model against Cort catalog specs for ${year}.`,
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches the WMI Korea format used across several brands built at the same World Musical Instruments (WMI) contract factory in South Korea.</p><h3>How This Pattern Is Typically Read</h3><p>"W" identifies World Musical Instruments (WMI). The letter "${monthLetter}" decodes as ${month}. The digits "${yearDigits}" decode as production year ${year}. The remaining digits decode as factory production sequence ${sequenceNumber} for that month.</p><h3>What To Verify</h3><ul><li>WMI produces guitars for multiple brands using the same serial convention, so confirm the Cort brand name on the headstock or label.</li><li>Compare the model against Cort catalog specs for ${year}.</li></ul>`,
     };
 }
 // Indonesian ICS prefix (Factory Special Run)

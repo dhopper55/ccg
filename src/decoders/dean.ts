@@ -35,7 +35,7 @@ export function decodeDean(serial: string): DecodeResult {
   }
 
   // UnSung Korea: US prefix (don't confuse with USA!)
-  if (/^US\d{8,10}$/.test(normalized)) {
+  if (/^US\d{7,10}$/.test(normalized)) {
     return decodeUnSungKorea(normalized);
   }
 

@@ -150,6 +150,7 @@ export function deriveExplicitRegexFromKnownPatternKey(patternKey: string): stri
     'squier-indonesia-iss-month-letter-yy-sequence': '^ISS[A-L]\\d{8,9}$',
     'washburn-ic3-indonesia-cort-yymm-sequence': '^IC[A-Z]\\d{7,9}$',
     'cort-us-prefix-yymm-sequence': '^US\\d{7}$',
+    'cort-wmi-korea-w-month-letter-yy-sequence': '^W[A-L]\\d{5}$',
     'jackson-india-njhjl-yy-sequence': '^NJH[JL]\\d{8}$',
     'prs-se-cort-letter-year-sequence': '^CT[CI][A-Z]\\d+$',
     'washburn-vintage-yamaki-japan-digit-letter': '^\\d{4,6}[A-Z]$',

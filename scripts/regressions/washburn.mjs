@@ -4,6 +4,21 @@ function decodeWashburn(serialInput) {
   return decodeSerialForBackend('washburn', serialInput);
 }
 
+function assertWashburnSuffixStripped(serialInput, expectedSuffixNote) {
+  const result = decodeWashburn(serialInput);
+  assert(result.success, `Expected decode success for Washburn ${serialInput}`);
+  assert(result.info, `Expected decoded info for Washburn ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '1993', `Expected year 1993 for ${serialInput}, got ${info.year}`);
+  assert(info.month === 'May', `Expected month May for ${serialInput}, got ${info.month}`);
+  assert(info.serialNumber === serialInput, `Expected original serial preserved for ${serialInput}, got ${info.serialNumber}`);
+  assert(
+    info.notes && info.notes.includes(expectedSuffixNote),
+    `Expected suffix note "${expectedSuffixNote}" for ${serialInput}, got ${info.notes}`
+  );
+}
+
 function assertWashburnIndonesiaYearLetter(serialInput) {
   const result = decodeWashburn(serialInput);
   assert(result.success, `Expected decode success for Washburn ${serialInput}`);
@@ -122,6 +137,9 @@ function assertWashburnCOVariantFactory(serialInput, expectedPrefix, expectedYea
 }
 
 export function runTests() {
+  assertWashburnSuffixStripped('93050751-S', 'Solid Top');
+  assertWashburnSuffixStripped('93050751-S.E', 'Solid Top');
+  assertWashburnSuffixStripped('93050751-S.E', 'Electric');
   assertWashburnIndonesiaYearLetter('I8C112846');
   assertWashburnLegacyJapan6Digit('298093');
   assertWashburn1990s10DigitYYMM('9212000236');

@@ -15,6 +15,25 @@ function assertCortIEPrefix(serialInput, expectedYear, expectedMonth) {
   assert(info.country === 'Indonesia', `Expected country Indonesia for ${serialInput}, got ${info.country}`);
 }
 
+function assertCortWMIKoreaMonthLetter(serialInput, expectedYear, expectedMonth) {
+  const result = decodeSerialForBackend('cort', serialInput);
+  assert(result.success, `Expected decode success for cort:${serialInput}`);
+  assert(result.info, `Expected decoded info for cort:${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'World Musical Instruments (WMI), South Korea',
+    `Expected WMI Korea factory for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'South Korea', `Expected country South Korea for ${serialInput}, got ${info.country}`);
+  assert(
+    result.patternKey === 'cort-wmi-korea-w-month-letter-yy-sequence',
+    `Expected WMI Korea pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
 function assertCortAIPrefix(serialInput, expectedYear, expectedMonth) {
   const result = decodeSerialForBackend('cort', serialInput);
   assert(result.success, `Expected decode success for cort:${serialInput}`);
@@ -457,6 +476,7 @@ function assertCort8DigitSuspiciousFutureYear(serialInput, expectedDecodedYear) 
 
 export function runTests() {
   assertCortIEPrefix('ie220403666', '2022', 'April');
+  assertCortWMIKoreaMonthLetter('WD20185', '2020', 'April');
   assertCortIEPrefixTenDigit('IE2200604870', '2022');
   assertCortFPrefixYearSequence('F034130', '2003');
   assertCortAIPrefix('AI200750591', '2020', 'July');

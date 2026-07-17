@@ -29,7 +29,7 @@ export function decodeDean(serial) {
         return decodeWSMFactory(normalized.replace(/\./g, ''));
     }
     // UnSung Korea: US prefix (don't confuse with USA!)
-    if (/^US\d{8,10}$/.test(normalized)) {
+    if (/^US\d{7,10}$/.test(normalized)) {
         return decodeUnSungKorea(normalized);
     }
     // World Korea: WK prefix (newer format, 8 or 9 digits after prefix)

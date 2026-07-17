@@ -15,6 +15,21 @@ function assertDeanHPrefixIndia(serialInput, expectedYear, expectedMonth) {
   assert(info.country === 'India', `Expected country India for ${serialInput}, got ${info.country}`);
 }
 
+function assertDeanUnSungKorea(serialInput, expectedYear, expectedMonth) {
+  const result = decodeSerialForBackend('dean', serialInput);
+  assert(result.success, `Expected decode success for dean:${serialInput}`);
+  assert(result.info, `Expected decoded info for dean:${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'UnSung Factory, Incheon',
+    `Expected UnSung Factory for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'South Korea', `Expected country South Korea for ${serialInput}, got ${info.country}`);
+}
+
 function assertDeanLegacyKoreaESingleYearDigit(serialInput, expectedYear) {
   const result = decodeSerialForBackend('dean', serialInput);
   assert(result.success, `Expected decode success for dean:${serialInput}`);
@@ -184,6 +199,7 @@ export function runTests() {
   assertDeanHPrefixIndia('H22020143', '2022', 'February');
   assertDeanHPrefixIndia('H22020', '2022', 'February');
   assertDeanLegacyKoreaESingleYearDigit('E805978', '1998 or 2008 (estimated)');
+  assertDeanUnSungKorea('US080-3865', '2008', 'March');
   assertDeanChinaZPrefix('z1300165', '2013');
   assertDeanAsianPartnerAPrefix('A07043194', '2007', 'April');
   assertDeanAsianPartnerAPrefix('a10091499', '2010', 'September');
