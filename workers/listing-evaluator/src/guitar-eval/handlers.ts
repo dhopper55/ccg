@@ -269,7 +269,7 @@ export async function handleAdminV2ValueReports(request: Request, env: Env): Pro
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   const rows = await env.DB.prepare(
-    `SELECT id, created_at, first_name, last_name, brand, location, stripe_payment_intent_id, fulfilled, report_cost
+    `SELECT id, created_at, first_name, last_name, brand, type, stripe_payment_intent_id, fulfilled, report_cost
      FROM guitar_evaluations
      ORDER BY created_at DESC
      LIMIT ? OFFSET ?`
@@ -279,7 +279,7 @@ export async function handleAdminV2ValueReports(request: Request, env: Env): Pro
     first_name: string | null;
     last_name: string | null;
     brand: string | null;
-    location: string | null;
+    type: string | null;
     stripe_payment_intent_id: string | null;
     fulfilled: number;
     report_cost: number | null;
@@ -291,7 +291,7 @@ export async function handleAdminV2ValueReports(request: Request, env: Env): Pro
     firstName: row.first_name,
     lastName: row.last_name,
     brand: row.brand,
-    location: row.location,
+    type: row.type,
     stripePaymentIntentId: row.stripe_payment_intent_id,
     fulfilled: row.fulfilled,
     reportCost: row.report_cost,

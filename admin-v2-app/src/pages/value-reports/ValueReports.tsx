@@ -32,7 +32,7 @@ type ValueReportRecord = {
   firstName: string | null;
   lastName: string | null;
   brand: string | null;
-  location: string | null;
+  type: string | null;
   stripePaymentIntentId: string | null;
   fulfilled: number;
   reportCost: number | null;
@@ -142,8 +142,8 @@ const ValueReports = () => {
             <TableHead>
               <TableRow>
                 <TableCell sx={{ fontWeight: 700 }}>Created</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Type</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Brand</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Location</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Paid?</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Fulfilled</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Cost</TableCell>
@@ -186,8 +186,8 @@ const ValueReports = () => {
                           {formattedDate}
                         </Link>
                       </TableCell>
+                      <TableCell>{record.type || '—'}</TableCell>
                       <TableCell>{record.brand || '—'}</TableCell>
-                      <TableCell>{record.location || '—'}</TableCell>
                       <TableCell>
                         {record.stripePaymentIntentId ? (
                           <IconifyIcon

@@ -18,12 +18,13 @@ export async function dbInsertGuitarEvaluation(env: Env, data: {
   lastName: string;
   email: string;
   serialDecodeId: number | null;
+  type: 'VALUE' | 'AUTHENTICITY';
 }): Promise<number | null> {
   const result = await env.DB.prepare(`
     INSERT INTO guitar_evaluations (
       serial_number, brand, brand_other, model, includes_case, color_finish,
-      location, note, damage, first_name, last_name, email, serial_decode_event_id, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      location, note, damage, first_name, last_name, email, serial_decode_event_id, type, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     data.serialNumber,
     data.brand,
@@ -38,6 +39,7 @@ export async function dbInsertGuitarEvaluation(env: Env, data: {
     data.lastName,
     data.email,
     data.serialDecodeId,
+    data.type,
     new Date().toISOString(),
   ).run();
   return (result.meta?.last_row_id as number) ?? null;
@@ -132,7 +134,11 @@ export async function handleGuitarEvaluationConfirmPayment(request: Request, env
     `UPDATE guitar_evaluations SET stripe_payment_intent_id = ? WHERE id = ?`
   ).bind(paymentIntentId, evaluationId).run();
 
-  if (env.REPORT_QUEUE) {
+  const evalTypeRow = await env.DB.prepare(
+    'SELECT type FROM guitar_evaluations WHERE id = ?'
+  ).bind(evaluationId).first<{ type: string | null }>();
+
+  if (env.REPORT_QUEUE && evalTypeRow?.type !== 'AUTHENTICITY') {
     try {
       await env.REPORT_QUEUE.send({ evaluationId: Number(evaluationId) });
     } catch (err) {
@@ -161,7 +167,10 @@ export async function handleGuitarEvaluationValidateCoupon(request: Request, env
     await env.DB.prepare(
       `UPDATE guitar_evaluations SET stripe_payment_intent_id = ? WHERE id = ?`
     ).bind(couponCode, evaluationId).run();
-    if (env.REPORT_QUEUE) {
+    const evalTypeRow = await env.DB.prepare(
+      'SELECT type FROM guitar_evaluations WHERE id = ?'
+    ).bind(evaluationId).first<{ type: string | null }>();
+    if (env.REPORT_QUEUE && evalTypeRow?.type !== 'AUTHENTICITY') {
       try {
         await env.REPORT_QUEUE.send({ evaluationId: Number(evaluationId) });
       } catch (err) {
@@ -183,7 +192,7 @@ export async function handleGuitarEvaluationSubmit(request: Request, env: Env): 
     return jsonResponse({ message: 'Invalid request body.' }, 400);
   }
 
-  const { serialNumber, brand, brandOther, model, includesCase, colorFinish, location, note, damage, firstName, lastName, email, serialDecodeId } = body ?? {};
+  const { serialNumber, brand, brandOther, model, includesCase, colorFinish, location, note, damage, firstName, lastName, email, serialDecodeId, type } = body ?? {};
 
   if (!brand || !includesCase || !note || !damage) {
     return jsonResponse({ message: 'Missing required fields.' }, 400);
@@ -203,6 +212,7 @@ export async function handleGuitarEvaluationSubmit(request: Request, env: Env): 
     lastName: lastName ?? '',
     email: email ?? '',
     serialDecodeId: Number.isInteger(serialDecodeId) && serialDecodeId > 0 ? serialDecodeId : null,
+    type: type === 'AUTHENTICITY' ? 'AUTHENTICITY' : 'VALUE',
   });
 
   if (!id) {
