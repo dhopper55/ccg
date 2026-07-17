@@ -4,7 +4,7 @@ import { jsonResponse } from '../utils/misc.js';
 export async function handleAdminV2ValueReportItem(id: string, env: Env): Promise<Response> {
   const row = await env.DB.prepare(
     `SELECT id, created_at, first_name, last_name, email, brand, brand_other, model,
-            serial_number, includes_case, color_finish, location, note, damage,
+            serial_number, includes_case, color_finish, location, note, damage, type, curiosity_reason,
             stripe_payment_intent_id, fulfilled, image_keys, report_guid, report_r2_key, report_error, report_cost
      FROM guitar_evaluations WHERE id = ?`
   ).bind(id).first<{
@@ -22,6 +22,8 @@ export async function handleAdminV2ValueReportItem(id: string, env: Env): Promis
     location: string | null;
     note: string | null;
     damage: string | null;
+    type: string | null;
+    curiosity_reason: string | null;
     stripe_payment_intent_id: string | null;
     fulfilled: number;
     image_keys: string | null;
@@ -57,6 +59,8 @@ export async function handleAdminV2ValueReportItem(id: string, env: Env): Promis
       location: row.location,
       note: row.note,
       damage: row.damage,
+      type: row.type,
+      curiosityReason: row.curiosity_reason,
       stripePaymentIntentId: row.stripe_payment_intent_id,
       fulfilled: row.fulfilled,
       imageUrls,
@@ -244,9 +248,12 @@ export async function handleAdminV2GenerateReport(
     return jsonResponse({ message: 'Report queue not configured.' }, 500);
   }
   const row = await env.DB.prepare(
-    'SELECT id FROM guitar_evaluations WHERE id = ?',
-  ).bind(id).first<{ id: number }>();
+    'SELECT id, type FROM guitar_evaluations WHERE id = ?',
+  ).bind(id).first<{ id: number; type: string | null }>();
   if (!row) return jsonResponse({ message: 'Value report not found.' }, 404);
+  if (row.type === 'AUTHENTICITY') {
+    return jsonResponse({ message: 'AI report generation is not available for authenticity reports.' }, 400);
+  }
 
   await env.DB.prepare(
     'UPDATE guitar_evaluations SET report_guid = NULL, report_r2_key = NULL, report_error = NULL WHERE id = ?',

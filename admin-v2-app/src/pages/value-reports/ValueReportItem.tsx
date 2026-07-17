@@ -44,6 +44,8 @@ type ValueReportRecord = {
   location: string | null;
   note: string | null;
   damage: string | null;
+  type: string | null;
+  curiosityReason: string | null;
   stripePaymentIntentId: string | null;
   fulfilled: number;
   imageUrls: string[];
@@ -258,47 +260,49 @@ const ValueReportItem = () => {
           <Box>
             <Typography variant="h4">{formattedDate}</Typography>
 
-            {/* Generate / View Report */}
-            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mt: 1.5 }}>
-              {reportUrl ? (
+            {/* Generate / View Report — not available for authenticity reports (no AI involved) */}
+            {record?.type !== 'AUTHENTICITY' ? (
+              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mt: 1.5 }}>
+                {reportUrl ? (
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<IconifyIcon icon="material-symbols:open-in-new-rounded" fontSize={16} />}
+                    onClick={() => window.open(reportUrl, '_blank', 'noopener,noreferrer')}
+                  >
+                    View Report
+                  </Button>
+                ) : null}
+
                 <Button
-                  variant="outlined"
+                  variant={reportUrl ? 'text' : 'contained'}
                   size="small"
-                  startIcon={<IconifyIcon icon="material-symbols:open-in-new-rounded" fontSize={16} />}
-                  onClick={() => window.open(reportUrl, '_blank', 'noopener,noreferrer')}
+                  disabled={generating}
+                  startIcon={
+                    generating
+                      ? <CircularProgress size={14} color="inherit" />
+                      : <IconifyIcon icon="material-symbols:auto-awesome-rounded" fontSize={16} />
+                  }
+                  onClick={() => void handleGenerateReport()}
                 >
-                  View Report
+                  {generating ? 'Generating… (2–4 min)' : reportUrl ? 'Regenerate' : 'Generate Report'}
                 </Button>
-              ) : null}
 
-              <Button
-                variant={reportUrl ? 'text' : 'contained'}
-                size="small"
-                disabled={generating}
-                startIcon={
-                  generating
-                    ? <CircularProgress size={14} color="inherit" />
-                    : <IconifyIcon icon="material-symbols:auto-awesome-rounded" fontSize={16} />
-                }
-                onClick={() => void handleGenerateReport()}
-              >
-                {generating ? 'Generating… (2–4 min)' : reportUrl ? 'Regenerate' : 'Generate Report'}
-              </Button>
-
-              {generateError ? (
-                <Typography variant="caption" color="error.main">{generateError}</Typography>
-              ) : null}
-              {!generating && record?.reportError ? (
-                <Typography variant="caption" color="error.main">
-                  Last attempt failed: {record.reportError}
-                </Typography>
-              ) : null}
-              {!generating && record?.reportCost != null ? (
-                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                  Last run: ${(Math.ceil(record.reportCost * 100) / 100).toFixed(2)}
-                </Typography>
-              ) : null}
-            </Stack>
+                {generateError ? (
+                  <Typography variant="caption" color="error.main">{generateError}</Typography>
+                ) : null}
+                {!generating && record?.reportError ? (
+                  <Typography variant="caption" color="error.main">
+                    Last attempt failed: {record.reportError}
+                  </Typography>
+                ) : null}
+                {!generating && record?.reportCost != null ? (
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                    Last run: ${(Math.ceil(record.reportCost * 100) / 100).toFixed(2)}
+                  </Typography>
+                ) : null}
+              </Stack>
+            ) : null}
           </Box>
 
           <Tooltip title="Back to Value Reports">
@@ -422,9 +426,22 @@ const ValueReportItem = () => {
             <Grid size={12}>
               <TextField fullWidth multiline minRows={3} label="Notes" value={record.note || '—'} InputProps={ro} />
             </Grid>
-            <Grid size={12}>
-              <TextField fullWidth multiline minRows={3} label="Damage / Wear" value={record.damage || '—'} InputProps={ro} />
-            </Grid>
+            {record.type === 'AUTHENTICITY' ? (
+              <Grid size={12}>
+                <TextField
+                  fullWidth
+                  multiline
+                  minRows={3}
+                  label="What Made Them Curious About Authenticity"
+                  value={record.curiosityReason || '—'}
+                  InputProps={ro}
+                />
+              </Grid>
+            ) : (
+              <Grid size={12}>
+                <TextField fullWidth multiline minRows={3} label="Damage / Wear" value={record.damage || '—'} InputProps={ro} />
+              </Grid>
+            )}
 
             {/* Status */}
             <Grid size={12}>
