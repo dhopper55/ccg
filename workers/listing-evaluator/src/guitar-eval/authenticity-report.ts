@@ -466,11 +466,14 @@ async function loadEvalForAuthReport(id: string, env: Env) {
   }>();
 }
 
-function resolvePhotoUrls(imageKeys: string | null): string[] {
+function resolvePhotoUrls(imageKeys: string | null, env: Env): string[] {
   if (!imageKeys) return [];
+  // Absolute URLs — the Preview flow opens the rendered HTML via a blob: URL,
+  // which cannot resolve relative/path-absolute references against the real site.
+  const siteBase = (env.SITE_BASE_URL || 'https://www.coalcreekguitars.com').replace(/\/$/, '');
   try {
     const keys: string[] = JSON.parse(imageKeys);
-    return keys.map((key) => `/api/guitar-evaluation-image?key=${encodeURIComponent(key)}`);
+    return keys.map((key) => `${siteBase}/api/guitar-evaluation-image?key=${encodeURIComponent(key)}`);
   } catch {
     return [];
   }
@@ -507,7 +510,7 @@ export async function handleAdminV2AuthenticityPreview(id: string, request: Requ
   const record = await loadEvalForAuthReport(id, env);
   if (!record) return jsonResponse({ message: 'Report not found.' }, 404);
 
-  const photoUrls = resolvePhotoUrls(record.image_keys);
+  const photoUrls = resolvePhotoUrls(record.image_keys, env);
   const html = buildAuthenticityReportHtml(data as AuthenticityReportData, record, photoUrls);
   return jsonResponse({ html });
 }
@@ -555,7 +558,7 @@ export async function handleAdminV2AuthenticitySend(id: string, request: Request
     'UPDATE guitar_evaluations SET authenticity_report_data = ? WHERE id = ?',
   ).bind(JSON.stringify(data), id).run();
 
-  const photoUrls = resolvePhotoUrls(record.image_keys);
+  const photoUrls = resolvePhotoUrls(record.image_keys, env);
   const html = buildAuthenticityReportHtml(data, record, photoUrls);
 
   const guid = record.report_guid || crypto.randomUUID();
