@@ -232,6 +232,7 @@ import {
   handleAdminV2AuthenticityDraftSave,
   handleAdminV2AuthenticityPreview,
   handleAdminV2AuthenticitySend,
+  handleAdminV2AuthenticityAiPolish,
 } from './guitar-eval/authenticity-report.js';
 
 // Apify
@@ -844,6 +845,12 @@ export default {
     const adminV2AuthSendMatch = path.match(/^\/api\/admin-v2\/value-reports\/(\d+)\/authenticity-send$/);
     if (adminV2AuthSendMatch && request.method === 'POST') {
       const response = await handleAdminV2AuthenticitySend(adminV2AuthSendMatch[1], request, env);
+      return withCors(response, request, env);
+    }
+
+    const adminV2AuthAiPolishMatch = path.match(/^\/api\/admin-v2\/value-reports\/(\d+)\/authenticity-ai-polish$/);
+    if (adminV2AuthAiPolishMatch && request.method === 'POST') {
+      const response = await handleAdminV2AuthenticityAiPolish(adminV2AuthAiPolishMatch[1], request, env);
       return withCors(response, request, env);
     }
 

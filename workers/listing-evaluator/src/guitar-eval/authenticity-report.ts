@@ -4,6 +4,7 @@ import { normalizeText } from '../utils/text.js';
 import { getBrevoRuntimeConfig } from '../system/runtime.js';
 import { sendBrevoTransactionalEmail } from '../orders/email.js';
 import { escHtml } from './report.js';
+import { polishAuthenticityReportText } from '../ai/authenticity-polish.js';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 export type AuthenticityIdentity = {
@@ -509,6 +510,27 @@ export async function handleAdminV2AuthenticityPreview(id: string, request: Requ
   const photoUrls = resolvePhotoUrls(record.image_keys);
   const html = buildAuthenticityReportHtml(data as AuthenticityReportData, record, photoUrls);
   return jsonResponse({ html });
+}
+
+export async function handleAdminV2AuthenticityAiPolish(id: string, request: Request, env: Env): Promise<Response> {
+  let body: any;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid request body.' }, 400);
+  }
+  const data = body?.data;
+  if (!data) return jsonResponse({ message: 'Missing report data.' }, 400);
+
+  const record = await loadEvalForAuthReport(id, env);
+  if (!record) return jsonResponse({ message: 'Report not found.' }, 404);
+
+  const result = await polishAuthenticityReportText(data as AuthenticityReportData, record, env);
+  if (!result) {
+    return jsonResponse({ message: 'AI polish failed — try again or write it by hand.' }, 502);
+  }
+
+  return jsonResponse(result);
 }
 
 export async function handleAdminV2AuthenticitySend(id: string, request: Request, env: Env): Promise<Response> {

@@ -130,12 +130,14 @@ const ValueReportItem = () => {
   const [generateError, setGenerateError] = useState('');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Authenticity report (human-forward, zero-AI)
+  // Authenticity report (human-forward; AI polish is optional and only rewrites given text)
   const [authData, setAuthData] = useState<AuthenticityReportData>(DEFAULT_AUTH_DATA);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [draftMessage, setDraftMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [previewError, setPreviewError] = useState('');
+  const [isPolishing, setIsPolishing] = useState(false);
+  const [polishError, setPolishError] = useState('');
   const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState('');
@@ -318,6 +320,39 @@ const ValueReportItem = () => {
       setPreviewError(error instanceof Error ? error.message : 'Preview failed.');
     } finally {
       setIsPreviewing(false);
+    }
+  };
+
+  const handlePolishWithAi = async () => {
+    if (!id) return;
+    setIsPolishing(true);
+    setPolishError('');
+    try {
+      const res = await fetch(`/api/admin-v2/value-reports/${encodeURIComponent(id)}/authenticity-ai-polish`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: authData }),
+      });
+      const payload = (await res.json()) as {
+        confidenceStatement?: string;
+        verdictReasoning?: string;
+        certificateSummary?: string;
+        message?: string;
+      };
+      if (!res.ok || !payload.confidenceStatement || !payload.verdictReasoning || !payload.certificateSummary) {
+        throw new Error(payload.message || 'AI polish failed.');
+      }
+      setAuthData((p) => ({
+        ...p,
+        identity: { ...p.identity, confidenceStatement: payload.confidenceStatement! },
+        verdict: { ...p.verdict, reasoning: payload.verdictReasoning! },
+        certificateSummary: payload.certificateSummary!,
+      }));
+    } catch (error) {
+      setPolishError(error instanceof Error ? error.message : 'AI polish failed.');
+    } finally {
+      setIsPolishing(false);
     }
   };
 
@@ -813,6 +848,15 @@ const ValueReportItem = () => {
                   </Box>
 
                   <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
+                    <Button
+                      variant="outlined"
+                      color="secondary"
+                      startIcon={<IconifyIcon icon="material-symbols:auto-awesome-rounded" fontSize={16} />}
+                      onClick={() => void handlePolishWithAi()}
+                      disabled={isPolishing}
+                    >
+                      {isPolishing ? 'Polishing…' : 'Add AI Analysis'}
+                    </Button>
                     <Button variant="outlined" onClick={() => void handleSaveAuthDraft()} disabled={isSavingDraft}>
                       {isSavingDraft ? 'Saving…' : 'Save Draft'}
                     </Button>
@@ -828,7 +872,12 @@ const ValueReportItem = () => {
                       </Typography>
                     ) : null}
                     {previewError ? <Typography variant="body2" color="error.main">{previewError}</Typography> : null}
+                    {polishError ? <Typography variant="body2" color="error.main">{polishError}</Typography> : null}
                   </Stack>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 1 }}>
+                    "Add AI Analysis" rewrites your Identity/Verdict/Certificate notes into fuller prose using only
+                    what you've already entered — it doesn't research the guitar or add new facts.
+                  </Typography>
                 </Paper>
               </Grid>
             ) : null}
