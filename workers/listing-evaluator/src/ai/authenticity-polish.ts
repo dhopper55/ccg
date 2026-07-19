@@ -101,22 +101,37 @@ export async function polishAuthenticityReportText(
     }
 
     const responseData = await response.json() as { content?: Array<{ type: string; text?: string }> };
-    const output = responseData.content?.find((b) => b.type === 'text')?.text?.trim() ?? '';
-    const parsed = JSON.parse(output) as {
-      confidenceStatement?: string;
-      verdictReasoning?: string;
-      certificateSummary?: string;
-    };
+    const rawOutput = responseData.content?.find((b) => b.type === 'text')?.text?.trim() ?? '';
+    // Strip markdown code fences in case the model wraps the JSON despite instructions not to
+    const fenced = rawOutput.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    const output = fenced ? fenced[1].trim() : rawOutput;
+
+    let parsed: { confidenceStatement?: string; verdictReasoning?: string; certificateSummary?: string };
+    try {
+      parsed = JSON.parse(output);
+    } catch (parseErr) {
+      console.warn('Authenticity report AI polish: could not parse model output as JSON', {
+        rawOutput: rawOutput.slice(0, 1000),
+        parseError: parseErr instanceof Error ? parseErr.message : String(parseErr),
+      });
+      return null;
+    }
 
     const confidenceStatement = normalizeText(parsed.confidenceStatement, '').slice(0, 1200);
     const verdictReasoning = normalizeText(parsed.verdictReasoning, '').slice(0, 2000);
     const certificateSummary = normalizeText(parsed.certificateSummary, '').slice(0, 1500);
 
-    if (!confidenceStatement || !verdictReasoning || !certificateSummary) return null;
+    if (!confidenceStatement || !verdictReasoning || !certificateSummary) {
+      console.warn('Authenticity report AI polish: parsed JSON missing required fields', { parsed });
+      return null;
+    }
 
     return { confidenceStatement, verdictReasoning, certificateSummary };
   } catch (error) {
-    console.warn('Authenticity report AI polish error', { error });
+    console.warn('Authenticity report AI polish error', {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     return null;
   }
 }
