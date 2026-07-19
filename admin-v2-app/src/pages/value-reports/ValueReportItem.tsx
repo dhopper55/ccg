@@ -338,6 +338,8 @@ const ValueReportItem = () => {
         confidenceStatement?: string;
         verdictReasoning?: string;
         certificateSummary?: string;
+        suggestedSpecs?: string[];
+        suggestedMarkers?: string[];
         message?: string;
       };
       if (!res.ok || !payload.confidenceStatement || !payload.verdictReasoning || !payload.certificateSummary) {
@@ -348,6 +350,13 @@ const ValueReportItem = () => {
         identity: { ...p.identity, confidenceStatement: payload.confidenceStatement! },
         verdict: { ...p.verdict, reasoning: payload.verdictReasoning! },
         certificateSummary: payload.certificateSummary!,
+        // Only seed checklist rows when the section is still empty — never overwrite/duplicate what's already there
+        specs: p.specs.length === 0 && payload.suggestedSpecs?.length
+          ? payload.suggestedSpecs.map((label) => ({ label, expected: '', observed: '' }))
+          : p.specs,
+        markers: p.markers.length === 0 && payload.suggestedMarkers?.length
+          ? payload.suggestedMarkers.map((marker) => ({ marker, status: 'unable_to_verify' as MarkerStatus, note: '' }))
+          : p.markers,
       }));
     } catch (error) {
       setPolishError(error instanceof Error ? error.message : 'AI polish failed.');
@@ -876,7 +885,9 @@ const ValueReportItem = () => {
                   </Stack>
                   <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 1 }}>
                     "Add AI Analysis" rewrites your Identity/Verdict/Certificate notes into fuller prose using only
-                    what you've already entered — it doesn't research the guitar or add new facts.
+                    what you've already entered — it doesn't research the guitar or add new facts. If Specs or
+                    Markers are still empty, it'll also suggest a starting checklist of what to look at (names only,
+                    no findings) — it never fills in Status or an answer for you.
                   </Typography>
                 </Paper>
               </Grid>

@@ -6,6 +6,8 @@ export type AuthenticityPolishResult = {
   confidenceStatement: string;
   verdictReasoning: string;
   certificateSummary: string;
+  suggestedSpecs: string[];
+  suggestedMarkers: string[];
 };
 
 const VERDICT_LABELS: Record<string, string> = {
@@ -36,14 +38,17 @@ function buildPolishPrompt(
     : data.redFlags.items.map((f) => `- [${f.severity}] ${f.description || '(no description)'}`).join('\n');
 
   return [
-    'You are a writing assistant for Coal Creek Guitars. A human expert has already fully evaluated a guitar\'s authenticity and finalized every factual judgment below. Your ONLY job is to rewrite THREE specific pieces of text so they read as fuller, more polished, professional prose for a customer-facing report.',
+    'You are an assistant for Coal Creek Guitars, helping a human expert write up a guitar authenticity report. You have two SEPARATE jobs, described below. Do not blend them.',
     '',
-    'HARD RULES — do not break these:',
+    'JOB 1 — Rewrite THREE specific pieces of text so they read as fuller, more polished, professional prose. The human expert has already fully evaluated this guitar and finalized every factual judgment given to you below.',
+    'HARD RULES for Job 1 — do not break these:',
     '- Do not add, remove, or change any factual claim about this specific instrument beyond what is given below.',
     '- Do not change the verdict or confidence level — those are fixed inputs, not yours to interpret.',
     '- Do not mention price, value, resale, or market comps — this report has nothing to do with valuation.',
     '- If the human\'s current text for a field is very short, expand it into a few well-formed sentences that stay strictly grounded in the facts given below — do not pad with generic filler unrelated to those facts.',
     '- Voice: confident, plain-spoken, expert-to-owner. No hype, no exclamation points, no invented drama.',
+    '',
+    'JOB 2 — Suggest a CHECKLIST of things worth examining for this brand/model, based only on your general knowledge of the brand/model (not this specific instrument). These are prompts for the human to go check themselves — NOT findings, NOT claims about this particular guitar, NOT something you have inspected. Just names of relevant things to look at, e.g. "Headstock logo font", "Serial number format", "Hardware plating consistency". Suggest 4-6 specification items and 4-6 authenticity-marker items. If you have no genuine brand/model-specific knowledge to offer, return empty arrays rather than generic filler.',
     '',
     `Brand: ${record.brand || 'unknown'}`,
     `Model: ${record.model || 'unknown'}`,
@@ -51,22 +56,22 @@ function buildPolishPrompt(
     `Verdict (fixed, do not change): ${VERDICT_LABELS[data.verdict.determination] || data.verdict.determination}`,
     `Confidence (fixed, do not change): ${CONFIDENCE_LABELS[data.verdict.confidence] || data.verdict.confidence}`,
     '',
-    'Specifications checked:',
+    'Specifications checked so far:',
     specsLines,
     '',
-    'Authenticity markers checked:',
+    'Authenticity markers checked so far:',
     markersLines,
     '',
     'Red flags:',
     redFlagsLines,
     '',
-    'Human\'s current text to expand/polish:',
+    'Human\'s current text to expand/polish (Job 1):',
     `- Identity confidence statement: "${data.identity.confidenceStatement || '(empty)'}"`,
     `- Verdict reasoning: "${data.verdict.reasoning || '(empty)'}"`,
     `- Certificate summary: "${data.certificateSummary || '(empty)'}"`,
     '',
     'Return ONLY a JSON object, no markdown fences, no explanation, in exactly this shape:',
-    '{"confidenceStatement":"...","verdictReasoning":"...","certificateSummary":"..."}',
+    '{"confidenceStatement":"...","verdictReasoning":"...","certificateSummary":"...","suggestedSpecs":["...","..."],"suggestedMarkers":["...","..."]}',
   ].join('\n');
 }
 
@@ -106,7 +111,13 @@ export async function polishAuthenticityReportText(
     const fenced = rawOutput.match(/```(?:json)?\s*([\s\S]*?)```/i);
     const output = fenced ? fenced[1].trim() : rawOutput;
 
-    let parsed: { confidenceStatement?: string; verdictReasoning?: string; certificateSummary?: string };
+    let parsed: {
+      confidenceStatement?: string;
+      verdictReasoning?: string;
+      certificateSummary?: string;
+      suggestedSpecs?: unknown;
+      suggestedMarkers?: unknown;
+    };
     try {
       parsed = JSON.parse(output);
     } catch (parseErr) {
@@ -126,7 +137,18 @@ export async function polishAuthenticityReportText(
       return null;
     }
 
-    return { confidenceStatement, verdictReasoning, certificateSummary };
+    // Best-effort — malformed or missing suggestions shouldn't fail the whole call
+    const sanitizeSuggestions = (value: unknown): string[] => {
+      if (!Array.isArray(value)) return [];
+      return value
+        .filter((v): v is string => typeof v === 'string' && v.trim() !== '')
+        .map((v) => v.trim().slice(0, 120))
+        .slice(0, 8);
+    };
+    const suggestedSpecs = sanitizeSuggestions(parsed.suggestedSpecs);
+    const suggestedMarkers = sanitizeSuggestions(parsed.suggestedMarkers);
+
+    return { confidenceStatement, verdictReasoning, certificateSummary, suggestedSpecs, suggestedMarkers };
   } catch (error) {
     console.warn('Authenticity report AI polish error', {
       message: error instanceof Error ? error.message : String(error),
