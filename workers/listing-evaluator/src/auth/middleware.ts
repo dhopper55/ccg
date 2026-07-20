@@ -136,7 +136,6 @@ export function isPublicApiPath(path: string): boolean {
     || /^\/api\/guitar-evaluation\/\d+\/upload-images$/.test(path)
     || /^\/api\/guitar-evaluation\/\d+$/.test(path)
     || path === '/api/guitar-evaluation-image'
-    || path === '/api/admin-v2/value-report-files'
     || /^\/api\/guitar-eval-report\/[0-9a-f-]+$/i.test(path)
     || path === '/api/email-signup';
 }

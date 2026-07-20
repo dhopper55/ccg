@@ -106,15 +106,23 @@ export function buildAuthenticityReportHtml(
   const modelTitle = data.identity.modelConfirmed || record.model || 'Guitar';
   const subParts = [data.identity.variantNotes, data.identity.yearConfirmed].filter(Boolean).join(' — ');
 
-  const specsRows = data.specs.map((row) => `
-        <div class="spec-row"><dt>${escHtml(row.label || '—')}</dt><dd><strong>Expected:</strong> ${escHtml(row.expected || '—')} &nbsp;·&nbsp; <strong>Observed:</strong> ${escHtml(row.observed || '—')}</dd></div>`).join('');
+  const CHECK_OK = '<span class="check-ok">✓</span>';
 
-  const markersRows = data.markers.map((row) => `
+  const specsRows = data.specs.map((row) => {
+    const observedHtml = row.observed.trim() ? escHtml(row.observed) : CHECK_OK;
+    return `
+        <div class="spec-row"><dt>${escHtml(row.label || '—')}</dt><dd><strong>Expected:</strong> ${escHtml(row.expected || '—')} &nbsp;·&nbsp; <strong>Observed:</strong> ${observedHtml}</dd></div>`;
+  }).join('');
+
+  const markersRows = data.markers.map((row) => {
+    const noteHtml = row.note.trim() ? escHtml(row.note) : CHECK_OK;
+    return `
         <tr>
           <td class="feat">${escHtml(row.marker || '—')}</td>
           <td><span class="tag ${STATUS_TAG_CLASS[row.status]}">${STATUS_LABELS[row.status]}</span></td>
-          <td>${escHtml(row.note || '—')}</td>
-        </tr>`).join('');
+          <td>${noteHtml}</td>
+        </tr>`;
+  }).join('');
 
   const redFlagsHtml = data.redFlags.none || data.redFlags.items.length === 0
     ? `
@@ -236,6 +244,7 @@ export function buildAuthenticityReportHtml(
   .tag.unk{background:rgba(110,101,87,.14);color:var(--muted);border:1px solid rgba(110,101,87,.3)}
   .tag.bad{background:rgba(154,70,40,.13);color:var(--clay);border:1px solid rgba(154,70,40,.3)}
   .tag.mod{background:rgba(169,130,59,.15);color:var(--brass);border:1px solid rgba(169,130,59,.35)}
+  .check-ok{color:var(--green);font-weight:700;font-size:15px}
   .clean-callout{background:rgba(63,107,58,.08);border:1px solid rgba(63,107,58,.3);border-left:4px solid var(--green);border-radius:4px;padding:24px 26px;display:flex;gap:16px;align-items:flex-start}
   .clean-callout .ck{width:34px;height:34px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
   .clean-callout h3{font-family:var(--display);font-weight:600;font-size:19px;margin-bottom:6px}

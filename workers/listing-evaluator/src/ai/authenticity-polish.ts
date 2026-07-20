@@ -47,8 +47,9 @@ function buildPolishPrompt(
     '- Do not mention price, value, resale, or market comps — this report has nothing to do with valuation.',
     '- If the human\'s current text for a field is very short, expand it into a few well-formed sentences that stay strictly grounded in the facts given below — do not pad with generic filler unrelated to those facts.',
     '- Voice: confident, plain-spoken, expert-to-owner. No hype, no exclamation points, no invented drama.',
+    '- Keep each of the three fields under about 80 words — concise, not sprawling.',
     '',
-    'JOB 2 — Suggest a CHECKLIST of things worth examining for this brand/model, based only on your general knowledge of the brand/model (not this specific instrument). These are prompts for the human to go check themselves — NOT findings, NOT claims about this particular guitar, NOT something you have inspected. Just names of relevant things to look at, e.g. "Headstock logo font", "Serial number format", "Hardware plating consistency". Suggest 4-6 specification items and 4-6 authenticity-marker items. If you have no genuine brand/model-specific knowledge to offer, return empty arrays rather than generic filler.',
+    'JOB 2 — Suggest a CHECKLIST of things worth examining for this brand/model, based only on your general knowledge of the brand/model (not this specific instrument). These are prompts for the human to go check themselves — NOT findings, NOT claims about this particular guitar, NOT something you have inspected. Just short names of relevant things to look at, e.g. "Headstock logo font", "Serial number format", "Hardware plating consistency". Suggest up to 5 specification items and up to 5 authenticity-marker items — fewer is fine. If you have no genuine brand/model-specific knowledge to offer, return empty arrays rather than generic filler.',
     '',
     `Brand: ${record.brand || 'unknown'}`,
     `Model: ${record.model || 'unknown'}`,
@@ -75,6 +76,92 @@ function buildPolishPrompt(
   ].join('\n');
 }
 
+function extractJsonObject(rawOutput: string): string {
+  // Strip markdown code fences in case the model wraps the JSON despite instructions not to
+  const fenced = rawOutput.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenced) return fenced[1].trim();
+  // Fallback: grab the first {...} span in case of stray leading/trailing prose
+  const braceMatch = rawOutput.match(/\{[\s\S]*\}/);
+  return braceMatch ? braceMatch[0].trim() : rawOutput.trim();
+}
+
+type ParsedPolish = {
+  confidenceStatement?: string;
+  verdictReasoning?: string;
+  certificateSummary?: string;
+  suggestedSpecs?: unknown;
+  suggestedMarkers?: unknown;
+};
+
+async function attemptPolish(
+  prompt: string,
+  env: Env,
+): Promise<{ ok: true; result: AuthenticityPolishResult } | { ok: false; reason: string }> {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': env.ANTHROPIC_API_KEY!,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1600,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+
+  if (!response.ok) {
+    const bodyText = await response.text();
+    return { ok: false, reason: `HTTP ${response.status}: ${bodyText.slice(0, 600)}` };
+  }
+
+  const responseData = await response.json() as {
+    content?: Array<{ type: string; text?: string }>;
+    stop_reason?: string;
+  };
+  const rawOutput = responseData.content?.find((b) => b.type === 'text')?.text?.trim() ?? '';
+  const output = extractJsonObject(rawOutput);
+
+  let parsed: ParsedPolish;
+  try {
+    parsed = JSON.parse(output);
+  } catch (parseErr) {
+    return {
+      ok: false,
+      reason: `JSON parse failed (stop_reason=${responseData.stop_reason ?? 'unknown'}): ${parseErr instanceof Error ? parseErr.message : String(parseErr)}. Raw: ${rawOutput.slice(0, 500)}`,
+    };
+  }
+
+  const confidenceStatement = normalizeText(parsed.confidenceStatement, '').slice(0, 1200);
+  const verdictReasoning = normalizeText(parsed.verdictReasoning, '').slice(0, 2000);
+  const certificateSummary = normalizeText(parsed.certificateSummary, '').slice(0, 1500);
+
+  if (!confidenceStatement || !verdictReasoning || !certificateSummary) {
+    return { ok: false, reason: `Parsed JSON missing required fields: ${JSON.stringify(parsed).slice(0, 500)}` };
+  }
+
+  // Best-effort — malformed or missing suggestions shouldn't fail the whole call
+  const sanitizeSuggestions = (value: unknown): string[] => {
+    if (!Array.isArray(value)) return [];
+    return value
+      .filter((v): v is string => typeof v === 'string' && v.trim() !== '')
+      .map((v) => v.trim().slice(0, 120))
+      .slice(0, 8);
+  };
+
+  return {
+    ok: true,
+    result: {
+      confidenceStatement,
+      verdictReasoning,
+      certificateSummary,
+      suggestedSpecs: sanitizeSuggestions(parsed.suggestedSpecs),
+      suggestedMarkers: sanitizeSuggestions(parsed.suggestedMarkers),
+    },
+  };
+}
+
 export async function polishAuthenticityReportText(
   data: AuthenticityReportData,
   record: { brand: string | null; model: string | null; serial_number: string | null },
@@ -84,76 +171,20 @@ export async function polishAuthenticityReportText(
 
   const prompt = buildPolishPrompt(data, record);
 
-  try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 900,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    });
-
-    if (!response.ok) {
-      const bodyText = await response.text();
-      console.warn('Authenticity report AI polish failed', { status: response.status, body: bodyText.slice(0, 600) });
-      return null;
-    }
-
-    const responseData = await response.json() as { content?: Array<{ type: string; text?: string }> };
-    const rawOutput = responseData.content?.find((b) => b.type === 'text')?.text?.trim() ?? '';
-    // Strip markdown code fences in case the model wraps the JSON despite instructions not to
-    const fenced = rawOutput.match(/```(?:json)?\s*([\s\S]*?)```/i);
-    const output = fenced ? fenced[1].trim() : rawOutput;
-
-    let parsed: {
-      confidenceStatement?: string;
-      verdictReasoning?: string;
-      certificateSummary?: string;
-      suggestedSpecs?: unknown;
-      suggestedMarkers?: unknown;
-    };
+  // One retry — this is a cheap, fast call, and a single retry meaningfully improves
+  // reliability against transient API errors or an occasional truncated/malformed response.
+  for (let attempt = 1; attempt <= 2; attempt++) {
     try {
-      parsed = JSON.parse(output);
-    } catch (parseErr) {
-      console.warn('Authenticity report AI polish: could not parse model output as JSON', {
-        rawOutput: rawOutput.slice(0, 1000),
-        parseError: parseErr instanceof Error ? parseErr.message : String(parseErr),
+      const outcome = await attemptPolish(prompt, env);
+      if (outcome.ok) return outcome.result;
+      console.warn(`Authenticity report AI polish failed (attempt ${attempt}/2)`, { reason: outcome.reason });
+    } catch (error) {
+      console.warn(`Authenticity report AI polish error (attempt ${attempt}/2)`, {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
       });
-      return null;
     }
-
-    const confidenceStatement = normalizeText(parsed.confidenceStatement, '').slice(0, 1200);
-    const verdictReasoning = normalizeText(parsed.verdictReasoning, '').slice(0, 2000);
-    const certificateSummary = normalizeText(parsed.certificateSummary, '').slice(0, 1500);
-
-    if (!confidenceStatement || !verdictReasoning || !certificateSummary) {
-      console.warn('Authenticity report AI polish: parsed JSON missing required fields', { parsed });
-      return null;
-    }
-
-    // Best-effort — malformed or missing suggestions shouldn't fail the whole call
-    const sanitizeSuggestions = (value: unknown): string[] => {
-      if (!Array.isArray(value)) return [];
-      return value
-        .filter((v): v is string => typeof v === 'string' && v.trim() !== '')
-        .map((v) => v.trim().slice(0, 120))
-        .slice(0, 8);
-    };
-    const suggestedSpecs = sanitizeSuggestions(parsed.suggestedSpecs);
-    const suggestedMarkers = sanitizeSuggestions(parsed.suggestedMarkers);
-
-    return { confidenceStatement, verdictReasoning, certificateSummary, suggestedSpecs, suggestedMarkers };
-  } catch (error) {
-    console.warn('Authenticity report AI polish error', {
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-    });
-    return null;
   }
+
+  return null;
 }
