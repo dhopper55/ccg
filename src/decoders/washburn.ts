@@ -97,16 +97,25 @@ export function decodeWashburn(serial: string): DecodeResult {
     return decodeModernTwoCharFactoryYYSeq(normalized);
   }
 
+  // China BC factory prefix: BC + plant(1) + YY(2) + sequence(4)
+  // e.g. BC6061796 = China factory, plant 6, year 2006, sequence 1796
+  // Must be checked before the generic 2-character factory handler below, which would
+  // otherwise misparse this specific plant/YY/sequence layout as a plain YYMM date code.
+  if (/^BC\d{7}$/.test(normalized)) {
+    return decodeWashburnBCChina(normalized);
+  }
+
+  // Known factory-code prefix + YYMM + short 3-digit sequence (e.g. 0C0810230 = 0C factory, 2008, October, seq 230).
+  // Narrowly scoped to the specific factory codes in WASHBURN_MODERN_TWO_CHAR_FACTORY_MAP so it can't shadow
+  // other 2-character + 7-digit formats (BC plant/YY/sequence, CO/OCO/O single-digit-year, generic YYWW+unit, etc.).
+  if (/^(OC|0C|SC|NC|YC|IC|CC)\d{7}$/.test(normalized)) {
+    return decodeModernTwoCharFactoryYYMMSeq(normalized);
+  }
+
   // Modern 2-character factory code (letter or leading digit) + YYMMRRRR (8-11 digits after prefix)
   // e.g., OC05012755 = OC factory, 2005, January, #2755; CC17101013647 = CC factory, 2017, October
   if (/^[A-Z0-9][A-Z]\d{8,11}$/.test(normalized)) {
     return decodeModernTwoCharFactoryYYMMSeq(normalized);
-  }
-
-  // China BC factory prefix: BC + plant(1) + YY(2) + sequence(4)
-  // e.g. BC6061796 = China factory, plant 6, year 2006, sequence 1796
-  if (/^BC\d{7}$/.test(normalized)) {
-    return decodeWashburnBCChina(normalized);
   }
 
   // CO/O/OCO overseas China factory: prefix + single-digit year + 6-digit sequence
@@ -376,7 +385,7 @@ function decodeZaozhuang(serial: string): DecodeResult {
   return { success: true, info };
 }
 
-// Modern 2-char factory code (letter or leading digit) + YYMMRRRR (10-char total)
+// Modern 2-char factory code (letter or leading digit) + YYMM + sequence (9-13 char total)
 const WASHBURN_MODERN_TWO_CHAR_FACTORY_MAP: Record<string, { factory: string; country: string }> = {
   OC: { factory: 'Chinese contract factory (Qingdao or Cort/Cor-Tek China facility)', country: 'China' },
   '0C': { factory: 'Chinese contract factory (Qingdao or Cort/Cor-Tek China facility)', country: 'China' },
@@ -411,7 +420,7 @@ function decodeModernTwoCharFactoryYYMMSeq(serial: string): DecodeResult {
     ...(monthName ? { month: monthName } : {}),
     factory,
     country,
-    notes: `Modern Washburn import serial format (2-character factory code + YYMMRRRR). "${prefix}" is the factory code indicating ${factory}. The digits ${yearDigits} indicate production year ${year}. The digits ${monthDigits} indicate ${isValidMonth ? monthName : `a batch or production code ("${monthDigits}") rather than a standard calendar month`}. Production sequence: ${sequenceNumber}. Since the early 2000s, Washburn's Asian contracted factories settled on this 10-character format — two characters (factory code) followed by 8 digits (YYMMRRRR). Washburn serial numbers identify where and when a guitar was made; the model name must be confirmed separately from the headstock, soundhole label, or hardware. Electrics typically have this serial stamped on the back of the headstock; acoustics will have it on the interior soundhole label.`,
+    notes: `Modern Washburn import serial format (2-character factory code + YYMM + sequence). "${prefix}" is the factory code indicating ${factory}. The digits ${yearDigits} indicate production year ${year}. The digits ${monthDigits} indicate ${isValidMonth ? monthName : `a batch or production code ("${monthDigits}") rather than a standard calendar month`}. Production sequence: ${sequenceNumber}. Since the early 2000s, Washburn's Asian contracted factories have used this format — two characters (factory code) followed by a YYMM date code and a production sequence of varying length. Washburn serial numbers identify where and when a guitar was made; the model name must be confirmed separately from the headstock, soundhole label, or hardware. Electrics typically have this serial stamped on the back of the headstock; acoustics will have it on the interior soundhole label.`,
   };
 
   return {

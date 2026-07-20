@@ -63,9 +63,11 @@ const DecoderPage = ({ config }: DecoderPageProps) => {
           />
         </Grid>
 
-        <Grid size={{ xs: 12, lg: 7, xl: 6 }} sx={{ order: { xs: 2, lg: 2 } }}>
-          <GoogleReviewPanel />
-        </Grid>
+        {decodeSuccess && (
+          <Grid size={{ xs: 12, lg: 7, xl: 6 }} sx={{ order: { xs: 2, lg: 2 } }}>
+            <GoogleReviewPanel />
+          </Grid>
+        )}
 
         {decodeSuccess && (
           <Grid size={{ xs: 12, lg: 5, xl: 6 }} sx={{ order: { xs: 3, lg: 5 } }}>

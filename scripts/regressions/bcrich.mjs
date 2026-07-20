@@ -382,8 +382,27 @@ function assertBCRichImportLetterPrefixYear(serialInput, expectedYear) {
   assert(!result.info.year.includes(' or '), `Expected unambiguous year for ${serialInput}, got ${result.info.year}`);
 }
 
+function assertBCRichTPrefixJapanImport(serialInput) {
+  const result = decodeBCRich(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === '1987-1989 (estimated)', `Expected 1987-1989 estimated year for ${serialInput}, got ${info.year}`);
+  assert(
+    info.factory === 'Japan import production line (T-prefix)',
+    `Expected T-prefix Japan factory for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'Japan', `Expected country Japan for ${serialInput}, got ${info.country}`);
+  assert(
+    result.patternKey === 'bcrich-t-prefix-japan-import-sequential',
+    `Expected T-prefix pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
 export function runTests() {
   assertBCRichIShortImport('i50311', '2005', 'March');
+  assertBCRichTPrefixJapanImport('T1955');
   assertBCRichShortNumericImport('150979');
   assertBCRichSevenDigitNumericImport('0127150');
   assertBCRichShortMonthCodeImport('F2051631');

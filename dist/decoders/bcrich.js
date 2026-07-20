@@ -22,6 +22,7 @@
  * - SI-prefix Indonesia (Samil factory, SI + YYMM + sequence)
  * - NJ Series: R/P + 6 digits with year in first two digits
  * - Late 1980s–1990s import: 10-digit all-numeric (format-valid but serial not dateable; Class Axe/Platinum era)
+ * - Late-1980s Japan import bolt-on: T + 4-digit sequential (no date encoded, e.g. T1955)
  */
 const MONTH_CODE_MAP = {
     A: 'January',
@@ -150,6 +151,10 @@ export function decodeBCRich(serial) {
     if (/^[A-L]\d{6}$/.test(normalized)) {
         return decodeHanserSingleLetterCalendarMonthImport(normalized);
     }
+    // Late-1980s Japan import bolt-on: T + 4-digit sequential (no date encoded)
+    if (/^T\d{4}$/.test(normalized)) {
+        return decodeJapanTPrefixImport(normalized);
+    }
     if (/^I\d{5}$/.test(normalized)) {
         return decodeIShortImport(normalized);
     }
@@ -168,7 +173,7 @@ export function decodeBCRich(serial) {
     }
     return {
         success: false,
-        error: 'Unable to decode this B.C. Rich serial number. Known formats include: 4-digit early USA sequential, 5-digit USA neck-through (YYXXX), BW-prefix import series, F7/F8/F9/F0 import serials, F-prefix six-digit imports like F201422, 7-digit numeric imports like 0127150, 8-digit Hanser-era/import date stamps (e.g., Sr#41201627), 9-digit or 10-digit all-numeric import serials, month/factory codes like A08140023, two-letter Hanser-era imports like CO1093111, single-letter Hanser-era imports like C301288, short Hanser-era month-code imports like J50212 (month + year digit + 4-digit sequence), B-prefix month-code imports like BA09030385, NJ series R/P + 6 digits, Class Axe BC/B0/B-prefix series like B007132, or short I-prefix import estimates (I + 5 digits).',
+        error: 'Unable to decode this B.C. Rich serial number. Known formats include: 4-digit early USA sequential, 5-digit USA neck-through (YYXXX), BW-prefix import series, F7/F8/F9/F0 import serials, F-prefix six-digit imports like F201422, 7-digit numeric imports like 0127150, 8-digit Hanser-era/import date stamps (e.g., Sr#41201627), 9-digit or 10-digit all-numeric import serials, month/factory codes like A08140023, two-letter Hanser-era imports like CO1093111, single-letter Hanser-era imports like C301288, short Hanser-era month-code imports like J50212 (month + year digit + 4-digit sequence), B-prefix month-code imports like BA09030385, NJ series R/P + 6 digits, Class Axe BC/B0/B-prefix series like B007132, T-prefix Japan import sequential like T1955, or short I-prefix import estimates (I + 5 digits).',
     };
 }
 const IMPORT_PREFIX_MAP = {
@@ -824,6 +829,45 @@ function decodeClassAxeB(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a B-prefixed Class Axe-era import format commonly seen on late-1980s to early-1990s B.C. Rich bolt-on models.</p><h3>How This Pattern Is Typically Read</h3><p>The B prefix is treated as a Class Axe-era/import neck-plate prefix. The likely manufacturing window is 1989-1993. The remaining digits are treated as production or neck-plate sequence ${parseInt(sequence, 10)}.</p><h3>What To Verify</h3><ul><li>B.C. Rich serial records from this era are inconsistent and often not sequential.</li><li>The serial can support an era estimate, but it should not be treated as an exact production date.</li><li>Check bolt-on construction, neck plate style, country markings, and electronics-cavity or neck-pocket clues.</li></ul>`,
+    };
+}
+function decodeJapanTPrefixImport(serial) {
+    const sequence = serial.substring(1);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'B.C. Rich',
+        serialNumber: serial,
+        year: '1987-1989 (estimated)',
+        factory: 'Japan import production line (T-prefix)',
+        country: 'Japan',
+        notes: `T-prefix B.C. Rich import format associated with outsourced Japanese bolt-on production from roughly 1987-1989. The digits "${sequence}" are a sequential production number (${sequenceNumber}) pulled from stock at final assembly, not a date code. This format is commonly stamped directly on the metal neck plate rather than the headstock. Common on Stratocaster-style bolt-on models and import Warlocks/Mockingbirds from this era. Verify with neck plate location, bolt-on construction, and NJ Series headstock markings.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'bcrich-t-prefix-japan-import-sequential',
+        patternLabel: 'B.C. Rich T-prefix Japan import sequential (1987-1989)',
+        additionalContext: {
+            title: 'B.C. Rich T-prefix Japan import serial',
+            summary: 'This serial matches a T-prefix format associated with late-1980s outsourced Japanese bolt-on B.C. Rich production.',
+            highlights: [
+                'The "T" prefix identifies a late-1980s Japanese import production line.',
+                `The digits are a sequential production number (${sequenceNumber}), not a date code.`,
+                'Estimated production window: 1987-1989.',
+                'Commonly stamped on the metal neck plate rather than the headstock.',
+            ],
+            caveats: [
+                'These numbers were often pulled at random from stock during final assembly, so they do not reliably indicate month or day.',
+                'B.C. Rich outsourced production records from this era are incomplete.',
+                'The serial supports an era/origin estimate, not exact model identification.',
+            ],
+            verificationTips: [
+                'Check whether the serial is stamped on the metal neck plate on the back of the body.',
+                'Confirm bolt-on (not neck-through) construction.',
+                'Look for "NJ Series" headstock markings and compare body shape against Strat-style, Warlock, or Mockingbird import models from this era.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a T-prefix format associated with late-1980s outsourced Japanese bolt-on B.C. Rich production.</p><h3>How This Pattern Is Typically Read</h3><p>The "T" prefix identifies a late-1980s Japanese import production line. The digits are a sequential production number (${sequenceNumber}) pulled at random from stock during final assembly, not a date code. Estimated production window: 1987-1989.</p><h3>What To Verify</h3><ul><li>Check whether the serial is stamped on the metal neck plate on the back of the body rather than the headstock.</li><li>Confirm bolt-on construction.</li><li>Look for "NJ Series" headstock markings and compare body shape against Strat-style, Warlock, or Mockingbird import models from this era.</li></ul>`,
     };
 }
 function decodeBWithTrailingLetter(serial) {

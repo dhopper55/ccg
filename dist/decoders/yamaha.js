@@ -12,8 +12,8 @@ export function decodeYamaha(serial) {
     if (/^[A-Z]{2}\d{3}$/.test(normalized)) {
         return decodeJapanCustomShop1997(normalized);
     }
-    // Japan Custom Shop 1991-1996: Letter-Letter-###-Letter (e.g., HP213J)
-    if (/^[A-Z]{2}\d{3}[A-Z]$/.test(normalized)) {
+    // Japan Custom Shop 1991-1996: Letter-Letter-###(#)-Letter (e.g., HP213J; HP2070E for higher-volume runs)
+    if (/^[A-Z]{2}\d{3,4}[A-Z]$/.test(normalized)) {
         return decodeJapanCustomShop1991(normalized);
     }
     // Japan Electric 2002+: Letter-Letter-Letter-###-Letter (e.g., QJM111E)
@@ -311,11 +311,11 @@ function decodeJapanCustomShop1997(serial) {
     };
     return { success: true, info };
 }
-// Japan Custom Shop 1991-1996: Letter-Letter-###-Letter
+// Japan Custom Shop 1991-1996: Letter-Letter-###(#)-Letter (unit block may be 3 or 4 digits)
 function decodeJapanCustomShop1991(serial) {
     const yearLetter = serial[0];
     const monthLetter = serial[1];
-    const unit = parseInt(serial.substring(2, 5), 10);
+    const unit = parseInt(serial.substring(2, serial.length - 1), 10);
     const yearDigit = getYearDigit(yearLetter);
     const month = getMonthFromLetter(monthLetter);
     if (yearDigit === -1) {

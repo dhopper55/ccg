@@ -41,8 +41,8 @@ export function decodeCharvel(serial: string): DecodeResult {
     return decodeModernJapan(normalized);
   }
 
-  // Mexican production: MC + year + production (up to 9 trailing digits for newer long serials)
-  if (/^MC\d{6,9}$/.test(normalized)) {
+  // Mexican production: MC + year + production (5-9 trailing digits; shorter runs and newer long serials)
+  if (/^MC\d{5,9}$/.test(normalized)) {
     return decodeMexico(normalized);
   }
 

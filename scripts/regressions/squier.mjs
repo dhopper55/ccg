@@ -1,5 +1,19 @@
 import { assert, decodeSerialForBackend } from './shared.mjs';
 
+function assertSquierSNLabelStripped(serialInput, expectedYear) {
+  const result = decodeSerialForBackend('squier', serialInput);
+  assert(result.success, `Expected decode success for squier:${serialInput}`);
+  assert(result.info, `Expected decoded info for squier:${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(
+    info.factory === 'Cor-Tek (Cort)',
+    `Expected Cor-Tek (Cort) factory for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'Indonesia', `Expected Indonesia for ${serialInput}, got ${info.country}`);
+}
+
 function assertSquierChinaSE9Digit(serialInput, expectedYear, expectedMonth) {
   const result = decodeSerialForBackend('squier', serialInput);
   assert(result.success, `Expected decode success for squier:${serialInput}`);
@@ -112,6 +126,7 @@ function assertSquierChinaCRN(serialInput) {
 }
 
 export function runTests() {
+  assertSquierSNLabelStripped('S/nics10042349', '2010');
   assertSquierChinaSE9Digit('040811254', '2004', 'August');
   assertSquierChinaSE8Digit2004('04090431', 'September');
   assertSquierChinaCPrefix('c004039', '2000');

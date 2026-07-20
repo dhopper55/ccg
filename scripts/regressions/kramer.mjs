@@ -89,6 +89,32 @@ function assertKramerXLPrefix(serialInput, expectedYearRange) {
   );
 }
 
+function assertKramerFCPrefix(serialInput, expectedYearRange) {
+  const result = decodeKramer(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYearRange, `Expected year range ${expectedYearRange} for ${serialInput}, got ${info.year}`);
+  assert(
+    info.notes && info.notes.includes('FC'),
+    `Expected FC-prefix note for ${serialInput}, got ${info.notes}`
+  );
+}
+
+function assertKramerGPrefix(serialInput, expectedYearRange) {
+  const result = decodeKramer(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYearRange, `Expected year range ${expectedYearRange} for ${serialInput}, got ${info.year}`);
+  assert(
+    info.notes && info.notes.includes('G-prefix serial'),
+    `Expected G-series note for ${serialInput}, got ${info.notes}`
+  );
+}
+
 function assertKramerSESamickKorea(serialInput) {
   const result = decodeKramer(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -318,6 +344,8 @@ export function runTests() {
   assertKramerVPrefix('V9954', 'mid-to-late 1980s (estimated)');
   assertKramerCFPrefix('CF22271', '1985-1989 (estimated)');
   assertKramerXLPrefix('XL 02374', 'late 1980s (estimated)');
+  assertKramerFCPrefix('FC4120261', 'late 1989–1990');
+  assertKramerGPrefix('G1340', '1988–1990');
   assertKramerSESamickKorea('se 8280');
   assertKramerSCJapanImport('SC9117');
   assertKramerVintage5Digit('70630');

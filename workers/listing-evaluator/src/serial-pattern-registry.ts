@@ -11,6 +11,7 @@ export function deriveExplicitRegexFromKnownPatternKey(patternKey: string): stri
     'bcrich-short-modern-month-code-import': '^[ACEFGHJKLMNP]\\d{7}$',
     'bcrich-short-numeric-import-y-filler-quarter-sequence': '^\\d{6}$',
     'bcrich-10-digit-numeric-import': '^\\d{10}$',
+    'bcrich-t-prefix-japan-import-sequential': '^T\\d{4}$',
     'charvel-san-dimas-fender-era-reissue-4digit': '^\\d{4}$',
     'charvel-uc-china-yy-sequence': '^UC\\d{4,8}$',
     'cort-8digit-suspicious-future-year': '^\\d{8}$',

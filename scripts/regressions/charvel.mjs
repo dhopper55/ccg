@@ -4,6 +4,20 @@ function decodeCharvel(serialInput) {
   return decodeSerialForBackend('charvel', serialInput);
 }
 
+function assertCharvelMexicoMC(serialInput, expectedYear) {
+  const result = decodeCharvel(serialInput);
+  assert(result.success, `Expected decode success for charvel:${serialInput}`);
+  assert(result.info, `Expected decoded info for charvel:${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(
+    info.factory === 'Fender Mexico (Ensenada)',
+    `Expected Fender Mexico factory for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'Mexico', `Expected country Mexico for ${serialInput}, got ${info.country}`);
+}
+
 function assertCharvelJapanYYMM(serialInput, expectedYear, expectedMonth) {
   const result = decodeSerialForBackend('charvel', serialInput);
   assert(result.success, `Expected decode success for charvel:${serialInput}`);
@@ -111,6 +125,7 @@ function assertCharvelSanDimasFenderEra(serialInput, expectedYear) {
 }
 
 export function runTests() {
+  assertCharvelMexicoMC('mc01028', '2001');
   assertCharvelJapanYYMM('8911', '1989', 'November');
   assertCharvelJapanYYMM('8706', '1987', 'June');
   assertCharvelCFPrefix('CF22271', '2022');

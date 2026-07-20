@@ -4,6 +4,21 @@ function decodeWashburn(serialInput) {
   return decodeSerialForBackend('washburn', serialInput);
 }
 
+function assertWashburnTwoCharFactory7Digit(serialInput, expectedYear, expectedMonth) {
+  const result = decodeWashburn(serialInput);
+  assert(result.success, `Expected decode success for Washburn ${serialInput}`);
+  assert(result.info, `Expected decoded info for Washburn ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'Chinese contract factory (Qingdao or Cort/Cor-Tek China facility)',
+    `Expected Chinese contract factory for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'China', `Expected country China for ${serialInput}, got ${info.country}`);
+}
+
 function assertWashburnSuffixStripped(serialInput, expectedSuffixNote) {
   const result = decodeWashburn(serialInput);
   assert(result.success, `Expected decode success for Washburn ${serialInput}`);
@@ -137,6 +152,7 @@ function assertWashburnCOVariantFactory(serialInput, expectedPrefix, expectedYea
 }
 
 export function runTests() {
+  assertWashburnTwoCharFactory7Digit('0c0810230', '2008', 'October');
   assertWashburnSuffixStripped('93050751-S', 'Solid Top');
   assertWashburnSuffixStripped('93050751-S.E', 'Solid Top');
   assertWashburnSuffixStripped('93050751-S.E', 'Electric');

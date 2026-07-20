@@ -3,7 +3,7 @@
  *
  * Kramer serials are inconsistent across eras, so this decoder focuses on
  * broad ranges and common prefix patterns. Supported formats include:
- * - Single-letter prefix A-F (USA Neptune, NJ era, early 1980s)
+ * - Single-letter prefix A-F (USA Neptune, NJ era, early 1980s), G (1988-1990 American Series tail end)
  * - H-prefix (ESP Japan contract build, 1990-1991)
  * - V-prefix (vintage/import plates, mid-to-late 1980s)
  * - SB-prefix (mid-to-late 1980s Striker import, Samick Korea or Japan)
@@ -23,15 +23,17 @@ export function decodeKramer(serial) {
             error: 'Please enter a serial number.',
         };
     }
-    // Letter prefix A-F (early USA era)
-    if (/^[A-F]\d+$/.test(normalized)) {
+    // Letter prefix A-G (USA Neptune, NJ neck plates; G covers the 1988-1990 tail end of the American Series)
+    if (/^[A-G]\d+$/.test(normalized)) {
         const prefix = normalized.charAt(0);
         const yearRange = getPrefixYearRange(prefix);
         const info = {
             brand: 'Kramer',
             serialNumber: cleaned,
             year: yearRange,
-            notes: `${prefix}-prefix serial. These generally indicate early Kramer production periods and should be cross-referenced with headstock and neck-plate details for accuracy.`,
+            notes: prefix === 'G'
+                ? `G-prefix serial. The "G" series was used at the tail end of Kramer's Neptune, NJ American Series, roughly 1988-1990, on models like the Pro-Axe Deluxe, Sustainer, and late-era Pacers/Barettas. G-series serials are relatively scarce, as Kramer ran into financial trouble shortly after introducing this series. These guitars were assembled in the USA (stamped "Neptune, NJ" on the neck plate) using parts sourced from ESP in Japan. Original factory records were lost in Kramer's bankruptcy, so cross-reference with the Vintage Kramer G Serial Registry and headstock shape (banana, beak, or pointy) for further confirmation.`
+                : `${prefix}-prefix serial. These generally indicate early Kramer production periods and should be cross-referenced with headstock and neck-plate details for accuracy.`,
         };
         return { success: true, info };
     }
@@ -177,7 +179,9 @@ export function decodeKramer(serial) {
                 ? `Overseas model prefix ${prefix}. This prefix is commonly associated with Japan-built Focus/Striker-era instruments from the mid-to-late 1980s (often around 1985-1989). Verify with headstock shape, neck-plate details, and hardware.`
                 : prefix === 'XL'
                     ? `Overseas model prefix XL. Kramer's XL Series (XL I, XL II, XL III) was a budget-friendly entry-level line built overseas during the late 1980s to capture the entry-level shred market. Unlike premium American Kramers, the neck plate is typically a plain stamped chrome or black plate without a "Neptune, N.J." factory stamp. Verify with headstock shape (pointy/beak-style), neck-plate finish, and whether a Floyd Rose tremolo is present.`
-                    : `Overseas model prefix ${prefix}. The second letter often indicates the production year range, but verification with features is recommended.`,
+                    : prefix === 'FC'
+                        ? `Overseas model prefix FC. The "F" identifies Kramer's budget/entry-level overseas import lines (Ferrington acoustic-electrics, Striker/Focus-family models); "FC" specifically covers the late-1989-to-1990 production block, following "FA" (1985-1986) and "FB" (1987-1988) in the same series. A genuine 1980s USA-assembled Kramer uses a single-letter prefix and a "Neptune, NJ" neck plate stamp — two-letter prefixes like FC indicate the entire instrument was built overseas.`
+                        : `Overseas model prefix ${prefix}. The second letter often indicates the production year range, but verification with features is recommended.`,
         };
         return { success: true, info };
     }
@@ -365,7 +369,7 @@ export function decodeKramer(serial) {
     }
     return {
         success: false,
-        error: 'Unable to decode this Kramer serial number. Kramer serials vary by era, and many vintage records were lost. Common known formats: single-letter A–F (USA era), H-prefix (Japan ESP build), JK-prefix (Indonesian factory, Gibson/Epiphone era), SB/SE/SD/SP/SF/SC/SJ/SI-prefix (import eras), plain 4-digit numeric (import or USA with possible worn prefix), and numeric formats. Try the Vintage Kramer registry or HTPG serial search for additional context.',
+        error: 'Unable to decode this Kramer serial number. Kramer serials vary by era, and many vintage records were lost. Common known formats: single-letter A–G (USA era), H-prefix (Japan ESP build), JK-prefix (Indonesian factory, Gibson/Epiphone era), SB/SE/SD/SP/SF/SC/SJ/SI-prefix (import eras), plain 4-digit numeric (import or USA with possible worn prefix), and numeric formats. Try the Vintage Kramer registry or HTPG serial search for additional context.',
     };
 }
 function decodeVintage1980sSBStriker(normalized, cleaned) {
@@ -1031,6 +1035,8 @@ function getPrefixYearRange(prefix) {
             return '1980–early 1981';
         case 'B':
             return 'early 1981–early 1983';
+        case 'G':
+            return '1988–1990';
         default:
             return 'mid-1980s (approx.)';
     }
@@ -1046,6 +1052,8 @@ function getOverseasYearRange(prefix) {
         return 'late 1985–1986';
     if (prefix === 'FB')
         return '1987–1988';
+    if (prefix === 'FC')
+        return 'late 1989–1990';
     if (prefix === 'XL')
         return 'late 1980s (estimated)';
     return undefined;

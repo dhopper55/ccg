@@ -2,7 +2,7 @@
  * Alvarez Guitar Serial Number Decoder
  *
  * Supports:
- * - Modern standard format: Letter prefix + 8-9 digits (LYYMMXXXXX)
+ * - Modern standard format: Letter prefix + 7-10 digits (LYYMMXXXXX)
  * - Alvarez-Yairi (Japan): 4-5 digit sequential numbers
  * - Alvarez-Yairi heel block: Emperor dating code (Showa/Heisei eras)
  * - Older Japan models: Various formats (1970s-1980s)
@@ -23,8 +23,8 @@ export function decodeAlvarez(serial) {
     if (/^[A-Z]{2}\d{8,10}$/.test(normalized)) {
         return decodeModernTwoLetterPrefix(normalized);
     }
-    // Modern standard format: Letter prefix + 7-9 digits (e.g., E24113487, F606120413, S2107111)
-    if (/^[A-Z]\d{7,9}$/.test(normalized)) {
+    // Modern standard format: Letter prefix + 7-10 digits (e.g., E24113487, F606120413, S2107111, F1005031124)
+    if (/^[A-Z]\d{7,10}$/.test(normalized)) {
         return decodeModernStandard(normalized);
     }
     // Emperor dating code format: 4 digits YYMM (heel block stamp)
@@ -49,7 +49,7 @@ export function decodeAlvarez(serial) {
     }
     return {
         success: false,
-        error: 'Unable to decode this Alvarez serial number. Common formats include: letter prefix + 8-9 digits (modern), 4-5 digit numbers (Yairi Japan), or Emperor dating codes on heel block (Yairi). For vintage Japanese Alvarez guitars, the serial number may not be decodable - check inside the guitar for date stamps on braces or the label.',
+        error: 'Unable to decode this Alvarez serial number. Common formats include: letter prefix + 7-10 digits (modern), 4-5 digit numbers (Yairi Japan), or Emperor dating codes on heel block (Yairi). For vintage Japanese Alvarez guitars, the serial number may not be decodable - check inside the guitar for date stamps on braces or the label.',
     };
 }
 const ALVAREZ_TWO_LETTER_FACTORY_MAP = {

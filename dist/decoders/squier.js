@@ -30,6 +30,7 @@
  * - Mexico MZ prefix (2000s)
  * - USA E prefix (1980s)
  * - USA N prefix (1990s)
+ * - Leading "S/N" label prefix (stripped before decoding the underlying factory code)
  */
 // Japan letter prefixes for Crafted in Japan (CIJ) era
 const JAPAN_LETTER_YEARS = {
@@ -62,6 +63,11 @@ const MONTH_LETTERS = {
 export function decodeSquier(serial) {
     const cleaned = serial.trim().toUpperCase();
     const normalized = cleaned.replace(/[\s-]/g, '');
+    // Strip a leading "S/N" (Serial Number) label — sometimes printed right next to the
+    // actual factory code/serial rather than being part of it — and decode what remains.
+    if (/^S\/N/.test(normalized)) {
+        return decodeSquier(normalized.replace(/^S\/N/, ''));
+    }
     // Japan JV prefix (1982-1984) - FujiGen, highly collectible
     if (/^JV\d{5,6}$/.test(normalized)) {
         return decodeJapanJV(normalized);
