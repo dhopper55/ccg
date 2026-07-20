@@ -207,14 +207,10 @@ import {
 
 // Guitar Eval
 import {
-  handleAdminV2ValueReportFileServe,
   handlePublicGuitarEvalReport,
   handleAdminV2ValueReports,
   handleAdminV2ValueReportItem,
   handleAdminV2ValueReportFulfilledUpdate,
-  handleAdminV2ValueReportFilesList,
-  handleAdminV2ValueReportFileUpload,
-  handleAdminV2ValueReportFileDelete,
   handleAdminV2ValueReportDelete,
   handleAdminV2GenerateReport,
 } from './guitar-eval/handlers.js';
@@ -282,10 +278,6 @@ export default {
 
     if (path === '/api/stripe/webhook' && request.method === 'POST') {
       return handleStripeWebhook(request, env);
-    }
-
-    if (path === '/api/admin-v2/value-report-files' && request.method === 'GET') {
-      return await handleAdminV2ValueReportFileServe(request, env);
     }
 
     const guitarEvalReportMatch = path.match(/^\/api\/guitar-eval-report\/([0-9a-f-]+)$/i);
@@ -799,22 +791,6 @@ export default {
     const adminV2ValueReportFulfilledMatch = path.match(/^\/api\/admin-v2\/value-reports\/(\d+)\/fulfilled$/);
     if (adminV2ValueReportFulfilledMatch && request.method === 'POST') {
       const response = await handleAdminV2ValueReportFulfilledUpdate(adminV2ValueReportFulfilledMatch[1], request, env);
-      return withCors(response, request, env);
-    }
-
-    const adminV2ValueReportFilesMatch = path.match(/^\/api\/admin-v2\/value-reports\/(\d+)\/files$/);
-    if (adminV2ValueReportFilesMatch && request.method === 'GET') {
-      const response = await handleAdminV2ValueReportFilesList(adminV2ValueReportFilesMatch[1], env);
-      return withCors(response, request, env);
-    }
-    if (adminV2ValueReportFilesMatch && request.method === 'POST') {
-      const response = await handleAdminV2ValueReportFileUpload(adminV2ValueReportFilesMatch[1], request, env);
-      return withCors(response, request, env);
-    }
-
-    const adminV2ValueReportFileDeleteMatch = path.match(/^\/api\/admin-v2\/value-reports\/(\d+)\/files\/(\d+)$/);
-    if (adminV2ValueReportFileDeleteMatch && request.method === 'DELETE') {
-      const response = await handleAdminV2ValueReportFileDelete(adminV2ValueReportFileDeleteMatch[1], adminV2ValueReportFileDeleteMatch[2], env);
       return withCors(response, request, env);
     }
 

@@ -94,59 +94,6 @@ export async function handleAdminV2ValueReportFulfilledUpdate(id: string, reques
   return jsonResponse({ ok: true });
 }
 
-export async function handleAdminV2ValueReportFilesList(evaluationId: string, env: Env): Promise<Response> {
-  const rows = await env.DB.prepare(
-    `SELECT id, file_name, r2_key, content_type, created_at
-     FROM guitar_evaluation_files
-     WHERE evaluation_id = ?
-     ORDER BY created_at ASC`
-  ).bind(evaluationId).all<{
-    id: number;
-    file_name: string;
-    r2_key: string;
-    content_type: string;
-    created_at: string;
-  }>();
-  return jsonResponse({ files: rows.results ?? [] });
-}
-
-export async function handleAdminV2ValueReportFileUpload(evaluationId: string, request: Request, env: Env): Promise<Response> {
-  if (!env.CUSTOM_ITEMS_BUCKET) return jsonResponse({ message: 'File storage is not configured.' }, 500);
-
-  const evalRow = await env.DB.prepare(
-    `SELECT id FROM guitar_evaluations WHERE id = ?`
-  ).bind(evaluationId).first<{ id: number }>();
-  if (!evalRow) return jsonResponse({ message: 'Value report not found.' }, 404);
-
-  let formData: FormData;
-  try {
-    formData = await request.formData();
-  } catch {
-    return jsonResponse({ message: 'Invalid form data.' }, 400);
-  }
-
-  const file = formData.get('file');
-  if (!(file instanceof File) || file.size <= 0) {
-    return jsonResponse({ message: 'A file is required.' }, 400);
-  }
-  if (file.size > 50 * 1024 * 1024) {
-    return jsonResponse({ message: 'File must be 50 MB or smaller.' }, 400);
-  }
-
-  const safeName = file.name.replace(/[^a-zA-Z0-9._\-]/g, '_').slice(0, 200);
-  const key = `guitar-eval-files/${evaluationId}/${crypto.randomUUID()}-${safeName}`;
-  await env.CUSTOM_ITEMS_BUCKET.put(key, await file.arrayBuffer(), {
-    httpMetadata: { contentType: file.type || 'application/octet-stream' },
-  });
-
-  await env.DB.prepare(
-    `INSERT INTO guitar_evaluation_files (evaluation_id, r2_key, file_name, content_type, created_at)
-     VALUES (?, ?, ?, ?, ?)`
-  ).bind(evaluationId, key, file.name.slice(0, 500), file.type || 'application/octet-stream', new Date().toISOString()).run();
-
-  return jsonResponse({ ok: true });
-}
-
 export async function handleAdminV2ValueReportDelete(evaluationId: string, env: Env): Promise<Response> {
   const id = parseInt(evaluationId, 10);
   if (isNaN(id)) return jsonResponse({ message: 'Invalid evaluation ID.' }, 400);
@@ -185,47 +132,6 @@ export async function handleAdminV2ValueReportDelete(evaluationId: string, env: 
   await env.DB.prepare(`DELETE FROM guitar_evaluations WHERE id = ?`).bind(id).run();
 
   return jsonResponse({ ok: true });
-}
-
-export async function handleAdminV2ValueReportFileDelete(evaluationId: string, fileId: string, env: Env): Promise<Response> {
-  if (!env.CUSTOM_ITEMS_BUCKET) return jsonResponse({ message: 'File storage is not configured.' }, 500);
-
-  const row = await env.DB.prepare(
-    `SELECT id, r2_key FROM guitar_evaluation_files WHERE id = ? AND evaluation_id = ?`
-  ).bind(fileId, evaluationId).first<{ id: number; r2_key: string }>();
-  if (!row) return jsonResponse({ message: 'File not found.' }, 404);
-
-  await env.CUSTOM_ITEMS_BUCKET.delete(row.r2_key);
-  await env.DB.prepare(`DELETE FROM guitar_evaluation_files WHERE id = ?`).bind(fileId).run();
-
-  return jsonResponse({ ok: true });
-}
-
-export async function handleAdminV2ValueReportFileServe(request: Request, env: Env): Promise<Response> {
-  try {
-    if (!env.CUSTOM_ITEMS_BUCKET) {
-      return new Response('File storage is not configured.', { status: 500 });
-    }
-
-    const key = new URL(request.url).searchParams.get('key');
-    if (!key || !key.startsWith('guitar-eval-files/')) {
-      return new Response('Missing or invalid file key.', { status: 400 });
-    }
-
-    const object = await env.CUSTOM_ITEMS_BUCKET.get(key);
-    if (!object) return new Response('File not found.', { status: 404 });
-
-    const contentType = object.httpMetadata?.contentType || 'application/octet-stream';
-    const headers = new Headers({
-      'content-type': contentType,
-      'cache-control': 'private, max-age=300',
-      'etag': object.httpEtag,
-    });
-    return new Response(object.body, { headers });
-  } catch (error) {
-    console.error('value-report-files serve error', error);
-    return new Response('Failed to serve file.', { status: 500 });
-  }
 }
 
 export async function handlePublicGuitarEvalReport(guid: string, env: Env): Promise<Response> {
