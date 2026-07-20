@@ -674,9 +674,9 @@ const ValueReportItem = () => {
                   <Divider sx={{ mb: 3 }} />
 
                   <Typography variant="overline" sx={{ color: 'text.secondary' }}>03 · Specifications</Typography>
-                  <Stack spacing={1.5} sx={{ mt: 1, mb: 2 }}>
+                  <Stack spacing={1.5} sx={{ mt: 1, mb: 2, width: '100%' }}>
                     {authData.specs.map((row, idx) => (
-                      <Stack key={idx} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                      <Stack key={idx} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }} sx={{ width: '100%' }}>
                         <TextField label="Spec" value={row.label} onChange={(e) => updateSpecRow(idx, 'label', e.target.value)} sx={{ flex: 1 }} />
                         <TextField label="Expected" value={row.expected} onChange={(e) => updateSpecRow(idx, 'expected', e.target.value)} sx={{ flex: 1 }} />
                         <TextField label="Observed" value={row.observed} onChange={(e) => updateSpecRow(idx, 'observed', e.target.value)} sx={{ flex: 1 }} />
@@ -698,9 +698,9 @@ const ValueReportItem = () => {
                   <Divider sx={{ my: 3 }} />
 
                   <Typography variant="overline" sx={{ color: 'text.secondary' }}>04 · Authenticity Markers</Typography>
-                  <Stack spacing={1.5} sx={{ mt: 1, mb: 2 }}>
+                  <Stack spacing={1.5} sx={{ mt: 1, mb: 2, width: '100%' }}>
                     {authData.markers.map((row, idx) => (
-                      <Stack key={idx} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                      <Stack key={idx} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }} sx={{ width: '100%' }}>
                         <TextField label="Marker" value={row.marker} onChange={(e) => updateMarkerRow(idx, 'marker', e.target.value)} sx={{ flex: 1 }} />
                         <FormControl sx={{ minWidth: 190 }}>
                           <InputLabel>Status</InputLabel>
@@ -745,9 +745,9 @@ const ValueReportItem = () => {
                   />
                   {!authData.redFlags.none ? (
                     <>
-                      <Stack spacing={1.5} sx={{ mt: 1, mb: 2 }}>
+                      <Stack spacing={1.5} sx={{ mt: 1, mb: 2, width: '100%' }}>
                         {authData.redFlags.items.map((row, idx) => (
-                          <Stack key={idx} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                          <Stack key={idx} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }} sx={{ width: '100%' }}>
                             <TextField
                               label="Description"
                               value={row.description}
