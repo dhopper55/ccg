@@ -997,7 +997,7 @@ const SerialDecodes = () => {
                               aria-label="Search Google for this serial number"
                               onClick={(event) => {
                                 event.stopPropagation();
-                                const query = `Is "${record.serial}" a real, confirmed, documented valid serial number for a ${formatBrandName(record.brand)} guitar? Answer about this exact serial number, not just whether a string like it could plausibly fit the general format. Only answer yes if you can cite a specific documented source (not a forum guess or "some collectors believe") confirming this exact serial number, your explanation accounts for every character in the serial with none left over or reinterpreted, there is exactly one plausible reading rather than multiple conflicting options, and no field is outside its normal range (such as an invalid month) explained away as a "special case" without independent documentation. Also check whether this could instead be a typo or misread of a different known valid format. Start your answer with either CONFIRMED VALID or NOT CONFIRMED, then explain why.`;
+                                const query = `Is "${record.serial}" a fully valid serial number for a ${formatBrandName(record.brand)} guitar? No guessing or "maybe", it is or it isn't.`;
                                 window.open(`https://www.google.com/search?q=${encodeURIComponent(query)}`, '_blank', 'noopener,noreferrer');
                               }}
                               sx={{
