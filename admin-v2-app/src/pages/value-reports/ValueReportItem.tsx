@@ -118,6 +118,10 @@ const ValueReportItem = () => {
   const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState('');
+  const [checklistModalOpen, setChecklistModalOpen] = useState(false);
+  const [checklistText, setChecklistText] = useState('');
+  const [isParsingChecklist, setIsParsingChecklist] = useState(false);
+  const [checklistError, setChecklistError] = useState('');
 
   const loadRecord = async (suppressLoading = false) => {
     if (!id) return;
@@ -316,6 +320,37 @@ const ValueReportItem = () => {
       setPolishError(error instanceof Error ? error.message : 'AI polish failed.');
     } finally {
       setIsPolishing(false);
+    }
+  };
+
+  const handleParseChecklist = async () => {
+    if (!id || !checklistText.trim()) return;
+    setIsParsingChecklist(true);
+    setChecklistError('');
+    try {
+      const res = await fetch(`/api/admin-v2/value-reports/${encodeURIComponent(id)}/authenticity-parse-checklist`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: checklistText }),
+      });
+      const payload = (await res.json()) as {
+        specs?: { label: string; expected: string }[];
+        markers?: string[];
+        message?: string;
+      };
+      if (!res.ok) throw new Error(payload.message || 'Failed to parse text.');
+      setAuthData((p) => ({
+        ...p,
+        specs: [...p.specs, ...(payload.specs ?? []).map((s) => ({ label: s.label, expected: s.expected, observed: '' }))],
+        markers: [...p.markers, ...(payload.markers ?? []).map((marker) => ({ marker, status: 'unable_to_verify' as MarkerStatus, note: '' }))],
+      }));
+      setChecklistModalOpen(false);
+      setChecklistText('');
+    } catch (error) {
+      setChecklistError(error instanceof Error ? error.message : 'Failed to parse text.');
+    } finally {
+      setIsParsingChecklist(false);
     }
   };
 
@@ -589,8 +624,22 @@ const ValueReportItem = () => {
 
                   <Divider sx={{ mb: 3 }} />
 
-                  <Typography variant="overline" sx={{ color: 'text.secondary' }}>03 · Specifications</Typography>
-                  <Stack spacing={1.5} sx={{ mt: 1, mb: 2, width: '100%' }}>
+                  <Stack direction="row" alignItems="center" justifyContent="space-between">
+                    <Typography variant="overline" sx={{ color: 'text.secondary' }}>03 · Specifications &amp; Authenticity Markers</Typography>
+                    <Tooltip title="Populate with AI Analysis">
+                      <IconButton
+                        size="small"
+                        color="secondary"
+                        aria-label="Populate with AI Analysis"
+                        onClick={() => setChecklistModalOpen(true)}
+                      >
+                        <IconifyIcon icon="material-symbols:upload-rounded" fontSize={20} />
+                      </IconButton>
+                    </Tooltip>
+                  </Stack>
+
+                  <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>Specifications</Typography>
+                  <Stack spacing={1.5} sx={{ mb: 2, width: '100%' }}>
                     {authData.specs.map((row, idx) => (
                       <Stack key={idx} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }} sx={{ width: '100%' }}>
                         <TextField label="Spec" value={row.label} onChange={(e) => updateSpecRow(idx, 'label', e.target.value)} sx={{ flex: 1 }} />
@@ -613,8 +662,8 @@ const ValueReportItem = () => {
 
                   <Divider sx={{ my: 3 }} />
 
-                  <Typography variant="overline" sx={{ color: 'text.secondary' }}>04 · Authenticity Markers</Typography>
-                  <Stack spacing={1.5} sx={{ mt: 1, mb: 2, width: '100%' }}>
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>Authenticity Markers</Typography>
+                  <Stack spacing={1.5} sx={{ mb: 2, width: '100%' }}>
                     {authData.markers.map((row, idx) => (
                       <Stack key={idx} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }} sx={{ width: '100%' }}>
                         <TextField label="Marker" value={row.marker} onChange={(e) => updateMarkerRow(idx, 'marker', e.target.value)} sx={{ flex: 1 }} />
@@ -648,7 +697,7 @@ const ValueReportItem = () => {
 
                   <Divider sx={{ my: 3 }} />
 
-                  <Typography variant="overline" sx={{ color: 'text.secondary' }}>05 · Red Flags &amp; Inconsistencies</Typography>
+                  <Typography variant="overline" sx={{ color: 'text.secondary' }}>04 · Red Flags &amp; Inconsistencies</Typography>
                   <FormControlLabel
                     sx={{ display: 'block', mt: 1 }}
                     control={
@@ -701,7 +750,7 @@ const ValueReportItem = () => {
 
                   <Divider sx={{ my: 3 }} />
 
-                  <Typography variant="overline" sx={{ color: 'text.secondary' }}>06 · Expert Verdict</Typography>
+                  <Typography variant="overline" sx={{ color: 'text.secondary' }}>05 · Expert Verdict</Typography>
                   <Grid container spacing={2} sx={{ mt: 0.5, mb: 3 }}>
                     <Grid size={{ xs: 12, sm: 6 }}>
                       <FormControl fullWidth>
@@ -763,7 +812,7 @@ const ValueReportItem = () => {
 
                   <Divider sx={{ mb: 3 }} />
 
-                  <Typography variant="overline" sx={{ color: 'text.secondary' }}>07 · Certificate &amp; Summary</Typography>
+                  <Typography variant="overline" sx={{ color: 'text.secondary' }}>06 · Certificate &amp; Summary</Typography>
                   <Box sx={{ mt: 1, mb: 3 }}>
                     <TextField
                       fullWidth
@@ -920,6 +969,48 @@ const ValueReportItem = () => {
             startIcon={isSending ? <CircularProgress size={16} color="inherit" /> : undefined}
           >
             {isSending ? 'Sending…' : 'Send to Customer'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Populate with AI Analysis — paste external AI output, we parse it into Specs + Markers */}
+      <Dialog
+        open={checklistModalOpen}
+        onClose={() => !isParsingChecklist && setChecklistModalOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Populate with AI Analysis</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
+            Ask another AI tool for 5–6 specifications to check and 5–6 authenticity markers for this specific
+            brand/model, then paste the raw response below. We'll parse it and add rows to Specifications
+            (spec + expected value) and Authenticity Markers (marker name) for you to fill in the rest.
+          </Typography>
+          <TextField
+            fullWidth
+            multiline
+            minRows={12}
+            placeholder="Paste the AI's response here…"
+            value={checklistText}
+            onChange={(e) => setChecklistText(e.target.value)}
+          />
+          {checklistError ? (
+            <Alert severity="error" sx={{ mt: 2 }}>{checklistError}</Alert>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setChecklistModalOpen(false)} disabled={isParsingChecklist}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => void handleParseChecklist()}
+            disabled={isParsingChecklist || !checklistText.trim()}
+            startIcon={isParsingChecklist ? <CircularProgress size={16} color="inherit" /> : undefined}
+          >
+            {isParsingChecklist ? 'Parsing…' : 'Parse & Add'}
           </Button>
         </DialogActions>
       </Dialog>

@@ -5,6 +5,7 @@ import { getBrevoRuntimeConfig } from '../system/runtime.js';
 import { sendBrevoTransactionalEmail } from '../orders/email.js';
 import { escHtml } from './report.js';
 import { polishAuthenticityReportText } from '../ai/authenticity-polish.js';
+import { parseAuthenticityChecklistText } from '../ai/authenticity-checklist-parse.js';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 export type AuthenticityIdentity = {
@@ -546,6 +547,27 @@ export async function handleAdminV2AuthenticityAiPolish(id: string, request: Req
   const result = await polishAuthenticityReportText(data as AuthenticityReportData, record, env);
   if (!result) {
     return jsonResponse({ message: 'AI polish failed — try again or write it by hand.' }, 502);
+  }
+
+  return jsonResponse(result);
+}
+
+export async function handleAdminV2AuthenticityParseChecklist(id: string, request: Request, env: Env): Promise<Response> {
+  let body: any;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid request body.' }, 400);
+  }
+  const text = typeof body?.text === 'string' ? body.text.trim() : '';
+  if (!text) return jsonResponse({ message: 'Paste some text first.' }, 400);
+
+  const record = await loadEvalForAuthReport(id, env);
+  if (!record) return jsonResponse({ message: 'Report not found.' }, 404);
+
+  const result = await parseAuthenticityChecklistText(text, record, env);
+  if (!result) {
+    return jsonResponse({ message: 'Could not parse that text — try again or add rows manually.' }, 502);
   }
 
   return jsonResponse(result);
