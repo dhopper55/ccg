@@ -203,13 +203,28 @@ const ValueReportItem = () => {
     setIsSaving(true);
     setSaveMessage(null);
     try {
-      const res = await fetch(`/api/admin-v2/value-reports/${encodeURIComponent(id)}/fulfilled`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fulfilled }),
-      });
-      if (!res.ok) throw new Error('Save failed.');
+      const requests = [
+        fetch(`/api/admin-v2/value-reports/${encodeURIComponent(id)}/fulfilled`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fulfilled }),
+        }),
+      ];
+      // The bottom "Save" button is the obvious save action on the page — it must also
+      // persist the authenticity draft, or edits above look saved but vanish on reload.
+      if (record?.type === 'AUTHENTICITY') {
+        requests.push(
+          fetch(`/api/admin-v2/value-reports/${encodeURIComponent(id)}/authenticity-draft`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: authData }),
+          }),
+        );
+      }
+      const results = await Promise.all(requests);
+      if (results.some((res) => !res.ok)) throw new Error('Save failed.');
       setSaveMessage({ type: 'success', text: 'Saved.' });
     } catch {
       setSaveMessage({ type: 'error', text: 'Failed to save.' });
