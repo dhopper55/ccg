@@ -1935,9 +1935,9 @@ footer {
               <span class="field-err-msg">Brand is required</span>
             </div>
             <div class="field" id="wrap-model">
-              <label>Model <span class="opt">(optional)</span> <span class="help-icon" data-tooltip-key="model">?</span></label>
+              <label>Model <span class="req">*</span> <span class="help-icon" data-tooltip-key="model">?</span></label>
               <input id="field-model" type="text" placeholder="e.g. Les Paul Custom">
-              <span class="field-err-msg">Required</span>
+              <span class="field-err-msg">Model is required</span>
             </div>
           </div>
 
@@ -2184,7 +2184,7 @@ let stripeElements = null;
 const TOOLTIPS = {
   serial: `<strong>Serial Number</strong><p>Most major manufacturers assign a serial number to each instrument. Common locations:</p><ul><li>Front or back of the headstock</li><li>A label inside the soundhole (acoustics)</li><li>Neck plate on bolt-on guitars</li><li>Back of the neck near the body joint</li></ul><p>Enter it exactly as it appears. Leave blank if you can't find one.</p>`,
   brand: `<strong>Brand</strong><p>The guitar's brand is one of the most important factors in determining value. An accurate evaluation isn't possible without it.</p><p>The brand is typically on the headstock, but may also appear on a label inside the soundhole or on the neck plate.</p><p>If you're unsure, select "Other" and enter "N/A." With clear photos, we can often identify the brand from the photos provided.</p>`,
-  model: `<strong>Model</strong><p>If you know the model, enter it here — it's often on the headstock, a label inside the soundhole, or identifiable from the serial number.</p><p>This field is optional. With clear photos we can usually identify it during the appraisal.</p><p>Examples: Stratocaster, Les Paul Standard, D-28, CE24, FG800</p>`,
+  model: `<strong>Model</strong><p>Enter the model here — it's often on the headstock, a label inside the soundhole, or identifiable from the serial number.</p><p>If you're not sure of the exact model, enter your best guess. With clear photos we can usually confirm or correct it during the appraisal.</p><p>Examples: Stratocaster, Les Paul Standard, D-28, CE24, FG800</p>`,
   case: `<strong>Case or Bag</strong><p>Cases and gig bags can have a meaningful impact on value, especially for higher-end or vintage instruments.</p><p>If the case is original, premium, or otherwise noteworthy, mention it in the Guitar Notes field below.</p><ul><li>Original factory hard case</li><li>Original molded case</li><li>Premium aftermarket hard case</li><li>Vintage period-correct case</li><li>Basic gig bag</li></ul>`,
   finish: `<strong>Color / Finish</strong><p>Helps us identify the specific variant and find accurate market comparables.</p><p>Examples: Sunburst, Black, Natural, Cherry Red, Vintage White, Lake Placid Blue, Tobacco Burst</p><p>If the finish has notable characteristics (checking, aging, custom refinish) note that here or in Guitar Notes.</p>`,
   location: `<strong>Instrument Location</strong><p>Your city or metro helps us calibrate local market pricing. Private sales in some markets run meaningfully higher or lower than national averages.</p><p>Location helps us:</p><ul><li>Estimate local/private-party value more accurately</li><li>Account for regional supply and demand</li><li>Consider shipping costs when relevant</li></ul><p>Examples: Denver, Colorado · Toronto, Ontario · Melbourne, Victoria</p><p>A general location is sufficient — no street address needed.</p>`,
@@ -2229,6 +2229,7 @@ function validateStep1() {
   let ok = true;
   const required = [
     { wrap: 'wrap-brand',    field: 'field-brand',    check: v => v !== '' },
+    { wrap: 'wrap-model',    field: 'field-model',    check: v => v.trim() !== '' },
     { wrap: 'wrap-location', field: 'field-location', check: v => v.trim() !== '' },
     { wrap: 'wrap-notes',    field: 'field-notes',    check: v => v.trim() !== '' },
     { wrap: 'wrap-damage',   field: 'field-damage',   check: v => v.trim() !== '' },
@@ -2261,7 +2262,7 @@ function validateStep2() {
 }
 
 // Clear error on input
-['wrap-brand','wrap-location','wrap-notes','wrap-damage','wrap-firstname','wrap-lastname','wrap-email'].forEach(wrapId => {
+['wrap-brand','wrap-model','wrap-location','wrap-notes','wrap-damage','wrap-firstname','wrap-lastname','wrap-email'].forEach(wrapId => {
   const wrap = document.getElementById(wrapId);
   if (!wrap) return;
   const input = wrap.querySelector('input, select, textarea');
