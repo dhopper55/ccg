@@ -63,7 +63,7 @@ type MarkerRow = { marker: string; status: MarkerStatus; note: string };
 type Severity = 'minor' | 'moderate' | 'major';
 type RedFlagRow = { description: string; severity: Severity };
 type VerdictValue = 'genuine' | 'likely_genuine' | 'inconclusive' | 'likely_not_authentic';
-type Confidence = 'high' | 'medium' | 'low';
+type Confidence = 'very_high' | 'high' | 'medium' | 'low' | 'very_low';
 
 type AuthenticityReportData = {
   identity: { modelConfirmed: string; yearConfirmed: string; variantNotes: string; confidenceStatement: string };
@@ -581,7 +581,8 @@ const ValueReportItem = () => {
                         minRows={2}
                         label="Confidence Statement"
                         value={authData.identity.confidenceStatement}
-                        onChange={(e) => setAuthData((p) => ({ ...p, identity: { ...p.identity, confidenceStatement: e.target.value } }))}
+                        InputProps={ro}
+                        helperText="Written by Add AI Analysis — not directly editable"
                       />
                     </Grid>
                   </Grid>
@@ -729,9 +730,11 @@ const ValueReportItem = () => {
                             setAuthData((p) => ({ ...p, verdict: { ...p.verdict, confidence: e.target.value as Confidence } }))
                           }
                         >
+                          <MenuItem value="very_high">Very High</MenuItem>
                           <MenuItem value="high">High</MenuItem>
                           <MenuItem value="medium">Medium</MenuItem>
                           <MenuItem value="low">Low</MenuItem>
+                          <MenuItem value="very_low">Very Low</MenuItem>
                         </Select>
                       </FormControl>
                     </Grid>
@@ -742,7 +745,8 @@ const ValueReportItem = () => {
                         minRows={3}
                         label="Reasoning"
                         value={authData.verdict.reasoning}
-                        onChange={(e) => setAuthData((p) => ({ ...p, verdict: { ...p.verdict, reasoning: e.target.value } }))}
+                        InputProps={ro}
+                        helperText="Written by Add AI Analysis — not directly editable"
                       />
                     </Grid>
                     <Grid size={12}>
@@ -767,7 +771,8 @@ const ValueReportItem = () => {
                       minRows={3}
                       label="Certificate Summary"
                       value={authData.certificateSummary}
-                      onChange={(e) => setAuthData((p) => ({ ...p, certificateSummary: e.target.value }))}
+                      InputProps={ro}
+                      helperText="Written by Add AI Analysis — not directly editable"
                     />
                   </Box>
 
@@ -799,10 +804,12 @@ const ValueReportItem = () => {
                     {polishError ? <Typography variant="body2" color="error.main">{polishError}</Typography> : null}
                   </Stack>
                   <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 1 }}>
-                    "Add AI Analysis" rewrites your Identity/Verdict/Certificate notes into fuller prose using only
-                    what you've already entered — it doesn't research the guitar or add new facts. If Specs or
-                    Markers are still empty, it'll also suggest a starting checklist of what to look at (names only,
-                    no findings) — it never fills in Status or an answer for you.
+                    The Confidence Statement, Reasoning, and Certificate Summary fields are written by "Add AI
+                    Analysis" only. It writes them from your Specs/Markers/Red Flags/Verdict findings, may search the
+                    web for general brand/model authenticity context (never anything about this specific serial
+                    number), and never invents a fact about this instrument or changes your Verdict/Confidence. If
+                    Specs or Markers are still empty, it'll also suggest a starting checklist of what to look at
+                    (names only, no findings) — it never fills in Status or an answer for you.
                   </Typography>
                 </Paper>
               </Grid>

@@ -23,7 +23,7 @@ export type AuthenticitySeverity = 'minor' | 'moderate' | 'major';
 export type AuthenticityRedFlagRow = { description: string; severity: AuthenticitySeverity };
 
 export type AuthenticityVerdictValue = 'genuine' | 'likely_genuine' | 'inconclusive' | 'likely_not_authentic';
-export type AuthenticityConfidence = 'high' | 'medium' | 'low';
+export type AuthenticityConfidence = 'very_high' | 'high' | 'medium' | 'low' | 'very_low';
 
 export type AuthenticityReportData = {
   identity: AuthenticityIdentity;
@@ -60,7 +60,13 @@ const VERDICT_COLOR_VAR: Record<AuthenticityVerdictValue, string> = {
   inconclusive: 'var(--brass-bright)',
   likely_not_authentic: 'var(--clay)',
 };
-const CONFIDENCE_LABELS: Record<AuthenticityConfidence, string> = { high: 'High', medium: 'Medium', low: 'Low' };
+const CONFIDENCE_LABELS: Record<AuthenticityConfidence, string> = {
+  very_high: 'Very High',
+  high: 'High',
+  medium: 'Medium',
+  low: 'Low',
+  very_low: 'Very Low',
+};
 const STATUS_LABELS: Record<AuthenticityMarkerStatus, string> = {
   consistent: 'Consistent',
   inconsistent: 'Inconsistent',
@@ -457,7 +463,7 @@ function validateAuthenticityData(data: any): data is AuthenticityReportData {
   if (!data.identity || !isNonEmptyString(data.identity.modelConfirmed)) return false;
   if (!data.verdict) return false;
   if (!['genuine', 'likely_genuine', 'inconclusive', 'likely_not_authentic'].includes(data.verdict.determination)) return false;
-  if (!['high', 'medium', 'low'].includes(data.verdict.confidence)) return false;
+  if (!['very_high', 'high', 'medium', 'low', 'very_low'].includes(data.verdict.confidence)) return false;
   if (!isNonEmptyString(data.verdict.reasoning)) return false;
   if (!isNonEmptyString(data.certificateSummary)) return false;
   return true;

@@ -16,7 +16,13 @@ const VERDICT_LABELS: Record<string, string> = {
   inconclusive: 'Inconclusive',
   likely_not_authentic: 'Likely Not Authentic',
 };
-const CONFIDENCE_LABELS: Record<string, string> = { high: 'High', medium: 'Medium', low: 'Low' };
+const CONFIDENCE_LABELS: Record<string, string> = {
+  very_high: 'Very High',
+  high: 'High',
+  medium: 'Medium',
+  low: 'Low',
+  very_low: 'Very Low',
+};
 const STATUS_LABELS: Record<string, string> = {
   consistent: 'Consistent',
   inconsistent: 'Inconsistent',
@@ -40,16 +46,18 @@ function buildPolishPrompt(
   return [
     'You are an assistant for Coal Creek Guitars, helping a human expert write up a guitar authenticity report. You have two SEPARATE jobs, described below. Do not blend them.',
     '',
-    'JOB 1 — Rewrite THREE specific pieces of text so they read as fuller, more polished, professional prose. The human expert has already fully evaluated this guitar and finalized every factual judgment given to you below.',
+    'You have a web_search tool available. Use it — a handful of searches, not excessively — to look up general, publicly known information about this brand and model: typical factory specs for the era, authenticity markers and red flags collectors and experts watch for on this model, known counterfeits/reissues/reproductions, or historical production context. This general research is meant to make your writing more informed and specific to the brand/model.',
+    'Do NOT search for, or make any claim about, this specific serial number or this individual instrument — there is no public record of one guitar, and the only facts you may state about THIS instrument are the ones given to you explicitly below.',
+    '',
+    'JOB 1 — Write THREE specific pieces of text as full, well-developed, professional prose. The human expert has already fully evaluated this guitar and finalized every structured factual judgment given to you below (specifications, markers, red flags, verdict, confidence). The three text fields below may already be blank, or may hold earlier AI-written text to refine further — either way, produce comprehensive, thorough paragraphs for each.',
     'HARD RULES for Job 1 — do not break these:',
-    '- Do not add, remove, or change any factual claim about this specific instrument beyond what is given below.',
+    '- Do not add, remove, or change any factual claim about this specific instrument beyond what is given below. General brand/model context from web search is fine as background color, clearly framed as general knowledge, not as something you inspected on this unit.',
     '- Do not change the verdict or confidence level — those are fixed inputs, not yours to interpret.',
     '- Do not mention price, value, resale, or market comps — this report has nothing to do with valuation.',
-    '- If the human\'s current text for a field is very short, expand it into a few well-formed sentences that stay strictly grounded in the facts given below — do not pad with generic filler unrelated to those facts.',
+    '- Favor length and substance over brevity: aim for several well-formed sentences per field (more if there is genuinely more grounded material to draw on), while staying strictly grounded in the facts given below — do not pad with filler unrelated to those facts.',
     '- Voice: confident, plain-spoken, expert-to-owner. No hype, no exclamation points, no invented drama.',
-    '- Keep each of the three fields under about 80 words — concise, not sprawling.',
     '',
-    'JOB 2 — Suggest a CHECKLIST of things worth examining for this brand/model, based only on your general knowledge of the brand/model (not this specific instrument). These are prompts for the human to go check themselves — NOT findings, NOT claims about this particular guitar, NOT something you have inspected. Just short names of relevant things to look at, e.g. "Headstock logo font", "Serial number format", "Hardware plating consistency". Suggest up to 5 specification items and up to 5 authenticity-marker items — fewer is fine. If you have no genuine brand/model-specific knowledge to offer, return empty arrays rather than generic filler.',
+    'JOB 2 — Suggest a CHECKLIST of things worth examining for this brand/model, based on your general knowledge of the brand/model (not this specific instrument) — informed by the same web research. These are prompts for the human to go check themselves — NOT findings, NOT claims about this particular guitar, NOT something you have inspected. Just short names of relevant things to look at, e.g. "Headstock logo font", "Serial number format", "Hardware plating consistency". Suggest up to 5 specification items and up to 5 authenticity-marker items — fewer is fine. If you have no genuine brand/model-specific knowledge to offer, return empty arrays rather than generic filler.',
     '',
     `Brand: ${record.brand || 'unknown'}`,
     `Model: ${record.model || 'unknown'}`,
@@ -66,12 +74,12 @@ function buildPolishPrompt(
     'Red flags:',
     redFlagsLines,
     '',
-    'Human\'s current text to expand/polish (Job 1):',
+    'Human\'s current text to write or further refine (Job 1):',
     `- Identity confidence statement: "${data.identity.confidenceStatement || '(empty)'}"`,
     `- Verdict reasoning: "${data.verdict.reasoning || '(empty)'}"`,
     `- Certificate summary: "${data.certificateSummary || '(empty)'}"`,
     '',
-    'Return ONLY a JSON object, no markdown fences, no explanation, in exactly this shape:',
+    'After you finish any web searches, return ONLY a JSON object as your final message text, no markdown fences, no explanation, in exactly this shape:',
     '{"confidenceStatement":"...","verdictReasoning":"...","certificateSummary":"...","suggestedSpecs":["...","..."],"suggestedMarkers":["...","..."]}',
   ].join('\n');
 }
@@ -103,10 +111,13 @@ async function attemptPolish(
       'Content-Type': 'application/json',
       'x-api-key': env.ANTHROPIC_API_KEY!,
       'anthropic-version': '2023-06-01',
+      'anthropic-beta': 'web-search-2025-03-05',
     },
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1600,
+      max_tokens: 4096,
+      stream: true,
+      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
       messages: [{ role: 'user', content: prompt }],
     }),
   });
@@ -116,11 +127,47 @@ async function attemptPolish(
     return { ok: false, reason: `HTTP ${response.status}: ${bodyText.slice(0, 600)}` };
   }
 
-  const responseData = await response.json() as {
-    content?: Array<{ type: string; text?: string }>;
-    stop_reason?: string;
-  };
-  const rawOutput = responseData.content?.find((b) => b.type === 'text')?.text?.trim() ?? '';
+  // Streamed — a web-search turn can take a while (search + a second generation pass),
+  // and streaming keeps the connection alive rather than risking a subrequest timeout.
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let fullText = '';
+  let buf = '';
+  let searchCount = 0;
+  let stopReason = 'unknown';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop() ?? '';
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const dataStr = line.slice(6).trim();
+        if (!dataStr || dataStr === '[DONE]') continue;
+        try {
+          const evt = JSON.parse(dataStr) as {
+            type: string;
+            content_block?: { type: string; name?: string };
+            delta?: { type: string; text?: string; stop_reason?: string };
+          };
+          if (evt.type === 'content_block_start' && evt.content_block?.type === 'tool_use' && evt.content_block.name === 'web_search') {
+            searchCount++;
+          } else if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta' && evt.delta.text) {
+            fullText += evt.delta.text;
+          } else if (evt.type === 'message_delta' && evt.delta?.stop_reason) {
+            stopReason = evt.delta.stop_reason;
+          }
+        } catch { /* ignore malformed SSE lines */ }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const rawOutput = fullText.trim();
   const output = extractJsonObject(rawOutput);
 
   let parsed: ParsedPolish;
@@ -129,13 +176,13 @@ async function attemptPolish(
   } catch (parseErr) {
     return {
       ok: false,
-      reason: `JSON parse failed (stop_reason=${responseData.stop_reason ?? 'unknown'}): ${parseErr instanceof Error ? parseErr.message : String(parseErr)}. Raw: ${rawOutput.slice(0, 500)}`,
+      reason: `JSON parse failed (stop_reason=${stopReason}, searches=${searchCount}): ${parseErr instanceof Error ? parseErr.message : String(parseErr)}. Raw: ${rawOutput.slice(0, 500)}`,
     };
   }
 
-  const confidenceStatement = normalizeText(parsed.confidenceStatement, '').slice(0, 1200);
-  const verdictReasoning = normalizeText(parsed.verdictReasoning, '').slice(0, 2000);
-  const certificateSummary = normalizeText(parsed.certificateSummary, '').slice(0, 1500);
+  const confidenceStatement = normalizeText(parsed.confidenceStatement, '').slice(0, 3000);
+  const verdictReasoning = normalizeText(parsed.verdictReasoning, '').slice(0, 5000);
+  const certificateSummary = normalizeText(parsed.certificateSummary, '').slice(0, 4000);
 
   if (!confidenceStatement || !verdictReasoning || !certificateSummary) {
     return { ok: false, reason: `Parsed JSON missing required fields: ${JSON.stringify(parsed).slice(0, 500)}` };
