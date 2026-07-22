@@ -463,7 +463,7 @@ const ValueReportItem = () => {
 
       <Box sx={{ p: { xs: 2, md: 5 }, minWidth: 0 }}>
         {isLoading ? (
-          <Stack sx={{ alignItems: 'center', py: 8 }} spacing={2}>
+          <Stack direction="column" sx={{ alignItems: 'center', py: 8 }} spacing={2}>
             <CircularProgress size={28} />
             <Typography sx={{ color: 'text.secondary' }}>Loading value report…</Typography>
           </Stack>
@@ -639,7 +639,7 @@ const ValueReportItem = () => {
                   </Stack>
 
                   <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>Specifications</Typography>
-                  <Stack spacing={1.5} sx={{ mb: 2, width: '100%' }}>
+                  <Stack direction="column" spacing={1.5} sx={{ mb: 2, width: '100%' }}>
                     {authData.specs.map((row, idx) => (
                       <Stack key={idx} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }} sx={{ width: '100%' }}>
                         <TextField label="Spec" value={row.label} onChange={(e) => updateSpecRow(idx, 'label', e.target.value)} sx={{ flex: 1 }} />
@@ -663,7 +663,7 @@ const ValueReportItem = () => {
                   <Divider sx={{ my: 3 }} />
 
                   <Typography variant="subtitle2" sx={{ mb: 1 }}>Authenticity Markers</Typography>
-                  <Stack spacing={1.5} sx={{ mb: 2, width: '100%' }}>
+                  <Stack direction="column" spacing={1.5} sx={{ mb: 2, width: '100%' }}>
                     {authData.markers.map((row, idx) => (
                       <Stack key={idx} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }} sx={{ width: '100%' }}>
                         <TextField label="Marker" value={row.marker} onChange={(e) => updateMarkerRow(idx, 'marker', e.target.value)} sx={{ flex: 1 }} />
@@ -710,7 +710,7 @@ const ValueReportItem = () => {
                   />
                   {!authData.redFlags.none ? (
                     <>
-                      <Stack spacing={1.5} sx={{ mt: 1, mb: 2, width: '100%' }}>
+                      <Stack direction="column" spacing={1.5} sx={{ mt: 1, mb: 2, width: '100%' }}>
                         {authData.redFlags.items.map((row, idx) => (
                           <Stack key={idx} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }} sx={{ width: '100%' }}>
                             <TextField
