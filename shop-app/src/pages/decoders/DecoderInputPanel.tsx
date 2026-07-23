@@ -429,7 +429,7 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
                   component="a"
                   href={authenticityHref}
                   target="_blank"
-                  rel="noopener noreferrer"
+                  rel="noopener"
                   sx={{
                     color: 'warning.main',
                     fontWeight: 700,
@@ -445,7 +445,7 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
                   component="a"
                   href={worthHref}
                   target="_blank"
-                  rel="noopener noreferrer"
+                  rel="noopener"
                   sx={{
                     color: 'warning.main',
                     fontWeight: 700,
