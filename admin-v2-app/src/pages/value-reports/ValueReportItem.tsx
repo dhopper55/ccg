@@ -66,7 +66,7 @@ type VerdictValue = 'genuine' | 'likely_genuine' | 'inconclusive' | 'likely_not_
 type Confidence = 'very_high' | 'high' | 'medium' | 'low' | 'very_low';
 
 type AuthenticityReportData = {
-  identity: { modelConfirmed: string; yearConfirmed: string; variantNotes: string; confidenceStatement: string };
+  identity: { brandConfirmed: string; modelConfirmed: string; yearConfirmed: string; variantNotes: string; confidenceStatement: string };
   specs: SpecRow[];
   markers: MarkerRow[];
   redFlags: { none: boolean; items: RedFlagRow[] };
@@ -75,7 +75,7 @@ type AuthenticityReportData = {
 };
 
 const DEFAULT_AUTH_DATA: AuthenticityReportData = {
-  identity: { modelConfirmed: '', yearConfirmed: '', variantNotes: '', confidenceStatement: '' },
+  identity: { brandConfirmed: '', modelConfirmed: '', yearConfirmed: '', variantNotes: '', confidenceStatement: '' },
   specs: [],
   markers: [],
   redFlags: { none: true, items: [] },
@@ -146,6 +146,13 @@ const ValueReportItem = () => {
           verdict: { ...DEFAULT_AUTH_DATA.verdict, ...d.verdict },
           certificateSummary: d.certificateSummary ?? '',
         });
+      } else if (rec?.type === 'AUTHENTICITY') {
+        // No draft yet — seed Brand/Model with what the customer submitted; admin can correct it
+        const customerBrand = rec.brand === 'Other' ? (rec.brandOther || '') : (rec.brand || '');
+        setAuthData((prev) => ({
+          ...prev,
+          identity: { ...prev.identity, brandConfirmed: customerBrand, modelConfirmed: rec.model || '' },
+        }));
       }
       return rec;
     } catch (error) {
@@ -347,7 +354,7 @@ const ValueReportItem = () => {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: checklistText }),
+        body: JSON.stringify({ text: checklistText, identity: authData.identity }),
       });
       const payload = (await res.json()) as {
         specs?: { label: string; expected: string }[];
@@ -600,7 +607,15 @@ const ValueReportItem = () => {
 
                   <Typography variant="overline" sx={{ color: 'text.secondary' }}>01 · Identity</Typography>
                   <Grid container spacing={2} sx={{ mt: 0.5, mb: 3 }}>
-                    <Grid size={{ xs: 12, sm: 6 }}>
+                    <Grid size={{ xs: 12, sm: 4 }}>
+                      <TextField
+                        fullWidth
+                        label="Brand Confirmed"
+                        value={authData.identity.brandConfirmed}
+                        onChange={(e) => setAuthData((p) => ({ ...p, identity: { ...p.identity, brandConfirmed: e.target.value } }))}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 4 }}>
                       <TextField
                         fullWidth
                         label="Model Confirmed"
@@ -608,7 +623,7 @@ const ValueReportItem = () => {
                         onChange={(e) => setAuthData((p) => ({ ...p, identity: { ...p.identity, modelConfirmed: e.target.value } }))}
                       />
                     </Grid>
-                    <Grid size={{ xs: 12, sm: 6 }}>
+                    <Grid size={{ xs: 12, sm: 4 }}>
                       <TextField
                         fullWidth
                         label="Year Confirmed"

@@ -9,6 +9,7 @@ import { parseAuthenticityChecklistText } from '../ai/authenticity-checklist-par
 
 // ── Types ──────────────────────────────────────────────────────────────────
 export type AuthenticityIdentity = {
+  brandConfirmed: string;
   modelConfirmed: string;
   yearConfirmed: string;
   variantNotes: string;
@@ -111,6 +112,7 @@ export function buildAuthenticityReportHtml(
   const confidenceLabel = CONFIDENCE_LABELS[data.verdict.confidence];
   const issuedDate = formatIssuedDate(new Date());
   const modelTitle = data.identity.modelConfirmed || record.model || 'Guitar';
+  const brandTitle = data.identity.brandConfirmed || resolvedBrand(record);
   const subParts = [data.identity.variantNotes, data.identity.yearConfirmed].filter(Boolean).join(' — ');
 
   const CHECK_OK = '<span class="check-ok">✓</span>';
@@ -313,12 +315,12 @@ export function buildAuthenticityReportHtml(
         REGION <span>${escHtml(record.location || '—')}</span>
       </div>
     </div>
-    <div class="overline">${escHtml(resolvedBrand(record))}</div>
+    <div class="overline">${escHtml(brandTitle)}</div>
     <h1 class="mh-title">${escHtml(modelTitle)}</h1>
     ${subParts ? `<div class="mh-sub">${escHtml(subParts)}</div>` : ''}
     <div class="mh-meta">
       <div><span>Serial</span><b>${escHtml(record.serial_number || '—')}</b></div>
-      <div><span>Brand</span><b>${escHtml(resolvedBrand(record))}</b></div>
+      <div><span>Brand</span><b>${escHtml(brandTitle)}</b></div>
       <div><span>Location</span><b>${escHtml(record.location || '—')}</b></div>
       <div><span>Includes</span><b>${includesCaseLabel(record.includes_case)}</b></div>
     </div>
@@ -354,6 +356,7 @@ export function buildAuthenticityReportHtml(
     <div class="sec-head"><span class="sec-num">01</span><h2>What it <span style="font-style:italic;font-weight:400">is</span></h2></div>
     <div class="idcard">
       <dl>
+        <dt>Brand</dt><dd>${escHtml(brandTitle)}</dd>
         <dt>Model</dt><dd>${escHtml(modelTitle)}</dd>
         <dt>Year</dt><dd>${escHtml(data.identity.yearConfirmed || '—')}</dd>
         <dt>Build / Variant</dt><dd>${escHtml(data.identity.variantNotes || '—')}</dd>
@@ -419,7 +422,7 @@ export function buildAuthenticityReportHtml(
       <div class="cert-bar"><span class="dot"></span><span class="dot"></span>Coal Creek Guitars — Authenticity Assessment<em>${escHtml(record.location || '')}</em></div>
       <div class="cert-body">
         <div class="cert-title">Instrument</div>
-        <div class="cert-instrument">${escHtml(resolvedBrand(record))} ${escHtml(modelTitle)}</div>
+        <div class="cert-instrument">${escHtml(brandTitle)} ${escHtml(modelTitle)}</div>
         ${subParts ? `<div class="cert-sub">${escHtml(subParts)}</div>` : ''}
         <div class="cert-grid">
           <div><span>Verdict</span><b>${verdictLabel}</b></div>
@@ -461,7 +464,7 @@ function isNonEmptyString(v: unknown): v is string {
 
 function validateAuthenticityData(data: any): data is AuthenticityReportData {
   if (!data || typeof data !== 'object') return false;
-  if (!data.identity || !isNonEmptyString(data.identity.modelConfirmed)) return false;
+  if (!data.identity || !isNonEmptyString(data.identity.brandConfirmed) || !isNonEmptyString(data.identity.modelConfirmed)) return false;
   if (!data.verdict) return false;
   if (!['genuine', 'likely_genuine', 'inconclusive', 'likely_not_authentic'].includes(data.verdict.determination)) return false;
   if (!['very_high', 'high', 'medium', 'low', 'very_low'].includes(data.verdict.confidence)) return false;
@@ -565,7 +568,13 @@ export async function handleAdminV2AuthenticityParseChecklist(id: string, reques
   const record = await loadEvalForAuthReport(id, env);
   if (!record) return jsonResponse({ message: 'Report not found.' }, 404);
 
-  const result = await parseAuthenticityChecklistText(text, record, env);
+  const identity = body?.identity ?? {};
+  const brandModel = {
+    brand: normalizeText(identity.brandConfirmed, '') || record.brand,
+    model: normalizeText(identity.modelConfirmed, '') || record.model,
+  };
+
+  const result = await parseAuthenticityChecklistText(text, brandModel, env);
   if (!result) {
     return jsonResponse({ message: 'Could not parse that text — try again or add rows manually.' }, 502);
   }
@@ -585,7 +594,7 @@ export async function handleAdminV2AuthenticitySend(id: string, request: Request
   }
   const data = body?.data;
   if (!validateAuthenticityData(data)) {
-    return jsonResponse({ message: 'Missing required fields: model, verdict, confidence, reasoning, and certificate summary are all required to send.' }, 400);
+    return jsonResponse({ message: 'Missing required fields: brand, model, verdict, confidence, reasoning, and certificate summary are all required to send.' }, 400);
   }
 
   const record = await loadEvalForAuthReport(id, env);
