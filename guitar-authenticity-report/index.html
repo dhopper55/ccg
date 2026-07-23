@@ -333,144 +333,24 @@ nav .wrap {
   padding-top: 8px;
 }
 
-.report-preview {
-  background: linear-gradient(158deg, #1d2430 0%, #141820 100%);
+.sample-shots {
+  position: relative;
+  padding: 10px 8% 48px 0;
+}
+.sample-shot {
+  display: block;
+  width: 76%;
+  border-radius: 8px;
   border: 1px solid rgba(244,239,228,.14);
-  border-radius: 6px 6px 0 0;
-  overflow: hidden;
-  box-shadow: 0 -4px 40px rgba(0,0,0,.4), 0 0 0 1px rgba(255,255,255,.04);
-  transform: perspective(1200px) rotateX(2deg);
-  transform-origin: bottom center;
+  box-shadow: 0 24px 60px -20px rgba(0,0,0,.55);
 }
-.rp-topbar {
-  background: rgba(255,255,255,.04);
-  border-bottom: 1px solid rgba(244,239,228,.1);
-  padding: 10px 16px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.rp-dot { width: 8px; height: 8px; border-radius: 50%; }
-.rp-dot:nth-child(1) { background: var(--clay); }
-.rp-dot:nth-child(2) { background: var(--brass); }
-.rp-dot:nth-child(3) { background: var(--green); }
-.rp-url {
-  margin-left: auto;
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: .06em;
-  color: rgba(244,239,228,.3);
-}
-
-.rp-masthead {
-  background: var(--ink);
-  padding: 18px 22px 16px;
-  border-bottom: 2px solid var(--brass);
-}
-.rp-overline {
-  font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: .3em;
-  text-transform: uppercase;
-  color: var(--brass-bright);
-  margin-bottom: 6px;
-}
-.rp-title {
-  font-family: var(--display);
-  font-weight: 600;
-  font-size: 24px;
-  color: var(--paper);
-  line-height: 1.08;
-  letter-spacing: -.015em;
-}
-.rp-sub {
-  font-family: var(--display);
-  font-style: italic;
-  font-size: 14px;
-  color: #D9CFB9;
-  margin-top: 4px;
-}
-.rp-meta-row {
-  display: flex;
-  gap: 18px;
-  margin-top: 12px;
-  flex-wrap: wrap;
-}
-.rp-meta-item { }
-.rp-meta-item .lab {
-  font-family: var(--mono);
-  font-size: 8.5px;
-  letter-spacing: .2em;
-  text-transform: uppercase;
-  color: #9FB7BE;
-  display: block;
-}
-.rp-meta-item .val {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--paper);
-  font-weight: 500;
-}
-
-.rp-stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  background: var(--ink-soft);
-}
-.rp-stat {
-  padding: 14px 14px 16px;
-  border-right: 1px solid rgba(244,239,228,.1);
-}
-.rp-stat:last-child { border-right: none; }
-.rp-stat .slab {
-  font-family: var(--mono);
-  font-size: 8px;
-  letter-spacing: .2em;
-  text-transform: uppercase;
-  color: #9FB7BE;
-  display: block;
-  margin-bottom: 6px;
-}
-.rp-stat .snum {
-  font-family: var(--display);
-  font-weight: 600;
-  font-size: 16px;
-  color: var(--paper);
-  display: block;
-  line-height: 1;
-}
-.rp-stat .snum.brass { color: var(--brass-bright); }
-.rp-stat .snote {
-  font-size: 10px;
-  color: rgba(244,239,228,.48);
-  margin-top: 4px;
-  display: block;
-  line-height: 1.4;
-}
-
-.rp-sections {
-  background: rgba(255,255,255,.025);
-  border-top: 1px solid rgba(244,239,228,.08);
-  padding: 10px 16px;
-  display: flex;
-  gap: 5px;
-  flex-wrap: wrap;
-}
-.rp-sec-pill {
-  font-family: var(--mono);
-  font-size: 8.5px;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  color: rgba(244,239,228,.38);
-  padding: 4px 9px;
-  border: 1px solid rgba(244,239,228,.1);
-  border-radius: 20px;
-  white-space: nowrap;
-}
-.rp-sec-pill.active {
-  background: var(--creek-deep);
-  border-color: var(--creek);
-  color: rgba(244,239,228,.8);
+.sample-shot-2 {
+  width: 58%;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  border: 3px solid var(--ink);
+  box-shadow: 0 30px 70px -18px rgba(0,0,0,.6);
 }
 
 /* ---- WHAT YOU GET ---- */
@@ -1532,7 +1412,6 @@ footer {
   .form-card { position: static; }
   .speed-band .wrap { flex-direction: column; gap: 28px; }
   .footer-grid { grid-template-columns: 1fr; gap: 28px; }
-  .rp-stats { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 600px) {
   .what-grid { grid-template-columns: 1fr; }
@@ -1636,55 +1515,9 @@ footer {
     </div>
 
     <div class="hero-right">
-      <div class="report-preview">
-        <div class="rp-topbar">
-          <span class="rp-dot"></span>
-          <span class="rp-dot"></span>
-          <span class="rp-dot"></span>
-          <span class="rp-url">coalcreekguitars.com · authenticity report</span>
-        </div>
-        <div class="rp-masthead">
-          <div class="rp-overline">Instrument Dossier · Coal Creek Guitar Authentication</div>
-          <div class="rp-title">Les Paul Custom Figured</div>
-          <div class="rp-sub">"Dark Blue Widow Burst" — 2024</div>
-          <div class="rp-meta-row">
-            <div class="rp-meta-item"><span class="lab">Serial</span><span class="val">CS 403228</span></div>
-            <div class="rp-meta-item"><span class="lab">Origin</span><span class="val">Nashville Custom Shop</span></div>
-            <div class="rp-meta-item"><span class="lab">Condition</span><span class="val">Near-Mint / Complete</span></div>
-            <div class="rp-meta-item"><span class="lab">Includes</span><span class="val">OHSC · COA · Tags</span></div>
-          </div>
-        </div>
-        <div class="rp-stats">
-          <div class="rp-stat">
-            <span class="slab">Verdict</span>
-            <span class="snum brass">Genuine</span>
-            <span class="snote">High confidence</span>
-          </div>
-          <div class="rp-stat">
-            <span class="slab">Markers Checked</span>
-            <span class="snum">22</span>
-            <span class="snote">Hardware, logos, construction</span>
-          </div>
-          <div class="rp-stat">
-            <span class="slab">Red Flags</span>
-            <span class="snum">0 found</span>
-            <span class="snote">Consistent with factory records</span>
-          </div>
-          <div class="rp-stat">
-            <span class="slab">Reviewed By</span>
-            <span class="snum">Human expert</span>
-            <span class="snote">Not automated</span>
-          </div>
-        </div>
-        <div class="rp-sections">
-          <span class="rp-sec-pill active">01 Identity</span>
-          <span class="rp-sec-pill">02 Photos</span>
-          <span class="rp-sec-pill">03 Specs</span>
-          <span class="rp-sec-pill">04 Markers</span>
-          <span class="rp-sec-pill">05 Red Flags</span>
-          <span class="rp-sec-pill">06 Verdict</span>
-          <span class="rp-sec-pill">07 Certificate</span>
-        </div>
+      <div class="sample-shots">
+        <img src="/images/auth_sample1.png" alt="Sample authenticity report — page 1" class="sample-shot sample-shot-1">
+        <img src="/images/auth_sample2.png" alt="Sample authenticity report — page 2" class="sample-shot sample-shot-2">
       </div>
     </div>
   </div>
