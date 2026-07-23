@@ -80,6 +80,13 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
     return `/guitar-value-report-evaluation/?${params.toString()}`;
   }, [brand, serial, decodeEventId]);
 
+  const authenticityHref = useMemo(() => {
+    const params = new URLSearchParams({ brand });
+    if (serial.trim()) params.set('serial', serial.trim());
+    if (decodeEventId != null) params.set('decodeId', String(decodeEventId));
+    return `/guitar-authenticity-report/?${params.toString()}`;
+  }, [brand, serial, decodeEventId]);
+
   const clearDecodeOutput = () => {
     setDecodedInfo(null);
     setErrorMessage('');
@@ -414,20 +421,37 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
               {resultFields
                 .filter((field) => field.label !== 'Notes')
                 .map((field) => renderFieldRow(field))}
-              <Stack direction="row" sx={{ justifyContent: 'center', py: 0.75, width: 1 }}>
+              <Stack direction="column" spacing={0.75} sx={{ alignItems: 'center', py: 1, width: 1 }}>
+                <Typography variant="body2" sx={{ color: 'text.primary', fontWeight: 700 }}>
+                  What do you need?
+                </Typography>
+                <Box
+                  component="a"
+                  href={authenticityHref}
+                  sx={{
+                    color: 'warning.main',
+                    fontWeight: 700,
+                    fontSize: '1rem',
+                    textDecoration: 'underline',
+                    textAlign: 'center',
+                    '&:hover': { color: 'warning.dark' },
+                  }}
+                >
+                  🔍 Verify it's authentic — $12
+                </Box>
                 <Box
                   component="a"
                   href={worthHref}
                   sx={{
                     color: 'warning.main',
                     fontWeight: 700,
-                    fontSize: '0.875rem',
+                    fontSize: '1rem',
                     textDecoration: 'underline',
                     textAlign: 'center',
                     '&:hover': { color: 'warning.dark' },
                   }}
                 >
-                  What's my guitar worth?
+                  💰 What's it worth — $8
                 </Box>
               </Stack>
               {resultFields

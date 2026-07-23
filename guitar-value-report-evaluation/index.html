@@ -4,17 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>What's My Guitar Worth? – Coal Creek Guitar Evaluation Report</title>
-<meta name="description" content="Get a professional guitar valuation report for $2.99 — real Reverb and eBay sold comps, four-channel pricing (street, Reverb, private sale, and dealer offer), and a copy-ready listing. Usually ready in seconds to minutes. From Coal Creek Guitars, Englewood, CO.">
+<meta name="description" content="Get a professional guitar valuation report for $8 — real Reverb and eBay sold comps, four-channel pricing (street, Reverb, private sale, and dealer offer), and a copy-ready listing. Usually ready in seconds to minutes. From Coal Creek Guitars, Englewood, CO.">
 <link rel="canonical" href="https://www.coalcreekguitars.com/guitar-value-report-evaluation/">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://www.coalcreekguitars.com/guitar-value-report-evaluation/">
 <meta property="og:title" content="What's My Guitar Worth? – Coal Creek Guitar Evaluation Report">
-<meta property="og:description" content="Know exactly what your guitar is worth. Real market comps, four-channel valuation, and a copy-ready listing for Reverb, eBay, Facebook &amp; Craigslist — just $2.99, usually ready in seconds to minutes.">
+<meta property="og:description" content="Know exactly what your guitar is worth. Real market comps, four-channel valuation, and a copy-ready listing for Reverb, eBay, Facebook &amp; Craigslist — just $8, usually ready in seconds to minutes.">
 <meta property="og:image" content="https://www.coalcreekguitars.com/images/coal-creek-logo.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:url" content="https://www.coalcreekguitars.com/guitar-value-report-evaluation/">
 <meta name="twitter:title" content="What's My Guitar Worth? – Coal Creek Guitar Evaluation Report">
-<meta name="twitter:description" content="Know exactly what your guitar is worth. Real market comps, four-channel valuation, and a copy-ready listing for Reverb, eBay, Facebook &amp; Craigslist — just $2.99, usually ready in seconds to minutes.">
+<meta name="twitter:description" content="Know exactly what your guitar is worth. Real market comps, four-channel valuation, and a copy-ready listing for Reverb, eBay, Facebook &amp; Craigslist — just $8, usually ready in seconds to minutes.">
 <meta name="twitter:image" content="https://www.coalcreekguitars.com/images/coal-creek-logo.png">
 <meta name="theme-color" content="#15181E">
 <link rel="apple-touch-icon" sizes="180x180" href="/images/favicon/apple-touch-icon.png">
@@ -44,7 +44,7 @@
       "@id": "https://www.coalcreekguitars.com/guitar-value-report-evaluation/#webpage",
       "url": "https://www.coalcreekguitars.com/guitar-value-report-evaluation/",
       "name": "What's My Guitar Worth? – Coal Creek Guitar Evaluation Report",
-      "description": "Get a professional guitar valuation report for $2.99 — real Reverb and eBay sold comps, four-channel pricing, and a copy-ready listing.",
+      "description": "Get a professional guitar valuation report for $8 — real Reverb and eBay sold comps, four-channel pricing, and a copy-ready listing.",
       "isPartOf": { "@id": "https://www.coalcreekguitars.com/#website" },
       "publisher": { "@id": "https://www.coalcreekguitars.com/#organization" }
     },
@@ -2083,7 +2083,7 @@ footer {
 
         <!-- STEP 4: Payment -->
         <div class="step-panel" id="step-4">
-          <div class="form-body-title">Comprehensive Report Payment ($2.99)</div>
+          <div class="form-body-title">Comprehensive Report Payment ($8)</div>
           <div class="form-body-sub">One-time charge — report typically ready in 1–2 hours or it's free.</div>
 
           <div class="price-includes" style="margin-bottom:18px">
@@ -2108,7 +2108,7 @@ footer {
 
           <div class="form-actions" style="margin-top:18px">
             <button class="btn-back" onclick="goToStep(3)">← Back</button>
-            <button id="btn-pay" disabled>Pay $2.99 →</button>
+            <button id="btn-pay" disabled>Pay $8 →</button>
           </div>
         </div>
 
@@ -2446,14 +2446,14 @@ async function handlePay() {
     errEl.textContent = error.message || 'Payment failed. Please try again.';
     errEl.style.display = 'block';
     payBtn.disabled = false;
-    payBtn.textContent = 'Pay $2.99 →';
+    payBtn.textContent = 'Pay $8 →';
     return;
   }
   if (paymentIntent?.status !== 'succeeded' && paymentIntent?.status !== 'processing') {
     errEl.textContent = 'Payment did not complete. Please try again.';
     errEl.style.display = 'block';
     payBtn.disabled = false;
-    payBtn.textContent = 'Pay $2.99 →';
+    payBtn.textContent = 'Pay $8 →';
     return;
   }
   if (paymentIntent?.id && evaluationId) {
@@ -2466,7 +2466,7 @@ async function handlePay() {
       errEl.textContent = confirmErr?.message || 'Payment verification failed. Please contact us.';
       errEl.style.display = 'block';
       payBtn.disabled = false;
-      payBtn.textContent = 'Pay $2.99 →';
+      payBtn.textContent = 'Pay $8 →';
       return;
     }
   }
