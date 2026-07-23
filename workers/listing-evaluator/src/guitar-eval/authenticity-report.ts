@@ -210,8 +210,8 @@ export function buildAuthenticityReportHtml(
   .brandmark b{display:block;font-family:var(--display);font-weight:600;font-size:20px;letter-spacing:.01em;text-transform:none;color:var(--paper);margin-top:6px}
   .doc-ref{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;color:rgba(244,239,228,.7);text-align:right;line-height:1.9}
   .doc-ref span{color:var(--brass-bright)}
-  .overline{font-family:var(--mono);font-size:12px;letter-spacing:.36em;text-transform:uppercase;color:var(--brass-bright);margin-bottom:16px}
-  .mh-title{font-family:var(--display);font-weight:600;font-size:clamp(34px,6vw,62px);line-height:1.02;letter-spacing:-.015em}
+  .overline{font-family:var(--mono);font-size:16px;letter-spacing:.36em;text-transform:uppercase;color:var(--brass-bright);margin-bottom:16px}
+  .mh-title{font-family:var(--display);font-weight:600;font-size:clamp(26px,4vw,42px);line-height:1.05;letter-spacing:-.015em}
   .mh-sub{font-family:var(--display);font-style:italic;font-weight:400;font-size:clamp(18px,2.6vw,26px);color:#D9CFB9;margin-top:10px}
   .mh-meta{display:flex;flex-wrap:wrap;gap:8px 26px;margin-top:26px;font-family:var(--mono);font-size:12px;letter-spacing:.06em;color:rgba(244,239,228,.82)}
   .mh-meta div span{text-transform:uppercase;font-size:10.5px;letter-spacing:.18em;display:block;margin-bottom:2px;color:#9FB7BE}
@@ -419,7 +419,7 @@ export function buildAuthenticityReportHtml(
       <div class="cert-bar"><span class="dot"></span><span class="dot"></span>Coal Creek Guitars — Authenticity Assessment<em>${escHtml(record.location || '')}</em></div>
       <div class="cert-body">
         <div class="cert-title">Instrument</div>
-        <div class="cert-instrument">${escHtml(modelTitle)}</div>
+        <div class="cert-instrument">${escHtml(resolvedBrand(record))} ${escHtml(modelTitle)}</div>
         ${subParts ? `<div class="cert-sub">${escHtml(subParts)}</div>` : ''}
         <div class="cert-grid">
           <div><span>Verdict</span><b>${verdictLabel}</b></div>
