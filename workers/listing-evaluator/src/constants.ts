@@ -32,6 +32,7 @@ export const SITEMAP_STATIC_URLS = [
   { loc: '/guitar-repair-services-pricing', changefreq: 'monthly', priority: '0.7' },
   { loc: '/about-us.html', changefreq: 'monthly', priority: '0.6' },
   { loc: '/guitar-value-report-evaluation', changefreq: 'monthly', priority: '0.7' },
+  { loc: '/guitar-authenticity-report', changefreq: 'monthly', priority: '0.7' },
   { loc: '/how-to-list-a-guitar-for-sale.html', changefreq: 'monthly', priority: '0.7' },
   { loc: '/fender-guitar-serial-number-history.html', changefreq: 'monthly', priority: '0.7' },
   { loc: '/gibson-guitar-serial-number-history.html', changefreq: 'monthly', priority: '0.7' },
