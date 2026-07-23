@@ -19,6 +19,7 @@ export const SHOP_ANALYTICS_EVENT_TYPES = new Set([
   'add_to_cart',
   'checkout_start',
   'value_report_initiate',
+  'authenticity_report_initiate',
 ]);
 
 export async function handleShopAnalyticsEvent(request: Request, env: Env): Promise<Response> {

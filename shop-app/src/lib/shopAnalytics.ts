@@ -1,5 +1,5 @@
 type ShopAnalyticsEvent = {
-  eventType: 'product_view' | 'search' | 'add_to_cart' | 'checkout_start' | 'value_report_initiate';
+  eventType: 'product_view' | 'search' | 'add_to_cart' | 'checkout_start' | 'value_report_initiate' | 'authenticity_report_initiate';
   inventoryItemId?: number;
   metadata?: Record<string, string | number | boolean | null | undefined>;
 };

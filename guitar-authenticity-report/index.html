@@ -1437,7 +1437,7 @@ footer {
     }
   } catch (_) { sessionId = ''; }
   var payload = JSON.stringify({
-    eventType: 'value_report_initiate',
+    eventType: 'authenticity_report_initiate',
     sessionId: sessionId,
     pagePath: window.location.pathname + window.location.search + window.location.hash,
     referrer: document.referrer || '',
