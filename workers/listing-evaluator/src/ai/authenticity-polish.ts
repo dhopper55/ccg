@@ -79,6 +79,8 @@ function buildPolishPrompt(
     `- Verdict reasoning: "${data.verdict.reasoning || '(empty)'}"`,
     `- Certificate summary: "${data.certificateSummary || '(empty)'}"`,
     '',
+    'Write plain prose only in the three text fields — no citation markup, no <cite> tags, no footnote markers or bracketed source numbers of any kind. This report is read by a customer, not a researcher; if a web search informed a sentence, just state it plainly.',
+    '',
     'After you finish any web searches, return ONLY a JSON object as your final message text, no markdown fences, no explanation, in exactly this shape:',
     '{"confidenceStatement":"...","verdictReasoning":"...","certificateSummary":"...","suggestedSpecs":["...","..."],"suggestedMarkers":["...","..."]}',
   ].join('\n');
@@ -180,9 +182,13 @@ async function attemptPolish(
     };
   }
 
-  const confidenceStatement = normalizeText(parsed.confidenceStatement, '').slice(0, 3000);
-  const verdictReasoning = normalizeText(parsed.verdictReasoning, '').slice(0, 5000);
-  const certificateSummary = normalizeText(parsed.certificateSummary, '').slice(0, 4000);
+  // Web search sometimes leaks inline citation markup (e.g. <cite index="2-1">...</cite>)
+  // into the generated prose — strip the tags but keep the cited text itself.
+  const stripCitations = (s: string): string => s.replace(/<\/?cite[^>]*>/gi, '');
+
+  const confidenceStatement = stripCitations(normalizeText(parsed.confidenceStatement, '')).slice(0, 3000);
+  const verdictReasoning = stripCitations(normalizeText(parsed.verdictReasoning, '')).slice(0, 5000);
+  const certificateSummary = stripCitations(normalizeText(parsed.certificateSummary, '')).slice(0, 4000);
 
   if (!confidenceStatement || !verdictReasoning || !certificateSummary) {
     return { ok: false, reason: `Parsed JSON missing required fields: ${JSON.stringify(parsed).slice(0, 500)}` };
