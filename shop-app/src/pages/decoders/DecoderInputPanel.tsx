@@ -422,36 +422,40 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
                 .filter((field) => field.label !== 'Notes')
                 .map((field) => renderFieldRow(field))}
               <Stack direction="column" spacing={0.75} sx={{ alignItems: 'center', py: 1, width: 1 }}>
-                <Typography variant="body2" sx={{ color: 'text.primary', fontWeight: 700 }}>
+                <Typography sx={{ color: 'text.primary', fontWeight: 700, fontSize: '1rem' }}>
                   What do you need?
                 </Typography>
                 <Box
                   component="a"
                   href={authenticityHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   sx={{
                     color: 'warning.main',
                     fontWeight: 700,
                     fontSize: '1rem',
-                    textDecoration: 'underline',
+                    textDecoration: 'none',
                     textAlign: 'center',
                     '&:hover': { color: 'warning.dark' },
                   }}
                 >
-                  🔍 Verify it's authentic — $12
+                  🔍 Instrument Authenticity Report — $12
                 </Box>
                 <Box
                   component="a"
                   href={worthHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   sx={{
                     color: 'warning.main',
                     fontWeight: 700,
                     fontSize: '1rem',
-                    textDecoration: 'underline',
+                    textDecoration: 'none',
                     textAlign: 'center',
                     '&:hover': { color: 'warning.dark' },
                   }}
                 >
-                  💰 What's it worth — $8
+                  💰 What's my gear worth? — $8
                 </Box>
               </Stack>
               {resultFields
