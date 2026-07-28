@@ -23,6 +23,21 @@ export function runTests() {
   assertGodinAmbiguous7Digit('4284009');
   assertGodin8DigitPre2000('98196441', '1997');
   assertGodin13Digit('0319860009106');
+  assertGodinSNLabelStripped('SN:052110000138');
+}
+
+function assertGodinSNLabelStripped(serialInput) {
+  const result = decodeSerialForBackend('godin', serialInput);
+  assert(result.success, `Expected decode success for godin:${serialInput}`);
+  assert(result.info, `Expected decoded info for godin:${serialInput}`);
+  assert(
+    result.patternKey === 'godin-12-digit-sku-era',
+    `Expected 12-digit SKU-era patternKey for ${serialInput}, got ${result.patternKey}`
+  );
+  assert(
+    result.info.notes && result.info.notes.includes('SKU: 052110'),
+    `Expected SKU 052110 for ${serialInput}, got ${result.info.notes}`
+  );
 }
 
 function assertGodin13Digit(serialInput) {

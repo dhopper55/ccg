@@ -49,6 +49,11 @@ export function decodeGuild(serial: string): DecodeResult {
     return decodeKoreaKS(normalized);
   }
 
+  // Korean production (modern solid-body electrics: T-Bird, Bluesbird, S-100): KWM prefix (Korea World Musical, WMI)
+  if (/^KWM\d{6,8}$/.test(normalized)) {
+    return decodeKoreaWMIKWM(normalized);
+  }
+
   // Chinese production: Z prefix (Zaozhuang Saehan)
   if (/^Z\d{6,10}$/.test(normalized)) {
     return decodeChina(normalized);
@@ -57,6 +62,18 @@ export function decodeGuild(serial: string): DecodeResult {
   // Indonesian production: SI prefix
   if (/^SI\d{6,10}$/.test(normalized)) {
     return decodeIndonesia(normalized);
+  }
+
+  // Korean production (Newark St. Collection): KSG prefix (Korea, SPG factory, Guild)
+  // KSG + YY + 5-digit sequence, or KSG + YY + 4-digit sequence + trailing letter (e.g. L = left-handed)
+  if (/^KSG\d{6,7}[A-Z]?$/.test(normalized)) {
+    return decodeKoreaSPGGuildKSG(normalized);
+  }
+
+  // Indonesian production (Newark St. Collection / Starfire I): ISG prefix (Indonesia, Samick, Guild)
+  // ISG + YYMM + 5-digit sequence
+  if (/^ISG\d{9}$/.test(normalized)) {
+    return decodeIndonesiaSamickGuildISG(normalized);
   }
 
   // GAD series with numeric serial
@@ -259,6 +276,49 @@ function decodeKoreaKS(serial: string): DecodeResult {
   return { success: true, info };
 }
 
+// Korean production: KWM prefix (Korea World Musical, WMI factory)
+function decodeKoreaWMIKWM(serial: string): DecodeResult {
+  const digits = serial.substring(3);
+  const yearDigits = digits.substring(0, 2);
+  const sequence = digits.substring(2);
+  const year = 2000 + parseInt(yearDigits, 10);
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Guild',
+    serialNumber: serial,
+    year: year.toString(),
+    factory: 'World Musical Instrument Co., Ltd. (WMI), Incheon, Korea',
+    country: 'South Korea',
+    notes: `KWM prefix indicates Korea World Musical — the WMI factory in Incheon, South Korea, used for Guild's modern solid-body and semi-hollow electrics (T-Bird, Bluesbird, S-100). Digits ${yearDigits} decode as production year ${year}; ${sequence} is the production sequence (unit ${sequenceNumber}).`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'guild-korea-wmi-kwm-yy-sequence',
+    patternLabel: 'Guild Korea WMI KWM-prefix YY sequence',
+    additionalContext: {
+      title: 'Guild KWM-prefix (Korea WMI) serial',
+      summary: 'This serial matches the KWM-prefix format used on Guild solid-body electrics built at the WMI factory in Incheon, South Korea.',
+      highlights: [
+        'KWM identifies Korea World Musical — the WMI factory in Incheon, South Korea.',
+        `The digits ${yearDigits} decode as production year ${year}.`,
+        `The remaining digits decode as production sequence ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'This serial identifies factory and production date, not the exact model name.',
+        'Commonly seen on T-Bird, Bluesbird solid, and S-100 models.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock for a Made in Korea stamp.',
+        'Compare body shape and hardware against Guild catalog specs for the decoded year.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches the KWM-prefix format used on Guild solid-body electrics built at the WMI factory in Incheon, South Korea.</p><h3>How This Pattern Is Typically Read</h3><p>KWM identifies Korea World Musical — the WMI factory in Incheon, South Korea. The digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Commonly seen on T-Bird, Bluesbird solid, and S-100 models.</li><li>Check the back of the headstock for a Made in Korea stamp.</li></ul>`,
+  };
+}
+
 // Chinese production: Z prefix
 function decodeChina(serial: string): DecodeResult {
   const digits = serial.substring(1);
@@ -309,6 +369,103 @@ function decodeIndonesia(serial: string): DecodeResult {
   };
 
   return { success: true, info };
+}
+
+// Korean production (Newark St. Collection): KSG prefix (Korea, SPG factory, Guild)
+// KSG + YY + 5-digit sequence, or KSG + YY + 4-digit sequence + trailing letter suffix (e.g. L = left-handed)
+function decodeKoreaSPGGuildKSG(serial: string): DecodeResult {
+  const digits = serial.substring(3);
+  const suffixMatch = digits.match(/^(\d+)([A-Z])?$/);
+  const numericPart = suffixMatch ? suffixMatch[1] : digits;
+  const suffix = suffixMatch && suffixMatch[2] ? suffixMatch[2] : undefined;
+
+  const yearDigits = numericPart.substring(0, 2);
+  const sequence = numericPart.substring(2);
+  const year = 2000 + parseInt(yearDigits, 10);
+  const sequenceNumber = parseInt(sequence, 10);
+  const suffixNote = suffix === 'L' ? ' The trailing "L" indicates a left-handed configuration.' : suffix ? ` The trailing "${suffix}" is a variant/configuration code.` : '';
+
+  const info: GuitarInfo = {
+    brand: 'Guild',
+    serialNumber: serial,
+    year: year.toString(),
+    factory: 'SPG (Sound Professional Guitar Co., Ltd.), Korea',
+    country: 'South Korea',
+    notes: `KSG prefix indicates the Newark St. Collection built at the SPG factory in Korea (K=Korea, S=SPG, G=Guild). Digits ${yearDigits} decode as production year ${year}; ${sequence} is the production sequence (unit ${sequenceNumber}).${suffixNote}`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'guild-korea-spg-ksg-yy-sequence',
+    patternLabel: 'Guild Korea SPG KSG-prefix YY sequence',
+    additionalContext: {
+      title: 'Guild KSG-prefix (Korea SPG) serial',
+      summary: 'This serial matches the KSG-prefix format used on Guild Newark St. Collection guitars built at the SPG factory in Korea.',
+      highlights: [
+        'KSG identifies Korea, SPG (Sound Professional Guitar Co., Ltd.), Guild.',
+        `The digits ${yearDigits} decode as production year ${year}.`,
+        `The remaining digits decode as production sequence ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'This serial identifies factory and production date, not the exact model name.',
+        'Confirm the model (Starfire, Aristocrat, etc.) from headstock and body markings.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock for a Made in Korea stamp.',
+        'Compare body shape and hardware against Guild Newark St. Collection catalogs for the decoded year.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches the KSG-prefix format used on Guild Newark St. Collection guitars built at the SPG factory in Korea.</p><h3>How This Pattern Is Typically Read</h3><p>KSG identifies Korea, SPG (Sound Professional Guitar Co., Ltd.), Guild. The digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production sequence ${sequenceNumber}.${suffixNote}</p><h3>What To Verify</h3><ul><li>Confirm the model (Starfire, Aristocrat, etc.) from headstock and body markings.</li><li>Check the back of the headstock for a Made in Korea stamp.</li></ul>`,
+  };
+}
+
+// Indonesian production (Newark St. Collection / Starfire I): ISG prefix (Indonesia, Samick, Guild)
+function decodeIndonesiaSamickGuildISG(serial: string): DecodeResult {
+  const digits = serial.substring(3);
+  const yearDigits = digits.substring(0, 2);
+  const monthDigits = digits.substring(2, 4);
+  const sequence = digits.substring(4);
+  const year = 2000 + parseInt(yearDigits, 10);
+  const month = parseInt(monthDigits, 10);
+  const monthName = month >= 1 && month <= 12 ? getMonthName(month) : undefined;
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Guild',
+    serialNumber: serial,
+    year: year.toString(),
+    month: monthName,
+    factory: 'P.T. Samick, Indonesia',
+    country: 'Indonesia',
+    notes: `ISG prefix indicates Indonesian production at the Samick factory (I=Indonesia, S=Samick, G=Guild), commonly seen on Starfire I and Polara models. Digits ${yearDigits} decode as production year ${year}; ${monthDigits} decodes as ${monthName || 'the production month'}; ${sequence} is the production sequence (unit ${sequenceNumber}).`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'guild-indonesia-samick-isg-yymm-sequence',
+    patternLabel: 'Guild Indonesia Samick ISG-prefix YYMM sequence',
+    additionalContext: {
+      title: 'Guild ISG-prefix (Indonesia Samick) serial',
+      summary: 'This serial matches the ISG-prefix format used on Guild guitars built at the Samick factory in Indonesia.',
+      highlights: [
+        'ISG identifies Indonesia, Samick, Guild.',
+        `The digits ${yearDigits} decode as production year ${year}.`,
+        monthName ? `The digits ${monthDigits} decode as ${monthName}.` : `The digits ${monthDigits} are the production month code.`,
+        `The remaining digits decode as production sequence ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'This serial identifies factory and production date, not the exact model name.',
+        'Commonly seen on Starfire I and Polara series electrics.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock for a Made in Indonesia stamp.',
+        'Compare body shape and hardware against Guild Starfire/Polara catalogs for the decoded year.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches the ISG-prefix format used on Guild guitars built at the Samick factory in Indonesia, commonly seen on Starfire I and Polara models.</p><h3>How This Pattern Is Typically Read</h3><p>ISG identifies Indonesia, Samick, Guild. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} decode as ${monthName || 'the production month'}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for a Made in Indonesia stamp.</li><li>Compare against Guild Starfire/Polara catalogs for ${year}.</li></ul>`,
+  };
 }
 
 // GAD series

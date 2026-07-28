@@ -39,7 +39,7 @@ const sitemap: MenuItem[] = [
       {
         name: 'Serial Number Decoders',
         key: 'serial_decoders',
-        path: 'https://www.coalcreekguitars.com/decoders/guitar-serial-decoder-lookup',
+        path: 'https://www.coalcreekguitars.com/decoders/guitar-serial-decoder-lookup/',
         pathName: 'serial-decoders',
         icon: 'material-symbols:qr-code-2-rounded',
         active: true,

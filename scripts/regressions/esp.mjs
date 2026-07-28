@@ -269,6 +269,110 @@ export function runTests() {
   assertESP1WCorrectsToIW('1W211112431', '2021', 'November');
   assertESPSSCustomShop8Digit('ss06105647', '2006', 'Week 10', '647');
   assertESPLTDKoreaGWGilmour('GW07165724', '2007', '16', 'Friday');
+  assertESP2016PlusModernFormat('E1234221', '2022', 'Custom Series');
+  assertESPOlderKoreaEPrefix7Digit('E0290396', '2002', 90396);
+  assertESPLTDChinaSingleCWithDay('C25333247', '2025', 'Wednesday', 247);
+  assertESPLTDChinaSingleC('C124070985', '2012', 40, 70985);
+  assertESPJapanVintage7DigitYYBatchSequence('8900172', '1989', '00', 172);
+  assertESPJapanVintage7DigitValidWeek('9011234', '1989', 1234);
+}
+
+function assertESPJapanVintage7DigitValidWeek(serialInput, expectedYear, expectedSequence) {
+  const result = decodeSerialForBackend('esp', serialInput);
+  assert(result.success, `Expected decode success for esp:${serialInput}`);
+  assert(result.info, `Expected decoded info for esp:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(
+    result.info.notes && result.info.notes.includes(`Production sequence: ${expectedSequence}`),
+    `Expected sequence ${expectedSequence} for ${serialInput}, got ${result.info.notes}`
+  );
+  assert(
+    result.patternKey === 'esp-japan-vintage-7digit-year-week-sequence',
+    `Expected valid-week patternKey for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
+function assertESPJapanVintage7DigitYYBatchSequence(serialInput, expectedYear, expectedBatch, expectedSequence) {
+  const result = decodeSerialForBackend('esp', serialInput);
+  assert(result.success, `Expected decode success for esp:${serialInput}`);
+  assert(result.info, `Expected decoded info for esp:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.country === 'Japan', `Expected Japan for ${serialInput}, got ${result.info.country}`);
+  assert(
+    result.info.notes && result.info.notes.includes(`Digits ${expectedBatch} are a production batch`),
+    `Expected batch code ${expectedBatch} for ${serialInput}, got ${result.info.notes}`
+  );
+  assert(
+    result.info.notes && result.info.notes.includes(`Production sequence: ${expectedSequence}`),
+    `Expected sequence ${expectedSequence} for ${serialInput}, got ${result.info.notes}`
+  );
+  assert(
+    result.patternKey === 'esp-japan-vintage-7digit-yy-batch-sequence',
+    `Expected YY-batch-sequence patternKey for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
+function assertESPLTDChinaSingleC(serialInput, expectedYear, expectedWeek, expectedSequence) {
+  const result = decodeSerialForBackend('esp', serialInput);
+  assert(result.success, `Expected decode success for esp:${serialInput}`);
+  assert(result.info, `Expected decoded info for esp:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(
+    result.info.notes && result.info.notes.includes(`production week ${expectedWeek}`),
+    `Expected week ${expectedWeek} for ${serialInput}, got ${result.info.notes}`
+  );
+  assert(
+    result.info.notes && result.info.notes.includes(`(${expectedSequence})`),
+    `Expected sequence ${expectedSequence} for ${serialInput}, got ${result.info.notes}`
+  );
+  assert(
+    result.patternKey === 'esp-ltd-china-single-c-yy-week-sequence',
+    `Expected ESP China single-C patternKey for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
+function assertESPLTDChinaSingleCWithDay(serialInput, expectedYear, expectedDayName, expectedSequence) {
+  const result = decodeSerialForBackend('esp', serialInput);
+  assert(result.success, `Expected decode success for esp:${serialInput}`);
+  assert(result.info, `Expected decoded info for esp:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.country === 'China', `Expected China for ${serialInput}, got ${result.info.country}`);
+  assert(
+    result.info.notes && result.info.notes.includes(expectedDayName),
+    `Expected day name ${expectedDayName} for ${serialInput}, got ${result.info.notes}`
+  );
+  assert(
+    result.info.notes && result.info.notes.includes(`that day: ${expectedSequence}`),
+    `Expected sequence ${expectedSequence} for ${serialInput}, got ${result.info.notes}`
+  );
+  assert(
+    result.patternKey === 'esp-ltd-china-single-c-yywwd-sequence',
+    `Expected ESP China C-with-day patternKey for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
+function assertESP2016PlusModernFormat(serialInput, expectedYear, expectedSeries) {
+  const result = decodeSerialForBackend('esp', serialInput);
+  assert(result.success, `Expected decode success for esp:${serialInput}`);
+  assert(result.info, `Expected decoded info for esp:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.factory === 'ESP Japan', `Expected ESP Japan for ${serialInput}, got ${result.info.factory}`);
+  assert(result.info.model === expectedSeries, `Expected series ${expectedSeries} for ${serialInput}, got ${result.info.model}`);
+}
+
+function assertESPOlderKoreaEPrefix7Digit(serialInput, expectedYear, expectedSequence) {
+  const result = decodeSerialForBackend('esp', serialInput);
+  assert(result.success, `Expected decode success for esp:${serialInput}`);
+  assert(result.info, `Expected decoded info for esp:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(
+    result.info.notes && result.info.notes.includes(`unit ${expectedSequence}`),
+    `Expected production sequence unit ${expectedSequence} for ${serialInput}, got ${result.info.notes}`
+  );
+  assert(
+    result.patternKey === 'esp-older-korea-e-prefix-7digit-yy-sequence',
+    `Expected ESP older Korea E-prefix patternKey for ${serialInput}, got ${result.patternKey}`
+  );
 }
 
 function assertESPSSCustomShop8Digit(serialInput, expectedYear, expectedWeekNote, expectedProductionSuffix) {

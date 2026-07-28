@@ -89,10 +89,33 @@ export function decodeFender(serial) {
     if (koMatch) {
         return decodeKoreanPrefix(koMatch[1], normalized);
     }
+    // Squier Indonesia Cor-Tek with month letter: ICS + month-letter(A-L) + YY + 6-digit sequence
+    // e.g. ICSC22001163 = Indonesia, Cor-Tek, Squier, March 2022, seq 001163
+    const icsMonthLetterMatch = normalized.match(/^ICS([A-L])(\d{2})(\d{6})$/);
+    if (icsMonthLetterMatch) {
+        return decodeICSMonthLetterPrefix(icsMonthLetterMatch[1], icsMonthLetterMatch[2], icsMonthLetterMatch[3], normalized);
+    }
+    // Fender-branded Indonesia Cor-Tek: ICF + YY + 6-digit sequence (no month letter)
+    // e.g. ICF21004892 = Indonesia, Cor-Tek, Fender, 2021, seq 004892
+    const icfMatch = normalized.match(/^ICF(\d{2})(\d{6})$/);
+    if (icfMatch) {
+        return decodeICFPrefix(icfMatch[1], icfMatch[2], normalized);
+    }
     // Indonesian formats (IC, ICS prefixes)
     const indoMatch = normalized.match(/^I(?:CS|C|S)?(\d{2})(\d+)$/);
     if (indoMatch) {
         return decodeIndonesianPrefix(indoMatch[1], indoMatch[2], normalized);
+    }
+    // Japan T-prefix: T + 6 digits (ambiguous between 1994-1995 "Made in Japan" and 2007-2008 "Made/Crafted in Japan" eras)
+    const tMatch = normalized.match(/^T(\d{6})$/);
+    if (tMatch) {
+        return decodeTPrefix(tMatch[1], normalized);
+    }
+    // EVH Wolfgang (Fender-owned brand): WG + YY + 4-digit sequence + country-of-origin letter
+    // e.g. WG188218M = 2018, seq 8218, M = Mexico; WG110049J = Japan
+    const wgMatch = normalized.match(/^WG(\d{2})(\d{4})([A-Z])$/);
+    if (wgMatch) {
+        return decodeEVHWolfgangWG(wgMatch[1], wgMatch[2], wgMatch[3], normalized);
     }
     // Signature Edition (USA): SE + single year digit + 5-digit sequence
     // SE9 decals were ordered in 1989 but used on instruments through ~1994
@@ -202,6 +225,49 @@ function decodeCZCustomShop(serial) {
         info,
         patternKey: 'fender-custom-shop-cz-sequential',
         patternLabel: 'Fender Custom Shop CZ sequential',
+    };
+}
+const EVH_WOLFGANG_COUNTRY_MAP = {
+    J: 'Japan',
+    M: 'Mexico',
+    C: 'China',
+};
+function decodeEVHWolfgangWG(year, sequence, countryLetter, serial) {
+    const fullYear = '20' + year;
+    const country = EVH_WOLFGANG_COUNTRY_MAP[countryLetter] ?? `Unknown (letter code "${countryLetter}")`;
+    const info = {
+        brand: 'Fender',
+        serialNumber: serial,
+        year: fullYear,
+        factory: 'EVH (Fender-owned brand)',
+        country,
+        model: 'EVH Wolfgang',
+        notes: `WG prefix indicates an EVH Wolfgang model — EVH is a Fender-owned and distributed brand. Digits ${year} decode as production year ${fullYear}; ${sequence} is the production sequence; trailing letter "${countryLetter}" indicates country of origin (${country}). Note: EVH Wolfgang serials are often missed by generic Fender lookup tools since EVH is a secondary Fender-owned brand.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'fender-evh-wolfgang-wg-yy-sequence-country',
+        patternLabel: 'Fender EVH Wolfgang WG-prefix YY sequence + country letter',
+        additionalContext: {
+            title: 'EVH Wolfgang WG-prefix serial',
+            summary: 'This serial matches the WG-prefix format used on EVH Wolfgang guitars — EVH is a brand owned, built, and distributed by Fender Musical Instruments Corporation.',
+            highlights: [
+                'WG identifies the EVH Wolfgang model line.',
+                `The digits ${year} decode as production year ${fullYear}.`,
+                `The digits ${sequence} decode as the production sequence.`,
+                `The trailing letter "${countryLetter}" indicates country of origin: ${country}.`,
+            ],
+            caveats: [
+                'EVH is a secondary Fender-owned brand and is often omitted from generic Fender serial lookup tools.',
+                'Confirm the exact model (Wolfgang Standard, Special, USA, etc.) from the headstock and body features.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for the country-of-origin marking.',
+                'Compare body and hardware features against EVH Wolfgang catalog specs for the decoded year.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches the WG-prefix format used on EVH Wolfgang guitars. EVH is a brand owned, built, and distributed by Fender Musical Instruments Corporation.</p><h3>How This Pattern Is Typically Read</h3><p>WG identifies the EVH Wolfgang model line. The digits ${year} decode as production year ${fullYear}. The digits ${sequence} decode as the production sequence. The trailing letter "${countryLetter}" indicates country of origin: ${country}.</p><h3>What To Verify</h3><ul><li>EVH is a secondary Fender-owned brand and is often omitted from generic Fender serial lookup tools.</li><li>Confirm the exact model from the headstock and body features.</li></ul>`,
     };
 }
 function decodeUSPrefix(year, sequence, serial) {
@@ -396,6 +462,119 @@ function decodeJapanLetterPrefix(letter, sequence, serial) {
         notes: `Letter prefix ${letter} was used on Japanese Fenders. Check for "Made in Japan" (MIJ) or "Crafted in Japan" (CIJ) labels to narrow the date. Production sequence: ${sequence}.`
     };
     return { success: true, info };
+}
+const CALENDAR_MONTH_LETTERS = {
+    A: 'January', B: 'February', C: 'March', D: 'April',
+    E: 'May', F: 'June', G: 'July', H: 'August',
+    I: 'September', J: 'October', K: 'November', L: 'December',
+};
+function decodeICSMonthLetterPrefix(monthLetter, year, sequence, serial) {
+    const fullYear = '20' + year;
+    const monthName = CALENDAR_MONTH_LETTERS[monthLetter];
+    const info = {
+        brand: 'Fender',
+        serialNumber: serial,
+        year: fullYear,
+        month: monthName,
+        factory: 'Cor-Tek (Cort), Indonesia',
+        country: 'Indonesia',
+        model: 'Squier',
+        notes: `ICS prefix indicates a Squier built at the Cor-Tek factory in Indonesia (I=Indonesia, C=Cor-Tek, S=Squier). Month letter "${monthLetter}" decodes as ${monthName}. Digits ${year} decode as production year ${fullYear}; ${sequence} is the production sequence. This format has been used from 2021 to current. Budget overseas-built Squiers are not always reflected in Fender's consumer-facing online serial lookup — that does not indicate a counterfeit.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'fender-squier-ics-indonesia-month-letter-yy-sequence',
+        patternLabel: 'Fender Squier ICS Indonesia month-letter YY sequence',
+        additionalContext: {
+            title: 'Squier ICS-prefix (Indonesia Cor-Tek) serial',
+            summary: 'This serial matches the ICS-prefix format used on Squier guitars built at the Cor-Tek factory in Indonesia, used from 2021 to current.',
+            highlights: [
+                'ICS identifies Indonesia, Cor-Tek factory, Squier.',
+                `The month letter "${monthLetter}" decodes as ${monthName}.`,
+                `The digits ${year} decode as production year ${fullYear}.`,
+                `The remaining digits decode as production sequence ${sequence}.`,
+            ],
+            caveats: [
+                'Budget overseas-built Squiers often do not appear in Fender\'s consumer-facing online serial lookup tool — this is normal, not a sign of a counterfeit.',
+                'Confirm the exact model from the headstock decal and body features.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for "Crafted in Indonesia".',
+                'Compare body shape and hardware against Squier catalog specs for the decoded year.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches the ICS-prefix format used on Squier guitars built at the Cor-Tek factory in Indonesia, used from 2021 to current.</p><h3>How This Pattern Is Typically Read</h3><p>ICS identifies Indonesia, Cor-Tek factory, Squier. The month letter "${monthLetter}" decodes as ${monthName}. The digits ${year} decode as production year ${fullYear}. The remaining digits decode as production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>Budget overseas-built Squiers often do not appear in Fender's consumer-facing online serial lookup — this is normal.</li><li>Confirm the exact model from the headstock decal and body features.</li></ul>`,
+    };
+}
+function decodeICFPrefix(year, sequence, serial) {
+    const fullYear = '20' + year;
+    const info = {
+        brand: 'Fender',
+        serialNumber: serial,
+        year: fullYear,
+        factory: 'Cor-Tek (Cort), Indonesia',
+        country: 'Indonesia',
+        notes: `ICF prefix indicates a Fender-branded instrument built at the Cor-Tek factory in Indonesia (I=Indonesia, C=Cor-Tek, F=Fender). Fender moved production of specific standard-run lines to Indonesia starting mid-2009. Digits ${year} decode as production year ${fullYear}; ${sequence} is the production sequence. Budget overseas-built Fenders are not always reflected in Fender's consumer-facing online serial lookup — that does not indicate a counterfeit.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'fender-icf-indonesia-cortek-yy-sequence',
+        patternLabel: 'Fender ICF Indonesia Cor-Tek YY sequence',
+        additionalContext: {
+            title: 'Fender ICF-prefix (Indonesia Cor-Tek) serial',
+            summary: 'This serial matches the ICF-prefix format used on Fender-branded guitars built at the Cor-Tek factory in Indonesia, introduced mid-2009.',
+            highlights: [
+                'ICF identifies Indonesia, Cor-Tek factory, Fender-branded.',
+                `The digits ${year} decode as production year ${fullYear}.`,
+                `The remaining digits decode as production sequence ${sequence}.`,
+            ],
+            caveats: [
+                'Budget overseas-built Fenders often do not appear in Fender\'s consumer-facing online serial lookup tool — this is normal, not a sign of a counterfeit.',
+                'Confirm the exact model (Stratocaster, Telecaster, bass, etc.) from the headstock decal and body features.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for "Crafted in Indonesia".',
+                'Compare body shape and hardware against Fender catalog specs for the decoded year.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches the ICF-prefix format used on Fender-branded guitars built at the Cor-Tek factory in Indonesia, introduced mid-2009.</p><h3>How This Pattern Is Typically Read</h3><p>ICF identifies Indonesia, Cor-Tek factory, Fender-branded. The digits ${year} decode as production year ${fullYear}. The remaining digits decode as production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>Budget overseas-built Fenders often do not appear in Fender's consumer-facing online serial lookup — this is normal.</li><li>Confirm the exact model from the headstock decal and body features.</li></ul>`,
+    };
+}
+function decodeTPrefix(sequence, serial) {
+    const info = {
+        brand: 'Fender',
+        serialNumber: serial,
+        year: '1994-1995 or 2007-2008 (ambiguous)',
+        factory: 'Fender Japan',
+        country: 'Japan',
+        notes: `T-prefix + 6 digits indicates a Fender Japan-made instrument, but the era is ambiguous between two windows: 1994-1995 ("Made in Japan" decal) or 2007-2008 (both "Made in Japan" and "Crafted in Japan" decals were used that period). Production sequence: ${sequence}. Check whether the neck decal says "Made in Japan" or "Crafted in Japan" — a "Crafted in Japan" decal points to the 2007-2008 window, since that phrase was standard from 1997 onward.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'fender-japan-t-prefix-6digit-ambiguous-era',
+        patternLabel: 'Fender Japan T-prefix 6-digit (ambiguous era)',
+        additionalContext: {
+            title: 'Fender Japan T-prefix serial',
+            summary: 'This serial matches the Fender Japan T-prefix format, which spans two distinct, non-adjacent production windows.',
+            highlights: [
+                'T-prefix + 6 digits identifies Fender Japan production.',
+                'The window is ambiguous: 1994-1995, or 2007-2008.',
+                `The digits decode as production sequence ${sequence}.`,
+            ],
+            caveats: [
+                'A "Crafted in Japan" decal points to 2007-2008, since that phrasing was standard from 1997 onward.',
+                'A plain "Made in Japan" decal without "Crafted in Japan" wording could be either era — check other hardware and construction details.',
+            ],
+            verificationTips: [
+                'Check whether the neck decal says "Made in Japan" or "Crafted in Japan".',
+                'Compare hardware, pickups, and construction details against the two candidate eras.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches the Fender Japan T-prefix format, which spans two distinct, non-adjacent production windows: 1994-1995 and 2007-2008.</p><h3>How This Pattern Is Typically Read</h3><p>T-prefix + 6 digits identifies Fender Japan production. The digits decode as production sequence ${sequence}.</p><h3>What To Verify</h3><ul><li>A "Crafted in Japan" decal points to 2007-2008, since that phrasing was standard from 1997 onward.</li><li>A plain "Made in Japan" decal without "Crafted in Japan" wording could be either era — check other hardware and construction details.</li></ul>`,
+    };
 }
 function decodeVPrefix(sequence, serial) {
     const info = {

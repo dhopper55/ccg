@@ -28,7 +28,7 @@ const GODIN_FAMILY_BRAND_LABEL = 'Godin & Associated Brands';
  * Note: Godin's production year runs August 1 - July 31 (fiscal year)
  */
 export function decodeGodin(serial) {
-    const cleaned = serial.trim().toUpperCase();
+    const cleaned = serial.trim().toUpperCase().replace(/^(?:SN|S\/N)[:#]?\s*/, '');
     const normalized = cleaned.replace(/[\s-]/g, '');
     // Handle B prefix (Norman 1980-1988)
     if (/^B\d+$/.test(normalized)) {

@@ -65,6 +65,65 @@ export function runTests() {
   assertFenderICSPrefix('ICS11185000', '2011');
   assertFenderInternalPartNumber('0060579747');
   assertFenderCortChinaCC('CC210709447', '2021');
+  assertFenderEVHWolfgang('WG188218M', '2018', 'Mexico');
+  assertFenderEVHWolfgang('WG110049J', '2011', 'Japan');
+  assertFenderICSMonthLetter('Icsc22001163', '2022', 'March');
+  assertFenderTPrefixAmbiguousEra('T011165');
+  assertFenderICFPrefix('ICF21004892', '2021');
+}
+
+function assertFenderICFPrefix(serialInput, expectedYear) {
+  const result = decodeSerialForBackend('fender', serialInput);
+  assert(result.success, `Expected decode success for fender:${serialInput}`);
+  assert(result.info, `Expected decoded info for fender:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.country === 'Indonesia', `Expected Indonesia for ${serialInput}, got ${result.info.country}`);
+  assert(
+    result.patternKey === 'fender-icf-indonesia-cortek-yy-sequence',
+    `Expected ICF patternKey for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
+function assertFenderICSMonthLetter(serialInput, expectedYear, expectedMonth) {
+  const result = decodeSerialForBackend('fender', serialInput);
+  assert(result.success, `Expected decode success for fender:${serialInput}`);
+  assert(result.info, `Expected decoded info for fender:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${result.info.month}`);
+  assert(result.info.country === 'Indonesia', `Expected Indonesia for ${serialInput}, got ${result.info.country}`);
+  assert(result.info.model === 'Squier', `Expected Squier model for ${serialInput}, got ${result.info.model}`);
+  assert(
+    result.patternKey === 'fender-squier-ics-indonesia-month-letter-yy-sequence',
+    `Expected ICS month-letter patternKey for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
+function assertFenderTPrefixAmbiguousEra(serialInput) {
+  const result = decodeSerialForBackend('fender', serialInput);
+  assert(result.success, `Expected decode success for fender:${serialInput}`);
+  assert(result.info, `Expected decoded info for fender:${serialInput}`);
+  assert(
+    result.info.year && result.info.year.includes('1994-1995') && result.info.year.includes('2007-2008'),
+    `Expected ambiguous 1994-1995/2007-2008 era for ${serialInput}, got ${result.info.year}`
+  );
+  assert(result.info.country === 'Japan', `Expected Japan for ${serialInput}, got ${result.info.country}`);
+  assert(
+    result.patternKey === 'fender-japan-t-prefix-6digit-ambiguous-era',
+    `Expected T-prefix patternKey for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
+function assertFenderEVHWolfgang(serialInput, expectedYear, expectedCountry) {
+  const result = decodeSerialForBackend('fender', serialInput);
+  assert(result.success, `Expected decode success for fender:${serialInput}`);
+  assert(result.info, `Expected decoded info for fender:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.country === expectedCountry, `Expected country ${expectedCountry} for ${serialInput}, got ${result.info.country}`);
+  assert(result.info.model === 'EVH Wolfgang', `Expected EVH Wolfgang model for ${serialInput}, got ${result.info.model}`);
+  assert(
+    result.patternKey === 'fender-evh-wolfgang-wg-yy-sequence-country',
+    `Expected EVH Wolfgang patternKey for ${serialInput}, got ${result.patternKey}`
+  );
 }
 
 function assertFenderCortChinaCC(serialInput, expectedYear) {

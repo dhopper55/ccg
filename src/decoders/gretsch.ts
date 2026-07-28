@@ -11,6 +11,11 @@ export function decodeGretsch(serial: string): DecodeResult {
     return decodeFenderEra(normalized);
   }
 
+  // Indonesia (Samick) Streamliner Collection: IS + YYMM + 5-digit sequence (9 digits, no suffix letter)
+  if (/^IS\d{9}$/.test(normalized)) {
+    return decodeIndonesiaSamickIS(normalized);
+  }
+
   // Japan Revival Era (1989-2002): 6 digits + hyphen + 3 digits (YYMMMODEL-SEQ)
   // Format: xxxxxx-xxx or xxxxxxxxx (9 digits if hyphen removed)
   if (/^\d{6}-?\d{3}$/.test(cleaned)) {
@@ -233,6 +238,53 @@ function decodePreBaldwinSequential(serial: string): DecodeResult {
   return {
     success: false,
     error: 'Unable to determine year from this serial number.'
+  };
+}
+
+function decodeIndonesiaSamickIS(serial: string): DecodeResult {
+  const digits = serial.substring(2);
+  const yearDigits = digits.substring(0, 2);
+  const monthDigits = digits.substring(2, 4);
+  const sequence = digits.substring(4);
+  const year = 2000 + parseInt(yearDigits, 10);
+  const month = parseInt(monthDigits, 10);
+  const monthName = getMonthName(month);
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Gretsch',
+    serialNumber: serial,
+    year: year.toString(),
+    month: monthName,
+    factory: 'Samick Factory',
+    country: 'Indonesia',
+    notes: `IS prefix indicates Indonesia Samick production, commonly seen on the Streamliner Collection. Digits ${yearDigits} decode as production year ${year}; ${monthDigits} decodes as ${monthName || 'the production month'}; ${sequence} is the production sequence (unit ${sequenceNumber}).`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'gretsch-indonesia-samick-is-yymm-sequence',
+    patternLabel: 'Gretsch Indonesia Samick IS-prefix YYMM sequence',
+    additionalContext: {
+      title: 'Gretsch IS-prefix (Indonesia Samick) serial',
+      summary: 'This serial matches the IS-prefix format used on Gretsch guitars built at the Samick factory in Indonesia, commonly seen on the Streamliner Collection.',
+      highlights: [
+        'IS identifies Indonesia, Samick factory production.',
+        `The digits ${yearDigits} decode as production year ${year}.`,
+        monthName ? `The digits ${monthDigits} decode as ${monthName}.` : `The digits ${monthDigits} are the production month code.`,
+        `The remaining digits decode as production sequence ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'This serial identifies factory and production date, not the exact model name.',
+        'Commonly associated with the budget-friendly Streamliner Collection.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock for a Made in Indonesia stamp.',
+        'Compare body shape and hardware against Gretsch Streamliner catalogs for the decoded year.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches the IS-prefix format used on Gretsch guitars built at the Samick factory in Indonesia, commonly seen on the Streamliner Collection.</p><h3>How This Pattern Is Typically Read</h3><p>IS identifies Indonesia, Samick factory production. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} decode as ${monthName || 'the production month'}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for a Made in Indonesia stamp.</li><li>Compare against Gretsch Streamliner catalogs for ${year}.</li></ul>`,
   };
 }
 

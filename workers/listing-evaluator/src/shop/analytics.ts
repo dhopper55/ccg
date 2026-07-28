@@ -206,7 +206,11 @@ export function isSuspiciousAnalyticsRequest(request: Request, pagePath: string)
   const secFetchMode = normalizeText(request.headers.get('sec-fetch-mode'), '').toLowerCase();
   const origin = normalizeText(request.headers.get('origin'), '');
   const referer = normalizeText(request.headers.get('referer'), '');
-  if (!pagePath.startsWith(SHOP_BASE_PATH) && !pagePath.startsWith('/guitar-value-report-evaluation')) return true;
+  if (
+    !pagePath.startsWith(SHOP_BASE_PATH) &&
+    !pagePath.startsWith('/guitar-value-report-evaluation') &&
+    !pagePath.startsWith('/guitar-authenticity-report')
+  ) return true;
   if (secFetchDest && secFetchDest !== 'empty') return true;
   if (secFetchMode && !['cors', 'same-origin'].includes(secFetchMode)) return true;
   if (origin && !origin.includes('coalcreekguitars.com') && !origin.includes('ccg-2k1.pages.dev')) return true;

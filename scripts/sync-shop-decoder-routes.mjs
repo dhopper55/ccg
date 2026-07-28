@@ -43,7 +43,7 @@ fs.writeFileSync(sourceHtml, stampedHtml);
 
 function buildBreadcrumb(config, pageUrl) {
   const home = { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://www.coalcreekguitars.com/index.html' };
-  const defaultMiddle = [{ '@type': 'ListItem', position: 2, name: 'Guitar Serial Number Lookup/Decoder', item: 'https://www.coalcreekguitars.com/decoders/guitar-serial-decoder-lookup' }];
+  const defaultMiddle = [{ '@type': 'ListItem', position: 2, name: 'Guitar Serial Number Lookup/Decoder', item: 'https://www.coalcreekguitars.com/decoders/guitar-serial-decoder-lookup/' }];
   const middle = config.breadcrumbMiddle !== undefined ? config.breadcrumbMiddle : defaultMiddle;
   const leaf = { '@type': 'ListItem', position: middle.length + 2, name: config.pageName, item: pageUrl };
   return [home, ...middle, leaf];

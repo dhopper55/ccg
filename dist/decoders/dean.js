@@ -64,6 +64,10 @@ export function decodeDean(serial) {
     if (/^D\d{8}$/.test(normalized)) {
         return decodeAsianPartnerD(normalized);
     }
+    // Legacy Korea D-prefix import line (1990s World Music Instruments): D + YY + 4-digit sequence, no month encoded
+    if (/^D\d{6}$/.test(normalized)) {
+        return decodeLegacyKoreaD(normalized);
+    }
     // Asian partner import line: P + YYMM + sequence (e.g. P20110214 = 2020, November, seq 0214)
     if (/^P\d{8}$/.test(normalized)) {
         return decodeAsianPartnerP(normalized);
@@ -568,6 +572,45 @@ function decodeAsianPartnerD(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a D-prefix Dean import format used by Asian manufacturing partners.</p><h3>How This Pattern Is Typically Read</h3><p>D is treated as an Asian partner factory code. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits}${monthName ? ` decode as ${monthName}` : ' are treated as a month or internal production code'}. The final digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Dean import prefix letters can vary by partner and production run.</li><li>This decode identifies likely production timing, not the exact model name.</li><li>Confirm country of origin from headstock, neck plate, label, or other physical markings.</li></ul>`,
+    };
+}
+// Legacy Korea D-prefix import line (1990s World Music Instruments): D + YY + 4-digit sequence
+function decodeLegacyKoreaD(serial) {
+    const yearDigits = serial.substring(1, 3);
+    const sequence = serial.substring(3);
+    const year = 1900 + parseInt(yearDigits, 10);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Dean',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'World Music Instruments, Korea',
+        country: 'South Korea',
+        notes: `Legacy D-prefix Dean import format used at the World Music Instruments factory in Korea during the 1990s. Interpreted as D + YY + 4-digit sequence (no month encoded). Digits ${yearDigits} indicate production year ${year}; ${sequence} is the production sequence (unit ${sequenceNumber}). This shorter D-prefix format predates the modern D + YYMM + sequence Asian partner format used on later Dean imports. Verify with a Made in Korea headstock stamp and model features.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'dean-legacy-korea-d-yy-sequence',
+        patternLabel: 'Dean legacy Korea D-prefix YY sequence (no month)',
+        additionalContext: {
+            title: 'Dean legacy Korea D-prefix serial',
+            summary: 'This serial matches a shorter 1990s D-prefix format used at the World Music Instruments factory in Korea, distinct from the modern D + YYMM + sequence import format.',
+            highlights: [
+                'D identifies World Music Instruments in Korea during the 1990s.',
+                `The digits ${yearDigits} decode as production year ${year}.`,
+                `The remaining digits decode as production sequence ${sequenceNumber} — no month is encoded in this shorter format.`,
+            ],
+            caveats: [
+                'This 6-digit D-prefix format is distinct from the modern 8-digit D + YYMM + sequence Dean import format.',
+                'Dean import serials can be inconsistent across factories and eras.',
+            ],
+            verificationTips: [
+                'Check the back of the headstock for a Made in Korea stamp.',
+                'Compare hardware and model features against Dean Korea import catalogs from the 1990s.',
+            ],
+        },
+        additionalContextRichText: `<h3>Overview</h3><p>This serial matches a shorter 1990s D-prefix format used at the World Music Instruments factory in Korea, distinct from the modern D + YYMM + sequence import format.</p><h3>How This Pattern Is Typically Read</h3><p>D identifies World Music Instruments in Korea during the 1990s. The digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production sequence ${sequenceNumber} — no month is encoded in this shorter format.</p><h3>What To Verify</h3><ul><li>This 6-digit D-prefix format is distinct from the modern 8-digit D + YYMM + sequence Dean import format.</li><li>Check the back of the headstock for a Made in Korea stamp and compare against 1990s Dean Korea import catalogs.</li></ul>`,
     };
 }
 function decodeAsianPartnerP(serial) {

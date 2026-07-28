@@ -165,6 +165,58 @@ export function runTests() {
   assertWashburnCOVariantFactory('O7052236', 'O', '2007', 52236);
   assertWashburnCOVariantFactory('OCO7052236', 'OCO', '2007', 52236);
   assertWashburnNFactoryYYMM('NO6050166', '2006', 'May');
+  assertWashburnSamickIndonesiaSI('SI94060123', '1994', 'June');
+  assertWashburnSamickIndonesiaSIImplausibleYearFallback('SI30800549', '2003', 'August');
+  assertWashburnMadeInSuffixStripped('01111003 made in korea', '2001', 'November');
+  assertWashburnMadeInSuffixStripped('N 01111003 made in korea', '2001', 'November');
+  assertWashburnTwoCharFactoryYYSequenceShort('0C0210', '2002', 10);
+}
+
+function assertWashburnMadeInSuffixStripped(serialInput, expectedYear, expectedMonth) {
+  const result = decodeSerialForBackend('washburn', serialInput);
+  assert(result.success, `Expected decode success for washburn:${serialInput}`);
+  assert(result.info, `Expected decoded info for washburn:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${result.info.month}`);
+}
+
+function assertWashburnTwoCharFactoryYYSequenceShort(serialInput, expectedYear, expectedSequence) {
+  const result = decodeSerialForBackend('washburn', serialInput);
+  assert(result.success, `Expected decode success for washburn:${serialInput}`);
+  assert(result.info, `Expected decoded info for washburn:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(
+    result.info.notes && result.info.notes.includes(`Production sequence: ${expectedSequence}`),
+    `Expected sequence ${expectedSequence} for ${serialInput}, got ${result.info.notes}`
+  );
+  assert(
+    result.patternKey === 'washburn-modern-two-char-factory-yy-sequence-short',
+    `Expected short two-char-factory patternKey for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
+function assertWashburnSamickIndonesiaSI(serialInput, expectedYear, expectedMonth) {
+  const result = decodeSerialForBackend('washburn', serialInput);
+  assert(result.success, `Expected decode success for washburn:${serialInput}`);
+  assert(result.info, `Expected decoded info for washburn:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${result.info.month}`);
+  assert(
+    result.info.factory === 'Samick Indonesia (Cileungsi)',
+    `Expected Samick Indonesia factory for ${serialInput}, got ${result.info.factory}`
+  );
+}
+
+function assertWashburnSamickIndonesiaSIImplausibleYearFallback(serialInput, expectedYear, expectedMonth) {
+  const result = decodeSerialForBackend('washburn', serialInput);
+  assert(result.success, `Expected decode success for washburn:${serialInput}`);
+  assert(result.info, `Expected decoded info for washburn:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${result.info.month}`);
+  assert(
+    result.info.notes && result.info.notes.includes('implausible future year'),
+    `Expected implausible-future-year fallback note for ${serialInput}, got ${result.info.notes}`
+  );
 }
 
 function assertWashburnNFactoryYYMM(serialInput, expectedYear, expectedMonth) {

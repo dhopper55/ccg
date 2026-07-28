@@ -292,6 +292,7 @@ export async function dbApplyPaidInventoryItems(
   items: Array<{ inventoryItemId: number; quantity: number; subtotalCents: number }>,
   session: any,
   env: Env,
+  skipTaxIncludedAdjustment = false,
 ): Promise<void> {
   const order = await env.DB.prepare('SELECT * FROM orders WHERE id = ? LIMIT 1')
     .bind(normalizeText(orderId, ''))
@@ -299,7 +300,7 @@ export async function dbApplyPaidInventoryItems(
   const paidChannel = getPaidInventoryChannel(session, normalizeText(order?.channel, ''));
   let totalImplicitTaxCents = 0;
   for (const item of items) {
-    const implicitTaxCents = await dbApplyPaidInventoryItemAdjustment(orderId, item, session, paidChannel, env);
+    const implicitTaxCents = await dbApplyPaidInventoryItemAdjustment(orderId, item, session, paidChannel, env, skipTaxIncludedAdjustment);
     if (implicitTaxCents > 0) {
       totalImplicitTaxCents += implicitTaxCents;
       const perUnitTaxCents = Math.round(implicitTaxCents / Math.max(1, item.quantity));
@@ -486,6 +487,7 @@ export async function dbApplyPaidInventoryItemAdjustment(
   session: any,
   paidChannel: string,
   env: Env,
+  skipTaxIncludedAdjustment = false,
 ): Promise<number> {
   const row = await env.DB.prepare(
     'SELECT * FROM ccg_inventory_items WHERE id = ? LIMIT 1'
@@ -501,7 +503,7 @@ export async function dbApplyPaidInventoryItemAdjustment(
     ? item.subtotalCents
     : Math.round(Number(row.sale_price || row.regular_price || 0) * purchasedQuantity * 100);
   const salesTaxIncluded = Number(row.sales_tax_included) === 1;
-  const implicitTaxCents = salesTaxIncluded && effectiveSubtotalCents > 0
+  const implicitTaxCents = salesTaxIncluded && effectiveSubtotalCents > 0 && !skipTaxIncludedAdjustment
     ? Math.round(effectiveSubtotalCents * SHOP_SALES_TAX_RATE / (1 + SHOP_SALES_TAX_RATE))
     : 0;
   const soldAmount = (effectiveSubtotalCents - implicitTaxCents) / 100;

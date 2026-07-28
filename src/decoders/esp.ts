@@ -206,6 +206,11 @@ export function decodeESP(serial: string): DecodeResult {
     return decodeLTDChinaSingleC(normalized);
   }
 
+  // China factory single-letter C prefix with day-of-week: C + YY + WW + D + 3-digit sequence (e.g. C25333247)
+  if (/^C\d{8}$/.test(normalized)) {
+    return decodeLTDChinaSingleCWithDay(normalized);
+  }
+
   // China: L, RS, SH, SX, SK, SP + 7-8 digits
   if (/^(L|RS|SH|SX|SK|SP)\d{7,8}$/.test(normalized)) {
     return decodeLTDChina(normalized);
@@ -250,7 +255,16 @@ export function decodeESP(serial: string): DecodeResult {
 
   // 7-digit fallthrough: LTD transitional check above did not match (invalid week); try pre-2000 DMMYNNN
   if (/^\d{7}$/.test(normalized)) {
-    return decodePre2000(normalized);
+    const pre2000Result = decodePre2000(normalized);
+    if (pre2000Result.success) {
+      return pre2000Result;
+    }
+    // DMMYNNN read also failed. For a [789]-leading serial, try one more vintage split:
+    // 2-digit year + 2-digit batch/block code + 3-digit sequence (no week or day encoded).
+    if (/^[789]\d{6}$/.test(normalized)) {
+      return decodeJapanVintage7DigitYYBatchSequence(normalized);
+    }
+    return pre2000Result;
   }
 
   // 6-digit all-numeric: try pre-2000 DMMYNNN shorthand first (single-digit day ≥ 1, single-digit month ≥ 1)
@@ -300,6 +314,15 @@ function decodeESP2016Plus(serial: string): DecodeResult {
   const year = parseInt(serial.substring(5, 7), 10) + 2000;
   const seriesCode = serial[7];
 
+  // The 2016+ format's year field falls near the end of the serial. On older
+  // E-prefix serials that happen to also be 7 digits, this arithmetic can land
+  // on an implausible future year — fall back to the older Korea E-prefix
+  // interpretation (2-digit year up front + 5-digit sequence) instead.
+  const currentYear = new Date().getFullYear();
+  if (year > currentYear + 1) {
+    return decodeOlderKoreaEPrefix7Digit(serial);
+  }
+
   let series: string;
   switch (seriesCode) {
     case '1':
@@ -325,6 +348,50 @@ function decodeESP2016Plus(serial: string): DecodeResult {
     notes: `Production number: ${productionNum}. 2016+ serial format.`
   };
   return { success: true, info };
+}
+
+// Older E-prefix Korea LTD format: E + 2-digit year + 5-digit sequence
+// Fallback for 7-digit E-prefix serials where the 2016+ interpretation yields an implausible year
+function decodeOlderKoreaEPrefix7Digit(serial: string): DecodeResult {
+  const digits = serial.substring(1);
+  const yearDigits = digits.substring(0, 2);
+  const sequence = digits.substring(2);
+  const year = 2000 + parseInt(yearDigits, 10);
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'ESP',
+    serialNumber: serial,
+    year: year.toString(),
+    factory: 'Edwards (ESP-owned) or early LTD Korea factory',
+    country: 'Japan or South Korea',
+    notes: `E-prefix 7-digit format interpreted as E + 2-digit year + 5-digit sequence. Digits ${yearDigits} decode as production year ${year}; ${sequence} is the production sequence (unit ${sequenceNumber}). "E" is used both for the Edwards brand (Japan) and early-2000s LTD Korea imports, so verify the brand name printed on the headstock (ESP, LTD, or Edwards) to confirm factory and country.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'esp-older-korea-e-prefix-7digit-yy-sequence',
+    patternLabel: 'ESP/Edwards older E-prefix 7-digit YY sequence',
+    additionalContext: {
+      title: 'ESP/Edwards E-prefix 7-digit serial',
+      summary: 'This serial matches an older E-prefix format read as a 2-digit year followed by a 5-digit production sequence, distinct from the modern 2016+ E-prefix format.',
+      highlights: [
+        `The digits ${yearDigits} decode as production year ${year}.`,
+        `The remaining digits decode as production sequence ${sequenceNumber}.`,
+        '"E" is used for both the Edwards brand (Japan) and early-2000s LTD Korea imports.',
+      ],
+      caveats: [
+        'This 7-digit E-prefix format can be ambiguous with the modern 2016+ E-prefix serial system.',
+        'Confirm the brand name on the headstock (ESP, LTD, or Edwards) to narrow down factory and country.',
+      ],
+      verificationTips: [
+        'Check the headstock for the exact brand name printed (ESP, LTD, or Edwards).',
+        'Compare body shape and hardware against catalog specs for the decoded year.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches an older E-prefix format read as a 2-digit year followed by a 5-digit production sequence, distinct from the modern 2016+ E-prefix format.</p><h3>How This Pattern Is Typically Read</h3><p>The digits ${yearDigits} decode as production year ${year}. The remaining digits decode as production sequence ${sequenceNumber}. "E" is used for both the Edwards brand (Japan) and early-2000s LTD Korea imports.</p><h3>What To Verify</h3><ul><li>Confirm the brand name on the headstock (ESP, LTD, or Edwards) to narrow down factory and country.</li><li>Compare body shape and hardware against catalog specs for ${year}.</li></ul>`,
+  };
 }
 
 function decodeEII2016Plus(serial: string): DecodeResult {
@@ -1385,6 +1452,61 @@ function decodeLTDChinaSingleC(serial: string): DecodeResult {
   };
 }
 
+// China factory single-letter C prefix with day-of-week: C + YY(2) + WW(2) + D(1) + sequence(3)
+// e.g. C25333247 = 2025, week 33, Wednesday, seq 247
+function decodeLTDChinaSingleCWithDay(serial: string): DecodeResult {
+  const yearDigits = serial.substring(1, 3);
+  const weekDigits = serial.substring(3, 5);
+  const dayDigit = serial.charAt(5);
+  const productionNum = serial.substring(6);
+  const year = parseInt(yearDigits, 10) + 2000;
+  const week = parseInt(weekDigits, 10);
+  const day = parseInt(dayDigit, 10);
+  const dateInfo = (day >= 1 && day <= 7) ? getDateFromWeekDay(year, week, day) : { month: undefined, day: undefined };
+  const dayName = getDayOfWeekName(day);
+  const sequenceNumber = parseInt(productionNum, 10);
+
+  const info: GuitarInfo = {
+    brand: 'ESP',
+    serialNumber: serial,
+    year: year.toString(),
+    month: dateInfo.month,
+    factory: 'ESP LTD China factory',
+    country: 'China',
+    model: 'LTD',
+    notes: `ESP LTD China single-letter C factory format with day-of-week. "C" identifies a Chinese factory. Year digits ${yearDigits} decode as ${year}. Week digits ${weekDigits} decode as production week ${week}${dateInfo.month ? `, approximately ${dateInfo.month}` : ''}. Day digit ${dayDigit} decodes as ${dayName}. Production number that day: ${sequenceNumber}. Verify the exact model from the headstock or 12th-fret inlay markings, and confirm "Made in China" on the back of the headstock.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'esp-ltd-china-single-c-yywwd-sequence',
+    patternLabel: 'ESP LTD China single-letter C + YY + week + day + sequence',
+    additionalContext: {
+      title: 'ESP LTD China single-letter C serial (with day-of-week)',
+      summary: 'This serial matches an ESP LTD China factory format: C + production year + calendar week + day-of-week + sequence number.',
+      highlights: [
+        '"C" identifies a Chinese factory.',
+        `Year digits ${yearDigits} decode as ${year}.`,
+        `Week digits ${weekDigits} decode as production week ${week}${dateInfo.month ? `, approximately ${dateInfo.month}` : ''}.`,
+        `Day digit ${dayDigit} decodes as ${dayName}.`,
+        `Production number that day: ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'This format is used on LTD budget and mid-range models, not ESP Original, E-II, or Custom Shop lines.',
+        'A "Made in China" ESP headstock should always say LTD — a premium ESP logo on a China serial is a red flag for counterfeits.',
+        'The serial identifies factory, date, and production sequence, not the exact model name.',
+      ],
+      verificationTips: [
+        'Check the headstock front or 12th-fret inlay for the exact LTD model name.',
+        'Look for "Made in China" on the back of the headstock.',
+        'Compare hardware, pickups, and construction against the ESP LTD catalog for the decoded year.',
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches an ESP LTD China factory format: C + production year + calendar week + day-of-week + sequence number.</p><h3>How This Pattern Is Typically Read</h3><p>"C" identifies a Chinese factory. Year digits ${yearDigits} decode as ${year}. Week digits ${weekDigits} decode as production week ${week}${dateInfo.month ? `, approximately ${dateInfo.month}` : ''}. Day digit ${dayDigit} decodes as ${dayName}. Production number that day: ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This format is used on LTD budget and mid-range models, not ESP Original or E-II lines.</li><li>A premium ESP logo on a China serial is a red flag for counterfeits — authentic China-built ESPs always say LTD.</li><li>Check the headstock or 12th-fret inlay for the exact LTD model name and look for "Made in China" on the back of the headstock.</li></ul>`,
+  };
+}
+
 function decodeLTDGToneChina(serial: string): DecodeResult {
   const yearDigits = serial.substring(2, 4);
   const weekDigits = serial.substring(4, 6);
@@ -1739,6 +1861,52 @@ function decode6DigitAllNumericAmbiguous(normalized: string, cleaned: string): D
       ],
     },
     additionalContextRichText: `<h3>Overview</h3><p>Six-digit all-numeric ESP serials are ambiguous and match three different eras and production lines. The headstock logo, country-of-origin marking, and serial placement are required to determine the correct interpretation.</p><h3>How This Pattern Is Typically Read</h3><p>There are three contexts for this format. First: early ESP LTD models from 1998–1999, just before ESP introduced factory letter prefixes (E, U, R) around 2000, used 6-digit all-numeric serials as sequential production block numbers — in this context the digits are a sequential identifier and the first two digits are not a reliable year code. Second: ESP Japan Original Series and Custom Shop bolt-on guitars — including early Kirk Hammett KH-2 models — used 5–6 digit sequential numbers stamped directly into the metal neck plate, where the full 6-digit number is a guitar-level sequence. Third: Korean LTD models from 2000–2003 used a factory letter (U, R, or E) followed by 6 digits (e.g. U028304 or R028304); if the prefix is worn or faded, the remaining six digits match this serial exactly — under that reading, ${firstTwo} decodes as production year ${possibleYear} and ${remaining} is the factory tracking sequence.</p><h3>What To Verify</h3><ul><li>Check whether the serial is stamped into a metal neck plate (bolt-on Japan Original Series) or on the back of the headstock (typical LTD placement).</li><li>Look at the headstock logo and country-of-origin marking to identify the production line.</li><li>Inspect carefully for a worn or faded factory letter before the first digit.</li><li>Compare the hardware, construction, and finish against early LTD catalog specs (1998–2003) or late-1980s/early-1990s ESP Japan Original Series and Custom Shop models.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a starting point, then use the headstock logo, serial placement (neck plate vs. headstock), and country-of-origin marking to select the correct interpretation. Physical inspection is essential for this serial format.</p>`,
+  };
+}
+
+// Vintage Japan ESP 7-digit alternate split: 2-digit year + 2-digit batch/block code + 3-digit sequence
+// (no week or day-of-month encoded). Used when neither the week-positional nor DMMYNNN reads are valid.
+// e.g. 8900172 = 1989, batch 00, seq 172
+function decodeJapanVintage7DigitYYBatchSequence(serial: string): DecodeResult {
+  const yearDigits = serial.substring(0, 2);
+  const batchDigits = serial.substring(2, 4);
+  const sequence = serial.substring(4);
+  const yearNum = parseInt(yearDigits, 10);
+  const year = (yearNum < 50 ? 2000 + yearNum : 1900 + yearNum).toString();
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'ESP',
+    serialNumber: serial,
+    year,
+    factory: 'ESP Japan production',
+    country: 'Japan',
+    notes: `Vintage Japan ESP 7-digit serial format, read as year + batch/block code + sequence. Digits ${yearDigits} decode as production year ${year}. Digits ${batchDigits} are a production batch or block code. Production sequence: ${sequenceNumber}. This numeric-only format was used on Japanese-made ESP Standard and Custom Shop instruments before 2000.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'esp-japan-vintage-7digit-yy-batch-sequence',
+    patternLabel: 'ESP Japan vintage 7-digit YY-batch-sequence',
+    additionalContext: {
+      title: 'ESP Japan vintage 7-digit serial (YY-batch-sequence)',
+      summary: 'This serial matches an alternate vintage Japan ESP 7-digit format read as production year, batch/block code, and sequence.',
+      highlights: [
+        `Digits ${yearDigits} decode as production year ${year}.`,
+        `Digits ${batchDigits} are a production batch or block code.`,
+        `Production sequence: ${sequenceNumber}.`,
+      ],
+      caveats: [
+        'This numeric-only format does not include a factory-letter code.',
+        'The batch/block digits do not correspond to a calendar month or week.',
+      ],
+      verificationTips: [
+        'Check the back of the headstock or neck plate for the stamped serial location.',
+        `Compare hardware and construction against ESP Japan catalog specs for ${year}.`,
+      ],
+    },
+    additionalContextRichText: `<h3>Overview</h3><p>This serial matches an alternate vintage Japan ESP 7-digit format read as production year, batch/block code, and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>Digits ${yearDigits} decode as production year ${year}. Digits ${batchDigits} are a production batch or block code. Production sequence: ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>This numeric-only format does not include a factory-letter code.</li><li>Compare hardware and construction against ESP Japan catalog specs for ${year}.</li></ul>`,
   };
 }
 

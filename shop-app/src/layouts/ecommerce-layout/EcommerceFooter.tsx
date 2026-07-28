@@ -16,7 +16,7 @@ const footerLinks = {
   help: [
     {
       label: 'Serial Decoders',
-      url: 'https://www.coalcreekguitars.com/decoders/guitar-serial-decoder-lookup',
+      url: 'https://www.coalcreekguitars.com/decoders/guitar-serial-decoder-lookup/',
     },
   ],
   contacts: [

@@ -108,6 +108,29 @@ function assertDeanAsianPartnerDPrefix(serialInput, expectedYear, expectedMonth)
   );
 }
 
+function assertDeanLegacyKoreaD(serialInput, expectedYear, expectedSequence) {
+  const result = decodeSerialForBackend('dean', serialInput);
+  assert(result.success, `Expected decode success for dean:${serialInput}`);
+  assert(result.info, `Expected decoded info for dean:${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(!info.month, `Expected no month for ${serialInput}, got ${info.month}`);
+  assert(
+    info.factory === 'World Music Instruments, Korea',
+    `Expected World Music Instruments, Korea for ${serialInput}, got ${info.factory}`
+  );
+  assert(info.country === 'South Korea', `Expected South Korea for ${serialInput}, got ${info.country}`);
+  assert(
+    info.notes && info.notes.includes(`unit ${expectedSequence}`),
+    `Expected production sequence unit ${expectedSequence} for ${serialInput}, got ${info.notes}`
+  );
+  assert(
+    result.patternKey === 'dean-legacy-korea-d-yy-sequence',
+    `Expected Dean legacy Korea D-prefix pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
 function assertDeanFiveDigitSequential(serialInput) {
   const result = decodeSerialForBackend('dean', serialInput);
   assert(result.success, `Expected decode success for dean:${serialInput}`);
@@ -204,6 +227,7 @@ export function runTests() {
   assertDeanAsianPartnerAPrefix('A07043194', '2007', 'April');
   assertDeanAsianPartnerAPrefix('a10091499', '2010', 'September');
   assertDeanAsianPartnerDPrefix('D21010091', '2021', 'January');
+  assertDeanLegacyKoreaD('d950093', '1995', 93);
   assertDeanFiveDigitSequential('52760');
   assertDeanCortKoreaC('C2122845', '2021');
   assertDeanWorldKoreaWK('WK170303338', '2017', 'March');

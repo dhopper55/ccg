@@ -459,7 +459,7 @@ export async function dbMarkManualCheckoutOrderPaid(
     payment_status: 'paid',
     id: `${input.provider}:${orderId}`,
   };
-  await dbApplyPaidInventoryItems(orderId, input.items, session, env);
+  await dbApplyPaidInventoryItems(orderId, input.items, session, env, true);
 
   await dbUpdateTableById('orders', orderId, {
     status: 'paid',

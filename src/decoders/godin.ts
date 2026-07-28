@@ -32,7 +32,7 @@ const GODIN_FAMILY_BRAND_LABEL = 'Godin & Associated Brands';
  */
 
 export function decodeGodin(serial: string): DecodeResult {
-  const cleaned = serial.trim().toUpperCase();
+  const cleaned = serial.trim().toUpperCase().replace(/^(?:SN|S\/N)[:#]?\s*/, '');
   const normalized = cleaned.replace(/[\s-]/g, '');
 
   // Handle B prefix (Norman 1980-1988)
