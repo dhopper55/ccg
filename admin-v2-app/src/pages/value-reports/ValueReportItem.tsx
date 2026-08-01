@@ -444,7 +444,13 @@ const ValueReportItem = () => {
       }
       const blob = await res.blob();
       const blobUrl = URL.createObjectURL(blob);
-      window.open(blobUrl, '_blank', 'noopener,noreferrer');
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `value-report-${id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
     } catch (error) {
       setPdfError(error instanceof Error ? error.message : 'Failed to generate PDF.');
     } finally {

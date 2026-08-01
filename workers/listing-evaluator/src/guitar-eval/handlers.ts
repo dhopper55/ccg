@@ -228,7 +228,7 @@ export async function handleAdminV2ValueReportGeneratePdf(id: string, env: Env):
     return new Response(pdf, {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="value-report-${id}.pdf"`,
+        'Content-Disposition': `attachment; filename="value-report-${id}.pdf"`,
       },
     });
   } catch (error) {
