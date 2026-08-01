@@ -712,6 +712,12 @@ nav .wrap {
   gap: 64px;
   align-items: start;
 }
+.form-section.wizard-active .wrap {
+  grid-template-columns: 1fr;
+}
+.form-section.wizard-active .form-left {
+  display: none;
+}
 
 .form-left { }
 .form-intro-eyebrow {
@@ -1443,8 +1449,22 @@ input[type="file"] { display: none; }
   font-size: 14.5px;
   line-height: 1.65;
   color: var(--ink-soft);
-  max-width: 32ch;
+  max-width: 40ch;
   margin: 0 auto;
+}
+.success-p strong { color: var(--ink); font-weight: 600; }
+.success-p a { color: var(--creek); text-decoration: underline; }
+.success-spinner {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 3px solid rgba(35,90,110,.18);
+  border-top-color: var(--creek);
+  margin: 0 auto 18px;
+  animation: success-spin .9s linear infinite;
+}
+@keyframes success-spin {
+  to { transform: rotate(360deg); }
 }
 
 /* ---- FOOTER ---- */
@@ -2114,10 +2134,15 @@ footer {
 
         <!-- SUCCESS -->
         <div class="step-panel" id="step-success">
-          <div class="success-panel">
-            <div class="success-icon">✓</div>
-            <div class="success-h">You're all set.</div>
-            <p class="success-p">Your report is being generated now. Check your inbox — it'll most likely be there in a few minutes.</p>
+          <div class="success-panel" id="success-generating">
+            <div class="success-spinner" aria-hidden="true"></div>
+            <div class="success-h">Generating your report…</div>
+            <p class="success-p">This usually takes a few minutes — leave this window open. We'll take you straight to your report the moment it's ready, and email a copy to <strong id="success-email-generating"></strong>.</p>
+          </div>
+          <div class="success-panel" id="success-delayed" style="display:none">
+            <div class="success-icon">⏳</div>
+            <div class="success-h">Still working on it.</div>
+            <p class="success-p">This is taking longer than usual. No need to wait — your report will be emailed to <strong id="success-email-delayed"></strong> as soon as it's ready. Questions or concerns? Email us at <a href="mailto:info@coalcreekguitars.com">info@coalcreekguitars.com</a>.</p>
           </div>
         </div>
 
@@ -2283,7 +2308,8 @@ function activateStep(n) {
   currentStep = n;
   document.getElementById('step-' + n).classList.add('active');
   document.getElementById('tab-' + n).classList.add('active');
-  // Collapse marketing sections above the form once the user advances past step 1
+  // Collapse marketing sections above the form, and the "Tell us about your instrument"
+  // column beside it, once the user advances past step 1 — restore both on Back to step 1.
   if (n > 1) {
     ['hero', 'what', 'breakdown'].forEach(function(cls) {
       var el = document.querySelector('section.' + cls);
@@ -2291,6 +2317,9 @@ function activateStep(n) {
     });
     var speedBand = document.querySelector('.speed-band');
     if (speedBand) speedBand.style.display = 'none';
+    document.querySelector('section.form-section').classList.add('wizard-active');
+  } else {
+    document.querySelector('section.form-section').classList.remove('wizard-active');
   }
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
@@ -2528,12 +2557,61 @@ async function goToStep(n) {
 
 // ── Success transition ────────────────────────────────────────────────────────
 function showSuccess() {
-  sessionStorage.removeItem('evalId');
+  document.querySelector('section.form-section').classList.add('wizard-active');
   document.getElementById('step-' + currentStep).classList.remove('active');
   document.getElementById('tab-' + currentStep).classList.remove('active');
   document.getElementById('tab-' + currentStep).classList.add('done');
   document.querySelector('#tab-' + currentStep + ' .step-tab-num').textContent = '✓';
   document.getElementById('step-success').classList.add('active');
+
+  const email = document.getElementById('field-email').value.trim();
+  document.getElementById('success-email-generating').textContent = email;
+  document.getElementById('success-email-delayed').textContent = email;
+
+  sessionStorage.removeItem('evalId');
+  startReportPolling();
+}
+
+// ── Report-ready polling ────────────────────────────────────────────────────────
+const REPORT_POLL_INTERVAL_MS = 5000;
+const REPORT_POLL_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+let reportPollTimer = null;
+
+function showDelayedNotice() {
+  if (reportPollTimer) { clearInterval(reportPollTimer); reportPollTimer = null; }
+  document.getElementById('success-generating').style.display = 'none';
+  document.getElementById('success-delayed').style.display = '';
+}
+
+function startReportPolling() {
+  if (!evaluationId) return;
+  if (reportPollTimer) clearInterval(reportPollTimer);
+  const deadline = Date.now() + REPORT_POLL_TIMEOUT_MS;
+
+  const check = async () => {
+    if (Date.now() > deadline) {
+      showDelayedNotice();
+      return;
+    }
+    try {
+      const res = await fetch('/api/guitar-evaluation/' + evaluationId + '/status');
+      if (!res.ok) return; // transient error — next tick retries
+      const data = await res.json();
+      if (data.ready && data.reportUrl) {
+        if (reportPollTimer) { clearInterval(reportPollTimer); reportPollTimer = null; }
+        window.location.href = data.reportUrl;
+        return;
+      }
+      if (data.failed) {
+        showDelayedNotice();
+      }
+    } catch {
+      // network hiccup — next tick retries
+    }
+  };
+
+  void check();
+  reportPollTimer = setInterval(check, REPORT_POLL_INTERVAL_MS);
 }
 
 // ── Photo upload UX ───────────────────────────────────────────────────────────

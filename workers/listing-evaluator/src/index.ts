@@ -224,6 +224,7 @@ import {
   handleGuitarEvaluationPaymentIntent,
   handleGuitarEvaluationConfirmPayment,
   handleGuitarEvaluationValidateCoupon,
+  handleGuitarEvaluationStatus,
 } from './guitar-eval/payment.js';
 import { runGuitarEvalReportGeneration } from './guitar-eval/report.js';
 import {
@@ -406,6 +407,12 @@ export default {
     const guitarEvalUpdateMatch = path.match(/^\/api\/guitar-evaluation\/(\d+)$/);
     if (guitarEvalUpdateMatch && request.method === 'PATCH') {
       const response = await handleGuitarEvaluationUpdate(request, guitarEvalUpdateMatch[1], env);
+      return withCors(response, request, env);
+    }
+
+    const guitarEvalStatusMatch = path.match(/^\/api\/guitar-evaluation\/(\d+)\/status$/);
+    if (guitarEvalStatusMatch && request.method === 'GET') {
+      const response = await handleGuitarEvaluationStatus(guitarEvalStatusMatch[1], env);
       return withCors(response, request, env);
     }
 

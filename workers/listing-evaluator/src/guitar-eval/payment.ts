@@ -100,6 +100,22 @@ export async function handleGuitarEvaluationPaymentIntent(request: Request, env:
   return jsonResponse({ clientSecret: intent.client_secret, publishableKey: stripeConfig.publishableKey });
 }
 
+export async function handleGuitarEvaluationStatus(evaluationId: string, env: Env): Promise<Response> {
+  const row = await env.DB.prepare(
+    `SELECT report_guid, report_error FROM guitar_evaluations WHERE id = ?`,
+  ).bind(evaluationId).first<{ report_guid: string | null; report_error: string | null }>();
+  if (!row) return jsonResponse({ message: 'Not found.' }, 404);
+
+  const siteBase = (env.SITE_BASE_URL || 'https://www.coalcreekguitars.com').replace(/\/$/, '');
+  const reportUrl = row.report_guid ? `${siteBase}/api/guitar-eval-report/${row.report_guid}` : null;
+
+  return jsonResponse({
+    ready: Boolean(row.report_guid),
+    reportUrl,
+    failed: Boolean(row.report_error),
+  });
+}
+
 export async function handleGuitarEvaluationConfirmPayment(request: Request, env: Env): Promise<Response> {
   let body: any;
   try {
