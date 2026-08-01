@@ -613,12 +613,13 @@ export async function handleAdminV2AuthenticitySend(id: string, request: Request
     httpMetadata: { contentType: 'text/html; charset=utf-8' },
   });
 
-  const now = new Date().toISOString();
   await env.DB.prepare(
-    'UPDATE guitar_evaluations SET report_guid = ?, report_r2_key = ?, fulfilled = 1, fulfilment_date = ? WHERE id = ?',
-  ).bind(guid, r2Key, now, id).run();
+    'UPDATE guitar_evaluations SET report_guid = ?, report_r2_key = ? WHERE id = ?',
+  ).bind(guid, r2Key, id).run();
 
-  // Send report-ready email — same shape as the AI value-report flow
+  // Send report-ready email — same shape as the AI value-report flow. Fulfilled is only
+  // marked once the report exists AND the email has actually gone out — not before. The
+  // admin "Fulfilled" checkbox remains available for manual override.
   try {
     if (record.email) {
       const config = await getBrevoRuntimeConfig(env);
@@ -640,6 +641,11 @@ export async function handleAdminV2AuthenticitySend(id: string, request: Request
           templateId: 5,
           params: { REPORT_URL: reportUrl },
         });
+
+        const now = new Date().toISOString();
+        await env.DB.prepare(
+          'UPDATE guitar_evaluations SET fulfilled = 1, fulfilment_date = COALESCE(fulfilment_date, ?) WHERE id = ?',
+        ).bind(now, id).run();
       }
     }
   } catch (err) {

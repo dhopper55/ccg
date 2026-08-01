@@ -712,6 +712,11 @@ nav .wrap {
   gap: 64px;
   align-items: start;
 }
+@media (max-width: 900px) {
+  /* Scroll target for "Get My Report" on mobile, once the two columns stack — see
+     scrollToReportForm() below. Offsets for the sticky nav bar. */
+  .form-card { scroll-margin-top: 90px; }
+}
 .form-section.wizard-active .wrap {
   grid-template-columns: 1fr;
 }
@@ -1645,7 +1650,7 @@ footer {
         </div>
       </div>
       <div class="hero-cta-row">
-        <button class="btn-primary" onclick="document.getElementById('get-report').scrollIntoView({behavior:'smooth'})">
+        <button class="btn-primary" onclick="scrollToReportForm()">
           Get My Report →
         </button>
         <a href="sample-report.html" class="btn-ghost" target="_blank" rel="noopener">See a sample report</a>
@@ -2175,7 +2180,7 @@ footer {
         <div class="footer-h">Valuation Report</div>
         <ul class="footer-links">
           <li><a href="sample-report.html" target="_blank" rel="noopener">See a Sample Report</a></li>
-          <li><a href="#get-report">Get My Report</a></li>
+          <li><a href="#get-report" onclick="scrollToReportForm(event)">Get My Report</a></li>
         </ul>
         <div class="footer-h" style="margin-top:24px">Reverb Shop</div>
         <ul class="footer-links">
@@ -2199,6 +2204,17 @@ footer {
 </div>
 
 <script>
+// ── "Get My Report" scroll target ───────────────────────────────────────────────
+// On mobile the intro column stacks above the wizard card (see .form-section .wrap
+// media query), so scrolling to the top of #get-report leaves the wizard's step-1
+// fields below the fold. Scroll straight to the wizard card there instead.
+function scrollToReportForm(e) {
+  if (e) e.preventDefault();
+  const isStacked = window.matchMedia('(max-width: 900px)').matches;
+  const target = isStacked ? document.querySelector('.form-card') : document.getElementById('get-report');
+  if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 // ── State ────────────────────────────────────────────────────────────────────
 let currentStep = 1;
 let evaluationId = sessionStorage.getItem('evalId') ? Number(sessionStorage.getItem('evalId')) : null;

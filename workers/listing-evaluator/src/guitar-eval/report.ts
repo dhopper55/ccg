@@ -524,15 +524,17 @@ export async function runGuitarEvalReportGeneration(id: number, env: Env): Promi
 
           console.log(`[report-gen] report-ready email sent to ${emailRow.email}`);
 
+          // Auto-fulfill once the report exists AND the email has actually gone out — not
+          // before. The admin "Fulfilled" checkbox remains available for manual override.
           const messageId = typeof emailResult?.messageId === 'string' ? emailResult.messageId : null;
-          if (messageId) {
-            try {
-              await env.DB.prepare(
-                'UPDATE guitar_evaluations SET report_email_message_id = ? WHERE id = ?',
-              ).bind(messageId, id).run();
-            } catch (dbErr) {
-              console.error(`[report-gen] failed to persist report_email_message_id for evaluation ${id}:`, dbErr);
-            }
+          try {
+            await env.DB.prepare(
+              `UPDATE guitar_evaluations
+               SET report_email_message_id = ?, fulfilled = 1, fulfilment_date = COALESCE(fulfilment_date, ?)
+               WHERE id = ?`,
+            ).bind(messageId, new Date().toISOString(), id).run();
+          } catch (dbErr) {
+            console.error(`[report-gen] failed to persist email/fulfillment state for evaluation ${id}:`, dbErr);
           }
         }
       }
