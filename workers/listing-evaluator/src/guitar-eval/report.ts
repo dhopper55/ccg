@@ -1,7 +1,20 @@
 import type { Env } from '../env.js';
 import { normalizeText } from '../utils/text.js';
 import { getBrevoRuntimeConfig } from '../system/runtime.js';
+import type { BrevoRuntimeConfig } from '../system/runtime.js';
 import { sendBrevoTransactionalEmail } from '../orders/email.js';
+
+export async function sendGuitarEvalReportReadyEmail(
+  config: BrevoRuntimeConfig,
+  params: { email: string; firstName: string; reportUrl: string },
+): Promise<Record<string, unknown>> {
+  return sendBrevoTransactionalEmail(config, {
+    sender: { name: config.senderName, email: config.senderEmail },
+    to: [{ email: params.email, name: params.firstName }],
+    templateId: 5,
+    params: { REPORT_URL: params.reportUrl },
+  });
+}
 
 export const GUITAR_EVAL_REPORT_SYSTEM_PROMPT = `You are generating a professional instrument valuation report for Coal Creek Guitars. Using the photos and instrument details provided, produce one complete, self-contained HTML document.
 
@@ -484,14 +497,24 @@ export async function runGuitarEvalReportGeneration(id: number, env: Env): Promi
           const siteBase = (env.SITE_BASE_URL || 'https://www.coalcreekguitars.com').replace(/\/$/, '');
           const reportUrl = `${siteBase}/api/guitar-eval-report/${guid}`;
 
-          await sendBrevoTransactionalEmail(config, {
-            sender: { name: config.senderName, email: config.senderEmail },
-            to: [{ email: emailRow.email, name: resolvedFirstName }],
-            templateId: 5,
-            params: { REPORT_URL: reportUrl },
+          const emailResult = await sendGuitarEvalReportReadyEmail(config, {
+            email: emailRow.email,
+            firstName: resolvedFirstName,
+            reportUrl,
           });
 
           console.log(`[report-gen] report-ready email sent to ${emailRow.email}`);
+
+          const messageId = typeof emailResult?.messageId === 'string' ? emailResult.messageId : null;
+          if (messageId) {
+            try {
+              await env.DB.prepare(
+                'UPDATE guitar_evaluations SET report_email_message_id = ? WHERE id = ?',
+              ).bind(messageId, id).run();
+            } catch (dbErr) {
+              console.error(`[report-gen] failed to persist report_email_message_id for evaluation ${id}:`, dbErr);
+            }
+          }
         }
       }
     } catch (err) {

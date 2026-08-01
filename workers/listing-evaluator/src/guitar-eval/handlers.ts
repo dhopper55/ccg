@@ -1,5 +1,8 @@
 import type { Env } from '../env.js';
 import { jsonResponse } from '../utils/misc.js';
+import { normalizeText, normalizeEmailAddress } from '../utils/text.js';
+import { getBrevoRuntimeConfig } from '../system/runtime.js';
+import { sendGuitarEvalReportReadyEmail } from './report.js';
 
 export async function handleAdminV2ValueReportItem(id: string, env: Env): Promise<Response> {
   const row = await env.DB.prepare(
@@ -177,6 +180,36 @@ export async function handleAdminV2GenerateReport(
 
   await env.REPORT_QUEUE.send({ evaluationId: Number(id) });
   return jsonResponse({ generating: true });
+}
+
+export async function handleAdminV2ValueReportSendAltEmail(id: string, request: Request, env: Env): Promise<Response> {
+  const body = await request.json<{ email?: string }>().catch(() => ({} as { email?: string }));
+  const email = normalizeEmailAddress(body.email);
+  if (!email) return jsonResponse({ message: 'A valid email address is required.' }, 400);
+
+  const row = await env.DB.prepare(
+    `SELECT first_name, report_guid FROM guitar_evaluations WHERE id = ?`,
+  ).bind(id).first<{ first_name: string | null; report_guid: string | null }>();
+  if (!row) return jsonResponse({ message: 'Value report not found.' }, 404);
+  if (!row.report_guid) return jsonResponse({ message: 'Report has not been generated yet.' }, 400);
+
+  const config = await getBrevoRuntimeConfig(env);
+  if (!config.apiKey || !config.senderEmail) {
+    return jsonResponse({ message: 'Brevo is not configured.' }, 503);
+  }
+
+  const siteBase = (env.SITE_BASE_URL || 'https://www.coalcreekguitars.com').replace(/\/$/, '');
+  const reportUrl = `${siteBase}/api/guitar-eval-report/${row.report_guid}`;
+  const resolvedFirstName = normalizeText(row.first_name, '') || 'there';
+
+  try {
+    await sendGuitarEvalReportReadyEmail(config, { email, firstName: resolvedFirstName, reportUrl });
+    return jsonResponse({ ok: true });
+  } catch (error) {
+    return jsonResponse({
+      message: error instanceof Error ? error.message : 'Unable to send email.',
+    }, 502);
+  }
 }
 
 export async function handleAdminV2ValueReports(request: Request, env: Env): Promise<Response> {

@@ -123,6 +123,12 @@ const ValueReportItem = () => {
   const [isParsingChecklist, setIsParsingChecklist] = useState(false);
   const [checklistError, setChecklistError] = useState('');
 
+  const [altEmailModalOpen, setAltEmailModalOpen] = useState(false);
+  const [altEmail, setAltEmail] = useState('info@coalcreekguitars.com');
+  const [isSendingAltEmail, setIsSendingAltEmail] = useState(false);
+  const [altEmailError, setAltEmailError] = useState('');
+  const [altEmailSuccess, setAltEmailSuccess] = useState('');
+
   const loadRecord = async (suppressLoading = false) => {
     if (!id) return;
     if (!suppressLoading) setIsLoading(true);
@@ -398,6 +404,28 @@ const ValueReportItem = () => {
     }
   };
 
+  const handleSendAltEmail = async () => {
+    if (!id) return;
+    setIsSendingAltEmail(true);
+    setAltEmailError('');
+    setAltEmailSuccess('');
+    try {
+      const res = await fetch(`/api/admin-v2/value-reports/${encodeURIComponent(id)}/send-alt-email`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: altEmail }),
+      });
+      const payload = (await res.json()) as { ok?: boolean; message?: string };
+      if (!res.ok || !payload.ok) throw new Error(payload.message || 'Send failed.');
+      setAltEmailSuccess(`Sent to ${altEmail}.`);
+    } catch (error) {
+      setAltEmailError(error instanceof Error ? error.message : 'Send failed.');
+    } finally {
+      setIsSendingAltEmail(false);
+    }
+  };
+
   const formattedDate = record?.createdAt
     ? dayjs(record.createdAt).format('MMM D, YYYY h:mm A')
     : 'Value Report';
@@ -427,6 +455,21 @@ const ValueReportItem = () => {
                     onClick={() => window.open(reportUrl, '_blank', 'noopener,noreferrer')}
                   >
                     View Report
+                  </Button>
+                ) : null}
+
+                {reportUrl ? (
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<IconifyIcon icon="material-symbols:mail-outline-rounded" fontSize={16} />}
+                    onClick={() => {
+                      setAltEmailError('');
+                      setAltEmailSuccess('');
+                      setAltEmailModalOpen(true);
+                    }}
+                  >
+                    Send Email To Alt Addr.
                   </Button>
                 ) : null}
 
@@ -1041,6 +1084,48 @@ const ValueReportItem = () => {
             startIcon={isParsingChecklist ? <CircularProgress size={16} color="inherit" /> : undefined}
           >
             {isParsingChecklist ? 'Parsing…' : 'Parse & Add'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Send the customer's report-ready email to an alternate address */}
+      <Dialog
+        open={altEmailModalOpen}
+        onClose={() => !isSendingAltEmail && setAltEmailModalOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Send Email To Alt Address</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
+            Sends the same report-ready email this customer received to a different address.
+          </Typography>
+          <TextField
+            fullWidth
+            label="Email address"
+            type="email"
+            value={altEmail}
+            onChange={(e) => setAltEmail(e.target.value)}
+          />
+          {altEmailError ? (
+            <Alert severity="error" sx={{ mt: 2 }}>{altEmailError}</Alert>
+          ) : null}
+          {altEmailSuccess ? (
+            <Alert severity="success" sx={{ mt: 2 }}>{altEmailSuccess}</Alert>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAltEmailModalOpen(false)} disabled={isSendingAltEmail}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => void handleSendAltEmail()}
+            disabled={isSendingAltEmail || !altEmail.trim()}
+            startIcon={isSendingAltEmail ? <CircularProgress size={16} color="inherit" /> : undefined}
+          >
+            {isSendingAltEmail ? 'Sending…' : 'Send'}
           </Button>
         </DialogActions>
       </Dialog>
