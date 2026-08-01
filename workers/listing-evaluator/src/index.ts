@@ -214,6 +214,7 @@ import {
   handleAdminV2ValueReportDelete,
   handleAdminV2GenerateReport,
   handleAdminV2ValueReportSendAltEmail,
+  handleAdminV2ValueReportGeneratePdf,
 } from './guitar-eval/handlers.js';
 import {
   handleGuitarEvaluationSubmit,
@@ -811,6 +812,12 @@ export default {
     const adminV2ValueReportSendAltEmailMatch = path.match(/^\/api\/admin-v2\/value-reports\/(\d+)\/send-alt-email$/);
     if (adminV2ValueReportSendAltEmailMatch && request.method === 'POST') {
       const response = await handleAdminV2ValueReportSendAltEmail(adminV2ValueReportSendAltEmailMatch[1], request, env);
+      return withCors(response, request, env);
+    }
+
+    const adminV2ValueReportGeneratePdfMatch = path.match(/^\/api\/admin-v2\/value-reports\/(\d+)\/generate-pdf$/);
+    if (adminV2ValueReportGeneratePdfMatch && request.method === 'POST') {
+      const response = await handleAdminV2ValueReportGeneratePdf(adminV2ValueReportGeneratePdfMatch[1], env);
       return withCors(response, request, env);
     }
 

@@ -200,6 +200,17 @@ Additional owner notes: ${record.note || 'none'}
 Search the web for current market pricing. Limit yourself to no more than 3 web searches total. Output only the complete HTML document — nothing else. Do NOT write any text, explanation, or preamble before the opening <!DOCTYPE html> tag.`;
 }
 
+// Appended to every generated report before storage — @media print only applies during
+// PDF/print rendering, so it can't change how the report looks in a normal browser tab.
+// Targets element types and behaviors, not AI-chosen class names, since report markup
+// varies from one generated report to the next.
+const REPORT_PRINT_STYLESHEET = `<style media="print">
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+  @page { margin: 0.5in; }
+  nav { display: none !important; }
+  img, table, tr, figure { break-inside: avoid; page-break-inside: avoid; }
+</style>`;
+
 export function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   let binary = '';
@@ -453,6 +464,14 @@ export async function runGuitarEvalReportGeneration(id: number, env: Env): Promi
       } catch {
         console.log('[report-gen] listing JSON parse failed — section 07 skipped');
       }
+    }
+
+    // Print-only rules for PDF export — @media print is inert on-screen, so this never
+    // touches the browser-rendered report. Targets tags/behaviors that are consistent
+    // across every generated report (colors/backgrounds, sticky nav, table/image splitting)
+    // rather than AI-chosen class names, which vary report to report.
+    if (html.includes('</head>')) {
+      html = html.replace('</head>', `${REPORT_PRINT_STYLESHEET}\n</head>`);
     }
 
     const guid = row.report_guid || crypto.randomUUID();

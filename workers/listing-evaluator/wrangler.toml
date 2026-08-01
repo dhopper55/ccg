@@ -1,6 +1,7 @@
 name = "ccg-listing-evaluator"
 main = "src/index.ts"
 compatibility_date = "2026-01-29"
+compatibility_flags = ["nodejs_compat"]
 
 # Fill these before deploying.
 account_id = "29c0b8377a7d6c5259e8b5cc977e2aaf"
@@ -35,6 +36,9 @@ database_id = "e509fd2e-31c6-4138-89bf-7e9d09679025"
 binding = "CUSTOM_ITEMS_BUCKET"
 bucket_name = "ccg-custom-items"
 preview_bucket_name = "ccg-custom-items-preview"
+
+[browser]
+binding = "BROWSER"
 
 [[queues.producers]]
 queue = "guitar-eval-report-queue"

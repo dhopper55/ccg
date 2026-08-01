@@ -3,6 +3,7 @@ import { jsonResponse } from '../utils/misc.js';
 import { normalizeText, normalizeEmailAddress } from '../utils/text.js';
 import { getBrevoRuntimeConfig } from '../system/runtime.js';
 import { sendGuitarEvalReportReadyEmail } from './report.js';
+import { generateGuitarEvalReportPdf } from './pdf.js';
 
 export async function handleAdminV2ValueReportItem(id: string, env: Env): Promise<Response> {
   const row = await env.DB.prepare(
@@ -208,6 +209,31 @@ export async function handleAdminV2ValueReportSendAltEmail(id: string, request: 
   } catch (error) {
     return jsonResponse({
       message: error instanceof Error ? error.message : 'Unable to send email.',
+    }, 502);
+  }
+}
+
+export async function handleAdminV2ValueReportGeneratePdf(id: string, env: Env): Promise<Response> {
+  const row = await env.DB.prepare(
+    `SELECT report_guid FROM guitar_evaluations WHERE id = ?`,
+  ).bind(id).first<{ report_guid: string | null }>();
+  if (!row) return jsonResponse({ message: 'Value report not found.' }, 404);
+  if (!row.report_guid) return jsonResponse({ message: 'Report has not been generated yet.' }, 400);
+
+  const siteBase = (env.SITE_BASE_URL || 'https://www.coalcreekguitars.com').replace(/\/$/, '');
+  const reportUrl = `${siteBase}/api/guitar-eval-report/${row.report_guid}`;
+
+  try {
+    const pdf = await generateGuitarEvalReportPdf(reportUrl, env);
+    return new Response(pdf, {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `inline; filename="value-report-${id}.pdf"`,
+      },
+    });
+  } catch (error) {
+    return jsonResponse({
+      message: error instanceof Error ? error.message : 'Unable to generate PDF.',
     }, 502);
   }
 }

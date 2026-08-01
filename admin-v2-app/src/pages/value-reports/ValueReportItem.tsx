@@ -129,6 +129,9 @@ const ValueReportItem = () => {
   const [altEmailError, setAltEmailError] = useState('');
   const [altEmailSuccess, setAltEmailSuccess] = useState('');
 
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [pdfError, setPdfError] = useState('');
+
   const loadRecord = async (suppressLoading = false) => {
     if (!id) return;
     if (!suppressLoading) setIsLoading(true);
@@ -426,6 +429,29 @@ const ValueReportItem = () => {
     }
   };
 
+  const handleGeneratePdf = async () => {
+    if (!id) return;
+    setIsGeneratingPdf(true);
+    setPdfError('');
+    try {
+      const res = await fetch(`/api/admin-v2/value-reports/${encodeURIComponent(id)}/generate-pdf`, {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+      if (!res.ok) {
+        const payload = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(payload.message || 'Failed to generate PDF.');
+      }
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      setPdfError(error instanceof Error ? error.message : 'Failed to generate PDF.');
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
   const formattedDate = record?.createdAt
     ? dayjs(record.createdAt).format('MMM D, YYYY h:mm A')
     : 'Value Report';
@@ -471,6 +497,26 @@ const ValueReportItem = () => {
                   >
                     Send Email To Alt Addr.
                   </Button>
+                ) : null}
+
+                {reportUrl ? (
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    disabled={isGeneratingPdf}
+                    startIcon={
+                      isGeneratingPdf
+                        ? <CircularProgress size={14} color="inherit" />
+                        : <IconifyIcon icon="material-symbols:picture-as-pdf-outline-rounded" fontSize={16} />
+                    }
+                    onClick={() => void handleGeneratePdf()}
+                  >
+                    {isGeneratingPdf ? 'Generating…' : 'Generate PDF From HTML'}
+                  </Button>
+                ) : null}
+
+                {pdfError ? (
+                  <Typography variant="caption" color="error.main">{pdfError}</Typography>
                 ) : null}
 
                 <Button

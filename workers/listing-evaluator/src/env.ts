@@ -22,4 +22,5 @@ export interface Env {
   GOOGLE_MAPS_API_KEY?: string;
   ANTHROPIC_API_KEY?: string;
   REPORT_QUEUE?: Queue<{ evaluationId: number }>;
+  BROWSER?: Fetcher;
 }
