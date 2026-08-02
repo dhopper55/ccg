@@ -1,6 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-CZRGM23PJ9"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-CZRGM23PJ9');
+</script>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Is My Guitar Real? – Coal Creek Guitar Authenticity Report</title>
@@ -2026,6 +2035,11 @@ let currentStep = 1;
 let evaluationId = sessionStorage.getItem('evalId') ? Number(sessionStorage.getItem('evalId')) : null;
 let stripeInstance = null;
 let stripeElements = null;
+// Attribution — captured once at load so it always reflects how this visit actually
+// arrived, even if persistGuitarInfo() runs again later (e.g. editing step 1).
+let serialDecodeId = null;
+const landingReferrer = document.referrer || null;
+const landingPath = window.location.pathname + window.location.search;
 
 // ── Tooltip content ──────────────────────────────────────────────────────────
 const TOOLTIPS = {
@@ -2161,6 +2175,9 @@ async function persistGuitarInfo() {
     curiosityReason: document.getElementById('field-curiosity').value.trim(),
     firstName: '', lastName: '', email: '',
     type: 'AUTHENTICITY',
+    serialDecodeId,
+    landingReferrer,
+    landingPath,
   };
 
   if (evaluationId) {
@@ -2383,6 +2400,10 @@ function showSuccess() {
   document.getElementById('tab-' + currentStep).classList.add('done');
   document.querySelector('#tab-' + currentStep + ' .step-tab-num').textContent = '✓';
   document.getElementById('step-success').classList.add('active');
+
+  if (typeof gtag === 'function') {
+    gtag('event', 'authenticity_report_purchase', { value: 12, currency: 'USD' });
+  }
 }
 
 // ── Photo upload UX ───────────────────────────────────────────────────────────
@@ -2465,7 +2486,7 @@ function closeLightbox() {
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
 
-// ── Pre-populate from query string (?serial=CS403228&brand=Gibson) ────────────
+// ── Pre-populate from query string (?serial=CS403228&brand=Gibson&decodeId=123) ────────
 (function() {
   const params = new URLSearchParams(window.location.search);
   const serial = params.get('serial');
@@ -2485,6 +2506,13 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbo
         }
       }
     }
+  }
+  // Decoder pages link here with ?decodeId=<serial_decode_events.id> so we can attribute
+  // this evaluation back to the decoder page that sent them.
+  const decodeIdParam = params.get('decodeId');
+  if (decodeIdParam) {
+    const parsed = parseInt(decodeIdParam, 10);
+    if (Number.isInteger(parsed) && parsed > 0) serialDecodeId = parsed;
   }
 })();
 

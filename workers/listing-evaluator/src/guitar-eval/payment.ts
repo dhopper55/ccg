@@ -20,12 +20,15 @@ export async function dbInsertGuitarEvaluation(env: Env, data: {
   serialDecodeId: number | null;
   type: 'VALUE' | 'AUTHENTICITY';
   curiosityReason: string;
+  landingReferrer: string | null;
+  landingPath: string | null;
 }): Promise<number | null> {
   const result = await env.DB.prepare(`
     INSERT INTO guitar_evaluations (
       serial_number, brand, brand_other, model, includes_case, color_finish,
-      location, note, damage, first_name, last_name, email, serial_decode_event_id, type, curiosity_reason, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      location, note, damage, first_name, last_name, email, serial_decode_event_id, type, curiosity_reason,
+      landing_referrer, landing_path, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     data.serialNumber,
     data.brand,
@@ -42,6 +45,8 @@ export async function dbInsertGuitarEvaluation(env: Env, data: {
     data.serialDecodeId,
     data.type,
     data.curiosityReason,
+    data.landingReferrer,
+    data.landingPath,
     new Date().toISOString(),
   ).run();
   return (result.meta?.last_row_id as number) ?? null;
@@ -221,7 +226,7 @@ export async function handleGuitarEvaluationSubmit(request: Request, env: Env): 
     return jsonResponse({ message: 'Invalid request body.' }, 400);
   }
 
-  const { serialNumber, brand, brandOther, model, includesCase, colorFinish, location, note, damage, firstName, lastName, email, serialDecodeId, type: rawType, curiosityReason } = body ?? {};
+  const { serialNumber, brand, brandOther, model, includesCase, colorFinish, location, note, damage, firstName, lastName, email, serialDecodeId, type: rawType, curiosityReason, landingReferrer, landingPath } = body ?? {};
 
   if (!brand || !includesCase || !note) {
     return jsonResponse({ message: 'Missing required fields.' }, 400);
@@ -262,6 +267,8 @@ export async function handleGuitarEvaluationSubmit(request: Request, env: Env): 
     serialDecodeId: Number.isInteger(serialDecodeId) && serialDecodeId > 0 ? serialDecodeId : null,
     type,
     curiosityReason: finalCuriosityReason,
+    landingReferrer: typeof landingReferrer === 'string' ? landingReferrer.slice(0, 2000) : null,
+    landingPath: typeof landingPath === 'string' ? landingPath.slice(0, 2000) : null,
   });
 
   if (!id) {
@@ -302,6 +309,8 @@ export async function handleGuitarEvaluationUpdate(request: Request, evaluationI
     email: 'email',
     serialDecodeId: 'serial_decode_event_id',
     curiosityReason: 'curiosity_reason',
+    landingReferrer: 'landing_referrer',
+    landingPath: 'landing_path',
   };
 
   const setClauses: string[] = [];
