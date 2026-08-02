@@ -2,7 +2,8 @@ import type { Env } from '../env.js';
 import { normalizeText } from '../utils/text.js';
 import { getBrevoRuntimeConfig } from '../system/runtime.js';
 import type { BrevoRuntimeConfig } from '../system/runtime.js';
-import { sendBrevoTransactionalEmail } from '../orders/email.js';
+import { sendBrevoTransactionalEmail, pollBrevoEmailDeliveryStatus } from '../orders/email.js';
+import type { BrevoEmailDeliveryStatus } from '../orders/email.js';
 
 export async function sendGuitarEvalReportReadyEmail(
   config: BrevoRuntimeConfig,
@@ -487,7 +488,14 @@ export async function runGuitarEvalReportGeneration(id: number, env: Env): Promi
 
     console.log(`[report-gen] done — guid ${guid}`);
 
-    // Send report-ready email with the finished HTML attached
+    // Send report-ready email, then give Brevo a short window to confirm delivery before
+    // marking this fulfilled. The customer's status poll waits for `fulfilled`, not just
+    // for the report existing, so this determines both when they get redirected and
+    // whether the report page (served fresh from DB state each time) shows the
+    // delivery-failure banner. Every path below — success, skip, or failure — still ends
+    // with fulfilled getting set, so a Brevo/config problem can't hang the customer poll.
+    let messageId: string | null = null;
+    let emailDeliveryStatus: BrevoEmailDeliveryStatus = 'N/A';
     try {
       const emailRow = await env.DB.prepare(
         `SELECT first_name, email FROM guitar_evaluations WHERE id = ?`,
@@ -524,22 +532,25 @@ export async function runGuitarEvalReportGeneration(id: number, env: Env): Promi
 
           console.log(`[report-gen] report-ready email sent to ${emailRow.email}`);
 
-          // Auto-fulfill once the report exists AND the email has actually gone out — not
-          // before. The admin "Fulfilled" checkbox remains available for manual override.
-          const messageId = typeof emailResult?.messageId === 'string' ? emailResult.messageId : null;
-          try {
-            await env.DB.prepare(
-              `UPDATE guitar_evaluations
-               SET report_email_message_id = ?, fulfilled = 1, fulfilment_date = COALESCE(fulfilment_date, ?)
-               WHERE id = ?`,
-            ).bind(messageId, new Date().toISOString(), id).run();
-          } catch (dbErr) {
-            console.error(`[report-gen] failed to persist email/fulfillment state for evaluation ${id}:`, dbErr);
+          messageId = typeof emailResult?.messageId === 'string' ? emailResult.messageId : null;
+          if (messageId) {
+            emailDeliveryStatus = await pollBrevoEmailDeliveryStatus(config, messageId);
           }
+          console.log(`[report-gen] email delivery status for evaluation ${id}: ${emailDeliveryStatus}`);
         }
       }
     } catch (err) {
       console.error(`[report-gen] email send failed for evaluation ${id}:`, err);
+    }
+
+    try {
+      await env.DB.prepare(
+        `UPDATE guitar_evaluations
+         SET report_email_message_id = ?, email_delivery_status = ?, fulfilled = 1, fulfilment_date = COALESCE(fulfilment_date, ?)
+         WHERE id = ?`,
+      ).bind(messageId, emailDeliveryStatus, new Date().toISOString(), id).run();
+    } catch (dbErr) {
+      console.error(`[report-gen] failed to persist email/fulfillment state for evaluation ${id}:`, dbErr);
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

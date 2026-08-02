@@ -2,7 +2,7 @@ import type { Env } from '../env.js';
 import { jsonResponse } from '../utils/misc.js';
 import { normalizeText, normalizeEmailAddress } from '../utils/text.js';
 import { getBrevoRuntimeConfig } from '../system/runtime.js';
-import { sendGuitarEvalReportReadyEmail } from './report.js';
+import { sendGuitarEvalReportReadyEmail, escHtml } from './report.js';
 import { generateGuitarEvalReportPdf } from './pdf.js';
 
 export async function handleAdminV2ValueReportItem(id: string, env: Env): Promise<Response> {
@@ -138,6 +138,10 @@ export async function handleAdminV2ValueReportDelete(evaluationId: string, env: 
   return jsonResponse({ ok: true });
 }
 
+function buildUndeliveredBanner(email: string): string {
+  return `<div style="background:#B3261E;color:#fff;font-family:-apple-system,Helvetica,Arial,sans-serif;font-weight:700;font-size:16px;line-height:1.5;text-align:center;padding:16px 20px;">Email delivery of report to ${escHtml(email)} failed. Please save this report here in order to preserve results.</div>`;
+}
+
 export async function handlePublicGuitarEvalReport(guid: string, env: Env): Promise<Response> {
   if (!env.CUSTOM_ITEMS_BUCKET) {
     return new Response('Storage not configured.', { status: 500 });
@@ -145,6 +149,28 @@ export async function handlePublicGuitarEvalReport(guid: string, env: Env): Prom
   const key = `guitar-eval-reports/${guid}.html`;
   const obj = await env.CUSTOM_ITEMS_BUCKET.get(key);
   if (!obj) return new Response('Report not found.', { status: 404 });
+
+  const evalRow = await env.DB.prepare(
+    `SELECT email, email_delivery_status FROM guitar_evaluations WHERE report_guid = ?`,
+  ).bind(guid).first<{ email: string | null; email_delivery_status: string | null }>();
+
+  // Banner is computed fresh from current DB state on every serve — nothing about it is
+  // baked into the stored R2 file, so it reflects whatever the delivery check found even
+  // though generation and the delivery check finish at different times.
+  if (evalRow?.email_delivery_status === 'Un-Delivered' && evalRow.email) {
+    const html = await obj.text();
+    const banner = buildUndeliveredBanner(evalRow.email);
+    const withBanner = /<body[^>]*>/i.test(html)
+      ? html.replace(/<body[^>]*>/i, (m) => `${m}\n${banner}`)
+      : banner + html;
+    return new Response(withBanner, {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'public, max-age=300',
+      },
+    });
+  }
+
   return new Response(obj.body, {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',

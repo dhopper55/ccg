@@ -102,17 +102,27 @@ export async function handleGuitarEvaluationPaymentIntent(request: Request, env:
 
 export async function handleGuitarEvaluationStatus(evaluationId: string, env: Env): Promise<Response> {
   const row = await env.DB.prepare(
-    `SELECT report_guid, report_error FROM guitar_evaluations WHERE id = ?`,
-  ).bind(evaluationId).first<{ report_guid: string | null; report_error: string | null }>();
+    `SELECT report_guid, report_error, fulfilled, email_delivery_status FROM guitar_evaluations WHERE id = ?`,
+  ).bind(evaluationId).first<{
+    report_guid: string | null;
+    report_error: string | null;
+    fulfilled: number;
+    email_delivery_status: string | null;
+  }>();
   if (!row) return jsonResponse({ message: 'Not found.' }, 404);
 
   const siteBase = (env.SITE_BASE_URL || 'https://www.coalcreekguitars.com').replace(/\/$/, '');
   const reportUrl = row.report_guid ? `${siteBase}/api/guitar-eval-report/${row.report_guid}` : null;
 
+  // "ready" waits for fulfilled (report done AND the email step — send + Brevo delivery
+  // check — has concluded, however it concluded), not just report_guid, so the report
+  // page's delivery-failure banner is already resolved in the DB by the time the
+  // customer's poll redirects them there.
   return jsonResponse({
-    ready: Boolean(row.report_guid),
+    ready: Boolean(row.report_guid) && Boolean(row.fulfilled),
     reportUrl,
     failed: Boolean(row.report_error),
+    emailDeliveryStatus: row.email_delivery_status,
   });
 }
 

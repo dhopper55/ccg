@@ -117,6 +117,54 @@ export async function sendBrevoTransactionalEmail(
   return data;
 }
 
+export type BrevoEmailDeliveryStatus = 'Delivered' | 'Un-Delivered' | 'N/A';
+
+// Bounce/reject-type events treated as a definitive delivery failure. softBounces are
+// deliberately excluded — a soft bounce (full mailbox, temporary server issue) can still
+// resolve to delivered later and isn't a reliable "bad address" signal within a short window.
+const BREVO_DEFINITIVE_FAILURE_EVENTS = new Set(['hardBounces', 'bounces', 'blocked', 'invalid', 'error']);
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Polls Brevo's event report for a specific sent message, looking for a definitive
+// delivered/bounced signal. Not a general delivery guarantee — this only catches what
+// resolves within the polling window (typically immediate hard bounces / fast delivery
+// confirmations); anything still unresolved when time runs out comes back as 'N/A'.
+export async function pollBrevoEmailDeliveryStatus(
+  config: BrevoRuntimeConfig,
+  messageId: string,
+  options: { intervalMs?: number; timeoutMs?: number } = {},
+): Promise<BrevoEmailDeliveryStatus> {
+  const intervalMs = options.intervalMs ?? 5000;
+  const timeoutMs = options.timeoutMs ?? 60000;
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    try {
+      const url = `https://api.brevo.com/v3/smtp/statistics/events?messageId=${encodeURIComponent(messageId)}&days=1&limit=50`;
+      const response = await fetch(url, {
+        headers: { accept: 'application/json', 'api-key': config.apiKey },
+      });
+      if (response.ok) {
+        const data = await response.json<unknown>().catch(() => null);
+        const events: Array<{ event?: string }> = Array.isArray(data)
+          ? (data as Array<{ event?: string }>)
+          : Array.isArray((data as any)?.events)
+            ? (data as any).events
+            : [];
+        if (events.some((e) => e.event === 'delivered')) return 'Delivered';
+        if (events.some((e) => e.event && BREVO_DEFINITIVE_FAILURE_EVENTS.has(e.event))) return 'Un-Delivered';
+      }
+    } catch {
+      // transient error — next tick retries
+    }
+    await sleep(intervalMs);
+  }
+  return 'N/A';
+}
+
 export async function sendBrevoOrderConfirmationEmailForOrder(orderId: string, env: Env): Promise<void> {
   try {
     const config = await getBrevoRuntimeConfig(env);
