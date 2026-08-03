@@ -32,6 +32,10 @@ export function decodeDean(serial) {
     if (/^US\d{7,10}$/.test(normalized)) {
         return decodeUnSungKorea(normalized);
     }
+    // UnSung Korea: shorter US + 6-digit variant (US + YY + 4-digit sequence, no month)
+    if (/^US\d{6}$/.test(normalized)) {
+        return decodeUnSungKoreaShort(normalized);
+    }
     // World Korea: WK prefix (newer format, 8 or 9 digits after prefix)
     if (/^WK\d{8,9}$/.test(normalized)) {
         return decodeWorldKoreaWK(normalized);
@@ -52,6 +56,22 @@ export function decodeDean(serial) {
     if (/^Y\d{8,10}$/.test(normalized)) {
         return decodeYooJinChina(normalized);
     }
+    // YooJin China: shorter Y + 7-digit variant (Y + YYMM + 3-digit sequence)
+    if (/^Y\d{7}$/.test(normalized)) {
+        return decodeYooJinChinaShort(normalized);
+    }
+    // YooJin China: two-letter YC variant
+    if (/^YC\d{8}$/.test(normalized)) {
+        return decodeYooJinChinaYC(normalized);
+    }
+    // World Sound China: WS prefix
+    if (/^WS\d{8}$/.test(normalized)) {
+        return decodeWorldSoundWS(normalized);
+    }
+    // Onetek China: 0C prefix (digit zero + letter C, commonly entered/printed as letter "O")
+    if (/^[0O]C\d{6}$/.test(normalized)) {
+        return decodeOnetekChina0C(normalized);
+    }
     // China import line: Z prefix
     if (/^Z\d{7,8}$/.test(normalized)) {
         return decodeChinaZ(normalized);
@@ -60,6 +80,10 @@ export function decodeDean(serial) {
     if (/^A\d{8,9}$/.test(normalized)) {
         return decodeAsianPartnerA(normalized);
     }
+    // Asian partner import line: shorter A + 6-digit variant (A + YY + 4-digit sequence, no month)
+    if (/^A\d{6}$/.test(normalized)) {
+        return decodeAsianPartnerAShort(normalized);
+    }
     // Asian partner import line: D + YYMM + sequence
     if (/^D\d{8}$/.test(normalized)) {
         return decodeAsianPartnerD(normalized);
@@ -67,6 +91,10 @@ export function decodeDean(serial) {
     // Legacy Korea D-prefix import line (1990s World Music Instruments): D + YY + 4-digit sequence, no month encoded
     if (/^D\d{6}$/.test(normalized)) {
         return decodeLegacyKoreaD(normalized);
+    }
+    // D Series / DS model (Tropical Music era, Korea 1994-1996): D + 4-digit sequence, no date encoded
+    if (/^D\d{4}$/.test(normalized)) {
+        return decodeDSeriesTropicalKorea(normalized);
     }
     // Asian partner import line: P + YYMM + sequence (e.g. P20110214 = 2020, November, seq 0214)
     if (/^P\d{8}$/.test(normalized)) {
@@ -439,6 +467,162 @@ function decodeYooJinChina(serial) {
         notes: `Y prefix indicates YooJin factory in China. YooJin has produced Dean guitars since 2006. Production sequence: ${sequence}.`,
     };
     return { success: true, info };
+}
+// YooJin China: shorter Y + 7-digit variant (Y + YYMM + 3-digit sequence)
+function decodeYooJinChinaShort(serial) {
+    const digits = serial.substring(1);
+    const yearDigits = digits.substring(0, 2);
+    const monthDigits = digits.substring(2, 4);
+    const sequence = digits.substring(4);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const month = parseInt(monthDigits, 10);
+    const monthName = month >= 1 && month <= 12 ? getMonthName(month) : undefined;
+    const info = {
+        brand: 'Dean',
+        serialNumber: serial,
+        year: year.toString(),
+        month: monthName,
+        factory: 'YooJin Factory',
+        country: 'China',
+        notes: `Y prefix indicates YooJin factory in China (shorter 7-digit variant: Y + YYMM + 3-digit sequence). Production sequence: ${sequence}.`,
+    };
+    return { success: true, info };
+}
+// YooJin China: two-letter YC variant
+function decodeYooJinChinaYC(serial) {
+    const digits = serial.substring(2);
+    const yearDigits = digits.substring(0, 2);
+    const monthDigits = digits.substring(2, 4);
+    const sequence = digits.substring(4);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const month = parseInt(monthDigits, 10);
+    const monthName = month >= 1 && month <= 12 ? getMonthName(month) : undefined;
+    const info = {
+        brand: 'Dean',
+        serialNumber: serial,
+        year: year.toString(),
+        month: monthName,
+        factory: 'YooJin Factory',
+        country: 'China',
+        notes: `YC prefix indicates YooJin factory in China — a two-letter variant of the plain Y prefix. Production sequence: ${sequence}.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'dean-yc-yoojin-china-yymm-sequence',
+        patternLabel: 'Dean YC YooJin China YYMM sequence',
+    };
+}
+// World Sound China: WS prefix
+function decodeWorldSoundWS(serial) {
+    const digits = serial.substring(2);
+    const yearDigits = digits.substring(0, 2);
+    const monthDigits = digits.substring(2, 4);
+    const sequence = digits.substring(4);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const month = parseInt(monthDigits, 10);
+    const monthName = month >= 1 && month <= 12 ? getMonthName(month) : undefined;
+    const info = {
+        brand: 'Dean',
+        serialNumber: serial,
+        year: year.toString(),
+        month: monthName,
+        factory: 'Asian contract factory (WS)',
+        country: 'China',
+        notes: `WS prefix identifies an Asian contract factory used for Dean's Chinese-produced import instruments. Production sequence: ${sequence}.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'dean-ws-china-yymm-sequence',
+        patternLabel: 'Dean WS China YYMM sequence',
+    };
+}
+// Onetek China: 0C prefix (digit zero + letter C, commonly entered/printed as letter "O")
+function decodeOnetekChina0C(serial) {
+    const digits = serial.substring(2);
+    const yearDigits = digits.substring(0, 2);
+    const sequence = digits.substring(2);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Dean',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'Onetek Factory',
+        country: 'China',
+        notes: `0C prefix indicates the Onetek factory in China (the second character is the digit zero, commonly entered or printed as the letter "O" — both are treated identically). Digits ${yearDigits} decode as production year ${year}; ${sequence} is the production sequence (unit ${sequenceNumber}).`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'dean-0c-onetek-china-yy-sequence',
+        patternLabel: 'Dean 0C Onetek China YY sequence',
+    };
+}
+// Asian partner import line: shorter A + 6-digit variant (A + YY + 4-digit sequence, no month)
+function decodeAsianPartnerAShort(serial) {
+    const digits = serial.substring(1);
+    const yearDigits = digits.substring(0, 2);
+    const sequence = digits.substring(2);
+    const yearNum = parseInt(yearDigits, 10);
+    const year = yearNum <= 30 ? 2000 + yearNum : 1900 + yearNum;
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Dean',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'Asian partner import production line',
+        country: 'China or Indonesia',
+        notes: `A-prefix Dean import format (shorter 6-digit variant: A + YY + 4-digit sequence, no month encoded). The A prefix identifies an Asian partner factory code. Digits ${yearDigits} indicate ${year}; ${sequence} is the production sequence (unit ${sequenceNumber}). Dean import serials identify production tracking more reliably than exact model identity, so verify the model from headstock markings and catalog specs.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'dean-asian-partner-a-yy-sequence-short',
+        patternLabel: 'Dean Asian partner A-prefix YY sequence (short)',
+    };
+}
+// UnSung Korea: shorter US + 6-digit variant (US + YY + 4-digit sequence, no month)
+function decodeUnSungKoreaShort(serial) {
+    const digits = serial.substring(2);
+    const yearDigits = digits.substring(0, 2);
+    const sequence = digits.substring(2);
+    const yearNum = parseInt(yearDigits, 10);
+    const year = yearNum <= 30 ? 2000 + yearNum : 1900 + yearNum;
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Dean',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'UnSung Factory, Incheon',
+        country: 'South Korea',
+        notes: `US prefix indicates UnSung factory in Korea (shorter 6-digit variant: US + YY + 4-digit sequence, no month encoded). Digits ${yearDigits} indicate ${year}; ${sequence} is the production sequence (unit ${sequenceNumber}). Note: Do not confuse "US" prefix with USA-made guitars.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'dean-unsung-korea-us-yy-sequence-short',
+        patternLabel: 'Dean UnSung Korea US-prefix YY sequence (short)',
+    };
+}
+// D Series / DS model (Tropical Music era, Korea 1994-1996): D + 4-digit sequence, no date encoded
+function decodeDSeriesTropicalKorea(serial) {
+    const sequence = serial.substring(1);
+    const info = {
+        brand: 'Dean',
+        serialNumber: serial,
+        year: '1994-1996 (Tropical Music era)',
+        factory: 'Samick, Korea (Tropical Music ownership era)',
+        country: 'South Korea',
+        notes: `D prefix identifies the D Series (DS model) product line built in Korea between 1994 and 1996, under Tropical Music ownership. This prefix denotes the product line, not a factory code, and the 4-digit sequence "${sequence}" does not encode a production date. Dean guitars from 1986-1995 generally lack reliably dated serial numbers. Physical traits consistent with this era include a four-bolt neck plate and a three-per-side "shrimp fork" headstock — verify these to confirm the era.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'dean-d-series-tropical-korea-sequential',
+        patternLabel: 'Dean D Series Tropical Music Korea sequential (no date)',
+    };
 }
 // China import line: Z prefix
 // Typical pattern: Z + YY + production sequence

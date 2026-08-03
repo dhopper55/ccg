@@ -159,7 +159,8 @@ function decodeModernStandard(serial: string): DecodeResult {
   const yearTwoNum = parseInt(yearTwoDigits, 10);
   const monthTwoDigits = digits.substring(2, 4);
   const monthTwoNum = parseInt(monthTwoDigits, 10);
-  const isValidTwoDigitYear = (yearTwoNum >= 0 && yearTwoNum <= 30) || (yearTwoNum >= 85 && yearTwoNum <= 99);
+  const currentYearTwoDigits = new Date().getFullYear() - 2000;
+  const isValidTwoDigitYear = (yearTwoNum >= 0 && yearTwoNum <= Math.min(30, currentYearTwoDigits + 1)) || (yearTwoNum >= 85 && yearTwoNum <= 99);
   const isValidMonthA = monthTwoNum >= 1 && monthTwoNum <= 12;
 
   if (isValidTwoDigitYear && isValidMonthA) {

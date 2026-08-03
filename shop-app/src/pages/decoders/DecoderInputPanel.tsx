@@ -427,22 +427,6 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
                 </Typography>
                 <Box
                   component="a"
-                  href={authenticityHref}
-                  target="_blank"
-                  rel="noopener"
-                  sx={{
-                    color: 'warning.main',
-                    fontWeight: 700,
-                    fontSize: '1rem',
-                    textDecoration: 'none',
-                    textAlign: 'center',
-                    '&:hover': { color: 'warning.dark' },
-                  }}
-                >
-                  🔍 Instrument Authenticity Report — $12
-                </Box>
-                <Box
-                  component="a"
                   href={worthHref}
                   target="_blank"
                   rel="noopener"
@@ -456,6 +440,22 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
                   }}
                 >
                   💰 What's my gear worth? — $8
+                </Box>
+                <Box
+                  component="a"
+                  href={authenticityHref}
+                  target="_blank"
+                  rel="noopener"
+                  sx={{
+                    color: 'warning.main',
+                    fontWeight: 700,
+                    fontSize: '1rem',
+                    textDecoration: 'none',
+                    textAlign: 'center',
+                    '&:hover': { color: 'warning.dark' },
+                  }}
+                >
+                  🔍 Instrument Authenticity Report — $12
                 </Box>
               </Stack>
               {resultFields

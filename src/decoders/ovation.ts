@@ -467,6 +467,8 @@ function decodeImportWithPrefix(serial: string): DecodeResult {
 
   // Try to extract year/month from digits
   let yearMonth = '';
+  let yearOnly = '';
+  let batchSequenceNote = '';
   if (digits.length >= 4) {
     const yearDigits = digits.substring(0, 2);
     const monthDigits = digits.substring(2, 4);
@@ -479,17 +481,23 @@ function decodeImportWithPrefix(serial: string): DecodeResult {
         'July', 'August', 'September', 'October', 'November', 'December',
       ];
       yearMonth = `20${yearDigits.padStart(2, '0')}, ${months[monthNum - 1]}`;
+    } else if (yearNum >= 0 && yearNum <= 25 && digits.length >= 6) {
+      // Month field is invalid — fall back to YY + 2-digit batch code + remaining sequence.
+      const batchDigits = digits.substring(2, 4);
+      const sequence = digits.substring(4);
+      yearOnly = `20${yearDigits.padStart(2, '0')}`;
+      batchSequenceNote = `Digits "${batchDigits}" are a production batch or week code (not a standard calendar month). Production sequence: ${parseInt(sequence, 10)}.`;
     }
   }
 
   const info: GuitarInfo = {
     brand: 'Ovation / Celebrity / Applause',
     serialNumber: serial,
-    year: yearMonth || 'Check label',
+    year: yearMonth || yearOnly || 'Check label',
     factory: factoryInfo.factory,
     country: factoryInfo.country,
     model: factoryInfo.modelHint,
-    notes: `Import model with "${prefix}" prefix indicating ${factoryInfo.factory} in ${factoryInfo.country}.${factoryInfo.modelHint ? ` Commonly associated with ${factoryInfo.modelHint} series instruments.` : ''} ${yearMonth ? `Estimated date: ${yearMonth}.` : ''} Check the label inside the soundhole for exact country and model information.`,
+    notes: `Import model with "${prefix}" prefix indicating ${factoryInfo.factory} in ${factoryInfo.country}.${factoryInfo.modelHint ? ` Commonly associated with ${factoryInfo.modelHint} series instruments.` : ''} ${yearMonth ? `Estimated date: ${yearMonth}.` : ''}${batchSequenceNote ? ` ${batchSequenceNote}` : ''} Check the label inside the soundhole for exact country and model information.`,
   };
 
   return { success: true, info };

@@ -84,14 +84,19 @@ export function decodeCort(serial: string): DecodeResult {
     return decodeIndonesiaICF(normalized);
   }
 
-  // Indonesian Cort factory: IE prefix (10-digit IE serials seen on some 2022+ runs)
-  if (/^IE\d{8,10}$/.test(normalized)) {
+  // Indonesian Cort factory: IE prefix (8-11 digit IE serials seen on some 2021+ runs)
+  if (/^IE\d{8,11}$/.test(normalized)) {
     return decodeIndonesiaIE(normalized);
   }
 
   // Indonesian Cort factory: EI prefix (letter-order variant of IE, same PT. Cort Indonesia factory)
   if (/^EI\d{8,10}$/.test(normalized)) {
     return decodeIndonesiaEI(normalized);
+  }
+
+  // Indonesian Cort factory: IR prefix (less common variant of the I+letter Indonesia family)
+  if (/^IR\d{7}$/.test(normalized)) {
+    return decodeIndonesiaIR(normalized);
   }
 
   // Indonesian Cort factory: IA prefix (Indonesia factory line A, Surabaya)
@@ -652,9 +657,21 @@ function decodeIndonesiaIA(serial: string): DecodeResult {
   const month = parseInt(monthDigits, 10);
 
   if (month < 1 || month > 12) {
+    // Month field is invalid — fall back to IA + YY + 6-digit sequence (no month encoded).
+    const fallbackSequence = serial.substring(4);
+    const info: GuitarInfo = {
+      brand: 'Cort',
+      serialNumber: serial,
+      year: year.toString(),
+      factory: 'PT Cort Indonesia, Surabaya (factory line A)',
+      country: 'Indonesia',
+      notes: `IA prefix indicates Indonesian Cor-Tek/Cort production. "I" identifies Indonesia; "A" designates the specific factory line or production team inside the Surabaya facility. The standard YYMM month field "${monthDigits}" is not a valid month, so this is decoded as IA + YY + sequence without a month component. Year: ${year}. Sequence: ${parseInt(fallbackSequence, 10)}. Verify the model from the headstock, label, or other physical markings.`,
+    };
     return {
-      success: false,
-      error: `Invalid month "${monthDigits}" in serial number. Month should be 01-12.`,
+      success: true,
+      info,
+      patternKey: 'cort-ia-indonesia-yy-sequence-no-month',
+      patternLabel: 'Cort IA Indonesia YY sequence (no month)',
     };
   }
 
@@ -957,6 +974,30 @@ function decodeIndonesiaFPrefix(serial: string): DecodeResult {
     info,
     patternKey: 'cort-indonesia-f-prefix-yy-sequence',
     patternLabel: 'Cort Indonesia F-prefix YY sequence',
+  };
+}
+
+// Indonesian IR prefix (less common variant of the I+letter Indonesia family): IR + YY + 5-digit sequence
+function decodeIndonesiaIR(serial: string): DecodeResult {
+  const yearDigits = serial.substring(2, 4);
+  const sequence = serial.substring(4);
+  const year = 2000 + parseInt(yearDigits, 10);
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Cort',
+    serialNumber: serial,
+    year: year.toString(),
+    factory: 'PT Cort Indonesia',
+    country: 'Indonesia',
+    notes: `IR prefix indicates Indonesian Cor-Tek/Cort production — a less common variant within the I+letter Indonesia factory-line family (alongside IA, IC, ICF, ICS, IE, IIA, IS). Parsed as IR + YY + sequence. Year: ${year}. Sequence: ${sequenceNumber}. Verify the model from the headstock, label, or other physical markings.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'cort-indonesia-ir-yy-sequence',
+    patternLabel: 'Cort Indonesia IR-prefix YY sequence',
   };
 }
 

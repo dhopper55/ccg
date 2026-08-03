@@ -170,6 +170,22 @@ export function runTests() {
   assertWashburnMadeInSuffixStripped('01111003 made in korea', '2001', 'November');
   assertWashburnMadeInSuffixStripped('N 01111003 made in korea', '2001', 'November');
   assertWashburnTwoCharFactoryYYSequenceShort('0C0210', '2002', 10);
+  assertWashburnChinaGShort('g83503', '1983', 503);
+}
+
+function assertWashburnChinaGShort(serialInput, expectedYear, expectedSequence) {
+  const result = decodeSerialForBackend('washburn', serialInput);
+  assert(result.success, `Expected decode success for washburn:${serialInput}`);
+  assert(result.info, `Expected decoded info for washburn:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(
+    result.info.notes && result.info.notes.includes(`Production sequence: ${expectedSequence}`),
+    `Expected sequence ${expectedSequence} for ${serialInput}, got ${result.info.notes}`
+  );
+  assert(
+    result.patternKey === 'washburn-china-g-yy-sequence-short',
+    `Expected G-short patternKey for ${serialInput}, got ${result.patternKey}`
+  );
 }
 
 function assertWashburnMadeInSuffixStripped(serialInput, expectedYear, expectedMonth) {

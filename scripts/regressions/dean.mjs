@@ -234,6 +234,121 @@ export function runTests() {
   assertDeanWorldKoreaKW('kw170303338', '2017', 'March');
   assertDeanNumeric9DigitYYMM('170303338', '2017', 'March');
   assertDeanKHFactory('Kh190630183', '2019', 'June');
+  assertDeanAsianPartnerAShort('A800729', '1980', 729);
+  assertDeanUnSungKoreaShort('US865632', '1986', 5632);
+  assertDeanDSeriesTropicalKorea('D4495', 4495);
+  assertDeanYooJinChinaShort('Y0512507', '2005', 'December', 507);
+  assertDeanYooJinChinaShort('Y1412014', '2014', 'December', '014');
+  assertDeanYooJinChinaYC('YC09110537', '2009', 'November', '0537');
+  assertDeanWorldSoundWS('ws10106599', '2010', 'October', 6599);
+  assertDeanOnetekChina0C('0C030002', '2003', 2);
+}
+
+function assertDeanAsianPartnerAShort(serialInput, expectedYear, expectedSequence) {
+  const result = decodeSerialForBackend('dean', serialInput);
+  assert(result.success, `Expected decode success for dean:${serialInput}`);
+  assert(result.info, `Expected decoded info for dean:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(
+    result.info.notes && result.info.notes.includes(`unit ${expectedSequence}`),
+    `Expected sequence unit ${expectedSequence} for ${serialInput}, got ${result.info.notes}`
+  );
+  assert(
+    result.patternKey === 'dean-asian-partner-a-yy-sequence-short',
+    `Expected A-short patternKey for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
+function assertDeanUnSungKoreaShort(serialInput, expectedYear, expectedSequence) {
+  const result = decodeSerialForBackend('dean', serialInput);
+  assert(result.success, `Expected decode success for dean:${serialInput}`);
+  assert(result.info, `Expected decoded info for dean:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(
+    result.info.notes && result.info.notes.includes(`unit ${expectedSequence}`),
+    `Expected sequence unit ${expectedSequence} for ${serialInput}, got ${result.info.notes}`
+  );
+  assert(
+    result.patternKey === 'dean-unsung-korea-us-yy-sequence-short',
+    `Expected US-short patternKey for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
+function assertDeanDSeriesTropicalKorea(serialInput, expectedSequence) {
+  const result = decodeSerialForBackend('dean', serialInput);
+  assert(result.success, `Expected decode success for dean:${serialInput}`);
+  assert(result.info, `Expected decoded info for dean:${serialInput}`);
+  assert(
+    result.info.year && result.info.year.includes('1994-1996'),
+    `Expected 1994-1996 era for ${serialInput}, got ${result.info.year}`
+  );
+  assert(
+    result.info.notes && result.info.notes.includes(`sequence "${expectedSequence}"`),
+    `Expected sequence "${expectedSequence}" for ${serialInput}, got ${result.info.notes}`
+  );
+  assert(
+    result.patternKey === 'dean-d-series-tropical-korea-sequential',
+    `Expected D-Series patternKey for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
+function assertDeanYooJinChinaShort(serialInput, expectedYear, expectedMonth, expectedSequence) {
+  const result = decodeSerialForBackend('dean', serialInput);
+  assert(result.success, `Expected decode success for dean:${serialInput}`);
+  assert(result.info, `Expected decoded info for dean:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${result.info.month}`);
+  assert(
+    result.info.notes && result.info.notes.includes(`sequence: ${expectedSequence}`),
+    `Expected sequence ${expectedSequence} for ${serialInput}, got ${result.info.notes}`
+  );
+}
+
+function assertDeanYooJinChinaYC(serialInput, expectedYear, expectedMonth, expectedSequence) {
+  const result = decodeSerialForBackend('dean', serialInput);
+  assert(result.success, `Expected decode success for dean:${serialInput}`);
+  assert(result.info, `Expected decoded info for dean:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${result.info.month}`);
+  assert(
+    result.info.notes && result.info.notes.includes(`sequence: ${expectedSequence}`),
+    `Expected sequence ${expectedSequence} for ${serialInput}, got ${result.info.notes}`
+  );
+  assert(
+    result.patternKey === 'dean-yc-yoojin-china-yymm-sequence',
+    `Expected YC patternKey for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
+function assertDeanWorldSoundWS(serialInput, expectedYear, expectedMonth, expectedSequence) {
+  const result = decodeSerialForBackend('dean', serialInput);
+  assert(result.success, `Expected decode success for dean:${serialInput}`);
+  assert(result.info, `Expected decoded info for dean:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${result.info.month}`);
+  assert(
+    result.info.notes && result.info.notes.includes(`sequence: ${expectedSequence}`),
+    `Expected sequence ${expectedSequence} for ${serialInput}, got ${result.info.notes}`
+  );
+  assert(
+    result.patternKey === 'dean-ws-china-yymm-sequence',
+    `Expected WS patternKey for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
+function assertDeanOnetekChina0C(serialInput, expectedYear, expectedSequence) {
+  const result = decodeSerialForBackend('dean', serialInput);
+  assert(result.success, `Expected decode success for dean:${serialInput}`);
+  assert(result.info, `Expected decoded info for dean:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(
+    result.info.notes && result.info.notes.includes(`unit ${expectedSequence}`),
+    `Expected sequence unit ${expectedSequence} for ${serialInput}, got ${result.info.notes}`
+  );
+  assert(
+    result.patternKey === 'dean-0c-onetek-china-yy-sequence',
+    `Expected 0C patternKey for ${serialInput}, got ${result.patternKey}`
+  );
 }
 
 function assertDeanKHFactory(serialInput, expectedYear, expectedMonth) {

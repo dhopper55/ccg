@@ -101,6 +101,12 @@ export function decodeBCRich(serial: string): DecodeResult {
     return decodeImportLetterPrefix(normalized);
   }
 
+  // Note: F is intentionally excluded here — F + 7 digits is already claimed by the
+  // month-code import family (decodeShortMonthCodeImport) checked further below.
+  if (/^[SIN]\d{7}$/.test(normalized)) {
+    return decodeImportLetterPrefixShort(normalized);
+  }
+
   if (/^[ACEFGHJKLMNP][A-Z]\d{5,8}$/.test(normalized)) {
     return decodeHanserTwoLetterMonthPlantImport(normalized);
   }
@@ -303,6 +309,29 @@ function decodeImportLetterPrefix(serial: string): DecodeResult {
     factory: `Import production (${prefixDesc})`,
     country: 'South Korea / China',
     notes: `${prefixDesc} with 8-digit format, typical of Korean or Chinese-made B.C. Rich imports (NJ Series, Platinum Series, or similar). ${yearNote}. Production sequence: ${production}. B.C. Rich serial numbering is inconsistent across eras — confirm with headstock markings, neck pocket stamps, or country-of-origin stickers.`,
+  };
+
+  return { success: true, info };
+}
+
+// Shorter variant of the [SIFN] + YY + sequence import format: 7 digits instead of 8
+function decodeImportLetterPrefixShort(serial: string): DecodeResult {
+  const prefix = serial[0];
+  const yearDigits = serial.slice(1, 3);
+  const yearNum = parseInt(yearDigits, 10);
+  const production = serial.slice(3);
+  const prefixDesc = IMPORT_PREFIX_MAP[prefix] || `${prefix}-prefix`;
+
+  const year = yearNum <= 30 ? `${2000 + yearNum}` : `${1900 + yearNum}`;
+  const yearNote = `Digits "${yearDigits}" interpreted as ${year}`;
+
+  const info: GuitarInfo = {
+    brand: 'B.C. Rich',
+    serialNumber: serial,
+    year,
+    factory: `Import production (${prefixDesc})`,
+    country: 'South Korea / China',
+    notes: `${prefixDesc} with 7-digit format (shorter variant of the 8-digit letter-prefix import format), typical of Korean or Chinese-made B.C. Rich imports (NJ Series, Platinum Series, or similar). ${yearNote}. Production sequence: ${production}. B.C. Rich serial numbering is inconsistent across eras — confirm with headstock markings, neck pocket stamps, or country-of-origin stickers.`,
   };
 
   return { success: true, info };

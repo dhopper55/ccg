@@ -58,6 +58,10 @@ export function decodeWashburn(serial) {
     if (/^G\d{7,9}$/.test(normalized)) {
         return decodeChina(normalized);
     }
+    // Chinese: shorter G + 5-digit variant (G + YY + 3-digit sequence, no month)
+    if (/^G\d{5}$/.test(normalized)) {
+        return decodeChinaShort(normalized);
+    }
     // Cort: C prefix
     if (/^C\d{7,9}$/.test(normalized)) {
         return decodeCort(normalized);
@@ -309,6 +313,28 @@ function decodeChina(serial) {
         notes: `G prefix indicates Chinese production. As of 2017, primary production shifted from Korea to Indonesia and China. Sequence: ${sequence}.`,
     };
     return { success: true, info };
+}
+// Chinese: shorter G + 5-digit variant (G + YY + 3-digit sequence, no month)
+function decodeChinaShort(serial) {
+    const digits = serial.substring(1);
+    const yearDigits = digits.substring(0, 2);
+    const sequence = digits.substring(2);
+    const yearNum = parseInt(yearDigits, 10);
+    const year = (yearNum < 70 ? 2000 + yearNum : 1900 + yearNum).toString();
+    const info = {
+        brand: 'Washburn',
+        serialNumber: serial,
+        year,
+        factory: 'Asian subcontracted factory (G prefix)',
+        country: 'China',
+        notes: `G prefix indicates a Washburn subcontracted Asian production factory (shorter 5-digit variant: G + YY + 3-digit sequence, no month encoded). Digits ${yearDigits} decode as production year ${year}. Production sequence: ${sequence}.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'washburn-china-g-yy-sequence-short',
+        patternLabel: 'Washburn China G-prefix YY sequence (short)',
+    };
 }
 // Cort: C prefix
 function decodeCort(serial) {

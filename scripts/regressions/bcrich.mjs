@@ -402,6 +402,7 @@ function assertBCRichTPrefixJapanImport(serialInput) {
 
 export function runTests() {
   assertBCRichIShortImport('i50311', '2005', 'March');
+  assertBCRichImportLetterPrefixShort('SR#S1301065', 'S1301065', '2013', '01065');
   assertBCRichTPrefixJapanImport('T1955');
   assertBCRichShortNumericImport('150979');
   assertBCRichSevenDigitNumericImport('0127150');
@@ -441,4 +442,15 @@ function assertBCRichBWithTrailingLetter(serialInput) {
   assert(result.info, `Expected decoded info for bcrich:${serialInput}`);
   assert(result.info.country === 'South Korea', `Expected South Korea for ${serialInput}, got ${result.info.country}`);
   assert(result.patternKey === 'bcrich-b-prefix-trailing-letter-import', `Expected B-trailing-letter pattern key for ${serialInput}, got ${result.patternKey}`);
+}
+
+function assertBCRichImportLetterPrefixShort(serialInput, expectedNormalized, expectedYear, expectedSequence) {
+  const result = decodeSerialForBackend('bcrich', serialInput);
+  assert(result.success, `Expected decode success for bcrich:${serialInput}`);
+  assert(result.info, `Expected decoded info for bcrich:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(
+    result.info.notes && result.info.notes.includes(`Production sequence: ${expectedSequence}`),
+    `Expected production sequence ${expectedSequence} for ${serialInput}, got ${result.info.notes}`
+  );
 }

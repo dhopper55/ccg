@@ -62,6 +62,14 @@ export function decodeGuild(serial) {
     if (/^ISG\d{9}$/.test(normalized)) {
         return decodeIndonesiaSamickGuildISG(normalized);
     }
+    // T-100/T-100D "Slim Jim" (Hoboken, NJ, 1965-1969): EE prefix + 3-4 digit sequence
+    if (/^EE\d{3,4}$/.test(normalized)) {
+        return decodeEEPrefixSlimJim(normalized);
+    }
+    // Westerly Collection (GREE factory, Hui Yang, China): G3 prefix + YY + 5-digit sequence
+    if (/^G3\d{7}$/.test(normalized)) {
+        return decodeWesterlyG3(normalized);
+    }
     // GAD series with numeric serial
     if (/^GAD\d+$/i.test(normalized)) {
         return decodeGAD(normalized);
@@ -401,6 +409,47 @@ function decodeIndonesiaSamickGuildISG(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches the ISG-prefix format used on Guild guitars built at the Samick factory in Indonesia, commonly seen on Starfire I and Polara models.</p><h3>How This Pattern Is Typically Read</h3><p>ISG identifies Indonesia, Samick, Guild. The digits ${yearDigits} decode as production year ${year}. The digits ${monthDigits} decode as ${monthName || 'the production month'}. The remaining digits decode as production sequence ${sequenceNumber}.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock for a Made in Indonesia stamp.</li><li>Compare against Guild Starfire/Polara catalogs for ${year}.</li></ul>`,
+    };
+}
+// T-100/T-100D "Slim Jim" (Hoboken, NJ, 1965-1969): EE prefix + sequence
+function decodeEEPrefixSlimJim(serial) {
+    const sequence = serial.substring(2);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Guild',
+        serialNumber: serial,
+        year: '1965-1966 (T-100/T-100D "Slim Jim" era)',
+        factory: 'Hoboken, New Jersey',
+        country: 'USA',
+        notes: `EE prefix was used specifically for the Guild T-100 and T-100D ("Slim Jim") slimline hollowbody electric guitars built at the Hoboken, New Jersey factory, circa 1965-1966. From 1965 to 1969, Guild used a separate model-specific serial system for each model line, so this prefix does not apply to other Guild models. Sequence number: ${sequenceNumber}.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'guild-ee-slim-jim-t100-sequential',
+        patternLabel: 'Guild EE T-100/T-100D Slim Jim sequential',
+    };
+}
+// Westerly Collection (GREE factory, Hui Yang, Guangdong, China): G3 prefix + YY + 5-digit sequence
+function decodeWesterlyG3(serial) {
+    const digits = serial.substring(2);
+    const yearDigits = digits.substring(0, 2);
+    const sequence = digits.substring(2);
+    const year = 2000 + parseInt(yearDigits, 10);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Guild',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'GREE (Grand Reward Education & Entertainment), Hui Yang, Guangdong, China',
+        country: 'China',
+        notes: `G3 prefix indicates the Westerly Collection, built at the GREE factory in Hui Yang, Guangdong, China. Digits ${yearDigits} decode as production year ${year}; ${sequence} is the production sequence (unit ${sequenceNumber}).`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'guild-westerly-g3-yy-sequence',
+        patternLabel: 'Guild Westerly G3-prefix YY sequence',
     };
 }
 // GAD series

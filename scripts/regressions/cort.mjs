@@ -518,6 +518,49 @@ export function runTests() {
   assertCort8DigitSuspiciousFutureYear('52030600', 2052);
   assertCortModern10DigitYYMM('0404704234', '2004', 'April');
   assertCortMGMSignatureSeries('mgm 822');
+  assertCortIAInvalidMonthFallback('IA23866836', '2023', 866836);
+  assertCortIEPrefixElevenDigit('IE21030609123', '2021', 'March');
+  assertCortIRPrefix('IR0647054', '2006', 47054);
+}
+
+function assertCortIAInvalidMonthFallback(serialInput, expectedYear, expectedSequence) {
+  const result = decodeSerialForBackend('cort', serialInput);
+  assert(result.success, `Expected decode success for cort:${serialInput}`);
+  assert(result.info, `Expected decoded info for cort:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(!result.info.month, `Expected no month for ${serialInput}, got ${result.info.month}`);
+  assert(
+    result.info.notes && result.info.notes.includes(`Sequence: ${expectedSequence}`),
+    `Expected sequence ${expectedSequence} for ${serialInput}, got ${result.info.notes}`
+  );
+  assert(
+    result.patternKey === 'cort-ia-indonesia-yy-sequence-no-month',
+    `Expected IA no-month patternKey for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
+function assertCortIEPrefixElevenDigit(serialInput, expectedYear, expectedMonth) {
+  const result = decodeSerialForBackend('cort', serialInput);
+  assert(result.success, `Expected decode success for cort:${serialInput}`);
+  assert(result.info, `Expected decoded info for cort:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${result.info.month}`);
+}
+
+function assertCortIRPrefix(serialInput, expectedYear, expectedSequence) {
+  const result = decodeSerialForBackend('cort', serialInput);
+  assert(result.success, `Expected decode success for cort:${serialInput}`);
+  assert(result.info, `Expected decoded info for cort:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.country === 'Indonesia', `Expected Indonesia for ${serialInput}, got ${result.info.country}`);
+  assert(
+    result.info.notes && result.info.notes.includes(`Sequence: ${expectedSequence}`),
+    `Expected sequence ${expectedSequence} for ${serialInput}, got ${result.info.notes}`
+  );
+  assert(
+    result.patternKey === 'cort-indonesia-ir-yy-sequence',
+    `Expected IR patternKey for ${serialInput}, got ${result.patternKey}`
+  );
 }
 
 function assertCortMGMSignatureSeries(serialInput) {

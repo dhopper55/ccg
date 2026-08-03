@@ -74,6 +74,44 @@ export function runTests() {
   assertGuildIndonesiaSamickISG('isg220854850', '2022', 'August');
   assertGuildIndonesiaSamickISG('isg230550388', '2023', 'May');
   assertGuildKoreaWMIKWM('KWM1601676', '2016', 1676);
+  assertGuildEESlimJim('EE 1141', 1141);
+  assertGuildWesterlyG3('G32212982', '2022', 12982);
+  assertGuildWesterlyG3('G32501635', '2025', 1635);
+}
+
+function assertGuildEESlimJim(serialInput, expectedSequence) {
+  const result = decodeGuild(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+  assert(
+    result.info.year && result.info.year.includes('1965-1966'),
+    `Expected 1965-1966 era for ${serialInput}, got ${result.info.year}`
+  );
+  assert(result.info.country === 'USA', `Expected USA for ${serialInput}, got ${result.info.country}`);
+  assert(
+    result.info.notes && result.info.notes.includes(`number: ${expectedSequence}`),
+    `Expected sequence number ${expectedSequence} for ${serialInput}, got ${result.info.notes}`
+  );
+  assert(
+    result.patternKey === 'guild-ee-slim-jim-t100-sequential',
+    `Expected EE patternKey for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
+function assertGuildWesterlyG3(serialInput, expectedYear, expectedSequence) {
+  const result = decodeGuild(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.country === 'China', `Expected China for ${serialInput}, got ${result.info.country}`);
+  assert(
+    result.info.notes && result.info.notes.includes(`unit ${expectedSequence}`),
+    `Expected sequence unit ${expectedSequence} for ${serialInput}, got ${result.info.notes}`
+  );
+  assert(
+    result.patternKey === 'guild-westerly-g3-yy-sequence',
+    `Expected G3 patternKey for ${serialInput}, got ${result.patternKey}`
+  );
 }
 
 function assertGuildKoreaWMIKWM(serialInput, expectedYear, expectedSequence) {

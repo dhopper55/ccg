@@ -43,6 +43,9 @@ export function decodeSchecter(serial) {
     if (/^WA\d{8}$/.test(normalized)) {
         return decodeKoreaWA(normalized);
     }
+    if (/^WO\d{6,7}$/.test(normalized)) {
+        return decodeKoreaWO(normalized);
+    }
     // Korea/Indonesia W prefix: W + 7-9 digits (World/Wildwood)
     // 7-8 digits = Korea, 9 digits = Indonesia
     if (/^W\d{7,9}$/.test(normalized)) {
@@ -464,6 +467,32 @@ function decodeKoreaWA(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a Schecter WA-prefix Korean import format parsed as factory prefix plus production date and sequence.</p><h3>How This Pattern Is Typically Read</h3><p>WA indicates a Schecter import production run associated with World Audio or a related Korean factory partner. The digits ${digits.substring(0, 2)} decode as production year ${year}. ${hasValidMonth ? `The digits ${digits.substring(2, 4)} decode as ${month}. The final digits decode as production sequence ${sequenceNumber}.` : `The digits after the year (${digits.substring(2)}) are the production sequence — this variant does not encode a month. Production sequence: ${sequenceNumber}.`}</p><h3>What To Verify</h3><ul><li>This format identifies production date and factory family, not the exact model name.</li><li>WA-prefix examples are import/Diamond Series instruments rather than USA Custom Shop guitars.</li><li>Factory-code usage can vary by production run, so confirm with physical markings when provenance matters.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a practical Korean Schecter production decode, then verify the exact model from the headstock, truss rod cover, label, or Schecter support.</p>`,
+    };
+}
+// WO prefix: sibling variant of WA within the WMI Korea factory family
+function decodeKoreaWO(serial) {
+    const digits = serial.substring(2);
+    const { year, month, sequence } = parseStandardDigits(digits);
+    const hasValidMonth = !!month;
+    const effectiveSequence = hasValidMonth ? sequence : digits.substring(2);
+    const sequenceNumber = parseInt(effectiveSequence, 10);
+    const info = {
+        brand: 'Schecter',
+        serialNumber: serial,
+        year,
+        ...(hasValidMonth ? { month } : {}),
+        factory: 'World Musical Instruments (WMI), South Korea',
+        country: 'South Korea',
+        model: 'Diamond Series import',
+        notes: hasValidMonth
+            ? `WO prefix indicates a Schecter import production run at the WMI (World Musical Instruments) factory in Korea — a sibling variant of the WA prefix, with the trailing "O" identifying a specific index or production line within that factory. Parsed as WO + YYMM + sequence. Sequence: ${effectiveSequence}. This format identifies production date and factory family, not the exact model name; verify the exact model from the headstock, truss rod cover, or label.`
+            : `WO prefix indicates a Schecter import production run at the WMI (World Musical Instruments) factory in Korea — a sibling variant of the WA prefix, with the trailing "O" identifying a specific index or production line within that factory. Parsed as WO + YY + sequence (no month field). Year: ${year}, sequence: ${effectiveSequence}. This format identifies production date and factory family, not the exact model name; verify the exact model from the headstock, truss rod cover, or label.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'schecter-wo-korea-yymm-sequence',
+        patternLabel: 'Schecter WO Korea YYMM sequence',
     };
 }
 function decodeW(serial) {
