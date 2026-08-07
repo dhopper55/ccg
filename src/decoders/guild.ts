@@ -86,6 +86,11 @@ export function decodeGuild(serial: string): DecodeResult {
     return decodeWesterlyG3(normalized);
   }
 
+  // Westerly Collection, sibling contracted factory code: G2 prefix + YY + 5-digit sequence
+  if (/^G2\d{7}$/.test(normalized)) {
+    return decodeWesterlyG2(normalized);
+  }
+
   // GAD series with numeric serial
   if (/^GAD\d+$/i.test(normalized)) {
     return decodeGAD(normalized);
@@ -96,8 +101,8 @@ export function decodeGuild(serial: string): DecodeResult {
     return decodeModelPrefix(normalized);
   }
 
-  // Sequential numeric format (5-6 digits): Various eras
-  if (/^\d{5,6}$/.test(normalized)) {
+  // Sequential numeric format (4-6 digits): Various eras
+  if (/^\d{4,6}$/.test(normalized)) {
     return decodeSequential(normalized);
   }
 
@@ -522,6 +527,31 @@ function decodeWesterlyG3(serial: string): DecodeResult {
     info,
     patternKey: 'guild-westerly-g3-yy-sequence',
     patternLabel: 'Guild Westerly G3-prefix YY sequence',
+  };
+}
+
+// Westerly Collection, sibling contracted factory code: G2 prefix + YY + 5-digit sequence
+function decodeWesterlyG2(serial: string): DecodeResult {
+  const digits = serial.substring(2);
+  const yearDigits = digits.substring(0, 2);
+  const sequence = digits.substring(2);
+  const year = 2000 + parseInt(yearDigits, 10);
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Guild',
+    serialNumber: serial,
+    year: year.toString(),
+    factory: 'Contracted China factory (G2 code), Westerly Collection',
+    country: 'China',
+    notes: `G2 prefix identifies a Chinese contracted factory for the Westerly Collection — a sibling factory code to G3 (GREE). Digits ${yearDigits} decode as production year ${year}; ${sequence} is the production sequence (unit ${sequenceNumber}).`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'guild-westerly-g2-yy-sequence',
+    patternLabel: 'Guild Westerly G2-prefix YY sequence',
   };
 }
 

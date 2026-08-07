@@ -70,6 +70,24 @@ export function runTests() {
   assertFenderICSMonthLetter('Icsc22001163', '2022', 'March');
   assertFenderTPrefixAmbiguousEra('T011165');
   assertFenderICFPrefix('ICF21004892', '2021');
+  assertFenderDNPrefix('DN808159', '1998');
+  assertFenderSZPrefix('Sz3186640', '2003');
+}
+
+function assertFenderDNPrefix(serialInput, expectedYear) {
+  const result = decodeSerialForBackend('fender', serialInput);
+  assert(result.success, `Expected decode success for fender:${serialInput}`);
+  assert(result.info, `Expected decoded info for fender:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.model === 'American Deluxe Series', `Expected American Deluxe Series for ${serialInput}, got ${result.info.model}`);
+}
+
+function assertFenderSZPrefix(serialInput, expectedYear) {
+  const result = decodeSerialForBackend('fender', serialInput);
+  assert(result.success, `Expected decode success for fender:${serialInput}`);
+  assert(result.info, `Expected decoded info for fender:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.model === 'Signature Series', `Expected Signature Series for ${serialInput}, got ${result.info.model}`);
 }
 
 function assertFenderICFPrefix(serialInput, expectedYear) {

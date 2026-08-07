@@ -66,9 +66,9 @@ export function decodeEpiphone(serial: string): DecodeResult {
     );
   }
 
-  // Format 1: Two letters + 8+ digits (e.g., SI02060234)
+  // Format 1: Two letters + 7+ digits (e.g., SI02060234; SJ0305022 is a shorter 7-digit variant)
   // Common modern format: FF YYMMNNNN
-  const twoLetterMatch = normalized.match(/^([A-Z]{2})(\d{8,})$/);
+  const twoLetterMatch = normalized.match(/^([A-Z]{2})(\d{7,})$/);
   if (twoLetterMatch) {
     return decodeTwoLetterFormat(twoLetterMatch[1], twoLetterMatch[2], normalized);
   }

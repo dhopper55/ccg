@@ -16,6 +16,11 @@ export function decodeGretsch(serial: string): DecodeResult {
     return decodeIndonesiaSamickIS(normalized);
   }
 
+  // Indonesia (P.T. Wildwood) Jim Dandy line, post-2019: IWA + YYMM + 3-digit sequence
+  if (/^IWA\d{7}$/.test(normalized)) {
+    return decodeIndonesiaWildwoodIWA(normalized);
+  }
+
   // Japan Revival Era (1989-2002): 6 digits + hyphen + 3 digits (YYMMMODEL-SEQ)
   // Format: xxxxxx-xxx or xxxxxxxxx (9 digits if hyphen removed)
   if (/^\d{6}-?\d{3}$/.test(cleaned)) {
@@ -238,6 +243,34 @@ function decodePreBaldwinSequential(serial: string): DecodeResult {
   return {
     success: false,
     error: 'Unable to determine year from this serial number.'
+  };
+}
+
+function decodeIndonesiaWildwoodIWA(serial: string): DecodeResult {
+  const digits = serial.substring(3);
+  const yearDigits = digits.substring(0, 2);
+  const monthDigits = digits.substring(2, 4);
+  const sequence = digits.substring(4);
+  const year = 2000 + parseInt(yearDigits, 10);
+  const month = parseInt(monthDigits, 10);
+  const monthName = getMonthName(month);
+  const sequenceNumber = parseInt(sequence, 10);
+
+  const info: GuitarInfo = {
+    brand: 'Gretsch',
+    serialNumber: serial,
+    year: year.toString(),
+    month: monthName,
+    factory: 'P.T. Wildwood',
+    country: 'Indonesia',
+    notes: `IWA prefix indicates the P.T. Wildwood factory in Indonesia (I=Indonesia, W=Wildwood), used for the Jim Dandy line since production moved there in 2019. Digits ${yearDigits} decode as production year ${year}; ${monthDigits} decodes as ${monthName || 'the production month'}; ${sequence} is the production sequence (unit ${sequenceNumber}).`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'gretsch-indonesia-wildwood-iwa-yymm-sequence',
+    patternLabel: 'Gretsch Indonesia Wildwood IWA-prefix YYMM sequence',
   };
 }
 

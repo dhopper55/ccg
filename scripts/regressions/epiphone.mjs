@@ -59,6 +59,18 @@ export function runTests() {
   assertEpiphonePeerlessLMisread('R94l158', '1994', 'November', 'Peerless');
   assertEpiphoneKalamazoo6Digit('810386', '1966 or 1969 (Kalamazoo estimate)');
   assertEpiphone8DigitNumericImport('60010859', '1996', 'January');
+  assertEpiphoneTwoLetterFormat('SJ0305022', '2003', 'May', 'SaeJun (China)', 'China');
+  assertEpiphoneTwoLetterFormat('SI02060234', '2002', 'June', 'Samick Indonesia', 'Indonesia');
+}
+
+function assertEpiphoneTwoLetterFormat(serialInput, expectedYear, expectedMonth, expectedFactory, expectedCountry) {
+  const result = decodeSerialForBackend('epiphone', serialInput);
+  assert(result.success, `Expected decode success for epiphone:${serialInput}`);
+  assert(result.info, `Expected decoded info for epiphone:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${result.info.month}`);
+  assert(result.info.factory === expectedFactory, `Expected factory ${expectedFactory} for ${serialInput}, got ${result.info.factory}`);
+  assert(result.info.country === expectedCountry, `Expected country ${expectedCountry} for ${serialInput}, got ${result.info.country}`);
 }
 
 function assertEpiphone8DigitNumericImport(serialInput, expectedYear, expectedMonth) {

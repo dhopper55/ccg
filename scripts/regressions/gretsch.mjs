@@ -33,4 +33,18 @@ function assertGretschIndonesiaSamickIS(serialInput, expectedYear, expectedMonth
 export function runTests() {
   assertGretschFenderEraWithSuffix('CYG16080893', '2016', 'August');
   assertGretschIndonesiaSamickIS('IS181000573', '2018', 'October');
+  assertGretschIndonesiaWildwoodIWA('iwa2609022', '2026', 'September');
+}
+
+function assertGretschIndonesiaWildwoodIWA(serialInput, expectedYear, expectedMonth) {
+  const result = decodeSerialForBackend('gretsch', serialInput);
+  assert(result.success, `Expected decode success for gretsch:${serialInput}`);
+  assert(result.info, `Expected decoded info for gretsch:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${result.info.month}`);
+  assert(result.info.country === 'Indonesia', `Expected Indonesia for ${serialInput}, got ${result.info.country}`);
+  assert(
+    result.patternKey === 'gretsch-indonesia-wildwood-iwa-yymm-sequence',
+    `Expected IWA patternKey for ${serialInput}, got ${result.patternKey}`
+  );
 }

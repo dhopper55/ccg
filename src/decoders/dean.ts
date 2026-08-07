@@ -125,8 +125,13 @@ export function decodeDean(serial: string): DecodeResult {
   }
 
   // Cort Korea: C + YY + batch + sequence (e.g. C2122845 = Cort 2021, batch 22, seq 845)
-  if (/^C\d{7}$/.test(normalized)) {
+  if (/^C\d{7,8}$/.test(normalized)) {
     return decodeCortKoreaC(normalized);
+  }
+
+  // Wildwood Indonesia: WI prefix (letter-order variant of IW, same factory)
+  if (/^WI\d{8}$/.test(normalized)) {
+    return decodeIndonesiaWI(normalized);
   }
 
   // World factory numeric-prefix: digit + W + YYMM + sequence (e.g. 1W18120157)
@@ -984,6 +989,35 @@ function decodeIndonesiaIW(serial: string): DecodeResult {
   return { success: true, info };
 }
 
+// Indonesia: WI prefix (Wildwood factory, letter-order variant of IW)
+function decodeIndonesiaWI(serial: string): DecodeResult {
+  const digits = serial.substring(2);
+  const yearDigits = digits.substring(0, 2);
+  const monthDigits = digits.substring(2, 4);
+  const sequence = digits.substring(4);
+
+  const year = 2000 + parseInt(yearDigits, 10);
+  const month = parseInt(monthDigits, 10);
+  const monthName = month >= 1 && month <= 12 ? getMonthName(month) : undefined;
+
+  const info: GuitarInfo = {
+    brand: 'Dean',
+    serialNumber: serial,
+    year: year.toString(),
+    month: monthName,
+    factory: 'Wildwood Factory, Indonesia',
+    country: 'Indonesia',
+    notes: `WI prefix identifies the Wildwood factory in Indonesia — a letter-order variant of the IW prefix, same facility. Production sequence: ${sequence}.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'dean-wi-indonesia-wildwood-yymm-sequence',
+    patternLabel: 'Dean WI Indonesia Wildwood YYMM sequence',
+  };
+}
+
 // Indonesia: CT prefix
 function decodeIndonesiaCT(serial: string): DecodeResult {
   const digits = serial.substring(2);
@@ -1434,7 +1468,17 @@ function decodeCortKoreaC(serial: string): DecodeResult {
   const yearDigits = serial.substring(1, 3);
   const batchDigits = serial.substring(3, 5);
   const sequence = serial.substring(5);
-  const year = 2000 + parseInt(yearDigits, 10);
+  const yearNum = parseInt(yearDigits, 10);
+  const currentYearTwoDigits = new Date().getFullYear() - 2000;
+
+  if (yearNum > currentYearTwoDigits + 1) {
+    return {
+      success: false,
+      error: `Unable to decode this Dean serial number. Digits "${yearDigits}" would decode as an implausible future year.`,
+    };
+  }
+
+  const year = 2000 + yearNum;
 
   const info: GuitarInfo = {
     brand: 'Dean',

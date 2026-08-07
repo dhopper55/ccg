@@ -138,6 +138,11 @@ export function decodeBCRich(serial: string): DecodeResult {
     return decodeWMIFactory(normalized);
   }
 
+  // WMI factory, alternate layout: W + month-letter(A-P) + YY(2) + batch(2) + seq(4)
+  if (/^W[ACEFGHJKLMNP]\d{8}$/.test(normalized)) {
+    return decodeWMIFactoryMonthFirst(normalized);
+  }
+
   // BW-prefix import: BW + sequential number (Class Axe era or specific Korean contractor)
   if (/^BW\d{2,6}$/.test(normalized)) {
     return decodeBWPrefixImport(normalized);
@@ -812,6 +817,33 @@ function decodeWMIFactory(serial: string): DecodeResult {
     info,
     patternKey: 'bcrich-wmi-korea-factory-code-month-yy-sequence',
     patternLabel: 'B.C. Rich WMI Korea (W + factory-code + month + YY + seq)',
+  };
+}
+
+// WMI factory, alternate layout: W + month-letter(A-P) + YY(2) + batch(2) + seq(4)
+function decodeWMIFactoryMonthFirst(serial: string): DecodeResult {
+  const monthLetter = serial[1];
+  const yearDigits = serial.substring(2, 4);
+  const batchDigits = serial.substring(4, 6);
+  const seq = serial.substring(6);
+  const month = MONTH_CODE_MAP[monthLetter];
+  const year = '20' + yearDigits;
+
+  const info: GuitarInfo = {
+    brand: 'B.C. Rich',
+    serialNumber: serial,
+    year,
+    month,
+    factory: 'World Musical Instruments (WMI), South Korea',
+    country: 'South Korea',
+    notes: `W prefix identifies World Musical Instruments (WMI), a South Korean (and later Vietnamese) factory producing B.C. Rich's high-end import lines. Month letter "${monthLetter}" decodes as ${month ?? 'an unrecognized month code'}. Year: ${year}. Batch/sub-category code: ${batchDigits}. Sequence: ${seq}.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'bcrich-wmi-korea-month-first-yy-batch-sequence',
+    patternLabel: 'B.C. Rich WMI Korea (W + month-letter + YY + batch + seq)',
   };
 }
 

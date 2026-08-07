@@ -403,6 +403,7 @@ function assertBCRichTPrefixJapanImport(serialInput) {
 export function runTests() {
   assertBCRichIShortImport('i50311', '2005', 'March');
   assertBCRichImportLetterPrefixShort('SR#S1301065', 'S1301065', '2013', '01065');
+  assertBCRichWMIFactoryMonthFirst('WL22040339', '2022', 'September', '04', '0339');
   assertBCRichTPrefixJapanImport('T1955');
   assertBCRichShortNumericImport('150979');
   assertBCRichSevenDigitNumericImport('0127150');
@@ -452,5 +453,25 @@ function assertBCRichImportLetterPrefixShort(serialInput, expectedNormalized, ex
   assert(
     result.info.notes && result.info.notes.includes(`Production sequence: ${expectedSequence}`),
     `Expected production sequence ${expectedSequence} for ${serialInput}, got ${result.info.notes}`
+  );
+}
+
+function assertBCRichWMIFactoryMonthFirst(serialInput, expectedYear, expectedMonth, expectedBatch, expectedSequence) {
+  const result = decodeSerialForBackend('bcrich', serialInput);
+  assert(result.success, `Expected decode success for bcrich:${serialInput}`);
+  assert(result.info, `Expected decoded info for bcrich:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${result.info.month}`);
+  assert(
+    result.info.notes && result.info.notes.includes(`Batch/sub-category code: ${expectedBatch}`),
+    `Expected batch ${expectedBatch} for ${serialInput}, got ${result.info.notes}`
+  );
+  assert(
+    result.info.notes && result.info.notes.includes(`Sequence: ${expectedSequence}`),
+    `Expected sequence ${expectedSequence} for ${serialInput}, got ${result.info.notes}`
+  );
+  assert(
+    result.patternKey === 'bcrich-wmi-korea-month-first-yy-batch-sequence',
+    `Expected WMI month-first patternKey for ${serialInput}, got ${result.patternKey}`
   );
 }

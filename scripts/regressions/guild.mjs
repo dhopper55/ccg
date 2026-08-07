@@ -77,6 +77,31 @@ export function runTests() {
   assertGuildEESlimJim('EE 1141', 1141);
   assertGuildWesterlyG3('G32212982', '2022', 12982);
   assertGuildWesterlyG3('G32501635', '2025', 1635);
+  assertGuildBareSequential('2849', '1954-1955');
+  assertGuildWesterlyG2('G21808039', '2018', 8039);
+}
+
+function assertGuildBareSequential(serialInput, expectedYear) {
+  const result = decodeGuild(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+}
+
+function assertGuildWesterlyG2(serialInput, expectedYear, expectedSequence) {
+  const result = decodeGuild(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.country === 'China', `Expected China for ${serialInput}, got ${result.info.country}`);
+  assert(
+    result.info.notes && result.info.notes.includes(`unit ${expectedSequence}`),
+    `Expected sequence unit ${expectedSequence} for ${serialInput}, got ${result.info.notes}`
+  );
+  assert(
+    result.patternKey === 'guild-westerly-g2-yy-sequence',
+    `Expected G2 patternKey for ${serialInput}, got ${result.patternKey}`
+  );
 }
 
 function assertGuildEESlimJim(serialInput, expectedSequence) {

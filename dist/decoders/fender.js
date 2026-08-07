@@ -11,10 +11,20 @@ export function decodeFender(serial) {
     if (dzMatch) {
         return decodeDZPrefix(dzMatch[1], dzMatch[2], normalized);
     }
+    // DN prefix (American Deluxe launch, 1998-1999 — predecessor of DZ)
+    const dnMatch = normalized.match(/^DN(\d)(\d+)$/);
+    if (dnMatch) {
+        return decodeDNPrefix(dnMatch[1], dnMatch[2], normalized);
+    }
     // Z prefix (2000s)
     const zMatch = normalized.match(/^Z(\d)(\d+)$/);
     if (zMatch) {
         return decodeZPrefix(zMatch[1], zMatch[2], normalized);
+    }
+    // SZ prefix (Signature Series, 2000s decade)
+    const szMatch = normalized.match(/^SZ(\d)(\d+)$/);
+    if (szMatch) {
+        return decodeSZPrefix(szMatch[1], szMatch[2], normalized);
     }
     // N prefix (1990s)
     const nMatch = normalized.match(/^N(\d)(\d+)$/);
@@ -307,6 +317,32 @@ function decodeDZPrefix(yearDigit, sequence, serial) {
         country: 'USA',
         model: 'American Deluxe Series',
         notes: `DZ prefix indicates American Deluxe Series from the 2000s. Production sequence: ${sequence}.`
+    };
+    return { success: true, info };
+}
+function decodeDNPrefix(yearDigit, sequence, serial) {
+    const year = '199' + yearDigit;
+    const info = {
+        brand: 'Fender',
+        serialNumber: serial,
+        year,
+        factory: 'Corona, California',
+        country: 'USA',
+        model: 'American Deluxe Series',
+        notes: `DN prefix indicates the American Deluxe Series launch (1998-1999), predecessor of the DZ prefix used in the 2000s. Production sequence: ${sequence}.`
+    };
+    return { success: true, info };
+}
+function decodeSZPrefix(yearDigit, sequence, serial) {
+    const year = '200' + yearDigit;
+    const info = {
+        brand: 'Fender',
+        serialNumber: serial,
+        year,
+        factory: 'Corona, California',
+        country: 'USA',
+        model: 'Signature Series',
+        notes: `SZ prefix indicates an American-made Signature Series instrument from the 2000s ("S" = Signature Series, "Z" = 2000s decade code, matching the Z-prefix decade convention). Production sequence: ${sequence}.`
     };
     return { success: true, info };
 }
