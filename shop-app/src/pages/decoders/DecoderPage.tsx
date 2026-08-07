@@ -3,11 +3,10 @@ import Grid from '@mui/material/Grid';
 import DecoderPreviewLayout from 'layouts/decoder-layout/DecoderPreviewLayout';
 import DecoderInputPanel from './DecoderInputPanel';
 import EvalPitchPanel from './EvalPitchPanel';
-import EmailSignupPanel from './EmailSignupPanel';
 import DecoderFaqPanel from './DecoderFaqPanel';
 import DecoderHowToPanel from './DecoderHowToPanel';
 import DecoderSlot from './DecoderSlot';
-import GoogleReviewPanel from './GoogleReviewPanel';
+import EmailSignupBoldPanel from './EmailSignupBoldPanel';
 
 interface DecoderFaqItem {
   question: string;
@@ -65,13 +64,7 @@ const DecoderPage = ({ config }: DecoderPageProps) => {
 
         {decodeSuccess && (
           <Grid size={{ xs: 12, lg: 7, xl: 6 }} sx={{ order: { xs: 2, lg: 2 } }}>
-            <GoogleReviewPanel />
-          </Grid>
-        )}
-
-        {decodeSuccess && (
-          <Grid size={{ xs: 12, lg: 5, xl: 6 }} sx={{ order: { xs: 3, lg: 5 } }}>
-            <EmailSignupPanel />
+            <EmailSignupBoldPanel />
           </Grid>
         )}
 
