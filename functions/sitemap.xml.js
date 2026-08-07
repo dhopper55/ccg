@@ -41,6 +41,7 @@ const STATIC_URLS = [
   { loc: '/contact-us.html', changefreq: 'monthly', priority: '0.6' },
   { loc: '/privacy-policy.html', changefreq: 'monthly', priority: '0.3' },
   { loc: '/terms-conditions.html', changefreq: 'monthly', priority: '0.3' },
+  { loc: '/fender-telecaster-2026-contest/', changefreq: 'weekly', priority: '0.6' },
 ];
 
 export async function onRequest() {

@@ -25,7 +25,7 @@ The Giveaway begins on **September 1, 2026 at 12:00 AM MST** and ends on **Octob
 ### 4. How to Enter
 Entrants may enter via the entry form hosted at coalcreekguitars.com (powered by SweepWidget). No purchase is necessary. To enter, complete the following actions, each of which earns one (1) entry:
 
-1. **Submit your first name, last name, and email address**, and agree to join the Coal Creek Guitars email list. This is required to participate.
+1. **Submit your full name and email address**, and agree to join the Coal Creek Guitars email list. This is required to participate.
 2. **Follow Coal Creek Guitars on Instagram** (@coalcreekguitars).
 3. **Visit the Coal Creek Guitars Facebook Page** (facebook.com/profile.php?id=61587059786524).
 
