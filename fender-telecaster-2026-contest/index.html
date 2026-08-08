@@ -280,6 +280,19 @@
     padding: 24px;
     min-height: 320px;
   }
+  .co-gate { text-align: center; padding: 20px 8px; }
+  .co-gate-question {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    color: #f0e6cc;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+  .co-gate-note { font-size: 14px; color: #a89a88; max-width: 380px; margin: 0 auto 24px; }
+  .co-gate-btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .co-gate-blocked { text-align: center; padding: 20px 8px; }
+  .co-gate-blocked p { font-size: 14px; color: #a89a88; margin-bottom: 14px; }
+  .co-gate-blocked a { color: #c8a040; }
 
   /* ── PRIZE DETAILS ── */
   .details { padding: 80px 40px; }
@@ -479,15 +492,40 @@
           </li>
         </ul>
         <div class="entry-meta">
-          Entries close <strong>October 31, 2026 at 12:00 PM MST</strong>. Winner drawn that evening and contacted directly. See the <a href="https://www.coalcreekguitars.com/fender-telecaster-2026-contest-terms/" style="color:#c8a040;">full Official Rules</a> for complete terms.
+          Entries close <strong>October 31, 2026 at 12:00 PM MST</strong>. Winner drawn that evening and contacted directly. You'll be asked to confirm Colorado residency before entering. See the <a href="https://www.coalcreekguitars.com/fender-telecaster-2026-contest-terms/" style="color:#c8a040;">full Official Rules</a> for complete terms.
         </div>
       </div>
       <div class="widget-card">
-        <div id="101516-m3a5wc62" class="sw_container"><script type="text/javascript" src="https://sweepwidget.com/w/j/w_init.js"></script></div>
+        <div id="co-gate" class="co-gate">
+          <p class="co-gate-question">Are you a Colorado resident?</p>
+          <p class="co-gate-note">This prize can only be awarded to a legal resident of Colorado — local pickup only in Englewood, CO, no shipping.</p>
+          <div class="co-gate-btns">
+            <button type="button" class="btn-primary" onclick="coGateAnswer(true)">Yes, I'm a CO resident</button>
+            <button type="button" class="btn-outline" onclick="coGateAnswer(false)">No</button>
+          </div>
+        </div>
+        <div id="co-gate-blocked" class="co-gate-blocked" style="display:none;">
+          <p>This giveaway's prize must be picked up in person in Englewood, CO, and can only be awarded to a Colorado resident, so entry is limited to Colorado residents.</p>
+          <p>Feel free to browse our <a href="https://www.coalcreekguitars.com/guitars-and-gear-for-sale">inventory</a> or get a <a href="https://www.coalcreekguitars.com/guitar-value-report-evaluation">guitar valuation report</a> instead.</p>
+        </div>
+        <div id="sw-embed-wrap" style="display:none;">
+          <div id="101516-m3a5wc62" class="sw_container"><script type="text/javascript" src="https://sweepwidget.com/w/j/w_init.js"></script></div>
+        </div>
       </div>
     </div>
   </div>
 </section>
+
+<script>
+function coGateAnswer(isCO) {
+  document.getElementById('co-gate').style.display = 'none';
+  if (isCO) {
+    document.getElementById('sw-embed-wrap').style.display = '';
+  } else {
+    document.getElementById('co-gate-blocked').style.display = '';
+  }
+}
+</script>
 
 <!-- PRIZE DETAILS -->
 <section class="details" id="details">

@@ -23,7 +23,7 @@ Employees of Coal Creek Guitars and their immediate family members (spouse, pare
 The Giveaway begins on **September 1, 2026 at 12:00 AM MST** and ends on **October 31, 2026 at 12:00 PM (Noon) MST** ("Entry Period"). All entries must be received within the Entry Period to be eligible.
 
 ### 4. How to Enter
-Entrants may enter via the entry form hosted at coalcreekguitars.com (powered by SweepWidget). No purchase is necessary. To enter, complete the following actions, each of which earns one (1) entry:
+Entrants may enter via the entry form hosted at coalcreekguitars.com (powered by SweepWidget). Before accessing the entry form, entrants will be asked to self-certify that they are a legal resident of Colorado; this self-certification is not independently verified at the time of entry and does not replace the residency verification process described in Section 8. No purchase is necessary. To enter, complete the following actions, each of which earns one (1) entry:
 
 1. **Submit your full name and email address**, and agree to join the Coal Creek Guitars email list. This is required to participate.
 2. **Follow Coal Creek Guitars on Instagram** (@coalcreekguitars).
