@@ -76,7 +76,7 @@ export async function handleGuitarEvaluationPaymentIntent(request: Request, env:
 
   const isAuthenticity = evalRow?.type === 'AUTHENTICITY';
   const params = new URLSearchParams({
-    amount: isAuthenticity ? '1200' : '800',
+    amount: isAuthenticity ? '1200' : '1999',
     currency: 'usd',
     'metadata[evaluation_id]': String(evaluationId),
     'metadata[source]': 'guitar_evaluation',

@@ -439,7 +439,7 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
                     '&:hover': { color: 'warning.dark' },
                   }}
                 >
-                  💰 What's my gear worth? — $8
+                  💰 What's my gear worth? — $19.99
                 </Box>
                 <Box
                   component="a"
