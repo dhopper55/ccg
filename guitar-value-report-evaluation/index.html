@@ -249,6 +249,30 @@ nav .wrap {
   background: var(--brass);
 }
 
+.price-badge {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  background: rgba(212,166,80,.12);
+  border: 1px solid rgba(212,166,80,.45);
+  border-radius: 999px;
+  padding: 9px 18px;
+  margin-bottom: 22px;
+}
+.price-badge-amt {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--brass-bright);
+}
+.price-badge-txt {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: rgba(244,239,228,.7);
+}
+
 .hero-h1 {
   font-family: var(--display);
   font-weight: 600;
@@ -1634,6 +1658,10 @@ footer {
   <div class="wrap">
     <div class="hero-left">
       <div class="hero-eyebrow">Coal Creek Guitars · Englewood, CO</div>
+      <div class="price-badge">
+        <span class="price-badge-amt">$19.99</span>
+        <span class="price-badge-txt">Flat rate · full report</span>
+      </div>
       <h1 class="hero-h1">
         Know exactly what<br>your guitar is <em>worth</em>.
       </h1>
@@ -1660,7 +1688,7 @@ footer {
       </div>
       <div class="hero-cta-row">
         <button class="btn-primary" onclick="scrollToReportForm()">
-          Get My Report →
+          Get My Report — $19.99 →
         </button>
         <a href="sample-report.html" class="btn-ghost" target="_blank" rel="noopener">See a sample report</a>
       </div>
@@ -1842,7 +1870,7 @@ footer {
     <div class="sample-cta">
       <div class="sample-cta-text">
         <h3>See a complete sample report</h3>
-        <p>Read an actual report — a 2024 Gibson Custom Shop Les Paul Custom Figured — before you decide.</p>
+        <p>Read an actual report — a 2024 Gibson Custom Shop Les Paul Custom Figured — before you decide. The full report is a flat $19.99.</p>
       </div>
       <a href="sample-report.html" class="btn-outline" target="_blank" rel="noopener">Open Sample Report →</a>
     </div>
@@ -1856,7 +1884,7 @@ footer {
       <div class="form-intro-eyebrow">Get your report</div>
       <h2 class="form-intro-h">Tell us about<br>your <em>instrument</em>.</h2>
       <p class="form-intro-p">
-        Four quick steps. We take care of everything else — research, comps, analysis, and the listing.
+        Four quick steps. We take care of everything else — research, comps, analysis, and the listing. One flat $19.99 charge, due only at the end.
       </p>
       <div class="trust-items">
         <div class="trust-item">
