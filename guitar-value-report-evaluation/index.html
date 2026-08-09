@@ -8,6 +8,7 @@
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
   gtag('config', 'G-CZRGM23PJ9');
+  gtag('config', 'AW-18207438389');
 </script>
 
 <meta charset="UTF-8">
@@ -2560,7 +2561,7 @@ async function handlePay() {
       return;
     }
   }
-  showSuccess();
+  showSuccess(paymentIntent?.id);
 }
 document.getElementById('btn-pay').addEventListener('click', () => void handlePay());
 
@@ -2617,7 +2618,7 @@ async function goToStep(n) {
 }
 
 // ── Success transition ────────────────────────────────────────────────────────
-function showSuccess() {
+function showSuccess(paymentIntentId) {
   document.querySelector('section.form-section').classList.add('wizard-active');
   document.getElementById('step-' + currentStep).classList.remove('active');
   document.getElementById('tab-' + currentStep).classList.remove('active');
@@ -2629,8 +2630,16 @@ function showSuccess() {
   document.getElementById('success-email-generating').textContent = email;
   document.getElementById('success-email-delayed').textContent = email;
 
-  if (typeof gtag === 'function') {
-    gtag('event', 'value_report_purchase', { value: 8, currency: 'USD' });
+  // Only a real Stripe payment counts as a purchase conversion — coupon-waived
+  // reports call showSuccess() with no paymentIntentId and skip this.
+  if (paymentIntentId && typeof gtag === 'function') {
+    gtag('event', 'value_report_purchase', { value: 19.99, currency: 'USD' });
+    gtag('event', 'conversion', {
+      'send_to': 'AW-18207438389/XlIcCOyj594cELXs_elD',
+      'value': 19.99,
+      'currency': 'USD',
+      'transaction_id': paymentIntentId,
+    });
   }
 
   sessionStorage.removeItem('evalId');
@@ -2802,7 +2811,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbo
     }).catch(() => undefined);
     // Photos were uploaded before payment; jump straight to success
     currentStep = 4;
-    showSuccess();
+    showSuccess(params.get('payment_intent'));
   }
 })();
 </script>
