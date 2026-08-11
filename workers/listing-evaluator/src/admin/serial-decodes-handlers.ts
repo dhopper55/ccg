@@ -121,6 +121,102 @@ ${aiAnalysisText}`;
   }
 }
 
+type SerialResearchResult =
+  | { ok: true; isValid: boolean; analysis: string }
+  | { ok: false; message: string };
+
+async function callAnthropicForSerialResearch(
+  brand: string,
+  serial: string,
+  env: Env,
+): Promise<SerialResearchResult> {
+  if (!env.ANTHROPIC_API_KEY) {
+    return { ok: false, message: 'Anthropic API key not configured.' };
+  }
+
+  const systemPrompt = `You are a guitar serial number authenticator. You will be given a brand and a serial number that failed to decode automatically. Use the web_search tool (at most 2 searches) to research whether this is a genuine serial number ever used by that guitar brand — check brand serial number lookup databases, official brand documentation, and guitar forum discussions with sourced answers.
+
+Give a definitive verdict. Do not hedge with "maybe" or "possibly" — decide valid or invalid based on what your searches actually turn up. If your searches are inconclusive, lean toward invalid and say so in your analysis.
+
+After you finish researching, respond with ONLY a JSON object as your final message — no markdown code fences, no text before or after it:
+{"isValid": true|false, "analysis": "<2-4 sentence explanation citing what you found, written the way a human researcher would summarize their findings>"}`;
+
+  const userMessage = `Brand: ${brand}
+Serial: ${serial}
+
+Is "${serial}" a fully valid serial number for a ${brand} guitar?`;
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-5',
+      max_tokens: 2048,
+      system: systemPrompt,
+      output_config: { effort: 'medium' },
+      tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 2 }],
+      messages: [{ role: 'user', content: userMessage }],
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.text().catch(() => '');
+    console.error('[serial-run-analysis] Anthropic API error', response.status, err);
+    return { ok: false, message: `AI research unavailable (${response.status}).` };
+  }
+
+  const data = (await response.json()) as {
+    content?: Array<{ type: string; text?: string }>;
+  };
+
+  const textBlocks = (data.content ?? []).filter(
+    (b): b is { type: string; text: string } => b.type === 'text' && typeof b.text === 'string',
+  );
+
+  // Scan from the last text block backward — the final verdict is usually last,
+  // but scanning defends against any interim commentary the model emits around tool calls.
+  for (let i = textBlocks.length - 1; i >= 0; i--) {
+    const candidate = textBlocks[i].text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+    try {
+      const parsed = JSON.parse(candidate) as { isValid?: unknown; analysis?: unknown };
+      if (typeof parsed.isValid === 'boolean' && typeof parsed.analysis === 'string' && parsed.analysis.trim()) {
+        return { ok: true, isValid: parsed.isValid, analysis: parsed.analysis.trim() };
+      }
+    } catch {
+      // Not the JSON verdict block — keep scanning earlier blocks.
+    }
+  }
+
+  console.error('[serial-run-analysis] Failed to parse AI response', JSON.stringify(data.content));
+  return { ok: false, message: 'AI research returned an unparseable response.' };
+}
+
+export async function handleAdminV2SerialDecodeRunAnalysis(path: string, env: Env): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const runAnalysisIndex = parts.indexOf('run-analysis');
+  const recordId = runAnalysisIndex > 0 ? parts[runAnalysisIndex - 1] : '';
+  if (!recordId) return jsonResponse({ message: 'Missing serial decode ID.' }, 400);
+
+  const keyRow = await env.DB.prepare(
+    `SELECT brand, serial FROM serial_decode_events WHERE id = ?`
+  ).bind(parseInt(recordId, 10)).first<{ brand: string | null; serial: string | null }>();
+
+  if (!keyRow || !keyRow.brand || !keyRow.serial) {
+    return jsonResponse({ message: 'Serial decode record not found.' }, 404);
+  }
+
+  const result = await callAnthropicForSerialResearch(keyRow.brand, keyRow.serial, env);
+  if (!result.ok) {
+    return jsonResponse({ message: result.message }, 502);
+  }
+
+  return jsonResponse({ isValid: result.isValid, analysisText: result.analysis });
+}
+
 export async function handleAdminV2SerialDecodes(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const page = parseBoundedInt(url.searchParams.get('page'), 1, 1, 1_000_000);

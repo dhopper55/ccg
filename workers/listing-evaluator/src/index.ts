@@ -31,6 +31,7 @@ import {
   handleAdminV2SerialDecodeDailyVolume,
   handleAdminV2SerialDecodeDevHandoff,
   handleAdminV2SerialDecodeEvaluatedUpdate,
+  handleAdminV2SerialDecodeRunAnalysis,
   handleAdminV2SerialDecodeDelete,
 } from './admin/serial-decodes-handlers.js';
 
@@ -860,6 +861,11 @@ export default {
 
     if (path.endsWith('/evaluated') && path.startsWith('/api/admin-v2/serial-decodes/') && request.method === 'POST') {
       const response = await handleAdminV2SerialDecodeEvaluatedUpdate(request, path, env);
+      return withCors(response, request, env);
+    }
+
+    if (path.endsWith('/run-analysis') && path.startsWith('/api/admin-v2/serial-decodes/') && request.method === 'POST') {
+      const response = await handleAdminV2SerialDecodeRunAnalysis(path, env);
       return withCors(response, request, env);
     }
 

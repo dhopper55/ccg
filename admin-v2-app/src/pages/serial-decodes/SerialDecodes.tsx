@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -234,6 +234,10 @@ const SerialDecodes = () => {
   const [devHandoffOpen, setDevHandoffOpen] = useState(false);
   const [devHandoffText, setDevHandoffText] = useState('');
   const [devHandoffLoading, setDevHandoffLoading] = useState(false);
+  const [runAnalysisRunning, setRunAnalysisRunning] = useState(false);
+  const [runAnalysisProgress, setRunAnalysisProgress] = useState<{ current: number; total: number } | null>(null);
+  const [runAnalysisSummary, setRunAnalysisSummary] = useState('');
+  const runAnalysisCancelRef = useRef(false);
   const [dailyVolumeDate, setDailyVolumeDate] = useState(getTodayMtn);
   const [dailyVolumeBuckets, setDailyVolumeBuckets] = useState<number[]>(new Array(48).fill(0));
   const [dailyVolumeLoading, setDailyVolumeLoading] = useState(true);
@@ -757,6 +761,95 @@ const SerialDecodes = () => {
     }
   };
 
+  const handleRunAnalysisBatch = async () => {
+    if (runAnalysisRunning) return;
+    const targets = records.filter((row) => !row.success && !row.evaluated);
+    if (targets.length === 0) {
+      setErrorMessage('No unevaluated failed serials on this page to analyze.');
+      return;
+    }
+
+    runAnalysisCancelRef.current = false;
+    setErrorMessage('');
+    setRunAnalysisSummary('');
+    setRunAnalysisRunning(true);
+    setRunAnalysisProgress({ current: 0, total: targets.length });
+
+    const counts = { valid: 0, invalid: 0, needsDeveloper: 0, failed: 0 };
+
+    for (let i = 0; i < targets.length; i++) {
+      if (runAnalysisCancelRef.current) break;
+      const target = targets[i];
+      setUpdatingEvaluatedIds((current) => [...current, target.id]);
+
+      try {
+        const analysisResponse = await fetch(`/api/admin-v2/serial-decodes/${target.id}/run-analysis`, {
+          method: 'POST',
+          credentials: 'same-origin',
+        });
+        const analysisData = (await analysisResponse.json()) as {
+          isValid?: boolean;
+          analysisText?: string;
+          message?: string;
+        };
+
+        if (!analysisResponse.ok || typeof analysisData.isValid !== 'boolean') {
+          counts.failed += 1;
+          continue;
+        }
+
+        const evaluatedBody = analysisData.isValid
+          ? { evaluated: true, isValid: true, aiAnalysisText: (analysisData.analysisText || '').trim() }
+          : { evaluated: true, isValid: false };
+
+        const evaluatedResponse = await fetch(`/api/admin-v2/serial-decodes/${target.id}/evaluated`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(evaluatedBody),
+        });
+        const evaluatedData = (await evaluatedResponse.json()) as {
+          evaluated?: boolean;
+          needsDeveloper?: boolean;
+          decodeFailed?: boolean;
+          message?: string;
+        };
+
+        if (evaluatedData.needsDeveloper) {
+          // AI text is already persisted server-side; row stays unevaluated for dev handoff.
+          counts.needsDeveloper += 1;
+          continue;
+        }
+        if (!evaluatedResponse.ok || evaluatedData.decodeFailed) {
+          counts.failed += 1;
+          continue;
+        }
+
+        setRecords((current) => current.map((row) => (
+          row.id === target.id ? { ...row, evaluated: Boolean(evaluatedData.evaluated) } : row
+        )));
+        if (analysisData.isValid) counts.valid += 1;
+        else counts.invalid += 1;
+      } catch {
+        counts.failed += 1;
+      } finally {
+        setUpdatingEvaluatedIds((current) => current.filter((id) => id !== target.id));
+        setRunAnalysisProgress({ current: i + 1, total: targets.length });
+      }
+    }
+
+    setRunAnalysisRunning(false);
+    setRunAnalysisProgress(null);
+    setRefreshKey((current) => current + 1);
+
+    const processed = counts.valid + counts.invalid + counts.needsDeveloper + counts.failed;
+    const cancelledNote = runAnalysisCancelRef.current ? ' (stopped early)' : '';
+    setRunAnalysisSummary(
+      `Analyzed ${processed} of ${targets.length}${cancelledNote}: ${counts.valid} valid, ${counts.invalid} invalid, ` +
+      `${counts.needsDeveloper} flagged for developer, ${counts.failed} failed.`
+    );
+  };
+
   const handleDeleteRecord = async () => {
     const target = deleteTargetRecord;
     if (!target) return;
@@ -810,6 +903,38 @@ const SerialDecodes = () => {
             ) : null}
           </Box>
           <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2}>
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <Button
+                variant="outlined"
+                size="small"
+                color="secondary"
+                disabled={runAnalysisRunning}
+                onClick={() => void handleRunAnalysisBatch()}
+                startIcon={
+                  runAnalysisRunning ? (
+                    <CircularProgress size={14} />
+                  ) : (
+                    <IconifyIcon icon="mdi:auto-fix" fontSize={16} />
+                  )
+                }
+              >
+                {runAnalysisRunning && runAnalysisProgress
+                  ? `Analyzing ${runAnalysisProgress.current}/${runAnalysisProgress.total}...`
+                  : 'Run Analysis'}
+              </Button>
+              {runAnalysisRunning ? (
+                <Button
+                  variant="text"
+                  size="small"
+                  color="error"
+                  onClick={() => {
+                    runAnalysisCancelRef.current = true;
+                  }}
+                >
+                  Stop
+                </Button>
+              ) : null}
+            </Stack>
             <Button
               variant="outlined"
               size="small"
@@ -859,6 +984,11 @@ const SerialDecodes = () => {
         </Stack>
 
         {errorMessage ? <Alert severity="error" sx={{ mb: 2 }}>{errorMessage}</Alert> : null}
+        {runAnalysisSummary ? (
+          <Alert severity="info" sx={{ mb: 2 }} onClose={() => setRunAnalysisSummary('')}>
+            {runAnalysisSummary}
+          </Alert>
+        ) : null}
 
         <TableContainer>
           <Table size="small">
