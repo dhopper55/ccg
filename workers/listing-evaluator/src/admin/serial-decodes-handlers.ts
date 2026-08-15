@@ -109,16 +109,34 @@ ${aiAnalysisText}`;
     content?: Array<{ type: string; text?: string }>;
   };
 
-  const rawText = data.content?.find((b) => b.type === 'text')?.text?.trim() ?? '';
+  const textBlocks = (data.content ?? []).filter(
+    (b): b is { type: string; text: string } => b.type === 'text' && typeof b.text === 'string',
+  );
 
-  try {
-    const parsed = JSON.parse(rawText) as SerialPatternBucketResult;
-    if (parsed.bucket !== 1 && parsed.bucket !== 2) throw new Error('invalid bucket');
-    return parsed;
-  } catch {
-    console.error('[serial-bucket] Failed to parse AI response', rawText);
-    return { bucket: 2, reason: 'AI returned unparseable response.' };
+  // Claude sometimes wraps its JSON in ```json fences despite being told not to — a bare
+  // JSON.parse on the raw text then throws and silently downgrades a real Bucket-1 verdict
+  // to this function's generic Bucket-2 fallback. Strip fences and scan every text block
+  // (not just the first) before giving up, same defense as callAnthropicForSerialResearch.
+  for (let i = textBlocks.length - 1; i >= 0; i--) {
+    const candidate = textBlocks[i].text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+    try {
+      const parsed = JSON.parse(candidate) as SerialPatternBucketResult;
+      if (parsed.bucket === 1) {
+        if (!parsed.pattern_key || !parsed.pattern_label || !parsed.regex || !parsed.template_type || !parsed.params) {
+          continue; // malformed bucket-1 payload — keep scanning rather than inserting a broken row
+        }
+        return parsed;
+      }
+      if (parsed.bucket === 2 && typeof parsed.reason === 'string') {
+        return parsed;
+      }
+    } catch {
+      // Not the JSON verdict block — keep scanning earlier blocks.
+    }
   }
+
+  console.error('[serial-bucket] Failed to parse AI response', JSON.stringify(data.content));
+  return { bucket: 2, reason: 'AI returned unparseable response.' };
 }
 
 type SerialResearchResult =
@@ -370,7 +388,7 @@ export async function handleAdminV2SerialDecodeEvaluatedUpdate(
 
     // Bucket 1: insert the pattern row into D1
     try {
-      await env.DB.prepare(
+      const insertResult = await env.DB.prepare(
         `INSERT OR IGNORE INTO serial_patterns_v2
            (brand, pattern_key, pattern_label, regex, template_type, params, priority)
          VALUES (?, ?, ?, ?, ?, ?, ?)`
@@ -383,9 +401,22 @@ export async function handleAdminV2SerialDecodeEvaluatedUpdate(
         JSON.stringify(bucketResult.params),
         999,
       ).run();
-      console.log('[serial-bucket] bucket 1 — pattern inserted', { pattern_key: bucketResult.pattern_key });
+      // INSERT OR IGNORE does not throw on a pattern_key collision — it just no-ops.
+      // Without checking `changes`, a colliding key looks identical to a real insert in the logs.
+      if (insertResult.meta.changes > 0) {
+        console.log('[serial-bucket] bucket 1 — pattern inserted', { pattern_key: bucketResult.pattern_key });
+      } else {
+        console.warn('[serial-bucket] bucket 1 — pattern_key already existed, insert was a no-op', {
+          pattern_key: bucketResult.pattern_key,
+          brand: normalizedBrand,
+        });
+      }
     } catch (error) {
-      console.error('[serial-bucket] D1 insert failed', { error });
+      console.error('[serial-bucket] D1 insert failed', {
+        error: error instanceof Error ? error.message : String(error),
+        pattern_key: bucketResult.pattern_key,
+        brand: normalizedBrand,
+      });
     }
   }
 
