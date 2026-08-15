@@ -14,13 +14,49 @@ import { dbSetSerialDecodeEvaluated, dbDeleteSerialDecodeRecord } from '../seria
 import { toBooleanInput } from '../utils/misc.js';
 import { decodeSerialForBackend, normalizeBrandKey } from '../../../../src/serial-decode-service.js';
 
+// Escapes raw control characters (newlines, tabs, etc.) that appear *inside* JSON string
+// values — invalid per the JSON spec but a common model habit — while leaving structural
+// whitespace between tokens (e.g. in pretty-printed JSON) untouched, since blindly escaping
+// every control character in the whole candidate corrupts otherwise-valid pretty-printed JSON.
+function sanitizeJsonStringControlChars(candidate: string): string {
+  let result = '';
+  let inString = false;
+  let escaped = false;
+  for (const ch of candidate) {
+    if (inString) {
+      if (escaped) {
+        result += ch;
+        escaped = false;
+      } else if (ch === '\\') {
+        result += ch;
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+        result += ch;
+      } else if (ch === '\n') {
+        result += '\\n';
+      } else if (ch === '\r') {
+        result += '\\r';
+      } else if (ch === '\t') {
+        result += '\\t';
+      } else if (ch.charCodeAt(0) < 0x20) {
+        // drop other stray control chars
+      } else {
+        result += ch;
+      }
+    } else {
+      if (ch === '"') inString = true;
+      result += ch;
+    }
+  }
+  return result;
+}
+
 /**
  * Extracts a JSON object from model output that may (a) contain narrative prose before
  * the JSON — Claude frequently narrates its research instead of returning bare JSON
- * despite being told not to — and (b) contain raw, unescaped control characters (usually
- * literal newlines) inside string values, which is invalid per the JSON spec but a common
- * model habit. Scans backward from the last '{' so any preceding prose is ignored, and
- * escapes stray control characters before each parse attempt.
+ * despite being told not to — and (b) contain raw, unescaped control characters inside
+ * string values. Scans backward from the last '{' so any preceding prose is ignored.
  */
 function extractTrailingJsonObject(text: string): unknown | null {
   const cleaned = text.replace(/```(?:json)?/gi, '').trim();
@@ -29,14 +65,13 @@ function extractTrailingJsonObject(text: string): unknown | null {
     const start = cleaned.lastIndexOf('{', searchFrom - 1);
     if (start === -1) break;
     const candidate = cleaned.slice(start).trim();
-    const sanitized = candidate.replace(/[\x00-\x1f]/g, (ch) => {
-      if (ch === '\n') return '\\n';
-      if (ch === '\r') return '\\r';
-      if (ch === '\t') return '\\t';
-      return '';
-    });
     try {
-      return JSON.parse(sanitized);
+      return JSON.parse(candidate);
+    } catch {
+      // Not valid as-is — try again assuming raw control chars inside a string value.
+    }
+    try {
+      return JSON.parse(sanitizeJsonStringControlChars(candidate));
     } catch {
       // This '{' wasn't the start of valid JSON — keep scanning further back.
     }
