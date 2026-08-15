@@ -14,6 +14,40 @@ import { dbSetSerialDecodeEvaluated, dbDeleteSerialDecodeRecord } from '../seria
 import { toBooleanInput } from '../utils/misc.js';
 import { decodeSerialForBackend, normalizeBrandKey } from '../../../../src/serial-decode-service.js';
 
+/**
+ * Extracts a JSON object from model output that may (a) contain narrative prose before
+ * the JSON — Claude frequently narrates its research instead of returning bare JSON
+ * despite being told not to — and (b) contain raw, unescaped control characters (usually
+ * literal newlines) inside string values, which is invalid per the JSON spec but a common
+ * model habit. Scans backward from the last '{' so any preceding prose is ignored, and
+ * escapes stray control characters before each parse attempt.
+ */
+function extractTrailingJsonObject(text: string): unknown | null {
+  const cleaned = text.replace(/```(?:json)?/gi, '').trim();
+  let searchFrom = cleaned.length;
+  while (true) {
+    const start = cleaned.lastIndexOf('{', searchFrom - 1);
+    if (start === -1) break;
+    const candidate = cleaned.slice(start).trim();
+    const sanitized = candidate.replace(/[\x00-\x1f]/g, (ch) => {
+      if (ch === '\n') return '\\n';
+      if (ch === '\r') return '\\r';
+      if (ch === '\t') return '\\t';
+      return '';
+    });
+    try {
+      return JSON.parse(sanitized);
+    } catch {
+      // This '{' wasn't the start of valid JSON — keep scanning further back.
+    }
+    // lastIndexOf clamps a negative fromIndex to 0, which would re-find the same
+    // '{' forever once start reaches 0 — stop explicitly instead of looping.
+    if (start === 0) break;
+    searchFrom = start;
+  }
+  return null;
+}
+
 type SerialPatternBucketResult =
   | {
       bucket: 1;
@@ -113,26 +147,18 @@ ${aiAnalysisText}`;
     (b): b is { type: string; text: string } => b.type === 'text' && typeof b.text === 'string',
   );
 
-  // Claude sometimes wraps its JSON in ```json fences despite being told not to — a bare
-  // JSON.parse on the raw text then throws and silently downgrades a real Bucket-1 verdict
-  // to this function's generic Bucket-2 fallback. Strip fences and scan every text block
-  // (not just the first) before giving up, same defense as callAnthropicForSerialResearch.
-  for (let i = textBlocks.length - 1; i >= 0; i--) {
-    const candidate = textBlocks[i].text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
-    try {
-      const parsed = JSON.parse(candidate) as SerialPatternBucketResult;
-      if (parsed.bucket === 1) {
-        if (!parsed.pattern_key || !parsed.pattern_label || !parsed.regex || !parsed.template_type || !parsed.params) {
-          continue; // malformed bucket-1 payload — keep scanning rather than inserting a broken row
-        }
-        return parsed;
-      }
-      if (parsed.bucket === 2 && typeof parsed.reason === 'string') {
-        return parsed;
-      }
-    } catch {
-      // Not the JSON verdict block — keep scanning earlier blocks.
+  // Claude often narrates its reasoning in prose before the JSON, and/or wraps it in
+  // ```json fences, despite being told not to — extractTrailingJsonObject strips both
+  // and tolerates raw control characters inside string values.
+  const combinedText = textBlocks.map((b) => b.text).join('\n');
+  const parsed = extractTrailingJsonObject(combinedText) as Partial<SerialPatternBucketResult> | null;
+
+  if (parsed?.bucket === 1) {
+    if (parsed.pattern_key && parsed.pattern_label && parsed.regex && parsed.template_type && parsed.params) {
+      return parsed as SerialPatternBucketResult;
     }
+  } else if (parsed?.bucket === 2 && typeof parsed.reason === 'string') {
+    return parsed as SerialPatternBucketResult;
   }
 
   console.error('[serial-bucket] Failed to parse AI response', JSON.stringify(data.content));
@@ -154,7 +180,9 @@ async function callAnthropicForSerialResearch(
 
   const systemPrompt = `You are a guitar serial number authenticator. You will be given a brand and a serial number that failed to decode automatically. Use the web_search tool (at most 2 searches) to research whether this is a genuine serial number ever used by that guitar brand — check brand serial number lookup databases, official brand documentation, and guitar forum discussions with sourced answers.
 
-Give a definitive verdict. Do not hedge with "maybe" or "possibly" — decide valid or invalid based on what your searches actually turn up. If your searches are inconclusive, lean toward invalid and say so in your analysis.
+Make your first search specific to the exact prefix/format of this serial (e.g. include the letter prefix or code pattern, not just the brand name) — a generic brand-only search tends to surface only the most common documented formats and miss less-common but still valid variants. Use the second search to follow up on anything the first search left unclear.
+
+Give a definitive verdict when your searches support one. If your searches are genuinely inconclusive — you found no documentation either confirming or ruling out this format — do not default to invalid just because you lack confirmation. Say plainly in your analysis that this is a low-confidence call and what specifically remains uncertain, so a human reviewer knows to double-check it.
 
 After you finish researching, respond with ONLY a JSON object as your final message — no markdown code fences, no text before or after it:
 {"isValid": true|false, "analysis": "<2-4 sentence explanation citing what you found, written the way a human researcher would summarize their findings>"}`;
@@ -173,7 +201,7 @@ Is "${serial}" a fully valid serial number for a ${brand} guitar?`;
     },
     body: JSON.stringify({
       model: 'claude-sonnet-5',
-      max_tokens: 2048,
+      max_tokens: 6000,
       system: systemPrompt,
       output_config: { effort: 'medium' },
       tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 2 }],
@@ -189,27 +217,50 @@ Is "${serial}" a fully valid serial number for a ${brand} guitar?`;
 
   const data = (await response.json()) as {
     content?: Array<{ type: string; text?: string }>;
+    stop_reason?: string;
+    usage?: { output_tokens?: number };
   };
 
   const textBlocks = (data.content ?? []).filter(
     (b): b is { type: string; text: string } => b.type === 'text' && typeof b.text === 'string',
   );
 
-  // Scan from the last text block backward — the final verdict is usually last,
-  // but scanning defends against any interim commentary the model emits around tool calls.
-  for (let i = textBlocks.length - 1; i >= 0; i--) {
-    const candidate = textBlocks[i].text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
-    try {
-      const parsed = JSON.parse(candidate) as { isValid?: unknown; analysis?: unknown };
-      if (typeof parsed.isValid === 'boolean' && typeof parsed.analysis === 'string' && parsed.analysis.trim()) {
-        return { ok: true, isValid: parsed.isValid, analysis: parsed.analysis.trim() };
-      }
-    } catch {
-      // Not the JSON verdict block — keep scanning earlier blocks.
-    }
+  // Claude frequently narrates its research in prose before the JSON verdict instead of
+  // returning bare JSON as instructed — extractTrailingJsonObject locates the JSON
+  // regardless of what precedes it, and tolerates raw control characters inside strings.
+  const combinedText = textBlocks.map((b) => b.text).join('\n');
+  const parsed = extractTrailingJsonObject(combinedText) as { isValid?: unknown; analysis?: unknown } | null;
+  if (parsed && typeof parsed.isValid === 'boolean' && typeof parsed.analysis === 'string' && parsed.analysis.trim()) {
+    return { ok: true, isValid: parsed.isValid, analysis: parsed.analysis.trim() };
   }
 
-  console.error('[serial-run-analysis] Failed to parse AI response', JSON.stringify(data.content));
+  // Last resort: the response was cut off (max_tokens or the server-side tool loop's
+  // iteration cap) before the JSON object closed. The short `isValid` boolean sits at
+  // the very start of the object and almost always completes before the long-form
+  // `analysis` text runs out of budget — recover it directly via regex so the row still
+  // resolves instead of being retried forever at ongoing API cost.
+  const isValidMatch = combinedText.match(/"isValid"\s*:\s*(true|false)/);
+  if (isValidMatch) {
+    const partialAnalysisMatch = combinedText.match(/"analysis"\s*:\s*"([^]*)/);
+    const partialAnalysis = (partialAnalysisMatch?.[1] ?? '').replace(/[\x00-\x1f]/g, ' ').trim();
+    console.warn('[serial-run-analysis] Recovered isValid from a truncated/malformed response', {
+      stop_reason: data.stop_reason,
+      output_tokens: data.usage?.output_tokens,
+    });
+    return {
+      ok: true,
+      isValid: isValidMatch[1] === 'true',
+      analysis: partialAnalysis
+        ? `${partialAnalysis} [Note: AI response was truncated; analysis may be incomplete.]`
+        : 'AI verdict recovered from a truncated response; no analysis text was available.',
+    };
+  }
+
+  console.error('[serial-run-analysis] Failed to parse AI response', {
+    stop_reason: data.stop_reason,
+    output_tokens: data.usage?.output_tokens,
+    content: JSON.stringify(data.content),
+  });
   return { ok: false, message: 'AI research returned an unparseable response.' };
 }
 
@@ -327,19 +378,22 @@ export async function handleAdminV2SerialDecodeEvaluatedUpdate(
   const isValid = body.isValid === true ? true : body.isValid === false ? false : undefined;
   const aiAnalysisText = typeof body.aiAnalysisText === 'string' ? body.aiAnalysisText.trim() : '';
 
+  // Persist AI analysis text immediately, regardless of the valid/invalid verdict — an
+  // "invalid" call's reasoning is exactly what you'd want to spot-check later for a
+  // false negative, so it can't be dropped just because isValid ended up false.
+  // Best-effort: column may not exist yet.
+  if (evaluated && aiAnalysisText && aiAnalysisText.toLowerCase() !== 'n/a') {
+    try {
+      await env.DB.prepare(
+        `UPDATE serial_decode_events SET g_ai_analysis = ? WHERE id = ?`
+      ).bind(aiAnalysisText.slice(0, 20000), parseInt(recordId, 10)).run();
+    } catch {
+      // g_ai_analysis column not yet added — safe to ignore
+    }
+  }
+
   // Yes path: try decode first, then AI if needed
   if (evaluated && isValid === true) {
-    // Persist AI analysis text immediately (best-effort — column may not exist yet)
-    if (aiAnalysisText && aiAnalysisText.toLowerCase() !== 'n/a') {
-      try {
-        await env.DB.prepare(
-          `UPDATE serial_decode_events SET g_ai_analysis = ? WHERE id = ?`
-        ).bind(aiAnalysisText.slice(0, 20000), parseInt(recordId, 10)).run();
-      } catch {
-        // g_ai_analysis column not yet added — safe to ignore
-      }
-    }
-
     const keyRow = await env.DB.prepare(
       `SELECT brand, serial, normalized_brand FROM serial_decode_events WHERE id = ?`
     ).bind(parseInt(recordId, 10)).first<{ brand: string | null; serial: string | null; normalized_brand: string | null }>();

@@ -798,9 +798,14 @@ const SerialDecodes = () => {
           continue;
         }
 
-        const evaluatedBody = analysisData.isValid
-          ? { evaluated: true, isValid: true, aiAnalysisText: (analysisData.analysisText || '').trim() }
-          : { evaluated: true, isValid: false };
+        // Send the analysis text on both valid and invalid verdicts — an "invalid" call's
+        // reasoning is what lets you spot-check a false negative later instead of it just
+        // vanishing.
+        const evaluatedBody = {
+          evaluated: true,
+          isValid: analysisData.isValid,
+          aiAnalysisText: (analysisData.analysisText || '').trim(),
+        };
 
         const evaluatedResponse = await fetch(`/api/admin-v2/serial-decodes/${target.id}/evaluated`, {
           method: 'POST',
