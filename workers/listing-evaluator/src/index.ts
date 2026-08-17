@@ -1,5 +1,6 @@
 import type { Env } from './env.js';
 import { SHOP_BASE_PATH, SUPPORTED_ORIGINS } from './constants.js';
+import { jsonResponse } from './utils/misc.js';
 
 // Auth
 import {
@@ -186,6 +187,19 @@ import {
   handleDncBudgetSystemSmsQuota,
   handleDncBudgetSystemSendTestSms,
 } from './dncbudget/system-routes.js';
+
+// dncbudget data layer — see dncbudget-spec.md §9
+import {
+  handleDncBudgetMonthsList,
+  handleDncBudgetSetTotalIn,
+  handleDncBudgetTransactionsList,
+  handleDncBudgetTransactionPatch,
+  handleDncBudgetTransactionIgnore,
+  handleDncBudgetMarkExpected,
+  handleDncBudgetLogCharge,
+  handleDncBudgetCategoriesList,
+  handleDncBudgetCategoryCreate,
+} from './dncbudget/data-routes.js';
 
 // Admin Dashboard
 import {
@@ -582,6 +596,59 @@ export default {
 
     if (path === '/api/dncbudget/system/send-test-sms' && request.method === 'POST') {
       const response = await handleDncBudgetSystemSendTestSms(env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/dncbudget/months' && request.method === 'GET') {
+      const response = await handleDncBudgetMonthsList(env);
+      return withCors(response, request, env);
+    }
+
+    const dncBudgetTotalInMatch = path.match(/^\/api\/dncbudget\/months\/(\d{4}-\d{2})\/total-in$/);
+    if (dncBudgetTotalInMatch && request.method === 'POST') {
+      const response = await handleDncBudgetSetTotalIn(request, env, dncBudgetTotalInMatch[1]);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/dncbudget/transactions' && request.method === 'GET') {
+      const month = new URL(request.url).searchParams.get('month');
+      if (!month) {
+        return withCors(jsonResponse({ ok: false, error: 'month query param is required' }, 400), request, env);
+      }
+      const response = await handleDncBudgetTransactionsList(env, month);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/dncbudget/transactions/log-charge' && request.method === 'POST') {
+      const response = await handleDncBudgetLogCharge(request, env);
+      return withCors(response, request, env);
+    }
+
+    const dncBudgetIgnoreMatch = path.match(/^\/api\/dncbudget\/transactions\/([^/]+)\/ignore$/);
+    if (dncBudgetIgnoreMatch && request.method === 'POST') {
+      const response = await handleDncBudgetTransactionIgnore(env, dncBudgetIgnoreMatch[1]);
+      return withCors(response, request, env);
+    }
+
+    const dncBudgetMarkExpectedMatch = path.match(/^\/api\/dncbudget\/transactions\/([^/]+)\/mark-expected$/);
+    if (dncBudgetMarkExpectedMatch && request.method === 'POST') {
+      const response = await handleDncBudgetMarkExpected(request, env, dncBudgetMarkExpectedMatch[1]);
+      return withCors(response, request, env);
+    }
+
+    const dncBudgetTxnPatchMatch = path.match(/^\/api\/dncbudget\/transactions\/([^/]+)$/);
+    if (dncBudgetTxnPatchMatch && request.method === 'PATCH') {
+      const response = await handleDncBudgetTransactionPatch(request, env, dncBudgetTxnPatchMatch[1]);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/dncbudget/categories' && request.method === 'GET') {
+      const response = await handleDncBudgetCategoriesList(env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/dncbudget/categories' && request.method === 'POST') {
+      const response = await handleDncBudgetCategoryCreate(request, env);
       return withCors(response, request, env);
     }
 
