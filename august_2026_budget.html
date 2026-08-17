@@ -148,11 +148,12 @@
   <section class="panel">
     <h3>Retail, by type</h3>
     <table class="subtable">
-      <tr><td>Household / general (Walmart, Walgreens, moving boxes)</td><td class="amt">$113.06</td></tr>
-      <tr><td>Kindle & media</td><td class="amt">$24.79</td></tr>
-      <tr><td>Unspecified Amazon — tell me what these were</td><td class="amt">$127.54</td></tr>
+      <tr><td>Household / general (Walmart, Walgreens, moving boxes)</td><td class="amt">$419.15</td></tr>
+      <tr><td>Clothing (Ross, Shinesty, LL Bean)</td><td class="amt">$416.12</td></tr>
+      <tr><td>Kindle & media</td><td class="amt">$37.75</td></tr>
+      <tr><td>Unspecified Amazon — tell me what these were</td><td class="amt">$290.27</td></tr>
       <tr><td>Refunds (2 Amazon credits)</td><td class="amt credit-val">−$47.48</td></tr>
-      <tr class="net"><td>Net Retail</td><td class="amt">$217.91</td></tr>
+      <tr class="net"><td>Net Retail</td><td class="amt">$1,115.81</td></tr>
     </table>
   </section>
 
@@ -166,6 +167,12 @@
       <li><strong>Costco ($713.23)</strong> → filed entirely under Groceries. If a chunk of that was household or retail goods, tell me roughly how much and I'll split it.</li>
       <li>New categories opened this round: <strong>Entertainment</strong>, <strong>Alcohol</strong>, <strong>Medical</strong>.</li>
       <li><strong>Hot tub ($600/mo)</strong> → filed under Debt Payments, same pattern as the tires and Firestone installment. If it's actually a lease or belongs closer to Home/Entertainment, tell me and I'll move it.</li>
+      <li><strong>Circle K ($37.09)</strong> → filed as gas (Auto & Transportation) rather than a quick-stop snack, since it's much larger than your usual Circle K/7‑Eleven charges. Flag me if that's wrong.</li>
+      <li><strong>"Chrissie — meds to Nate" ($158)</strong> → filed under Medical. Wasn't sure if this is a medication cost or a reimbursement/transfer between family members — let me know which, since that changes how it should count against the budget.</li>
+      <li><strong>Ring ($19.99), Amazon Prime ($18.36), Apple ($15.56)</strong> → all filed under Subscriptions. If Apple was a one-off purchase rather than a subscription charge, it should move to Retail.</li>
+      <li><strong>RMNP Pass ($30) and Winter Park ($379)</strong> → filed under Entertainment as recreation spend. Winter Park is your single biggest non-fixed charge this batch, worth a second look.</li>
+      <li><strong>Ross, Shinesty, LL Bean</strong> → new Retail sub-type "Clothing," now the largest Retail slice alongside Household/general.</li>
+      <li>7‑Eleven charge listed as "$.364" — read as $3.64 (likely a typo); flag if that's not right.</li>
       <li>Carried over from the first entry: unlabeled Insurance and Subscription lines are still numbered, not named.</li>
     </ul>
   </section>
@@ -186,18 +193,18 @@ const categories = [
   {name:"Mortgage",             amount:2351.53, color:"#B98B4E"},
   {name:"Insurance",            amount:1438.13, color:"#5B7C99"},
   {name:"Debt Payments",        amount:1745.00, color:"#A63D2F"},
-  {name:"Auto & Transportation",amount:1240.02, color:"#6E8B74"},
-  {name:"Groceries",            amount: 756.02, color:"#93A45C"},
+  {name:"Auto & Transportation",amount:1361.61, color:"#6E8B74"},
+  {name:"Groceries",            amount:1093.35, color:"#93A45C"},
   {name:"Storage",              amount: 627.00, color:"#7A6A53"},
   {name:"Communications",       amount: 541.98, color:"#8B6F9E"},
   {name:"Utilities",            amount: 309.28, color:"#4F7A73"},
-  {name:"Subscriptions",        amount: 111.63, color:"#C9A66B"},
-  {name:"Retail",               amount: 217.91, color:"#D98C4A"},
-  {name:"Eating Out",           amount: 109.54, color:"#C77B5A"},
-  {name:"Entertainment",        amount:  61.50, color:"#C9612E"},
+  {name:"Subscriptions",        amount: 165.54, color:"#C9A66B"},
+  {name:"Retail",               amount:1115.81, color:"#D98C4A"},
+  {name:"Eating Out",           amount: 348.18, color:"#C77B5A"},
+  {name:"Entertainment",        amount: 470.50, color:"#C9612E"},
   {name:"Personal Care",        amount:  80.00, color:"#B0678A"},
-  {name:"Medical",              amount:  27.82, color:"#3D6C91"},
-  {name:"Alcohol",              amount:  47.52, color:"#7A2E3D"},
+  {name:"Medical",              amount: 215.82, color:"#3D6C91"},
+  {name:"Alcohol",              amount:  71.28, color:"#7A2E3D"},
   {name:"Health & Fitness",     amount:  49.98, color:"#7FA37A"},
   {name:"Miscellaneous",        amount:   0.00, color:"#9C9482"}
 ];
@@ -275,7 +282,50 @@ const transactions = [
   {desc:"Pirate's Cove — concessions",    category:"Entertainment", amount:16.50},
   {desc:"7‑Eleven",                       category:"Eating Out", amount:9.36},
   {desc:"McDonald's",                     category:"Eating Out", amount:17.34},
-  {desc:"Hot tub — monthly payment",      category:"Debt Payments", amount:600.00}
+  {desc:"Hot tub — monthly payment",      category:"Debt Payments", amount:600.00},
+
+  {desc:"AFC Urgent Care",                category:"Medical", amount:30.00},
+  {desc:"King Soopers — groceries",       category:"Groceries", amount:6.99},
+  {desc:"McDonald's",                     category:"Eating Out", amount:8.71},
+  {desc:"Circle K",                       category:"Auto & Transportation", amount:37.09},
+  {desc:"RMNP Pass",                      category:"Entertainment", amount:30.00},
+  {desc:"Asian meal",                     category:"Eating Out", amount:21.00},
+  {desc:"Ross",                           category:"Retail", amount:40.74},
+  {desc:"Amazon",                         category:"Retail", amount:9.97},
+  {desc:"Amazon",                         category:"Retail", amount:16.46},
+  {desc:"Amazon",                         category:"Retail", amount:42.44},
+  {desc:"McDonald's",                     category:"Eating Out", amount:12.04},
+  {desc:"Amazon",                         category:"Retail", amount:43.10},
+  {desc:"Ring",                           category:"Subscriptions", amount:19.99},
+  {desc:"Walmart",                        category:"Retail", amount:245.88},
+  {desc:"Amazon Prime",                   category:"Subscriptions", amount:18.36},
+  {desc:"7‑Eleven",                       category:"Eating Out", amount:3.64},
+  {desc:"DoorDash",                       category:"Eating Out", amount:49.55},
+  {desc:"Amazon",                         category:"Retail", amount:50.76},
+  {desc:"City Market — groceries",        category:"Groceries", amount:245.99},
+  {desc:"City Market",                    category:"Groceries", amount:9.46},
+  {desc:"Conoco — gas",                   category:"Auto & Transportation", amount:36.76},
+  {desc:"Kindle",                         category:"Retail", amount:12.96},
+  {desc:"Shinesty",                       category:"Retail", amount:37.13},
+  {desc:"Apple",                          category:"Subscriptions", amount:15.56},
+  {desc:"Winter Park",                    category:"Entertainment", amount:379.00},
+  {desc:"Liquor store",                   category:"Alcohol", amount:23.76},
+  {desc:"Walmart",                        category:"Retail", amount:60.21},
+  {desc:"Chrissie — meds to Nate",        category:"Medical", amount:158.00},
+  {desc:"McDonald's",                     category:"Eating Out", amount:7.64},
+  {desc:"City Market",                    category:"Groceries", amount:44.83},
+  {desc:"McDonald's",                     category:"Eating Out", amount:9.67},
+  {desc:"Costco",                         category:"Groceries", amount:19.57},
+  {desc:"LL Bean",                        category:"Retail", amount:81.15},
+  {desc:"Ross",                           category:"Retail", amount:52.26},
+  {desc:"Ross",                           category:"Retail", amount:204.84},
+
+  {desc:"Texas Roadhouse",                category:"Eating Out", amount:11.96},
+  {desc:"Smokehouse — Winter Park",       category:"Eating Out", amount:66.74},
+  {desc:"City Market — gas",              category:"Auto & Transportation", amount:47.74},
+  {desc:"McDonald's",                     category:"Eating Out", amount:23.33},
+  {desc:"King Soopers — groceries",       category:"Groceries", amount:10.49},
+  {desc:"Taco Bell",                      category:"Eating Out", amount:24.36}
 ];
 
 const catColor = Object.fromEntries(categories.map(c => [c.name, c.color]));
