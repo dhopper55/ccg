@@ -180,11 +180,12 @@ import {
   handleAdminV2SystemSettingsUpdate,
 } from './system/handlers.js';
 
-// dncbudget (throwaway Stage 1 test routes — see dncbudget-spec.md)
+// dncbudget System panel — see dncbudget-spec.md §9
 import {
-  handleDncBudgetTestPlaidTransactions,
-  handleDncBudgetTestSendSms,
-} from './dncbudget/test-routes.js';
+  handleDncBudgetSystemPlaidTransactions,
+  handleDncBudgetSystemSmsQuota,
+  handleDncBudgetSystemSendTestSms,
+} from './dncbudget/system-routes.js';
 
 // Admin Dashboard
 import {
@@ -569,13 +570,18 @@ export default {
       return withCors(response, request, env);
     }
 
-    if (path === '/api/dncbudget/test/plaid-transactions' && request.method === 'GET') {
-      const response = await handleDncBudgetTestPlaidTransactions(env);
+    if (path === '/api/dncbudget/system/plaid-transactions' && request.method === 'GET') {
+      const response = await handleDncBudgetSystemPlaidTransactions(request, env);
       return withCors(response, request, env);
     }
 
-    if (path === '/api/dncbudget/test/send-sms' && request.method === 'POST') {
-      const response = await handleDncBudgetTestSendSms(request, env);
+    if (path === '/api/dncbudget/system/sms-quota' && request.method === 'GET') {
+      const response = await handleDncBudgetSystemSmsQuota(env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/dncbudget/system/send-test-sms' && request.method === 'POST') {
+      const response = await handleDncBudgetSystemSendTestSms(env);
       return withCors(response, request, env);
     }
 

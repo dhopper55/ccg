@@ -24,6 +24,12 @@ This doc replaces the original `budget-tracker-handoff.md` (Teller.io based) whe
 - **SimpleFIN: dropped.** Was validated as a working fallback but is redundant now that Plaid's confirmed — being cancelled.
 - **SMS: Textbelt**, pay-per-quota, no subscription. Key obtained, delivery confirmed to both phones.
 
+**Recipients live in D1, not hardcoded secrets.** The original handoff's plan to store two numbers as `PHONE_NUMBER_1`/`PHONE_NUMBER_2` Worker secrets is superseded — recipients are rows in `dnc_budget_sms_recipients` (§4) instead: US phone number + first name, an `active` flag to pause someone without deleting them, and an `is_default` flag (see below). Starts with David and Chrissie; every "both numbers" / "both phones" reference elsewhere in this doc means **all active rows in that table**, not a fixed pair. This is what makes adding/removing a recipient later a data change, not a redeploy.
+
+**No admin UI for this table, deliberately.** David manages it directly via `wrangler d1 execute` when needed — not worth building a management screen for something that changes this rarely.
+
+**`is_default` — exactly one row, enforced at the DB level.** Exactly one recipient can be flagged default (a partial unique index on `is_default WHERE is_default = 1`, not just application-level convention, since there's no UI guarding against a mistake in manual SQL). This is what the System panel's (§9) test-SMS button targets — **a single click sends to the default recipient, not a blast to everyone** in the table. Real digests/alerts still go to all active recipients regardless of who's flagged default; that flag only matters for the test button.
+
 **Multiple Plaid Items, not just one.** The personal Chase Link tested earlier is Item #1. **A second Item — Chrissie's real estate business Chase account — is planned**, its transactions folded into the exact same pipeline with zero special-casing (no personal/business distinction anywhere in the data model). Trial's 10-Item cap comfortably covers this (2 of 10 used).
 
 **How the $5k real estate income actually flows — resolved.** The $5k/month baked into the manually-entered `total_in` figure (§3.1) moves *from* the business account *into* the already-linked personal checking account. That transfer is the same shape as the existing checking↔credit-card-payoff transfer pairs (§5 step 4) — internal movement between the household's own linked accounts, just spanning two different Plaid Items instead of one. Transfer-pair detection needs to consider **all linked accounts across both Items**, not just accounts within a single Item, so this $5k movement gets tagged `transfer` on both legs and doesn't get counted as new income on top of the manually-entered figure.
@@ -110,6 +116,7 @@ dnc_budget_monthly_budget         -- one row per month, total_in
 dnc_budget_transfer_pairs         -- detected internal transfers, spans all linked accounts across every Plaid Item (checking <-> credit card payoff, business <-> personal income move)
 dnc_budget_alerts_log             -- sent SMS log, dedup for status-change alerts
 dnc_budget_share_links            -- token, created_at, expires_at, send_context (new — see §7)
+dnc_budget_sms_recipients         -- phone, first_name, active (new — see §2; replaces PHONE_NUMBER_1/2 secrets)
 ```
 
 Structurally the same as the original handoff's schema (§6) for the tables that carry over — the deltas are: `recurring_bills.is_variable` + per-bill tolerance override, the new `merchant_category_rules` table, and the new `share_links` table replacing any notion of a login for Chrissie.
@@ -284,6 +291,14 @@ Goal: nothing about September should be "new" to the app on day one.
 - `/dncbudget` (authenticated, David only) lands here first — a table, one row per month — not directly on the current month's detail.
 - Columns: **Month, Total In, Committed Recurring, Spent So Far, Safe to Spend, Status (green/warning/red), # transactions needing review.**
 - Clicking a row drills into that month's transaction grid.
+
+### System panel — a permanent page, not the Stage 1 throwaway buttons
+
+Replaces the Stage 1 scaffold's temporary "Read Transactions" / "Send SMS" test buttons with a real, permanent admin page:
+
+- **Send a test SMS** — one click, no typing. Sends to whichever recipient is flagged `is_default` in `dnc_budget_sms_recipients` (§2), not a blast to everyone in the table. Uses Textbelt the same way the real digests do.
+- **Textbelt quota, always visible** — Textbelt has a quota-check endpoint (`GET /quota/<key>`) that reads remaining balance without sending anything. Shown on page load, not just as a byproduct of sending a test text.
+- **Pull recent transactions from either connected Plaid account** — personal and Chrissie's real estate business account, selectable, not just the one hardcoded test connection from Stage 1. This requires the real per-Item token storage (`dnc_budget_plaid_items`, §4) rather than a single `PLAID_ACCESS_TOKEN_TEST` secret — pulling this forward is the natural next step now that there are two real accounts to support.
 
 ---
 

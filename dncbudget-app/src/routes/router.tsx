@@ -4,6 +4,7 @@ import GuestGuard from "components/guard/GuestGuard";
 import Login from "pages/Login";
 import MonthsGrid from "pages/MonthsGrid";
 import MonthDetail from "pages/MonthDetail";
+import System from "pages/System";
 
 const router = createBrowserRouter(
   [
@@ -28,6 +29,14 @@ const router = createBrowserRouter(
       element: (
         <AuthGuard>
           <MonthDetail />
+        </AuthGuard>
+      ),
+    },
+    {
+      path: "/system",
+      element: (
+        <AuthGuard>
+          <System />
         </AuthGuard>
       ),
     },
