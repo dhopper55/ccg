@@ -1,6 +1,7 @@
 User-agent: *
 Allow: /
 Disallow: /admin/
+Disallow: /dncbudget/
 Disallow: /cdn-cgi/
 Disallow: /August_2026_budget.html
 Allow: /guitars-and-gear-for-sale/assets/

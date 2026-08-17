@@ -180,6 +180,12 @@ import {
   handleAdminV2SystemSettingsUpdate,
 } from './system/handlers.js';
 
+// dncbudget (throwaway Stage 1 test routes — see dncbudget-spec.md)
+import {
+  handleDncBudgetTestPlaidTransactions,
+  handleDncBudgetTestSendSms,
+} from './dncbudget/test-routes.js';
+
 // Admin Dashboard
 import {
   handleAdminV2DashboardSummary,
@@ -560,6 +566,16 @@ export default {
 
     if (path === '/api/inventory/next-ccg-number' && request.method === 'GET') {
       const response = await handleInventoryNextCcgNumber(env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/dncbudget/test/plaid-transactions' && request.method === 'GET') {
+      const response = await handleDncBudgetTestPlaidTransactions(env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/dncbudget/test/send-sms' && request.method === 'POST') {
+      const response = await handleDncBudgetTestSendSms(request, env);
       return withCors(response, request, env);
     }
 

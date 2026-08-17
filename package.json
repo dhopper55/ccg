@@ -6,10 +6,11 @@
   "type": "module",
   "scripts": {
     "build": "npm run build:legacy",
-    "build:all": "npm run build:legacy && npm run build:admin-v2 && npm run build:shop",
+    "build:all": "npm run build:legacy && npm run build:admin-v2 && npm run build:shop && npm run build:dncbudget",
     "build:legacy": "tsc && node scripts/update-cache-busters.mjs",
     "build:admin-v2": "npm --prefix admin-v2-app install && npm --prefix admin-v2-app run build:ccg",
     "build:shop": "npm --prefix shop-app run build",
+    "build:dncbudget": "npm --prefix dncbudget-app install && npm --prefix dncbudget-app run build:ccg",
     "test:regressions": "tsc && node scripts/test-regressions.mjs",
     "cachebust": "node scripts/update-cache-busters.mjs",
     "watch": "tsc --watch",

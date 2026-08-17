@@ -10,6 +10,8 @@
 /guitar-value-report-evaluation /guitar-value-report-evaluation/index.html 200
 /admin /admin/index.html 200
 /admin/* /admin/index.html 200
+/dncbudget /dncbudget/index.html 200
+/dncbudget/* /dncbudget/index.html 200
 /guitars-and-gear-for-sale.html /guitars-and-gear-for-sale 301
 /guitars-and-gear-for-sale /guitars-and-gear-for-sale/index.html 200
 /guitars-and-gear-for-sale/* /guitars-and-gear-for-sale/index.html 200

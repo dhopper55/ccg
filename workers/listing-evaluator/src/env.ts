@@ -23,4 +23,11 @@ export interface Env {
   ANTHROPIC_API_KEY?: string;
   REPORT_QUEUE?: Queue<{ evaluationId: number }>;
   BROWSER?: Fetcher;
+  // dncbudget — see dncbudget-spec.md. PLAID_ACCESS_TOKEN_TEST is a throwaway
+  // single-token secret for the Stage 1 test buttons only; real per-Item
+  // tokens move into D1 (dnc_budget_plaid_items) once that table exists.
+  PLAID_CLIENT_ID?: string;
+  PLAID_SECRET?: string;
+  PLAID_ACCESS_TOKEN_TEST?: string;
+  TEXTBELT_KEY?: string;
 }
