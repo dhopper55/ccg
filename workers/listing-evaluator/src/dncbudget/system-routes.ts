@@ -84,6 +84,68 @@ export async function handleDncBudgetSystemSmsQuota(env: Env): Promise<Response>
   }
 }
 
+// ONE-OFF — Sunshine's pre-launch introduction text, sent once manually by David from the
+// System panel. Splits the message into standard-SMS-length parts, sends each to every
+// active recipient with an 8s gap so it reads as a person typing, not a system dump.
+// Delete this function + its route + the System panel button once it's been sent.
+const SUNSHINE_INTRO_PARTS = [
+  "Hi Chrissie! I'm Sunshine ☀️ — your new budget sidekick for the house, and I am SO excited to finally say hi!",
+  "I've already connected to your accounts and I've been digging through the last couple months of spending, getting to know you both before the real fun starts.",
+  "One of my favorite parts: pulling your personal finances, Hopper Realty, and Coal Creek Guitars into one clear picture instead of three separate ones.",
+  "Starting September 1st, you'll be hearing from me a few times a day with quick, honest updates — and plenty of good news to celebrate along the way!",
+  "My whole job is to make paying attention to the budget feel like a win, not a chore.",
+  "So every purchase you make after checking in with me feels that much more earned (and enjoyed!).",
+  "Can't wait to get started — talk soon!",
+];
+
+// Hardcoded to David's number only for a first test run — switch to the query below
+// (all active recipients) once he's confirmed it looks right, before the real send to Chrissie.
+const SUNSHINE_INTRO_TEST_RECIPIENTS = [{ phone: '3039016435', first_name: 'David' }];
+
+async function sendSunshineIntroSequence(env: Env): Promise<void> {
+  if (!env.TEXTBELT_KEY) return;
+
+  const recipients = SUNSHINE_INTRO_TEST_RECIPIENTS;
+  // const { results: recipients } = await env.DB.prepare(
+  //   'SELECT phone, first_name FROM dnc_budget_sms_recipients WHERE active = 1',
+  // ).all<{ phone: string; first_name: string }>();
+
+  if (!recipients || recipients.length === 0) return;
+
+  for (let i = 0; i < SUNSHINE_INTRO_PARTS.length; i++) {
+    const message = SUNSHINE_INTRO_PARTS[i];
+    await Promise.all(
+      recipients.map((recipient) =>
+        fetch('https://textbelt.com/text', {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            phone: recipient.phone,
+            message,
+            key: env.TEXTBELT_KEY as string,
+          }),
+        }).catch(() => null),
+      ),
+    );
+    if (i < SUNSHINE_INTRO_PARTS.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 8_000));
+    }
+  }
+}
+
+export async function handleDncBudgetSystemSendSunshineIntro(env: Env, ctx: ExecutionContext): Promise<Response> {
+  if (!env.TEXTBELT_KEY) {
+    return jsonResponse({ ok: false, error: 'Missing TEXTBELT_KEY secret.' }, 200);
+  }
+  ctx.waitUntil(sendSunshineIntroSequence(env));
+  return jsonResponse({
+    ok: true,
+    started: true,
+    parts: SUNSHINE_INTRO_PARTS.length,
+    etaSeconds: (SUNSHINE_INTRO_PARTS.length - 1) * 8,
+  });
+}
+
 export async function handleDncBudgetSystemSendTestSms(env: Env): Promise<Response> {
   if (!env.TEXTBELT_KEY) {
     return jsonResponse({ ok: false, error: 'Missing TEXTBELT_KEY secret.' }, 200);

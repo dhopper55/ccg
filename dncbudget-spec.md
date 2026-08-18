@@ -3,6 +3,8 @@
 **Status:** Planning only. Nothing in this doc has been built yet.
 **Purpose:** Household forward-looking budget tracker for David + Chrissie, living on the Coal Creek Guitars domain/infra but functionally and visually unrelated to CCG. Goes live 9/1.
 
+**Name: "Sunshine."** The app is voiced as a named persona, Sunshine, rather than an anonymous system — every text and the analysis page read as coming from her. This isn't just a label; it's the mission statement for the whole voice/tone approach in §3.6: **the point of this app is to make paying attention to money feel positive, not punitive.** The thesis, stated plainly: knowing where you stand makes the things you buy feel more earned and more enjoyed, not more restricted. Sunshine's job is to be the character that delivers that — encouraging by default, honest when it matters, never a scold.
+
 This doc replaces the original `budget-tracker-handoff.md` (Teller.io based) wherever they conflict. It exists because Teller.io shut down its API in July 2026 and several other decisions changed during planning.
 
 ---
@@ -82,9 +84,13 @@ Any transaction that's a credit (refund, unexplained deposit, anything money-in 
 
 Separate from the two alert types above and from the pace-based warning/red alerts in §3.6: when a **single discretionary transaction** exceeds a threshold, fire an instant one-off text — respectful but blunt, not the routine pace alert. Default threshold: **$300** (tunable constant, same treatment as the red-alert buffer). Tone example, in the spirit of the Costco scenario: *"$750 at Costco just landed — that's going to hurt. Safe to spend's down to $X. Might be worth pulling back hard on discretionary spend the rest of the month to absorb it."* Blunt and factual, not cruel — states the number and the consequence, doesn't soften it, doesn't pile on.
 
-### 3.6 Voice, generally
+### 3.6 Voice & persona — Sunshine
 
 Casual and direct across all of this — texts should read like a person said them, not like a system generated them. Don't over-formalize the copy into templated corporate phrasing. Subtle accountability rather than scolding for overspending; genuine warmth (not performative) for wins. The examples above are the actual register to write in, not just illustrations of a "type" of message.
+
+**Every text and the analysis page are voiced as Sunshine** — not a generic "the app" or an unsigned system notification. She's warm, a little upbeat, genuinely rooting for both of them, and confident without being a nag. The name itself is meant to set the emotional register before a single word of copy is read.
+
+**Open design question, not yet decided — how present should the name be day to day?** Introducing herself in a one-time welcome text (see §6) is settled. What's *not* settled is whether every subsequent message re-signs as Sunshine (risks feeling gimmicky/repetitive at 3x/day plus instant alerts) or whether the name is established once and the *tone* alone carries the persona afterward, with the name resurfacing only occasionally (e.g. a sign-off emoji ☀️, or reintroducing herself if there's ever a long gap in contact). Leaning toward the latter — flagged here for David to weigh in on rather than deciding unilaterally.
 
 **All copy is voiced at Chrissie by name, even though David gets the identical text on his phone too.** Not "Hey guys" or generic — always "Hey Chrissie..." This is the encouragement/validation dynamic David asked for explicitly: the texts exist partly to make her feel seen and rewarded for good spending behavior, and that only works if the copy is actually speaking to her, not addressing both of them generically. David reads the same message as an observer, not as its intended audience.
 
@@ -154,6 +160,18 @@ Each digest generates a **fresh share-link token** (§7) and texts the same link
 ---
 
 ## 6. Sample SMS content (revised — Chrissie-voiced for reward/validation types, flat/shared for accountability types, per §3.6)
+
+One-off — Sunshine's introduction (pre-launch hype text, §8 Phase 1 — DRAFT, not yet sent, pending David's review):
+```
+Hi Chrissie! ☀️ I'm Sunshine — your new budget sidekick for the house, and I am SO excited
+to finally say hi! I've already connected to your accounts and I've been quietly digging
+through the last couple months of spending, getting to know you both before the real fun
+starts. Starting September 1st, you'll be hearing from me a few times a day with quick,
+honest updates — and trust me, plenty of good news to celebrate along the way! My whole
+job is to make paying attention to the budget feel like a win, not a chore, so every
+purchase you make after checking in with me is going to feel that much more earned (and
+enjoyed!). Can't wait to get started — talk soon!
+```
 
 7am (day-ahead):
 ```
@@ -307,6 +325,7 @@ Replaces the Stage 1 scaffold's temporary "Read Transactions" / "Send SMS" test 
 Everything product/design-level is now decided. Two technical unknowns remain, to be resolved by testing when we build rather than through more discussion now:
 
 - **Plaid Trial historical lookback window** — needs a live test pull to confirm how far back `/transactions/sync` actually reaches before the backfill scope in §8 can be finalized.
+- **How often Sunshine's name resurfaces in routine texts** (§3.6) — one-time intro vs. periodic re-signing. Needs David's call.
 - **Whether the store/retail cards in §3.7 are actually Plaid-connectable** — Kohl's (Capital One), Best Buy (Citi), and a couple on MySynchrony are all issued by major banks Plaid generally supports well. Not yet tested. If they connect, those specific cards move to the normal automatic Plaid pipeline and §3.7's manual "Log a charge" entry becomes the fallback for whatever doesn't, rather than the default for every store card. Worth testing before building §3.7 as manual-only.
 
 Settled defaults, not open questions, kept here for reference: shock-alert threshold $300 (§3.5), dry-spell window ~10 days (§3.4), starter category list Groceries/Dining/Gas/Shopping/Other (§4), red-alert pace buffer intentionally left unset pending real data after go-live (§5), analysis page is current-month-only with no past-month version (§7), accountability alerts are flat/shared while reward alerts stay Chrissie-voiced (§3.6), business-account transactions are selectively curated via Ignore rather than wholesale included (§2).

@@ -186,6 +186,7 @@ import {
   handleDncBudgetSystemPlaidTransactions,
   handleDncBudgetSystemSmsQuota,
   handleDncBudgetSystemSendTestSms,
+  handleDncBudgetSystemSendSunshineIntro,
 } from './dncbudget/system-routes.js';
 
 // dncbudget data layer — see dncbudget-spec.md §9
@@ -596,6 +597,11 @@ export default {
 
     if (path === '/api/dncbudget/system/send-test-sms' && request.method === 'POST') {
       const response = await handleDncBudgetSystemSendTestSms(env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/dncbudget/system/send-sunshine-intro' && request.method === 'POST') {
+      const response = await handleDncBudgetSystemSendSunshineIntro(env, ctx);
       return withCors(response, request, env);
     }
 
