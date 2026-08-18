@@ -157,8 +157,8 @@ const System = () => {
           </Typography>
           <Stack spacing={2}>
             <Typography variant="body2" color="text.secondary">
-              TEST MODE: sends the 7-part pre-launch welcome text to David's number only, 8 seconds
-              apart. Real send — switch to both recipients once confirmed, then remove this panel.
+              Sends the 7-part pre-launch welcome text to every active recipient (David + Chrissie),
+              8 seconds apart. Real send — remove this panel once it's been used.
             </Typography>
             <Box>
               <Button variant="contained" color="warning" onClick={handleSendSunshineIntro} disabled={introLoading}>

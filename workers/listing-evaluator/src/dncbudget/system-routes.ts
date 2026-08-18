@@ -98,17 +98,12 @@ const SUNSHINE_INTRO_PARTS = [
   "Can't wait to get started — talk soon!",
 ];
 
-// Hardcoded to David's number only for a first test run — switch to the query below
-// (all active recipients) once he's confirmed it looks right, before the real send to Chrissie.
-const SUNSHINE_INTRO_TEST_RECIPIENTS = [{ phone: '3039016435', first_name: 'David' }];
-
 async function sendSunshineIntroSequence(env: Env): Promise<void> {
   if (!env.TEXTBELT_KEY) return;
 
-  const recipients = SUNSHINE_INTRO_TEST_RECIPIENTS;
-  // const { results: recipients } = await env.DB.prepare(
-  //   'SELECT phone, first_name FROM dnc_budget_sms_recipients WHERE active = 1',
-  // ).all<{ phone: string; first_name: string }>();
+  const { results: recipients } = await env.DB.prepare(
+    'SELECT phone, first_name FROM dnc_budget_sms_recipients WHERE active = 1',
+  ).all<{ phone: string; first_name: string }>();
 
   if (!recipients || recipients.length === 0) return;
 
