@@ -626,10 +626,16 @@ Tables:
 - `order_items`
   - Order line items linked to inventory items
   - Tracks quantity, unit/subtotal/tax/total cents, sale URL/category snapshot fields, and image/title snapshots
+  - `allow_shipping_snapshot` — whether the item was shippable (per `ccg_inventory_items.allow_shipping`) at checkout time, independent of later inventory edits; drives the pickup-vs-shipped breakdown on the checkout success screen
 - `order_events`
   - Timeline/audit trail for order lifecycle changes, checkout creation, payment/refund events, and admin actions
 - `receipt_templates`
   - Text templates used by WebPRNT/mPOP receipt printing for sale and refund receipts
+- `stripe_webhook_events`
+  - Added 2026-08 after a period with no live-mode Stripe webhook endpoint registered, which left paid orders silently stuck in `checkout_open` — logs every verified webhook delivery so a future gap (missing endpoint, every delivery erroring) is visible in the data instead of invisible until a customer notices
+  - Row inserted immediately after signature verification (`status = 'received'`), then updated to `processed` / `ignored` / `error` once the Worker finishes handling it
+  - Fields: `stripe_event_id`, `event_type`, `order_id`, `payload_json` (raw event body), `status`, `error_message`, `received_at`, `processed_at`
+  - No admin UI yet — query directly via `wrangler d1 execute` when investigating webhook delivery
 
 The live D1 database is the source of truth for schema.
 

@@ -18,6 +18,49 @@ function isAdminPaymentLinkCheckoutSession(session: any): boolean {
   );
 }
 
+// Logs every verified webhook delivery to stripe_webhook_events so a gap (e.g. no live
+// endpoint registered, or every delivery erroring) shows up as an empty/red table instead
+// of being invisible until a customer calls. Best-effort — a logging failure must never
+// block actual order processing.
+async function recordStripeWebhookEvent(
+  rowId: string,
+  event: any,
+  orderId: string,
+  payload: string,
+  env: Env,
+): Promise<void> {
+  try {
+    await env.DB.prepare(
+      `INSERT INTO stripe_webhook_events (id, stripe_event_id, event_type, order_id, payload_json, status, received_at)
+       VALUES (?, ?, ?, ?, ?, 'received', ?)`,
+    ).bind(
+      rowId,
+      normalizeText(event?.id, ''),
+      normalizeText(event?.type, ''),
+      orderId || null,
+      payload,
+      new Date().toISOString(),
+    ).run();
+  } catch (error) {
+    console.warn('Failed to record stripe_webhook_events row', { rowId, error });
+  }
+}
+
+async function finalizeStripeWebhookEvent(
+  rowId: string,
+  status: 'processed' | 'ignored' | 'error',
+  errorMessage: string,
+  env: Env,
+): Promise<void> {
+  try {
+    await env.DB.prepare(
+      `UPDATE stripe_webhook_events SET status = ?, error_message = ?, processed_at = ? WHERE id = ?`,
+    ).bind(status, errorMessage || null, new Date().toISOString(), rowId).run();
+  } catch (error) {
+    console.warn('Failed to finalize stripe_webhook_events row', { rowId, error });
+  }
+}
+
 export async function handleStripeWebhook(request: Request, env: Env): Promise<Response> {
   const webhookSecret = normalizeText(env.STRIPE_WEBHOOK_SECRET, '');
   if (!webhookSecret) {
@@ -42,6 +85,9 @@ export async function handleStripeWebhook(request: Request, env: Env): Promise<R
   const session = event?.data?.object;
   const orderId = normalizeText(session?.metadata?.order_id, '') || normalizeText(session?.client_reference_id, '');
 
+  const webhookEventRowId = crypto.randomUUID();
+  await recordStripeWebhookEvent(webhookEventRowId, event, orderId, payload, env);
+
   try {
     if (orderId && eventType === 'checkout.session.completed') {
       if (normalizeText(session?.payment_status, '') === 'paid') {
@@ -62,20 +108,25 @@ export async function handleStripeWebhook(request: Request, env: Env): Promise<R
       ) {
         const paymentLinkOrderId = await dbEnsurePaymentLinkCheckoutOrder(session, event, env);
         await dbMarkStripeCheckoutOrderPaid(paymentLinkOrderId, session, env);
+        await finalizeStripeWebhookEvent(webhookEventRowId, 'processed', '', env);
         return jsonResponse({ received: true, orderId: paymentLinkOrderId });
       }
     } else if (!orderId) {
+      await finalizeStripeWebhookEvent(webhookEventRowId, 'ignored', 'No order_id metadata.', env);
       return jsonResponse({ received: true, ignored: true, message: 'No order_id metadata.' });
     }
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('Stripe webhook processing failed', {
       eventType,
       orderId,
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage,
       stack: error instanceof Error ? error.stack : undefined,
     });
+    await finalizeStripeWebhookEvent(webhookEventRowId, 'error', errorMessage, env);
     return jsonResponse({ error: 'Webhook processing failed.' }, 500);
   }
 
+  await finalizeStripeWebhookEvent(webhookEventRowId, 'processed', '', env);
   return jsonResponse({ received: true });
 }
