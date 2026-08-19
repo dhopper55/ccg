@@ -117,6 +117,7 @@ Implementation notes:
 - Product grid/search can perform an exact barcode match. If the search query exactly matches `ccg_inventory_items.barcode`, the UI redirects to that product detail route. Partial barcode matches are intentionally ignored.
 - Product/listing images are delivered through public image URLs and Cloudflare image transformations (`/cdn-cgi/image/...`) for thumbnail/card/detail presets to avoid loading full-size originals in grids.
 - Sales tax is currently 8.05% for shop checkout calculations and receipts.
+- Shipping: free across the board (as of 2026-08) for orders containing at least one item with `allow_shipping=1` on `ccg_inventory_items`; items without `allow_shipping` are pickup-only in Englewood regardless of what else is in the cart. `calculateShopCheckoutShipping` in `workers/listing-evaluator/src/shop/checkout-draft.ts` is the single source of truth for this — no $75 threshold or flat-rate tier anymore. `order_items.allow_shipping_snapshot` records each line item's shippability at checkout time (independent of later inventory edits) so the confirmation screen (`CheckoutSuccess.tsx`) can list which items are pickup vs. shipped per order instead of a single fixed message.
 - Associate mode is controlled by the `ccg_associate` cookie/token flow. It enables in-store-only products and associate checkout actions.
 - Current Worker contracts used by the shopping view:
   - `GET /api/shop/categories`
@@ -159,6 +160,54 @@ Implementation notes:
   - Save path (`POST /api/admin-v2/serial-pattern-text`) sanitizes HTML before persistence
   - Add mode behavior: if row had empty rich text, server runs AI paraphrase into standardized Coal Creek structure before save
   - Update mode behavior: if row already had content, server saves edited HTML directly (sanitized)
+
+## DNC Budget ("Sunshine")
+A household budget tracker for David + Chrissie, deployed under `/dncbudget/*` on the same Pages/Worker infra as the rest of the site. It is functionally and visually unrelated to the guitar business — a separate app that happens to share infrastructure. Full spec: `dncbudget-spec.md` (repo root).
+
+Layout:
+- Source app: `dncbudget-app/`
+- Deployed static output: `dncbudget/`
+- Worker route module: `workers/listing-evaluator/src/dncbudget/` (`data-routes.ts`, `system-routes.ts`, `budget-math.ts`)
+- Build command: `npm run build:dncbudget` (included in `npm run build:all`)
+- Base path: `VITE_BASENAME=/dncbudget/`
+- Route sync script: `scripts/sync-dncbudget-routes.mjs` copies the built `dncbudget/index.html` shell into `dncbudget/login/`, `dncbudget/month/`, `dncbudget/system/` for hard-refresh support, same pattern as the Admin V2 route sync.
+- SPA fallback: `_redirects` rule `/dncbudget/* /dncbudget/index.html 200`.
+- `robots.txt` disallows `/dncbudget/`.
+
+Auth:
+- Deliberately reuses the same shared admin auth cookie (`/api/login`, `/api/session`, `/api/logout`) — not a separate credential pair. Logging into `/admin` or `/dncbudget` is the same login.
+- `/api/dncbudget/*` is not in the Worker's public-API allowlist (`isPublicApiPath` in `workers/listing-evaluator/src/auth/middleware.ts`), so it goes through the normal `requireAuth` cookie check like admin endpoints.
+- Only David is expected to log in; Chrissie never does.
+
+Pages (`dncbudget-app/src/pages/`): `Login.tsx`, `MonthsGrid.tsx` (`/`), `MonthDetail.tsx` (`/month`), `System.tsx` (`/system`).
+
+Data sources and integrations:
+- **Plaid** (Chase checking/credit) for transaction sync. Access tokens stored in D1 `dnc_budget_plaid_items`, keyed by account id (`personal`/`business`); `PLAID_ACCESS_TOKEN_TEST` secret is a throwaway fallback for the personal account only.
+- **Textbelt** for SMS (`TEXTBELT_KEY` secret), used for the System panel test-SMS button and budget alerts. Recipients live in D1 `dnc_budget_sms_recipients` (phone, first name, `active` flag, `is_default` flag), not hardcoded secrets — this is a data change, not a redeploy, when adding/removing a recipient.
+- Budget math (safe-to-spend, pace status green/warning/red) is computed in `budget-math.ts` from `dnc_budget_monthly_budget`, `dnc_budget_recurring_bills`, and `dnc_budget_transactions`.
+
+### Endpoints (Worker)
+- `GET /api/dncbudget/months` — month list with computed summaries
+- `POST /api/dncbudget/months/:month/total-in` — set manual monthly income figure
+- `GET /api/dncbudget/transactions?month=YYYY-MM` — transactions for a month
+- `POST /api/dncbudget/transactions/log-charge` — manual transaction entry
+- `POST /api/dncbudget/transactions/:id/ignore` — exclude a transaction from budget math
+- `POST /api/dncbudget/transactions/:id/mark-expected` — link a transaction to a recurring bill
+- `PATCH /api/dncbudget/transactions/:id` — update type/category
+- `GET /api/dncbudget/categories`, `POST /api/dncbudget/categories`
+- `GET /api/dncbudget/system/plaid-transactions` — Plaid sync test/debug (System panel)
+- `GET /api/dncbudget/system/sms-quota`
+- `POST /api/dncbudget/system/send-test-sms` — sends to the `is_default` recipient only
+- `POST /api/dncbudget/system/send-sunshine-intro` — one-off intro SMS sequence to both recipients; marked in code as delete-after-use once sent
+
+### D1 tables
+- `dnc_budget_monthly_budget` — one row per month, manually-entered `total_in`
+- `dnc_budget_transactions` — synced/manual transactions; `type` (`recurring`/`discretionary`/`unclassified`/`transfer`), `category_id`, `recurring_bill_id`, `account_id`
+- `dnc_budget_recurring_bills` — expected recurring bills (`active`, `confirmed`, `expected_amount`)
+- `dnc_budget_categories`
+- `dnc_budget_accounts`
+- `dnc_budget_plaid_items` — Plaid access tokens by account id
+- `dnc_budget_sms_recipients` — SMS recipients (`phone`, `first_name`, `active`, `is_default`; exactly one `is_default` row enforced by a partial unique index)
 
 ## Template dead code
 
@@ -437,6 +486,11 @@ The `serial_decode_pattern_lookup` table does not need manual SQL for new patter
 - `POST /api/admin-v2/order-confirmation-email/test`
   - Sends a Brevo transactional order confirmation test email using static sample payload values
   - Reads Brevo API key, sender, and template config from `sys_info`
+
+Order confirmation email + mailing list (`workers/listing-evaluator/src/orders/email.ts`):
+- Whenever an order is marked paid (`dbMarkStripeCheckoutOrderPaid`, called from the Stripe webhook, the reconcile-stripe-checkout endpoint, or the cash checkout path), `sendBrevoOrderConfirmationEmailForOrder` sends the customer a transactional confirmation email and BCCs `david@coalcreekguitars.com` on every send
+- The same flow also upserts the customer into Brevo mailing list id 4 ("Main CCG Mailing List") via `upsertBrevoMailingListContact`, best-effort — a failure here is logged as an `order_events` row but does not block the confirmation email
+- `upsertBrevoMailingListContact` is shared with the public newsletter signup (`/api/email-signup`) and the Admin V2 manual subscribe action — all three add to the same list
 - `GET /api/admin-v2/serial-decodes`
   - Admin V2 serial decode grid data
   - Supports query params: `page`, `limit`, `brand`, `onlyErrors`, `unevaluated`, `sortDir`
@@ -480,6 +534,11 @@ The `serial_decode_pattern_lookup` table does not need manual SQL for new patter
   - Full-order refund path
   - Creates Stripe refund for Stripe-backed orders; cash orders are marked refunded locally
   - Restores inventory and records order events
+- `POST /api/admin-v2/orders/reconcile-stripe-checkout`
+  - Safety net for missed/misconfigured Stripe webhooks (added 2026-08 after a period with no live-mode webhook endpoint registered, which left paid orders stuck in `checkout_open` with inventory never marked sold)
+  - Lists all `checkout_open` orders with a Stripe checkout session, checks each session directly against the Stripe API, and reuses the same `dbMarkStripeCheckoutOrderPaid`/`dbReleaseStripeCheckoutOrder` paths the webhook uses — so paid orders get the same inventory adjustment, confirmation email, and Brevo list-add
+  - Sessions whose payment was already refunded (e.g. a duplicate charge refunded directly in Stripe before the fix) are released as `refunded`, not marked paid — this avoids double-decrementing inventory or re-sending a confirmation email for a sale that didn't actually happen
+  - Triggered from the "Reconcile Stripe" button in Admin V2 → Order Manager
 
 ## Apify
 - Craigslist actor: `ivanvs/craigslist-scraper`

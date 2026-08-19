@@ -126,7 +126,6 @@ export async function handleShopReceiptTemplate(templateCode: string, env: Env):
 }
 
 export function renderGoogleMerchantFeedItem(product: GoogleMerchantFeedProduct): string {
-  const effectivePrice = product.salePrice > 0 && product.salePrice < product.price ? product.salePrice : product.price;
   const feedTitle = getGoogleMerchantFeedTitle(product);
   const item: string[] = [
     '    <item>',
@@ -166,7 +165,7 @@ export function renderGoogleMerchantFeedItem(product: GoogleMerchantFeedProduct)
       '      <g:shipping>',
       '        <g:country>US</g:country>',
       '        <g:service>Standard</g:service>',
-      `        <g:price>${formatMerchantPrice(effectivePrice >= 75 ? 0 : 6)}</g:price>`,
+      `        <g:price>${formatMerchantPrice(0)}</g:price>`,
       '      </g:shipping>',
       '      <g:shipping_label>ships_nationwide</g:shipping_label>',
     );

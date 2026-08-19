@@ -38,7 +38,6 @@ interface EcommerceContextInterface {
   cartShippingLabel: '$6.00' | 'FREE' | 'IN-STORE' | '$0.00';
   cartShippingAddressRequired: boolean;
   cartHasLocalPickupOnlyItems: boolean;
-  cartFreeShippingRemaining: number;
   cartTotal: number;
 }
 
@@ -46,8 +45,6 @@ export const EcommerceContext = createContext({} as EcommerceContextInterface);
 
 const cartStorageKey = 'ccg-shop-cart';
 const salesTaxRate = 0.0805;
-const flatRateShipping = 6;
-const freeShippingThreshold = 75;
 
 const getInitialCartItems = (): CartItem[] => {
   if (typeof window === 'undefined') return [];
@@ -223,20 +220,12 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
         addressRequired: false,
       };
     }
-    const thresholdSubtotal = Math.max(0, cartSubTotal - effectiveDiscount);
-    if (thresholdSubtotal >= freeShippingThreshold) {
-      return {
-        amount: 0,
-        label: 'FREE' as const,
-        addressRequired: true,
-      };
-    }
     return {
-      amount: flatRateShipping,
-      label: '$6.00' as const,
+      amount: 0,
+      label: 'FREE' as const,
       addressRequired: true,
     };
-  }, [cartItems, cartSubTotal, effectiveDiscount, isAssociateMode]);
+  }, [cartItems, isAssociateMode]);
 
   const cartHasLocalPickupOnlyItems = useMemo(
     () => cartItems.some((item) => item.selected && item.allowShipping === false),
@@ -365,7 +354,6 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
         cartShippingLabel: cartShippingDetails.label,
         cartShippingAddressRequired: cartShippingDetails.addressRequired,
         cartHasLocalPickupOnlyItems,
-        cartFreeShippingRemaining: Math.max(0, freeShippingThreshold - Math.max(0, originalCartSubTotal - effectiveDiscount)),
         cartTotal,
       }}
     >

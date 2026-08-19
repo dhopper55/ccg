@@ -124,6 +124,29 @@ export async function createStripeAmountOffCoupon(input: {
   return id;
 }
 
+export async function fetchStripeCheckoutSession(
+  sessionId: string,
+  stripeSecretKey: string,
+  expand: string[] = [],
+): Promise<any | null> {
+  if (!stripeSecretKey || !sessionId) return null;
+  try {
+    const query = expand.length > 0
+      ? `?${expand.map((field) => `expand[]=${encodeURIComponent(field)}`).join('&')}`
+      : '';
+    const response = await fetch(
+      `https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(sessionId)}${query}`,
+      { headers: { Authorization: `Bearer ${stripeSecretKey}` } },
+    );
+    const data = await response.json<any>();
+    if (!response.ok) return null;
+    return data;
+  } catch (error) {
+    console.warn('Stripe checkout session lookup failed', { sessionId, error });
+    return null;
+  }
+}
+
 export async function resolveOrderStripeCustomer(
   row: Record<string, unknown>,
   env: Env,
@@ -133,23 +156,13 @@ export async function resolveOrderStripeCustomer(
 
   const { secretKey: stripeSecretKey } = await getStripeRuntimeConfig(env);
   const sessionId = normalizeText(row.stripe_checkout_session_id, '');
-  if (!stripeSecretKey || !sessionId) return null;
-
-  try {
-    const response = await fetch(`https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(sessionId)}`, {
-      headers: { Authorization: `Bearer ${stripeSecretKey}` },
-    });
-    const data = await response.json<any>();
-    if (!response.ok) return null;
-    return {
-      name: normalizeText(data?.customer_details?.name, ''),
-      email: normalizeText(data?.customer_details?.email, ''),
-      phone: normalizeText(data?.customer_details?.phone, ''),
-    };
-  } catch (error) {
-    console.warn('Stripe checkout customer lookup failed', { sessionId, error });
-    return null;
-  }
+  const data = await fetchStripeCheckoutSession(sessionId, stripeSecretKey);
+  if (!data) return null;
+  return {
+    name: normalizeText(data?.customer_details?.name, ''),
+    email: normalizeText(data?.customer_details?.email, ''),
+    phone: normalizeText(data?.customer_details?.phone, ''),
+  };
 }
 
 export async function createStripeCheckoutSession(input: {

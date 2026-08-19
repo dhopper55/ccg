@@ -84,8 +84,6 @@ We focus on helping people get started the right way — without overpaying or d
 export const ASSOCIATE_COOKIE_NAME = 'ccg_associate';
 export const ASSOCIATE_COOKIE_VALUE = 'associate';
 export const SHOP_SALES_TAX_RATE = 0.0805;
-export const SHOP_FLAT_RATE_SHIPPING_CENTS = 600;
-export const SHOP_FREE_SHIPPING_THRESHOLD_CENTS = 7500;
 export const CCG_YOUTUBE_CHANNEL_ID = 'UCV-kDQjH_cWcsxwg0GZKX3g';
 export const DEFAULT_CO_SALES_TAX_RATE_ID = 'txr_1TSEdADCplz62P7p4H6E7YJK';
 export const ALLOWED_MFR_CODES = new Set(['DUNLOP', 'NOMAD', "D'ADDARIO"]);

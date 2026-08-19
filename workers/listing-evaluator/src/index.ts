@@ -102,6 +102,7 @@ import {
   handleAdminV2OrderDetail,
   handleAdminV2OrderStatusFlagsUpdate,
   handleAdminV2OrderRefund,
+  handleAdminV2ReconcileStripeCheckoutOrders,
 } from './orders/handlers.js';
 import { handleStripeWebhook } from './orders/webhook.js';
 import { handleAdminV2OrderConfirmationEmailTest, handleAdminV2BrevoMarketingSubscribe, handlePublicEmailSignup } from './orders/email.js';
@@ -755,6 +756,11 @@ export default {
 
     if (path === '/api/admin-v2/orders' && request.method === 'GET') {
       const response = await handleAdminV2Orders(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/orders/reconcile-stripe-checkout' && request.method === 'POST') {
+      const response = await handleAdminV2ReconcileStripeCheckoutOrders(env);
       return withCors(response, request, env);
     }
 

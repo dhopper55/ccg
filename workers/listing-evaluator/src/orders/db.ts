@@ -387,6 +387,7 @@ export async function dbCreateCheckoutOrder(
       sale_url_slug: item.row.sale_url || '',
       sale_url: item.row.sale_url || '',
       category_name: item.row.primaryCategoryName || '',
+      allow_shipping_snapshot: Number(item.row.allow_shipping || 0) === 1 ? 1 : 0,
       currency: 'usd',
       created_at: input.createdAt,
       updated_at: input.createdAt,
@@ -617,6 +618,7 @@ export async function dbGetOrderReceipt(orderId: string, env: Env): Promise<Reco
       quantity,
       unitAmountCents: Number.isFinite(unitAmountCents) ? unitAmountCents : 0,
       subtotalCents: Number.isFinite(subtotalCents) ? subtotalCents : 0,
+      allowShipping: Number(row.allow_shipping_snapshot ?? 0) === 1,
     };
   });
 
@@ -678,6 +680,33 @@ async function dbGetOrderSplitTender(
     console.warn('Split tender lookup failed', { orderId, error });
     return { cardAmountCents: 0, cashAmountCents: 0 };
   }
+}
+
+export type OpenStripeCheckoutOrder = {
+  id: string;
+  orderNumber: string;
+  stripeCheckoutSessionId: string;
+  createdAt: string;
+  totalCents: number;
+};
+
+export async function dbListOpenStripeCheckoutOrders(env: Env): Promise<OpenStripeCheckoutOrder[]> {
+  const result = await env.DB.prepare(
+    `SELECT id, order_number, stripe_checkout_session_id, created_at, total_cents
+     FROM orders
+     WHERE status = 'checkout_open'
+       AND stripe_checkout_session_id IS NOT NULL
+       AND stripe_checkout_session_id != ''
+     ORDER BY created_at DESC`
+  ).all<{ id: string; order_number: string; stripe_checkout_session_id: string; created_at: string; total_cents: number }>();
+
+  return (result.results ?? []).map((row) => ({
+    id: row.id,
+    orderNumber: normalizeText(row.order_number, row.id),
+    stripeCheckoutSessionId: row.stripe_checkout_session_id,
+    createdAt: row.created_at,
+    totalCents: numberOrZero(row.total_cents),
+  }));
 }
 
 export async function dbMarkStripeCheckoutOrderPaid(orderId: string, session: any, env: Env): Promise<void> {

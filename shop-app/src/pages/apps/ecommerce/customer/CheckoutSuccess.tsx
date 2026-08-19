@@ -22,12 +22,14 @@ type ReceiptItem = {
   title: string;
   quantity: number;
   subtotalCents: number;
+  allowShipping?: boolean;
 };
 
 type ReceiptRecord = {
   orderNumber: string;
   checkoutProvider: string;
   subtotalCents: number;
+  shippingStatus?: string;
   shippingLabel?: string;
   shippingCents?: number;
   taxCents: number;
@@ -36,6 +38,13 @@ type ReceiptRecord = {
   cashAmountCents?: number;
   paymentMethodLabel: string;
   items: ReceiptItem[];
+};
+
+const formatItemNameList = (items: ReceiptItem[]) => {
+  const names = items.map((item) => item.title);
+  if (names.length <= 1) return names.join('');
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`;
 };
 
 const moneyFormat = new Intl.NumberFormat('en-US', {
@@ -360,17 +369,36 @@ const CheckoutSuccess = () => {
         }}
       >
         <Typography variant="h2">Thanks for your order.</Typography>
-        <Typography variant="h6" sx={{ color: 'text.secondary', fontWeight: 400 }}>
-          Your payment is confirmed. Pickup is at our Englewood shop.
-        </Typography>
+        {(() => {
+          const items = receiptRecord?.items || [];
+          const shipsAnything = receiptRecord?.shippingStatus === 'free' || receiptRecord?.shippingStatus === 'flat_rate';
+          const shippedItems = shipsAnything ? items.filter((item) => item.allowShipping) : [];
+          const pickupItems = shipsAnything ? items.filter((item) => !item.allowShipping) : items;
+
+          return (
+            <Stack sx={{ gap: 1 }}>
+              {pickupItems.length > 0 && (
+                <Typography variant="h6" sx={{ color: 'text.secondary', fontWeight: 400 }}>
+                  Your payment is confirmed. Pickup in Englewood, CO for {formatItemNameList(pickupItems)}.
+                </Typography>
+              )}
+              {shippedItems.length > 0 && (
+                <Typography variant="h6" sx={{ color: 'text.secondary', fontWeight: 400 }}>
+                  {pickupItems.length === 0 ? 'Your payment is confirmed. ' : ''}
+                  {formatItemNameList(shippedItems)} will be shipped to you.
+                </Typography>
+              )}
+            </Stack>
+          );
+        })()}
         {cashAmountCents > 0 && (
           <Typography variant="h6" sx={{ color: 'warning.main', fontWeight: 700 }}>
             {formatCents(cashAmountCents)} must be collected via cash to complete transaction.
           </Typography>
         )}
         <Typography sx={{ color: 'text.secondary' }}>
-          Bring your receipt when you come in. Call or text (303) 376-9214 with any pickup
-          questions.
+          Bring your receipt when you come in for pickup items. Call or text (303) 376-9214 with
+          any questions.
         </Typography>
         <Button variant="contained" href={paths.products}>
           Back to shop

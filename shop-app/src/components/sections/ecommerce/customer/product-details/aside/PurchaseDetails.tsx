@@ -39,7 +39,7 @@ const PurchaseDetails = ({ allowShipping = false, sx }: { allowShipping?: boolea
                 }}
                 component="span"
               >
-                $6 flat rate under $75, free shipping at $75+
+                Free shipping
               </Box>
             </>
           ) : (

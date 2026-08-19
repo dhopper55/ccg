@@ -13,11 +13,82 @@ import {
   dbRecordOrderEvent,
   dbUnwindRefundedOrderInventory,
   dbReverseOrderFundsAccounting,
+  dbListOpenStripeCheckoutOrders,
+  dbMarkStripeCheckoutOrderPaid,
+  dbReleaseStripeCheckoutOrder,
 } from './db.js';
 import { toBooleanInput } from '../utils/misc.js';
 import { parseCurrencyAmount } from '../utils/money.js';
 import { createStripeFeeAdjustedRefund } from './refund.js';
-import { resolveOrderStripeCustomer, resolveStripePaymentMethodLabel } from './stripe.js';
+import { resolveOrderStripeCustomer, resolveStripePaymentMethodLabel, fetchStripeCheckoutSession } from './stripe.js';
+import { getStripeRuntimeConfig } from '../system/runtime.js';
+
+export async function handleAdminV2ReconcileStripeCheckoutOrders(env: Env): Promise<Response> {
+  const { secretKey: stripeSecretKey } = await getStripeRuntimeConfig(env);
+  if (!stripeSecretKey) {
+    return jsonResponse({ message: 'Stripe is not configured.' }, 503);
+  }
+
+  const openOrders = await dbListOpenStripeCheckoutOrders(env);
+  const markedPaid: Array<{ orderId: string; orderNumber: string }> = [];
+  const released: Array<{ orderId: string; orderNumber: string; status: string }> = [];
+  const stillOpen: Array<{ orderId: string; orderNumber: string }> = [];
+  const errors: Array<{ orderId: string; orderNumber: string; error: string }> = [];
+
+  for (const order of openOrders) {
+    try {
+      const rawSession = await fetchStripeCheckoutSession(
+        order.stripeCheckoutSessionId,
+        stripeSecretKey,
+        ['payment_intent.latest_charge'],
+      );
+      if (!rawSession) {
+        errors.push({ orderId: order.id, orderNumber: order.orderNumber, error: 'Stripe session lookup failed.' });
+        continue;
+      }
+
+      // Normalize payment_intent back to a plain id string so it matches the shape
+      // dbMarkStripeCheckoutOrderPaid/dbUpdateStripeOrderStatus expect from the webhook payload.
+      const latestCharge = rawSession?.payment_intent?.latest_charge;
+      const isRefunded = Boolean(latestCharge?.refunded) || Number(latestCharge?.amount_refunded || 0) > 0;
+      const paymentIntentId = typeof rawSession?.payment_intent === 'object'
+        ? normalizeText(rawSession.payment_intent?.id, '')
+        : normalizeText(rawSession?.payment_intent, '');
+      const session = { ...rawSession, payment_intent: paymentIntentId };
+
+      if (normalizeText(session?.payment_status, '') === 'paid' && isRefunded) {
+        // Already refunded before we ever recorded it as paid (e.g. a duplicate charge
+        // refunded directly in Stripe) — record the real outcome without decrementing
+        // inventory or sending a paid confirmation email for a sale that didn't happen.
+        await dbReleaseStripeCheckoutOrder(order.id, 'refunded', session, env);
+        released.push({ orderId: order.id, orderNumber: order.orderNumber, status: 'refunded' });
+      } else if (normalizeText(session?.payment_status, '') === 'paid') {
+        await dbMarkStripeCheckoutOrderPaid(order.id, session, env);
+        markedPaid.push({ orderId: order.id, orderNumber: order.orderNumber });
+      } else if (normalizeText(session?.status, '') === 'expired') {
+        await dbReleaseStripeCheckoutOrder(order.id, 'expired', session, env);
+        released.push({ orderId: order.id, orderNumber: order.orderNumber, status: 'expired' });
+      } else {
+        stillOpen.push({ orderId: order.id, orderNumber: order.orderNumber });
+      }
+    } catch (error) {
+      errors.push({
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        error: error instanceof Error ? error.message : 'Reconciliation failed.',
+      });
+    }
+  }
+
+  return jsonResponse({
+    ok: true,
+    checked: openOrders.length,
+    markedPaid,
+    released,
+    stillOpen,
+    errors,
+  });
+}
 
 export async function handleAdminV2Orders(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);

@@ -5,8 +5,6 @@ import { toPublicShopImageUrl } from '../utils/image.js';
 import { dbListCheckoutInventoryItems } from './db.js';
 import {
   SHOP_SALES_TAX_RATE,
-  SHOP_FLAT_RATE_SHIPPING_CENTS,
-  SHOP_FREE_SHIPPING_THRESHOLD_CENTS,
   SHOP_COUPONS,
 } from '../constants.js';
 import type {
@@ -216,20 +214,11 @@ export function calculateShopCheckoutShipping(input: {
     };
   }
 
-  const thresholdSubtotalCents = Math.max(0, input.subtotalCents - input.discountCents);
-  if (thresholdSubtotalCents >= SHOP_FREE_SHIPPING_THRESHOLD_CENTS) {
-    return {
-      shippingStatus: 'free',
-      shippingLabel: 'FREE',
-      shippingCents: 0,
-      shippingAddressRequired: true,
-    };
-  }
-
+  // Free shipping across the board for now — see ARCHITECTURE.md shop shipping notes.
   return {
-    shippingStatus: 'flat_rate',
-    shippingLabel: '$6.00',
-    shippingCents: SHOP_FLAT_RATE_SHIPPING_CENTS,
+    shippingStatus: 'free',
+    shippingLabel: 'FREE',
+    shippingCents: 0,
     shippingAddressRequired: true,
   };
 }

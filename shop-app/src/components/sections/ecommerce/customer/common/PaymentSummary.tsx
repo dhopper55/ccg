@@ -34,7 +34,6 @@ const PaymentSummary = () => {
     cartShipping,
     cartShippingLabel,
     cartHasLocalPickupOnlyItems,
-    cartFreeShippingRemaining,
     cartTotal,
     setTaxIncluded,
     otdMode,
@@ -310,20 +309,6 @@ const PaymentSummary = () => {
               <>
                 US shipping available.
                 <br />
-                {cartShippingLabel === '$6.00' && (
-                  <>
-                    <Box
-                      component="span"
-                      sx={{
-                        color: 'success.main',
-                        fontWeight: 800,
-                      }}
-                    >
-                      Add {currencyFormat(cartFreeShippingRemaining)} more to get free shipping!
-                    </Box>
-                    <br />
-                  </>
-                )}
                 {cartHasLocalPickupOnlyItems && (
                   <>
                     <Box
@@ -338,7 +323,7 @@ const PaymentSummary = () => {
                     <br />
                   </>
                 )}
-                $6 flat rate under $75, free shipping at $75+.
+                Free shipping on shippable items.
               </>
             )}
           </Typography>

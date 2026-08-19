@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Avatar,
   Box,
+  Button,
   Chip,
   ChipOwnProps,
   Link,
@@ -12,6 +13,7 @@ import {
 } from '@mui/material';
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
 import dayjs from 'dayjs';
+import { useSnackbar } from 'notistack';
 import useNumberFormat from 'hooks/useNumberFormat';
 import { formatOrderNumber } from 'lib/utils';
 import paths from 'routes/paths';
@@ -19,6 +21,15 @@ import IconifyIcon from 'components/base/IconifyIcon';
 import DataGridPagination from 'components/pagination/DataGridPagination';
 import PageBreadcrumb from 'components/sections/common/PageBreadcrumb';
 import StyledTextField from 'components/styled/StyledTextField';
+
+type ReconcileStripeCheckoutResponse = {
+  checked: number;
+  markedPaid: Array<{ orderId: string; orderNumber: string }>;
+  released: Array<{ orderId: string; orderNumber: string; status: string }>;
+  stillOpen: Array<{ orderId: string; orderNumber: string }>;
+  errors: Array<{ orderId: string; orderNumber: string; error: string }>;
+  message?: string;
+};
 
 type AdminOrderSummary = {
   id: string;
@@ -48,6 +59,7 @@ const getPaymentStatusBadgeColor = (value: string): ChipOwnProps['color'] => {
       return 'success';
     case 'cancelled':
     case 'expired':
+    case 'refunded':
       return 'error';
     case 'checkout_open':
       return 'warning';
@@ -61,32 +73,61 @@ const paymentIcon = (provider: string) =>
 
 const OrderManager = () => {
   const { currencyFormat } = useNumberFormat();
+  const { enqueueSnackbar } = useSnackbar();
   const [orders, setOrders] = useState<AdminOrderSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isReconciling, setIsReconciling] = useState(false);
   const [listingsUpdatedFilter, setListingsUpdatedFilter] = useState('');
   const [settledFilter, setSettledFilter] = useState('');
   const [moneyAccountedFilter, setMoneyAccountedFilter] = useState('');
 
-  useEffect(() => {
-    let cancelled = false;
-    const loadOrders = async () => {
-      setIsLoading(true);
-      try {
-        const response = await fetch('/api/admin-v2/orders', { credentials: 'same-origin' });
-        const payload = (await response.json()) as OrdersResponse;
-        if (!response.ok) throw new Error('Unable to load orders.');
-        if (!cancelled) setOrders(payload.records || []);
-      } catch {
-        if (!cancelled) setOrders([]);
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    };
-    void loadOrders();
-    return () => {
-      cancelled = true;
-    };
+  const loadOrders = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/admin-v2/orders', { credentials: 'same-origin' });
+      const payload = (await response.json()) as OrdersResponse;
+      if (!response.ok) throw new Error('Unable to load orders.');
+      setOrders(payload.records || []);
+    } catch {
+      setOrders([]);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadOrders();
+  }, [loadOrders]);
+
+  const handleReconcileStripeCheckout = useCallback(async () => {
+    setIsReconciling(true);
+    try {
+      const response = await fetch('/api/admin-v2/orders/reconcile-stripe-checkout', {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+      const payload = (await response.json()) as ReconcileStripeCheckoutResponse;
+      if (!response.ok) throw new Error(payload.message || 'Unable to reconcile Stripe checkout orders.');
+
+      const parts = [`Checked ${payload.checked} open order${payload.checked === 1 ? '' : 's'}.`];
+      if (payload.markedPaid.length) parts.push(`${payload.markedPaid.length} marked paid.`);
+      if (payload.released.length) parts.push(`${payload.released.length} expired/released.`);
+      if (payload.errors.length) parts.push(`${payload.errors.length} failed to check.`);
+      enqueueSnackbar(parts.join(' '), {
+        variant: payload.errors.length ? 'warning' : 'success',
+      });
+
+      if (payload.markedPaid.length || payload.released.length) {
+        await loadOrders();
+      }
+    } catch (error) {
+      enqueueSnackbar(error instanceof Error ? error.message : 'Unable to reconcile Stripe checkout orders.', {
+        variant: 'error',
+      });
+    } finally {
+      setIsReconciling(false);
+    }
+  }, [enqueueSnackbar, loadOrders]);
 
   const filteredOrders = useMemo(() => {
     const matchesFilter = (value: boolean, filter: string) => {
@@ -214,6 +255,15 @@ const OrderManager = () => {
             value={moneyAccountedFilter}
             onChange={setMoneyAccountedFilter}
           />
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<IconifyIcon icon="material-symbols:sync-rounded" />}
+            loading={isReconciling}
+            onClick={handleReconcileStripeCheckout}
+          >
+            Reconcile Stripe
+          </Button>
         </Stack>
       </Stack>
       <Stack direction="column" sx={{ gap: 4, flex: 1 }}>

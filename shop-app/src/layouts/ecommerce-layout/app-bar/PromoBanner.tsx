@@ -37,17 +37,7 @@ const PromoBanner = () => {
         }}
       >
         <Box component="span" fontWeight={800}>
-          Free shipping at $75+
-        </Box>
-        <Box
-          component="span"
-          color="text.secondary"
-          sx={{
-            fontSize: { xs: '0.78rem', sm: '0.88rem', md: '0.95rem' },
-            fontWeight: 500,
-          }}
-        >
-          $6 flat rate under $75
+          Free shipping on all orders
         </Box>
       </Typography>
     </Stack>
