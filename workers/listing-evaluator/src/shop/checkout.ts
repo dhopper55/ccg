@@ -25,7 +25,7 @@ export {
 } from './checkout-terminal.js';
 
 export async function handleShopCreateCheckoutSession(request: Request, env: Env): Promise<Response> {
-  const { secretKey: stripeSecretKey } = await getStripeRuntimeConfig(env);
+  const { secretKey: stripeSecretKey, useSandbox } = await getStripeRuntimeConfig(env);
   if (!stripeSecretKey) {
     return jsonResponse({ message: 'Stripe checkout is not configured.' }, 503);
   }
@@ -103,6 +103,7 @@ export async function handleShopCreateCheckoutSession(request: Request, env: Env
       successUrl,
       cancelUrl,
       createdAt: nowIso,
+      isSandbox: useSandbox,
       items: draft.items,
     }, env);
 

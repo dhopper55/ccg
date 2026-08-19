@@ -301,6 +301,7 @@ export async function dbCreateCheckoutOrder(
     createdAt: string;
     customerName?: string;
     customerEmail?: string;
+    isSandbox?: boolean;
     items: ShopCheckoutLineItem[];
   },
   env: Env,
@@ -356,6 +357,7 @@ export async function dbCreateCheckoutOrder(
     cancel_url: input.cancelUrl,
     customer_name: normalizeText(input.customerName, ''),
     customer_email: normalizeEmailAddress(input.customerEmail),
+    is_sandbox: input.isSandbox ? 1 : 0,
     created_at: input.createdAt,
     updated_at: input.createdAt,
   }, orderCols, env);
@@ -860,6 +862,7 @@ export async function dbEnsurePaymentLinkCheckoutOrder(session: any, event: any,
     createdAt,
     customerName,
     customerEmail,
+    isSandbox: event?.livemode === false,
     items,
   }, env);
 

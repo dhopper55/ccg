@@ -479,8 +479,12 @@ The `serial_decode_pattern_lookup` table does not need manual SQL for new patter
   - Creates fresh Stripe Product and Price objects for each marked inventory row on every run
   - Optionally attaches configured Colorado sales tax rate via `line_items.tax_rates`
 - `POST /api/stripe/webhook`
-  - Handles Stripe Checkout webhooks for normal shop checkout orders
+  - Handles Stripe Checkout webhooks for normal shop checkout orders (live mode)
   - For Admin V2 Payment Links, creates a local order on successful payment and reuses the normal paid-order inventory adjustment flow
+- `POST /api/stripe/webhook/sandbox`
+  - Identical handling to the live webhook (`handleStripeWebhook(request, env, true)`), verified against the separate `STRIPE_WEBHOOK_SECRET_SANDBOX` secret
+  - Exists because live mode and test mode are always separate webhook registrations in Stripe (even for the same URL) — added 2026-08 after a live-mode order got silently stuck because no endpoint had ever been registered for that mode; register a distinct Stripe destination per environment pointing at each of these two URLs
+  - Both routes log to `stripe_webhook_events` with `is_sandbox` set from which endpoint received the event
 - `GET /api/admin-v2/stripe-config`
   - Reads Stripe sandbox/production mode from `sys_info`
 - `POST /api/admin-v2/stripe-config`
@@ -536,6 +540,12 @@ Order confirmation email + mailing list (`workers/listing-evaluator/src/orders/e
   - Full-order refund path
   - Creates Stripe refund for Stripe-backed orders; cash orders are marked refunded locally
   - Restores inventory and records order events
+  - Resolves the Stripe secret key from the order's own `is_sandbox` flag (`getStripeRuntimeConfigForLivemode`), not the current `sys_info.use_stripe_sandbox` toggle — an order placed in one environment must always be refunded against that same environment regardless of what the toggle is set to later
+- `POST /api/admin-v2/orders/:id/rollback`
+  - Fully reverses and deletes an order — unlike Refund (which keeps a `refunded` record), Rollback erases the order (and its `order_items`/`order_events`) as if it never happened. Added 2026-08 for cleaning up test/mistaken orders, e.g. an associate accidentally placing a real order while testing
+  - For `checkout_open`/`cancelled`/`expired`/already-`refunded` orders: just deletes, no Stripe call
+  - For `paid` orders: issues a Stripe refund (using the order's own environment, same as the refund endpoint above), restores inventory, reverses funds accounting, then deletes
+  - Available on any order (sandbox or live); Admin V2's confirmation dialog requires typing the exact order number before enabling the button when the order is **not** sandbox, since this is a live, unrecoverable delete
 - `POST /api/admin-v2/orders/reconcile-stripe-checkout`
   - Safety net for missed/misconfigured Stripe webhooks (added 2026-08 after a period with no live-mode webhook endpoint registered, which left paid orders stuck in `checkout_open` with inventory never marked sold)
   - Lists all `checkout_open` orders with a Stripe checkout session, checks each session directly against the Stripe API, and reuses the same `dbMarkStripeCheckoutOrderPaid`/`dbReleaseStripeCheckoutOrder` paths the webhook uses — so paid orders get the same inventory adjustment, confirmation email, and Brevo list-add
@@ -625,6 +635,7 @@ Tables:
 - `orders`
   - Local order header table for shop checkout, associate cash/terminal checkout, Stripe Payment Links, payment state, refunds, and receipt data
   - Important fields include `checkout_type`, `checkout_provider`, `checkout_mode`, Stripe ids, totals, tax/discount/card/cash cents, customer fields, status, paid/refunded timestamps, and success URL
+  - `is_sandbox` (added 2026-08) — whether the order was placed while Stripe sandbox/test mode was active, stamped at checkout-session creation time (or from the webhook event's `livemode` field for Payment Links orders). Always 0 for cash orders, which never touch Stripe. Refund and Rollback both resolve their Stripe key from this field so an order is always acted on in the environment it was actually created in, not whatever `sys_info.use_stripe_sandbox` happens to be toggled to at the time
 - `order_items`
   - Order line items linked to inventory items
   - Tracks quantity, unit/subtotal/tax/total cents, sale URL/category snapshot fields, and image/title snapshots
@@ -636,7 +647,7 @@ Tables:
 - `stripe_webhook_events`
   - Added 2026-08 after a period with no live-mode Stripe webhook endpoint registered, which left paid orders silently stuck in `checkout_open` — logs every verified webhook delivery so a future gap (missing endpoint, every delivery erroring) is visible in the data instead of invisible until a customer notices
   - Row inserted immediately after signature verification (`status = 'received'`), then updated to `processed` / `ignored` / `error` once the Worker finishes handling it
-  - Fields: `stripe_event_id`, `event_type`, `order_id`, `payload_json` (raw event body), `status`, `error_message`, `received_at`, `processed_at`
+  - Fields: `stripe_event_id`, `event_type`, `order_id`, `payload_json` (raw event body), `status`, `error_message`, `received_at`, `processed_at`, `is_sandbox` (added 2026-08, set from which of the two webhook routes received the event — see `/api/stripe/webhook` vs `/api/stripe/webhook/sandbox` below)
   - No admin UI yet — query directly via `wrangler d1 execute` when investigating webhook delivery
 
 The live D1 database is the source of truth for schema.
@@ -680,6 +691,8 @@ D1 workflow rules:
 - `AUTH_SECRET`
 Optional:
 - `ANTHROPIC_API_KEY` (optional) — used by the Admin serial evaluate flow to classify failed serials via Claude
+- `STRIPE_WEBHOOK_SECRET` — signing secret for the live-mode Stripe webhook destination (`/api/stripe/webhook`)
+- `STRIPE_WEBHOOK_SECRET_SANDBOX` — signing secret for the separate sandbox/test-mode webhook destination (`/api/stripe/webhook/sandbox`); each mode needs its own destination registered in the Stripe Dashboard even though both can point at this same worker
 - `REVERB_API_TOKEN`
 - `STRIPE_CO_SALES_TAX_RATE_ID` fallback only; D1 `sys_info` is the Stripe tax id source of truth once populated
 - `STRIPE_TERMINAL_READER_ID`

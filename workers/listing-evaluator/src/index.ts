@@ -102,6 +102,7 @@ import {
   handleAdminV2OrderDetail,
   handleAdminV2OrderStatusFlagsUpdate,
   handleAdminV2OrderRefund,
+  handleAdminV2OrderRollback,
   handleAdminV2ReconcileStripeCheckoutOrders,
 } from './orders/handlers.js';
 import { handleStripeWebhook } from './orders/webhook.js';
@@ -306,6 +307,10 @@ export default {
 
     if (path === '/api/stripe/webhook' && request.method === 'POST') {
       return handleStripeWebhook(request, env);
+    }
+
+    if (path === '/api/stripe/webhook/sandbox' && request.method === 'POST') {
+      return handleStripeWebhook(request, env, true);
     }
 
     const guitarEvalReportMatch = path.match(/^\/api\/guitar-eval-report\/([0-9a-f-]+)$/i);
@@ -886,6 +891,12 @@ export default {
     const adminV2OrderRefundMatch = path.match(/^\/api\/admin-v2\/orders\/([^/]+)\/refund$/);
     if (adminV2OrderRefundMatch && request.method === 'POST') {
       const response = await handleAdminV2OrderRefund(decodeURIComponent(adminV2OrderRefundMatch[1]), env);
+      return withCors(response, request, env);
+    }
+
+    const adminV2OrderRollbackMatch = path.match(/^\/api\/admin-v2\/orders\/([^/]+)\/rollback$/);
+    if (adminV2OrderRollbackMatch && request.method === 'POST') {
+      const response = await handleAdminV2OrderRollback(decodeURIComponent(adminV2OrderRollbackMatch[1]), env);
       return withCors(response, request, env);
     }
 

@@ -21,7 +21,7 @@ import { toBooleanInput } from '../utils/misc.js';
 import { parseCurrencyAmount } from '../utils/money.js';
 import { createStripeFeeAdjustedRefund } from './refund.js';
 import { resolveOrderStripeCustomer, resolveStripePaymentMethodLabel, fetchStripeCheckoutSession } from './stripe.js';
-import { getStripeRuntimeConfig } from '../system/runtime.js';
+import { getStripeRuntimeConfig, getStripeRuntimeConfigForLivemode } from '../system/runtime.js';
 
 export async function handleAdminV2ReconcileStripeCheckoutOrders(env: Env): Promise<Response> {
   const { secretKey: stripeSecretKey } = await getStripeRuntimeConfig(env);
@@ -138,6 +138,7 @@ export async function handleAdminV2OrderDetail(orderId: string, env: Env): Promi
       ...order,
       listingsUpdated: parseOrderBoolean(rawOrder?.listings_updated),
       settled: parseOrderBoolean(rawOrder?.settled),
+      isSandbox: Number(rawOrder?.is_sandbox) === 1,
       moneyAccounted,
       costBasisAdjusted: formatSystemCurrency(costBasisAdjusted),
       accountingFunds: await dbGetOrderFundsAccountingTotals(normalizedOrderId, env),
@@ -256,7 +257,11 @@ export async function handleAdminV2OrderRefund(orderId: string, env: Env): Promi
     if (!paymentIntentId) {
       return jsonResponse({ message: 'Stripe payment intent is missing for this order.' }, 400);
     }
-    const stripeRefund = await createStripeFeeAdjustedRefund(paymentIntentId, normalizedOrderId, totalCents, env);
+    // Use the Stripe key for the environment this order was actually placed in, not
+    // whatever sys_info.use_stripe_sandbox happens to be toggled to right now.
+    const isSandbox = Number(order.is_sandbox) === 1;
+    const { secretKey: orderSecretKey } = await getStripeRuntimeConfigForLivemode(!isSandbox, env);
+    const stripeRefund = await createStripeFeeAdjustedRefund(paymentIntentId, normalizedOrderId, totalCents, env, orderSecretKey);
     if (!stripeRefund.ok) {
       await dbRecordOrderEvent(normalizedOrderId, {
         eventType: 'refund_failed',
@@ -324,6 +329,65 @@ export async function handleAdminV2OrderRefund(orderId: string, env: Env): Promi
     stripeRefundId,
     stripeRefundAmountCents,
     stripeRetainedFeeCents,
+  });
+}
+
+// Fully reverses an order and then deletes it — unlike Refund (which keeps a 'refunded'
+// record), Rollback erases the order as if it never happened. Used for test/mistaken
+// orders. For paid orders it refunds via Stripe using the key for whichever environment
+// (sandbox/live) the order was actually placed in — not the current global toggle — then
+// restores inventory and reverses funds accounting exactly like a refund would, before
+// deleting the order, its items, and its events.
+export async function handleAdminV2OrderRollback(orderId: string, env: Env): Promise<Response> {
+  const normalizedOrderId = normalizeText(orderId, '').slice(0, 100);
+  if (!normalizedOrderId) return jsonResponse({ message: 'Order not found.' }, 404);
+
+  const order = await env.DB.prepare('SELECT * FROM orders WHERE id = ? LIMIT 1')
+    .bind(normalizedOrderId)
+    .first<Record<string, unknown>>();
+  if (!order) return jsonResponse({ message: 'Order not found.' }, 404);
+
+  const status = normalizeText(order.status, '');
+  const provider = normalizeText(order.checkout_provider, '') || (normalizeText(order.stripe_checkout_session_id, '') ? 'stripe' : 'cash');
+  const totalCents = Number(order.total_cents ?? 0) || 0;
+  const isSandbox = Number(order.is_sandbox) === 1;
+
+  let stripeRefundId = '';
+  let stripeRefundAmountCents = 0;
+
+  if (status === 'paid') {
+    if (provider !== 'cash') {
+      const paymentIntentId = normalizeText(order.stripe_payment_intent_id, '');
+      if (!paymentIntentId) {
+        return jsonResponse({ message: 'Stripe payment intent is missing for this order — rollback aborted.' }, 400);
+      }
+      const { secretKey: orderSecretKey } = await getStripeRuntimeConfigForLivemode(!isSandbox, env);
+      const stripeRefund = await createStripeFeeAdjustedRefund(paymentIntentId, normalizedOrderId, totalCents, env, orderSecretKey);
+      if (!stripeRefund.ok) {
+        return jsonResponse({ message: `Rollback aborted: ${stripeRefund.message}` }, stripeRefund.status || 502);
+      }
+      stripeRefundId = stripeRefund.refundId;
+      stripeRefundAmountCents = stripeRefund.refundAmountCents;
+    }
+
+    await dbUnwindRefundedOrderInventory(normalizedOrderId, order, env);
+    if (parseOrderBoolean(order.money_accounted)) {
+      await dbReverseOrderFundsAccounting(normalizedOrderId, env);
+    }
+  }
+
+  await env.DB.prepare('DELETE FROM order_items WHERE order_id = ?').bind(normalizedOrderId).run();
+  await env.DB.prepare('DELETE FROM order_events WHERE order_id = ?').bind(normalizedOrderId).run();
+  await env.DB.prepare('DELETE FROM orders WHERE id = ?').bind(normalizedOrderId).run();
+
+  return jsonResponse({
+    ok: true,
+    message: status === 'paid'
+      ? `Order rolled back.${stripeRefundId ? ` Stripe refund issued (${formatSystemCurrency(stripeRefundAmountCents / 100)}).` : ''} Inventory restored and order deleted.`
+      : 'Order rolled back and deleted.',
+    isSandbox,
+    stripeRefundId,
+    stripeRefundAmountCents,
   });
 }
 

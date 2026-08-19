@@ -27,18 +27,20 @@ async function recordStripeWebhookEvent(
   event: any,
   orderId: string,
   payload: string,
+  isSandbox: boolean,
   env: Env,
 ): Promise<void> {
   try {
     await env.DB.prepare(
-      `INSERT INTO stripe_webhook_events (id, stripe_event_id, event_type, order_id, payload_json, status, received_at)
-       VALUES (?, ?, ?, ?, ?, 'received', ?)`,
+      `INSERT INTO stripe_webhook_events (id, stripe_event_id, event_type, order_id, payload_json, status, is_sandbox, received_at)
+       VALUES (?, ?, ?, ?, ?, 'received', ?, ?)`,
     ).bind(
       rowId,
       normalizeText(event?.id, ''),
       normalizeText(event?.type, ''),
       orderId || null,
       payload,
+      isSandbox ? 1 : 0,
       new Date().toISOString(),
     ).run();
   } catch (error) {
@@ -61,10 +63,13 @@ async function finalizeStripeWebhookEvent(
   }
 }
 
-export async function handleStripeWebhook(request: Request, env: Env): Promise<Response> {
-  const webhookSecret = normalizeText(env.STRIPE_WEBHOOK_SECRET, '');
+export async function handleStripeWebhook(request: Request, env: Env, isSandbox = false): Promise<Response> {
+  const webhookSecret = normalizeText(
+    isSandbox ? env.STRIPE_WEBHOOK_SECRET_SANDBOX : env.STRIPE_WEBHOOK_SECRET,
+    '',
+  );
   if (!webhookSecret) {
-    return jsonResponse({ message: 'Stripe webhook is not configured.' }, 503);
+    return jsonResponse({ message: `Stripe ${isSandbox ? 'sandbox ' : ''}webhook is not configured.` }, 503);
   }
 
   const signature = normalizeText(request.headers.get('Stripe-Signature'), '');
@@ -86,7 +91,7 @@ export async function handleStripeWebhook(request: Request, env: Env): Promise<R
   const orderId = normalizeText(session?.metadata?.order_id, '') || normalizeText(session?.client_reference_id, '');
 
   const webhookEventRowId = crypto.randomUUID();
-  await recordStripeWebhookEvent(webhookEventRowId, event, orderId, payload, env);
+  await recordStripeWebhookEvent(webhookEventRowId, event, orderId, payload, isSandbox, env);
 
   try {
     if (orderId && eventType === 'checkout.session.completed') {

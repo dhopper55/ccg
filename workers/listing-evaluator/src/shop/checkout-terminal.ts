@@ -116,6 +116,7 @@ export async function handleShopCreateTerminalPayment(request: Request, env: Env
       createdAt: nowIso,
       customerName: terminalCustomerName,
       customerEmail: terminalCustomerEmail,
+      isSandbox: stripeConfig.useSandbox,
       items: draft.items,
     }, env);
 

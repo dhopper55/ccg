@@ -13,6 +13,7 @@ export interface Env {
   ASSOCIATE_MODE_TOKEN?: string;
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
+  STRIPE_WEBHOOK_SECRET_SANDBOX?: string;
   STRIPE_PUBLISHABLE_KEY?: string;
   STRIPE_CO_SALES_TAX_RATE_ID?: string;
   STRIPE_TERMINAL_READER_ID?: string;

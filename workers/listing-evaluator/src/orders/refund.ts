@@ -8,6 +8,7 @@ export async function createStripeFeeAdjustedRefund(
   orderId: string,
   orderTotalCents: number,
   env: Env,
+  overrideSecretKey?: string,
 ): Promise<{
   ok: true;
   refundId: string;
@@ -16,7 +17,7 @@ export async function createStripeFeeAdjustedRefund(
   feeSource: string;
   paymentMethodType: string;
 } | { ok: false; message: string; status: number }> {
-  const { secretKey: stripeSecretKey } = await getStripeRuntimeConfig(env);
+  const stripeSecretKey = overrideSecretKey || (await getStripeRuntimeConfig(env)).secretKey;
   if (!stripeSecretKey) return { ok: false, message: 'Stripe secret key is not configured.', status: 500 };
 
   try {

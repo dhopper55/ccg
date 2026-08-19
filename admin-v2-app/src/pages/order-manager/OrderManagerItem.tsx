@@ -24,7 +24,7 @@ import { useSnackbar } from 'notistack';
 import useNumberFormat from 'hooks/useNumberFormat';
 import { formatOrderNumber } from 'lib/utils';
 import { ensureStarWebPrntGlobals } from 'lib/starWebPrntShim';
-import { useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import paths from 'routes/paths';
 import IconifyIcon from 'components/base/IconifyIcon';
 import PageBreadcrumb from 'components/sections/common/PageBreadcrumb';
@@ -55,6 +55,7 @@ type AdminOrderDetail = {
   cashAmountCents?: number;
   listingsUpdated: boolean;
   settled: boolean;
+  isSandbox: boolean;
   moneyAccounted: boolean;
   costBasisAdjusted: string;
   accountingFunds?: {
@@ -92,6 +93,11 @@ type RefundResponse = {
   provider?: string;
   stripeRefundAmountCents?: number;
   stripeRetainedFeeCents?: number;
+};
+
+type RollbackResponse = {
+  ok?: boolean;
+  message?: string;
 };
 
 type OrderStatusFlagKey = 'listingsUpdated' | 'settled';
@@ -190,6 +196,7 @@ const loadReceiptLogo = async () => {
 
 const OrderManagerItem = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { currencyFormat } = useNumberFormat();
   const { enqueueSnackbar } = useSnackbar();
   const [order, setOrder] = useState<AdminOrderDetail | null>(null);
@@ -198,6 +205,9 @@ const OrderManagerItem = () => {
   const [resultOpen, setResultOpen] = useState(false);
   const [result, setResult] = useState<{ severity: 'success' | 'error'; message: string } | null>(null);
   const [isRefunding, setIsRefunding] = useState(false);
+  const [rollbackConfirmOpen, setRollbackConfirmOpen] = useState(false);
+  const [rollbackTypedOrderNumber, setRollbackTypedOrderNumber] = useState('');
+  const [isRollingBack, setIsRollingBack] = useState(false);
   const [updatingFlag, setUpdatingFlag] = useState<OrderStatusFlagKey | null>(null);
   const [accountFundsOpen, setAccountFundsOpen] = useState(false);
   const [accountFundsForm, setAccountFundsForm] = useState({
@@ -409,6 +419,28 @@ const OrderManagerItem = () => {
     } finally {
       setIsRefunding(false);
       setResultOpen(true);
+    }
+  };
+
+  const handleConfirmRollback = async () => {
+    if (!order) return;
+    setIsRollingBack(true);
+    try {
+      const response = await fetch(`/api/admin-v2/orders/${encodeURIComponent(order.orderId)}/rollback`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      });
+      const payload = (await response.json()) as RollbackResponse;
+      if (!response.ok) throw new Error(payload.message || 'Rollback failed.');
+      enqueueSnackbar(payload.message || 'Order rolled back.', { variant: 'success' });
+      setRollbackConfirmOpen(false);
+      setRollbackTypedOrderNumber('');
+      navigate(paths.orderManager);
+    } catch (error) {
+      enqueueSnackbar(error instanceof Error ? error.message : 'Rollback failed.', { variant: 'error' });
+    } finally {
+      setIsRollingBack(false);
     }
   };
 
@@ -631,6 +663,9 @@ const OrderManagerItem = () => {
                     label={order.status.replace(/_/g, ' ')}
                     sx={{ textTransform: 'capitalize' }}
                   />
+                  {order.isSandbox && (
+                    <Chip variant="soft" color="neutral" label="Sandbox" size="small" />
+                  )}
                 </Stack>
               </Box>
               <Stack direction="column" sx={{ alignItems: { sm: 'flex-end' }, gap: 3 }}>
@@ -643,6 +678,15 @@ const OrderManagerItem = () => {
                     startIcon={<IconifyIcon icon="material-symbols:currency-exchange-rounded" />}
                   >
                     Cancel/Refund
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    disabled={isRollingBack}
+                    onClick={() => setRollbackConfirmOpen(true)}
+                    startIcon={<IconifyIcon icon="material-symbols:delete-forever-rounded" />}
+                  >
+                    Rollback
                   </Button>
                 </Stack>
                 <Typography variant="body2" sx={{ color: 'text.secondary', textAlign: { sm: 'end' }, mt: 'auto' }}>
@@ -844,6 +888,61 @@ const OrderManagerItem = () => {
         </Button>
         <Button variant="contained" color="error" onClick={() => void handleConfirmRefund()} disabled={isRefunding}>
           Yes, refund
+        </Button>
+      </DialogActions>
+    </Dialog>
+    <Dialog
+      open={rollbackConfirmOpen}
+      onClose={() => {
+        if (isRollingBack) return;
+        setRollbackConfirmOpen(false);
+        setRollbackTypedOrderNumber('');
+      }}
+    >
+      <DialogTitle>Roll back order</DialogTitle>
+      <DialogContent>
+        <Stack direction="column" sx={{ gap: 1.5, pt: 0.5 }}>
+          <Alert severity="error">
+            This permanently deletes the order{order.status === 'paid' ? ' — it issues a Stripe refund and restores inventory first' : ''}. This cannot be undone.
+          </Alert>
+          {!order.isSandbox && (
+            <>
+              <Typography>
+                This is a <strong>LIVE</strong> order, not a sandbox test order. Type the order number{' '}
+                <strong>{displayOrderNumber}</strong> below to confirm.
+              </Typography>
+              <TextField
+                size="small"
+                fullWidth
+                value={rollbackTypedOrderNumber}
+                onChange={(event) => setRollbackTypedOrderNumber(event.target.value)}
+                placeholder={displayOrderNumber}
+                autoFocus
+              />
+            </>
+          )}
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button
+          onClick={() => {
+            setRollbackConfirmOpen(false);
+            setRollbackTypedOrderNumber('');
+          }}
+          disabled={isRollingBack}
+        >
+          Cancel
+        </Button>
+        <Button
+          variant="contained"
+          color="error"
+          onClick={() => void handleConfirmRollback()}
+          disabled={
+            isRollingBack
+            || (!order.isSandbox && rollbackTypedOrderNumber.trim().toUpperCase() !== displayOrderNumber.toUpperCase())
+          }
+        >
+          Yes, roll back
         </Button>
       </DialogActions>
     </Dialog>
