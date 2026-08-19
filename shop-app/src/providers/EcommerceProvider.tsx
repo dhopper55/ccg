@@ -34,8 +34,7 @@ interface EcommerceContextInterface {
   cartSubTotal: number;
   cartTax: number;
   cartTaxRate: number;
-  cartShipping: number;
-  cartShippingLabel: '$6.00' | 'FREE' | 'IN-STORE' | '$0.00';
+  cartShippingLabel: 'FREE' | 'IN-STORE';
   cartShippingAddressRequired: boolean;
   cartHasLocalPickupOnlyItems: boolean;
   cartTotal: number;
@@ -206,17 +205,10 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
   const cartShippingDetails = useMemo(() => {
     const selectedItems = cartItems.filter((item) => item.selected);
     const hasShippableItems = selectedItems.some((item) => Boolean(item.allowShipping));
-    if (isAssociateMode) {
+    if (isAssociateMode || !hasShippableItems) {
       return {
         amount: 0,
         label: 'IN-STORE' as const,
-        addressRequired: false,
-      };
-    }
-    if (!hasShippableItems) {
-      return {
-        amount: 0,
-        label: '$0.00' as const,
         addressRequired: false,
       };
     }
@@ -350,7 +342,6 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
         cartSubTotal,
         cartTax,
         cartTaxRate: salesTaxRate,
-        cartShipping: cartShippingDetails.amount,
         cartShippingLabel: cartShippingDetails.label,
         cartShippingAddressRequired: cartShippingDetails.addressRequired,
         cartHasLocalPickupOnlyItems,
