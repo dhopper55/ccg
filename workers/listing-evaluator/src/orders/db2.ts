@@ -7,7 +7,6 @@ import { numberOrZero, parseOptionalPositiveInt, dbGetColumnNames } from '../uti
 import { toPublicShopImageUrl } from '../utils/image.js';
 import { getStripeRuntimeConfigForLivemode } from '../system/runtime.js';
 import { generateUniqueCcgNumber } from '../inventory/db-write.js';
-import { SHOP_SALES_TAX_RATE } from '../constants.js';
 import type { ShopCheckoutLineItem, ShopCheckoutInventoryRow } from '../types/orders.js';
 
 // ---------------------------------------------------------------------------
@@ -292,41 +291,13 @@ export async function dbApplyPaidInventoryItems(
   items: Array<{ inventoryItemId: number; quantity: number; subtotalCents: number }>,
   session: any,
   env: Env,
-  skipTaxIncludedAdjustment = false,
 ): Promise<void> {
   const order = await env.DB.prepare('SELECT * FROM orders WHERE id = ? LIMIT 1')
     .bind(normalizeText(orderId, ''))
     .first<Record<string, unknown>>();
   const paidChannel = getPaidInventoryChannel(session, normalizeText(order?.channel, ''));
-  let totalImplicitTaxCents = 0;
   for (const item of items) {
-    const implicitTaxCents = await dbApplyPaidInventoryItemAdjustment(orderId, item, session, paidChannel, env, skipTaxIncludedAdjustment);
-    if (implicitTaxCents > 0) {
-      totalImplicitTaxCents += implicitTaxCents;
-      const perUnitTaxCents = Math.round(implicitTaxCents / Math.max(1, item.quantity));
-      await env.DB.prepare(
-        `UPDATE order_items
-         SET subtotal_cents    = MAX(0, COALESCE(subtotal_cents, 0) - ?),
-             total_cents       = MAX(0, COALESCE(total_cents, 0) - ?),
-             line_total_cents  = MAX(0, COALESCE(line_total_cents, 0) - ?),
-             unit_amount_cents = MAX(0, COALESCE(unit_amount_cents, 0) - ?),
-             unit_price_cents  = MAX(0, COALESCE(unit_price_cents, 0) - ?)
-         WHERE order_id = ? AND inventory_item_id = ?`,
-      ).bind(
-        implicitTaxCents, implicitTaxCents, implicitTaxCents,
-        perUnitTaxCents, perUnitTaxCents,
-        normalizeText(orderId, ''), item.inventoryItemId,
-      ).run();
-    }
-  }
-  if (totalImplicitTaxCents > 0) {
-    await env.DB.prepare(
-      `UPDATE orders
-       SET tax_cents = COALESCE(tax_cents, 0) + ?,
-           subtotal_cents = COALESCE(subtotal_cents, 0) - ?,
-           updated_at = ?
-       WHERE id = ?`,
-    ).bind(totalImplicitTaxCents, totalImplicitTaxCents, new Date().toISOString(), normalizeText(orderId, '')).run();
+    await dbApplyPaidInventoryItemAdjustment(orderId, item, session, paidChannel, env);
   }
 }
 
@@ -487,12 +458,11 @@ export async function dbApplyPaidInventoryItemAdjustment(
   session: any,
   paidChannel: string,
   env: Env,
-  skipTaxIncludedAdjustment = false,
-): Promise<number> {
+): Promise<void> {
   const row = await env.DB.prepare(
     'SELECT * FROM ccg_inventory_items WHERE id = ? LIMIT 1'
   ).bind(item.inventoryItemId).first<Record<string, unknown>>();
-  if (!row) return 0;
+  if (!row) return;
 
   const purchasedQuantity = Math.max(1, item.quantity);
   const currentQuantity = Math.max(0, Number(row.quantity ?? 1));
@@ -502,11 +472,9 @@ export async function dbApplyPaidInventoryItemAdjustment(
   const effectiveSubtotalCents = item.subtotalCents > 0
     ? item.subtotalCents
     : Math.round(Number(row.sale_price || row.regular_price || 0) * purchasedQuantity * 100);
-  const salesTaxIncluded = Number(row.sales_tax_included) === 1;
-  const implicitTaxCents = salesTaxIncluded && effectiveSubtotalCents > 0 && !skipTaxIncludedAdjustment
-    ? Math.round(effectiveSubtotalCents * SHOP_SALES_TAX_RATE / (1 + SHOP_SALES_TAX_RATE))
-    : 0;
-  const soldAmount = (effectiveSubtotalCents - implicitTaxCents) / 100;
+  // Tax-included items record their full sale price here — no implicit tax is backed out.
+  // See ARCHITECTURE.md order accounting notes.
+  const soldAmount = effectiveSubtotalCents / 100;
 
   if (remainingQuantity > 0) {
     await dbUpdateOriginalInventoryAfterPartialSale(
@@ -525,7 +493,7 @@ export async function dbApplyPaidInventoryItemAdjustment(
       paidChannel,
       env,
     });
-    return implicitTaxCents;
+    return;
   }
 
   await dbUpdateOriginalInventoryAfterFullSale(
@@ -538,5 +506,4 @@ export async function dbApplyPaidInventoryItemAdjustment(
     paidChannel,
     env,
   );
-  return implicitTaxCents;
 }

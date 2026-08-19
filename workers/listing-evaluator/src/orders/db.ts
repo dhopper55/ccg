@@ -3,7 +3,7 @@ import { normalizeText, normalizeEmailAddress } from '../utils/text.js';
 import { dbGetColumnNames, dbInsertFiltered, numberOrZero, stripeTimestampToIso, parseOptionalPositiveInt } from '../utils/misc.js';
 import { parseCurrencyAmount } from '../utils/money.js';
 import type { ShopCheckoutLineItem } from '../types/orders.js';
-import { SHOP_BASE_PATH, ACTIVITY_BASE_URL, SHOP_SALES_TAX_RATE } from '../constants.js';
+import { SHOP_BASE_PATH, ACTIVITY_BASE_URL } from '../constants.js';
 
 import { toPublicShopImageUrl } from '../utils/image.js';
 import { sendBrevoOrderConfirmationEmailForOrder } from './email.js';
@@ -460,7 +460,7 @@ export async function dbMarkManualCheckoutOrderPaid(
     payment_status: 'paid',
     id: `${input.provider}:${orderId}`,
   };
-  await dbApplyPaidInventoryItems(orderId, input.items, session, env, true);
+  await dbApplyPaidInventoryItems(orderId, input.items, session, env);
 
   await dbUpdateTableById('orders', orderId, {
     status: 'paid',
@@ -906,14 +906,7 @@ async function dbDeactivateRefundedPartialSaleClone(input: {
   const effectiveSubtotalCents = input.item.subtotalCents > 0
     ? input.item.subtotalCents
     : Math.round(Number(input.sourceRow.sale_price || input.sourceRow.regular_price || 0) * Math.max(1, input.item.quantity) * 100);
-  const salesTaxIncluded = Number(input.sourceRow.sales_tax_included) === 1;
-  const implicitTaxCents = salesTaxIncluded && effectiveSubtotalCents > 0
-    ? Math.round(effectiveSubtotalCents * SHOP_SALES_TAX_RATE / (1 + SHOP_SALES_TAX_RATE))
-    : 0;
-  const soldAmount = (effectiveSubtotalCents - implicitTaxCents) / 100;
-  const sellNote = input.provider === 'cash'
-    ? 'Cash checkout'
-    : `Stripe checkout ${input.checkoutSessionId}`.trim();
+  const soldAmount = effectiveSubtotalCents / 100;
   if (!sourceId || !title) return;
 
   const clone = await input.env.DB.prepare(
