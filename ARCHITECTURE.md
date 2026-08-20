@@ -497,6 +497,7 @@ Order confirmation email + mailing list (`workers/listing-evaluator/src/orders/e
 - Whenever an order is marked paid (`dbMarkStripeCheckoutOrderPaid`, called from the Stripe webhook, the reconcile-stripe-checkout endpoint, or the cash checkout path), `sendBrevoOrderConfirmationEmailForOrder` sends the customer a transactional confirmation email and BCCs `david@coalcreekguitars.com` on every send
 - The same flow also upserts the customer into Brevo mailing list id 4 ("Main CCG Mailing List") via `upsertBrevoMailingListContact`, best-effort — a failure here is logged as an `order_events` row but does not block the confirmation email
 - `upsertBrevoMailingListContact` is shared with the public newsletter signup (`/api/email-signup`) and the Admin V2 manual subscribe action — all three add to the same list
+- The `ORDER_CONFIRMATION_BCC_RECIPIENT` constant was renamed `ADMIN_BCC_RECIPIENT` (still `david@coalcreekguitars.com`) since it's now reused by the valuation-report and authenticity-report "your report is ready" emails too (`guitar-eval/report.ts`, `guitar-eval/authenticity-report.ts`) — same BCC pattern as order confirmations
 - `GET /api/admin-v2/serial-decodes`
   - Admin V2 serial decode grid data
   - Supports query params: `page`, `limit`, `brand`, `onlyErrors`, `unevaluated`, `sortDir`

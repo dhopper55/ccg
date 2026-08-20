@@ -2,7 +2,7 @@ import type { Env } from '../env.js';
 import { normalizeText } from '../utils/text.js';
 import { getBrevoRuntimeConfig } from '../system/runtime.js';
 import type { BrevoRuntimeConfig } from '../system/runtime.js';
-import { sendBrevoTransactionalEmail, pollBrevoEmailDeliveryStatus } from '../orders/email.js';
+import { sendBrevoTransactionalEmail, pollBrevoEmailDeliveryStatus, ADMIN_BCC_RECIPIENT } from '../orders/email.js';
 import type { BrevoEmailDeliveryStatus } from '../orders/email.js';
 
 export async function sendGuitarEvalReportReadyEmail(
@@ -12,6 +12,7 @@ export async function sendGuitarEvalReportReadyEmail(
   return sendBrevoTransactionalEmail(config, {
     sender: { name: config.senderName, email: config.senderEmail },
     to: [{ email: params.email, name: params.firstName }],
+    bcc: [ADMIN_BCC_RECIPIENT],
     templateId: 5,
     params: { REPORT_URL: params.reportUrl },
   });

@@ -10,7 +10,7 @@ import type { BrevoRuntimeConfig } from '../system/runtime.js';
 import { toDisplayPaymentMethodName } from './stripe.js';
 import { dbGetOrderReceipt, dbRecordOrderEvent } from './db.js';
 
-export const ORDER_CONFIRMATION_BCC_RECIPIENT = {
+export const ADMIN_BCC_RECIPIENT = {
   email: 'david@coalcreekguitars.com',
   name: 'David Hopper',
 };
@@ -240,7 +240,7 @@ export async function sendBrevoOrderConfirmationEmailForOrder(orderId: string, e
           name: customerName || customerEmail,
         },
       ],
-      bcc: [ORDER_CONFIRMATION_BCC_RECIPIENT],
+      bcc: [ADMIN_BCC_RECIPIENT],
       templateId: config.templateId,
       params: {
         ORDER_NUMBER: orderNumber,

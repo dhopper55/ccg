@@ -2,7 +2,7 @@ import type { Env } from '../env.js';
 import { jsonResponse } from '../utils/misc.js';
 import { normalizeText } from '../utils/text.js';
 import { getBrevoRuntimeConfig } from '../system/runtime.js';
-import { sendBrevoTransactionalEmail } from '../orders/email.js';
+import { sendBrevoTransactionalEmail, ADMIN_BCC_RECIPIENT } from '../orders/email.js';
 import { escHtml } from './report.js';
 import { polishAuthenticityReportText } from '../ai/authenticity-polish.js';
 import { parseAuthenticityChecklistText } from '../ai/authenticity-checklist-parse.js';
@@ -638,6 +638,7 @@ export async function handleAdminV2AuthenticitySend(id: string, request: Request
         await sendBrevoTransactionalEmail(config, {
           sender: { name: config.senderName, email: config.senderEmail },
           to: [{ email: record.email, name: resolvedFirstName }],
+          bcc: [ADMIN_BCC_RECIPIENT],
           templateId: 5,
           params: { REPORT_URL: reportUrl },
         });
