@@ -32,6 +32,7 @@ type PurchaseLotRecord = {
   total_spent: number | null;
   total_spent_calc: number;
   resale_amount: number;
+  for_sale_amount: number;
   created_at: string | null;
 };
 
@@ -67,13 +68,6 @@ function formatCurrency(value: number | null | undefined): string {
 function getResaleColor(resaleAmount: number, totalSpent: number | null): string {
   const spent = totalSpent ?? 0;
   return resaleAmount >= spent ? 'success.main' : 'error.main';
-}
-
-function formatDate(value: string | null): string {
-  if (!value) return '—';
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return '—';
-  return parsed.toLocaleDateString('en-US');
 }
 
 const PurchasedLots = () => {
@@ -235,7 +229,7 @@ const PurchasedLots = () => {
                       <TableCell align="right">Total Spent</TableCell>
                       <TableCell align="right">Total Spent Calc.</TableCell>
                       <TableCell align="right">Resale $</TableCell>
-                      <TableCell>Created</TableCell>
+                      <TableCell align="right">For Sale $</TableCell>
                       <TableCell align="right">Actions</TableCell>
                     </TableRow>
                   </TableHead>
@@ -255,7 +249,7 @@ const PurchasedLots = () => {
                             {formatCurrency(record.resale_amount)}
                           </Typography>
                         </TableCell>
-                        <TableCell>{formatDate(record.created_at)}</TableCell>
+                        <TableCell align="right">{formatCurrency(record.for_sale_amount)}</TableCell>
                         <TableCell align="right">
                           <Tooltip title="Edit">
                             <IconButton color="inherit" onClick={() => openEditDialog(record)}>
