@@ -30,6 +30,7 @@ type PurchaseLotRecord = {
   name: string;
   description: string | null;
   total_spent: number | null;
+  total_spent_calc: number;
   resale_amount: number;
   created_at: string | null;
 };
@@ -232,6 +233,7 @@ const PurchasedLots = () => {
                     <TableRow>
                       <TableCell>Name</TableCell>
                       <TableCell align="right">Total Spent</TableCell>
+                      <TableCell align="right">Total Spent Calc.</TableCell>
                       <TableCell align="right">Resale $</TableCell>
                       <TableCell>Created</TableCell>
                       <TableCell align="right">Actions</TableCell>
@@ -244,6 +246,7 @@ const PurchasedLots = () => {
                           <Typography variant="subtitle2">{record.name}</Typography>
                         </TableCell>
                         <TableCell align="right">{formatCurrency(record.total_spent)}</TableCell>
+                        <TableCell align="right">{formatCurrency(record.total_spent_calc)}</TableCell>
                         <TableCell align="right">
                           <Typography
                             variant="body2"

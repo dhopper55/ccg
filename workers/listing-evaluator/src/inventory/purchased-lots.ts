@@ -22,7 +22,8 @@ export async function dbListPurchaseLots(env: Env): Promise<PurchaseLotRow[]> {
   const result = await env.DB.prepare(
     `SELECT
        l.id, l.name, l.description, l.total_spent, l.created_at,
-       COALESCE(SUM(CASE WHEN i.is_sold = 1 AND i.is_active = 1 THEN i.sold_amount ELSE 0 END), 0) AS resale_amount
+       COALESCE(SUM(CASE WHEN i.is_sold = 1 AND i.is_active = 1 THEN i.sold_amount ELSE 0 END), 0) AS resale_amount,
+       COALESCE(SUM(CASE WHEN i.is_active = 1 THEN i.unit_purchase_price ELSE 0 END), 0) AS total_spent_calc
      FROM ccg_purchase_lots l
      LEFT JOIN ccg_inventory_items i ON i.purchase_lot_id = l.id
      GROUP BY l.id, l.name, l.description, l.total_spent, l.created_at
@@ -43,9 +44,9 @@ export async function dbCreatePurchaseLot(
     if (!Number.isFinite(id) || id <= 0) return null;
     const created = await env.DB.prepare(
       'SELECT id, name, description, total_spent, created_at FROM ccg_purchase_lots WHERE id = ? LIMIT 1'
-    ).bind(id).first<Omit<PurchaseLotRow, 'resale_amount'>>();
+    ).bind(id).first<Omit<PurchaseLotRow, 'resale_amount' | 'total_spent_calc'>>();
     if (!created) return null;
-    return { ...created, resale_amount: 0 };
+    return { ...created, resale_amount: 0, total_spent_calc: 0 };
   } catch (error) {
     console.error('Purchase lot create failed', { error });
     return null;
