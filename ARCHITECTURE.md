@@ -532,11 +532,11 @@ Order confirmation email + mailing list (`workers/listing-evaluator/src/orders/e
 - `GET /api/admin-v2/inventory/categories`
   - Admin V2 category tree endpoint for inventory forms and filters
 - `GET /api/admin-v2/purchased-lots`
-  - Purchased Lots grid data; includes computed `resale_amount` per lot (sum of `sold_amount` for sold+active items linked to that lot)
+  - Purchased Lots grid data; includes computed `total_spent_calc`, `resale_amount`, and `for_sale_amount` per lot (see `ccg_purchase_lots` in the D1 section for the exact formulas)
 - `POST /api/admin-v2/purchased-lots`
   - Create a purchase lot
 - `POST /api/admin-v2/purchased-lots/:id/update`
-  - Update a purchase lot's name/description/total spent
+  - Update a purchase lot's name/description
 - `POST /api/admin-v2/inventory/merge-marked`
   - Merge marked inventory rows into one new inventory item
 - `GET /api/admin-v2/orders`
@@ -603,10 +603,13 @@ Tables:
   - `"order"` is sibling-local ordering and resets inside each parent group
 - `ccg_purchase_lots`
   - One row per bulk "lot" purchase (e.g. buying a large batch of used gear in one transaction)
-  - Fields: `id`, `name`, `description` (nullable), `total_spent` (`REAL`, decimal dollars — matches `unit_purchase_price`/`regular_price`/`ship_cost` convention, not cents), `created_at`
+  - Fields: `id`, `name`, `description` (nullable), `created_at`. No manually-entered spend field — cost is derived entirely from linked inventory items (see `total_spent_calc` below)
   - Managed from Admin V2 → Products/Inventory → Purchased Lots (`/api/admin-v2/purchased-lots`); flat list, add/edit share one modal, no delete
   - `ccg_inventory_items.purchase_lot_id` optionally links an item back to the lot it came from
-  - The Purchased Lots grid shows a computed "Resale $" column: sum of `sold_amount` across items linked to that lot where `is_sold = 1 AND is_active = 1`
+  - The Purchased Lots grid shows three computed columns, each scoped to active items only:
+    - `total_spent_calc` — sum of `unit_purchase_price` across active items linked to the lot, sold or not
+    - `resale_amount` ("Resale $") — sum of `sold_amount` across active items linked to the lot where `is_sold = 1`; rendered bold, green when ≥ `total_spent_calc`, red when under
+    - `for_sale_amount` ("For Sale $") — sum of `sale_price` across active items linked to the lot that are currently for sale and not sold (`for_sale = 1 AND is_sold = 0`)
 - `ccg_inventory_item_images`
   - Child table for ordered inventory images
   - Fields:

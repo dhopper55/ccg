@@ -29,7 +29,6 @@ type PurchaseLotRecord = {
   id: number;
   name: string;
   description: string | null;
-  total_spent: number | null;
   total_spent_calc: number;
   resale_amount: number;
   for_sale_amount: number;
@@ -45,14 +44,12 @@ type LotFormState = {
   id: number | null;
   name: string;
   description: string;
-  totalSpent: string;
 };
 
 const DEFAULT_FORM: LotFormState = {
   id: null,
   name: '',
   description: '',
-  totalSpent: '',
 };
 
 function formatCurrency(value: number | null | undefined): string {
@@ -65,9 +62,8 @@ function formatCurrency(value: number | null | undefined): string {
   }).format(value);
 }
 
-function getResaleColor(resaleAmount: number, totalSpent: number | null): string {
-  const spent = totalSpent ?? 0;
-  return resaleAmount >= spent ? 'success.main' : 'error.main';
+function getResaleColor(resaleAmount: number, totalSpentCalc: number): string {
+  return resaleAmount >= totalSpentCalc ? 'success.main' : 'error.main';
 }
 
 const PurchasedLots = () => {
@@ -115,7 +111,6 @@ const PurchasedLots = () => {
       id: record.id,
       name: record.name,
       description: record.description || '',
-      totalSpent: record.total_spent != null ? String(record.total_spent) : '',
     });
     setFormOpen(true);
   };
@@ -140,7 +135,6 @@ const PurchasedLots = () => {
         body: JSON.stringify({
           name,
           description: form.description.trim() || null,
-          totalSpent: form.totalSpent.trim() || null,
         }),
       });
       const data = (await response.json().catch(() => ({}))) as { ok?: boolean; message?: string };
@@ -226,7 +220,6 @@ const PurchasedLots = () => {
                   <TableHead>
                     <TableRow>
                       <TableCell>Name</TableCell>
-                      <TableCell align="right">Total Spent</TableCell>
                       <TableCell align="right">Total Spent Calc.</TableCell>
                       <TableCell align="right">Resale $</TableCell>
                       <TableCell align="right">For Sale $</TableCell>
@@ -239,12 +232,11 @@ const PurchasedLots = () => {
                         <TableCell>
                           <Typography variant="subtitle2">{record.name}</Typography>
                         </TableCell>
-                        <TableCell align="right">{formatCurrency(record.total_spent)}</TableCell>
                         <TableCell align="right">{formatCurrency(record.total_spent_calc)}</TableCell>
                         <TableCell align="right">
                           <Typography
                             variant="body2"
-                            sx={{ fontWeight: 700, color: getResaleColor(record.resale_amount, record.total_spent) }}
+                            sx={{ fontWeight: 700, color: getResaleColor(record.resale_amount, record.total_spent_calc) }}
                           >
                             {formatCurrency(record.resale_amount)}
                           </Typography>
@@ -289,16 +281,6 @@ const PurchasedLots = () => {
                 value={form.description}
                 onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
                 inputProps={{ maxLength: 4000 }}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
-                fullWidth
-                label="Total Spent"
-                type="number"
-                value={form.totalSpent}
-                onChange={(event) => setForm((current) => ({ ...current, totalSpent: event.target.value }))}
-                inputProps={{ step: '0.01', min: 0 }}
               />
             </Grid>
           </Grid>

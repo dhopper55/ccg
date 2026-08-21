@@ -198,7 +198,6 @@ export type PurchaseLotRow = {
   id: number;
   name: string;
   description: string | null;
-  total_spent: number | null;
   total_spent_calc: number;
   resale_amount: number;
   for_sale_amount: number;
