@@ -16,6 +16,7 @@ import InventoryManager from 'pages/inventory-manager/InventoryManager';
 import InventoryItem from 'pages/inventory-manager/InventoryItem';
 import InventoryCategoryManager from 'pages/inventory-manager/InventoryCategoryManager';
 import InventoryLabels from 'pages/inventory-manager/InventoryLabels';
+import PurchasedLots from 'pages/inventory-manager/PurchasedLots';
 import OrderManager from 'pages/order-manager/OrderManager';
 import OrderManagerItem from 'pages/order-manager/OrderManagerItem';
 import MfrOrders from 'pages/mfr-orders/MfrOrders';
@@ -101,6 +102,10 @@ export const routes: RouteObject[] = [
           {
             path: paths.inventoryLabels,
             element: <InventoryLabels />,
+          },
+          {
+            path: paths.purchasedLots,
+            element: <PurchasedLots />,
           },
           {
             path: paths.serialDecodes,

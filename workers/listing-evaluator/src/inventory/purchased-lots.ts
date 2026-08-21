@@ -1,0 +1,118 @@
+import type { Env } from '../env.js';
+import { normalizeText } from '../utils/text.js';
+import { jsonResponse, parseOptionalPositiveInt } from '../utils/misc.js';
+import { parseCurrencyAmount } from '../utils/money.js';
+import type { PurchaseLotRow } from '../types/inventory.js';
+
+export function parseAdminV2PurchaseLotId(path: string): number | null {
+  const parts = path.split('/').filter(Boolean);
+  const lotsIndex = parts.indexOf('purchased-lots');
+  const rawId = lotsIndex >= 0 ? parts[lotsIndex + 1] : '';
+  return parseOptionalPositiveInt(rawId);
+}
+
+export async function dbPurchaseLotExists(lotId: number, env: Env): Promise<boolean> {
+  const row = await env.DB.prepare(
+    'SELECT id FROM ccg_purchase_lots WHERE id = ? LIMIT 1'
+  ).bind(lotId).first<{ id: number }>();
+  return Boolean(row?.id);
+}
+
+export async function dbListPurchaseLots(env: Env): Promise<PurchaseLotRow[]> {
+  const result = await env.DB.prepare(
+    `SELECT
+       l.id, l.name, l.description, l.total_spent, l.created_at,
+       COALESCE(SUM(CASE WHEN i.is_sold = 1 AND i.is_active = 1 THEN i.sold_amount ELSE 0 END), 0) AS resale_amount
+     FROM ccg_purchase_lots l
+     LEFT JOIN ccg_inventory_items i ON i.purchase_lot_id = l.id
+     GROUP BY l.id, l.name, l.description, l.total_spent, l.created_at
+     ORDER BY l.created_at DESC, l.id DESC`
+  ).all<PurchaseLotRow>();
+  return result.results ?? [];
+}
+
+export async function dbCreatePurchaseLot(
+  fields: { name: string; description: string | null; total_spent: number | null },
+  env: Env,
+): Promise<PurchaseLotRow | null> {
+  try {
+    const result = await env.DB.prepare(
+      'INSERT INTO ccg_purchase_lots (name, description, total_spent) VALUES (?, ?, ?)'
+    ).bind(fields.name, fields.description, fields.total_spent).run();
+    const id = Number(result.meta?.last_row_id || 0);
+    if (!Number.isFinite(id) || id <= 0) return null;
+    const created = await env.DB.prepare(
+      'SELECT id, name, description, total_spent, created_at FROM ccg_purchase_lots WHERE id = ? LIMIT 1'
+    ).bind(id).first<Omit<PurchaseLotRow, 'resale_amount'>>();
+    if (!created) return null;
+    return { ...created, resale_amount: 0 };
+  } catch (error) {
+    console.error('Purchase lot create failed', { error });
+    return null;
+  }
+}
+
+export async function dbUpdatePurchaseLot(
+  lotId: number,
+  fields: { name: string; description: string | null; total_spent: number | null },
+  env: Env,
+): Promise<boolean> {
+  try {
+    const result = await env.DB.prepare(
+      'UPDATE ccg_purchase_lots SET name = ?, description = ?, total_spent = ? WHERE id = ?'
+    ).bind(fields.name, fields.description, fields.total_spent, lotId).run();
+    return Number(result.meta?.changes || 0) > 0;
+  } catch (error) {
+    console.error('Purchase lot update failed', { error });
+    return false;
+  }
+}
+
+export async function handleAdminV2PurchaseLots(env: Env): Promise<Response> {
+  const records = await dbListPurchaseLots(env);
+  return jsonResponse({ records });
+}
+
+export async function handleAdminV2PurchaseLotCreate(request: Request, env: Env): Promise<Response> {
+  let body: Record<string, unknown> = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  const name = normalizeText(body.name, '').slice(0, 120);
+  const description = normalizeText(body.description, '').slice(0, 4000) || null;
+  const totalSpent = parseCurrencyAmount(body.totalSpent);
+
+  if (!name) return jsonResponse({ message: 'Lot name is required.' }, 400);
+
+  const created = await dbCreatePurchaseLot({ name, description, total_spent: totalSpent }, env);
+  if (!created) return jsonResponse({ message: 'Unable to create purchase lot.' }, 500);
+  return jsonResponse({ ok: true, record: created });
+}
+
+export async function handleAdminV2PurchaseLotUpdate(request: Request, path: string, env: Env): Promise<Response> {
+  const lotId = parseAdminV2PurchaseLotId(path);
+  if (lotId == null) return jsonResponse({ message: 'Missing purchase lot ID.' }, 400);
+
+  let body: Record<string, unknown> = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  const name = normalizeText(body.name, '').slice(0, 120);
+  const description = normalizeText(body.description, '').slice(0, 4000) || null;
+  const totalSpent = parseCurrencyAmount(body.totalSpent);
+
+  if (!name) return jsonResponse({ message: 'Lot name is required.' }, 400);
+  if (!(await dbPurchaseLotExists(lotId, env))) {
+    return jsonResponse({ message: 'Purchase lot not found.' }, 404);
+  }
+
+  const updated = await dbUpdatePurchaseLot(lotId, { name, description, total_spent: totalSpent }, env);
+  if (!updated) return jsonResponse({ message: 'Unable to update purchase lot.' }, 500);
+  return jsonResponse({ ok: true });
+}

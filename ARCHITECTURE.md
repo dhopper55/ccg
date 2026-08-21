@@ -531,6 +531,12 @@ Order confirmation email + mailing list (`workers/listing-evaluator/src/orders/e
   - Generate labels PDF from currently marked inventory and then clear marked state
 - `GET /api/admin-v2/inventory/categories`
   - Admin V2 category tree endpoint for inventory forms and filters
+- `GET /api/admin-v2/purchased-lots`
+  - Purchased Lots grid data; includes computed `resale_amount` per lot (sum of `sold_amount` for sold+active items linked to that lot)
+- `POST /api/admin-v2/purchased-lots`
+  - Create a purchase lot
+- `POST /api/admin-v2/purchased-lots/:id/update`
+  - Update a purchase lot's name/description/total spent
 - `POST /api/admin-v2/inventory/merge-marked`
   - Merge marked inventory rows into one new inventory item
 - `GET /api/admin-v2/orders`
@@ -572,6 +578,7 @@ Tables:
   - Inventory source-of-truth row table
   - Primary category: `category_id` (`NOT NULL`); assumed to be a top-level category (never a sub-category)
   - Secondary category: `secondary_category_id` (`NULLABLE`)
+  - `purchase_lot_id` (`INTEGER NULL`) — optional link to `ccg_purchase_lots.id`, set when the item came from a bulk lot purchase; no DB-level FK constraint, matching `category_id`/`secondary_category_id`
   - Sale/detail fields include:
     - `video_url`
     - `sale_title`
@@ -594,6 +601,12 @@ Tables:
     - `"order"`
   - Supports nested categories up to 3 levels deep
   - `"order"` is sibling-local ordering and resets inside each parent group
+- `ccg_purchase_lots`
+  - One row per bulk "lot" purchase (e.g. buying a large batch of used gear in one transaction)
+  - Fields: `id`, `name`, `description` (nullable), `total_spent` (`REAL`, decimal dollars — matches `unit_purchase_price`/`regular_price`/`ship_cost` convention, not cents), `created_at`
+  - Managed from Admin V2 → Products/Inventory → Purchased Lots (`/api/admin-v2/purchased-lots`); flat list, add/edit share one modal, no delete
+  - `ccg_inventory_items.purchase_lot_id` optionally links an item back to the lot it came from
+  - The Purchased Lots grid shows a computed "Resale $" column: sum of `sold_amount` across items linked to that lot where `is_sold = 1 AND is_active = 1`
 - `ccg_inventory_item_images`
   - Child table for ordered inventory images
   - Fields:

@@ -33,6 +33,7 @@ const paths = {
   orderManagerItemWithId: (id: string) => `/order-manager-item?id=${encodeURIComponent(id)}`,
   inventoryCategoryManager: '/inventory-category-manager',
   inventoryLabels: '/inventory-labels',
+  purchasedLots: '/purchased-lots',
   serialDecodes: '/serial-decodes',
   serialPatternText: '/serial-pattern-text',
   valueReports: '/value-reports',

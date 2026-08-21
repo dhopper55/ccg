@@ -32,6 +32,7 @@ export async function dbCreateInventoryItems(
     quantity: number;
     category_id: number;
     secondary_category_id: number | null;
+    purchase_lot_id?: number | null;
     brand: string | null;
     queue: string;
     year_range: string | null;
@@ -133,9 +134,9 @@ export async function dbCreateInventoryItems(
         sales_channel_offerup, sales_channel_ebay, sales_channel_nextdoor, sales_channel_other,
         for_sale_date,
         is_sold, sold_date, sold_amount, sell_notes, sale_url, sale_zip, merchant_center_cat_code,
-        tag_reprint
+        tag_reprint, purchase_lot_id
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const result = await env.DB.prepare(statement).bind(
       fields.source_listing_id,
@@ -223,6 +224,7 @@ export async function dbCreateInventoryItems(
       fields.sale_zip,
       fields.merchant_center_cat_code,
       fields.tag_reprint ?? 0,
+      fields.purchase_lot_id ?? null,
     ).run();
     const firstId = result.meta?.last_row_id ? String(result.meta.last_row_id) : null;
     if (!firstId) return null;
@@ -242,6 +244,7 @@ export async function dbUpdateInventoryById(
     quantity: number;
     category_id: number;
     secondary_category_id: number | null;
+    purchase_lot_id: number | null;
     brand: string | null;
     queue: string;
     year_range: string | null;
@@ -332,7 +335,7 @@ export async function dbUpdateInventoryById(
     await env.DB.prepare(
       `UPDATE ccg_inventory_items
        SET
-         image_url = ?, image_urls = ?, title = ?, quantity = ?, category_id = ?, secondary_category_id = ?,
+         image_url = ?, image_urls = ?, title = ?, quantity = ?, category_id = ?, secondary_category_id = ?, purchase_lot_id = ?,
          brand = ?, queue = ?, year_range = ?, model = ?, finish = ?,
          repair_notes = ?, original_listing_desc = ?, purchased_date = ?, unit_purchase_price = ?, map_price = ?,
          private_party_value = ?, miles = ?, minutes_spent = ?, ship_cost = ?, purchase_notes = ?, ai_analysis_text = ?, serial_number = ?,
@@ -364,6 +367,7 @@ export async function dbUpdateInventoryById(
       fields.quantity,
       fields.category_id,
       fields.secondary_category_id,
+      fields.purchase_lot_id,
       fields.brand,
       fields.queue,
       fields.year_range,

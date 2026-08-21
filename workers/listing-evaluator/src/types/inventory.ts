@@ -12,6 +12,7 @@ export type InventoryItemRow = {
   secondary_category_id: number | null;
   secondary_category_name: string | null;
   secondary_category_path: string | null;
+  purchase_lot_id: number | null;
   brand: string | null;
   queue: string | null;
   year_range: string | null;
@@ -191,6 +192,15 @@ export type InventoryCategoryNode = {
   depth: number;
   path: string;
   children: InventoryCategoryNode[];
+};
+
+export type PurchaseLotRow = {
+  id: number;
+  name: string;
+  description: string | null;
+  total_spent: number | null;
+  resale_amount: number;
+  created_at: string | null;
 };
 
 export const INVENTORY_UNIT_COST_BASIS_SQL = `COALESCE(i.unit_purchase_price, 0) *

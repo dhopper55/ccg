@@ -85,6 +85,11 @@ import {
   handleAdminV2InventoryCategoryDelete,
 } from './inventory/categories.js';
 import {
+  handleAdminV2PurchaseLots,
+  handleAdminV2PurchaseLotCreate,
+  handleAdminV2PurchaseLotUpdate,
+} from './inventory/purchased-lots.js';
+import {
   handleAdminV2InventorySubscriptions,
   handleAdminV2InventoryCustomTemplate,
   handleAdminV2InventoryUnmarkAll,
@@ -1018,6 +1023,21 @@ export default {
 
     if (path.endsWith('/delete') && path.startsWith('/api/admin-v2/inventory/categories/') && request.method === 'POST') {
       const response = await handleAdminV2InventoryCategoryDelete(path, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/purchased-lots' && request.method === 'GET') {
+      const response = await handleAdminV2PurchaseLots(env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/purchased-lots' && request.method === 'POST') {
+      const response = await handleAdminV2PurchaseLotCreate(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path.endsWith('/update') && path.startsWith('/api/admin-v2/purchased-lots/') && request.method === 'POST') {
+      const response = await handleAdminV2PurchaseLotUpdate(request, path, env);
       return withCors(response, request, env);
     }
 

@@ -7,6 +7,7 @@ import { dbCreateInventoryItems, dbReplaceInventoryImagesByItemIds, dbDeleteInve
 import { ensureInventoryHostedImageUrls, purgeOrphanedInventoryImagesForDeletedRows } from './db-images.js';
 import { dbGetInventoryItem, dbFindInventoryBySourceListingId, dbFindInventoryBySaleUrl, dbFindRecentDuplicateInventoryCreate, dbCcgNumberExists } from './db-core.js';
 import { dbInventoryCategoryExists } from './categories.js';
+import { dbPurchaseLotExists } from './purchased-lots.js';
 import { normalizeInventoryQueue } from './db-core.js';
 import { generateUniqueCcgNumber } from './db-write.js';
 import { dbFindTopLevelPackageCategoryId } from './categories.js';
@@ -170,6 +171,7 @@ export async function handleInventoryCreate(request: Request, env: Env): Promise
   const quantity = parseBoundedInt(body.quantity ?? body.qty, 1, 0, 1_000_000);
   const categoryId = parseOptionalPositiveInt(body.categoryId);
   const secondaryCategoryId = parseOptionalPositiveInt(body.secondaryCategoryId);
+  const purchaseLotId = parseOptionalPositiveInt(body.purchaseLotId);
   const brand = normalizeText(body.brand, '').slice(0, 120);
   const isActive = toBooleanInput(body.isActive, true);
   const isMarked = toBooleanInput(body.isMarked, false);
@@ -295,6 +297,9 @@ export async function handleInventoryCreate(request: Request, env: Env): Promise
   if (secondaryCategoryId != null && !(await dbInventoryCategoryExists(secondaryCategoryId, env))) {
     return jsonResponse({ message: 'Secondary Category ID is invalid.' }, 400);
   }
+  if (purchaseLotId != null && !(await dbPurchaseLotExists(purchaseLotId, env))) {
+    return jsonResponse({ message: 'Purchase lot does not exist.' }, 400);
+  }
   const packageCategoryId = await dbFindTopLevelPackageCategoryId(env);
   if (quantity > 1 && packageCategoryId != null && categoryId === packageCategoryId) {
     return jsonResponse({ message: 'Packages must have Qty 1.' }, 400);
@@ -363,6 +368,7 @@ export async function handleInventoryCreate(request: Request, env: Env): Promise
     quantity,
     category_id: categoryId,
     secondary_category_id: secondaryCategoryId,
+    purchase_lot_id: purchaseLotId,
     brand: brand || null,
     queue,
     year_range: yearRange || null,

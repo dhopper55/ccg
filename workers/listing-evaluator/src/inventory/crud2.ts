@@ -7,6 +7,7 @@ import { dbCreateInventoryItems, dbUpdateInventoryById, dbReplaceInventoryImages
 import { ensureInventoryHostedImageUrls } from './db-images.js';
 import { dbGetInventoryItem, dbFindInventoryBySourceListingId, dbFindInventoryBySaleUrl, dbInventoryItemHasPackageChildren } from './db-core.js';
 import { dbInventoryCategoryExists } from './categories.js';
+import { dbPurchaseLotExists } from './purchased-lots.js';
 import { normalizeInventoryQueue } from './db-core.js';
 import { dbFindTopLevelPackageCategoryId } from './categories.js';
 import { buildAdminInventoryItemUrl, toAbsoluteSiteUrl, insertActivityLogBestEffort } from '../admin/activity.js';
@@ -35,6 +36,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
   const quantity = parseBoundedInt(body.quantity ?? body.qty, 1, 0, 1_000_000);
   const categoryId = parseOptionalPositiveInt(body.categoryId);
   const secondaryCategoryId = parseOptionalPositiveInt(body.secondaryCategoryId);
+  const purchaseLotId = parseOptionalPositiveInt(body.purchaseLotId);
   const brand = normalizeText(body.brand, '').slice(0, 120);
   const queueInput = normalizeInventoryQueue(body.queue);
   const yearRange = normalizeText(body.yearRange, '').slice(0, 120);
@@ -167,6 +169,9 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
   if (secondaryCategoryId != null && !(await dbInventoryCategoryExists(secondaryCategoryId, env))) {
     return jsonResponse({ message: 'Secondary Category ID is invalid.' }, 400);
   }
+  if (purchaseLotId != null && !(await dbPurchaseLotExists(purchaseLotId, env))) {
+    return jsonResponse({ message: 'Purchase lot does not exist.' }, 400);
+  }
 
   const current = await dbGetInventoryItem(recordId, env);
   if (!current) return jsonResponse({ message: 'Inventory item not found.' }, 404);
@@ -236,6 +241,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       quantity: remainingQuantity,
       category_id: categoryId,
       secondary_category_id: secondaryCategoryId,
+      purchase_lot_id: purchaseLotId,
       brand: brand || null,
       queue: 'For Sale',
       year_range: yearRange || null,
@@ -328,6 +334,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       quantity: qtySold,
       category_id: categoryId,
       secondary_category_id: secondaryCategoryId,
+      purchase_lot_id: purchaseLotId,
       brand: brand || null,
       queue,
       year_range: yearRange || null,
@@ -402,6 +409,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       quantity: qtySold,
       category_id: categoryId,
       secondary_category_id: secondaryCategoryId,
+      purchase_lot_id: purchaseLotId,
       brand: brand || null,
       queue,
       year_range: yearRange || null,
@@ -513,6 +521,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
     quantity,
     category_id: categoryId,
     secondary_category_id: secondaryCategoryId,
+    purchase_lot_id: purchaseLotId,
     brand: brand || null,
     queue,
     year_range: yearRange || null,

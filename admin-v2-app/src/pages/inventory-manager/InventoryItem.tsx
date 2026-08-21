@@ -75,6 +75,7 @@ type InventoryItemRecord = {
   secondaryCategoryId?: number | null;
   secondaryCategoryName?: string;
   secondaryCategoryPath?: string;
+  purchaseLotId?: number | null;
   brand?: string;
   queue?: string;
   yearRange?: string;
@@ -217,6 +218,7 @@ type FormState = {
   merchantCenterCatCode: string;
   categoryId: string;
   secondaryCategoryId: string;
+  purchaseLotId: string;
   brand: string;
   queue: string;
   yearRange: string;
@@ -479,6 +481,7 @@ const DEFAULT_FORM: FormState = {
   title: '',
   categoryId: '',
   secondaryCategoryId: '',
+  purchaseLotId: '',
   brand: '',
   queue: 'Triage',
   yearRange: '',
@@ -1187,6 +1190,7 @@ const InventoryItem = () => {
   const [upcLookupData, setUpcLookupData] = useState<UpcLookupResponse | null>(null);
   const [categoryOptions, setCategoryOptions] = useState<InventoryCategoryOption[]>([]);
   const [subscriptionOptions, setSubscriptionOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [purchaseLotOptions, setPurchaseLotOptions] = useState<Array<{ id: string; name: string }>>([]);
 
   const mode = editId ? 'edit' : 'add';
   const pageTitle = mode === 'edit' ? 'Edit Inventory Item' : 'Add Inventory Item';
@@ -1273,8 +1277,23 @@ const InventoryItem = () => {
       } catch { /* best effort */ }
     };
 
+    const loadPurchaseLots = async () => {
+      try {
+        const response = await fetch('/api/admin-v2/purchased-lots', {
+          method: 'GET',
+          credentials: 'same-origin',
+        });
+        const data = (await response.json()) as { records?: Array<{ id: number; name: string }> };
+        if (!response.ok || cancelled) return;
+        setPurchaseLotOptions(
+          (data.records ?? []).map((r) => ({ id: String(r.id), name: r.name })),
+        );
+      } catch { /* best effort */ }
+    };
+
     void loadCategories();
     void loadSubscriptions();
+    void loadPurchaseLots();
 
     return () => {
       cancelled = true;
@@ -1347,6 +1366,7 @@ const InventoryItem = () => {
             categoryId: record.categoryId != null ? String(record.categoryId) : '',
             secondaryCategoryId:
               record.secondaryCategoryId != null ? String(record.secondaryCategoryId) : '',
+            purchaseLotId: record.purchaseLotId != null ? String(record.purchaseLotId) : '',
             brand: record.brand || '',
             queue: record.queue || 'Triage',
             yearRange: record.yearRange || '',
@@ -1477,6 +1497,7 @@ const InventoryItem = () => {
             categoryId: record.categoryId != null ? String(record.categoryId) : '',
             secondaryCategoryId:
               record.secondaryCategoryId != null ? String(record.secondaryCategoryId) : '',
+            purchaseLotId: record.purchaseLotId != null ? String(record.purchaseLotId) : '',
             brand: record.brand || '',
             queue: record.queue || 'Triage',
             yearRange: record.yearRange || '',
@@ -1584,6 +1605,7 @@ const InventoryItem = () => {
             ...current,
             title: concatTitle || (fields.title || '').trim(),
             categoryId: '',
+            purchaseLotId: '',
             brand,
             yearRange: year,
             model,
@@ -1804,6 +1826,7 @@ const InventoryItem = () => {
     title: form.title.trim(),
     categoryId: form.categoryId,
     secondaryCategoryId: form.secondaryCategoryId || null,
+    purchaseLotId: form.purchaseLotId || null,
     brand: form.brand.trim(),
     queue: form.queue,
     yearRange: form.yearRange.trim(),
@@ -2947,6 +2970,22 @@ const InventoryItem = () => {
                   onChange={(event) => setField('serialNumber', event.target.value)}
                   inputProps={{ maxLength: 180 }}
                 />
+              </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <TextField
+                  select
+                  fullWidth
+                  label="Purchase Lot"
+                  value={form.purchaseLotId}
+                  onChange={(event) => setField('purchaseLotId', event.target.value)}
+                >
+                  <MenuItem value=""><em>None</em></MenuItem>
+                  {purchaseLotOptions.map((lot) => (
+                    <MenuItem key={lot.id} value={lot.id}>
+                      {lot.name}
+                    </MenuItem>
+                  ))}
+                </TextField>
               </Grid>
               <Grid size={{ xs: 12, md: 6 }}>
                 <TextField

@@ -95,6 +95,14 @@ const sitemap: MenuItem[] = [
             icon: 'material-symbols:picture-as-pdf-outline-rounded',
             active: true,
           },
+          {
+            name: 'Purchased Lots',
+            key: 'inventory_purchased_lots',
+            path: paths.purchasedLots,
+            pathName: 'purchased-lots',
+            icon: 'material-symbols:receipt-long-outline-rounded',
+            active: true,
+          },
         ],
       },
       {

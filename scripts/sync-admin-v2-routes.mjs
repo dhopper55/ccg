@@ -12,6 +12,7 @@ const routeDirs = [
   'inventory-category-manager',
   'inventory-item',
   'inventory-labels',
+  'purchased-lots',
   'order-manager',
   'order-manager-item',
   'mfr-orders',
