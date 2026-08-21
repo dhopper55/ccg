@@ -63,6 +63,11 @@ function formatCurrency(value: number | null | undefined): string {
   }).format(value);
 }
 
+function getResaleColor(resaleAmount: number, totalSpent: number | null): string {
+  const spent = totalSpent ?? 0;
+  return resaleAmount >= spent ? 'success.main' : 'error.main';
+}
+
 function formatDate(value: string | null): string {
   if (!value) return '—';
   const parsed = new Date(value);
@@ -239,7 +244,14 @@ const PurchasedLots = () => {
                           <Typography variant="subtitle2">{record.name}</Typography>
                         </TableCell>
                         <TableCell align="right">{formatCurrency(record.total_spent)}</TableCell>
-                        <TableCell align="right">{formatCurrency(record.resale_amount)}</TableCell>
+                        <TableCell align="right">
+                          <Typography
+                            variant="body2"
+                            sx={{ fontWeight: 700, color: getResaleColor(record.resale_amount, record.total_spent) }}
+                          >
+                            {formatCurrency(record.resale_amount)}
+                          </Typography>
+                        </TableCell>
                         <TableCell>{formatDate(record.created_at)}</TableCell>
                         <TableCell align="right">
                           <Tooltip title="Edit">
