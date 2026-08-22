@@ -1,6 +1,6 @@
 # DNC Budget — Coherent Spec (supersedes budget-tracker-handoff.md)
 
-**Status:** Planning only. Nothing in this doc has been built yet.
+**Status:** In progress. Built so far: D1 schema (§4), Plaid connections (§2), admin data layer + grid UI (§9), Sunshine voice (§3.6), and the sync/matching pipeline (§5 steps 1-6 — Plaid sync, recurring/transfer/merchant-rule matching). Not yet built: instant alerts, status/pace recompute, digests (§5 steps 7-9), the Cron Trigger itself, the public analysis page (§7), and the synthetic-data test seed + real backfill (§8).
 **Purpose:** Household forward-looking budget tracker for David + Chrissie, living on the Coal Creek Guitars domain/infra but functionally and visually unrelated to CCG. Goes live 9/1.
 
 **Name: "Sunshine."** The app is voiced as a named persona, Sunshine, rather than an anonymous system — every text and the analysis page read as coming from her. This isn't just a label; it's the mission statement for the whole voice/tone approach in §3.6: **the point of this app is to make paying attention to money feel positive, not punitive.** The thesis, stated plainly: knowing where you stand makes the things you buy feel more earned and more enjoyed, not more restricted. Sunshine's job is to be the character that delivers that — encouraging by default, honest when it matters, never a scold.
