@@ -92,7 +92,8 @@ async function syncAccounts(env: Env, item: PlaidItemRow): Promise<number> {
     await env.DB.prepare(
       `INSERT INTO dnc_budget_accounts (id, plaid_item_id, plaid_account_id, name, type, last_four, is_manual, active, created_at)
        VALUES (?, ?, ?, ?, ?, ?, 0, 1, ?)
-       ON CONFLICT(plaid_account_id) DO UPDATE SET name = excluded.name, type = excluded.type, last_four = excluded.last_four`,
+       ON CONFLICT(plaid_account_id) WHERE plaid_account_id IS NOT NULL
+       DO UPDATE SET name = excluded.name, type = excluded.type, last_four = excluded.last_four`,
     )
       .bind(
         crypto.randomUUID(),
@@ -141,7 +142,7 @@ async function syncTransactions(env: Env, item: PlaidItemRow): Promise<number> {
       `INSERT INTO dnc_budget_transactions
          (id, plaid_transaction_id, account_id, posted_date, amount, description, merchant, type, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, 'unclassified', ?)
-       ON CONFLICT(plaid_transaction_id) DO NOTHING`,
+       ON CONFLICT(plaid_transaction_id) WHERE plaid_transaction_id IS NOT NULL DO NOTHING`,
     )
       .bind(
         crypto.randomUUID(),
