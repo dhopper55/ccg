@@ -57,8 +57,12 @@ export async function computeMonthSummary(env: Env, month: string): Promise<Mont
     0,
   );
 
+  // §3.4: credits count toward the budget the instant they post, regardless of
+  // categorization — netted against discretionary spend here rather than treated
+  // as separate income, since Plaid's sign convention (negative = money in) makes
+  // a single SUM do the right thing for both at once.
   const spentRow = await env.DB.prepare(
-    `SELECT SUM(amount) as total FROM dnc_budget_transactions WHERE type = 'discretionary' AND posted_date LIKE ?`,
+    `SELECT SUM(amount) as total FROM dnc_budget_transactions WHERE type IN ('discretionary', 'income') AND posted_date LIKE ?`,
   )
     .bind(monthLike)
     .first<{ total: number | null }>();

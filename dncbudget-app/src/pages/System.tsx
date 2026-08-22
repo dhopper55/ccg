@@ -19,6 +19,17 @@ type SendTestResult = { ok: true; sentTo: string; quotaRemaining?: number } | { 
 
 type SendSunshineIntroResult = { ok: true; started: true; parts: number; etaSeconds: number } | { ok: false; error: string };
 
+type RunSyncResult =
+  | {
+      ok: true;
+      items: { item: string; accountsSynced: number; transactionsAdded: number; error?: string }[];
+      recurringMatched: number;
+      transfersDetected: number;
+      categorized: number;
+      unclassified: number;
+    }
+  | { ok: false; error: string };
+
 const System = () => {
   const [quota, setQuota] = useState<QuotaResult | null>(null);
   const [quotaLoading, setQuotaLoading] = useState(true);
@@ -31,6 +42,9 @@ const System = () => {
 
   const [introLoading, setIntroLoading] = useState(false);
   const [introResult, setIntroResult] = useState<SendSunshineIntroResult | null>(null);
+
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [syncResult, setSyncResult] = useState<RunSyncResult | null>(null);
 
   const refreshQuota = async () => {
     setQuotaLoading(true);
@@ -82,6 +96,22 @@ const System = () => {
       setIntroResult({ ok: false, error: "Request failed" });
     } finally {
       setIntroLoading(false);
+    }
+  };
+
+  const handleRunSync = async () => {
+    setSyncLoading(true);
+    setSyncResult(null);
+    try {
+      const response = await fetch("/api/dncbudget/system/run-sync", {
+        method: "POST",
+        credentials: "same-origin",
+      });
+      setSyncResult((await response.json()) as RunSyncResult);
+    } catch {
+      setSyncResult({ ok: false, error: "Request failed" });
+    } finally {
+      setSyncLoading(false);
     }
   };
 
@@ -172,6 +202,43 @@ const System = () => {
               {introResult && !introResult.ok && (
                 <Alert severity="error" sx={{ mt: 1 }}>
                   {introResult.error}
+                </Alert>
+              )}
+            </Box>
+          </Stack>
+        </Paper>
+
+        <Paper variant="outlined" sx={{ p: 3 }}>
+          <Typography variant="h6" fontWeight={700} gutterBottom>
+            Sync
+          </Typography>
+          <Stack spacing={2}>
+            <Typography variant="body2" color="text.secondary">
+              Pulls transactions from both linked Plaid accounts, matches against recurring bills and
+              transfers, and applies merchant-category memory. No Cron Trigger yet — this is the manual
+              run until that's wired up.
+            </Typography>
+            <Box>
+              <Button variant="contained" onClick={handleRunSync} disabled={syncLoading}>
+                {syncLoading ? <CircularProgress size={20} color="inherit" /> : "Run Sync"}
+              </Button>
+              {syncResult && syncResult.ok && (
+                <Alert severity="success" sx={{ mt: 1 }}>
+                  <Box component="ul" sx={{ m: 0, pl: 2 }}>
+                    {syncResult.items.map((item, i) => (
+                      <li key={i}>
+                        {item.item}: {item.accountsSynced} account(s), {item.transactionsAdded} new transaction(s)
+                        {item.error ? ` — error: ${item.error}` : ""}
+                      </li>
+                    ))}
+                  </Box>
+                  Matched {syncResult.recurringMatched} recurring, {syncResult.transfersDetected} transfer pair(s),
+                  categorized {syncResult.categorized} — {syncResult.unclassified} left unclassified.
+                </Alert>
+              )}
+              {syncResult && !syncResult.ok && (
+                <Alert severity="error" sx={{ mt: 1 }}>
+                  {syncResult.error}
                 </Alert>
               )}
             </Box>

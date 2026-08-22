@@ -1,5 +1,6 @@
 import type { Env } from '../env.js';
 import { jsonResponse } from '../utils/misc.js';
+import { runDncBudgetSync } from './sync.js';
 
 // Permanent dncbudget "System" panel routes — see dncbudget-spec.md §9.
 // Replaces the Stage 1 throwaway test-routes.ts.
@@ -64,6 +65,18 @@ export async function handleDncBudgetSystemPlaidTransactions(request: Request, e
     return jsonResponse({ ok: true, account, count: transactions.length, transactions });
   } catch (err) {
     return jsonResponse({ ok: false, error: err instanceof Error ? err.message : 'Plaid request failed' }, 200);
+  }
+}
+
+export async function handleDncBudgetSystemRunSync(env: Env): Promise<Response> {
+  if (!env.PLAID_CLIENT_ID || !env.PLAID_SECRET) {
+    return jsonResponse({ ok: false, error: 'Missing PLAID_CLIENT_ID / PLAID_SECRET secret(s).' }, 200);
+  }
+  try {
+    const result = await runDncBudgetSync(env);
+    return jsonResponse({ ok: true, ...result });
+  } catch (err) {
+    return jsonResponse({ ok: false, error: err instanceof Error ? err.message : 'Sync failed' }, 200);
   }
 }
 

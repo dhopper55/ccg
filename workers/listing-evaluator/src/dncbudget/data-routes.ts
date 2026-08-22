@@ -8,7 +8,7 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-function normalizeMerchant(merchant: string | null): string | null {
+export function normalizeMerchant(merchant: string | null): string | null {
   return merchant ? merchant.trim().toUpperCase() : null;
 }
 
@@ -162,12 +162,13 @@ export async function handleDncBudgetMarkExpected(request: Request, env: Env, id
   const billId = crypto.randomUUID();
   await env.DB.prepare(
     `INSERT INTO dnc_budget_recurring_bills
-       (id, name, expected_amount, amount_tolerance, is_variable, expected_day_min, expected_day_max, confirmed, active, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, ?)`,
+       (id, name, merchant_pattern, expected_amount, amount_tolerance, is_variable, expected_day_min, expected_day_max, confirmed, active, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?)`,
   )
     .bind(
       billId,
       body.name,
+      normalizeMerchant(body.name),
       body.expectedAmount,
       body.amountTolerance ?? (body.isVariable ? 0.5 : 0.15),
       body.isVariable ? 1 : 0,
