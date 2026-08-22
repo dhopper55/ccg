@@ -100,7 +100,9 @@ async function syncAccounts(env: Env, item: PlaidItemRow): Promise<number> {
         item.id,
         account.account_id,
         account.official_name || account.name,
-        account.subtype || account.type,
+        // dnc_budget_accounts.type is CHECK-constrained to 'checking'/'credit' only (§2 scope
+        // is Chase checking + credit cards) — map Plaid's richer type/subtype taxonomy onto that.
+        account.type === 'credit' ? 'credit' : 'checking',
         account.mask,
         new Date().toISOString(),
       )
