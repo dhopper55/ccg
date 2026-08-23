@@ -12,7 +12,10 @@ const PLAID_ENV_BASE_URL = 'https://production.plaid.com';
 // A transfer only gets matched within this many days of its counterpart leg, and
 // only above this floor — small coincidental same-amount transactions shouldn't pair.
 const TRANSFER_MATCH_WINDOW_DAYS = 3;
-const TRANSFER_MATCH_MIN_AMOUNT = 10;
+// Real transfers here are credit-card payoffs or the $5k business move — both well over
+// $100. A $10 floor was catching coincidental same-amount purchases (e.g. two unrelated
+// ~$15 Amazon orders) and mistagging them as transfers.
+const TRANSFER_MATCH_MIN_AMOUNT = 200;
 const TRANSFER_MATCH_TOLERANCE = 0.01; // 1%
 
 // Seed-pass window — David's manually reviewing this batch to teach the merchant-rule

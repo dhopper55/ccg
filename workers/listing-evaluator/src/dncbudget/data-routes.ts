@@ -88,6 +88,8 @@ export async function handleDncBudgetTransactionPatch(request: Request, env: Env
     return jsonResponse({ ok: false, error: 'not_found' }, 404);
   }
 
+  const CATEGORY_NAME_TO_TYPE: Record<string, string> = { other: 'other', refund: 'refund' };
+
   let nextType = body.type;
   if (!nextType && body.categoryId && txn.type === 'unclassified') {
     // Only auto-promote out of unclassified — picking a category on an already-typed
@@ -95,7 +97,8 @@ export async function handleDncBudgetTransactionPatch(request: Request, env: Env
     const category = await env.DB.prepare('SELECT name FROM dnc_budget_categories WHERE id = ?')
       .bind(body.categoryId)
       .first<{ name: string }>();
-    nextType = category?.name?.trim().toLowerCase() === 'other' ? 'other' : 'discretionary';
+    const categoryKey = category?.name?.trim().toLowerCase();
+    nextType = (categoryKey && CATEGORY_NAME_TO_TYPE[categoryKey]) || 'discretionary';
   }
   if (nextType && !validTypes.includes(nextType)) {
     return jsonResponse({ ok: false, error: `type must be one of ${validTypes.join(', ')}` }, 400);
