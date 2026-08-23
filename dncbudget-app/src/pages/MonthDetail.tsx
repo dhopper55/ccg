@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router";
 import Alert from "@mui/material/Alert";
 import Avatar from "@mui/material/Avatar";
 import Button from "@mui/material/Button";
+import Checkbox from "@mui/material/Checkbox";
 import Chip from "@mui/material/Chip";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
@@ -94,6 +95,7 @@ const MonthDetail = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hideCategorized, setHideCategorized] = useState(true);
 
   const [menuAnchor, setMenuAnchor] = useState<{ el: HTMLElement; txn: Transaction } | null>(null);
   const [markExpectedTxn, setMarkExpectedTxn] = useState<Transaction | null>(null);
@@ -157,6 +159,10 @@ const MonthDetail = () => {
     void load();
   };
 
+  const visibleTransactions = hideCategorized
+    ? transactions.filter((t) => t.type === "unclassified")
+    : transactions;
+
   return (
     <MainLayout>
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
@@ -174,6 +180,14 @@ const MonthDetail = () => {
         </Alert>
       )}
 
+      <FormControlLabel
+        sx={{ mb: 1 }}
+        control={
+          <Checkbox checked={hideCategorized} onChange={(e) => setHideCategorized(e.target.checked)} />
+        }
+        label="Hide Categorized"
+      />
+
       <TableContainer component={Paper} variant="outlined">
         <Table>
           <TableHead>
@@ -188,16 +202,18 @@ const MonthDetail = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {!loading && transactions.length === 0 && (
+            {!loading && visibleTransactions.length === 0 && (
               <TableRow>
                 <TableCell colSpan={7}>
                   <Typography variant="body2" color="text.secondary" sx={{ py: 3, textAlign: "center" }}>
-                    No transactions for this month yet.
+                    {transactions.length === 0
+                      ? "No transactions for this month yet."
+                      : "Nothing needs attention — uncheck \"Hide Categorized\" to see everything."}
                   </Typography>
                 </TableCell>
               </TableRow>
             )}
-            {transactions.map((txn) => (
+            {visibleTransactions.map((txn) => (
               <TableRow key={txn.id}>
                 <TableCell padding="checkbox">
                   <AccountBadge accountId={txn.account_id} accountName={txn.account_name} accountType={txn.account_type} />
