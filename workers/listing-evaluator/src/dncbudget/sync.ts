@@ -262,10 +262,11 @@ async function applyMerchantRules(env: Env): Promise<{ categorized: number; rema
   let remaining = 0;
   for (const txn of candidates) {
     if (txn.amount < 0) {
-      // Negative-amount transactions that reach here weren't part of a transfer —
-      // they're an unexplained credit. Tag as income (§3.4); merchant rules (built
-      // for ordinary spend) don't apply to refunds/deposits.
-      await env.DB.prepare(`UPDATE dnc_budget_transactions SET type = 'income' WHERE id = ?`).bind(txn.id).run();
+      // Negative-amount transactions that reach here weren't part of a transfer — some
+      // kind of credit. Left unclassified deliberately rather than guessed: recognized
+      // income (paycheck) and refunds (Amazon returns) are excluded/included from the
+      // budget math oppositely, and only a human can tell those apart reliably.
+      remaining++;
       continue;
     }
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import Alert from "@mui/material/Alert";
+import Avatar from "@mui/material/Avatar";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import Dialog from "@mui/material/Dialog";
@@ -12,6 +13,8 @@ import IconButton from "@mui/material/IconButton";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import MenuIcon from "@mui/icons-material/MoreVertOutlined";
+import AccountBalanceOutlined from "@mui/icons-material/AccountBalanceOutlined";
+import CreditCardOutlined from "@mui/icons-material/CreditCardOutlined";
 import Paper from "@mui/material/Paper";
 import Select from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
@@ -23,8 +26,43 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import MainLayout from "layouts/MainLayout";
+
+// Stable colors assigned per account_id (not per label), so each linked account keeps
+// its color as more get added over time — no hardcoded mapping to maintain.
+const ACCOUNT_COLOR_PALETTE = [
+  "#3385F0", // blue
+  "#A641FA", // purple
+  "#099F69", // green
+  "#F68D2A", // orange
+  "#D02241", // red
+  "#0DA6D6", // cyan
+  "#C2185B", // pink
+  "#6D4C41", // brown
+];
+
+function colorForAccount(accountId: string | null): string {
+  if (!accountId) return "#9E9E9E";
+  let hash = 0;
+  for (let i = 0; i < accountId.length; i++) {
+    hash = (hash * 31 + accountId.charCodeAt(i)) >>> 0;
+  }
+  return ACCOUNT_COLOR_PALETTE[hash % ACCOUNT_COLOR_PALETTE.length];
+}
+
+const AccountBadge = ({ accountId, accountName, accountType }: { accountId: string | null; accountName: string | null; accountType: string | null }) => {
+  if (!accountId) return null;
+  const Icon = accountType === "credit" ? CreditCardOutlined : AccountBalanceOutlined;
+  return (
+    <Tooltip title={accountName ?? "Unknown account"}>
+      <Avatar sx={{ width: 28, height: 28, bgcolor: colorForAccount(accountId) }}>
+        <Icon sx={{ fontSize: 16 }} />
+      </Avatar>
+    </Tooltip>
+  );
+};
 
 interface Category {
   id: string;
@@ -41,7 +79,9 @@ interface Transaction {
   category_id: string | null;
   category_name: string | null;
   recurring_bill_name: string | null;
+  account_id: string | null;
   account_name: string | null;
+  account_type: string | null;
 }
 
 const NEW_CATEGORY = "__new__";
@@ -106,6 +146,17 @@ const MonthDetail = () => {
     void load();
   };
 
+  const handleSetType = async (txn: Transaction, type: "income" | "refund") => {
+    setMenuAnchor(null);
+    await fetch(`/api/dncbudget/transactions/${txn.id}`, {
+      method: "PATCH",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ type }),
+    });
+    void load();
+  };
+
   return (
     <MainLayout>
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
@@ -127,6 +178,7 @@ const MonthDetail = () => {
         <Table>
           <TableHead>
             <TableRow>
+              <TableCell></TableCell>
               <TableCell>Date</TableCell>
               <TableCell>Merchant</TableCell>
               <TableCell align="right">Amount</TableCell>
@@ -138,7 +190,7 @@ const MonthDetail = () => {
           <TableBody>
             {!loading && transactions.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6}>
+                <TableCell colSpan={7}>
                   <Typography variant="body2" color="text.secondary" sx={{ py: 3, textAlign: "center" }}>
                     No transactions for this month yet.
                   </Typography>
@@ -147,6 +199,9 @@ const MonthDetail = () => {
             )}
             {transactions.map((txn) => (
               <TableRow key={txn.id}>
+                <TableCell padding="checkbox">
+                  <AccountBadge accountId={txn.account_id} accountName={txn.account_name} accountType={txn.account_type} />
+                </TableCell>
                 <TableCell>{txn.posted_date}</TableCell>
                 <TableCell>{txn.merchant ?? txn.description ?? "—"}</TableCell>
                 <TableCell align="right">${txn.amount.toFixed(2)}</TableCell>
@@ -158,7 +213,7 @@ const MonthDetail = () => {
                   )}
                 </TableCell>
                 <TableCell>
-                  {txn.type === "recurring" || txn.type === "transfer" || txn.type === "ignored" ? (
+                  {txn.type === "recurring" || txn.type === "transfer" || txn.type === "ignored" || txn.type === "income" ? (
                     "—"
                   ) : (
                     <Select
@@ -200,6 +255,8 @@ const MonthDetail = () => {
         >
           Mark as Expected
         </MenuItem>
+        <MenuItem onClick={() => handleSetType(menuAnchor!.txn, "income")}>Mark as Income</MenuItem>
+        <MenuItem onClick={() => handleSetType(menuAnchor!.txn, "refund")}>Mark as Refund</MenuItem>
         <MenuItem onClick={() => handleIgnore(menuAnchor!.txn)}>Ignore</MenuItem>
       </Menu>
 

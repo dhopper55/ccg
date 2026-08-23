@@ -57,7 +57,7 @@ export async function handleDncBudgetTransactionsList(env: Env, month: string): 
        t.id, t.posted_date, t.amount, t.description, t.merchant, t.type,
        t.category_id, c.name as category_name,
        t.recurring_bill_id, rb.name as recurring_bill_name,
-       t.account_id, a.name as account_name
+       t.account_id, a.name as account_name, a.type as account_type
      FROM dnc_budget_transactions t
      LEFT JOIN dnc_budget_categories c ON c.id = t.category_id
      LEFT JOIN dnc_budget_recurring_bills rb ON rb.id = t.recurring_bill_id
@@ -79,17 +79,26 @@ export async function handleDncBudgetTransactionPatch(request: Request, env: Env
     return jsonResponse({ ok: false, error: 'invalid_json' }, 400);
   }
 
-  const validTypes = ['unclassified', 'recurring', 'discretionary', 'transfer', 'income', 'ignored'];
-  const nextType = body.type ?? (body.categoryId ? 'discretionary' : undefined);
-  if (nextType && !validTypes.includes(nextType)) {
-    return jsonResponse({ ok: false, error: `type must be one of ${validTypes.join(', ')}` }, 400);
-  }
+  const validTypes = ['unclassified', 'recurring', 'discretionary', 'transfer', 'income', 'refund', 'other', 'ignored'];
 
-  const txn = await env.DB.prepare('SELECT merchant FROM dnc_budget_transactions WHERE id = ?')
+  const txn = await env.DB.prepare('SELECT merchant, type FROM dnc_budget_transactions WHERE id = ?')
     .bind(id)
-    .first<{ merchant: string | null }>();
+    .first<{ merchant: string | null; type: string }>();
   if (!txn) {
     return jsonResponse({ ok: false, error: 'not_found' }, 404);
+  }
+
+  let nextType = body.type;
+  if (!nextType && body.categoryId && txn.type === 'unclassified') {
+    // Only auto-promote out of unclassified — picking a category on an already-typed
+    // row (refund, income, other, discretionary) shouldn't silently reclassify it.
+    const category = await env.DB.prepare('SELECT name FROM dnc_budget_categories WHERE id = ?')
+      .bind(body.categoryId)
+      .first<{ name: string }>();
+    nextType = category?.name?.trim().toLowerCase() === 'other' ? 'other' : 'discretionary';
+  }
+  if (nextType && !validTypes.includes(nextType)) {
+    return jsonResponse({ ok: false, error: `type must be one of ${validTypes.join(', ')}` }, 400);
   }
 
   await env.DB.prepare(
