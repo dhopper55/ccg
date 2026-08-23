@@ -128,35 +128,52 @@ const MonthDetail = () => {
     void load();
   }, [load]);
 
+  const runAction = async (request: () => Promise<Response>) => {
+    try {
+      const response = await request();
+      const data = await response.json().catch(() => null);
+      if (!response.ok || (data && data.ok === false)) {
+        setError((data && data.error) || `Request failed (${response.status})`);
+        return;
+      }
+      void load();
+    } catch {
+      setError("Request failed — check your connection and try again.");
+    }
+  };
+
   const handleCategoryChange = async (txn: Transaction, value: string) => {
     if (value === NEW_CATEGORY) {
       setNewCategoryPrompt({ txnId: txn.id });
       return;
     }
-    await fetch(`/api/dncbudget/transactions/${txn.id}`, {
-      method: "PATCH",
-      credentials: "same-origin",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ categoryId: value }),
-    });
-    void load();
+    await runAction(() =>
+      fetch(`/api/dncbudget/transactions/${txn.id}`, {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ categoryId: value }),
+      }),
+    );
   };
 
   const handleIgnore = async (txn: Transaction) => {
     setMenuAnchor(null);
-    await fetch(`/api/dncbudget/transactions/${txn.id}/ignore`, { method: "POST", credentials: "same-origin" });
-    void load();
+    await runAction(() =>
+      fetch(`/api/dncbudget/transactions/${txn.id}/ignore`, { method: "POST", credentials: "same-origin" }),
+    );
   };
 
   const handleSetType = async (txn: Transaction, type: "income" | "refund") => {
     setMenuAnchor(null);
-    await fetch(`/api/dncbudget/transactions/${txn.id}`, {
-      method: "PATCH",
-      credentials: "same-origin",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ type }),
-    });
-    void load();
+    await runAction(() =>
+      fetch(`/api/dncbudget/transactions/${txn.id}`, {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ type }),
+      }),
+    );
   };
 
   const visibleTransactions = hideCategorized
