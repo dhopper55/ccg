@@ -40,7 +40,7 @@ export const SITEMAP_STATIC_URLS = [
   { loc: '/contact-us.html', changefreq: 'monthly', priority: '0.6' },
   { loc: '/privacy-policy.html', changefreq: 'monthly', priority: '0.3' },
   { loc: '/terms-conditions.html', changefreq: 'monthly', priority: '0.3' },
-  { loc: '/fender-telecaster-2026-contest/', changefreq: 'weekly', priority: '0.6' },
+  { loc: '/fender-telecaster-2026-contest/', changefreq: 'daily', priority: '0.8' },
 ];
 export const SHOP_BASE_PATH = '/guitars-and-gear-for-sale';
 export const SHOP_STATIC_ORIGIN = 'https://ccg-2k1.pages.dev';

@@ -12,7 +12,7 @@ Freshly cleaned, restrung, and fully set up. Alder body, maple neck, classic Tel
 ---
 
 ### Entry Period
-- **Opens:** Tuesday, September 1, 2026
+- **Opens:** Sunday, August 23, 2026
 - **Closes:** Saturday, October 31, 2026 at 12:00 PM (Noon) MST
 - **Winner drawn:** October 31, 2026 at 8:00 PM MST (Halloween night)
 
@@ -63,6 +63,6 @@ If the randomly selected winner is not a Colorado resident (or can't be verified
 All open questions are resolved:
 - Redraws continue with no set limit until a verified Colorado resident is confirmed
 - Photo at pickup is optional but preferred, not a condition of the prize
-- Entry period runs September 1 – October 31, 2026
+- Entry period runs August 23 – October 31, 2026
 
 Next step: convert this into the formal Official Rules language — the legal-style version with standard sweepstakes boilerplate (no purchase necessary, odds of winning, release of liability, etc.) built around everything confirmed here.
