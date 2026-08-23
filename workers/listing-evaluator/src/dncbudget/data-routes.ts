@@ -63,7 +63,7 @@ export async function handleDncBudgetTransactionsList(env: Env, month: string): 
      LEFT JOIN dnc_budget_recurring_bills rb ON rb.id = t.recurring_bill_id
      LEFT JOIN dnc_budget_accounts a ON a.id = t.account_id
      WHERE t.posted_date LIKE ?
-     ORDER BY t.posted_date DESC`,
+     ORDER BY t.posted_date ASC`,
   )
     .bind(`${month}%`)
     .all();
