@@ -149,6 +149,18 @@ async function syncTransactions(env: Env, item: PlaidItemRow): Promise<number> {
       .first<{ id: string }>();
     if (!account) continue; // shouldn't happen — accounts are synced immediately before this
 
+    // Plaid isn't guaranteed to hand back the same transaction_id for the same real
+    // transaction across a paginated historical pull — seen it hand back two different
+    // IDs for one real charge within a single sync. The plaid_transaction_id uniqueness
+    // below can't catch that, so also dedup on content within this same account.
+    const merchant = txn.merchant_name || txn.name;
+    const contentDuplicate = await env.DB.prepare(
+      `SELECT 1 FROM dnc_budget_transactions WHERE account_id = ? AND posted_date = ? AND amount = ? AND merchant = ? LIMIT 1`,
+    )
+      .bind(account.id, txn.date, txn.amount, merchant)
+      .first();
+    if (contentDuplicate) continue;
+
     const result = await env.DB.prepare(
       `INSERT INTO dnc_budget_transactions
          (id, plaid_transaction_id, account_id, posted_date, amount, description, merchant, type, created_at)
@@ -162,7 +174,7 @@ async function syncTransactions(env: Env, item: PlaidItemRow): Promise<number> {
         txn.date,
         txn.amount,
         txn.name,
-        txn.merchant_name || txn.name,
+        merchant,
         new Date().toISOString(),
       )
       .run();
