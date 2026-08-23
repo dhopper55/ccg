@@ -38,8 +38,10 @@ export async function computeMonthSummary(env: Env, month: string): Promise<Mont
     .first<{ total_in: number }>();
   const totalIn = budgetRow?.total_in ?? null;
 
+  // is_income = 0 only — recurring income bills feed the transaction's type ('income'),
+  // not committedRecurring; mixing them in here would net a cost bucket against income.
   const bills = await env.DB.prepare(
-    'SELECT id, expected_amount FROM dnc_budget_recurring_bills WHERE active = 1 AND confirmed = 1',
+    'SELECT id, expected_amount FROM dnc_budget_recurring_bills WHERE active = 1 AND confirmed = 1 AND is_income = 0',
   ).all<{ id: string; expected_amount: number }>();
 
   const postedByBill = await env.DB.prepare(

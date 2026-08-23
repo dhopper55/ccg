@@ -166,16 +166,24 @@ export async function handleDncBudgetMarkExpected(request: Request, env: Env, id
     );
   }
 
-  const txn = await env.DB.prepare('SELECT id FROM dnc_budget_transactions WHERE id = ?').bind(id).first();
+  const txn = await env.DB.prepare('SELECT id, amount FROM dnc_budget_transactions WHERE id = ?')
+    .bind(id)
+    .first<{ id: string; amount: number }>();
   if (!txn) {
     return jsonResponse({ ok: false, error: 'not_found' }, 404);
   }
 
+  // A credit anchoring this bill means it's recurring income (paycheck, etc.), not a bill —
+  // the transaction's own sign decides this, not a client-supplied flag, so the resulting
+  // recurring pattern can only ever match transactions of the matching direction (§ sync.ts
+  // matchRecurringBills splits candidates by sign the same way).
+  const isIncome = txn.amount < 0;
+
   const billId = crypto.randomUUID();
   await env.DB.prepare(
     `INSERT INTO dnc_budget_recurring_bills
-       (id, name, merchant_pattern, expected_amount, amount_tolerance, is_variable, expected_day_min, expected_day_max, confirmed, active, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?)`,
+       (id, name, merchant_pattern, expected_amount, amount_tolerance, is_variable, is_income, expected_day_min, expected_day_max, confirmed, active, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?)`,
   )
     .bind(
       billId,
@@ -184,6 +192,7 @@ export async function handleDncBudgetMarkExpected(request: Request, env: Env, id
       body.expectedAmount,
       body.amountTolerance ?? (body.isVariable ? 0.5 : 0.15),
       body.isVariable ? 1 : 0,
+      isIncome ? 1 : 0,
       body.expectedDayMin,
       body.expectedDayMax,
       nowIso(),
@@ -191,9 +200,9 @@ export async function handleDncBudgetMarkExpected(request: Request, env: Env, id
     .run();
 
   await env.DB.prepare(
-    `UPDATE dnc_budget_transactions SET type = 'recurring', recurring_bill_id = ?, category_id = NULL WHERE id = ?`,
+    `UPDATE dnc_budget_transactions SET type = ?, recurring_bill_id = ?, category_id = NULL WHERE id = ?`,
   )
-    .bind(billId, id)
+    .bind(isIncome ? 'income' : 'recurring', billId, id)
     .run();
 
   return jsonResponse({ ok: true, recurringBillId: billId });

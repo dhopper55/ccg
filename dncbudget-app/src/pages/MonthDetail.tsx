@@ -369,11 +369,19 @@ const MarkExpectedDialog = ({
     onSaved();
   };
 
+  const isIncome = txn.amount < 0;
+
   return (
     <Dialog open onClose={onClose} maxWidth="xs" fullWidth>
       <DialogTitle>Mark as Expected</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
+          {isIncome && (
+            <Alert severity="info">
+              This is a credit, so it'll be set up as recurring income — future matches get tagged
+              Income (excluded from spend math) instead of a bill.
+            </Alert>
+          )}
           <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} fullWidth />
           <TextField
             label="Expected amount"

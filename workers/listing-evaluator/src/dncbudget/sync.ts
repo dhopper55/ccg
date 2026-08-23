@@ -173,14 +173,19 @@ async function syncTransactions(env: Env, item: PlaidItemRow): Promise<number> {
   return insertedCount;
 }
 
-async function matchRecurringBills(env: Env): Promise<number> {
+async function matchRecurringBillsForDirection(
+  env: Env,
+  isIncome: boolean,
+): Promise<number> {
   const { results: bills } = await env.DB.prepare(
     `SELECT id, merchant_pattern, expected_amount, amount_tolerance, expected_day_min, expected_day_max
-     FROM dnc_budget_recurring_bills WHERE active = 1 AND confirmed = 1 AND merchant_pattern IS NOT NULL`,
-  ).all<RecurringBillRow>();
+     FROM dnc_budget_recurring_bills WHERE active = 1 AND confirmed = 1 AND merchant_pattern IS NOT NULL AND is_income = ?`,
+  )
+    .bind(isIncome ? 1 : 0)
+    .all<RecurringBillRow>();
 
   const { results: candidates } = await env.DB.prepare(
-    `SELECT id, posted_date, amount, merchant FROM dnc_budget_transactions WHERE type = 'unclassified' AND amount > 0`,
+    `SELECT id, posted_date, amount, merchant FROM dnc_budget_transactions WHERE type = 'unclassified' AND ${isIncome ? 'amount < 0' : 'amount > 0'}`,
   ).all<{ id: string; posted_date: string; amount: number; merchant: string | null }>();
 
   let matched = 0;
@@ -189,22 +194,31 @@ async function matchRecurringBills(env: Env): Promise<number> {
     if (!merchant) continue;
 
     const day = Number(txn.posted_date.slice(8, 10));
+    const amountMagnitude = Math.abs(txn.amount);
     const bill = bills.find((b) => {
       if (b.merchant_pattern !== merchant) return false;
       if (day < b.expected_day_min || day > b.expected_day_max) return false;
       const tolerance = b.expected_amount * b.amount_tolerance;
-      return Math.abs(txn.amount - b.expected_amount) <= tolerance;
+      return Math.abs(amountMagnitude - b.expected_amount) <= tolerance;
     });
 
     if (bill) {
-      await env.DB.prepare(`UPDATE dnc_budget_transactions SET type = 'recurring', recurring_bill_id = ? WHERE id = ?`)
-        .bind(bill.id, txn.id)
+      // Income bills tag the transaction 'income' (excluded from spend math, no
+      // committedRecurring involvement) rather than 'recurring' — see budget-math.ts.
+      await env.DB.prepare(`UPDATE dnc_budget_transactions SET type = ?, recurring_bill_id = ? WHERE id = ?`)
+        .bind(isIncome ? 'income' : 'recurring', bill.id, txn.id)
         .run();
       matched++;
     }
   }
 
   return matched;
+}
+
+async function matchRecurringBills(env: Env): Promise<number> {
+  const bills = await matchRecurringBillsForDirection(env, false);
+  const income = await matchRecurringBillsForDirection(env, true);
+  return bills + income;
 }
 
 async function detectTransferPairs(env: Env): Promise<number> {
