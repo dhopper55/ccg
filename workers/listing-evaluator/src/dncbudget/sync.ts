@@ -15,6 +15,11 @@ const TRANSFER_MATCH_WINDOW_DAYS = 3;
 const TRANSFER_MATCH_MIN_AMOUNT = 10;
 const TRANSFER_MATCH_TOLERANCE = 0.01; // 1%
 
+// Seed-pass window — David's manually reviewing this batch to teach the merchant-rule
+// and recurring-bill tables, so we're deliberately not pulling Plaid's full available
+// history yet. Widen or remove once the real Phase 2 backfill (§8) happens.
+const SYNC_HISTORY_START_DATE = '2026-07-01';
+
 interface PlaidItemRow {
   id: string;
   label: string;
@@ -134,6 +139,7 @@ async function syncTransactions(env: Env, item: PlaidItemRow): Promise<number> {
   let insertedCount = 0;
   for (const txn of added) {
     if (txn.pending) continue; // only posted transactions, per spec convention throughout
+    if (txn.date < SYNC_HISTORY_START_DATE) continue;
 
     const account = await env.DB.prepare('SELECT id FROM dnc_budget_accounts WHERE plaid_account_id = ?')
       .bind(txn.account_id)

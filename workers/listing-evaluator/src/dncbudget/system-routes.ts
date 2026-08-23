@@ -68,15 +68,28 @@ export async function handleDncBudgetSystemPlaidTransactions(request: Request, e
   }
 }
 
+// Prevents two overlapping syncs (e.g. a double-click before the button's disabled state
+// lands) from both starting a fresh Plaid cursor and double-inserting every transaction.
+const SYNC_LOCK_KEY = 'dncbudget:sync:lock';
+const SYNC_LOCK_TTL_SECONDS = 120;
+
 export async function handleDncBudgetSystemRunSync(env: Env): Promise<Response> {
   if (!env.PLAID_CLIENT_ID || !env.PLAID_SECRET) {
     return jsonResponse({ ok: false, error: 'Missing PLAID_CLIENT_ID / PLAID_SECRET secret(s).' }, 200);
   }
+
+  if (await env.LISTING_JOBS.get(SYNC_LOCK_KEY)) {
+    return jsonResponse({ ok: false, error: 'A sync is already in progress — wait a moment and try again.' }, 200);
+  }
+  await env.LISTING_JOBS.put(SYNC_LOCK_KEY, '1', { expirationTtl: SYNC_LOCK_TTL_SECONDS });
+
   try {
     const result = await runDncBudgetSync(env);
     return jsonResponse({ ok: true, ...result });
   } catch (err) {
     return jsonResponse({ ok: false, error: err instanceof Error ? err.message : 'Sync failed' }, 200);
+  } finally {
+    await env.LISTING_JOBS.delete(SYNC_LOCK_KEY);
   }
 }
 
