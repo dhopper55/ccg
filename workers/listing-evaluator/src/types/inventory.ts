@@ -201,6 +201,7 @@ export type PurchaseLotRow = {
   total_spent_calc: number;
   resale_amount: number;
   for_sale_amount: number;
+  private_party_amount: number;
   created_at: string | null;
 };
 

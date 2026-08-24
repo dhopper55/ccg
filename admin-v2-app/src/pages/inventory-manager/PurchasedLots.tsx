@@ -32,6 +32,7 @@ type PurchaseLotRecord = {
   total_spent_calc: number;
   resale_amount: number;
   for_sale_amount: number;
+  private_party_amount: number;
   created_at: string | null;
 };
 
@@ -223,6 +224,7 @@ const PurchasedLots = () => {
                       <TableCell align="right">Total Spent Calc.</TableCell>
                       <TableCell align="right">Resale $</TableCell>
                       <TableCell align="right">For Sale $</TableCell>
+                      <TableCell align="right">Private Party</TableCell>
                       <TableCell align="right">Actions</TableCell>
                     </TableRow>
                   </TableHead>
@@ -242,6 +244,7 @@ const PurchasedLots = () => {
                           </Typography>
                         </TableCell>
                         <TableCell align="right">{formatCurrency(record.for_sale_amount)}</TableCell>
+                        <TableCell align="right">{formatCurrency(record.private_party_amount)}</TableCell>
                         <TableCell align="right">
                           <Tooltip title="Edit">
                             <IconButton color="inherit" onClick={() => openEditDialog(record)}>
