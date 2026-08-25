@@ -1,7 +1,7 @@
 import type { Env } from '../env.js';
 import { normalizeText } from '../utils/text.js';
 import { jsonResponse, parseOptionalPositiveInt } from '../utils/misc.js';
-import type { PurchaseLotRow } from '../types/inventory.js';
+import type { PurchaseLotRow, PurchaseLotItemRow } from '../types/inventory.js';
 
 export function parseAdminV2PurchaseLotId(path: string): number | null {
   const parts = path.split('/').filter(Boolean);
@@ -15,6 +15,18 @@ export async function dbPurchaseLotExists(lotId: number, env: Env): Promise<bool
     'SELECT id FROM ccg_purchase_lots WHERE id = ? LIMIT 1'
   ).bind(lotId).first<{ id: number }>();
   return Boolean(row?.id);
+}
+
+export async function dbListPurchaseLotItems(lotId: number, env: Env): Promise<PurchaseLotItemRow[]> {
+  const result = await env.DB.prepare(
+    `SELECT
+       id, ccg_number, title, unit_purchase_price, private_party_value,
+       CASE WHEN for_sale = 1 THEN sale_price ELSE 0 END AS for_sale_amount
+     FROM ccg_inventory_items
+     WHERE purchase_lot_id = ?
+     ORDER BY created_at DESC`
+  ).bind(lotId).all<PurchaseLotItemRow>();
+  return result.results ?? [];
 }
 
 export async function dbListPurchaseLots(env: Env): Promise<PurchaseLotRow[]> {
@@ -73,6 +85,19 @@ export async function dbUpdatePurchaseLot(
 export async function handleAdminV2PurchaseLots(env: Env): Promise<Response> {
   const records = await dbListPurchaseLots(env);
   return jsonResponse({ records });
+}
+
+export async function handleAdminV2PurchaseLotItems(path: string, env: Env): Promise<Response> {
+  const lotId = parseAdminV2PurchaseLotId(path);
+  if (lotId == null) return jsonResponse({ message: 'Missing purchase lot ID.' }, 400);
+
+  const lot = await env.DB.prepare(
+    'SELECT id, name FROM ccg_purchase_lots WHERE id = ? LIMIT 1'
+  ).bind(lotId).first<{ id: number; name: string }>();
+  if (!lot) return jsonResponse({ message: 'Purchase lot not found.' }, 404);
+
+  const records = await dbListPurchaseLotItems(lotId, env);
+  return jsonResponse({ lot, records });
 }
 
 export async function handleAdminV2PurchaseLotCreate(request: Request, env: Env): Promise<Response> {

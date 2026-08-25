@@ -205,6 +205,15 @@ export type PurchaseLotRow = {
   created_at: string | null;
 };
 
+export type PurchaseLotItemRow = {
+  id: number;
+  ccg_number: string;
+  title: string;
+  unit_purchase_price: number | null;
+  private_party_value: number | null;
+  for_sale_amount: number;
+};
+
 export const INVENTORY_UNIT_COST_BASIS_SQL = `COALESCE(i.unit_purchase_price, 0) *
         CASE
           WHEN COALESCE(i.quantity, 0) > 0 THEN COALESCE(i.quantity, 0)

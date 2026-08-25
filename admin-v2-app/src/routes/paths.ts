@@ -34,6 +34,8 @@ const paths = {
   inventoryCategoryManager: '/inventory-category-manager',
   inventoryLabels: '/inventory-labels',
   purchasedLots: '/purchased-lots',
+  purchasedLotItems: '/purchased-lot-items',
+  purchasedLotItemsWithId: (id: string | number) => `/purchased-lot-items?id=${encodeURIComponent(String(id))}`,
   serialDecodes: '/serial-decodes',
   serialPatternText: '/serial-pattern-text',
   valueReports: '/value-reports',

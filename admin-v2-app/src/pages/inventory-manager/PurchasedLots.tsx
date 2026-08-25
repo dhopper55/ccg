@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { useSnackbar } from 'notistack';
 import {
   Alert,
@@ -10,6 +11,7 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
+  Link,
   Paper,
   Stack,
   Table,
@@ -24,6 +26,7 @@ import {
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import IconifyIcon from 'components/base/IconifyIcon';
+import paths from 'routes/paths';
 
 type PurchaseLotRecord = {
   id: number;
@@ -68,6 +71,7 @@ function getResaleColor(resaleAmount: number, totalSpentCalc: number): string {
 }
 
 const PurchasedLots = () => {
+  const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const [records, setRecords] = useState<PurchaseLotRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -232,7 +236,18 @@ const PurchasedLots = () => {
                     {records.map((record) => (
                       <TableRow key={record.id} hover>
                         <TableCell>
-                          <Typography variant="subtitle2">{record.name}</Typography>
+                          <Link
+                            underline="none"
+                            color="text.primary"
+                            href={paths.purchasedLotItemsWithId(record.id)}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              navigate(paths.purchasedLotItemsWithId(record.id));
+                            }}
+                            sx={{ fontWeight: 600 }}
+                          >
+                            {record.name}
+                          </Link>
                         </TableCell>
                         <TableCell align="right">{formatCurrency(record.total_spent_calc)}</TableCell>
                         <TableCell align="right">

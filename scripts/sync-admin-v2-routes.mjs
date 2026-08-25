@@ -13,6 +13,7 @@ const routeDirs = [
   'inventory-item',
   'inventory-labels',
   'purchased-lots',
+  'purchased-lot-items',
   'order-manager',
   'order-manager-item',
   'mfr-orders',

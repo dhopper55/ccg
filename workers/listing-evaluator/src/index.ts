@@ -88,6 +88,7 @@ import {
   handleAdminV2PurchaseLots,
   handleAdminV2PurchaseLotCreate,
   handleAdminV2PurchaseLotUpdate,
+  handleAdminV2PurchaseLotItems,
 } from './inventory/purchased-lots.js';
 import {
   handleAdminV2InventorySubscriptions,
@@ -1038,6 +1039,11 @@ export default {
 
     if (path.endsWith('/update') && path.startsWith('/api/admin-v2/purchased-lots/') && request.method === 'POST') {
       const response = await handleAdminV2PurchaseLotUpdate(request, path, env);
+      return withCors(response, request, env);
+    }
+
+    if (path.endsWith('/items') && path.startsWith('/api/admin-v2/purchased-lots/') && request.method === 'GET') {
+      const response = await handleAdminV2PurchaseLotItems(path, env);
       return withCors(response, request, env);
     }
 
