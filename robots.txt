@@ -4,6 +4,7 @@ Disallow: /admin/
 Disallow: /dncbudget/
 Disallow: /cdn-cgi/
 Disallow: /august_2026_budget.html
+Disallow: /transformer-lot.html
 Allow: /guitars-and-gear-for-sale/assets/
 Disallow: /guitars-and-gear-for-sale/*/
 Disallow: /guitars-and-gear-for-sale/cart

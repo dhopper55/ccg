@@ -61,6 +61,7 @@ export function handleRobotsTxt(): Response {
       'Disallow: /admin/',
       'Disallow: /api/',
       'Disallow: /cdn-cgi/',
+      'Disallow: /transformer-lot.html',
       `Disallow: ${SHOP_BASE_PATH}/cart`,
       `Disallow: ${SHOP_BASE_PATH}/?`,
       '',
