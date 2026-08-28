@@ -1172,6 +1172,7 @@ const InventoryItem = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isGeneratingTag, setIsGeneratingTag] = useState(false);
+  const [isReframing, setIsReframing] = useState(false);
   const [message, setMessage] = useState<{ severity: 'error' | 'success'; text: string } | null>(
     null,
   );
@@ -2369,6 +2370,31 @@ const InventoryItem = () => {
     }
   };
 
+  const handleReframeSaleTitleAndDescription = async () => {
+    setIsReframing(true);
+    try {
+      const response = await fetch('/api/admin-v2/inventory/reframe', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title: form.saleTitle, description: form.saleDescription }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.message || 'Unable to reframe title and description.');
+      }
+      setField('saleTitle', data.title);
+      setField('saleDescription', data.description);
+      enqueueSnackbar('Title and description reframed.', { variant: 'success' });
+    } catch (error) {
+      const text = error instanceof Error ? error.message : 'Unable to reframe title and description.';
+      setMessage({ severity: 'error', text });
+      enqueueSnackbar(text, { variant: 'error' });
+    } finally {
+      setIsReframing(false);
+    }
+  };
+
   const buildSaleDescriptionFromTemplate = async (templateUrl: string, templateName: string) => {
     const response = await fetch(templateUrl);
     if (!response.ok) throw new Error(`Unable to load guitar ${templateName} template.`);
@@ -3337,7 +3363,7 @@ const InventoryItem = () => {
                           Sale Details
                         </Typography>
                       </Grid>
-                      <Grid size={12}>
+                      <Grid size={{ xs: 12, md: 10.2 }}>
                         <TextField
                           fullWidth
                           required
@@ -3348,6 +3374,18 @@ const InventoryItem = () => {
                           onBlur={handleSaleTitleBlur}
                           inputProps={{ maxLength: 200 }}
                         />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 1.8 }}>
+                        <Button
+                          fullWidth
+                          variant="contained"
+                          disabled={!form.forSale || !form.saleTitle.trim() || !form.saleDescription.trim() || isReframing}
+                          onClick={handleReframeSaleTitleAndDescription}
+                          startIcon={<IconifyIcon icon="material-symbols:auto-fix-high" fontSize={18} />}
+                          sx={{ height: 56 }}
+                        >
+                          {isReframing ? 'Reframing...' : 'Reframe'}
+                        </Button>
                       </Grid>
                       <Grid size={{ xs: 12, md: 3 }}>
                         <TextField

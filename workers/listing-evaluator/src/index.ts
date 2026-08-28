@@ -93,6 +93,7 @@ import {
 import {
   handleAdminV2InventorySubscriptions,
   handleAdminV2InventoryCustomTemplate,
+  handleAdminV2InventoryReframe,
   handleAdminV2InventoryUnmarkAll,
   handleAdminV2InventoryBackfillBarcodes,
   handleAdminV2InventoryMergeMarked,
@@ -1054,6 +1055,11 @@ export default {
 
     if (path === '/api/admin-v2/inventory/custom-template' && request.method === 'GET') {
       const response = await handleAdminV2InventoryCustomTemplate(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/inventory/reframe' && request.method === 'POST') {
+      const response = await handleAdminV2InventoryReframe(request, env);
       return withCors(response, request, env);
     }
 

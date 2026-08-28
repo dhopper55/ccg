@@ -1,6 +1,7 @@
 import type { Env } from '../env.js';
 import { jsonResponse, currentDateYmd, toBooleanInput } from '../utils/misc.js';
 import { normalizeText } from '../utils/text.js';
+import { reframeSaleTitleAndDescription } from '../ai/reframe.js';
 import { dbGetInventoryItem } from '../inventory/db-core.js';
 import {
   dbSetInventoryMarked,
@@ -60,6 +61,27 @@ export async function handleAdminV2InventoryCustomTemplate(request: Request, env
   const record = await dbGetInventoryItem(String(row.id), env);
   if (!record) return jsonResponse({ message: 'Custom product template not found.' }, 404);
   return jsonResponse({ record });
+}
+
+export async function handleAdminV2InventoryReframe(request: Request, env: Env): Promise<Response> {
+  let body: Record<string, unknown> = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  const title = normalizeText(body.title, '').slice(0, 200);
+  const description = normalizeText(body.description, '').slice(0, 12000);
+
+  if (!title) return jsonResponse({ message: 'Title is required.' }, 400);
+  if (!description) return jsonResponse({ message: 'Description is required.' }, 400);
+  if (!env.ANTHROPIC_API_KEY) return jsonResponse({ message: 'AI reframe is not configured.' }, 500);
+
+  const result = await reframeSaleTitleAndDescription(title, description, env);
+  if (!result) return jsonResponse({ message: 'Unable to reframe title and description right now.' }, 502);
+
+  return jsonResponse(result);
 }
 
 export async function handleAdminV2InventoryUnmarkAll(env: Env): Promise<Response> {
