@@ -3,7 +3,7 @@ import { normalizeText } from '../utils/text.js';
 import type { InventoryItemRow, InventoryItemImageRow } from '../types/inventory.js';
 import { INVENTORY_UNIT_COST_BASIS_SQL } from '../types/inventory.js';
 import { parseStoredInventoryImageUrls } from './db-images.js';
-import { dbListInventoryImagesForItemIds } from './db-write.js';
+import { dbListInventoryImagesForItemIds, dbListInventoryTagsForItemIds } from './db-write.js';
 import { toAdminImageUrl } from '../utils/image.js';
 
 export const INVENTORY_QUEUE_OPTIONS = new Set([
@@ -433,6 +433,8 @@ export async function dbGetInventoryItem(recordId: string, env: Env): Promise<Re
   const imageUrls = imageDetails.length > 0
     ? imageDetails.map((image) => image.url)
     : parseStoredInventoryImageUrls(row.image_urls, row.image_url);
+  const storedTags = await dbListInventoryTagsForItemIds([row.id], env);
+  const tags = storedTags.get(row.id) ?? [];
   return {
     id: String(row.id),
     sourceListingId: row.source_listing_id != null ? String(row.source_listing_id) : null,
@@ -440,6 +442,7 @@ export async function dbGetInventoryItem(recordId: string, env: Env): Promise<Re
     imageUrl: imageUrls[0] ?? row.image_url,
     imageUrls,
     images: imageDetails,
+    tags,
     title: row.title,
     quantity: Number(row.quantity ?? 0),
     categoryId: row.category_id,

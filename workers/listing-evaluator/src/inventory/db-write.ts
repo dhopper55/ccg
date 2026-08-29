@@ -539,6 +539,7 @@ export async function dbDeleteInventoryItemsByIds(ids: number[], env: Env): Prom
   if (normalizedIds.length === 0) return 0;
   try {
     await dbDeleteInventoryImagesByItemIds(normalizedIds, env);
+    await dbDeleteInventoryTagsByItemIds(normalizedIds, env);
     const placeholders = normalizedIds.map(() => '?').join(', ');
     const result = await env.DB.prepare(
       `DELETE FROM ccg_inventory_items WHERE id IN (${placeholders})`
@@ -657,6 +658,88 @@ export async function dbDeleteInventoryImagesByItemIds(itemIds: number[], env: E
     ).bind(...normalizedIds).run();
   } catch (error) {
     console.warn('Inventory image child delete skipped', { error });
+  }
+}
+
+const INVENTORY_TAG_PATTERN = /^[a-z0-9_]{1,50}$/;
+
+export function normalizeInventoryTagsInput(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<string>();
+  const output: string[] = [];
+  for (const raw of input) {
+    if (typeof raw !== 'string') continue;
+    const normalized = raw.trim().toLowerCase();
+    if (!INVENTORY_TAG_PATTERN.test(normalized)) continue;
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    output.push(normalized);
+    if (output.length >= 200) break;
+  }
+  return output;
+}
+
+export async function dbListInventoryTagsForItemIds(
+  itemIds: number[],
+  env: Env,
+): Promise<Map<number, string[]>> {
+  const normalizedIds = Array.from(new Set(itemIds.filter((id) => Number.isFinite(id) && id > 0)));
+  const output = new Map<number, string[]>();
+  if (normalizedIds.length === 0) return output;
+  try {
+    const placeholders = normalizedIds.map(() => '?').join(', ');
+    const result = await env.DB.prepare(
+      `SELECT inventory_item_id, tag
+       FROM ccg_inventory_item_tags
+       WHERE inventory_item_id IN (${placeholders})
+       ORDER BY inventory_item_id ASC, tag ASC`
+    ).bind(...normalizedIds).all<{ inventory_item_id: number; tag: string }>();
+    for (const row of result.results ?? []) {
+      const key = Number(row.inventory_item_id);
+      if (!output.has(key)) output.set(key, []);
+      output.get(key)?.push(String(row.tag));
+    }
+  } catch (error) {
+    console.warn('Inventory tag lookup failed', { error });
+  }
+  return output;
+}
+
+export async function dbReplaceInventoryTagsByItemIds(
+  itemIds: number[],
+  tags: string[],
+  env: Env,
+): Promise<boolean> {
+  const normalizedIds = Array.from(new Set(itemIds.filter((id) => Number.isFinite(id) && id > 0)));
+  if (normalizedIds.length === 0) return true;
+  try {
+    await dbDeleteInventoryTagsByItemIds(normalizedIds, env);
+    if (tags.length === 0) return true;
+    const statements = normalizedIds.flatMap((inventoryItemId) =>
+      tags.map((tag) =>
+        env.DB.prepare(
+          `INSERT INTO ccg_inventory_item_tags (inventory_item_id, tag) VALUES (?, ?)`
+        ).bind(inventoryItemId, tag),
+      ),
+    );
+    await env.DB.batch(statements);
+    return true;
+  } catch (error) {
+    console.error('Inventory tag child replace failed', { error });
+    return false;
+  }
+}
+
+export async function dbDeleteInventoryTagsByItemIds(itemIds: number[], env: Env): Promise<void> {
+  const normalizedIds = Array.from(new Set(itemIds.filter((id) => Number.isFinite(id) && id > 0)));
+  if (normalizedIds.length === 0) return;
+  try {
+    const placeholders = normalizedIds.map(() => '?').join(', ');
+    await env.DB.prepare(
+      `DELETE FROM ccg_inventory_item_tags WHERE inventory_item_id IN (${placeholders})`
+    ).bind(...normalizedIds).run();
+  } catch (error) {
+    console.warn('Inventory tag child delete skipped', { error });
   }
 }
 

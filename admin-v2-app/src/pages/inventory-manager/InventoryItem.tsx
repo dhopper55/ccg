@@ -2,6 +2,7 @@ import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from '
 import { useNavigate, useSearchParams } from 'react-router';
 import {
   Alert,
+  Autocomplete,
   Avatar,
   Box,
   Button,
@@ -39,6 +40,7 @@ type InventoryItemRecord = {
   imageUrl: string;
   imageUrls?: string[];
   images?: InventoryImageRecord[];
+  tags?: string[];
   videoUrl?: string;
   saleTitle?: string;
   regularPrice?: number | null;
@@ -1167,6 +1169,7 @@ const InventoryItem = () => {
   const [sourceListingId, setSourceListingId] = useState<string | null>(null);
   const [sourceImageUrl, setSourceImageUrl] = useState<string | null>(null);
   const [images, setImages] = useState<InventoryImageRecord[]>([]);
+  const [tags, setTags] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -1440,6 +1443,7 @@ const InventoryItem = () => {
                   : []
             ).map((url) => ({ url, isPrivate: false }));
           setImages(normalizeImages(existingImages));
+          setTags(Array.isArray(record.tags) ? record.tags : []);
           return;
         }
 
@@ -1568,6 +1572,7 @@ const InventoryItem = () => {
                   : []
             ).map((url) => ({ url, isPrivate: false }));
           setImages(normalizeImages(existingImages));
+          setTags(Array.isArray(record.tags) ? record.tags : []);
           setMessage({ severity: 'success', text: 'Custom product draft opened. Review and save when ready.' });
           return;
         }
@@ -1788,6 +1793,26 @@ const InventoryItem = () => {
     setImages(normalizeImages(nextImages));
   };
 
+  const handleTagsChange = (_event: unknown, newValue: string[]) => {
+    const seen = new Set<string>();
+    const validated: string[] = [];
+    let hadInvalid = false;
+    for (const raw of newValue) {
+      const normalized = raw.trim().toLowerCase();
+      if (!/^[a-z0-9_]{1,50}$/.test(normalized)) {
+        hadInvalid = true;
+        continue;
+      }
+      if (seen.has(normalized)) continue;
+      seen.add(normalized);
+      validated.push(normalized);
+    }
+    if (hadInvalid) {
+      enqueueSnackbar('Tags can only contain letters, numbers, and underscores (up to 50 characters).', { variant: 'warning' });
+    }
+    setTags(validated);
+  };
+
   const createSavePayload = (nextImages: InventoryImageRecord[]) => ({
     sourceListingId,
     ccgNumber: getSavableCcgNumber(form.ccgNumber),
@@ -1795,6 +1820,7 @@ const InventoryItem = () => {
     imageUrl: nextImages[0]?.url,
     imageUrls: nextImages.map((image) => image.url),
     images: nextImages.map((image) => ({ url: image.url, isPrivate: image.isPrivate })),
+    tags,
     videoUrl: form.videoUrl.trim(),
     saleTitle: form.saleTitle.trim(),
     regularPrice: form.regularPrice.trim(),
@@ -3144,6 +3170,38 @@ const InventoryItem = () => {
                   value={form.shipCost}
                   onChange={(event) => setField('shipCost', event.target.value)}
                   inputProps={{ min: 0, step: 0.01 }}
+                />
+              </Grid>
+
+              <Grid size={12}>
+                <Autocomplete
+                  multiple
+                  freeSolo
+                  options={[]}
+                  value={tags}
+                  onChange={handleTagsChange}
+                  renderValue={(value: readonly string[], getItemProps) =>
+                    value.map((option: string, index: number) => {
+                      const { key, ...rest } = getItemProps({ index });
+                      return (
+                        <Chip
+                          key={key}
+                          label={option}
+                          color="primary"
+                          variant="soft"
+                          sx={{ m: 0.5 }}
+                          {...rest}
+                        />
+                      );
+                    })
+                  }
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Tags"
+                      placeholder="Type a tag and press Enter"
+                    />
+                  )}
                 />
               </Grid>
 

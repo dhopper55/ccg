@@ -44,6 +44,7 @@ export async function dbListShopProducts(
     priceMin: number;
     priceMax: number;
     condition: string;
+    tag: string;
   },
   env: Env,
 ): Promise<{ records: Array<Record<string, unknown>>; brands: string[] }> {
@@ -121,6 +122,13 @@ export async function dbListShopProducts(
     const placeholders = filters.brands.map(() => '?').join(', ');
     clauses.push(`LOWER(TRIM(COALESCE(i.brand, ''))) IN (${placeholders})`);
     binds.push(...filters.brands.map((brand) => brand.toLowerCase()));
+  }
+  if (filters.tag) {
+    clauses.push(`EXISTS (
+      SELECT 1 FROM ccg_inventory_item_tags t
+      WHERE t.inventory_item_id = i.id AND t.tag = ?
+    )`);
+    binds.push(filters.tag);
   }
 
   const whereSql = clauses.join(' AND ');

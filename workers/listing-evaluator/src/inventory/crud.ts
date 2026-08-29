@@ -3,7 +3,7 @@ import { normalizeText, normalizeUrl } from '../utils/text.js';
 import { jsonResponse, parseBoundedInt, normalizeInventoryDate, toBooleanInput, currentDateYmd } from '../utils/misc.js';
 import { sanitizePatternLookupHtml } from '../utils/html.js';
 import { normalizeInventoryImageEntries, INVENTORY_MAX_IMAGES } from '../utils/image.js';
-import { dbCreateInventoryItems, dbReplaceInventoryImagesByItemIds, dbDeleteInventoryItemsByIds, dbListMarkedInventoryRowsForPackage } from './db-write.js';
+import { dbCreateInventoryItems, dbReplaceInventoryImagesByItemIds, dbDeleteInventoryItemsByIds, dbListMarkedInventoryRowsForPackage, dbReplaceInventoryTagsByItemIds, normalizeInventoryTagsInput } from './db-write.js';
 import { ensureInventoryHostedImageUrls, purgeOrphanedInventoryImagesForDeletedRows } from './db-images.js';
 import { dbGetInventoryItem, dbFindInventoryBySourceListingId, dbFindInventoryBySaleUrl, dbFindRecentDuplicateInventoryCreate, dbCcgNumberExists } from './db-core.js';
 import { dbInventoryCategoryExists } from './categories.js';
@@ -167,6 +167,7 @@ export async function handleInventoryCreate(request: Request, env: Env): Promise
   const requestedCcgNumber = normalizeText(body.ccgNumber, '').toUpperCase();
   const imageUrl = normalizeText(body.imageUrl, '');
   const imageEntriesInput = normalizeInventoryImageEntries(imageUrl, body.images, body.imageUrls);
+  const tags = normalizeInventoryTagsInput(body.tags);
   const title = normalizeText(body.title, '').slice(0, 240);
   const quantity = parseBoundedInt(body.quantity ?? body.qty, 1, 0, 1_000_000);
   const categoryId = parseOptionalPositiveInt(body.categoryId);
@@ -445,6 +446,9 @@ export async function handleInventoryCreate(request: Request, env: Env): Promise
   }
   if (!(await dbReplaceInventoryImagesByItemIds([Number(inserted.firstId)], imageEntries, env))) {
     return jsonResponse({ message: 'Inventory item was created, but its image records failed to save.' }, 500);
+  }
+  if (!(await dbReplaceInventoryTagsByItemIds([Number(inserted.firstId)], tags, env))) {
+    return jsonResponse({ message: 'Inventory item was created, but its tags failed to save.' }, 500);
   }
 
   await insertActivityLogBestEffort(env, {

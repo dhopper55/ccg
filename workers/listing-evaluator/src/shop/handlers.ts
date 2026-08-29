@@ -43,6 +43,7 @@ export async function handleShopProducts(request: Request, env: Env): Promise<Re
   const priceMax = parseCurrencyAmount(url.searchParams.get('priceMax')) ?? 0;
   const conditionInput = normalizeText(url.searchParams.get('condition'), 'All').slice(0, 50);
   const condition = conditionInput && conditionInput !== 'All' ? conditionInput : '';
+  const tag = normalizeText(url.searchParams.get('tag'), '').toLowerCase().slice(0, 50);
   const randomSeed = normalizeAnalyticsToken(url.searchParams.get('randomSeed'), 120);
   const useBalancedRandom = Boolean(
     randomSeed
@@ -53,6 +54,7 @@ export async function handleShopProducts(request: Request, env: Env): Promise<Re
     && priceMin === 0
     && priceMax === 0
     && !condition
+    && !tag
     && !showSold
   );
 
@@ -67,6 +69,7 @@ export async function handleShopProducts(request: Request, env: Env): Promise<Re
     priceMin,
     priceMax,
     condition,
+    tag,
   }, env);
 
   return jsonResponse({
@@ -83,6 +86,7 @@ export async function handleShopProducts(request: Request, env: Env): Promise<Re
       priceMin,
       priceMax,
       condition: condition || 'All',
+      tag: tag || '',
     },
   });
 }

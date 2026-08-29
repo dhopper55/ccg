@@ -77,9 +77,10 @@ const Products = ({ initialCategorySlug }: { initialCategorySlug?: string } = {}
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);
   const { control, setValue } = useFormContext();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const searchTerm = (searchParams.get('search') ?? '').trim();
   const categoryParam = (searchParams.get('category') ?? '').trim();
+  const tagParam = (searchParams.get('tag') ?? '').trim().toLowerCase();
   const priceRange = useWatch({ control, name: 'priceRange' }) as number[] | undefined;
   const selectedCategoryIds = useWatch({ control, name: 'category', defaultValue: [] }) as string[];
   const selectedCategoryIdsKey = Array.isArray(selectedCategoryIds) ? selectedCategoryIds.filter(Boolean).join('|') : '';
@@ -155,12 +156,19 @@ const Products = ({ initialCategorySlug }: { initialCategorySlug?: string } = {}
       && (priceRange[0] > 0 || (maxPrice > 0 && priceRange[1] < maxPrice));
     return (
       !searchTerm
+      && !tagParam
       && effectiveCategoryIds.length === 0
       && selectedBrandValues.length === 0
       && !hasNarrowedPrice
       && sortBy === 'popular'
     );
-  }, [effectiveCategoryIds.length, maxPrice, priceRange, searchTerm, selectedBrandValues.length, sortBy]);
+  }, [effectiveCategoryIds.length, maxPrice, priceRange, searchTerm, selectedBrandValues.length, sortBy, tagParam]);
+
+  const handleClearTagFilter = useCallback(() => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('tag');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const scrollProductsToTop = useCallback(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -246,6 +254,9 @@ const Products = ({ initialCategorySlug }: { initialCategorySlug?: string } = {}
         for (const brand of selectedBrandValues) {
           if (brand) params.append('brand', brand);
         }
+        if (tagParam) {
+          params.set('tag', tagParam);
+        }
         params.set('sort', sortBy);
         if (isDefaultBrowseView && browseRandomSeed) {
           params.set('randomSeed', browseRandomSeed);
@@ -296,6 +307,7 @@ const Products = ({ initialCategorySlug }: { initialCategorySlug?: string } = {}
     searchTerm,
     selectedBrandsKey,
     sortBy,
+    tagParam,
   ]);
 
   const totalPages = Math.max(1, Math.ceil(allProducts.length / PAGE_SIZE));
@@ -352,6 +364,16 @@ const Products = ({ initialCategorySlug }: { initialCategorySlug?: string } = {}
               }),
             })}
           >
+            {tagParam && (
+              <Box sx={{ px: { xs: 2, md: 3 }, pt: 3 }}>
+                <Chip
+                  label={`Tag: ${tagParam}`}
+                  onDelete={handleClearTagFilter}
+                  color="primary"
+                  variant="outlined"
+                />
+              </Box>
+            )}
             {isLoading ? (
               <Stack sx={{ alignItems: 'center', justifyContent: 'center', py: 12 }}>
                 <CircularProgress />

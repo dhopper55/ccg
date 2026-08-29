@@ -3,7 +3,7 @@ import { normalizeText, normalizeUrl } from '../utils/text.js';
 import { jsonResponse, parseBoundedInt, normalizeInventoryDate, toBooleanInput } from '../utils/misc.js';
 import { sanitizePatternLookupHtml } from '../utils/html.js';
 import { normalizeInventoryImageEntries, INVENTORY_MAX_IMAGES } from '../utils/image.js';
-import { dbCreateInventoryItems, dbUpdateInventoryById, dbReplaceInventoryImagesByItemIds, dbSetInventorySoldAvailability, dbDeactivateInventoryItemById, generateUniqueCcgNumber } from './db-write.js';
+import { dbCreateInventoryItems, dbUpdateInventoryById, dbReplaceInventoryImagesByItemIds, dbSetInventorySoldAvailability, dbDeactivateInventoryItemById, generateUniqueCcgNumber, dbReplaceInventoryTagsByItemIds, normalizeInventoryTagsInput } from './db-write.js';
 import { ensureInventoryHostedImageUrls } from './db-images.js';
 import { dbGetInventoryItem, dbFindInventoryBySourceListingId, dbFindInventoryBySaleUrl, dbInventoryItemHasPackageChildren } from './db-core.js';
 import { dbInventoryCategoryExists } from './categories.js';
@@ -32,6 +32,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
   const sourceListingId = parseOptionalPositiveInt(body.sourceListingId);
   const imageUrl = normalizeText(body.imageUrl, '');
   const imageEntriesInput = normalizeInventoryImageEntries(imageUrl, body.images, body.imageUrls);
+  const tags = normalizeInventoryTagsInput(body.tags);
   const title = normalizeText(body.title, '').slice(0, 240);
   const quantity = parseBoundedInt(body.quantity ?? body.qty, 1, 0, 1_000_000);
   const categoryId = parseOptionalPositiveInt(body.categoryId);
@@ -321,6 +322,9 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
     if (!(await dbReplaceInventoryImagesByItemIds([recordIdNum], imageEntries, env))) {
       return jsonResponse({ message: 'Unable to update remaining inventory item images.' }, 500);
     }
+    if (!(await dbReplaceInventoryTagsByItemIds([recordIdNum], tags, env))) {
+      return jsonResponse({ message: 'Unable to update remaining inventory item tags.' }, 500);
+    }
 
     const soldCcgNumber = await generateUniqueCcgNumber(env);
     if (!soldCcgNumber) return jsonResponse({ message: 'Unable to generate sold item CCG Number. Please try again.' }, 500);
@@ -487,6 +491,9 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
     if (!(await dbReplaceInventoryImagesByItemIds([Number(soldInsert.firstId)], imageEntries, env))) {
       return jsonResponse({ message: 'Sold inventory item was created, but its image records failed to save.' }, 500);
     }
+    if (!(await dbReplaceInventoryTagsByItemIds([Number(soldInsert.firstId)], tags, env))) {
+      return jsonResponse({ message: 'Sold inventory item was created, but its tags failed to save.' }, 500);
+    }
 
     await insertActivityLogBestEffort(env, {
       eventKey: 'inventory_marked_sold',
@@ -608,6 +615,9 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
   await dbSetInventorySoldAvailability(recordId, isSold, env);
   if (!(await dbReplaceInventoryImagesByItemIds([Number.parseInt(recordId, 10)], imageEntries, env))) {
     return jsonResponse({ message: 'Unable to update inventory item images.' }, 500);
+  }
+  if (!(await dbReplaceInventoryTagsByItemIds([Number.parseInt(recordId, 10)], tags, env))) {
+    return jsonResponse({ message: 'Unable to update inventory item tags.' }, 500);
   }
 
   // Sold cascade logic
