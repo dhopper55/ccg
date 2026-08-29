@@ -63,6 +63,7 @@ export function handleRobotsTxt(): Response {
       'Disallow: /cdn-cgi/',
       'Disallow: /transformer-lot.html',
       'Disallow: /amp_chassis_lot.html',
+      'Disallow: /461a9871-69a0-4703-96b4-4c72c611c7b8.html',
       `Disallow: ${SHOP_BASE_PATH}/cart`,
       `Disallow: ${SHOP_BASE_PATH}/?`,
       '',
