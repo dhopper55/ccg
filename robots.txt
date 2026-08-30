@@ -6,7 +6,9 @@ Disallow: /cdn-cgi/
 Disallow: /august_2026_budget.html
 Disallow: /transformer-lot.html
 Disallow: /amp_chassis_lot.html
-Disallow: /461a9871-69a0-4703-96b4-4c72c611c7b8.html
+Disallow: /e3827649-7c18-4383-b925-3c3277810ff8.html
+Disallow: /67f35a0c-5090-495e-80fb-de996f0f2807.html
+Disallow: /a14305d1-821b-439c-a16c-8996782bc768.html
 Allow: /guitars-and-gear-for-sale/assets/
 Disallow: /guitars-and-gear-for-sale/*/
 Disallow: /guitars-and-gear-for-sale/cart
