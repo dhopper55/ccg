@@ -51,13 +51,17 @@ export async function dbListShopProducts(
   const categoryRows = await dbListInventoryCategories(env);
   const allowedCategoryIds = expandInventoryCategoryIds(filters.categoryIds, categoryRows);
 
-  const baseClauses: string[] = [
-    'COALESCE(i.is_active, 0) = 1',
-    filters.showSold ? 'COALESCE(i.is_sold, 0) = 1' : 'COALESCE(i.is_sold, 0) = 0',
-  ];
+  const baseClauses: string[] = ['COALESCE(i.is_active, 0) = 1'];
   const baseBinds: unknown[] = [];
 
-  if (!filters.showSold) {
+  if (filters.tag) {
+    // Tag-filtered pages additionally surface sold items (still active-only) so a tag
+    // link keeps showing everything that ever carried it, not just what's currently listed.
+    baseClauses.push('(COALESCE(i.for_sale, 0) = 1 OR COALESCE(i.is_sold, 0) = 1)');
+  } else if (filters.showSold) {
+    baseClauses.push('COALESCE(i.is_sold, 0) = 1');
+  } else {
+    baseClauses.push('COALESCE(i.is_sold, 0) = 0');
     baseClauses.push('COALESCE(i.for_sale, 0) = 1');
   }
   if (!filters.associateMode) {

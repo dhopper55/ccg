@@ -18,7 +18,12 @@ type QuotaResult = { ok: true; quotaRemaining?: number } | { ok: false; error: s
 type SendTestResult = { ok: true; sentTo: string; quotaRemaining?: number } | { ok: false; error: string };
 
 type LaunchResult =
-  | { ok: true; link: string; results: { to: string; ok: boolean; error?: string }[] }
+  | {
+      ok: true;
+      link: string;
+      firstResults: { to: string; ok: boolean; error?: string }[];
+      secondResults: { to: string; ok: boolean; error?: string }[];
+    }
   | { ok: false; error: string };
 
 type RunSyncResult =
@@ -195,8 +200,21 @@ const System = () => {
               </Button>
               {launchResult && launchResult.ok && (
                 <Alert severity="success" sx={{ mt: 1 }}>
-                  <Box component="ul" sx={{ m: 0, pl: 2 }}>
-                    {launchResult.results.map((r, i) => (
+                  <Typography variant="caption" display="block" fontWeight={700}>
+                    Message 1 (launch)
+                  </Typography>
+                  <Box component="ul" sx={{ m: 0, mb: 1, pl: 2 }}>
+                    {launchResult.firstResults.map((r, i) => (
+                      <li key={i}>
+                        {r.to}: {r.ok ? "sent" : `failed — ${r.error}`}
+                      </li>
+                    ))}
+                  </Box>
+                  <Typography variant="caption" display="block" fontWeight={700}>
+                    Message 2 (August numbers)
+                  </Typography>
+                  <Box component="ul" sx={{ m: 0, mb: 1, pl: 2 }}>
+                    {launchResult.secondResults.map((r, i) => (
                       <li key={i}>
                         {r.to}: {r.ok ? "sent" : `failed — ${r.error}`}
                       </li>

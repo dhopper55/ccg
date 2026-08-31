@@ -514,6 +514,7 @@ const ProductCard = ({ product }: { product: ShopProduct }) => {
     secondaryCategory,
     allowShipping,
     onlyInStore,
+    isSold,
   } = product;
   const hasDiscount = regularPrice != null && regularPrice > 0 && salePrice > 0 && salePrice < regularPrice;
   const discount = hasDiscount ? calcDiscount(regularPrice!, salePrice) : 0;
@@ -535,15 +536,42 @@ const ProductCard = ({ product }: { product: ShopProduct }) => {
         height: '100%',
         borderRadius: 3,
         overflow: 'hidden',
+        position: 'relative',
         color: 'inherit',
         textDecoration: 'none',
         transition: 'transform 0.2s, box-shadow 0.2s',
-        '&:hover': {
-          transform: 'translateY(-2px)',
-          boxShadow: 4,
-        },
+        ...(isSold
+          ? { opacity: 0.5, pointerEvents: 'none', cursor: 'default' }
+          : {
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: 4,
+              },
+            }),
       }}
     >
+      {isSold && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 18,
+            left: -38,
+            width: 150,
+            textAlign: 'center',
+            bgcolor: 'error.main',
+            color: 'common.white',
+            fontWeight: 700,
+            fontSize: 13,
+            letterSpacing: 1.5,
+            py: 0.5,
+            transform: 'rotate(-40deg)',
+            boxShadow: 2,
+            zIndex: 2,
+          }}
+        >
+          SOLD
+        </Box>
+      )}
       <CardMedia
         component="img"
         image={mainImage || undefined}

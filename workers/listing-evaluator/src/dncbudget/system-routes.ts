@@ -153,25 +153,49 @@ export async function handleDncBudgetSendLaunchAnnouncement(env: Env): Promise<R
     .bind(crypto.randomUUID(), token, now.toISOString(), expiresAt.toISOString())
     .run();
 
+  // Link still generated and returned below (for David to forward manually, or once
+  // Textbelt's URL-sending whitelist clears) — just left out of the auto-sent text for
+  // now since unwhitelisted keys get their message rejected outright when it contains one.
   const link = `${env.SITE_BASE_URL}/dncbudget/view?t=${token}`;
-  const message = `Hi, it's Sunshine — tomorrow (9/1) is the day I start keeping an eye on things for you two. Take a peek: ${link}`;
 
-  const results: { to: string; ok: boolean; error?: string }[] = [];
-  for (const recipient of recipients.results) {
-    try {
-      const response = await fetch('https://textbelt.com/text', {
-        method: 'POST',
-        headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ phone: recipient.phone, message, key: env.TEXTBELT_KEY }),
-      });
-      const data = (await response.json()) as { success?: boolean; error?: string };
-      results.push({ to: recipient.first_name, ok: Boolean(data.success), error: data.error });
-    } catch (err) {
-      results.push({ to: recipient.first_name, ok: false, error: err instanceof Error ? err.message : 'failed' });
+  const budgetRow = await env.DB.prepare('SELECT total_in FROM dnc_budget_monthly_budget WHERE month = ?')
+    .bind('2026-09')
+    .first<{ total_in: number }>();
+  const totalIn = budgetRow?.total_in ?? null;
+  const totalInText = totalIn !== null ? `$${totalIn.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : 'some money';
+
+  const firstMessage = `Hi, it's Sunshine — we start tomorrow! Expecting ${totalInText} in for September, from FF, Hopper Realty, Coal Creek, and Thrift.`;
+
+  // Sent as two separate texts a few seconds apart rather than one long one — the August
+  // numbers were run manually (not derived here) and this lands as its own follow-up
+  // message, not folded into the excitement of the first. Voice rule: Sunshine never
+  // names either recipient, first person throughout.
+  const secondMessage =
+    "Also — I ran the August numbers. We need to average about $3k more a month to break even, or cut back. Keeping that in mind going forward.";
+
+  async function sendToAll(text: string): Promise<{ to: string; ok: boolean; error?: string }[]> {
+    const sendResults: { to: string; ok: boolean; error?: string }[] = [];
+    for (const recipient of recipients.results) {
+      try {
+        const response = await fetch('https://textbelt.com/text', {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ phone: recipient.phone, message: text, key: env.TEXTBELT_KEY }),
+        });
+        const data = (await response.json()) as { success?: boolean; error?: string };
+        sendResults.push({ to: recipient.first_name, ok: Boolean(data.success), error: data.error });
+      } catch (err) {
+        sendResults.push({ to: recipient.first_name, ok: false, error: err instanceof Error ? err.message : 'failed' });
+      }
     }
+    return sendResults;
   }
 
-  return jsonResponse({ ok: true, link, results });
+  const firstResults = await sendToAll(firstMessage);
+  await new Promise((resolve) => setTimeout(resolve, 5000));
+  const secondResults = await sendToAll(secondMessage);
+
+  return jsonResponse({ ok: true, link, firstResults, secondResults });
 }
 
 export async function handleDncBudgetSystemSendTestSms(env: Env): Promise<Response> {
