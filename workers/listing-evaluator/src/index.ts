@@ -196,7 +196,11 @@ import {
   handleDncBudgetSystemSmsQuota,
   handleDncBudgetSystemSendTestSms,
   handleDncBudgetSystemRunSync,
+  handleDncBudgetSendLaunchAnnouncement,
 } from './dncbudget/system-routes.js';
+
+// dncbudget public (unauthenticated) route — see dncbudget-spec.md §7
+import { handleDncBudgetPublicAnalysis } from './dncbudget/public-routes.js';
 
 // dncbudget data layer — see dncbudget-spec.md §9
 import {
@@ -615,6 +619,16 @@ export default {
 
     if (path === '/api/dncbudget/system/run-sync' && request.method === 'POST') {
       const response = await handleDncBudgetSystemRunSync(env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/dncbudget/system/send-launch-announcement' && request.method === 'POST') {
+      const response = await handleDncBudgetSendLaunchAnnouncement(env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/dncbudget/public/analysis' && request.method === 'GET') {
+      const response = await handleDncBudgetPublicAnalysis(request, env);
       return withCors(response, request, env);
     }
 

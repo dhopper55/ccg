@@ -17,6 +17,10 @@ type QuotaResult = { ok: true; quotaRemaining?: number } | { ok: false; error: s
 
 type SendTestResult = { ok: true; sentTo: string; quotaRemaining?: number } | { ok: false; error: string };
 
+type LaunchResult =
+  | { ok: true; link: string; results: { to: string; ok: boolean; error?: string }[] }
+  | { ok: false; error: string };
+
 type RunSyncResult =
   | {
       ok: true;
@@ -40,6 +44,9 @@ const System = () => {
 
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncResult, setSyncResult] = useState<RunSyncResult | null>(null);
+
+  const [launchLoading, setLaunchLoading] = useState(false);
+  const [launchResult, setLaunchResult] = useState<LaunchResult | null>(null);
 
   const refreshQuota = async () => {
     setQuotaLoading(true);
@@ -88,6 +95,22 @@ const System = () => {
       setSyncResult({ ok: false, error: "Request failed" });
     } finally {
       setSyncLoading(false);
+    }
+  };
+
+  const handleSendLaunch = async () => {
+    setLaunchLoading(true);
+    setLaunchResult(null);
+    try {
+      const response = await fetch("/api/dncbudget/system/send-launch-announcement", {
+        method: "POST",
+        credentials: "same-origin",
+      });
+      setLaunchResult((await response.json()) as LaunchResult);
+    } catch {
+      setLaunchResult({ ok: false, error: "Request failed" });
+    } finally {
+      setLaunchLoading(false);
     }
   };
 
@@ -151,6 +174,40 @@ const System = () => {
               {sendResult && !sendResult.ok && (
                 <Alert severity="error" sx={{ mt: 1 }}>
                   {sendResult.error}
+                </Alert>
+              )}
+            </Box>
+          </Stack>
+        </Paper>
+
+        <Paper variant="outlined" sx={{ p: 3 }}>
+          <Typography variant="h6" fontWeight={700} gutterBottom>
+            Launch
+          </Typography>
+          <Stack spacing={2}>
+            <Typography variant="body2" color="text.secondary">
+              One-off: texts every active recipient (not just the default) with the 9/1 announcement and a
+              link to the public preview page — no real data yet, just what's coming.
+            </Typography>
+            <Box>
+              <Button variant="contained" color="warning" onClick={handleSendLaunch} disabled={launchLoading}>
+                {launchLoading ? <CircularProgress size={20} color="inherit" /> : "Send Launch Announcement"}
+              </Button>
+              {launchResult && launchResult.ok && (
+                <Alert severity="success" sx={{ mt: 1 }}>
+                  <Box component="ul" sx={{ m: 0, pl: 2 }}>
+                    {launchResult.results.map((r, i) => (
+                      <li key={i}>
+                        {r.to}: {r.ok ? "sent" : `failed — ${r.error}`}
+                      </li>
+                    ))}
+                  </Box>
+                  Link: {launchResult.link}
+                </Alert>
+              )}
+              {launchResult && !launchResult.ok && (
+                <Alert severity="error" sx={{ mt: 1 }}>
+                  {launchResult.error}
                 </Alert>
               )}
             </Box>

@@ -7,7 +7,7 @@ const repoRoot = path.resolve(scriptDir, '..');
 const appRoot = path.join(repoRoot, 'dncbudget');
 const sourceHtml = path.join(appRoot, 'index.html');
 
-const routeDirs = ['login', 'month', 'system'];
+const routeDirs = ['login', 'month', 'system', 'view'];
 
 if (!fs.existsSync(sourceHtml)) {
   throw new Error(`Missing built dncbudget entry: ${sourceHtml}`);

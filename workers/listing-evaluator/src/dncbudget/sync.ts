@@ -19,9 +19,10 @@ const TRANSFER_MATCH_MIN_AMOUNT = 200;
 const TRANSFER_MATCH_TOLERANCE = 0.01; // 1%
 
 // Seed-pass window — David's manually reviewing this batch to teach the merchant-rule
-// and recurring-bill tables, so we're deliberately not pulling Plaid's full available
-// history yet. Widen or remove once the real Phase 2 backfill (§8) happens.
-const SYNC_HISTORY_START_DATE = '2026-07-01';
+// and recurring-bill tables ahead of the 9/1 go-live, so we're deliberately not pulling
+// Plaid's full available history. Narrowed from 7/1 to 8/25 on the eve of launch — the
+// wider July window was discarded (§4 wipe) since it's no longer the intended training set.
+const SYNC_HISTORY_START_DATE = '2026-08-25';
 
 interface PlaidItemRow {
   id: string;

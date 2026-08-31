@@ -125,6 +125,55 @@ export async function handleDncBudgetSystemSmsQuota(env: Env): Promise<Response>
   }
 }
 
+// One-off 9/1 launch announcement — see dncbudget-spec.md §7/§8. Generates a fresh
+// share-link token and texts every active recipient (not just the default), since this
+// one is meant for the whole household, not a test.
+const SHARE_LINK_TTL_DAYS = 3;
+
+export async function handleDncBudgetSendLaunchAnnouncement(env: Env): Promise<Response> {
+  if (!env.TEXTBELT_KEY) {
+    return jsonResponse({ ok: false, error: 'Missing TEXTBELT_KEY secret.' }, 200);
+  }
+
+  const recipients = await env.DB.prepare(
+    'SELECT phone, first_name FROM dnc_budget_sms_recipients WHERE active = 1',
+  ).all<{ phone: string; first_name: string }>();
+
+  if (recipients.results.length === 0) {
+    return jsonResponse({ ok: false, error: 'No active recipients in dnc_budget_sms_recipients.' }, 200);
+  }
+
+  const token = crypto.randomUUID();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + SHARE_LINK_TTL_DAYS * 24 * 60 * 60 * 1000);
+
+  await env.DB.prepare(
+    `INSERT INTO dnc_budget_share_links (id, token, created_at, expires_at, send_context) VALUES (?, ?, ?, ?, 'launch')`,
+  )
+    .bind(crypto.randomUUID(), token, now.toISOString(), expiresAt.toISOString())
+    .run();
+
+  const link = `${env.SITE_BASE_URL}/dncbudget/view?t=${token}`;
+  const message = `Hi, it's Sunshine — tomorrow (9/1) is the day I start keeping an eye on things for you two. Take a peek: ${link}`;
+
+  const results: { to: string; ok: boolean; error?: string }[] = [];
+  for (const recipient of recipients.results) {
+    try {
+      const response = await fetch('https://textbelt.com/text', {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ phone: recipient.phone, message, key: env.TEXTBELT_KEY }),
+      });
+      const data = (await response.json()) as { success?: boolean; error?: string };
+      results.push({ to: recipient.first_name, ok: Boolean(data.success), error: data.error });
+    } catch (err) {
+      results.push({ to: recipient.first_name, ok: false, error: err instanceof Error ? err.message : 'failed' });
+    }
+  }
+
+  return jsonResponse({ ok: true, link, results });
+}
+
 export async function handleDncBudgetSystemSendTestSms(env: Env): Promise<Response> {
   if (!env.TEXTBELT_KEY) {
     return jsonResponse({ ok: false, error: 'Missing TEXTBELT_KEY secret.' }, 200);
