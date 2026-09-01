@@ -106,6 +106,7 @@ type InventoryItemRecord = {
   isActive?: boolean;
   isMarked?: boolean;
   isPersonal?: boolean;
+  isConsignment?: boolean;
   isRented?: boolean;
   isCustom?: boolean;
   forSale?: boolean;
@@ -248,6 +249,7 @@ type FormState = {
   isActive: boolean;
   isMarked: boolean;
   isPersonal: boolean;
+  isConsignment: boolean;
   isRented: boolean;
   isCustom: boolean;
   forSale: boolean;
@@ -511,6 +513,7 @@ const DEFAULT_FORM: FormState = {
   isActive: true,
   isMarked: false,
   isPersonal: false,
+  isConsignment: false,
   isRented: false,
   isCustom: false,
   forSale: false,
@@ -1400,6 +1403,7 @@ const InventoryItem = () => {
             isActive: Boolean(record.isActive),
             isMarked: Boolean(record.isMarked),
             isPersonal: Boolean(record.isPersonal),
+            isConsignment: Boolean(record.isConsignment),
             isRented: Boolean(record.isRented),
             isCustom: Boolean(record.isCustom),
             forSale: Boolean(record.forSale),
@@ -1532,6 +1536,7 @@ const InventoryItem = () => {
             isActive: true,
             isMarked: false,
             isPersonal: Boolean(record.isPersonal),
+            isConsignment: Boolean(record.isConsignment),
             isRented: false,
             isCustom: true,
             forSale: Boolean(record.forSale),
@@ -1873,6 +1878,7 @@ const InventoryItem = () => {
     isActive: form.isActive,
     isMarked: form.isMarked,
     isPersonal: form.isPersonal,
+    isConsignment: form.isConsignment,
     isRented: form.isRented,
     isCustom: form.isCustom,
     forSale: form.forSale,
@@ -3254,6 +3260,15 @@ const InventoryItem = () => {
                         />
                       }
                       label="Is Personal"
+                    />
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={form.isConsignment}
+                          onChange={(event) => setField('isConsignment', event.target.checked)}
+                        />
+                      }
+                      label="Is Consignment"
                     />
                     <FormControlLabel
                       control={

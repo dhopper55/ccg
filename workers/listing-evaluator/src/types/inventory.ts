@@ -61,6 +61,7 @@ export type InventoryItemRow = {
   is_active: number | null;
   is_marked: number | null;
   is_personal: number | null;
+  is_consignment: number | null;
   is_rented: number | null;
   is_custom: number | null;
   for_sale: number | null;

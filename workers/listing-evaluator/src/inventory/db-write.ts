@@ -88,6 +88,7 @@ export async function dbCreateInventoryItems(
     is_active: number;
     is_marked: number;
     is_personal: number;
+    is_consignment: number;
     is_rented: number;
     is_custom?: number;
     for_sale: number;
@@ -129,14 +130,14 @@ export async function dbCreateInventoryItems(
         barcode,
         purchased_date, unit_purchase_price, map_price, private_party_value, miles, minutes_spent, ship_cost, purchase_notes, ai_analysis_text, serial_number,
         weight_lbs, neck_profile, neck_thickness, nut_width, width_12_fret, fretboard_radius, twelve_fret_action,
-        is_active, is_marked, is_personal, is_rented, is_custom, for_sale, only_in_store,
+        is_active, is_marked, is_personal, is_consignment, is_rented, is_custom, for_sale, only_in_store,
         sales_channel_ccg, sales_channel_fbm, sales_channel_cl, sales_channel_reverb, sales_channel_gear_exchange,
         sales_channel_offerup, sales_channel_ebay, sales_channel_nextdoor, sales_channel_other,
         for_sale_date,
         is_sold, sold_date, sold_amount, sell_notes, sale_url, sale_zip, merchant_center_cat_code,
         tag_reprint, purchase_lot_id
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const result = await env.DB.prepare(statement).bind(
       fields.source_listing_id,
@@ -202,6 +203,7 @@ export async function dbCreateInventoryItems(
       fields.is_active,
       fields.is_marked,
       fields.is_personal,
+      fields.is_consignment,
       fields.is_rented,
       fields.is_custom ?? 0,
       fields.for_sale,
@@ -273,6 +275,7 @@ export async function dbUpdateInventoryById(
     is_active: number;
     is_marked: number;
     is_personal: number;
+    is_consignment: number;
     is_rented: number;
     is_custom: number;
     for_sale: number;
@@ -341,7 +344,7 @@ export async function dbUpdateInventoryById(
          private_party_value = ?, miles = ?, minutes_spent = ?, ship_cost = ?, purchase_notes = ?, ai_analysis_text = ?, serial_number = ?,
          weight_lbs = ?, neck_profile = ?, neck_thickness = ?, nut_width = ?, width_12_fret = ?,
          fretboard_radius = ?, twelve_fret_action = ?, storage_location = ?,
-         is_active = ?, is_marked = ?, is_personal = ?, is_rented = ?, is_custom = ?, for_sale = ?, only_in_store = ?,
+         is_active = ?, is_marked = ?, is_personal = ?, is_consignment = ?, is_rented = ?, is_custom = ?, for_sale = ?, only_in_store = ?,
          sales_channel_ccg = ?, sales_channel_fbm = ?, sales_channel_cl = ?, sales_channel_reverb = ?, sales_channel_gear_exchange = ?,
          sales_channel_offerup = ?, sales_channel_ebay = ?, sales_channel_nextdoor = ?, sales_channel_other = ?,
          for_sale_date = ?,
@@ -396,6 +399,7 @@ export async function dbUpdateInventoryById(
       fields.is_active,
       fields.is_marked,
       fields.is_personal,
+      fields.is_consignment,
       fields.is_rented,
       fields.is_custom,
       fields.for_sale,

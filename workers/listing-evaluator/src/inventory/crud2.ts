@@ -95,6 +95,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
   const isActive = toBooleanInput(body.isActive, true);
   const isMarked = toBooleanInput(body.isMarked, false);
   const isPersonal = toBooleanInput(body.isPersonal, false);
+  const isConsignment = toBooleanInput(body.isConsignment, false);
   const isRented = toBooleanInput(body.isRented, false);
   const isCustom = toBooleanInput(body.isCustom, false);
   const isSold = toBooleanInput(body.isSold, false);
@@ -271,6 +272,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       is_active: isActive ? 1 : 0,
       is_marked: isMarked ? 1 : 0,
       is_personal: isPersonal ? 1 : 0,
+      is_consignment: isConsignment ? 1 : 0,
       is_rented: isRented ? 1 : 0,
       is_custom: isCustom ? 1 : 0,
       for_sale: 1,
@@ -394,6 +396,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       is_active: isActive ? 1 : 0,
       is_marked: 0,
       is_personal: isPersonal ? 1 : 0,
+      is_consignment: isConsignment ? 1 : 0,
       is_rented: isRented ? 1 : 0,
       is_custom: isCustom ? 1 : 0,
       for_sale: 0,
@@ -442,6 +445,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       is_active: isActive ? 1 : 0,
       is_marked: 0,
       is_personal: isPersonal ? 1 : 0,
+      is_consignment: isConsignment ? 1 : 0,
       is_rented: isRented ? 1 : 0,
       for_sale: 0,
       only_in_store: onlyInStore ? 1 : 0,
@@ -557,6 +561,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
     is_active: isActive ? 1 : 0,
     is_marked: isMarked ? 1 : 0,
     is_personal: isPersonal ? 1 : 0,
+    is_consignment: isConsignment ? 1 : 0,
     is_rented: isRented ? 1 : 0,
     is_custom: isCustom ? 1 : 0,
     for_sale: forSale ? 1 : 0,

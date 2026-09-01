@@ -114,6 +114,7 @@ export async function handleInventoryPackageCreate(env: Env): Promise<Response> 
     is_active: 1,
     is_marked: 0,
     is_personal: 0,
+    is_consignment: 0,
     is_rented: 0,
     for_sale: 0,
     only_in_store: 0,
@@ -177,6 +178,7 @@ export async function handleInventoryCreate(request: Request, env: Env): Promise
   const isActive = toBooleanInput(body.isActive, true);
   const isMarked = toBooleanInput(body.isMarked, false);
   const isPersonal = toBooleanInput(body.isPersonal, false);
+  const isConsignment = toBooleanInput(body.isConsignment, false);
   const isRented = toBooleanInput(body.isRented, false);
   const isCustom = toBooleanInput(body.isCustom, false);
   const isSold = toBooleanInput(body.isSold, false);
@@ -425,6 +427,7 @@ export async function handleInventoryCreate(request: Request, env: Env): Promise
     is_active: isActive ? 1 : 0,
     is_marked: isMarked ? 1 : 0,
     is_personal: isPersonal ? 1 : 0,
+    is_consignment: isConsignment ? 1 : 0,
     is_rented: isRented ? 1 : 0,
     is_custom: isCustom ? 1 : 0,
     for_sale: forSale ? 1 : 0,

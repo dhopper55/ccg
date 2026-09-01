@@ -593,6 +593,7 @@ Tables:
     - sale bullet fields (`bullet1_text` through `bullet6_text`) plus danger/highlight flags
     - `sale_zip`
     - sold/rental/active/marked/personal flags used by admin and checkout flows
+    - `is_consignment` (`INTEGER NOT NULL DEFAULT 0`) — set from the "Is Consignment" checkbox on the Admin V2 inventory item form, alongside Is Active/Is Personal/For Sale; saved on both create and update
   - FBM fields are no longer part of the active model/contracts
 - `ccg_inventory_categories`
   - Inventory/shop category lookup table

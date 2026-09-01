@@ -210,6 +210,7 @@ export async function handleAdminV2InventoryMergeMarked(env: Env): Promise<Respo
     is_active: 1,
     is_marked: 0,
     is_personal: 0,
+    is_consignment: 0,
     is_rented: 0,
     for_sale: 0,
     only_in_store: 0,
