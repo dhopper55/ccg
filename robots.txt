@@ -6,9 +6,9 @@ Disallow: /cdn-cgi/
 Disallow: /august_2026_budget.html
 Disallow: /transformer-lot.html
 Disallow: /amp_chassis_lot.html
-Disallow: /e3827649-7c18-4383-b925-3c3277810ff8.html
-Disallow: /67f35a0c-5090-495e-80fb-de996f0f2807.html
-Disallow: /a14305d1-821b-439c-a16c-8996782bc768.html
+Disallow: /4a269bb0-3295-4331-9977-1c404be31c2a.html
+Disallow: /7977f2fd-deb6-4574-8294-9274d8157def.html
+Disallow: /4b559d60-a13a-4e0f-8723-40207437e6e8.html
 Disallow: /ccg_consignment_agreement.docx
 Allow: /guitars-and-gear-for-sale/assets/
 Disallow: /guitars-and-gear-for-sale/*/
