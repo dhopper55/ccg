@@ -6,11 +6,11 @@ import { verifyTurnstileToken } from '../utils/turnstile.js';
 import { getBrevoRuntimeConfig } from '../system/runtime.js';
 import { sendBrevoTransactionalEmail } from '../orders/email.js';
 
-const REPAIR_QUOTE_RECIPIENT = { email: 'info@coalcreekguitars.com', name: 'Coal Creek Guitars' };
-const REPAIR_QUOTE_MAX_MESSAGE_LENGTH = 2000;
-const REPAIR_QUOTE_MAX_PHOTOS = 20;
+const CONTACT_MESSAGE_RECIPIENT = { email: 'info@coalcreekguitars.com', name: 'Coal Creek Guitars' };
+const CONTACT_MESSAGE_MAX_LENGTH = 2000;
+const CONTACT_MESSAGE_MAX_PHOTOS = 20;
 
-export async function handleRepairQuoteRequest(request: Request, env: Env): Promise<Response> {
+export async function handleContactMessageRequest(request: Request, env: Env): Promise<Response> {
   if (!env.CUSTOM_ITEMS_BUCKET) {
     return jsonResponse({ message: 'Image storage is not configured.' }, 500);
   }
@@ -34,19 +34,18 @@ export async function handleRepairQuoteRequest(request: Request, env: Env): Prom
 
   const name = normalizeText(formData.get('name'), '');
   const email = normalizeEmailAddress(formData.get('email'));
-  const phone = normalizeText(formData.get('phone'), '');
-  const message = normalizeText(formData.get('message'), '').slice(0, REPAIR_QUOTE_MAX_MESSAGE_LENGTH);
+  const message = normalizeText(formData.get('message'), '').slice(0, CONTACT_MESSAGE_MAX_LENGTH);
 
   if (!name) return jsonResponse({ message: 'Name is required.' }, 400);
   if (!email) return jsonResponse({ message: 'A valid email address is required.' }, 400);
-  if (!phone) return jsonResponse({ message: 'Phone number is required.' }, 400);
+  if (!message) return jsonResponse({ message: 'Message is required.' }, 400);
 
   const files = formData
     .getAll('photos')
     .filter((entry): entry is File => entry instanceof File && entry.size > 0);
 
-  if (files.length > REPAIR_QUOTE_MAX_PHOTOS) {
-    return jsonResponse({ message: `Maximum ${REPAIR_QUOTE_MAX_PHOTOS} photos allowed.` }, 400);
+  if (files.length > CONTACT_MESSAGE_MAX_PHOTOS) {
+    return jsonResponse({ message: `Maximum ${CONTACT_MESSAGE_MAX_PHOTOS} photos allowed.` }, 400);
   }
   for (const file of files) {
     if (!file.type.startsWith('image/')) {
@@ -54,15 +53,15 @@ export async function handleRepairQuoteRequest(request: Request, env: Env): Prom
     }
   }
 
-  let quoteId: number;
+  let messageId: number;
   try {
     const result = await env.DB.prepare(
-      `INSERT INTO repair_quote_requests (name, email, phone, message) VALUES (?, ?, ?, ?)`
-    ).bind(name, email, phone, message).run();
-    quoteId = Number(result.meta?.last_row_id || 0);
+      `INSERT INTO contact_message_requests (name, email, message) VALUES (?, ?, ?)`
+    ).bind(name, email, message).run();
+    messageId = Number(result.meta?.last_row_id || 0);
   } catch (error) {
-    console.error('repair quote insert failed', { error });
-    return jsonResponse({ message: 'Unable to submit your request. Please try again.' }, 500);
+    console.error('contact message insert failed', { error });
+    return jsonResponse({ message: 'Unable to submit your message. Please try again.' }, 500);
   }
 
   const imageKeys: string[] = [];
@@ -70,7 +69,7 @@ export async function handleRepairQuoteRequest(request: Request, env: Env): Prom
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       const ext = extensionFromContentType(file.type);
-      const key = `repair-quote-images/${quoteId}/${crypto.randomUUID()}-${i}.${ext}`;
+      const key = `contact-message-images/${messageId}/${crypto.randomUUID()}-${i}.${ext}`;
       await env.CUSTOM_ITEMS_BUCKET.put(key, await file.arrayBuffer(), {
         httpMetadata: { contentType: file.type },
       });
@@ -78,11 +77,11 @@ export async function handleRepairQuoteRequest(request: Request, env: Env): Prom
     }
     if (imageKeys.length > 0) {
       await env.DB.prepare(
-        `UPDATE repair_quote_requests SET image_keys = ? WHERE id = ?`
-      ).bind(JSON.stringify(imageKeys), quoteId).run();
+        `UPDATE contact_message_requests SET image_keys = ? WHERE id = ?`
+      ).bind(JSON.stringify(imageKeys), messageId).run();
     }
   } catch (error) {
-    console.error('repair quote image upload failed', { quoteId, error });
+    console.error('contact message image upload failed', { messageId, error });
     // The request row is already saved — fall through and still notify by email.
   }
 
@@ -94,27 +93,26 @@ export async function handleRepairQuoteRequest(request: Request, env: Env): Prom
         name: `photo-${index + 1}.${key.split('.').pop()}`,
         // Brevo infers the attachment's file type from the URL path itself (not the query
         // string), so the key must appear as real path segments ending in its extension.
-        url: `${siteBaseUrl}/api/repair-quote-image/${key}`,
+        url: `${siteBaseUrl}/api/contact-message-image/${key}`,
       }));
 
       const htmlContent = [
         `<p><strong>Name:</strong> ${escapeHtml(name)}</p>`,
         `<p><strong>Email:</strong> ${escapeHtml(email)}</p>`,
-        `<p><strong>Phone:</strong> ${escapeHtml(phone)}</p>`,
         `<p><strong>Message:</strong></p>`,
         `<p>${escapeHtml(message).replace(/\n/g, '<br>')}</p>`,
       ].join('\n');
 
       await sendBrevoTransactionalEmail(config, {
         sender: { name: config.senderName, email: config.senderEmail },
-        to: [REPAIR_QUOTE_RECIPIENT],
+        to: [CONTACT_MESSAGE_RECIPIENT],
         replyTo: { email, name },
-        subject: 'Repair Quote Request',
+        subject: 'Website Contact Message',
         htmlContent,
         ...(attachments.length > 0 ? { attachment: attachments } : {}),
       });
     } catch (error) {
-      console.error('repair quote email send failed', { quoteId, error });
+      console.error('contact message email send failed', { messageId, error });
       // The request is safely recorded in D1 even if the email send fails.
     }
 
@@ -122,30 +120,30 @@ export async function handleRepairQuoteRequest(request: Request, env: Env): Prom
       await sendBrevoTransactionalEmail(config, {
         sender: { name: config.senderName, email: config.senderEmail },
         to: [{ email, name }],
-        subject: 'We received your repair quote request',
+        subject: 'We received your message',
         htmlContent: [
           `<p>Hi ${escapeHtml(name)},</p>`,
-          `<p>Thanks for reaching out to Coal Creek Guitars. We received your repair quote request and will get back to you shortly with an estimate.</p>`,
+          `<p>Thanks for reaching out to Coal Creek Guitars. We received your message and will get back to you shortly.</p>`,
           `<p>&mdash; Coal Creek Guitars</p>`,
         ].join('\n'),
       });
     } catch (error) {
-      console.error('repair quote customer confirmation email failed', { quoteId, error });
+      console.error('contact message customer confirmation email failed', { messageId, error });
       // Non-fatal — the internal notification above is the primary channel.
     }
   } else {
-    console.error('repair quote email skipped — Brevo not configured', { quoteId });
+    console.error('contact message email skipped — Brevo not configured', { messageId });
   }
 
   return jsonResponse({ ok: true });
 }
 
-export async function handleRepairQuoteImage(request: Request, key: string, env: Env): Promise<Response> {
+export async function handleContactMessageImage(request: Request, key: string, env: Env): Promise<Response> {
   if (!env.CUSTOM_ITEMS_BUCKET) {
     return jsonResponse({ message: 'Image storage is not configured.' }, 500);
   }
 
-  if (!key || !key.startsWith('repair-quote-images/')) {
+  if (!key || !key.startsWith('contact-message-images/')) {
     return jsonResponse({ message: 'Missing or invalid image key.' }, 400);
   }
 

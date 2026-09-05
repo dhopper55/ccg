@@ -75,6 +75,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400&family=Hanken+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 
 <style>
 :root {
@@ -275,7 +276,7 @@ nav.site-nav .wrap {
 
 .contact-cards {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 2px;
   background: var(--line);
   border: 1px solid var(--line);
@@ -370,6 +371,58 @@ nav.site-nav .wrap {
   background: var(--green);
   flex-shrink: 0;
 }
+
+/* ---- MESSAGE FORM (compact contact card) ---- */
+.contact-card.compact { padding: 40px 32px; }
+.contact-card.compact .cc-sub { margin-bottom: 18px; }
+.msg-form { margin-top: 2px; }
+.msg-field { margin-bottom: 13px; }
+.msg-field label { display: block; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 5px; }
+.msg-field label .req { color: var(--clay); margin-left: 3px; }
+.msg-field label .opt { text-transform: none; letter-spacing: 0; color: var(--muted); font-family: var(--sans); font-size: 11.5px; }
+.msg-field input[type="text"],
+.msg-field input[type="email"],
+.msg-field textarea {
+  width: 100%;
+  font-family: var(--sans);
+  font-size: 13.5px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 8px 10px;
+}
+.msg-field input:focus,
+.msg-field textarea:focus { outline: none; border-color: var(--creek); }
+.msg-field textarea { resize: vertical; min-height: 74px; font-family: var(--sans); }
+.msg-field input[type="file"] { font-size: 11.5px; color: var(--ink-soft); width: 100%; }
+.msg-hint { font-size: 11px; color: var(--muted); line-height: 1.45; margin-top: 5px; }
+.msg-photo-count { font-family: var(--mono); font-size: 10.5px; color: var(--muted); margin-top: 5px; min-height: 13px; }
+.msg-charcount { font-family: var(--mono); font-size: 10.5px; color: var(--muted); text-align: right; margin-top: 5px; }
+.msg-error { background: rgba(154,70,40,.1); border: 1px solid rgba(154,70,40,.3); color: var(--clay); border-radius: 4px; padding: 10px 12px; font-size: 12.5px; margin-bottom: 13px; }
+.msg-submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  background: var(--brass-bright);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  border: none;
+  padding: 11px 20px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background .15s, transform .12s;
+}
+.msg-submit:hover { background: #D4A650; transform: translateY(-1px); }
+.msg-submit[disabled] { opacity: .6; cursor: not-allowed; transform: none; }
+.msg-success { padding: 8px 0 4px; }
+.msg-success p { font-family: var(--display); font-size: 16.5px; color: var(--creek-deep); line-height: 1.5; }
 
 /* ---- HELP TOPICS ---- */
 .help-section {
@@ -680,6 +733,46 @@ footer {
         </div>
       </div>
 
+      <!-- MESSAGE FORM -->
+      <div class="contact-card compact">
+        <div class="cc-icon">
+          <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+        </div>
+        <div class="cc-label">Prefer To Type?</div>
+        <div class="cc-headline">Message us <em>here</em></div>
+        <p class="cc-sub">Send us a quick message right from the site &mdash; photos help if it&rsquo;s about a repair or a guitar you&rsquo;re asking about.</p>
+
+        <form id="contact-message-form-el" class="msg-form" novalidate>
+          <div class="msg-field">
+            <label for="cm-name">Name<span class="req">*</span></label>
+            <input type="text" id="cm-name" name="name" required maxlength="120" autocomplete="name">
+          </div>
+          <div class="msg-field">
+            <label for="cm-email">Email<span class="req">*</span></label>
+            <input type="email" id="cm-email" name="email" required maxlength="254" autocomplete="email">
+          </div>
+          <div class="msg-field">
+            <label for="cm-message">Message<span class="req">*</span></label>
+            <textarea id="cm-message" name="message" rows="4" maxlength="2000" required></textarea>
+            <p class="msg-charcount"><span id="cm-char-count">0</span> / 2000</p>
+          </div>
+          <div class="msg-field">
+            <label for="cm-photos">Photos <span class="opt">(optional, up to 20)</span></label>
+            <input type="file" id="cm-photos" name="photos" accept="image/*" multiple>
+            <p class="msg-photo-count" id="cm-photo-count"></p>
+          </div>
+          <div class="msg-field">
+            <div class="cf-turnstile" data-sitekey="0x4AAAAAAEpMqbpteUQEEL7o"></div>
+          </div>
+          <p class="msg-error" id="cm-error" hidden></p>
+          <button type="submit" class="msg-submit" id="cm-submit">Send Message &rarr;</button>
+        </form>
+
+        <div class="msg-success" id="cm-success" hidden>
+          <p>Thanks for reaching out. We&rsquo;ll get back to you shortly.</p>
+        </div>
+      </div>
+
     </div>
 
     <!-- HELP TOPICS -->
@@ -778,6 +871,129 @@ footer {
 <script>
 document.getElementById('footer-year').textContent = new Date().getFullYear();
 (function(){document.querySelectorAll('.footer-email-signup').forEach(function(el){var input=el.querySelector('.footer-email-input'),btn=el.querySelector('.footer-email-btn'),msg=el.querySelector('.footer-email-msg');function submit(){var email=input.value.trim();if(!email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){msg.style.color='#c04040';msg.textContent='Please enter a valid email.';return;}btn.disabled=true;btn.textContent='…';fetch('/api/email-signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email})}).then(function(r){return r.json();}).then(function(d){if(d.ok){msg.style.color='#6a9a5a';msg.textContent="You're on the list!";input.value='';}else{msg.style.color='#c04040';msg.textContent=d.message||'Something went wrong.';}btn.disabled=false;btn.textContent='Join';}).catch(function(){msg.style.color='#c04040';msg.textContent='Something went wrong. Try again.';btn.disabled=false;btn.textContent='Join';});}btn.addEventListener('click',submit);input.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});});})();
+</script>
+
+<script>
+(function() {
+  var form = document.getElementById('contact-message-form-el');
+  if (!form) return;
+
+  var successBox = document.getElementById('cm-success');
+  var errorBox = document.getElementById('cm-error');
+  var submitBtn = document.getElementById('cm-submit');
+  var messageField = document.getElementById('cm-message');
+  var charCount = document.getElementById('cm-char-count');
+  var photosInput = document.getElementById('cm-photos');
+  var photoCountEl = document.getElementById('cm-photo-count');
+
+  var MAX_PHOTOS = 20;
+  var MAX_MESSAGE_LENGTH = 2000;
+  var MAX_IMAGE_DIMENSION = 1800;
+
+  messageField.addEventListener('input', function() {
+    charCount.textContent = String(messageField.value.length);
+  });
+
+  photosInput.addEventListener('change', function() {
+    var count = photosInput.files ? photosInput.files.length : 0;
+    if (count > MAX_PHOTOS) {
+      photoCountEl.textContent = 'Please select ' + MAX_PHOTOS + ' photos or fewer.';
+      photoCountEl.style.color = 'var(--clay)';
+    } else {
+      photoCountEl.textContent = count > 0 ? (count + ' photo' + (count === 1 ? '' : 's') + ' selected') : '';
+      photoCountEl.style.color = '';
+    }
+  });
+
+  function resizeImage(file) {
+    return new Promise(function(resolve) {
+      if (!file.type || file.type.indexOf('image/') !== 0 || file.type === 'image/gif') {
+        resolve(file);
+        return;
+      }
+      var img = new Image();
+      var url = URL.createObjectURL(file);
+      img.onload = function() {
+        URL.revokeObjectURL(url);
+        var width = img.naturalWidth;
+        var height = img.naturalHeight;
+        if (!width || !height || (width <= MAX_IMAGE_DIMENSION && height <= MAX_IMAGE_DIMENSION)) {
+          resolve(file);
+          return;
+        }
+        var scale = MAX_IMAGE_DIMENSION / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+        var canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(function(blob) {
+          resolve(blob ? new File([blob], file.name, { type: 'image/jpeg' }) : file);
+        }, 'image/jpeg', 0.82);
+      };
+      img.onerror = function() {
+        URL.revokeObjectURL(url);
+        resolve(file);
+      };
+      img.src = url;
+    });
+  }
+
+  function showError(message) {
+    errorBox.textContent = message;
+    errorBox.hidden = false;
+  }
+
+  form.addEventListener('submit', function(event) {
+    event.preventDefault();
+    errorBox.hidden = true;
+
+    var files = photosInput.files ? Array.prototype.slice.call(photosInput.files) : [];
+    if (files.length > MAX_PHOTOS) {
+      showError('Please select ' + MAX_PHOTOS + ' photos or fewer.');
+      return;
+    }
+    if (messageField.value.length > MAX_MESSAGE_LENGTH) {
+      showError('Message must be ' + MAX_MESSAGE_LENGTH + ' characters or fewer.');
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Sending…';
+
+    Promise.all(files.map(resizeImage)).then(function(resizedFiles) {
+      var formData = new FormData(form);
+      formData.delete('photos');
+      resizedFiles.forEach(function(file) {
+        formData.append('photos', file, file.name);
+      });
+
+      return fetch('/api/contact-message-request', {
+        method: 'POST',
+        body: formData,
+      });
+    }).then(function(response) {
+      return response.json().catch(function() { return {}; }).then(function(data) {
+        if (!response.ok || !data.ok) {
+          throw new Error(data.message || 'Something went wrong. Please try again.');
+        }
+      });
+    }).then(function() {
+      form.hidden = true;
+      successBox.hidden = false;
+    }).catch(function(error) {
+      showError(error.message || 'Something went wrong. Please try again.');
+      if (window.turnstile) {
+        try { window.turnstile.reset(); } catch (e) {}
+      }
+    }).finally(function() {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Send Message →';
+    });
+  });
+})();
 </script>
 
 <!-- WIN BUBBLE -->

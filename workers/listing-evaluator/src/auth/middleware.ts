@@ -141,5 +141,7 @@ export function isPublicApiPath(path: string): boolean {
     || path === '/api/email-signup'
     || path === '/api/repair-quote-request'
     || /^\/api\/repair-quote-image\/.+$/.test(path)
+    || path === '/api/contact-message-request'
+    || /^\/api\/contact-message-image\/.+$/.test(path)
     || path === '/api/dncbudget/public/analysis';
 }

@@ -264,6 +264,7 @@ import {
 } from './guitar-eval/payment.js';
 import { runGuitarEvalReportGeneration } from './guitar-eval/report.js';
 import { handleRepairQuoteRequest, handleRepairQuoteImage } from './repair-quotes/handler.js';
+import { handleContactMessageRequest, handleContactMessageImage } from './contact-messages/handler.js';
 import {
   handleAdminV2AuthenticityDraftSave,
   handleAdminV2AuthenticityPreview,
@@ -343,6 +344,17 @@ export default {
     const repairQuoteImageMatch = path.match(/^\/api\/repair-quote-image\/(.+)$/);
     if (repairQuoteImageMatch && request.method === 'GET') {
       const response = await handleRepairQuoteImage(request, decodeURIComponent(repairQuoteImageMatch[1]), env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/contact-message-request' && request.method === 'POST') {
+      const response = await handleContactMessageRequest(request, env);
+      return withCors(response, request, env);
+    }
+
+    const contactMessageImageMatch = path.match(/^\/api\/contact-message-image\/(.+)$/);
+    if (contactMessageImageMatch && request.method === 'GET') {
+      const response = await handleContactMessageImage(request, decodeURIComponent(contactMessageImageMatch[1]), env);
       return withCors(response, request, env);
     }
 
