@@ -372,16 +372,8 @@ nav.site-nav .wrap {
   flex-shrink: 0;
 }
 
-/* ---- MESSAGE FORM (full-width row below the contact cards) ---- */
-.contact-message-row { margin-bottom: 48px; }
-.contact-card-wide {
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 48px 44px 52px;
-  transition: background .15s;
-}
-.contact-card-wide:hover { background: var(--paper-2); }
+/* ---- MESSAGE FORM (full-width row within .contact-cards) ---- */
+.contact-card-wide { grid-column: 1 / -1; }
 .cmr-grid {
   display: grid;
   grid-template-columns: 0.85fr 1.15fr;
@@ -576,7 +568,6 @@ footer {
   .help-grid { grid-template-columns: 1fr; }
   .nav-links { display: none; }
   .contact-card { padding: 36px 28px 40px; }
-  .contact-card-wide { padding: 36px 28px 40px; }
   .msg-form-grid { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -718,39 +709,8 @@ footer {
     <!-- CONTACT CARDS -->
     <div class="contact-cards">
 
-      <!-- EMAIL -->
-      <div class="contact-card">
-        <div class="cc-icon">
-          <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/></svg>
-        </div>
-        <div class="cc-label">Best Way to Reach Us</div>
-        <div class="cc-headline">Send us an <em>email</em></div>
-        <p class="cc-sub">Our preferred contact method. Reach out with any question &mdash; buying, selling, repairs, trades, or anything else guitar-related. We&rsquo;ll get back to you quickly.</p>
-        <div class="cc-action">
-          <a href="mailto:info@coalcreekguitars.com" class="cc-value">info@coalcreekguitars.com</a>
-          <div class="cc-note">Typically responds within 24 hours</div>
-        </div>
-      </div>
-
-      <!-- PHONE / TEXT -->
-      <div class="contact-card">
-        <div class="cc-icon">
-          <svg viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
-        </div>
-        <div class="cc-label">Call or Text</div>
-        <div class="cc-headline">Give us a <em>call</em></div>
-        <p class="cc-sub">Call or text us for quick questions, to schedule a meetup, or to talk through a guitar you&rsquo;re looking to buy, sell, or get repaired. Texts welcome.</p>
-        <div class="cc-action">
-          <a href="tel:+13033769214" class="cc-value">(303) 376-9214</a>
-          <div class="cc-note">Calls &amp; texts both welcome</div>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- MESSAGE FORM (full-width row) -->
-    <div class="contact-message-row">
-      <div class="contact-card-wide">
+      <!-- MESSAGE FORM (full-width row) -->
+      <div class="contact-card contact-card-wide">
         <div class="cmr-grid">
           <div class="cmr-info">
             <div class="cc-icon">
@@ -801,6 +761,35 @@ footer {
           </div>
         </div>
       </div>
+
+      <!-- EMAIL -->
+      <div class="contact-card">
+        <div class="cc-icon">
+          <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/></svg>
+        </div>
+        <div class="cc-label">Best Way to Reach Us</div>
+        <div class="cc-headline">Send us an <em>email</em></div>
+        <p class="cc-sub">Our preferred contact method. Reach out with any question &mdash; buying, selling, repairs, trades, or anything else guitar-related. We&rsquo;ll get back to you quickly.</p>
+        <div class="cc-action">
+          <a href="mailto:info@coalcreekguitars.com" class="cc-value">info@coalcreekguitars.com</a>
+          <div class="cc-note">Typically responds within 24 hours</div>
+        </div>
+      </div>
+
+      <!-- PHONE / TEXT -->
+      <div class="contact-card">
+        <div class="cc-icon">
+          <svg viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+        </div>
+        <div class="cc-label">Call or Text</div>
+        <div class="cc-headline">Give us a <em>call</em></div>
+        <p class="cc-sub">Call or text us for quick questions, to schedule a meetup, or to talk through a guitar you&rsquo;re looking to buy, sell, or get repaired. Texts welcome.</p>
+        <div class="cc-action">
+          <a href="tel:+13033769214" class="cc-value">(303) 376-9214</a>
+          <div class="cc-note">Calls &amp; texts both welcome</div>
+        </div>
+      </div>
+
     </div>
 
     <!-- HELP TOPICS -->
