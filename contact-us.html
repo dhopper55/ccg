@@ -276,13 +276,13 @@ nav.site-nav .wrap {
 
 .contact-cards {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 2px;
   background: var(--line);
   border: 1px solid var(--line);
   border-radius: 6px;
   overflow: hidden;
-  margin-bottom: 48px;
+  margin-bottom: 32px;
 }
 
 .contact-card {
@@ -372,11 +372,25 @@ nav.site-nav .wrap {
   flex-shrink: 0;
 }
 
-/* ---- MESSAGE FORM (compact contact card) ---- */
-.contact-card.compact { padding: 40px 32px; }
-.contact-card.compact .cc-sub { margin-bottom: 18px; }
-.msg-form { margin-top: 2px; }
-.msg-field { margin-bottom: 13px; }
+/* ---- MESSAGE FORM (full-width row below the contact cards) ---- */
+.contact-message-row { margin-bottom: 48px; }
+.contact-card-wide {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 48px 44px 52px;
+  transition: background .15s;
+}
+.contact-card-wide:hover { background: var(--paper-2); }
+.cmr-grid {
+  display: grid;
+  grid-template-columns: 0.85fr 1.15fr;
+  gap: 56px;
+  align-items: start;
+}
+.cmr-info { max-width: 34ch; }
+.msg-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.msg-field { margin-bottom: 16px; }
 .msg-field label { display: block; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 5px; }
 .msg-field label .req { color: var(--clay); margin-left: 3px; }
 .msg-field label .opt { text-transform: none; letter-spacing: 0; color: var(--muted); font-family: var(--sans); font-size: 11.5px; }
@@ -385,27 +399,24 @@ nav.site-nav .wrap {
 .msg-field textarea {
   width: 100%;
   font-family: var(--sans);
-  font-size: 13.5px;
+  font-size: 14px;
   color: var(--ink);
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: 4px;
-  padding: 8px 10px;
+  padding: 9px 12px;
 }
 .msg-field input:focus,
 .msg-field textarea:focus { outline: none; border-color: var(--creek); }
-.msg-field textarea { resize: vertical; min-height: 74px; font-family: var(--sans); }
-.msg-field input[type="file"] { font-size: 11.5px; color: var(--ink-soft); width: 100%; }
-.msg-hint { font-size: 11px; color: var(--muted); line-height: 1.45; margin-top: 5px; }
+.msg-field textarea { resize: vertical; min-height: 88px; font-family: var(--sans); }
+.msg-field input[type="file"] { font-size: 12.5px; color: var(--ink-soft); width: 100%; }
 .msg-photo-count { font-family: var(--mono); font-size: 10.5px; color: var(--muted); margin-top: 5px; min-height: 13px; }
 .msg-charcount { font-family: var(--mono); font-size: 10.5px; color: var(--muted); text-align: right; margin-top: 5px; }
-.msg-error { background: rgba(154,70,40,.1); border: 1px solid rgba(154,70,40,.3); color: var(--clay); border-radius: 4px; padding: 10px 12px; font-size: 12.5px; margin-bottom: 13px; }
+.msg-error { background: rgba(154,70,40,.1); border: 1px solid rgba(154,70,40,.3); color: var(--clay); border-radius: 4px; padding: 10px 12px; font-size: 12.5px; margin-bottom: 16px; }
 .msg-submit {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 8px;
-  width: 100%;
   background: var(--brass-bright);
   color: var(--ink);
   font-family: var(--mono);
@@ -414,15 +425,14 @@ nav.site-nav .wrap {
   letter-spacing: .1em;
   text-transform: uppercase;
   border: none;
-  padding: 11px 20px;
+  padding: 12px 24px;
   border-radius: 3px;
   cursor: pointer;
   transition: background .15s, transform .12s;
 }
 .msg-submit:hover { background: #D4A650; transform: translateY(-1px); }
 .msg-submit[disabled] { opacity: .6; cursor: not-allowed; transform: none; }
-.msg-success { padding: 8px 0 4px; }
-.msg-success p { font-family: var(--display); font-size: 16.5px; color: var(--creek-deep); line-height: 1.5; }
+.msg-success p { font-family: var(--display); font-size: 18px; color: var(--creek-deep); line-height: 1.5; }
 
 /* ---- HELP TOPICS ---- */
 .help-section {
@@ -558,6 +568,7 @@ footer {
   .hero .wrap { grid-template-columns: 1fr; }
   .hero-info-panel { display: none; }
   .contact-cards { grid-template-columns: 1fr; }
+  .cmr-grid { grid-template-columns: 1fr; gap: 28px; }
   .help-grid { grid-template-columns: 1fr 1fr; }
   .footer-grid { grid-template-columns: 1fr; gap: 28px; }
 }
@@ -565,6 +576,8 @@ footer {
   .help-grid { grid-template-columns: 1fr; }
   .nav-links { display: none; }
   .contact-card { padding: 36px 28px 40px; }
+  .contact-card-wide { padding: 36px 28px 40px; }
+  .msg-form-grid { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; }
@@ -733,46 +746,61 @@ footer {
         </div>
       </div>
 
-      <!-- MESSAGE FORM -->
-      <div class="contact-card compact">
-        <div class="cc-icon">
-          <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
-        </div>
-        <div class="cc-label">Prefer To Type?</div>
-        <div class="cc-headline">Message us <em>here</em></div>
-        <p class="cc-sub">Send us a quick message right from the site &mdash; photos help if it&rsquo;s about a repair or a guitar you&rsquo;re asking about.</p>
+    </div>
 
-        <form id="contact-message-form-el" class="msg-form" novalidate>
-          <div class="msg-field">
-            <label for="cm-name">Name<span class="req">*</span></label>
-            <input type="text" id="cm-name" name="name" required maxlength="120" autocomplete="name">
+    <!-- MESSAGE FORM (full-width row) -->
+    <div class="contact-message-row">
+      <div class="contact-card-wide">
+        <div class="cmr-grid">
+          <div class="cmr-info">
+            <div class="cc-icon">
+              <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+            </div>
+            <div class="cc-label">Prefer To Type?</div>
+            <div class="cc-headline">Message us <em>here</em></div>
+            <p class="cc-sub">Send us a quick message right from the site &mdash; photos help if it&rsquo;s about a repair or a guitar you&rsquo;re asking about.</p>
           </div>
-          <div class="msg-field">
-            <label for="cm-email">Email<span class="req">*</span></label>
-            <input type="email" id="cm-email" name="email" required maxlength="254" autocomplete="email">
-          </div>
-          <div class="msg-field">
-            <label for="cm-message">Message<span class="req">*</span></label>
-            <textarea id="cm-message" name="message" rows="4" maxlength="2000" required></textarea>
-            <p class="msg-charcount"><span id="cm-char-count">0</span> / 2000</p>
-          </div>
-          <div class="msg-field">
-            <label for="cm-photos">Photos <span class="opt">(optional, up to 20)</span></label>
-            <input type="file" id="cm-photos" name="photos" accept="image/*" multiple>
-            <p class="msg-photo-count" id="cm-photo-count"></p>
-          </div>
-          <div class="msg-field">
-            <div class="cf-turnstile" data-sitekey="0x4AAAAAAEpMqbpteUQEEL7o"></div>
-          </div>
-          <p class="msg-error" id="cm-error" hidden></p>
-          <button type="submit" class="msg-submit" id="cm-submit">Send Message &rarr;</button>
-        </form>
 
-        <div class="msg-success" id="cm-success" hidden>
-          <p>Thanks for reaching out. We&rsquo;ll get back to you shortly.</p>
+          <div class="cmr-form-wrap">
+            <form id="contact-message-form-el" class="msg-form" novalidate>
+              <div class="msg-form-grid">
+                <div class="msg-field">
+                  <label for="cm-name">Name<span class="req">*</span></label>
+                  <input type="text" id="cm-name" name="name" required maxlength="120" autocomplete="name">
+                </div>
+                <div class="msg-field">
+                  <label for="cm-email">Email<span class="req">*</span></label>
+                  <input type="email" id="cm-email" name="email" required maxlength="254" autocomplete="email">
+                </div>
+              </div>
+
+              <div class="msg-field">
+                <label for="cm-message">Message<span class="req">*</span></label>
+                <textarea id="cm-message" name="message" rows="3" maxlength="2000" required></textarea>
+                <p class="msg-charcount"><span id="cm-char-count">0</span> / 2000</p>
+              </div>
+
+              <div class="msg-form-grid">
+                <div class="msg-field">
+                  <label for="cm-photos">Photos <span class="opt">(optional, up to 20)</span></label>
+                  <input type="file" id="cm-photos" name="photos" accept="image/*" multiple>
+                  <p class="msg-photo-count" id="cm-photo-count"></p>
+                </div>
+                <div class="msg-field">
+                  <div class="cf-turnstile" data-sitekey="0x4AAAAAAEpMqbpteUQEEL7o"></div>
+                </div>
+              </div>
+
+              <p class="msg-error" id="cm-error" hidden></p>
+              <button type="submit" class="msg-submit" id="cm-submit">Send Message &rarr;</button>
+            </form>
+
+            <div class="msg-success" id="cm-success" hidden>
+              <p>Thanks for reaching out. We&rsquo;ll get back to you shortly.</p>
+            </div>
+          </div>
         </div>
       </div>
-
     </div>
 
     <!-- HELP TOPICS -->
