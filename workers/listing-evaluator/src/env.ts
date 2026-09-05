@@ -31,4 +31,5 @@ export interface Env {
   PLAID_SECRET?: string;
   PLAID_ACCESS_TOKEN_TEST?: string;
   TEXTBELT_KEY?: string;
+  TURNSTILE_SECRET_KEY?: string;
 }

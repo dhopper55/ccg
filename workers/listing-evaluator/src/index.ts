@@ -263,6 +263,7 @@ import {
   handleGuitarEvaluationStatus,
 } from './guitar-eval/payment.js';
 import { runGuitarEvalReportGeneration } from './guitar-eval/report.js';
+import { handleRepairQuoteRequest, handleRepairQuoteImage } from './repair-quotes/handler.js';
 import {
   handleAdminV2AuthenticityDraftSave,
   handleAdminV2AuthenticityPreview,
@@ -331,6 +332,16 @@ export default {
 
     if (path === '/api/email-signup' && request.method === 'POST') {
       const response = await handlePublicEmailSignup(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/repair-quote-request' && request.method === 'POST') {
+      const response = await handleRepairQuoteRequest(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/repair-quote-image' && request.method === 'GET') {
+      const response = await handleRepairQuoteImage(request, env);
       return withCors(response, request, env);
     }
 

@@ -71,18 +71,6 @@
         "addressLocality": "Englewood",
         "addressRegion": "CO",
         "addressCountry": "US"
-      },
-      "hasOfferCatalog": {
-        "@type": "OfferCatalog",
-        "name": "Guitar Repair Services",
-        "itemListElement": [
-          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Electric Guitar Setup" }, "price": "79", "priceCurrency": "USD" },
-          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Acoustic Guitar Setup" }, "price": "89", "priceCurrency": "USD" },
-          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Bass Guitar Setup" }, "price": "89", "priceCurrency": "USD" },
-          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Floyd Rose / Locking Trem Setup" }, "price": "119", "priceCurrency": "USD" },
-          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Dual Humbucker Install" }, "price": "99", "priceCurrency": "USD" },
-          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Full Fret Level, Crown & Polish" }, "price": "179", "priceCurrency": "USD" }
-        ]
       }
     },
     {
@@ -99,6 +87,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400&family=Hanken+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 
 <style>
 :root {
@@ -314,6 +303,47 @@ nav.site-nav .wrap {
   color: rgba(244,239,228,.4);
   text-align: center;
 }
+
+/* ---- QUOTE REQUEST FORM ---- */
+.quote-section { background: var(--paper-2); padding: 56px 0; border-bottom: 1px solid var(--line); }
+.quote-card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 40px 40px 44px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+.quote-card-head { margin-bottom: 28px; }
+.quote-form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; margin-bottom: 4px; }
+.quote-field { margin-bottom: 18px; }
+.quote-field label { display: block; font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+.quote-field label .req { color: var(--clay); margin-left: 3px; }
+.quote-field label .opt { text-transform: none; letter-spacing: 0; color: var(--muted); font-family: var(--sans); font-size: 12px; }
+.quote-field input[type="text"],
+.quote-field input[type="email"],
+.quote-field input[type="tel"],
+.quote-field textarea {
+  width: 100%;
+  font-family: var(--sans);
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 10px 12px;
+}
+.quote-field input:focus,
+.quote-field textarea:focus { outline: none; border-color: var(--creek); }
+.quote-field textarea { resize: vertical; min-height: 110px; font-family: var(--sans); }
+.quote-field input[type="file"] { font-size: 13px; color: var(--ink-soft); width: 100%; }
+.quote-hint { font-size: 12.5px; color: var(--muted); line-height: 1.5; margin-top: 8px; }
+.quote-photo-count { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 6px; min-height: 14px; }
+.quote-charcount { font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: right; margin-top: 6px; }
+.quote-error { background: rgba(154,70,40,.1); border: 1px solid rgba(154,70,40,.3); color: var(--clay); border-radius: 4px; padding: 12px 14px; font-size: 13.5px; margin-bottom: 18px; }
+.quote-success { background: rgba(35,90,110,.08); border: 1px solid rgba(35,90,110,.25); border-radius: 6px; padding: 28px 32px; text-align: center; max-width: 720px; margin: 0 auto; }
+.quote-success p { font-family: var(--display); font-size: 19px; color: var(--creek-deep); line-height: 1.5; }
+#rq-submit[disabled] { opacity: .6; cursor: not-allowed; }
 
 /* ---- SECTION NAV ---- */
 nav.section-nav {
@@ -597,6 +627,8 @@ footer {
   .addons-grid { grid-template-columns: 1fr 1fr; }
   .footer-grid { grid-template-columns: 1fr; gap: 28px; }
   .contact-band .wrap { flex-direction: column; }
+  .quote-card { padding: 28px 24px 32px; }
+  .quote-form-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 600px) {
   .addons-grid { grid-template-columns: 1fr; }
@@ -641,53 +673,103 @@ footer {
         Your guitar,<br><em>dialed in</em>.
       </h1>
       <p class="hero-sub">
-        Setups, restrings, fret polishing, nut replacements, and diagnostics &mdash; done in-house. For bigger jobs, we work with a trusted technician network and keep you in the loop at every step.
+        Setups, restrings, fret polishing, nut replacements, and diagnostics &mdash; done in-house. For bigger jobs, we work with a trusted technician network and keep you in the loop at every step. Every guitar &mdash; and every repair job &mdash; is different, so we quote each one individually.
       </p>
       <div class="hero-proof">
         <div class="proof-item">
           <span class="proof-dot"></span>
-          <span><strong>Setups from $79</strong> &mdash; electric, acoustic, and bass guitars dialed in for action, intonation, and tuning stability &mdash; in-house</span>
+          <span><strong>Setups</strong> &mdash; electric, acoustic, and bass guitars dialed in for action, intonation, and tuning stability &mdash; in-house</span>
         </div>
         <div class="proof-item">
           <span class="proof-dot"></span>
-          <span><strong>Restrings from $20 labor</strong> &mdash; fresh strings properly stretched and tuned, done in-house</span>
+          <span><strong>Restrings</strong> &mdash; fresh strings properly stretched and tuned, done in-house</span>
         </div>
         <div class="proof-item">
           <span class="proof-dot"></span>
-          <span><strong>Fret polish from $39</strong> &mdash; fretboard cleaning and fret polishing for smoother bends and better feel &mdash; in-house</span>
+          <span><strong>Fret polish</strong> &mdash; fretboard cleaning and fret polishing for smoother bends and better feel &mdash; in-house</span>
         </div>
         <div class="proof-item">
           <span class="proof-dot"></span>
-          <span><strong>Nut replacements from $79</strong> &mdash; properly fitted replacements for better tuning stability and string feel &mdash; in-house</span>
+          <span><strong>Nut replacements</strong> &mdash; properly fitted replacements for better tuning stability and string feel &mdash; in-house</span>
         </div>
         <div class="proof-item">
           <span class="proof-dot"></span>
-          <span><strong>Diagnostics from $25</strong> &mdash; not sure what&rsquo;s wrong? We&rsquo;ll find it and quote you before touching anything</span>
+          <span><strong>Diagnostics</strong> &mdash; not sure what&rsquo;s wrong? We&rsquo;ll find it and quote you before touching anything</span>
         </div>
       </div>
       <div class="hero-cta-row">
-        <a href="https://www.coalcreekguitars.com/contact-us.html" class="btn-primary">Get a Repair Quote &rarr;</a>
+        <a href="#repair-quote-form" class="btn-primary">Get a Repair Quote &rarr;</a>
         <a href="#setups-and-playability" class="btn-ghost">View All Services &darr;</a>
       </div>
     </div>
     <div class="hero-right">
       <div class="hero-ref-panel">
         <div class="hrp-header">
-          <div class="hrp-overline">In-House Services</div>
-          <div class="hrp-title">Quick Price Reference</div>
+          <div class="hrp-overline">Every Guitar, Every Repair</div>
+          <div class="hrp-title">Custom Quotes, Not Guesswork</div>
         </div>
         <div class="hrp-rows">
-          <div class="hrp-row"><span class="hrp-name">Electric Guitar Setup</span><span class="hrp-price">$79</span></div>
-          <div class="hrp-row"><span class="hrp-name">Acoustic / Bass Setup</span><span class="hrp-price">$89</span></div>
-          <div class="hrp-row"><span class="hrp-name">Floyd Rose Setup</span><span class="hrp-price">From $119</span></div>
-          <div class="hrp-row"><span class="hrp-name">Seasonal Tune-Up</span><span class="hrp-price">$39</span></div>
-          <div class="hrp-row"><span class="hrp-name">Basic Restring</span><span class="hrp-price">$20 Labor</span></div>
-          <div class="hrp-row"><span class="hrp-name">Restring + Setup Check</span><span class="hrp-price">$35 Labor</span></div>
-          <div class="hrp-row"><span class="hrp-name">Fret Polish &amp; Refresh</span><span class="hrp-price">$39</span></div>
-          <div class="hrp-row"><span class="hrp-name">Nut Replacement</span><span class="hrp-price">From $79</span></div>
-          <div class="hrp-row"><span class="hrp-name">Basic Diagnostic</span><span class="hrp-price">$25</span></div>
+          <div class="hrp-row"><span class="hrp-name">Condition &amp; scope vary</span><span class="hrp-price">We inspect first</span></div>
+          <div class="hrp-row"><span class="hrp-name">Add photos to your request</span><span class="hrp-price">Faster estimate</span></div>
+          <div class="hrp-row"><span class="hrp-name">We review every request</span><span class="hrp-price">Prompt reply</span></div>
+          <div class="hrp-row"><span class="hrp-name">No work without approval</span><span class="hrp-price">Always your call</span></div>
         </div>
-        <div class="hrp-footer">In-house pricing &middot; Quotes always before work begins</div>
+        <div class="hrp-footer">Request a quote below &middot; We&rsquo;ll respond promptly</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== REPAIR QUOTE REQUEST ===================== -->
+<section id="repair-quote-form" class="quote-section">
+  <div class="wrap">
+    <div class="quote-card">
+      <div class="quote-card-head">
+        <div class="section-eyebrow" style="margin-bottom:6px">Get Started</div>
+        <h2 class="section-h2" style="margin-bottom:8px">Request a Repair <em>Quote</em></h2>
+        <p class="section-lead" style="margin-bottom:0">Every guitar is different, and every repair job is different &mdash; so we quote each one individually. Tell us what&rsquo;s going on below and we&rsquo;ll get back to you promptly with an estimate.</p>
+      </div>
+
+      <form id="repair-quote-form-el" class="quote-form" novalidate>
+        <div class="quote-form-grid">
+          <div class="quote-field">
+            <label for="rq-name">Name<span class="req">*</span></label>
+            <input type="text" id="rq-name" name="name" required maxlength="120" autocomplete="name">
+          </div>
+          <div class="quote-field">
+            <label for="rq-email">Email<span class="req">*</span></label>
+            <input type="email" id="rq-email" name="email" required maxlength="254" autocomplete="email">
+          </div>
+          <div class="quote-field">
+            <label for="rq-phone">Phone<span class="req">*</span></label>
+            <input type="tel" id="rq-phone" name="phone" required maxlength="30" autocomplete="tel">
+          </div>
+        </div>
+
+        <div class="quote-field">
+          <label for="rq-photos">Photos <span class="opt">(optional, up to 20)</span></label>
+          <input type="file" id="rq-photos" name="photos" accept="image/*" multiple>
+          <p class="quote-hint">The more photos you upload &mdash; and the clearer they are &mdash; the easier it is for us to put together an accurate estimate.</p>
+          <p class="quote-photo-count" id="rq-photo-count"></p>
+        </div>
+
+        <div class="quote-field">
+          <label for="rq-message">Tell us about the repair<span class="req">*</span></label>
+          <textarea id="rq-message" name="message" rows="5" maxlength="2000" required></textarea>
+          <p class="quote-charcount"><span id="rq-char-count">0</span> / 2000</p>
+        </div>
+
+        <div class="quote-field">
+          <div class="cf-turnstile" data-sitekey="0x4AAAAAAEpMqbpteUQEEL7o"></div>
+        </div>
+
+        <p class="quote-error" id="rq-error" hidden></p>
+
+        <button type="submit" class="btn-primary" id="rq-submit">Send Quote Request &rarr;</button>
+      </form>
+
+      <div class="quote-success" id="rq-success" hidden>
+        <p>Thank you for reaching out. We will get back to you promptly with an estimate on your repair.</p>
       </div>
     </div>
   </div>
@@ -720,7 +802,7 @@ footer {
         <div class="service-card">
           <div class="sc-header">
             <div class="sc-name">Electric Guitar Setup</div>
-            <div class="sc-price">$79</div>
+            <div class="sc-price">Custom Quote</div>
           </div>
           <p class="sc-desc">Complete setup for Stratocasters, Telecasters, Les Pauls, SGs, offsets, and most standard electric guitars.</p>
           <div class="sc-lists">
@@ -752,7 +834,7 @@ footer {
         <div class="service-card">
           <div class="sc-header">
             <div class="sc-name">Acoustic Guitar Setup</div>
-            <div class="sc-price">$89</div>
+            <div class="sc-price">Custom Quote</div>
           </div>
           <p class="sc-desc">Setup tailored for acoustic guitars to improve comfort, tuning stability, and overall playability.</p>
           <div class="sc-lists">
@@ -782,7 +864,7 @@ footer {
         <div class="service-card">
           <div class="sc-header">
             <div class="sc-name">Bass Guitar Setup</div>
-            <div class="sc-price">$89</div>
+            <div class="sc-price">Custom Quote</div>
           </div>
           <p class="sc-desc">Complete setup for 4-, 5-, and standard bass configurations.</p>
           <div class="sc-lists single">
@@ -803,7 +885,7 @@ footer {
         <div class="service-card">
           <div class="sc-header">
             <div class="sc-name">Floyd Rose / Locking Trem Setup</div>
-            <div class="sc-price">From $119</div>
+            <div class="sc-price">Custom Quote</div>
           </div>
           <p class="sc-desc">Floating trem systems require significantly more time and balancing. Pricing varies based on condition, tuning changes, and prior setup issues.</p>
           <div class="sc-lists single">
@@ -824,7 +906,7 @@ footer {
         <div class="service-card">
           <div class="sc-header">
             <div class="sc-name">Seasonal Tune-Up</div>
-            <div class="sc-price">$39</div>
+            <div class="sc-price">Custom Quote</div>
           </div>
           <p class="sc-desc">Perfect for guitars that mostly play well but need minor correction. Does not include full setup work.</p>
           <div class="sc-lists single">
@@ -846,7 +928,7 @@ footer {
         <p><strong>Strings are sold separately.</strong> String installation labor is included with all setups &mdash; you pay only for the strings you choose. Standard electric: <strong>Ernie Ball Regular Slinky (10&ndash;46).</strong> Acoustic, coated, premium, bass, and alternate gauges available at additional cost.</p>
         <div class="strings-price">
           <span class="lab">Standard Set</span>
-          <span class="val">$8.99</span>
+          <span class="val">Ask Us</span>
         </div>
       </div>
 
@@ -877,7 +959,7 @@ footer {
         <div class="service-card">
           <div class="sc-header">
             <div class="sc-name">Basic Restring</div>
-            <div class="sc-price">$20 Labor</div>
+            <div class="sc-price">Custom Quote</div>
           </div>
           <p class="sc-desc">Professional restring service for electric, acoustic, and bass guitars.</p>
           <div class="sc-lists">
@@ -906,7 +988,7 @@ footer {
         <div class="service-card">
           <div class="sc-header">
             <div class="sc-name">Restring + Setup Check</div>
-            <div class="sc-price">$35 Labor</div>
+            <div class="sc-price">Custom Quote</div>
           </div>
           <p class="sc-desc">For guitars that mostly play well but need a little attention during restringing. Does not include a full setup.</p>
           <div class="sc-lists">
@@ -936,22 +1018,22 @@ footer {
       <div class="addons-grid">
         <div class="addon-card">
           <div class="addon-name">String Change Only</div>
-          <div class="addon-price">$20 Labor</div>
+          <div class="addon-price">Custom Quote</div>
           <div class="addon-desc">Restring, tuning, stretch, and quick inspection.</div>
         </div>
         <div class="addon-card">
           <div class="addon-name">Pickup Height Adjustment</div>
-          <div class="addon-price">$15</div>
+          <div class="addon-price">Custom Quote</div>
           <div class="addon-desc">Quick tonal balancing and output adjustment.</div>
         </div>
         <div class="addon-card">
           <div class="addon-name">Fretboard Conditioning</div>
-          <div class="addon-price">$20</div>
+          <div class="addon-price">Custom Quote</div>
           <div class="addon-desc">Restore moisture on unfinished boards (rosewood, ebony, pau ferro). Not needed for finished maple.</div>
         </div>
         <div class="addon-card">
           <div class="addon-name">Tremolo Decking / Spring Adjustment</div>
-          <div class="addon-price">$20+</div>
+          <div class="addon-price">Custom Quote</div>
           <div class="addon-desc">Adjust trem springs and deck position.</div>
         </div>
       </div>
@@ -960,7 +1042,7 @@ footer {
         <p><strong>Strings are sold separately.</strong> Customers may provide their own preferred strings. Standard: <strong>Ernie Ball Regular Slinky (10&ndash;46).</strong> Acoustic, coated, premium, bass, flatwound, and alternate gauges available.</p>
         <div class="strings-price">
           <span class="lab">Standard Set</span>
-          <span class="val">$8.99</span>
+          <span class="val">Ask Us</span>
         </div>
       </div>
     </div>
@@ -977,7 +1059,7 @@ footer {
         <div class="service-card">
           <div class="sc-header">
             <div class="sc-name">Fret Polish &amp; Fingerboard Refresh</div>
-            <div class="sc-price">$39</div>
+            <div class="sc-price">Custom Quote</div>
           </div>
           <p class="sc-desc">Perfect for guitars with dull frets, grime buildup, or rough bends. Done in-house.</p>
           <div class="sc-lists">
@@ -1005,7 +1087,7 @@ footer {
         <div class="service-card">
           <div class="sc-header">
             <div class="sc-name">Nut Replacement / Upgrade</div>
-            <div class="sc-price">From $79</div>
+            <div class="sc-price">Custom Quote</div>
           </div>
           <p class="sc-desc">Replace worn or problematic nuts with properly fitted replacements. Done in-house. Pricing varies by material and instrument type.</p>
           <div class="sc-lists">
@@ -1045,7 +1127,7 @@ footer {
         <div class="service-card">
           <div class="sc-header">
             <div class="sc-name">Basic Guitar Diagnostic</div>
-            <div class="sc-price">$25</div>
+            <div class="sc-price">Custom Quote</div>
           </div>
           <p class="sc-desc">Not sure what&rsquo;s wrong? Start here. Diagnostic fee may be applied toward approved repair work.</p>
           <div class="sc-lists">
@@ -1075,7 +1157,7 @@ footer {
         <div class="service-card">
           <div class="sc-header">
             <div class="sc-name">Electronics Diagnostic</div>
-            <div class="sc-price">$35</div>
+            <div class="sc-price">Custom Quote</div>
           </div>
           <p class="sc-desc">For guitars with electrical or signal problems. Diagnostic fee may be applied toward approved repair work.</p>
           <div class="sc-lists">
@@ -1104,7 +1186,7 @@ footer {
         <div class="service-card">
           <div class="sc-header">
             <div class="sc-name">Hardware / Tuning Stability Diagnostic</div>
-            <div class="sc-price">$35</div>
+            <div class="sc-price">Custom Quote</div>
           </div>
           <p class="sc-desc">For tuning problems, rattles, tremolo issues, or hardware concerns. Diagnostic fee may be applied toward approved repair work.</p>
           <div class="sc-lists">
@@ -1133,7 +1215,7 @@ footer {
         <div class="service-card">
           <div class="sc-header">
             <div class="sc-name">Fret Buzz / Neck Evaluation</div>
-            <div class="sc-price">$35</div>
+            <div class="sc-price">Custom Quote</div>
           </div>
           <p class="sc-desc">Targeted diagnosis for buzzing, choking bends, dead notes, or neck movement. Fee may be applied toward approved repair work.</p>
           <div class="sc-lists">
@@ -1163,12 +1245,12 @@ footer {
       <div class="addons-grid">
         <div class="addon-card">
           <div class="addon-name">Minor Repair Services</div>
-          <div class="addon-price">From $20+</div>
+          <div class="addon-price">Custom Quote</div>
           <div class="addon-desc">Loose jack tightening, strap button repair, output jack replacement, minor electronics fixes, and basic solder repairs.</div>
         </div>
         <div class="addon-card">
           <div class="addon-name">Repair Estimates &amp; Quotes</div>
-          <div class="addon-price">Free After Diagnostic</div>
+          <div class="addon-price">Included in Quote</div>
           <div class="addon-desc">Clear recommendation and cost estimate before any work begins. No surprise repairs. Approval required.</div>
         </div>
         <div class="addon-card">
@@ -1196,7 +1278,7 @@ footer {
         <div class="service-card">
           <div class="sc-header">
             <div class="sc-name">Single Humbucker Install</div>
-            <div class="sc-price">$59</div>
+            <div class="sc-price">Custom Quote</div>
           </div>
           <p class="sc-desc">Bridge or neck pickup swaps on Les Paul Junior, SG Junior, or partial upgrades.</p>
           <div class="sc-lists single">
@@ -1214,7 +1296,7 @@ footer {
         <div class="service-card">
           <div class="sc-header">
             <div class="sc-name">Dual Humbucker Install</div>
-            <div class="sc-price">$99</div>
+            <div class="sc-price">Custom Quote</div>
           </div>
           <p class="sc-desc">Complete 2-pickup installation for Les Paul, SG, and similar guitars.</p>
           <div class="sc-lists single">
@@ -1232,7 +1314,7 @@ footer {
         <div class="service-card">
           <div class="sc-header">
             <div class="sc-name">Telecaster Pickup Swap</div>
-            <div class="sc-price">$89</div>
+            <div class="sc-price">Custom Quote</div>
           </div>
           <p class="sc-desc">Install of both Tele pickups (bridge + neck).</p>
           <div class="sc-lists single">
@@ -1250,7 +1332,7 @@ footer {
         <div class="service-card">
           <div class="sc-header">
             <div class="sc-name">Stratocaster Pickup Swap</div>
-            <div class="sc-price">$109</div>
+            <div class="sc-price">Custom Quote</div>
           </div>
           <p class="sc-desc">Complete Strat pickup installation (3 pickups).</p>
           <div class="sc-lists single">
@@ -1270,17 +1352,17 @@ footer {
       <div class="addons-grid" style="margin-bottom:40px">
         <div class="addon-card">
           <div class="addon-name">Single Pickup Replacement</div>
-          <div class="addon-price">$49&ndash;59</div>
+          <div class="addon-price">Custom Quote</div>
           <div class="addon-desc">Single neck, middle, or bridge pickup on any platform.</div>
         </div>
         <div class="addon-card">
           <div class="addon-name">Push-Pull Pots / Coil Splits / Phase Mods</div>
-          <div class="addon-price">From $25+</div>
+          <div class="addon-price">Custom Quote</div>
           <div class="addon-desc">Pricing varies depending on wiring complexity.</div>
         </div>
         <div class="addon-card">
           <div class="addon-name">Complete Rewire / Electronics Troubleshooting</div>
-          <div class="addon-price">From $50+</div>
+          <div class="addon-price">Custom Quote</div>
           <div class="addon-desc">Pots, switches, output jacks, shielding, grounding, or custom wiring.</div>
         </div>
         <div class="addon-card">
@@ -1297,7 +1379,7 @@ footer {
         <div class="service-card">
           <div class="sc-header">
             <div class="sc-name">Sharp Fret End Treatment</div>
-            <div class="sc-price">From $49</div>
+            <div class="sc-price">Custom Quote</div>
           </div>
           <p class="sc-desc">Smooths sharp fret edges caused by seasonal dryness or neck shrinkage. Pricing varies by severity.</p>
           <div class="sc-lists">
@@ -1323,7 +1405,7 @@ footer {
         <div class="service-card">
           <div class="sc-header">
             <div class="sc-name">Spot Fret Level / Problem Area Repair</div>
-            <div class="sc-price">From $69</div>
+            <div class="sc-price">Custom Quote</div>
           </div>
           <p class="sc-desc">Targets isolated buzzing, dead notes, or uneven fret issues. Pricing varies by severity.</p>
           <div class="sc-lists">
@@ -1349,7 +1431,7 @@ footer {
         <div class="service-card">
           <div class="sc-header">
             <div class="sc-name">Full Fret Level, Crown &amp; Polish</div>
-            <div class="sc-price">From $179</div>
+            <div class="sc-price">Custom Quote</div>
           </div>
           <p class="sc-desc">Corrective fretwork for uneven wear, persistent buzzing, or aging instruments. Setup recommended after service.</p>
           <div class="sc-lists">
@@ -1382,32 +1464,32 @@ footer {
       <div class="addons-grid" style="margin-bottom:40px">
         <div class="addon-card">
           <div class="addon-name">Tuner Replacement / Upgrade</div>
-          <div class="addon-price">From $49 Labor</div>
+          <div class="addon-price">Custom Quote</div>
           <div class="addon-desc">Standard or locking tuner installs. Pricing varies by fitment and hardware type.</div>
         </div>
         <div class="addon-card">
           <div class="addon-name">Locking Tuner Upgrade</div>
-          <div class="addon-price">From $59 Labor</div>
+          <div class="addon-price">Custom Quote</div>
           <div class="addon-desc">Professional install. Restring labor included.</div>
         </div>
         <div class="addon-card">
           <div class="addon-name">Bridge / Tailpiece Replacement</div>
-          <div class="addon-price">From $59 Labor</div>
+          <div class="addon-price">Custom Quote</div>
           <div class="addon-desc">Tune-O-Matic, Tele, Strat, hardtail, stopbar, and similar systems.</div>
         </div>
         <div class="addon-card">
           <div class="addon-name">Tremolo Hardware Upgrades</div>
-          <div class="addon-price">From $39</div>
+          <div class="addon-price">Custom Quote</div>
           <div class="addon-desc">Springs, claw adjustments, upgraded blocks, saddles, and related hardware.</div>
         </div>
         <div class="addon-card">
           <div class="addon-name">Pickguard / Hardware Swap</div>
-          <div class="addon-price">From $35</div>
+          <div class="addon-price">Custom Quote</div>
           <div class="addon-desc">Pickguards, knobs, switch tips, pickup rings, plates, and cosmetic hardware.</div>
         </div>
         <div class="addon-card">
           <div class="addon-name">Strap Lock / Button Install</div>
-          <div class="addon-price">$20&ndash;25</div>
+          <div class="addon-price">Custom Quote</div>
           <div class="addon-desc">Strap lock systems or standard strap button installs.</div>
         </div>
       </div>
@@ -1512,6 +1594,127 @@ document.getElementById('footer-year').textContent = new Date().getFullYear();
 
   window.addEventListener('scroll', updateActive, { passive: true });
   updateActive();
+})();
+
+(function() {
+  var form = document.getElementById('repair-quote-form-el');
+  if (!form) return;
+
+  var successBox = document.getElementById('rq-success');
+  var errorBox = document.getElementById('rq-error');
+  var submitBtn = document.getElementById('rq-submit');
+  var messageField = document.getElementById('rq-message');
+  var charCount = document.getElementById('rq-char-count');
+  var photosInput = document.getElementById('rq-photos');
+  var photoCountEl = document.getElementById('rq-photo-count');
+
+  var MAX_PHOTOS = 20;
+  var MAX_MESSAGE_LENGTH = 2000;
+  var MAX_IMAGE_DIMENSION = 1800;
+
+  messageField.addEventListener('input', function() {
+    charCount.textContent = String(messageField.value.length);
+  });
+
+  photosInput.addEventListener('change', function() {
+    var count = photosInput.files ? photosInput.files.length : 0;
+    if (count > MAX_PHOTOS) {
+      photoCountEl.textContent = 'Please select ' + MAX_PHOTOS + ' photos or fewer.';
+      photoCountEl.style.color = 'var(--clay)';
+    } else {
+      photoCountEl.textContent = count > 0 ? (count + ' photo' + (count === 1 ? '' : 's') + ' selected') : '';
+      photoCountEl.style.color = '';
+    }
+  });
+
+  function resizeImage(file) {
+    return new Promise(function(resolve) {
+      if (!file.type || file.type.indexOf('image/') !== 0 || file.type === 'image/gif') {
+        resolve(file);
+        return;
+      }
+      var img = new Image();
+      var url = URL.createObjectURL(file);
+      img.onload = function() {
+        URL.revokeObjectURL(url);
+        var width = img.naturalWidth;
+        var height = img.naturalHeight;
+        if (!width || !height || (width <= MAX_IMAGE_DIMENSION && height <= MAX_IMAGE_DIMENSION)) {
+          resolve(file);
+          return;
+        }
+        var scale = MAX_IMAGE_DIMENSION / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+        var canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(function(blob) {
+          resolve(blob ? new File([blob], file.name, { type: 'image/jpeg' }) : file);
+        }, 'image/jpeg', 0.82);
+      };
+      img.onerror = function() {
+        URL.revokeObjectURL(url);
+        resolve(file);
+      };
+      img.src = url;
+    });
+  }
+
+  function showError(message) {
+    errorBox.textContent = message;
+    errorBox.hidden = false;
+  }
+
+  form.addEventListener('submit', function(event) {
+    event.preventDefault();
+    errorBox.hidden = true;
+
+    var files = photosInput.files ? Array.prototype.slice.call(photosInput.files) : [];
+    if (files.length > MAX_PHOTOS) {
+      showError('Please select ' + MAX_PHOTOS + ' photos or fewer.');
+      return;
+    }
+    if (messageField.value.length > MAX_MESSAGE_LENGTH) {
+      showError('Message must be ' + MAX_MESSAGE_LENGTH + ' characters or fewer.');
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Sending…';
+
+    Promise.all(files.map(resizeImage)).then(function(resizedFiles) {
+      var formData = new FormData(form);
+      formData.delete('photos');
+      resizedFiles.forEach(function(file) {
+        formData.append('photos', file, file.name);
+      });
+
+      return fetch('/api/repair-quote-request', {
+        method: 'POST',
+        body: formData,
+      });
+    }).then(function(response) {
+      return response.json().catch(function() { return {}; }).then(function(data) {
+        if (!response.ok || !data.ok) {
+          throw new Error(data.message || 'Something went wrong. Please try again.');
+        }
+      });
+    }).then(function() {
+      form.hidden = true;
+      successBox.hidden = false;
+    }).catch(function(error) {
+      showError(error.message || 'Something went wrong. Please try again.');
+      if (window.turnstile) {
+        try { window.turnstile.reset(); } catch (e) {}
+      }
+    }).finally(function() {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Send Quote Request →';
+    });
+  });
 })();
 </script>
 

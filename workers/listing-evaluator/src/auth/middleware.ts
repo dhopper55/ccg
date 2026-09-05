@@ -139,5 +139,7 @@ export function isPublicApiPath(path: string): boolean {
     || path === '/api/guitar-evaluation-image'
     || /^\/api\/guitar-eval-report\/[0-9a-f-]+$/i.test(path)
     || path === '/api/email-signup'
+    || path === '/api/repair-quote-request'
+    || path === '/api/repair-quote-image'
     || path === '/api/dncbudget/public/analysis';
 }
