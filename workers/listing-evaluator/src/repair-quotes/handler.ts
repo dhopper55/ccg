@@ -138,6 +138,22 @@ export async function handleRepairQuoteRequest(request: Request, env: Env): Prom
       console.error('repair quote email send failed', { quoteId, error });
       // The request is safely recorded in D1 even if the email send fails.
     }
+
+    try {
+      await sendBrevoTransactionalEmail(config, {
+        sender: { name: config.senderName, email: config.senderEmail },
+        to: [{ email, name }],
+        subject: 'We received your repair quote request',
+        htmlContent: [
+          `<p>Hi ${escapeHtml(name)},</p>`,
+          `<p>Thanks for reaching out to Coal Creek Guitars. We received your repair quote request and will get back to you shortly with an estimate.</p>`,
+          `<p>&mdash; Coal Creek Guitars</p>`,
+        ].join('\n'),
+      });
+    } catch (error) {
+      console.error('repair quote customer confirmation email failed', { quoteId, error });
+      // Non-fatal — the internal notification above is the primary channel.
+    }
   } else {
     console.error('repair quote email skipped — Brevo not configured', { quoteId });
   }
