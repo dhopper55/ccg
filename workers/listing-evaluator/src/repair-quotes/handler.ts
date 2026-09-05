@@ -113,7 +113,9 @@ export async function handleRepairQuoteRequest(request: Request, env: Env): Prom
       const siteBaseUrl = normalizeText(env.SITE_BASE_URL, 'https://www.coalcreekguitars.com').replace(/\/+$/, '');
       const attachments = imageKeys.map((key, index) => ({
         name: `photo-${index + 1}.${key.split('.').pop()}`,
-        url: `${siteBaseUrl}/api/repair-quote-image?key=${encodeURIComponent(key)}`,
+        // Brevo infers the attachment's file type from the URL path itself (not the query
+        // string), so the key must appear as real path segments ending in its extension.
+        url: `${siteBaseUrl}/api/repair-quote-image/${key}`,
       }));
 
       const htmlContent = [
@@ -143,12 +145,11 @@ export async function handleRepairQuoteRequest(request: Request, env: Env): Prom
   return jsonResponse({ ok: true });
 }
 
-export async function handleRepairQuoteImage(request: Request, env: Env): Promise<Response> {
+export async function handleRepairQuoteImage(request: Request, key: string, env: Env): Promise<Response> {
   if (!env.CUSTOM_ITEMS_BUCKET) {
     return jsonResponse({ message: 'Image storage is not configured.' }, 500);
   }
 
-  const key = new URL(request.url).searchParams.get('key');
   if (!key || !key.startsWith('repair-quote-images/')) {
     return jsonResponse({ message: 'Missing or invalid image key.' }, 400);
   }

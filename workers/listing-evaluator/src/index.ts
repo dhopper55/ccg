@@ -340,8 +340,9 @@ export default {
       return withCors(response, request, env);
     }
 
-    if (path === '/api/repair-quote-image' && request.method === 'GET') {
-      const response = await handleRepairQuoteImage(request, env);
+    const repairQuoteImageMatch = path.match(/^\/api\/repair-quote-image\/(.+)$/);
+    if (repairQuoteImageMatch && request.method === 'GET') {
+      const response = await handleRepairQuoteImage(request, decodeURIComponent(repairQuoteImageMatch[1]), env);
       return withCors(response, request, env);
     }
 
