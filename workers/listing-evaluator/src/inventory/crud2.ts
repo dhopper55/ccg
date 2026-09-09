@@ -3,7 +3,7 @@ import { normalizeText, normalizeUrl } from '../utils/text.js';
 import { jsonResponse, parseBoundedInt, normalizeInventoryDate, toBooleanInput } from '../utils/misc.js';
 import { sanitizePatternLookupHtml } from '../utils/html.js';
 import { normalizeInventoryImageEntries, INVENTORY_MAX_IMAGES } from '../utils/image.js';
-import { dbCreateInventoryItems, dbUpdateInventoryById, dbReplaceInventoryImagesByItemIds, dbSetInventorySoldAvailability, dbDeactivateInventoryItemById, generateUniqueCcgNumber, dbReplaceInventoryTagsByItemIds, normalizeInventoryTagsInput } from './db-write.js';
+import { dbCreateInventoryItems, dbUpdateInventoryById, dbReplaceInventoryImagesByItemIds, dbSetInventorySoldAvailability, dbDeactivateInventoryItemById, dbSetInventoryReverbListingId, generateUniqueCcgNumber, dbReplaceInventoryTagsByItemIds, normalizeInventoryTagsInput } from './db-write.js';
 import { ensureInventoryHostedImageUrls } from './db-images.js';
 import { dbGetInventoryItem, dbFindInventoryBySourceListingId, dbFindInventoryBySaleUrl, dbInventoryItemHasPackageChildren } from './db-core.js';
 import { dbInventoryCategoryExists } from './categories.js';
@@ -105,7 +105,6 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
   const salesChannelCcg = toBooleanInput(body.salesChannelCcg, forSale);
   const salesChannelFbm = toBooleanInput(body.salesChannelFbm, false);
   const salesChannelCl = toBooleanInput(body.salesChannelCl, false);
-  const salesChannelReverb = toBooleanInput(body.salesChannelReverb, false);
   const salesChannelGearExchange = toBooleanInput(body.salesChannelGearExchange, false);
   const salesChannelOfferUp = toBooleanInput(body.salesChannelOfferUp, false);
   const salesChannelEbay = toBooleanInput(body.salesChannelEbay, false);
@@ -125,7 +124,9 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
     sales_channel_ccg: salesChannelCcg ? 1 : 0,
     sales_channel_fbm: salesChannelFbm ? 1 : 0,
     sales_channel_cl: salesChannelCl ? 1 : 0,
-    sales_channel_reverb: salesChannelReverb ? 1 : 0,
+    // sales_channel_reverb is not user-editable; it's derived below from the existing
+    // reverb_listing_id, which only the Add to Reverb / Delete From Reverb action can change.
+    sales_channel_reverb: 0,
     sales_channel_gear_exchange: salesChannelGearExchange ? 1 : 0,
     sales_channel_offerup: salesChannelOfferUp ? 1 : 0,
     sales_channel_ebay: salesChannelEbay ? 1 : 0,
@@ -177,6 +178,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
 
   const current = await dbGetInventoryItem(recordId, env);
   if (!current) return jsonResponse({ message: 'Inventory item not found.' }, 404);
+  salesChannelFields.sales_channel_reverb = (current as { reverbListingId?: unknown }).reverbListingId ? 1 : 0;
 
   if (sourceListingId != null) {
     const alreadyLinked = await dbFindInventoryBySourceListingId(sourceListingId, env);
@@ -690,4 +692,46 @@ export async function handleInventoryDelete(_request: Request, path: string, env
   const updatedCount = await dbDeactivateInventoryItemById(recordId, env);
   if (updatedCount < 1) return jsonResponse({ message: 'Inventory item not found.' }, 404);
   return jsonResponse({ ok: true, updatedCount });
+}
+
+// Both handlers below only manage the local reverb_listing_id link so the admin UI can be
+// built and tested end to end. Neither yet calls out to the real Reverb API (POST /api/listings
+// to create, or PUT .../state/end to end a listing) — that wiring is a follow-up.
+export async function handleInventoryReverbAdd(_request: Request, path: string, env: Env): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const actionIndex = parts.indexOf('reverb-add');
+  const recordId = actionIndex > 0 ? parts[actionIndex - 1] : '';
+  if (!recordId) return jsonResponse({ message: 'Missing inventory ID.' }, 400);
+
+  const current = await dbGetInventoryItem(recordId, env);
+  if (!current) return jsonResponse({ message: 'Inventory item not found.' }, 404);
+  if ((current as { reverbListingId?: unknown }).reverbListingId) {
+    return jsonResponse({ message: 'Item is already listed on Reverb.' }, 400);
+  }
+
+  // TODO: replace this placeholder with a real POST to Reverb's create-listing API and store
+  // the listing id it returns.
+  const stubReverbListingId = `pending-${Date.now()}`;
+  const ok = await dbSetInventoryReverbListingId(recordId, stubReverbListingId, env);
+  if (!ok) return jsonResponse({ message: 'Unable to add item to Reverb.' }, 500);
+  return jsonResponse({ ok: true, reverbListingId: stubReverbListingId });
+}
+
+export async function handleInventoryReverbRemove(_request: Request, path: string, env: Env): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const actionIndex = parts.indexOf('reverb-remove');
+  const recordId = actionIndex > 0 ? parts[actionIndex - 1] : '';
+  if (!recordId) return jsonResponse({ message: 'Missing inventory ID.' }, 400);
+
+  const current = await dbGetInventoryItem(recordId, env);
+  if (!current) return jsonResponse({ message: 'Inventory item not found.' }, 404);
+  if (!(current as { reverbListingId?: unknown }).reverbListingId) {
+    return jsonResponse({ message: 'Item is not currently listed on Reverb.' }, 400);
+  }
+
+  // TODO: replace this with a real call to end the Reverb listing (PUT
+  // /api/my/listings/[id]/state/end) before clearing the local link.
+  const ok = await dbSetInventoryReverbListingId(recordId, null, env);
+  if (!ok) return jsonResponse({ message: 'Unable to remove item from Reverb.' }, 500);
+  return jsonResponse({ ok: true, reverbListingId: null });
 }

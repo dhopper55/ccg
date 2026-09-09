@@ -188,7 +188,9 @@ export async function handleInventoryCreate(request: Request, env: Env): Promise
   const salesChannelCcg = toBooleanInput(body.salesChannelCcg, forSale);
   const salesChannelFbm = toBooleanInput(body.salesChannelFbm, false);
   const salesChannelCl = toBooleanInput(body.salesChannelCl, false);
-  const salesChannelReverb = toBooleanInput(body.salesChannelReverb, false);
+  // A brand-new item can't be listed on Reverb yet; that only happens via the
+  // Add to Reverb action once the item exists and has been saved.
+  const salesChannelReverb = false;
   const salesChannelGearExchange = toBooleanInput(body.salesChannelGearExchange, false);
   const salesChannelOfferUp = toBooleanInput(body.salesChannelOfferUp, false);
   const salesChannelEbay = toBooleanInput(body.salesChannelEbay, false);

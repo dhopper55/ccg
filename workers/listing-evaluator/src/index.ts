@@ -72,6 +72,8 @@ import {
 import {
   handleInventoryUpdate,
   handleInventoryDelete,
+  handleInventoryReverbAdd,
+  handleInventoryReverbRemove,
 } from './inventory/crud2.js';
 import {
   handleInventoryImage,
@@ -1173,6 +1175,16 @@ export default {
 
     if (path.endsWith('/delete') && path.startsWith('/api/inventory/') && request.method === 'POST') {
       const response = await handleInventoryDelete(request, path, env);
+      return withCors(response, request, env);
+    }
+
+    if (path.endsWith('/reverb-add') && path.startsWith('/api/inventory/') && request.method === 'POST') {
+      const response = await handleInventoryReverbAdd(request, path, env);
+      return withCors(response, request, env);
+    }
+
+    if (path.endsWith('/reverb-remove') && path.startsWith('/api/inventory/') && request.method === 'POST') {
+      const response = await handleInventoryReverbRemove(request, path, env);
       return withCors(response, request, env);
     }
 

@@ -50,6 +50,7 @@ type InventoryRecord = {
   isPersonal?: boolean;
   forSale?: boolean;
   isSold?: boolean;
+  reverbListingId?: string | null;
   unitPurchasePrice?: number | null;
   privatePartyValue?: number | null;
   salePrice?: number | null;
@@ -730,6 +731,22 @@ const InventoryManager = () => {
                           </Box>
                         </Tooltip>
                       ) : null}
+                      {record.reverbListingId ? (
+                        <Tooltip title="Listed on Reverb">
+                          <Box
+                            component="img"
+                            src="/images/reverb-icon.svg"
+                            alt="Reverb"
+                            sx={{
+                              width: 14,
+                              height: 14,
+                              display: 'inline-flex',
+                              verticalAlign: 'text-bottom',
+                              ml: 0.75,
+                            }}
+                          />
+                        </Tooltip>
+                      ) : null}
                     </Link>
                   </Stack>
                 </TableCell>
@@ -821,6 +838,16 @@ const InventoryManager = () => {
                         <Box component="span" sx={{ color: 'error.main', display: 'inline-flex', flexShrink: 0 }}>
                           <IconifyIcon icon="material-symbols:construction-rounded" fontSize={15} />
                         </Box>
+                      </Tooltip>
+                    ) : null}
+                    {record.reverbListingId ? (
+                      <Tooltip title="Listed on Reverb">
+                        <Box
+                          component="img"
+                          src="/images/reverb-icon.svg"
+                          alt="Reverb"
+                          sx={{ width: 14, height: 14, display: 'inline-flex', flexShrink: 0 }}
+                        />
                       </Tooltip>
                     ) : null}
                   </Stack>

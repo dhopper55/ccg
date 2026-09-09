@@ -524,6 +524,26 @@ export async function dbSetInventoryMarked(recordId: string, isMarked: boolean, 
   }
 }
 
+export async function dbSetInventoryReverbListingId(
+  recordId: string,
+  reverbListingId: string | null,
+  env: Env,
+): Promise<boolean> {
+  const idValue = Number.parseInt(recordId, 10);
+  if (!Number.isFinite(idValue)) return false;
+  try {
+    const result = await env.DB.prepare(
+      `UPDATE ccg_inventory_items
+       SET reverb_listing_id = ?, sales_channel_reverb = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`
+    ).bind(reverbListingId, reverbListingId ? 1 : 0, idValue).run();
+    return Number(result.meta?.changes || 0) > 0;
+  } catch (error) {
+    console.error('Inventory reverb_listing_id update failed', { error });
+    return false;
+  }
+}
+
 export async function dbDeactivateInventoryItemById(recordId: string, env: Env): Promise<number> {
   const idValue = Number.parseInt(recordId, 10);
   if (!Number.isFinite(idValue)) return 0;

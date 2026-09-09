@@ -115,6 +115,7 @@ type InventoryItemRecord = {
   salesChannelFbm?: boolean;
   salesChannelCl?: boolean;
   salesChannelReverb?: boolean;
+  reverbListingId?: string | null;
   salesChannelGearExchange?: boolean;
   salesChannelOfferUp?: boolean;
   salesChannelEbay?: boolean;
@@ -258,6 +259,7 @@ type FormState = {
   salesChannelFbm: boolean;
   salesChannelCl: boolean;
   salesChannelReverb: boolean;
+  reverbListingId: string | null;
   salesChannelGearExchange: boolean;
   salesChannelOfferUp: boolean;
   salesChannelEbay: boolean;
@@ -522,6 +524,7 @@ const DEFAULT_FORM: FormState = {
   salesChannelFbm: false,
   salesChannelCl: false,
   salesChannelReverb: false,
+  reverbListingId: null,
   salesChannelGearExchange: false,
   salesChannelOfferUp: false,
   salesChannelEbay: false,
@@ -574,6 +577,14 @@ function isSaleFieldsDirty(form: FormState, saved: SaleFieldsSnapshot): boolean 
     form.bullet6Text !== saved.bullet6Text ||
     form.clearance !== saved.clearance
   );
+}
+
+function buildFullFormSnapshot(
+  formState: FormState,
+  imagesState: InventoryImageRecord[],
+  tagsState: string[],
+): string {
+  return JSON.stringify({ form: formState, images: imagesState, tags: tagsState });
 }
 
 function buildSaleSnapshot(record: {
@@ -1165,6 +1176,7 @@ const InventoryItem = () => {
   const wasForSaleOnLoadRef = useRef(false);
   const saleSnapshotOnLoadRef = useRef<SaleFieldsSnapshot | null>(null);
   const savedSaleSnapshotRef = useRef<SaleFieldsSnapshot | null>(null);
+  const lastSavedFullSnapshotRef = useRef<string | null>(null);
   const saleTitleWasEmptyOnFocusRef = useRef(false);
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
   const [saleUrlReadOnly, setSaleUrlReadOnly] = useState(false);
@@ -1175,6 +1187,7 @@ const InventoryItem = () => {
   const [tags, setTags] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isReverbActionPending, setIsReverbActionPending] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isGeneratingTag, setIsGeneratingTag] = useState(false);
@@ -1411,7 +1424,8 @@ const InventoryItem = () => {
             salesChannelCcg: Boolean(record.salesChannelCcg),
             salesChannelFbm: Boolean(record.salesChannelFbm),
             salesChannelCl: Boolean(record.salesChannelCl),
-            salesChannelReverb: Boolean(record.salesChannelReverb),
+            salesChannelReverb: Boolean(record.reverbListingId),
+            reverbListingId: record.reverbListingId || null,
             salesChannelGearExchange: Boolean(record.salesChannelGearExchange),
             salesChannelOfferUp: Boolean(record.salesChannelOfferUp),
             salesChannelEbay: Boolean(record.salesChannelEbay),
@@ -1544,7 +1558,8 @@ const InventoryItem = () => {
             salesChannelCcg: Boolean(record.forSale || record.salesChannelCcg),
             salesChannelFbm: Boolean(record.salesChannelFbm),
             salesChannelCl: Boolean(record.salesChannelCl),
-            salesChannelReverb: Boolean(record.salesChannelReverb),
+            salesChannelReverb: false,
+            reverbListingId: null,
             salesChannelGearExchange: Boolean(record.salesChannelGearExchange),
             salesChannelOfferUp: Boolean(record.salesChannelOfferUp),
             salesChannelEbay: Boolean(record.salesChannelEbay),
@@ -1654,6 +1669,12 @@ const InventoryItem = () => {
       cancelled = true;
     };
   }, [searchParams, reloadToken]);
+
+  useEffect(() => {
+    if (isLoading) return;
+    lastSavedFullSnapshotRef.current = buildFullFormSnapshot(form, images, tags);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, editId, reloadToken]);
 
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => {
@@ -1886,7 +1907,8 @@ const InventoryItem = () => {
     salesChannelCcg: form.salesChannelCcg,
     salesChannelFbm: form.salesChannelFbm,
     salesChannelCl: form.salesChannelCl,
-    salesChannelReverb: form.salesChannelReverb,
+    // salesChannelReverb is intentionally omitted: it's system-managed, driven by
+    // reverbListingId via the Add to Reverb / Delete From Reverb action.
     salesChannelGearExchange: form.salesChannelGearExchange,
     salesChannelOfferUp: form.salesChannelOfferUp,
     salesChannelEbay: form.salesChannelEbay,
@@ -2375,6 +2397,35 @@ const InventoryItem = () => {
       enqueueSnackbar(text, { variant: 'error' });
     } finally {
       setIsGeneratingTag(false);
+    }
+  };
+
+  const handleReverbToggle = async () => {
+    if (mode !== 'edit' || !editId || isReverbActionPending) return;
+
+    if (buildFullFormSnapshot(form, images, tags) !== lastSavedFullSnapshotRef.current) {
+      enqueueSnackbar('There are unsaved changes. Please save first before updating Reverb.', { variant: 'warning' });
+      return;
+    }
+
+    const isListed = Boolean(form.reverbListingId);
+    if (isListed && !window.confirm('Remove this listing from Reverb?')) return;
+
+    setIsReverbActionPending(true);
+    try {
+      const endpoint = `/api/inventory/${encodeURIComponent(editId)}/${isListed ? 'reverb-remove' : 'reverb-add'}`;
+      const response = await fetch(endpoint, { method: 'POST', credentials: 'same-origin' });
+      const data = (await response.json().catch(() => ({}))) as { message?: string };
+      if (!response.ok) {
+        throw new Error(data.message || 'Unable to update Reverb listing.');
+      }
+      enqueueSnackbar(isListed ? 'Removed from Reverb.' : 'Added to Reverb.', { variant: 'success' });
+      setReloadToken((current) => current + 1);
+    } catch (error) {
+      const text = error instanceof Error ? error.message : 'Unable to update Reverb listing.';
+      enqueueSnackbar(text, { variant: 'error' });
+    } finally {
+      setIsReverbActionPending(false);
     }
   };
 
@@ -3370,15 +3421,12 @@ const InventoryItem = () => {
                       }
                       label="CL"
                     />
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={form.salesChannelReverb}
-                          onChange={(event) => setField('salesChannelReverb', event.target.checked)}
-                        />
-                      }
-                      label="Reverb"
-                    />
+                    <Tooltip title="Managed automatically by the Add to Reverb / Delete From Reverb action below.">
+                      <FormControlLabel
+                        control={<Checkbox checked={form.salesChannelReverb} disabled />}
+                        label="Reverb"
+                      />
+                    </Tooltip>
                     <FormControlLabel
                       control={
                         <Checkbox
@@ -4018,21 +4066,48 @@ const InventoryItem = () => {
 
               <Grid size={12}>
                 <Box sx={{ pt: 1 }}>
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    disabled={isSubmitting || isUploading || isImporting}
-                    onClick={handleSubmitWithSoldCheck}
-                    startIcon={
-                      isSubmitting ? (
-                        <CircularProgress color="inherit" size={16} />
-                      ) : (
-                        <IconifyIcon icon="material-symbols:save-outline-rounded" />
-                      )
-                    }
-                  >
-                    {isSubmitting ? 'Saving...' : submitLabel}
-                  </Button>
+                  <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }}>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      disabled={isSubmitting || isUploading || isImporting}
+                      onClick={handleSubmitWithSoldCheck}
+                      startIcon={
+                        isSubmitting ? (
+                          <CircularProgress color="inherit" size={16} />
+                        ) : (
+                          <IconifyIcon icon="material-symbols:save-outline-rounded" />
+                        )
+                      }
+                    >
+                      {isSubmitting ? 'Saving...' : submitLabel}
+                    </Button>
+                    <Tooltip title={mode !== 'edit' ? 'Save the item first before listing it on Reverb.' : ''}>
+                      <span>
+                        <Button
+                          variant="contained"
+                          disabled={mode !== 'edit' || isReverbActionPending}
+                          onClick={handleReverbToggle}
+                          startIcon={
+                            isReverbActionPending ? (
+                              <CircularProgress color="inherit" size={16} />
+                            ) : (
+                              <Box component="img" src="/images/reverb-icon.svg" alt="" sx={{ width: 16, height: 16 }} />
+                            )
+                          }
+                          sx={mode === 'edit' ? {
+                            bgcolor: form.reverbListingId ? 'error.main' : 'warning.main',
+                            color: '#fff',
+                            '&:hover': { bgcolor: form.reverbListingId ? 'error.dark' : 'warning.dark' },
+                          } : undefined}
+                        >
+                          {isReverbActionPending
+                            ? 'Working...'
+                            : (form.reverbListingId ? 'Delete From Reverb' : 'Add to Reverb')}
+                        </Button>
+                      </span>
+                    </Tooltip>
+                  </Stack>
                 </Box>
               </Grid>
             </Grid>

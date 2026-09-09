@@ -70,6 +70,7 @@ export type InventoryItemRow = {
   sales_channel_fbm: number | null;
   sales_channel_cl: number | null;
   sales_channel_reverb: number | null;
+  reverb_listing_id: string | null;
   sales_channel_gear_exchange: number | null;
   sales_channel_offerup: number | null;
   sales_channel_ebay: number | null;
