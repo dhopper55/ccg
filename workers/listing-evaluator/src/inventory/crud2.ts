@@ -21,7 +21,10 @@ import {
   buildReverbListingPayload,
   createReverbListing,
   toReverbFetchableImageUrl,
+  fetchReverbShippingProfiles,
 } from './reverb-listing.js';
+import { reverbRequestHeaders } from '../pricing/reverb.js';
+import { REVERB_SEARCH_API_URL } from '../constants.js';
 
 export async function handleInventoryUpdate(request: Request, path: string, env: Env): Promise<Response> {
   const parts = path.split('/').filter(Boolean);
@@ -828,4 +831,34 @@ export async function handleInventoryReverbRemove(_request: Request, path: strin
   const ok = await dbSetInventoryReverbListingId(recordId, null, env);
   if (!ok) return jsonResponse({ message: 'Unable to remove item from Reverb.' }, 500);
   return jsonResponse({ ok: true, reverbListingId: null });
+}
+
+// Temporary diagnostic — fetches the linked listing straight from Reverb so we can see the real
+// field names Reverb settled on (shipping in particular isn't documented in their public API
+// docs). Safe to remove once the shipping-field question is resolved.
+export async function handleInventoryReverbDebug(_request: Request, path: string, env: Env): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const actionIndex = parts.indexOf('reverb-debug');
+  const recordId = actionIndex > 0 ? parts[actionIndex - 1] : '';
+  if (!recordId) return jsonResponse({ message: 'Missing inventory ID.' }, 400);
+
+  const current = await dbGetInventoryItem(recordId, env);
+  if (!current) return jsonResponse({ message: 'Inventory item not found.' }, 404);
+  const reverbListingId = (current as { reverbListingId?: unknown }).reverbListingId;
+  if (!reverbListingId) return jsonResponse({ message: 'Item is not currently listed on Reverb.' }, 400);
+
+  const response = await fetch(`${REVERB_SEARCH_API_URL}/${encodeURIComponent(String(reverbListingId))}`, {
+    method: 'GET',
+    headers: reverbRequestHeaders(env),
+  });
+  const text = await response.text();
+  return new Response(text, {
+    status: response.status,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+export async function handleReverbShippingProfiles(_request: Request, env: Env): Promise<Response> {
+  const profiles = await fetchReverbShippingProfiles(env);
+  return jsonResponse({ profiles });
 }

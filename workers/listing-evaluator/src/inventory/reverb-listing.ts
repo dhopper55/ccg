@@ -79,6 +79,7 @@ export type ReverbWizardInput = {
   allowOffers: boolean;
   shippingMethod: ReverbShippingMethod;
   flatRateAmount: number | null;
+  shippingProfileId: string | null;
   packageWidthIn: number;
   packageHeightIn: number;
   packageLengthIn: number;
@@ -115,6 +116,12 @@ export function parseReverbWizardInput(
     flatRateAmount = amount;
   }
 
+  let shippingProfileId: string | null = null;
+  if (shippingMethod === 'calculated') {
+    shippingProfileId = normalizeText(body.shippingProfileId, '') || null;
+    if (!shippingProfileId) return { error: 'Choose a shipping profile.' };
+  }
+
   const packageWidthIn = parseBoundedInt(body.packageWidthIn, 0, 0, 1000);
   const packageHeightIn = parseBoundedInt(body.packageHeightIn, 0, 0, 1000);
   const packageLengthIn = parseBoundedInt(body.packageLengthIn, 0, 0, 1000);
@@ -138,6 +145,7 @@ export function parseReverbWizardInput(
       allowOffers,
       shippingMethod,
       flatRateAmount,
+      shippingProfileId,
       packageWidthIn,
       packageHeightIn,
       packageLengthIn,
@@ -259,6 +267,28 @@ export async function resolveReverbCategoryUuid(
   return { uuid: best.uuid, matchedName: best.full_name };
 }
 
+export type ReverbShippingProfile = { id: string; name: string };
+
+// GET /api/shop is documented (see "Shipping Profiles and Shipping Rates" in create-listings
+// docs) as the way to list a shop's configured shipping profiles. Profiles themselves can only
+// be created/edited on reverb.com, not via the API — this just reads the live list so the
+// wizard can offer a real, valid shipping_profile_id instead of guessing at calculated shipping.
+export async function fetchReverbShippingProfiles(env: Env): Promise<ReverbShippingProfile[]> {
+  const response = await fetch(`${REVERB_API_BASE_URL}/shop`, {
+    method: 'GET',
+    headers: reverbRequestHeaders(env),
+  });
+  if (!response.ok) {
+    console.error('Reverb shop/shipping-profiles fetch failed', { status: response.status });
+    return [];
+  }
+  const data = await response.json() as { shipping_profiles?: Array<{ id?: unknown; name?: unknown }> };
+  const profiles = Array.isArray(data.shipping_profiles) ? data.shipping_profiles : [];
+  return profiles
+    .filter((profile) => profile.id != null && profile.name)
+    .map((profile) => ({ id: String(profile.id), name: String(profile.name) }));
+}
+
 export type ReverbListingSourceItem = {
   saleTitle: string;
   saleDescription: string;
@@ -300,9 +330,11 @@ export function buildReverbListingPayload(
       region_code: 'US_CON',
     }];
   }
-  // shippingMethod === 'calculated': no rates array — dimensions/weight above are what let
-  // Reverb calculate a per-buyer cost. Deliberately never sending an "XX" (everywhere else)
-  // rate, so no international shipping is offered.
+  // Deliberately never sending an "XX" (everywhere else) rate, so no international shipping is
+  // offered. For "calculated", per Reverb's docs, carrier-calculated rates come from a shipping
+  // profile configured on reverb.com (shipping_profile_id below) — raw dimensions/weight in the
+  // shipping object alone do NOT enable calculated shipping (confirmed: that combination came
+  // back from Reverb as local_pickup_only:true with no real shipping).
 
   return {
     make: item.brand,
@@ -313,6 +345,7 @@ export function buildReverbListingPayload(
     year: item.yearRange || undefined,
     categories: [{ uuid: categoryUuid }],
     condition: { uuid: wizard.conditionUuid },
+    shipping_profile_id: wizard.shippingMethod === 'calculated' ? wizard.shippingProfileId : undefined,
     photos: item.imageUrls,
     videos: item.videoUrl ? [{ link: item.videoUrl }] : undefined,
     price: { amount: item.salePrice.toFixed(2), currency: 'USD' },

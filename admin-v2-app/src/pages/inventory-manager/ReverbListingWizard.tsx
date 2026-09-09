@@ -74,6 +74,9 @@ const ReverbListingWizard = ({ open, itemId, ccgCondition, onClose, onListed }: 
   const [weightLbs, setWeightLbs] = useState('');
   const [weightOz, setWeightOz] = useState('');
   const [safeShipping, setSafeShipping] = useState(false);
+  const [shippingProfileId, setShippingProfileId] = useState('');
+  const [shippingProfiles, setShippingProfiles] = useState<Array<{ id: string; name: string }>>([]);
+  const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -91,8 +94,20 @@ const ReverbListingWizard = ({ open, itemId, ccgCondition, onClose, onListed }: 
     setWeightLbs('');
     setWeightOz('');
     setSafeShipping(false);
+    setShippingProfileId('');
     setIsSubmitting(false);
     setErrorMessage(null);
+
+    setIsLoadingProfiles(true);
+    fetch('/api/reverb/shipping-profiles', { credentials: 'same-origin' })
+      .then((response) => response.json())
+      .then((data: { profiles?: Array<{ id: string; name: string }> }) => {
+        const profiles = Array.isArray(data.profiles) ? data.profiles : [];
+        setShippingProfiles(profiles);
+        if (profiles.length === 1) setShippingProfileId(profiles[0].id);
+      })
+      .catch(() => setShippingProfiles([]))
+      .finally(() => setIsLoadingProfiles(false));
   }, [open, ccgCondition]);
 
   const width = toPositiveInt(packageWidthIn);
@@ -109,7 +124,8 @@ const ReverbListingWizard = ({ open, itemId, ccgCondition, onClose, onListed }: 
     && height != null
     && length != null
     && hasWeight
-    && (shippingMethod !== 'flat' || flatAmount != null);
+    && (shippingMethod !== 'flat' || flatAmount != null)
+    && (shippingMethod !== 'calculated' || Boolean(shippingProfileId));
 
   const handleList = async () => {
     if (!isValid || isSubmitting) return;
@@ -127,6 +143,7 @@ const ReverbListingWizard = ({ open, itemId, ccgCondition, onClose, onListed }: 
           allowOffers,
           shippingMethod,
           flatRateAmount: flatAmount,
+          shippingProfileId: shippingMethod === 'calculated' ? shippingProfileId : null,
           packageWidthIn: width,
           packageHeightIn: height,
           packageLengthIn: length,
@@ -218,6 +235,28 @@ const ReverbListingWizard = ({ open, itemId, ccgCondition, onClose, onListed }: 
                 inputProps={{ min: 1, step: 1 }}
                 sx={{ mt: 1, width: 200 }}
               />
+            ) : null}
+            {shippingMethod === 'calculated' ? (
+              <TextField
+                select
+                label="Shipping Profile"
+                size="small"
+                value={shippingProfileId}
+                onChange={(event) => setShippingProfileId(event.target.value)}
+                sx={{ mt: 1, minWidth: 260 }}
+                disabled={isLoadingProfiles}
+                helperText={
+                  isLoadingProfiles
+                    ? 'Loading profiles from Reverb...'
+                    : (!isLoadingProfiles && shippingProfiles.length === 0
+                      ? 'No shipping profiles found on your Reverb account — set one up on reverb.com first.'
+                      : undefined)
+                }
+              >
+                {shippingProfiles.map((profile) => (
+                  <MenuItem key={profile.id} value={profile.id}>{profile.name}</MenuItem>
+                ))}
+              </TextField>
             ) : null}
           </Box>
 

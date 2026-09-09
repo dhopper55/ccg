@@ -213,7 +213,7 @@ export function buildReverbPricingQuery(base: SingleAiResult): string {
 export function reverbRequestHeaders(env: Env): HeadersInit {
   const token = env.REVERB_API_TOKEN || REVERB_API_TOKEN_FALLBACK;
   return {
-    'Content-Type': 'application/hal+json',
+    'Content-Type': 'application/hal+json; charset=utf-8',
     'Accept': 'application/hal+json',
     'Accept-Version': '3.0',
     'Authorization': `Bearer ${token}`,

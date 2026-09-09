@@ -74,6 +74,8 @@ import {
   handleInventoryDelete,
   handleInventoryReverbAdd,
   handleInventoryReverbRemove,
+  handleInventoryReverbDebug,
+  handleReverbShippingProfiles,
 } from './inventory/crud2.js';
 import {
   handleInventoryImage,
@@ -1191,6 +1193,16 @@ export default {
 
     if (path.endsWith('/reverb-remove') && path.startsWith('/api/inventory/') && request.method === 'POST') {
       const response = await handleInventoryReverbRemove(request, path, env);
+      return withCors(response, request, env);
+    }
+
+    if (path.endsWith('/reverb-debug') && path.startsWith('/api/inventory/') && request.method === 'GET') {
+      const response = await handleInventoryReverbDebug(request, path, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/reverb/shipping-profiles' && request.method === 'GET') {
+      const response = await handleReverbShippingProfiles(request, env);
       return withCors(response, request, env);
     }
 
