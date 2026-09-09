@@ -27,7 +27,7 @@ Entrants may enter via the entry form hosted at coalcreekguitars.com (powered by
 
 1. **Submit your full name and email address**, and agree to join the Coal Creek Guitars email list. This is required to participate.
 2. **Follow Coal Creek Guitars on Instagram** (@coalcreekguitars).
-3. **Visit the Coal Creek Guitars Facebook Page** (facebook.com/profile.php?id=61587059786524).
+3. **Follow Coal Creek Guitars on Facebook** (facebook.com/profile.php?id=61587059786524).
 
 **Bonus entries:** After entering, each entrant receives a unique referral link. For each additional person who enters the Giveaway using that referral link, the referring entrant receives one (1) additional entry.
 
