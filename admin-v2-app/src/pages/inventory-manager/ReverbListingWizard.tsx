@@ -26,7 +26,7 @@ type ReverbListingWizardProps = {
   open: boolean;
   itemId: string;
   onClose: () => void;
-  onListed: () => void;
+  onListed: (warning?: string | null) => void;
 };
 
 function toPositiveInt(value: string): number | null {
@@ -106,11 +106,11 @@ const ReverbListingWizard = ({ open, itemId, onClose, onListed }: ReverbListingW
           safeShipping,
         }),
       });
-      const data = (await response.json().catch(() => ({}))) as { message?: string };
+      const data = (await response.json().catch(() => ({}))) as { message?: string; warning?: string | null };
       if (!response.ok) {
         throw new Error(data.message || 'Unable to list on Reverb.');
       }
-      onListed();
+      onListed(data.warning || null);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to list on Reverb.');
     } finally {

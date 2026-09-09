@@ -79,6 +79,7 @@ import {
   handleInventoryImage,
   handleInventoryImageUpload,
   handleInventoryImageImport,
+  handlePublicImageBytes,
 } from './inventory/images.js';
 import {
   handleAdminV2InventoryCategories,
@@ -296,6 +297,10 @@ export default {
 
     if (path === '/robots.txt' && (request.method === 'GET' || request.method === 'HEAD')) {
       return handleRobotsTxt();
+    }
+
+    if (path === '/img' && (request.method === 'GET' || request.method === 'HEAD' || request.method === 'OPTIONS')) {
+      return handlePublicImageBytes(request, env);
     }
 
     if (
@@ -1148,7 +1153,7 @@ export default {
       return withCors(response, request, env);
     }
 
-    if (path === '/api/inventory-image' && request.method === 'GET') {
+    if (path === '/api/inventory-image' && (request.method === 'GET' || request.method === 'HEAD')) {
       const response = await handleInventoryImage(request, env);
       return withCors(response, request, env);
     }

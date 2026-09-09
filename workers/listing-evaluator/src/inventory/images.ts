@@ -15,6 +15,25 @@ export async function handleInventoryImage(request: Request, env: Env): Promise<
     return jsonResponse({ message: 'Missing or invalid image key.' }, 400);
   }
 
+  // Some external fetchers (e.g. Reverb's photo importer) send a HEAD request first to check
+  // the URL/content-type/size before downloading — this must resolve the same as GET or they
+  // treat the URL as broken and skip the image entirely.
+  if (request.method === 'HEAD') {
+    const head = await env.CUSTOM_ITEMS_BUCKET.head(key);
+    if (!head) {
+      return jsonResponse({ message: 'Image not found.' }, 404);
+    }
+    const headers = new Headers();
+    head.writeHttpMetadata(headers);
+    headers.set('etag', head.httpEtag);
+    headers.set('cache-control', 'public, max-age=86400');
+    headers.set('content-length', String(head.size));
+    if (!headers.get('content-type')) {
+      headers.set('content-type', 'application/octet-stream');
+    }
+    return new Response(null, { headers });
+  }
+
   const object = await env.CUSTOM_ITEMS_BUCKET.get(key);
   if (!object || !object.body) {
     return jsonResponse({ message: 'Image not found.' }, 404);
@@ -24,6 +43,60 @@ export async function handleInventoryImage(request: Request, env: Env): Promise<
   const headers = new Headers();
   object.writeHttpMetadata(headers);
   headers.set('etag', object.httpEtag);
+  headers.set('cache-control', 'public, max-age=86400');
+  const ct = headers.get('content-type') || '';
+  if (!ct || ct === 'application/octet-stream' || ct === 'binary/octet-stream') {
+    const detected = detectContentTypeFromBytes(new Uint8Array(body));
+    headers.set('content-type', detected || 'application/octet-stream');
+  }
+  return new Response(body, { headers });
+}
+
+const PUBLIC_IMAGE_KEY_PREFIXES = ['inventory-items/', 'listing-images/', 'custom-items/'];
+
+// Deliberately outside /api/ (see index.ts routing — nothing under /api/ that isn't explicitly
+// public gets an auth check, so this sidesteps that entirely) and deliberately minimal: no auth,
+// no admin-specific headers, wide-open CORS. Built to rule out any interference from the
+// existing /api/inventory-image route (CORS scoping, security headers, WAF rules scoped to
+// /api/) when diagnosing why an external fetcher (Reverb) wasn't picking up photos.
+export async function handlePublicImageBytes(request: Request, env: Env): Promise<Response> {
+  if (!env.CUSTOM_ITEMS_BUCKET) {
+    return new Response('Not configured', { status: 500 });
+  }
+
+  const url = new URL(request.url);
+  const key = url.searchParams.get('key') || '';
+  if (!key || !PUBLIC_IMAGE_KEY_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+    return new Response('Missing or invalid key', { status: 400 });
+  }
+
+  const corsHeaders: Record<string, string> = {
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET, HEAD, OPTIONS',
+  };
+
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
+
+  if (request.method === 'HEAD') {
+    const head = await env.CUSTOM_ITEMS_BUCKET.head(key);
+    if (!head) return new Response('Not found', { status: 404, headers: corsHeaders });
+    const headers = new Headers(corsHeaders);
+    head.writeHttpMetadata(headers);
+    headers.set('content-length', String(head.size));
+    headers.set('cache-control', 'public, max-age=86400');
+    if (!headers.get('content-type')) headers.set('content-type', 'application/octet-stream');
+    return new Response(null, { headers });
+  }
+
+  const object = await env.CUSTOM_ITEMS_BUCKET.get(key);
+  if (!object || !object.body) {
+    return new Response('Not found', { status: 404, headers: corsHeaders });
+  }
+  const body = await object.arrayBuffer();
+  const headers = new Headers(corsHeaders);
+  object.writeHttpMetadata(headers);
   headers.set('cache-control', 'public, max-age=86400');
   const ct = headers.get('content-type') || '';
   if (!ct || ct === 'application/octet-stream' || ct === 'binary/octet-stream') {

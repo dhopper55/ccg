@@ -21,6 +21,7 @@ import {
   resolveReverbCategoryUuid,
   buildReverbListingPayload,
   createReverbListing,
+  toReverbFetchableImageUrl,
 } from './reverb-listing.js';
 
 export async function handleInventoryUpdate(request: Request, path: string, env: Env): Promise<Response> {
@@ -738,9 +739,15 @@ export async function handleInventoryReverbAdd(request: Request, path: string, e
   const imageRecords = Array.isArray(record.images)
     ? record.images as Array<{ url?: string; isPrivate?: boolean }>
     : [];
-  const imageUrls = imageRecords.length
+  const rawImageUrls = imageRecords.length
     ? imageRecords.filter((image) => !image.isPrivate).map((image) => image.url || '').filter(Boolean)
     : (Array.isArray(record.imageUrls) ? (record.imageUrls as string[]).filter(Boolean) : []);
+  // Route Reverb's photo fetches through the bare-bones /img endpoint (no auth, no /api/
+  // namespace, wide-open CORS) instead of /api/inventory-image — ruling out any interference
+  // from that route's other layers while we diagnose why photos weren't attaching.
+  const imageUrls = rawImageUrls
+    .map((url) => toReverbFetchableImageUrl(url, env))
+    .filter((url): url is string => Boolean(url));
 
   const missing: string[] = [];
   if (!saleTitle) missing.push('For Sale Title');
@@ -797,7 +804,18 @@ export async function handleInventoryReverbAdd(request: Request, path: string, e
     }, 500);
   }
 
-  return jsonResponse({ ok: true, reverbListingId: result.listingId, webUrl: result.webUrl });
+  const photoWarning = result.photoCountReturned != null && result.photoCountReturned < imageUrls.length
+    ? `Warning: sent ${imageUrls.length} photo(s), Reverb reports ${result.photoCountReturned} attached.`
+    : null;
+
+  return jsonResponse({
+    ok: true,
+    reverbListingId: result.listingId,
+    webUrl: result.webUrl,
+    photosSent: imageUrls.length,
+    photosAttached: result.photoCountReturned,
+    warning: photoWarning,
+  });
 }
 
 export async function handleInventoryReverbRemove(_request: Request, path: string, env: Env): Promise<Response> {

@@ -2438,9 +2438,13 @@ const InventoryItem = () => {
     }
   };
 
-  const handleReverbListed = () => {
+  const handleReverbListed = (warning?: string | null) => {
     setReverbWizardOpen(false);
-    enqueueSnackbar('Listed on Reverb.', { variant: 'success' });
+    if (warning) {
+      enqueueSnackbar(`Listed on Reverb. ${warning}`, { variant: 'warning', autoHideDuration: 10000 });
+    } else {
+      enqueueSnackbar('Listed on Reverb.', { variant: 'success' });
+    }
     setReloadToken((current) => current + 1);
   };
 

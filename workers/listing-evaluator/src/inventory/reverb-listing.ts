@@ -18,6 +18,30 @@ import { reverbRequestHeaders } from '../pricing/reverb.js';
 // reverb.com; if a toggle didn't take effect, inspect reverb.com's own listing form network
 // request in browser dev tools for the real field name and it's a one-line fix here.
 
+// Points Reverb photo fetches at the minimal, auth-free /img endpoint (see images.ts:
+// handlePublicImageBytes) instead of /api/inventory-image, to rule out any interference from
+// that route's other layers (CORS scoping, admin-oriented headers, /api/-scoped WAF rules).
+export function toReverbFetchableImageUrl(rawValue: string, env: Env): string | null {
+  const raw = (rawValue || '').trim();
+  if (!raw) return null;
+
+  let key = '';
+  if (/^https?:\/\//i.test(raw) || raw.startsWith('/')) {
+    try {
+      const parsed = new URL(raw, 'https://placeholder.invalid');
+      key = parsed.searchParams.get('key') || '';
+    } catch {
+      key = '';
+    }
+  } else {
+    key = raw;
+  }
+  if (!key) return null;
+
+  const siteBaseUrl = normalizeText(env.SITE_BASE_URL, 'https://www.coalcreekguitars.com').replace(/\/+$/, '');
+  return `${siteBaseUrl}/img?key=${encodeURIComponent(key)}`;
+}
+
 export type ReverbShippingMethod = 'calculated' | 'free' | 'flat';
 
 export type ReverbWizardInput = {
@@ -248,7 +272,7 @@ export function buildReverbListingPayload(
 }
 
 type ReverbCreateResult =
-  | { ok: true; listingId: string; webUrl: string | null }
+  | { ok: true; listingId: string; webUrl: string | null; photoCountReturned: number | null }
   | { ok: false; message: string; status: number };
 
 function extractReverbErrorMessage(data: unknown): string {
@@ -292,11 +316,52 @@ export async function createReverbListing(
   }
 
   const record = (data && typeof data === 'object') ? data as Record<string, unknown> : {};
-  const listingId = record.id != null ? String(record.id) : null;
+  const links = record._links as { web?: { href?: string }; self?: { href?: string } } | undefined;
+  const listingId = extractReverbListingId(record, links);
   if (!listingId) {
-    return { ok: false, message: 'Reverb accepted the request but did not return a listing id.', status: 502 };
+    console.error('Reverb create listing: could not find listing id in response', { body: text.slice(0, 1000) });
+    // Surface the raw body so the caller can see exactly what Reverb returned instead of
+    // guessing blind — this response shape isn't documented in Reverb's public API docs.
+    return {
+      ok: false,
+      message: `Reverb accepted the request but no listing id was found in the response. Raw response: ${text.slice(0, 800)}`,
+      status: 502,
+    };
   }
-  const links = record._links as { web?: { href?: string } } | undefined;
   const webUrl = links?.web?.href || null;
-  return { ok: true, listingId, webUrl };
+  // Diagnostic: Reverb's response for a successful create isn't documented publicly either —
+  // log the whole thing once so we can see the real shape (photos field included or not,
+  // whether it echoes back what was accepted) instead of guessing at why photos didn't attach.
+  console.log('Reverb create listing succeeded', { listingId, body: text.slice(0, 2000) });
+  const photosField = record.photos;
+  const photoCountReturned = Array.isArray(photosField) ? photosField.length : null;
+  return { ok: true, listingId, webUrl, photoCountReturned };
+}
+
+function extractReverbListingId(
+  record: Record<string, unknown>,
+  links: { web?: { href?: string }; self?: { href?: string } } | undefined,
+): string | null {
+  if (record.id != null && record.id !== '') return String(record.id);
+
+  const nested = record.listing as Record<string, unknown> | undefined;
+  if (nested?.id != null && nested.id !== '') return String(nested.id);
+
+  const embedded = record._embedded as { listing?: Record<string, unknown> } | undefined;
+  if (embedded?.listing?.id != null) return String(embedded.listing.id);
+
+  // HAL APIs often carry the id as the trailing path segment of the self link even without a
+  // flat top-level "id" field.
+  const selfHref = links?.self?.href || (record._links as { self?: { href?: string } } | undefined)?.self?.href;
+  if (selfHref) {
+    const match = selfHref.match(/\/listings\/(\d+)(?:[/?]|$)/);
+    if (match) return match[1];
+  }
+  const webHref = links?.web?.href;
+  if (webHref) {
+    const match = webHref.match(/\/item\/(\d+)(?:[-/?]|$)/);
+    if (match) return match[1];
+  }
+
+  return null;
 }
