@@ -122,7 +122,7 @@ const ReverbListingWizard = ({ open, itemId, onClose, onListed }: ReverbListingW
     <Dialog open={open} onClose={isSubmitting ? undefined : onClose} maxWidth="sm" fullWidth>
       <DialogTitle>List on Reverb</DialogTitle>
       <DialogContent dividers>
-        <Stack spacing={2.5}>
+        <Stack direction="column" spacing={2.5}>
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
             Title, description, video link, price, and photos are pulled from this item automatically.
             Just answer what's below.
