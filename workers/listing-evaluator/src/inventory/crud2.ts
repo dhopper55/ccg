@@ -15,6 +15,13 @@ import { validateForSaleInventoryFields, resolveToggleTimestamp } from './handle
 
 import { parseCurrencyAmount } from '../utils/money.js';
 import { parseOptionalPositiveInt, normalizeRequiredInventoryBarcode } from '../utils/misc.js';
+import {
+  parseReverbWizardInput,
+  resolveReverbConditionUuid,
+  resolveReverbCategoryUuid,
+  buildReverbListingPayload,
+  createReverbListing,
+} from './reverb-listing.js';
 
 export async function handleInventoryUpdate(request: Request, path: string, env: Env): Promise<Response> {
   const parts = path.split('/').filter(Boolean);
@@ -694,27 +701,103 @@ export async function handleInventoryDelete(_request: Request, path: string, env
   return jsonResponse({ ok: true, updatedCount });
 }
 
-// Both handlers below only manage the local reverb_listing_id link so the admin UI can be
-// built and tested end to end. Neither yet calls out to the real Reverb API (POST /api/listings
-// to create, or PUT .../state/end to end a listing) — that wiring is a follow-up.
-export async function handleInventoryReverbAdd(_request: Request, path: string, env: Env): Promise<Response> {
+// Creates a real, live (publish: true) Reverb listing from the inventory item's existing
+// for-sale fields plus the wizard's answers. See reverb-listing.ts for which payload fields
+// are confirmed against Reverb's public API docs vs. best-guess.
+export async function handleInventoryReverbAdd(request: Request, path: string, env: Env): Promise<Response> {
   const parts = path.split('/').filter(Boolean);
   const actionIndex = parts.indexOf('reverb-add');
   const recordId = actionIndex > 0 ? parts[actionIndex - 1] : '';
   if (!recordId) return jsonResponse({ message: 'Missing inventory ID.' }, 400);
 
+  let body: Record<string, unknown> = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  const wizard = parseReverbWizardInput(body);
+  if (wizard.error) return jsonResponse({ message: wizard.error }, 400);
+
   const current = await dbGetInventoryItem(recordId, env);
   if (!current) return jsonResponse({ message: 'Inventory item not found.' }, 404);
-  if ((current as { reverbListingId?: unknown }).reverbListingId) {
+  const record = current as Record<string, unknown>;
+  if (record.reverbListingId) {
     return jsonResponse({ message: 'Item is already listed on Reverb.' }, 400);
   }
 
-  // TODO: replace this placeholder with a real POST to Reverb's create-listing API and store
-  // the listing id it returns.
-  const stubReverbListingId = `pending-${Date.now()}`;
-  const ok = await dbSetInventoryReverbListingId(recordId, stubReverbListingId, env);
-  if (!ok) return jsonResponse({ message: 'Unable to add item to Reverb.' }, 500);
-  return jsonResponse({ ok: true, reverbListingId: stubReverbListingId });
+  const saleTitle = normalizeText(record.saleTitle, '');
+  const saleDescription = normalizeText(record.saleDescription, '');
+  const salePrice = typeof record.salePrice === 'number' ? record.salePrice : parseCurrencyAmount(record.salePrice);
+  const brand = normalizeText(record.brand, '');
+  const model = normalizeText(record.model, '');
+  const condition = normalizeText(record.condition, '');
+  const categoryPath = normalizeText(record.categoryPath, '') || normalizeText(record.categoryName, '');
+
+  const imageRecords = Array.isArray(record.images)
+    ? record.images as Array<{ url?: string; isPrivate?: boolean }>
+    : [];
+  const imageUrls = imageRecords.length
+    ? imageRecords.filter((image) => !image.isPrivate).map((image) => image.url || '').filter(Boolean)
+    : (Array.isArray(record.imageUrls) ? (record.imageUrls as string[]).filter(Boolean) : []);
+
+  const missing: string[] = [];
+  if (!saleTitle) missing.push('For Sale Title');
+  if (!saleDescription) missing.push('Sale Description');
+  if (!salePrice) missing.push('Sale Price');
+  if (!imageUrls.length) missing.push('at least one public photo');
+  if (!brand) missing.push('Brand');
+  if (!model) missing.push('Model');
+  if (!condition) missing.push('Condition');
+  if (!categoryPath) missing.push('Category');
+  if (missing.length) {
+    return jsonResponse({
+      message: `Fill these in on the item before listing on Reverb: ${missing.join(', ')}.`,
+    }, 400);
+  }
+
+  const conditionUuid = resolveReverbConditionUuid(condition);
+  if (!conditionUuid) {
+    return jsonResponse({ message: `No Reverb condition mapping exists for "${condition}".` }, 400);
+  }
+
+  const categoryMatch = await resolveReverbCategoryUuid(categoryPath, env);
+  if (!categoryMatch) {
+    return jsonResponse({
+      message: `Couldn't match CCG category "${categoryPath}" to a Reverb category. Check the category name or try again.`,
+    }, 400);
+  }
+
+  const payload = buildReverbListingPayload({
+    saleTitle,
+    saleDescription,
+    salePrice: salePrice as number,
+    videoUrl: normalizeText(record.videoUrl, ''),
+    imageUrls,
+    brand,
+    model,
+    yearRange: normalizeText(record.yearRange, ''),
+    finish: normalizeText(record.finish, ''),
+    condition,
+    categoryPath,
+    quantity: typeof record.quantity === 'number' ? record.quantity : 1,
+  }, conditionUuid, categoryMatch.uuid, wizard.value);
+
+  const result = await createReverbListing(payload, env);
+  if (!result.ok) {
+    const status = result.status >= 400 && result.status < 600 ? result.status : 502;
+    return jsonResponse({ message: result.message }, status);
+  }
+
+  const saved = await dbSetInventoryReverbListingId(recordId, result.listingId, env);
+  if (!saved) {
+    return jsonResponse({
+      message: `Listed on Reverb (listing ${result.listingId}), but failed to save the link locally. Add it manually before retrying.`,
+    }, 500);
+  }
+
+  return jsonResponse({ ok: true, reverbListingId: result.listingId, webUrl: result.webUrl });
 }
 
 export async function handleInventoryReverbRemove(_request: Request, path: string, env: Env): Promise<Response> {

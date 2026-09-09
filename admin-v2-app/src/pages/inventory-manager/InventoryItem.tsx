@@ -32,6 +32,7 @@ import liberationSansBoldUrl from 'pdfjs-dist/standard_fonts/LiberationSans-Bold
 import liberationSansRegularUrl from 'pdfjs-dist/standard_fonts/LiberationSans-Regular.ttf?url';
 import IconifyIcon from 'components/base/IconifyIcon';
 import paths from 'routes/paths';
+import ReverbListingWizard from './ReverbListingWizard';
 
 type InventoryItemRecord = {
   id: string;
@@ -1188,6 +1189,7 @@ const InventoryItem = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isReverbActionPending, setIsReverbActionPending] = useState(false);
+  const [reverbWizardOpen, setReverbWizardOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isGeneratingTag, setIsGeneratingTag] = useState(false);
@@ -2409,17 +2411,24 @@ const InventoryItem = () => {
     }
 
     const isListed = Boolean(form.reverbListingId);
-    if (isListed && !window.confirm('Remove this listing from Reverb?')) return;
+    if (!isListed) {
+      setReverbWizardOpen(true);
+      return;
+    }
+
+    if (!window.confirm('Remove this listing from Reverb?')) return;
 
     setIsReverbActionPending(true);
     try {
-      const endpoint = `/api/inventory/${encodeURIComponent(editId)}/${isListed ? 'reverb-remove' : 'reverb-add'}`;
-      const response = await fetch(endpoint, { method: 'POST', credentials: 'same-origin' });
+      const response = await fetch(`/api/inventory/${encodeURIComponent(editId)}/reverb-remove`, {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
       const data = (await response.json().catch(() => ({}))) as { message?: string };
       if (!response.ok) {
         throw new Error(data.message || 'Unable to update Reverb listing.');
       }
-      enqueueSnackbar(isListed ? 'Removed from Reverb.' : 'Added to Reverb.', { variant: 'success' });
+      enqueueSnackbar('Removed from Reverb.', { variant: 'success' });
       setReloadToken((current) => current + 1);
     } catch (error) {
       const text = error instanceof Error ? error.message : 'Unable to update Reverb listing.';
@@ -2427,6 +2436,12 @@ const InventoryItem = () => {
     } finally {
       setIsReverbActionPending(false);
     }
+  };
+
+  const handleReverbListed = () => {
+    setReverbWizardOpen(false);
+    enqueueSnackbar('Listed on Reverb.', { variant: 'success' });
+    setReloadToken((current) => current + 1);
   };
 
   const handleGenerateSaleDescription = async () => {
@@ -4330,6 +4345,14 @@ const InventoryItem = () => {
           </Button>
         </DialogActions>
       </Dialog>
+      {editId ? (
+        <ReverbListingWizard
+          open={reverbWizardOpen}
+          itemId={editId}
+          onClose={() => setReverbWizardOpen(false)}
+          onListed={handleReverbListed}
+        />
+      ) : null}
     </Stack>
   );
 };
