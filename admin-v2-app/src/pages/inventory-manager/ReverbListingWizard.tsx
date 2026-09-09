@@ -10,6 +10,7 @@ import {
   DialogContent,
   DialogTitle,
   FormControlLabel,
+  MenuItem,
   Radio,
   RadioGroup,
   Stack,
@@ -25,6 +26,7 @@ type ShippingMethod = 'calculated' | 'free' | 'flat';
 type ReverbListingWizardProps = {
   open: boolean;
   itemId: string;
+  ccgCondition: string;
   onClose: () => void;
   onListed: (warning?: string | null) => void;
 };
@@ -36,7 +38,31 @@ function toPositiveInt(value: string): number | null {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-const ReverbListingWizard = ({ open, itemId, onClose, onListed }: ReverbListingWizardProps) => {
+// Verbatim from Reverb's /docs/create-listings documentation table (account-independent).
+const REVERB_CONDITION_OPTIONS = [
+  { uuid: 'fbf35668-96a0-4baa-bcde-ab18d6b1b329', name: 'Non functioning' },
+  { uuid: '6a9dfcad-600b-46c8-9e08-ce6e5057921e', name: 'Poor' },
+  { uuid: '98777886-76d0-44c8-865e-bb40e669e934', name: 'Fair' },
+  { uuid: 'f7a3f48c-972a-44c6-b01a-0cd27488d3f6', name: 'Good' },
+  { uuid: 'ae4d9114-1bd7-4ec5-a4ba-6653af5ac84d', name: 'Very Good' },
+  { uuid: 'df268ad1-c462-4ba6-b6db-e007e23922ea', name: 'Excellent' },
+  { uuid: 'ac5b9c1e-dc78-466d-b0b3-7cf712967a48', name: 'Mint' },
+  { uuid: '6db7df88-293b-4017-a1c1-cdb5e599fa1a', name: 'Mint (with inventory)' },
+  { uuid: '9225283f-60c2-4413-ad18-1f5eba7a856f', name: 'B-Stock' },
+  { uuid: '7c3f45de-2ae0-4c81-8400-fdb6b1d74890', name: 'Brand New' },
+];
+
+// Best-guess starting point only — just picks a sensible default; the dropdown always lets the
+// user override since CCG's 5 condition values don't line up cleanly with Reverb's 10.
+const CCG_CONDITION_TO_REVERB_UUID: Record<string, string> = {
+  'New': '7c3f45de-2ae0-4c81-8400-fdb6b1d74890',
+  'Used - Like New': 'df268ad1-c462-4ba6-b6db-e007e23922ea',
+  'Used - Good': 'f7a3f48c-972a-44c6-b01a-0cd27488d3f6',
+  'Used - Fair': '98777886-76d0-44c8-865e-bb40e669e934',
+};
+
+const ReverbListingWizard = ({ open, itemId, ccgCondition, onClose, onListed }: ReverbListingWizardProps) => {
+  const [conditionUuid, setConditionUuid] = useState('');
   const [soldAsDescribed, setSoldAsDescribed] = useState(false);
   const [dropPriceIn2Weeks, setDropPriceIn2Weeks] = useState<boolean | null>(null);
   const [allowOffers, setAllowOffers] = useState(true);
@@ -53,6 +79,7 @@ const ReverbListingWizard = ({ open, itemId, onClose, onListed }: ReverbListingW
 
   useEffect(() => {
     if (!open) return;
+    setConditionUuid(CCG_CONDITION_TO_REVERB_UUID[ccgCondition.trim()] || '');
     setSoldAsDescribed(false);
     setDropPriceIn2Weeks(null);
     setAllowOffers(true);
@@ -66,7 +93,7 @@ const ReverbListingWizard = ({ open, itemId, onClose, onListed }: ReverbListingW
     setSafeShipping(false);
     setIsSubmitting(false);
     setErrorMessage(null);
-  }, [open]);
+  }, [open, ccgCondition]);
 
   const width = toPositiveInt(packageWidthIn);
   const height = toPositiveInt(packageHeightIn);
@@ -76,7 +103,8 @@ const ReverbListingWizard = ({ open, itemId, onClose, onListed }: ReverbListingW
   const hasWeight = (Number.isFinite(lbs) && lbs > 0) || (Number.isFinite(oz) && oz > 0);
   const flatAmount = shippingMethod === 'flat' ? toPositiveInt(flatRateAmount) : null;
 
-  const isValid = dropPriceIn2Weeks !== null
+  const isValid = Boolean(conditionUuid)
+    && dropPriceIn2Weeks !== null
     && width != null
     && height != null
     && length != null
@@ -93,6 +121,7 @@ const ReverbListingWizard = ({ open, itemId, onClose, onListed }: ReverbListingW
         headers: { 'content-type': 'application/json' },
         credentials: 'same-origin',
         body: JSON.stringify({
+          conditionUuid,
           soldAsDescribed,
           dropPriceIn2Weeks,
           allowOffers,
@@ -129,6 +158,18 @@ const ReverbListingWizard = ({ open, itemId, onClose, onListed }: ReverbListingW
           </Typography>
 
           {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
+
+          <TextField
+            select
+            fullWidth
+            label="Reverb Condition"
+            value={conditionUuid}
+            onChange={(event) => setConditionUuid(event.target.value)}
+          >
+            {REVERB_CONDITION_OPTIONS.map((option) => (
+              <MenuItem key={option.uuid} value={option.uuid}>{option.name}</MenuItem>
+            ))}
+          </TextField>
 
           <FormControlLabel
             control={<Checkbox checked={soldAsDescribed} onChange={(event) => setSoldAsDescribed(event.target.checked)} />}

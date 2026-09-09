@@ -128,6 +128,7 @@ export function isPublicApiPath(path: string): boolean {
   return path.startsWith('/api/shop/')
     || path === '/api/youtube/videos'
     || path === '/api/inventory-image'
+    || path.startsWith('/api/img/')
     || path === '/api/listing-image'
     || path === '/api/guitar-evaluation'
     || path === '/api/guitar-evaluation/payment-intent'

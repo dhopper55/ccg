@@ -299,8 +299,9 @@ export default {
       return handleRobotsTxt();
     }
 
-    if (path === '/img' && (request.method === 'GET' || request.method === 'HEAD' || request.method === 'OPTIONS')) {
-      return handlePublicImageBytes(request, env);
+    const publicImageMatch = path.match(/^\/api\/img\/(.+)$/);
+    if (publicImageMatch && (request.method === 'GET' || request.method === 'HEAD' || request.method === 'OPTIONS')) {
+      return handlePublicImageBytes(request, decodeURIComponent(publicImageMatch[1]), env);
     }
 
     if (

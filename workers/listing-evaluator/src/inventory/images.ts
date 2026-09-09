@@ -54,18 +54,17 @@ export async function handleInventoryImage(request: Request, env: Env): Promise<
 
 const PUBLIC_IMAGE_KEY_PREFIXES = ['inventory-items/', 'listing-images/', 'custom-items/'];
 
-// Deliberately outside /api/ (see index.ts routing — nothing under /api/ that isn't explicitly
-// public gets an auth check, so this sidesteps that entirely) and deliberately minimal: no auth,
-// no admin-specific headers, wide-open CORS. Built to rule out any interference from the
-// existing /api/inventory-image route (CORS scoping, security headers, WAF rules scoped to
-// /api/) when diagnosing why an external fetcher (Reverb) wasn't picking up photos.
-export async function handlePublicImageBytes(request: Request, env: Env): Promise<Response> {
+// Minimal, auth-free, wide-open-CORS image byte server. The key is part of the URL PATH (not a
+// ?key= query param) so the URL genuinely ends in a real image extension (…/abc.jpg) — Reverb's
+// own docs example photo URL is "http://i.stack.imgur.com/Sv4BC.png"; if their importer does a
+// simple extension check on the URL rather than sniffing content-type after fetching, a
+// query-string-only extension (as /api/inventory-image?key=...jpg used) would fail that check
+// even though the bytes returned are a valid image.
+export async function handlePublicImageBytes(request: Request, key: string, env: Env): Promise<Response> {
   if (!env.CUSTOM_ITEMS_BUCKET) {
     return new Response('Not configured', { status: 500 });
   }
 
-  const url = new URL(request.url);
-  const key = url.searchParams.get('key') || '';
   if (!key || !PUBLIC_IMAGE_KEY_PREFIXES.some((prefix) => key.startsWith(prefix))) {
     return new Response('Missing or invalid key', { status: 400 });
   }

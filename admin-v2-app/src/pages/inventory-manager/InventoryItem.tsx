@@ -4353,6 +4353,7 @@ const InventoryItem = () => {
         <ReverbListingWizard
           open={reverbWizardOpen}
           itemId={editId}
+          ccgCondition={form.condition}
           onClose={() => setReverbWizardOpen(false)}
           onListed={handleReverbListed}
         />

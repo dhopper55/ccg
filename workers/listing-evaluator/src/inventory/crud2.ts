@@ -17,7 +17,6 @@ import { parseCurrencyAmount } from '../utils/money.js';
 import { parseOptionalPositiveInt, normalizeRequiredInventoryBarcode } from '../utils/misc.js';
 import {
   parseReverbWizardInput,
-  resolveReverbConditionUuid,
   resolveReverbCategoryUuid,
   buildReverbListingPayload,
   createReverbListing,
@@ -764,11 +763,6 @@ export async function handleInventoryReverbAdd(request: Request, path: string, e
     }, 400);
   }
 
-  const conditionUuid = resolveReverbConditionUuid(condition);
-  if (!conditionUuid) {
-    return jsonResponse({ message: `No Reverb condition mapping exists for "${condition}".` }, 400);
-  }
-
   const categoryMatch = await resolveReverbCategoryUuid(categoryPath, env);
   if (!categoryMatch) {
     return jsonResponse({
@@ -789,7 +783,7 @@ export async function handleInventoryReverbAdd(request: Request, path: string, e
     condition,
     categoryPath,
     quantity: typeof record.quantity === 'number' ? record.quantity : 1,
-  }, conditionUuid, categoryMatch.uuid, wizard.value);
+  }, categoryMatch.uuid, wizard.value);
 
   const result = await createReverbListing(payload, env);
   if (!result.ok) {
@@ -804,17 +798,16 @@ export async function handleInventoryReverbAdd(request: Request, path: string, e
     }, 500);
   }
 
-  const photoWarning = result.photoCountReturned != null && result.photoCountReturned < imageUrls.length
-    ? `Warning: sent ${imageUrls.length} photo(s), Reverb reports ${result.photoCountReturned} attached.`
-    : null;
-
+  // Not comparing photoCountReturned against imageUrls.length here: Reverb's create response is
+  // an immediate acknowledgment ("we are processing your request..."), not the final state —
+  // photos/inventory/etc. are populated by an async job afterward, so photoCountReturned is
+  // always 0 at this point regardless of whether the photos actually attach. Check the listing
+  // on reverb.com directly (after a short delay) to see the real outcome.
   return jsonResponse({
     ok: true,
     reverbListingId: result.listingId,
     webUrl: result.webUrl,
     photosSent: imageUrls.length,
-    photosAttached: result.photoCountReturned,
-    warning: photoWarning,
   });
 }
 

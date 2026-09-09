@@ -18,33 +18,62 @@ import { reverbRequestHeaders } from '../pricing/reverb.js';
 // reverb.com; if a toggle didn't take effect, inspect reverb.com's own listing form network
 // request in browser dev tools for the real field name and it's a one-line fix here.
 
-// Points Reverb photo fetches at the minimal, auth-free /img endpoint (see images.ts:
+// Points Reverb photo fetches at the minimal, auth-free /api/img endpoint (see images.ts:
 // handlePublicImageBytes) instead of /api/inventory-image, to rule out any interference from
-// that route's other layers (CORS scoping, admin-oriented headers, /api/-scoped WAF rules).
+// that route's other layers (CORS scoping, admin-oriented headers). Must stay under /api/ —
+// this Worker is only invoked for the routes listed in wrangler.toml (/api/*, sitemap.xml,
+// robots.txt, google-merchant-feed.xml, /guitars-and-gear-for-sale/*); a path outside those
+// never reaches the Worker at all and falls through to the static site's catch-all instead.
 export function toReverbFetchableImageUrl(rawValue: string, env: Env): string | null {
   const raw = (rawValue || '').trim();
   if (!raw) return null;
 
-  let key = '';
-  if (/^https?:\/\//i.test(raw) || raw.startsWith('/')) {
+  const siteBaseUrl = normalizeText(env.SITE_BASE_URL, 'https://www.coalcreekguitars.com').replace(/\/+$/, '');
+
+  // Already one of our own path-based /api/img/... URLs (absolute or relative) — pass through.
+  if (/^\/api\/img\//.test(raw)) return `${siteBaseUrl}${raw}`;
+  try {
+    const parsed = new URL(raw);
+    if (parsed.pathname.startsWith('/api/img/')) return raw;
+  } catch {
+    // not an absolute URL — fall through
+  }
+
+  // Legacy ?key=... proxy format (either /api/inventory-image?key=... or the old /api/img?key=...).
+  let legacyKey: string | null = null;
+  if (raw.startsWith('/api/') || /^https?:\/\//i.test(raw)) {
     try {
       const parsed = new URL(raw, 'https://placeholder.invalid');
-      key = parsed.searchParams.get('key') || '';
+      legacyKey = parsed.searchParams.get('key');
     } catch {
-      key = '';
+      legacyKey = null;
     }
-  } else {
-    key = raw;
   }
-  if (!key) return null;
+  if (legacyKey) return buildPathBasedImageUrl(legacyKey, siteBaseUrl);
 
-  const siteBaseUrl = normalizeText(env.SITE_BASE_URL, 'https://www.coalcreekguitars.com').replace(/\/+$/, '');
-  return `${siteBaseUrl}/img?key=${encodeURIComponent(key)}`;
+  // A bare R2 key (no scheme, no leading slash) — the common case.
+  if (!/^https?:\/\//i.test(raw) && !raw.startsWith('/')) {
+    return buildPathBasedImageUrl(raw, siteBaseUrl);
+  }
+
+  // Anything else absolute (e.g. an externally-hosted photo URL that was never re-hosted into
+  // our bucket) — pass it through as-is rather than silently dropping the image.
+  if (/^https?:\/\//i.test(raw)) return raw;
+
+  return null;
+}
+
+function buildPathBasedImageUrl(key: string, siteBaseUrl: string): string {
+  // Key as path segments (not a ?key= query param) so the URL genuinely ends in .jpg/.png/etc.
+  // Encode each segment individually so the real "/" separators in the key stay literal.
+  const encodedKey = key.split('/').map((segment) => encodeURIComponent(segment)).join('/');
+  return `${siteBaseUrl}/api/img/${encodedKey}`;
 }
 
 export type ReverbShippingMethod = 'calculated' | 'free' | 'flat';
 
 export type ReverbWizardInput = {
+  conditionUuid: string;
   soldAsDescribed: boolean;
   dropPriceIn2Weeks: boolean;
   allowOffers: boolean;
@@ -61,6 +90,11 @@ export type ReverbWizardInput = {
 export function parseReverbWizardInput(
   body: Record<string, unknown>,
 ): { value: ReverbWizardInput; error?: undefined } | { value?: undefined; error: string } {
+  const conditionUuid = normalizeText(body.conditionUuid, '');
+  if (!conditionUuid || !isKnownReverbConditionUuid(conditionUuid)) {
+    return { error: 'Choose a Reverb condition.' };
+  }
+
   const soldAsDescribed = toBooleanInput(body.soldAsDescribed, false);
   if (typeof body.dropPriceIn2Weeks !== 'boolean') {
     return { error: '"Drop price in 2 weeks" must be answered.' };
@@ -98,6 +132,7 @@ export function parseReverbWizardInput(
 
   return {
     value: {
+      conditionUuid,
       soldAsDescribed,
       dropPriceIn2Weeks,
       allowOffers,
@@ -113,9 +148,31 @@ export function parseReverbWizardInput(
   };
 }
 
-// Verified verbatim from Reverb's /docs/create-listings documentation table. These base
-// condition UUIDs are account-independent per Reverb's docs (some, like B-Stock, additionally
-// require the shop to be enabled for them — not used here).
+// Verified verbatim from Reverb's /docs/create-listings documentation table. Account-independent
+// per Reverb's docs (Mint (with inventory) and B-Stock additionally require the shop to be
+// enabled for them — Reverb will reject those with a real error if not, which the wizard shows).
+export const REVERB_CONDITION_OPTIONS: Array<{ uuid: string; name: string }> = [
+  { uuid: 'fbf35668-96a0-4baa-bcde-ab18d6b1b329', name: 'Non functioning' },
+  { uuid: '6a9dfcad-600b-46c8-9e08-ce6e5057921e', name: 'Poor' },
+  { uuid: '98777886-76d0-44c8-865e-bb40e669e934', name: 'Fair' },
+  { uuid: 'f7a3f48c-972a-44c6-b01a-0cd27488d3f6', name: 'Good' },
+  { uuid: 'ae4d9114-1bd7-4ec5-a4ba-6653af5ac84d', name: 'Very Good' },
+  { uuid: 'df268ad1-c462-4ba6-b6db-e007e23922ea', name: 'Excellent' },
+  { uuid: 'ac5b9c1e-dc78-466d-b0b3-7cf712967a48', name: 'Mint' },
+  { uuid: '6db7df88-293b-4017-a1c1-cdb5e599fa1a', name: 'Mint (with inventory)' },
+  { uuid: '9225283f-60c2-4413-ad18-1f5eba7a856f', name: 'B-Stock' },
+  { uuid: '7c3f45de-2ae0-4c81-8400-fdb6b1d74890', name: 'Brand New' },
+];
+
+const REVERB_CONDITION_UUID_SET = new Set(REVERB_CONDITION_OPTIONS.map((option) => option.uuid));
+
+export function isKnownReverbConditionUuid(uuid: string): boolean {
+  return REVERB_CONDITION_UUID_SET.has(uuid);
+}
+
+// Best-guess starting point only — the wizard now always lets the user pick/override the exact
+// Reverb condition explicitly (see REVERB_CONDITION_OPTIONS), since this auto-map isn't reliable
+// enough on its own (CCG's 5 condition values don't line up cleanly with Reverb's 10).
 const CCG_CONDITION_TO_REVERB_UUID: Record<string, string> = {
   'New': '7c3f45de-2ae0-4c81-8400-fdb6b1d74890', // Brand New
   'Used - Like New': 'df268ad1-c462-4ba6-b6db-e007e23922ea', // Excellent
@@ -219,7 +276,6 @@ export type ReverbListingSourceItem = {
 
 export function buildReverbListingPayload(
   item: ReverbListingSourceItem,
-  conditionUuid: string,
   categoryUuid: string,
   wizard: ReverbWizardInput,
 ): Record<string, unknown> {
@@ -256,7 +312,7 @@ export function buildReverbListingPayload(
     finish: item.finish || undefined,
     year: item.yearRange || undefined,
     categories: [{ uuid: categoryUuid }],
-    condition: { uuid: conditionUuid },
+    condition: { uuid: wizard.conditionUuid },
     photos: item.imageUrls,
     videos: item.videoUrl ? [{ link: item.videoUrl }] : undefined,
     price: { amount: item.salePrice.toFixed(2), currency: 'USD' },
@@ -295,10 +351,22 @@ export async function createReverbListing(
   payload: Record<string, unknown>,
   env: Env,
 ): Promise<ReverbCreateResult> {
+  const requestBody = JSON.stringify(payload);
+  // Log exactly what we send, not just what Reverb returns — the response's has_inventory/
+  // inventory not matching what we sent (has_inventory:true, inventory:1) means we need to see
+  // both sides side by side rather than assuming the outgoing payload is correct.
+  console.log('Reverb create listing request', {
+    photos: payload.photos,
+    has_inventory: payload.has_inventory,
+    inventory: payload.inventory,
+    publish: payload.publish,
+    fullBody: requestBody.slice(0, 3000),
+  });
+
   const response = await fetch(REVERB_SEARCH_API_URL, {
     method: 'POST',
     headers: reverbRequestHeaders(env),
-    body: JSON.stringify(payload),
+    body: requestBody,
   });
 
   const text = await response.text();
@@ -329,11 +397,24 @@ export async function createReverbListing(
     };
   }
   const webUrl = links?.web?.href || null;
+  // The whole listing is nested under "listing" in the actual response (confirmed from a real
+  // test), not top-level — record.photos/.has_inventory/.inventory at the top level are always
+  // undefined. Check both so this keeps working if that ever changes.
+  const nestedListing = (record.listing && typeof record.listing === 'object')
+    ? record.listing as Record<string, unknown>
+    : record;
   // Diagnostic: Reverb's response for a successful create isn't documented publicly either —
   // log the whole thing once so we can see the real shape (photos field included or not,
   // whether it echoes back what was accepted) instead of guessing at why photos didn't attach.
-  console.log('Reverb create listing succeeded', { listingId, body: text.slice(0, 2000) });
-  const photosField = record.photos;
+  console.log('Reverb create listing succeeded', {
+    listingId,
+    hasInventoryReturned: nestedListing.has_inventory,
+    inventoryReturned: nestedListing.inventory,
+    photosReturned: nestedListing.photos,
+    videosReturned: nestedListing.videos,
+    body: text.slice(0, 2000),
+  });
+  const photosField = nestedListing.photos;
   const photoCountReturned = Array.isArray(photosField) ? photosField.length : null;
   return { ok: true, listingId, webUrl, photoCountReturned };
 }
