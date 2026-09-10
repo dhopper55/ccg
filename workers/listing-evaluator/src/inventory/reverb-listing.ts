@@ -310,6 +310,11 @@ export function buildReverbListingPayload(
     year: item.yearRange || undefined,
     categories: [{ uuid: categoryUuid }],
     condition: { uuid: wizard.conditionUuid },
+    // CCG's barcode field can be an internal CCG-generated tag barcode rather than a real
+    // manufacturer UPC, so it isn't sent as upc — always declaring "does not apply" instead
+    // (confirmed real field per Reverb's docs) avoids the "Brand New" publish block that
+    // requires a UPC or this flag, without risking a wrong product match on Reverb's catalog.
+    upc_does_not_apply: true,
     shipping_profile_id: wizard.shippingMethod === 'calculated' ? wizard.shippingProfileId : undefined,
     photos: item.imageUrls,
     videos: item.videoUrl ? [{ link: item.videoUrl }] : undefined,
@@ -323,6 +328,70 @@ export function buildReverbListingPayload(
     auto_price_drop: wizard.dropPriceIn2Weeks,
     publish: true,
   };
+}
+
+export type ReverbListingUpdateSourceItem = {
+  saleTitle: string;
+  saleDescription: string;
+  salePrice: number;
+  videoUrl: string;
+  imageUrls: string[];
+  brand: string;
+  model: string;
+  yearRange: string;
+  finish: string;
+  quantity: number;
+};
+
+// For syncing a plain "Save Changes" edit to an already-listed item — deliberately narrower than
+// buildReverbListingPayload: it only includes fields CCG's normal edit form actually has fresh
+// values for. Condition, shipping, offers, sold-as-described, etc. are wizard-only answers with
+// no current value available outside the wizard, so they're omitted here rather than guessed —
+// assuming (unverified) that Reverb's PUT leaves omitted fields as they were, matching "updating
+// a listing takes the same parameters as create" in their docs without stating omit-behavior.
+export function buildReverbListingUpdatePayload(
+  item: ReverbListingUpdateSourceItem,
+  categoryUuid: string,
+): Record<string, unknown> {
+  return {
+    make: item.brand,
+    model: item.model,
+    title: item.saleTitle,
+    description: item.saleDescription,
+    finish: item.finish || undefined,
+    year: item.yearRange || undefined,
+    categories: [{ uuid: categoryUuid }],
+    photos: item.imageUrls,
+    videos: item.videoUrl ? [{ link: item.videoUrl }] : undefined,
+    price: { amount: item.salePrice.toFixed(2), currency: 'USD' },
+    has_inventory: true,
+    inventory: Math.max(1, item.quantity || 1),
+  };
+}
+
+export async function updateReverbListing(
+  listingId: string,
+  payload: Record<string, unknown>,
+  env: Env,
+): Promise<{ ok: true } | { ok: false; message: string; status: number }> {
+  const response = await fetch(`${REVERB_SEARCH_API_URL}/${encodeURIComponent(listingId)}`, {
+    method: 'PUT',
+    headers: reverbRequestHeaders(env),
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    let data: unknown = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = null;
+    }
+    const message = extractReverbErrorMessage(data) || text.slice(0, 500) || `Reverb rejected the update (HTTP ${response.status}).`;
+    console.error('Reverb update listing failed', { listingId, status: response.status, message });
+    return { ok: false, message, status: response.status };
+  }
+  return { ok: true };
 }
 
 type ReverbCreateResult =

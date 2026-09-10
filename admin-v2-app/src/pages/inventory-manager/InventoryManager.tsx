@@ -227,6 +227,7 @@ const InventoryManager = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [actionErrorMessage, setActionErrorMessage] = useState('');
   const [reloadToken, setReloadToken] = useState(0);
+  const [isSyncingReverbSales, setIsSyncingReverbSales] = useState(false);
 
   useEffect(() => {
     document.title = 'CCG Admin | Inventory Manager';
@@ -387,6 +388,36 @@ const InventoryManager = () => {
     setSortDir('desc');
     setFilters(DEFAULT_FILTERS);
     setActionErrorMessage('');
+  };
+
+  const handleReverbSaleSync = async () => {
+    if (!window.confirm('Check Reverb for sold items and mark them sold locally? This ends the matching Reverb listings and updates CCG inventory.')) return;
+    setIsSyncingReverbSales(true);
+    try {
+      const response = await fetch('/api/admin-v2/reverb/sync-sold', { method: 'POST', credentials: 'same-origin' });
+      const data = await response.json().catch(() => ({})) as {
+        message?: string;
+        processed?: Array<{ ccgNumber: string; soldAmount: number }>;
+        skippedCount?: number;
+      };
+      if (!response.ok) throw new Error(data.message || 'Unable to sync Reverb sales.');
+
+      const processed = data.processed || [];
+      if (!processed.length) {
+        enqueueSnackbar(
+          data.skippedCount ? `No new sales marked. ${data.skippedCount} item(s) skipped — see console.` : 'No new Reverb sales found.',
+          { variant: 'info' },
+        );
+      } else {
+        const summary = processed.map((p) => `${p.ccgNumber} ($${p.soldAmount.toFixed(2)})`).join(', ');
+        enqueueSnackbar(`Marked sold from Reverb: ${summary}`, { variant: 'success', autoHideDuration: 10000 });
+        setReloadToken((current) => current + 1);
+      }
+    } catch (error) {
+      enqueueSnackbar(error instanceof Error ? error.message : 'Unable to sync Reverb sales.', { variant: 'error' });
+    } finally {
+      setIsSyncingReverbSales(false);
+    }
   };
 
   const handleToggleMarked = async (recordId: string, isMarked: boolean) => {
@@ -1032,6 +1063,23 @@ const InventoryManager = () => {
                     sx={{ minWidth: 110 }}
                   >
                     Clear
+                  </Button>
+                  <Button
+                    variant="contained"
+                    loading={isSyncingReverbSales}
+                    onClick={() => void handleReverbSaleSync()}
+                    startIcon={
+                      isSyncingReverbSales ? null : (
+                        <Box component="img" src="/images/reverb-icon.svg" alt="" sx={{ width: 16, height: 16 }} />
+                      )
+                    }
+                    sx={{
+                      bgcolor: 'warning.main',
+                      color: '#fff',
+                      '&:hover': { bgcolor: 'warning.dark' },
+                    }}
+                  >
+                    {isSyncingReverbSales ? 'Syncing...' : 'Reverb Sync'}
                   </Button>
                 </Stack>
               </Stack>

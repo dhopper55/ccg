@@ -19,7 +19,9 @@ import {
   parseReverbWizardInput,
   resolveReverbCategoryUuid,
   buildReverbListingPayload,
+  buildReverbListingUpdatePayload,
   createReverbListing,
+  updateReverbListing,
   endReverbListing,
   toReverbFetchableImageUrl,
   fetchReverbShippingProfiles,
@@ -206,6 +208,53 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       return jsonResponse({
         message: `Sale URL Slug is already used by ${duplicateSaleUrl.ccg_number || `inventory item ${duplicateSaleUrl.id}`}.`,
       }, 400);
+    }
+  }
+
+  // If this item is live on Reverb and any field we actually send to Reverb changed, push the
+  // update there BEFORE saving locally — if Reverb rejects it, the local save is aborted too so
+  // CCG and Reverb never drift out of sync silently.
+  const reverbListingIdForSync = (current as { reverbListingId?: unknown }).reverbListingId;
+  if (reverbListingIdForSync) {
+    const c = current as Record<string, unknown>;
+    const currentImageUrls = Array.isArray(c.imageUrls) ? (c.imageUrls as string[]) : [];
+    const reverbFieldsChanged = normalizeText(c.saleTitle, '') !== saleTitle
+      || normalizeText(c.saleDescription, '') !== saleDescription
+      || Number(c.salePrice ?? 0) !== salePrice
+      || normalizeText(c.videoUrl, '') !== videoUrl
+      || currentImageUrls.join('|') !== imageUrls.join('|')
+      || normalizeText(c.brand, '') !== brand
+      || normalizeText(c.model, '') !== model
+      || normalizeText(c.yearRange, '') !== yearRange
+      || normalizeText(c.finish, '') !== finish
+      || Number(c.quantity ?? 0) !== quantity;
+
+    if (reverbFieldsChanged) {
+      const categoryPath = normalizeText(c.categoryPath, '') || normalizeText(c.categoryName, '');
+      const categoryMatch = categoryPath ? await resolveReverbCategoryUuid(categoryPath, env) : null;
+      if (!categoryMatch) {
+        return jsonResponse({ message: 'Unable to sync changes to Reverb: could not resolve a Reverb category for this item.' }, 502);
+      }
+      const reverbImageUrls = imageUrls
+        .map((url) => toReverbFetchableImageUrl(url, env))
+        .filter((url): url is string => Boolean(url));
+      const updatePayload = buildReverbListingUpdatePayload({
+        saleTitle,
+        saleDescription,
+        salePrice,
+        videoUrl,
+        imageUrls: reverbImageUrls,
+        brand,
+        model,
+        yearRange,
+        finish,
+        quantity,
+      }, categoryMatch.uuid);
+      const updateResult = await updateReverbListing(String(reverbListingIdForSync), updatePayload, env);
+      if (!updateResult.ok) {
+        const status = updateResult.status >= 400 && updateResult.status < 600 ? updateResult.status : 502;
+        return jsonResponse({ message: `Unable to sync changes to Reverb: ${updateResult.message}` }, status);
+      }
     }
   }
 
