@@ -107,6 +107,7 @@ export async function dbCreateInventoryItems(
     sold_date: string | null;
     sold_amount: number | null;
     sell_notes: string | null;
+    sold_ship_cost_accounted?: number;
     sale_url: string | null;
     sale_zip: string | null;
     merchant_center_cat_code: string | null;
@@ -134,10 +135,10 @@ export async function dbCreateInventoryItems(
         sales_channel_ccg, sales_channel_fbm, sales_channel_cl, sales_channel_reverb, sales_channel_gear_exchange,
         sales_channel_offerup, sales_channel_ebay, sales_channel_nextdoor, sales_channel_other,
         for_sale_date,
-        is_sold, sold_date, sold_amount, sell_notes, sale_url, sale_zip, merchant_center_cat_code,
+        is_sold, sold_date, sold_amount, sell_notes, sold_ship_cost_accounted, sale_url, sale_zip, merchant_center_cat_code,
         tag_reprint, purchase_lot_id
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const result = await env.DB.prepare(statement).bind(
       fields.source_listing_id,
@@ -222,6 +223,7 @@ export async function dbCreateInventoryItems(
       fields.sold_date,
       fields.sold_amount,
       fields.sell_notes,
+      fields.sold_ship_cost_accounted ?? 0,
       fields.sale_url,
       fields.sale_zip,
       fields.merchant_center_cat_code,
@@ -323,6 +325,7 @@ export async function dbUpdateInventoryById(
     sold_date: string | null;
     sold_amount: number | null;
     sell_notes: string | null;
+    sold_ship_cost_accounted?: number;
     subscription_id: number | null;
     sale_url: string | null;
     sale_zip: string | null;
@@ -357,7 +360,7 @@ export async function dbUpdateInventoryById(
          bullet_5_text = ?, bullet_5_danger = ?, bullet_5_highlight = ?,
          bullet_6_text = ?, bullet_6_danger = ?, bullet_6_highlight = ?,
          barcode = ?,
-         is_sold = ?, sold_date = ?, sold_amount = ?, sell_notes = ?, subscription_id = ?,
+         is_sold = ?, sold_date = ?, sold_amount = ?, sell_notes = ?, sold_ship_cost_accounted = ?, subscription_id = ?,
          sale_url = ?, sale_zip = ?, sold_channel = ?,
          tag_reprint = ?,
          merchant_center_cat_code = ?,
@@ -447,6 +450,7 @@ export async function dbUpdateInventoryById(
       fields.sold_date,
       fields.sold_amount,
       fields.sell_notes,
+      fields.sold_ship_cost_accounted ?? 0,
       fields.subscription_id,
       fields.sale_url,
       fields.sale_zip,

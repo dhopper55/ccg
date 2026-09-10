@@ -252,6 +252,7 @@ export async function handleInventoryCreate(request: Request, env: Env): Promise
   const twelveFretAction = normalizeText(body.twelveFretAction, '').slice(0, 100);
   const soldAmount = parseCurrencyAmount(body.soldAmount);
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
+  const soldShipCostAccounted = toBooleanInput(body.soldShipCostAccounted, false);
   const saleUrl = normalizeText(body.saleUrl, '').slice(0, 150);
   const saleZip = normalizeText(body.saleZip, '').slice(0, 10);
   const tagReprint = toBooleanInput(body.tagReprint, false);
@@ -440,6 +441,7 @@ export async function handleInventoryCreate(request: Request, env: Env): Promise
     sold_date: isSold ? new Date().toISOString() : null,
     sold_amount: soldAmount,
     sell_notes: sellNotes || null,
+    sold_ship_cost_accounted: soldShipCostAccounted ? 1 : 0,
     sale_url: saleUrl || null,
     sale_zip: saleZip || null,
     merchant_center_cat_code: normalizeText(body.merchantCenterCatCode, '').slice(0, 50) || null,

@@ -126,6 +126,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
   const soldAmount = parseCurrencyAmount(body.soldAmount);
   const qtySold = parseBoundedInt(body.qtySold, 1, 1, 1_000_000);
   const sellNotes = normalizeText(body.sellNotes, '').slice(0, 4000);
+  const soldShipCostAccounted = toBooleanInput(body.soldShipCostAccounted, false);
   const subscriptionId = parseOptionalPositiveInt(body.subscriptionId);
   const saleUrl = normalizeText(body.saleUrl, '').slice(0, 150);
   const saleZip = normalizeText(body.saleZip, '').slice(0, 10);
@@ -374,6 +375,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       sold_date: null,
       sold_amount: null,
       sell_notes: null,
+      sold_ship_cost_accounted: 0,
       subscription_id: subscriptionId ?? null,
       sale_url: saleUrl || null,
       sale_zip: saleZip || null,
@@ -469,6 +471,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       sold_date: soldDate,
       sold_amount: soldAmount,
       sell_notes: sellNotes || null,
+      sold_ship_cost_accounted: soldShipCostAccounted ? 1 : 0,
     }, env);
     if (!soldInsert?.firstId) return jsonResponse({ message: 'Unable to create sold inventory item.' }, 500);
     const soldCloneOk = await dbUpdateInventoryById(soldInsert.firstId, {
@@ -546,6 +549,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       sold_date: soldDate,
       sold_amount: soldAmount,
       sell_notes: sellNotes || null,
+      sold_ship_cost_accounted: soldShipCostAccounted ? 1 : 0,
       subscription_id: subscriptionId ?? null,
       sale_url: saleUrl || null,
       sale_zip: saleZip || null,
@@ -671,6 +675,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
     }),
     sold_amount: soldAmount,
     sell_notes: sellNotes || null,
+    sold_ship_cost_accounted: soldShipCostAccounted ? 1 : 0,
     subscription_id: subscriptionId ?? null,
     sale_url: saleUrl || null,
     sale_zip: saleZip || null,

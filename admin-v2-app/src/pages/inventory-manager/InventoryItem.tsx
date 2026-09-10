@@ -128,6 +128,7 @@ type InventoryItemRecord = {
   soldDate?: string | null;
   soldAmount?: number | null;
   sellNotes?: string;
+  soldShipCostAccounted?: boolean;
   tagReprint?: boolean;
 };
 
@@ -270,6 +271,7 @@ type FormState = {
   qtySold: number;
   soldAmount: string;
   sellNotes: string;
+  soldShipCostAccounted: boolean;
   subscriptionId: string;
   saleUrl: string;
   saleZip: string;
@@ -535,6 +537,7 @@ const DEFAULT_FORM: FormState = {
   qtySold: 1,
   soldAmount: '',
   sellNotes: '',
+  soldShipCostAccounted: false,
   subscriptionId: '',
   saleUrl: '',
   saleZip: '80113',
@@ -1437,6 +1440,7 @@ const InventoryItem = () => {
             qtySold: Math.max(1, Number(record.qtySold ?? (record.isSold ? record.quantity : 1) ?? 1)),
             soldAmount: record.soldAmount != null ? String(record.soldAmount) : '',
             sellNotes: record.sellNotes || '',
+            soldShipCostAccounted: Boolean(record.soldShipCostAccounted),
             subscriptionId: record.subscriptionId != null ? String(record.subscriptionId) : '',
             saleUrl: record.saleUrl || '',
             saleZip: record.saleZip || '',
@@ -1571,6 +1575,7 @@ const InventoryItem = () => {
             qtySold: 1,
             soldAmount: '',
             sellNotes: '',
+            soldShipCostAccounted: false,
             subscriptionId: record.subscriptionId != null ? String(record.subscriptionId) : '',
             saleUrl: record.saleUrl || '',
             saleZip: record.saleZip || DEFAULT_FORM.saleZip,
@@ -1928,6 +1933,7 @@ const InventoryItem = () => {
     twelveFretAction: form.twelveFretAction.trim(),
     soldAmount: form.soldAmount.trim(),
     sellNotes: form.sellNotes.trim(),
+    soldShipCostAccounted: form.soldShipCostAccounted,
     subscriptionId: form.subscriptionId || null,
     saleUrl: form.saleUrl.trim(),
     saleZip: form.saleZip.trim(),
@@ -4069,6 +4075,19 @@ const InventoryItem = () => {
                   <MenuItem value="Sweetwater Gear Exchange">Sweetwater Gear Exchange</MenuItem>
                   <MenuItem value="Other">Other</MenuItem>
                 </TextField>
+              </Grid>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, bgcolor: 'background.default' }}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={form.soldShipCostAccounted}
+                        onChange={(event) => setField('soldShipCostAccounted', event.target.checked)}
+                      />
+                    }
+                    label="Ship Cost Accounted"
+                  />
+                </Paper>
               </Grid>
 
               <Grid size={12}>

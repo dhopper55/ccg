@@ -81,6 +81,7 @@ export type InventoryItemRow = {
   sold_date: string | null;
   sold_amount: number | null;
   sell_notes: string | null;
+  sold_ship_cost_accounted: number | null;
   subscription_id: number | null;
   package_id: number | null;
   sale_url: string | null;
