@@ -77,6 +77,7 @@ import {
   handleInventoryReverbDebug,
   handleReverbShippingProfiles,
 } from './inventory/crud2.js';
+import { handleReverbSyncSoldDryRun, handleReverbSyncSoldCommit } from './inventory/reverb-sync.js';
 import {
   handleInventoryImage,
   handleInventoryImageUpload,
@@ -1118,6 +1119,16 @@ export default {
 
     if (path === '/api/admin-v2/inventory/merge-marked' && request.method === 'POST') {
       const response = await handleAdminV2InventoryMergeMarked(env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/reverb/sync-sold-dry-run' && request.method === 'GET') {
+      const response = await handleReverbSyncSoldDryRun(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/reverb/sync-sold' && request.method === 'POST') {
+      const response = await handleReverbSyncSoldCommit(request, env);
       return withCors(response, request, env);
     }
 

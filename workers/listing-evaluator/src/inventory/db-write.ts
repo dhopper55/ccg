@@ -544,6 +544,33 @@ export async function dbSetInventoryReverbListingId(
   }
 }
 
+export async function dbMarkInventorySoldFromReverb(
+  recordId: string,
+  fields: { soldDate: string; soldAmount: number; sellNotes: string },
+  env: Env,
+): Promise<boolean> {
+  const idValue = Number.parseInt(recordId, 10);
+  if (!Number.isFinite(idValue)) return false;
+  try {
+    const result = await env.DB.prepare(
+      `UPDATE ccg_inventory_items
+       SET for_sale = 0,
+           is_sold = 1,
+           sold_date = ?,
+           sold_amount = ?,
+           sold_channel = 'Reverb',
+           sell_notes = ?,
+           queue = 'Sold',
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`
+    ).bind(fields.soldDate, fields.soldAmount, fields.sellNotes, idValue).run();
+    return Number(result.meta?.changes || 0) > 0;
+  } catch (error) {
+    console.error('Inventory mark-sold-from-Reverb update failed', { error });
+    return false;
+  }
+}
+
 export async function dbDeactivateInventoryItemById(recordId: string, env: Env): Promise<number> {
   const idValue = Number.parseInt(recordId, 10);
   if (!Number.isFinite(idValue)) return 0;

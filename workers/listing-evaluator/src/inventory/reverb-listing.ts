@@ -452,6 +452,33 @@ export async function createReverbListing(
   return { ok: true, listingId, webUrl, photoCountReturned };
 }
 
+// Confirmed verbatim from Reverb's /docs/updating-your-listing documentation — not a guess.
+export async function endReverbListing(
+  listingId: string,
+  env: Env,
+): Promise<{ ok: true } | { ok: false; message: string; status: number }> {
+  const response = await fetch(`${REVERB_API_BASE_URL}/my/listings/${encodeURIComponent(listingId)}/state/end`, {
+    method: 'PUT',
+    headers: reverbRequestHeaders(env),
+    body: JSON.stringify({ reason: 'not_sold' }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    let data: unknown = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = null;
+    }
+    const message = extractReverbErrorMessage(data) || text.slice(0, 500) || `Reverb rejected ending the listing (HTTP ${response.status}).`;
+    console.error('Reverb end listing failed', { listingId, status: response.status, message });
+    return { ok: false, message, status: response.status };
+  }
+
+  return { ok: true };
+}
+
 function extractReverbListingId(
   record: Record<string, unknown>,
   links: { web?: { href?: string }; self?: { href?: string } } | undefined,
@@ -478,4 +505,42 @@ function extractReverbListingId(
   }
 
   return null;
+}
+
+// Reverb's own docs for this endpoint (reverb-api.com/docs/retrieve-orders) never include a
+// verbatim JSON example — only prose describing the fields exist ("comprehensive financial
+// breakdowns... fees (selling, shipping label, direct checkout), and payout calculations").
+// Confirmed statuses (11): unpaid, payment_pending, pending_review, blocked, paid, shipped,
+// picked_up, received, refunded, cancelled. Real field names/shapes are unverified until we see
+// a live response — that's the point of the dry-run sync endpoint that calls this.
+export async function fetchReverbSellingOrders(
+  env: Env,
+  params?: { updatedStartDate?: string; updatedEndDate?: string },
+): Promise<{ ok: true; orders: Array<Record<string, unknown>> } | { ok: false; message: string; status: number }> {
+  const url = new URL(`${REVERB_API_BASE_URL}/my/orders/selling/all`);
+  if (params?.updatedStartDate) url.searchParams.set('updated_start_date', params.updatedStartDate);
+  if (params?.updatedEndDate) url.searchParams.set('updated_end_date', params.updatedEndDate);
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: reverbRequestHeaders(env),
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    return { ok: false, message: text.slice(0, 500) || `HTTP ${response.status}`, status: response.status };
+  }
+  let data: unknown = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    return { ok: false, message: 'Reverb returned a non-JSON response for orders.', status: 502 };
+  }
+  const record = (data && typeof data === 'object') ? data as Record<string, unknown> : {};
+  // Try the plausible container keys — unconfirmed which one Reverb actually uses.
+  const orders = (Array.isArray(record.orders) && record.orders)
+    || (Array.isArray((record._embedded as Record<string, unknown> | undefined)?.orders) && (record._embedded as Record<string, unknown>).orders)
+    || (Array.isArray(record.results) && record.results)
+    || (Array.isArray(data) ? data : null)
+    || [];
+  return { ok: true, orders: orders as Array<Record<string, unknown>> };
 }

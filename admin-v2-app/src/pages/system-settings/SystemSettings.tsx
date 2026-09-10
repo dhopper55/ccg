@@ -120,6 +120,7 @@ const SystemSettings = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [isPrintingReceipt, setIsPrintingReceipt] = useState(false);
   const [isKickingDrawer, setIsKickingDrawer] = useState(false);
+  const [isSyncingReverbSales, setIsSyncingReverbSales] = useState(false);
 
   const loadSettings = async () => {
     setIsLoading(true);
@@ -396,6 +397,40 @@ const SystemSettings = () => {
     } finally { setIsKickingDrawer(false); }
   };
 
+  const handleReverbSaleSync = async () => {
+    if (!window.confirm('Check Reverb for sold items and mark them sold locally? This ends the matching Reverb listings and updates CCG inventory.')) return;
+    setIsSyncingReverbSales(true);
+    try {
+      const response = await fetch('/api/admin-v2/reverb/sync-sold', { method: 'POST', credentials: 'same-origin' });
+      const data = await response.json().catch(() => ({})) as {
+        message?: string;
+        processedCount?: number;
+        processed?: Array<{ ccgNumber: string; title: string; soldAmount: number; endListingWarning?: string | null }>;
+        skippedCount?: number;
+        skipped?: Array<{ ccgNumber: string; reason: string }>;
+      };
+      if (!response.ok) throw new Error(data.message || 'Unable to sync Reverb sales.');
+
+      const processed = data.processed || [];
+      if (!processed.length) {
+        enqueueSnackbar(
+          data.skippedCount ? `No new sales marked. ${data.skippedCount} item(s) skipped — see console.` : 'No new Reverb sales found.',
+          { variant: 'info' },
+        );
+      } else {
+        const summary = processed.map((p) => `${p.ccgNumber} ($${p.soldAmount.toFixed(2)})`).join(', ');
+        enqueueSnackbar(`Marked sold from Reverb: ${summary}`, { variant: 'success', autoHideDuration: 10000 });
+      }
+      if (data.skipped?.length) console.warn('Reverb sale sync skipped items', data.skipped);
+      const warnings = processed.filter((p) => p.endListingWarning);
+      if (warnings.length) console.warn('Reverb sale sync end-listing warnings', warnings);
+    } catch (e) {
+      enqueueSnackbar(e instanceof Error ? e.message : 'Unable to sync Reverb sales.', { variant: 'error' });
+    } finally {
+      setIsSyncingReverbSales(false);
+    }
+  };
+
   return (
     <Stack direction="column" height={1}>
       <PageHeader
@@ -558,6 +593,20 @@ const SystemSettings = () => {
               onClick={() => void handleKickDrawer()}
             >
               Kick Drawer
+            </Button>
+          </Stack>
+          <Divider />
+          <Typography variant="subtitle2" color="text.secondary">
+            Integrations
+          </Typography>
+          <Stack direction="row" sx={{ gap: 2, flexWrap: 'wrap' }}>
+            <Button
+              variant="outlined"
+              startIcon={<IconifyIcon icon="material-symbols:sync-rounded" />}
+              loading={isSyncingReverbSales}
+              onClick={() => void handleReverbSaleSync()}
+            >
+              Reverb Sale Sync
             </Button>
           </Stack>
         </Stack>

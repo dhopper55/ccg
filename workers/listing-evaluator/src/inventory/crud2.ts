@@ -20,6 +20,7 @@ import {
   resolveReverbCategoryUuid,
   buildReverbListingPayload,
   createReverbListing,
+  endReverbListing,
   toReverbFetchableImageUrl,
   fetchReverbShippingProfiles,
 } from './reverb-listing.js';
@@ -822,14 +823,23 @@ export async function handleInventoryReverbRemove(_request: Request, path: strin
 
   const current = await dbGetInventoryItem(recordId, env);
   if (!current) return jsonResponse({ message: 'Inventory item not found.' }, 404);
-  if (!(current as { reverbListingId?: unknown }).reverbListingId) {
+  const reverbListingId = (current as { reverbListingId?: unknown }).reverbListingId;
+  if (!reverbListingId) {
     return jsonResponse({ message: 'Item is not currently listed on Reverb.' }, 400);
   }
 
-  // TODO: replace this with a real call to end the Reverb listing (PUT
-  // /api/my/listings/[id]/state/end) before clearing the local link.
+  const ended = await endReverbListing(String(reverbListingId), env);
+  if (!ended.ok) {
+    const status = ended.status >= 400 && ended.status < 600 ? ended.status : 502;
+    return jsonResponse({ message: `Unable to end the Reverb listing: ${ended.message}` }, status);
+  }
+
   const ok = await dbSetInventoryReverbListingId(recordId, null, env);
-  if (!ok) return jsonResponse({ message: 'Unable to remove item from Reverb.' }, 500);
+  if (!ok) {
+    return jsonResponse({
+      message: 'Ended the Reverb listing, but failed to clear the local link. Clear it manually before retrying.',
+    }, 500);
+  }
   return jsonResponse({ ok: true, reverbListingId: null });
 }
 

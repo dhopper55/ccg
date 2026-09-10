@@ -546,6 +546,31 @@ export async function dbGetInventoryItem(recordId: string, env: Env): Promise<Re
   };
 }
 
+export type ReverbLinkedUnsoldItem = {
+  id: string;
+  ccgNumber: string;
+  title: string;
+  reverbListingId: string;
+  quantity: number;
+};
+
+export async function dbListReverbLinkedUnsoldItems(env: Env): Promise<ReverbLinkedUnsoldItem[]> {
+  const result = await env.DB.prepare(
+    `SELECT id, ccg_number, title, reverb_listing_id, quantity
+     FROM ccg_inventory_items
+     WHERE reverb_listing_id IS NOT NULL AND TRIM(reverb_listing_id) <> ''
+       AND COALESCE(is_sold, 0) = 0
+       AND COALESCE(for_sale, 0) = 1`
+  ).all<{ id: number; ccg_number: string; title: string; reverb_listing_id: string; quantity: number | null }>();
+  return (result.results ?? []).map((row) => ({
+    id: String(row.id),
+    ccgNumber: row.ccg_number,
+    title: row.title,
+    reverbListingId: row.reverb_listing_id,
+    quantity: Number(row.quantity ?? 1),
+  }));
+}
+
 export async function dbFindInventoryBySourceListingId(sourceListingId: number, env: Env): Promise<{ id: number } | null> {
   const row = await env.DB.prepare(
     'SELECT id FROM ccg_inventory_items WHERE source_listing_id = ? LIMIT 1'
