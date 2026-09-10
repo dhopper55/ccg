@@ -561,6 +561,14 @@ export async function dbMarkInventorySoldFromReverb(
            sold_channel = 'Reverb',
            sell_notes = ?,
            queue = 'Sold',
+           sales_channel_ccg = 0,
+           sales_channel_fbm = 0,
+           sales_channel_cl = 0,
+           sales_channel_gear_exchange = 0,
+           sales_channel_offerup = 0,
+           sales_channel_ebay = 0,
+           sales_channel_nextdoor = 0,
+           sales_channel_other = 0,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
     ).bind(fields.soldDate, fields.soldAmount, fields.sellNotes, idValue).run();
