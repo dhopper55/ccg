@@ -9,12 +9,11 @@ import { reverbRequestHeaders } from '../pricing/reverb.js';
 // make/model/title/description/finish/year/categories/condition/photos/videos/price/sku/upc/
 // has_inventory/inventory/offers_enabled/handmade/shipping_profile_id/shipping.rates/shipping.local/
 // preorder_info/publish. They do NOT document field names for "sold as described", an automatic
-// price-drop-after-N-weeks feature, "Safe Shipping", or calculated (dimension/weight-based)
-// shipping. The fields below (sold_as_described, auto_price_drop, safe_shipping, and the
-// shipping.dimensions/shipping.weight objects) are best-guess names following Reverb's existing
-// snake_case conventions — they are NOT confirmed against a live account. If Reverb silently
-// ignores them (rather than erroring), those specific toggles won't take effect even though the
-// listing itself succeeds. Test with one real listing and compare against what shows up on
+// price-drop-after-N-weeks feature, or "Safe Shipping". The fields below (sold_as_described,
+// auto_price_drop, safe_shipping) are best-guess names following Reverb's existing snake_case
+// conventions — they are NOT confirmed against a live account. If Reverb silently ignores them
+// (rather than erroring), those specific toggles won't take effect even though the listing
+// itself succeeds. Test with one real listing and compare against what shows up on
 // reverb.com; if a toggle didn't take effect, inspect reverb.com's own listing form network
 // request in browser dev tools for the real field name and it's a one-line fix here.
 
@@ -80,11 +79,6 @@ export type ReverbWizardInput = {
   shippingMethod: ReverbShippingMethod;
   flatRateAmount: number | null;
   shippingProfileId: string | null;
-  packageWidthIn: number;
-  packageHeightIn: number;
-  packageLengthIn: number;
-  weightLbs: number;
-  weightOz: number;
   safeShipping: boolean;
 };
 
@@ -122,19 +116,6 @@ export function parseReverbWizardInput(
     if (!shippingProfileId) return { error: 'Choose a shipping profile.' };
   }
 
-  const packageWidthIn = parseBoundedInt(body.packageWidthIn, 0, 0, 1000);
-  const packageHeightIn = parseBoundedInt(body.packageHeightIn, 0, 0, 1000);
-  const packageLengthIn = parseBoundedInt(body.packageLengthIn, 0, 0, 1000);
-  if (!packageWidthIn || !packageHeightIn || !packageLengthIn) {
-    return { error: 'Enter package width, height, and length.' };
-  }
-
-  const weightLbs = parseBoundedInt(body.weightLbs, 0, 0, 1000);
-  const weightOz = parseBoundedInt(body.weightOz, 0, 0, 15);
-  if (!weightLbs && !weightOz) {
-    return { error: 'Enter a package weight.' };
-  }
-
   const safeShipping = toBooleanInput(body.safeShipping, false);
 
   return {
@@ -146,11 +127,6 @@ export function parseReverbWizardInput(
       shippingMethod,
       flatRateAmount,
       shippingProfileId,
-      packageWidthIn,
-      packageHeightIn,
-      packageLengthIn,
-      weightLbs,
-      weightOz,
       safeShipping,
     },
   };
@@ -309,19 +285,7 @@ export function buildReverbListingPayload(
   categoryUuid: string,
   wizard: ReverbWizardInput,
 ): Record<string, unknown> {
-  const shipping: Record<string, unknown> = {
-    local: true,
-    dimensions: {
-      length: wizard.packageLengthIn,
-      width: wizard.packageWidthIn,
-      height: wizard.packageHeightIn,
-      unit: 'in',
-    },
-    weight: {
-      pounds: wizard.weightLbs,
-      ounces: wizard.weightOz,
-    },
-  };
+  const shipping: Record<string, unknown> = { local: true };
   if (wizard.shippingMethod === 'free') {
     shipping.rates = [{ rate: { amount: '0.00', currency: 'USD' }, region_code: 'US_CON' }];
   } else if (wizard.shippingMethod === 'flat') {
@@ -331,10 +295,11 @@ export function buildReverbListingPayload(
     }];
   }
   // Deliberately never sending an "XX" (everywhere else) rate, so no international shipping is
-  // offered. For "calculated", per Reverb's docs, carrier-calculated rates come from a shipping
-  // profile configured on reverb.com (shipping_profile_id below) — raw dimensions/weight in the
-  // shipping object alone do NOT enable calculated shipping (confirmed: that combination came
-  // back from Reverb as local_pickup_only:true with no real shipping).
+  // offered. For "calculated", carrier-calculated rates come from a shipping profile configured
+  // on reverb.com (shipping_profile_id below). Confirmed via a live test that package
+  // dimensions/weight are NOT real fields here — sending them came back from Reverb as
+  // local_pickup_only:true with no real shipping, so they were removed from the payload and the
+  // wizard entirely rather than collecting data that goes nowhere.
 
   return {
     make: item.brand,

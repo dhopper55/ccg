@@ -19,7 +19,6 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import Grid from '@mui/material/Grid';
 
 type ShippingMethod = 'calculated' | 'free' | 'flat';
 
@@ -68,11 +67,6 @@ const ReverbListingWizard = ({ open, itemId, ccgCondition, onClose, onListed }: 
   const [allowOffers, setAllowOffers] = useState(true);
   const [shippingMethod, setShippingMethod] = useState<ShippingMethod>('calculated');
   const [flatRateAmount, setFlatRateAmount] = useState('');
-  const [packageWidthIn, setPackageWidthIn] = useState('');
-  const [packageHeightIn, setPackageHeightIn] = useState('');
-  const [packageLengthIn, setPackageLengthIn] = useState('');
-  const [weightLbs, setWeightLbs] = useState('');
-  const [weightOz, setWeightOz] = useState('');
   const [safeShipping, setSafeShipping] = useState(false);
   const [shippingProfileId, setShippingProfileId] = useState('');
   const [shippingProfiles, setShippingProfiles] = useState<Array<{ id: string; name: string }>>([]);
@@ -88,11 +82,6 @@ const ReverbListingWizard = ({ open, itemId, ccgCondition, onClose, onListed }: 
     setAllowOffers(true);
     setShippingMethod('calculated');
     setFlatRateAmount('');
-    setPackageWidthIn('');
-    setPackageHeightIn('');
-    setPackageLengthIn('');
-    setWeightLbs('');
-    setWeightOz('');
     setSafeShipping(false);
     setShippingProfileId('');
     setIsSubmitting(false);
@@ -110,20 +99,10 @@ const ReverbListingWizard = ({ open, itemId, ccgCondition, onClose, onListed }: 
       .finally(() => setIsLoadingProfiles(false));
   }, [open, ccgCondition]);
 
-  const width = toPositiveInt(packageWidthIn);
-  const height = toPositiveInt(packageHeightIn);
-  const length = toPositiveInt(packageLengthIn);
-  const lbs = weightLbs.trim() ? Number.parseInt(weightLbs, 10) : 0;
-  const oz = weightOz.trim() ? Number.parseInt(weightOz, 10) : 0;
-  const hasWeight = (Number.isFinite(lbs) && lbs > 0) || (Number.isFinite(oz) && oz > 0);
   const flatAmount = shippingMethod === 'flat' ? toPositiveInt(flatRateAmount) : null;
 
   const isValid = Boolean(conditionUuid)
     && dropPriceIn2Weeks !== null
-    && width != null
-    && height != null
-    && length != null
-    && hasWeight
     && (shippingMethod !== 'flat' || flatAmount != null)
     && (shippingMethod !== 'calculated' || Boolean(shippingProfileId));
 
@@ -144,11 +123,6 @@ const ReverbListingWizard = ({ open, itemId, ccgCondition, onClose, onListed }: 
           shippingMethod,
           flatRateAmount: flatAmount,
           shippingProfileId: shippingMethod === 'calculated' ? shippingProfileId : null,
-          packageWidthIn: width,
-          packageHeightIn: height,
-          packageLengthIn: length,
-          weightLbs: Number.isFinite(lbs) ? lbs : 0,
-          weightOz: Number.isFinite(oz) ? oz : 0,
           safeShipping,
         }),
       });
@@ -258,67 +232,6 @@ const ReverbListingWizard = ({ open, itemId, ccgCondition, onClose, onListed }: 
                 ))}
               </TextField>
             ) : null}
-          </Box>
-
-          <Box>
-            <Typography variant="subtitle2" sx={{ mb: 0.5 }}>Package</Typography>
-            <Grid container spacing={1.5}>
-              <Grid size={4}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Width (in)"
-                  type="number"
-                  value={packageWidthIn}
-                  onChange={(event) => setPackageWidthIn(event.target.value)}
-                  inputProps={{ min: 1, step: 1 }}
-                />
-              </Grid>
-              <Grid size={4}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Height (in)"
-                  type="number"
-                  value={packageHeightIn}
-                  onChange={(event) => setPackageHeightIn(event.target.value)}
-                  inputProps={{ min: 1, step: 1 }}
-                />
-              </Grid>
-              <Grid size={4}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Length (in)"
-                  type="number"
-                  value={packageLengthIn}
-                  onChange={(event) => setPackageLengthIn(event.target.value)}
-                  inputProps={{ min: 1, step: 1 }}
-                />
-              </Grid>
-              <Grid size={6}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Weight - lbs"
-                  type="number"
-                  value={weightLbs}
-                  onChange={(event) => setWeightLbs(event.target.value)}
-                  inputProps={{ min: 0, step: 1 }}
-                />
-              </Grid>
-              <Grid size={6}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Weight - oz"
-                  type="number"
-                  value={weightOz}
-                  onChange={(event) => setWeightOz(event.target.value)}
-                  inputProps={{ min: 0, max: 15, step: 1 }}
-                />
-              </Grid>
-            </Grid>
           </Box>
 
           <FormControlLabel
