@@ -25,6 +25,7 @@ import {
   endReverbListing,
   toReverbFetchableImageUrl,
   fetchReverbShippingProfiles,
+  fetchReverbOrderRaw,
 } from './reverb-listing.js';
 import { reverbRequestHeaders } from '../pricing/reverb.js';
 import { REVERB_SEARCH_API_URL } from '../constants.js';
@@ -275,6 +276,29 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
     ? ((current as { soldDate?: string }).soldDate || null)
     : null;
   const becameSold = !previousIsSold && isSold;
+
+  // Item just got marked sold (e.g. it sold on FBM/in-store/CCG, not on Reverb) — if it's still
+  // live on Reverb, end that listing so it can't also sell there, and clear the local link so
+  // the Reverb checkbox reflects reality. Same fail-closed behavior as the other Reverb syncs:
+  // if ending it fails, stop the save and surface the error rather than silently drifting.
+  if (becameSold) {
+    const reverbListingIdToEnd = (current as { reverbListingId?: unknown }).reverbListingId;
+    if (reverbListingIdToEnd) {
+      const ended = await endReverbListing(String(reverbListingIdToEnd), env);
+      if (!ended.ok) {
+        const status = ended.status >= 400 && ended.status < 600 ? ended.status : 502;
+        return jsonResponse({ message: `Unable to end the Reverb listing before marking sold: ${ended.message}` }, status);
+      }
+      const cleared = await dbSetInventoryReverbListingId(recordId, null, env);
+      if (!cleared) {
+        return jsonResponse({
+          message: 'Ended the Reverb listing, but failed to clear the local link. Clear it manually before retrying.',
+        }, 500);
+      }
+      salesChannelFields.sales_channel_reverb = 0;
+    }
+  }
+
   const recordIdNum = Number.parseInt(recordId, 10);
   const currentPackageId = (current as { packageId?: number | null })?.packageId ?? null;
   const hasPackageChildren = await dbInventoryItemHasPackageChildren(recordIdNum, env);
@@ -925,4 +949,16 @@ export async function handleInventoryReverbDebug(_request: Request, path: string
 export async function handleReverbShippingProfiles(_request: Request, env: Env): Promise<Response> {
   const profiles = await fetchReverbShippingProfiles(env);
   return jsonResponse({ profiles });
+}
+
+// Temporary diagnostic — see fetchReverbOrderRaw in reverb-listing.ts.
+export async function handleReverbOrderDebug(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const orderId = url.searchParams.get('orderId') || '';
+  if (!orderId) return jsonResponse({ message: 'Missing orderId query param.' }, 400);
+  const result = await fetchReverbOrderRaw(orderId, env);
+  return new Response(result.text, {
+    status: result.status,
+    headers: { 'content-type': 'application/json' },
+  });
 }

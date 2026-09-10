@@ -578,3 +578,16 @@ export async function fetchReverbSellingOrders(
     || [];
   return { ok: true, orders: orders as Array<Record<string, unknown>> };
 }
+
+// Diagnostic: fetch one order's raw JSON by its Reverb order number, per the documented
+// /api/my/orders/selling/[order_id] endpoint — used to check payout fields for a specific sale
+// (e.g. a "Reverb Payments" order, which may report payout differently than a direct-checkout
+// order) without guessing at the formula.
+export async function fetchReverbOrderRaw(orderId: string, env: Env): Promise<{ status: number; text: string }> {
+  const response = await fetch(`${REVERB_API_BASE_URL}/my/orders/selling/${encodeURIComponent(orderId)}`, {
+    method: 'GET',
+    headers: reverbRequestHeaders(env),
+  });
+  const text = await response.text();
+  return { status: response.status, text };
+}

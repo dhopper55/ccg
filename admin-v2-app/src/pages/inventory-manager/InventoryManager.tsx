@@ -51,6 +51,8 @@ type InventoryRecord = {
   forSale?: boolean;
   isSold?: boolean;
   reverbListingId?: string | null;
+  salesChannelFbm?: boolean;
+  salesChannelCl?: boolean;
   unitPurchasePrice?: number | null;
   privatePartyValue?: number | null;
   salePrice?: number | null;
@@ -778,6 +780,40 @@ const InventoryManager = () => {
                           />
                         </Tooltip>
                       ) : null}
+                      {record.salesChannelFbm ? (
+                        <Tooltip title="Listed on Facebook Marketplace">
+                          <Box
+                            component="img"
+                            src="/images/fb.png"
+                            alt="Facebook Marketplace"
+                            sx={{
+                              width: 14,
+                              height: 14,
+                              display: 'inline-flex',
+                              verticalAlign: 'text-bottom',
+                              ml: 0.75,
+                              borderRadius: '2px',
+                            }}
+                          />
+                        </Tooltip>
+                      ) : null}
+                      {record.salesChannelCl ? (
+                        <Tooltip title="Listed on Craigslist">
+                          <Box
+                            component="img"
+                            src="/images/cl.png"
+                            alt="Craigslist"
+                            sx={{
+                              width: 14,
+                              height: 14,
+                              display: 'inline-flex',
+                              verticalAlign: 'text-bottom',
+                              ml: 0.75,
+                              borderRadius: '2px',
+                            }}
+                          />
+                        </Tooltip>
+                      ) : null}
                     </Link>
                   </Stack>
                 </TableCell>
@@ -878,6 +914,26 @@ const InventoryManager = () => {
                           src="/images/reverb-icon.svg"
                           alt="Reverb"
                           sx={{ width: 14, height: 14, display: 'inline-flex', flexShrink: 0 }}
+                        />
+                      </Tooltip>
+                    ) : null}
+                    {record.salesChannelFbm ? (
+                      <Tooltip title="Listed on Facebook Marketplace">
+                        <Box
+                          component="img"
+                          src="/images/fb.png"
+                          alt="Facebook Marketplace"
+                          sx={{ width: 14, height: 14, display: 'inline-flex', flexShrink: 0, borderRadius: '2px' }}
+                        />
+                      </Tooltip>
+                    ) : null}
+                    {record.salesChannelCl ? (
+                      <Tooltip title="Listed on Craigslist">
+                        <Box
+                          component="img"
+                          src="/images/cl.png"
+                          alt="Craigslist"
+                          sx={{ width: 14, height: 14, display: 'inline-flex', flexShrink: 0, borderRadius: '2px' }}
                         />
                       </Tooltip>
                     ) : null}

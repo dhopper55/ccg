@@ -76,6 +76,7 @@ import {
   handleInventoryReverbRemove,
   handleInventoryReverbDebug,
   handleReverbShippingProfiles,
+  handleReverbOrderDebug,
 } from './inventory/crud2.js';
 import { handleReverbSyncSoldDryRun, handleReverbSyncSoldCommit } from './inventory/reverb-sync.js';
 import {
@@ -1124,6 +1125,11 @@ export default {
 
     if (path === '/api/admin-v2/reverb/sync-sold-dry-run' && request.method === 'GET') {
       const response = await handleReverbSyncSoldDryRun(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/reverb/order-debug' && request.method === 'GET') {
+      const response = await handleReverbOrderDebug(request, env);
       return withCors(response, request, env);
     }
 
