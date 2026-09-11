@@ -591,3 +591,21 @@ export async function fetchReverbOrderRaw(orderId: string, env: Env): Promise<{ 
   const text = await response.text();
   return { status: response.status, text };
 }
+
+// UNVERIFIED field name: no captured real order has had a Reverb-purchased shipping label yet
+// (every order seen so far was still "paid", pre-shipment), so this is a best guess following
+// the sibling fields' naming (selling_fee, direct_checkout_fee) and the docs' prose mention of
+// "shipping label" fees. If this returns null even when you know a label was bought through
+// Reverb, the caller surfaces the order's real field names so it's a one-line fix here.
+export function extractShippingLabelFee(order: Record<string, unknown>): number | null {
+  const candidates = [order.shipping_label_fee, order.shipping_label_cost, order.label_fee, order.label_cost];
+  for (const candidate of candidates) {
+    if (candidate && typeof candidate === 'object' && 'amount' in (candidate as Record<string, unknown>)) {
+      const amount = (candidate as { amount?: unknown }).amount;
+      const parsed = Number.parseFloat(String(amount));
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    if (typeof candidate === 'number' && Number.isFinite(candidate)) return candidate;
+  }
+  return null;
+}

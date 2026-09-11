@@ -528,6 +528,29 @@ export async function dbSetInventoryMarked(recordId: string, isMarked: boolean, 
   }
 }
 
+export async function dbApplyReverbShippingLabelCost(
+  recordId: string,
+  fields: { soldAmount: number; sellNotes: string },
+  env: Env,
+): Promise<boolean> {
+  const idValue = Number.parseInt(recordId, 10);
+  if (!Number.isFinite(idValue)) return false;
+  try {
+    const result = await env.DB.prepare(
+      `UPDATE ccg_inventory_items
+       SET sold_amount = ?,
+           sell_notes = ?,
+           sold_ship_cost_accounted = 1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`
+    ).bind(fields.soldAmount, fields.sellNotes, idValue).run();
+    return Number(result.meta?.changes || 0) > 0;
+  } catch (error) {
+    console.error('Inventory Reverb shipping-cost adjustment failed', { error });
+    return false;
+  }
+}
+
 export async function dbSetInventoryReverbListingId(
   recordId: string,
   reverbListingId: string | null,
@@ -550,7 +573,7 @@ export async function dbSetInventoryReverbListingId(
 
 export async function dbMarkInventorySoldFromReverb(
   recordId: string,
-  fields: { soldDate: string; soldAmount: number; sellNotes: string },
+  fields: { soldDate: string; soldAmount: number; sellNotes: string; soldShipCostAccounted?: boolean },
   env: Env,
 ): Promise<boolean> {
   const idValue = Number.parseInt(recordId, 10);
@@ -564,6 +587,7 @@ export async function dbMarkInventorySoldFromReverb(
            sold_amount = ?,
            sold_channel = 'Reverb',
            sell_notes = ?,
+           sold_ship_cost_accounted = ?,
            queue = 'Sold',
            sales_channel_ccg = 0,
            sales_channel_fbm = 0,
@@ -577,7 +601,7 @@ export async function dbMarkInventorySoldFromReverb(
            reverb_listing_id = NULL,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
-    ).bind(fields.soldDate, fields.soldAmount, fields.sellNotes, idValue).run();
+    ).bind(fields.soldDate, fields.soldAmount, fields.sellNotes, fields.soldShipCostAccounted ? 1 : 0, idValue).run();
     return Number(result.meta?.changes || 0) > 0;
   } catch (error) {
     console.error('Inventory mark-sold-from-Reverb update failed', { error });

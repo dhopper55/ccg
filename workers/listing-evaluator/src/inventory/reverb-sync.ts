@@ -10,7 +10,7 @@ import {
   dbReplaceInventoryTagsByItemIds,
   generateUniqueCcgNumber,
 } from './db-write.js';
-import { fetchReverbSellingOrders, endReverbListing } from './reverb-listing.js';
+import { fetchReverbSellingOrders, endReverbListing, extractShippingLabelFee } from './reverb-listing.js';
 
 function extractOrderQuantity(order: Record<string, unknown>): number {
   const raw = order.quantity;
@@ -26,7 +26,7 @@ function extractOrderQuantity(order: Record<string, unknown>): number {
 async function splitAndMarkPartialReverbSale(
   sourceId: string,
   soldQuantity: number,
-  fields: { soldDate: string; soldAmount: number; sellNotes: string },
+  fields: { soldDate: string; soldAmount: number; sellNotes: string; soldShipCostAccounted?: boolean },
   env: Env,
 ): Promise<{ ok: true; newInventoryId: string } | { ok: false; message: string }> {
   const source = await dbGetInventoryItem(sourceId, env);
@@ -188,7 +188,7 @@ async function splitAndMarkPartialReverbSale(
     sold_date: fields.soldDate,
     sold_amount: fields.soldAmount,
     sell_notes: fields.sellNotes,
-    sold_ship_cost_accounted: 0,
+    sold_ship_cost_accounted: fields.soldShipCostAccounted ? 1 : 0,
     sale_url: null,
     sale_zip: (s.saleZip as string) || null,
   }, env);
@@ -227,7 +227,7 @@ async function splitAndMarkPartialReverbSale(
     sold_date: fields.soldDate,
     sold_amount: fields.soldAmount,
     sell_notes: fields.sellNotes,
-    sold_ship_cost_accounted: 0,
+    sold_ship_cost_accounted: fields.soldShipCostAccounted ? 1 : 0,
     subscription_id: s.subscriptionId != null ? Number(s.subscriptionId) : null,
     sale_url: null,
     sale_zip: (s.saleZip as string) || null,
@@ -381,7 +381,7 @@ export async function handleReverbSyncSoldCommit(_request: Request, env: Env): P
     const sellingFee = (order.selling_fee as { amount?: unknown } | undefined)?.amount;
     const checkoutFee = (order.direct_checkout_fee as { amount?: unknown } | undefined)?.amount;
     const soldDate = typeof order.paid_at === 'string' ? order.paid_at.slice(0, 10) : new Date().toISOString().slice(0, 10);
-    const sellNotes = [
+    const baseSellNotes = [
       `Sold via Reverb${orderNumber ? ` (order #${orderNumber})` : ''}${buyerName ? ` to ${buyerName}` : ''}.`,
       amountProduct != null ? `$${amountProduct} item` : null,
       shippingAmount != null ? `+ $${shippingAmount} shipping` : null,
@@ -389,6 +389,16 @@ export async function handleReverbSyncSoldCommit(_request: Request, env: Env): P
       checkoutFee != null ? `- $${checkoutFee} checkout fee` : null,
       `= $${payoutAmount.toFixed(2)} payout.`,
     ].filter(Boolean).join(' ');
+
+    // If a shipping label was already bought through Reverb by the time we're syncing, account
+    // for it right away instead of leaving it for the manual "Check Reverb Shipping" button.
+    // Same unverified field-name caveat as that button — see extractShippingLabelFee.
+    const labelFee = extractShippingLabelFee(order);
+    const soldShipCostAccounted = labelFee != null && labelFee > 0;
+    const finalSoldAmount = soldShipCostAccounted ? Math.max(0, payoutAmount - labelFee) : payoutAmount;
+    const sellNotes = soldShipCostAccounted
+      ? `${baseSellNotes} Reverb shipping label: -$${labelFee.toFixed(2)}. Adjusted payout: $${finalSoldAmount.toFixed(2)}.`
+      : baseSellNotes;
 
     const orderQuantity = extractOrderQuantity(order);
 
@@ -399,8 +409,9 @@ export async function handleReverbSyncSoldCommit(_request: Request, env: Env): P
       // inventory count rather than ending.
       const split = await splitAndMarkPartialReverbSale(candidate.id, orderQuantity, {
         soldDate,
-        soldAmount: payoutAmount,
+        soldAmount: finalSoldAmount,
         sellNotes,
+        soldShipCostAccounted,
       }, env);
       if (!split.ok) {
         skipped.push({
@@ -417,12 +428,13 @@ export async function handleReverbSyncSoldCommit(_request: Request, env: Env): P
         ccgNumber: candidate.ccgNumber,
         title: candidate.title,
         reverbListingId: candidate.reverbListingId,
-        soldAmount: payoutAmount,
+        soldAmount: finalSoldAmount,
         soldDate,
         orderNumber,
         soldQuantity: orderQuantity,
         remainingQuantity: candidate.quantity - orderQuantity,
         partial: true,
+        shipCostAccounted: soldShipCostAccounted,
       });
       continue;
     }
@@ -436,8 +448,9 @@ export async function handleReverbSyncSoldCommit(_request: Request, env: Env): P
 
     const marked = await dbMarkInventorySoldFromReverb(candidate.id, {
       soldDate,
-      soldAmount: payoutAmount,
+      soldAmount: finalSoldAmount,
       sellNotes,
+      soldShipCostAccounted,
     }, env);
     if (!marked) {
       skipped.push({
@@ -455,10 +468,11 @@ export async function handleReverbSyncSoldCommit(_request: Request, env: Env): P
       ccgNumber: candidate.ccgNumber,
       title: candidate.title,
       reverbListingId: candidate.reverbListingId,
-      soldAmount: payoutAmount,
+      soldAmount: finalSoldAmount,
       soldDate,
       orderNumber,
       endListingWarning,
+      shipCostAccounted: soldShipCostAccounted,
     });
   }
 

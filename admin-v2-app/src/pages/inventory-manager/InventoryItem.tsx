@@ -1193,6 +1193,7 @@ const InventoryItem = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isReverbActionPending, setIsReverbActionPending] = useState(false);
   const [reverbWizardOpen, setReverbWizardOpen] = useState(false);
+  const [isCheckingReverbShipping, setIsCheckingReverbShipping] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isGeneratingTag, setIsGeneratingTag] = useState(false);
@@ -2452,6 +2453,36 @@ const InventoryItem = () => {
       enqueueSnackbar('Listed on Reverb.', { variant: 'success' });
     }
     setReloadToken((current) => current + 1);
+  };
+
+  const handleCheckReverbShipping = async () => {
+    if (mode !== 'edit' || !editId || isCheckingReverbShipping) return;
+
+    if (buildFullFormSnapshot(form, images, tags) !== lastSavedFullSnapshotRef.current) {
+      enqueueSnackbar('There are unsaved changes. Please save first before checking Reverb shipping.', { variant: 'warning' });
+      return;
+    }
+
+    setIsCheckingReverbShipping(true);
+    try {
+      const response = await fetch(`/api/inventory/${encodeURIComponent(editId)}/reverb-shipping-check`, {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+      const data = (await response.json().catch(() => ({}))) as { message?: string; labelFee?: number; newSoldAmount?: number };
+      if (!response.ok) {
+        throw new Error(data.message || 'Unable to check Reverb shipping.');
+      }
+      enqueueSnackbar(
+        `Deducted $${(data.labelFee ?? 0).toFixed(2)} Reverb shipping label — new sold amount $${(data.newSoldAmount ?? 0).toFixed(2)}.`,
+        { variant: 'success', autoHideDuration: 8000 },
+      );
+      setReloadToken((current) => current + 1);
+    } catch (error) {
+      enqueueSnackbar(error instanceof Error ? error.message : 'Unable to check Reverb shipping.', { variant: 'error' });
+    } finally {
+      setIsCheckingReverbShipping(false);
+    }
   };
 
   const handleGenerateSaleDescription = async () => {
@@ -4078,15 +4109,27 @@ const InventoryItem = () => {
               </Grid>
               <Grid size={{ xs: 12, md: 4 }}>
                 <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, bgcolor: 'background.default' }}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={form.soldShipCostAccounted}
-                        onChange={(event) => setField('soldShipCostAccounted', event.target.checked)}
-                      />
-                    }
-                    label="Ship Cost Accounted"
-                  />
+                  <Stack direction="row" sx={{ alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={form.soldShipCostAccounted}
+                          onChange={(event) => setField('soldShipCostAccounted', event.target.checked)}
+                        />
+                      }
+                      label="Ship Cost Accounted"
+                    />
+                    {!form.soldShipCostAccounted && form.soldChannel === 'Reverb' ? (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        loading={isCheckingReverbShipping}
+                        onClick={() => void handleCheckReverbShipping()}
+                      >
+                        Check Reverb Shipping
+                      </Button>
+                    ) : null}
+                  </Stack>
                 </Paper>
               </Grid>
 

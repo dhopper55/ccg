@@ -3,7 +3,7 @@ import { normalizeText, normalizeUrl } from '../utils/text.js';
 import { jsonResponse, parseBoundedInt, normalizeInventoryDate, toBooleanInput } from '../utils/misc.js';
 import { sanitizePatternLookupHtml } from '../utils/html.js';
 import { normalizeInventoryImageEntries, INVENTORY_MAX_IMAGES } from '../utils/image.js';
-import { dbCreateInventoryItems, dbUpdateInventoryById, dbReplaceInventoryImagesByItemIds, dbSetInventorySoldAvailability, dbDeactivateInventoryItemById, dbSetInventoryReverbListingId, generateUniqueCcgNumber, dbReplaceInventoryTagsByItemIds, normalizeInventoryTagsInput } from './db-write.js';
+import { dbCreateInventoryItems, dbUpdateInventoryById, dbReplaceInventoryImagesByItemIds, dbSetInventorySoldAvailability, dbDeactivateInventoryItemById, dbSetInventoryReverbListingId, dbApplyReverbShippingLabelCost, generateUniqueCcgNumber, dbReplaceInventoryTagsByItemIds, normalizeInventoryTagsInput } from './db-write.js';
 import { ensureInventoryHostedImageUrls } from './db-images.js';
 import { dbGetInventoryItem, dbFindInventoryBySourceListingId, dbFindInventoryBySaleUrl, dbInventoryItemHasPackageChildren } from './db-core.js';
 import { dbInventoryCategoryExists } from './categories.js';
@@ -26,6 +26,7 @@ import {
   toReverbFetchableImageUrl,
   fetchReverbShippingProfiles,
   fetchReverbOrderRaw,
+  extractShippingLabelFee,
 } from './reverb-listing.js';
 import { reverbRequestHeaders } from '../pricing/reverb.js';
 import { REVERB_SEARCH_API_URL } from '../constants.js';
@@ -960,5 +961,76 @@ export async function handleReverbOrderDebug(request: Request, env: Env): Promis
   return new Response(result.text, {
     status: result.status,
     headers: { 'content-type': 'application/json' },
+  });
+}
+
+// Pulls the item's Reverb order (order number parsed out of Sell Notes — that's the only place
+// it's recorded, since reverb_listing_id gets cleared once an item is marked sold), looks for a
+// Reverb-purchased shipping label fee on it, and if found: decrements sold_amount by that
+// amount, appends the adjustment to Sell Notes, and checks "Ship Cost Accounted".
+export async function handleInventoryReverbShippingCheck(_request: Request, path: string, env: Env): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const actionIndex = parts.indexOf('reverb-shipping-check');
+  const recordId = actionIndex > 0 ? parts[actionIndex - 1] : '';
+  if (!recordId) return jsonResponse({ message: 'Missing inventory ID.' }, 400);
+
+  const current = await dbGetInventoryItem(recordId, env);
+  if (!current) return jsonResponse({ message: 'Inventory item not found.' }, 404);
+  const c = current as Record<string, unknown>;
+
+  if (c.soldChannel !== 'Reverb') {
+    return jsonResponse({ message: 'This item was not sold via Reverb.' }, 400);
+  }
+  if (c.soldShipCostAccounted) {
+    return jsonResponse({ message: 'Shipping cost has already been accounted for on this item.' }, 400);
+  }
+
+  const sellNotes = typeof c.sellNotes === 'string' ? c.sellNotes : '';
+  const orderMatch = sellNotes.match(/order #(\d+)/i);
+  if (!orderMatch) {
+    return jsonResponse({ message: 'Could not find a Reverb order number in Sell Notes for this item.' }, 400);
+  }
+  const orderId = orderMatch[1];
+
+  const orderResult = await fetchReverbOrderRaw(orderId, env);
+  if (orderResult.status < 200 || orderResult.status >= 300) {
+    return jsonResponse({ message: `Unable to fetch Reverb order #${orderId} (HTTP ${orderResult.status}).` }, 502);
+  }
+  let orderData: unknown = null;
+  try {
+    orderData = orderResult.text ? JSON.parse(orderResult.text) : null;
+  } catch {
+    return jsonResponse({ message: 'Reverb returned a non-JSON response for the order.' }, 502);
+  }
+  const record = (orderData && typeof orderData === 'object') ? orderData as Record<string, unknown> : {};
+  const orderRecord = (record.order && typeof record.order === 'object') ? record.order as Record<string, unknown> : record;
+
+  const labelFee = extractShippingLabelFee(orderRecord);
+  if (labelFee == null) {
+    return jsonResponse({
+      message: `No Reverb-purchased shipping label found on order #${orderId} yet (status: ${orderRecord.status ?? 'unknown'}, shipment_status: ${orderRecord.shipment_status ?? 'unknown'}). If you shipped this outside Reverb, just check "Ship Cost Accounted" and adjust the Sold Amount manually.`,
+      orderKeys: Object.keys(orderRecord),
+    }, 400);
+  }
+  if (labelFee <= 0) {
+    return jsonResponse({ message: 'Reverb reports a $0 shipping label cost on this order — nothing to deduct.' }, 400);
+  }
+
+  const currentSoldAmount = typeof c.soldAmount === 'number' ? c.soldAmount : 0;
+  const newSoldAmount = Math.max(0, currentSoldAmount - labelFee);
+  const newSellNotes = `${sellNotes} Reverb shipping label: -$${labelFee.toFixed(2)}. Adjusted payout: $${newSoldAmount.toFixed(2)}.`.trim();
+
+  const applied = await dbApplyReverbShippingLabelCost(recordId, {
+    soldAmount: newSoldAmount,
+    sellNotes: newSellNotes,
+  }, env);
+  if (!applied) return jsonResponse({ message: 'Found the shipping label cost, but failed to save the update.' }, 500);
+
+  return jsonResponse({
+    ok: true,
+    labelFee,
+    previousSoldAmount: currentSoldAmount,
+    newSoldAmount,
+    sellNotes: newSellNotes,
   });
 }
