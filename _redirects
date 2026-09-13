@@ -33,3 +33,4 @@
 /listing-evaluator-item* /admin/listing-evaluator-item 302
 /inventory-item* /admin/inventory-item 302
 /inventory* /admin/inventory-manager 302
+/ccg-fbm-sync/* / 404

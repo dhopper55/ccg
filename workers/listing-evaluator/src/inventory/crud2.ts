@@ -3,7 +3,7 @@ import { normalizeText, normalizeUrl } from '../utils/text.js';
 import { jsonResponse, parseBoundedInt, normalizeInventoryDate, toBooleanInput } from '../utils/misc.js';
 import { sanitizePatternLookupHtml } from '../utils/html.js';
 import { normalizeInventoryImageEntries, INVENTORY_MAX_IMAGES } from '../utils/image.js';
-import { dbCreateInventoryItems, dbUpdateInventoryById, dbReplaceInventoryImagesByItemIds, dbSetInventorySoldAvailability, dbDeactivateInventoryItemById, dbSetInventoryReverbListingId, dbApplyReverbShippingLabelCost, generateUniqueCcgNumber, dbReplaceInventoryTagsByItemIds, normalizeInventoryTagsInput } from './db-write.js';
+import { dbCreateInventoryItems, dbUpdateInventoryById, dbReplaceInventoryImagesByItemIds, dbSetInventorySoldAvailability, dbDeactivateInventoryItemById, dbSetInventoryReverbListingId, dbSetInventoryFbListingId, dbApplyReverbShippingLabelCost, generateUniqueCcgNumber, dbReplaceInventoryTagsByItemIds, normalizeInventoryTagsInput } from './db-write.js';
 import { ensureInventoryHostedImageUrls } from './db-images.js';
 import { dbGetInventoryItem, dbFindInventoryBySourceListingId, dbFindInventoryBySaleUrl, dbInventoryItemHasPackageChildren } from './db-core.js';
 import { dbInventoryCategoryExists } from './categories.js';
@@ -920,6 +920,52 @@ export async function handleInventoryReverbRemove(_request: Request, path: strin
     }, 500);
   }
   return jsonResponse({ ok: true, reverbListingId: null });
+}
+
+// Unlike Reverb, Facebook Marketplace has no public API to create/end a listing — these two
+// handlers just persist/clear the caller-supplied listing id locally. Used by the ccg-fbm-sync
+// tool (a local, developer-run script; see /ccg-fbm-sync/ARCHITECTURE.md) to link/unlink items.
+export async function handleInventoryFbAdd(request: Request, path: string, env: Env): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const actionIndex = parts.indexOf('fb-add');
+  const recordId = actionIndex > 0 ? parts[actionIndex - 1] : '';
+  if (!recordId) return jsonResponse({ message: 'Missing inventory ID.' }, 400);
+
+  let body: Record<string, unknown> = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+  const fbListingId = normalizeText(body.fbListingId, '');
+  if (!fbListingId) return jsonResponse({ message: 'Missing fbListingId.' }, 400);
+
+  const current = await dbGetInventoryItem(recordId, env);
+  if (!current) return jsonResponse({ message: 'Inventory item not found.' }, 404);
+  if ((current as { fbListingId?: unknown }).fbListingId) {
+    return jsonResponse({ message: 'Item is already linked to a Facebook Marketplace listing.' }, 400);
+  }
+
+  const ok = await dbSetInventoryFbListingId(recordId, fbListingId, env);
+  if (!ok) return jsonResponse({ message: 'Failed to save the Facebook Marketplace link.' }, 500);
+  return jsonResponse({ ok: true, fbListingId });
+}
+
+export async function handleInventoryFbRemove(_request: Request, path: string, env: Env): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const actionIndex = parts.indexOf('fb-remove');
+  const recordId = actionIndex > 0 ? parts[actionIndex - 1] : '';
+  if (!recordId) return jsonResponse({ message: 'Missing inventory ID.' }, 400);
+
+  const current = await dbGetInventoryItem(recordId, env);
+  if (!current) return jsonResponse({ message: 'Inventory item not found.' }, 404);
+  if (!(current as { fbListingId?: unknown }).fbListingId) {
+    return jsonResponse({ message: 'Item is not currently linked to a Facebook Marketplace listing.' }, 400);
+  }
+
+  const ok = await dbSetInventoryFbListingId(recordId, null, env);
+  if (!ok) return jsonResponse({ message: 'Failed to clear the Facebook Marketplace link.' }, 500);
+  return jsonResponse({ ok: true, fbListingId: null });
 }
 
 // Temporary diagnostic — fetches the linked listing straight from Reverb so we can see the real

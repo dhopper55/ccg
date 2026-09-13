@@ -74,6 +74,8 @@ import {
   handleInventoryDelete,
   handleInventoryReverbAdd,
   handleInventoryReverbRemove,
+  handleInventoryFbAdd,
+  handleInventoryFbRemove,
   handleInventoryReverbDebug,
   handleReverbShippingProfiles,
   handleReverbOrderDebug,
@@ -1211,6 +1213,16 @@ export default {
 
     if (path.endsWith('/reverb-remove') && path.startsWith('/api/inventory/') && request.method === 'POST') {
       const response = await handleInventoryReverbRemove(request, path, env);
+      return withCors(response, request, env);
+    }
+
+    if (path.endsWith('/fb-add') && path.startsWith('/api/inventory/') && request.method === 'POST') {
+      const response = await handleInventoryFbAdd(request, path, env);
+      return withCors(response, request, env);
+    }
+
+    if (path.endsWith('/fb-remove') && path.startsWith('/api/inventory/') && request.method === 'POST') {
+      const response = await handleInventoryFbRemove(request, path, env);
       return withCors(response, request, env);
     }
 

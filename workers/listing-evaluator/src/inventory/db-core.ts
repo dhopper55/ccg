@@ -210,6 +210,7 @@ export function mapInventoryRow(
     forSale: Boolean(row.for_sale),
     onlyInStore: Boolean(row.only_in_store),
     reverbListingId: row.reverb_listing_id || null,
+    fbListingId: row.fb_listing_id || null,
     salesChannelFbm: Boolean(row.sales_channel_fbm),
     salesChannelCl: Boolean(row.sales_channel_cl),
     forSaleDate: row.for_sale_date || null,
@@ -287,6 +288,7 @@ export async function dbListInventoryItems(
        i.for_sale,
        i.only_in_store,
        i.reverb_listing_id,
+       i.fb_listing_id,
        i.sales_channel_fbm,
        i.sales_channel_cl,
        i.for_sale_date,
@@ -439,6 +441,12 @@ export async function dbGetInventoryItem(recordId: string, env: Env): Promise<Re
      WHERE i.id = ?`
   ).bind(idValue).first<InventoryItemRow>();
   if (!row) return null;
+  // fb_listing_id is fetched separately rather than added to the SELECT above — that query
+  // already sits at D1's 100-column result-set cap (95 explicit + 6 from the category join),
+  // and one more column pushed it over (D1_ERROR: too many columns in result set).
+  const fbLink = await env.DB.prepare(
+    'SELECT fb_listing_id FROM ccg_inventory_items WHERE id = ?'
+  ).bind(idValue).first<{ fb_listing_id: string | null }>();
   const storedImages = await dbListInventoryImagesForItemIds([row.id], env);
   const imageDetails = storedImages.get(row.id) ?? [];
   const imageUrls = imageDetails.length > 0
@@ -527,6 +535,7 @@ export async function dbGetInventoryItem(recordId: string, env: Env): Promise<Re
     salesChannelCl: Boolean(row.sales_channel_cl),
     salesChannelReverb: Boolean(row.sales_channel_reverb),
     reverbListingId: row.reverb_listing_id || null,
+    fbListingId: fbLink?.fb_listing_id || null,
     salesChannelGearExchange: Boolean(row.sales_channel_gear_exchange),
     salesChannelOfferUp: Boolean(row.sales_channel_offerup),
     salesChannelEbay: Boolean(row.sales_channel_ebay),

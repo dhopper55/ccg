@@ -571,6 +571,26 @@ export async function dbSetInventoryReverbListingId(
   }
 }
 
+export async function dbSetInventoryFbListingId(
+  recordId: string,
+  fbListingId: string | null,
+  env: Env,
+): Promise<boolean> {
+  const idValue = Number.parseInt(recordId, 10);
+  if (!Number.isFinite(idValue)) return false;
+  try {
+    const result = await env.DB.prepare(
+      `UPDATE ccg_inventory_items
+       SET fb_listing_id = ?, sales_channel_fbm = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`
+    ).bind(fbListingId, fbListingId ? 1 : 0, idValue).run();
+    return Number(result.meta?.changes || 0) > 0;
+  } catch (error) {
+    console.error('Inventory fb_listing_id update failed', { error });
+    return false;
+  }
+}
+
 export async function dbMarkInventorySoldFromReverb(
   recordId: string,
   fields: { soldDate: string; soldAmount: number; sellNotes: string; soldShipCostAccounted?: boolean },
