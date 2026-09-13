@@ -630,6 +630,41 @@ export async function dbMarkInventorySoldFromReverb(
   }
 }
 
+export async function dbMarkInventorySoldFromFbm(
+  recordId: string,
+  fields: { soldDate: string; sellNotes: string },
+  env: Env,
+): Promise<boolean> {
+  const idValue = Number.parseInt(recordId, 10);
+  if (!Number.isFinite(idValue)) return false;
+  try {
+    const result = await env.DB.prepare(
+      `UPDATE ccg_inventory_items
+       SET for_sale = 0,
+           is_sold = 1,
+           sold_date = ?,
+           sold_channel = 'Facebook Marketplace',
+           sell_notes = ?,
+           queue = 'Sold',
+           sales_channel_ccg = 0,
+           sales_channel_cl = 0,
+           sales_channel_reverb = 0,
+           sales_channel_gear_exchange = 0,
+           sales_channel_offerup = 0,
+           sales_channel_ebay = 0,
+           sales_channel_nextdoor = 0,
+           sales_channel_other = 0,
+           fb_listing_id = NULL,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`
+    ).bind(fields.soldDate, fields.sellNotes, idValue).run();
+    return Number(result.meta?.changes || 0) > 0;
+  } catch (error) {
+    console.error('Inventory mark-sold-from-FBM update failed', { error });
+    return false;
+  }
+}
+
 export async function dbDeactivateInventoryItemById(recordId: string, env: Env): Promise<number> {
   const idValue = Number.parseInt(recordId, 10);
   if (!Number.isFinite(idValue)) return 0;

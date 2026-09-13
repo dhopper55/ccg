@@ -67,14 +67,22 @@ Portability note: avoid hardcoded Mac-style paths anywhere; use `pathlib` if the
 
 Other existing, relevant `inventory` fields worth knowing before writing `ccg_client.py`: `ccg_number`, `title`, `brand`, `model`, `for_sale`, `is_sold`, `sold_date`, `sold_amount`, `regular_price`/`sale_price`, `quantity`, plus the other `sales_channel_*` booleans (cl, reverb, gear_exchange, offerup, ebay, nextdoor, other). Booleans are stored as 0/1, not real booleans.
 
-### CCG API endpoints — built and deployed (2026-09-13)
+### CCG API endpoints — built and deployed (2026-09-13, revised same day)
 
-- `GET /api/inventory` — existing endpoint (`handleInventoryList`). No server-side filter for `for_sale`/`sales_channel_fbm`/"`fb_listing_id` is null" — `ccg_client.py` pages through everything (`active=all`) and filters client-side. Response: `{records, page, limit, total, totalPages, availableBrands}`.
-- `POST /api/inventory/:id/fb-add` — new endpoint, mirrors the existing `reverb-add` pattern but simpler: Facebook has no public API to create a listing, so this just validates + persists the caller-supplied id (body: `{fbListingId: string}`), sets `sales_channel_fbm = 1`, and 400s if the item is already linked. Handler: `handleInventoryFbAdd` in `workers/listing-evaluator/src/inventory/crud2.ts`.
-- `POST /api/inventory/:id/fb-remove` — mirrors `reverb-remove`, no body needed, clears `fb_listing_id` and `sales_channel_fbm`. Handler: `handleInventoryFbRemove`, same file.
-- Both call `dbSetInventoryFbListingId` (`workers/listing-evaluator/src/inventory/db-write.ts`), which is the exact analog of `dbSetInventoryReverbListingId` — single `UPDATE ccg_inventory_items SET fb_listing_id = ?, sales_channel_fbm = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`.
-- Routes wired in `workers/listing-evaluator/src/index.ts` next to the `reverb-add`/`reverb-remove` blocks. `fb_listing_id` also added to both inventory SELECTs and both row-mapping functions in `db-core.ts` so it comes back on every inventory read. Deployed via `npx wrangler deploy` from `workers/listing-evaluator/`.
-- `fb_ignore_list` table + its CRUD endpoints — still net new, not yet built. Needed for the "normal run" tool (Section 5), not for Match Mode.
+- `GET /api/inventory` — existing endpoint (`handleInventoryList`). No server-side filter for `for_sale`/"`fb_listing_id` is null" — `ccg_client.py` pages through everything (`active=all`) and filters client-side. Response: `{records, page, limit, total, totalPages, availableBrands}`.
+- `POST /api/inventory/:id/fb-add` — mirrors the existing `reverb-add` pattern but simpler: Facebook has no public API to create a listing, so this just validates + persists the caller-supplied id (body: `{fbListingId: string}`), and 400s if the item is already linked. Handler: `handleInventoryFbAdd` in `workers/listing-evaluator/src/inventory/crud2.ts`.
+- `POST /api/inventory/:id/fb-remove` — mirrors `reverb-remove`, no body needed, clears `fb_listing_id`. Handler: `handleInventoryFbRemove`, same file.
+- `POST /api/inventory/:id/fb-mark-sold` — added later the same day for the ongoing sync tool's `stale_fb_id` bucket (Section 5). Body: `{sellNotes?: string}`. Sets `is_sold = 1`, `sold_channel = 'Facebook Marketplace'`, `for_sale = 0`, `queue = 'Sold'`, zeroes all `sales_channel_*` flags, clears `fb_listing_id`. Handler: `handleInventoryFbMarkSold`; DB layer: `dbMarkInventorySoldFromFbm` (mirrors `dbMarkInventorySoldFromReverb`'s exact pattern, including clearing the channel-specific listing id on sale).
+- `fb-add`/`fb-remove` call `dbSetInventoryFbListingId` (`workers/listing-evaluator/src/inventory/db-write.ts`) — a single `UPDATE ccg_inventory_items SET fb_listing_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?` (originally also toggled `sales_channel_fbm`; that stopped once the column was dropped, see below).
+- The general item-update endpoint (`handleInventoryUpdate` / `POST /api/inventory/:id/update`, the one the admin edit form's Save button calls) now also reads and persists `fbListingId` as a plain field — added specifically so the admin UI's "FBM Listing ID" textbox works (see below), not just the sync tool's dedicated endpoints.
+- Routes wired in `workers/listing-evaluator/src/index.ts` next to the `reverb-add`/`reverb-remove` blocks. Deployed via `npx wrangler deploy` from `workers/listing-evaluator/`.
+- `fb_ignore_list` table + its CRUD endpoints — still net new, not yet built. Deliberately deferred (see Section 9), needed for the ongoing tool's `unknown_fbm` bucket to stop re-asking about the same personal FB listings every run.
+
+**Revision later the same day (2026-09-13) — `sales_channel_fbm` removed entirely.** David decided the boolean flag was redundant now that `fb_listing_id` exists — presence/absence of the id is the sole source of truth for "is this on FBM." Changes:
+- D1: `ALTER TABLE ccg_inventory_items DROP COLUMN sales_channel_fbm` (confirmed live; table went from 100 → 99 columns, freeing back the headroom the original `fb_listing_id` addition had used up).
+- Worker: removed from every SELECT, row mapper, create/update/reverb-split/mark-sold path across `crud.ts`, `crud2.ts`, `db-write.ts`, `db-core.ts`, `reverb-sync.ts`, `types/inventory.ts`.
+- Admin UI (`admin-v2-app`): removed the "FBM" checkbox from the item edit form's "Active sales channels" section, replaced with a "FBM Listing ID" text field bound directly to `fbListingId`; the two list-view FB badges (`InventoryManager.tsx`) now key off `record.fbListingId` truthiness instead of the old boolean. Production build (`npm run build:ccg`) succeeded clean.
+- `ccg_client.py`: removed the now-dead `get_items_for_match_mode()` method, which referenced the deleted field (`match_mode.py` itself was already gone by this point).
 
 None of these need to be fancy — this is an internal tool talking to David's own system.
 
@@ -88,17 +96,19 @@ CCG's Worker has no API-key/service-token mechanism — the only auth path is `P
 
 ## 5. Reconciliation logic (the "normal run" tool)
 
-### The buckets
+**Built and confirmed working end-to-end against production, 2026-09-13** (`reconcile.py` + `approve.py`) — but scoped down from the original 7-bucket design below. Buckets 2 and 4 (below) depended on `fb_sync_state` and the `fb_ignore_list`, and both were explicitly deferred (decided 2026-09-13, "not for now, will add later"). The actual shipped bucket set is:
 
-1. **CCG for-sale, no FB id, not excluded** — candidate to post to FB
-2. **CCG for-sale, no FB id, excluded** (`fb_sync_state = excluded`) — intentionally CCG-only, skip silently
-3. **CCG for-sale, has FB id, matched to a live FB listing** — in sync, no action needed
-4. **FB listing, no CCG id match, id is on the ignore-list** — known personal item, skip silently
-5. **FB listing, no CCG id match, not ignored, but title/price looks like it could be an unlinked bucket-1 item** — "possible link" — ask before assuming it's unrelated
-6. **FB listing, no CCG id match, not ignored, no plausible match** — truly unknown, needs a decision
-7. **CCG for-sale, has FB id, but that id is NOT in FB's current active/available results** — discrepancy (sold on FB / listing removed or expired / stale or wrong id) — needs a decision
+1. **`to_post`** — CCG for-sale, no `fb_listing_id`, no plausible FB match either. (Merges old buckets 1+2 minus the exclusion mechanism — *every* such item is a candidate every run, there's no way yet to say "stop asking about this one.")
+2. **`in_sync`** — CCG item's `fb_listing_id` matches a live FB listing. No action.
+3. **`possible_link`** — an FB listing title-matches an unlinked `to_post` candidate. Asks before linking; a matched CCG item is removed from `to_post` for that run.
+4. **`unknown_fbm`** — an FB listing with no CCG match and no plausible link. (Old bucket 6, minus the ignore-list — reported in the summary every run, no persistent "personal item" marking yet.)
+5. **`stale_fb_id`** — a CCG item's `fb_listing_id` isn't among FB's current live listings. Asks: sold on FB (marks sold via the new `/fb-mark-sold` endpoint) / removed (clears the link via `/fb-remove`) / leave as-is.
 
-### Pseudocode — reconciliation pass (pure, no writes)
+Confirmed live run: 526 CCG items, 154 live FB listings, 119 in sync, 9 correctly flagged as `unknown_fbm` (all genuinely non-inventory: a "we buy guitars" business-page listing, a neon sign, amp/monitor items not tracked in CCG, etc. — no false positives). `to_post`/`possible_link`/`stale_fb_id` were all empty on that run (everything already reconciled by Match Mode), so those paths are unit-tested (`tests/test_reconcile.py`, 8 passing) but not yet exercised against a real discrepancy live — worth a closer look the first time one actually shows up.
+
+The original 7-bucket pseudocode below is kept for historical context (and in case `fb_sync_state`/`fb_ignore_list` get built later, restoring buckets 2 and 4) — it does not reflect what's actually running.
+
+### Pseudocode — reconciliation pass (pure, no writes) — historical, see above for what's actually implemented
 
 ```python
 def reconcile():
@@ -268,12 +278,13 @@ ccg/
 │   ├── .env.example         <- copy to .env and fill in; .env itself is gitignored
 │   ├── .gitignore           <- .env, venv/, __pycache__/, .pytest_cache/ — never committed, never deployed
 │   ├── ccg_client.py
-│   ├── fbm_client.py
-│   ├── reconcile.py         <- not yet written, needed for the normal-run tool only
-│   ├── approve.py           <- not yet written, needed for the normal-run tool only
-│   ├── match_mode.py        <- ONE-TIME USE, built and ready to run — delete after backfill is verified
+│   ├── fbm_client.py        <- Playwright browser automation (Section 6)
+│   ├── reconcile.py         <- pure bucket logic, 8 passing tests (Section 5)
+│   ├── approve.py           <- interactive CLI entry point — run this for the ongoing sync
+│   ├── .fb_session.json     <- gitignored; live Facebook session cookies, created on first run
+│   ├── (match_mode.py deleted 2026-09-13 — one-time backfill, done and verified, see Section 7)
 │   └── tests/
-│       └── test_match_mode.py
+│       └── test_reconcile.py
 ├── _redirects               <- has a rule blocking /ccg-fbm-sync/* from being served publicly
 └── ... (rest of the site)
 ```
@@ -303,7 +314,12 @@ ccg/
 - Remove all Worker code reading/writing/mapping it (SELECTs, `dbSetInventoryFbListingId` no longer toggles it, any other reference).
 - Admin UI: remove the FBM checkbox from the item edit form entirely; add a plain text input for "FBM Listing ID" bound directly to `fbListingId`, so it's manually editable in the general edit form too, not only through `fb-add`/`fb-remove`. This requires extending `handleInventoryUpdate` (the full-record save endpoint) to also persist `fbListingId`, since today it's only settable via the dedicated `fb-add`/`fb-remove` routes.
 
-**Still open — needed for the "normal run" tool (Section 5), not for Match Mode:**
-- `reconcile.py` / `approve.py` not yet written. They depend on `fb_sync_state` (new column, not yet added) and the `fb_ignore_list` table + CRUD endpoints (not yet built) — deferred until after Match Mode ran and was verified, matching the doc's own sequencing (the normal tool isn't useful until the backfill is done). Note bucket logic (Section 5) will need re-reading once `sales_channel_fbm` is gone — re-check which buckets assumed that flag existed.
+**Resolved (2026-09-13) — the ongoing sync tool is built, scoped down, and confirmed working:**
+- `reconcile.py` (pure, 8 passing tests) + `approve.py` (interactive CLI) written and run successfully against production. See Section 5 for the actual (reduced) bucket set and live-run numbers.
+- New Worker endpoint `POST /api/inventory/:id/fb-mark-sold` added (mirrors `dbMarkInventorySoldFromReverb`'s pattern via a new `dbMarkInventorySoldFromFbm`), for the `stale_fb_id` bucket's "sold on FB" choice — sets `is_sold`, `sold_channel = 'Facebook Marketplace'`, clears `fb_listing_id`, zeroes sales-channel flags. Deployed.
+
+**Still open, deferred deliberately (decided 2026-09-13, "will add later"):**
+- `fb_sync_state` column (mark a CCG item "excluded"/CCG-only, stop asking) — not built. Until it exists, every for-sale unlinked CCG item is a `to_post` candidate on every run.
+- `fb_ignore_list` table + CRUD endpoints (mark an FB listing "personal, not inventory") — not built. Until it exists, unrecognized FB listings reappear in the summary every run.
 - What counts as a "title match" for the *ongoing* fuzzy-match in bucket 5 (possible-link) — likely looser than Match Mode's exact-match rule, since Match Mode intentionally uses strict exact-match-only to stay safe for a one-time bulk operation. Low-stakes; defer until there's real data to tune against.
 - Whether `queue_fb_listing_draft()` should produce anything more than a printed/copyable block of text (title, price, description, image links) given there's no publish API to call. Low-stakes implementation detail.

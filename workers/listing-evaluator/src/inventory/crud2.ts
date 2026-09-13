@@ -1,9 +1,9 @@
 import type { Env } from '../env.js';
 import { normalizeText, normalizeUrl } from '../utils/text.js';
-import { jsonResponse, parseBoundedInt, normalizeInventoryDate, toBooleanInput } from '../utils/misc.js';
+import { jsonResponse, parseBoundedInt, normalizeInventoryDate, toBooleanInput, currentDateYmd } from '../utils/misc.js';
 import { sanitizePatternLookupHtml } from '../utils/html.js';
 import { normalizeInventoryImageEntries, INVENTORY_MAX_IMAGES } from '../utils/image.js';
-import { dbCreateInventoryItems, dbUpdateInventoryById, dbReplaceInventoryImagesByItemIds, dbSetInventorySoldAvailability, dbDeactivateInventoryItemById, dbSetInventoryReverbListingId, dbSetInventoryFbListingId, dbApplyReverbShippingLabelCost, generateUniqueCcgNumber, dbReplaceInventoryTagsByItemIds, normalizeInventoryTagsInput } from './db-write.js';
+import { dbCreateInventoryItems, dbUpdateInventoryById, dbReplaceInventoryImagesByItemIds, dbSetInventorySoldAvailability, dbDeactivateInventoryItemById, dbSetInventoryReverbListingId, dbSetInventoryFbListingId, dbMarkInventorySoldFromFbm, dbApplyReverbShippingLabelCost, generateUniqueCcgNumber, dbReplaceInventoryTagsByItemIds, normalizeInventoryTagsInput } from './db-write.js';
 import { ensureInventoryHostedImageUrls } from './db-images.js';
 import { dbGetInventoryItem, dbFindInventoryBySourceListingId, dbFindInventoryBySaleUrl, dbInventoryItemHasPackageChildren } from './db-core.js';
 import { dbInventoryCategoryExists } from './categories.js';
@@ -969,6 +969,33 @@ export async function handleInventoryFbRemove(_request: Request, path: string, e
   const ok = await dbSetInventoryFbListingId(recordId, null, env);
   if (!ok) return jsonResponse({ message: 'Failed to clear the Facebook Marketplace link.' }, 500);
   return jsonResponse({ ok: true, fbListingId: null });
+}
+
+// Used by the ccg-fbm-sync tool's reconcile flow when a linked item's FB listing is no longer
+// live and the user confirms it sold there. Mirrors handleReverbSyncSoldCommit's DB-side effect
+// (dbMarkInventorySoldFromFbm), but with no external API to call first — FBM has none.
+export async function handleInventoryFbMarkSold(request: Request, path: string, env: Env): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const actionIndex = parts.indexOf('fb-mark-sold');
+  const recordId = actionIndex > 0 ? parts[actionIndex - 1] : '';
+  if (!recordId) return jsonResponse({ message: 'Missing inventory ID.' }, 400);
+
+  let body: Record<string, unknown> = {};
+  try {
+    body = await request.json();
+  } catch {
+    body = {};
+  }
+
+  const current = await dbGetInventoryItem(recordId, env);
+  if (!current) return jsonResponse({ message: 'Inventory item not found.' }, 404);
+
+  const ok = await dbMarkInventorySoldFromFbm(recordId, {
+    soldDate: normalizeInventoryDate(body.soldDate) || currentDateYmd(),
+    sellNotes: normalizeText(body.sellNotes, 'Marked sold via ccg-fbm-sync tool.').slice(0, 4000),
+  }, env);
+  if (!ok) return jsonResponse({ message: 'Failed to mark the item sold.' }, 500);
+  return jsonResponse({ ok: true });
 }
 
 // Temporary diagnostic — fetches the linked listing straight from Reverb so we can see the real

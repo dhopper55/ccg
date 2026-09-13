@@ -76,3 +76,13 @@ class CCGClient:
         if resp.status_code >= 400:
             raise RuntimeError(f"fb-remove failed for item {item_id}: {resp.status_code} {resp.text}")
         return resp.json()
+
+    def mark_sold_fbm(self, item_id: int, sell_notes: str = "Marked sold via ccg-fbm-sync tool.") -> dict:
+        self._ensure_login()
+        resp = self.session.post(
+            f"{self.base_url}/api/inventory/{item_id}/fb-mark-sold",
+            json={"sellNotes": sell_notes},
+        )
+        if resp.status_code >= 400:
+            raise RuntimeError(f"fb-mark-sold failed for item {item_id}: {resp.status_code} {resp.text}")
+        return resp.json()
