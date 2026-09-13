@@ -10,20 +10,18 @@ Stateless — every run pulls fresh data from CCG and FBM, does all comparison i
 cp .env.example .env   # fill in CCG_USERNAME / CCG_PASSWORD
 python3 -m venv venv
 ./venv/bin/pip install -r requirements.txt
+./venv/bin/python -m playwright install chromium   # one-time browser binary download
 ```
 
-## Match Mode (run this first)
+FBM reads drive a real Chromium browser (Playwright) — no FBM API exists, and the whole point is that you shouldn't have to manually copy/paste anything from Facebook. See ARCHITECTURE.md Section 6 for the ToS/bot-detection tradeoffs this accepts.
 
-One-time backfill of `fb_listing_id` on CCG items already live on Facebook Marketplace. See ARCHITECTURE.md Section 7.
+**First run only:** a visible browser window opens to `facebook.com/login` — log in there yourself, then press Enter in the terminal. The session is saved to `.fb_session.json` (gitignored — holds live Facebook auth, treat it like a password) and reused on every later run. Delete that file to force a fresh login.
 
-```
-./venv/bin/python match_mode.py            # dry run, prints the report only
-./venv/bin/python match_mode.py --apply    # writes matches after a y/N confirmation
-```
+## Match Mode — complete, removed 2026-09-13
 
-Delete `match_mode.py` (and `tests/test_match_mode.py`) once the backfill has run and been spot-checked against the live FB listings.
+One-time backfill of `fb_listing_id` on CCG items already live on Facebook Marketplace ran successfully: 120 items linked (verified directly in production D1), 4 left unmatched for manual follow-up, 0 ambiguous. `match_mode.py` and its test have been deleted per ARCHITECTURE.md Section 7's own cleanup checklist — it was explicitly one-time-use. See ARCHITECTURE.md Section 7 for the full history if this ever needs revisiting (e.g. re-backfilling after a data import).
 
 ## Status
 
-- Match Mode: built and ready to run (`ccg_client.py`, `fbm_client.py`, `match_mode.py`, tests passing).
+- Match Mode: done and removed.
 - Normal-run tool (`reconcile.py`, `approve.py`): not yet built — depends on a `fb_sync_state` column and a new `fb_ignore_list` table/endpoints that don't exist yet. See ARCHITECTURE.md Section 9.

@@ -51,7 +51,7 @@ type InventoryRecord = {
   forSale?: boolean;
   isSold?: boolean;
   reverbListingId?: string | null;
-  salesChannelFbm?: boolean;
+  fbListingId?: string | null;
   salesChannelCl?: boolean;
   unitPurchasePrice?: number | null;
   privatePartyValue?: number | null;
@@ -780,7 +780,7 @@ const InventoryManager = () => {
                           />
                         </Tooltip>
                       ) : null}
-                      {record.salesChannelFbm ? (
+                      {record.fbListingId ? (
                         <Tooltip title="Listed on Facebook Marketplace">
                           <Box
                             component="img"
@@ -917,7 +917,7 @@ const InventoryManager = () => {
                         />
                       </Tooltip>
                     ) : null}
-                    {record.salesChannelFbm ? (
+                    {record.fbListingId ? (
                       <Tooltip title="Listed on Facebook Marketplace">
                         <Box
                           component="img"

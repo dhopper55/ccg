@@ -182,14 +182,23 @@ def run_sync():
 
 ---
 
-## 6. Open question: how does the tool read FBM data?
+## 6. How the tool reads FBM data
 
-Facebook does not offer a public API for an individual seller to read their own Marketplace listings. Two options, not yet decided:
+Facebook does not offer a public API for an individual seller to read their own Marketplace listings. Two options were considered:
 
-- **Manual paste**: the tool prompts David to paste in current FB listing IDs/titles/status at the start of each run. Zero ToS risk, fully portable, slightly more manual effort each run.
-- **Browser automation (Playwright)**: drives a real logged-in browser session to read David's own Marketplace listings page. Works identically on Mac and Windows. Technically against Facebook's automation terms even when only touching your own account — a real risk to be aware of, not just a formality.
+- **Manual paste**: the tool prompts David to paste in current FB listing IDs/titles at the start of each run. Zero ToS risk, but tedious past a handful of items — with 129 Match Mode candidates, retyping every id/title by hand isn't realistic.
+- **Browser automation (Playwright)**: drives a real logged-in browser session to read David's own Marketplace listings page. Works identically on Mac and Windows.
 
-**Recommendation:** start with manual paste to get the reconciliation logic and approval flow working end-to-end, since that's the part with lasting value. Automating the FBM read can be swapped in later without touching `reconcile.py` or `approve.py` at all — it only replaces what feeds `fbm_client.py`.
+**Decided 2026-09-13 (superseding the earlier manual-paste-first plan): Playwright automation.** The whole point of the tool is that David shouldn't have to manually interact with FBM at all — the tool itself connects and reads listings. This is a deliberate, informed choice, not an oversight, of two real risks:
+
+1. **ToS risk** — this is against Facebook's automation/bot terms even for read-only access to your own account. Known and accepted, not a formality.
+2. **Bot-detection / reliability risk** — separate from the ToS question: Facebook is known to challenge or block plain headless browser automation outright. `fbm_client.py` runs Chromium headed (a real visible window) on every run, not just for the first login, specifically to reduce this risk — but it may still get challenged, rate-limited, or blocked, and that's a live-usage risk to watch for, not something solved in code.
+
+**Implementation notes (`fbm_client.py`) — verified working live, 2026-09-13, all 155 real listings retrieved:**
+- First run only: opens a visible browser to `facebook.com/login` and waits for David to log in by hand (sidesteps 2FA/captcha entirely — the tool never sees his password). Session cookies are saved to `.fb_session.json` (gitignored — this file holds live Facebook auth and must be treated like a password, never committed).
+- Every run: reuses that saved session, navigates to `facebook.com/marketplace/you/selling`, switches the page's own **"Grid view" toggle** (default is "List view"), then repeatedly scrolls + clicks the **"Load N more"** button (Facebook paginates ~25 at a time; the button's exact label includes the count, e.g. "Load 25 more", not literally "Load more"), harvesting `{id, title}` from `<a href="/marketplace/item/<id>/...">` anchors after every click.
+- Two dead ends hit along the way, kept here so a future session doesn't repeat them: (1) "List view" (the default) renders row titles as non-link `role="button"` divs with no href, and only the *first* ~10 rows carry an embedded JSON preload blob usable as a data-extraction shortcut — anything loaded via "Load more" lives only in client-side JS state and never appears in the page's HTML, so a JSON-scraping approach silently caps out around 10 regardless of how many times "Load more" is clicked. (2) The exact-text regex for the load-more button required literally "load more", which never matched "Load 25 more".
+- Delete `.fb_session.json` to force a fresh login (e.g. if Facebook logs the session out, or David wants to rotate it).
 
 ---
 
@@ -280,16 +289,21 @@ ccg/
 **Resolved (2026-09-13):**
 - ~~CCG auth mechanism~~ — decided: log in via `POST /api/login` fresh each run, hold the session cookie in memory only (Section 4).
 - ~~`marked_for_fbm` column~~ — decided: not needed, reuse existing `sales_channel_fbm` (Sections 4 & 7).
-- ~~Manual paste vs. Playwright for FBM reads~~ — decided: manual paste to start (Section 6). Swappable later without touching `reconcile.py`/`approve.py`.
+- ~~Manual paste vs. Playwright for FBM reads~~ — decided (then revised 2026-09-13): Playwright browser automation, so David never manually interacts with FBM at all (Section 6). Reconcile/approve logic is unaffected either way — only `fbm_client.py` changes.
 
-**Resolved (2026-09-13, continued) — Match Mode is built and ready to run:**
+**Resolved (2026-09-13) — Match Mode ran, backfilled, and was removed:**
 - `fb_listing_id` column live in production D1 (`ccg_inventory_items.fb_listing_id TEXT`, nullable).
 - `fb-add`/`fb-remove` Worker endpoints built, typechecked, and deployed (see Section 4).
-- `ccg_client.py`, `fbm_client.py` (manual paste), and `match_mode.py` written; matching logic is a pure function (`compute_matches`) with passing unit tests in `tests/test_match_mode.py`.
-- Match Mode groups by `saleTitle` (falling back to `title`), not a generic "title" field — mirrors what Reverb's own listing flow validates/uses, since that's the text that would actually have been posted to FB.
-- To run: copy `.env.example` to `.env`, fill in `CCG_USERNAME`/`CCG_PASSWORD`, `pip install -r requirements.txt`, then `python match_mode.py` (dry run — prints the report only) or `python match_mode.py --apply` (writes after an explicit y/N confirmation).
+- `ccg_client.py`, `fbm_client.py` (Playwright browser automation — see Section 6), and `match_mode.py` were built and confirmed working end-to-end against production: all 155 live FB listings retrieved reliably. Match Mode grouped by `saleTitle` (falling back to `title`), mirroring what Reverb's own listing flow uses, since that's the text that would actually have been posted to FB.
+- Final live `--apply` run: 120 items linked (verified directly in D1: `SELECT COUNT(*) FROM ccg_inventory_items WHERE fb_listing_id IS NOT NULL` returned 120), 4 left unmatched for manual follow-up, 0 ambiguous.
+- `match_mode.py` and `tests/test_match_mode.py` deleted per this section's own cleanup checklist — it was explicitly one-time-use.
+
+**Decided 2026-09-13, revising Section 4 — `sales_channel_fbm` is being removed entirely.** Reusing it (instead of the originally-proposed temporary `marked_for_fbm` column) was the right call for Match Mode's one-time precondition, but keeping it as an ongoing "is this on FBM" flag is now considered redundant and a source of drift: `fb_listing_id` presence/absence is the actual source of truth going forward — a boolean that can fall out of sync with the real linked-id field serves no purpose once the id field exists. This means:
+- Drop the `sales_channel_fbm` column from `ccg_inventory_items` (D1 migration).
+- Remove all Worker code reading/writing/mapping it (SELECTs, `dbSetInventoryFbListingId` no longer toggles it, any other reference).
+- Admin UI: remove the FBM checkbox from the item edit form entirely; add a plain text input for "FBM Listing ID" bound directly to `fbListingId`, so it's manually editable in the general edit form too, not only through `fb-add`/`fb-remove`. This requires extending `handleInventoryUpdate` (the full-record save endpoint) to also persist `fbListingId`, since today it's only settable via the dedicated `fb-add`/`fb-remove` routes.
 
 **Still open — needed for the "normal run" tool (Section 5), not for Match Mode:**
-- `reconcile.py` / `approve.py` not yet written. They depend on `fb_sync_state` (new column, not yet added) and the `fb_ignore_list` table + CRUD endpoints (not yet built) — deferred until after Match Mode has run and been verified, matching the doc's own sequencing (the normal tool isn't useful until the backfill is done).
+- `reconcile.py` / `approve.py` not yet written. They depend on `fb_sync_state` (new column, not yet added) and the `fb_ignore_list` table + CRUD endpoints (not yet built) — deferred until after Match Mode ran and was verified, matching the doc's own sequencing (the normal tool isn't useful until the backfill is done). Note bucket logic (Section 5) will need re-reading once `sales_channel_fbm` is gone — re-check which buckets assumed that flag existed.
 - What counts as a "title match" for the *ongoing* fuzzy-match in bucket 5 (possible-link) — likely looser than Match Mode's exact-match rule, since Match Mode intentionally uses strict exact-match-only to stay safe for a one-time bulk operation. Low-stakes; defer until there's real data to tune against.
 - Whether `queue_fb_listing_draft()` should produce anything more than a printed/copyable block of text (title, price, description, image links) given there's no publish API to call. Low-stakes implementation detail.

@@ -36,7 +36,7 @@ class CCGClient:
 
     def get_all_inventory(self, **params) -> list[dict]:
         """Fetch every page of GET /api/inventory. The endpoint has no filters for
-        for_sale / sales_channel_fbm / "fb_listing_id is null" — callers filter client-side.
+        for_sale / "fb_listing_id is null" — callers filter client-side.
         """
         self._ensure_login()
         page = 1
@@ -59,15 +59,6 @@ class CCGClient:
                 break
             page += 1
         return records
-
-    def get_items_for_match_mode(self) -> list[dict]:
-        """CCG for_sale, sales_channel_fbm, fb_listing_id still null — Match Mode's
-        candidate set (ARCHITECTURE.md Section 7)."""
-        records = self.get_all_inventory()
-        return [
-            r for r in records
-            if r.get("forSale") and r.get("salesChannelFbm") and not r.get("fbListingId")
-        ]
 
     def set_fb_listing_id(self, item_id: int, fb_listing_id: str) -> dict:
         self._ensure_login()

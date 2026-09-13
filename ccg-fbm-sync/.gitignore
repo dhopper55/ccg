@@ -1,5 +1,8 @@
 .env
 .env.*
+.fb_session.json
+debug_screenshot.png
+debug_page.html
 *.local
 venv/
 .venv/

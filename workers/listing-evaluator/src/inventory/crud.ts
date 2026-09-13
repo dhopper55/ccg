@@ -186,8 +186,8 @@ export async function handleInventoryCreate(request: Request, env: Env): Promise
   const forSale = isSold ? false : forSaleRaw;
   const onlyInStore = toBooleanInput(body.onlyInStore, false);
   const salesChannelCcg = toBooleanInput(body.salesChannelCcg, forSale);
-  const salesChannelFbm = toBooleanInput(body.salesChannelFbm, false);
   const salesChannelCl = toBooleanInput(body.salesChannelCl, false);
+  const fbListingId = normalizeText(body.fbListingId, '').slice(0, 200) || null;
   // A brand-new item can't be listed on Reverb yet; that only happens via the
   // Add to Reverb action once the item exists and has been saved.
   const salesChannelReverb = false;
@@ -258,7 +258,6 @@ export async function handleInventoryCreate(request: Request, env: Env): Promise
   const tagReprint = toBooleanInput(body.tagReprint, false);
   const salesChannelFields = {
     sales_channel_ccg: salesChannelCcg ? 1 : 0,
-    sales_channel_fbm: salesChannelFbm ? 1 : 0,
     sales_channel_cl: salesChannelCl ? 1 : 0,
     sales_channel_reverb: salesChannelReverb ? 1 : 0,
     sales_channel_gear_exchange: salesChannelGearExchange ? 1 : 0,
@@ -435,6 +434,7 @@ export async function handleInventoryCreate(request: Request, env: Env): Promise
     is_custom: isCustom ? 1 : 0,
     for_sale: forSale ? 1 : 0,
     only_in_store: onlyInStore ? 1 : 0,
+    fb_listing_id: fbListingId,
     ...salesChannelFields,
     for_sale_date: forSale ? new Date().toISOString() : null,
     is_sold: isSold ? 1 : 0,

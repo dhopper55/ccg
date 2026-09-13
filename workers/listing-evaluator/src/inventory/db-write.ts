@@ -93,8 +93,8 @@ export async function dbCreateInventoryItems(
     is_custom?: number;
     for_sale: number;
     only_in_store: number;
+    fb_listing_id?: string | null;
     sales_channel_ccg?: number;
-    sales_channel_fbm?: number;
     sales_channel_cl?: number;
     sales_channel_reverb?: number;
     sales_channel_gear_exchange?: number;
@@ -132,7 +132,8 @@ export async function dbCreateInventoryItems(
         purchased_date, unit_purchase_price, map_price, private_party_value, miles, minutes_spent, ship_cost, purchase_notes, ai_analysis_text, serial_number,
         weight_lbs, neck_profile, neck_thickness, nut_width, width_12_fret, fretboard_radius, twelve_fret_action,
         is_active, is_marked, is_personal, is_consignment, is_rented, is_custom, for_sale, only_in_store,
-        sales_channel_ccg, sales_channel_fbm, sales_channel_cl, sales_channel_reverb, sales_channel_gear_exchange,
+        fb_listing_id,
+        sales_channel_ccg, sales_channel_cl, sales_channel_reverb, sales_channel_gear_exchange,
         sales_channel_offerup, sales_channel_ebay, sales_channel_nextdoor, sales_channel_other,
         for_sale_date,
         is_sold, sold_date, sold_amount, sell_notes, sold_ship_cost_accounted, sale_url, sale_zip, merchant_center_cat_code,
@@ -209,8 +210,8 @@ export async function dbCreateInventoryItems(
       fields.is_custom ?? 0,
       fields.for_sale,
       fields.only_in_store,
+      fields.fb_listing_id ?? null,
       fields.sales_channel_ccg ?? 0,
-      fields.sales_channel_fbm ?? 0,
       fields.sales_channel_cl ?? 0,
       fields.sales_channel_reverb ?? 0,
       fields.sales_channel_gear_exchange ?? 0,
@@ -282,8 +283,8 @@ export async function dbUpdateInventoryById(
     is_custom: number;
     for_sale: number;
     only_in_store: number;
+    fb_listing_id: string | null;
     sales_channel_ccg: number;
-    sales_channel_fbm: number;
     sales_channel_cl: number;
     sales_channel_reverb: number;
     sales_channel_gear_exchange: number;
@@ -348,7 +349,8 @@ export async function dbUpdateInventoryById(
          weight_lbs = ?, neck_profile = ?, neck_thickness = ?, nut_width = ?, width_12_fret = ?,
          fretboard_radius = ?, twelve_fret_action = ?, storage_location = ?,
          is_active = ?, is_marked = ?, is_personal = ?, is_consignment = ?, is_rented = ?, is_custom = ?, for_sale = ?, only_in_store = ?,
-         sales_channel_ccg = ?, sales_channel_fbm = ?, sales_channel_cl = ?, sales_channel_reverb = ?, sales_channel_gear_exchange = ?,
+         fb_listing_id = ?,
+         sales_channel_ccg = ?, sales_channel_cl = ?, sales_channel_reverb = ?, sales_channel_gear_exchange = ?,
          sales_channel_offerup = ?, sales_channel_ebay = ?, sales_channel_nextdoor = ?, sales_channel_other = ?,
          for_sale_date = ?,
          source_listing_id = ?, video_url = ?, sale_title = ?, regular_price = ?, sale_price = ?, "condition" = ?, allow_shipping = ?, sales_tax_included = ?, sale_description = ?,
@@ -407,8 +409,8 @@ export async function dbUpdateInventoryById(
       fields.is_custom,
       fields.for_sale,
       fields.only_in_store,
+      fields.fb_listing_id,
       fields.sales_channel_ccg,
-      fields.sales_channel_fbm,
       fields.sales_channel_cl,
       fields.sales_channel_reverb,
       fields.sales_channel_gear_exchange,
@@ -581,9 +583,9 @@ export async function dbSetInventoryFbListingId(
   try {
     const result = await env.DB.prepare(
       `UPDATE ccg_inventory_items
-       SET fb_listing_id = ?, sales_channel_fbm = ?, updated_at = CURRENT_TIMESTAMP
+       SET fb_listing_id = ?, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
-    ).bind(fbListingId, fbListingId ? 1 : 0, idValue).run();
+    ).bind(fbListingId, idValue).run();
     return Number(result.meta?.changes || 0) > 0;
   } catch (error) {
     console.error('Inventory fb_listing_id update failed', { error });
@@ -610,7 +612,6 @@ export async function dbMarkInventorySoldFromReverb(
            sold_ship_cost_accounted = ?,
            queue = 'Sold',
            sales_channel_ccg = 0,
-           sales_channel_fbm = 0,
            sales_channel_cl = 0,
            sales_channel_gear_exchange = 0,
            sales_channel_offerup = 0,

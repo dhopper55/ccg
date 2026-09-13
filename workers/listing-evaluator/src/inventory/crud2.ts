@@ -118,8 +118,8 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
   const forSale = isSold ? false : forSaleRaw;
   const onlyInStore = toBooleanInput(body.onlyInStore, false);
   const salesChannelCcg = toBooleanInput(body.salesChannelCcg, forSale);
-  const salesChannelFbm = toBooleanInput(body.salesChannelFbm, false);
   const salesChannelCl = toBooleanInput(body.salesChannelCl, false);
+  const fbListingId = normalizeText(body.fbListingId, '').slice(0, 200) || null;
   const salesChannelGearExchange = toBooleanInput(body.salesChannelGearExchange, false);
   const salesChannelOfferUp = toBooleanInput(body.salesChannelOfferUp, false);
   const salesChannelEbay = toBooleanInput(body.salesChannelEbay, false);
@@ -138,7 +138,6 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
   const merchantCenterCatCode = normalizeText(body.merchantCenterCatCode, '').slice(0, 50) || null;
   const salesChannelFields = {
     sales_channel_ccg: salesChannelCcg ? 1 : 0,
-    sales_channel_fbm: salesChannelFbm ? 1 : 0,
     sales_channel_cl: salesChannelCl ? 1 : 0,
     // sales_channel_reverb is not user-editable; it's derived below from the existing
     // reverb_listing_id, which only the Add to Reverb / Delete From Reverb action can change.
@@ -365,6 +364,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       is_custom: isCustom ? 1 : 0,
       for_sale: 1,
       only_in_store: onlyInStore ? 1 : 0,
+      fb_listing_id: fbListingId,
       ...salesChannelFields,
       for_sale_date: remainingForSaleDate,
       source_listing_id: sourceListingId,
@@ -490,6 +490,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       is_custom: isCustom ? 1 : 0,
       for_sale: 0,
       only_in_store: onlyInStore ? 1 : 0,
+      fb_listing_id: fbListingId,
       ...salesChannelFields,
       for_sale_date: null,
       is_sold: 1,
@@ -539,6 +540,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       is_rented: isRented ? 1 : 0,
       for_sale: 0,
       only_in_store: onlyInStore ? 1 : 0,
+      fb_listing_id: fbListingId,
       ...salesChannelFields,
       for_sale_date: null,
       source_listing_id: null,
@@ -657,6 +659,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
     is_custom: isCustom ? 1 : 0,
     for_sale: forSale ? 1 : 0,
     only_in_store: onlyInStore ? 1 : 0,
+    fb_listing_id: fbListingId,
     ...salesChannelFields,
     for_sale_date: resolveToggleTimestamp({
       previousOn: previousForSale,

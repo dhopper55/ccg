@@ -113,10 +113,10 @@ type InventoryItemRecord = {
   forSale?: boolean;
   onlyInStore?: boolean;
   salesChannelCcg?: boolean;
-  salesChannelFbm?: boolean;
   salesChannelCl?: boolean;
   salesChannelReverb?: boolean;
   reverbListingId?: string | null;
+  fbListingId?: string | null;
   salesChannelGearExchange?: boolean;
   salesChannelOfferUp?: boolean;
   salesChannelEbay?: boolean;
@@ -258,10 +258,10 @@ type FormState = {
   forSale: boolean;
   onlyInStore: boolean;
   salesChannelCcg: boolean;
-  salesChannelFbm: boolean;
   salesChannelCl: boolean;
   salesChannelReverb: boolean;
   reverbListingId: string | null;
+  fbListingId: string;
   salesChannelGearExchange: boolean;
   salesChannelOfferUp: boolean;
   salesChannelEbay: boolean;
@@ -524,10 +524,10 @@ const DEFAULT_FORM: FormState = {
   forSale: false,
   onlyInStore: false,
   salesChannelCcg: false,
-  salesChannelFbm: false,
   salesChannelCl: false,
   salesChannelReverb: false,
   reverbListingId: null,
+  fbListingId: '',
   salesChannelGearExchange: false,
   salesChannelOfferUp: false,
   salesChannelEbay: false,
@@ -1428,10 +1428,10 @@ const InventoryItem = () => {
             forSale: Boolean(record.forSale),
             onlyInStore: Boolean(record.onlyInStore),
             salesChannelCcg: Boolean(record.salesChannelCcg),
-            salesChannelFbm: Boolean(record.salesChannelFbm),
             salesChannelCl: Boolean(record.salesChannelCl),
             salesChannelReverb: Boolean(record.reverbListingId),
             reverbListingId: record.reverbListingId || null,
+            fbListingId: record.fbListingId || '',
             salesChannelGearExchange: Boolean(record.salesChannelGearExchange),
             salesChannelOfferUp: Boolean(record.salesChannelOfferUp),
             salesChannelEbay: Boolean(record.salesChannelEbay),
@@ -1563,10 +1563,10 @@ const InventoryItem = () => {
             forSale: Boolean(record.forSale),
             onlyInStore: Boolean(record.onlyInStore),
             salesChannelCcg: Boolean(record.forSale || record.salesChannelCcg),
-            salesChannelFbm: Boolean(record.salesChannelFbm),
             salesChannelCl: Boolean(record.salesChannelCl),
             salesChannelReverb: false,
             reverbListingId: null,
+            fbListingId: '',
             salesChannelGearExchange: Boolean(record.salesChannelGearExchange),
             salesChannelOfferUp: Boolean(record.salesChannelOfferUp),
             salesChannelEbay: Boolean(record.salesChannelEbay),
@@ -1913,8 +1913,8 @@ const InventoryItem = () => {
     forSale: form.forSale,
     onlyInStore: form.onlyInStore,
     salesChannelCcg: form.salesChannelCcg,
-    salesChannelFbm: form.salesChannelFbm,
     salesChannelCl: form.salesChannelCl,
+    fbListingId: form.fbListingId.trim() || null,
     // salesChannelReverb is intentionally omitted: it's system-managed, driven by
     // reverbListingId via the Add to Reverb / Delete From Reverb action.
     salesChannelGearExchange: form.salesChannelGearExchange,
@@ -3462,20 +3462,18 @@ const InventoryItem = () => {
                     <FormControlLabel
                       control={
                         <Checkbox
-                          checked={form.salesChannelFbm}
-                          onChange={(event) => setField('salesChannelFbm', event.target.checked)}
-                        />
-                      }
-                      label="FBM"
-                    />
-                    <FormControlLabel
-                      control={
-                        <Checkbox
                           checked={form.salesChannelCl}
                           onChange={(event) => setField('salesChannelCl', event.target.checked)}
                         />
                       }
                       label="CL"
+                    />
+                    <TextField
+                      size="small"
+                      label="FBM Listing ID"
+                      value={form.fbListingId}
+                      onChange={(event) => setField('fbListingId', event.target.value)}
+                      sx={{ minWidth: 200 }}
                     />
                     <Tooltip title="Managed automatically by the Add to Reverb / Delete From Reverb action below.">
                       <FormControlLabel

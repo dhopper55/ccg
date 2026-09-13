@@ -67,7 +67,6 @@ export type InventoryItemRow = {
   for_sale: number | null;
   only_in_store: number | null;
   sales_channel_ccg: number | null;
-  sales_channel_fbm: number | null;
   sales_channel_cl: number | null;
   sales_channel_reverb: number | null;
   reverb_listing_id: string | null;
