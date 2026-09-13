@@ -86,3 +86,31 @@ class CCGClient:
         if resp.status_code >= 400:
             raise RuntimeError(f"fb-mark-sold failed for item {item_id}: {resp.status_code} {resp.text}")
         return resp.json()
+
+    def exclude_from_fbm(self, item_id: int) -> dict:
+        """'Skip permanently' — the tool will never ask about posting this CCG item to FB
+        again. Not exposed in the admin UI (2026-09-13); this is the only way to set it."""
+        self._ensure_login()
+        resp = self.session.post(f"{self.base_url}/api/inventory/{item_id}/fb-exclude")
+        if resp.status_code >= 400:
+            raise RuntimeError(f"fb-exclude failed for item {item_id}: {resp.status_code} {resp.text}")
+        return resp.json()
+
+    def get_ignored_fb_listing_ids(self) -> set[str]:
+        """FB listing ids known to be personal items, not CCG inventory (e.g. a lawnmover
+        listed on FB only) — never suggested as unknown/possible-link again."""
+        self._ensure_login()
+        resp = self.session.get(f"{self.base_url}/api/fb-ignore-list")
+        resp.raise_for_status()
+        records = resp.json().get("records", [])
+        return {r["fbListingId"] for r in records}
+
+    def add_ignored_fb_listing(self, fb_listing_id: str, note: str | None = None) -> dict:
+        self._ensure_login()
+        resp = self.session.post(
+            f"{self.base_url}/api/fb-ignore-list",
+            json={"fbListingId": fb_listing_id, "note": note},
+        )
+        if resp.status_code >= 400:
+            raise RuntimeError(f"fb-ignore-list add failed for {fb_listing_id}: {resp.status_code} {resp.text}")
+        return resp.json()

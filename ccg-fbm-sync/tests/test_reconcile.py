@@ -13,8 +13,14 @@ class FbListing:
     title: str
 
 
-def ccg_item(id_, title, for_sale=True, fb_listing_id=None):
-    return {"id": id_, "saleTitle": title, "forSale": for_sale, "fbListingId": fb_listing_id}
+def ccg_item(id_, title, for_sale=True, fb_listing_id=None, fb_sync_state=None):
+    return {
+        "id": id_,
+        "saleTitle": title,
+        "forSale": for_sale,
+        "fbListingId": fb_listing_id,
+        "fbSyncState": fb_sync_state,
+    }
 
 
 def test_linked_item_matching_live_listing_is_in_sync():
@@ -100,3 +106,34 @@ def test_fuzzy_match_respects_threshold():
 
     assert fuzzy_match("Fender Stratocaster", candidates) is not None
     assert fuzzy_match("Completely different item name", candidates, threshold=0.6) is None
+
+
+def test_excluded_ccg_item_never_appears_anywhere():
+    ccg = [ccg_item(1, "Gibson Les Paul", fb_sync_state="excluded")]
+    fbm: list = []
+
+    b = reconcile(ccg, fbm)
+
+    assert b["to_post"] == []
+    assert b["possible_link"] == []
+
+
+def test_excluded_ccg_item_is_not_offered_as_a_possible_link_either():
+    ccg = [ccg_item(1, "MXR Phase 90 Pedal", fb_sync_state="excluded")]
+    fbm = [FbListing(id="fb1", title="MXR Phase 90 Pedal")]
+
+    b = reconcile(ccg, fbm)
+
+    assert b["possible_link"] == []
+    assert b["unknown_fbm"] == [fbm[0]]  # falls through to unknown since candidate was excluded
+
+
+def test_ignored_fb_listing_never_appears_in_unknown_or_possible_link():
+    ccg = [ccg_item(1, "MXR Phase 90 Pedal")]
+    fbm = [FbListing(id="fb1", title="Someone's personal lawnmower")]
+
+    b = reconcile(ccg, fbm, ignored_fb_ids=frozenset({"fb1"}))
+
+    assert b["unknown_fbm"] == []
+    assert b["possible_link"] == []
+    assert b["to_post"] == [ccg[0]]  # untouched — the ignored listing just vanishes

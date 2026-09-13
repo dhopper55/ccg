@@ -5,9 +5,11 @@ writes nothing back without an explicit choice per item. Run with:
 
     ./venv/bin/python approve.py
 
-Known limitations (deliberate, decided 2026-09-13 — see reconcile.py's docstring): no
-`fb_sync_state` and no `fb_ignore_list` yet, so items you skip will be asked about again
-next run rather than remembered. Deferred to later, not a bug.
+Two persistent "stop asking" mechanisms exist (added 2026-09-13):
+- A CCG item can be permanently excluded from the `to_post` prompt (`fb_sync_state`).
+  Not exposed in the admin UI by design — this tool is the only way to set/unset it.
+- An FB listing can be permanently ignored (`fb_ignore_list`) for personal, non-inventory
+  items (e.g. a lawnmower listed on FB only).
 """
 from __future__ import annotations
 
@@ -53,19 +55,26 @@ def run_sync() -> None:
     ccg_items = client.get_all_inventory()
     console.print(f"  {len(ccg_items)} item(s) found.\n")
 
+    console.print("[bold]Fetching the FB ignore-list...[/bold]")
+    ignored_fb_ids = client.get_ignored_fb_listing_ids()
+    console.print(f"  {len(ignored_fb_ids)} listing(s) permanently ignored.\n")
+
     console.print("[bold]Fetching FB Marketplace listings via browser automation...[/bold]")
     fbm_listings = get_active_listings()
     console.print(f"  {len(fbm_listings)} listing(s) found.\n")
 
-    buckets = reconcile(ccg_items, fbm_listings)
+    buckets = reconcile(ccg_items, fbm_listings, ignored_fb_ids=ignored_fb_ids)
 
     for item in buckets["to_post"]:
         choice = _ask(
             f"'{item_title(item)}' is for sale in CCG but not linked to an FB listing.",
-            ["Show FB draft to post manually", "Skip for now"],
+            ["Show FB draft to post manually", "Skip for now", "Skip permanently (never ask about this item again)"],
         )
         if choice == "Show FB draft to post manually":
             _print_fb_draft(item)
+        elif choice == "Skip permanently (never ask about this item again)":
+            client.exclude_from_fbm(item["id"])
+            console.print("  excluded — won't ask about this item again.")
 
     for ccg_item, listing in buckets["possible_link"]:
         choice = _ask(
@@ -76,6 +85,15 @@ def run_sync() -> None:
         if choice == "Link to this CCG item":
             client.set_fb_listing_id(ccg_item["id"], listing.id)
             console.print("  linked.")
+
+    for listing in buckets["unknown_fbm"]:
+        choice = _ask(
+            f"FB listing '{listing.title}' (id {listing.id}) doesn't match any CCG item.",
+            ["Personal item — ignore this listing going forward", "Skip for now"],
+        )
+        if choice == "Personal item — ignore this listing going forward":
+            client.add_ignored_fb_listing(listing.id, note="personal")
+            console.print("  added to the ignore list — won't ask about this listing again.")
 
     for item in buckets["stale_fb_id"]:
         choice = _ask(
@@ -92,12 +110,6 @@ def run_sync() -> None:
 
     console.print("\n[bold]Summary[/bold]")
     console.print(f"  In sync (no action needed): {len(buckets['in_sync'])}")
-    console.print(
-        f"  Unrecognized FB listings (no CCG match, no ignore-list yet — re-appears every run): "
-        f"{len(buckets['unknown_fbm'])}"
-    )
-    for listing in buckets["unknown_fbm"]:
-        console.print(f"    - {listing.title} (id {listing.id})")
 
 
 if __name__ == "__main__":

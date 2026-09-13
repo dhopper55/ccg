@@ -3,7 +3,7 @@ import { normalizeText, normalizeUrl } from '../utils/text.js';
 import { jsonResponse, parseBoundedInt, normalizeInventoryDate, toBooleanInput, currentDateYmd } from '../utils/misc.js';
 import { sanitizePatternLookupHtml } from '../utils/html.js';
 import { normalizeInventoryImageEntries, INVENTORY_MAX_IMAGES } from '../utils/image.js';
-import { dbCreateInventoryItems, dbUpdateInventoryById, dbReplaceInventoryImagesByItemIds, dbSetInventorySoldAvailability, dbDeactivateInventoryItemById, dbSetInventoryReverbListingId, dbSetInventoryFbListingId, dbMarkInventorySoldFromFbm, dbApplyReverbShippingLabelCost, generateUniqueCcgNumber, dbReplaceInventoryTagsByItemIds, normalizeInventoryTagsInput } from './db-write.js';
+import { dbCreateInventoryItems, dbUpdateInventoryById, dbReplaceInventoryImagesByItemIds, dbSetInventorySoldAvailability, dbDeactivateInventoryItemById, dbSetInventoryReverbListingId, dbSetInventoryFbListingId, dbSetInventoryFbSyncState, dbMarkInventorySoldFromFbm, dbApplyReverbShippingLabelCost, generateUniqueCcgNumber, dbReplaceInventoryTagsByItemIds, normalizeInventoryTagsInput } from './db-write.js';
 import { ensureInventoryHostedImageUrls } from './db-images.js';
 import { dbGetInventoryItem, dbFindInventoryBySourceListingId, dbFindInventoryBySaleUrl, dbInventoryItemHasPackageChildren } from './db-core.js';
 import { dbInventoryCategoryExists } from './categories.js';
@@ -996,6 +996,23 @@ export async function handleInventoryFbMarkSold(request: Request, path: string, 
   }, env);
   if (!ok) return jsonResponse({ message: 'Failed to mark the item sold.' }, 500);
   return jsonResponse({ ok: true });
+}
+
+// Used by the ccg-fbm-sync tool's reconcile flow — "skip permanently" on a CCG item that's
+// for sale but intentionally not going on Facebook Marketplace (personal reasons, etc.).
+// Not exposed in the admin UI yet by design (2026-09-13) — set/read via this endpoint only.
+export async function handleInventoryFbExclude(_request: Request, path: string, env: Env): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const actionIndex = parts.indexOf('fb-exclude');
+  const recordId = actionIndex > 0 ? parts[actionIndex - 1] : '';
+  if (!recordId) return jsonResponse({ message: 'Missing inventory ID.' }, 400);
+
+  const current = await dbGetInventoryItem(recordId, env);
+  if (!current) return jsonResponse({ message: 'Inventory item not found.' }, 404);
+
+  const ok = await dbSetInventoryFbSyncState(recordId, 'excluded', env);
+  if (!ok) return jsonResponse({ message: 'Failed to exclude the item from FBM sync.' }, 500);
+  return jsonResponse({ ok: true, fbSyncState: 'excluded' });
 }
 
 // Temporary diagnostic — fetches the linked listing straight from Reverb so we can see the real

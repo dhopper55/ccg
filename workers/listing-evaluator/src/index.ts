@@ -77,11 +77,13 @@ import {
   handleInventoryFbAdd,
   handleInventoryFbRemove,
   handleInventoryFbMarkSold,
+  handleInventoryFbExclude,
   handleInventoryReverbDebug,
   handleReverbShippingProfiles,
   handleReverbOrderDebug,
   handleInventoryReverbShippingCheck,
 } from './inventory/crud2.js';
+import { handleFbIgnoreListGet, handleFbIgnoreListPost } from './inventory/fb-ignore-list.js';
 import { handleReverbSyncSoldDryRun, handleReverbSyncSoldCommit } from './inventory/reverb-sync.js';
 import {
   handleInventoryImage,
@@ -1229,6 +1231,21 @@ export default {
 
     if (path.endsWith('/fb-mark-sold') && path.startsWith('/api/inventory/') && request.method === 'POST') {
       const response = await handleInventoryFbMarkSold(request, path, env);
+      return withCors(response, request, env);
+    }
+
+    if (path.endsWith('/fb-exclude') && path.startsWith('/api/inventory/') && request.method === 'POST') {
+      const response = await handleInventoryFbExclude(request, path, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/fb-ignore-list' && request.method === 'GET') {
+      const response = await handleFbIgnoreListGet(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/fb-ignore-list' && request.method === 'POST') {
+      const response = await handleFbIgnoreListPost(request, env);
       return withCors(response, request, env);
     }
 
