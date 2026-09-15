@@ -10,13 +10,20 @@ Two persistent "stop asking" mechanisms exist (added 2026-09-13):
   Not exposed in the admin UI by design — this tool is the only way to set/unset it.
 - An FB listing can be permanently ignored (`fb_ignore_list`) for personal, non-inventory
   items (e.g. a lawnmower listed on FB only).
+
+`to_post` can also draft the listing directly on Facebook (added 2026-09-13) — see
+fbm_client.create_draft_listing for how the form gets filled. Each draft is saved via FB's
+own "Save draft" (persisted server-side in Facebook's Drafts list, not left sitting in an
+open browser tab — that was the first version and it doesn't survive the tab closing), so
+several can be queued in one run and finished/published later at your own pace.
 """
 from __future__ import annotations
 
+from playwright.sync_api import sync_playwright
 from rich.console import Console
 
 from ccg_client import CCGClient
-from fbm_client import get_active_listings
+from fbm_client import create_draft_listing, get_active_listings, open_draft_browser
 from reconcile import item_title, reconcile
 
 console = Console()
@@ -33,19 +40,9 @@ def _ask(prompt: str, options: list[str]) -> str:
         console.print(f"Enter a number from 1 to {len(options)}.")
 
 
-def _print_fb_draft(item: dict) -> None:
-    """No FB publish API exists, so this just prints a copy/paste-able draft — see
-    ARCHITECTURE.md Section 9."""
-    console.print("\n[bold cyan]----- FB listing draft (copy/paste into Facebook) -----[/bold cyan]")
-    console.print(f"Title: {item_title(item)}")
-    console.print(f"Price: ${item.get('salePrice') or 0}")
-    console.print(f"Description:\n{item.get('saleDescription') or '(none)'}")
-    images = item.get("imageUrls") or []
-    if images:
-        console.print("Images:")
-        for url in images:
-            console.print(f"  {url}")
-    console.print("[bold cyan]--------------------------------------------------------[/bold cyan]")
+def _absolute_image_urls(item: dict, base_url: str) -> list[str]:
+    urls = item.get("imageUrls") or []
+    return [u if u.startswith("http") else f"{base_url}{u}" for u in urls]
 
 
 def run_sync() -> None:
@@ -65,13 +62,37 @@ def run_sync() -> None:
 
     buckets = reconcile(ccg_items, fbm_listings, ignored_fb_ids=ignored_fb_ids)
 
+    # Lazily started — most runs may not draft anything, so no browser opens unless needed.
+    draft_playwright = None
+    draft_browser = None
+    draft_context = None
+    drafts_created = 0
+
+    def draft_ctx():
+        nonlocal draft_playwright, draft_browser, draft_context
+        if draft_context is None:
+            draft_playwright = sync_playwright().start()
+            draft_browser, draft_context = open_draft_browser(draft_playwright)
+        return draft_context
+
     for item in buckets["to_post"]:
         choice = _ask(
             f"'{item_title(item)}' is for sale in CCG but not linked to an FB listing.",
-            ["Show FB draft to post manually", "Skip for now", "Skip permanently (never ask about this item again)"],
+            ["Draft this listing on Facebook", "Skip for now", "Skip permanently (never ask about this item again)"],
         )
-        if choice == "Show FB draft to post manually":
-            _print_fb_draft(item)
+        if choice == "Draft this listing on Facebook":
+            ok = create_draft_listing(
+                draft_ctx(),
+                title=item_title(item),
+                price=item.get("salePrice") or 0,
+                condition=item.get("condition") or "",
+                description=item.get("saleDescription") or "",
+                image_urls=_absolute_image_urls(item, client.base_url),
+            )
+            if ok:
+                drafts_created += 1
+            else:
+                console.print("  draft not saved — see the warning above.")
         elif choice == "Skip permanently (never ask about this item again)":
             client.exclude_from_fbm(item["id"])
             console.print("  excluded — won't ask about this item again.")
@@ -110,6 +131,16 @@ def run_sync() -> None:
 
     console.print("\n[bold]Summary[/bold]")
     console.print(f"  In sync (no action needed): {len(buckets['in_sync'])}")
+    if drafts_created:
+        console.print(
+            f"  {drafts_created} draft(s) saved to Facebook (Marketplace > Create new listing > Drafts) — "
+            "review and publish them there whenever you're ready."
+        )
+
+    if draft_browser:
+        draft_browser.close()
+    if draft_playwright:
+        draft_playwright.stop()
 
 
 if __name__ == "__main__":
