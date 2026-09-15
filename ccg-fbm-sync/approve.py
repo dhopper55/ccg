@@ -15,7 +15,10 @@ Two persistent "stop asking" mechanisms exist (added 2026-09-13):
 fbm_client.create_draft_listing for how the form gets filled. Each draft is saved via FB's
 own "Save draft" (persisted server-side in Facebook's Drafts list, not left sitting in an
 open browser tab — that was the first version and it doesn't survive the tab closing), so
-several can be queued in one run and finished/published later at your own pace.
+several can be queued in one run and finished/published later at your own pace. After a
+successful draft, it asks whether to link the new listing id to the CCG item right then
+(via `fb-add`) or leave it unlinked — the id comes straight from Facebook's own save
+response, not a DOM guess.
 """
 from __future__ import annotations
 
@@ -81,7 +84,7 @@ def run_sync() -> None:
             ["Draft this listing on Facebook", "Skip for now", "Skip permanently (never ask about this item again)"],
         )
         if choice == "Draft this listing on Facebook":
-            ok = create_draft_listing(
+            new_listing_id = create_draft_listing(
                 draft_ctx(),
                 title=item_title(item),
                 price=item.get("salePrice") or 0,
@@ -89,8 +92,15 @@ def run_sync() -> None:
                 description=item.get("saleDescription") or "",
                 image_urls=_absolute_image_urls(item, client.base_url),
             )
-            if ok:
+            if new_listing_id:
                 drafts_created += 1
+                link_choice = _ask(
+                    f"Draft saved (FB listing id {new_listing_id}). Mark this CCG item as listed on FB now?",
+                    ["Yes — link it", "No — leave unlinked for now"],
+                )
+                if link_choice == "Yes — link it":
+                    client.set_fb_listing_id(item["id"], new_listing_id)
+                    console.print("  linked.")
             else:
                 console.print("  draft not saved — see the warning above.")
         elif choice == "Skip permanently (never ask about this item again)":

@@ -274,7 +274,7 @@ def _download_images(image_urls: list[str]) -> list[str]:
     return paths
 
 
-def create_draft_listing(context, title: str, price, condition: str, description: str, image_urls: list[str]) -> bool:
+def create_draft_listing(context, title: str, price, condition: str, description: str, image_urls: list[str]) -> str | None:
     """Fills Facebook's real "Item for sale" create-listing form — photos, title, price,
     category (fixed at Musical Instruments), condition, description — advances to the
     Delivery step and checks all 3 meetup preferences (Public meetup, Door pickup, Door
@@ -284,13 +284,17 @@ def create_draft_listing(context, title: str, price, condition: str, description
     successfully" toast and the draft appearing there — so several can be queued up in one
     run and finished/published later at your own pace, independent of any browser tab
     staying open. Never clicks Publish. Closes its tab when done (nothing left to review
-    live). Returns True on a confirmed save, False if it aborted early (e.g. no photos
-    downloaded) or the save couldn't be confirmed.
+    live).
+
+    Returns the new listing's FB id on a confirmed save (parsed straight from the save
+    request's own GraphQL response — `data.marketplace_listing_create.listing.id`, confirmed
+    live 2026-09-13 — not a guess or a DOM lookup), or None if it aborted early (e.g. no
+    photos downloaded) or the save couldn't be confirmed.
     """
     photo_paths = _download_images(image_urls)
     if not photo_paths:
         print("  No photos could be downloaded — can't draft (FB requires at least one photo).")
-        return False
+        return None
 
     mapped_condition = map_condition(condition)
 
@@ -343,6 +347,28 @@ def create_draft_listing(context, title: str, price, condition: str, description
             print(f"  Couldn't check '{label_text}' — Facebook's delivery-step layout may have changed.")
     page.wait_for_timeout(500)
 
+    new_listing_id: str | None = None
+
+    def _capture_listing_id(response) -> None:
+        nonlocal new_listing_id
+        if new_listing_id is not None:
+            return
+        if response.request.method != "POST" or "graphql" not in response.url:
+            return
+        try:
+            data = response.json()
+        except Exception:
+            return
+        listing_id = (
+            data.get("data", {})
+            .get("marketplace_listing_create", {})
+            .get("listing", {})
+            .get("id")
+        )
+        if listing_id:
+            new_listing_id = str(listing_id)
+
+    page.on("response", _capture_listing_id)
     page.get_by_text("Save draft", exact=True).click()
 
     # A successful save redirects away from the create-item form back to the listing-type
@@ -355,9 +381,13 @@ def create_draft_listing(context, title: str, price, condition: str, description
         if "step=" not in page.url and page.url.rstrip("/").endswith("/create"):
             saved = True
             break
+    page.remove_listener("response", _capture_listing_id)
+
     if saved:
         print("  Saved to Facebook's Drafts (Marketplace > Create new listing > Drafts).")
+        if new_listing_id is None:
+            print("  WARNING: saved, but couldn't capture the new listing id from the save response.")
     else:
         print("  WARNING: clicked Save draft but couldn't confirm the success toast — check FB's Drafts list.")
     page.close()
-    return saved
+    return new_listing_id if saved else None

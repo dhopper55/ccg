@@ -1112,6 +1112,23 @@ const InventoryManager = () => {
                       Filters active
                     </Typography>
                   ) : null}
+                  <FormControl size="small" sx={{ minWidth: 160 }}>
+                    <Select
+                      value={`${sortBy}:${sortDir}`}
+                      onChange={(event) => {
+                        const [nextSortBy, nextSortDir] = event.target.value.split(':') as [
+                          InventorySortKey,
+                          InventorySortDir,
+                        ];
+                        setPage(1);
+                        setSortBy(nextSortBy);
+                        setSortDir(nextSortDir);
+                      }}
+                    >
+                      <MenuItem value="updateDate:desc">Modified Desc</MenuItem>
+                      <MenuItem value="addDate:desc">Created Desc</MenuItem>
+                    </Select>
+                  </FormControl>
                   <Button
                     variant="outlined"
                     color="inherit"
