@@ -32,6 +32,7 @@ type ShopProduct = {
   saleCondition: string;
   clearance: boolean;
   allowShipping: boolean;
+  fixedShippingAmount: number;
   onlyInStore: boolean;
   category: string;
   primaryCategoryName: string;
@@ -270,6 +271,7 @@ const ProductDetails = () => {
           onQuantityChange={(nextQuantity) => setQuantity(Math.min(nextQuantity, availableQuantity))}
           youtubeUrl={shopProduct?.youtubeUrl}
           allowShipping={Boolean(shopProduct?.allowShipping)}
+          fixedShippingAmount={Number(shopProduct?.fixedShippingAmount ?? 0)}
         />
       </Grid>
       <Grid size={12}>

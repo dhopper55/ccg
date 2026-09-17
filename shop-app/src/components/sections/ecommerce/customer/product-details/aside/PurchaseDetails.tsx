@@ -1,7 +1,17 @@
 import { Box, Paper, Stack, SxProps, Typography } from '@mui/material';
 import IconifyIcon from 'components/base/IconifyIcon';
+import useNumberFormat from 'hooks/useNumberFormat';
 
-const PurchaseDetails = ({ allowShipping = false, sx }: { allowShipping?: boolean; sx?: SxProps }) => {
+const PurchaseDetails = ({
+  allowShipping = false,
+  fixedShippingAmount = 0,
+  sx,
+}: {
+  allowShipping?: boolean;
+  fixedShippingAmount?: number;
+  sx?: SxProps;
+}) => {
+  const { currencyFormat } = useNumberFormat();
   return (
     <Paper sx={{ p: { xs: 3, md: 5 }, ...sx }}>
       <Typography
@@ -39,7 +49,9 @@ const PurchaseDetails = ({ allowShipping = false, sx }: { allowShipping?: boolea
                 }}
                 component="span"
               >
-                Free shipping
+                {fixedShippingAmount > 0
+                  ? `${currencyFormat(fixedShippingAmount)} shipping (U.S. only)`
+                  : 'Free shipping'}
               </Box>
             </>
           ) : (

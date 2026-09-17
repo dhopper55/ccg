@@ -48,6 +48,7 @@ type InventoryItemRecord = {
   salePrice?: number | null;
   condition?: string;
   allowShipping?: boolean;
+  fixedShippingAmount?: number;
   salesTaxIncluded?: boolean;
   saleDescription?: string;
   clearance?: boolean;
@@ -198,6 +199,7 @@ type FormState = {
   salePrice: string;
   condition: string;
   allowShipping: boolean;
+  fixedShippingAmount: string;
   salesTaxIncluded: boolean;
   saleDescription: string;
   clearance: boolean;
@@ -463,7 +465,8 @@ const DEFAULT_FORM: FormState = {
   regularPrice: '',
   salePrice: '0',
   condition: '',
-  allowShipping: false,
+  allowShipping: true,
+  fixedShippingAmount: '0',
   salesTaxIncluded: false,
   saleDescription: '',
   clearance: false,
@@ -1365,6 +1368,7 @@ const InventoryItem = () => {
             salePrice: record.salePrice != null ? String(record.salePrice) : '0',
             condition: record.condition || '',
             allowShipping: Boolean(record.allowShipping),
+            fixedShippingAmount: record.fixedShippingAmount != null ? String(record.fixedShippingAmount) : '0',
             salesTaxIncluded: Boolean(record.salesTaxIncluded),
             saleDescription: record.saleDescription || '',
             clearance: Boolean(record.clearance),
@@ -1500,6 +1504,7 @@ const InventoryItem = () => {
             salePrice: record.salePrice != null ? String(record.salePrice) : '0',
             condition: record.condition || '',
             allowShipping: Boolean(record.allowShipping),
+            fixedShippingAmount: record.fixedShippingAmount != null ? String(record.fixedShippingAmount) : '0',
             salesTaxIncluded: Boolean(record.salesTaxIncluded),
             saleDescription: record.saleDescription || '',
             clearance: Boolean(record.clearance),
@@ -1861,6 +1866,7 @@ const InventoryItem = () => {
     salePrice: form.salePrice.trim(),
     condition: form.condition.trim(),
     allowShipping: form.allowShipping,
+    fixedShippingAmount: form.fixedShippingAmount.trim() || '0',
     salesTaxIncluded: form.salesTaxIncluded,
     saleDescription: form.saleDescription.trim(),
     clearance: form.clearance,
@@ -3612,23 +3618,38 @@ const InventoryItem = () => {
                             height: 1,
                             minHeight: 90,
                             px: 2,
+                            py: 1,
                             display: 'flex',
-                            alignItems: 'center',
+                            flexDirection: 'column',
+                            justifyContent: 'center',
+                            gap: 0.5,
                             bgcolor: 'background.paper',
                             border: 1,
                             borderColor: 'divider',
                             borderRadius: 3,
                           }}
                         >
-                          <FormControlLabel
-                            control={(
-                              <Checkbox
-                                checked={form.allowShipping}
-                                onChange={(event) => setField('allowShipping', event.target.checked)}
-                              />
-                            )}
-                            label="Allow Shipping"
-                          />
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <FormControlLabel
+                              control={(
+                                <Checkbox
+                                  checked={form.allowShipping}
+                                  onChange={(event) => setField('allowShipping', event.target.checked)}
+                                />
+                              )}
+                              label="Allow Shipping"
+                            />
+                            <TextField
+                              label="Shipping $"
+                              type="number"
+                              size="small"
+                              disabled={!form.allowShipping}
+                              value={form.fixedShippingAmount}
+                              onChange={(event) => setField('fixedShippingAmount', event.target.value)}
+                              inputProps={{ min: 0, step: 0.01 }}
+                              sx={{ width: 110 }}
+                            />
+                          </Box>
                           <FormControlLabel
                             control={(
                               <Checkbox

@@ -209,6 +209,7 @@ export async function handleInventoryCreate(request: Request, env: Env): Promise
   const salePrice = parseCurrencyAmount(body.salePrice) ?? 0;
   const condition = normalizeText(body.condition, '').slice(0, 50);
   const allowShipping = toBooleanInput(body.allowShipping, false);
+  const fixedShippingAmount = Math.max(0, parseCurrencyAmount(body.fixedShippingAmount) ?? 0);
   const salesTaxIncluded = toBooleanInput(body.salesTaxIncluded, false);
   const saleDescription = normalizeText(body.saleDescription, '').slice(0, 12000);
   const clearance = toBooleanInput(body.clearance, false);
@@ -387,6 +388,7 @@ export async function handleInventoryCreate(request: Request, env: Env): Promise
     sale_price: salePrice,
     condition: condition || null,
     allow_shipping: allowShipping ? 1 : 0,
+    fixed_shipping_amount: fixedShippingAmount,
     sales_tax_included: salesTaxIncluded ? 1 : 0,
     sale_description: saleDescription || null,
     clearance: clearance ? 1 : 0,

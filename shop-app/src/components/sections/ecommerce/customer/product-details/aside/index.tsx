@@ -20,6 +20,7 @@ interface ProductDetailsAsideProps {
   onQuantityChange: (quantity: number) => void;
   youtubeUrl?: string;
   allowShipping?: boolean;
+  fixedShippingAmount?: number;
 }
 
 const ProductDetailsAside = ({
@@ -34,6 +35,7 @@ const ProductDetailsAside = ({
   onQuantityChange,
   youtubeUrl,
   allowShipping = false,
+  fixedShippingAmount = 0,
 }: ProductDetailsAsideProps) => {
   return (
     <Paper>
@@ -106,7 +108,7 @@ const ProductDetailsAside = ({
             lg: 12,
           }}
         >
-          <PurchaseDetails sx={{ height: 1 }} allowShipping={allowShipping} />
+          <PurchaseDetails sx={{ height: 1 }} allowShipping={allowShipping} fixedShippingAmount={fixedShippingAmount} />
         </Grid>
       </Grid>
     </Paper>
