@@ -120,6 +120,7 @@ export async function handleShopCreateCheckoutSession(request: Request, env: Env
       shippingLabel: draft.shippingLabel,
       shippingCents: draft.shippingCents,
       shippingAddressRequired: draft.shippingAddressRequired,
+      shippingCombineNotice: draft.shippingCombineNotice,
       taxCents: draft.taxCents,
       paymentMethodMode: includeInStoreOnly ? 'associate_all' : customerPaymentMode,
       splitTender: isSplitTender

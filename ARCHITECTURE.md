@@ -780,5 +780,3 @@ Verification defaults:
   - When adding a new serial format, add the assertion function and call site to the matching `scripts/regressions/<brand>.mjs` file
 - Worker/API surface: `npx wrangler deploy --dry-run` from `workers/listing-evaluator/`
 - Static/root changes: `npm run build:legacy`
-
-tets

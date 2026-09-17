@@ -6,6 +6,7 @@ import { dbListCheckoutInventoryItems } from './db.js';
 import {
   SHOP_SALES_TAX_RATE,
   SHOP_COUPONS,
+  SHOP_BIG_SHIPPING_CATEGORIES,
 } from '../constants.js';
 import type {
   ShopCheckoutRequestPayload,
@@ -193,9 +194,14 @@ export async function buildShopCheckoutDraft(
     shippingCents: shipping.shippingCents,
     shippingTaxCents,
     shippingAddressRequired: shipping.shippingAddressRequired,
+    shippingCombineNotice: shipping.shippingCombineNotice,
     taxCents,
     totalCents,
   };
+}
+
+function formatShippingLabel(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
 }
 
 export function calculateShopCheckoutShipping(input: {
@@ -203,22 +209,47 @@ export function calculateShopCheckoutShipping(input: {
   subtotalCents: number;
   discountCents: number;
   isAssociateMode: boolean;
-}): Pick<ShopCheckoutDraft, 'shippingStatus' | 'shippingLabel' | 'shippingCents' | 'shippingAddressRequired'> {
-  const hasShippableItems = input.items.some((item) => Number(item.row.allow_shipping || 0) === 1);
-  if (input.isAssociateMode || !hasShippableItems) {
+}): Pick<ShopCheckoutDraft, 'shippingStatus' | 'shippingLabel' | 'shippingCents' | 'shippingAddressRequired' | 'shippingCombineNotice'> {
+  const shippableItems = input.items.filter((item) => Number(item.row.allow_shipping || 0) === 1);
+  if (input.isAssociateMode || shippableItems.length === 0) {
     return {
       shippingStatus: 'in_store',
       shippingLabel: 'IN-STORE',
       shippingCents: 0,
       shippingAddressRequired: false,
+      shippingCombineNotice: false,
     };
   }
 
-  // Free shipping across the board for now — see ARCHITECTURE.md shop shipping notes.
+  const itemShippingCents = (item: ShopCheckoutLineItem): number =>
+    Math.round(Number(item.row.fixed_shipping_amount || 0) * 100) * item.quantity;
+
+  // Guitars/basses/amps/stringed instruments ship in their own box regardless
+  // of what else is in the cart, so their cost is always charged in full. When
+  // the cart has at least one of those, smaller items (pedals, accessories)
+  // ride along for free instead of being charged individually.
+  const bigItems = shippableItems.filter((item) =>
+    SHOP_BIG_SHIPPING_CATEGORIES.has(normalizeText(item.row.root_category_name, '')),
+  );
+
+  let shippingCents: number;
+  let shippingCombineNotice = false;
+  if (bigItems.length > 0) {
+    shippingCents = bigItems.reduce((sum, item) => sum + itemShippingCents(item), 0);
+  } else {
+    // All shippable items are small — sum each individually. When more than
+    // one unit is involved we'll likely combine them into fewer boxes for the
+    // actual shipment, so flag it for a customer-facing refund notice.
+    shippingCents = shippableItems.reduce((sum, item) => sum + itemShippingCents(item), 0);
+    const shippableUnitCount = shippableItems.reduce((sum, item) => sum + item.quantity, 0);
+    shippingCombineNotice = shippableUnitCount > 1 && shippingCents > 0;
+  }
+
   return {
-    shippingStatus: 'free',
-    shippingLabel: 'FREE',
-    shippingCents: 0,
+    shippingStatus: shippingCents > 0 ? 'flat_rate' : 'free',
+    shippingLabel: shippingCents > 0 ? formatShippingLabel(shippingCents) : 'FREE',
+    shippingCents,
     shippingAddressRequired: true,
+    shippingCombineNotice,
   };
 }

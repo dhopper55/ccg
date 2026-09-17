@@ -47,6 +47,8 @@ export interface ProductDetails {
   category?: string[];
   features?: string[];
   allowShipping?: boolean;
+  fixedShippingAmount?: number;
+  isBigShippingItem?: boolean;
   salesTaxIncluded?: boolean;
 }
 export interface ProductListAdmin {

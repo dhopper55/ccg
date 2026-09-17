@@ -32,6 +32,7 @@ const PaymentSummary = () => {
     cartTax,
     cartTaxRate,
     cartShippingLabel,
+    cartShippingCombineNotice,
     cartHasLocalPickupOnlyItems,
     cartTotal,
     setTaxIncluded,
@@ -320,7 +321,24 @@ const PaymentSummary = () => {
                     <br />
                   </>
                 )}
-                Free shipping on shippable items.
+                {cartShippingLabel === 'FREE'
+                  ? 'Free shipping on shippable items.'
+                  : `${cartShippingLabel} shipping (U.S. only).`}
+                {cartShippingCombineNotice && (
+                  <>
+                    <br />
+                    <Box
+                      component="span"
+                      sx={{
+                        color: 'warning.main',
+                        fontWeight: 700,
+                      }}
+                    >
+                      Items may ship combined in one box — any difference between this estimate and the actual
+                      shipping cost will be refunded, with proof of the real cost provided.
+                    </Box>
+                  </>
+                )}
               </>
             )}
           </Typography>

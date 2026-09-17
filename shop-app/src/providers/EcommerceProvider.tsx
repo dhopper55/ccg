@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { useSnackbar } from 'notistack';
 import { trackShopAnalyticsEvent } from 'lib/shopAnalytics';
+import { calculateCartShipping, isBigShippingCategory } from 'lib/shipping';
 import { CartItem, Coupon, ProductDetails } from 'types/ecommerce';
 import { useAssociateMode } from 'providers/AssociateModeProvider';
 
@@ -34,7 +35,9 @@ interface EcommerceContextInterface {
   cartSubTotal: number;
   cartTax: number;
   cartTaxRate: number;
-  cartShippingLabel: 'FREE' | 'IN-STORE';
+  cartShippingLabel: string;
+  cartShippingCost: number;
+  cartShippingCombineNotice: boolean;
   cartShippingAddressRequired: boolean;
   cartHasLocalPickupOnlyItems: boolean;
   cartTotal: number;
@@ -55,9 +58,20 @@ const getInitialCartItems = (): CartItem[] => {
   }
 };
 
+type HydratedCartFlags = {
+  allowShipping?: boolean;
+  salesTaxIncluded?: boolean;
+  fixedShippingAmount?: number;
+  isBigShippingItem?: boolean;
+};
+
 const hydrateCartFlags = async (items: CartItem[], signal: AbortSignal) => {
   const itemsMissingFlags = items.filter(
-    (item) => typeof item.allowShipping !== 'boolean' || typeof item.salesTaxIncluded !== 'boolean',
+    (item) =>
+      typeof item.allowShipping !== 'boolean' ||
+      typeof item.salesTaxIncluded !== 'boolean' ||
+      typeof item.fixedShippingAmount !== 'number' ||
+      typeof item.isBigShippingItem !== 'boolean',
   );
   if (itemsMissingFlags.length === 0) return null;
 
@@ -69,17 +83,26 @@ const hydrateCartFlags = async (items: CartItem[], signal: AbortSignal) => {
           signal,
         });
         if (!response.ok) return null;
-        const payload = (await response.json()) as { record?: { allowShipping?: boolean; salesTaxIncluded?: boolean } };
-        const { allowShipping, salesTaxIncluded } = payload.record ?? {};
-        if (typeof allowShipping !== 'boolean' && typeof salesTaxIncluded !== 'boolean') return null;
-        return [item.id, { allowShipping, salesTaxIncluded }] as const;
+        const payload = (await response.json()) as {
+          record?: { allowShipping?: boolean; salesTaxIncluded?: boolean; fixedShippingAmount?: number; category?: string };
+        };
+        const record = payload.record;
+        if (!record) return null;
+        const { allowShipping, salesTaxIncluded, fixedShippingAmount, category } = record;
+        const flags: HydratedCartFlags = {
+          allowShipping,
+          salesTaxIncluded,
+          fixedShippingAmount,
+          isBigShippingItem: typeof category === 'string' ? isBigShippingCategory(category) : undefined,
+        };
+        return [item.id, flags] as const;
       } catch {
         return null;
       }
     }),
   );
 
-  const flagsById = new Map(updates.filter((u): u is readonly [number, { allowShipping?: boolean; salesTaxIncluded?: boolean }] => u != null));
+  const flagsById = new Map(updates.filter((u): u is readonly [number, HydratedCartFlags] => u != null));
   return flagsById.size > 0 ? flagsById : null;
 };
 
@@ -204,18 +227,12 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
 
   const cartShippingDetails = useMemo(() => {
     const selectedItems = cartItems.filter((item) => item.selected);
-    const hasShippableItems = selectedItems.some((item) => Boolean(item.allowShipping));
-    if (isAssociateMode || !hasShippableItems) {
-      return {
-        amount: 0,
-        label: 'IN-STORE' as const,
-        addressRequired: false,
-      };
-    }
+    const result = calculateCartShipping(selectedItems, isAssociateMode);
     return {
-      amount: 0,
-      label: 'FREE' as const,
-      addressRequired: true,
+      amount: result.amountCents / 100,
+      label: result.label,
+      combineNotice: result.combineNotice,
+      addressRequired: result.addressRequired,
     };
   }, [cartItems, isAssociateMode]);
 
@@ -270,6 +287,8 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
             ...item,
             ...(typeof flags.allowShipping === 'boolean' && { allowShipping: flags.allowShipping }),
             ...(typeof flags.salesTaxIncluded === 'boolean' && { salesTaxIncluded: flags.salesTaxIncluded }),
+            ...(typeof flags.fixedShippingAmount === 'number' && { fixedShippingAmount: flags.fixedShippingAmount }),
+            ...(typeof flags.isBigShippingItem === 'boolean' && { isBigShippingItem: flags.isBigShippingItem }),
           };
         }),
       );
@@ -292,23 +311,38 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
             signal: controller.signal,
           });
           if (!response.ok) return null;
-          const payload = (await response.json()) as { record?: { salesTaxIncluded?: boolean } };
-          const { salesTaxIncluded } = payload.record ?? {};
-          if (typeof salesTaxIncluded !== 'boolean') return null;
-          return [item.id, salesTaxIncluded] as const;
+          const payload = (await response.json()) as {
+            record?: { salesTaxIncluded?: boolean; allowShipping?: boolean; fixedShippingAmount?: number; category?: string };
+          };
+          const record = payload.record;
+          if (!record) return null;
+          const { salesTaxIncluded, allowShipping, fixedShippingAmount, category } = record;
+          const flags: HydratedCartFlags = {
+            salesTaxIncluded,
+            allowShipping,
+            fixedShippingAmount,
+            isBigShippingItem: typeof category === 'string' ? isBigShippingCategory(category) : undefined,
+          };
+          return [item.id, flags] as const;
         } catch {
           return null;
         }
       }),
     ).then((results) => {
       if (controller.signal.aborted) return;
-      const taxById = new Map(results.filter((r): r is readonly [number, boolean] => r != null));
-      if (taxById.size === 0) return;
+      const updatesById = new Map(results.filter((r): r is readonly [number, HydratedCartFlags] => r != null));
+      if (updatesById.size === 0) return;
       setCartItems((current) =>
         current.map((item) => {
-          const next = taxById.get(item.id);
-          if (typeof next !== 'boolean' || item.salesTaxIncluded === next) return item;
-          return { ...item, salesTaxIncluded: next };
+          const next = updatesById.get(item.id);
+          if (!next) return item;
+          return {
+            ...item,
+            ...(typeof next.salesTaxIncluded === 'boolean' && { salesTaxIncluded: next.salesTaxIncluded }),
+            ...(typeof next.allowShipping === 'boolean' && { allowShipping: next.allowShipping }),
+            ...(typeof next.fixedShippingAmount === 'number' && { fixedShippingAmount: next.fixedShippingAmount }),
+            ...(typeof next.isBigShippingItem === 'boolean' && { isBigShippingItem: next.isBigShippingItem }),
+          };
         }),
       );
     });
@@ -343,6 +377,8 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
         cartTax,
         cartTaxRate: salesTaxRate,
         cartShippingLabel: cartShippingDetails.label,
+        cartShippingCost: cartShippingDetails.amount,
+        cartShippingCombineNotice: cartShippingDetails.combineNotice,
         cartShippingAddressRequired: cartShippingDetails.addressRequired,
         cartHasLocalPickupOnlyItems,
         cartTotal,

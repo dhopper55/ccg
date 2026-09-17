@@ -37,10 +37,15 @@ export type ShopCheckoutDraft = {
   couponCode: string | null;
   taxIncluded: boolean;
   shippingStatus: 'flat_rate' | 'free' | 'in_store';
-  shippingLabel: '$6.00' | 'FREE' | 'IN-STORE';
+  shippingLabel: string;
   shippingCents: number;
   shippingTaxCents: number;
   shippingAddressRequired: boolean;
+  // True only when shipping was computed by summing several small (non-instrument)
+  // items individually — we may combine them into fewer boxes and refund the
+  // difference. Never true when the cart contains a Guitar/Bass/Stringed
+  // Instruments/Amplification item, since those are charged in full regardless.
+  shippingCombineNotice: boolean;
   taxCents: number;
   totalCents: number;
 };
@@ -67,7 +72,9 @@ export interface ShopCheckoutInventoryRow {
   active_order_id: string | null;
   reserved_until: string | null;
   allow_shipping?: number | null;
+  fixed_shipping_amount?: number | null;
   sales_tax_included?: number | null;
   sale_url?: string | null;
   primaryCategoryName?: string | null;
+  root_category_name?: string | null;
 }

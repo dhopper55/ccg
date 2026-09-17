@@ -4,7 +4,7 @@ import type { ShopCheckoutInventoryRow } from '../types/orders.js';
 import { normalizeText, expandInventoryCategoryIds, parseOptionalPositiveInt } from '../utils/misc.js';
 import { toPublicShopImageUrl, parseStoredInventoryImageUrls } from '../utils/image.js';
 import { getInventoryCategoryLabel, dbListInventoryCategories } from '../inventory/categories.js';
-import { dbGetInventoryAddtl } from '../inventory/addtl.js';
+import { dbGetInventoryAddtl, dbGetInventoryAddtlForIds } from '../inventory/addtl.js';
 import { getShopRuntimeSettings } from '../system/runtime.js';
 import {
   INVENTORY_CATEGORY_SELECT_SQL,
@@ -835,29 +835,36 @@ export async function dbListCheckoutInventoryItems(
   const placeholders = uniqueIds.map(() => '?').join(', ');
   const result = await env.DB.prepare(
     `SELECT
-       id,
-       title,
-       sale_title,
-       brand,
-       model,
-       "condition",
-       image_url,
-      regular_price,
-      sale_price,
-      unit_purchase_price,
-      allow_shipping,
-      sales_tax_included,
-      quantity,
-       for_sale,
-       only_in_store,
-       is_sold,
-       is_active,
-       is_rented,
-       availability_status,
-       active_order_id,
-       reserved_until
-     FROM ccg_inventory_items
-     WHERE id IN (${placeholders})`
+       i.id,
+       i.title,
+       i.sale_title,
+       i.brand,
+       i.model,
+       i."condition",
+       i.image_url,
+       i.regular_price,
+       i.sale_price,
+       i.unit_purchase_price,
+       i.allow_shipping,
+       i.sales_tax_included,
+       i.quantity,
+       i.for_sale,
+       i.only_in_store,
+       i.is_sold,
+       i.is_active,
+       i.is_rented,
+       i.availability_status,
+       i.active_order_id,
+       i.reserved_until,
+       COALESCE(gp.name, p.name, c.name) AS root_category_name
+     FROM ccg_inventory_items i
+     ${INVENTORY_CATEGORY_JOIN_SQL}
+     WHERE i.id IN (${placeholders})`
   ).bind(...uniqueIds).all<ShopCheckoutInventoryRow>();
-  return result.results ?? [];
+  const rows = result.results ?? [];
+  const addtlMap = await dbGetInventoryAddtlForIds(rows.map((row) => row.id), env);
+  return rows.map((row) => ({
+    ...row,
+    fixed_shipping_amount: addtlMap.get(row.id)?.fixed_shipping_amount ?? 0,
+  }));
 }

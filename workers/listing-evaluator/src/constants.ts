@@ -86,6 +86,11 @@ We focus on helping people get started the right way — without overpaying or d
 export const ASSOCIATE_COOKIE_NAME = 'ccg_associate';
 export const ASSOCIATE_COOKIE_VALUE = 'associate';
 export const SHOP_SALES_TAX_RATE = 0.0805;
+// Root inventory categories treated as "big" for combined shipping purposes:
+// when a cart has any item in these categories, only those items' shipping
+// costs are charged (smaller items ride along free). When a cart has none of
+// these, each shippable item's cost is summed individually instead.
+export const SHOP_BIG_SHIPPING_CATEGORIES = new Set(['Guitar', 'Bass', 'Stringed Instruments', 'Amplification']);
 export const CCG_YOUTUBE_CHANNEL_ID = 'UCV-kDQjH_cWcsxwg0GZKX3g';
 export const DEFAULT_CO_SALES_TAX_RATE_ID = 'txr_1TSEdADCplz62P7p4H6E7YJK';
 export const ALLOWED_MFR_CODES = new Set(['DUNLOP', 'NOMAD', "D'ADDARIO"]);

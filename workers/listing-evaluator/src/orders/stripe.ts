@@ -177,6 +177,7 @@ export async function createStripeCheckoutSession(input: {
   shippingLabel: string;
   shippingCents: number;
   shippingAddressRequired: boolean;
+  shippingCombineNotice: boolean;
   taxCents: number;
   paymentMethodMode: 'standard' | 'finance' | 'associate_all';
   splitTender?: {
@@ -260,7 +261,12 @@ export async function createStripeCheckoutSession(input: {
       form.set(`${prefix}[price_data][currency]`, 'usd');
       form.set(`${prefix}[price_data][unit_amount]`, String(input.shippingCents));
       form.set(`${prefix}[price_data][product_data][name]`, 'Shipping');
-      form.set(`${prefix}[price_data][product_data][description]`, input.shippingLabel);
+      form.set(
+        `${prefix}[price_data][product_data][description]`,
+        input.shippingCombineNotice
+          ? `${input.shippingLabel} — items may ship combined; any difference will be refunded`
+          : input.shippingLabel,
+      );
     }
   }
 

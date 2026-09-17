@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router';
 import { Chip, Paper } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import { slugifyCategory } from 'lib/utils';
+import { isBigShippingCategory } from 'lib/shipping';
 import { trackShopAnalyticsEvent } from 'lib/shopAnalytics';
 import { useAssociateMode } from 'providers/AssociateModeProvider';
 import { useEcommerce } from 'providers/EcommerceProvider';
@@ -204,6 +205,8 @@ const ProductDetails = () => {
       category: [shopProduct.category, shopProduct.secondaryCategory].filter(Boolean),
       features: shopProduct.highlights.map((highlight) => highlight.text).filter(Boolean),
       allowShipping: Boolean(shopProduct.allowShipping),
+      fixedShippingAmount: Number(shopProduct.fixedShippingAmount ?? 0),
+      isBigShippingItem: isBigShippingCategory(shopProduct.category),
     };
   }, [availableQuantity, displayPrice, galleryImages, isOutOfStock, isUnavailable, shopProduct]);
 
