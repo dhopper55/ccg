@@ -51,6 +51,7 @@ export async function handleShopCreateTerminalPayment(request: Request, env: Env
     includeInStoreOnly,
     allowTaxIncluded: true,
     allowManualDiscount: true,
+    isFinance: false,
   }, env);
   if (draftResult instanceof Response) {
     return draftResult;

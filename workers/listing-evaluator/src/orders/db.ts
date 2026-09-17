@@ -293,6 +293,7 @@ export async function dbCreateCheckoutOrder(
     shippingCents: number;
     shippingTaxCents: number;
     taxCents: number;
+    financeSurchargeCents?: number;
     totalCents: number;
     cardAmountCents?: number | null;
     cashAmountCents?: number | null;
@@ -337,6 +338,7 @@ export async function dbCreateCheckoutOrder(
     item_image_url_snapshot: firstItem.imageUrl,
     subtotal_cents: input.subtotalCents,
     tax_cents: input.taxCents,
+    finance_surcharge_cents: input.financeSurchargeCents ?? 0,
     shipping_cents: input.shippingCents,
     shipping_status: input.shippingStatus,
     shipping_label: input.shippingLabel,
@@ -636,6 +638,7 @@ export async function dbGetOrderReceipt(orderId: string, env: Env): Promise<Reco
     shippingCents: Number(order.shipping_cents ?? 0) || 0,
     shippingTaxCents: Number(order.shipping_tax_cents ?? 0) || 0,
     taxCents: Number(order.tax_cents ?? 0) || 0,
+    financeSurchargeCents: Number(order.finance_surcharge_cents ?? 0) || 0,
     discountCents: Number(order.discount_cents ?? 0) || 0,
     totalCents: Number(order.total_cents ?? 0) || 0,
     cardAmountCents: splitTender.cardAmountCents,

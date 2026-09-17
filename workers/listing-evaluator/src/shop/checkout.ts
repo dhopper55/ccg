@@ -41,10 +41,13 @@ export async function handleShopCreateCheckoutSession(request: Request, env: Env
     ? 'pickup'
     : 'pickup';
   const includeInStoreOnly = await isAssociateModeRequest(request, env);
+  const requestedPaymentMode = normalizeText(body?.paymentMode, 'standard').toLowerCase();
+  const isFinance = requestedPaymentMode === 'finance';
   const draftResult = await buildShopCheckoutDraft(body, {
     includeInStoreOnly,
     allowTaxIncluded: includeInStoreOnly,
     allowManualDiscount: includeInStoreOnly,
+    isFinance,
   }, env);
   if (draftResult instanceof Response) {
     return draftResult;
@@ -63,13 +66,9 @@ export async function handleShopCreateCheckoutSession(request: Request, env: Env
   if (isSplitTender && cardAmountCents > draft.totalCents) {
     return jsonResponse({ message: 'Card amount cannot exceed the order total.' }, 400);
   }
-  const requestedPaymentMode = normalizeText(body?.paymentMode, 'standard').toLowerCase();
-  if (!includeInStoreOnly && requestedPaymentMode === 'finance') {
-    return jsonResponse({ message: 'Financing is available for eligible in-store purchases only.' }, 403);
+  if (isFinance && isSplitTender) {
+    return jsonResponse({ message: 'Financing cannot be combined with a card + cash split.' }, 400);
   }
-  const customerPaymentMode = requestedPaymentMode === 'finance'
-    ? 'finance'
-    : 'standard';
 
   const nowIso = new Date().toISOString();
   const orderId = crypto.randomUUID();
@@ -99,6 +98,7 @@ export async function handleShopCreateCheckoutSession(request: Request, env: Env
       shippingCents: draft.shippingCents,
       shippingTaxCents: draft.shippingTaxCents,
       taxCents: draft.taxCents,
+      financeSurchargeCents: draft.financeSurchargeCents,
       totalCents: draft.totalCents,
       cardAmountCents: isSplitTender ? cardAmountCents : null,
       cashAmountCents: isSplitTender ? cashAmountCents : null,
@@ -126,7 +126,8 @@ export async function handleShopCreateCheckoutSession(request: Request, env: Env
       shippingAddressRequired: draft.shippingAddressRequired,
       shippingCombineNotice: draft.shippingCombineNotice,
       taxCents: draft.taxCents,
-      paymentMethodMode: includeInStoreOnly ? 'associate_all' : customerPaymentMode,
+      financeSurchargeCents: draft.financeSurchargeCents,
+      paymentMethodMode: isFinance ? 'finance' : includeInStoreOnly ? 'associate_all' : 'standard',
       splitTender: isSplitTender
         ? {
           cardAmountCents,
@@ -222,6 +223,7 @@ export async function handleShopCreateCashOrder(request: Request, env: Env): Pro
     includeInStoreOnly,
     allowTaxIncluded: true,
     allowManualDiscount: true,
+    isFinance: false,
   }, env);
   if (draftResult instanceof Response) {
     return draftResult;
@@ -288,11 +290,6 @@ export async function handleShopCreateCashOrder(request: Request, env: Env): Pro
 }
 
 export async function handleShopOrderReceipt(orderId: string, request: Request, env: Env): Promise<Response> {
-  const includeInStoreOnly = await isAssociateModeRequest(request, env);
-  if (!includeInStoreOnly) {
-    return jsonResponse({ message: 'Order receipt is only available in associate mode.' }, 403);
-  }
-
   const normalizedOrderId = normalizeText(orderId, '').slice(0, 100);
   if (!normalizedOrderId) return jsonResponse({ message: 'Order not found.' }, 404);
 

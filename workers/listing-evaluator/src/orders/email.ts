@@ -251,6 +251,7 @@ export async function sendBrevoOrderConfirmationEmailForOrder(orderId: string, e
         subtotal: formatCurrencyCents(numberOrZero(receipt.subtotalCents)),
         shipping: normalizeText((receipt as any).shippingLabel, '') || formatCurrencyCents(numberOrZero((receipt as any).shippingCents)),
         tax: formatCurrencyCents(numberOrZero(receipt.taxCents)),
+        financeSurcharge: formatCurrencyCents(numberOrZero((receipt as any).financeSurchargeCents)),
         total: formatCurrencyCents(numberOrZero(receipt.totalCents)),
         paidBy,
         paymentMethod: paidBy,

@@ -49,6 +49,7 @@ type AdminOrderDetail = {
   shippingLabel?: string;
   shippingCents?: number;
   taxCents: number;
+  financeSurchargeCents?: number;
   discountCents: number;
   totalCents: number;
   cardAmountCents?: number;
@@ -780,6 +781,9 @@ const OrderManagerItem = () => {
                 />
                 <PriceSummaryRow label="Discount" value={order.discountCents / 100} />
                 <PriceSummaryRow label="Sales tax" value={order.taxCents / 100} />
+                {!!order.financeSurchargeCents && (
+                  <PriceSummaryRow label="Finance Surcharge" value={order.financeSurchargeCents / 100} />
+                )}
                 <Stack sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
                   <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
                     Total

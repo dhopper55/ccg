@@ -181,6 +181,7 @@ export async function createStripeCheckoutSession(input: {
   shippingAddressRequired: boolean;
   shippingCombineNotice: boolean;
   taxCents: number;
+  financeSurchargeCents: number;
   paymentMethodMode: 'standard' | 'finance' | 'associate_all';
   splitTender?: {
     cardAmountCents: number;
@@ -287,6 +288,17 @@ export async function createStripeCheckoutSession(input: {
     form.set(`${prefix}[price_data][unit_amount]`, String(input.taxCents));
     form.set(`${prefix}[price_data][product_data][name]`, 'Sales tax');
     form.set(`${prefix}[price_data][product_data][description]`, 'State, city, county taxes');
+  }
+
+  if (!input.splitTender && input.financeSurchargeCents > 0) {
+    const prefix = `line_items[${input.items.length
+      + (input.shippingAddressRequired ? 1 : 0)
+      + (input.taxCents > 0 ? 1 : 0)}]`;
+    form.set(`${prefix}[quantity]`, '1');
+    form.set(`${prefix}[price_data][currency]`, 'usd');
+    form.set(`${prefix}[price_data][unit_amount]`, String(input.financeSurchargeCents));
+    form.set(`${prefix}[price_data][product_data][name]`, 'Financing Surcharge');
+    form.set(`${prefix}[price_data][product_data][description]`, '6% surcharge for Affirm/Klarna financing');
   }
 
   const response = await fetch('https://api.stripe.com/v1/checkout/sessions', {

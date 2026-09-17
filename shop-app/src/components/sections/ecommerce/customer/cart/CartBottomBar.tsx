@@ -93,13 +93,14 @@ const validateCashCustomerForm = (values: CashCustomerForm) => {
 };
 
 const CartBottomBar = () => {
-  const { appliedCoupon, cartItems, cartTotal, taxIncluded, otdMode } = useEcommerce();
+  const { appliedCoupon, cartItems, cartTotal, cartTax, taxIncluded, otdMode } = useEcommerce();
   const { isAssociateMode, stripeSandbox } = useAssociateMode();
   const { up } = useBreakpoints();
   const { currencyFormat } = useNumberFormat();
   const { enqueueSnackbar } = useSnackbar();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [embeddedCheckout, setEmbeddedCheckout] = useState<{ clientSecret: string; publishableKey: string } | null>(null);
+  const [pendingCheckoutMode, setPendingCheckoutMode] = useState<'standard' | 'finance'>('standard');
   const [isCashCheckingOut, setIsCashCheckingOut] = useState(false);
   const [splitTenderOpen, setSplitTenderOpen] = useState(false);
   const [splitCardAmount, setSplitCardAmount] = useState('0.00');
@@ -125,6 +126,7 @@ const CartBottomBar = () => {
   const upSm = up('sm');
   const selectedCartItems = useMemo(() => cartItems.filter((item) => item.selected), [cartItems]);
   const cartTotalCents = Math.max(0, Math.round(cartTotal * 100));
+  const financeSurchargePreview = Math.max(0, cartTotal - cartTax) * 0.06;
   const splitCardAmountCents = parseCurrencyToCents(splitCardAmount);
   const splitCashAmountCents = Math.max(0, cartTotalCents - splitCardAmountCents);
   const splitCardAmountError = splitCardAmountCents > 0 && splitCardAmountCents < 100
@@ -150,12 +152,14 @@ const CartBottomBar = () => {
 
   const buildCheckoutPayload = (
     splitTender?: { cardAmountCents: number },
+    paymentMode?: 'standard' | 'finance',
   ) => ({
     fulfillmentType: 'pickup',
     couponCode: appliedCoupon?.code || undefined,
     taxIncluded,
     otdMode,
     splitTender,
+    paymentMode,
     items: selectedCartItems.map((item) => ({
       inventoryItemId: item.id,
       quantity: item.quantity,
@@ -174,10 +178,10 @@ const CartBottomBar = () => {
 
   const handleRefundPolicyAgree = () => {
     setRefundPolicyOpen(false);
-    void handleStripeCheckout();
+    void handleStripeCheckout(pendingCheckoutMode);
   };
 
-  const handleStripeCheckout = async () => {
+  const handleStripeCheckout = async (paymentMode: 'standard' | 'finance' = 'standard') => {
     if (selectedCartItems.length === 0 || isCheckingOut) return;
 
     setIsCheckingOut(true);
@@ -186,7 +190,7 @@ const CartBottomBar = () => {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildCheckoutPayload()),
+        body: JSON.stringify(buildCheckoutPayload(undefined, paymentMode)),
       });
       const data = (await response.json()) as {
         url?: string;
@@ -534,6 +538,7 @@ const CartBottomBar = () => {
               loading={isCheckingOut}
               disabled={selectedCartItems.length === 0}
               onClick={() => {
+                setPendingCheckoutMode('standard');
                 if (isAssociateMode) {
                   openAssociateStripeRoute('checkout');
                   return;
@@ -546,6 +551,22 @@ const CartBottomBar = () => {
               }}
             >
               Checkout
+            </Button>
+            <Button
+              color="warning"
+              variant="contained"
+              loading={isCheckingOut}
+              disabled={selectedCartItems.length === 0}
+              onClick={() => {
+                setPendingCheckoutMode('finance');
+                openRefundPolicyDialog();
+              }}
+              sx={{
+                whiteSpace: 'nowrap',
+                px: { xs: 3, sm: 4 },
+              }}
+            >
+              Finance (6% charge)
             </Button>
             {isAssociateMode && (
               <>
@@ -593,11 +614,16 @@ const CartBottomBar = () => {
             Eligible items may be refunded within 7 days of product pickup.
           </Typography>
           <Typography variant="body1">
-            Online checkout is available by card and other standard Stripe payment methods. Financing is available only for eligible in-store purchases.
+            Online checkout is available by card and other standard Stripe payment methods. A separate Finance option (Affirm/Klarna) is available in-store and online for a 6% surcharge to cover processing fees.
           </Typography>
           <Typography variant="body1">
             Returned items must come back in the same condition. Shipping and local delivery charges are not refundable, and customers are responsible for insured return shipping unless we made a mistake with the order.
           </Typography>
+          {pendingCheckoutMode === 'finance' && (
+            <Typography variant="body1" sx={{ fontWeight: 700 }}>
+              This purchase will be financed via Affirm or Klarna. A 6% financing surcharge ({currencyFormat(financeSurchargePreview)}) will be added to your total to cover processing fees.
+            </Typography>
+          )}
         </Stack>
       </DialogContent>
       <DialogActions>

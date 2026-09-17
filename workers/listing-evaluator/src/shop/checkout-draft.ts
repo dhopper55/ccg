@@ -69,7 +69,7 @@ function getCheckoutInventoryUnavailableReason(
 
 export async function buildShopCheckoutDraft(
   body: ShopCheckoutRequestPayload,
-  options: { includeInStoreOnly: boolean; allowTaxIncluded: boolean; allowManualDiscount: boolean },
+  options: { includeInStoreOnly: boolean; allowTaxIncluded: boolean; allowManualDiscount: boolean; isFinance: boolean },
   env: Env,
 ): Promise<ShopCheckoutDraft | Response> {
   const requestedItems = normalizeCheckoutItems(body?.items);
@@ -182,7 +182,11 @@ export async function buildShopCheckoutDraft(
   const taxIncluded = options.allowTaxIncluded && body?.taxIncluded === true;
   const taxCents = taxIncluded ? 0 : Math.round(taxableBaseCents * SHOP_SALES_TAX_RATE);
   const shippingTaxCents = 0;
-  const totalCents = Math.max(0, subtotalCents - discountCents + shipping.shippingCents) + taxCents;
+  const preTaxTotalCents = Math.max(0, subtotalCents - discountCents + shipping.shippingCents);
+  // Affirm/Klarna charge CCG a ~6% fee; passed through to the customer as its
+  // own untaxed line item, never folded into subtotal/cart state.
+  const financeSurchargeCents = options.isFinance ? Math.round(preTaxTotalCents * 0.06) : 0;
+  const totalCents = preTaxTotalCents + taxCents + financeSurchargeCents;
 
   return {
     items: checkoutItems,
@@ -197,6 +201,7 @@ export async function buildShopCheckoutDraft(
     shippingAddressRequired: shipping.shippingAddressRequired,
     shippingCombineNotice: shipping.shippingCombineNotice,
     taxCents,
+    financeSurchargeCents,
     totalCents,
   };
 }

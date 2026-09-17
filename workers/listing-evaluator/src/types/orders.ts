@@ -47,6 +47,7 @@ export type ShopCheckoutDraft = {
   // Instruments/Amplification item, since those are charged in full regardless.
   shippingCombineNotice: boolean;
   taxCents: number;
+  financeSurchargeCents: number;
   totalCents: number;
 };
 

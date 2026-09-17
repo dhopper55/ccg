@@ -33,6 +33,7 @@ type ReceiptRecord = {
   shippingLabel?: string;
   shippingCents?: number;
   taxCents: number;
+  financeSurchargeCents?: number;
   totalCents: number;
   cardAmountCents?: number;
   cashAmountCents?: number;
@@ -172,6 +173,7 @@ const renderReceiptTemplate = (template: string, record: ReceiptRecord) => {
     shipping: formatCents(record.shippingCents || 0),
     shippingLabel: record.shippingLabel || 'In-store',
     salesTax: formatCents(record.taxCents),
+    financeSurcharge: formatCents(record.financeSurchargeCents || 0),
     total: formatCents(record.totalCents),
     salesTaxRate: '8.05%',
     paymentMethodLabel: record.paymentMethodLabel || 'Payment method: Stripe',
