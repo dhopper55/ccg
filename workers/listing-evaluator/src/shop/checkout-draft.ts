@@ -175,12 +175,13 @@ export async function buildShopCheckoutDraft(
   );
   // Pro-rate the discount proportionally across taxable vs tax-included items
   const taxableDiscountCents = subtotalCents > 0 ? Math.round(discountCents * taxableItemsCents / subtotalCents) : 0;
-  const taxableBaseCents = Math.max(0, taxableItemsCents - taxableDiscountCents + shipping.shippingCents);
+  // Colorado exempts delivery charges from sales tax when they're separately stated
+  // and separable (the buyer could've chosen pickup instead) — both true here, so
+  // shipping never enters the taxable base and is never itself taxed.
+  const taxableBaseCents = Math.max(0, taxableItemsCents - taxableDiscountCents);
   const taxIncluded = options.allowTaxIncluded && body?.taxIncluded === true;
   const taxCents = taxIncluded ? 0 : Math.round(taxableBaseCents * SHOP_SALES_TAX_RATE);
-  const shippingTaxCents = taxIncluded || shipping.shippingCents <= 0
-    ? 0
-    : Math.round(shipping.shippingCents * SHOP_SALES_TAX_RATE);
+  const shippingTaxCents = 0;
   const totalCents = Math.max(0, subtotalCents - discountCents + shipping.shippingCents) + taxCents;
 
   return {

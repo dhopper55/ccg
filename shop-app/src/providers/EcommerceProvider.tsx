@@ -251,9 +251,12 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
     const taxableDiscount = originalCartSubTotal > 0
       ? effectiveDiscount * (taxableSubtotal / originalCartSubTotal)
       : 0;
-    const taxableTotal = Math.max(0, taxableSubtotal - taxableDiscount + cartShippingDetails.amount);
+    // Colorado exempts separately-stated, separable delivery charges from sales
+    // tax (we meet both — shipping is its own line item and pickup is always an
+    // alternative), so shipping never enters the taxable base.
+    const taxableTotal = Math.max(0, taxableSubtotal - taxableDiscount);
     return Math.round(taxableTotal * salesTaxRate * 100) / 100;
-  }, [cartItems, originalCartSubTotal, effectiveDiscount, cartShippingDetails.amount, taxIncluded]);
+  }, [cartItems, originalCartSubTotal, effectiveDiscount, taxIncluded]);
 
   const cartTotal = useMemo(() => {
     return Math.max(0, cartSubTotal - effectiveDiscount + cartShippingDetails.amount) + cartTax;
