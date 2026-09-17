@@ -4,6 +4,7 @@ import { jsonResponse, parseBoundedInt, normalizeInventoryDate, toBooleanInput, 
 import { sanitizePatternLookupHtml } from '../utils/html.js';
 import { normalizeInventoryImageEntries, INVENTORY_MAX_IMAGES } from '../utils/image.js';
 import { dbCreateInventoryItems, dbReplaceInventoryImagesByItemIds, dbDeleteInventoryItemsByIds, dbListMarkedInventoryRowsForPackage, dbReplaceInventoryTagsByItemIds, normalizeInventoryTagsInput } from './db-write.js';
+import { dbUpsertInventoryAddtl } from './addtl.js';
 import { ensureInventoryHostedImageUrls, purgeOrphanedInventoryImagesForDeletedRows } from './db-images.js';
 import { dbGetInventoryItem, dbFindInventoryBySourceListingId, dbFindInventoryBySaleUrl, dbFindRecentDuplicateInventoryCreate, dbCcgNumberExists } from './db-core.js';
 import { dbInventoryCategoryExists } from './categories.js';
@@ -388,7 +389,6 @@ export async function handleInventoryCreate(request: Request, env: Env): Promise
     sale_price: salePrice,
     condition: condition || null,
     allow_shipping: allowShipping ? 1 : 0,
-    fixed_shipping_amount: fixedShippingAmount,
     sales_tax_included: salesTaxIncluded ? 1 : 0,
     sale_description: saleDescription || null,
     clearance: clearance ? 1 : 0,
@@ -458,6 +458,9 @@ export async function handleInventoryCreate(request: Request, env: Env): Promise
   }
   if (!(await dbReplaceInventoryTagsByItemIds([Number(inserted.firstId)], tags, env))) {
     return jsonResponse({ message: 'Inventory item was created, but its tags failed to save.' }, 500);
+  }
+  if (!(await dbUpsertInventoryAddtl(Number(inserted.firstId), { fixed_shipping_amount: fixedShippingAmount }, env))) {
+    return jsonResponse({ message: 'Inventory item was created, but its shipping settings failed to save.' }, 500);
   }
 
   await insertActivityLogBestEffort(env, {

@@ -632,7 +632,7 @@ export async function dbGetShopProductDetail(
        i.sale_price,
        i.clearance,
        i.allow_shipping,
-       i.fixed_shipping_amount,
+       COALESCE(ia.fixed_shipping_amount, 0) AS fixed_shipping_amount,
        i.sales_tax_included,
        i.only_in_store,
        i."condition",
@@ -660,6 +660,7 @@ export async function dbGetShopProductDetail(
        i.is_sold
      FROM ccg_inventory_items i
      ${INVENTORY_CATEGORY_JOIN_SQL}
+     LEFT JOIN ccg_inventory_items_addtl ia ON ia.inventory_item_id = i.id
      WHERE ${lookupClause}
        AND COALESCE(i.is_active, 0) = 1
        ${options.includeInStoreOnly ? '' : 'AND COALESCE(i.only_in_store, 0) = 0'}

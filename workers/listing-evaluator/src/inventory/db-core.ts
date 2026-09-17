@@ -268,7 +268,7 @@ export async function dbListInventoryItems(
        i.sale_price,
        i.condition,
        i.allow_shipping,
-       i.fixed_shipping_amount,
+       COALESCE(ia.fixed_shipping_amount, 0) AS fixed_shipping_amount,
        i.sales_tax_included,
        i.sale_description,
        i.barcode,
@@ -305,6 +305,7 @@ export async function dbListInventoryItems(
      FROM ccg_inventory_items i
      ${INVENTORY_CATEGORY_JOIN_SQL}
      LEFT JOIN listings l ON l.id = i.source_listing_id
+     LEFT JOIN ccg_inventory_items_addtl ia ON ia.inventory_item_id = i.id
      WHERE ${clause.sql}
      ORDER BY ${orderBy}
      LIMIT ? OFFSET ?`
@@ -364,7 +365,7 @@ export async function dbGetInventoryItem(recordId: string, env: Env): Promise<Re
       i.sale_price,
       i."condition",
       i.allow_shipping,
-      i.fixed_shipping_amount,
+      COALESCE(ia.fixed_shipping_amount, 0) AS fixed_shipping_amount,
       i.sales_tax_included,
       i.sale_description,
       i.clearance,
@@ -441,6 +442,7 @@ export async function dbGetInventoryItem(recordId: string, env: Env): Promise<Re
       i.updated_at
      FROM ccg_inventory_items i
      ${INVENTORY_CATEGORY_JOIN_SQL}
+     LEFT JOIN ccg_inventory_items_addtl ia ON ia.inventory_item_id = i.id
      WHERE i.id = ?`
   ).bind(idValue).first<InventoryItemRow>();
   if (!row) return null;

@@ -5,6 +5,7 @@ import { sanitizePatternLookupHtml } from '../utils/html.js';
 import { normalizeInventoryImageEntries, INVENTORY_MAX_IMAGES } from '../utils/image.js';
 import { dbCreateInventoryItems, dbUpdateInventoryById, dbReplaceInventoryImagesByItemIds, dbSetInventorySoldAvailability, dbDeactivateInventoryItemById, dbSetInventoryReverbListingId, dbSetInventoryFbListingId, dbSetInventoryFbSyncState, dbMarkInventorySoldFromFbm, dbApplyReverbShippingLabelCost, generateUniqueCcgNumber, dbReplaceInventoryTagsByItemIds, normalizeInventoryTagsInput } from './db-write.js';
 import { ensureInventoryHostedImageUrls } from './db-images.js';
+import { dbUpsertInventoryAddtl } from './addtl.js';
 import { dbGetInventoryItem, dbFindInventoryBySourceListingId, dbFindInventoryBySaleUrl, dbInventoryItemHasPackageChildren } from './db-core.js';
 import { dbInventoryCategoryExists } from './categories.js';
 import { dbPurchaseLotExists } from './purchased-lots.js';
@@ -375,7 +376,6 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       sale_price: salePrice,
       condition: condition || null,
       allow_shipping: allowShipping ? 1 : 0,
-      fixed_shipping_amount: fixedShippingAmount,
       sales_tax_included: salesTaxIncluded ? 1 : 0,
       sale_description: saleDescription || null,
       clearance: clearance ? 1 : 0,
@@ -418,6 +418,9 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
     if (!(await dbReplaceInventoryTagsByItemIds([recordIdNum], tags, env))) {
       return jsonResponse({ message: 'Unable to update remaining inventory item tags.' }, 500);
     }
+    if (!(await dbUpsertInventoryAddtl(recordIdNum, { fixed_shipping_amount: fixedShippingAmount }, env))) {
+      return jsonResponse({ message: 'Unable to update remaining inventory item shipping settings.' }, 500);
+    }
 
     const soldCcgNumber = await generateUniqueCcgNumber(env);
     if (!soldCcgNumber) return jsonResponse({ message: 'Unable to generate sold item CCG Number. Please try again.' }, 500);
@@ -445,7 +448,6 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       sale_price: salePrice,
       condition: condition || null,
       allow_shipping: allowShipping ? 1 : 0,
-      fixed_shipping_amount: fixedShippingAmount,
       sales_tax_included: salesTaxIncluded ? 1 : 0,
       sale_description: saleDescription || null,
       clearance: clearance ? 1 : 0,
@@ -553,7 +555,6 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       sale_price: salePrice,
       condition: condition || null,
       allow_shipping: allowShipping ? 1 : 0,
-      fixed_shipping_amount: fixedShippingAmount,
       sales_tax_included: salesTaxIncluded ? 1 : 0,
       sale_description: saleDescription || null,
       clearance: clearance ? 1 : 0,
@@ -594,6 +595,9 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
     }
     if (!(await dbReplaceInventoryTagsByItemIds([Number(soldInsert.firstId)], tags, env))) {
       return jsonResponse({ message: 'Sold inventory item was created, but its tags failed to save.' }, 500);
+    }
+    if (!(await dbUpsertInventoryAddtl(Number(soldInsert.firstId), { fixed_shipping_amount: fixedShippingAmount }, env))) {
+      return jsonResponse({ message: 'Sold inventory item was created, but its shipping settings failed to save.' }, 500);
     }
 
     await insertActivityLogBestEffort(env, {
@@ -677,7 +681,6 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
     sale_price: salePrice,
     condition: condition || null,
     allow_shipping: allowShipping ? 1 : 0,
-    fixed_shipping_amount: fixedShippingAmount,
     sales_tax_included: salesTaxIncluded ? 1 : 0,
     sale_description: saleDescription || null,
     clearance: clearance ? 1 : 0,
@@ -723,6 +726,9 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
   }
   if (!(await dbReplaceInventoryTagsByItemIds([Number.parseInt(recordId, 10)], tags, env))) {
     return jsonResponse({ message: 'Unable to update inventory item tags.' }, 500);
+  }
+  if (!(await dbUpsertInventoryAddtl(Number.parseInt(recordId, 10), { fixed_shipping_amount: fixedShippingAmount }, env))) {
+    return jsonResponse({ message: 'Unable to update inventory item shipping settings.' }, 500);
   }
 
   // Sold cascade logic
