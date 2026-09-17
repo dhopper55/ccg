@@ -169,8 +169,10 @@ export async function createStripeCheckoutSession(input: {
   stripeSecretKey: string;
   orderId: string;
   orderNumber: string;
-  successUrl: string;
-  cancelUrl: string;
+  uiMode?: 'hosted' | 'embedded';
+  successUrl?: string;
+  cancelUrl?: string;
+  returnUrl?: string;
   couponCode: string | null;
   discountCents: number;
   shippingStatus: string;
@@ -192,11 +194,19 @@ export async function createStripeCheckoutSession(input: {
     unitAmountCents: number;
     imageUrl: string;
   }>;
-}): Promise<{ id: string; url: string }> {
+}): Promise<{ id: string; url?: string; clientSecret?: string }> {
+  const uiMode = input.uiMode ?? 'hosted';
   const form = new URLSearchParams();
   form.set('mode', 'payment');
-  form.set('success_url', input.successUrl);
-  form.set('cancel_url', input.cancelUrl);
+  if (uiMode === 'embedded') {
+    form.set('ui_mode', 'embedded');
+    if (!input.returnUrl) throw new Error('returnUrl is required for embedded checkout sessions.');
+    form.set('return_url', input.returnUrl);
+  } else {
+    if (!input.successUrl || !input.cancelUrl) throw new Error('successUrl and cancelUrl are required for hosted checkout sessions.');
+    form.set('success_url', input.successUrl);
+    form.set('cancel_url', input.cancelUrl);
+  }
   form.set('client_reference_id', input.orderId);
   form.set('metadata[order_id]', input.orderId);
   form.set('metadata[order_number]', input.orderNumber);
@@ -292,8 +302,14 @@ export async function createStripeCheckoutSession(input: {
     throw new Error(normalizeText(data?.error?.message, 'Stripe rejected the checkout request.'));
   }
   const id = normalizeText(data?.id, '');
+  if (!id) throw new Error('Stripe did not return a checkout session id.');
+  if (uiMode === 'embedded') {
+    const clientSecret = normalizeText(data?.client_secret, '');
+    if (!clientSecret) throw new Error('Stripe did not return a checkout client secret.');
+    return { id, clientSecret };
+  }
   const url = normalizeText(data?.url, '');
-  if (!id || !url) throw new Error('Stripe did not return a checkout URL.');
+  if (!url) throw new Error('Stripe did not return a checkout URL.');
   return { id, url };
 }
 

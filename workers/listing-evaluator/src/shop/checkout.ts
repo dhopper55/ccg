@@ -25,7 +25,7 @@ export {
 } from './checkout-terminal.js';
 
 export async function handleShopCreateCheckoutSession(request: Request, env: Env): Promise<Response> {
-  const { secretKey: stripeSecretKey, useSandbox } = await getStripeRuntimeConfig(env);
+  const { secretKey: stripeSecretKey, publishableKey, useSandbox } = await getStripeRuntimeConfig(env);
   if (!stripeSecretKey) {
     return jsonResponse({ message: 'Stripe checkout is not configured.' }, 503);
   }
@@ -78,6 +78,8 @@ export async function handleShopCreateCheckoutSession(request: Request, env: Env
   const successUrl = `${baseUrl}${SHOP_BASE_PATH}/checkout/success?order=${encodeURIComponent(orderId)}`;
   const cancelUrl = `${baseUrl}${SHOP_BASE_PATH}/cart`;
   const channel = includeInStoreOnly ? 'in_store' : 'online';
+  const useEmbedded = !includeInStoreOnly && !isSplitTender;
+  const returnUrl = `${successUrl}&session_id={CHECKOUT_SESSION_ID}`;
 
   try {
     await dbCreateCheckoutOrder({
@@ -88,7 +90,7 @@ export async function handleShopCreateCheckoutSession(request: Request, env: Env
       fulfillmentType,
       checkoutType: 'stripe',
       checkoutProvider: isSplitTender ? 'stripe_cash' : 'stripe',
-      checkoutMode: 'hosted_checkout',
+      checkoutMode: useEmbedded ? 'embedded_checkout' : 'hosted_checkout',
       subtotalCents: draft.subtotalCents,
       discountCents: draft.discountCents,
       couponCode: draft.couponCode,
@@ -111,8 +113,10 @@ export async function handleShopCreateCheckoutSession(request: Request, env: Env
       stripeSecretKey,
       orderId,
       orderNumber,
-      successUrl,
-      cancelUrl,
+      uiMode: useEmbedded ? 'embedded' : 'hosted',
+      successUrl: useEmbedded ? undefined : successUrl,
+      cancelUrl: useEmbedded ? undefined : cancelUrl,
+      returnUrl: useEmbedded ? returnUrl : undefined,
       items: draft.items,
       couponCode: draft.couponCode,
       discountCents: draft.discountCents,
@@ -149,6 +153,18 @@ export async function handleShopCreateCheckoutSession(request: Request, env: Env
     }
 
     await dbAttachStripeCheckoutSession(orderId, stripeSession.id, env);
+
+    if (useEmbedded) {
+      if (!stripeSession.clientSecret) {
+        throw new Error('Stripe did not return a checkout client secret.');
+      }
+      return jsonResponse({
+        orderId,
+        orderNumber,
+        clientSecret: stripeSession.clientSecret,
+        publishableKey,
+      });
+    }
 
     if (!stripeSession.url) {
       throw new Error('Stripe did not return a checkout URL.');

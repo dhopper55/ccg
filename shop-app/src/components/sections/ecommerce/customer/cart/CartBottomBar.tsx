@@ -17,6 +17,7 @@ import { useSnackbar } from 'notistack';
 import { useAssociateMode } from 'providers/AssociateModeProvider';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
 import { useEcommerce } from 'providers/EcommerceProvider';
+import EmbeddedCheckoutDialog from './EmbeddedCheckoutDialog';
 
 const cashOrderNumberStorageKey = 'ccg-last-cash-order-number';
 const terminalCustomerStorageKey = 'ccg-terminal-customer';
@@ -98,6 +99,7 @@ const CartBottomBar = () => {
   const { currencyFormat } = useNumberFormat();
   const { enqueueSnackbar } = useSnackbar();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [embeddedCheckout, setEmbeddedCheckout] = useState<{ clientSecret: string; publishableKey: string } | null>(null);
   const [isCashCheckingOut, setIsCashCheckingOut] = useState(false);
   const [splitTenderOpen, setSplitTenderOpen] = useState(false);
   const [splitCardAmount, setSplitCardAmount] = useState('0.00');
@@ -186,13 +188,25 @@ const CartBottomBar = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(buildCheckoutPayload()),
       });
-      const data = (await response.json()) as { url?: string; orderNumber?: string; message?: string };
+      const data = (await response.json()) as {
+        url?: string;
+        clientSecret?: string;
+        publishableKey?: string;
+        orderNumber?: string;
+        message?: string;
+      };
 
-      if (!response.ok || !data.url) {
+      if (!response.ok || (!data.url && !data.clientSecret)) {
         throw new Error(data.message || 'Unable to start checkout.');
       }
 
-      window.location.assign(data.url);
+      if (data.clientSecret && data.publishableKey) {
+        setEmbeddedCheckout({ clientSecret: data.clientSecret, publishableKey: data.publishableKey });
+        setIsCheckingOut(false);
+        return;
+      }
+
+      window.location.assign(data.url!);
     } catch (error) {
       enqueueSnackbar(error instanceof Error ? error.message : 'Unable to start checkout.', {
         variant: 'error',
@@ -867,6 +881,12 @@ const CartBottomBar = () => {
         </DialogActions>
       </Box>
     </Dialog>
+    <EmbeddedCheckoutDialog
+      open={!!embeddedCheckout}
+      clientSecret={embeddedCheckout?.clientSecret ?? null}
+      publishableKey={embeddedCheckout?.publishableKey ?? null}
+      onClose={() => setEmbeddedCheckout(null)}
+    />
     </>
   );
 };
