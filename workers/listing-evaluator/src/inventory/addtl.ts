@@ -38,3 +38,25 @@ export async function dbGetInventoryAddtl(inventoryItemId: number, env: Env): Pr
   ).bind(inventoryItemId).first<InventoryItemAddtlRow>();
   return row ?? null;
 }
+
+// Batched lookup for list queries — avoids N+1 and, more importantly, avoids
+// joining this table into the main inventory queries, several of which are
+// already at D1's 100-column-per-result-set limit.
+export async function dbGetInventoryAddtlForIds(
+  inventoryItemIds: number[],
+  env: Env,
+): Promise<Map<number, InventoryItemAddtlRow>> {
+  const ids = inventoryItemIds.filter((id) => Number.isFinite(id));
+  const map = new Map<number, InventoryItemAddtlRow>();
+  if (ids.length === 0) return map;
+  const placeholders = ids.map(() => '?').join(', ');
+  const result = await env.DB.prepare(
+    `SELECT inventory_item_id, fixed_shipping_amount
+     FROM ccg_inventory_items_addtl
+     WHERE inventory_item_id IN (${placeholders})`
+  ).bind(...ids).all<InventoryItemAddtlRow>();
+  for (const row of result.results ?? []) {
+    map.set(row.inventory_item_id, row);
+  }
+  return map;
+}

@@ -26,7 +26,6 @@ export type InventoryItemRow = {
   sale_price: number | null;
   condition: string | null;
   allow_shipping: number | null;
-  fixed_shipping_amount: number | null;
   sales_tax_included: number | null;
   sale_description: string | null;
   clearance: number | null;
@@ -243,10 +242,11 @@ export type ShopProductRow = {
   clearance?: number | null;
   condition: string | null;
   allow_shipping?: number | null;
-  fixed_shipping_amount?: number | null;
   sales_tax_included?: number | null;
   sale_description?: string | null;
   bullet_1_text?: string | null;
+  // fixed_shipping_amount lives in ccg_inventory_items_addtl, not on this row —
+  // see dbGetInventoryAddtl in inventory/addtl.ts.
   bullet_1_danger?: number | null;
   bullet_1_highlight?: number | null;
   bullet_2_text?: string | null;

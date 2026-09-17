@@ -4,6 +4,7 @@ import type { ShopCheckoutInventoryRow } from '../types/orders.js';
 import { normalizeText, expandInventoryCategoryIds, parseOptionalPositiveInt } from '../utils/misc.js';
 import { toPublicShopImageUrl, parseStoredInventoryImageUrls } from '../utils/image.js';
 import { getInventoryCategoryLabel, dbListInventoryCategories } from '../inventory/categories.js';
+import { dbGetInventoryAddtl } from '../inventory/addtl.js';
 import { getShopRuntimeSettings } from '../system/runtime.js';
 import {
   INVENTORY_CATEGORY_SELECT_SQL,
@@ -632,7 +633,6 @@ export async function dbGetShopProductDetail(
        i.sale_price,
        i.clearance,
        i.allow_shipping,
-       COALESCE(ia.fixed_shipping_amount, 0) AS fixed_shipping_amount,
        i.sales_tax_included,
        i.only_in_store,
        i."condition",
@@ -660,7 +660,6 @@ export async function dbGetShopProductDetail(
        i.is_sold
      FROM ccg_inventory_items i
      ${INVENTORY_CATEGORY_JOIN_SQL}
-     LEFT JOIN ccg_inventory_items_addtl ia ON ia.inventory_item_id = i.id
      WHERE ${lookupClause}
        AND COALESCE(i.is_active, 0) = 1
        ${options.includeInStoreOnly ? '' : 'AND COALESCE(i.only_in_store, 0) = 0'}
@@ -695,6 +694,7 @@ export async function dbGetShopProductDetail(
     { text: normalizeText(row.bullet_6_text, ''), danger: Boolean(row.bullet_6_danger), highlight: Boolean(row.bullet_6_highlight) },
   ].filter((item) => item.text);
   const saleDescriptionPostfix = (await getShopRuntimeSettings(env)).saleDescriptionPostfix;
+  const addtl = await dbGetInventoryAddtl(row.id, env);
 
   return {
     id: String(row.id),
@@ -716,7 +716,7 @@ export async function dbGetShopProductDetail(
     salePrice: row.sale_price ?? 0,
     clearance: Boolean(row.clearance),
     allowShipping: Boolean(row.allow_shipping),
-    fixedShippingAmount: row.fixed_shipping_amount ?? 0,
+    fixedShippingAmount: addtl?.fixed_shipping_amount ?? 0,
     salesTaxIncluded: Boolean(row.sales_tax_included),
     onlyInStore: Boolean(row.only_in_store),
     category: getInventoryCategoryLabel(row),

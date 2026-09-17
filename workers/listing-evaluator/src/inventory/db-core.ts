@@ -5,6 +5,8 @@ import { INVENTORY_UNIT_COST_BASIS_SQL } from '../types/inventory.js';
 import { parseStoredInventoryImageUrls } from './db-images.js';
 import { dbListInventoryImagesForItemIds, dbListInventoryTagsForItemIds } from './db-write.js';
 import { toAdminImageUrl } from '../utils/image.js';
+import { dbGetInventoryAddtl, dbGetInventoryAddtlForIds } from './addtl.js';
+import type { InventoryItemAddtlRow } from './addtl.js';
 
 export const INVENTORY_QUEUE_OPTIONS = new Set([
   'Triage',
@@ -161,6 +163,7 @@ export function inventoryFilterClause(filters: Pick<InventoryListFilters, 'categ
 
 export function mapInventoryRow(
   row: InventoryItemRow & { source_listing_price_asking?: number | null },
+  addtlMap?: Map<number, InventoryItemAddtlRow>,
 ): Record<string, unknown> {
   return {
     id: String(row.id),
@@ -189,7 +192,7 @@ export function mapInventoryRow(
     salePrice: row.sale_price ?? 0,
     condition: row.condition || '',
     allowShipping: Boolean(row.allow_shipping),
-    fixedShippingAmount: row.fixed_shipping_amount ?? 0,
+    fixedShippingAmount: addtlMap?.get(row.id)?.fixed_shipping_amount ?? 0,
     salesTaxIncluded: Boolean(row.sales_tax_included),
     saleDescription: row.sale_description || '',
     barcode: row.barcode || '',
@@ -268,7 +271,6 @@ export async function dbListInventoryItems(
        i.sale_price,
        i.condition,
        i.allow_shipping,
-       COALESCE(ia.fixed_shipping_amount, 0) AS fixed_shipping_amount,
        i.sales_tax_included,
        i.sale_description,
        i.barcode,
@@ -305,7 +307,6 @@ export async function dbListInventoryItems(
      FROM ccg_inventory_items i
      ${INVENTORY_CATEGORY_JOIN_SQL}
      LEFT JOIN listings l ON l.id = i.source_listing_id
-     LEFT JOIN ccg_inventory_items_addtl ia ON ia.inventory_item_id = i.id
      WHERE ${clause.sql}
      ORDER BY ${orderBy}
      LIMIT ? OFFSET ?`
@@ -313,8 +314,11 @@ export async function dbListInventoryItems(
     source_listing_price_asking: number | null;
   }>();
 
+  const rows = result.results ?? [];
+  const addtlMap = await dbGetInventoryAddtlForIds(rows.map((row) => row.id), env);
+
   return {
-    records: (result.results ?? []).map((row) => mapInventoryRow(row)),
+    records: rows.map((row) => mapInventoryRow(row, addtlMap)),
     total,
     page: safePage,
     limit: filters.limit,
@@ -365,7 +369,6 @@ export async function dbGetInventoryItem(recordId: string, env: Env): Promise<Re
       i.sale_price,
       i."condition",
       i.allow_shipping,
-      COALESCE(ia.fixed_shipping_amount, 0) AS fixed_shipping_amount,
       i.sales_tax_included,
       i.sale_description,
       i.clearance,
@@ -442,7 +445,6 @@ export async function dbGetInventoryItem(recordId: string, env: Env): Promise<Re
       i.updated_at
      FROM ccg_inventory_items i
      ${INVENTORY_CATEGORY_JOIN_SQL}
-     LEFT JOIN ccg_inventory_items_addtl ia ON ia.inventory_item_id = i.id
      WHERE i.id = ?`
   ).bind(idValue).first<InventoryItemRow>();
   if (!row) return null;
@@ -453,6 +455,7 @@ export async function dbGetInventoryItem(recordId: string, env: Env): Promise<Re
     : parseStoredInventoryImageUrls(row.image_urls, row.image_url);
   const storedTags = await dbListInventoryTagsForItemIds([row.id], env);
   const tags = storedTags.get(row.id) ?? [];
+  const addtl = await dbGetInventoryAddtl(row.id, env);
   return {
     id: String(row.id),
     sourceListingId: row.source_listing_id != null ? String(row.source_listing_id) : null,
@@ -482,7 +485,7 @@ export async function dbGetInventoryItem(recordId: string, env: Env): Promise<Re
     salePrice: row.sale_price ?? 0,
     condition: row.condition || '',
     allowShipping: Boolean(row.allow_shipping),
-    fixedShippingAmount: row.fixed_shipping_amount ?? 0,
+    fixedShippingAmount: addtl?.fixed_shipping_amount ?? 0,
     salesTaxIncluded: Boolean(row.sales_tax_included),
     saleDescription: row.sale_description || '',
     clearance: Boolean(row.clearance),
