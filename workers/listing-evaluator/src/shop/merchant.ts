@@ -23,6 +23,7 @@ export type GoogleMerchantFeedProduct = {
   productType: string;
   shippingWeight: string;
   allowShipping: boolean;
+  fixedShippingAmount: number;
   googleProductCategory: string;
 };
 
@@ -165,7 +166,7 @@ export function renderGoogleMerchantFeedItem(product: GoogleMerchantFeedProduct)
       '      <g:shipping>',
       '        <g:country>US</g:country>',
       '        <g:service>Standard</g:service>',
-      `        <g:price>${formatMerchantPrice(0)}</g:price>`,
+      `        <g:price>${formatMerchantPrice(product.fixedShippingAmount)}</g:price>`,
       '      </g:shipping>',
       '      <g:shipping_label>ships_nationwide</g:shipping_label>',
     );

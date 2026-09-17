@@ -283,12 +283,6 @@ type FormState = {
 };
 
 const INVENTORY_MAX_IMAGES = 20;
-const GUITAR_CATEGORY_NAMES = new Set([
-  'Acoustic Bass',
-  'Acoustic Guitars',
-  'Electric Bass',
-  'Electric Guitars',
-]);
 
 const SALE_CONDITION_OPTIONS = [
   '',
@@ -3978,8 +3972,7 @@ const InventoryItem = () => {
                 </Paper>
               </Grid>
 
-              {GUITAR_CATEGORY_NAMES.has(selectedCategoryName) ? (
-                <>
+              <>
                   <Grid size={12}>
                     <Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: 0.6 }}>
                       Guitar Specs
@@ -4056,7 +4049,6 @@ const InventoryItem = () => {
                     />
                   </Grid>
                 </>
-              ) : null}
 
               <Grid size={12}>
                 <Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: 0.6 }}>

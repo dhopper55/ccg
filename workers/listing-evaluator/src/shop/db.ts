@@ -542,6 +542,11 @@ export async function dbListGoogleMerchantProducts(env: Env): Promise<GoogleMerc
        i.id DESC`
   ).all<ShopProductRow & { feed_image_urls: string | null }>();
 
+  const addtlMap = await dbGetInventoryAddtlForIds(
+    (result.results ?? []).map((row) => row.id),
+    env,
+  );
+
   return (result.results ?? []).map((row) => {
     const title = normalizeText(row.sale_title, '') || normalizeText(row.title, '');
     const link = buildMerchantProductLink(row, baseUrl);
@@ -582,6 +587,7 @@ export async function dbListGoogleMerchantProducts(env: Env): Promise<GoogleMerc
       productType,
       shippingWeight,
       allowShipping: Boolean(row.allow_shipping),
+      fixedShippingAmount: addtlMap.get(row.id)?.fixed_shipping_amount ?? 0,
       googleProductCategory: MERCHANT_CENTER_CATEGORY_MAP[normalizeText(row.merchant_center_cat_code, '')] ?? '',
     };
   }).filter((record): record is GoogleMerchantFeedProduct => Boolean(record));
