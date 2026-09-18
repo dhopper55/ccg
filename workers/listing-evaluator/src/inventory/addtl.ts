@@ -42,6 +42,12 @@ export async function dbGetInventoryAddtl(inventoryItemId: number, env: Env): Pr
 // Batched lookup for list queries — avoids N+1 and, more importantly, avoids
 // joining this table into the main inventory queries, several of which are
 // already at D1's 100-column-per-result-set limit.
+//
+// D1/SQLite also caps bound parameters per query at ~100, so a caller with a
+// large id list (e.g. the full active-inventory feed) is chunked into
+// multiple queries here rather than pushing that constraint onto every caller.
+const SQL_VARIABLE_CHUNK_SIZE = 100;
+
 export async function dbGetInventoryAddtlForIds(
   inventoryItemIds: number[],
   env: Env,
@@ -49,14 +55,18 @@ export async function dbGetInventoryAddtlForIds(
   const ids = inventoryItemIds.filter((id) => Number.isFinite(id));
   const map = new Map<number, InventoryItemAddtlRow>();
   if (ids.length === 0) return map;
-  const placeholders = ids.map(() => '?').join(', ');
-  const result = await env.DB.prepare(
-    `SELECT inventory_item_id, fixed_shipping_amount
-     FROM ccg_inventory_items_addtl
-     WHERE inventory_item_id IN (${placeholders})`
-  ).bind(...ids).all<InventoryItemAddtlRow>();
-  for (const row of result.results ?? []) {
-    map.set(row.inventory_item_id, row);
+
+  for (let offset = 0; offset < ids.length; offset += SQL_VARIABLE_CHUNK_SIZE) {
+    const chunk = ids.slice(offset, offset + SQL_VARIABLE_CHUNK_SIZE);
+    const placeholders = chunk.map(() => '?').join(', ');
+    const result = await env.DB.prepare(
+      `SELECT inventory_item_id, fixed_shipping_amount
+       FROM ccg_inventory_items_addtl
+       WHERE inventory_item_id IN (${placeholders})`
+    ).bind(...chunk).all<InventoryItemAddtlRow>();
+    for (const row of result.results ?? []) {
+      map.set(row.inventory_item_id, row);
+    }
   }
   return map;
 }

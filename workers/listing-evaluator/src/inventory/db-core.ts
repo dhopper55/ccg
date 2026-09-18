@@ -35,6 +35,7 @@ export type InventoryListFilters = {
   active: InventoryTriState;
   marked: InventoryTriState;
   personal: InventoryTriState;
+  shipping: InventoryTriState;
   tagReprint: boolean;
   page: number;
   limit: number;
@@ -118,7 +119,7 @@ export function inventoryOrderBySql(sortBy: InventorySortKey, sortDir: Inventory
   }
 }
 
-export function inventoryFilterClause(filters: Pick<InventoryListFilters, 'categoryId' | 'brand' | 'queue' | 'sold' | 'active' | 'marked' | 'personal' | 'tagReprint'>): { sql: string; binds: unknown[] } {
+export function inventoryFilterClause(filters: Pick<InventoryListFilters, 'categoryId' | 'brand' | 'queue' | 'sold' | 'active' | 'marked' | 'personal' | 'shipping' | 'tagReprint'>): { sql: string; binds: unknown[] } {
   const clauses: string[] = ['1 = 1'];
   const binds: unknown[] = [];
 
@@ -151,6 +152,10 @@ export function inventoryFilterClause(filters: Pick<InventoryListFilters, 'categ
   if (filters.personal !== 'all') {
     clauses.push('COALESCE(i.is_personal, 0) = ?');
     binds.push(filters.personal === 'yes' ? 1 : 0);
+  }
+  if (filters.shipping !== 'all') {
+    clauses.push('COALESCE(i.allow_shipping, 0) = ?');
+    binds.push(filters.shipping === 'yes' ? 1 : 0);
   }
   if (filters.tagReprint) {
     clauses.push('COALESCE(i.tag_reprint, 0) = 1');
@@ -327,7 +332,7 @@ export async function dbListInventoryItems(
 }
 
 export async function dbListInventoryBrands(
-  filters: Pick<InventoryListFilters, 'categoryId' | 'sold' | 'active' | 'marked' | 'personal' | 'queue' | 'tagReprint'>,
+  filters: Pick<InventoryListFilters, 'categoryId' | 'sold' | 'active' | 'marked' | 'personal' | 'shipping' | 'queue' | 'tagReprint'>,
   env: Env,
 ): Promise<string[]> {
   const clause = inventoryFilterClause({ ...filters, brand: '' });

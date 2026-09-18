@@ -79,6 +79,7 @@ type InventoryFilters = {
   active: 'all' | 'yes' | 'no';
   marked: 'all' | 'yes' | 'no';
   personal: 'all' | 'yes' | 'no';
+  shipping: '' | 'yes' | 'no';
   tagReprint: boolean;
 };
 
@@ -112,6 +113,7 @@ const DEFAULT_FILTERS: InventoryFilters = {
   active: 'yes',
   marked: 'all',
   personal: 'all',
+  shipping: '',
   tagReprint: false,
 };
 
@@ -186,6 +188,11 @@ const InventoryManager = () => {
       : searchParams.get('personal') === 'no'
         ? 'no'
         : 'all',
+    shipping: searchParams.get('shipping') === 'yes'
+      ? 'yes'
+      : searchParams.get('shipping') === 'no'
+        ? 'no'
+        : '',
     tagReprint: searchParams.get('tagReprint') === '1' || searchParams.get('tagReprint') === 'true',
   }));
   const [page, setPage] = useState(() => {
@@ -247,6 +254,7 @@ const InventoryManager = () => {
     if (filters.active !== 'yes') nextParams.set('active', filters.active);
     if (filters.marked !== 'all') nextParams.set('marked', filters.marked);
     if (filters.personal !== 'all') nextParams.set('personal', filters.personal);
+    if (filters.shipping) nextParams.set('shipping', filters.shipping);
     if (filters.tagReprint) nextParams.set('tagReprint', '1');
 
     if (nextParams.toString() !== searchParams.toString()) {
@@ -317,6 +325,7 @@ const InventoryManager = () => {
         params.set('active', filters.active);
         params.set('marked', filters.marked);
         params.set('personal', filters.personal);
+        if (filters.shipping) params.set('shipping', filters.shipping);
         if (filters.tagReprint) params.set('tagReprint', '1');
         if (filters.categoryId) params.set('categoryId', filters.categoryId);
         if (filters.brand) params.set('brand', filters.brand);
@@ -1213,6 +1222,21 @@ const InventoryManager = () => {
                           <MenuItem value="Sold">Sold</MenuItem>
                           <MenuItem value="Rented">Rented</MenuItem>
                           <MenuItem value="Parking Lot">Parking Lot</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+
+                    <Grid size={{ xs: 12 }}>
+                      <FormControl fullWidth sx={FILTER_CONTROL_SX}>
+                        <Select
+                          displayEmpty
+                          value={filters.shipping}
+                          onChange={(event) => handleFilterChange('shipping', event.target.value as InventoryFilters['shipping'])}
+                          inputProps={{ 'aria-label': 'Shipping filter' }}
+                        >
+                          <MenuItem value="">Shipping</MenuItem>
+                          <MenuItem value="yes">Allow</MenuItem>
+                          <MenuItem value="no">Don't Allow</MenuItem>
                         </Select>
                       </FormControl>
                     </Grid>
