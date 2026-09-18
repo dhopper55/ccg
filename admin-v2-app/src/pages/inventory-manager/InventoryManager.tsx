@@ -80,6 +80,7 @@ type InventoryFilters = {
   marked: 'all' | 'yes' | 'no';
   personal: 'all' | 'yes' | 'no';
   shipping: '' | 'yes' | 'no';
+  salesChannel: '' | 'ccg_only' | 'ccg_fbm' | 'ccg_reverb' | 'not_ccg';
   tagReprint: boolean;
 };
 
@@ -114,6 +115,7 @@ const DEFAULT_FILTERS: InventoryFilters = {
   marked: 'all',
   personal: 'all',
   shipping: '',
+  salesChannel: '',
   tagReprint: false,
 };
 
@@ -193,6 +195,11 @@ const InventoryManager = () => {
       : searchParams.get('shipping') === 'no'
         ? 'no'
         : '',
+    salesChannel: (['ccg_only', 'ccg_fbm', 'ccg_reverb', 'not_ccg'] as readonly string[]).includes(
+      searchParams.get('salesChannel') || '',
+    )
+      ? (searchParams.get('salesChannel') as InventoryFilters['salesChannel'])
+      : '',
     tagReprint: searchParams.get('tagReprint') === '1' || searchParams.get('tagReprint') === 'true',
   }));
   const [page, setPage] = useState(() => {
@@ -255,6 +262,7 @@ const InventoryManager = () => {
     if (filters.marked !== 'all') nextParams.set('marked', filters.marked);
     if (filters.personal !== 'all') nextParams.set('personal', filters.personal);
     if (filters.shipping) nextParams.set('shipping', filters.shipping);
+    if (filters.salesChannel) nextParams.set('salesChannel', filters.salesChannel);
     if (filters.tagReprint) nextParams.set('tagReprint', '1');
 
     if (nextParams.toString() !== searchParams.toString()) {
@@ -326,6 +334,7 @@ const InventoryManager = () => {
         params.set('marked', filters.marked);
         params.set('personal', filters.personal);
         if (filters.shipping) params.set('shipping', filters.shipping);
+        if (filters.salesChannel) params.set('salesChannel', filters.salesChannel);
         if (filters.tagReprint) params.set('tagReprint', '1');
         if (filters.categoryId) params.set('categoryId', filters.categoryId);
         if (filters.brand) params.set('brand', filters.brand);
@@ -1237,6 +1246,23 @@ const InventoryManager = () => {
                           <MenuItem value="">Shipping</MenuItem>
                           <MenuItem value="yes">Allow</MenuItem>
                           <MenuItem value="no">Don't Allow</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+
+                    <Grid size={{ xs: 12 }}>
+                      <FormControl fullWidth sx={FILTER_CONTROL_SX}>
+                        <Select
+                          displayEmpty
+                          value={filters.salesChannel}
+                          onChange={(event) => handleFilterChange('salesChannel', event.target.value as InventoryFilters['salesChannel'])}
+                          inputProps={{ 'aria-label': 'Sales channel filter' }}
+                        >
+                          <MenuItem value="">Sales Channels</MenuItem>
+                          <MenuItem value="ccg_only">CCG Only</MenuItem>
+                          <MenuItem value="ccg_fbm">CCG & FBM</MenuItem>
+                          <MenuItem value="ccg_reverb">CCG & Reverb</MenuItem>
+                          <MenuItem value="not_ccg">Not On CCG</MenuItem>
                         </Select>
                       </FormControl>
                     </Grid>

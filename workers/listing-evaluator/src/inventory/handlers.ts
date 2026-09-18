@@ -3,7 +3,7 @@ import { normalizeText } from '../utils/text.js';
 import { jsonResponse } from '../utils/misc.js';
 import { dbListInventoryItems } from './db-core.js';
 import { dbListInventoryBrands } from './db-core.js';
-import { normalizeInventoryQueue, parseInventoryTriState, parseInventorySortKey, parseInventorySortDir } from './db-core.js';
+import { normalizeInventoryQueue, parseInventoryTriState, parseInventorySortKey, parseInventorySortDir, parseInventorySalesChannelFilter } from './db-core.js';
 import { generateUniqueCcgNumber } from './db-write.js';
 import { dbGetInventorySummary } from './db-write.js';
 
@@ -40,12 +40,13 @@ export async function handleInventoryList(request: Request, env: Env): Promise<R
   const marked = parseInventoryTriState(url.searchParams.get('marked') ?? url.searchParams.get('onlyMarked'), 'all');
   const personal = parseInventoryTriState(url.searchParams.get('personal') ?? url.searchParams.get('onlyPersonal'), 'all');
   const shipping = parseInventoryTriState(url.searchParams.get('shipping'), 'all');
+  const salesChannel = parseInventorySalesChannelFilter(url.searchParams.get('salesChannel'));
   const tagReprintParam = url.searchParams.get('tagReprint');
   const tagReprint = tagReprintParam === '1' || tagReprintParam === 'true' || tagReprintParam === 'yes';
   const sortBy = parseInventorySortKey(url.searchParams.get('sortBy'));
   const sortDir = parseInventorySortDir(url.searchParams.get('sortDir'));
 
-  const availableBrands = await dbListInventoryBrands({ categoryId, sold, active, marked, personal, shipping, queue, tagReprint }, env);
+  const availableBrands = await dbListInventoryBrands({ categoryId, sold, active, marked, personal, shipping, salesChannel, queue, tagReprint }, env);
 
   const result = await dbListInventoryItems({
     categoryId,
@@ -56,6 +57,7 @@ export async function handleInventoryList(request: Request, env: Env): Promise<R
     marked,
     personal,
     shipping,
+    salesChannel,
     tagReprint,
     page,
     limit,

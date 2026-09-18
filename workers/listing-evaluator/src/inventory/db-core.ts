@@ -24,6 +24,18 @@ export function normalizeInventoryQueue(input: unknown): string {
 }
 
 export type InventoryTriState = 'all' | 'yes' | 'no';
+export type InventorySalesChannelFilter = '' | 'ccg_only' | 'ccg_fbm' | 'ccg_reverb' | 'not_ccg';
+const INVENTORY_SALES_CHANNEL_FILTERS = new Set<InventorySalesChannelFilter>([
+  'ccg_only',
+  'ccg_fbm',
+  'ccg_reverb',
+  'not_ccg',
+]);
+
+export function parseInventorySalesChannelFilter(input: string | null): InventorySalesChannelFilter {
+  const normalized = (input || '').trim().toLowerCase() as InventorySalesChannelFilter;
+  return INVENTORY_SALES_CHANNEL_FILTERS.has(normalized) ? normalized : '';
+}
 export type InventorySortKey = 'ccgNumber' | 'title' | 'paid' | 'private' | 'soldPrice' | 'addDate' | 'updateDate';
 export type InventorySortDir = 'asc' | 'desc';
 
@@ -36,6 +48,7 @@ export type InventoryListFilters = {
   marked: InventoryTriState;
   personal: InventoryTriState;
   shipping: InventoryTriState;
+  salesChannel: InventorySalesChannelFilter;
   tagReprint: boolean;
   page: number;
   limit: number;
@@ -119,7 +132,7 @@ export function inventoryOrderBySql(sortBy: InventorySortKey, sortDir: Inventory
   }
 }
 
-export function inventoryFilterClause(filters: Pick<InventoryListFilters, 'categoryId' | 'brand' | 'queue' | 'sold' | 'active' | 'marked' | 'personal' | 'shipping' | 'tagReprint'>): { sql: string; binds: unknown[] } {
+export function inventoryFilterClause(filters: Pick<InventoryListFilters, 'categoryId' | 'brand' | 'queue' | 'sold' | 'active' | 'marked' | 'personal' | 'shipping' | 'salesChannel' | 'tagReprint'>): { sql: string; binds: unknown[] } {
   const clauses: string[] = ['1 = 1'];
   const binds: unknown[] = [];
 
@@ -156,6 +169,27 @@ export function inventoryFilterClause(filters: Pick<InventoryListFilters, 'categ
   if (filters.shipping !== 'all') {
     clauses.push('COALESCE(i.allow_shipping, 0) = ?');
     binds.push(filters.shipping === 'yes' ? 1 : 0);
+  }
+  // "On FBM" has no dedicated boolean column — a Facebook Marketplace listing id is
+  // the source of truth for whether an item is currently listed there.
+  const onFbmSql = "TRIM(COALESCE(i.fb_listing_id, '')) <> ''";
+  const onCcgSql = 'COALESCE(i.sales_channel_ccg, 0) = 1';
+  const onReverbSql = 'COALESCE(i.sales_channel_reverb, 0) = 1';
+  switch (filters.salesChannel) {
+    case 'ccg_only':
+      clauses.push(`COALESCE(i.is_active, 0) = 1 AND COALESCE(i.for_sale, 0) = 1 AND ${onCcgSql} AND NOT (${onReverbSql}) AND NOT (${onFbmSql})`);
+      break;
+    case 'ccg_fbm':
+      clauses.push(`COALESCE(i.is_active, 0) = 1 AND COALESCE(i.for_sale, 0) = 1 AND ${onCcgSql} AND ${onFbmSql} AND NOT (${onReverbSql})`);
+      break;
+    case 'ccg_reverb':
+      clauses.push(`COALESCE(i.is_active, 0) = 1 AND COALESCE(i.for_sale, 0) = 1 AND ${onCcgSql} AND ${onReverbSql} AND NOT (${onFbmSql})`);
+      break;
+    case 'not_ccg':
+      clauses.push(`COALESCE(i.is_active, 0) = 1 AND COALESCE(i.for_sale, 0) = 1 AND NOT (${onCcgSql}) AND (${onReverbSql} OR ${onFbmSql})`);
+      break;
+    default:
+      break;
   }
   if (filters.tagReprint) {
     clauses.push('COALESCE(i.tag_reprint, 0) = 1');
@@ -332,7 +366,7 @@ export async function dbListInventoryItems(
 }
 
 export async function dbListInventoryBrands(
-  filters: Pick<InventoryListFilters, 'categoryId' | 'sold' | 'active' | 'marked' | 'personal' | 'shipping' | 'queue' | 'tagReprint'>,
+  filters: Pick<InventoryListFilters, 'categoryId' | 'sold' | 'active' | 'marked' | 'personal' | 'shipping' | 'salesChannel' | 'queue' | 'tagReprint'>,
   env: Env,
 ): Promise<string[]> {
   const clause = inventoryFilterClause({ ...filters, brand: '' });
