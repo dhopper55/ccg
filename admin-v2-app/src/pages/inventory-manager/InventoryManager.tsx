@@ -80,7 +80,7 @@ type InventoryFilters = {
   marked: 'all' | 'yes' | 'no';
   personal: 'all' | 'yes' | 'no';
   shipping: '' | 'yes' | 'no';
-  salesChannel: '' | 'ccg_only' | 'ccg_fbm' | 'ccg_reverb' | 'not_ccg';
+  salesChannel: '' | 'ccg_only' | 'ccg_fbm' | 'ccg_reverb' | 'ccg_fbm_reverb' | 'not_ccg' | 'not_for_sale';
   tagReprint: boolean;
 };
 
@@ -195,7 +195,7 @@ const InventoryManager = () => {
       : searchParams.get('shipping') === 'no'
         ? 'no'
         : '',
-    salesChannel: (['ccg_only', 'ccg_fbm', 'ccg_reverb', 'not_ccg'] as readonly string[]).includes(
+    salesChannel: (['ccg_only', 'ccg_fbm', 'ccg_reverb', 'ccg_fbm_reverb', 'not_ccg', 'not_for_sale'] as readonly string[]).includes(
       searchParams.get('salesChannel') || '',
     )
       ? (searchParams.get('salesChannel') as InventoryFilters['salesChannel'])
@@ -1262,7 +1262,9 @@ const InventoryManager = () => {
                           <MenuItem value="ccg_only">CCG Only</MenuItem>
                           <MenuItem value="ccg_fbm">CCG & FBM</MenuItem>
                           <MenuItem value="ccg_reverb">CCG & Reverb</MenuItem>
+                          <MenuItem value="ccg_fbm_reverb">CCG, FBM, & Reverb</MenuItem>
                           <MenuItem value="not_ccg">Not On CCG</MenuItem>
+                          <MenuItem value="not_for_sale">Not For Sale</MenuItem>
                         </Select>
                       </FormControl>
                     </Grid>

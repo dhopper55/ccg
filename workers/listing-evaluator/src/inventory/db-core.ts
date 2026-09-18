@@ -24,12 +24,14 @@ export function normalizeInventoryQueue(input: unknown): string {
 }
 
 export type InventoryTriState = 'all' | 'yes' | 'no';
-export type InventorySalesChannelFilter = '' | 'ccg_only' | 'ccg_fbm' | 'ccg_reverb' | 'not_ccg';
+export type InventorySalesChannelFilter = '' | 'ccg_only' | 'ccg_fbm' | 'ccg_reverb' | 'ccg_fbm_reverb' | 'not_ccg' | 'not_for_sale';
 const INVENTORY_SALES_CHANNEL_FILTERS = new Set<InventorySalesChannelFilter>([
   'ccg_only',
   'ccg_fbm',
   'ccg_reverb',
+  'ccg_fbm_reverb',
   'not_ccg',
+  'not_for_sale',
 ]);
 
 export function parseInventorySalesChannelFilter(input: string | null): InventorySalesChannelFilter {
@@ -185,8 +187,14 @@ export function inventoryFilterClause(filters: Pick<InventoryListFilters, 'categ
     case 'ccg_reverb':
       clauses.push(`COALESCE(i.is_active, 0) = 1 AND COALESCE(i.for_sale, 0) = 1 AND ${onCcgSql} AND ${onReverbSql} AND NOT (${onFbmSql})`);
       break;
+    case 'ccg_fbm_reverb':
+      clauses.push(`COALESCE(i.is_active, 0) = 1 AND COALESCE(i.for_sale, 0) = 1 AND ${onCcgSql} AND ${onFbmSql} AND ${onReverbSql}`);
+      break;
     case 'not_ccg':
       clauses.push(`COALESCE(i.is_active, 0) = 1 AND COALESCE(i.for_sale, 0) = 1 AND NOT (${onCcgSql}) AND (${onReverbSql} OR ${onFbmSql})`);
+      break;
+    case 'not_for_sale':
+      clauses.push('COALESCE(i.is_active, 0) = 1 AND COALESCE(i.for_sale, 0) = 0');
       break;
     default:
       break;
