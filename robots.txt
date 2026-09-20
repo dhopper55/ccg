@@ -9,6 +9,7 @@ Disallow: /amp_chassis_lot.html
 Disallow: /4a269bb0-3295-4331-9977-1c404be31c2a.html
 Disallow: /7977f2fd-deb6-4574-8294-9274d8157def.html
 Disallow: /4b559d60-a13a-4e0f-8723-40207437e6e8.html
+Disallow: /Gibson_ETG-150_1963_Appraisal.html
 Disallow: /ccg_consignment_agreement.docx
 Allow: /guitars-and-gear-for-sale/assets/
 Disallow: /guitars-and-gear-for-sale/*/
