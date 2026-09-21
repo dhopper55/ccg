@@ -332,3 +332,78 @@ ccg/
 - Notable implementation detail, still true: this create form's fields (Title, Price, Category, Condition, Description) have **no aria-labels at all** — unlike every other FB Marketplace page dealt with so far. They're matched purely by DOM position (`input[type=text]` 0/1 for Title/Price, `[role=combobox]` 1/2 for Category/Condition — position 0 is FB's global search box, easy to grab by mistake). If this ever breaks, suspect a form re-order before suspecting the matching logic.
 
 **Resolved (2026-09-13) — draft photos looked "dull and pixelated" compared to David's own manual save-then-upload workflow.** Root cause confirmed, not guessed: every CCG inventory photo is stored as an iPhone **MPO** file (a multi-frame JPEG container from Portrait mode), not a plain JPEG — verified with Pillow on 3 different stored photos, all `format: MPO`, `n_frames: 2`. Frame 0 is the true full-resolution photo (e.g. 5281×3961 RGB); frame 1 is a much smaller **grayscale depth map** (e.g. 2640×1980, mode `"L"`) used for the bokeh effect — not a real photo at all. `/api/inventory-image` itself does no resizing (confirmed: serves the R2 object byte-for-byte, no `cf-polish`/resize headers), so the raw bytes handed to the upload pipeline were the unmodified MPO file — something downstream (very likely Facebook's own upload/preview handling, since it isn't built to expect a non-standard multi-frame container) was almost certainly reading the depth-map frame instead of the photo. Fixed in `_download_images` (`fbm_client.py`): decode with Pillow, explicitly `.seek(0)` to the primary frame, convert to RGB, and re-save as a clean single-frame JPEG (quality 95) before handing it to Facebook — removes the ambiguity entirely rather than hoping the receiving end picks the right frame. New dependency: `Pillow`.
+
+---
+
+## 10. Delete All / Add All — hard-reset bulk modes (built 2026-09-20)
+
+David started actually shipping FBM sales and found enough CCG/FBM drift (stale links,
+listings the ongoing tool never fully reconciled) to want a hard reset instead of continuing
+to reconcile incrementally: wipe every FB listing and every CCG `fb_listing_id`, then
+deliberately re-list every for-sale CCG item from scratch, reviewing/editing price and
+shipping per item. Two new scripts, independent of `approve.py`/`reconcile.py`, which are
+untouched and still the tool to run for ongoing (non-reset) sync.
+
+**`delete_all.py`:**
+- FB side: `fbm_client.get_active_listings()` (unchanged, reused as-is) enumerates every
+  active listing — **all of them, including David's personal items** (his own call: he'll
+  re-add those by hand rather than have the tool special-case an ignore list on a one-time
+  reset). Prints the full list, requires typing `DELETE ALL` exactly, then calls the new
+  `fbm_client.delete_listing()` per listing — a **permanent delete**, not "mark as sold"
+  (David's explicit choice — irreversible, no recovery). Continues past individual failures
+  and reports them at the end rather than aborting the run.
+- CCG side: loops every inventory item (`for_sale` or not, per spec) via
+  `client.get_all_inventory()`; clears `fb_listing_id` (existing `fb-remove` endpoint,
+  looped — no bulk endpoint needed, `dbSetInventoryFbListingId` already accepts null per-item
+  fine) and resets `fb_sync_state` (new endpoint, see below) wherever it was `"excluded"`.
+
+**`add_all.py`:**
+- Walks `get_all_inventory()` filtered to `forSale` items with no `fbListingId` (defensive —
+  safe to re-run if Delete All only partially succeeded on the FB side; David's call, given
+  this costs nothing and prevents an accidental duplicate listing).
+- Per item: prints unit cost / sale price / regular price / sales tax included / allow
+  shipping / shipping price, asks whether to list at all, then (if yes) walks each editable
+  field except unit cost — Sale Price, Regular Price, Sales Tax Included, Allow Shipping,
+  Shipping Price (only asked if Allow Shipping ends up true) — with the current value
+  pre-filled via `questionary.text(default=...)` (new dependency; `rich`'s prompt helpers
+  don't support an editable pre-filled default, which is exactly the "Enter keeps it,
+  backspace+retype changes it" UX David asked for).
+- Saves the edited values to CCG via `POST /api/inventory/:id/update` (`client.update_item`)
+  regardless of what happens next — **this is a full-record replace, not a patch** (confirmed
+  by reading `handleInventoryUpdate`, `crud2.ts:35` — it reads ~50 body fields with hard
+  defaults and 400s if title/categoryId/barcode/purchasedDate/images are missing), so
+  `update_item` takes the full item dict already in hand from `get_all_inventory()` with only
+  the changed fields overwritten, mirroring exactly how `admin-v2-app`'s own edit form saves.
+  `fixedShippingAmount` rides along in the same call — `handleInventoryUpdate` already writes
+  it to `ccg_inventory_items_addtl` internally (`crud2.ts:730`), no separate endpoint needed.
+- Then asks whether to draft it on FB now; **only drafts, never publishes** (David's explicit
+  choice — keeps the existing tool's safety model rather than auto-publishing hundreds of
+  listings unattended). Reuses `create_draft_listing()` unchanged except for two new params.
+
+**New Worker endpoint:** `POST /api/inventory/:id/fb-include` (`handleInventoryFbInclude`,
+`crud2.ts`, registered `index.ts`) — exact mirror of `fb-exclude` but calls
+`dbSetInventoryFbSyncState(recordId, null, env)`. No prior route could clear this field back
+to null; `fb-exclude` only ever set `'excluded'`. Deployed via `npx wrangler deploy`, same as
+every other `fb-*` endpoint.
+
+**Two new, unverified FB-side automations — flagged, not resolved:**
+- `fbm_client.delete_listing()` — best-effort selectors for Facebook's own listing-management
+  menu ("..." button, "Delete listing", confirm dialog). Unlike `get_active_listings` and
+  `create_draft_listing` (both confirmed working end-to-end against production),
+  **this has not been run against a real listing yet.** Test against 2-3 real listings before
+  trusting it for the full delete-everything run — the exact same caution that applied to
+  Match Mode and to drafting before either was trusted at scale, and worth remembering given
+  the account-setting-corruption incident above came from an unverified selector guess on
+  this same create-listing form.
+- Shipping fields in `create_draft_listing()`'s Delivery step (`SHIPPING_TOGGLE_LABEL`,
+  `SHIPPING_PRICE_LABEL_CANDIDATES`) — same caveat, plus a deeper open question: **it isn't
+  confirmed Facebook's create form even supports an arbitrary fixed shipping price**, as
+  opposed to only calculated/weight-based shipping. Needs a live throwaway test listing
+  before Add All is trusted for any item with Allow Shipping on.
+
+Worth a look sometime, unrelated to this work: the Worker's `wrangler.toml` already defines
+an `APIFY_FACEBOOK_ACTOR` env var (`"apify/facebook-marketplace-scraper"`) that doesn't
+appear to be used anywhere in `ccg-fbm-sync` today — possibly a steadier way to read FB's own
+listings than Playwright-scraping `you/selling`, if the Playwright approach ever becomes
+unreliable. Not investigated as part of this work; noted here so a future session doesn't
+have to rediscover it.

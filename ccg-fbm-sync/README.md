@@ -35,7 +35,28 @@ Every run: logs into CCG and Facebook fresh, pulls current data from both, recon
 - **Unrecognized FB listing** — no CCG match → "personal item, ignore going forward" (adds to `fb_ignore_list`, e.g. a lawnmower you list on FB only) or skip for now.
 - **In sync** — reported in the end-of-run summary only, no action.
 
+## Delete All mode — hard reset, irreversible on Facebook
+
+```
+./venv/bin/python delete_all.py
+```
+
+Ignores CCG entirely on the FB side: walks **every** currently active FB Marketplace listing (personal items included) and **permanently deletes** it — not "mark as sold," an actual delete, no recovery. Shows a full preview list first and requires typing `DELETE ALL` to proceed. Then, on the CCG side, clears `fb_listing_id` on every inventory item that has one (for-sale or not) and resets `fb_sync_state` back to null everywhere it was `"excluded"` — a true fresh start for `add_all.py` and the regular ongoing sync tool afterward.
+
+Built 2026-09-20. `fbm_client.delete_listing()` is **not yet verified against a live listing** — test it against 2-3 real listings before trusting it for a real bulk run (see ARCHITECTURE.md). Use `--listing-id <fb_id>` to scope a run to exactly one FB listing (and only the CCG item linked to it) for this kind of test.
+
+## Add All mode — bulk re-list every for-sale CCG item
+
+```
+./venv/bin/python add_all.py
+```
+
+Meant to run right after `delete_all.py`. Assumes no listings currently exist on FBM (defensively skips any item that already has an `fb_listing_id`, so it's still safe to re-run). Walks every for-sale, unlinked CCG item one at a time: prints its unit cost, sale price, regular price, sales tax included, allow shipping, and shipping price; asks whether to list it; if yes, walks each editable field (unit cost excluded) with the current value pre-filled so Enter keeps it; saves the CCG record regardless of what happens next; then asks whether to draft it on Facebook now. Only **drafts** — same "never auto-publish" safety model as `approve.py`.
+
+Built 2026-09-20. The shipping-cost fields in `fbm_client.create_draft_listing()`'s Delivery step are **not yet verified against a live listing** — it isn't confirmed Facebook's own form even supports an arbitrary fixed shipping price. Test before a real bulk run (see ARCHITECTURE.md). Use `--ccg-id <id or CCG-XXXXXX number>` to scope a run to exactly one CCG item for this kind of test.
+
 ## Status
 
 - Match Mode: done and removed.
 - Ongoing sync tool: built and confirmed working end-to-end against production, including drafting real listings on Facebook and saving them via FB's own Drafts feature (verified with a real CCG item — 8 photos, all fields, all 3 meetup checkboxes — landing correctly in FB's Drafts list, not published). `reconcile.py`'s bucket logic has 11 passing unit tests.
+- Delete All / Add All: built 2026-09-20, CCG-side logic and Worker endpoints in place and typechecked/bundled clean; the two new FB-side browser automations (`delete_listing`, shipping fields) still need a live test pass before a real bulk run.

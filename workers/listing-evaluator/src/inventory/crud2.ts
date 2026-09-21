@@ -1026,6 +1026,24 @@ export async function handleInventoryFbExclude(_request: Request, path: string, 
   return jsonResponse({ ok: true, fbSyncState: 'excluded' });
 }
 
+// Inverse of handleInventoryFbExclude — clears fb_sync_state back to null. Used by the
+// ccg-fbm-sync tool's Delete All mode to reset every item's exclusion flag as part of a full
+// CCG/FBM resync, so nothing from before the reset is silently skipped by Add All or the
+// regular ongoing sync tool afterward.
+export async function handleInventoryFbInclude(_request: Request, path: string, env: Env): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const actionIndex = parts.indexOf('fb-include');
+  const recordId = actionIndex > 0 ? parts[actionIndex - 1] : '';
+  if (!recordId) return jsonResponse({ message: 'Missing inventory ID.' }, 400);
+
+  const current = await dbGetInventoryItem(recordId, env);
+  if (!current) return jsonResponse({ message: 'Inventory item not found.' }, 404);
+
+  const ok = await dbSetInventoryFbSyncState(recordId, null, env);
+  if (!ok) return jsonResponse({ message: 'Failed to reset the item’s FBM sync exclusion.' }, 500);
+  return jsonResponse({ ok: true, fbSyncState: null });
+}
+
 // Temporary diagnostic — fetches the linked listing straight from Reverb so we can see the real
 // field names Reverb settled on (shipping in particular isn't documented in their public API
 // docs). Safe to remove once the shipping-field question is resolved.

@@ -96,6 +96,27 @@ class CCGClient:
             raise RuntimeError(f"fb-exclude failed for item {item_id}: {resp.status_code} {resp.text}")
         return resp.json()
 
+    def clear_fb_sync_state(self, item_id: int) -> dict:
+        """Inverse of exclude_from_fbm — resets fb_sync_state back to null. Used by Delete All
+        mode to reset every item's exclusion flag as part of a full CCG/FBM resync."""
+        self._ensure_login()
+        resp = self.session.post(f"{self.base_url}/api/inventory/{item_id}/fb-include")
+        if resp.status_code >= 400:
+            raise RuntimeError(f"fb-include failed for item {item_id}: {resp.status_code} {resp.text}")
+        return resp.json()
+
+    def update_item(self, item_id: int, record: dict) -> dict:
+        """POST /api/inventory/:id/update is a full-record replace, not a patch — it reads
+        ~50 body fields with hard defaults and 400s if title/categoryId/barcode/purchasedDate/
+        images are missing. Callers must pass the item's full record (e.g. straight from
+        get_all_inventory()) with only the changed fields overwritten on top of it — never a
+        partial dict of just the changed fields, or every other field gets wiped/defaulted."""
+        self._ensure_login()
+        resp = self.session.post(f"{self.base_url}/api/inventory/{item_id}/update", json=record)
+        if resp.status_code >= 400:
+            raise RuntimeError(f"update failed for item {item_id}: {resp.status_code} {resp.text}")
+        return resp.json()
+
     def get_ignored_fb_listing_ids(self) -> set[str]:
         """FB listing ids known to be personal items, not CCG inventory (e.g. a lawnmover
         listed on FB only) — never suggested as unknown/possible-link again."""

@@ -61,6 +61,12 @@ MAX_DRAFT_PHOTOS = 10
 MAX_DRAFT_PHOTO_DIMENSION = 2048
 CONDITION_OPTIONS = ["New", "Used - Like New", "Used - Good", "Used - Fair"]
 MEETUP_PREFERENCE_LABELS = ["Public meetup", "Door pickup", "Door dropoff"]
+# Unverified against a live listing as of 2026-09-20 — first thing to check if create_draft_listing
+# starts failing on the shipping branch. FB's Delivery step is known (from the meetup-checkbox
+# work) to use plain text-labeled divs with no stable roles/aria-labels, so this follows the same
+# "click the label text" approach as MEETUP_PREFERENCE_LABELS rather than guessing at a selector.
+SHIPPING_TOGGLE_LABEL = "Shipping"
+SHIPPING_PRICE_LABEL_CANDIDATES = ["Shipping price", "Price"]
 
 # Appended to every drafted description (decided 2026-09-13) — the public shop site already
 # appends its own shop-info footer to CCG's raw saleDescription (DEFAULT_SALE_DESCRIPTION_POSTFIX
@@ -212,6 +218,54 @@ def open_draft_browser(playwright):
     return browser, context
 
 
+def delete_listing(context, listing_id: str) -> bool:
+    """Permanently deletes one of your own live FB Marketplace listings (added 2026-09-20,
+    ccg-fbm-sync Delete All mode). Irreversible on Facebook's side.
+
+    **Not yet verified against a live listing** — unlike get_active_listings/create_draft_listing
+    (both confirmed working end-to-end against production), this function's selectors are a
+    best-effort guess at Facebook's own listing-management menu, not something clicked through
+    and confirmed yet. Test against 2-3 real listings before trusting this for a real bulk
+    delete run — see ARCHITECTURE.md's account-setting-corruption incident from an earlier
+    unverified selector guess on this same create-listing form, worth avoiding a repeat of here.
+
+    Returns True on a confirmed delete, False otherwise (logged, never raised — callers must
+    keep going through the rest of the list on one listing's failure).
+    """
+    page = context.new_page()
+    try:
+        page.goto(f"https://www.facebook.com/marketplace/item/{listing_id}/", wait_until="domcontentloaded")
+        page.wait_for_timeout(3000)
+
+        more_button = None
+        for label in ("See more", "More options", "More"):
+            candidates = page.get_by_role("button", name=label)
+            if candidates.count() > 0:
+                more_button = candidates.first
+                break
+        if more_button is None:
+            print(f"  Couldn't find the options menu for listing {listing_id} — skipping (not deleted).")
+            return False
+        more_button.click()
+        page.wait_for_timeout(1000)
+
+        page.get_by_text("Delete listing", exact=False).first.click(timeout=5000)
+        page.wait_for_timeout(1000)
+
+        # Facebook's own destructive-confirm dialog. Confirm button is very likely labeled
+        # "Delete" — a second, more specific check that this isn't accidentally clicking some
+        # other "Delete" on the page (e.g. the menu item just clicked above, if it's still
+        # visible) would be worth adding once the real dialog is seen live.
+        page.get_by_role("button", name="Delete", exact=True).first.click(timeout=5000)
+        page.wait_for_timeout(2000)
+        return True
+    except Exception as error:
+        print(f"  Couldn't delete listing {listing_id}: {error}")
+        return False
+    finally:
+        page.close()
+
+
 def map_condition(ccg_condition: str) -> str:
     """CCG's condition text doesn't always match FB's four fixed options exactly, so this
     maps it: exact match first, then keyword heuristics, defaulting to 'Used - Good'."""
@@ -274,7 +328,16 @@ def _download_images(image_urls: list[str]) -> list[str]:
     return paths
 
 
-def create_draft_listing(context, title: str, price, condition: str, description: str, image_urls: list[str]) -> str | None:
+def create_draft_listing(
+    context,
+    title: str,
+    price,
+    condition: str,
+    description: str,
+    image_urls: list[str],
+    allow_shipping: bool = False,
+    shipping_cost=None,
+) -> str | None:
     """Fills Facebook's real "Item for sale" create-listing form — photos, title, price,
     category (fixed at Musical Instruments), condition, description — advances to the
     Delivery step and checks all 3 meetup preferences (Public meetup, Door pickup, Door
@@ -285,6 +348,17 @@ def create_draft_listing(context, title: str, price, condition: str, description
     run and finished/published later at your own pace, independent of any browser tab
     staying open. Never clicks Publish. Closes its tab when done (nothing left to review
     live).
+
+    allow_shipping / shipping_cost (added 2026-09-20, ccg-fbm-sync Add All mode): when
+    allow_shipping is True, also enables FB's own Shipping option on the Delivery step and
+    enters shipping_cost as its fixed price, in addition to the 3 meetup boxes (local pickup
+    stays available either way, matching CCG's "Allow Shipping" meaning shipping *in addition
+    to* pickup, not instead of it). **Not yet verified against a live listing** — it's not
+    confirmed FB's create form even supports an arbitrary fixed shipping price (vs. only
+    calculated/weight-based shipping); test against a couple of real drafts before trusting
+    this for a real bulk run, the same way the meetup checkboxes needed several iterations to
+    get right (see ARCHITECTURE.md). When allow_shipping is False, behavior is byte-for-byte
+    identical to before this param existed.
 
     Returns the new listing's FB id on a confirmed save (parsed straight from the save
     request's own GraphQL response — `data.marketplace_listing_create.listing.id`, confirmed
@@ -346,6 +420,26 @@ def create_draft_listing(context, title: str, price, condition: str, description
         except Exception:
             print(f"  Couldn't check '{label_text}' — Facebook's delivery-step layout may have changed.")
     page.wait_for_timeout(500)
+
+    if allow_shipping:
+        try:
+            page.get_by_text(SHIPPING_TOGGLE_LABEL, exact=True).first.click(timeout=5000)
+            page.wait_for_timeout(1000)
+            price_field = None
+            for label in SHIPPING_PRICE_LABEL_CANDIDATES:
+                candidates = page.get_by_label(label)
+                if candidates.count() > 0:
+                    price_field = candidates.first
+                    break
+            if price_field is None:
+                # Fall back to the last text input on the page — the shipping-price field, if
+                # it exists, is very likely the newest one to appear after the toggle click.
+                price_field = page.locator("input[type='text']").last
+            price_field.click()
+            price_field.fill(str(shipping_cost or 0))
+            page.wait_for_timeout(500)
+        except Exception as error:
+            print(f"  Couldn't set shipping (toggle/price) — Facebook's delivery-step layout may have changed: {error}")
 
     new_listing_id: str | None = None
 

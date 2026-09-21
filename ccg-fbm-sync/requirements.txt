@@ -3,3 +3,4 @@ python-dotenv>=1.0
 rich>=13.7
 playwright>=1.47
 Pillow>=10.0
+questionary>=2.0
