@@ -60,6 +60,17 @@ class CCGClient:
             page += 1
         return records
 
+    def get_sale_description_postfix(self) -> str | None:
+        """The site's live standard description footer (public /api/shop/settings, no login
+        needed) — the exact text the public site appends after each item's admin description,
+        so Facebook listings match the site instead of a hardcoded copy that can drift."""
+        try:
+            resp = self.session.get(f"{self.base_url}/api/shop/settings", timeout=15)
+            resp.raise_for_status()
+            return (resp.json().get("saleDescriptionPostfix") or "").strip() or None
+        except (requests.RequestException, ValueError):
+            return None
+
     def set_fb_listing_id(self, item_id: int, fb_listing_id: str) -> dict:
         self._ensure_login()
         resp = self.session.post(
@@ -105,12 +116,25 @@ class CCGClient:
             raise RuntimeError(f"fb-include failed for item {item_id}: {resp.status_code} {resp.text}")
         return resp.json()
 
+    def get_item(self, item_id) -> dict:
+        """The FULL edit-form record (GET /api/inventory/:id) — what admin-v2-app's edit form
+        loads and saves back. Use this, not a get_all_inventory() row, as the base for
+        update_item: the list rows are a trimmed shape (thumbnail-wrapped imageUrl, no
+        per-image `images` with isPrivate flags), and saving one back failed with "Unable to
+        fetch source image" (2026-09-20) and risked blanking fields the list omits."""
+        self._ensure_login()
+        resp = self.session.get(f"{self.base_url}/api/inventory/{item_id}")
+        if resp.status_code >= 400:
+            raise RuntimeError(f"get item {item_id} failed: {resp.status_code} {resp.text}")
+        data = resp.json()
+        return data.get("record", data)
+
     def update_item(self, item_id: int, record: dict) -> dict:
         """POST /api/inventory/:id/update is a full-record replace, not a patch — it reads
         ~50 body fields with hard defaults and 400s if title/categoryId/barcode/purchasedDate/
-        images are missing. Callers must pass the item's full record (e.g. straight from
-        get_all_inventory()) with only the changed fields overwritten on top of it — never a
-        partial dict of just the changed fields, or every other field gets wiped/defaulted."""
+        images are missing. Callers must pass the item's full record (from get_item) with only
+        the changed fields overwritten on top of it — never a partial dict of just the changed
+        fields, or every other field gets wiped/defaulted."""
         self._ensure_login()
         resp = self.session.post(f"{self.base_url}/api/inventory/{item_id}/update", json=record)
         if resp.status_code >= 400:

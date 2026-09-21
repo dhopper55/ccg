@@ -55,6 +55,8 @@ def run_sync() -> None:
     ccg_items = client.get_all_inventory()
     console.print(f"  {len(ccg_items)} item(s) found.\n")
 
+    footer = client.get_sale_description_postfix()
+
     console.print("[bold]Fetching the FB ignore-list...[/bold]")
     ignored_fb_ids = client.get_ignored_fb_listing_ids()
     console.print(f"  {len(ignored_fb_ids)} listing(s) permanently ignored.\n")
@@ -91,6 +93,7 @@ def run_sync() -> None:
                 condition=item.get("condition") or "",
                 description=item.get("saleDescription") or "",
                 image_urls=_absolute_image_urls(item, client.base_url),
+                footer=footer,
             )
             if new_listing_id:
                 drafts_created += 1

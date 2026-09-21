@@ -62,67 +62,76 @@ def _absolute_image_urls(item: dict, base_url: str) -> list[str]:
 def run_add_all(only_id: str | None = None) -> None:
     client = CCGClient()
 
+    footer = client.get_sale_description_postfix()
+    console.print(
+        "Using the site's live description footer." if footer
+        else "[yellow]Couldn't fetch the site's footer — falling back to the built-in copy.[/yellow]"
+    )
+
     console.print("[bold]Fetching CCG inventory...[/bold]")
     ccg_items = client.get_all_inventory()
     candidates = [i for i in ccg_items if i.get("forSale") and not i.get("fbListingId")]
     console.print(f"  {len(candidates)} for-sale item(s) not yet linked to FB out of {len(ccg_items)} total.\n")
 
     if only_id:
+        wanted = only_id.strip().upper().removeprefix("CCG-")
         candidates = [
             i for i in candidates
-            if str(i["id"]) == only_id or str(i.get("ccgNumber") or "") == only_id
+            if str(i["id"]) == wanted or str(i.get("ccgNumber") or "").upper().removeprefix("CCG-") == wanted
         ]
         if not candidates:
             console.print(f"No for-sale, unlinked CCG item found matching id {only_id} — nothing to do.")
             return
         console.print(f"[bold]Test mode: scoped to CCG item {only_id} only.[/bold]\n")
 
-    playwright = sync_playwright().start()
-    browser, context = open_draft_browser(playwright)
-
     listed = skipped = drafts_failed = 0
-    try:
-        for item in candidates:
-            ccg_number = item.get("ccgNumber") or item["id"]
-            title = item_title(item)
-            sale_price = float(item.get("salePrice") or 0)
-            regular_price = float(item.get("regularPrice") or 0)
-            sales_tax_included = bool(item.get("salesTaxIncluded"))
-            allow_shipping = bool(item.get("allowShipping"))
-            shipping_cost = float(item.get("fixedShippingAmount") or 0)
-            unit_cost = item.get("unitPurchasePrice")
+    for item in candidates:
+        ccg_number = str(item.get("ccgNumber") or item["id"]).upper().removeprefix("CCG-")
+        title = item_title(item)
+        sale_price = float(item.get("salePrice") or 0)
+        regular_price = float(item.get("regularPrice") or 0)
+        sales_tax_included = bool(item.get("salesTaxIncluded"))
+        allow_shipping = bool(item.get("allowShipping"))
+        shipping_cost = float(item.get("fixedShippingAmount") or 0)
+        unit_cost = item.get("unitPurchasePrice")
 
-            console.print(f"\n[bold]Item 'CCG-{ccg_number}' ({title}) is for sale on CCG and not FBM.[/bold]")
-            console.print(f"  Unit cost: ${unit_cost if unit_cost is not None else 0:.2f}")
-            console.print(f"  Sale price: ${sale_price:.2f}")
-            console.print(f"  Regular price: ${regular_price:.2f}")
-            console.print(f"  Sales tax included: {sales_tax_included}")
-            console.print(f"  Allow shipping: {allow_shipping}")
-            console.print(f"  Shipping price: ${shipping_cost:.2f}")
+        console.print(f"\n[bold]Item 'CCG-{ccg_number}' ({title}) is for sale on CCG and not FBM.[/bold]")
+        console.print(f"  Unit cost: ${unit_cost if unit_cost is not None else 0:.2f}")
+        console.print(f"  Sale price: ${sale_price:.2f}")
+        console.print(f"  Regular price: ${regular_price:.2f}")
+        console.print(f"  Sales tax included: {sales_tax_included}")
+        console.print(f"  Allow shipping: {allow_shipping}")
+        console.print(f"  Shipping price: ${shipping_cost:.2f}")
 
-            if not _ask_yes_no("Do you want to list on FBM?"):
-                skipped += 1
-                continue
+        if not _ask_yes_no("Do you want to list on FBM?"):
+            skipped += 1
+            continue
 
-            sale_price = _ask_money("Sale Price", sale_price)
-            regular_price = _ask_money("Regular Price", regular_price)
-            sales_tax_included = questionary.confirm("Sales tax included?", default=sales_tax_included).ask()
-            allow_shipping = questionary.confirm("Allow shipping?", default=allow_shipping).ask()
-            if allow_shipping:
-                shipping_cost = _ask_money("Shipping Price", shipping_cost)
+        sale_price = _ask_money("Sale Price", sale_price)
+        regular_price = _ask_money("Regular Price", regular_price)
+        sales_tax_included = questionary.confirm("Sales tax included?", default=sales_tax_included).ask()
+        allow_shipping = questionary.confirm("Allow shipping?", default=allow_shipping).ask()
+        if allow_shipping:
+            shipping_cost = _ask_money("Shipping Price", shipping_cost)
 
-            updated_record = dict(item)
-            updated_record["salePrice"] = sale_price
-            updated_record["regularPrice"] = regular_price
-            updated_record["salesTaxIncluded"] = sales_tax_included
-            updated_record["allowShipping"] = allow_shipping
-            updated_record["fixedShippingAmount"] = shipping_cost
-            client.update_item(item["id"], updated_record)
-            console.print("  CCG updated.")
+        updated_record = dict(client.get_item(item["id"]))
+        updated_record["salePrice"] = sale_price
+        updated_record["regularPrice"] = regular_price
+        updated_record["salesTaxIncluded"] = sales_tax_included
+        updated_record["allowShipping"] = allow_shipping
+        updated_record["fixedShippingAmount"] = shipping_cost
+        client.update_item(item["id"], updated_record)
+        console.print("  CCG updated.")
 
-            if not _ask_yes_no("List on FBM now?"):
-                continue
+        if not _ask_yes_no("List on FBM now?"):
+            continue
 
+        # The browser is opened only around the draft itself: Playwright's sync API keeps an
+        # asyncio loop running while open, which makes questionary's prompts crash with
+        # "asyncio.run() cannot be called from a running event loop".
+        playwright = sync_playwright().start()
+        browser, context = open_draft_browser(playwright)
+        try:
             new_listing_id = create_draft_listing(
                 context,
                 title=title,
@@ -132,17 +141,18 @@ def run_add_all(only_id: str | None = None) -> None:
                 image_urls=_absolute_image_urls(item, client.base_url),
                 allow_shipping=allow_shipping,
                 shipping_cost=shipping_cost,
+                footer=footer,
             )
-            if new_listing_id:
-                client.set_fb_listing_id(item["id"], new_listing_id)
-                listed += 1
-                console.print(f"  drafted on FB (id {new_listing_id}) and linked.")
-            else:
-                drafts_failed += 1
-                console.print("  draft not saved — see the warning above. CCG values were still saved.")
-    finally:
-        browser.close()
-        playwright.stop()
+        finally:
+            browser.close()
+            playwright.stop()
+        if new_listing_id:
+            client.set_fb_listing_id(item["id"], new_listing_id)
+            listed += 1
+            console.print(f"  drafted on FB (id {new_listing_id}) and linked.")
+        else:
+            drafts_failed += 1
+            console.print("  draft not saved — see the warning above. CCG values were still saved.")
 
     console.print("\n[bold]Summary[/bold]")
     console.print(f"  Listed (drafted + linked): {listed}")

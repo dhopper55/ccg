@@ -103,9 +103,15 @@ Fender Acoustic 100 (Acoustic)
 Fender Rumble 100 (Bass)"""
 
 
-def build_fbm_description(raw_description: str) -> str:
+def build_fbm_description(raw_description: str, footer: str | None = None) -> str:
+    """Item text + the site's standard footer. `footer` should be the live value from the
+    site's settings (CCGClient.get_sale_description_postfix); FBM_DESCRIPTION_POSTFIX is only
+    the fallback if that couldn't be fetched."""
+    footer = (footer or "").strip() or FBM_DESCRIPTION_POSTFIX
     raw = (raw_description or "").strip()
-    return f"{raw}\n\n{FBM_DESCRIPTION_POSTFIX}" if raw else FBM_DESCRIPTION_POSTFIX
+    if raw.endswith(footer):
+        raw = raw[: -len(footer)].rstrip()
+    return f"{raw}\n\n{footer}" if raw else footer
 
 _ITEM_HREF_RE = re.compile(r"/marketplace/item/(\d+)")
 _LOAD_MORE_RE = re.compile(r"load\s+\d+\s+more", re.I)
@@ -361,6 +367,7 @@ def create_draft_listing(
     image_urls: list[str],
     allow_shipping: bool = False,
     shipping_cost=None,
+    footer: str | None = None,
 ) -> str | None:
     """Fills Facebook's real "Item for sale" create-listing form — photos, title, price,
     category (fixed at Musical Instruments), condition, description — advances to the
@@ -426,7 +433,7 @@ def create_draft_listing(
     textarea = page.locator("textarea").first
     textarea.scroll_into_view_if_needed()
     textarea.click()
-    textarea.fill(build_fbm_description(description))
+    textarea.fill(build_fbm_description(description, footer))
     page.wait_for_timeout(800)
 
     page.get_by_role("button", name="Next", exact=True).click()  # -> Delivery step
