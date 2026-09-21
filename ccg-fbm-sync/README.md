@@ -43,7 +43,7 @@ Every run: logs into CCG and Facebook fresh, pulls current data from both, recon
 
 Ignores CCG entirely on the FB side: walks **every** currently active FB Marketplace listing (personal items included) and **permanently deletes** it — not "mark as sold," an actual delete, no recovery. Shows a full preview list first and requires typing `DELETE ALL` to proceed. Then, on the CCG side, clears `fb_listing_id` on every inventory item that has one (for-sale or not) and resets `fb_sync_state` back to null everywhere it was `"excluded"` — a true fresh start for `add_all.py` and the regular ongoing sync tool afterward.
 
-Built 2026-09-20. `fbm_client.delete_listing()` is **not yet verified against a live listing** — test it against 2-3 real listings before trusting it for a real bulk run (see ARCHITECTURE.md). Use `--listing-id <fb_id>` to scope a run to exactly one FB listing (and only the CCG item linked to it) for this kind of test.
+Built 2026-09-20. Deletes by **title**, all copies at once, then rescans and repeats (up to 5 passes) until nothing is left — an item posted to Marketplace plus groups exists as several same-titled listings with different ids, and a deleted copy can reappear under a new id. Confirmed live on a single listing; the multi-copy/multi-pass version still needs a test on a group-posted item. Use `--listing-id <fb_id>` to scope a run to that listing's title (group copies included) and only the CCG item(s) linked to any of them.
 
 ## Add All mode — bulk re-list every for-sale CCG item
 
@@ -59,4 +59,4 @@ Built 2026-09-20. The shipping-cost fields in `fbm_client.create_draft_listing()
 
 - Match Mode: done and removed.
 - Ongoing sync tool: built and confirmed working end-to-end against production, including drafting real listings on Facebook and saving them via FB's own Drafts feature (verified with a real CCG item — 8 photos, all fields, all 3 meetup checkboxes — landing correctly in FB's Drafts list, not published). `reconcile.py`'s bucket logic has 11 passing unit tests.
-- Delete All / Add All: built 2026-09-20, CCG-side logic and Worker endpoints in place and typechecked/bundled clean; the two new FB-side browser automations (`delete_listing`, shipping fields) still need a live test pass before a real bulk run.
+- Delete All / Add All: built 2026-09-20, CCG-side logic and Worker endpoints in place and typechecked/bundled clean; the new FB-side browser automations still need live test passes (delete: single-listing confirmed, multi-copy pending; shipping fields: untested) before a real bulk run.

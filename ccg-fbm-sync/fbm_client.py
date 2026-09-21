@@ -218,52 +218,76 @@ def open_draft_browser(playwright):
     return browser, context
 
 
-def delete_listing(context, listing_id: str) -> bool:
-    """Permanently deletes one of your own live FB Marketplace listings (added 2026-09-20,
-    ccg-fbm-sync Delete All mode). Irreversible on Facebook's side.
+def _load_all_selling_rows(page, row_button) -> None:
+    stable_rounds = 0
+    for _ in range(80):
+        before = row_button.count()
+        page.mouse.wheel(0, 3000)
+        page.wait_for_timeout(800)
+        clicked = _click_load_more(page)
+        if clicked:
+            page.wait_for_timeout(2000)
+        if not clicked and row_button.count() == before:
+            stable_rounds += 1
+            if stable_rounds >= 3:
+                return
+        else:
+            stable_rounds = 0
 
-    **Not yet verified against a live listing** — unlike get_active_listings/create_draft_listing
-    (both confirmed working end-to-end against production), this function's selectors are a
-    best-effort guess at Facebook's own listing-management menu, not something clicked through
-    and confirmed yet. Test against 2-3 real listings before trusting this for a real bulk
-    delete run — see ARCHITECTURE.md's account-setting-corruption incident from an earlier
-    unverified selector guess on this same create-listing form, worth avoiding a repeat of here.
 
-    Returns True on a confirmed delete, False otherwise (logged, never raised — callers must
-    keep going through the rest of the list on one listing's failure).
+def delete_rows_with_title(context, title: str) -> tuple[int, int]:
+    """Permanently deletes EVERY row on your selling page titled `title` (added 2026-09-20,
+    ccg-fbm-sync Delete All mode). Irreversible on Facebook's side. Returns
+    (deleted_count, rows_found_initially).
+
+    Why by title, all copies at once: an item posted to Marketplace AND to groups exists as
+    several separate listings with separate ids but the same title (confirmed live 2026-09-20 —
+    David usually posts to 4 groups, and deleting one copy left the others, one even reappeared
+    under a new id). List-view rows carry no listing id, so title is the only stable handle.
+
+    Selectors confirmed live 2026-09-20 by probing a real listing (read-only, stopped before
+    confirming): the listing page and Edit form have no delete control at all. Delete lives in
+    the selling page's per-row "More actions for <title>" button -> menuitem "Delete" ->
+    dialog "Delete listing?" with Delete / Cancel. Each delete is verified by the matching row
+    count dropping by exactly one, not assumed from the clicks; on any failure it stops and
+    reports how many were deleted so far (never raises).
     """
     page = context.new_page()
+    deleted = 0
+    found = 0
     try:
-        page.goto(f"https://www.facebook.com/marketplace/item/{listing_id}/", wait_until="domcontentloaded")
-        page.wait_for_timeout(3000)
+        page.goto(LISTINGS_URL, wait_until="domcontentloaded")
+        page.wait_for_timeout(4000)
 
-        more_button = None
-        for label in ("See more", "More options", "More"):
-            candidates = page.get_by_role("button", name=label)
-            if candidates.count() > 0:
-                more_button = candidates.first
+        row_button = page.get_by_role("button", name=f"More actions for {title}", exact=True)
+        _load_all_selling_rows(page, row_button)
+        found = row_button.count()
+        remaining = found
+
+        while remaining > 0:
+            row_button.first.scroll_into_view_if_needed()
+            row_button.first.click()
+            page.wait_for_timeout(1000)
+            page.get_by_role("menuitem", name="Delete", exact=True).click(timeout=5000)
+            page.wait_for_timeout(1000)
+            page.get_by_role("dialog", name="Delete listing?").get_by_role(
+                "button", name="Delete", exact=True
+            ).click(timeout=5000)
+
+            for _ in range(15):
+                page.wait_for_timeout(1000)
+                if row_button.count() < remaining:
+                    break
+            if row_button.count() >= remaining:
+                print(f"  Clicked Delete on '{title}' but the row count didn't drop — stopping this title.")
                 break
-        if more_button is None:
-            print(f"  Couldn't find the options menu for listing {listing_id} — skipping (not deleted).")
-            return False
-        more_button.click()
-        page.wait_for_timeout(1000)
-
-        page.get_by_text("Delete listing", exact=False).first.click(timeout=5000)
-        page.wait_for_timeout(1000)
-
-        # Facebook's own destructive-confirm dialog. Confirm button is very likely labeled
-        # "Delete" — a second, more specific check that this isn't accidentally clicking some
-        # other "Delete" on the page (e.g. the menu item just clicked above, if it's still
-        # visible) would be worth adding once the real dialog is seen live.
-        page.get_by_role("button", name="Delete", exact=True).first.click(timeout=5000)
-        page.wait_for_timeout(2000)
-        return True
+            remaining = row_button.count()
+            deleted += 1
     except Exception as error:
-        print(f"  Couldn't delete listing {listing_id}: {error}")
-        return False
+        print(f"  Error while deleting '{title}': {error}")
     finally:
         page.close()
+    return deleted, found
 
 
 def map_condition(ccg_condition: str) -> str:

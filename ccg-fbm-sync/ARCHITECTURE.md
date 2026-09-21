@@ -349,7 +349,7 @@ untouched and still the tool to run for ongoing (non-reset) sync.
   active listing — **all of them, including David's personal items** (his own call: he'll
   re-add those by hand rather than have the tool special-case an ignore list on a one-time
   reset). Prints the full list, requires typing `DELETE ALL` exactly, then calls the new
-  `fbm_client.delete_listing()` per listing — a **permanent delete**, not "mark as sold"
+  `fbm_client.delete_rows_with_title()` per title — a **permanent delete**, not "mark as sold"
   (David's explicit choice — irreversible, no recovery). Continues past individual failures
   and reports them at the end rather than aborting the run.
 - CCG side: loops every inventory item (`for_sale` or not, per spec) via
@@ -387,14 +387,16 @@ to null; `fb-exclude` only ever set `'excluded'`. Deployed via `npx wrangler dep
 every other `fb-*` endpoint.
 
 **Two new, unverified FB-side automations — flagged, not resolved:**
-- `fbm_client.delete_listing()` — best-effort selectors for Facebook's own listing-management
-  menu ("..." button, "Delete listing", confirm dialog). Unlike `get_active_listings` and
-  `create_draft_listing` (both confirmed working end-to-end against production),
-  **this has not been run against a real listing yet.** Test against 2-3 real listings before
-  trusting it for the full delete-everything run — the exact same caution that applied to
-  Match Mode and to drafting before either was trusted at scale, and worth remembering given
-  the account-setting-corruption incident above came from an unverified selector guess on
-  this same create-listing form.
+- `fbm_client.delete_rows_with_title()` — **confirmed live 2026-09-20** on a single listing
+  (probed read-only first). The listing page and Edit form have NO delete control; it lives on
+  the selling page: per-row `More actions for <title>` button -> menuitem `Delete` -> dialog
+  `Delete listing?` (Delete / Cancel). Rows carry no listing id, so title is the only handle.
+  **Group copies:** David usually posts each item to 4 groups; each group post is a separate
+  listing with its own id and the same title ("David Hopper listed this in <group>"), and a
+  deleted copy reappeared under a new id. Hence delete-by-title, all copies, verified by row
+  count dropping by one each time, followed by a full rescan and up to 5 passes. An earlier
+  version stopped scrolling at the first title match and could have deleted the wrong twin.
+  Multi-copy behavior still needs a live test on a group-posted item.
 - Shipping fields in `create_draft_listing()`'s Delivery step (`SHIPPING_TOGGLE_LABEL`,
   `SHIPPING_PRICE_LABEL_CANDIDATES`) — same caveat, plus a deeper open question: **it isn't
   confirmed Facebook's create form even supports an arbitrary fixed shipping price**, as
