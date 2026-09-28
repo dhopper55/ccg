@@ -55,6 +55,8 @@ type InventoryRecord = {
   salesChannelCl?: boolean;
   unitPurchasePrice?: number | null;
   privatePartyValue?: number | null;
+  saleTitle?: string;
+  regularPrice?: number | null;
   salePrice?: number | null;
   soldAmount?: number | null;
   createdAt?: string | null;
@@ -145,6 +147,17 @@ function formatCurrency(value: number | null | undefined): string {
 function formatForSalePrice(record: InventoryRecord): string {
   return record.forSale ? formatCurrency(record.salePrice) : '';
 }
+
+function formatLabelPrice(value: number | null | undefined): string {
+  const amount = typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  return `$${Number.isInteger(amount) ? amount : amount.toFixed(2)}`;
+}
+
+function escapeCsvField(value: string): string {
+  return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
+
+const LABEL_CSV_PAGE_SIZE = 100;
 
 const FILTER_CONTROL_WIDTH = 260;
 
@@ -244,6 +257,26 @@ const InventoryManager = () => {
   const [actionErrorMessage, setActionErrorMessage] = useState('');
   const [reloadToken, setReloadToken] = useState(0);
   const [isSyncingReverbSales, setIsSyncingReverbSales] = useState(false);
+  const [isExportingLabelCsv, setIsExportingLabelCsv] = useState(false);
+
+  const buildInventoryQueryParams = (pageNumber: number, limit: number) => {
+    const params = new URLSearchParams();
+    params.set('page', String(pageNumber));
+    params.set('limit', String(limit));
+    params.set('sortBy', sortBy);
+    params.set('sortDir', sortDir);
+    params.set('sold', filters.sold);
+    params.set('active', filters.active);
+    params.set('marked', filters.marked);
+    params.set('personal', filters.personal);
+    if (filters.shipping) params.set('shipping', filters.shipping);
+    if (filters.salesChannel) params.set('salesChannel', filters.salesChannel);
+    if (filters.tagReprint) params.set('tagReprint', '1');
+    if (filters.categoryId) params.set('categoryId', filters.categoryId);
+    if (filters.brand) params.set('brand', filters.brand);
+    if (filters.queue) params.set('queue', filters.queue);
+    return params;
+  };
 
   useEffect(() => {
     document.title = 'CCG Admin | Inventory Manager';
@@ -324,21 +357,7 @@ const InventoryManager = () => {
       setErrorMessage('');
 
       try {
-        const params = new URLSearchParams();
-        params.set('page', String(page));
-        params.set('limit', String(PAGE_SIZE));
-        params.set('sortBy', sortBy);
-        params.set('sortDir', sortDir);
-        params.set('sold', filters.sold);
-        params.set('active', filters.active);
-        params.set('marked', filters.marked);
-        params.set('personal', filters.personal);
-        if (filters.shipping) params.set('shipping', filters.shipping);
-        if (filters.salesChannel) params.set('salesChannel', filters.salesChannel);
-        if (filters.tagReprint) params.set('tagReprint', '1');
-        if (filters.categoryId) params.set('categoryId', filters.categoryId);
-        if (filters.brand) params.set('brand', filters.brand);
-        if (filters.queue) params.set('queue', filters.queue);
+        const params = buildInventoryQueryParams(page, PAGE_SIZE);
 
         const response = await fetch(`/api/inventory?${params.toString()}`, {
           method: 'GET',
@@ -408,6 +427,53 @@ const InventoryManager = () => {
     setSortDir('desc');
     setFilters(DEFAULT_FILTERS);
     setActionErrorMessage('');
+  };
+
+  const handleLabelCsvDownload = async () => {
+    setIsExportingLabelCsv(true);
+    try {
+      const allRecords: InventoryRecord[] = [];
+      let totalPagesToFetch = 1;
+      for (let pageNumber = 1; pageNumber <= totalPagesToFetch; pageNumber += 1) {
+        const params = buildInventoryQueryParams(pageNumber, LABEL_CSV_PAGE_SIZE);
+        const response = await fetch(`/api/inventory?${params.toString()}`, {
+          method: 'GET',
+          credentials: 'same-origin',
+        });
+        const data = (await response.json()) as InventoryListResponse;
+        if (!response.ok) {
+          throw new Error(data.message || 'Unable to load inventory.');
+        }
+        allRecords.push(...(Array.isArray(data.records) ? data.records : []));
+        totalPagesToFetch = Math.max(1, Number(data.totalPages || 1));
+      }
+
+      const lines = ['CCG Number,Title,Regular Price,Sale Price'];
+      for (const record of allRecords) {
+        const title = (record.saleTitle || '').trim() || record.title || '';
+        lines.push([
+          escapeCsvField(record.ccgNumber || ''),
+          escapeCsvField(title),
+          formatLabelPrice(record.regularPrice),
+          formatLabelPrice(record.salePrice),
+        ].join(','));
+      }
+
+      const blob = new Blob([`${lines.join('\n')}\n`], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'ccg_sale_labels.csv';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      enqueueSnackbar(`Label CSV downloaded (${allRecords.length} items).`, { variant: 'success' });
+    } catch (error) {
+      enqueueSnackbar(error instanceof Error ? error.message : 'Unable to generate label CSV.', { variant: 'error' });
+    } finally {
+      setIsExportingLabelCsv(false);
+    }
   };
 
   const handleReverbSaleSync = async () => {
@@ -1339,6 +1405,19 @@ const InventoryManager = () => {
                           }
                           label="Tag Reprints"
                         />
+                      </Grid>
+
+                      <Grid size={{ xs: 12, md: 'auto' }} sx={{ flexGrow: 0, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                        <Button
+                          variant="outlined"
+                          color="inherit"
+                          loading={isExportingLabelCsv}
+                          disabled={total === 0}
+                          onClick={() => void handleLabelCsvDownload()}
+                          startIcon={<IconifyIcon icon="material-symbols:download-rounded" />}
+                        >
+                          Label CSV
+                        </Button>
                       </Grid>
 
                     </Grid>

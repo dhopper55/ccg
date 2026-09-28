@@ -54,6 +54,7 @@ from playwright.sync_api import sync_playwright
 
 SESSION_FILE = Path(__file__).parent / ".fb_session.json"
 DEBUG_SCREENSHOT = Path(__file__).parent / "debug_screenshot.png"
+DEBUG_DUMP = Path(__file__).parent / "debug_dump.txt"
 LISTINGS_URL = "https://www.facebook.com/marketplace/you/selling"
 CREATE_LISTING_URL = "https://www.facebook.com/marketplace/create/item"
 DRAFT_CATEGORY = "Musical Instruments"
@@ -61,12 +62,9 @@ MAX_DRAFT_PHOTOS = 10
 MAX_DRAFT_PHOTO_DIMENSION = 2048
 CONDITION_OPTIONS = ["New", "Used - Like New", "Used - Good", "Used - Fair"]
 MEETUP_PREFERENCE_LABELS = ["Public meetup", "Door pickup", "Door dropoff"]
-# Unverified against a live listing as of 2026-09-20 — first thing to check if create_draft_listing
-# starts failing on the shipping branch. FB's Delivery step is known (from the meetup-checkbox
-# work) to use plain text-labeled divs with no stable roles/aria-labels, so this follows the same
-# "click the label text" approach as MEETUP_PREFERENCE_LABELS rather than guessing at a selector.
-SHIPPING_TOGGLE_LABEL = "Shipping"
-SHIPPING_PRICE_LABEL_CANDIDATES = ["Shipping price", "Price"]
+DELIVERY_LOCAL_ONLY = "Local pickup"
+DELIVERY_SHIPPING_AND_LOCAL = "Shipping & local pickup"
+SHIPPING_OWN_LABEL_OPTION = "Use your own label"
 
 # Appended to every drafted description (decided 2026-09-13) — the public shop site already
 # appends its own shop-info footer to CCG's raw saleDescription (DEFAULT_SALE_DESCRIPTION_POSTFIX
@@ -358,6 +356,125 @@ def _download_images(image_urls: list[str]) -> list[str]:
     return paths
 
 
+def _step_summary(page) -> str:
+    """Current URL plus the visible step heading(s), for diagnosing where a run got to."""
+    try:
+        headings = [
+            (h.inner_text() or "").strip().replace("\n", " / ")
+            for h in page.locator("[role='heading']").all()[:4]
+        ]
+    except Exception:
+        headings = []
+    return f"url={page.url} headings={headings}"
+
+
+def _dump_page_controls(page) -> None:
+    """Writes every switch/checkbox/button/combobox on the page (role, aria state, label, text,
+    visibility) to debug_dump.txt so a failed step can be diagnosed without re-running it."""
+    lines = [f"{_step_summary(page)}", ""]
+    for el in page.locator("[role='switch'], [role='checkbox'], input[type='checkbox'], "
+                           "[role='button'], button, [role='combobox']").all():
+        try:
+            lines.append(
+                f"role={el.get_attribute('role')} type={el.get_attribute('type')} "
+                f"aria-checked={el.get_attribute('aria-checked')} aria-label={el.get_attribute('aria-label')!r} "
+                f"visible={el.is_visible()} text={(el.inner_text() or '').strip()[:60]!r}"
+            )
+        except Exception:
+            continue
+    lines += ["", "--- visible text mentioning offers/price ---"]
+    for el in page.get_by_text("offer", exact=False).all()[:15] + page.get_by_text("price", exact=False).all()[:15]:
+        try:
+            lines.append(f"visible={el.is_visible()} text={(el.inner_text() or '').strip()[:100]!r}")
+        except Exception:
+            continue
+    DEBUG_DUMP.write_text("\n".join(lines))
+
+
+def _pause_for_inspection(page, reason: str) -> None:
+    """Leave the browser open on the failed step so it can be looked at (and dump its controls)."""
+    try:
+        _dump_page_controls(page)
+        page.screenshot(path=str(DEBUG_SCREENSHOT))
+    except Exception:
+        pass
+    print(f"  {reason}\n  Browser left open on the failed step; control dump saved to {DEBUG_DUMP.name}.")
+    input("  Press Enter to close the browser and continue... ")
+
+
+def _set_delivery_method(page, label: str) -> bool:
+    """Picks the Delivery method dropdown's value. Needed because the account default now
+    pre-selects "Shipping & local pickup" (confirmed live 2026-09-20), so the old assumption
+    that the form opens on local pickup no longer holds."""
+    box = page.locator("[role='combobox']").filter(has_text="Delivery method").first
+    box.scroll_into_view_if_needed()
+    current = (box.inner_text() or "").strip().split("\n")[-1].strip()
+    if current.lower() == label.lower():
+        return True
+    box.click()
+    page.wait_for_timeout(800)
+    option = page.get_by_role("option", name=label, exact=True)
+    if option.count() == 0:
+        option = page.get_by_text(label, exact=True)
+    option.last.click(timeout=5000)
+    page.wait_for_timeout(1000)
+    after = (box.inner_text() or "").strip().split("\n")[-1].strip()
+    return after.lower() == label.lower()
+
+
+def _configure_own_label_shipping(page, shipping_cost) -> bool:
+    """Shipping label row -> "Change shipping method" dialog -> Shipping option "Use your own
+    label" -> Shipping rate = the fixed cost -> Update. Flow confirmed from live screenshots
+    2026-09-20; selectors are text-based since this form has no stable aria-labels."""
+    page.get_by_text("Select shipping label", exact=True).first.click(timeout=5000)
+    dialog = page.get_by_role("dialog", name="Change shipping method")
+    dialog.wait_for(timeout=8000)
+
+    option_box = dialog.locator("[role='combobox']").filter(has_text="Shipping option").first
+    option_box.click()
+    page.wait_for_timeout(800)
+    own = page.get_by_role("option", name=SHIPPING_OWN_LABEL_OPTION, exact=True)
+    if own.count() == 0:
+        own = page.get_by_text(SHIPPING_OWN_LABEL_OPTION, exact=True)
+    own.last.click(timeout=5000)
+    page.wait_for_timeout(1000)
+
+    rate = dialog.get_by_label("Shipping rate")
+    if rate.count() == 0:
+        rate = dialog.locator("input[type='text']").last
+    rate.first.click()
+    rate.first.fill(f"{float(shipping_cost):g}")
+    page.wait_for_timeout(500)
+    dialog.get_by_role("button", name="Update", exact=True).click(timeout=5000)
+    page.wait_for_timeout(1500)
+    return page.get_by_text("Your own label", exact=False).count() > 0
+
+
+def _turn_off_offers(page) -> bool:
+    """Allow offers step: always OFF. The toggle is a real role=switch whose aria-checked is the
+    ground truth (confirmed from a live page dump 2026-09-20). Do NOT infer state from the
+    "Minimum price you'll consider" text: a screen-reader-only validation message containing
+    those words stays in the DOM (and reads as visible) even with offers off, which made an
+    earlier version think offers was still on and click it a second time. Clicks at most once,
+    then polls aria-checked."""
+    page.get_by_text("Allow offers", exact=True).first.wait_for(timeout=8000)
+    page.wait_for_timeout(1500)
+    toggle = page.get_by_role("switch").first
+    toggle.wait_for(timeout=8000)
+
+    def is_on() -> bool:
+        return toggle.get_attribute("aria-checked") == "true"
+
+    if not is_on():
+        return True
+    toggle.click()
+    for _ in range(8):
+        page.wait_for_timeout(1000)
+        if not is_on():
+            return True
+    return False
+
+
 def create_draft_listing(
     context,
     title: str,
@@ -380,16 +497,15 @@ def create_draft_listing(
     staying open. Never clicks Publish. Closes its tab when done (nothing left to review
     live).
 
-    allow_shipping / shipping_cost (added 2026-09-20, ccg-fbm-sync Add All mode): when
-    allow_shipping is True, also enables FB's own Shipping option on the Delivery step and
-    enters shipping_cost as its fixed price, in addition to the 3 meetup boxes (local pickup
-    stays available either way, matching CCG's "Allow Shipping" meaning shipping *in addition
-    to* pickup, not instead of it). **Not yet verified against a live listing** — it's not
-    confirmed FB's create form even supports an arbitrary fixed shipping price (vs. only
-    calculated/weight-based shipping); test against a couple of real drafts before trusting
-    this for a real bulk run, the same way the meetup checkboxes needed several iterations to
-    get right (see ARCHITECTURE.md). When allow_shipping is False, behavior is byte-for-byte
-    identical to before this param existed.
+    allow_shipping / shipping_cost (added 2026-09-20, Add All mode). Flow confirmed from live
+    screenshots: the account default now pre-selects "Shipping & local pickup", so the Delivery
+    method dropdown is always set explicitly. shipping_cost of 0 (or allow_shipping False) ->
+    "Local pickup" + the 3 meetup boxes, exactly as before. shipping_cost > 0 -> "Shipping &
+    local pickup" (which replaces the meetup section with a "Shipping label" row): open the
+    label dialog, Shipping option "Use your own label", Shipping rate = shipping_cost, Update;
+    Next to the "Allow offers" step, always turned OFF; then Save draft. If any shipping step
+    fails, the draft is NOT saved (returns None) rather than saving a mis-configured listing.
+    Selectors are text-based and not yet run end-to-end — expect to tune them on the first run.
 
     Returns the new listing's FB id on a confirmed save (parsed straight from the save
     request's own GraphQL response — `data.marketplace_listing_create.listing.id`, confirmed
@@ -445,32 +561,34 @@ def create_draft_listing(
     # Clicking each row's own label text toggles it correctly (confirmed via the preview
     # panel updating) and is simpler than hunting for whatever custom element draws the
     # checkbox square itself.
-    for label_text in MEETUP_PREFERENCE_LABELS:
-        try:
-            page.get_by_text(label_text, exact=True).first.click(timeout=5000)
-        except Exception:
-            print(f"  Couldn't check '{label_text}' — Facebook's delivery-step layout may have changed.")
-    page.wait_for_timeout(500)
+    use_shipping = bool(allow_shipping) and float(shipping_cost or 0) > 0
 
-    if allow_shipping:
+    if not _set_delivery_method(page, DELIVERY_SHIPPING_AND_LOCAL if use_shipping else DELIVERY_LOCAL_ONLY):
+        print("  Couldn't set the Delivery method dropdown — not saving this draft.")
+        page.close()
+        return None
+
+    if use_shipping:
         try:
-            page.get_by_text(SHIPPING_TOGGLE_LABEL, exact=True).first.click(timeout=5000)
-            page.wait_for_timeout(1000)
-            price_field = None
-            for label in SHIPPING_PRICE_LABEL_CANDIDATES:
-                candidates = page.get_by_label(label)
-                if candidates.count() > 0:
-                    price_field = candidates.first
-                    break
-            if price_field is None:
-                # Fall back to the last text input on the page — the shipping-price field, if
-                # it exists, is very likely the newest one to appear after the toggle click.
-                price_field = page.locator("input[type='text']").last
-            price_field.click()
-            price_field.fill(str(shipping_cost or 0))
-            page.wait_for_timeout(500)
+            if not _configure_own_label_shipping(page, shipping_cost):
+                raise RuntimeError("shipping label row didn't show 'Your own label' after Update")
+            page.get_by_role("button", name="Next", exact=True).click()  # -> Allow offers
+            page.wait_for_timeout(2000)
+            if not _turn_off_offers(page):
+                raise RuntimeError("couldn't turn Allow offers off")
         except Exception as error:
-            print(f"  Couldn't set shipping (toggle/price) — Facebook's delivery-step layout may have changed: {error}")
+            _pause_for_inspection(
+                page, f"Shipping setup failed — not saving this draft (Facebook's layout may have changed): {error}"
+            )
+            page.close()
+            return None
+    else:
+        for label_text in MEETUP_PREFERENCE_LABELS:
+            try:
+                page.get_by_text(label_text, exact=True).first.click(timeout=5000)
+            except Exception:
+                print(f"  Couldn't check '{label_text}' — Facebook's delivery-step layout may have changed.")
+        page.wait_for_timeout(500)
 
     new_listing_id: str | None = None
 
@@ -494,7 +612,8 @@ def create_draft_listing(
             new_listing_id = str(listing_id)
 
     page.on("response", _capture_listing_id)
-    page.get_by_text("Save draft", exact=True).click()
+    print(f"  Saving draft from: {_step_summary(page)}")
+    page.get_by_text("Save draft", exact=True).first.click()
 
     # A successful save redirects away from the create-item form back to the listing-type
     # hub — a more durable signal than the "Draft saved successfully" toast, which can be
@@ -514,5 +633,7 @@ def create_draft_listing(
             print("  WARNING: saved, but couldn't capture the new listing id from the save response.")
     else:
         print("  WARNING: clicked Save draft but couldn't confirm the success toast — check FB's Drafts list.")
+        print(f"  After clicking, the page was: {_step_summary(page)}")
+        page.screenshot(path=str(DEBUG_SCREENSHOT))
     page.close()
     return new_listing_id if saved else None
