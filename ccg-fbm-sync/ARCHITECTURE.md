@@ -346,13 +346,13 @@ untouched and still the tool to run for ongoing (non-reset) sync.
 
 **`delete_all.py`:**
 - FB side: `fbm_client.get_active_listings()` (unchanged, reused as-is) enumerates every
-  active listing — **all of them, including David's personal items** (his own call: he'll
-  re-add those by hand rather than have the tool special-case an ignore list on a one-time
-  reset). Prints the full list, requires typing `DELETE ALL` exactly, then calls the new
-  `fbm_client.delete_rows_with_title()` per title — a **permanent delete**, not "mark as sold"
-  (David's explicit choice — irreversible, no recovery). Continues past individual failures
-  and reports them at the end rather than aborting the run.
-- CCG side: loops every inventory item (`for_sale` or not, per spec) via
+  active listing for the **preview only** — **all of them, including David's personal items**
+  (his own call: he'll re-add those by hand rather than have the tool special-case an ignore
+  list on a one-time reset). Prints the full list, requires typing `DELETE ALL` exactly, then
+  calls `fbm_client.delete_everything_on_selling_page()` — a **permanent delete**, not "mark as
+  sold" (David's explicit choice — irreversible, no recovery).
+- CCG side: only runs once the FB sweep is confirmed clean (two consecutive empty page
+  reloads). Loops every inventory item (`for_sale` or not, per spec) via
   `client.get_all_inventory()`; clears `fb_listing_id` (existing `fb-remove` endpoint,
   looped — no bulk endpoint needed, `dbSetInventoryFbListingId` already accepts null per-item
   fine) and resets `fb_sync_state` (new endpoint, see below) wherever it was `"excluded"`.
@@ -386,22 +386,39 @@ untouched and still the tool to run for ongoing (non-reset) sync.
 to null; `fb-exclude` only ever set `'excluded'`. Deployed via `npx wrangler deploy`, same as
 every other `fb-*` endpoint.
 
-**Two new, unverified FB-side automations — flagged, not resolved:**
-- `fbm_client.delete_rows_with_title()` — **confirmed live 2026-09-20** on a single listing
-  (probed read-only first). The listing page and Edit form have NO delete control; it lives on
-  the selling page: per-row `More actions for <title>` button -> menuitem `Delete` -> dialog
-  `Delete listing?` (Delete / Cancel). Rows carry no listing id, so title is the only handle.
-  **Group copies:** David usually posts each item to 4 groups; each group post is a separate
-  listing with its own id and the same title ("David Hopper listed this in <group>"), and a
-  deleted copy reappeared under a new id. Hence delete-by-title, all copies, verified by row
-  count dropping by one each time, followed by a full rescan and up to 5 passes. An earlier
-  version stopped scrolling at the first title match and could have deleted the wrong twin.
-  Multi-copy behavior still needs a live test on a group-posted item.
-- Shipping fields in `create_draft_listing()`'s Delivery step (`SHIPPING_TOGGLE_LABEL`,
-  `SHIPPING_PRICE_LABEL_CANDIDATES`) — same caveat, plus a deeper open question: **it isn't
-  confirmed Facebook's create form even supports an arbitrary fixed shipping price**, as
-  opposed to only calculated/weight-based shipping. Needs a live throwaway test listing
-  before Add All is trusted for any item with Allow Shipping on.
+**Delete-by-title design tried and abandoned (2026-09-20):** the first working version
+(`delete_rows_with_title`, later `delete_titles`) grouped FB listings by title — matching
+`get_active_listings()`'s Grid-view scrape against the selling page's List-view rows — since
+an item posted to Marketplace AND to groups exists as several separate listings with separate
+ids but the same title (David usually posts to 4 groups). This worked on isolated single-item
+tests but **"consistently failed" on a real bulk run**: the two views can render/truncate the
+same title differently, so `page.get_by_role("button", name=f"More actions for {title}",
+exact=True)` silently matched zero rows for some listings. A first attempted fix (reload +
+re-paginate the whole page inside every title's delete call) made things worse — with ~150
+listings and 10+ titles per pass that meant re-scrolling the entire list up to 10 times in one
+pass, which looked exactly like the browser hanging/refreshing.
+
+**Current design — no cross-view matching at all:** `fbm_client.delete_everything_on_selling_page()`
+never correlates anything by title or id. It always acts on whichever row is currently first
+on the selling page (`page.locator("[aria-label^='More actions for ']").first`), deletes it,
+and repeats; when no rows are visible it reloads the whole page (twice, to rule out a
+transient render glitch, before concluding the page is actually empty). This is exactly
+David's own manual process (his suggestion, 2026-09-20) — 3-dot menu on whatever's in front of
+you, Delete, confirm, next; reload when the page runs dry. `get_active_listings()` is still
+used, but only to print an informational preview before the `DELETE ALL` confirmation — it no
+longer decides what gets deleted, so a title mismatch there can no longer break anything.
+Selectors (per-row `More actions for <title>` button -> menuitem `Delete` -> dialog
+`Delete listing?`) are unchanged from the version confirmed live 2026-09-20 on a single
+listing; only how listings are selected for deletion changed. CCG cleanup now runs
+unconditionally once the sweep is confirmed clean, rather than tracking which specific ids
+were confirmed deleted — sound because "swept clean" already means nothing is left live on FB.
+Not yet re-verified against a live bulk run.
+
+**Shipping fields in `create_draft_listing()`'s Delivery step** (`SHIPPING_TOGGLE_LABEL`,
+`SHIPPING_PRICE_LABEL_CANDIDATES`) remain unverified — it isn't confirmed Facebook's create
+form even supports an arbitrary fixed shipping price, as opposed to only calculated/
+weight-based shipping. Needs a live throwaway test listing before Add All is trusted for any
+item with Allow Shipping on.
 
 Worth a look sometime, unrelated to this work: the Worker's `wrangler.toml` already defines
 an `APIFY_FACEBOOK_ACTOR` env var (`"apify/facebook-marketplace-scraper"`) that doesn't

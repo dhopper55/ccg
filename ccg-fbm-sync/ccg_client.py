@@ -88,6 +88,31 @@ class CCGClient:
             raise RuntimeError(f"fb-remove failed for item {item_id}: {resp.status_code} {resp.text}")
         return resp.json()
 
+    def remove_reverb_listing(self, item_id: int) -> dict:
+        """Mirrors admin-v2-app's "Delete From Reverb" button. Unlike Facebook, Reverb has a
+        real API: the Worker calls Reverb's own PUT /my/listings/:id/state/end first, and only
+        clears CCG's reverb_listing_id if that call succeeds (fail-closed — crud2.ts
+        handleInventoryReverbRemove). A non-2xx here means the Reverb-side end failed (already
+        ended/sold is a common, expected case) and the CCG link was deliberately left in place
+        for manual review rather than force-cleared."""
+        self._ensure_login()
+        resp = self.session.post(f"{self.base_url}/api/inventory/{item_id}/reverb-remove")
+        if resp.status_code >= 400:
+            raise RuntimeError(f"reverb-remove failed for item {item_id}: {resp.status_code} {resp.text}")
+        return resp.json()
+
+    def force_clear_reverb_listing(self, item_id: int) -> dict:
+        """Clears reverb_listing_id WITHOUT calling Reverb's API — for a listing already
+        confirmed gone on Reverb's side, where remove_reverb_listing's fail-closed check keeps
+        refusing to clear it (e.g. Reverb already auto-ended it when it sold, so the end-listing
+        call itself 404s/fails). Use only once you've confirmed on Reverb.com that the listing
+        is actually gone — this does no verification of its own."""
+        self._ensure_login()
+        resp = self.session.post(f"{self.base_url}/api/inventory/{item_id}/reverb-force-clear")
+        if resp.status_code >= 400:
+            raise RuntimeError(f"reverb-force-clear failed for item {item_id}: {resp.status_code} {resp.text}")
+        return resp.json()
+
     def mark_sold_fbm(self, item_id: int, sell_notes: str = "Marked sold via ccg-fbm-sync tool.") -> dict:
         self._ensure_login()
         resp = self.session.post(

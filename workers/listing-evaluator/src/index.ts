@@ -74,6 +74,7 @@ import {
   handleInventoryDelete,
   handleInventoryReverbAdd,
   handleInventoryReverbRemove,
+  handleInventoryReverbForceClear,
   handleInventoryFbAdd,
   handleInventoryFbRemove,
   handleInventoryFbMarkSold,
@@ -1217,6 +1218,11 @@ export default {
 
     if (path.endsWith('/reverb-remove') && path.startsWith('/api/inventory/') && request.method === 'POST') {
       const response = await handleInventoryReverbRemove(request, path, env);
+      return withCors(response, request, env);
+    }
+
+    if (path.endsWith('/reverb-force-clear') && path.startsWith('/api/inventory/') && request.method === 'POST') {
+      const response = await handleInventoryReverbForceClear(request, path, env);
       return withCors(response, request, env);
     }
 

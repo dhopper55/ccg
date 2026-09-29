@@ -124,7 +124,11 @@ class FbListing:
 def _switch_to_grid_view(page) -> None:
     for el in page.query_selector_all("[aria-label]"):
         if (el.get_attribute("aria-label") or "") == "Grid view":
-            el.click()
+            try:
+                el.click(timeout=5000)
+            except Exception as error:
+                print(f"    Couldn't click Grid view (continuing anyway): {error}")
+                return
             page.wait_for_timeout(2000)
             return
 
@@ -147,7 +151,7 @@ def _click_load_more(page) -> bool:
         label = el.get_attribute("aria-label") or ""
         if _LOAD_MORE_RE.search(label):
             try:
-                el.click()
+                el.click(timeout=3000)
                 return True
             except Exception:
                 continue
@@ -187,11 +191,21 @@ def get_active_listings() -> list[FbListing]:
         seen: dict[str, str] = {}
         stable_rounds = 0
 
-        for _ in range(60):  # 60 * 25 ≈ 1500, comfortably above any real listing count
+        # Every action below has an explicit short timeout and every iteration prints
+        # progress — an earlier version left _click_load_more's click at Playwright's default
+        # (~30s) action timeout with no console output per iteration, so a single stale/
+        # non-actionable "Load more" button could silently eat minutes per pass across up to
+        # 60 iterations and look exactly like the browser hanging or endlessly reloading
+        # (found live 2026-09-20, on the already-fixed delete_titles code path's sibling here).
+        for i in range(60):  # 60 * 25 ≈ 1500, comfortably above any real listing count
             seen.update(_harvest_anchors(page))
+            print(f"  pass {i + 1}: {len(seen)} listing(s) found so far (url={page.url})", end="\r")
 
             before = len(seen)
-            page.mouse.wheel(0, 3000)
+            try:
+                page.mouse.wheel(0, 3000)
+            except Exception:
+                pass
             page.wait_for_timeout(1000)
             clicked = _click_load_more(page)
             if clicked:
@@ -205,6 +219,7 @@ def get_active_listings() -> list[FbListing]:
                 stable_rounds = 0
 
         seen.update(_harvest_anchors(page))  # final harvest
+        print(f"  finished after scraping: {len(seen)} listing(s) found.                    ")
 
         context.storage_state(path=str(SESSION_FILE))  # refresh cookies for next run
         browser.close()
@@ -222,76 +237,154 @@ def open_draft_browser(playwright):
     return browser, context
 
 
-def _load_all_selling_rows(page, row_button) -> None:
-    stable_rounds = 0
-    for _ in range(80):
-        before = row_button.count()
-        page.mouse.wheel(0, 3000)
+_POPUP_CLOSE_LABELS = {"close chat", "close conversation", "close", "hide", "close popup"}
+
+
+def _dismiss_popups(page) -> None:
+    """Facebook's Messenger chat popup can appear mid-session and sit on top of the selling
+    page, intercepting clicks on whatever it overlaps — confirmed live 2026-09-20 (David closing
+    it by hand made delete failures stop). Called before every delete attempt. Best-effort:
+    never raises, and Escape alone is often enough even if the label-based click below finds
+    nothing to close."""
+    try:
+        page.keyboard.press("Escape")
+    except Exception:
+        pass
+    try:
+        for el in page.query_selector_all("[aria-label]"):
+            label = (el.get_attribute("aria-label") or "").strip().lower()
+            if label in _POPUP_CLOSE_LABELS and el.is_visible():
+                try:
+                    el.click(timeout=1000)
+                except Exception:
+                    continue
+    except Exception:
+        pass
+
+
+def _delete_row_at(page, index: int) -> tuple[bool, str]:
+    """Deletes the row at `index` among CURRENTLY VISIBLE rows on an already-loaded selling
+    page — no title/id matching involved in picking what to act on. Returns (True, title) on a
+    verified delete, (False, title) if a delete was attempted but failed or couldn't be
+    confirmed (never raises). Prints which specific step failed (open menu / click Delete /
+    confirm dialog / row didn't disappear) so a future failure is diagnosable from the log
+    instead of just "something timed out" (found live 2026-09-20: the combined try/except gave
+    no way to tell which of the three clicks had failed).
+    """
+    all_rows = page.locator("[aria-label^='More actions for ']")
+    before = all_rows.count()
+    row = all_rows.nth(index)
+    title = (row.get_attribute("aria-label") or "").removeprefix("More actions for ").strip() or "(untitled row)"
+
+    _dismiss_popups(page)
+
+    step = "opening the 3-dot menu"
+    try:
+        row.scroll_into_view_if_needed(timeout=8000)
+        page.wait_for_timeout(400)  # let any scroll-triggered reflow settle before clicking
+        row.click(timeout=8000)
         page.wait_for_timeout(800)
-        clicked = _click_load_more(page)
-        if clicked:
-            page.wait_for_timeout(2000)
-        if not clicked and row_button.count() == before:
-            stable_rounds += 1
-            if stable_rounds >= 3:
-                return
-        else:
-            stable_rounds = 0
+
+        step = "clicking Delete in the menu"
+        page.get_by_role("menuitem", name="Delete", exact=True).click(timeout=8000)
+        page.wait_for_timeout(800)
+
+        step = "confirming the delete dialog"
+        page.get_by_role("dialog", name="Delete listing?").get_by_role(
+            "button", name="Delete", exact=True
+        ).click(timeout=8000)
+    except Exception as error:
+        first_line = str(error).strip().split("\n")[0]
+        print(f"  Couldn't delete '{title}' — failed while {step}: {first_line}")
+        return False, title
+
+    for _ in range(15):
+        page.wait_for_timeout(1000)
+        if all_rows.count() < before:
+            return True, title
+    print(f"  Clicked Delete on '{title}' but the row count didn't drop.")
+    return False, title
 
 
-def delete_rows_with_title(context, title: str) -> tuple[int, int]:
-    """Permanently deletes EVERY row on your selling page titled `title` (added 2026-09-20,
-    ccg-fbm-sync Delete All mode). Irreversible on Facebook's side. Returns
-    (deleted_count, rows_found_initially).
+def delete_everything_on_selling_page(context, limit: int | None = None) -> tuple[int, bool]:
+    """Deletes listings on your selling page ONE AT A TIME, always acting on whichever is
+    currently in front of you — never matching by title or id (added 2026-09-20, replacing an
+    earlier title-matching design). Returns (deleted_count, swept_clean) where swept_clean is
+    True only if the page was confirmed empty after two consecutive fresh reloads.
 
-    Why by title, all copies at once: an item posted to Marketplace AND to groups exists as
-    several separate listings with separate ids but the same title (confirmed live 2026-09-20 —
-    David usually posts to 4 groups, and deleting one copy left the others, one even reappeared
-    under a new id). List-view rows carry no listing id, so title is the only stable handle.
+    A listing that fails to delete is SKIPPED (tries the next one instead of stopping the whole
+    run), up to 2 attempts per title before giving up on it for good — found live 2026-09-20
+    that stopping the entire run on one flaky listing was too fragile for a ~150-listing sweep.
+    Skipped titles are tracked across page reloads too (not just within one loaded batch), so a
+    listing that keeps failing doesn't get retried forever across reload cycles. If EVERY
+    currently visible row has already exhausted its retries, the run stops rather than looping.
 
-    Selectors confirmed live 2026-09-20 by probing a real listing (read-only, stopped before
-    confirming): the listing page and Edit form have no delete control at all. Delete lives in
-    the selling page's per-row "More actions for <title>" button -> menuitem "Delete" ->
-    dialog "Delete listing?" with Delete / Cancel. Each delete is verified by the matching row
-    count dropping by exactly one, not assumed from the clicks; on any failure it stops and
-    reports how many were deleted so far (never raises).
+    Why no title/id matching for picking what to delete: the previous version correlated
+    listings scraped in Grid view (for preview/ids) against rows in List view (for deleting) by
+    matching title TEXT between the two — but the two views can render/truncate the same title
+    differently, so the match silently failed on some listings, which is what made deletes
+    "consistently fail" on a real run. This mirrors exactly how David does it by hand: click the
+    3-dot menu on whatever's in front of you, delete it, move to the next; if the page runs out
+    of visible listings, reload the whole page (once, not "Load more" — no scrolling/pagination
+    anywhere in this function) and keep going.
+
+    Irreversible on Facebook's side. `limit`, if given, stops after that many deletions
+    (without needing the page to run empty) — for testing on a handful of items first.
     """
     page = context.new_page()
     deleted = 0
-    found = 0
+    swept_clean = False
+    failure_counts: dict[str, int] = {}
+    MAX_ATTEMPTS_PER_TITLE = 2
     try:
         page.goto(LISTINGS_URL, wait_until="domcontentloaded")
         page.wait_for_timeout(4000)
+        _dismiss_popups(page)
 
-        row_button = page.get_by_role("button", name=f"More actions for {title}", exact=True)
-        _load_all_selling_rows(page, row_button)
-        found = row_button.count()
-        remaining = found
+        empty_reloads = 0
+        while limit is None or deleted < limit:
+            all_rows = page.locator("[aria-label^='More actions for ']")
+            total = all_rows.count()
 
-        while remaining > 0:
-            row_button.first.scroll_into_view_if_needed()
-            row_button.first.click()
-            page.wait_for_timeout(1000)
-            page.get_by_role("menuitem", name="Delete", exact=True).click(timeout=5000)
-            page.wait_for_timeout(1000)
-            page.get_by_role("dialog", name="Delete listing?").get_by_role(
-                "button", name="Delete", exact=True
-            ).click(timeout=5000)
-
-            for _ in range(15):
-                page.wait_for_timeout(1000)
-                if row_button.count() < remaining:
+            if total == 0:
+                empty_reloads += 1
+                if empty_reloads > 2:
+                    swept_clean = True
                     break
-            if row_button.count() >= remaining:
-                print(f"  Clicked Delete on '{title}' but the row count didn't drop — stopping this title.")
+                print(f"  No listings visible — reloading the page ({empty_reloads}/2 checks)...")
+                page.reload(wait_until="domcontentloaded")
+                page.wait_for_timeout(4000)
+                _dismiss_popups(page)
+                continue
+
+            # Pick the first currently-visible row that hasn't already exhausted its retries.
+            index = None
+            for i in range(total):
+                candidate_title = (
+                    all_rows.nth(i).get_attribute("aria-label") or ""
+                ).removeprefix("More actions for ").strip() or "(untitled row)"
+                if failure_counts.get(candidate_title, 0) < MAX_ATTEMPTS_PER_TITLE:
+                    index = i
+                    break
+            if index is None:
+                print(
+                    f"  All {total} visible listing(s) already failed to delete "
+                    f"{MAX_ATTEMPTS_PER_TITLE} time(s) each — stopping rather than loop. "
+                    "Delete these manually, then rerun."
+                )
                 break
-            remaining = row_button.count()
-            deleted += 1
-    except Exception as error:
-        print(f"  Error while deleting '{title}': {error}")
+
+            ok, title = _delete_row_at(page, index)
+            if ok:
+                deleted += 1
+                empty_reloads = 0
+                failure_counts.pop(title, None)
+                print(f"  [{deleted}] deleted: {title}")
+            else:
+                failure_counts[title] = failure_counts.get(title, 0) + 1
     finally:
         page.close()
-    return deleted, found
+    return deleted, swept_clean
 
 
 def map_condition(ccg_condition: str) -> str:

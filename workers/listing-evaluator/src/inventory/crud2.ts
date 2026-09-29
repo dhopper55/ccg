@@ -936,6 +936,28 @@ export async function handleInventoryReverbRemove(_request: Request, path: strin
   return jsonResponse({ ok: true, reverbListingId: null });
 }
 
+// Sibling of handleInventoryReverbRemove, WITHOUT calling Reverb's API first — for a listing
+// already confirmed gone on Reverb's side (Reverb auto-ends listings once they sell, and
+// reverb-remove is deliberately fail-closed: if Reverb's own end-listing call fails, e.g.
+// because it's already ended, it refuses to clear the local link, leaving it stuck). Used by
+// the ccg-fbm-sync tool's delete_all_reverb.py for exactly that case (2026-09-20).
+export async function handleInventoryReverbForceClear(_request: Request, path: string, env: Env): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const actionIndex = parts.indexOf('reverb-force-clear');
+  const recordId = actionIndex > 0 ? parts[actionIndex - 1] : '';
+  if (!recordId) return jsonResponse({ message: 'Missing inventory ID.' }, 400);
+
+  const current = await dbGetInventoryItem(recordId, env);
+  if (!current) return jsonResponse({ message: 'Inventory item not found.' }, 404);
+  if (!(current as { reverbListingId?: unknown }).reverbListingId) {
+    return jsonResponse({ message: 'Item is not currently linked to a Reverb listing.' }, 400);
+  }
+
+  const ok = await dbSetInventoryReverbListingId(recordId, null, env);
+  if (!ok) return jsonResponse({ message: 'Failed to clear the Reverb link.' }, 500);
+  return jsonResponse({ ok: true, reverbListingId: null });
+}
+
 // Unlike Reverb, Facebook Marketplace has no public API to create/end a listing — these two
 // handlers just persist/clear the caller-supplied listing id locally. Used by the ccg-fbm-sync
 // tool (a local, developer-run script; see /ccg-fbm-sync/ARCHITECTURE.md) to link/unlink items.
