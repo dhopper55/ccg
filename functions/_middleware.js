@@ -3,6 +3,16 @@ export async function onRequest(context) {
   const shopBase = '/guitars-and-gear-for-sale';
   const siteOrigin = 'https://www.coalcreekguitars.com';
 
+  // SPA deep links: _redirects 200 rewrites to /<app>/index.html don't resolve on Pages
+  // (it 308s index.html to the directory), so serve the app shell directly.
+  const spaBase = ['/admin', '/dncbudget'].find((base) => url.pathname.startsWith(`${base}/`));
+  if (spaBase && url.pathname !== `${spaBase}/` && !/\.[a-z0-9]+$/i.test(url.pathname)) {
+    const shellUrl = new URL(context.request.url);
+    shellUrl.pathname = `${spaBase}/`;
+    shellUrl.search = '';
+    return context.env.ASSETS.fetch(new Request(shellUrl, context.request));
+  }
+
   if (
     url.pathname.startsWith(`${shopBase}/`) &&
     !url.pathname.startsWith(`${shopBase}/assets/`) &&

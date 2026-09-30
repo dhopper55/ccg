@@ -32,6 +32,7 @@ import liberationSansBoldUrl from 'pdfjs-dist/standard_fonts/LiberationSans-Bold
 import liberationSansRegularUrl from 'pdfjs-dist/standard_fonts/LiberationSans-Regular.ttf?url';
 import IconifyIcon from 'components/base/IconifyIcon';
 import paths from 'routes/paths';
+import { downloadImagesAsZip } from 'lib/imageZip';
 import ReverbListingWizard from './ReverbListingWizard';
 
 type InventoryItemRecord = {
@@ -556,13 +557,6 @@ type SaleFieldsSnapshot = {
   bullet6Text: string;
   clearance: boolean;
 };
-
-const SALE_TRIGGER_KEYS = new Set<string>([
-  'salePrice', 'regularPrice', 'saleTitle',
-  'bullet1Text', 'bullet2Text', 'bullet3Text',
-  'bullet4Text', 'bullet5Text', 'bullet6Text',
-  'clearance',
-]);
 
 function isSaleFieldsDirty(form: FormState, saved: SaleFieldsSnapshot): boolean {
   return (
@@ -1175,7 +1169,6 @@ const InventoryItem = () => {
   const saleUrlInputRef = useRef<HTMLInputElement | null>(null);
   const aiAnalysisEditorRef = useRef<HTMLDivElement | null>(null);
   const wasForSaleOnLoadRef = useRef(false);
-  const saleSnapshotOnLoadRef = useRef<SaleFieldsSnapshot | null>(null);
   const savedSaleSnapshotRef = useRef<SaleFieldsSnapshot | null>(null);
   const lastSavedFullSnapshotRef = useRef<string | null>(null);
   const saleTitleWasEmptyOnFocusRef = useRef(false);
@@ -1333,7 +1326,6 @@ const InventoryItem = () => {
       setIsLoading(true);
       setMessage(null);
       wasForSaleOnLoadRef.current = false;
-      saleSnapshotOnLoadRef.current = null;
       savedSaleSnapshotRef.current = null;
 
       try {
@@ -1448,7 +1440,6 @@ const InventoryItem = () => {
             tagReprint: Boolean(record.tagReprint),
           });
           const snapshot = buildSaleSnapshot(record);
-          saleSnapshotOnLoadRef.current = snapshot;
           savedSaleSnapshotRef.current = snapshot;
           setWasSoldOnLoad(Boolean(record.isSold));
 
@@ -1719,7 +1710,6 @@ const InventoryItem = () => {
             return {
               ...current,
               forSale: true,
-              tagReprint: true,
               salesChannelCcg: true,
               queue: 'For Sale',
               bullet6Text: 'FINANCING AVAILABLE!',
@@ -1727,18 +1717,11 @@ const InventoryItem = () => {
               bullet6Highlight: true,
             };
           }
-          return { ...current, forSale: true, tagReprint: true, salesChannelCcg: true, queue: 'For Sale' };
+          return { ...current, forSale: true, salesChannelCcg: true, queue: 'For Sale' };
         }
         if (current.forSale && !nextForSale) {
           return { ...current, forSale: false, queue: 'To Sell' };
         }
-      }
-      if (SALE_TRIGGER_KEYS.has(key as string) && wasForSaleOnLoadRef.current && saleSnapshotOnLoadRef.current) {
-        const nextForm = { ...current, [key]: value };
-        if (isSaleFieldsDirty(nextForm, saleSnapshotOnLoadRef.current)) {
-          return { ...nextForm, tagReprint: true };
-        }
-        return nextForm;
       }
       return { ...current, [key]: value };
     });
@@ -1765,7 +1748,6 @@ const InventoryItem = () => {
       setSourceImageUrl(null);
       setWasSoldOnLoad(false);
       wasForSaleOnLoadRef.current = false;
-      saleSnapshotOnLoadRef.current = null;
       savedSaleSnapshotRef.current = null;
       setSaleUrlReadOnly(Boolean(form.saleUrl.trim()));
       setForm((current) => ({
@@ -1940,7 +1922,7 @@ const InventoryItem = () => {
     saleZip: form.saleZip.trim(),
     storageLocation: form.storageLocation || null,
     soldChannel: form.soldChannel || null,
-    tagReprint: form.tagReprint || (!wasForSaleOnLoadRef.current && form.forSale),
+    tagReprint: form.tagReprint,
   });
 
   const persistImages = async (
@@ -2556,6 +2538,21 @@ const InventoryItem = () => {
     return text.trim();
   };
 
+  const [isDownloadingZip, setIsDownloadingZip] = useState(false);
+  const handleDownloadZip = useCallback(async () => {
+    if (images.length === 0) return;
+    setIsDownloadingZip(true);
+    try {
+      const ccgNumber = getSavableCcgNumber(form.ccgNumber);
+      await downloadImagesAsZip(
+        images.map((image) => new URL(image.url, window.location.origin).toString()),
+        `${ccgNumber || 'inventory'}-images.zip`,
+      );
+    } finally {
+      setIsDownloadingZip(false);
+    }
+  }, [images, form.ccgNumber]);
+
   const uploadButtonLabel = useMemo(() => {
     if (isUploading) return 'Uploading...';
     return images.length > 0 ? 'Add Images' : 'Upload Images';
@@ -2801,6 +2798,22 @@ const InventoryItem = () => {
                     >
                       {uploadButtonLabel}
                     </Button>
+                    {images.length ? (
+                      <Tooltip title={isDownloadingZip ? 'Downloading…' : 'Download all images as ZIP'}>
+                        <span>
+                          <IconButton
+                            onClick={handleDownloadZip}
+                            disabled={isDownloadingZip}
+                            sx={{ border: 1, borderColor: 'divider', alignSelf: { xs: 'flex-start', md: 'center' } }}
+                          >
+                            <IconifyIcon
+                              icon={isDownloadingZip ? 'material-symbols:hourglass-top-rounded' : 'material-symbols:folder-zip-outline-rounded'}
+                              sx={{ fontSize: 20 }}
+                            />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    ) : null}
                     {sourceImageUrl ? (
                       <Button
                         variant="outlined"
