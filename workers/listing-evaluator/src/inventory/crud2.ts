@@ -798,7 +798,7 @@ export async function handleInventoryDelete(_request: Request, path: string, env
   return jsonResponse({ ok: true, updatedCount });
 }
 
-// Creates a real, live (publish: true) Reverb listing from the inventory item's existing
+// Creates a draft (publish: false) Reverb listing from the inventory item's existing
 // for-sale fields plus the wizard's answers. See reverb-listing.ts for which payload fields
 // are confirmed against Reverb's public API docs vs. best-guess.
 export async function handleInventoryReverbAdd(request: Request, path: string, env: Env): Promise<Response> {

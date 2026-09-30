@@ -326,7 +326,8 @@ export function buildReverbListingPayload(
     sold_as_described: wizard.soldAsDescribed,
     safe_shipping: wizard.safeShipping,
     auto_price_drop: wizard.dropPriceIn2Weeks,
-    publish: true,
+    // Created as a draft — publish it by hand on reverb.com after reviewing.
+    publish: false,
   };
 }
 
@@ -498,6 +499,14 @@ export async function endReverbListing(
   });
 
   if (!response.ok) {
+    // Listings are created as drafts, and a draft that was never published can't be "ended" —
+    // Reverb deletes drafts instead. Only fall back to that when the end call fails.
+    const draftDelete = await fetch(`${REVERB_SEARCH_API_URL}/${encodeURIComponent(listingId)}`, {
+      method: 'DELETE',
+      headers: reverbRequestHeaders(env),
+    });
+    if (draftDelete.ok) return { ok: true };
+
     const text = await response.text();
     let data: unknown = null;
     try {

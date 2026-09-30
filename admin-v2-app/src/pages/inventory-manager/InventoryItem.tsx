@@ -2433,9 +2433,9 @@ const InventoryItem = () => {
   const handleReverbListed = (warning?: string | null) => {
     setReverbWizardOpen(false);
     if (warning) {
-      enqueueSnackbar(`Listed on Reverb. ${warning}`, { variant: 'warning', autoHideDuration: 10000 });
+      enqueueSnackbar(`Added to Reverb as a draft. ${warning}`, { variant: 'warning', autoHideDuration: 10000 });
     } else {
-      enqueueSnackbar('Listed on Reverb.', { variant: 'success' });
+      enqueueSnackbar('Added to Reverb as a draft — publish it on reverb.com.', { variant: 'success' });
     }
     setReloadToken((current) => current + 1);
   };
