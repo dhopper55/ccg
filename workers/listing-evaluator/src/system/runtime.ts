@@ -78,6 +78,31 @@ export async function getBrevoRuntimeConfig(env: Env): Promise<BrevoRuntimeConfi
   }
 }
 
+export type SaleDescriptionPostfixes = {
+  guitar: string;
+  pedal: string;
+  amp: string;
+  generic: string;
+};
+
+// Per-category description footers the shop appends to each product. The original
+// sale_description_postfix column is the Guitar/Bass one.
+export async function getSaleDescriptionPostfixes(env: Env): Promise<SaleDescriptionPostfixes> {
+  let row: Record<string, unknown> | null = null;
+  try {
+    row = await env.DB.prepare('SELECT * FROM sys_info LIMIT 1').first<Record<string, unknown>>();
+  } catch (error) {
+    console.warn('Sale description postfix lookup failed.', { error });
+  }
+  const guitar = normalizeText(row?.sale_description_postfix, DEFAULT_SALE_DESCRIPTION_POSTFIX);
+  return {
+    guitar,
+    pedal: normalizeText(row?.sale_description_postfix_pedal, guitar),
+    amp: normalizeText(row?.sale_description_postfix_amp, guitar),
+    generic: normalizeText(row?.sale_description_postfix_generic, guitar),
+  };
+}
+
 export async function getShopRuntimeSettings(env: Env): Promise<{
   associateScreensaverIdleMs: number;
   customProductBarcode: string;
@@ -204,6 +229,9 @@ export async function dbGetSystemSettings(env: Env): Promise<{
   currentMfrWholesaleFunds: string;
   postStoreLaunchDate: string;
   saleDescriptionPostfix: string;
+  saleDescriptionPostfixPedal: string;
+  saleDescriptionPostfixAmp: string;
+  saleDescriptionPostfixGeneric: string;
 }> {
   const row = await env.DB.prepare('SELECT * FROM sys_info LIMIT 1').first<Record<string, unknown>>();
 
@@ -217,6 +245,9 @@ export async function dbGetSystemSettings(env: Env): Promise<{
     currentMfrWholesaleFunds: formatSystemCurrency(row?.current_mfr_wholesale_funds),
     postStoreLaunchDate: normalizeInventoryDate(row?.post_store_launch_date) || '2026-06-01',
     saleDescriptionPostfix: normalizeText(row?.sale_description_postfix, DEFAULT_SALE_DESCRIPTION_POSTFIX),
+    saleDescriptionPostfixPedal: normalizeText(row?.sale_description_postfix_pedal, ''),
+    saleDescriptionPostfixAmp: normalizeText(row?.sale_description_postfix_amp, ''),
+    saleDescriptionPostfixGeneric: normalizeText(row?.sale_description_postfix_generic, ''),
   };
 }
 
@@ -231,6 +262,9 @@ export async function dbSetSystemSettings(
     currentMfrWholesaleFunds: number;
     postStoreLaunchDate: string;
     saleDescriptionPostfix: string;
+    saleDescriptionPostfixPedal: string;
+    saleDescriptionPostfixAmp: string;
+    saleDescriptionPostfixGeneric: string;
   },
   env: Env,
 ): Promise<void> {
@@ -245,6 +279,9 @@ export async function dbSetSystemSettings(
     current_mfr_wholesale_funds: Number(settings.currentMfrWholesaleFunds.toFixed(2)),
     post_store_launch_date: settings.postStoreLaunchDate,
     sale_description_postfix: settings.saleDescriptionPostfix,
+    sale_description_postfix_pedal: settings.saleDescriptionPostfixPedal,
+    sale_description_postfix_amp: settings.saleDescriptionPostfixAmp,
+    sale_description_postfix_generic: settings.saleDescriptionPostfixGeneric,
   };
   const cols = Object.keys(allValues).filter((col) => existingCols.has(col));
   if (cols.length === 0) return;

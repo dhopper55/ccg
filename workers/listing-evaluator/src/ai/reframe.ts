@@ -47,9 +47,15 @@ async function attemptReframe(prompt: string, env: Env): Promise<ReframeResult |
   const data = await response.json() as { content?: Array<{ type: string; text?: string }> };
   const output = data.content?.find((b) => b.type === 'text')?.text?.trim() ?? '';
 
+  // The model sometimes wraps the JSON in a ```json fence or adds a lead-in line despite the
+  // prompt, so parse just the outermost {...} object.
+  const start = output.indexOf('{');
+  const end = output.lastIndexOf('}');
+  const jsonText = start >= 0 && end > start ? output.slice(start, end + 1) : output;
+
   let parsed: { title?: string; description?: string };
   try {
-    parsed = JSON.parse(output);
+    parsed = JSON.parse(jsonText);
   } catch {
     console.warn('Sale title/description reframe returned unparseable JSON', { output: output.slice(0, 600) });
     return null;

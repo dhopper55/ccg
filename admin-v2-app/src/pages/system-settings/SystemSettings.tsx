@@ -1,5 +1,5 @@
 import { ChangeEvent, useEffect, useState } from 'react';
-import { Alert, Button, Divider, FormControlLabel, Paper, Stack, Switch, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Divider, FormControlLabel, Paper, Stack, Switch, Tab, Tabs, TextField, Typography } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import IconifyIcon from 'components/base/IconifyIcon';
 import PageHeader from 'components/sections/ecommerce/admin/common/PageHeader';
@@ -74,7 +74,19 @@ type SystemSettingsForm = {
   currentMfrWholesaleFunds: string;
   postStoreLaunchDate: string;
   saleDescriptionPostfix: string;
+  saleDescriptionPostfixPedal: string;
+  saleDescriptionPostfixAmp: string;
+  saleDescriptionPostfixGeneric: string;
 };
+
+type PostfixField = 'saleDescriptionPostfix' | 'saleDescriptionPostfixPedal' | 'saleDescriptionPostfixAmp' | 'saleDescriptionPostfixGeneric';
+
+const POSTFIX_TABS: Array<{ field: PostfixField; label: string }> = [
+  { field: 'saleDescriptionPostfix', label: 'Guitar Sales Desc. Postfix' },
+  { field: 'saleDescriptionPostfixPedal', label: 'Pedal Sales Desc. Postfix' },
+  { field: 'saleDescriptionPostfixAmp', label: 'Amp Desc Postfix' },
+  { field: 'saleDescriptionPostfixGeneric', label: 'Generic Description Postfix' },
+];
 
 type SystemSettingsResponse = Partial<SystemSettingsForm> & {
   ok?: boolean;
@@ -104,10 +116,14 @@ const defaultForm: SystemSettingsForm = {
   currentMfrWholesaleFunds: '0.00',
   postStoreLaunchDate: '2026-06-01',
   saleDescriptionPostfix: '',
+  saleDescriptionPostfixPedal: '',
+  saleDescriptionPostfixAmp: '',
+  saleDescriptionPostfixGeneric: '',
 };
 
 const SystemSettings = () => {
   const { enqueueSnackbar } = useSnackbar();
+  const [postfixTab, setPostfixTab] = useState(0);
   const [form, setForm] = useState<SystemSettingsForm>(defaultForm);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -146,6 +162,9 @@ const SystemSettings = () => {
         currentMfrWholesaleFunds: payload.currentMfrWholesaleFunds || '0.00',
         postStoreLaunchDate: payload.postStoreLaunchDate || '2026-06-01',
         saleDescriptionPostfix: payload.saleDescriptionPostfix || '',
+        saleDescriptionPostfixPedal: payload.saleDescriptionPostfixPedal || '',
+        saleDescriptionPostfixAmp: payload.saleDescriptionPostfixAmp || '',
+        saleDescriptionPostfixGeneric: payload.saleDescriptionPostfixGeneric || '',
       });
       setUseStripeSandbox(stripePayload.useStripeSandbox ?? true);
       setStripePublishableKeySandbox(stripePayload.stripePublishableKeySandbox ?? '');
@@ -188,6 +207,9 @@ const SystemSettings = () => {
             currentMfrWholesaleFunds: Number(form.currentMfrWholesaleFunds),
             postStoreLaunchDate: form.postStoreLaunchDate,
             saleDescriptionPostfix: form.saleDescriptionPostfix,
+            saleDescriptionPostfixPedal: form.saleDescriptionPostfixPedal,
+            saleDescriptionPostfixAmp: form.saleDescriptionPostfixAmp,
+            saleDescriptionPostfixGeneric: form.saleDescriptionPostfixGeneric,
           }),
         }),
         fetch('/api/admin-v2/stripe-config', {
@@ -211,6 +233,9 @@ const SystemSettings = () => {
         currentMfrWholesaleFunds: payload.currentMfrWholesaleFunds || form.currentMfrWholesaleFunds,
         postStoreLaunchDate: payload.postStoreLaunchDate || form.postStoreLaunchDate,
         saleDescriptionPostfix: payload.saleDescriptionPostfix ?? form.saleDescriptionPostfix,
+        saleDescriptionPostfixPedal: payload.saleDescriptionPostfixPedal ?? form.saleDescriptionPostfixPedal,
+        saleDescriptionPostfixAmp: payload.saleDescriptionPostfixAmp ?? form.saleDescriptionPostfixAmp,
+        saleDescriptionPostfixGeneric: payload.saleDescriptionPostfixGeneric ?? form.saleDescriptionPostfixGeneric,
       });
       setStripePublishableKeySandbox(stripePayload.stripePublishableKeySandbox ?? stripePublishableKeySandbox);
       setStripePublishableKey(stripePayload.stripePublishableKey ?? stripePublishableKey);
@@ -561,15 +586,29 @@ const SystemSettings = () => {
             onChange={handleChange('postStoreLaunchDate')}
             InputLabelProps={{ shrink: true }}
           />
-          <TextField
-            fullWidth
-            multiline
-            minRows={12}
-            label="Sale Description Postfix"
-            value={form.saleDescriptionPostfix}
-            disabled={isLoading || isSaving}
-            onChange={handleChange('saleDescriptionPostfix')}
-          />
+          <Box>
+            <Tabs
+              value={postfixTab}
+              onChange={(_, value: number) => setPostfixTab(value)}
+              variant="scrollable"
+              allowScrollButtonsMobile
+              sx={{ mb: 2 }}
+            >
+              {POSTFIX_TABS.map((tab) => (
+                <Tab key={tab.field} label={tab.label} />
+              ))}
+            </Tabs>
+            <TextField
+              key={POSTFIX_TABS[postfixTab].field}
+              fullWidth
+              multiline
+              minRows={12}
+              label={POSTFIX_TABS[postfixTab].label}
+              value={form[POSTFIX_TABS[postfixTab].field]}
+              disabled={isLoading || isSaving}
+              onChange={handleChange(POSTFIX_TABS[postfixTab].field)}
+            />
+          </Box>
           <Divider />
           <Typography variant="subtitle2" color="text.secondary">
             Register / Printer

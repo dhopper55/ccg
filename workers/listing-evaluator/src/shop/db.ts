@@ -3,9 +3,9 @@ import type { ShopProductRow } from '../types/inventory.js';
 import type { ShopCheckoutInventoryRow } from '../types/orders.js';
 import { normalizeText, expandInventoryCategoryIds, parseOptionalPositiveInt } from '../utils/misc.js';
 import { toPublicShopImageUrl, parseStoredInventoryImageUrls } from '../utils/image.js';
-import { getInventoryCategoryLabel, dbListInventoryCategories } from '../inventory/categories.js';
+import { getInventoryCategoryLabel, dbListInventoryCategories, dbGetRootInventoryCategoryId } from '../inventory/categories.js';
 import { dbGetInventoryAddtl, dbGetInventoryAddtlForIds } from '../inventory/addtl.js';
-import { getShopRuntimeSettings } from '../system/runtime.js';
+import { getSaleDescriptionPostfixes, type SaleDescriptionPostfixes } from '../system/runtime.js';
 import {
   INVENTORY_CATEGORY_SELECT_SQL,
   INVENTORY_CATEGORY_JOIN_SQL,
@@ -699,7 +699,10 @@ export async function dbGetShopProductDetail(
     { text: normalizeText(row.bullet_5_text, ''), danger: Boolean(row.bullet_5_danger), highlight: Boolean(row.bullet_5_highlight) },
     { text: normalizeText(row.bullet_6_text, ''), danger: Boolean(row.bullet_6_danger), highlight: Boolean(row.bullet_6_highlight) },
   ].filter((item) => item.text);
-  const saleDescriptionPostfix = (await getShopRuntimeSettings(env)).saleDescriptionPostfix;
+  const saleDescriptionPostfix = pickSaleDescriptionPostfix(
+    await dbGetRootInventoryCategoryId(row.category_id, env),
+    await getSaleDescriptionPostfixes(env),
+  );
   const addtl = await dbGetInventoryAddtl(row.id, env);
 
   return {
@@ -740,6 +743,18 @@ export async function dbGetShopProductDetail(
     ].filter((item) => item.value && item.value.toLowerCase() !== 'unknown'),
     isSold: Boolean(row.is_sold),
   };
+}
+
+// Top-level inventory category ids that pick a category-specific description footer.
+const GUITAR_ROOT_CATEGORY_IDS = new Set([15, 16]); // Guitar, Bass
+const PEDAL_ROOT_CATEGORY_ID = 2; // Effects Pedals
+const AMP_ROOT_CATEGORY_ID = 6; // Amplification
+
+function pickSaleDescriptionPostfix(rootCategoryId: number | null, postfixes: SaleDescriptionPostfixes): string {
+  if (rootCategoryId != null && GUITAR_ROOT_CATEGORY_IDS.has(rootCategoryId)) return postfixes.guitar;
+  if (rootCategoryId === PEDAL_ROOT_CATEGORY_ID) return postfixes.pedal;
+  if (rootCategoryId === AMP_ROOT_CATEGORY_ID) return postfixes.amp;
+  return postfixes.generic;
 }
 
 export function appendSaleDescriptionPostfix(description: string, postfix: string): string {

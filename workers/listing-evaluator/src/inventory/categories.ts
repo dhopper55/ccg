@@ -171,6 +171,22 @@ export async function dbInventoryCategoryParentWouldCreateCycle(
   return false;
 }
 
+export async function dbGetRootInventoryCategoryId(categoryId: number | null | undefined, env: Env): Promise<number | null> {
+  if (categoryId == null) return null;
+  const row = await env.DB.prepare(
+    `WITH RECURSIVE ancestors(id, parent_id, depth) AS (
+       SELECT id, parent_id, 0 FROM ccg_inventory_categories WHERE id = ?
+       UNION ALL
+       SELECT c.id, c.parent_id, a.depth + 1
+       FROM ccg_inventory_categories c
+       JOIN ancestors a ON c.id = a.parent_id
+       WHERE a.depth < 10
+     )
+     SELECT id FROM ancestors WHERE parent_id IS NULL LIMIT 1`
+  ).bind(categoryId).first<{ id: number }>();
+  return row?.id ?? null;
+}
+
 export async function dbFindTopLevelPackageCategoryId(env: Env): Promise<number | null> {
   const row = await env.DB.prepare(
     `SELECT id

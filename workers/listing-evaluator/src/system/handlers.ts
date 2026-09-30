@@ -113,6 +113,9 @@ export async function handleAdminV2SystemSettingsUpdate(request: Request, env: E
   const currentMfrWholesaleFunds = parseCurrencyAmount(body.currentMfrWholesaleFunds);
   const postStoreLaunchDate = normalizeInventoryDate(body.postStoreLaunchDate);
   const saleDescriptionPostfix = normalizeText(body.saleDescriptionPostfix, '').slice(0, 12000);
+  const saleDescriptionPostfixPedal = normalizeText(body.saleDescriptionPostfixPedal, '').slice(0, 12000);
+  const saleDescriptionPostfixAmp = normalizeText(body.saleDescriptionPostfixAmp, '').slice(0, 12000);
+  const saleDescriptionPostfixGeneric = normalizeText(body.saleDescriptionPostfixGeneric, '').slice(0, 12000);
 
   if (!Number.isFinite(templateId) || templateId <= 0 || Math.floor(templateId) !== templateId) {
     return jsonResponse({ message: 'Brevo Order Confirm Template ID must be a positive whole number.' }, 400);
@@ -151,6 +154,9 @@ export async function handleAdminV2SystemSettingsUpdate(request: Request, env: E
       currentMfrWholesaleFunds,
       postStoreLaunchDate,
       saleDescriptionPostfix,
+      saleDescriptionPostfixPedal,
+      saleDescriptionPostfixAmp,
+      saleDescriptionPostfixGeneric,
     }, env);
     const settings = await dbGetSystemSettings(env);
     return jsonResponse({ ok: true, ...settings });
