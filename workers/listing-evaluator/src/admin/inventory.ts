@@ -294,6 +294,27 @@ export async function handleAdminV2InventoryClearTagReprint(
   return jsonResponse({ ok: true });
 }
 
+// Randomly pick the next item to evaluate: active, not sold, and marked.
+// The item currently being viewed (?exclude=<id>) is skipped.
+export async function handleAdminV2InventoryEvalNext(request: Request, env: Env): Promise<Response> {
+  const excludeId = Number.parseInt(new URL(request.url).searchParams.get('exclude') || '', 10);
+  try {
+    const row = await env.DB.prepare(
+      `SELECT id FROM ccg_inventory_items
+       WHERE COALESCE(is_active, 0) = 1
+         AND COALESCE(is_sold, 0) = 0
+         AND COALESCE(is_marked, 0) = 1
+         AND id <> ?
+       ORDER BY RANDOM()
+       LIMIT 1`
+    ).bind(Number.isFinite(excludeId) ? excludeId : -1).first<{ id: number }>();
+    return jsonResponse({ ok: true, id: row ? row.id : null });
+  } catch (error) {
+    console.error('Failed to find next inventory item to evaluate', { error });
+    return jsonResponse({ message: 'Unable to find next item to evaluate.' }, 500);
+  }
+}
+
 export async function handleAdminV2InventoryLabelsPdf(env: Env): Promise<Response> {
   const rows = await dbListMarkedInventoryLabelRows(env);
   const labels = rows

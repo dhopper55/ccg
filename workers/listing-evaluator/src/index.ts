@@ -114,6 +114,7 @@ import {
   handleAdminV2InventoryMergeMarked,
   handleAdminV2InventoryMarkUpdate,
   handleAdminV2InventoryClearTagReprint,
+  handleAdminV2InventoryEvalNext,
   handleAdminV2InventoryLabelsPdf,
   handleAdminV2InventoryLabelsPdfPost,
 } from './admin/inventory.js';
@@ -1153,6 +1154,11 @@ export default {
 
     if (path.endsWith('/mark') && path.startsWith('/api/admin-v2/inventory/') && request.method === 'POST') {
       const response = await handleAdminV2InventoryMarkUpdate(request, path, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/inventory/eval-next' && request.method === 'GET') {
+      const response = await handleAdminV2InventoryEvalNext(request, env);
       return withCors(response, request, env);
     }
 

@@ -1182,6 +1182,9 @@ const InventoryItem = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isReverbActionPending, setIsReverbActionPending] = useState(false);
+  const [fbmCommandOpen, setFbmCommandOpen] = useState(false);
+  const [isFindingNextEval, setIsFindingNextEval] = useState(false);
+  const [noEvalDialogOpen, setNoEvalDialogOpen] = useState(false);
   const [reverbWizardOpen, setReverbWizardOpen] = useState(false);
   const [isCheckingReverbShipping, setIsCheckingReverbShipping] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -2435,6 +2438,48 @@ const InventoryItem = () => {
       enqueueSnackbar('Listed on Reverb.', { variant: 'success' });
     }
     setReloadToken((current) => current + 1);
+  };
+
+  const fbmSyncCommand = `cd /Users/davidhopper2/Documents/Code/ccg/ccg-fbm-sync && ./venv/bin/python add_all.py --ccg-id ${getSavableCcgNumber(form.ccgNumber) || editId || ''}`;
+
+  const handleCopyFbmCommand = () => {
+    void navigator.clipboard.writeText(fbmSyncCommand).then(() => {
+      enqueueSnackbar('Command copied.', { variant: 'success' });
+    });
+  };
+
+  const handleEvalNextProduct = async () => {
+    if (isFindingNextEval) return;
+    if (
+      buildFullFormSnapshot(form, images, tags) !== lastSavedFullSnapshotRef.current
+      && !window.confirm('There are unsaved changes. Leave this item without saving?')
+    ) {
+      return;
+    }
+
+    setIsFindingNextEval(true);
+    try {
+      const params = new URLSearchParams();
+      if (editId) params.set('exclude', editId);
+      const response = await fetch(`/api/admin-v2/inventory/eval-next?${params.toString()}`, {
+        method: 'GET',
+        credentials: 'same-origin',
+      });
+      const data = (await response.json().catch(() => ({}))) as { id?: number | string | null; message?: string };
+      if (!response.ok) {
+        throw new Error(data.message || 'Unable to find next item to evaluate.');
+      }
+      if (data.id == null) {
+        setNoEvalDialogOpen(true);
+        return;
+      }
+      navigate(paths.inventoryItemWithId(String(data.id)));
+    } catch (error) {
+      const text = error instanceof Error ? error.message : 'Unable to find next item to evaluate.';
+      enqueueSnackbar(text, { variant: 'error' });
+    } finally {
+      setIsFindingNextEval(false);
+    }
   };
 
   const handleCheckReverbShipping = async () => {
@@ -4212,6 +4257,34 @@ const InventoryItem = () => {
                         </Button>
                       </span>
                     </Tooltip>
+                    <Tooltip title={mode !== 'edit' ? 'Save the item first before listing it on FBM.' : ''}>
+                      <span>
+                        <Button
+                          variant="contained"
+                          disabled={mode !== 'edit'}
+                          onClick={() => setFbmCommandOpen(true)}
+                          startIcon={<Box component="img" src="/images/fb.png" alt="" sx={{ width: 16, height: 16 }} />}
+                          sx={{ bgcolor: '#1877F2', color: '#fff', '&:hover': { bgcolor: '#166FE5' } }}
+                        >
+                          Add to FBM
+                        </Button>
+                      </span>
+                    </Tooltip>
+                    <Button
+                      variant="contained"
+                      color="secondary"
+                      disabled={isFindingNextEval}
+                      onClick={handleEvalNextProduct}
+                      startIcon={
+                        isFindingNextEval ? (
+                          <CircularProgress color="inherit" size={16} />
+                        ) : (
+                          <IconifyIcon icon="material-symbols:shuffle-rounded" />
+                        )
+                      }
+                    >
+                      {isFindingNextEval ? 'Finding...' : 'Eval Next Product'}
+                    </Button>
                   </Stack>
                 </Box>
               </Grid>
@@ -4219,6 +4292,48 @@ const InventoryItem = () => {
           </Stack>
         )}
       </Box>
+
+      <Dialog open={fbmCommandOpen} onClose={() => setFbmCommandOpen(false)} fullWidth maxWidth="md">
+        <DialogTitle>Add to FBM</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <DialogContentText>
+              Run this command locally to launch the FBM sync tool for this listing.
+            </DialogContentText>
+            <TextField
+              fullWidth
+              multiline
+              value={fbmSyncCommand}
+              slotProps={{
+                input: { readOnly: true, sx: { fontFamily: 'monospace', fontSize: 13 } },
+              }}
+              onFocus={(event) => event.target.select()}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCopyFbmCommand} startIcon={<IconifyIcon icon="material-symbols:content-copy-outline-rounded" />}>
+            Copy
+          </Button>
+          <Button variant="contained" onClick={() => setFbmCommandOpen(false)}>
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={noEvalDialogOpen} onClose={() => setNoEvalDialogOpen(false)}>
+        <DialogTitle>Nothing to Eval</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            There are no other active, unsold, marked products to evaluate.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button variant="contained" onClick={() => setNoEvalDialogOpen(false)}>
+            OK
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={upcLookupOpen} onClose={closeUpcLookupDialog} fullWidth maxWidth="md">
         <DialogTitle>UPC Lookup</DialogTitle>
