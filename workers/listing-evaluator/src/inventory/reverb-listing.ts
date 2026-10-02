@@ -1,5 +1,5 @@
 import type { Env } from '../env.js';
-import { normalizeText } from '../utils/text.js';
+import { normalizeText, escapeHtml } from '../utils/text.js';
 import { toBooleanInput, parseBoundedInt } from '../utils/misc.js';
 import { parseCurrencyAmount } from '../utils/money.js';
 import { REVERB_API_BASE_URL, REVERB_SEARCH_API_URL } from '../constants.js';
@@ -265,6 +265,20 @@ export async function fetchReverbShippingProfiles(env: Env): Promise<ReverbShipp
     .map((profile) => ({ id: String(profile.id), name: String(profile.name) }));
 }
 
+// Reverb renders the listing description as HTML, so CCG's plain-text sale description (which
+// relies on raw newlines for its paragraphs and numbered lists) would collapse into one block.
+// Blank lines become paragraphs; single newlines become <br>.
+export function toReverbDescriptionHtml(text: string): string {
+  return (text || '')
+    .replace(/\r\n?/g, '\n')
+    .trim()
+    .split(/\n\s*\n/)
+    .map((para) => para.trim())
+    .filter(Boolean)
+    .map((para) => `<p>${escapeHtml(para).replace(/\n/g, '<br>')}</p>`)
+    .join('');
+}
+
 export type ReverbListingSourceItem = {
   saleTitle: string;
   saleDescription: string;
@@ -305,7 +319,7 @@ export function buildReverbListingPayload(
     make: item.brand,
     model: item.model,
     title: item.saleTitle,
-    description: item.saleDescription,
+    description: toReverbDescriptionHtml(item.saleDescription),
     finish: item.finish || undefined,
     year: item.yearRange || undefined,
     categories: [{ uuid: categoryUuid }],
@@ -358,7 +372,7 @@ export function buildReverbListingUpdatePayload(
     make: item.brand,
     model: item.model,
     title: item.saleTitle,
-    description: item.saleDescription,
+    description: toReverbDescriptionHtml(item.saleDescription),
     finish: item.finish || undefined,
     year: item.yearRange || undefined,
     categories: [{ uuid: categoryUuid }],
@@ -506,6 +520,13 @@ export async function endReverbListing(
       headers: reverbRequestHeaders(env),
     });
     if (draftDelete.ok) return { ok: true };
+    // Both calls 404 → the listing no longer exists on Reverb (e.g. the draft was deleted by
+    // hand on reverb.com). The goal — not listed on Reverb — is already met, so treat it as
+    // success and let the caller clear the local link instead of leaving it stuck.
+    if (response.status === 404 && draftDelete.status === 404) {
+      console.warn('Reverb listing already gone; treating end as success', { listingId });
+      return { ok: true };
+    }
 
     const text = await response.text();
     let data: unknown = null;
