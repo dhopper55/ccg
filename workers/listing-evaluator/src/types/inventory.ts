@@ -213,7 +213,9 @@ export type PurchaseLotItemRow = {
   id: number;
   ccg_number: string;
   title: string;
+  quantity: number;
   unit_purchase_price: number | null;
+  total_cost: number;
   private_party_value: number | null;
   for_sale_amount: number;
 };

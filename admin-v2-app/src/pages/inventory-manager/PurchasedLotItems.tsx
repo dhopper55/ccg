@@ -24,7 +24,9 @@ type PurchaseLotItemRecord = {
   id: number;
   ccg_number: string;
   title: string;
+  quantity: number;
   unit_purchase_price: number | null;
+  total_cost: number;
   private_party_value: number | null;
   for_sale_amount: number;
 };
@@ -147,7 +149,9 @@ const PurchasedLotItems = () => {
                     <TableRow>
                       <TableCell>CCG Number</TableCell>
                       <TableCell>Name</TableCell>
+                      <TableCell align="right">Qty</TableCell>
                       <TableCell align="right">Unit Cost</TableCell>
+                      <TableCell align="right">Total Cost</TableCell>
                       <TableCell align="right">Private Party</TableCell>
                       <TableCell align="right">For Sale</TableCell>
                     </TableRow>
@@ -170,7 +174,9 @@ const PurchasedLotItems = () => {
                           </Link>
                         </TableCell>
                         <TableCell>{record.title}</TableCell>
+                        <TableCell align="right">{record.quantity}</TableCell>
                         <TableCell align="right">{formatCurrency(record.unit_purchase_price)}</TableCell>
+                        <TableCell align="right">{formatCurrency(record.total_cost)}</TableCell>
                         <TableCell align="right">{formatCurrency(record.private_party_value)}</TableCell>
                         <TableCell align="right">{formatCurrency(record.for_sale_amount)}</TableCell>
                       </TableRow>
