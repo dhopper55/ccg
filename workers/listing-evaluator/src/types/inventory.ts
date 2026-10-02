@@ -239,6 +239,8 @@ export type ShopProductRow = {
   brand?: string | null;
   model?: string | null;
   finish?: string | null;
+  serial_number?: string | null;
+  year_range?: string | null;
   regular_price: number | null;
   sale_price: number | null;
   clearance?: number | null;

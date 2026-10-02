@@ -627,6 +627,8 @@ export async function dbGetShopProductDetail(
        i.brand,
        i.model,
        i.finish,
+       i.serial_number,
+       i.year_range,
        i.video_url,
        i.weight_lbs,
        i.neck_profile,
@@ -704,6 +706,13 @@ export async function dbGetShopProductDetail(
     await getSaleDescriptionPostfixes(env),
   );
   const addtl = await dbGetInventoryAddtl(row.id, env);
+  const saleDescriptionDetails = [
+    { label: 'Serial #', value: normalizeText(row.serial_number, '') },
+    { label: 'Year', value: normalizeText(row.year_range, '') },
+    { label: 'Finish', value: normalizeText(row.finish, '') },
+  ]
+    .filter((item) => item.value && item.value.toLowerCase() !== 'unknown')
+    .map((item) => `${item.label}: ${item.value}`);
 
   return {
     id: String(row.id),
@@ -715,7 +724,7 @@ export async function dbGetShopProductDetail(
     saleUrlSlug: normalizeText(row.sale_url, ''),
     saleZip: normalizeText(row.sale_zip, ''),
     saleCondition: row.condition || '',
-    saleDescription: appendSaleDescriptionPostfix(row.sale_description || '', saleDescriptionPostfix),
+    saleDescription: appendSaleDescriptionPostfix(row.sale_description || '', saleDescriptionPostfix, saleDescriptionDetails),
     highlights,
     brand: normalizeText(row.brand, ''),
     model: normalizeText(row.model, ''),
@@ -757,14 +766,17 @@ function pickSaleDescriptionPostfix(rootCategoryId: number | null, postfixes: Sa
   return postfixes.generic;
 }
 
-export function appendSaleDescriptionPostfix(description: string, postfix: string): string {
+// `detailLines` (e.g. "Serial #: 123") render as their own block between the description and the footer.
+export function appendSaleDescriptionPostfix(description: string, postfix: string, detailLines: string[] = []): string {
   const base = stripKnownSaleDescriptionFooter(normalizeText(description, '').trim());
   const footer = normalizeText(postfix, '').trim();
-  if (!footer) return base;
+  const details = detailLines.join('\n');
 
-  const baseWithoutConfiguredFooter = stripTrailingText(base, footer);
-  const baseWithoutDefaultFooter = stripTrailingText(baseWithoutConfiguredFooter, DEFAULT_SALE_DESCRIPTION_POSTFIX);
-  return [baseWithoutDefaultFooter.trim(), footer].filter(Boolean).join('\n\n');
+  const baseWithoutConfiguredFooter = footer ? stripTrailingText(base, footer) : base;
+  const baseWithoutDefaultFooter = footer
+    ? stripTrailingText(baseWithoutConfiguredFooter, DEFAULT_SALE_DESCRIPTION_POSTFIX)
+    : baseWithoutConfiguredFooter;
+  return [baseWithoutDefaultFooter.trim(), details, footer].filter(Boolean).join('\n\n');
 }
 
 const DEFAULT_SALE_DESCRIPTION_POSTFIX = `📍 Local pickup in Englewood, CO

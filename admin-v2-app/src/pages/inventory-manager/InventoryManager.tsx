@@ -448,7 +448,7 @@ const InventoryManager = () => {
         totalPagesToFetch = Math.max(1, Number(data.totalPages || 1));
       }
 
-      const lines = ['CCG Number,Title,Regular Price,Sale Price'];
+      const lines = ['CCG Number,Title,Regular Price,Sale Price,Item Title,Repair Notes'];
       for (const record of allRecords) {
         const title = (record.saleTitle || '').trim() || record.title || '';
         lines.push([
@@ -456,6 +456,8 @@ const InventoryManager = () => {
           escapeCsvField(title),
           formatLabelPrice(record.regularPrice),
           formatLabelPrice(record.salePrice),
+          escapeCsvField(record.title || ''),
+          escapeCsvField(record.repairNotes || ''),
         ].join(','));
       }
 
