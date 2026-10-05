@@ -43,8 +43,10 @@ is matched by DOM position, not name.
 from __future__ import annotations
 
 import io
+import json
 import re
 import tempfile
+from urllib.parse import parse_qs
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -66,6 +68,9 @@ SHIPPING_OWN_LABEL_OPTION = "Use your own label"
 # FB Marketplace doesn't allow shipping on items priced over this — the Shipping row in the
 # Delivery method menu is greyed out (confirmed live 2026-10-04 on a $3,499 guitar).
 FB_MAX_SHIPPING_PRICE = 500
+# FB rejects longer titles ("Please enter a shorter title.", Next stays disabled) — confirmed
+# live 2026-10-05: 106 chars rejected, ~95 accepted.
+FB_MAX_TITLE_LENGTH = 100
 
 # Appended to every drafted description (decided 2026-09-13) — the public shop site already
 # appends its own shop-info footer to CCG's raw saleDescription (DEFAULT_SALE_DESCRIPTION_POSTFIX
@@ -404,6 +409,22 @@ def map_condition(ccg_condition: str) -> str:
     return "Used - Good"
 
 
+def _fb_title(title: str) -> str:
+    """CCG's title, shortened to FB's limit only if needed: cut at the last whole word that
+    fits, then drop any dangling separator or unclosed bracket left at the end."""
+    title = " ".join(title.split())
+    if len(title) <= FB_MAX_TITLE_LENGTH:
+        return title
+    cut = title[: FB_MAX_TITLE_LENGTH + 1].rsplit(" ", 1)[0]
+    while True:
+        trimmed = cut.rstrip(" -–—,;:/|&+")
+        if trimmed.count("(") > trimmed.count(")"):
+            trimmed = trimmed[: trimmed.rfind("(")]
+        if trimmed == cut:
+            return cut
+        cut = trimmed
+
+
 def _download_images(image_urls: list[str]) -> list[str]:
     """Two distinct, confirmed-live problems fixed here, not one (2026-09-13):
 
@@ -697,7 +718,10 @@ def create_draft_listing(
 
     text_inputs = page.locator("input[type='text']")
     text_inputs.nth(0).click()
-    text_inputs.nth(0).fill(title)
+    fb_title = _fb_title(title)
+    if fb_title != title:
+        print(f"  Title is {len(title)} chars (FB max {FB_MAX_TITLE_LENGTH}) — using on FB: {fb_title!r}")
+    text_inputs.nth(0).fill(fb_title)
     text_inputs.nth(1).click()
     text_inputs.nth(1).fill(str(price))
 
@@ -721,7 +745,24 @@ def create_draft_listing(
     textarea.fill(build_fbm_description(description, footer))
     page.wait_for_timeout(800)
 
-    page.get_by_role("button", name="Next", exact=True).click()  # -> Delivery step
+    # Next stays aria-disabled until every required field is valid and photo uploads finish
+    # (2026-10-05: one item timed out here with no clue why). Give uploads time, then leave
+    # the browser open on the form rather than crashing the whole run.
+    next_button = page.get_by_role("button", name="Next", exact=True)
+    for _ in range(30):
+        if next_button.get_attribute("aria-disabled") != "true":
+            break
+        page.wait_for_timeout(1000)
+    else:
+        _pause_for_inspection(
+            page,
+            "Facebook kept Next disabled on the listing-details step — a field wasn't accepted "
+            "(title length, price, category, condition, description) or photos never finished uploading. "
+            "Not saving this draft.",
+        )
+        page.close()
+        return None
+    next_button.click()  # -> Delivery step
     page.wait_for_timeout(2500)
 
     # Meetup preferences (Public meetup / Door pickup / Door dropoff) — see
@@ -761,24 +802,35 @@ def create_draft_listing(
 
     new_listing_id: str | None = None
 
+    save_trace: list[str] = []
+
     def _capture_listing_id(response) -> None:
+        # Tolerant on purpose (2026-10-05: a save succeeded but the id wasn't captured): FB
+        # can prefix "for (;;);" or stream several JSON objects line by line, and the mutation
+        # name isn't guaranteed — accept any data.marketplace_listing*.listing.id. Every
+        # GraphQL POST seen is recorded so a miss can be diagnosed from debug_dump.txt.
         nonlocal new_listing_id
-        if new_listing_id is not None:
-            return
         if response.request.method != "POST" or "graphql" not in response.url:
             return
         try:
-            data = response.json()
-        except Exception:
+            friendly = parse_qs(response.request.post_data or "").get("fb_api_req_friendly_name", ["?"])[0]
+            text = response.text()
+        except Exception as error:
+            save_trace.append(f"(unreadable response: {error})")
             return
-        listing_id = (
-            data.get("data", {})
-            .get("marketplace_listing_create", {})
-            .get("listing", {})
-            .get("id")
-        )
-        if listing_id:
-            new_listing_id = str(listing_id)
+        keys: list[str] = []
+        for chunk in text.removeprefix("for (;;);").splitlines():
+            try:
+                data = json.loads(chunk).get("data") or {}
+            except (ValueError, AttributeError):
+                continue
+            keys += list(data)
+            for key, value in data.items():
+                if new_listing_id is None and key.startswith("marketplace_listing") and isinstance(value, dict):
+                    listing_id = (value.get("listing") or {}).get("id")
+                    if listing_id:
+                        new_listing_id = str(listing_id)
+        save_trace.append(f"{friendly}: data keys {keys} | {text[:300]!r}")
 
     page.on("response", _capture_listing_id)
     print(f"  Saving draft from: {_step_summary(page)}")
@@ -799,7 +851,12 @@ def create_draft_listing(
     if saved:
         print("  Saved to Facebook's Drafts (Marketplace > Create new listing > Drafts).")
         if new_listing_id is None:
-            print("  WARNING: saved, but couldn't capture the new listing id from the save response.")
+            DEBUG_DUMP.write_text("GraphQL POSTs seen during Save draft:\n\n" + "\n\n".join(save_trace))
+            print(
+                "  WARNING: saved, but couldn't capture the new listing id from the save response "
+                f"({len(save_trace)} GraphQL responses logged to {DEBUG_DUMP.name}). The draft is on FB "
+                "but NOT linked in CCG — delete it from FB Drafts before re-running, or it'll be duplicated."
+            )
     else:
         print("  WARNING: clicked Save draft but couldn't confirm the success toast — check FB's Drafts list.")
         print(f"  After clicking, the page was: {_step_summary(page)}")
