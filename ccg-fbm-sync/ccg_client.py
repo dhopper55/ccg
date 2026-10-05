@@ -72,11 +72,22 @@ class CCGClient:
             return None
 
     def set_fb_listing_id(self, item_id: int, fb_listing_id: str) -> dict:
+        """Retries on a dropped connection: this runs right after the browser step, which can
+        leave the session's pooled keep-alive connection idle long enough for the server to
+        close it (confirmed 2026-10-03: ConnectionResetError on fb-add after a draft had
+        already saved). Safe to repeat — it only sets the item's fb_listing_id."""
         self._ensure_login()
-        resp = self.session.post(
-            f"{self.base_url}/api/inventory/{item_id}/fb-add",
-            json={"fbListingId": fb_listing_id},
-        )
+        for attempt in range(3):
+            try:
+                resp = self.session.post(
+                    f"{self.base_url}/api/inventory/{item_id}/fb-add",
+                    json={"fbListingId": fb_listing_id},
+                    timeout=30,
+                )
+                break
+            except requests.ConnectionError:
+                if attempt == 2:
+                    raise
         if resp.status_code >= 400:
             raise RuntimeError(f"fb-add failed for item {item_id}: {resp.status_code} {resp.text}")
         return resp.json()

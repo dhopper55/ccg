@@ -147,7 +147,16 @@ def run_add_all(only_id: str | None = None) -> None:
             browser.close()
             playwright.stop()
         if new_listing_id:
-            client.set_fb_listing_id(item["id"], new_listing_id)
+            try:
+                client.set_fb_listing_id(item["id"], new_listing_id)
+            except Exception as error:
+                console.print(
+                    f"  [red]Draft saved on FB (id {new_listing_id}) but linking it in CCG failed: {error}[/red]\n"
+                    f"  Link it manually (fb_listing_id = {new_listing_id}) before re-running, or the "
+                    "re-run will create a duplicate draft."
+                )
+                drafts_failed += 1
+                continue
             listed += 1
             console.print(f"  drafted on FB (id {new_listing_id}) and linked.")
         else:

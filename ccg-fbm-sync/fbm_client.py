@@ -49,7 +49,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import requests
-from PIL import Image
+from PIL import Image, ImageOps
 from playwright.sync_api import sync_playwright
 
 SESSION_FILE = Path(__file__).parent / ".fb_session.json"
@@ -62,9 +62,10 @@ MAX_DRAFT_PHOTOS = 10
 MAX_DRAFT_PHOTO_DIMENSION = 2048
 CONDITION_OPTIONS = ["New", "Used - Like New", "Used - Good", "Used - Fair"]
 MEETUP_PREFERENCE_LABELS = ["Public meetup", "Door pickup", "Door dropoff"]
-DELIVERY_LOCAL_ONLY = "Local pickup"
-DELIVERY_SHIPPING_AND_LOCAL = "Shipping & local pickup"
 SHIPPING_OWN_LABEL_OPTION = "Use your own label"
+# FB Marketplace doesn't allow shipping on items priced over this — the Shipping row in the
+# Delivery method menu is greyed out (confirmed live 2026-10-04 on a $3,499 guitar).
+FB_MAX_SHIPPING_PRICE = 500
 
 # Appended to every drafted description (decided 2026-09-13) — the public shop site already
 # appends its own shop-info footer to CCG's raw saleDescription (DEFAULT_SALE_DESCRIPTION_POSTFIX
@@ -437,6 +438,10 @@ def _download_images(image_urls: list[str]) -> list[str]:
         try:
             img = Image.open(io.BytesIO(resp.content))
             img.seek(0)  # explicit: always the primary frame, never MPO's secondary/depth frame
+            # Bake the EXIF Orientation into the pixels: re-saving drops the EXIF tag, so a
+            # photo stored sideways + "rotate 90" tag (common from iPhones) uploaded rotated
+            # (2026-10-05).
+            img = ImageOps.exif_transpose(img)
             if img.mode != "RGB":
                 img = img.convert("RGB")
             img.thumbnail((MAX_DRAFT_PHOTO_DIMENSION, MAX_DRAFT_PHOTO_DIMENSION), Image.LANCZOS)
@@ -495,24 +500,95 @@ def _pause_for_inspection(page, reason: str) -> None:
     input("  Press Enter to close the browser and continue... ")
 
 
-def _set_delivery_method(page, label: str) -> bool:
-    """Picks the Delivery method dropdown's value. Needed because the account default now
-    pre-selects "Shipping & local pickup" (confirmed live 2026-09-20), so the old assumption
-    that the form opens on local pickup no longer holds."""
-    box = page.locator("[role='combobox']").filter(has_text="Delivery method").first
-    box.scroll_into_view_if_needed()
-    current = (box.inner_text() or "").strip().split("\n")[-1].strip()
-    if current.lower() == label.lower():
-        return True
-    box.click()
-    page.wait_for_timeout(800)
+def _click_dropdown_option(page, label: str) -> None:
+    """Clicks an open dropdown's option by its exact label. Targets role=option first, then
+    falls back to *visible* text only — a bare get_by_text(...).first can resolve to a hidden
+    element elsewhere on the page with the same text (confirmed live 2026-10-03: condition
+    "New" matched a hidden "New" span and timed out instead of clicking the option)."""
     option = page.get_by_role("option", name=label, exact=True)
     if option.count() == 0:
-        option = page.get_by_text(label, exact=True)
-    option.last.click(timeout=5000)
-    page.wait_for_timeout(1000)
-    after = (box.inner_text() or "").strip().split("\n")[-1].strip()
-    return after.lower() == label.lower()
+        option = page.get_by_text(label, exact=True).filter(visible=True)
+    option.first.click(timeout=5000)
+
+
+def _check_meetup_preference(page, label: str) -> bool:
+    """Ticks one meetup preference row. As of 2026-10-04 each row is a role=checkbox with
+    aria-checked (it used to be a plain div), so find it by its label, click only if it's off,
+    and confirm aria-checked flipped. Falls back to clicking the label text if no such row."""
+    row = page.get_by_role("checkbox").filter(has_text=label).filter(visible=True)
+    if row.count() == 0:
+        try:
+            page.get_by_text(label, exact=True).filter(visible=True).first.click(timeout=5000)
+            return True
+        except Exception:
+            return False
+    row = row.first
+    if row.get_attribute("aria-checked") == "true":
+        return True
+    try:
+        row.click(timeout=5000)
+    except Exception:
+        return False
+    for _ in range(4):
+        page.wait_for_timeout(500)
+        if row.get_attribute("aria-checked") == "true":
+            return True
+    return False
+
+
+def _delivery_modes(box) -> tuple[bool, bool]:
+    """(shipping on, local pickup on), read from the Delivery method box's value text — every
+    line after the "Delivery method" caption, e.g. "Shipping" or "Local pickup"."""
+    lines = [line.strip().lower() for line in (box.inner_text() or "").split("\n") if line.strip()]
+    value = " ".join(line for line in lines if line != "delivery method")
+    return "shipping" in value, "pickup" in value
+
+
+def _set_delivery_method(page, want_shipping: bool) -> bool:
+    """Sets the Delivery method control. Since ~2026-10-03 (confirmed live 2026-10-04) it's a
+    menu of two independent checkbox rows, "Shipping" and "Local pickup" — not a single-choice
+    dropdown — and the account default ("Set shipping and local pickup as default") opens it
+    with both on. Clicking a row's label toggles it, so: read which modes are on from the box
+    text, toggle each row that's wrong, close the menu, and re-check. Local pickup is always
+    wanted; Shipping only when want_shipping. On failure the browser is left open."""
+    box = page.locator("[role='combobox']").filter(has_text="Delivery method").first
+    box.scroll_into_view_if_needed()
+    wanted = (want_shipping, True)
+
+    trace = [f"start: {(box.inner_text() or '').strip()!r}"]
+    if _delivery_modes(box) != wanted:
+        box.click()
+        page.wait_for_timeout(800)
+        current = _delivery_modes(box)
+        for step, (row_label, is_on, should_be_on) in enumerate((
+            ("Shipping", current[0], wanted[0]),
+            ("Local pickup", current[1], wanted[1]),
+        )):
+            if is_on != should_be_on:
+                page.get_by_text(row_label, exact=True).filter(visible=True).last.click(timeout=5000)
+                page.wait_for_timeout(1200)
+                shot = DEBUG_SCREENSHOT.with_name(f"debug_delivery_{step}.png")
+                page.screenshot(path=str(shot))
+                trace.append(f"after clicking {row_label!r}: {(box.inner_text() or '').strip()!r} ({shot.name})")
+        # Turning Shipping on may open a setup dialog; Escape would cancel it, so only press
+        # Escape (to close the menu) when no dialog is up.
+        if page.get_by_role("dialog").filter(visible=True).count() == 0:
+            page.keyboard.press("Escape")
+        else:
+            trace.append("a dialog was open after the clicks — left it, didn't press Escape")
+
+    # The box text can lag the click (2026-10-04: a check 1s after Escape read the old value
+    # though the box showed "Local pickup" moments later), so poll rather than read once.
+    for _ in range(8):
+        page.wait_for_timeout(750)
+        if _delivery_modes(box) == wanted:
+            return True
+    _pause_for_inspection(
+        page,
+        f"Delivery method didn't end up as shipping={wanted[0]}, local pickup={wanted[1]}. "
+        f"Box now reads {(box.inner_text() or '').strip()!r}. Trace: {trace}",
+    )
+    return False
 
 
 def _configure_own_label_shipping(page, shipping_cost) -> bool:
@@ -629,14 +705,14 @@ def create_draft_listing(
     category_box.scroll_into_view_if_needed()
     category_box.click()
     page.wait_for_timeout(800)
-    page.get_by_text(DRAFT_CATEGORY, exact=True).first.click()
+    _click_dropdown_option(page, DRAFT_CATEGORY)
     page.wait_for_timeout(800)
 
     condition_box = page.locator("[role='combobox']").nth(2)
     condition_box.scroll_into_view_if_needed()
     condition_box.click()
     page.wait_for_timeout(800)
-    page.get_by_text(mapped_condition, exact=True).first.click()
+    _click_dropdown_option(page, mapped_condition)
     page.wait_for_timeout(800)
 
     textarea = page.locator("textarea").first
@@ -648,15 +724,17 @@ def create_draft_listing(
     page.get_by_role("button", name="Next", exact=True).click()  # -> Delivery step
     page.wait_for_timeout(2500)
 
-    # Meetup preferences: Public meetup / Door pickup / Door dropoff. These are NOT real
-    # <input type=checkbox> elements (only the unrelated "Set shipping & local pickup as
-    # default" toggle above them is) — they're plain divs with no checkbox role at all.
-    # Clicking each row's own label text toggles it correctly (confirmed via the preview
-    # panel updating) and is simpler than hunting for whatever custom element draws the
-    # checkbox square itself.
+    # Meetup preferences (Public meetup / Door pickup / Door dropoff) — see
+    # _check_meetup_preference.
     use_shipping = bool(allow_shipping) and float(shipping_cost or 0) > 0
+    if use_shipping and float(price or 0) > FB_MAX_SHIPPING_PRICE:
+        print(
+            f"  FB doesn't allow shipping over ${FB_MAX_SHIPPING_PRICE} — drafting as local pickup only "
+            "(CCG's shipping settings are unchanged)."
+        )
+        use_shipping = False
 
-    if not _set_delivery_method(page, DELIVERY_SHIPPING_AND_LOCAL if use_shipping else DELIVERY_LOCAL_ONLY):
+    if not _set_delivery_method(page, want_shipping=use_shipping):
         print("  Couldn't set the Delivery method dropdown — not saving this draft.")
         page.close()
         return None
@@ -677,9 +755,7 @@ def create_draft_listing(
             return None
     else:
         for label_text in MEETUP_PREFERENCE_LABELS:
-            try:
-                page.get_by_text(label_text, exact=True).first.click(timeout=5000)
-            except Exception:
+            if not _check_meetup_preference(page, label_text):
                 print(f"  Couldn't check '{label_text}' — Facebook's delivery-step layout may have changed.")
         page.wait_for_timeout(500)
 
