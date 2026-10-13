@@ -3222,6 +3222,8 @@ const InventoryItem = () => {
                   <MenuItem value="Extra Space 23225">Extra Space 23225</MenuItem>
                   <MenuItem value="Cellar">Cellar</MenuItem>
                   <MenuItem value="Garage">Garage</MenuItem>
+                  <MenuItem value="Repair Room">Repair Room</MenuItem>
+                  <MenuItem value="CCG Shop">CCG Shop</MenuItem>
                 </TextField>
               </Grid>
 
