@@ -2440,7 +2440,7 @@ const InventoryItem = () => {
     setReloadToken((current) => current + 1);
   };
 
-  const fbmSyncCommand = `cd /Users/davidhopper2/Documents/Code/ccg/ccg-fbm-sync && ./venv/bin/python add_all.py --ccg-id ${getSavableCcgNumber(form.ccgNumber) || editId || ''}`;
+  const fbmSyncCommand = `cd /Users/dhp/Documents/Code/ccg/ccg-fbm-sync && ./venv/bin/python add_all.py --ccg-id ${getSavableCcgNumber(form.ccgNumber) || editId || ''}`;
 
   const handleCopyFbmCommand = () => {
     void navigator.clipboard.writeText(fbmSyncCommand).then(() => {
