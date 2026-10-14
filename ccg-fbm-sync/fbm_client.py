@@ -238,6 +238,8 @@ def open_draft_browser(playwright):
     """One browser, reused for every draft in a run — each draft opens in its own new tab
     (via create_draft_listing's `context`) rather than a separate browser window each time.
     Caller owns the lifecycle: close `browser` and call `playwright.stop()` when done."""
+    if not SESSION_FILE.exists():
+        _login_and_save_session(playwright)
     browser = playwright.chromium.launch(headless=False)
     context = browser.new_context(storage_state=str(SESSION_FILE))
     return browser, context
