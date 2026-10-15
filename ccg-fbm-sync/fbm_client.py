@@ -727,12 +727,21 @@ def create_draft_listing(
     text_inputs.nth(1).click()
     text_inputs.nth(1).fill(str(price))
 
+    # FB may show a "Suggested category: Musical Instruments" chip next to the combobox
+    # (seen 2026-10-14). With the dropdown open, the visible-text fallback in
+    # _click_dropdown_option can hit that chip instead, which just closes the dropdown and
+    # leaves Category empty. Prefer the chip, and verify the combobox actually took a value.
     category_box = page.locator("[role='combobox']").nth(1)
-    category_box.scroll_into_view_if_needed()
-    category_box.click()
-    page.wait_for_timeout(800)
-    _click_dropdown_option(page, DRAFT_CATEGORY)
-    page.wait_for_timeout(800)
+    suggested = page.get_by_role("button", name=f"Suggested category: {DRAFT_CATEGORY}", exact=True)
+    if suggested.count() > 0:
+        suggested.first.click()
+        page.wait_for_timeout(800)
+    if DRAFT_CATEGORY not in (category_box.inner_text() or ""):
+        category_box.scroll_into_view_if_needed()
+        category_box.click()
+        page.wait_for_timeout(800)
+        _click_dropdown_option(page, DRAFT_CATEGORY)
+        page.wait_for_timeout(800)
 
     condition_box = page.locator("[role='combobox']").nth(2)
     condition_box.scroll_into_view_if_needed()
