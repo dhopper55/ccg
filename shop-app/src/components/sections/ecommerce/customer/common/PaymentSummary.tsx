@@ -277,17 +277,14 @@ const PaymentSummary = () => {
               variant="subtitle1"
               sx={{
                 fontWeight: 700,
-                color: cartShippingLabel === 'FREE' ? 'success.main' : 'text.secondary',
+                color: 'text.secondary',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'flex-end',
                 gap: 0.5,
               }}
             >
-              {cartShippingLabel === 'FREE' && (
-                <IconifyIcon icon="material-symbols:check-circle-rounded" fontSize={18} />
-              )}
-              {cartShippingLabel}
+              {cartShippingLabel === 'FREE' ? currencyFormat(0) : cartShippingLabel}
             </Typography>
           </Stack>
 
@@ -322,7 +319,7 @@ const PaymentSummary = () => {
                   </>
                 )}
                 {cartShippingLabel === 'FREE'
-                  ? 'Free shipping on shippable items.'
+                  ? 'Shippable items ship within the U.S.'
                   : `${cartShippingLabel} shipping (U.S. only).`}
                 {cartShippingCombineNotice && (
                   <>

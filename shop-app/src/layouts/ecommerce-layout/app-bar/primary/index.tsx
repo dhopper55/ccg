@@ -19,7 +19,7 @@ import Logo from 'components/common/Logo';
 import PrimarySearchBox from './PrimarySearchBox';
 import ShopCategoryDrawer from './ShopCategoryDrawer';
 
-const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
+const PrimaryAppbar = () => {
   const { up } = useBreakpoints();
   const { handleDrawerToggle } = useSettingsContext();
   const { cartItems } = useEcommerce();
@@ -42,32 +42,31 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
             alignItems: 'center',
           }}
         >
-          <Grid size="auto" order={{ xs: 2, md: 3 }}>
-            <Stack direction="row" spacing={{ xs: 1, md: 2 }} alignItems="center">
+          <Grid size="auto">
+            <Stack direction="row" spacing={1} alignItems="center">
               <Button
                 color="neutral"
                 variant="soft"
                 shape="circle"
-                aria-label="open drawer"
-                onClick={handleDrawerToggle}
-              >
-                <IconifyIcon icon="material-symbols:menu-rounded" sx={{ fontSize: 20 }} />
-              </Button>
-              <Button
-                color="neutral"
-                variant="soft"
+                aria-label="Filter by category"
                 onClick={() => setShopDrawerOpen(true)}
-                startIcon={<IconifyIcon icon="material-symbols:storefront-outline-rounded" sx={{ fontSize: 18 }} />}
-                sx={{
-                  display: { xs: 'inline-flex', md: 'none' },
-                  minWidth: 0,
-                  px: 1.5,
-                  whiteSpace: 'nowrap',
-                }}
+                sx={{ display: { xs: 'inline-flex', md: 'none' } }}
               >
-                Shop
+                <IconifyIcon icon="material-symbols:filter-list-rounded" sx={{ fontSize: 20 }} />
               </Button>
-              <Logo showName={up('sm')} />
+              {cartItemCount > 0 && (
+                <Badge color="error" badgeContent={cartItemCount}>
+                  <Button
+                    color="neutral"
+                    variant="soft"
+                    shape="circle"
+                    aria-label="cart"
+                    href={paths.cart}
+                  >
+                    <IconifyIcon icon="material-symbols:shopping-cart-outline-rounded" sx={{ fontSize: 20 }} />
+                  </Button>
+                </Badge>
+              )}
             </Stack>
           </Grid>
           <Grid
@@ -81,23 +80,12 @@ const PrimaryAppbar = ({ children }: { children: React.ReactNode }) => {
           >
             <PrimarySearchBox />
           </Grid>
-          <Grid size="auto">
-            <Badge color="error" badgeContent={cartItemCount} invisible={cartItemCount === 0}>
-              <Button
-                color="neutral"
-                variant="soft"
-                shape="circle"
-                aria-label="cart"
-                href={paths.cart}
-              >
-                <IconifyIcon icon="material-symbols:shopping-cart-outline-rounded" sx={{ fontSize: 20 }} />
-              </Button>
-            </Badge>
+          <Grid size="auto" order={{ xs: 2, md: 3 }}>
+            <Logo showName={up('sm')} onClick={handleDrawerToggle} />
           </Grid>
         </Grid>
       </Toolbar>
       <ShopCategoryDrawer open={shopDrawerOpen} onClose={() => setShopDrawerOpen(false)} />
-      {children}
     </MuiAppBar>
   );
 };

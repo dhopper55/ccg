@@ -3,14 +3,22 @@ import { rootPaths } from 'routes/paths';
 
 interface LogoProps extends SvgIconProps {
   showName?: boolean;
+  // When set, the logo acts as a button (e.g. opening the site menu) instead of a home link.
+  onClick?: () => void;
 }
 
-const Logo = ({ sx, showName = true }: LogoProps) => {
+const Logo = ({ sx, showName = true, onClick }: LogoProps) => {
   return (
     <Link
-      href={rootPaths.root}
+      {...(onClick
+        ? { component: 'button', type: 'button', onClick, 'aria-label': 'Open site menu' }
+        : { href: rootPaths.root })}
       underline="none"
       sx={{
+        border: 0,
+        p: 0,
+        bgcolor: 'transparent',
+        cursor: 'pointer',
         display: 'flex',
         alignItems: 'center',
         gap: 1.25,

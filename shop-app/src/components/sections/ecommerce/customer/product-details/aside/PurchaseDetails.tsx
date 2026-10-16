@@ -51,7 +51,7 @@ const PurchaseDetails = ({
               >
                 {fixedShippingAmount > 0
                   ? `${currencyFormat(fixedShippingAmount)} shipping (U.S. only)`
-                  : 'Free shipping'}
+                  : 'Ships within the U.S.'}
               </Box>
             </>
           ) : (

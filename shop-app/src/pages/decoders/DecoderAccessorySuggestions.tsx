@@ -102,7 +102,7 @@ const DecoderAccessorySuggestions = ({ count = 9 }: DecoderAccessorySuggestionsP
   return (
     <Box sx={{ mt: 3 }}>
       <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1.5 }}>
-        Free shipping
+        Gear from our shop
       </Typography>
       <Grid container spacing={1.5}>
         {products.map((product) => {
