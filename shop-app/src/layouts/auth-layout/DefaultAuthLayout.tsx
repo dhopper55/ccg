@@ -74,7 +74,7 @@ const DefaultAuthLayout = ({ children }: PropsWithChildren) => {
               />
               <Box
                 component="img"
-                src="/images/coal-creek-logo.png"
+                src="/images/coal-creek-logo-480.webp"
                 alt="Coal Creek Guitars"
                 sx={{
                   position: 'relative',

@@ -1,7 +1,6 @@
 import { PropsWithChildren, useEffect, useState } from 'react';
 import { useLocation } from 'react-router';
 import { Box, ClickAwayListener, Fade, Paper, Popper } from '@mui/material';
-import SimpleBar from 'components/base/SimpleBar';
 
 interface NavItemPopperProps {
   anchorEl: HTMLElement;
@@ -65,12 +64,12 @@ const NavItemPopper = ({
           >
             <ClickAwayListener onClickAway={handleClose}>
               <div>
-                <SimpleBar sx={{ maxHeight: '80vh' }}>
+                <Box sx={{ maxHeight: '80vh', overflowY: 'auto' }}>
                   <Box sx={{ p: 1, minWidth: 196 }}>
                     {children}
                     {arrow && <Box component="span" ref={setArrowRef} className="arrow" />}
                   </Box>
-                </SimpleBar>
+                </Box>
               </div>
             </ClickAwayListener>
           </Paper>

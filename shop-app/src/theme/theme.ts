@@ -55,22 +55,6 @@ import ToggleButton, { ToggleButtonGroup } from './components/ToggleButton';
 import Toolbar from './components/Toolbar';
 import Tooltip from './components/Tooltip';
 import Typography from './components/Typography';
-import DateTimePicker from './components/pickers/date-time/DateTimePicker';
-import DesktopDateTimePicker from './components/pickers/date-time/DesktopDateTimePicker';
-import MobileDateTimePicker from './components/pickers/date-time/MobileDateTimePicker';
-import StaticDateTimePicker from './components/pickers/date-time/StaticDateTimePicker';
-import DateCalendar from './components/pickers/date/DateCalendar';
-import DateField from './components/pickers/date/DateField';
-import DatePicker from './components/pickers/date/DatePicker';
-import DesktopDatePicker from './components/pickers/date/DesktopDatePicker';
-import MobileDatePicker from './components/pickers/date/MobileDatePicker';
-import StaticDatePicker from './components/pickers/date/StaticDatePicker';
-import DesktopTimePicker from './components/pickers/time/DesktopTimePicker';
-import MobileTimePicker from './components/pickers/time/MobileTimePicker';
-import MultiSectionDigitalClock from './components/pickers/time/MultiSectionDigitalClock';
-import StaticTimePicker from './components/pickers/time/StaticTimePicker';
-import TimeClock from './components/pickers/time/TimeClock';
-import TimePicker from './components/pickers/time/TimePicker';
 import FilledInput from './components/text-fields/FilledInput';
 import FormControl from './components/text-fields/FormControl';
 import FormControlLabel from './components/text-fields/FormControlLabel';
@@ -213,22 +197,6 @@ export const createTheme = ({
         MuiStepContent: StepContent,
         MuiStepLabel: StepLabel,
         MuiStepConnector: StepConnector,
-        MuiDateCalendar: DateCalendar,
-        MuiDatePicker: DatePicker,
-        MuiMobileDatePicker: MobileDatePicker,
-        MuiStaticDatePicker: StaticDatePicker,
-        MuiDesktopDatePicker: DesktopDatePicker,
-        MuiDateField: DateField,
-        MuiTimeClock: TimeClock,
-        MuiTimePicker: TimePicker,
-        MuiDesktopTimePicker: DesktopTimePicker,
-        MuiMobileTimePicker: MobileTimePicker,
-        MuiStaticTimePicker: StaticTimePicker,
-        MuiMultiSectionDigitalClock: MultiSectionDigitalClock,
-        MuiDateTimePicker: DateTimePicker,
-        MuiDesktopDateTimePicker: DesktopDateTimePicker,
-        MuiMobileDateTimePicker: MobileDateTimePicker,
-        MuiStaticDateTimePicker: StaticDateTimePicker,
         MuiTableHead: TableHead,
         MuiImageList: ImageList,
         MuiImageListItem: ImageListItem,

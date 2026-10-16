@@ -95,6 +95,15 @@ async function updateHtmlFile(filePath) {
       const [beforeHash, hashPart] = rawUrl.split('#');
       const [base, query] = beforeHash.split('?');
 
+      // Vite build output (…/assets/name-<hash>.js|css) is already content-hashed. Adding a
+      // query breaks code-split apps: chunks import the entry without it, so the browser would
+      // load the entry twice. Leave these URLs bare (and strip any old query).
+      if (/\/assets\/[^/]+-[A-Za-z0-9_-]{8}\.(?:js|css)$/.test(base)) {
+        const bare = `${base}${hashPart ? `#${hashPart}` : ''}`;
+        if (bare !== rawUrl) changed = true;
+        return `${attr}=${quote}${bare}${quote}`;
+      }
+
       const targetPath = base.startsWith('/')
         ? path.join(ROOT, base.slice(1))
         : path.join(path.dirname(filePath), base);

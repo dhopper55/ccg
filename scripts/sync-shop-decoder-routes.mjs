@@ -33,11 +33,14 @@ if (!fs.existsSync(sourceHtml)) {
   throw new Error(`Missing built shop-app entry: ${sourceHtml}`);
 }
 
-const buildStamp = Date.now().toString();
+// Vite's asset filenames are content-hashed, so they need no cache-busting query. A query
+// is actively harmful: lazy page chunks import the entry as plain "./index-<hash>.js", and a
+// different URL in the HTML makes the browser load and run the entry twice (two Reacts →
+// "Invalid hook call"). Strip any query a previous build left on these URLs.
 const rawHtml = fs.readFileSync(sourceHtml, 'utf8');
 const stampedHtml = rawHtml.replace(
-  /(\/guitars-and-gear-for-sale\/assets\/[^"'?]+\.(?:js|css))(?!\?v=)/g,
-  `$1?v=${buildStamp}`,
+  /(\/guitars-and-gear-for-sale\/assets\/[^"'?]+\.(?:js|css))\?[^"']*/g,
+  '$1',
 );
 fs.writeFileSync(sourceHtml, stampedHtml);
 
@@ -172,4 +175,4 @@ for (const routeConfig of routeConfigs) {
   fs.writeFileSync(path.join(targetDir, 'index.html'), routeHtml);
 }
 
-console.log(`Synced ${routeConfigs.length} shop decoder route entries with build stamp ${buildStamp}.`);
+console.log(`Synced ${routeConfigs.length} shop decoder route entries.`);

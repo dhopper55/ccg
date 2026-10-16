@@ -34,7 +34,7 @@ const GuitarEvalPage = () => {
                 >
                   <Box
                     component="img"
-                    src="/images/coal-creek-logo.png"
+                    src="/images/coal-creek-logo-480.webp"
                     alt="Coal Creek Guitars"
                     sx={{ width: 32, height: 32, objectFit: 'contain' }}
                   />

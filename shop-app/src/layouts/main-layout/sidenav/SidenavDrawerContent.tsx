@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
 import { Divider, IconButton, ListSubheader } from '@mui/material';
 import Box from '@mui/material/Box';
 import List from '@mui/material/List';
@@ -18,7 +17,6 @@ interface SidenavDrawerContentProps {
 }
 
 const SidenavDrawerContent = ({ variant = 'permanent' }: SidenavDrawerContentProps) => {
-  const { t } = useTranslation();
   const {
     config: { sidenavCollapsed, openNavbarDrawer, navigationMenuType },
     setConfig,
@@ -119,7 +117,7 @@ const SidenavDrawerContent = ({ variant = 'permanent' }: SidenavDrawerContentPro
                           background: 'transparent',
                         }}
                       >
-                        {t(menu.key || menu.subheader)}
+                        {menu.subheader}
                       </ListSubheader>
                     )
                   }

@@ -4,10 +4,8 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useReducer,
 } from 'react';
-import { useTranslation } from 'react-i18next';
 import { Config, initialConfig } from 'config';
 import { getColor } from 'helpers/echart-utils';
 import { getItemFromStore } from 'lib/utils';
@@ -62,7 +60,6 @@ const SettingsProvider = ({ children }: PropsWithChildren) => {
     primaryColor,
   };
   const [config, configDispatch] = useReducer(settingsReducer, configState);
-  const { i18n } = useTranslation();
 
   const setConfig = useCallback(
     (payload: Partial<Config>) => {
@@ -95,10 +92,6 @@ const SettingsProvider = ({ children }: PropsWithChildren) => {
   const getThemeColor = (color: string) => {
     return getColor(color);
   };
-
-  useEffect(() => {
-    i18n.changeLanguage(config.locale.split('-').join(''));
-  }, [config.locale]);
 
   return (
     <SettingsContext

@@ -25,7 +25,7 @@ const Logo = ({ sx, showName = true, onClick }: LogoProps) => {
       }}
     >
       <img
-        src="https://www.coalcreekguitars.com/images/coal-creek-logo.png"
+        src="https://www.coalcreekguitars.com/images/coal-creek-logo-480.webp"
         alt="Coal Creek Guitars"
         style={{
           width: 32,
