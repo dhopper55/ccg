@@ -146,6 +146,20 @@ const Products = ({ initialCategorySlug }: { initialCategorySlug?: string } = {}
     [categoryOptions, selectedCategoryValues],
   );
   const effectiveCategoryIdsKey = effectiveCategoryIds.join('|');
+  // Page heading: the selected category's name when exactly one is picked, else the shop name.
+  const pageHeading = useMemo(() => {
+    if (selectedCategoryIds.length !== 1) return 'Guitars & Gear for Sale';
+    const findName = (nodes: ShopCategoryNode[]): string => {
+      for (const node of nodes) {
+        if (String(node.id) === String(selectedCategoryIds[0])) return node.name;
+        const childName = findName(node.children ?? []);
+        if (childName) return childName;
+      }
+      return '';
+    };
+    return findName(categories) || 'Guitars & Gear for Sale';
+  }, [categories, selectedCategoryIds]);
+
   const filterSignature = useMemo(() => {
     const priceSignature = Array.isArray(priceRange) ? priceRange.join(':') : '';
     return `${effectiveCategoryIdsKey}::${selectedBrandsKey}::${priceSignature}::${sortBy}`;
@@ -374,6 +388,18 @@ const Products = ({ initialCategorySlug }: { initialCategorySlug?: string } = {}
                 />
               </Box>
             )}
+            <Box sx={{ px: { xs: 2, md: 3 }, pt: { xs: 2, md: 3 } }}>
+              <Typography
+                variant="h1"
+                sx={{ fontSize: { xs: 22, md: 28 }, fontWeight: 700, lineHeight: 1.25 }}
+              >
+                {pageHeading}
+              </Typography>
+              <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
+                Used and new gear from our shop in Englewood, CO, just south of Denver. Buy online
+                or come try it in person.
+              </Typography>
+            </Box>
             {isLoading ? (
               <Stack sx={{ alignItems: 'center', justifyContent: 'center', py: 12 }}>
                 <CircularProgress />
@@ -383,10 +409,10 @@ const Products = ({ initialCategorySlug }: { initialCategorySlug?: string } = {}
                 <Typography sx={{ color: 'text.secondary' }}>No products available.</Typography>
               </Box>
             ) : (
-              <Box sx={{ px: { xs: 2, md: 3 }, py: 3 }}>
-                <Grid container spacing={3}>
+              <Box sx={{ px: { xs: 1.5, md: 3 }, pt: 2, pb: 3 }}>
+                <Grid container spacing={{ xs: 1.5, md: 3 }}>
                   {visibleProducts.map((product) => (
-                    <Grid key={product.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
+                    <Grid key={product.id} size={{ xs: 6, md: 4, lg: 3 }}>
                       <ProductCard product={product} />
                     </Grid>
                   ))}
@@ -579,10 +605,10 @@ const ProductCard = ({ product }: { product: ShopProduct }) => {
         loading="lazy"
         decoding="async"
         sx={{
-          height: 240,
+          height: { xs: 150, sm: 240 },
           objectFit: 'contain',
           bgcolor: 'background.elevation1',
-          p: 1,
+          p: { xs: 0.5, sm: 1 },
         }}
       />
       <CardContent
@@ -593,15 +619,17 @@ const ProductCard = ({ product }: { product: ShopProduct }) => {
           textAlign: 'center',
           flexGrow: 1,
           gap: 1,
-          px: 2,
-          pb: 3,
+          px: { xs: 1, sm: 2 },
+          pt: { xs: 1.25, sm: 2 },
+          pb: { xs: 1.5, sm: 3 },
         }}
       >
         <Typography
           variant="subtitle1"
           sx={{
             fontWeight: 600,
-            lineHeight: 1.4,
+            fontSize: { xs: 14, sm: 16 },
+            lineHeight: 1.35,
             display: '-webkit-box',
             WebkitLineClamp: 2,
             WebkitBoxOrient: 'vertical',
@@ -613,8 +641,17 @@ const ProductCard = ({ product }: { product: ShopProduct }) => {
 
         <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', justifyContent: 'center' }}>
           {onlyInStore && <Chip label="In store only" color="warning" size="small" />}
-          {category && <Chip label={category} size="small" variant="outlined" />}
-          {secondaryCategory && <Chip label={secondaryCategory} size="small" variant="outlined" />}
+          {category && (
+            <Chip label={category} size="small" variant="outlined" sx={{ display: { xs: 'none', sm: 'inline-flex' } }} />
+          )}
+          {secondaryCategory && (
+            <Chip
+              label={secondaryCategory}
+              size="small"
+              variant="outlined"
+              sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
+            />
+          )}
         </Stack>
 
         {!allowShipping && (
@@ -634,7 +671,7 @@ const ProductCard = ({ product }: { product: ShopProduct }) => {
 
         {displayPrice > 0 && (
           <Box sx={{ mt: 'auto', pt: 1 }}>
-            <Typography variant="h5" sx={{ fontWeight: 700 }}>
+            <Typography variant="h5" sx={{ fontWeight: 700, fontSize: { xs: 18, sm: 24 } }}>
               {formatPrice(displayPrice)}
             </Typography>
             {hasDiscount && (

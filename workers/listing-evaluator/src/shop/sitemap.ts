@@ -3,7 +3,8 @@ import type { InventoryCategoryRow } from '../types/inventory.js';
 import { jsonResponse, normalizeText } from '../utils/misc.js';
 import { escapeHtmlText, escapeHtmlAttribute } from '../utils/html.js';
 import { dbListInventoryCategories } from '../inventory/categories.js';
-import { dbListShopSitemapProducts, slugifyShopCategory, isValidSaleUrlSlug } from './db.js';
+import { dbListShopProducts, dbListShopSitemapProducts, slugifyShopCategory, isValidSaleUrlSlug } from './db.js';
+import { normalizeGoogleMerchantCondition } from './merchant.js';
 import { isAssociateModeRequest } from './associate.js';
 import { dbGetShopProductDetail } from './db.js';
 import { SHOP_BASE_PATH, SHOP_STATIC_ORIGIN, SITEMAP_STATIC_URLS } from '../constants.js';
@@ -96,7 +97,8 @@ export async function handleShopPageRequest(request: Request, env: Env): Promise
   if (!appResponse.ok) return appResponse;
 
   if (path === SHOP_BASE_PATH) {
-    return appResponse;
+    const html = await appResponse.text();
+    return htmlResponse(await injectShopListingPage(html, null, env));
   }
 
   if (path === `${SHOP_BASE_PATH}/cart`) {
@@ -120,7 +122,7 @@ export async function handleShopPageRequest(request: Request, env: Env): Promise
     const matchedRow = categoryRows.find((row) => slugifyShopCategory(row.name) === categorySlug);
     if (matchedRow) {
       const html = await appResponse.text();
-      return htmlResponse(injectShopCategorySeo(html, matchedRow, categorySlug, env));
+      return htmlResponse(await injectShopListingPage(html, { row: matchedRow, slug: categorySlug, allRows: categoryRows }, env));
     }
     // Unknown slug — let the React app render (will hit the 404 route)
     return appResponse;
@@ -220,35 +222,136 @@ export function injectShopCartSeo(html: string, env: Env): string {
   });
 }
 
-export function injectShopCategorySeo(
+const SHOP_LISTING_INTRO =
+  'Used and new gear from our shop in Englewood, CO, just south of Denver. Buy online or come try it in person.';
+
+// Shop root and category pages are a client-rendered React app, so crawlers that don't run JS
+// (and Google before it renders) would otherwise see an empty <div id="root">. Pre-render a
+// plain heading, intro, subcategory links and product links into it; React's createRoot
+// replaces it as soon as the app mounts.
+export async function injectShopListingPage(
   html: string,
-  category: InventoryCategoryRow,
-  categorySlug: string,
+  category: { row: InventoryCategoryRow; slug: string; allRows: InventoryCategoryRow[] } | null,
   env: Env,
-): string {
+): Promise<string> {
   const baseUrl = normalizeText(env.SITE_BASE_URL, 'https://www.coalcreekguitars.com').replace(/\/+$/, '');
-  const categoryName = normalizeText(category.name, '');
-  const title = `${categoryName} | Coal Creek Guitars`;
-  const canonicalUrl = `${baseUrl}${SHOP_BASE_PATH}/${categorySlug}`;
-  const description = `Browse ${categoryName} from Coal Creek Guitars in Englewood, Colorado. Quality used and new instruments and gear at fair prices.`;
-  const imageUrl = `${baseUrl}/images/coal-creek-logo.png`;
+  const shopUrl = `${baseUrl}${SHOP_BASE_PATH}`;
+  const categoryName = category ? normalizeText(category.row.name, '') : '';
+  const heading = categoryName || 'Guitars & Gear for Sale';
+  const title = categoryName
+    ? `${categoryName} for Sale | Coal Creek Guitars, Englewood CO`
+    : 'Used Guitars, Basses, Amps & Gear for Sale | Coal Creek Guitars, Englewood CO';
+  const description = categoryName
+    ? `${categoryName} for sale at Coal Creek Guitars in Englewood, Colorado, just south of Denver. Used and new gear, buy online or try it in person.`
+    : 'Shop used and new guitars, basses, amps, effects pedals and accessories at Coal Creek Guitars in Englewood, Colorado, just south of Denver. Buy online or try it in person.';
+  const canonicalUrl = category ? `${shopUrl}/${category.slug}` : shopUrl;
+
+  let products: Array<Record<string, unknown>> = [];
+  try {
+    const result = await dbListShopProducts({
+      categoryIds: category ? [category.row.id] : [],
+      search: '',
+      brands: [],
+      sort: 'popular',
+      randomSeed: '',
+      showSold: false,
+      associateMode: false,
+      priceMin: 0,
+      priceMax: 0,
+      condition: '',
+      tag: '',
+    }, env);
+    products = result.records;
+  } catch {
+    products = [];
+  }
+
+  const productLinks = products
+    .map((product) => {
+      const categorySlug = slugifyShopCategory(normalizeText(product.primaryCategoryName, ''));
+      const productSlug = normalizeText(product.saleUrlSlug, '');
+      if (!categorySlug || !productSlug) return null;
+      const price = Number(product.salePrice || product.regularPrice || 0);
+      return {
+        name: normalizeText(product.saleTitle, ''),
+        url: `${shopUrl}/${categorySlug}/${productSlug}`,
+        price,
+      };
+    })
+    .filter((link): link is { name: string; url: string; price: number } => Boolean(link && link.name));
+
+  const allRows = category ? category.allRows : await dbListInventoryCategories(env).catch(() => []);
+  const parentId = category ? category.row.id : null;
+  const subcategories = allRows
+    .filter((row) => (row.parent_id ?? null) === parentId)
+    .sort((a, b) => a.order - b.order)
+    .map((row) => ({ name: row.name, url: `${shopUrl}/${slugifyShopCategory(row.name)}` }))
+    .filter((link) => !link.url.endsWith('/'));
+
+  const breadcrumbItems = [{ '@type': 'ListItem', position: 1, name: 'Guitars and Gear for Sale', item: shopUrl }];
+  if (category) breadcrumbItems.push({ '@type': 'ListItem', position: 2, name: categoryName, item: canonicalUrl });
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
     name: title,
     description,
     url: canonicalUrl,
-    breadcrumb: {
-      '@type': 'BreadcrumbList',
-      itemListElement: [
-        { '@type': 'ListItem', position: 1, name: 'Guitars and Gear for Sale', item: `${baseUrl}${SHOP_BASE_PATH}` },
-        { '@type': 'ListItem', position: 2, name: categoryName, item: canonicalUrl },
-      ],
-    },
+    breadcrumb: { '@type': 'BreadcrumbList', itemListElement: breadcrumbItems },
     isPartOf: { '@type': 'WebSite', name: 'Coal Creek Guitars', url: baseUrl },
+    mainEntity: {
+      '@type': 'ItemList',
+      numberOfItems: productLinks.length,
+      itemListElement: productLinks.slice(0, 50).map((link, index) => ({
+        '@type': 'ListItem',
+        position: index + 1,
+        url: link.url,
+        name: link.name,
+      })),
+    },
   };
 
-  return injectShopSeoTags(html, { title, description, canonicalUrl, imageUrl, ogType: 'website', jsonLd });
+  const withSeo = injectShopSeoTags(html, {
+    title,
+    description,
+    canonicalUrl,
+    imageUrl: `${baseUrl}/images/coal-creek-logo.png`,
+    ogType: 'website',
+    jsonLd,
+  });
+
+  const formatPrice = (value: number) =>
+    value > 0 ? `$${value.toLocaleString('en-US', { minimumFractionDigits: value % 1 ? 2 : 0, maximumFractionDigits: 2 })}` : '';
+  const body = [
+    '<div class="ccg-prerender">',
+    category
+      ? `<nav aria-label="Breadcrumb"><a href="${escapeHtmlAttribute(shopUrl)}">Guitars &amp; Gear for Sale</a> / ${escapeHtmlText(categoryName)}</nav>`
+      : '',
+    `<h1>${escapeHtmlText(heading)}</h1>`,
+    `<p>${escapeHtmlText(SHOP_LISTING_INTRO)}</p>`,
+    subcategories.length > 0
+      ? `<ul class="ccg-prerender-cats">${subcategories
+          .map((link) => `<li><a href="${escapeHtmlAttribute(link.url)}">${escapeHtmlText(link.name)}</a></li>`)
+          .join('')}</ul>`
+      : '',
+    productLinks.length > 0
+      ? `<ul>${productLinks
+          .map((link) => {
+            const price = formatPrice(link.price);
+            return `<li><a href="${escapeHtmlAttribute(link.url)}">${escapeHtmlText(link.name)}</a>${price ? ` &ndash; ${escapeHtmlText(price)}` : ''}</li>`;
+          })
+          .join('')}</ul>`
+      : '',
+    '</div>',
+  ].join('');
+  const style =
+    '<style>body{margin:0;background:#14171a}.ccg-prerender{max-width:960px;margin:0 auto;padding:16px;font-family:system-ui,sans-serif;color:#e6e8ea;background:#14171a;line-height:1.5}' +
+    '.ccg-prerender h1{font-size:22px;margin:8px 0 4px}.ccg-prerender p{color:#9aa3ab;margin:0 0 12px}' +
+    '.ccg-prerender a{color:#8ab4f8}.ccg-prerender ul{padding-left:18px}.ccg-prerender li{margin:6px 0}' +
+    '.ccg-prerender-cats{display:flex;flex-wrap:wrap;gap:8px;list-style:none;padding:0!important}</style>';
+
+  return withSeo
+    .replace('</head>', `    ${style}\n  </head>`)
+    .replace('<div id="root"></div>', `<div id="root">${body}</div>`);
 }
 
 export function injectShopProductSeo(
@@ -398,6 +501,12 @@ export function escapeXml(value: unknown): string {
     .replace(/'/g, '&apos;');
 }
 
+const SCHEMA_CONDITION = {
+  new: 'https://schema.org/NewCondition',
+  used: 'https://schema.org/UsedCondition',
+  refurbished: 'https://schema.org/RefurbishedCondition',
+} as const;
+
 export function buildShopProductJsonLd(
   product: Record<string, unknown>,
   context: {
@@ -434,7 +543,7 @@ export function buildShopProductJsonLd(
       priceCurrency: 'USD',
       price: context.price > 0 ? context.price.toFixed(2) : undefined,
       availability: context.isUnavailable ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock',
-      itemCondition: 'https://schema.org/UsedCondition',
+      itemCondition: SCHEMA_CONDITION[normalizeGoogleMerchantCondition(product.saleCondition)],
     },
     positiveNotes: highlights.length > 0 ? {
       '@type': 'ItemList',
