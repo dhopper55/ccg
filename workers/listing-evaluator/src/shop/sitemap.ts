@@ -244,7 +244,8 @@ export async function injectShopListingPage(
   const description = categoryName
     ? `${categoryName} for sale at Coal Creek Guitars in Englewood, Colorado, just south of Denver. Used and new gear, buy online or try it in person.`
     : 'Shop used and new guitars, basses, amps, effects pedals and accessories at Coal Creek Guitars in Englewood, Colorado, just south of Denver. Buy online or try it in person.';
-  const canonicalUrl = category ? `${shopUrl}/${category.slug}` : shopUrl;
+  // The shop root's final URL has a trailing slash (Pages 308s the bare path to it).
+  const canonicalUrl = category ? `${shopUrl}/${category.slug}` : `${shopUrl}/`;
 
   let products: Array<Record<string, unknown>> = [];
   try {
@@ -288,7 +289,7 @@ export async function injectShopListingPage(
     .map((row) => ({ name: row.name, url: `${shopUrl}/${slugifyShopCategory(row.name)}` }))
     .filter((link) => !link.url.endsWith('/'));
 
-  const breadcrumbItems = [{ '@type': 'ListItem', position: 1, name: 'Guitars and Gear for Sale', item: shopUrl }];
+  const breadcrumbItems = [{ '@type': 'ListItem', position: 1, name: 'Guitars and Gear for Sale', item: `${shopUrl}/` }];
   if (category) breadcrumbItems.push({ '@type': 'ListItem', position: 2, name: categoryName, item: canonicalUrl });
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -324,7 +325,7 @@ export async function injectShopListingPage(
   const body = [
     '<div class="ccg-prerender">',
     category
-      ? `<nav aria-label="Breadcrumb"><a href="${escapeHtmlAttribute(shopUrl)}">Guitars &amp; Gear for Sale</a> / ${escapeHtmlText(categoryName)}</nav>`
+      ? `<nav aria-label="Breadcrumb"><a href="${escapeHtmlAttribute(`${shopUrl}/`)}">Guitars &amp; Gear for Sale</a> / ${escapeHtmlText(categoryName)}</nav>`
       : '',
     `<h1>${escapeHtmlText(heading)}</h1>`,
     `<p>${escapeHtmlText(SHOP_LISTING_INTRO)}</p>`,

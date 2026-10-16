@@ -29,7 +29,7 @@ export const SITEMAP_STATIC_URLS = [
   { loc: '/decoders/ovation-guitar-serial-number-decoder/', changefreq: 'monthly', priority: '0.8' },
   { loc: '/decoders/charvel-guitar-serial-number-decoder/', changefreq: 'monthly', priority: '0.8' },
   { loc: '/decoders/rickenbacker-guitar-serial-number-decoder/', changefreq: 'monthly', priority: '0.8' },
-  { loc: '/guitars-and-gear-for-sale', changefreq: 'daily', priority: '0.9' },
+  { loc: '/guitars-and-gear-for-sale/', changefreq: 'daily', priority: '0.9' },
   { loc: '/faq/', changefreq: 'monthly', priority: '0.6' },
   { loc: '/guitar-repair-services-pricing/', changefreq: 'monthly', priority: '0.7' },
   { loc: '/about-us', changefreq: 'monthly', priority: '0.6' },
