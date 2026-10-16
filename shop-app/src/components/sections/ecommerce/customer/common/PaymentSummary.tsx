@@ -39,9 +39,21 @@ const PaymentSummary = () => {
     otdMode,
     setOtdMode,
     otdEligible,
+    cartItems,
   } = useEcommerce();
   const { enqueueSnackbar } = useSnackbar();
   const { currencyFormat } = useNumberFormat();
+
+  // Real savings on sale-priced items (regular vs. sale price) — this used to be a hard-coded
+  // "you saved 30%" from the template, shown on every cart.
+  const selectedItems = cartItems.filter((item) => item.selected);
+  const regularTotal = selectedItems.reduce(
+    (sum, item) => sum + Math.max(item.price.regular || 0, item.price.discounted) * item.quantity,
+    0,
+  );
+  const saleTotal = selectedItems.reduce((sum, item) => sum + item.price.discounted * item.quantity, 0);
+  const savedAmount = Math.round((regularTotal - saleTotal) * 100) / 100;
+  const savedPercent = regularTotal > 0 ? Math.round((savedAmount / regularTotal) * 100) : 0;
   const taxRateLabel = `${(cartTaxRate * 100).toFixed(2)}%`;
 
   const applyCouponCode = () => {
@@ -362,12 +374,14 @@ const PaymentSummary = () => {
             <Typography variant="h4">{currencyFormat(cartTotal)}</Typography>
           </Stack>
 
-          <Chip
-            color="success"
-            variant="filled"
-            label="Yay! you saved 30% in total"
-            sx={{ textAlign: 'right' }}
-          />
+          {savedAmount >= 0.01 && savedPercent >= 1 && (
+            <Chip
+              color="success"
+              variant="filled"
+              label={`You saved ${currencyFormat(savedAmount)} (${savedPercent}%)`}
+              sx={{ textAlign: 'right' }}
+            />
+          )}
         </Box>
       </div>
       <Dialog open={taxOptionsOpen} onClose={() => setTaxOptionsOpen(false)}>

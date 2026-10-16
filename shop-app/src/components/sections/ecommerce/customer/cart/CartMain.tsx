@@ -63,7 +63,10 @@ const CartMain = () => {
             sx={{ justifyContent: 'space-between', alignItems: 'center', px: { xs: 3, md: 5 } }}
           >
             <Typography variant="subtitle1" fontWeight={700}>
-              {cartItems.reduce((sum, item) => sum + item.quantity, 0)} items
+              {(() => {
+                const count = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+                return `${count} ${count === 1 ? 'item' : 'items'}`;
+              })()}
             </Typography>
 
             <Stack spacing={{ xs: 3, md: 5 }} sx={{ alignItems: 'center' }}>

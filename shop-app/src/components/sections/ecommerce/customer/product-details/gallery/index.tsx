@@ -89,6 +89,7 @@ const ProductGallery = ({ images, title = '' }: { images: string[]; title?: stri
               <>
                 <Button
                   ref={navigationPrevRef}
+                  aria-label="Previous photo"
                   color="neutral"
                   shape="circle"
                   variant="soft"
@@ -111,6 +112,7 @@ const ProductGallery = ({ images, title = '' }: { images: string[]; title?: stri
                 </Button>
                 <Button
                   ref={navigationNextRef}
+                  aria-label="Next photo"
                   color="neutral"
                   shape="circle"
                   variant="soft"

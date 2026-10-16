@@ -757,8 +757,14 @@ function sanitizeSaleUrlSlug(value: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
+// Listing text pasted from AI output often starts with a "Title:" label, which ended up in sale
+// titles and product URLs (e.g. /guitar/title-ibanez-...). Drop it.
+function stripTitleLabel(value: string): string {
+  return value.replace(/^\s*title\s*[:\-–—]\s*/i, '');
+}
+
 function generateSaleUrlSlugFromTitle(value: string): string {
-  return sanitizeSaleUrlSlug(value);
+  return sanitizeSaleUrlSlug(stripTitleLabel(value));
 }
 
 function getForSaleValidationError(formState: FormState): string | null {
@@ -1840,7 +1846,7 @@ const InventoryItem = () => {
     images: nextImages.map((image) => ({ url: image.url, isPrivate: image.isPrivate })),
     tags,
     videoUrl: form.videoUrl.trim(),
-    saleTitle: form.saleTitle.trim(),
+    saleTitle: stripTitleLabel(form.saleTitle).trim(),
     regularPrice: form.regularPrice.trim(),
     salePrice: form.salePrice.trim(),
     condition: form.condition.trim(),

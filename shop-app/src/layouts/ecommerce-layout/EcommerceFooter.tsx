@@ -108,6 +108,7 @@ const EcommerceFooter = () => {
                   id="email"
                   type="email"
                   placeholder="Your email"
+                  inputProps={{ 'aria-label': 'Email address for newsletter' }}
                   variant="filled"
                   value={email}
                   disabled={isSubmitting}
@@ -253,6 +254,7 @@ const EcommerceFooter = () => {
               >
                 <Button
                   href="https://www.facebook.com/profile.php?id=61587059786524"
+                  aria-label="Coal Creek Guitars on Facebook"
                   target="_blank"
                   shape="circle"
                   variant="soft"
@@ -268,6 +270,7 @@ const EcommerceFooter = () => {
                 </Button>
                 <Button
                   href="https://www.youtube.com/channel/UCV-kDQjH_cWcsxwg0GZKX3g/"
+                  aria-label="Coal Creek Guitars on YouTube"
                   target="_blank"
                   shape="circle"
                   variant="soft"

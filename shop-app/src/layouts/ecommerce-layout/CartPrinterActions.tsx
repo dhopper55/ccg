@@ -3,6 +3,7 @@ import { Alert, Box, Button, Stack } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import { useLocation } from 'react-router';
 import { ensureStarWebPrntGlobals } from 'lib/starWebPrntShim';
+import { useAssociateMode } from 'providers/AssociateModeProvider';
 import { useEcommerce } from 'providers/EcommerceProvider';
 import paths from 'routes/paths';
 import IconifyIcon from 'components/base/IconifyIcon';
@@ -85,6 +86,7 @@ const CartPrinterActions = () => {
   const { cartItems, cartSubTotal, cartTax } = useEcommerce();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const { isAssociateMode } = useAssociateMode();
 
   const isCartRoute = useMemo(() => location.pathname === paths.cart, [location.pathname]);
 
@@ -92,7 +94,8 @@ const CartPrinterActions = () => {
     ensureStarWebPrntGlobals();
   }, []);
 
-  if (!isCartRoute) return null;
+  // Cash drawer / receipt printer are in-store tools: only show them in associate mode.
+  if (!isCartRoute || !isAssociateMode) return null;
 
   const resolvePrinterUrl = () => {
     const searchUrl = new URLSearchParams(window.location.search).get('starWebPrntUrl');

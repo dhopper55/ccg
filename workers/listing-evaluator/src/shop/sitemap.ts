@@ -124,8 +124,10 @@ export async function handleShopPageRequest(request: Request, env: Env): Promise
       const html = await appResponse.text();
       return htmlResponse(await injectShopListingPage(html, { row: matchedRow, slug: categorySlug, allRows: categoryRows }, env));
     }
-    // Unknown slug — let the React app render (will hit the 404 route)
-    return appResponse;
+    // Unknown slug — the React app renders its 404 page; send a real 404 status so search
+    // engines don't index it as a duplicate of the shop.
+    const html = await appResponse.text();
+    return htmlResponse(html, { 'x-robots-tag': 'noindex' }, 404);
   }
 
   if (parts.length >= 2) {
@@ -140,7 +142,7 @@ export async function handleShopPageRequest(request: Request, env: Env): Promise
       // Product not found or no longer active — redirect to shop root so
       // Google drops the stale URL instead of indexing a generic-title page.
       const baseUrl = normalizeText(env.SITE_BASE_URL, 'https://www.coalcreekguitars.com').replace(/\/+$/, '');
-      return new Response(null, { status: 301, headers: { Location: `${baseUrl}${SHOP_BASE_PATH}` } });
+      return new Response(null, { status: 301, headers: { Location: `${baseUrl}${SHOP_BASE_PATH}/` } });
     }
     const html = await appResponse.text();
     return htmlResponse(injectShopProductSeo(html, product, env, requestUrl));
@@ -152,10 +154,11 @@ export async function handleShopPageRequest(request: Request, env: Env): Promise
 export async function handleShopCategoryParamRedirect(requestUrl: URL, env: Env): Promise<Response> {
   const baseUrl = normalizeText(env.SITE_BASE_URL, 'https://www.coalcreekguitars.com').replace(/\/+$/, '');
   const shopRoot = `${baseUrl}${SHOP_BASE_PATH}`;
+  const shopRootUrl = `${shopRoot}/`;
   const categoryParam = (requestUrl.searchParams.get('category') ?? '').trim();
 
   if (!categoryParam) {
-    return new Response(null, { status: 301, headers: { Location: shopRoot } });
+    return new Response(null, { status: 301, headers: { Location: shopRootUrl } });
   }
 
   const rows = await dbListInventoryCategories(env);
@@ -170,7 +173,7 @@ export async function handleShopCategoryParamRedirect(requestUrl: URL, env: Env)
 
   const target = matched
     ? `${shopRoot}/${slugifyShopCategory(matched.name)}`
-    : shopRoot;
+    : shopRootUrl;
 
   return new Response(null, { status: 301, headers: { Location: target } });
 }
@@ -454,8 +457,9 @@ export function buildShopProductDescription(product: Record<string, unknown>): s
   return `${text.slice(0, 157).replace(/\s+\S*$/, '')}...`;
 }
 
-function htmlResponse(html: string, extraHeaders: Record<string, string> = {}): Response {
+function htmlResponse(html: string, extraHeaders: Record<string, string> = {}, status = 200): Response {
   return new Response(html, {
+    status,
     headers: {
       'content-type': 'text/html; charset=UTF-8',
       'cache-control': 'no-cache, no-store, must-revalidate',
