@@ -253,7 +253,7 @@ const ProductDetails = () => {
               sx={{ alignSelf: 'flex-start', mb: 2, fontWeight: 700 }}
             />
           )}
-          {galleryImages.length > 0 && <ProductGallery images={galleryImages} />}
+          {galleryImages.length > 0 && <ProductGallery images={galleryImages} title={shopProduct?.saleTitle} />}
         </Paper>
       </Grid>
       <Grid

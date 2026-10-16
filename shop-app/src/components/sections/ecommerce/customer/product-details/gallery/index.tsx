@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, Button, Stack } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import useLightbox from 'hooks/useLightbox';
@@ -11,13 +11,40 @@ import Image from 'components/base/Image';
 import Lightbox from 'components/base/Lightbox';
 import Swiper from 'components/base/Swiper';
 
-const ProductGallery = ({ images }: { images: string[] }) => {
+// Product images come from the API as Cloudflare Image Resizing URLs at width=1400. Swap the
+// width so the gallery downloads a size that fits the screen; non-resizing URLs pass through.
+const withWidth = (url: string, width: number) =>
+  url.includes('/cdn-cgi/image/') ? url.replace(/([/,])width=\d+/, `$1width=${width}`) : url;
+
+const ProductGallery = ({ images, title = '' }: { images: string[]; title?: string }) => {
   const navigationPrevRef = useRef(null);
   const navigationNextRef = useRef(null);
   const hasMultipleImages = images.length > 1;
   const { openLightbox, ...lightboxProps } = useLightbox();
 
   const [thumbsSwiper, setThumbsSwiper] = useState<SwiperClass | null>(null);
+
+  // Only mount the photos for the current slide and its neighbours. Native lazy-loading doesn't
+  // help inside the carousel: off-screen slides sit beside the viewport, so the browser fetched
+  // every full-size photo up front and they competed with the first one.
+  const [mountedSlides, setMountedSlides] = useState<Set<number>>(() => new Set([0]));
+  // Thumbnails wait for the first photo too, so they don't split the bandwidth with it.
+  const [firstPhotoLoaded, setFirstPhotoLoaded] = useState(false);
+  useEffect(() => {
+    setMountedSlides(new Set([0]));
+    setFirstPhotoLoaded(false);
+  }, [images]);
+  const mountAround = useCallback(
+    (index: number) => {
+      const count = images.length;
+      if (count === 0) return;
+      const wanted = [index, (index + 1) % count, (index - 1 + count) % count];
+      setMountedSlides((prev) =>
+        wanted.every((i) => prev.has(i)) ? prev : new Set([...prev, ...wanted]),
+      );
+    },
+    [images.length],
+  );
 
   const { up } = useBreakpoints();
   const upLg = up('lg');
@@ -106,6 +133,9 @@ const ProductGallery = ({ images }: { images: string[] }) => {
                 swiper: hasMultipleImages && thumbsSwiper && !thumbsSwiper.destroyed ? thumbsSwiper : null,
               }}
               modules={[FreeMode, Navigation, Thumbs]}
+              onSlideChange={(swiper) => {
+                if (swiper.realIndex !== 0) mountAround(swiper.realIndex);
+              }}
               navigation={hasMultipleImages ? {
                 nextEl: navigationNextRef,
                 prevEl: navigationPrevRef,
@@ -149,9 +179,21 @@ const ProductGallery = ({ images }: { images: string[] }) => {
                     >
                       <IconifyIcon icon="material-symbols:search-rounded" sx={{ fontSize: 20 }} />
                     </Button>
-                    <Image
-                      src={image}
-                      alt=""
+                    {mountedSlides.has(index) && <Image
+                      src={withWidth(image, 1000)}
+                      srcSet={`${withWidth(image, 640)} 640w, ${withWidth(image, 800)} 800w, ${withWidth(image, 1000)} 1000w, ${image} 1400w`}
+                      sizes="(min-width: 1200px) 45vw, min(100vw, 560px)"
+                      alt={title ? `${title} – photo ${index + 1}` : ''}
+                      fetchPriority={index === 0 ? 'high' : 'auto'}
+                      decoding="async"
+                      onLoad={
+                        index === 0
+                          ? () => {
+                              setFirstPhotoLoaded(true);
+                              mountAround(0);
+                            }
+                          : undefined
+                      }
                       sx={{
                         height: 1,
                         width: 1,
@@ -160,7 +202,7 @@ const ProductGallery = ({ images }: { images: string[] }) => {
                         display: 'block',
                         pointerEvents: 'none',
                       }}
-                    />
+                    />}
                   </Box>
                 </SwiperSlide>
               ))}
@@ -205,6 +247,7 @@ const ProductGallery = ({ images }: { images: string[] }) => {
                       flexShrink: 0,
                       cursor: 'grab',
                       width: { xs: 80, md: 104, xl: 120 },
+                      aspectRatio: 1,
                       borderRadius: 2,
                       overflow: 'hidden',
                       bgcolor: 'background.elevation1',
@@ -214,11 +257,13 @@ const ProductGallery = ({ images }: { images: string[] }) => {
                       },
                     }}
                   >
-                    <Image
-                      src={image}
+                    {firstPhotoLoaded && <Image
+                      src={withWidth(image, 240)}
                       alt=""
-                      sx={{ width: 1, objectFit: 'contain', display: 'block', pointerEvents: 'none' }}
-                    />
+                      loading="lazy"
+                      decoding="async"
+                      sx={{ width: 1, height: 1, objectFit: 'contain', display: 'block', pointerEvents: 'none' }}
+                    />}
                   </Box>
                 </SwiperSlide>
               ))}
