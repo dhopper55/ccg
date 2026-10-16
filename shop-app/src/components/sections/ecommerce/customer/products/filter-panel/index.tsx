@@ -1,4 +1,5 @@
 import { Divider, Stack } from '@mui/material';
+import { useBreakpoints } from 'providers/BreakpointsProvider';
 import { ProductFilterOptions } from 'types/ecommerce';
 import CategoryFilterSection from './CategoryFilterSection';
 import FilterSection from './FilterSection';
@@ -10,6 +11,10 @@ interface FilterPanelProps {
 }
 
 const FilterPanel = ({ filterOptions }: FilterPanelProps) => {
+  const { up } = useBreakpoints();
+  // The category list is long; on phones start it collapsed so Brand and Price are in view.
+  const categoryOpenByDefault = up('md');
+
   return (
     <Stack direction="column" divider={<Divider sx={{ my: 2 }} />} sx={{ mb: 3 }}>
       {filterOptions.availability && (
@@ -36,7 +41,7 @@ const FilterPanel = ({ filterOptions }: FilterPanelProps) => {
       )}
       {filterOptions.category && (
         <CategoryFilterSection
-          defaultOpen
+          defaultOpen={categoryOpenByDefault}
           title="Category"
           options={filterOptions.category}
           name="category"
