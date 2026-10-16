@@ -23,12 +23,16 @@ export async function handleSitemap(env: Env): Promise<Response> {
     dbListShopSitemapProducts(env),
     dbListInventoryCategories(env),
   ]);
-  const productUrls = productRecords.map((record) => ({
-    loc: normalizeText(record.urlPath, ''),
-    lastmod: toSitemapDate(record.updatedAt),
-    changefreq: record.isSold || !record.forSale ? 'monthly' : 'daily',
-    priority: record.isSold || !record.forSale ? '0.5' : '0.8',
-  }));
+  // Only items currently for sale: sold pages stay reachable by link but are noindexed
+  // (see injectShopProductSeo), so listing them here would just waste Google's crawl.
+  const productUrls = productRecords
+    .filter((record) => record.forSale && !record.isSold)
+    .map((record) => ({
+      loc: normalizeText(record.urlPath, ''),
+      lastmod: toSitemapDate(record.updatedAt),
+      changefreq: 'daily',
+      priority: '0.8',
+    }));
   const categoryUrls = categoryRows
     .map((row) => {
       const slug = slugifyShopCategory(row.name);
@@ -138,6 +142,24 @@ export async function handleShopPageRequest(request: Request, env: Env): Promise
       env,
       { includeInStoreOnly: await isAssociateModeRequest(request, env) },
     );
+    if (!product && productSlug.startsWith('title-')) {
+      // A few slugs were saved with a stray "Title:" label (title-ibanez-...). They've been
+      // renamed; send the old URL to the product's new address.
+      const renamed = await dbGetShopProductDetail(
+        { slug: productSlug.slice('title-'.length) },
+        env,
+        { includeInStoreOnly: false },
+      );
+      const renamedCategory = renamed ? slugifyShopCategory(normalizeText(renamed.primaryCategoryName, '')) : '';
+      const renamedSlug = renamed ? normalizeText(renamed.saleUrlSlug, '') : '';
+      if (renamedCategory && renamedSlug) {
+        const baseUrl = normalizeText(env.SITE_BASE_URL, 'https://www.coalcreekguitars.com').replace(/\/+$/, '');
+        return new Response(null, {
+          status: 301,
+          headers: { Location: `${baseUrl}${SHOP_BASE_PATH}/${renamedCategory}/${renamedSlug}` },
+        });
+      }
+    }
     if (!product) {
       // Product not found or no longer active — redirect to shop root so
       // Google drops the stale URL instead of indexing a generic-title page.
@@ -145,7 +167,11 @@ export async function handleShopPageRequest(request: Request, env: Env): Promise
       return new Response(null, { status: 301, headers: { Location: `${baseUrl}${SHOP_BASE_PATH}/` } });
     }
     const html = await appResponse.text();
-    return htmlResponse(injectShopProductSeo(html, product, env, requestUrl));
+    const isUnavailable = Boolean(product.isSold || !product.forSale);
+    return htmlResponse(
+      injectShopProductSeo(html, product, env, requestUrl),
+      isUnavailable ? { 'x-robots-tag': 'noindex' } : {},
+    );
   }
 
   return appResponse;
@@ -400,6 +426,8 @@ export function injectShopProductSeo(
     imageUrl,
     ogType: 'product',
     jsonLd,
+    // Sold / no-longer-for-sale pages stay up for people with the link, but out of search.
+    robots: isUnavailable ? 'noindex, follow' : undefined,
   });
 
   return productMeta ? output.replace('</head>', `    ${productMeta}\n  </head>`) : output;
