@@ -8,9 +8,11 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  ListSubheader,
   Stack,
   Typography,
 } from '@mui/material';
+import sitemap from 'routes/sitemap';
 import IconifyIcon from 'components/base/IconifyIcon';
 import decoderConfigs from 'pages/decoders/decoder-configs.json';
 
@@ -67,7 +69,12 @@ const DecoderPreviewLayout = ({
         }}
       >
         <Box sx={{ px: 3, py: 4 }}>
-          <Stack direction="row" sx={{ alignItems: 'flex-start', gap: 1.5 }}>
+          <Stack
+            component="a"
+            href="https://www.coalcreekguitars.com/"
+            direction="row"
+            sx={{ alignItems: 'flex-start', gap: 1.5, textDecoration: 'none' }}
+          >
             <Box
               component="img"
               src="/images/coal-creek-logo-480.webp"
@@ -187,6 +194,34 @@ const DecoderPreviewLayout = ({
               );
             })}
           </List>
+
+          {/* The rest of the site — decoder visitors otherwise had no way off the decoders. */}
+          <Divider sx={{ my: 2 }} />
+          {sitemap.map((menu) => (
+            <List
+              key={menu.id}
+              dense
+              subheader={
+                <ListSubheader
+                  disableSticky
+                  sx={{ bgcolor: 'transparent', lineHeight: 2.5, fontSize: 11, letterSpacing: '0.14em' }}
+                >
+                  {menu.subheader.toUpperCase()}
+                </ListSubheader>
+              }
+            >
+              {menu.items.map((item) => (
+                <ListItemButton
+                  key={item.pathName}
+                  component="a"
+                  href={item.path}
+                  sx={{ borderRadius: 2, px: 1.5, color: 'text.secondary', minHeight: 44 }}
+                >
+                  <ListItemText primary={item.name} primaryTypographyProps={{ fontSize: 15, color: 'inherit' }} />
+                </ListItemButton>
+              ))}
+            </List>
+          ))}
         </Box>
       </Box>
 
@@ -215,6 +250,7 @@ const DecoderPreviewLayout = ({
           >
             <Stack direction="row" sx={{ alignItems: 'center', gap: 1.5, minWidth: 0 }}>
               <IconButton
+                aria-label="Open menu"
                 onClick={() => setMobileNavOpen((open) => !open)}
                 sx={{ display: { xs: 'inline-flex', md: 'none' } }}
               >

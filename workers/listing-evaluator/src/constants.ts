@@ -1,3 +1,5 @@
+// Use each page's final URL (what Cloudflare Pages serves without a redirect): Pages drops
+// ".html" and adds a trailing slash for folder pages. Sitemap entries that redirect are errors.
 export const SITEMAP_STATIC_URLS = [
   { loc: '/', changefreq: 'weekly', priority: '1.0' },
   { loc: '/decoders/guitar-serial-decoder-lookup/', changefreq: 'monthly', priority: '0.9' },
@@ -28,20 +30,20 @@ export const SITEMAP_STATIC_URLS = [
   { loc: '/decoders/charvel-guitar-serial-number-decoder/', changefreq: 'monthly', priority: '0.8' },
   { loc: '/decoders/rickenbacker-guitar-serial-number-decoder/', changefreq: 'monthly', priority: '0.8' },
   { loc: '/guitars-and-gear-for-sale', changefreq: 'daily', priority: '0.9' },
-  { loc: '/faq', changefreq: 'monthly', priority: '0.6' },
-  { loc: '/guitar-repair-services-pricing', changefreq: 'monthly', priority: '0.7' },
-  { loc: '/about-us.html', changefreq: 'monthly', priority: '0.6' },
-  { loc: '/guitar-value-report-evaluation', changefreq: 'monthly', priority: '0.7' },
-  { loc: '/guitar-authenticity-report', changefreq: 'monthly', priority: '0.7' },
+  { loc: '/faq/', changefreq: 'monthly', priority: '0.6' },
+  { loc: '/guitar-repair-services-pricing/', changefreq: 'monthly', priority: '0.7' },
+  { loc: '/about-us', changefreq: 'monthly', priority: '0.6' },
+  { loc: '/guitar-value-report-evaluation/', changefreq: 'monthly', priority: '0.7' },
+  { loc: '/guitar-authenticity-report/', changefreq: 'monthly', priority: '0.7' },
   { loc: '/we-buy-music-gear-denver-englewood/', changefreq: 'monthly', priority: '0.8' },
   { loc: '/denver-area-music-gear-consignment/', changefreq: 'monthly', priority: '0.8' },
-  { loc: '/how-to-list-a-guitar-for-sale.html', changefreq: 'monthly', priority: '0.7' },
-  { loc: '/fender-guitar-serial-number-history.html', changefreq: 'monthly', priority: '0.7' },
-  { loc: '/gibson-guitar-serial-number-history.html', changefreq: 'monthly', priority: '0.7' },
-  { loc: '/ccg-englewood-broadway-gothic-theatre-history.html', changefreq: 'monthly', priority: '0.6' },
-  { loc: '/contact-us.html', changefreq: 'monthly', priority: '0.6' },
-  { loc: '/privacy-policy.html', changefreq: 'monthly', priority: '0.3' },
-  { loc: '/terms-conditions.html', changefreq: 'monthly', priority: '0.3' },
+  { loc: '/musical-gear-financing/', changefreq: 'monthly', priority: '0.8' },
+  { loc: '/fender-guitar-serial-number-history', changefreq: 'monthly', priority: '0.7' },
+  { loc: '/gibson-guitar-serial-number-history', changefreq: 'monthly', priority: '0.7' },
+  { loc: '/ccg-englewood-broadway-gothic-theatre-history', changefreq: 'monthly', priority: '0.6' },
+  { loc: '/contact-us', changefreq: 'monthly', priority: '0.6' },
+  { loc: '/privacy-policy', changefreq: 'monthly', priority: '0.3' },
+  { loc: '/terms-conditions', changefreq: 'monthly', priority: '0.3' },
   { loc: '/fender-telecaster-2026-contest/', changefreq: 'daily', priority: '0.8' },
 ];
 export const SHOP_BASE_PATH = '/guitars-and-gear-for-sale';

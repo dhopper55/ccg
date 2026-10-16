@@ -14,7 +14,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>What's My Guitar Worth? – Coal Creek Guitar Evaluation Report</title>
-<meta name="description" content="Get a professional guitar valuation report for $19.99 — real Reverb and eBay sold comps, four-channel pricing (street, Reverb, private sale, and dealer offer), and a copy-ready listing. Usually ready in seconds to minutes. From Coal Creek Guitars, Englewood, CO.">
+<meta name="description" content="What&#x27;s your guitar worth? A $19.99 valuation report with real Reverb and eBay sold comps, four price channels and a ready-to-post listing.">
 <link rel="canonical" href="https://www.coalcreekguitars.com/guitar-value-report-evaluation/">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://www.coalcreekguitars.com/guitar-value-report-evaluation/">
@@ -84,8 +84,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400&family=Hanken+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://js.stripe.com/v3/"></script>
+<!-- async: Stripe is only needed at the payment step; a blocking load held up the whole page. -->
+<script src="https://js.stripe.com/v3/" async></script>
 <style>
+/* Size-matched stand-ins shown until the web fonts load, so swapping fonts doesn't reflow the
+   page (was a visible layout jump on slow phones). Sizes tuned by measuring layout shift on the Fraunces/Hanken pages. */
+@font-face { font-family: 'Fraunces Fallback'; src: local('Georgia'), local('Times New Roman'), local('Noto Serif'); size-adjust: 106%; }
+@font-face { font-family: 'Hanken Fallback'; src: local('Helvetica Neue'), local('Helvetica'), local('Arial'), local('Roboto'); size-adjust: 97%; }
+
 :root {
   --paper: #F4EFE4;
   --paper-2: #ECE5D5;
@@ -101,8 +107,8 @@
   --muted: #6E6557;
   --line: rgba(21,24,30,.15);
   --line-soft: rgba(21,24,30,.08);
-  --display: 'Fraunces', Georgia, 'Times New Roman', serif;
-  --sans: 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --display: 'Fraunces', 'Fraunces Fallback', Georgia, 'Times New Roman', serif;
+  --sans: 'Hanken Grotesk', 'Hanken Fallback', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --mono: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
 }
 
@@ -1651,7 +1657,7 @@ footer {
       <li><a href="https://www.coalcreekguitars.com/decoders/guitar-serial-decoder-lookup/">Decoders</a></li>
       <li><a href="https://www.coalcreekguitars.com/guitar-repair-services-pricing/">Repair</a></li>
       <li><a href="https://www.coalcreekguitars.com/guitar-value-report-evaluation/" class="active">Valuations</a></li>
-      <li><a href="https://www.coalcreekguitars.com/contact-us.html">Contact</a></li>
+      <li><a href="https://www.coalcreekguitars.com/contact-us">Contact</a></li>
     </ul>
   </div>
 </nav>
@@ -2117,24 +2123,24 @@ footer {
               These five shots give us everything needed to accurately identify and value your guitar. Shoot in natural light when possible, avoid flash glare, and include a damage photo even if wear is minor — condition has a major impact on value. Click any example below to see a larger version.
             </div>
             <div class="photo-guide-grid">
-              <div class="photo-ref-card" onclick="openLightbox('/images/evaluator_recommended_photos/front_full_body.jpeg','Front full-body')">
-                <img src="/images/evaluator_recommended_photos/front_full_body.jpeg" alt="Front full-body example" loading="lazy">
+              <div class="photo-ref-card" onclick="openLightbox('/images/evaluator_recommended_photos/front_full_body-1400w.webp','Front full-body')">
+                <img width="800" height="1480" src="/images/evaluator_recommended_photos/front_full_body-800w.webp" alt="Front full-body example" loading="lazy">
                 <div class="photo-ref-label">Front full-body</div>
               </div>
-              <div class="photo-ref-card" onclick="openLightbox('/images/evaluator_recommended_photos/back_full_body.jpeg','Back full-body')">
-                <img src="/images/evaluator_recommended_photos/back_full_body.jpeg" alt="Back full-body example" loading="lazy">
+              <div class="photo-ref-card" onclick="openLightbox('/images/evaluator_recommended_photos/back_full_body-1400w.webp','Back full-body')">
+                <img width="800" height="1524" src="/images/evaluator_recommended_photos/back_full_body-800w.webp" alt="Back full-body example" loading="lazy">
                 <div class="photo-ref-label">Back full-body</div>
               </div>
-              <div class="photo-ref-card" onclick="openLightbox('/images/evaluator_recommended_photos/headstock_front.jpeg','Headstock front')">
-                <img src="/images/evaluator_recommended_photos/headstock_front.jpeg" alt="Headstock front example" loading="lazy">
+              <div class="photo-ref-card" onclick="openLightbox('/images/evaluator_recommended_photos/headstock_front-1400w.webp','Headstock front')">
+                <img width="800" height="1196" src="/images/evaluator_recommended_photos/headstock_front-800w.webp" alt="Headstock front example" loading="lazy">
                 <div class="photo-ref-label">Headstock front</div>
               </div>
-              <div class="photo-ref-card" onclick="openLightbox('/images/evaluator_recommended_photos/headstock_back.jpeg','Headstock back (serial #)')">
-                <img src="/images/evaluator_recommended_photos/headstock_back.jpeg" alt="Headstock back / serial number" loading="lazy">
+              <div class="photo-ref-card" onclick="openLightbox('/images/evaluator_recommended_photos/headstock_back-1400w.webp','Headstock back (serial #)')">
+                <img width="800" height="1073" src="/images/evaluator_recommended_photos/headstock_back-800w.webp" alt="Headstock back / serial number" loading="lazy">
                 <div class="photo-ref-label">Headstock back (serial #)</div>
               </div>
-              <div class="photo-ref-card" onclick="openLightbox('/images/evaluator_recommended_photos/damage.jpeg','Any damage or wear')">
-                <img src="/images/evaluator_recommended_photos/damage.jpeg" alt="Damage / wear example" loading="lazy">
+              <div class="photo-ref-card" onclick="openLightbox('/images/evaluator_recommended_photos/damage-1400w.webp','Any damage or wear')">
+                <img width="800" height="1740" src="/images/evaluator_recommended_photos/damage-800w.webp" alt="Damage / wear example" loading="lazy">
                 <div class="photo-ref-label">Any damage / wear</div>
               </div>
             </div>
@@ -2212,12 +2218,12 @@ footer {
           <li><a href="https://www.coalcreekguitars.com/fender-telecaster-2026-contest/" style="color:#d4a820;">🎸 Win a Fender Telecaster</a></li>
           <li><a href="https://www.coalcreekguitars.com/we-buy-music-gear-denver-englewood/">We Buy Used Gear</a></li>
           <li><a href="https://www.coalcreekguitars.com/guitars-and-gear-for-sale">Inventory</a></li>
-          <li><a href="https://www.coalcreekguitars.com/guitar-repair-services-pricing">Repair Services</a></li>
+          <li><a href="https://www.coalcreekguitars.com/guitar-repair-services-pricing/">Repair Services</a></li>
           <li><a href="https://www.coalcreekguitars.com/denver-area-music-gear-consignment/">Consignment</a></li>
           <li><a href="https://www.coalcreekguitars.com/musical-gear-financing/">Financing</a></li>
           <li><a href="https://www.coalcreekguitars.com/decoders/guitar-serial-decoder-lookup/">Serial Decoders</a></li>
-          <li><a href="https://www.coalcreekguitars.com/about-us.html">About Us</a></li>
-          <li><a href="https://www.coalcreekguitars.com/contact-us.html">Contact</a></li>
+          <li><a href="https://www.coalcreekguitars.com/about-us">About Us</a></li>
+          <li><a href="https://www.coalcreekguitars.com/contact-us">Contact</a></li>
         </ul>
       </div>
       <div>
@@ -2453,6 +2459,11 @@ async function initStripePayment() {
     });
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to load payment.');
     const { clientSecret, publishableKey } = await res.json();
+    // Stripe.js loads async; wait for it in the unlikely case payment starts first.
+    for (let i = 0; i < 100 && typeof window.Stripe !== 'function'; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    if (typeof window.Stripe !== 'function') throw new Error('Payment form failed to load. Please refresh and try again.');
     stripeInstance = Stripe(publishableKey);
     stripeElements = stripeInstance.elements({
       clientSecret,
@@ -2821,5 +2832,6 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbo
   }
 })();
 </script>
+<script src="/js/site-menu.js?version=865426" defer></script>
 </body>
 </html>

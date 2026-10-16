@@ -18,16 +18,16 @@
 <link rel="shortcut icon" href="/images/favicon/favicon.ico">
 <title>Terms and Conditions | Coal Creek Guitars</title>
 <meta name="description" content="Coal Creek Guitars terms and conditions describing the rules and guidelines for using our website and services.">
-<link rel="canonical" href="https://www.coalcreekguitars.com/terms-conditions.html">
+<link rel="canonical" href="https://www.coalcreekguitars.com/terms-conditions">
 
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://www.coalcreekguitars.com/terms-conditions.html">
+<meta property="og:url" content="https://www.coalcreekguitars.com/terms-conditions">
 <meta property="og:title" content="Terms and Conditions | Coal Creek Guitars">
 <meta property="og:description" content="Coal Creek Guitars terms and conditions describing the rules and guidelines for using our website and services.">
 <meta property="og:image" content="https://www.coalcreekguitars.com/images/coal-creek-logo.png">
 
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:url" content="https://www.coalcreekguitars.com/terms-conditions.html">
+<meta name="twitter:url" content="https://www.coalcreekguitars.com/terms-conditions">
 <meta name="twitter:title" content="Terms and Conditions | Coal Creek Guitars">
 <meta name="twitter:description" content="Coal Creek Guitars terms and conditions describing the rules and guidelines for using our website and services.">
 <meta name="twitter:image" content="https://www.coalcreekguitars.com/images/coal-creek-logo.png">
@@ -38,7 +38,7 @@
   "@graph": [
     {
       "@type": "WebPage",
-      "url": "https://www.coalcreekguitars.com/terms-conditions.html",
+      "url": "https://www.coalcreekguitars.com/terms-conditions",
       "name": "Terms and Conditions | Coal Creek Guitars",
       "description": "Coal Creek Guitars terms and conditions describing the rules and guidelines for using our website and services."
     },
@@ -46,7 +46,7 @@
       "@type": "BreadcrumbList",
       "itemListElement": [
         { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.coalcreekguitars.com" },
-        { "@type": "ListItem", "position": 2, "name": "Terms and Conditions", "item": "https://www.coalcreekguitars.com/terms-conditions.html" }
+        { "@type": "ListItem", "position": 2, "name": "Terms and Conditions", "item": "https://www.coalcreekguitars.com/terms-conditions" }
       ]
     }
   ]
@@ -377,7 +377,7 @@ footer {
     <a class="nav-link" href="https://www.coalcreekguitars.com/decoders/guitar-serial-decoder-lookup/">Decoders</a>
     <a class="nav-link" href="https://www.coalcreekguitars.com/guitar-repair-services-pricing/">Repair</a>
     <a class="nav-link" href="https://www.coalcreekguitars.com/guitar-value-report-evaluation/">Valuations</a>
-    <a class="nav-link" href="https://www.coalcreekguitars.com/contact-us.html">Contact</a>
+    <a class="nav-link" href="https://www.coalcreekguitars.com/contact-us">Contact</a>
   </div>
 </nav>
 
@@ -502,24 +502,25 @@ footer {
         <li><a href="https://www.coalcreekguitars.com/guitar-value-report-evaluation/">Guitar Valuation</a></li>
         <li><a href="https://www.coalcreekguitars.com/guitar-authenticity-report/">Guitar Authenticity</a></li>
         <li><a href="https://www.coalcreekguitars.com/decoders/guitar-serial-decoder-lookup/">Serial Decoders</a></li>
-        <li><a href="https://www.coalcreekguitars.com/contact-us.html">Contact</a></li>
+        <li><a href="https://www.coalcreekguitars.com/contact-us">Contact</a></li>
       </ul>
     </div>
     <div>
       <span class="footer-col-label">Legal</span>
       <ul class="footer-links">
-        <li><a href="https://www.coalcreekguitars.com/privacy-policy.html">Privacy Policy</a></li>
-        <li><a href="https://www.coalcreekguitars.com/terms-conditions.html">Terms &amp; Conditions</a></li>
-        <li><a href="https://www.coalcreekguitars.com/about-us.html">About Us</a></li>
+        <li><a href="https://www.coalcreekguitars.com/privacy-policy">Privacy Policy</a></li>
+        <li><a href="https://www.coalcreekguitars.com/terms-conditions">Terms &amp; Conditions</a></li>
+        <li><a href="https://www.coalcreekguitars.com/about-us">About Us</a></li>
       </ul>
     </div>
   </div>
   <div class="footer-bottom">
     <span>© <span id="yr"></span> Coal Creek Guitars &nbsp;·&nbsp; Englewood, Colorado</span>
-    <span><a href="https://www.coalcreekguitars.com/privacy-policy.html">Privacy Policy</a> &nbsp;·&nbsp; <a href="https://www.coalcreekguitars.com/terms-conditions.html">Terms &amp; Conditions</a></span>
+    <span><a href="https://www.coalcreekguitars.com/privacy-policy">Privacy Policy</a> &nbsp;·&nbsp; <a href="https://www.coalcreekguitars.com/terms-conditions">Terms &amp; Conditions</a></span>
   </div>
 </footer>
 <script>document.getElementById('yr').textContent = new Date().getFullYear();(function(){document.querySelectorAll('.footer-email-signup').forEach(function(el){var input=el.querySelector('.footer-email-input'),btn=el.querySelector('.footer-email-btn'),msg=el.querySelector('.footer-email-msg');function submit(){var email=input.value.trim();if(!email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){msg.style.color='#c04040';msg.textContent='Please enter a valid email.';return;}btn.disabled=true;btn.textContent='…';fetch('/api/email-signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email})}).then(function(r){return r.json();}).then(function(d){if(d.ok){msg.style.color='#6a9a5a';msg.textContent="You're on the list!";input.value='';}else{msg.style.color='#c04040';msg.textContent=d.message||'Something went wrong.';}btn.disabled=false;btn.textContent='Join';}).catch(function(){msg.style.color='#c04040';msg.textContent='Something went wrong. Try again.';btn.disabled=false;btn.textContent='Join';});}btn.addEventListener('click',submit);input.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});});})();</script>
 
+<script src="/js/site-menu.js?version=865426" defer></script>
 </body>
 </html>

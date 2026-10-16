@@ -123,7 +123,7 @@ const sitemap: MenuItem[] = [
       {
         name: 'About Us',
         key: 'about_us',
-        path: 'https://www.coalcreekguitars.com/about-us.html',
+        path: 'https://www.coalcreekguitars.com/about-us',
         pathName: 'about-us',
         icon: 'material-symbols:info-outline-rounded',
         active: true,
@@ -131,7 +131,7 @@ const sitemap: MenuItem[] = [
       {
         name: 'Our Neighborhood',
         key: 'neighborhood',
-        path: 'https://www.coalcreekguitars.com/ccg-englewood-broadway-gothic-theatre-history.html',
+        path: 'https://www.coalcreekguitars.com/ccg-englewood-broadway-gothic-theatre-history',
         pathName: 'neighborhood',
         icon: 'material-symbols:location-on-outline',
         active: true,
@@ -147,7 +147,7 @@ const sitemap: MenuItem[] = [
       {
         name: 'Contact Us',
         key: 'contact_us',
-        path: 'https://www.coalcreekguitars.com/contact-us.html',
+        path: 'https://www.coalcreekguitars.com/contact-us',
         pathName: 'contact-us',
         icon: 'material-symbols:mail-outline-rounded',
         active: true,

@@ -10,7 +10,7 @@ const registry: Record<string, BrandSlots> = {
     aboveFaq: () => (
       <Box
         component="a"
-        href="https://www.coalcreekguitars.com/fender-guitar-serial-number-history.html"
+        href="https://www.coalcreekguitars.com/fender-guitar-serial-number-history"
         target="_blank"
         rel="noreferrer"
         sx={{
@@ -30,7 +30,7 @@ const registry: Record<string, BrandSlots> = {
     aboveFaq: () => (
       <Box
         component="a"
-        href="https://www.coalcreekguitars.com/gibson-guitar-serial-number-history.html"
+        href="https://www.coalcreekguitars.com/gibson-guitar-serial-number-history"
         target="_blank"
         rel="noreferrer"
         sx={{

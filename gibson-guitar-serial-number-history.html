@@ -17,17 +17,17 @@
 <link rel="icon" type="image/png" sizes="16x16" href="images/favicon/favicon-16x16.png">
 <link rel="shortcut icon" href="images/favicon/favicon.ico">
 <title>Gibson Guitar Serial Number History | Coal Creek Guitars</title>
-<meta name="description" content="Trace 130 years of Gibson serial number history — from Orville's ink-stamp era through the Norlin years to the modern YDDDYRRR system. Understand how Gibson has marked every guitar it has ever built.">
-<link rel="canonical" href="https://www.coalcreekguitars.com/gibson-guitar-serial-number-history.html">
+<meta name="description" content="130 years of Gibson serial numbers, from Orville&#x27;s ink stamps through the Norlin era to today&#x27;s YDDDYRRR system. See how Gibson dates its guitars.">
+<link rel="canonical" href="https://www.coalcreekguitars.com/gibson-guitar-serial-number-history">
 
 <meta property="og:type" content="article">
-<meta property="og:url" content="https://www.coalcreekguitars.com/gibson-guitar-serial-number-history.html">
+<meta property="og:url" content="https://www.coalcreekguitars.com/gibson-guitar-serial-number-history">
 <meta property="og:title" content="Gibson Guitar Serial Number History | Coal Creek Guitars">
 <meta property="og:description" content="From Orville's ink-stamp mandolins to today's Custom Shop masterworks — a complete guide to Gibson serial number formats across 130 years of American lutherie.">
 <meta property="og:image" content="https://www.coalcreekguitars.com/images/coal-creek-logo.png">
 
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:url" content="https://www.coalcreekguitars.com/gibson-guitar-serial-number-history.html">
+<meta name="twitter:url" content="https://www.coalcreekguitars.com/gibson-guitar-serial-number-history">
 <meta name="twitter:title" content="Gibson Guitar Serial Number History | Coal Creek Guitars">
 <meta name="twitter:description" content="From Orville's ink-stamp mandolins to today's Custom Shop masterworks — a complete guide to Gibson serial number formats across 130 years of American lutherie.">
 <meta name="twitter:image" content="https://www.coalcreekguitars.com/images/coal-creek-logo.png">
@@ -40,8 +40,8 @@
       "@type": "Article",
       "headline": "Gibson Guitar Serial Number History",
       "description": "A comprehensive history of Gibson serial number formats from the 1902 ink-stamp era through the Norlin transition to the modern YDDDYRRR system, covering every major format change across 130 years.",
-      "url": "https://www.coalcreekguitars.com/gibson-guitar-serial-number-history.html",
-      "image": "https://www.coalcreekguitars.com/images/brand-logos/Gibson-logo.png",
+      "url": "https://www.coalcreekguitars.com/gibson-guitar-serial-number-history",
+      "image": "https://www.coalcreekguitars.com/images/brand-logos/Gibson-logo-logo.webp",
       "publisher": {
         "@type": "Organization",
         "name": "Coal Creek Guitars",
@@ -57,7 +57,7 @@
       "@type": "BreadcrumbList",
       "itemListElement": [
         { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.coalcreekguitars.com" },
-        { "@type": "ListItem", "position": 2, "name": "Gibson Serial Number History", "item": "https://www.coalcreekguitars.com/gibson-guitar-serial-number-history.html" }
+        { "@type": "ListItem", "position": 2, "name": "Gibson Serial Number History", "item": "https://www.coalcreekguitars.com/gibson-guitar-serial-number-history" }
       ]
     }
   ]
@@ -382,6 +382,12 @@ body {
 .era-table tr:nth-child(even) td { background: var(--paper-2); }
 .era-table td:first-child { font-weight: 600; color: var(--ink); white-space: nowrap; }
 .era-table td:nth-child(2) { font-family: 'JetBrains Mono', monospace; color: var(--creek-deep); font-size: 12px; }
+/* Phones: let cells wrap, and scroll inside the table rather than widening the page. */
+@media (max-width: 600px) {
+  .era-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .era-table th, .era-table td { padding: 8px; }
+  .era-table td:first-child { white-space: normal; }
+}
 
 /* CALLOUT */
 .callout-creek {
@@ -540,7 +546,7 @@ body {
     <a href="decoders/guitar-serial-decoder-lookup/">Decoders</a>
     <a href="guitar-repair-services-pricing/">Repair</a>
     <a href="guitar-value-report-evaluation/">Valuations</a>
-    <a href="contact-us.html">Contact</a>
+    <a href="contact-us">Contact</a>
   </div>
 </nav>
 
@@ -629,14 +635,14 @@ body {
 
     <div class="photo-grid">
       <div class="photo-card">
-        <img src="images/serial-history/gibson-history-01.jpg" alt="2002 Gibson Les Paul Studio headstock serial number">
+        <img width="700" height="700" src="/images/serial-history/gibson-history-01-700w.webp" alt="2002 Gibson Les Paul Studio headstock serial number" loading="lazy" decoding="async">
         <div class="photo-cap">
           <strong>2002 Gibson Les Paul Studio</strong>
           Serial <span class="serial-badge">00532503</span> — stamped on the black headstock. Classic YDDDYRRR format: year 2002, day 253, sequence 03. "Made in U.S.A." below. Gibson Deluxe Kluson-style tuners with cream plastic buttons.
         </div>
       </div>
       <div class="photo-card">
-        <img src="images/serial-history/gibson-history-02.jpg" alt="2024 Gibson Les Paul Custom headstock serial number">
+        <img width="700" height="871" src="/images/serial-history/gibson-history-02-700w.webp" alt="2024 Gibson Les Paul Custom headstock serial number" loading="lazy" decoding="async">
         <div class="photo-cap">
           <strong>2024 Gibson Les Paul Custom</strong>
           Serial <span class="serial-badge">CS 403228</span> — ink-printed in blue on the dark headstock. The "CS" prefix identifies this as a <strong>Custom Shop</strong> instrument, which uses its own sequential numbering separate from production line guitars. Gold Grover Rotomatic tuners.
@@ -708,8 +714,8 @@ body {
         <li><a href="decoders/guitar-serial-decoder-lookup/">Serial Decoders</a></li>
         <li><a href="guitar-value-report-evaluation/">Valuation</a></li>
         <li><a href="guitar-authenticity-report/">Authenticity</a></li>
-        <li><a href="contact-us.html">Contact Us</a></li>
-        <li><a href="about-us.html">About Us</a></li>
+        <li><a href="contact-us">Contact Us</a></li>
+        <li><a href="about-us">About Us</a></li>
       </ul>
     </div>
     <div class="footer-col">
@@ -718,7 +724,7 @@ body {
         <li><a href="decoders/guitar-serial-decoder-lookup/">All Serial Decoders</a></li>
         <li><a href="decoders/gibson-guitar-serial-number-decoder/">Gibson Decoder</a></li>
         <li><a href="decoders/fender-guitar-serial-number-decoder/">Fender Decoder</a></li>
-        <li><a href="fender-guitar-serial-number-history.html">Fender Serial History</a></li>
+        <li><a href="fender-guitar-serial-number-history">Fender Serial History</a></li>
         <li><a href="guitar-value-report-evaluation/">Guitar Valuation</a></li>
         <li><a href="guitar-authenticity-report/">Guitar Authenticity</a></li>
         <li><a href="faq/">FAQ</a></li>
@@ -728,8 +734,8 @@ body {
   <div class="footer-bottom">
     <span class="footer-copy">© <span class="footer-year"></span> Coal Creek Guitars · Englewood, Colorado</span>
     <div class="footer-legal">
-      <a href="privacy-policy.html">Privacy Policy</a>
-      <a href="terms-conditions.html">Terms &amp; Conditions</a>
+      <a href="privacy-policy">Privacy Policy</a>
+      <a href="terms-conditions">Terms &amp; Conditions</a>
     </div>
   </div>
 </footer>
@@ -740,5 +746,6 @@ body {
   });
   (function(){document.querySelectorAll('.footer-email-signup').forEach(function(el){var input=el.querySelector('.footer-email-input'),btn=el.querySelector('.footer-email-btn'),msg=el.querySelector('.footer-email-msg');function submit(){var email=input.value.trim();if(!email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){msg.style.color='#c04040';msg.textContent='Please enter a valid email.';return;}btn.disabled=true;btn.textContent='…';fetch('/api/email-signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email})}).then(function(r){return r.json();}).then(function(d){if(d.ok){msg.style.color='#6a9a5a';msg.textContent="You're on the list!";input.value='';}else{msg.style.color='#c04040';msg.textContent=d.message||'Something went wrong.';}btn.disabled=false;btn.textContent='Join';}).catch(function(){msg.style.color='#c04040';msg.textContent='Something went wrong. Try again.';btn.disabled=false;btn.textContent='Join';});}btn.addEventListener('click',submit);input.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});});})();
 </script>
+<script src="/js/site-menu.js?version=865426" defer></script>
 </body>
 </html>

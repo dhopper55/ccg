@@ -8,6 +8,11 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
+/* Size-matched stand-ins shown until the web fonts load, so swapping fonts doesn't reflow the
+   page (was a visible layout jump on slow phones). Sizes tuned by measuring layout shift on the Fraunces/Hanken pages. */
+@font-face { font-family: 'Fraunces Fallback'; src: local('Georgia'), local('Times New Roman'), local('Noto Serif'); size-adjust: 106%; }
+@font-face { font-family: 'Hanken Fallback'; src: local('Helvetica Neue'), local('Helvetica'), local('Arial'), local('Roboto'); size-adjust: 97%; }
+
   :root{
     --paper:#F4EFE4;
     --paper-2:#ECE5D5;
@@ -23,8 +28,8 @@
     --muted:#6E6557;
     --line:rgba(21,24,30,.15);
     --line-soft:rgba(21,24,30,.08);
-    --display:'Fraunces',Georgia,'Times New Roman',serif;
-    --sans:'Hanken Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    --display:'Fraunces', 'Fraunces Fallback', Georgia,'Times New Roman',serif;
+    --sans:'Hanken Grotesk', 'Hanken Fallback', -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
     --mono:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -578,5 +583,6 @@ Located in the Denver metro (Englewood / Denver, CO). Local pickup welcome — c
   </div>
 </footer>
 
+<script src="/js/site-menu.js?version=865426" defer></script>
 </body>
 </html>

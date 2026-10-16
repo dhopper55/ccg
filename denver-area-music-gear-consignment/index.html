@@ -13,7 +13,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Denver Music Gear Consignment | Coal Creek Guitars</title>
-<meta name="description" content="Consign your guitar, amp, or gear with Coal Creek Guitars — Denver's trusted consignment leader. Studio-quality listings, an 80/20 split with zero fees off your local-sale share, and payout within 14 days.">
+<meta name="description" content="Consign your guitar, amp or gear with Coal Creek Guitars in the Denver area. Studio-quality listings, an 80/20 split and payout within 14 days.">
 <link rel="canonical" href="https://www.coalcreekguitars.com/denver-area-music-gear-consignment/">
 
 <meta property="og:type" content="website">
@@ -91,6 +91,11 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400&family=Hanken+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
 <style>
+/* Size-matched stand-ins shown until the web fonts load, so swapping fonts doesn't reflow the
+   page (was a visible layout jump on slow phones). Sizes tuned by measuring layout shift on the Fraunces/Hanken pages. */
+@font-face { font-family: 'Fraunces Fallback'; src: local('Georgia'), local('Times New Roman'), local('Noto Serif'); size-adjust: 106%; }
+@font-face { font-family: 'Hanken Fallback'; src: local('Helvetica Neue'), local('Helvetica'), local('Arial'), local('Roboto'); size-adjust: 97%; }
+
 :root {
   --paper: #F4EFE4;
   --paper-2: #ECE5D5;
@@ -106,8 +111,8 @@
   --muted: #6E6557;
   --line: rgba(21,24,30,.15);
   --line-soft: rgba(21,24,30,.08);
-  --display: 'Fraunces', Georgia, 'Times New Roman', serif;
-  --sans: 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --display: 'Fraunces', 'Fraunces Fallback', Georgia, 'Times New Roman', serif;
+  --sans: 'Hanken Grotesk', 'Hanken Fallback', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --mono: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
 }
 
@@ -680,7 +685,7 @@ footer {
       <li><a href="https://www.coalcreekguitars.com/musical-gear-financing/">Financing</a></li>
       <li><a href="https://www.coalcreekguitars.com/decoders/guitar-serial-decoder-lookup/">Decoders</a></li>
       <li><a href="https://www.coalcreekguitars.com/guitar-repair-services-pricing/">Repair</a></li>
-      <li><a href="https://www.coalcreekguitars.com/contact-us.html">Contact</a></li>
+      <li><a href="https://www.coalcreekguitars.com/contact-us">Contact</a></li>
     </ul>
   </div>
 </nav>
@@ -719,7 +724,7 @@ footer {
         </div>
       </div>
       <div class="hero-cta-row">
-        <a href="https://www.coalcreekguitars.com/contact-us.html" class="btn-primary">Consign Your Gear &rarr;</a>
+        <a href="https://www.coalcreekguitars.com/contact-us" class="btn-primary">Consign Your Gear &rarr;</a>
         <a href="#best-listings" class="btn-ghost">See A Real Listing &darr;</a>
       </div>
       <a href="https://g.page/r/CYgEveOaLAOjEAE/review" target="_blank" rel="noopener" class="hero-rating">
@@ -772,7 +777,7 @@ footer {
 
       <div class="showcase-grid">
         <figure class="showcase-figure">
-          <img src="/images/consignment/consign-live-listing-example.png" alt="A real, live product listing from the Coal Creek Guitars online shop showing full product photography, pricing, and highlights" loading="lazy">
+          <img width="700" height="372" src="/images/consignment/consign-live-listing-example-700w.webp" alt="A real, live product listing from the Coal Creek Guitars online shop showing full product photography, pricing, and highlights" loading="lazy">
           <figcaption class="showcase-caption">An actual live listing from our shop &mdash; full photo set, pricing, and highlights, exactly what a buyer sees before they contact us.</figcaption>
         </figure>
         <div class="showcase-points">
@@ -933,39 +938,39 @@ footer {
 
       <div class="gallery-grid">
         <div class="gallery-item">
-          <img src="/images/consignment/consign-ibanez-electric-guitar.jpg" alt="Ibanez-style solidbody electric guitar consigned and sold through Coal Creek Guitars" loading="lazy">
+          <img width="400" height="540" src="/images/consignment/consign-ibanez-electric-guitar-400w.webp" alt="Ibanez-style solidbody electric guitar consigned and sold through Coal Creek Guitars" loading="lazy">
           <span class="gallery-cap">Solidbody Electrics</span>
         </div>
         <div class="gallery-item">
-          <img src="/images/consignment/consign-explorer-style-electric-guitar.jpg" alt="Exotic explorer-style electric guitar with purple burst finish consigned through Coal Creek Guitars" loading="lazy">
+          <img width="400" height="520" src="/images/consignment/consign-explorer-style-electric-guitar-400w.webp" alt="Exotic explorer-style electric guitar with purple burst finish consigned through Coal Creek Guitars" loading="lazy">
           <span class="gallery-cap">Exotic-Shape Electrics</span>
         </div>
         <div class="gallery-item">
-          <img src="/images/consignment/consign-squier-stratocaster.jpg" alt="Squier Stratocaster-style electric guitar consigned through Coal Creek Guitars" loading="lazy">
+          <img width="400" height="494" src="/images/consignment/consign-squier-stratocaster-400w.webp" alt="Squier Stratocaster-style electric guitar consigned through Coal Creek Guitars" loading="lazy">
           <span class="gallery-cap">Strat-Style Electrics</span>
         </div>
         <div class="gallery-item">
-          <img src="/images/consignment/consign-fender-acoustic-headstock.jpg" alt="Fender acoustic guitar headstock, an acoustic guitar consigned through Coal Creek Guitars" loading="lazy">
+          <img width="400" height="300" src="/images/consignment/consign-fender-acoustic-headstock-400w.webp" alt="Fender acoustic guitar headstock, an acoustic guitar consigned through Coal Creek Guitars" loading="lazy">
           <span class="gallery-cap">Acoustic Guitars</span>
         </div>
         <div class="gallery-item">
-          <img src="/images/consignment/consign-mandolin.jpg" alt="A-style mandolin consigned and sold through Coal Creek Guitars" loading="lazy">
+          <img width="400" height="523" src="/images/consignment/consign-mandolin-400w.webp" alt="A-style mandolin consigned and sold through Coal Creek Guitars" loading="lazy">
           <span class="gallery-cap">Mandolins</span>
         </div>
         <div class="gallery-item">
-          <img src="/images/consignment/consign-banjo.jpg" alt="Open-back style banjo consigned and sold through Coal Creek Guitars" loading="lazy">
+          <img width="400" height="455" src="/images/consignment/consign-banjo-400w.webp" alt="Open-back style banjo consigned and sold through Coal Creek Guitars" loading="lazy">
           <span class="gallery-cap">Banjos</span>
         </div>
         <div class="gallery-item">
-          <img src="/images/consignment/consign-single-cutaway-electric-guitar.jpg" alt="Single-cutaway electric guitar in matte black finish consigned through Coal Creek Guitars" loading="lazy">
+          <img width="400" height="300" src="/images/consignment/consign-single-cutaway-electric-guitar-400w.webp" alt="Single-cutaway electric guitar in matte black finish consigned through Coal Creek Guitars" loading="lazy">
           <span class="gallery-cap">Single-Cutaway Electrics</span>
         </div>
         <div class="gallery-item">
-          <img src="/images/consignment/consign-boss-distortion-pedal.jpg" alt="Boss distortion effects pedal consigned and sold through Coal Creek Guitars" loading="lazy">
+          <img width="400" height="250" src="/images/consignment/consign-boss-distortion-pedal-400w.webp" alt="Boss distortion effects pedal consigned and sold through Coal Creek Guitars" loading="lazy">
           <span class="gallery-cap">Pedals &amp; Effects</span>
         </div>
         <div class="gallery-item">
-          <img src="/images/consignment/consign-digitech-digiverb-pedal.jpg" alt="DigiTech DigiVerb digital reverb effects pedal consigned and sold through Coal Creek Guitars" loading="lazy">
+          <img width="400" height="411" src="/images/consignment/consign-digitech-digiverb-pedal-400w.webp" alt="DigiTech DigiVerb digital reverb effects pedal consigned and sold through Coal Creek Guitars" loading="lazy">
           <span class="gallery-cap">Pedals &amp; Effects</span>
         </div>
       </div>
@@ -1026,7 +1031,7 @@ footer {
       </div>
     </div>
     <div class="contact-band-right">
-      <a href="https://www.coalcreekguitars.com/contact-us.html" class="btn-contact">Contact Us &rarr;</a>
+      <a href="https://www.coalcreekguitars.com/contact-us" class="btn-contact">Contact Us &rarr;</a>
     </div>
   </div>
 </section>
@@ -1049,8 +1054,8 @@ footer {
           <li><a href="https://www.coalcreekguitars.com/we-buy-music-gear-denver-englewood/">Sell Us Your Gear</a></li>
           <li><a href="https://www.coalcreekguitars.com/guitar-repair-services-pricing/">Repair Services</a></li>
           <li><a href="https://www.coalcreekguitars.com/decoders/guitar-serial-decoder-lookup/">Serial Decoders</a></li>
-          <li><a href="https://www.coalcreekguitars.com/about-us.html">About Us</a></li>
-          <li><a href="https://www.coalcreekguitars.com/contact-us.html">Contact</a></li>
+          <li><a href="https://www.coalcreekguitars.com/about-us">About Us</a></li>
+          <li><a href="https://www.coalcreekguitars.com/contact-us">Contact</a></li>
         </ul>
       </div>
       <div>
@@ -1071,7 +1076,7 @@ footer {
     </div>
     <div class="footer-bottom">
       <span class="footer-copy">&copy; <span id="footer-year"></span> Coal Creek Guitars &middot; Englewood, Colorado</span>
-      <span class="footer-location"><a href="https://www.coalcreekguitars.com/privacy-policy.html" style="color:rgba(244,239,228,.45);text-decoration:none;">Privacy Policy</a> &nbsp;&middot;&nbsp; <a href="https://www.coalcreekguitars.com/terms-conditions.html" style="color:rgba(244,239,228,.45);text-decoration:none;">Terms &amp; Conditions</a></span>
+      <span class="footer-location"><a href="https://www.coalcreekguitars.com/privacy-policy" style="color:rgba(244,239,228,.45);text-decoration:none;">Privacy Policy</a> &nbsp;&middot;&nbsp; <a href="https://www.coalcreekguitars.com/terms-conditions" style="color:rgba(244,239,228,.45);text-decoration:none;">Terms &amp; Conditions</a></span>
     </div>
   </div>
 </footer>
@@ -1095,5 +1100,6 @@ document.getElementById('footer-year').textContent = new Date().getFullYear();
 })();
 </script>
 
+<script src="/js/site-menu.js?version=865426" defer></script>
 </body>
 </html>
