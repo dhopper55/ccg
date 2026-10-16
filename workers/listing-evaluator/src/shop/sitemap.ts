@@ -240,10 +240,10 @@ export async function injectShopListingPage(
   const heading = categoryName || 'Guitars & Gear for Sale';
   const title = categoryName
     ? `${categoryName} for Sale | Coal Creek Guitars, Englewood CO`
-    : 'Used Guitars, Basses, Amps & Gear for Sale | Coal Creek Guitars, Englewood CO';
+    : 'Used Guitars, Amps & Gear for Sale | Coal Creek Guitars';
   const description = categoryName
     ? `${categoryName} for sale at Coal Creek Guitars in Englewood, Colorado, just south of Denver. Used and new gear, buy online or try it in person.`
-    : 'Shop used and new guitars, basses, amps, effects pedals and accessories at Coal Creek Guitars in Englewood, Colorado, just south of Denver. Buy online or try it in person.';
+    : 'Shop used and new guitars, basses, amps, pedals and accessories at Coal Creek Guitars in Englewood, CO, near Denver. Buy online or try in person.';
   // The shop root's final URL has a trailing slash (Pages 308s the bare path to it).
   const canonicalUrl = category ? `${shopUrl}/${category.slug}` : `${shopUrl}/`;
 
