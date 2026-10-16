@@ -9,9 +9,10 @@ interface FilterDrawerProps {
   handleClose: () => void;
   drawerWidth: number;
   filterOptions: ProductFilterOptions;
+  resultCount?: number;
 }
 
-const FilterDrawer = ({ open, handleClose, drawerWidth, filterOptions }: FilterDrawerProps) => {
+const FilterDrawer = ({ open, handleClose, drawerWidth, filterOptions, resultCount }: FilterDrawerProps) => {
   const { up } = useBreakpoints();
   const upMd = up('md');
 
@@ -46,7 +47,6 @@ const FilterDrawer = ({ open, handleClose, drawerWidth, filterOptions }: FilterD
           variant="temporary"
           open={open}
           onClose={handleClose}
-          hideBackdrop
           ModalProps={{
             disableAutoFocus: true,
             disableEnforceFocus: true,
@@ -55,7 +55,7 @@ const FilterDrawer = ({ open, handleClose, drawerWidth, filterOptions }: FilterD
           sx={(theme) => ({
             display: { xs: 'block', md: 'none' },
             [`& .${drawerClasses.paper}`]: {
-              width: drawerWidth,
+              width: `min(${drawerWidth}px, 88vw)`,
               border: 0,
               outline: `1px solid ${theme.vars.palette.divider}`,
               bgcolor: theme.vars.palette.background.elevation1,
@@ -91,6 +91,24 @@ const FilterDrawer = ({ open, handleClose, drawerWidth, filterOptions }: FilterD
             </Stack>
             <FilterPanel filterOptions={filterOptions} />
           </Stack>
+          {/* Filters apply as they change; this just gets the shopper back to the results. */}
+          <Box
+            sx={(theme) => ({
+              position: 'sticky',
+              bottom: 0,
+              mt: 'auto',
+              px: 3,
+              py: 2,
+              bgcolor: theme.vars.palette.background.elevation1,
+              borderTop: `1px solid ${theme.vars.palette.divider}`,
+            })}
+          >
+            <Button fullWidth variant="contained" color="primary" onClick={handleClose}>
+              {resultCount === undefined
+                ? 'Show results'
+                : `Show ${resultCount} ${resultCount === 1 ? 'item' : 'items'}`}
+            </Button>
+          </Box>
         </Drawer>
       )}
     </>

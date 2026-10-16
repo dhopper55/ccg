@@ -14,6 +14,7 @@ import { useBreakpoints } from 'providers/BreakpointsProvider';
 import { useEcommerce } from 'providers/EcommerceProvider';
 import { useSettingsContext } from 'providers/SettingsProvider';
 import paths from 'routes/paths';
+import { openShopFilters } from 'lib/shopFilters';
 import IconifyIcon from 'components/base/IconifyIcon';
 import Logo from 'components/common/Logo';
 import PrimarySearchBox from './PrimarySearchBox';
@@ -48,8 +49,10 @@ const PrimaryAppbar = () => {
                 color="neutral"
                 variant="soft"
                 shape="circle"
-                aria-label="Filter by category"
-                onClick={() => setShopDrawerOpen(true)}
+                aria-label="Filter products"
+                onClick={() => {
+                  if (!openShopFilters()) setShopDrawerOpen(true);
+                }}
                 sx={{ display: { xs: 'inline-flex', md: 'none' } }}
               >
                 <IconifyIcon icon="material-symbols:filter-list-rounded" sx={{ fontSize: 20 }} />

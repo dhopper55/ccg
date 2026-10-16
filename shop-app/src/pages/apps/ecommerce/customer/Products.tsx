@@ -17,6 +17,7 @@ import { Link as RouterLink, useSearchParams } from 'react-router';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
 import { useAssociateMode } from 'providers/AssociateModeProvider';
 import paths from 'routes/paths';
+import { registerShopFilterOpener } from 'lib/shopFilters';
 import { slugifyCategory } from 'lib/utils';
 import FilterDrawer from 'components/sections/ecommerce/customer/products/FilterDrawer';
 import ProductsProvider from 'components/sections/ecommerce/customer/products/providers/ProductsProvider';
@@ -107,6 +108,9 @@ const Products = ({ initialCategorySlug }: { initialCategorySlug?: string } = {}
     if (upMd) setIsDrawerOpen(true);
     else setIsDrawerOpen(false);
   }, [upMd]);
+
+  // The header's filter button opens this drawer (phones; on desktop it's always shown).
+  useEffect(() => registerShopFilterOpener(() => setIsDrawerOpen(true)), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -358,6 +362,7 @@ const Products = ({ initialCategorySlug }: { initialCategorySlug?: string } = {}
             open={isDrawerOpen}
             drawerWidth={filterDrawerWidth}
             filterOptions={filterOptions}
+            resultCount={allProducts.length}
           />
           <Paper
             sx={(theme) => ({
