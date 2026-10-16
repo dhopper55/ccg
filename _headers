@@ -28,10 +28,14 @@
 /guitars-and-gear-for-sale
   Cache-Control: no-cache, no-store, must-revalidate
 
-/admin/*
+# Entry points only — not /admin/* or /guitars-and-gear-for-sale/*. Pages merges every
+# matching rule, so a wildcard here also matched the hashed assets above and added no-store
+# to them, which stopped browsers caching the JS at all. Shop deep links are served by the
+# Worker (its own no-cache headers); admin deep links are served the /admin/ shell.
+/admin/
   Cache-Control: no-cache, no-store, must-revalidate
 
-/guitars-and-gear-for-sale/*
+/guitars-and-gear-for-sale/
   Cache-Control: no-cache, no-store, must-revalidate
 
 /decoders/*

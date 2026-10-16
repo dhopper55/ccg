@@ -1,5 +1,4 @@
 import dayjs from 'dayjs';
-import ts, { transpile } from 'typescript';
 
 export const parseRoutePath = (path: string) => path.split('/').pop() || '/';
 
@@ -140,15 +139,6 @@ export const getFileNameFromUrl = (fileName: string) => {
 
 export const getFileExtensionFromUrl = (fileName: string, separator = '.') =>
   fileName.split(separator).pop() || 'unknown';
-
-export const transformTSCode = (
-  snippet: string,
-  target: ts.ScriptTarget = ts.ScriptTarget.ES2015,
-) =>
-  transpile(snippet, {
-    jsx: ts.JsxEmit.React,
-    target,
-  });
 
 export const convertSpacesToTabs = (str: string) => {
   return str

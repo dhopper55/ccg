@@ -1,8 +1,16 @@
 import React, { PropsWithChildren } from 'react';
 import { LiveProvider as ReactLiveProvider } from 'react-live';
 import * as mui from '@mui/material';
-import { transformTSCode } from 'lib/utils';
+import ts, { transpile } from 'typescript';
 import IconifyIcon from 'components/base/IconifyIcon';
+
+// Kept here, not in lib/utils: importing the TypeScript compiler from a shared util put all
+// of it (~3.5 MB) into every shop page's bundle. Only the template's live docs need it.
+const transformTSCode = (snippet: string, target: ts.ScriptTarget = ts.ScriptTarget.ES2015) =>
+  transpile(snippet, {
+    jsx: ts.JsxEmit.React,
+    target,
+  });
 
 export interface LiveProviderProps {
   code?: string;

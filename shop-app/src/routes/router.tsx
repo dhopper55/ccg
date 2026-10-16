@@ -1,19 +1,29 @@
+import { ComponentType, LazyExoticComponent, Suspense, lazy } from 'react';
 import { RouteObject, createBrowserRouter } from 'react-router';
+import { CircularProgress, Stack } from '@mui/material';
 import App from 'App';
 import EcommerceLayout from 'layouts/ecommerce-layout';
-import Cart from 'pages/apps/ecommerce/customer/Cart';
-import CategoryPage from 'pages/apps/ecommerce/customer/CategoryPage';
-import CheckoutSuccess from 'pages/apps/ecommerce/customer/CheckoutSuccess';
-import ProductDetails from 'pages/apps/ecommerce/customer/ProductDetails';
-import Products from 'pages/apps/ecommerce/customer/Products';
-import DecoderPage, { DecoderConfig } from 'pages/decoders/DecoderPage';
-import decoderConfigs from 'pages/decoders/decoder-configs.json';
-import Page404 from 'pages/errors/Page404';
 
-const decoderRoutes: RouteObject[] = (decoderConfigs as DecoderConfig[]).map((config) => ({
-  path: config.routePath,
-  element: <DecoderPage config={config} />,
-}));
+// Each page is its own chunk, so a visitor only downloads the code for the page they open.
+const Cart = lazy(() => import('pages/apps/ecommerce/customer/Cart'));
+const CategoryPage = lazy(() => import('pages/apps/ecommerce/customer/CategoryPage'));
+const CheckoutSuccess = lazy(() => import('pages/apps/ecommerce/customer/CheckoutSuccess'));
+const ProductDetails = lazy(() => import('pages/apps/ecommerce/customer/ProductDetails'));
+const Products = lazy(() => import('pages/apps/ecommerce/customer/Products'));
+const DecoderRoute = lazy(() => import('pages/decoders/DecoderRoute'));
+const Page404 = lazy(() => import('pages/errors/Page404'));
+
+const page = (Page: LazyExoticComponent<ComponentType>) => (
+  <Suspense
+    fallback={
+      <Stack sx={{ alignItems: 'center', justifyContent: 'center', py: 12 }}>
+        <CircularProgress />
+      </Stack>
+    }
+  >
+    <Page />
+  </Suspense>
+);
 
 export const routes: RouteObject[] = [
   {
@@ -22,47 +32,40 @@ export const routes: RouteObject[] = [
       {
         path: '/',
         element: (
-          <EcommerceLayout>
-            <Products />
-          </EcommerceLayout>
+          <EcommerceLayout>{page(Products)}</EcommerceLayout>
         ),
       },
       {
         path: '/cart',
         element: (
-          <EcommerceLayout>
-            <Cart />
-          </EcommerceLayout>
+          <EcommerceLayout>{page(Cart)}</EcommerceLayout>
         ),
       },
       {
         path: '/checkout/success',
         element: (
-          <EcommerceLayout>
-            <CheckoutSuccess />
-          </EcommerceLayout>
+          <EcommerceLayout>{page(CheckoutSuccess)}</EcommerceLayout>
         ),
       },
-      ...decoderRoutes,
+      {
+        path: '/decoders/:decoderSlug',
+        element: page(DecoderRoute),
+      },
       {
         path: '/:categorySlug',
         element: (
-          <EcommerceLayout>
-            <CategoryPage />
-          </EcommerceLayout>
+          <EcommerceLayout>{page(CategoryPage)}</EcommerceLayout>
         ),
       },
       {
         path: '/:category/:slug',
         element: (
-          <EcommerceLayout>
-            <ProductDetails />
-          </EcommerceLayout>
+          <EcommerceLayout>{page(ProductDetails)}</EcommerceLayout>
         ),
       },
       {
         path: '*',
-        element: <Page404 />,
+        element: page(Page404),
       },
     ],
   },
