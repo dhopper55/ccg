@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Avatar,
@@ -8,6 +8,7 @@ import {
   Divider,
   IconButton,
   Paper,
+  Popover,
   Stack,
   Table,
   TableBody,
@@ -183,23 +184,57 @@ function sourceLabel(source: string | null): string {
   return source?.trim() || 'Manual';
 }
 
+const MetricInfo = ({ title, children }: { title: string; children: ReactNode }) => {
+  const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
+  return (
+    <>
+      <IconButton
+        size="small"
+        aria-label={`How ${title} is calculated`}
+        onClick={(event) => setAnchorEl(event.currentTarget)}
+        sx={{ color: 'text.disabled', p: 0.25 }}
+      >
+        <IconifyIcon icon="material-symbols:help-outline-rounded" sx={{ fontSize: 18 }} />
+      </IconButton>
+      <Popover
+        open={Boolean(anchorEl)}
+        anchorEl={anchorEl}
+        onClose={() => setAnchorEl(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+        slotProps={{ paper: { sx: { p: 2, maxWidth: 320 } } }}
+      >
+        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+          {title}
+        </Typography>
+        <Typography variant="body2" component="div" sx={{ color: 'text.secondary' }}>
+          {children}
+        </Typography>
+      </Popover>
+    </>
+  );
+};
+
 const MetricMiniCard = ({
   title,
   subTitle,
   value,
   chipLabel,
+  info,
 }: {
   title: string;
   subTitle: string;
   value: string;
   chipLabel?: string;
+  info: ReactNode;
 }) => (
   <Paper sx={{ p: { xs: 3, md: 4 }, height: 1 }}>
     <Stack sx={{ gap: 2, height: 1, justifyContent: 'space-between' }}>
       <Box>
-        <Typography variant="h6" sx={{ mb: 1 }}>
-          {title}
-        </Typography>
+        <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5, mb: 1 }}>
+          <Typography variant="h6">{title}</Typography>
+          <MetricInfo title={title}>{info}</MetricInfo>
+        </Stack>
         <Typography variant="subtitle2" sx={{ color: 'text.secondary' }}>
           {subTitle}
         </Typography>
@@ -237,15 +272,14 @@ const Starter = () => {
           byCategoryResponse,
           recentSalesResponse,
           oldestResponse,
-        ] =
-          await Promise.all([
-            fetch('/api/admin-v2/dashboard/summary', { credentials: 'same-origin' }),
-            fetch('/api/admin-v2/dashboard/profit-trend?months=12', { credentials: 'same-origin' }),
-            fetch('/api/admin-v2/dashboard/inventory-aging', { credentials: 'same-origin' }),
-            fetch('/api/admin-v2/dashboard/inventory-by-category', { credentials: 'same-origin' }),
-            fetch('/api/admin-v2/dashboard/recent-sales?limit=8', { credentials: 'same-origin' }),
-            fetch('/api/admin-v2/dashboard/oldest-inventory?limit=8', { credentials: 'same-origin' }),
-          ]);
+        ] = await Promise.all([
+          fetch('/api/admin-v2/dashboard/summary', { credentials: 'same-origin' }),
+          fetch('/api/admin-v2/dashboard/profit-trend?months=12', { credentials: 'same-origin' }),
+          fetch('/api/admin-v2/dashboard/inventory-aging', { credentials: 'same-origin' }),
+          fetch('/api/admin-v2/dashboard/inventory-by-category', { credentials: 'same-origin' }),
+          fetch('/api/admin-v2/dashboard/recent-sales?limit=8', { credentials: 'same-origin' }),
+          fetch('/api/admin-v2/dashboard/oldest-inventory?limit=8', { credentials: 'same-origin' }),
+        ]);
 
         const payloads = await Promise.all([
           summaryResponse.json() as Promise<DashboardSummaryResponse>,
@@ -345,7 +379,12 @@ const Starter = () => {
         },
       ],
     };
-  }, [dashboard.profitTrend?.points, theme.palette.divider, theme.palette.primary.main, theme.palette.text.secondary]);
+  }, [
+    dashboard.profitTrend?.points,
+    theme.palette.divider,
+    theme.palette.primary.main,
+    theme.palette.text.secondary,
+  ]);
 
   const agingPieOption = useMemo(() => {
     const buckets = dashboard.inventoryAging?.buckets || [];
@@ -374,13 +413,14 @@ const Starter = () => {
             name: bucket.label,
             value: bucket.costBasis,
             itemStyle: {
-              color: [
-                theme.palette.primary.main,
-                theme.palette.chBlue?.[300] || '#7fb2ff',
-                theme.palette.success.main,
-                theme.palette.warning.main,
-                theme.palette.chGrey?.[400] || '#8b949e',
-              ][index] || theme.palette.primary.main,
+              color:
+                [
+                  theme.palette.primary.main,
+                  theme.palette.chBlue?.[300] || '#7fb2ff',
+                  theme.palette.success.main,
+                  theme.palette.warning.main,
+                  theme.palette.chGrey?.[400] || '#8b949e',
+                ][index] || theme.palette.primary.main,
             },
           })),
         },
@@ -455,7 +495,10 @@ const Starter = () => {
   const recentSalesRows = dashboard.recentSales;
   const oldestRows = dashboard.oldestInventory;
   const summary = dashboard.summary?.kpis;
-  const totalProfit12m = (dashboard.profitTrend?.points || []).reduce((sum, point) => sum + point.profit, 0);
+  const totalProfit12m = (dashboard.profitTrend?.points || []).reduce(
+    (sum, point) => sum + point.profit,
+    0,
+  );
   const totalRevenue12m = (dashboard.profitTrend?.points || []).reduce(
     (sum, point) => sum + point.revenue,
     0,
@@ -464,7 +507,11 @@ const Starter = () => {
 
   return (
     <Box sx={{ minWidth: 0 }}>
-      {errorMessage && <Alert severity="error" sx={{ mb: 3 }}>{errorMessage}</Alert>}
+      {errorMessage && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {errorMessage}
+        </Alert>
+      )}
 
       {isLoading && !summary ? (
         <Paper sx={{ p: 5 }}>
@@ -491,9 +538,18 @@ const Starter = () => {
                         <Typography variant="h4" sx={{ fontWeight: 700 }}>
                           {formatCurrency(summary?.inventoryCostBasis || 0)}
                         </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.secondary' }}>
-                          Cost basis
-                        </Typography>
+                        <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5 }}>
+                          <Typography
+                            variant="body2"
+                            sx={{ fontWeight: 700, color: 'text.secondary' }}
+                          >
+                            Cost basis
+                          </Typography>
+                          <MetricInfo title="Cost basis">
+                            Total purchase price × quantity of every item that is active, unsold,
+                            and not personal.
+                          </MetricInfo>
+                        </Stack>
                       </Box>
                     </Stack>
                   </Grid>
@@ -506,9 +562,18 @@ const Starter = () => {
                         <Typography variant="h4" sx={{ fontWeight: 700 }}>
                           {formatNumber(summary?.forSaleItems || 0)}
                         </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.secondary' }}>
-                          For Sale (All Items)
-                        </Typography>
+                        <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5 }}>
+                          <Typography
+                            variant="body2"
+                            sx={{ fontWeight: 700, color: 'text.secondary' }}
+                          >
+                            For Sale
+                          </Typography>
+                          <MetricInfo title="For Sale">
+                            Count of items that are active, unsold, marked For Sale, and not
+                            personal.
+                          </MetricInfo>
+                        </Stack>
                       </Box>
                     </Stack>
                   </Grid>
@@ -521,35 +586,48 @@ const Starter = () => {
                         <Typography variant="h4" sx={{ fontWeight: 700 }}>
                           {formatCurrency(summary?.realizedProfitMTD || 0)}
                         </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.secondary' }}>
-                          Profit MTD
-                        </Typography>
+                        <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5 }}>
+                          <Typography
+                            variant="body2"
+                            sx={{ fontWeight: 700, color: 'text.secondary' }}
+                          >
+                            Profit MTD
+                          </Typography>
+                          <MetricInfo title="Profit MTD">
+                            Total profit on active, non-personal items sold since the 1st of this
+                            month (UTC). Profit is the sale amount minus the purchase price ×
+                            quantity. Shipping cost is not subtracted.
+                          </MetricInfo>
+                        </Stack>
                       </Box>
                     </Stack>
                   </Grid>
                 </Grid>
               </Paper>
             </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <MetricMiniCard
-                title="Private Party Value"
-                subTitle="Expected value of active unsold inventory"
-                value={formatCurrency(summary?.privatePartyValue || 0)}
-                chipLabel={`${formatNumber(summary?.activeItems || 0)} active`}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
+            <Grid size={{ xs: 12 }}>
               <MetricMiniCard
                 title="Current Asking Value"
-                subTitle="Listed for sale value (Personal Included)"
+                subTitle="Shop price of items listed for sale"
                 value={formatCurrency(summary?.currentAskingValue || 0)}
                 chipLabel={`${summary?.avgDaysToSell?.toFixed(1) || '0.0'} avg days`}
+                info={
+                  <>
+                    Total shop price of every item that is active, unsold, marked For Sale, and not
+                    personal. Uses the sale price when one is set, otherwise the regular price.
+                    <Box sx={{ mt: 1 }}>
+                      Avg days: the average number of days from purchase date to sold date, across
+                      all sold items that have both dates.
+                    </Box>
+                  </>
+                }
               />
             </Grid>
             <Grid size={{ xs: 12, md: 3 }}>
               <MetricMiniCard
                 title="30-day margin"
                 subTitle="Sold item profit margin"
+                info={`Profit ÷ sale revenue for non-personal items sold in the last 30 days (UTC). Profit is the sale amount minus the purchase price × quantity. Shipping cost is not subtracted.`}
                 value={formatPercent(summary?.soldMargin30DayPercent || 0)}
               />
             </Grid>
@@ -557,6 +635,7 @@ const Starter = () => {
               <MetricMiniCard
                 title="60-day margin"
                 subTitle="Sold item profit margin"
+                info={`Profit ÷ sale revenue for non-personal items sold in the last 60 days (UTC). Profit is the sale amount minus the purchase price × quantity. Shipping cost is not subtracted.`}
                 value={formatPercent(summary?.soldMargin60DayPercent || 0)}
               />
             </Grid>
@@ -564,6 +643,7 @@ const Starter = () => {
               <MetricMiniCard
                 title="90-day margin"
                 subTitle="Sold item profit margin"
+                info={`Profit ÷ sale revenue for non-personal items sold in the last 90 days (UTC). Profit is the sale amount minus the purchase price × quantity. Shipping cost is not subtracted.`}
                 value={formatPercent(summary?.soldMargin90DayPercent || 0)}
               />
             </Grid>
@@ -571,6 +651,7 @@ const Starter = () => {
               <MetricMiniCard
                 title="Post-store launch margin"
                 subTitle={`Sold since ${formatShortDate(summary?.postStoreLaunchDate || '2026-06-01')}`}
+                info={`Profit ÷ sale revenue for non-personal items sold on or after the store launch date set in System Settings. Profit is the sale amount minus the purchase price × quantity. Shipping cost is not subtracted.`}
                 value={formatPercent(summary?.postStoreLaunchMarginPercent || 0)}
               />
             </Grid>
@@ -628,276 +709,319 @@ const Starter = () => {
           </Grid>
 
           {SHOW_EXTENDED_DASHBOARD_SECTIONS && (
-          <Grid container spacing={3} sx={{ mt: 0 }}>
-            <Grid size={{ xs: 12 }}>
-              <Paper sx={{ p: { xs: 3, md: 5 }, height: 1 }}>
-                <SectionHeader
-                  title="Recent Sales"
-                  subTitle="Detailed information about recently sold inventory (Personal Included)"
-                  sx={{ flexWrap: { xs: 'wrap', sm: 'nowrap' }, columnGap: 1, rowGap: 3, mb: 3 }}
-                  actionComponent={
-                    <IconButton size="small" aria-label="Recent sales options">
-                      <IconifyIcon icon="material-symbols:more-horiz-rounded" />
-                    </IconButton>
-                  }
-                />
-                <TableContainer>
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell sx={{ width: '100%' }}>Product</TableCell>
-                        <TableCell align="right">Margin</TableCell>
-                        <TableCell align="right">Sold</TableCell>
-                        <TableCell align="right">Days Held</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {recentSalesRows.map((row) => (
-                        <TableRow key={row.id}>
-                          <TableCell>
-                            <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', minWidth: 0 }}>
-                              <Box
-                                component="img"
-                                src={buildImageSrc(row.imageUrl)}
-                                alt={row.title}
-                                sx={{ width: 48, height: 48, borderRadius: 2, objectFit: 'cover', flexShrink: 0 }}
-                              />
-                              <Box sx={{ minWidth: 0 }}>
-                                <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.35 }}>
-                                  {row.title}
-                                </Typography>
-                                <Chip
-                                  label={row.ccgNumber}
-                                  size="small"
-                                  variant="soft"
-                                  color="primary"
-                                  sx={{ mt: 0.5 }}
-                                />
-                              </Box>
-                            </Stack>
-                          </TableCell>
-                          <TableCell align="right">{formatCurrency(row.profitAmount)}</TableCell>
-                          <TableCell align="right">{formatCurrency(row.soldAmount)}</TableCell>
-                          <TableCell align="right">{row.daysHeld == null ? '--' : `${row.daysHeld}`}</TableCell>
+            <Grid container spacing={3} sx={{ mt: 0 }}>
+              <Grid size={{ xs: 12 }}>
+                <Paper sx={{ p: { xs: 3, md: 5 }, height: 1 }}>
+                  <SectionHeader
+                    title="Recent Sales"
+                    subTitle="Detailed information about recently sold inventory (Personal Included)"
+                    sx={{ flexWrap: { xs: 'wrap', sm: 'nowrap' }, columnGap: 1, rowGap: 3, mb: 3 }}
+                    actionComponent={
+                      <IconButton size="small" aria-label="Recent sales options">
+                        <IconifyIcon icon="material-symbols:more-horiz-rounded" />
+                      </IconButton>
+                    }
+                  />
+                  <TableContainer>
+                    <Table>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ width: '100%' }}>Product</TableCell>
+                          <TableCell align="right">Margin</TableCell>
+                          <TableCell align="right">Sold</TableCell>
+                          <TableCell align="right">Days Held</TableCell>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Paper>
-            </Grid>
+                      </TableHead>
+                      <TableBody>
+                        {recentSalesRows.map((row) => (
+                          <TableRow key={row.id}>
+                            <TableCell>
+                              <Stack
+                                direction="row"
+                                sx={{ gap: 1.5, alignItems: 'center', minWidth: 0 }}
+                              >
+                                <Box
+                                  component="img"
+                                  src={buildImageSrc(row.imageUrl)}
+                                  alt={row.title}
+                                  sx={{
+                                    width: 48,
+                                    height: 48,
+                                    borderRadius: 2,
+                                    objectFit: 'cover',
+                                    flexShrink: 0,
+                                  }}
+                                />
+                                <Box sx={{ minWidth: 0 }}>
+                                  <Typography
+                                    variant="body2"
+                                    sx={{ fontWeight: 600, lineHeight: 1.35 }}
+                                  >
+                                    {row.title}
+                                  </Typography>
+                                  <Chip
+                                    label={row.ccgNumber}
+                                    size="small"
+                                    variant="soft"
+                                    color="primary"
+                                    sx={{ mt: 0.5 }}
+                                  />
+                                </Box>
+                              </Stack>
+                            </TableCell>
+                            <TableCell align="right">{formatCurrency(row.profitAmount)}</TableCell>
+                            <TableCell align="right">{formatCurrency(row.soldAmount)}</TableCell>
+                            <TableCell align="right">
+                              {row.daysHeld == null ? '--' : `${row.daysHeld}`}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Paper>
+              </Grid>
 
-            <Grid size={{ xs: 12 }}>
-              <Paper sx={{ p: { xs: 3, md: 5 }, height: '100%' }}>
-                <SectionHeader
-                  title="Inventory Aging"
-                  subTitle="Amount of tied-up inventory by holding period"
-                  actionComponent={
-                    <IconButton size="small" aria-label="Inventory aging options">
-                      <IconifyIcon icon="material-symbols:more-horiz-rounded" />
-                    </IconButton>
-                  }
-                />
-                <Stack
-                  direction={{ xs: 'column', sm: 'row', md: 'column' }}
-                  sx={{ gap: 4, alignItems: 'center' }}
-                >
-                  <Stack sx={{ justifyContent: 'center', flex: 1 }}>
-                    <Box sx={{ width: 'fit-content', position: 'relative' }}>
-                      <ReactEchart echarts={echarts} option={agingPieOption} sx={{ height: '230px !important', width: '230px' }} />
-                      <Box
-                        sx={{
-                          position: 'absolute',
-                          top: '50%',
-                          left: '50%',
-                          transform: 'translate(-50%,-50%)',
-                          textAlign: 'center',
-                        }}
-                      >
-                        <Typography variant="h3" sx={{ mb: 1 }}>
-                          {formatCurrency(summary?.inventoryCostBasis || 0)}
-                        </Typography>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 'regular', color: 'text.secondary' }}>
-                          Unsold cost basis
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Stack>
-
-                  <Stack sx={{ width: 1, gap: 1.5 }}>
-                    {(dashboard.inventoryAging?.buckets || []).map((bucket) => (
-                      <Stack
-                        key={bucket.key}
-                        direction="row"
-                        sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 2 }}
-                      >
-                        <Box sx={{ minWidth: 0 }}>
-                          <Typography variant="body2">{bucket.label}</Typography>
-                          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                            {formatNumber(bucket.itemCount)} items
+              <Grid size={{ xs: 12 }}>
+                <Paper sx={{ p: { xs: 3, md: 5 }, height: '100%' }}>
+                  <SectionHeader
+                    title="Inventory Aging"
+                    subTitle="Amount of tied-up inventory by holding period"
+                    actionComponent={
+                      <IconButton size="small" aria-label="Inventory aging options">
+                        <IconifyIcon icon="material-symbols:more-horiz-rounded" />
+                      </IconButton>
+                    }
+                  />
+                  <Stack
+                    direction={{ xs: 'column', sm: 'row', md: 'column' }}
+                    sx={{ gap: 4, alignItems: 'center' }}
+                  >
+                    <Stack sx={{ justifyContent: 'center', flex: 1 }}>
+                      <Box sx={{ width: 'fit-content', position: 'relative' }}>
+                        <ReactEchart
+                          echarts={echarts}
+                          option={agingPieOption}
+                          sx={{ height: '230px !important', width: '230px' }}
+                        />
+                        <Box
+                          sx={{
+                            position: 'absolute',
+                            top: '50%',
+                            left: '50%',
+                            transform: 'translate(-50%,-50%)',
+                            textAlign: 'center',
+                          }}
+                        >
+                          <Typography variant="h3" sx={{ mb: 1 }}>
+                            {formatCurrency(summary?.inventoryCostBasis || 0)}
+                          </Typography>
+                          <Typography
+                            variant="subtitle2"
+                            sx={{ fontWeight: 'regular', color: 'text.secondary' }}
+                          >
+                            Unsold cost basis
                           </Typography>
                         </Box>
-                        <Chip label={formatCurrency(bucket.costBasis)} color="success" variant="soft" />
-                      </Stack>
-                    ))}
-                  </Stack>
-                </Stack>
-              </Paper>
-            </Grid>
-
-            <Grid size={{ xs: 12 }}>
-              <Paper sx={{ p: { xs: 3, md: 5 }, height: 1 }}>
-                <SectionHeader
-                  title="Inventory by category"
-                  subTitle="Active inventory count by category (Personal Included)"
-                  actionComponent={
-                    <IconButton size="small" aria-label="Inventory by category options">
-                      <IconifyIcon icon="material-symbols:more-horiz-rounded" />
-                    </IconButton>
-                  }
-                />
-                <Stack
-                  direction={{ xs: 'column', lg: 'row' }}
-                  sx={{ gap: 4, alignItems: { xs: 'stretch', lg: 'center' } }}
-                >
-                  <Stack sx={{ justifyContent: 'center', alignItems: 'center', flex: 1 }}>
-                    <Box sx={{ width: 'fit-content', position: 'relative' }}>
-                      <ReactEchart
-                        echarts={echarts}
-                        option={inventoryByCategoryOption}
-                        sx={{ height: '460px !important', width: '460px' }}
-                      />
-                      <Box
-                        sx={{
-                          position: 'absolute',
-                          top: '50%',
-                          left: '50%',
-                          transform: 'translate(-50%,-50%)',
-                          textAlign: 'center',
-                        }}
-                      >
-                        <Typography variant="h3" sx={{ mb: 1 }}>
-                          {formatNumber(
-                            (dashboard.inventoryByCategory?.buckets || []).reduce(
-                              (sum, bucket) => sum + bucket.itemCount,
-                              0,
-                            ),
-                          )}
-                        </Typography>
-                        <Typography
-                          variant="subtitle2"
-                          sx={{ fontWeight: 'regular', color: 'text.secondary' }}
-                        >
-                          Active items
-                        </Typography>
                       </Box>
-                    </Box>
-                  </Stack>
+                    </Stack>
 
-                  <Grid
-                    container
-                    spacing={{ xs: 1.5, md: 2 }}
-                    sx={{ flex: 1, alignItems: 'stretch' }}
-                  >
-                    {(dashboard.inventoryByCategory?.buckets || []).map((bucket, index) => (
-                      <Grid key={bucket.category} size={{ xs: 12, sm: 6, xl: 4 }}>
-                        <Paper
-                          variant="outlined"
-                          sx={{ p: 2, height: 1, bgcolor: 'background.default' }}
+                    <Stack sx={{ width: 1, gap: 1.5 }}>
+                      {(dashboard.inventoryAging?.buckets || []).map((bucket) => (
+                        <Stack
+                          key={bucket.key}
+                          direction="row"
+                          sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 2 }}
                         >
-                          <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center' }}>
-                            <Box
-                              sx={{
-                                width: 10,
-                                height: 10,
-                                borderRadius: '50%',
-                                flexShrink: 0,
-                                bgcolor:
-                                  inventoryCategoryPalette[index % inventoryCategoryPalette.length],
-                              }}
-                            />
-                            <Box sx={{ minWidth: 0, flex: 1 }}>
-                              <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
-                                {bucket.category}
-                              </Typography>
-                              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                                {formatNumber(bucket.itemCount)} items
-                              </Typography>
-                            </Box>
-                          </Stack>
-                        </Paper>
-                      </Grid>
-                    ))}
-                  </Grid>
-                </Stack>
-              </Paper>
-            </Grid>
+                          <Box sx={{ minWidth: 0 }}>
+                            <Typography variant="body2">{bucket.label}</Typography>
+                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                              {formatNumber(bucket.itemCount)} items
+                            </Typography>
+                          </Box>
+                          <Chip
+                            label={formatCurrency(bucket.costBasis)}
+                            color="success"
+                            variant="soft"
+                          />
+                        </Stack>
+                      ))}
+                    </Stack>
+                  </Stack>
+                </Paper>
+              </Grid>
 
-            <Grid size={{ xs: 12 }} sx={{ display: 'flex', flexDirection: 'column' }}>
-              <Paper sx={{ p: { xs: 3, md: 5 }, height: 1 }}>
-                <SectionHeader
-                  title="Oldest Inventory"
-                  subTitle="Details on the oldest unsold inventory currently holding cash (Personal Included)"
-                  actionComponent={
-                    <Chip
-                      label={`${formatNumber(summary?.notForSaleItems || 0)} held back`}
-                      color="warning"
-                      variant="soft"
-                    />
-                  }
-                  sx={{ flexWrap: { xs: 'wrap', sm: 'nowrap' }, columnGap: 1, rowGap: 2, mb: 3 }}
-                />
-                <TableContainer>
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell sx={{ width: '100%' }}>Product</TableCell>
-                        <TableCell>Source</TableCell>
-                        <TableCell align="right">Paid</TableCell>
-                        <TableCell>Status</TableCell>
-                        <TableCell align="right">Days Held</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {oldestRows.map((row) => (
-                        <TableRow key={row.id}>
-                          <TableCell>
-                            <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', minWidth: 0 }}>
+              <Grid size={{ xs: 12 }}>
+                <Paper sx={{ p: { xs: 3, md: 5 }, height: 1 }}>
+                  <SectionHeader
+                    title="Inventory by category"
+                    subTitle="Active inventory count by category (Personal Included)"
+                    actionComponent={
+                      <IconButton size="small" aria-label="Inventory by category options">
+                        <IconifyIcon icon="material-symbols:more-horiz-rounded" />
+                      </IconButton>
+                    }
+                  />
+                  <Stack
+                    direction={{ xs: 'column', lg: 'row' }}
+                    sx={{ gap: 4, alignItems: { xs: 'stretch', lg: 'center' } }}
+                  >
+                    <Stack sx={{ justifyContent: 'center', alignItems: 'center', flex: 1 }}>
+                      <Box sx={{ width: 'fit-content', position: 'relative' }}>
+                        <ReactEchart
+                          echarts={echarts}
+                          option={inventoryByCategoryOption}
+                          sx={{ height: '460px !important', width: '460px' }}
+                        />
+                        <Box
+                          sx={{
+                            position: 'absolute',
+                            top: '50%',
+                            left: '50%',
+                            transform: 'translate(-50%,-50%)',
+                            textAlign: 'center',
+                          }}
+                        >
+                          <Typography variant="h3" sx={{ mb: 1 }}>
+                            {formatNumber(
+                              (dashboard.inventoryByCategory?.buckets || []).reduce(
+                                (sum, bucket) => sum + bucket.itemCount,
+                                0,
+                              ),
+                            )}
+                          </Typography>
+                          <Typography
+                            variant="subtitle2"
+                            sx={{ fontWeight: 'regular', color: 'text.secondary' }}
+                          >
+                            Active items
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Stack>
+
+                    <Grid
+                      container
+                      spacing={{ xs: 1.5, md: 2 }}
+                      sx={{ flex: 1, alignItems: 'stretch' }}
+                    >
+                      {(dashboard.inventoryByCategory?.buckets || []).map((bucket, index) => (
+                        <Grid key={bucket.category} size={{ xs: 12, sm: 6, xl: 4 }}>
+                          <Paper
+                            variant="outlined"
+                            sx={{ p: 2, height: 1, bgcolor: 'background.default' }}
+                          >
+                            <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center' }}>
                               <Box
-                                component="img"
-                                src={buildImageSrc(row.imageUrl)}
-                                alt={row.title}
-                                sx={{ width: 48, height: 48, borderRadius: 2, objectFit: 'cover', flexShrink: 0 }}
+                                sx={{
+                                  width: 10,
+                                  height: 10,
+                                  borderRadius: '50%',
+                                  flexShrink: 0,
+                                  bgcolor:
+                                    inventoryCategoryPalette[
+                                      index % inventoryCategoryPalette.length
+                                    ],
+                                }}
                               />
-                              <Box sx={{ minWidth: 0 }}>
-                                <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.35 }}>
-                                  {row.title}
+                              <Box sx={{ minWidth: 0, flex: 1 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
+                                  {bucket.category}
                                 </Typography>
                                 <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                                  {row.ccgNumber}
+                                  {formatNumber(bucket.itemCount)} items
                                 </Typography>
                               </Box>
                             </Stack>
-                          </TableCell>
-                          <TableCell>{sourceLabel(row.source)}</TableCell>
-                          <TableCell align="right">{formatCurrency(row.unitPurchasePrice)}</TableCell>
-                          <TableCell>
-                            <Chip
-                              label={row.forSale ? 'For sale' : 'Held'}
-                              size="small"
-                              variant="soft"
-                              color={row.forSale ? 'success' : 'warning'}
-                            />
-                          </TableCell>
-                          <TableCell align="right">{row.daysHeld == null ? '--' : `${row.daysHeld}`}</TableCell>
-                        </TableRow>
+                          </Paper>
+                        </Grid>
                       ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Paper>
+                    </Grid>
+                  </Stack>
+                </Paper>
+              </Grid>
+
+              <Grid size={{ xs: 12 }} sx={{ display: 'flex', flexDirection: 'column' }}>
+                <Paper sx={{ p: { xs: 3, md: 5 }, height: 1 }}>
+                  <SectionHeader
+                    title="Oldest Inventory"
+                    subTitle="Details on the oldest unsold inventory currently holding cash (Personal Included)"
+                    actionComponent={
+                      <Chip
+                        label={`${formatNumber(summary?.notForSaleItems || 0)} held back`}
+                        color="warning"
+                        variant="soft"
+                      />
+                    }
+                    sx={{ flexWrap: { xs: 'wrap', sm: 'nowrap' }, columnGap: 1, rowGap: 2, mb: 3 }}
+                  />
+                  <TableContainer>
+                    <Table>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ width: '100%' }}>Product</TableCell>
+                          <TableCell>Source</TableCell>
+                          <TableCell align="right">Paid</TableCell>
+                          <TableCell>Status</TableCell>
+                          <TableCell align="right">Days Held</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {oldestRows.map((row) => (
+                          <TableRow key={row.id}>
+                            <TableCell>
+                              <Stack
+                                direction="row"
+                                sx={{ gap: 1.5, alignItems: 'center', minWidth: 0 }}
+                              >
+                                <Box
+                                  component="img"
+                                  src={buildImageSrc(row.imageUrl)}
+                                  alt={row.title}
+                                  sx={{
+                                    width: 48,
+                                    height: 48,
+                                    borderRadius: 2,
+                                    objectFit: 'cover',
+                                    flexShrink: 0,
+                                  }}
+                                />
+                                <Box sx={{ minWidth: 0 }}>
+                                  <Typography
+                                    variant="body2"
+                                    sx={{ fontWeight: 600, lineHeight: 1.35 }}
+                                  >
+                                    {row.title}
+                                  </Typography>
+                                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                                    {row.ccgNumber}
+                                  </Typography>
+                                </Box>
+                              </Stack>
+                            </TableCell>
+                            <TableCell>{sourceLabel(row.source)}</TableCell>
+                            <TableCell align="right">
+                              {formatCurrency(row.unitPurchasePrice)}
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label={row.forSale ? 'For sale' : 'Held'}
+                                size="small"
+                                variant="soft"
+                                color={row.forSale ? 'success' : 'warning'}
+                              />
+                            </TableCell>
+                            <TableCell align="right">
+                              {row.daysHeld == null ? '--' : `${row.daysHeld}`}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Paper>
+              </Grid>
             </Grid>
-          </Grid>
           )}
         </>
       )}

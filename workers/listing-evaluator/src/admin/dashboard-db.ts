@@ -144,14 +144,16 @@ export async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2Das
     `SELECT
       COALESCE(SUM(
         CASE
-          WHEN i.is_active = 1 AND COALESCE(i.is_sold, 0) = 0 AND COALESCE(i.for_sale, 0) = 1
-            THEN COALESCE(l.price_asking, i.private_party_value, (${INVENTORY_UNIT_COST_BASIS_SQL}), 0)
+          WHEN i.is_active = 1 AND COALESCE(i.is_sold, 0) = 0 AND COALESCE(i.for_sale, 0) = 1 AND COALESCE(i.is_personal, 0) = 0
+            THEN CASE WHEN COALESCE(i.sale_price, 0) > 0 THEN i.sale_price ELSE COALESCE(i.regular_price, 0) END
           ELSE 0
         END
       ), 0) AS current_asking_value,
       COALESCE(SUM(
         CASE
           WHEN COALESCE(i.is_sold, 0) = 1
+            AND i.is_active = 1
+            AND COALESCE(i.is_personal, 0) = 0
             AND i.sold_date IS NOT NULL
             AND i.sold_date >= date('now', 'start of month')
             THEN COALESCE(i.sold_amount, 0) - (${INVENTORY_UNIT_COST_BASIS_SQL})
@@ -247,8 +249,7 @@ export async function dbGetAdminV2DashboardSummary(env: Env): Promise<AdminV2Das
           ELSE NULL
         END
       ), 0) AS avg_days_to_sell
-     FROM ccg_inventory_items i
-     LEFT JOIN listings l ON l.id = i.source_listing_id`
+     FROM ccg_inventory_items i`
   ).bind(postStoreLaunchDate, postStoreLaunchDate).first<{
     current_asking_value: number | null;
     realized_profit_mtd: number | null;
