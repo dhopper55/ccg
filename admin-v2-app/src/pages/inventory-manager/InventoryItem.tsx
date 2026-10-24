@@ -767,6 +767,32 @@ function generateSaleUrlSlugFromTitle(value: string): string {
   return sanitizeSaleUrlSlug(stripTitleLabel(value));
 }
 
+function getFbmListingUrl(fbListingId: string): string | null {
+  const value = fbListingId.trim();
+  if (!value) return null;
+  if (/^https?:\/\//i.test(value)) return value;
+  return `https://www.facebook.com/marketplace/item/${encodeURIComponent(value)}/`;
+}
+
+function FbmListingLink({ fbListingId }: { fbListingId: string }) {
+  const url = getFbmListingUrl(fbListingId);
+  if (!url) return null;
+  return (
+    <Tooltip title="Open FBM listing">
+      <IconButton
+        size="small"
+        component="a"
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Open Facebook Marketplace listing"
+      >
+        <Box component="img" src="/images/fb.png" alt="" sx={{ width: 20, height: 20 }} />
+      </IconButton>
+    </Tooltip>
+  );
+}
+
 function getForSaleValidationError(formState: FormState): string | null {
   if (!formState.forSale) return null;
   if (!formState.saleTitle.trim()) return 'Sale Details Title is required when For Sale is checked.';
@@ -1207,6 +1233,7 @@ const InventoryItem = () => {
   const [profitTargetsOpen, setProfitTargetsOpen] = useState(false);
   const [wasSoldOnLoad, setWasSoldOnLoad] = useState(false);
   const [soldConfirmOpen, setSoldConfirmOpen] = useState(false);
+  const [fbmSoldWarningOpen, setFbmSoldWarningOpen] = useState(false);
   const [duplicateConfirmOpen, setDuplicateConfirmOpen] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
   const [upcLookupOpen, setUpcLookupOpen] = useState(false);
@@ -2261,9 +2288,14 @@ const InventoryItem = () => {
 
   const handleSubmitWithSoldCheck = () => {
     if (isSubmitting) return;
-    // If toggling sold on for the first time, confirm first
+    // If toggling sold on for the first time, confirm first. An active FBM
+    // listing has to be marked sold on Facebook before we clear it here.
     if (form.isSold && !wasSoldOnLoad) {
-      setSoldConfirmOpen(true);
+      if (form.fbListingId.trim()) {
+        setFbmSoldWarningOpen(true);
+      } else {
+        setSoldConfirmOpen(true);
+      }
       return;
     }
     void doSubmit();
@@ -2335,7 +2367,11 @@ const InventoryItem = () => {
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(createSavePayload(images)),
+        body: JSON.stringify({
+          ...createSavePayload(images),
+          // Marking sold ends the FBM listing (confirmed via the FBM warning dialog).
+          ...(form.isSold && !wasSoldOnLoad ? { fbListingId: null } : {}),
+        }),
         credentials: 'same-origin',
       });
 
@@ -2613,6 +2649,9 @@ const InventoryItem = () => {
     () => categoryOptions.find((option) => option.id === form.categoryId)?.name || '',
     [categoryOptions, form.categoryId],
   );
+  const ccgProductUrl = mode === 'edit' && form.forSale && form.salesChannelCcg
+    ? buildShopProductUrl(selectedCategoryName, form.saleUrl)
+    : null;
   const parentCategoryOptions = useMemo(
     () => categoryOptions.filter((option) => option.parentId == null),
     [categoryOptions],
@@ -2659,7 +2698,21 @@ const InventoryItem = () => {
             justifyContent: 'space-between',
           }}
         >
-          <Typography variant="h4">{pageTitle}</Typography>
+          <Stack direction="row" sx={{ gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Typography variant="h4">{pageTitle}</Typography>
+            {ccgProductUrl ? (
+              <Button
+                variant="outlined"
+                size="small"
+                href={ccgProductUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                endIcon={<IconifyIcon icon="material-symbols:open-in-new-rounded" fontSize={18} />}
+              >
+                View on CCG
+              </Button>
+            ) : null}
+          </Stack>
 
           <Tooltip title="Back">
             <IconButton
@@ -3534,13 +3587,16 @@ const InventoryItem = () => {
                       }
                       label="CL"
                     />
-                    <TextField
-                      size="small"
-                      label="FBM Listing ID"
-                      value={form.fbListingId}
-                      onChange={(event) => setField('fbListingId', event.target.value)}
-                      sx={{ minWidth: 200 }}
-                    />
+                    <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5 }}>
+                      <TextField
+                        size="small"
+                        label="FBM Listing ID"
+                        value={form.fbListingId}
+                        onChange={(event) => setField('fbListingId', event.target.value)}
+                        sx={{ minWidth: 200 }}
+                      />
+                      <FbmListingLink fbListingId={form.fbListingId} />
+                    </Stack>
                     <Tooltip title="Managed automatically by the Add to Reverb / Delete From Reverb action below.">
                       <FormControlLabel
                         control={<Checkbox checked={form.salesChannelReverb} disabled />}
@@ -4524,11 +4580,36 @@ const InventoryItem = () => {
           </Box>
         </DialogContent>
       </Dialog>
+      <Dialog open={fbmSoldWarningOpen} onClose={() => setFbmSoldWarningOpen(false)}>
+        <DialogTitle>Listed on FBM</DialogTitle>
+        <DialogContent>
+          <Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}>
+            <DialogContentText>
+              FBM listing id must be marked sold first.
+            </DialogContentText>
+            <FbmListingLink fbListingId={form.fbListingId} />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setFbmSoldWarningOpen(false)}>Cancel</Button>
+          <Button
+            onClick={() => {
+              setFbmSoldWarningOpen(false);
+              setSoldConfirmOpen(true);
+            }}
+            color="error"
+            variant="contained"
+          >
+            Marked Sold
+          </Button>
+        </DialogActions>
+      </Dialog>
       <Dialog open={soldConfirmOpen} onClose={() => setSoldConfirmOpen(false)}>
         <DialogTitle>Mark as sold</DialogTitle>
         <DialogContent>
           <DialogContentText>
             You are about to mark this item sold. Parts of this process cannot be undone. Proceed?
+            {form.reverbListingId ? ' The active Reverb listing will be deleted as part of this save.' : ''}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
