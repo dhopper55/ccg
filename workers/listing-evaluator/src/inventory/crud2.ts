@@ -30,6 +30,7 @@ import {
   extractShippingLabelFee,
 } from './reverb-listing.js';
 import { reverbRequestHeaders } from '../pricing/reverb.js';
+import { dbSyncManualOrderAfterInventorySave } from '../orders/manual.js';
 import { REVERB_SEARCH_API_URL } from '../constants.js';
 
 export async function handleInventoryUpdate(request: Request, path: string, env: Env): Promise<Response> {
@@ -618,6 +619,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
 
     return jsonResponse({
       ok: true,
+      becameSold: true,
       splitSale: true,
       soldId: soldInsert.firstId,
       soldCcgNumber,
@@ -784,7 +786,13 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
     },
   });
 
-  return jsonResponse({ ok: true });
+  await dbSyncManualOrderAfterInventorySave(
+    Number.parseInt(recordId, 10),
+    { becameUnsold: previousIsSold && !isSold, isSold },
+    env,
+  );
+
+  return jsonResponse({ ok: true, becameSold, soldId: becameSold ? recordId : null });
 }
 
 export async function handleInventoryDelete(_request: Request, path: string, env: Env): Promise<Response> {

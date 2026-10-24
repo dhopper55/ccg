@@ -72,6 +72,10 @@ const getStatusBadgeColor = (value: StripePaymentLink['status']): ChipOwnProps['
 
 const truncateTitle = (value: string) => (value.length > 40 ? `${value.slice(0, 40)}...` : value);
 
+// Paused while manual orders are built out: a CCG-made link creates its own order when
+// paid, bypassing "add to existing order". The API refuses creation too.
+const PAYMENT_LINK_CREATION_PAUSED = true;
+
 const PaymentLinks = () => {
   const [paymentLinks, setPaymentLinks] = useState<StripePaymentLink[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -347,6 +351,7 @@ const PaymentLinks = () => {
               variant="contained"
               startIcon={<IconifyIcon icon="material-symbols:add-rounded" />}
               onClick={openCreateDialog}
+              disabled={PAYMENT_LINK_CREATION_PAUSED}
             >
               Create payment link
             </Button>
@@ -400,6 +405,11 @@ const PaymentLinks = () => {
               ))}
             </Menu>
           </Stack>
+          {PAYMENT_LINK_CREATION_PAUSED && (
+            <Alert severity="info">
+              Creating payment links is paused for now. Existing links still work and can be deactivated below.
+            </Alert>
+          )}
           {error && <Alert severity="error">{error}</Alert>}
           {testEmailMessage && <Alert severity="success">{testEmailMessage}</Alert>}
           <Box sx={{ width: 1 }}>

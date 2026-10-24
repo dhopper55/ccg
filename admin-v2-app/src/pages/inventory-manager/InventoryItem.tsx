@@ -33,7 +33,9 @@ import liberationSansRegularUrl from 'pdfjs-dist/standard_fonts/LiberationSans-R
 import IconifyIcon from 'components/base/IconifyIcon';
 import paths from 'routes/paths';
 import { downloadImagesAsZip } from 'lib/imageZip';
+import { formatOrderNumber } from 'lib/utils';
 import ReverbListingWizard from './ReverbListingWizard';
+import SoldOrderDialog, { type SoldOrderDialogItem } from './SoldOrderDialog';
 
 type InventoryItemRecord = {
   id: string;
@@ -161,6 +163,9 @@ type SaveResponse = {
   ccgNumber?: string;
   message?: string;
   duplicateSuppressed?: boolean;
+  becameSold?: boolean;
+  soldId?: string | number | null;
+  soldCcgNumber?: string;
 };
 
 type UpcLookupResponse = {
@@ -1234,6 +1239,8 @@ const InventoryItem = () => {
   const [wasSoldOnLoad, setWasSoldOnLoad] = useState(false);
   const [soldConfirmOpen, setSoldConfirmOpen] = useState(false);
   const [fbmSoldWarningOpen, setFbmSoldWarningOpen] = useState(false);
+  const [soldOrderDialogItem, setSoldOrderDialogItem] = useState<SoldOrderDialogItem | null>(null);
+  const [itemOrder, setItemOrder] = useState<{ id: string; orderNumber: string } | null>(null);
   const [duplicateConfirmOpen, setDuplicateConfirmOpen] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
   const [upcLookupOpen, setUpcLookupOpen] = useState(false);
@@ -1709,6 +1716,22 @@ const InventoryItem = () => {
     lastSavedFullSnapshotRef.current = buildFullFormSnapshot(form, images, tags);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, editId, reloadToken]);
+
+  // The order a sold item belongs to (manual or checkout), for the "Order #" link.
+  useEffect(() => {
+    setItemOrder(null);
+    if (!editId || !wasSoldOnLoad) return;
+    let cancelled = false;
+    fetch(`/api/admin-v2/inventory/${encodeURIComponent(editId)}/order`, { credentials: 'same-origin' })
+      .then((response) => response.json())
+      .then((data: { order?: { id: string; orderNumber: string } | null }) => {
+        if (!cancelled) setItemOrder(data.order ?? null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [editId, wasSoldOnLoad, reloadToken]);
 
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => {
@@ -2389,6 +2412,15 @@ const InventoryItem = () => {
           ? `Duplicate submit prevented. Using existing item ${data.ccgNumber || ''}.`
           : `Created inventory item: ${data.ccgNumber || ''}.`;
       enqueueSnackbar(text, { variant: 'success' });
+      if (editId && data.becameSold && data.soldId) {
+        setSoldOrderDialogItem({
+          id: String(data.soldId),
+          ccgNumber: data.soldCcgNumber || form.ccgNumber,
+          title: form.saleTitle.trim() || form.title.trim(),
+          soldAmount: form.soldAmount.trim(),
+          soldChannel: form.soldChannel,
+        });
+      }
       if (editId) {
         setReloadToken((current) => current + 1);
       } else {
@@ -4188,6 +4220,31 @@ const InventoryItem = () => {
                     }
                     label="Is Sold"
                   />
+                  {editId && wasSoldOnLoad && form.isSold ? (
+                    itemOrder ? (
+                      <Button
+                        size="small"
+                        href={paths.orderManagerItemWithId(itemOrder.id)}
+                        startIcon={<IconifyIcon icon="material-symbols:receipt-long-outline-rounded" fontSize={18} />}
+                      >
+                        Order {formatOrderNumber(itemOrder.orderNumber)}
+                      </Button>
+                    ) : (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => setSoldOrderDialogItem({
+                          id: editId,
+                          ccgNumber: form.ccgNumber,
+                          title: form.saleTitle.trim() || form.title.trim(),
+                          soldAmount: form.soldAmount.trim(),
+                          soldChannel: form.soldChannel,
+                        })}
+                      >
+                        Create / attach order
+                      </Button>
+                    )
+                  ) : null}
                 </Paper>
               </Grid>
               <Grid size={{ xs: 12, md: 4 }}>
@@ -4580,6 +4637,15 @@ const InventoryItem = () => {
           </Box>
         </DialogContent>
       </Dialog>
+      <SoldOrderDialog
+        open={Boolean(soldOrderDialogItem)}
+        item={soldOrderDialogItem}
+        onClose={() => setSoldOrderDialogItem(null)}
+        onDone={(order) => {
+          setSoldOrderDialogItem(null);
+          if (soldOrderDialogItem?.id === editId) setItemOrder({ id: order.orderId, orderNumber: order.orderNumber });
+        }}
+      />
       <Dialog open={fbmSoldWarningOpen} onClose={() => setFbmSoldWarningOpen(false)}>
         <DialogTitle>Listed on FBM</DialogTitle>
         <DialogContent>

@@ -124,7 +124,15 @@ export async function handleAdminV2PaymentLinkMarkedItems(env: Env): Promise<Res
   });
 }
 
+// Payment link creation is paused while manual orders are built out: a CCG-made link
+// creates its own order when paid, which would bypass "attach to existing order".
+// Listing and deactivating existing links still work.
+const PAYMENT_LINK_CREATION_PAUSED = true;
+
 export async function handleAdminV2PaymentLinkCreate(request: Request, env: Env): Promise<Response> {
+  if (PAYMENT_LINK_CREATION_PAUSED) {
+    return jsonResponse({ message: 'Creating payment links is paused for now.' }, 403);
+  }
   const stripeConfig = await getStripeRuntimeConfig(env);
   if (!stripeConfig.secretKey) {
     return jsonResponse({ message: 'Stripe secret key is not configured.' }, 503);

@@ -77,7 +77,7 @@ type InventoryFilters = {
   categoryId: string;
   brand: string;
   queue: string;
-  sold: 'all' | 'yes' | 'no';
+  sold: 'all' | 'yes' | 'no' | 'no_order';
   active: 'all' | 'yes' | 'no';
   marked: 'all' | 'yes' | 'no';
   personal: 'all' | 'yes' | 'no';
@@ -187,7 +187,9 @@ const InventoryManager = () => {
       ? 'yes'
       : searchParams.get('sold') === 'all'
         ? 'all'
-        : 'no',
+        : searchParams.get('sold') === 'no_order'
+          ? 'no_order'
+          : 'no',
     active: searchParams.get('active') === 'all'
       ? 'all'
       : searchParams.get('active') === 'no' || searchParams.get('active') === '0' || searchParams.get('active') === 'false'
@@ -265,7 +267,9 @@ const InventoryManager = () => {
     params.set('limit', String(limit));
     params.set('sortBy', sortBy);
     params.set('sortDir', sortDir);
-    params.set('sold', filters.sold);
+    // "Sold, no order" is sold items that still need an order (see MANUAL_ORDERS_START_DATE).
+    params.set('sold', filters.sold === 'no_order' ? 'yes' : filters.sold);
+    if (filters.sold === 'no_order') params.set('noOrder', '1');
     params.set('active', filters.active);
     params.set('marked', filters.marked);
     params.set('personal', filters.personal);
@@ -1351,6 +1355,7 @@ const InventoryManager = () => {
                             <MenuItem value="all">All</MenuItem>
                             <MenuItem value="yes">Sold</MenuItem>
                             <MenuItem value="no">UnSold</MenuItem>
+                            <MenuItem value="no_order">Sold, no order</MenuItem>
                           </Select>
                         </FormControl>
                       </Grid>

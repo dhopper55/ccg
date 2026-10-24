@@ -20,6 +20,7 @@ import {
 import { toBooleanInput } from '../utils/misc.js';
 import { parseCurrencyAmount } from '../utils/money.js';
 import { createStripeFeeAdjustedRefund } from './refund.js';
+import { dbGetOrderPaymentTotals, dbListOrderPayments } from './manual.js';
 import { resolveOrderStripeCustomer, resolveStripePaymentMethodLabel, fetchStripeCheckoutSession } from './stripe.js';
 import { getStripeRuntimeConfig, getStripeRuntimeConfigForLivemode } from '../system/runtime.js';
 
@@ -101,11 +102,22 @@ export async function handleAdminV2Orders(request: Request, env: Env): Promise<R
   ).bind(limit).all<Record<string, unknown>>();
 
   const records = result.results ?? [];
-  const itemCounts = await dbCountOrderItems(records.map((row) => normalizeText(row.id, '')).filter(Boolean), env);
+  const orderIds = records.map((row) => normalizeText(row.id, '')).filter(Boolean);
+  const itemCounts = await dbCountOrderItems(orderIds, env);
+  const paymentTotals = await dbGetOrderPaymentTotals(orderIds, env);
   const enriched = await Promise.all(records.map(async (row) => {
     const stripeCustomer = await resolveOrderStripeCustomer(row, env);
     const orderId = normalizeText(row.id, '');
-    return mapAdminOrderSummary(row, itemCounts.get(orderId) || 0, stripeCustomer);
+    const payments = paymentTotals.get(orderId);
+    return {
+      ...mapAdminOrderSummary(row, itemCounts.get(orderId) || 0, stripeCustomer),
+      channel: normalizeText(row.channel, ''),
+      // Orders from before payments were tracked have no payment rows: net/fees unknown.
+      grossCents: payments ? payments.grossCents : null,
+      feeCents: payments ? payments.feeCents : null,
+      netCents: payments ? payments.netCents : null,
+      payoutStatus: payments ? (payments.payoutPending ? 'pending' : 'received') : null,
+    };
   }));
 
   return jsonResponse({ records: enriched });
@@ -126,7 +138,10 @@ export async function handleAdminV2OrderDetail(orderId: string, env: Env): Promi
   const provider = normalizeText(order.checkoutProvider, '') || (normalizeText(rawOrder?.stripe_checkout_session_id, '') ? 'stripe' : 'cash');
   const paymentMethodLabel = provider === 'cash'
     ? 'Cash'
-    : await resolveStripePaymentMethodLabel(normalizeText(order.stripePaymentIntentId, ''), env);
+    : provider === 'manual'
+      ? 'See payments'
+      : await resolveStripePaymentMethodLabel(normalizeText(order.stripePaymentIntentId, ''), env);
+  const payments = await dbListOrderPayments(normalizedOrderId, env);
   const storedCostBasis = parseCurrencyAmount(rawOrder?.cost_basis_adjusted) ?? 0;
   const moneyAccounted = parseOrderBoolean(rawOrder?.money_accounted);
   const costBasisAdjusted = moneyAccounted || storedCostBasis > 0
@@ -143,6 +158,18 @@ export async function handleAdminV2OrderDetail(orderId: string, env: Env): Promi
       costBasisAdjusted: formatSystemCurrency(costBasisAdjusted),
       accountingFunds: await dbGetOrderFundsAccountingTotals(normalizedOrderId, env),
       paymentMethodLabel,
+      checkoutType: normalizeText(rawOrder?.checkout_type, ''),
+      channel: normalizeText(rawOrder?.channel, ''),
+      channelOrderRef: normalizeText(rawOrder?.channel_order_ref, ''),
+      fulfillmentType: normalizeText(rawOrder?.fulfillment_type, ''),
+      notes: normalizeText(rawOrder?.notes, ''),
+      payments,
+      paymentTotals: payments.length > 0 ? {
+        grossCents: payments.filter((p) => p.status !== 'refunded').reduce((sum, p) => sum + Number(p.grossCents), 0),
+        feeCents: payments.filter((p) => p.status !== 'refunded').reduce((sum, p) => sum + Number(p.feeCents), 0),
+        taxCents: payments.filter((p) => p.status !== 'refunded').reduce((sum, p) => sum + Number(p.taxCents), 0),
+        netCents: payments.filter((p) => p.status !== 'refunded').reduce((sum, p) => sum + Number(p.netCents), 0),
+      } : null,
       customer: {
         ...buildAdminOrderCustomer(rawOrder || {}, stripeCustomer),
         shippingAddressLine1: normalizeText(rawOrder?.shipping_address_line1, ''),
@@ -242,6 +269,9 @@ export async function handleAdminV2OrderRefund(orderId: string, env: Env): Promi
   if (status !== 'paid') {
     return jsonResponse({ message: 'Only paid orders can be refunded.' }, 409);
   }
+  if (normalizeText(order.checkout_type, '') === 'manual') {
+    return jsonResponse({ message: 'Manual orders are refunded by marking the item unsold in inventory.' }, 409);
+  }
 
   const provider = normalizeText(order.checkout_provider, '') || (normalizeText(order.stripe_checkout_session_id, '') ? 'stripe' : 'cash');
   const totalCents = Number(order.total_cents ?? 0) || 0;
@@ -299,6 +329,9 @@ export async function handleAdminV2OrderRefund(orderId: string, env: Env): Promi
     money_accounted: fundsReversal ? 0 : order.money_accounted,
     updated_at: now,
   }, env);
+  await env.DB.prepare(
+    "UPDATE order_payments SET status = 'refunded', updated_at = CURRENT_TIMESTAMP WHERE order_id = ?"
+  ).bind(normalizedOrderId).run().catch((error) => console.error('Marking order payments refunded failed', { error }));
 
   await dbRecordOrderEvent(normalizedOrderId, {
     eventType: 'refund_succeeded',
@@ -348,6 +381,9 @@ export async function handleAdminV2OrderRollback(orderId: string, env: Env): Pro
   if (!order) return jsonResponse({ message: 'Order not found.' }, 404);
 
   const status = normalizeText(order.status, '');
+  if (normalizeText(order.checkout_type, '') === 'manual') {
+    return jsonResponse({ message: 'Manual orders cannot be rolled back yet. Mark the item unsold in inventory instead.' }, 409);
+  }
   const provider = normalizeText(order.checkout_provider, '') || (normalizeText(order.stripe_checkout_session_id, '') ? 'stripe' : 'cash');
   const totalCents = Number(order.total_cents ?? 0) || 0;
   const isSandbox = Number(order.is_sandbox) === 1;
@@ -376,6 +412,8 @@ export async function handleAdminV2OrderRollback(orderId: string, env: Env): Pro
     }
   }
 
+  await env.DB.prepare('DELETE FROM order_payments WHERE order_id = ?').bind(normalizedOrderId).run()
+    .catch((error) => console.error('Deleting order payments failed', { error }));
   await env.DB.prepare('DELETE FROM order_items WHERE order_id = ?').bind(normalizedOrderId).run();
   await env.DB.prepare('DELETE FROM order_events WHERE order_id = ?').bind(normalizedOrderId).run();
   await env.DB.prepare('DELETE FROM orders WHERE id = ?').bind(normalizedOrderId).run();
@@ -416,7 +454,7 @@ export function mapAdminOrderSummary(
     checkoutProvider: provider,
     checkoutType: normalizeText(row.checkout_type, provider),
     checkoutMode: normalizeText(row.checkout_mode, ''),
-    paymentMethodLabel: provider === 'cash' ? 'Cash' : 'Stripe',
+    paymentMethodLabel: provider === 'cash' ? 'Cash' : provider === 'manual' ? 'Manual' : 'Stripe',
     listingsUpdated: parseOrderBoolean(row.listings_updated),
     settled: parseOrderBoolean(row.settled),
     moneyAccounted: parseOrderBoolean(row.money_accounted),

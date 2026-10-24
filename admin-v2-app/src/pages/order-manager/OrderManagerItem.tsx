@@ -26,6 +26,7 @@ import { formatOrderNumber } from 'lib/utils';
 import { ensureStarWebPrntGlobals } from 'lib/starWebPrntShim';
 import { useNavigate, useSearchParams } from 'react-router';
 import paths from 'routes/paths';
+import { orderChannelLabel, paymentMethodLabel } from 'lib/orderLabels';
 import IconifyIcon from 'components/base/IconifyIcon';
 import PageBreadcrumb from 'components/sections/common/PageBreadcrumb';
 
@@ -37,6 +38,25 @@ type AdminOrderItem = {
   quantity: number;
   unitAmountCents: number;
   subtotalCents: number;
+};
+
+type AdminOrderPayment = {
+  id: number;
+  inventoryItemId: number | null;
+  ccgNumber: string;
+  method: string;
+  status: string;
+  grossCents: number;
+  shippingChargedCents: number;
+  taxCents: number;
+  feeCents: number;
+  feeIsEstimate: boolean;
+  netCents: number;
+  externalRef: string;
+  paidAt: string;
+  payoutStatus: string;
+  payoutReceivedAt: string;
+  notes: string;
 };
 
 type AdminOrderDetail = {
@@ -78,6 +98,13 @@ type AdminOrderDetail = {
     shippingAddressCountry?: string;
   };
   items: AdminOrderItem[];
+  checkoutType?: string;
+  channel?: string;
+  channelOrderRef?: string;
+  fulfillmentType?: string;
+  notes?: string;
+  payments?: AdminOrderPayment[];
+  paymentTotals?: { grossCents: number; feeCents: number; taxCents: number; netCents: number } | null;
   events: Array<{
     id: string | number;
     message: string;
@@ -109,7 +136,11 @@ const orderStatusFlags: Array<{ key: OrderStatusFlagKey; label: string }> = [
 ];
 
 const paymentIcon = (provider: string) =>
-  provider === 'cash' ? 'material-symbols:payments-outline-rounded' : 'material-symbols:credit-card-outline';
+  provider === 'cash'
+    ? 'material-symbols:payments-outline-rounded'
+    : provider === 'manual'
+      ? 'material-symbols:edit-note-outline-rounded'
+      : 'material-symbols:credit-card-outline';
 
 const printerUrlStorageKey = 'ccg-star-webprnt-url';
 const receiptLogoUrl = 'https://www.coalcreekguitars.com/images/ccg_bnw.bmp';
@@ -572,6 +603,10 @@ const OrderManagerItem = () => {
   const adjustedCostBasisAmount = parseAccountingAmount(order.costBasisAdjusted || '0.00') || 0;
   const isRefundedOrder = order.status === 'refunded';
   const isFinancingOrder = /affirm|klarna/i.test(order.paymentMethodLabel || '');
+  // Manual orders (items marked sold in admin) are view-only here for now; they are
+  // unwound by marking the item unsold in inventory, not by Refund/Rollback.
+  const isManualOrder = order.checkoutType === 'manual';
+  const payments = order.payments || [];
 
   return (
     <>
@@ -670,6 +705,7 @@ const OrderManagerItem = () => {
                 </Stack>
               </Box>
               <Stack direction="column" sx={{ alignItems: { sm: 'flex-end' }, gap: 3 }}>
+                {!isManualOrder ? (
                 <Stack sx={{ gap: 1 }}>
                   <Button
                     variant="soft"
@@ -690,6 +726,7 @@ const OrderManagerItem = () => {
                     Rollback
                   </Button>
                 </Stack>
+                ) : null}
                 <Typography variant="body2" sx={{ color: 'text.secondary', textAlign: { sm: 'end' }, mt: 'auto' }}>
                   <Box component="span" whiteSpace="nowrap">
                     Placed on <strong>{dayjs(order.createdAt || order.paidAt).format('MMM D, YYYY')}</strong>
@@ -792,9 +829,87 @@ const OrderManagerItem = () => {
                     {currencyFormat(order.totalCents / 100)}
                   </Typography>
                 </Stack>
+                {order.paymentTotals ? (
+                  <PriceSummaryRow label="Fees" value={-order.paymentTotals.feeCents / 100} />
+                ) : null}
+                {order.paymentTotals ? (
+                  <Stack sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                      Net payout
+                    </Typography>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                      {currencyFormat(order.paymentTotals.netCents / 100)}
+                    </Typography>
+                  </Stack>
+                ) : null}
               </Stack>
             </Container>
           </Box>
+
+          {payments.length > 0 ? (
+            <Box sx={{ p: { xs: 3, md: 5 } }}>
+              <Container maxWidth={false} sx={{ maxWidth: 694, px: { xs: 0 } }}>
+                <Typography variant="h6" sx={{ mb: 2 }}>Payments</Typography>
+                <Stack direction="column" divider={<Divider flexItem />} sx={{ gap: 2, bgcolor: 'background.elevation1', borderRadius: 6, p: 3 }}>
+                  {payments.map((payment) => (
+                    <Stack key={payment.id} direction="column" sx={{ gap: 0.75 }}>
+                      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                        <Box>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                            {paymentMethodLabel(payment.method)}
+                            {payment.ccgNumber ? ` · ${payment.ccgNumber}` : ''}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                            {payment.paidAt ? dayjs(payment.paidAt).format('MMM D, YYYY') : ''}
+                            {payment.externalRef ? ` · Ref ${payment.externalRef}` : ''}
+                          </Typography>
+                        </Box>
+                        <Stack direction="row" sx={{ gap: 1 }}>
+                          {payment.status !== 'received' ? (
+                            <Chip
+                              size="small"
+                              variant="soft"
+                              color="error"
+                              label={payment.status.replace(/_/g, ' ')}
+                              sx={{ textTransform: 'capitalize' }}
+                            />
+                          ) : null}
+                          <Chip
+                            size="small"
+                            variant="soft"
+                            color={payment.payoutStatus === 'received' ? 'success' : 'warning'}
+                            label={`Payout ${payment.payoutStatus}`}
+                          />
+                        </Stack>
+                      </Stack>
+                      <Stack direction="row" sx={{ gap: 3, flexWrap: 'wrap' }}>
+                        <Typography variant="body2">Paid {currencyFormat(payment.grossCents / 100)}</Typography>
+                        {payment.shippingChargedCents > 0 ? (
+                          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                            incl. shipping {currencyFormat(payment.shippingChargedCents / 100)}
+                          </Typography>
+                        ) : null}
+                        {payment.taxCents > 0 ? (
+                          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                            Tax {currencyFormat(payment.taxCents / 100)}
+                          </Typography>
+                        ) : null}
+                        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                          Fees {currencyFormat(payment.feeCents / 100)}{payment.feeIsEstimate ? ' (est.)' : ''}
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                          Net {currencyFormat(payment.netCents / 100)}
+                        </Typography>
+                      </Stack>
+                      {payment.notes ? (
+                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>{payment.notes}</Typography>
+                      ) : null}
+                    </Stack>
+                  ))}
+                </Stack>
+              </Container>
+            </Box>
+          ) : null}
         </Stack>
       </Grid>
 
@@ -845,9 +960,26 @@ const OrderManagerItem = () => {
                 <IconifyIcon icon={paymentIcon(order.checkoutProvider)} sx={{ fontSize: 22 }} />
                 <Typography variant="body2">{order.paymentMethodLabel}</Typography>
               </Stack>
-              <Typography variant="body2" sx={{ color: 'text.secondary', textTransform: 'capitalize' }}>
-                {order.checkoutProvider} / {order.checkoutMode || 'checkout'}
-              </Typography>
+              {isManualOrder ? (
+                <Stack direction="column" sx={{ gap: 0.5 }}>
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                    Manual order · {orderChannelLabel(order.channel || '')}
+                    {order.fulfillmentType === 'ship' ? ' · Ship' : ' · Pickup'}
+                  </Typography>
+                  {order.channelOrderRef ? (
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                      Marketplace order #{order.channelOrderRef}
+                    </Typography>
+                  ) : null}
+                  {order.notes ? (
+                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', mt: 1 }}>{order.notes}</Typography>
+                  ) : null}
+                </Stack>
+              ) : (
+                <Typography variant="body2" sx={{ color: 'text.secondary', textTransform: 'capitalize' }}>
+                  {order.checkoutProvider} / {order.checkoutMode || 'checkout'}
+                </Typography>
+              )}
             </Box>
             <Box sx={{ p: { xs: 3, md: 4, lg: 5 } }}>
               <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>

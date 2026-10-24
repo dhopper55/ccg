@@ -43,10 +43,12 @@ export async function handleInventoryList(request: Request, env: Env): Promise<R
   const salesChannel = parseInventorySalesChannelFilter(url.searchParams.get('salesChannel'));
   const tagReprintParam = url.searchParams.get('tagReprint');
   const tagReprint = tagReprintParam === '1' || tagReprintParam === 'true' || tagReprintParam === 'yes';
+  const noOrderParam = url.searchParams.get('noOrder');
+  const noOrder = noOrderParam === '1' || noOrderParam === 'true' || noOrderParam === 'yes';
   const sortBy = parseInventorySortKey(url.searchParams.get('sortBy'));
   const sortDir = parseInventorySortDir(url.searchParams.get('sortDir'));
 
-  const availableBrands = await dbListInventoryBrands({ categoryId, sold, active, marked, personal, shipping, salesChannel, queue, tagReprint }, env);
+  const availableBrands = await dbListInventoryBrands({ categoryId, sold, active, marked, personal, shipping, salesChannel, queue, tagReprint, noOrder }, env);
 
   const result = await dbListInventoryItems({
     categoryId,
@@ -59,6 +61,7 @@ export async function handleInventoryList(request: Request, env: Env): Promise<R
     shipping,
     salesChannel,
     tagReprint,
+    noOrder,
     page,
     limit,
     sortBy,

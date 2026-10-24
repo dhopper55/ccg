@@ -7,6 +7,7 @@ import { SHOP_BASE_PATH, ACTIVITY_BASE_URL } from '../constants.js';
 
 import { toPublicShopImageUrl } from '../utils/image.js';
 import { sendBrevoOrderConfirmationEmailForOrder } from './email.js';
+import { dbRecordCheckoutOrderPayments } from './manual.js';
 import {
   dbGetOrderStatus,
   dbGetOrderIdByStripeCheckoutSessionId,
@@ -486,6 +487,7 @@ export async function dbMarkManualCheckoutOrderPaid(
       taxIncluded: input.taxIncluded,
     }),
   }, env);
+  await dbRecordCheckoutOrderPayments(orderId, { cardMethod: 'cash', externalRef: '' }, env);
 
   await sendBrevoOrderConfirmationEmailForOrder(orderId, env);
 }
@@ -533,6 +535,10 @@ export async function dbMarkTerminalCheckoutOrderPaid(orderId: string, paymentIn
       cashAmountCents: numberOrZero(paymentIntent?.metadata?.cash_amount_cents),
       totalCents: numberOrZero(paymentIntent?.metadata?.total_cents),
     }),
+  }, env);
+  await dbRecordCheckoutOrderPayments(orderId, {
+    cardMethod: 'stripe_terminal',
+    externalRef: normalizeText(paymentIntent?.id, ''),
   }, env);
 
   await sendBrevoOrderConfirmationEmailForOrder(orderId, env);
@@ -743,6 +749,10 @@ export async function dbMarkStripeCheckoutOrderPaid(orderId: string, session: an
       paymentStatus: normalizeText(session?.payment_status, ''),
       ...splitTenderPayload,
     }),
+  }, env);
+  await dbRecordCheckoutOrderPayments(orderId, {
+    cardMethod: 'stripe_checkout',
+    externalRef: normalizeText(session?.payment_intent, '') || normalizeText(session?.id, ''),
   }, env);
 
   await sendBrevoOrderConfirmationEmailForOrder(orderId, env);

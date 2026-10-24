@@ -250,3 +250,7 @@ export const DEFAULT_TEXT = {
   seller_fixes_add_value_or_waste: 'Minor setup and cleaning can help; major repairs may not pay off.',
   seller_as_is_notes: 'Sell as-is if repair costs exceed value gains.',
 };
+
+// Manual orders went live on this date; items sold before it are never expected to have
+// an order (the Inventory Manager "Sold, no order" filter only looks from here forward).
+export const MANUAL_ORDERS_START_DATE = '2026-10-23';

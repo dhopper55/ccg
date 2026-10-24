@@ -1,4 +1,5 @@
 import type { Env } from '../env.js';
+import { MANUAL_ORDERS_START_DATE } from '../constants.js';
 import { normalizeText } from '../utils/text.js';
 import type { InventoryItemRow, InventoryItemImageRow } from '../types/inventory.js';
 import { INVENTORY_UNIT_COST_BASIS_SQL } from '../types/inventory.js';
@@ -52,6 +53,7 @@ export type InventoryListFilters = {
   shipping: InventoryTriState;
   salesChannel: InventorySalesChannelFilter;
   tagReprint: boolean;
+  noOrder: boolean;
   page: number;
   limit: number;
   sortBy: InventorySortKey;
@@ -134,7 +136,7 @@ export function inventoryOrderBySql(sortBy: InventorySortKey, sortDir: Inventory
   }
 }
 
-export function inventoryFilterClause(filters: Pick<InventoryListFilters, 'categoryId' | 'brand' | 'queue' | 'sold' | 'active' | 'marked' | 'personal' | 'shipping' | 'salesChannel' | 'tagReprint'>): { sql: string; binds: unknown[] } {
+export function inventoryFilterClause(filters: Pick<InventoryListFilters, 'categoryId' | 'brand' | 'queue' | 'sold' | 'active' | 'marked' | 'personal' | 'shipping' | 'salesChannel' | 'tagReprint' | 'noOrder'>): { sql: string; binds: unknown[] } {
   const clauses: string[] = ['1 = 1'];
   const binds: unknown[] = [];
 
@@ -201,6 +203,13 @@ export function inventoryFilterClause(filters: Pick<InventoryListFilters, 'categ
   }
   if (filters.tagReprint) {
     clauses.push('COALESCE(i.tag_reprint, 0) = 1');
+  }
+  // Sold since manual orders went live, but not on any (non-cancelled) order yet.
+  if (filters.noOrder) {
+    clauses.push(`COALESCE(i.is_sold, 0) = 1 AND COALESCE(i.sold_date, '') >= ? AND NOT EXISTS (
+      SELECT 1 FROM order_items oi JOIN orders o ON o.id = oi.order_id
+      WHERE oi.inventory_item_id = i.id AND o.status NOT IN ('cancelled', 'canceled', 'expired', 'checkout_open', 'refunded'))`);
+    binds.push(MANUAL_ORDERS_START_DATE);
   }
   return {
     sql: clauses.join(' AND '),
@@ -374,7 +383,7 @@ export async function dbListInventoryItems(
 }
 
 export async function dbListInventoryBrands(
-  filters: Pick<InventoryListFilters, 'categoryId' | 'sold' | 'active' | 'marked' | 'personal' | 'shipping' | 'salesChannel' | 'queue' | 'tagReprint'>,
+  filters: Pick<InventoryListFilters, 'categoryId' | 'sold' | 'active' | 'marked' | 'personal' | 'shipping' | 'salesChannel' | 'queue' | 'tagReprint' | 'noOrder'>,
   env: Env,
 ): Promise<string[]> {
   const clause = inventoryFilterClause({ ...filters, brand: '' });

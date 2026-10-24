@@ -15,6 +15,7 @@ import dayjs from 'dayjs';
 import useNumberFormat from 'hooks/useNumberFormat';
 import { formatOrderNumber } from 'lib/utils';
 import paths from 'routes/paths';
+import { orderChannelLabel } from 'lib/orderLabels';
 import IconifyIcon from 'components/base/IconifyIcon';
 import DataGridPagination from 'components/pagination/DataGridPagination';
 import PageBreadcrumb from 'components/sections/common/PageBreadcrumb';
@@ -36,6 +37,11 @@ type AdminOrderSummary = {
   listingsUpdated: boolean;
   settled: boolean;
   moneyAccounted: boolean;
+  channel: string;
+  // null for orders from before payments were tracked
+  feeCents: number | null;
+  netCents: number | null;
+  payoutStatus: 'pending' | 'received' | null;
 };
 
 type OrdersResponse = {
@@ -58,7 +64,11 @@ const getPaymentStatusBadgeColor = (value: string): ChipOwnProps['color'] => {
 };
 
 const paymentIcon = (provider: string) =>
-  provider === 'cash' ? 'material-symbols:payments-outline-rounded' : 'material-symbols:credit-card-outline';
+  provider === 'cash'
+    ? 'material-symbols:payments-outline-rounded'
+    : provider === 'manual'
+      ? 'material-symbols:edit-note-outline-rounded'
+      : 'material-symbols:credit-card-outline';
 
 const OrderManager = () => {
   const { currencyFormat } = useNumberFormat();
@@ -122,6 +132,25 @@ const OrderManager = () => {
         valueFormatter: (value) => (value ? dayjs(value).format('MMM D, YYYY h:mm A') : '—'),
       },
       {
+        field: 'channel',
+        headerName: 'Channel',
+        minWidth: 120,
+        valueFormatter: (value: string) => orderChannelLabel(value),
+      },
+      {
+        field: 'itemTitle',
+        headerName: 'Items',
+        minWidth: 220,
+        flex: 1,
+        renderCell: (params) => (
+          <Tooltip title={params.row.itemTitle}>
+            <Typography variant="body2" noWrap>
+              {params.row.itemTitle || '—'}
+            </Typography>
+          </Tooltip>
+        ),
+      },
+      {
         field: 'customerName',
         headerName: 'Customer',
         width: 120,
@@ -172,6 +201,31 @@ const OrderManager = () => {
         headerName: 'Total',
         minWidth: 132,
         renderCell: (params) => <strong>{currencyFormat(params.row.totalCents / 100)}</strong>,
+      },
+      {
+        field: 'feeCents',
+        headerName: 'Fees',
+        minWidth: 110,
+        renderCell: (params) => (params.row.feeCents == null ? '—' : currencyFormat(params.row.feeCents / 100)),
+      },
+      {
+        field: 'netCents',
+        headerName: 'Net',
+        minWidth: 120,
+        renderCell: (params) => (params.row.netCents == null ? '—' : <strong>{currencyFormat(params.row.netCents / 100)}</strong>),
+      },
+      {
+        field: 'payoutStatus',
+        headerName: 'Payout',
+        minWidth: 120,
+        renderCell: (params) => (params.row.payoutStatus ? (
+          <Chip
+            label={params.row.payoutStatus}
+            variant="soft"
+            color={params.row.payoutStatus === 'received' ? 'success' : 'warning'}
+            sx={{ textTransform: 'capitalize' }}
+          />
+        ) : '—'),
       },
     ],
     [currencyFormat],

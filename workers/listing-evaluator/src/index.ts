@@ -176,6 +176,12 @@ import {
   handleAdminV2PaymentLinkCreate,
   handleAdminV2PaymentLinkDeactivate,
 } from './payment-links/handlers.js';
+import {
+  handleAdminV2ManualOrderCreate,
+  handleAdminV2OrderPicker,
+  handleAdminV2OrderAttachItem,
+  handleAdminV2InventoryItemOrder,
+} from './orders/manual.js';
 
 // MFR Orders
 import {
@@ -827,6 +833,28 @@ export default {
 
     if (path === '/api/admin-v2/orders' && request.method === 'GET') {
       const response = await handleAdminV2Orders(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/orders/manual' && request.method === 'POST') {
+      const response = await handleAdminV2ManualOrderCreate(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/orders/picker' && request.method === 'GET') {
+      const response = await handleAdminV2OrderPicker(request, env);
+      return withCors(response, request, env);
+    }
+
+    const adminV2OrderAttachItemMatch = path.match(/^\/api\/admin-v2\/orders\/([^/]+)\/items$/);
+    if (adminV2OrderAttachItemMatch && request.method === 'POST') {
+      const response = await handleAdminV2OrderAttachItem(request, decodeURIComponent(adminV2OrderAttachItemMatch[1]), env);
+      return withCors(response, request, env);
+    }
+
+    const adminV2InventoryItemOrderMatch = path.match(/^\/api\/admin-v2\/inventory\/(\d+)\/order$/);
+    if (adminV2InventoryItemOrderMatch && request.method === 'GET') {
+      const response = await handleAdminV2InventoryItemOrder(adminV2InventoryItemOrderMatch[1], env);
       return withCors(response, request, env);
     }
 
