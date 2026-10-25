@@ -23,6 +23,7 @@ import {
 import Grid from '@mui/material/Grid';
 import { useSnackbar } from 'notistack';
 import { ORDER_CHANNEL_OPTIONS, PAYMENT_METHOD_OPTIONS, orderChannelLabel, logOrderUi } from 'lib/orderLabels';
+import { parseUsAddress } from 'lib/parseUsAddress';
 
 // Shown after an item is marked sold (or from the "Create / attach order" button):
 // put the sale on a new order, or add it to an existing one, along with how it was paid.
@@ -146,6 +147,8 @@ export default function SoldOrderDialog({ open, item, onClose, onDone }: Props) 
   const [fulfillmentType, setFulfillmentType] = useState<'pickup' | 'ship'>('pickup');
   const [shipping, setShipping] = useState({ line1: '', line2: '', city: '', state: '', postalCode: '' });
   const [notes, setNotes] = useState('');
+  const [addressPaste, setAddressPaste] = useState('');
+  const [addressPasteStatus, setAddressPasteStatus] = useState<'idle' | 'filled' | 'unreadable'>('idle');
   const [payment, setPayment] = useState<PaymentDraft>(() => buildPaymentDraft(item, DEFAULT_METHOD_BY_CHANNEL[initialChannel] || 'cash'));
   const [paymentChoice, setPaymentChoice] = useState<'new' | 'covered'>('new');
 
@@ -178,6 +181,8 @@ export default function SoldOrderDialog({ open, item, onClose, onDone }: Props) 
     setFulfillmentType('pickup');
     setShipping({ line1: '', line2: '', city: '', state: '', postalCode: '' });
     setNotes('');
+    setAddressPaste('');
+    setAddressPasteStatus('idle');
     setPayment(buildPaymentDraft(item, DEFAULT_METHOD_BY_CHANNEL[nextChannel] || 'cash'));
     setPaymentChoice('new');
     setPickerQuery('');
@@ -224,6 +229,30 @@ export default function SoldOrderDialog({ open, item, onClose, onDone }: Props) 
   const feeCents = payment.feeTouched ? toCents(payment.fee) : estimatedFeeCents;
   const netCents = grossCents - taxCents - feeCents;
   const needsPayment = mode === 'new' || paymentChoice === 'new';
+
+  // Paste an FBM / Reverb name + address block and fill the name and address fields from it.
+  const handleAddressPaste = (text: string) => {
+    setAddressPaste(text);
+    if (!text.trim()) {
+      setAddressPasteStatus('idle');
+      return;
+    }
+    const parsed = parseUsAddress(text);
+    logOrderUi('dialog.address_paste', { parsed: Boolean(parsed), lineCount: text.split(/\r?\n/).filter((line) => line.trim()).length });
+    if (!parsed) {
+      setAddressPasteStatus('unreadable');
+      return;
+    }
+    setCustomerName(parsed.name);
+    setShipping({
+      line1: parsed.line1,
+      line2: parsed.line2,
+      city: parsed.city,
+      state: parsed.state,
+      postalCode: parsed.postalCode,
+    });
+    setAddressPasteStatus('filled');
+  };
 
   const updatePayment = (patch: Partial<PaymentDraft>) => setPayment((current) => ({ ...current, ...patch }));
 
@@ -475,6 +504,26 @@ export default function SoldOrderDialog({ open, item, onClose, onDone }: Props) 
 
               {fulfillmentType === 'ship' ? (
                 <Grid container spacing={2}>
+                  <Grid size={12}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      multiline
+                      minRows={3}
+                      label="Paste name & address"
+                      placeholder={'Copy the name and shipping address from the FBM or Reverb order and paste it here'}
+                      value={addressPaste}
+                      onChange={(event) => handleAddressPaste(event.target.value)}
+                      error={addressPasteStatus === 'unreadable'}
+                      helperText={
+                        addressPasteStatus === 'filled'
+                          ? 'Filled in the customer name and address. Check them below.'
+                          : addressPasteStatus === 'unreadable'
+                            ? "Couldn't find a \"City, ST ZIP\" line. Fill in the fields below."
+                            : ' '
+                      }
+                    />
+                  </Grid>
                   <Grid size={{ xs: 12, sm: 8 }}>
                     <TextField fullWidth size="small" label="Street" value={shipping.line1} onChange={(event) => setShipping((s) => ({ ...s, line1: event.target.value }))} />
                   </Grid>
