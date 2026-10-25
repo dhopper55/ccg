@@ -24,8 +24,13 @@ const CARRIERS: Record<string, { label: string; path: string; background: string
   },
 };
 
+// EasyPost account names vary ("FedExDefault", "UPSDAP"); match on the carrier prefix.
 export function carrierKey(carrier: string): string {
-  return carrier.trim().toLowerCase();
+  const value = carrier.trim().toLowerCase();
+  if (value.startsWith('usps')) return 'usps';
+  if (value.startsWith('fedex')) return 'fedex';
+  if (value.startsWith('ups')) return 'ups';
+  return value;
 }
 
 export default function CarrierLogo({ carrier, size = 28 }: { carrier: string; size?: number }) {

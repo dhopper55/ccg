@@ -14,6 +14,17 @@ const EASYPOST_API = 'https://api.easypost.com/v2';
 const SHIPPED_STATUSES = ['purchased', 'manual'];
 const KNOWN_CARRIERS = ['USPS', 'UPS', 'FedEx'];
 
+// EasyPost carrier account names vary ("FedExDefault", "UPSDAP", "USPS"); group them into
+// the three carriers we ship with. Anything else (DHL eCommerce, Canada Post, export
+// accounts) returns null and is left out of quotes.
+export function carrierFamily(carrier: string): 'USPS' | 'UPS' | 'FedEx' | null {
+  const value = carrier.trim().toLowerCase();
+  if (value.startsWith('usps')) return 'USPS';
+  if (value.startsWith('fedex')) return 'FedEx';
+  if (value.startsWith('ups')) return 'UPS';
+  return null;
+}
+
 type ShipFrom = {
   name: string;
   company: string;
@@ -301,9 +312,11 @@ export async function handleAdminV2OrderShippingQuote(request: Request, orderId:
     if (!created.ok) return jsonResponse({ message: `Getting rates failed: ${created.message}` }, 502);
 
     const rates = (Array.isArray(created.data.rates) ? created.data.rates : [])
+      .filter((rate: any) => carrierFamily(normalizeText(rate.carrier, '')) != null)
       .map((rate: any) => ({
         id: normalizeText(rate.id, ''),
-        carrier: normalizeText(rate.carrier, ''),
+        carrier: carrierFamily(normalizeText(rate.carrier, '')) as string,
+        carrierAccount: normalizeText(rate.carrier, ''),
         service: normalizeText(rate.service, ''),
         rateCents: Math.round(Number(rate.rate) * 100),
         deliveryDays: rate.delivery_days == null ? null : Number(rate.delivery_days),
@@ -311,9 +324,10 @@ export async function handleAdminV2OrderShippingQuote(request: Request, orderId:
       }))
       .filter((rate: { rateCents: number }) => Number.isFinite(rate.rateCents))
       .sort((a: { rateCents: number }, b: { rateCents: number }) => a.rateCents - b.rateCents);
-    // Carrier-level problems (e.g. a carrier account not enabled) come back as messages.
+    // Carrier-level problems come back as messages; only USPS / UPS / FedEx ones matter here.
     const carrierMessages = (Array.isArray(created.data.messages) ? created.data.messages : [])
-      .map((m: any) => `${normalizeText(m?.carrier, '')}: ${normalizeText(m?.message, '')}`.replace(/^: /, ''))
+      .filter((m: any) => carrierFamily(normalizeText(m?.carrier, '')) != null)
+      .map((m: any) => `${carrierFamily(normalizeText(m?.carrier, ''))}: ${normalizeText(m?.message, '')}`)
       .filter(Boolean);
 
     const insert = await env.DB.prepare(
