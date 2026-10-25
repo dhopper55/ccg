@@ -20,7 +20,7 @@ import {
 import { toBooleanInput } from '../utils/misc.js';
 import { parseCurrencyAmount } from '../utils/money.js';
 import { createStripeFeeAdjustedRefund } from './refund.js';
-import { dbGetOrderPaymentTotals, dbListOrderPayments } from './manual.js';
+import { dbGetOrderPaymentTotals, dbListOrderPayments, logOrderFlow, describeError } from './manual.js';
 import { resolveOrderStripeCustomer, resolveStripePaymentMethodLabel, fetchStripeCheckoutSession } from './stripe.js';
 import { getStripeRuntimeConfig, getStripeRuntimeConfigForLivemode } from '../system/runtime.js';
 
@@ -105,6 +105,7 @@ export async function handleAdminV2Orders(request: Request, env: Env): Promise<R
   const orderIds = records.map((row) => normalizeText(row.id, '')).filter(Boolean);
   const itemCounts = await dbCountOrderItems(orderIds, env);
   const paymentTotals = await dbGetOrderPaymentTotals(orderIds, env);
+  logOrderFlow('order_list.loaded', { orderCount: orderIds.length, ordersWithPayments: paymentTotals.size });
   const enriched = await Promise.all(records.map(async (row) => {
     const stripeCustomer = await resolveOrderStripeCustomer(row, env);
     const orderId = normalizeText(row.id, '');
@@ -142,6 +143,13 @@ export async function handleAdminV2OrderDetail(orderId: string, env: Env): Promi
       ? 'See payments'
       : await resolveStripePaymentMethodLabel(normalizeText(order.stripePaymentIntentId, ''), env);
   const payments = await dbListOrderPayments(normalizedOrderId, env);
+  logOrderFlow('order_detail.loaded', {
+    orderId: normalizedOrderId,
+    checkoutType: normalizeText(rawOrder?.checkout_type, ''),
+    status: normalizeText(rawOrder?.status, ''),
+    itemCount: Array.isArray(order.items) ? order.items.length : null,
+    paymentCount: payments.length,
+  });
   const storedCostBasis = parseCurrencyAmount(rawOrder?.cost_basis_adjusted) ?? 0;
   const moneyAccounted = parseOrderBoolean(rawOrder?.money_accounted);
   const costBasisAdjusted = moneyAccounted || storedCostBasis > 0
@@ -270,6 +278,7 @@ export async function handleAdminV2OrderRefund(orderId: string, env: Env): Promi
     return jsonResponse({ message: 'Only paid orders can be refunded.' }, 409);
   }
   if (normalizeText(order.checkout_type, '') === 'manual') {
+    logOrderFlow('order.refund.blocked_manual', { orderId: normalizedOrderId }, 'warn');
     return jsonResponse({ message: 'Manual orders are refunded by marking the item unsold in inventory.' }, 409);
   }
 
@@ -331,7 +340,9 @@ export async function handleAdminV2OrderRefund(orderId: string, env: Env): Promi
   }, env);
   await env.DB.prepare(
     "UPDATE order_payments SET status = 'refunded', updated_at = CURRENT_TIMESTAMP WHERE order_id = ?"
-  ).bind(normalizedOrderId).run().catch((error) => console.error('Marking order payments refunded failed', { error }));
+  ).bind(normalizedOrderId).run()
+    .then((result: { meta?: { changes?: number } }) => logOrderFlow('order.refund.payments_marked_refunded', { orderId: normalizedOrderId, payments: Number(result.meta?.changes || 0) }))
+    .catch((error: unknown) => logOrderFlow('order.refund.payments_mark_failed', { orderId: normalizedOrderId, ...describeError(error) }, 'error'));
 
   await dbRecordOrderEvent(normalizedOrderId, {
     eventType: 'refund_succeeded',
@@ -382,6 +393,7 @@ export async function handleAdminV2OrderRollback(orderId: string, env: Env): Pro
 
   const status = normalizeText(order.status, '');
   if (normalizeText(order.checkout_type, '') === 'manual') {
+    logOrderFlow('order.rollback.blocked_manual', { orderId: normalizedOrderId, status }, 'warn');
     return jsonResponse({ message: 'Manual orders cannot be rolled back yet. Mark the item unsold in inventory instead.' }, 409);
   }
   const provider = normalizeText(order.checkout_provider, '') || (normalizeText(order.stripe_checkout_session_id, '') ? 'stripe' : 'cash');
@@ -413,7 +425,8 @@ export async function handleAdminV2OrderRollback(orderId: string, env: Env): Pro
   }
 
   await env.DB.prepare('DELETE FROM order_payments WHERE order_id = ?').bind(normalizedOrderId).run()
-    .catch((error) => console.error('Deleting order payments failed', { error }));
+    .then((result: { meta?: { changes?: number } }) => logOrderFlow('order.rollback.payments_deleted', { orderId: normalizedOrderId, payments: Number(result.meta?.changes || 0) }))
+    .catch((error: unknown) => logOrderFlow('order.rollback.payments_delete_failed', { orderId: normalizedOrderId, ...describeError(error) }, 'error'));
   await env.DB.prepare('DELETE FROM order_items WHERE order_id = ?').bind(normalizedOrderId).run();
   await env.DB.prepare('DELETE FROM order_events WHERE order_id = ?').bind(normalizedOrderId).run();
   await env.DB.prepare('DELETE FROM orders WHERE id = ?').bind(normalizedOrderId).run();

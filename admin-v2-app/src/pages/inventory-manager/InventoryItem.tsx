@@ -34,6 +34,7 @@ import IconifyIcon from 'components/base/IconifyIcon';
 import paths from 'routes/paths';
 import { downloadImagesAsZip } from 'lib/imageZip';
 import { formatOrderNumber } from 'lib/utils';
+import { logOrderUi } from 'lib/orderLabels';
 import ReverbListingWizard from './ReverbListingWizard';
 import SoldOrderDialog, { type SoldOrderDialogItem } from './SoldOrderDialog';
 
@@ -1725,9 +1726,10 @@ const InventoryItem = () => {
     fetch(`/api/admin-v2/inventory/${encodeURIComponent(editId)}/order`, { credentials: 'same-origin' })
       .then((response) => response.json())
       .then((data: { order?: { id: string; orderNumber: string } | null }) => {
+        logOrderUi('inventory.order_lookup', { inventoryItemId: editId, order: data.order ?? null });
         if (!cancelled) setItemOrder(data.order ?? null);
       })
-      .catch(() => {});
+      .catch((lookupError) => logOrderUi('inventory.order_lookup.failed', { inventoryItemId: editId, error: String(lookupError) }));
     return () => {
       cancelled = true;
     };
@@ -2412,6 +2414,15 @@ const InventoryItem = () => {
           ? `Duplicate submit prevented. Using existing item ${data.ccgNumber || ''}.`
           : `Created inventory item: ${data.ccgNumber || ''}.`;
       enqueueSnackbar(text, { variant: 'success' });
+      if (editId) {
+        logOrderUi('inventory.save.response', {
+          inventoryItemId: editId,
+          becameSold: data.becameSold ?? null,
+          soldId: data.soldId ?? null,
+          soldCcgNumber: data.soldCcgNumber ?? null,
+          willOpenOrderDialog: Boolean(data.becameSold && data.soldId),
+        });
+      }
       if (editId && data.becameSold && data.soldId) {
         setSoldOrderDialogItem({
           id: String(data.soldId),

@@ -8,6 +8,29 @@ import { normalizeText, normalizeEmailAddress } from '../utils/text.js';
 import { dbGetColumnNames, dbInsertFiltered, jsonResponse, numberOrZero, parseOptionalPositiveInt } from '../utils/misc.js';
 import { buildOrderNumber, dbRecordOrderEvent, dbUpdateTableById } from './db.js';
 
+// Verbose, structured logging for the manual-orders / order-payments code paths while the
+// feature is being validated with real sales. Every line is one JSON object tagged
+// "ccg-orders", so `wrangler tail --search ccg-orders` (or the dashboard log search)
+// shows the whole flow. Customer contact details are never logged, only whether present.
+export function logOrderFlow(event: string, data: Record<string, unknown> = {}, level: 'info' | 'warn' | 'error' = 'info'): void {
+  const line = JSON.stringify({ tag: 'ccg-orders', event, ...data });
+  if (level === 'error') console.error(line);
+  else if (level === 'warn') console.warn(line);
+  else console.log(line);
+}
+
+export function describeError(error: unknown): Record<string, unknown> {
+  return error instanceof Error
+    ? { errorMessage: error.message, errorStack: error.stack }
+    : { errorMessage: String(error) };
+}
+
+// Logs a rejected request and returns it, so validation exits stay one-liners.
+function reject(event: string, message: string, status: number, data: Record<string, unknown> = {}): Response {
+  logOrderFlow(event, { rejected: true, status, message, ...data }, 'warn');
+  return jsonResponse({ message, ...('orderId' in data ? { orderId: data.orderId } : {}) }, status);
+}
+
 
 const ORDER_CHANNELS = new Set([
   'fbm', 'reverb', 'ebay', 'cl', 'offerup', 'nextdoor', 'gear_exchange', 'ccg_web', 'in_store', 'other',
@@ -111,7 +134,16 @@ async function dbInsertOrderItemForSoldItem(orderId: string, item: SoldItemRow, 
   const unitCents = Math.round(lineTotalCents / quantity);
   const title = normalizeText(item.sale_title, '') || normalizeText(item.title, 'Item');
   const now = new Date().toISOString();
-  await dbInsertFiltered('order_items', {
+  logOrderFlow('order_item.insert', {
+    orderId,
+    inventoryItemId: item.id,
+    ccgNumber: item.ccg_number,
+    quantity,
+    soldAmount: item.sold_amount,
+    lineTotalCents,
+    unitCents,
+  });
+  const inserted = await dbInsertFiltered('order_items', {
     order_id: orderId,
     inventory_item_id: item.id,
     quantity,
@@ -142,6 +174,7 @@ async function dbInsertOrderItemForSoldItem(orderId: string, item: SoldItemRow, 
     created_at: now,
     updated_at: now,
   }, cols, env);
+  logOrderFlow('order_item.inserted', { orderId, inventoryItemId: item.id, orderItemId: inserted.last_row_id ?? null });
 }
 
 async function dbInsertOrderPayment(
@@ -152,7 +185,20 @@ async function dbInsertOrderPayment(
 ): Promise<void> {
   const netCents = payment.grossCents - payment.taxCents - payment.feeCents;
   const immediate = IMMEDIATE_PAYOUT_METHODS.has(payment.method);
-  await env.DB.prepare(
+  logOrderFlow('payment.insert', {
+    orderId,
+    inventoryItemId,
+    method: payment.method,
+    grossCents: payment.grossCents,
+    shippingChargedCents: payment.shippingChargedCents,
+    taxCents: payment.taxCents,
+    feeCents: payment.feeCents,
+    feeIsEstimate: payment.feeIsEstimate,
+    netCents,
+    payoutStatus: immediate ? 'received' : 'pending',
+    hasExternalRef: Boolean(payment.externalRef),
+  });
+  const result = await env.DB.prepare(
     `INSERT INTO order_payments (
        order_id, inventory_item_id, method, status, gross_cents, shipping_charged_cents, tax_cents,
        fee_cents, fee_is_estimate, net_cents, external_ref, paid_at, payout_status, payout_received_at, notes
@@ -173,6 +219,7 @@ async function dbInsertOrderPayment(
     immediate ? payment.paidAt : null,
     payment.notes || null,
   ).run();
+  logOrderFlow('payment.inserted', { orderId, paymentId: Number(result.meta?.last_row_id || 0) || null });
 }
 
 // Manual orders' header totals are derived from their items and payments.
@@ -206,6 +253,18 @@ export async function dbRecalculateManualOrderTotals(orderId: string, env: Env):
     : normalizeText(order?.fulfillment_type, '') === 'ship' ? '$0.00' : 'PICKUP';
   const first = rows[0];
   const firstTitle = normalizeText(first?.item_title_snapshot ?? first?.title_snapshot, 'Item');
+  logOrderFlow('order.recalculate', {
+    orderId,
+    itemCount: rows.length,
+    inventoryItemIds: rows.map((row) => Number(row.inventory_item_id)),
+    subtotalCents,
+    grossCents: numberOrZero(payments?.gross),
+    shippingChargedCents,
+    shippingLabel,
+    taxCents: numberOrZero(payments?.tax),
+    feeCents: numberOrZero(payments?.fees),
+    costBasis: Number(costBasis.toFixed(2)),
+  });
   await dbUpdateTableById('orders', orderId, {
     inventory_item_id: first ? Number(first.inventory_item_id) || null : null,
     item_title_snapshot: rows.length > 1 ? `${firstTitle} + ${rows.length - 1} more` : firstTitle,
@@ -240,25 +299,62 @@ async function readJson(request: Request): Promise<Record<string, unknown> | nul
 
 async function loadAttachableItem(body: Record<string, unknown>, env: Env): Promise<SoldItemRow | Response> {
   const itemId = parseOptionalPositiveInt(body.inventoryItemId);
-  if (!itemId) return jsonResponse({ message: 'Missing inventory item.' }, 400);
+  if (!itemId) return reject('item.load', 'Missing inventory item.', 400, { rawInventoryItemId: body.inventoryItemId ?? null });
   const item = await dbGetSoldItem(itemId, env);
-  if (!item) return jsonResponse({ message: 'Inventory item not found.' }, 404);
-  if (Number(item.is_sold || 0) !== 1) return jsonResponse({ message: 'Mark the item sold before adding it to an order.' }, 400);
+  if (!item) return reject('item.load', 'Inventory item not found.', 404, { inventoryItemId: itemId });
+  if (Number(item.is_sold || 0) !== 1) {
+    return reject('item.load', 'Mark the item sold before adding it to an order.', 400, { inventoryItemId: itemId, isSold: item.is_sold });
+  }
   const existingOrderId = await dbFindOrderIdForInventoryItem(itemId, env);
-  if (existingOrderId) return jsonResponse({ message: 'This item is already on an order.', orderId: existingOrderId }, 409);
+  if (existingOrderId) return reject('item.load', 'This item is already on an order.', 409, { inventoryItemId: itemId, orderId: existingOrderId });
+  logOrderFlow('item.loaded', {
+    inventoryItemId: item.id,
+    ccgNumber: item.ccg_number,
+    quantity: item.quantity,
+    soldAmount: item.sold_amount,
+    soldDate: item.sold_date,
+    soldChannel: item.sold_channel,
+  });
   return item;
 }
 
 // POST /api/admin-v2/orders/manual
 export async function handleAdminV2ManualOrderCreate(request: Request, env: Env): Promise<Response> {
   const body = await readJson(request);
-  if (!body) return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  if (!body) return reject('manual_order.create', 'Invalid JSON payload.', 400);
+  logOrderFlow('manual_order.create.request', {
+    inventoryItemId: body.inventoryItemId ?? null,
+    channel: body.channel ?? null,
+    hasChannelOrderRef: Boolean(normalizeText(body.channelOrderRef, '')),
+    fulfillmentType: body.fulfillmentType ?? null,
+    hasCustomerName: Boolean(normalizeText(body.customerName, '')),
+    hasCustomerEmail: Boolean(normalizeText(body.customerEmail, '')),
+    hasCustomerPhone: Boolean(normalizeText(body.customerPhone, '')),
+    hasNotes: Boolean(normalizeText(body.notes, '')),
+    payment: body.payment ?? null,
+  });
+  let orderId = '';
+  try {
+    return await createManualOrder(body, env, (id) => { orderId = id; });
+  } catch (error) {
+    logOrderFlow('manual_order.create.failed', { inventoryItemId: body.inventoryItemId ?? null, orderId: orderId || null, ...describeError(error) }, 'error');
+    return jsonResponse({
+      message: `Creating the order failed${orderId ? ` partway (order ${orderId})` : ''}: ${error instanceof Error ? error.message : String(error)}`,
+    }, 500);
+  }
+}
+
+async function createManualOrder(
+  body: Record<string, unknown>,
+  env: Env,
+  onOrderId: (orderId: string) => void,
+): Promise<Response> {
   const item = await loadAttachableItem(body, env);
   if (item instanceof Response) return item;
 
   const paidAt = normalizeText(item.sold_date, '') || new Date().toISOString();
   const payment = parsePaymentInput(body.payment, paidAt);
-  if ('error' in payment) return jsonResponse({ message: payment.error }, 400);
+  if ('error' in payment) return reject('manual_order.create', payment.error, 400, { inventoryItemId: item.id, payment: body.payment ?? null });
 
   const fulfillmentType = normalizeText(body.fulfillmentType, '') === 'ship' ? 'ship' : 'pickup';
   const shipping = (body.shipping && typeof body.shipping === 'object' ? body.shipping : {}) as Record<string, unknown>;
@@ -267,14 +363,28 @@ export async function handleAdminV2ManualOrderCreate(request: Request, env: Env)
   if (fulfillmentType === 'ship') {
     const missing = ['line1', 'city', 'state', 'postalCode'].filter((key) => !normalizeText(shipping[key], ''));
     if (!shipName || missing.length > 0) {
-      return jsonResponse({ message: 'Shipping orders need a name, street, city, state and ZIP.' }, 400);
+      return reject('manual_order.create', 'Shipping orders need a name, street, city, state and ZIP.', 400, {
+        inventoryItemId: item.id,
+        hasShipName: Boolean(shipName),
+        missingAddressFields: missing,
+      });
     }
   }
 
   const orderId = crypto.randomUUID();
+  onOrderId(orderId);
   const orderNumber = buildOrderNumber();
   const now = new Date().toISOString();
   const orderCols = await dbGetColumnNames('orders', env);
+  logOrderFlow('manual_order.insert', {
+    orderId,
+    orderNumber,
+    inventoryItemId: item.id,
+    channel: normalizeChannel(body.channel),
+    fulfillmentType,
+    paidAt,
+    hasChannelOrderRefColumn: orderCols.has('channel_order_ref'),
+  });
   await dbInsertFiltered('orders', {
     id: orderId,
     order_number: orderNumber,
@@ -325,26 +435,47 @@ export async function handleAdminV2ManualOrderCreate(request: Request, env: Env)
     payloadJson: JSON.stringify({ inventoryItemId: item.id, payment }),
   }, env);
 
+  logOrderFlow('manual_order.created', { orderId, orderNumber, inventoryItemId: item.id });
   return jsonResponse({ ok: true, orderId, orderNumber });
 }
 
 // POST /api/admin-v2/orders/:id/items
 export async function handleAdminV2OrderAttachItem(request: Request, orderId: string, env: Env): Promise<Response> {
   const normalizedOrderId = normalizeText(orderId, '').slice(0, 100);
+  try {
+    return await attachItemToOrder(request, normalizedOrderId, env);
+  } catch (error) {
+    logOrderFlow('order.attach_item.failed', { orderId: normalizedOrderId, ...describeError(error) }, 'error');
+    return jsonResponse({
+      message: `Adding the item to the order failed: ${error instanceof Error ? error.message : String(error)}`,
+    }, 500);
+  }
+}
+
+async function attachItemToOrder(request: Request, normalizedOrderId: string, env: Env): Promise<Response> {
   const order = await env.DB.prepare('SELECT id, order_number, status, checkout_type FROM orders WHERE id = ? LIMIT 1')
     .bind(normalizedOrderId).first<{ id: string; order_number: string; status: string; checkout_type: string }>();
-  if (!order) return jsonResponse({ message: 'Order not found.' }, 404);
-  if (order.status !== 'paid') return jsonResponse({ message: 'Items can only be added to a paid order.' }, 400);
+  if (!order) return reject('order.attach_item', 'Order not found.', 404, { orderId: normalizedOrderId });
+  if (order.status !== 'paid') {
+    return reject('order.attach_item', 'Items can only be added to a paid order.', 400, { orderId: order.id, orderStatus: order.status });
+  }
 
   const body = await readJson(request);
-  if (!body) return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  if (!body) return reject('order.attach_item', 'Invalid JSON payload.', 400, { orderId: order.id });
+  logOrderFlow('order.attach_item.request', {
+    orderId: order.id,
+    orderNumber: order.order_number,
+    checkoutType: order.checkout_type,
+    inventoryItemId: body.inventoryItemId ?? null,
+    payment: body.payment ?? null,
+  });
   const item = await loadAttachableItem(body, env);
   if (item instanceof Response) return item;
 
   let payment: PaymentInput | null = null;
   if (body.payment) {
     const parsed = parsePaymentInput(body.payment, normalizeText(item.sold_date, '') || new Date().toISOString());
-    if ('error' in parsed) return jsonResponse({ message: parsed.error }, 400);
+    if ('error' in parsed) return reject('order.attach_item', parsed.error, 400, { orderId: order.id, inventoryItemId: item.id, payment: body.payment });
     payment = parsed;
   }
 
@@ -352,6 +483,8 @@ export async function handleAdminV2OrderAttachItem(request: Request, orderId: st
   if (payment) await dbInsertOrderPayment(order.id, item.id, payment, env);
   if (order.checkout_type === 'manual') {
     await dbRecalculateManualOrderTotals(order.id, env);
+  } else {
+    logOrderFlow('order.attach_item.no_recalculate', { orderId: order.id, checkoutType: order.checkout_type });
   }
   await dbRecordOrderEvent(order.id, {
     eventType: 'manual_item_added',
@@ -363,6 +496,7 @@ export async function handleAdminV2OrderAttachItem(request: Request, orderId: st
     payloadJson: JSON.stringify({ inventoryItemId: item.id, payment }),
   }, env);
 
+  logOrderFlow('order.attach_item.done', { orderId: order.id, orderNumber: order.order_number, inventoryItemId: item.id, withPayment: Boolean(payment) });
   return jsonResponse({ ok: true, orderId: order.id, orderNumber: order.order_number });
 }
 
@@ -388,6 +522,7 @@ export async function handleAdminV2OrderPicker(request: Request, env: Env): Prom
      ORDER BY order_date DESC
      LIMIT 50`
   ).bind(...binds).all<Record<string, unknown>>();
+  logOrderFlow('order.picker', { query: q || null, resultCount: (result.results ?? []).length });
   return jsonResponse({
     records: (result.results ?? []).map((row: Record<string, unknown>) => ({
       id: normalizeText(row.id, ''),
@@ -406,6 +541,7 @@ export async function handleAdminV2InventoryItemOrder(itemId: string, env: Env):
   const id = parseOptionalPositiveInt(itemId);
   if (!id) return jsonResponse({ message: 'Missing inventory item.' }, 400);
   const orderId = await dbFindOrderIdForInventoryItem(id, env);
+  logOrderFlow('inventory.order_lookup', { inventoryItemId: id, orderId });
   if (!orderId) return jsonResponse({ order: null });
   const order = await env.DB.prepare('SELECT id, order_number, channel, status FROM orders WHERE id = ? LIMIT 1')
     .bind(orderId).first<Record<string, unknown>>();
@@ -427,6 +563,7 @@ export async function dbSyncManualOrderAfterInventorySave(
   change: { becameUnsold: boolean; isSold: boolean },
   env: Env,
 ): Promise<void> {
+  logOrderFlow('inventory_sync.start', { inventoryItemId: itemId, ...change });
   try {
     const link = await env.DB.prepare(
       `SELECT oi.id AS order_item_id, oi.order_id, oi.line_total_cents, oi.quantity
@@ -435,16 +572,28 @@ export async function dbSyncManualOrderAfterInventorySave(
        WHERE oi.inventory_item_id = ? AND o.checkout_type = 'manual' AND o.status = 'paid'
        ORDER BY oi.id DESC LIMIT 1`
     ).bind(itemId).first<{ order_item_id: number; order_id: string; line_total_cents: number; quantity: number }>();
-    if (!link) return;
+    if (!link) {
+      logOrderFlow('inventory_sync.skip', { inventoryItemId: itemId, reason: 'not on a paid manual order' });
+      return;
+    }
+    logOrderFlow('inventory_sync.linked', { inventoryItemId: itemId, ...link });
 
     if (change.becameUnsold) {
       await env.DB.prepare('DELETE FROM order_items WHERE id = ?').bind(link.order_item_id).run();
-      await env.DB.prepare(
+      const flagged = await env.DB.prepare(
         `UPDATE order_payments SET status = 'refund_needed', updated_at = CURRENT_TIMESTAMP
          WHERE order_id = ? AND inventory_item_id = ? AND status = 'received'`
       ).bind(link.order_id, itemId).run();
       const remaining = await env.DB.prepare('SELECT COUNT(*) AS n FROM order_items WHERE order_id = ?')
         .bind(link.order_id).first<{ n: number }>();
+      logOrderFlow('inventory_sync.unsold', {
+        inventoryItemId: itemId,
+        orderId: link.order_id,
+        removedOrderItemId: link.order_item_id,
+        paymentsFlaggedRefundNeeded: Number(flagged.meta?.changes || 0),
+        remainingItems: Number(remaining?.n || 0),
+        orderCancelled: Number(remaining?.n || 0) === 0,
+      });
       const now = new Date().toISOString();
       if (Number(remaining?.n || 0) === 0) {
         await dbUpdateTableById('orders', link.order_id, { status: 'cancelled', cancelled_at: now, updated_at: now }, env);
@@ -463,11 +612,26 @@ export async function dbSyncManualOrderAfterInventorySave(
       return;
     }
 
-    if (!change.isSold) return;
+    if (!change.isSold) {
+      logOrderFlow('inventory_sync.skip', { inventoryItemId: itemId, reason: 'item not sold' });
+      return;
+    }
     const item = await dbGetSoldItem(itemId, env);
-    if (!item) return;
+    if (!item) {
+      logOrderFlow('inventory_sync.skip', { inventoryItemId: itemId, reason: 'item not found' }, 'warn');
+      return;
+    }
     const lineTotalCents = soldLineTotalCents(item);
-    if (lineTotalCents === Number(link.line_total_cents || 0)) return;
+    if (lineTotalCents === Number(link.line_total_cents || 0)) {
+      logOrderFlow('inventory_sync.skip', { inventoryItemId: itemId, reason: 'sold amount unchanged', lineTotalCents });
+      return;
+    }
+    logOrderFlow('inventory_sync.price_change', {
+      inventoryItemId: itemId,
+      orderId: link.order_id,
+      fromLineTotalCents: Number(link.line_total_cents || 0),
+      toLineTotalCents: lineTotalCents,
+    });
     const quantity = Math.max(1, Number(link.quantity || 1));
     const unitCents = Math.round(lineTotalCents / quantity);
     const cols = await dbGetColumnNames('order_items', env);
@@ -485,7 +649,7 @@ export async function dbSyncManualOrderAfterInventorySave(
     ).bind(...setCols.map((col) => values[col]), link.order_item_id).run();
     await dbRecalculateManualOrderTotals(link.order_id, env);
   } catch (error) {
-    console.error('Manual order sync after inventory save failed', { itemId, error });
+    logOrderFlow('inventory_sync.failed', { inventoryItemId: itemId, ...change, ...describeError(error) }, 'error');
   }
 }
 
@@ -545,7 +709,7 @@ export async function dbGetOrderPaymentTotals(orderIds: string[], env: Env): Pro
       });
     }
   } catch (error) {
-    console.error('Order payment totals lookup failed', { error });
+    logOrderFlow('order_list.payment_totals_failed', { orderCount: orderIds.length, ...describeError(error) }, 'error');
   }
   return totals;
 }
@@ -562,12 +726,19 @@ export async function dbRecordCheckoutOrderPayments(
   input: { cardMethod: 'stripe_checkout' | 'stripe_link' | 'stripe_terminal' | 'cash'; externalRef: string },
   env: Env,
 ): Promise<void> {
+  logOrderFlow('checkout_payment.start', { orderId, cardMethod: input.cardMethod, hasExternalRef: Boolean(input.externalRef) });
   try {
     const existing = await env.DB.prepare('SELECT COUNT(*) AS n FROM order_payments WHERE order_id = ?')
       .bind(orderId).first<{ n: number }>();
-    if (Number(existing?.n || 0) > 0) return;
+    if (Number(existing?.n || 0) > 0) {
+      logOrderFlow('checkout_payment.skip', { orderId, reason: 'payments already recorded', existing: Number(existing?.n || 0) });
+      return;
+    }
     const order = await env.DB.prepare('SELECT * FROM orders WHERE id = ? LIMIT 1').bind(orderId).first<Record<string, unknown>>();
-    if (!order) return;
+    if (!order) {
+      logOrderFlow('checkout_payment.skip', { orderId, reason: 'order not found' }, 'warn');
+      return;
+    }
 
     const totalCents = numberOrZero(order.total_cents);
     const taxCents = numberOrZero(order.tax_cents) + numberOrZero(order.shipping_tax_cents);
@@ -588,6 +759,17 @@ export async function dbRecordCheckoutOrderPayments(
     if (cardCents > 0) parts.push({ method: cardMethod, cents: cardCents });
     if (cashCents > 0) parts.push({ method: 'cash', cents: cashCents });
     const partsTotal = parts.reduce((sum, part) => sum + part.cents, 0) || 1;
+    logOrderFlow('checkout_payment.split', {
+      orderId,
+      orderNumber: order.order_number,
+      checkoutMode: order.checkout_mode,
+      totalCents,
+      taxCents,
+      shippingCents,
+      cardCents,
+      cashCents,
+      parts,
+    });
 
     for (const part of parts) {
       const share = part.cents / partsTotal;
@@ -605,7 +787,8 @@ export async function dbRecordCheckoutOrderPayments(
         notes: '',
       }, env);
     }
+    logOrderFlow('checkout_payment.done', { orderId, paymentCount: parts.length });
   } catch (error) {
-    console.error('Recording checkout order payment failed', { orderId, error });
+    logOrderFlow('checkout_payment.failed', { orderId, ...describeError(error) }, 'error');
   }
 }

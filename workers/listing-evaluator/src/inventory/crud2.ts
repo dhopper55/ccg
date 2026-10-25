@@ -30,7 +30,7 @@ import {
   extractShippingLabelFee,
 } from './reverb-listing.js';
 import { reverbRequestHeaders } from '../pricing/reverb.js';
-import { dbSyncManualOrderAfterInventorySave } from '../orders/manual.js';
+import { dbSyncManualOrderAfterInventorySave, logOrderFlow } from '../orders/manual.js';
 import { REVERB_SEARCH_API_URL } from '../constants.js';
 
 export async function handleInventoryUpdate(request: Request, path: string, env: Env): Promise<Response> {
@@ -617,6 +617,15 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       },
     });
 
+    logOrderFlow('inventory_save.sold_split', {
+      sourceInventoryItemId: recordId,
+      soldInventoryItemId: soldInsert.firstId,
+      soldCcgNumber,
+      quantitySold: qtySold,
+      quantityRemaining: remainingQuantity,
+      soldAmount,
+      soldChannel: soldChannel || null,
+    });
     return jsonResponse({
       ok: true,
       becameSold: true,
@@ -786,6 +795,15 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
     },
   });
 
+  if (becameSold || previousIsSold !== isSold) {
+    logOrderFlow('inventory_save.sold_state', {
+      inventoryItemId: recordId,
+      becameSold,
+      becameUnsold: previousIsSold && !isSold,
+      soldAmount,
+      soldChannel: soldChannel || null,
+    });
+  }
   await dbSyncManualOrderAfterInventorySave(
     Number.parseInt(recordId, 10),
     { becameUnsold: previousIsSold && !isSold, isSold },

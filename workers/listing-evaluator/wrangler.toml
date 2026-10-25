@@ -13,6 +13,11 @@ routes = [
   { pattern = "https://www.coalcreekguitars.com/guitars-and-gear-for-sale/*", zone_name = "coalcreekguitars.com" },
 ]
 
+# Keep console logs (e.g. the "ccg-orders" manual-orders trail) searchable in the
+# dashboard under Workers & Pages > ccg-listing-evaluator > Logs.
+[observability]
+enabled = true
+
 [vars]
 APIFY_FACEBOOK_ACTOR = "apify/facebook-marketplace-scraper"
 APIFY_CRAIGSLIST_ACTOR = "ivanvs/craigslist-scraper"
