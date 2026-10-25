@@ -284,7 +284,8 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
   // live on Reverb, end that listing so it can't also sell there, and clear the local link so
   // the Reverb checkbox reflects reality. Same fail-closed behavior as the other Reverb syncs:
   // if ending it fails, stop the save and surface the error rather than silently drifting.
-  if (becameSold) {
+  // A partial-quantity sale leaves stock for sale, so the listing stays up.
+  if (becameSold && qtySold >= quantity) {
     const reverbListingIdToEnd = (current as { reverbListingId?: unknown }).reverbListingId;
     if (reverbListingIdToEnd) {
       const ended = await endReverbListing(String(reverbListingIdToEnd), env);
@@ -496,8 +497,11 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       is_custom: isCustom ? 1 : 0,
       for_sale: 0,
       only_in_store: onlyInStore ? 1 : 0,
-      fb_listing_id: fbListingId,
       ...salesChannelFields,
+      // The sold copy was never listed anywhere itself; the FBM / Reverb listings stay with
+      // the remaining stock.
+      fb_listing_id: null,
+      sales_channel_reverb: 0,
       for_sale_date: null,
       is_sold: 1,
       sold_date: soldDate,

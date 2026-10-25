@@ -2311,12 +2311,14 @@ const InventoryItem = () => {
     }
   };
 
+  const isFullQuantitySale = form.qtySold >= form.quantity;
+
   const handleSubmitWithSoldCheck = () => {
     if (isSubmitting) return;
     // If toggling sold on for the first time, confirm first. An active FBM
     // listing has to be marked sold on Facebook before we clear it here.
     if (form.isSold && !wasSoldOnLoad) {
-      if (form.fbListingId.trim()) {
+      if (form.fbListingId.trim() && isFullQuantitySale) {
         setFbmSoldWarningOpen(true);
       } else {
         setSoldConfirmOpen(true);
@@ -2394,8 +2396,9 @@ const InventoryItem = () => {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           ...createSavePayload(images),
-          // Marking sold ends the FBM listing (confirmed via the FBM warning dialog).
-          ...(form.isSold && !wasSoldOnLoad ? { fbListingId: null } : {}),
+          // Selling the last unit ends the FBM listing (confirmed via the FBM warning dialog);
+          // a partial-quantity sale leaves it up for the remaining stock.
+          ...(form.isSold && !wasSoldOnLoad && isFullQuantitySale ? { fbListingId: null } : {}),
         }),
         credentials: 'same-origin',
       });
@@ -4686,7 +4689,7 @@ const InventoryItem = () => {
         <DialogContent>
           <DialogContentText>
             You are about to mark this item sold. Parts of this process cannot be undone. Proceed?
-            {form.reverbListingId ? ' The active Reverb listing will be deleted as part of this save.' : ''}
+            {form.reverbListingId && isFullQuantitySale ? ' The active Reverb listing will be deleted as part of this save.' : ''}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
