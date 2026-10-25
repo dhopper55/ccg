@@ -1,5 +1,4 @@
 import type { Env } from '../env.js';
-import { logOrderFlow } from '../orders/manual.js';
 import { normalizeText } from '../utils/text.js';
 import { jsonResponse } from '../utils/misc.js';
 import { dbListInventoryItems } from './db-core.js';
@@ -46,7 +45,6 @@ export async function handleInventoryList(request: Request, env: Env): Promise<R
   const tagReprint = tagReprintParam === '1' || tagReprintParam === 'true' || tagReprintParam === 'yes';
   const noOrderParam = url.searchParams.get('noOrder');
   const noOrder = noOrderParam === '1' || noOrderParam === 'true' || noOrderParam === 'yes';
-  if (noOrder) logOrderFlow('inventory_list.sold_no_order_filter', { sold, active, page, limit });
   const sortBy = parseInventorySortKey(url.searchParams.get('sortBy'));
   const sortDir = parseInventorySortDir(url.searchParams.get('sortDir'));
 

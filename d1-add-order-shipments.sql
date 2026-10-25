@@ -1,129 +1,79 @@
--- PROPOSAL (not yet applied): EasyPost shipping labels from CCG admin.
+-- Shipping phase 1 (quote + manual tracking). Replaces the earlier draft of this file.
 --
--- A shipment hangs off an order when one exists (CCG site / POS / terminal sales).
--- Reverb / FBM / other-channel sales never create an orders row, so those shipments
--- hang off the inventory item instead. At least one of the two must be set.
--- Money is in cents to match orders / order_items.
+-- EasyPost API keys are Worker secrets (EASYPOST_API_KEY_TEST / EASYPOST_API_KEY_PROD),
+-- never stored here. sys_info only holds the test/prod toggle and the ship-from address.
 
--- One row per label attempt. Voided labels stay as history; a re-ship is a new row.
+ALTER TABLE sys_info ADD COLUMN use_easypost_test INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE sys_info ADD COLUMN ship_from_name TEXT;
+ALTER TABLE sys_info ADD COLUMN ship_from_company TEXT;
+ALTER TABLE sys_info ADD COLUMN ship_from_street1 TEXT;
+ALTER TABLE sys_info ADD COLUMN ship_from_street2 TEXT;
+ALTER TABLE sys_info ADD COLUMN ship_from_city TEXT;
+ALTER TABLE sys_info ADD COLUMN ship_from_state TEXT;
+ALTER TABLE sys_info ADD COLUMN ship_from_zip TEXT;
+ALTER TABLE sys_info ADD COLUMN ship_from_phone TEXT;
+
+UPDATE sys_info SET
+  ship_from_name = 'Coal Creek Guitars',
+  ship_from_company = 'Coal Creek Guitars',
+  ship_from_street1 = '4109 S Sherman St',
+  ship_from_street2 = 'Suite B',
+  ship_from_city = 'Englewood',
+  ship_from_state = 'CO',
+  ship_from_zip = '80113',
+  ship_from_phone = '3033769214'
+WHERE id = 1;
+
+-- One row per shipment attempt on an order.
+--   quoted    = EasyPost shipment created, rates returned (nothing bought)
+--   purchased = label bought through EasyPost (next phase)
+--   manual    = tracking entered by hand for a label bought elsewhere
+-- An order counts as shipped when it has a purchased/manual shipment with a tracking code.
 CREATE TABLE order_shipments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  order_id TEXT REFERENCES orders(id) ON DELETE SET NULL,
-  inventory_item_id INTEGER REFERENCES ccg_inventory_items(id) ON DELETE SET NULL,
-  sales_channel TEXT NOT NULL,                 -- 'ccg' | 'reverb' | 'fbm' | 'ebay' | 'other'
-  channel_order_ref TEXT,                      -- e.g. Reverb order number, used to mark shipped
-  status TEXT NOT NULL DEFAULT 'draft',        -- draft | rated | purchased | in_transit | delivered | voided | refund_pending | error
-  is_test INTEGER NOT NULL DEFAULT 0,          -- 1 = created with the EasyPost test key
+  order_id TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  status TEXT NOT NULL,                        -- 'quoted' | 'purchased' | 'manual' | 'voided'
+  is_test INTEGER NOT NULL DEFAULT 0,          -- created with the EasyPost test key
 
-  -- Destination
-  to_name TEXT NOT NULL,
-  to_company TEXT,
-  to_street1 TEXT NOT NULL,
-  to_street2 TEXT,
-  to_city TEXT NOT NULL,
-  to_state TEXT NOT NULL,
-  to_zip TEXT NOT NULL,
-  to_country TEXT NOT NULL DEFAULT 'US',
-  to_phone TEXT,
-  to_email TEXT,
-  to_residential INTEGER,                      -- set by EasyPost address verification
-  to_verified INTEGER NOT NULL DEFAULT 0,
-  easypost_to_address_id TEXT,
-
-  -- Origin (snapshot of ship_from_addresses at quote time)
-  from_address_id INTEGER REFERENCES ship_from_addresses(id),
-
-  -- Parcel
-  package_preset_id INTEGER REFERENCES shipping_package_presets(id) ON DELETE SET NULL,
+  -- Package
+  template_id INTEGER REFERENCES shipping_package_templates(id) ON DELETE SET NULL,
   length_in REAL,
   width_in REAL,
   height_in REAL,
-  weight_oz REAL NOT NULL,
+  weight_oz REAL,
+  signature_confirmation INTEGER NOT NULL DEFAULT 0,
+  ship_date TEXT,                              -- YYYY-MM-DD the label is for
 
-  -- Options
-  signature_confirmation TEXT,                 -- NULL | 'SIGNATURE' | 'ADULT_SIGNATURE'
-  insured_value_cents INTEGER,                 -- NULL = carrier default coverage only
-
-  -- EasyPost shipment + chosen rate
+  -- EasyPost
   easypost_shipment_id TEXT,
-  easypost_rate_id TEXT,
-  carrier TEXT,                                -- 'USPS' | 'UPS' | 'FedEx'
-  service TEXT,                                -- 'GroundAdvantage' | 'Ground' | ...
-  rate_cents INTEGER,                          -- label cost
-  insurance_cents INTEGER,
-  delivery_days INTEGER,
+  to_address_verified INTEGER,                 -- 1 / 0 / NULL (not checked)
+  to_address_residential INTEGER,
+  verification_message TEXT,
+  rates_json TEXT,                             -- rates returned at quote time
 
-  -- Label + tracking
+  -- Label / tracking
+  carrier TEXT,                                -- 'USPS' | 'UPS' | 'FedEx' | other
+  service TEXT,
   tracking_code TEXT,
-  tracking_url TEXT,
-  label_url TEXT,                              -- EasyPost-hosted label file
-  label_format TEXT,                           -- 'PDF' | 'PNG' | 'ZPL'
-  label_size TEXT,                             -- '4x6' | '8.5x11'
-  easypost_tracker_id TEXT,
-  tracking_status TEXT,                        -- latest EasyPost tracker status
-  estimated_delivery_at TIMESTAMP,
-  delivered_at TIMESTAMP,
+  label_cost_cents INTEGER,                    -- comes off the order's net payout
+  label_url TEXT,
+  notes TEXT,
 
-  -- Post-purchase
-  channel_marked_shipped_at TIMESTAMP,         -- when tracking was pushed to Reverb / CCG order
-  refund_status TEXT,                          -- NULL | 'submitted' | 'refunded' | 'rejected'
-  error_message TEXT,
-
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  purchased_at TIMESTAMP,
-
-  CHECK (order_id IS NOT NULL OR inventory_item_id IS NOT NULL)
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  shipped_at TEXT
 );
 CREATE INDEX idx_order_shipments_order ON order_shipments(order_id);
-CREATE INDEX idx_order_shipments_item ON order_shipments(inventory_item_id);
 CREATE INDEX idx_order_shipments_tracking ON order_shipments(tracking_code);
-CREATE INDEX idx_order_shipments_ep_shipment ON order_shipments(easypost_shipment_id);
 
--- Tracking webhook history + our own actions (rated, purchased, voided, marked shipped).
-CREATE TABLE order_shipment_events (
+-- Saved package presets, e.g. "Guitar box 45x18x6, 15 lb".
+CREATE TABLE shipping_package_templates (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  shipment_id INTEGER NOT NULL REFERENCES order_shipments(id) ON DELETE CASCADE,
-  event_type TEXT NOT NULL,                    -- 'rated' | 'purchased' | 'tracker.updated' | 'voided' | 'channel_marked_shipped' | 'error'
-  status TEXT,
-  message TEXT,
-  source TEXT NOT NULL,                        -- 'admin_v2' | 'easypost_webhook'
-  payload_json TEXT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX idx_order_shipment_events_shipment ON order_shipment_events(shipment_id);
-
--- Box presets so a quote is usually "pick a preset". category_id lets a category
--- (e.g. Electric Guitars) default to its usual box.
-CREATE TABLE shipping_package_presets (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,                          -- 'Electric guitar box'
+  name TEXT NOT NULL,
   length_in REAL NOT NULL,
   width_in REAL NOT NULL,
   height_in REAL NOT NULL,
-  weight_oz REAL NOT NULL,                     -- typical packed weight; editable per shipment
-  category_id INTEGER,
-  sort_order INTEGER NOT NULL DEFAULT 0,
-  is_active INTEGER NOT NULL DEFAULT 1,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Ship-from address(es). Normally one row with is_default = 1.
-CREATE TABLE ship_from_addresses (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  company TEXT,
-  street1 TEXT NOT NULL,
-  street2 TEXT,
-  city TEXT NOT NULL,
-  state TEXT NOT NULL,
-  zip TEXT NOT NULL,
-  country TEXT NOT NULL DEFAULT 'US',
-  phone TEXT NOT NULL,
-  email TEXT,
-  easypost_address_id TEXT,
-  is_default INTEGER NOT NULL DEFAULT 0,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  weight_oz REAL NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

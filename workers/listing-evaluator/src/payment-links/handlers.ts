@@ -1,5 +1,4 @@
 import type { Env } from '../env.js';
-import { logOrderFlow } from '../orders/manual.js';
 import type { InventoryItemRow } from '../types/inventory.js';
 import { jsonResponse, normalizeText, toBooleanInput, parseOptionalPositiveInt } from '../utils/misc.js';
 import { toPublicShopImageUrl } from '../utils/image.js';
@@ -132,7 +131,6 @@ const PAYMENT_LINK_CREATION_PAUSED = true;
 
 export async function handleAdminV2PaymentLinkCreate(request: Request, env: Env): Promise<Response> {
   if (PAYMENT_LINK_CREATION_PAUSED) {
-    logOrderFlow('payment_link.create.blocked_paused', {}, 'warn');
     return jsonResponse({ message: 'Creating payment links is paused for now.' }, 403);
   }
   const stripeConfig = await getStripeRuntimeConfig(env);

@@ -18,6 +18,9 @@ export interface Env {
   STRIPE_CO_SALES_TAX_RATE_ID?: string;
   STRIPE_TERMINAL_READER_ID?: string;
   STRIPE_TERMINAL_READER_ID_SANDBOX?: string;
+  // EasyPost shipping labels; sys_info.use_easypost_test picks which key is used.
+  EASYPOST_API_KEY_TEST?: string;
+  EASYPOST_API_KEY_PROD?: string;
   WEBHOOK_SECRET?: string;
   LISTING_JOBS: KVNamespace;
   GOOGLE_MAPS_API_KEY?: string;

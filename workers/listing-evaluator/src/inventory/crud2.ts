@@ -30,7 +30,7 @@ import {
   extractShippingLabelFee,
 } from './reverb-listing.js';
 import { reverbRequestHeaders } from '../pricing/reverb.js';
-import { dbSyncManualOrderAfterInventorySave, logOrderFlow } from '../orders/manual.js';
+import { dbSyncManualOrderAfterInventorySave, logOrderError } from '../orders/manual.js';
 import { REVERB_SEARCH_API_URL } from '../constants.js';
 
 export async function handleInventoryUpdate(request: Request, path: string, env: Env): Promise<Response> {
@@ -524,7 +524,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       await env.DB.prepare('UPDATE ccg_inventory_items SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
         .bind(quantity, recordIdNum).run()
         .catch((error: unknown) => console.error('Restoring quantity after failed split sale failed', { recordId, error }));
-      logOrderFlow('inventory_save.sold_split_failed', { sourceInventoryItemId: recordId, restoredQuantity: quantity, qtySold }, 'error');
+      logOrderError('inventory_save.sold_split_failed', { sourceInventoryItemId: recordId, restoredQuantity: quantity, qtySold });
       return jsonResponse({ message: 'Unable to create the sold copy of this item. Quantity was left unchanged.' }, 500);
     }
     const soldCloneOk = await dbUpdateInventoryById(soldInsert.firstId, {
@@ -623,12 +623,12 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
         env.DB.prepare('UPDATE ccg_inventory_items SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
           .bind(quantity, recordIdNum),
       ]).catch((error: unknown) => console.error('Undoing failed split sale failed', { recordId, error }));
-      logOrderFlow('inventory_save.sold_split_failed', {
+      logOrderError('inventory_save.sold_split_failed', {
         sourceInventoryItemId: recordId,
         deactivatedSoldCopyId: soldInsert.firstId,
         restoredQuantity: quantity,
         qtySold,
-      }, 'error');
+      });
       return jsonResponse({ message: 'Unable to finish the sold copy of this item. Quantity was left unchanged.' }, 500);
     }
     await dbSetInventorySoldAvailability(soldInsert.firstId, true, env);
@@ -658,15 +658,6 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       },
     });
 
-    logOrderFlow('inventory_save.sold_split', {
-      sourceInventoryItemId: recordId,
-      soldInventoryItemId: soldInsert.firstId,
-      soldCcgNumber,
-      quantitySold: qtySold,
-      quantityRemaining: remainingQuantity,
-      soldAmount,
-      soldChannel: soldChannel || null,
-    });
     return jsonResponse({
       ok: true,
       becameSold: true,
@@ -836,15 +827,6 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
     },
   });
 
-  if (becameSold || previousIsSold !== isSold) {
-    logOrderFlow('inventory_save.sold_state', {
-      inventoryItemId: recordId,
-      becameSold,
-      becameUnsold: previousIsSold && !isSold,
-      soldAmount,
-      soldChannel: soldChannel || null,
-    });
-  }
   await dbSyncManualOrderAfterInventorySave(
     Number.parseInt(recordId, 10),
     { becameUnsold: previousIsSold && !isSold, isSold },

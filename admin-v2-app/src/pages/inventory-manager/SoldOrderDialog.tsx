@@ -22,7 +22,7 @@ import {
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import { useSnackbar } from 'notistack';
-import { ORDER_CHANNEL_OPTIONS, PAYMENT_METHOD_OPTIONS, orderChannelLabel, logOrderUi } from 'lib/orderLabels';
+import { ORDER_CHANNEL_OPTIONS, PAYMENT_METHOD_OPTIONS, orderChannelLabel } from 'lib/orderLabels';
 import { parseUsAddress } from 'lib/parseUsAddress';
 
 // Shown after an item is marked sold (or from the "Create / attach order" button):
@@ -164,14 +164,6 @@ export default function SoldOrderDialog({ open, item, onClose, onDone }: Props) 
   useEffect(() => {
     if (!open) return;
     const nextChannel = SOLD_CHANNEL_TO_ORDER_CHANNEL[item?.soldChannel || ''] || 'other';
-    logOrderUi('dialog.open', {
-      inventoryItemId: item?.id,
-      ccgNumber: item?.ccgNumber,
-      soldAmount: item?.soldAmount,
-      soldChannel: item?.soldChannel,
-      mappedChannel: nextChannel,
-      defaultMethod: DEFAULT_METHOD_BY_CHANNEL[nextChannel] || 'cash',
-    });
     setMode('new');
     setChannel(nextChannel);
     setChannelOrderRef('');
@@ -204,13 +196,9 @@ export default function SoldOrderDialog({ open, item, onClose, onDone }: Props) 
           signal: controller.signal,
         });
         const data = (await response.json().catch(() => ({}))) as { records?: PickerOrder[] };
-        logOrderUi('picker.loaded', { query: pickerQuery.trim() || null, status: response.status, count: data.records?.length ?? 0 });
         setPickerOptions(Array.isArray(data.records) ? data.records : []);
-      } catch (pickerError) {
+      } catch {
         // aborted or offline; keep the previous options
-        if (!(pickerError instanceof DOMException && pickerError.name === 'AbortError')) {
-          logOrderUi('picker.failed', { query: pickerQuery.trim() || null, error: String(pickerError) });
-        }
       } finally {
         setPickerLoading(false);
       }
@@ -238,7 +226,6 @@ export default function SoldOrderDialog({ open, item, onClose, onDone }: Props) 
       return;
     }
     const parsed = parseUsAddress(text);
-    logOrderUi('dialog.address_paste', { parsed: Boolean(parsed), lineCount: text.split(/\r?\n/).filter((line) => line.trim()).length });
     if (!parsed) {
       setAddressPasteStatus('unreadable');
       return;
@@ -274,34 +261,21 @@ export default function SoldOrderDialog({ open, item, onClose, onDone }: Props) 
   const handleSave = async () => {
     if (!item || isSaving) return;
     setError('');
-    logOrderUi('dialog.save.click', {
-      mode,
-      inventoryItemId: item.id,
-      selectedOrderId: selectedOrder?.id ?? null,
-      paymentChoice,
-      needsPayment,
-      payment: needsPayment ? paymentPayload : null,
-      netCents,
-    });
     if (needsPayment && grossCents <= 0) {
       setError('Enter what the buyer paid.');
-      logOrderUi('dialog.save.invalid', { reason: 'no payment amount' });
       return;
     }
     if (needsPayment && netCents < 0) {
       setError('Fees and tax are more than the payment.');
-      logOrderUi('dialog.save.invalid', { reason: 'negative net', grossCents, taxCents, feeCents });
       return;
     }
     if (mode === 'existing' && !selectedOrder) {
       setError('Pick the order to add this item to.');
-      logOrderUi('dialog.save.invalid', { reason: 'no order selected' });
       return;
     }
     if (mode === 'new' && fulfillmentType === 'ship'
       && (!customerName.trim() || !shipping.line1.trim() || !shipping.city.trim() || !shipping.state.trim() || !shipping.postalCode.trim())) {
       setError('Shipping orders need a name, street, city, state and ZIP.');
-      logOrderUi('dialog.save.invalid', { reason: 'incomplete shipping address' });
       return;
     }
 
@@ -334,7 +308,6 @@ export default function SoldOrderDialog({ open, item, onClose, onDone }: Props) 
         body: JSON.stringify(body),
       });
       const data = (await response.json().catch(() => ({}))) as { ok?: boolean; orderId?: string; orderNumber?: string; message?: string };
-      logOrderUi('dialog.save.response', { endpoint, status: response.status, data });
       if (!response.ok || !data.ok || !data.orderId) {
         throw new Error(data.message || 'Unable to save the order.');
       }
@@ -344,7 +317,6 @@ export default function SoldOrderDialog({ open, item, onClose, onDone }: Props) 
       );
       onDone({ orderId: data.orderId, orderNumber: data.orderNumber || '' });
     } catch (saveError) {
-      logOrderUi('dialog.save.failed', { error: saveError instanceof Error ? saveError.message : String(saveError) });
       setError(saveError instanceof Error ? saveError.message : 'Unable to save the order.');
     } finally {
       setIsSaving(false);
@@ -615,7 +587,6 @@ export default function SoldOrderDialog({ open, item, onClose, onDone }: Props) 
       <DialogActions>
         <Button
           onClick={() => {
-            logOrderUi('dialog.skip', { inventoryItemId: item?.id });
             onClose();
           }}
           disabled={isSaving}

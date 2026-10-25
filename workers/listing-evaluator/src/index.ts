@@ -182,6 +182,14 @@ import {
   handleAdminV2OrderAttachItem,
   handleAdminV2InventoryItemOrder,
 } from './orders/manual.js';
+import {
+  handleAdminV2OrderShippingQuote,
+  handleAdminV2OrderShippingManual,
+  handleAdminV2ShippingTemplates,
+  handleAdminV2ShippingTemplateCreate,
+  handleAdminV2EasyPostConfig,
+  handleAdminV2EasyPostConfigUpdate,
+} from './orders/shipping.js';
 
 // MFR Orders
 import {
@@ -838,6 +846,35 @@ export default {
 
     if (path === '/api/admin-v2/orders/manual' && request.method === 'POST') {
       const response = await handleAdminV2ManualOrderCreate(request, env);
+      return withCors(response, request, env);
+    }
+
+    const adminV2OrderShippingMatch = path.match(/^\/api\/admin-v2\/orders\/([^/]+)\/shipping\/(quote|manual)$/);
+    if (adminV2OrderShippingMatch && request.method === 'POST') {
+      const orderId = decodeURIComponent(adminV2OrderShippingMatch[1]);
+      const response = adminV2OrderShippingMatch[2] === 'quote'
+        ? await handleAdminV2OrderShippingQuote(request, orderId, env)
+        : await handleAdminV2OrderShippingManual(request, orderId, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/shipping/templates' && request.method === 'GET') {
+      const response = await handleAdminV2ShippingTemplates(env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/shipping/templates' && request.method === 'POST') {
+      const response = await handleAdminV2ShippingTemplateCreate(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/easypost-config' && request.method === 'GET') {
+      const response = await handleAdminV2EasyPostConfig(env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/easypost-config' && request.method === 'POST') {
+      const response = await handleAdminV2EasyPostConfigUpdate(request, env);
       return withCors(response, request, env);
     }
 

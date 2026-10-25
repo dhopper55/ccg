@@ -35,9 +35,3 @@ export function orderChannelLabel(value: string): string {
 export function paymentMethodLabel(value: string): string {
   return PAYMENT_METHOD_OPTIONS.find((option) => option.value === value)?.label || value || '—';
 }
-
-// Verbose browser-console logging for the manual-orders UI while it is being validated
-// (matches the Worker's "ccg-orders" log tag). Filter the console on "ccg-orders".
-export function logOrderUi(event: string, data: Record<string, unknown> = {}): void {
-  console.info('[ccg-orders]', event, data);
-}

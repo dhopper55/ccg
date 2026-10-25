@@ -1,5 +1,6 @@
 import { ChangeEvent, useEffect, useState } from 'react';
 import { Alert, Box, Button, Divider, FormControlLabel, Paper, Stack, Switch, Tab, Tabs, TextField, Typography } from '@mui/material';
+import EasyPostSettings from './EasyPostSettings';
 import { useSnackbar } from 'notistack';
 import IconifyIcon from 'components/base/IconifyIcon';
 import PageHeader from 'components/sections/ecommerce/admin/common/PageHeader';
@@ -514,6 +515,8 @@ const SystemSettings = () => {
             disabled={isLoading || isSaving}
             onChange={(e) => setStripePublishableKey(e.target.value)}
           />
+          <EasyPostSettings />
+          <Divider />
           <TextField
             fullWidth
             required

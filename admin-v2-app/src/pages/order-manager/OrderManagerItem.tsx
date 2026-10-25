@@ -27,6 +27,7 @@ import { ensureStarWebPrntGlobals } from 'lib/starWebPrntShim';
 import { useNavigate, useSearchParams } from 'react-router';
 import paths from 'routes/paths';
 import { orderChannelLabel, paymentMethodLabel } from 'lib/orderLabels';
+import OrderShippingPanel, { type OrderShippingSummary } from './OrderShippingPanel';
 import IconifyIcon from 'components/base/IconifyIcon';
 import PageBreadcrumb from 'components/sections/common/PageBreadcrumb';
 
@@ -104,7 +105,8 @@ type AdminOrderDetail = {
   fulfillmentType?: string;
   notes?: string;
   payments?: AdminOrderPayment[];
-  paymentTotals?: { grossCents: number; feeCents: number; taxCents: number; netCents: number } | null;
+  paymentTotals?: { grossCents: number; feeCents: number; taxCents: number; labelCostCents?: number; netCents: number } | null;
+  shipping?: OrderShippingSummary | null;
   events: Array<{
     id: string | number;
     message: string;
@@ -832,6 +834,9 @@ const OrderManagerItem = () => {
                 {order.paymentTotals ? (
                   <PriceSummaryRow label="Fees" value={-order.paymentTotals.feeCents / 100} />
                 ) : null}
+                {order.paymentTotals && order.paymentTotals.labelCostCents ? (
+                  <PriceSummaryRow label="Shipping label" value={-order.paymentTotals.labelCostCents / 100} />
+                ) : null}
                 {order.paymentTotals ? (
                   <Stack sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
                     <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
@@ -952,6 +957,21 @@ const OrderManagerItem = () => {
                 </Stack>
               )}
             </Box>
+            {order.shipping?.needsShipping ? (
+              <OrderShippingPanel
+                orderId={order.orderId}
+                shipping={order.shipping}
+                shipTo={{
+                  name: order.customer.name,
+                  line1: order.customer.shippingAddressLine1,
+                  line2: order.customer.shippingAddressLine2,
+                  city: order.customer.shippingAddressCity,
+                  state: order.customer.shippingAddressState,
+                  postalCode: order.customer.shippingAddressPostalCode,
+                }}
+                onChanged={() => void loadOrder({ silent: true })}
+              />
+            ) : null}
             <Box sx={{ p: { xs: 3, md: 4, lg: 5 } }}>
               <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>
                 Payment
