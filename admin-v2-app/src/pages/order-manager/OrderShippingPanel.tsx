@@ -38,6 +38,7 @@ export type OrderShippingShipment = {
   trackingCode: string;
   trackingUrl: string | null;
   labelCostCents: number | null;
+  hasLabel?: boolean;
   shippedAt: string;
 };
 
@@ -120,7 +121,36 @@ export default function OrderShippingPanel({
   const { enqueueSnackbar } = useSnackbar();
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const shipment = shipping.shipment;
+
+  // Downloads the label PDF (served through CCG, named after the tracking number).
+  const downloadLabel = async () => {
+    if (isDownloading) return;
+    setIsDownloading(true);
+    try {
+      const response = await fetch(`/api/admin-v2/orders/${encodeURIComponent(orderId)}/shipping/label`, { credentials: 'same-origin' });
+      if (!response.ok) {
+        const data = (await response.json().catch(() => ({}))) as { message?: string };
+        throw new Error(data.message || 'Unable to download the label.');
+      }
+      const blob = await response.blob();
+      const filename = response.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1]
+        || `label-${shipment?.trackingCode || orderId}.pdf`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (downloadError) {
+      enqueueSnackbar(downloadError instanceof Error ? downloadError.message : 'Unable to download the label.', { variant: 'error' });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   const copyTracking = () => {
     if (!shipment?.trackingCode) return;
@@ -171,6 +201,18 @@ export default function OrderShippingPanel({
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
               Label cost {formatCents(shipment.labelCostCents)}
             </Typography>
+          ) : null}
+          {shipment.hasLabel ? (
+            <Button
+              variant="outlined"
+              size="small"
+              sx={{ alignSelf: 'flex-start', mt: 0.5 }}
+              disabled={isDownloading}
+              onClick={() => void downloadLabel()}
+              startIcon={isDownloading ? <CircularProgress size={16} color="inherit" /> : <IconifyIcon icon="material-symbols:print-outline-rounded" />}
+            >
+              Print Label
+            </Button>
           ) : null}
         </Stack>
       ) : (

@@ -186,6 +186,7 @@ import {
   handleAdminV2OrderShippingQuote,
   handleAdminV2OrderShippingManual,
   handleAdminV2OrderShippingBuy,
+  handleAdminV2OrderShippingLabel,
   handleAdminV2ShippingTemplates,
   handleAdminV2ShippingTemplateCreate,
   handleAdminV2EasyPostConfig,
@@ -859,6 +860,12 @@ export default {
         : action === 'buy'
           ? await handleAdminV2OrderShippingBuy(request, orderId, env)
           : await handleAdminV2OrderShippingManual(request, orderId, env);
+      return withCors(response, request, env);
+    }
+
+    const adminV2OrderLabelMatch = path.match(/^\/api\/admin-v2\/orders\/([^/]+)\/shipping\/label$/);
+    if (adminV2OrderLabelMatch && request.method === 'GET') {
+      const response = await handleAdminV2OrderShippingLabel(decodeURIComponent(adminV2OrderLabelMatch[1]), env);
       return withCors(response, request, env);
     }
 

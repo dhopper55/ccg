@@ -144,6 +144,7 @@ function mapShipment(row: Record<string, unknown>): Record<string, unknown> {
     trackingCode,
     trackingUrl: carrierTrackingUrl(carrier, trackingCode),
     labelCostCents: row.label_cost_cents == null ? null : numberOrZero(row.label_cost_cents),
+    hasLabel: Boolean(normalizeText(row.label_url, '')),
     lengthIn: row.length_in == null ? null : Number(row.length_in),
     widthIn: row.width_in == null ? null : Number(row.width_in),
     heightIn: row.height_in == null ? null : Number(row.height_in),
@@ -466,6 +467,42 @@ export async function handleAdminV2OrderShippingBuy(request: Request, orderId: s
   } catch (error) {
     logOrderError('shipping.buy.failed', { orderId, ...describeError(error) });
     return jsonResponse({ message: `Buying the label failed: ${error instanceof Error ? error.message : String(error)}` }, 500);
+  }
+}
+
+// ---- Label download --------------------------------------------------------------------
+
+// GET /api/admin-v2/orders/:id/shipping/label
+// Streams the shipped label's PDF back as a download. EasyPost hosts label files on S3, which
+// a browser won't download (with a filename) straight from a cross-origin link.
+export async function handleAdminV2OrderShippingLabel(orderId: string, env: Env): Promise<Response> {
+  try {
+    const shipment = await env.DB.prepare(
+      `SELECT id, carrier, tracking_code, label_url FROM order_shipments
+       WHERE order_id = ? AND status = 'purchased' AND COALESCE(label_url, '') <> ''
+       ORDER BY id DESC LIMIT 1`
+    ).bind(normalizeText(orderId, '').slice(0, 100)).first<Record<string, unknown>>();
+    if (!shipment) return jsonResponse({ message: 'This order has no label to download.' }, 404);
+
+    const labelUrl = normalizeText(shipment.label_url, '');
+    const file = await fetch(labelUrl);
+    if (!file.ok) {
+      logOrderError('shipping.label_download_failed', { orderId, shipmentId: shipment.id, status: file.status });
+      return jsonResponse({ message: `Could not fetch the label file (HTTP ${file.status}).` }, 502);
+    }
+    const tracking = normalizeText(shipment.tracking_code, '').replace(/[^A-Za-z0-9]/g, '') || String(shipment.id);
+    const extension = (labelUrl.split('?')[0].match(/\.(pdf|png|zpl)$/i)?.[1] || 'pdf').toLowerCase();
+    return new Response(file.body, {
+      status: 200,
+      headers: {
+        'content-type': file.headers.get('content-type') || (extension === 'pdf' ? 'application/pdf' : 'application/octet-stream'),
+        'content-disposition': `attachment; filename="label-${normalizeText(shipment.carrier, 'carrier')}-${tracking}.${extension}"`,
+        'cache-control': 'no-store',
+      },
+    });
+  } catch (error) {
+    logOrderError('shipping.label_download_failed', { orderId, ...describeError(error) });
+    return jsonResponse({ message: `Downloading the label failed: ${error instanceof Error ? error.message : String(error)}` }, 500);
   }
 }
 
