@@ -323,7 +323,7 @@ export default function SoldOrderDialog({ open, item, onClose, onDone }: Props) 
   };
 
   const paymentSection = (
-    <Stack spacing={2}>
+    <Stack direction="column" spacing={2}>
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
@@ -407,7 +407,7 @@ export default function SoldOrderDialog({ open, item, onClose, onDone }: Props) 
     <Dialog open={open} onClose={() => !isSaving && onClose()} fullWidth maxWidth="md">
       <DialogTitle>Create an order for this sale?</DialogTitle>
       <DialogContent dividers>
-        <Stack spacing={2.5}>
+        <Stack direction="column" spacing={2.5}>
           {item ? (
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
               {item.ccgNumber ? `${item.ccgNumber} · ` : ''}{item.title}
@@ -417,6 +417,7 @@ export default function SoldOrderDialog({ open, item, onClose, onDone }: Props) 
           <ToggleButtonGroup
             exclusive
             size="small"
+            sx={{ alignSelf: 'flex-start' }}
             value={mode}
             onChange={(_event, next) => next && setMode(next)}
           >
@@ -464,6 +465,7 @@ export default function SoldOrderDialog({ open, item, onClose, onDone }: Props) 
               <ToggleButtonGroup
                 exclusive
                 size="small"
+                sx={{ alignSelf: 'flex-start' }}
                 value={fulfillmentType}
                 onChange={(_event, next) => next && setFulfillmentType(next)}
               >
@@ -520,7 +522,7 @@ export default function SoldOrderDialog({ open, item, onClose, onDone }: Props) 
                 getOptionLabel={(option) => `${option.orderNumber} · ${option.customerName || 'Customer'}`}
                 renderOption={(props, option) => (
                   <Box component="li" {...props} key={option.id}>
-                    <Stack>
+                    <Stack direction="column">
                       <Typography variant="body2">
                         {formatPickerDate(option.date)} · {option.customerName || 'Customer'} · {orderChannelLabel(option.channel)}
                       </Typography>
