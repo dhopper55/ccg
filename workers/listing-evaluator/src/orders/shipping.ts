@@ -415,16 +415,26 @@ export async function handleAdminV2OrderShippingBuy(request: Request, orderId: s
     const trackingCode = normalizeText(bought.data.tracking_code, '');
     const carrier = carrierFamily(normalizeText(selected.carrier, '')) || normalizeText(selected.carrier, '') || quotedRate.carrier;
     const service = normalizeText(selected.service, '') || quotedRate.service;
-    const paidCents = Number.isFinite(Number(selected.rate)) ? Math.round(Number(selected.rate) * 100) : quotedRate.rateCents;
+    // What EasyPost actually billed is in `fees` (postage + label + insurance). selected_rate.rate
+    // can be re-rated by the carrier after purchase (seen with FedEx) and isn't the charge.
+    const chargedFees = (Array.isArray(bought.data.fees) ? bought.data.fees : [])
+      .filter((fee: any) => fee?.charged === true && fee?.refunded !== true);
+    const feesCents = chargedFees.reduce((sum: number, fee: any) => sum + Math.round(Number(fee?.amount || 0) * 100), 0);
+    const selectedRateCents = Number.isFinite(Number(selected.rate)) ? Math.round(Number(selected.rate) * 100) : null;
+    const paidCents = chargedFees.length > 0 ? feesCents : selectedRateCents ?? quotedRate.rateCents;
+    // Keep the carrier's post-purchase rate on record when it differs from what was charged.
+    const reratedNote = selectedRateCents != null && selectedRateCents !== paidCents
+      ? `Quoted $${(quotedRate.rateCents / 100).toFixed(2)}, charged $${(paidCents / 100).toFixed(2)}; carrier rate after purchase $${(selectedRateCents / 100).toFixed(2)}.`
+      : '';
     const labelUrl = normalizeText(bought.data.postage_label?.label_url, '');
     const now = new Date().toISOString();
 
     await env.DB.prepare(
       `UPDATE order_shipments
        SET status = 'purchased', carrier = ?, service = ?, tracking_code = ?, label_cost_cents = ?,
-           label_url = ?, shipped_at = ?, updated_at = ?
+           label_url = ?, notes = ?, shipped_at = ?, updated_at = ?
        WHERE id = ?`
-    ).bind(carrier, service, trackingCode || null, paidCents, labelUrl || null, now, now, shipmentId).run();
+    ).bind(carrier, service, trackingCode || null, paidCents, labelUrl || null, reratedNote || null, now, now, shipmentId).run();
     await dbRecordOrderEvent(normalizeText(order.id, ''), {
       eventType: 'shipment_purchased',
       fromStatus: normalizeText(order.status, ''),
@@ -432,7 +442,19 @@ export async function handleAdminV2OrderShippingBuy(request: Request, orderId: s
       source: 'admin_v2',
       sourceId: easypostShipmentId,
       message: `${config.useTest ? '[TEST] ' : ''}Bought ${carrier} ${service} label for $${(paidCents / 100).toFixed(2)}, tracking ${trackingCode || '(none)'}.`,
-      payloadJson: JSON.stringify({ shipmentId, easypostShipmentId, rateId, carrier, service, paidCents, trackingCode, isTest: config.useTest }),
+      payloadJson: JSON.stringify({
+        shipmentId,
+        easypostShipmentId,
+        rateId,
+        carrier,
+        service,
+        quotedCents: quotedRate.rateCents,
+        paidCents,
+        selectedRateCents,
+        fees: chargedFees.map((fee: any) => ({ type: fee?.type, amount: fee?.amount })),
+        trackingCode,
+        isTest: config.useTest,
+      }),
     }, env);
 
     if (!trackingCode) {
