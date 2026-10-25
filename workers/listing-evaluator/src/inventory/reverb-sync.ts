@@ -11,6 +11,24 @@ import {
   generateUniqueCcgNumber,
 } from './db-write.js';
 import { fetchReverbSellingOrders, endReverbListing, extractShippingLabelFee } from './reverb-listing.js';
+import { dbCreateOrderFromReverbSale, logOrderError, describeError } from '../orders/manual.js';
+
+// Creates the CCG order for a sale the sync just recorded. Never fails the sync: a problem
+// is reported on that item's result so the order can be made by hand.
+async function createOrderForReverbSale(
+  inventoryItemId: string,
+  order: Record<string, unknown>,
+  env: Env,
+): Promise<{ orderNumber: string | null; orderError: string | null }> {
+  try {
+    const result = await dbCreateOrderFromReverbSale(Number.parseInt(inventoryItemId, 10), order, env);
+    if (!result.ok) return { orderNumber: null, orderError: result.message };
+    return { orderNumber: result.orderNumber, orderError: null };
+  } catch (error) {
+    logOrderError('reverb_sync.order_create_failed', { inventoryItemId, ...describeError(error) });
+    return { orderNumber: null, orderError: error instanceof Error ? error.message : String(error) };
+  }
+}
 
 function extractOrderQuantity(order: Record<string, unknown>): number {
   const raw = order.quantity;
@@ -206,6 +224,8 @@ async function splitAndMarkPartialReverbSale(
     queue: 'Sold',
     storage_location: (s.storageLocation as string) || null,
     is_active: s.isActive ? 1 : 0,
+    // Bound without a fallback by dbUpdateInventoryById; leaving it out made D1 reject the update.
+    is_custom: s.isCustom ? 1 : 0,
     is_marked: 0,
     is_personal: s.isPersonal ? 1 : 0,
     is_consignment: s.isConsignment ? 1 : 0,
@@ -422,7 +442,9 @@ export async function handleReverbSyncSoldCommit(_request: Request, env: Env): P
         });
         continue;
       }
+      const splitOrder = await createOrderForReverbSale(split.newInventoryId, order, env);
       processed.push({
+        ...splitOrder,
         inventoryId: candidate.id,
         newInventoryId: split.newInventoryId,
         ccgNumber: candidate.ccgNumber,
@@ -462,8 +484,10 @@ export async function handleReverbSyncSoldCommit(_request: Request, env: Env): P
       continue;
     }
     await dbSetInventorySoldAvailability(candidate.id, true, env);
+    const fullOrder = await createOrderForReverbSale(candidate.id, order, env);
 
     processed.push({
+      ...fullOrder,
       inventoryId: candidate.id,
       ccgNumber: candidate.ccgNumber,
       title: candidate.title,

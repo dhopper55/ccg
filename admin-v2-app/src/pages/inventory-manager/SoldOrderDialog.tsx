@@ -74,30 +74,6 @@ const DEFAULT_METHOD_BY_CHANNEL: Record<string, string> = {
   ccg_web: 'stripe_checkout',
 };
 
-// Typical fees, in cents, on what the buyer paid. Pre-filled as an estimate; editable.
-function estimateFeeCents(method: string, grossCents: number): number {
-  if (grossCents <= 0) return 0;
-  switch (method) {
-    case 'reverb':
-      return Math.round(grossCents * (0.05 + 0.0319)) + 49;
-    case 'fbm':
-      return Math.max(80, Math.round(grossCents * 0.1));
-    case 'ebay':
-      return Math.round(grossCents * 0.1325) + 30;
-    case 'stripe_link':
-    case 'stripe_checkout':
-      return Math.round(grossCents * 0.029) + 30;
-    case 'stripe_terminal':
-      return Math.round(grossCents * 0.027) + 5;
-    case 'paypal':
-      return Math.round(grossCents * 0.0349) + 49;
-    case 'venmo':
-      return Math.round(grossCents * 0.019) + 10;
-    default:
-      return 0;
-  }
-}
-
 function toCents(value: string): number {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed * 100) : 0;
@@ -114,22 +90,20 @@ function formatPickerDate(value: string): string {
 
 type PaymentDraft = {
   method: string;
-  amount: string;
+  payout: string;
   shipping: string;
   tax: string;
   fee: string;
-  feeTouched: boolean;
   externalRef: string;
 };
 
 function buildPaymentDraft(item: SoldOrderDialogItem | null, method: string): PaymentDraft {
   return {
     method,
-    amount: item?.soldAmount || '',
+    payout: item?.soldAmount || '',
     shipping: '',
     tax: '',
     fee: '',
-    feeTouched: false,
     externalRef: '',
   };
 }
@@ -209,13 +183,14 @@ export default function SoldOrderDialog({ open, item, onClose, onDone }: Props) 
     };
   }, [open, mode, pickerQuery]);
 
-  const amountCents = toCents(payment.amount);
+  // Entered as the payout: what lands in the bank after platform fees. Fees are optional
+  // and only used to show what the buyer paid.
+  const payoutCents = toCents(payment.payout);
   const shippingCents = toCents(payment.shipping);
   const taxCents = toCents(payment.tax);
-  const grossCents = amountCents + shippingCents + taxCents;
-  const estimatedFeeCents = estimateFeeCents(payment.method, grossCents);
-  const feeCents = payment.feeTouched ? toCents(payment.fee) : estimatedFeeCents;
-  const netCents = grossCents - taxCents - feeCents;
+  const feeCents = toCents(payment.fee);
+  const grossCents = payoutCents + feeCents;
+  const netCents = payoutCents - taxCents;
   const needsPayment = mode === 'new' || paymentChoice === 'new';
 
   // Paste an FBM / Reverb name + address block and fill the name and address fields from it.
@@ -245,28 +220,27 @@ export default function SoldOrderDialog({ open, item, onClose, onDone }: Props) 
 
   const handleChannelChange = (next: string) => {
     setChannel(next);
-    updatePayment({ method: DEFAULT_METHOD_BY_CHANNEL[next] || payment.method, feeTouched: false });
+    updatePayment({ method: DEFAULT_METHOD_BY_CHANNEL[next] || payment.method });
   };
 
   const paymentPayload = useMemo(() => ({
     method: payment.method,
-    grossCents,
+    payoutCents,
     shippingChargedCents: shippingCents,
     taxCents,
     feeCents,
-    feeIsEstimate: !payment.feeTouched,
     externalRef: payment.externalRef.trim(),
-  }), [payment, grossCents, shippingCents, taxCents, feeCents]);
+  }), [payment, payoutCents, shippingCents, taxCents, feeCents]);
 
   const handleSave = async () => {
     if (!item || isSaving) return;
     setError('');
-    if (needsPayment && grossCents <= 0) {
-      setError('Enter what the buyer paid.');
+    if (needsPayment && payoutCents <= 0) {
+      setError('Enter the payout (what you receive after fees).');
       return;
     }
     if (needsPayment && netCents < 0) {
-      setError('Fees and tax are more than the payment.');
+      setError('Tax is more than the payout.');
       return;
     }
     if (mode === 'existing' && !selectedOrder) {
@@ -333,7 +307,7 @@ export default function SoldOrderDialog({ open, item, onClose, onDone }: Props) 
             size="small"
             label="Paid via"
             value={payment.method}
-            onChange={(event) => updatePayment({ method: event.target.value, feeTouched: false })}
+            onChange={(event) => updatePayment({ method: event.target.value })}
           >
             {PAYMENT_METHOD_OPTIONS.map((option) => (
               <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
@@ -355,10 +329,11 @@ export default function SoldOrderDialog({ open, item, onClose, onDone }: Props) 
             fullWidth
             size="small"
             type="number"
-            label="Item price"
-            value={payment.amount}
-            onChange={(event) => updatePayment({ amount: event.target.value })}
+            label="Payout (after fees)"
+            value={payment.payout}
+            onChange={(event) => updatePayment({ payout: event.target.value })}
             inputProps={{ min: 0, step: 0.01 }}
+            helperText="What lands in the bank"
           />
         </Grid>
         <Grid size={{ xs: 6, sm: 3 }}>
@@ -370,6 +345,7 @@ export default function SoldOrderDialog({ open, item, onClose, onDone }: Props) 
             value={payment.shipping}
             onChange={(event) => updatePayment({ shipping: event.target.value })}
             inputProps={{ min: 0, step: 0.01 }}
+            helperText="Buyer-paid, if any"
           />
         </Grid>
         <Grid size={{ xs: 6, sm: 3 }}>
@@ -389,11 +365,11 @@ export default function SoldOrderDialog({ open, item, onClose, onDone }: Props) 
             fullWidth
             size="small"
             type="number"
-            label="Fees"
-            value={payment.feeTouched ? payment.fee : (estimatedFeeCents / 100).toFixed(2)}
-            onChange={(event) => updatePayment({ fee: event.target.value, feeTouched: true })}
+            label="Platform fees"
+            value={payment.fee}
+            onChange={(event) => updatePayment({ fee: event.target.value })}
             inputProps={{ min: 0, step: 0.01 }}
-            helperText={payment.feeTouched ? 'Entered' : 'Estimated'}
+            helperText="Optional, for reference"
           />
         </Grid>
       </Grid>

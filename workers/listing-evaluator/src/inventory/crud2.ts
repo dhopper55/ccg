@@ -30,7 +30,14 @@ import {
   extractShippingLabelFee,
 } from './reverb-listing.js';
 import { reverbRequestHeaders } from '../pricing/reverb.js';
-import { dbSyncManualOrderAfterInventorySave, logOrderError } from '../orders/manual.js';
+import {
+  dbSyncManualOrderAfterInventorySave,
+  dbFindOrderIdForInventoryItem,
+  dbRecordReverbLabelOnOrder,
+  dbRecalculateManualOrderTotals,
+  logOrderError,
+  describeError,
+} from '../orders/manual.js';
 import { REVERB_SEARCH_API_URL } from '../constants.js';
 
 export async function handleInventoryUpdate(request: Request, path: string, env: Env): Promise<Response> {
@@ -1218,6 +1225,14 @@ export async function handleInventoryReverbShippingCheck(_request: Request, path
     sellNotes: newSellNotes,
   }, env);
   if (!applied) return jsonResponse({ message: 'Found the shipping label cost, but failed to save the update.' }, 500);
+
+  // Put the Reverb label on the item's order too, so it comes off the order's net payout.
+  const itemOrderId = await dbFindOrderIdForInventoryItem(Number.parseInt(recordId, 10), env);
+  if (itemOrderId) {
+    await dbRecordReverbLabelOnOrder(itemOrderId, Math.round(labelFee * 100), orderRecord, env)
+      .then(() => dbRecalculateManualOrderTotals(itemOrderId, env))
+      .catch((error: unknown) => logOrderError('reverb_shipping_check.order_label_failed', { recordId, itemOrderId, ...describeError(error) }));
+  }
 
   return jsonResponse({
     ok: true,

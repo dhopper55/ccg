@@ -70,24 +70,28 @@ function centsInput(value: unknown): number {
   return numberOrZero(value);
 }
 
+// Manual payments are entered as the payout: what lands in the bank after platform fees.
+// Fees are optional and informational; the buyer paid payout + fees, and the net to us is
+// the payout less any sales tax we collected (and owe).
 function parsePaymentInput(raw: unknown, fallbackPaidAt: string): PaymentInput | { error: string } {
   const body = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const method = normalizeText(body.method, '').toLowerCase();
   if (!PAYMENT_METHODS.has(method)) return { error: 'Choose how this payment was made.' };
-  const grossCents = centsInput(body.grossCents);
-  if (grossCents <= 0) return { error: 'Payment amount must be greater than $0.' };
+  const payoutCents = centsInput(body.payoutCents);
+  if (payoutCents <= 0) return { error: 'Payout must be greater than $0.' };
   const shippingChargedCents = centsInput(body.shippingChargedCents);
   const taxCents = centsInput(body.taxCents);
   const feeCents = centsInput(body.feeCents);
-  if (taxCents + feeCents > grossCents) return { error: 'Tax plus fees cannot be more than the payment amount.' };
-  if (shippingChargedCents > grossCents) return { error: 'Shipping charged cannot be more than the payment amount.' };
+  const grossCents = payoutCents + feeCents;
+  if (taxCents > payoutCents) return { error: 'Tax cannot be more than the payout.' };
+  if (shippingChargedCents > grossCents) return { error: 'Shipping charged cannot be more than the buyer paid.' };
   return {
     method,
     grossCents,
     shippingChargedCents,
     taxCents,
     feeCents,
-    feeIsEstimate: body.feeIsEstimate !== false,
+    feeIsEstimate: false,
     externalRef: normalizeText(body.externalRef, '').slice(0, 200),
     paidAt: normalizeText(body.paidAt, '') || fallbackPaidAt,
     notes: normalizeText(body.notes, '').slice(0, 2000),
@@ -121,10 +125,15 @@ function soldLineTotalCents(item: SoldItemRow): number {
   return Number.isFinite(amount) ? Math.max(0, Math.round(amount * 100)) : 0;
 }
 
-async function dbInsertOrderItemForSoldItem(orderId: string, item: SoldItemRow, env: Env): Promise<void> {
+async function dbInsertOrderItemForSoldItem(
+  orderId: string,
+  item: SoldItemRow,
+  env: Env,
+  lineTotalCentsOverride?: number,
+): Promise<void> {
   const cols = await dbGetColumnNames('order_items', env);
   const quantity = Math.max(1, Number(item.quantity ?? 1) || 1);
-  const lineTotalCents = soldLineTotalCents(item);
+  const lineTotalCents = lineTotalCentsOverride ?? soldLineTotalCents(item);
   const unitCents = Math.round(lineTotalCents / quantity);
   const title = normalizeText(item.sale_title, '') || normalizeText(item.title, 'Item');
   const now = new Date().toISOString();
@@ -673,4 +682,167 @@ export async function dbRecordCheckoutOrderPayments(
   } catch (error) {
     logOrderError('checkout_payment.failed', { orderId, ...describeError(error) });
   }
+}
+
+// ---- Reverb ----------------------------------------------------------------------------
+// The Reverb sold-sync creates the order itself: everything comes from the Reverb order
+// (buyer, ship-to, actual payout and fees), so there is nothing to ask. Reverb's address /
+// tracking field names are read defensively; a missing field leaves that order field blank.
+
+function reverbMoneyCents(value: unknown): number | null {
+  const amount = value && typeof value === 'object' ? (value as { amount?: unknown }).amount : value;
+  const parsed = Number.parseFloat(String(amount ?? ''));
+  return Number.isFinite(parsed) ? Math.round(parsed * 100) : null;
+}
+
+function reverbText(record: Record<string, unknown> | undefined, ...keys: string[]): string {
+  for (const key of keys) {
+    const value = normalizeText(record?.[key], '');
+    if (value) return value;
+  }
+  return '';
+}
+
+// Tracking info Reverb may carry once a label exists (bought on Reverb, or entered there).
+function reverbTracking(order: Record<string, unknown>): { carrier: string; trackingCode: string } {
+  const shipment = (order.shipment && typeof order.shipment === 'object' ? order.shipment : undefined) as Record<string, unknown> | undefined;
+  return {
+    carrier: reverbText(order, 'shipping_provider', 'shipping_carrier') || reverbText(shipment, 'provider', 'carrier'),
+    trackingCode: reverbText(order, 'shipping_code', 'tracking_number') || reverbText(shipment, 'tracking_number', 'shipping_code'),
+  };
+}
+
+// Records a label bought on Reverb as a shipment on the item's order (label cost comes off
+// the order's net). Without a tracking code it still counts the cost, but the order stays
+// UnShipped until tracking exists.
+export async function dbRecordReverbLabelOnOrder(
+  orderId: string,
+  labelFeeCents: number,
+  order: Record<string, unknown>,
+  env: Env,
+): Promise<void> {
+  const existing = await env.DB.prepare(
+    "SELECT id FROM order_shipments WHERE order_id = ? AND status IN ('purchased', 'manual') LIMIT 1"
+  ).bind(orderId).first<{ id: number }>();
+  if (existing) return;
+  const { carrier, trackingCode } = reverbTracking(order);
+  const now = new Date().toISOString();
+  await env.DB.prepare(
+    `INSERT INTO order_shipments (order_id, status, is_test, carrier, tracking_code, label_cost_cents, notes, shipped_at)
+     VALUES (?, 'manual', 0, ?, ?, ?, 'Label bought on Reverb.', ?)`
+  ).bind(orderId, carrier || null, trackingCode ? trackingCode.toUpperCase() : null, labelFeeCents, trackingCode ? now : null).run();
+  await dbRecordOrderEvent(orderId, {
+    eventType: 'shipment_reverb_label',
+    fromStatus: 'paid',
+    toStatus: 'paid',
+    source: 'reverb_sync',
+    sourceId: trackingCode || '',
+    message: `Reverb shipping label $${(labelFeeCents / 100).toFixed(2)}${trackingCode ? `, tracking ${trackingCode}` : ''}.`,
+    payloadJson: JSON.stringify({ labelFeeCents, carrier, trackingCode }),
+  }, env);
+}
+
+export async function dbCreateOrderFromReverbSale(
+  inventoryItemId: number,
+  order: Record<string, unknown>,
+  env: Env,
+): Promise<{ ok: true; orderId: string; orderNumber: string; created: boolean } | { ok: false; message: string }> {
+  const reverbOrderNumber = reverbText(order, 'order_number');
+  if (!reverbOrderNumber) return { ok: false, message: 'Reverb order has no order number.' };
+
+  const existing = await env.DB.prepare(
+    `SELECT id, order_number FROM orders
+     WHERE channel = 'reverb' AND channel_order_ref = ? AND status NOT IN ('cancelled', 'canceled')
+     LIMIT 1`
+  ).bind(reverbOrderNumber).first<{ id: string; order_number: string }>();
+  if (existing) return { ok: true, orderId: existing.id, orderNumber: existing.order_number, created: false };
+
+  const item = await dbGetSoldItem(inventoryItemId, env);
+  if (!item) return { ok: false, message: `Inventory item ${inventoryItemId} not found.` };
+
+  const payoutCents = reverbMoneyCents(order.direct_checkout_payout);
+  if (payoutCents == null || payoutCents <= 0) return { ok: false, message: 'Reverb order has no payout amount.' };
+  const productCents = reverbMoneyCents(order.amount_product);
+  const shippingCents = reverbMoneyCents(order.shipping) ?? 0;
+  const reportedFees = (reverbMoneyCents(order.selling_fee) ?? 0) + (reverbMoneyCents(order.direct_checkout_fee) ?? 0);
+  // Prefer Reverb's own fee lines; otherwise derive them from what the buyer paid.
+  const feeCents = reportedFees > 0
+    ? reportedFees
+    : productCents != null ? Math.max(0, productCents + shippingCents - payoutCents) : 0;
+  const paidAt = reverbText(order, 'paid_at', 'created_at') || new Date().toISOString();
+
+  const address = (order.shipping_address && typeof order.shipping_address === 'object'
+    ? order.shipping_address
+    : undefined) as Record<string, unknown> | undefined;
+  const localPickup = order.local_pickup === true;
+  const buyerName = reverbText(order, 'buyer_name') || reverbText(address, 'name');
+  const ship = !localPickup;
+
+  const orderId = crypto.randomUUID();
+  const orderNumber = buildOrderNumber();
+  const now = new Date().toISOString();
+  const orderCols = await dbGetColumnNames('orders', env);
+  await dbInsertFiltered('orders', {
+    id: orderId,
+    order_number: orderNumber,
+    status: 'paid',
+    channel: 'reverb',
+    channel_order_ref: reverbOrderNumber,
+    checkout_type: 'manual',
+    checkout_provider: 'manual',
+    checkout_mode: 'manual',
+    fulfillment_type: ship ? 'ship' : 'pickup',
+    customer_name: buyerName || null,
+    customer_phone: reverbText(address, 'phone') || null,
+    item_title_snapshot: normalizeText(item.sale_title, '') || normalizeText(item.title, 'Item'),
+    subtotal_cents: 0,
+    total_cents: 0,
+    currency: 'usd',
+    shipping_status: ship ? 'ship' : 'in_store',
+    shipping_address_required: ship ? 1 : 0,
+    shipping_name: ship ? (reverbText(address, 'name') || buyerName || null) : null,
+    shipping_phone: ship ? (reverbText(address, 'phone') || null) : null,
+    shipping_address_line1: ship ? (reverbText(address, 'street_address', 'address1', 'line1') || null) : null,
+    shipping_address_line2: ship ? (reverbText(address, 'extended_address', 'address2', 'line2') || null) : null,
+    shipping_address_city: ship ? (reverbText(address, 'locality', 'city') || null) : null,
+    shipping_address_state: ship ? (reverbText(address, 'region', 'state').toUpperCase() || null) : null,
+    shipping_address_postal_code: ship ? (reverbText(address, 'postal_code', 'zip') || null) : null,
+    shipping_address_country: ship ? (reverbText(address, 'country_code', 'country').toUpperCase() || 'US') : null,
+    notes: `Created by the Reverb sync from Reverb order #${reverbOrderNumber}.`,
+    paid_at: paidAt,
+    listings_updated: 1,
+    settled: 0,
+    money_accounted: 0,
+    is_sandbox: 0,
+    created_at: now,
+    updated_at: now,
+  }, orderCols, env);
+
+  // The order item carries the payout before any shipping label; the label is its own line.
+  await dbInsertOrderItemForSoldItem(orderId, item, env, payoutCents);
+  await dbInsertOrderPayment(orderId, item.id, {
+    method: 'reverb',
+    grossCents: payoutCents + feeCents,
+    shippingChargedCents: Math.min(shippingCents, payoutCents + feeCents),
+    taxCents: 0,
+    feeCents,
+    feeIsEstimate: false,
+    externalRef: reverbOrderNumber,
+    paidAt,
+    notes: '',
+  }, env);
+  await dbRecordOrderEvent(orderId, {
+    eventType: 'manual_order_created',
+    fromStatus: null,
+    toStatus: 'paid',
+    source: 'reverb_sync',
+    sourceId: reverbOrderNumber,
+    message: `Order created from Reverb order #${reverbOrderNumber} for ${item.ccg_number || `item ${item.id}`}.`,
+    payloadJson: JSON.stringify({ inventoryItemId: item.id, reverbOrderNumber, payoutCents, feeCents, shippingCents }),
+  }, env);
+
+  const labelFee = reverbMoneyCents(order.shipping_label_fee ?? order.shipping_label_cost ?? order.label_fee ?? order.label_cost);
+  if (labelFee != null && labelFee > 0) await dbRecordReverbLabelOnOrder(orderId, labelFee, order, env);
+  await dbRecalculateManualOrderTotals(orderId, env);
+  return { ok: true, orderId, orderNumber, created: true };
 }
