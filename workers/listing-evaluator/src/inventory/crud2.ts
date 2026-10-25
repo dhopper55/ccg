@@ -512,8 +512,21 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       sold_amount: soldAmount,
       sell_notes: sellNotes || null,
       sold_ship_cost_accounted: soldShipCostAccounted ? 1 : 0,
+      // Bound without a fallback by dbCreateInventoryItems; leaving them out made D1 reject
+      // the insert (undefined bind), so no partial-quantity sale ever completed.
+      sale_url: saleUrl || null,
+      sale_zip: saleZip || null,
+      merchant_center_cat_code: merchantCenterCatCode,
     }, env);
-    if (!soldInsert?.firstId) return jsonResponse({ message: 'Unable to create sold inventory item.' }, 500);
+    if (!soldInsert?.firstId) {
+      // The remaining stock was already reduced above; put the quantity back so a failed
+      // split doesn't silently lose a unit.
+      await env.DB.prepare('UPDATE ccg_inventory_items SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+        .bind(quantity, recordIdNum).run()
+        .catch((error: unknown) => console.error('Restoring quantity after failed split sale failed', { recordId, error }));
+      logOrderFlow('inventory_save.sold_split_failed', { sourceInventoryItemId: recordId, restoredQuantity: quantity, qtySold }, 'error');
+      return jsonResponse({ message: 'Unable to create the sold copy of this item. Quantity was left unchanged.' }, 500);
+    }
     const soldCloneOk = await dbUpdateInventoryById(soldInsert.firstId, {
       image_url: primaryImageUrl,
       image_urls: imageUrls.join('\n'),

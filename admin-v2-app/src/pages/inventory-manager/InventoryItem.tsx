@@ -165,6 +165,7 @@ type SaveResponse = {
   message?: string;
   duplicateSuppressed?: boolean;
   becameSold?: boolean;
+  splitSale?: boolean;
   soldId?: string | number | null;
   soldCcgNumber?: string;
 };
@@ -2435,7 +2436,11 @@ const InventoryItem = () => {
           soldChannel: form.soldChannel,
         });
       }
-      if (editId) {
+      if (editId && data.splitSale && data.soldId && String(data.soldId) !== editId) {
+        // Partial-quantity sale: the sale lives on the new sold copy, so go there; the order
+        // dialog (opened above for that copy) stays open across the navigation.
+        navigate(paths.inventoryItemWithId(String(data.soldId)));
+      } else if (editId) {
         setReloadToken((current) => current + 1);
       } else {
         navigate(inventoryManagerHref);
