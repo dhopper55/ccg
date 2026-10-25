@@ -611,8 +611,26 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       sale_zip: saleZip || null,
       sold_channel: soldChannel || null,
       merchant_center_cat_code: merchantCenterCatCode,
+      // Bound without a fallback by dbUpdateInventoryById; missing values made D1 reject it.
+      is_custom: isCustom ? 1 : 0,
+      tag_reprint: tagReprint ? 1 : 0,
     }, env);
-    if (!soldCloneOk) return jsonResponse({ message: 'Unable to update sold inventory item.' }, 500);
+    if (!soldCloneOk) {
+      // Undo the split: retire the half-filled sold copy and put the stock back.
+      await env.DB.batch([
+        env.DB.prepare('UPDATE ccg_inventory_items SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+          .bind(Number(soldInsert.firstId)),
+        env.DB.prepare('UPDATE ccg_inventory_items SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+          .bind(quantity, recordIdNum),
+      ]).catch((error: unknown) => console.error('Undoing failed split sale failed', { recordId, error }));
+      logOrderFlow('inventory_save.sold_split_failed', {
+        sourceInventoryItemId: recordId,
+        deactivatedSoldCopyId: soldInsert.firstId,
+        restoredQuantity: quantity,
+        qtySold,
+      }, 'error');
+      return jsonResponse({ message: 'Unable to finish the sold copy of this item. Quantity was left unchanged.' }, 500);
+    }
     await dbSetInventorySoldAvailability(soldInsert.firstId, true, env);
     if (!(await dbReplaceInventoryImagesByItemIds([Number(soldInsert.firstId)], imageEntries, env))) {
       return jsonResponse({ message: 'Sold inventory item was created, but its image records failed to save.' }, 500);
