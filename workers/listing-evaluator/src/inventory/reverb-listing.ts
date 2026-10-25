@@ -639,3 +639,32 @@ export function extractShippingLabelFee(order: Record<string, unknown>): number 
   }
   return null;
 }
+
+// Marks a Reverb order shipped with a carrier + tracking number. Reverb emails the buyer the
+// tracking when sendNotification is on (same as marking shipped on reverb.com).
+export async function markReverbOrderShipped(
+  orderNumber: string,
+  shipment: { provider: string; trackingNumber: string; sendNotification: boolean },
+  env: Env,
+): Promise<{ ok: true } | { ok: false; message: string; status: number }> {
+  const response = await fetch(`${REVERB_API_BASE_URL}/my/orders/selling/${encodeURIComponent(orderNumber)}/ship`, {
+    method: 'POST',
+    headers: reverbRequestHeaders(env),
+    body: JSON.stringify({
+      provider: shipment.provider,
+      tracking_number: shipment.trackingNumber,
+      send_notification: shipment.sendNotification,
+    }),
+  });
+  if (response.ok) return { ok: true };
+  const text = await response.text();
+  let data: unknown = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = null;
+  }
+  const message = extractReverbErrorMessage(data) || text.slice(0, 500) || `Reverb rejected marking the order shipped (HTTP ${response.status}).`;
+  console.error('Reverb mark shipped failed', { orderNumber, status: response.status, message });
+  return { ok: false, message, status: response.status };
+}

@@ -8,6 +8,7 @@ import { normalizeText } from '../utils/text.js';
 import { jsonResponse, numberOrZero, parseOptionalPositiveInt } from '../utils/misc.js';
 import { dbRecordOrderEvent } from './db.js';
 import { logOrderError, describeError } from './manual.js';
+import { markReverbOrderShipped } from '../inventory/reverb-listing.js';
 
 const EASYPOST_API = 'https://api.easypost.com/v2';
 // Statuses that mean a label exists (bought here or elsewhere).
@@ -153,6 +154,9 @@ function mapShipment(row: Record<string, unknown>): Record<string, unknown> {
     shipDate: normalizeText(row.ship_date, ''),
     shippedAt: normalizeText(row.shipped_at, ''),
     createdAt: normalizeText(row.created_at, ''),
+    channelPushStatus: normalizeText(row.channel_push_status, '') || null,
+    channelPushMessage: normalizeText(row.channel_push_message, ''),
+    channelPushedAt: normalizeText(row.channel_pushed_at, ''),
   };
 }
 
@@ -169,11 +173,20 @@ export async function dbGetOrderShippingSummary(
      ORDER BY id DESC LIMIT 1`
   ).bind(orderId).first<Record<string, unknown>>().catch(() => null);
   const labelCosts = await dbGetOrderLabelCostTotals([orderId], env);
+  const isReverb = normalizeText(order.channel, '') === 'reverb';
   return {
     needsShipping: true,
     shipped: Boolean(shipped),
     shipment: shipped ? mapShipment(shipped) : null,
     labelCostCents: labelCosts.get(orderId) ?? 0,
+    // Reverb orders get marked shipped on Reverb when a label is bought / tracking entered.
+    reverb: isReverb
+      ? {
+        orderNumber: normalizeText(order.channel_order_ref, ''),
+        // Labels bought on Reverb are already known to Reverb.
+        applies: !(shipped && normalizeText(shipped.notes, '').startsWith('Label bought on Reverb')),
+      }
+      : null,
   };
 }
 
@@ -463,11 +476,98 @@ export async function handleAdminV2OrderShippingBuy(request: Request, orderId: s
       logOrderError('shipping.buy.no_tracking', { orderId, shipmentId, easypostShipmentId });
       return jsonResponse({ message: 'The label was bought, but EasyPost returned no tracking number. Check the EasyPost dashboard.' }, 502);
     }
-    return jsonResponse({ ok: true, carrier, service, trackingCode, labelCostCents: paidCents, isTest: config.useTest });
+    const reverb = config.useTest ? null : await pushShipmentToReverb(normalizeText(order.id, ''), shipmentId, env);
+    return jsonResponse({
+      ok: true,
+      carrier,
+      service,
+      trackingCode,
+      labelCostCents: paidCents,
+      isTest: config.useTest,
+      reverb: reverb && reverb.status !== 'skipped' ? reverb : null,
+    });
   } catch (error) {
     logOrderError('shipping.buy.failed', { orderId, ...describeError(error) });
     return jsonResponse({ message: `Buying the label failed: ${error instanceof Error ? error.message : String(error)}` }, 500);
   }
+}
+
+// ---- Mark shipped on Reverb ------------------------------------------------------------
+
+// Tells Reverb the order shipped (carrier + tracking, buyer notified). Never throws: the label
+// is already paid for, so a failure is recorded on the shipment for a Retry instead.
+export async function pushShipmentToReverb(
+  orderId: string,
+  shipmentId: number,
+  env: Env,
+): Promise<{ status: 'pushed' | 'failed' | 'skipped'; message: string }> {
+  try {
+    const order = await env.DB.prepare('SELECT id, channel, channel_order_ref, status FROM orders WHERE id = ? LIMIT 1')
+      .bind(orderId).first<Record<string, unknown>>();
+    if (!order || normalizeText(order.channel, '') !== 'reverb') return { status: 'skipped', message: 'Not a Reverb order.' };
+    const shipment = await env.DB.prepare('SELECT * FROM order_shipments WHERE id = ? AND order_id = ? LIMIT 1')
+      .bind(shipmentId, orderId).first<Record<string, unknown>>();
+    if (!shipment) return { status: 'skipped', message: 'Shipment not found.' };
+    if (Number(shipment.is_test || 0) === 1) return { status: 'skipped', message: 'Test labels are never sent to Reverb.' };
+    if (normalizeText(shipment.notes, '').startsWith('Label bought on Reverb')) {
+      return { status: 'skipped', message: 'Label was bought on Reverb.' };
+    }
+
+    const record = async (status: 'pushed' | 'failed', message: string) => {
+      const now = new Date().toISOString();
+      await env.DB.prepare(
+        `UPDATE order_shipments SET channel_push_status = ?, channel_push_message = ?, channel_pushed_at = ?, updated_at = ?
+         WHERE id = ?`
+      ).bind(status, message || null, status === 'pushed' ? now : null, now, shipmentId).run();
+      await dbRecordOrderEvent(orderId, {
+        eventType: status === 'pushed' ? 'reverb_marked_shipped' : 'reverb_mark_shipped_failed',
+        fromStatus: normalizeText(order.status, ''),
+        toStatus: normalizeText(order.status, ''),
+        source: 'admin_v2',
+        sourceId: normalizeText(order.channel_order_ref, ''),
+        message: status === 'pushed' ? 'Marked shipped on Reverb; buyer notified.' : `Reverb not updated: ${message}`,
+        payloadJson: JSON.stringify({ shipmentId, status, message }),
+      }, env);
+      return { status, message };
+    };
+
+    const orderNumber = normalizeText(order.channel_order_ref, '');
+    if (!orderNumber) return record('failed', 'This order has no Reverb order number.');
+    const trackingNumber = normalizeText(shipment.tracking_code, '');
+    if (!trackingNumber) return record('failed', 'The shipment has no tracking number.');
+    const provider = carrierFamily(normalizeText(shipment.carrier, '')) || normalizeText(shipment.carrier, '');
+
+    const result = await markReverbOrderShipped(orderNumber, { provider, trackingNumber, sendNotification: true }, env);
+    return result.ok ? record('pushed', '') : record('failed', result.message);
+  } catch (error) {
+    logOrderError('shipping.reverb_push_failed', { orderId, shipmentId, ...describeError(error) });
+    return { status: 'failed', message: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+// POST /api/admin-v2/orders/:id/shipping/reverb  { channelOrderRef? }
+// Retry (or first attempt) of marking the shipped order shipped on Reverb. A Reverb order #
+// can be supplied for orders entered by hand without one.
+export async function handleAdminV2OrderShippingReverbPush(request: Request, orderId: string, env: Env): Promise<Response> {
+  const body = (await readJson(request)) ?? {};
+  const order = await env.DB.prepare('SELECT id, channel, channel_order_ref FROM orders WHERE id = ? LIMIT 1')
+    .bind(normalizeText(orderId, '').slice(0, 100)).first<Record<string, unknown>>();
+  if (!order) return reject('shipping.reverb_push', 'Order not found.', 404, { orderId });
+  if (normalizeText(order.channel, '') !== 'reverb') return reject('shipping.reverb_push', 'This is not a Reverb order.', 400, { orderId });
+  const ref = normalizeText(body.channelOrderRef, '').replace(/^#/, '').slice(0, 40);
+  if (ref && ref !== normalizeText(order.channel_order_ref, '')) {
+    await env.DB.prepare('UPDATE orders SET channel_order_ref = ?, updated_at = ? WHERE id = ?')
+      .bind(ref, new Date().toISOString(), normalizeText(order.id, '')).run();
+  }
+  const shipment = await env.DB.prepare(
+    `SELECT id FROM order_shipments
+     WHERE order_id = ? AND status IN ('purchased', 'manual') AND COALESCE(tracking_code, '') <> ''
+     ORDER BY id DESC LIMIT 1`
+  ).bind(normalizeText(order.id, '')).first<{ id: number }>();
+  if (!shipment) return reject('shipping.reverb_push', 'The order is not shipped yet.', 400, { orderId });
+  const result = await pushShipmentToReverb(normalizeText(order.id, ''), shipment.id, env);
+  if (result.status === 'pushed') return jsonResponse({ ok: true });
+  return jsonResponse({ message: result.status === 'skipped' ? result.message : `Reverb not updated: ${result.message}` }, result.status === 'skipped' ? 400 : 502);
 }
 
 // ---- Label download --------------------------------------------------------------------
@@ -524,7 +624,7 @@ export async function handleAdminV2OrderShippingManual(request: Request, orderId
     const labelCostCents = body.labelCostCents == null || body.labelCostCents === '' ? null : numberOrZero(body.labelCostCents);
     const now = new Date().toISOString();
 
-    const insert = await env.DB.prepare(
+    const manualInsert = await env.DB.prepare(
       `INSERT INTO order_shipments (order_id, status, is_test, carrier, tracking_code, label_cost_cents, notes, shipped_at)
        VALUES (?, 'manual', 0, ?, ?, ?, ?, ?)`
     ).bind(
@@ -544,7 +644,9 @@ export async function handleAdminV2OrderShippingManual(request: Request, orderId
       message: `Marked shipped via ${carrier}, tracking ${trackingCode}${labelCostCents != null ? ` (label $${(labelCostCents / 100).toFixed(2)})` : ''}.`,
       payloadJson: JSON.stringify({ carrier, trackingCode, labelCostCents }),
     }, env);
-    return jsonResponse({ ok: true });
+    const manualShipmentId = Number(manualInsert.meta?.last_row_id || 0);
+    const reverb = manualShipmentId ? await pushShipmentToReverb(normalizeText(order.id, ''), manualShipmentId, env) : null;
+    return jsonResponse({ ok: true, reverb: reverb && reverb.status !== 'skipped' ? reverb : null });
   } catch (error) {
     logOrderError('shipping.manual.failed', { orderId, ...describeError(error) });
     return jsonResponse({ message: `Saving tracking failed: ${error instanceof Error ? error.message : String(error)}` }, 500);

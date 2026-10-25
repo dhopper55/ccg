@@ -39,7 +39,10 @@ export type OrderShippingShipment = {
   trackingUrl: string | null;
   labelCostCents: number | null;
   hasLabel?: boolean;
+  isTest?: boolean;
   shippedAt: string;
+  channelPushStatus?: 'pushed' | 'failed' | null;
+  channelPushMessage?: string;
 };
 
 export type OrderShippingSummary = {
@@ -47,6 +50,7 @@ export type OrderShippingSummary = {
   shipped: boolean;
   shipment: OrderShippingShipment | null;
   labelCostCents: number;
+  reverb?: { orderNumber: string; applies: boolean } | null;
 };
 
 export type OrderShipTo = {
@@ -122,7 +126,27 @@ export default function OrderShippingPanel({
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isPushing, setIsPushing] = useState(false);
+  const [reverbOrderNumber, setReverbOrderNumber] = useState('');
   const shipment = shipping.shipment;
+
+  // Retry (or first try) of marking a Reverb order shipped on Reverb.
+  const pushToReverb = async () => {
+    if (isPushing) return;
+    setIsPushing(true);
+    try {
+      await postJson(`/api/admin-v2/orders/${encodeURIComponent(orderId)}/shipping/reverb`, {
+        channelOrderRef: reverbOrderNumber.trim() || undefined,
+      });
+      enqueueSnackbar('Marked shipped on Reverb.', { variant: 'success' });
+      onChanged();
+    } catch (pushError) {
+      enqueueSnackbar(pushError instanceof Error ? pushError.message : 'Reverb not updated.', { variant: 'error' });
+      onChanged();
+    } finally {
+      setIsPushing(false);
+    }
+  };
 
   // Downloads the label PDF (served through CCG, named after the tracking number).
   const downloadLabel = async () => {
@@ -201,6 +225,44 @@ export default function OrderShippingPanel({
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
               Label cost {formatCents(shipment.labelCostCents)}
             </Typography>
+          ) : null}
+          {shipping.reverb?.applies ? (
+            shipment.channelPushStatus === 'pushed' ? (
+              <Stack direction="row" sx={{ gap: 0.75, alignItems: 'center', color: 'success.main' }}>
+                <IconifyIcon icon="material-symbols:check-circle-outline-rounded" fontSize={18} />
+                <Typography variant="body2">Marked shipped on Reverb</Typography>
+              </Stack>
+            ) : shipment.isTest ? (
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                Test label: not sent to Reverb
+              </Typography>
+            ) : (
+              <Stack direction="column" sx={{ gap: 1 }}>
+                {shipment.channelPushStatus === 'failed' ? (
+                  <Alert severity="warning" sx={{ py: 0 }}>
+                    Reverb not updated: {shipment.channelPushMessage || 'unknown error'}
+                  </Alert>
+                ) : null}
+                {!shipping.reverb.orderNumber ? (
+                  <TextField
+                    size="small"
+                    label="Reverb order #"
+                    value={reverbOrderNumber}
+                    onChange={(event) => setReverbOrderNumber(event.target.value)}
+                  />
+                ) : null}
+                <Button
+                  variant="outlined"
+                  size="small"
+                  sx={{ alignSelf: 'flex-start' }}
+                  disabled={isPushing || (!shipping.reverb.orderNumber && !reverbOrderNumber.trim())}
+                  onClick={() => void pushToReverb()}
+                  startIcon={isPushing ? <CircularProgress size={16} color="inherit" /> : undefined}
+                >
+                  {shipment.channelPushStatus === 'failed' ? 'Retry Reverb' : 'Mark shipped on Reverb'}
+                </Button>
+              </Stack>
+            )
           ) : null}
           {shipment.hasLabel ? (
             <Button
@@ -397,11 +459,16 @@ function QuoteDialog({
     setIsBuying(true);
     setBuyError('');
     try {
-      const data = await postJson<{ trackingCode?: string; isTest?: boolean }>(
+      const data = await postJson<{ trackingCode?: string; isTest?: boolean; reverb?: { status: string; message: string } | null }>(
         `/api/admin-v2/orders/${encodeURIComponent(orderId)}/shipping/buy`,
         { shipmentId: quote.shipmentId, rateId: selectedRate.id },
       );
       enqueueSnackbar(`${data.isTest ? 'Test label' : 'Label'} bought. Tracking ${data.trackingCode || ''}`, { variant: 'success' });
+      if (data.reverb?.status === 'failed') {
+        enqueueSnackbar(`Reverb not updated: ${data.reverb.message}`, { variant: 'warning', autoHideDuration: 10000 });
+      } else if (data.reverb?.status === 'pushed') {
+        enqueueSnackbar('Marked shipped on Reverb; buyer notified.', { variant: 'success' });
+      }
       setConfirmOpen(false);
       onBought();
     } catch (buyFailure) {
@@ -712,12 +779,17 @@ function ManualTrackingDialog({
     const cost = Number.parseFloat(labelCost);
     setIsSaving(true);
     try {
-      await postJson(`/api/admin-v2/orders/${encodeURIComponent(orderId)}/shipping/manual`, {
+      const data = await postJson<{ reverb?: { status: string; message: string } | null }>(`/api/admin-v2/orders/${encodeURIComponent(orderId)}/shipping/manual`, {
         carrier: carrierName,
         trackingCode: trackingCode.trim(),
         labelCostCents: Number.isFinite(cost) && cost >= 0 ? Math.round(cost * 100) : null,
       });
       enqueueSnackbar('Marked shipped.', { variant: 'success' });
+      if (data.reverb?.status === 'failed') {
+        enqueueSnackbar(`Reverb not updated: ${data.reverb.message}`, { variant: 'warning', autoHideDuration: 10000 });
+      } else if (data.reverb?.status === 'pushed') {
+        enqueueSnackbar('Marked shipped on Reverb; buyer notified.', { variant: 'success' });
+      }
       onSaved();
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Unable to save tracking.');

@@ -187,6 +187,7 @@ import {
   handleAdminV2OrderShippingManual,
   handleAdminV2OrderShippingBuy,
   handleAdminV2OrderShippingLabel,
+  handleAdminV2OrderShippingReverbPush,
   handleAdminV2ShippingTemplates,
   handleAdminV2ShippingTemplateCreate,
   handleAdminV2EasyPostConfig,
@@ -851,7 +852,7 @@ export default {
       return withCors(response, request, env);
     }
 
-    const adminV2OrderShippingMatch = path.match(/^\/api\/admin-v2\/orders\/([^/]+)\/shipping\/(quote|manual|buy)$/);
+    const adminV2OrderShippingMatch = path.match(/^\/api\/admin-v2\/orders\/([^/]+)\/shipping\/(quote|manual|buy|reverb)$/);
     if (adminV2OrderShippingMatch && request.method === 'POST') {
       const orderId = decodeURIComponent(adminV2OrderShippingMatch[1]);
       const action = adminV2OrderShippingMatch[2];
@@ -859,7 +860,9 @@ export default {
         ? await handleAdminV2OrderShippingQuote(request, orderId, env)
         : action === 'buy'
           ? await handleAdminV2OrderShippingBuy(request, orderId, env)
-          : await handleAdminV2OrderShippingManual(request, orderId, env);
+          : action === 'reverb'
+            ? await handleAdminV2OrderShippingReverbPush(request, orderId, env)
+            : await handleAdminV2OrderShippingManual(request, orderId, env);
       return withCors(response, request, env);
     }
 
