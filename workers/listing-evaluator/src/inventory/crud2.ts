@@ -197,6 +197,9 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
   const current = await dbGetInventoryItem(recordId, env);
   if (!current) return jsonResponse({ message: 'Inventory item not found.' }, 404);
   salesChannelFields.sales_channel_reverb = (current as { reverbListingId?: unknown }).reverbListingId ? 1 : 0;
+  // A sold item is no longer listed on the CCG site. (A partial-quantity sale puts the
+  // remaining stock back to the user's CCG choice below.)
+  if (isSold) salesChannelFields.sales_channel_ccg = 0;
 
   if (sourceListingId != null) {
     const alreadyLinked = await dbFindInventoryBySourceListingId(sourceListingId, env);
@@ -370,6 +373,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       only_in_store: onlyInStore ? 1 : 0,
       fb_listing_id: fbListingId,
       ...salesChannelFields,
+      sales_channel_ccg: salesChannelCcg ? 1 : 0,
       for_sale_date: remainingForSaleDate,
       source_listing_id: sourceListingId,
       video_url: videoUrl || null,
@@ -550,8 +554,10 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       is_rented: isRented ? 1 : 0,
       for_sale: 0,
       only_in_store: onlyInStore ? 1 : 0,
-      fb_listing_id: fbListingId,
       ...salesChannelFields,
+      // Same as the insert above: the sold copy carries no FBM / Reverb listing.
+      fb_listing_id: null,
+      sales_channel_reverb: 0,
       for_sale_date: null,
       source_listing_id: null,
       video_url: videoUrl || null,
