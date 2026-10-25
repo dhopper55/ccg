@@ -70,6 +70,7 @@ type QuoteRate = {
 
 type QuoteResponse = {
   ok?: boolean;
+  shipmentId?: number | null;
   message?: string;
   mode?: 'test' | 'prod';
   address?: { verified: boolean; residential: boolean | null; message: string };
@@ -188,7 +189,16 @@ export default function OrderShippingPanel({
         </Stack>
       )}
 
-      <QuoteDialog open={quoteOpen} orderId={orderId} shipTo={shipTo} onClose={() => setQuoteOpen(false)} />
+      <QuoteDialog
+        open={quoteOpen}
+        orderId={orderId}
+        shipTo={shipTo}
+        onClose={() => setQuoteOpen(false)}
+        onBought={() => {
+          setQuoteOpen(false);
+          onChanged();
+        }}
+      />
       <ManualTrackingDialog
         open={manualOpen}
         orderId={orderId}
@@ -204,7 +214,19 @@ export default function OrderShippingPanel({
 
 // ---- Get Quote -------------------------------------------------------------------------
 
-function QuoteDialog({ open, orderId, shipTo, onClose }: { open: boolean; orderId: string; shipTo: OrderShipTo; onClose: () => void }) {
+function QuoteDialog({
+  open,
+  orderId,
+  shipTo,
+  onClose,
+  onBought,
+}: {
+  open: boolean;
+  orderId: string;
+  shipTo: OrderShipTo;
+  onClose: () => void;
+  onBought: () => void;
+}) {
   const { enqueueSnackbar } = useSnackbar();
   const [templates, setTemplates] = useState<PackageTemplate[]>([]);
   const [templateId, setTemplateId] = useState('');
@@ -223,6 +245,9 @@ function QuoteDialog({ open, orderId, shipTo, onClose }: { open: boolean; orderI
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [selectedRateId, setSelectedRateId] = useState('');
   const [error, setError] = useState('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [isBuying, setIsBuying] = useState(false);
+  const [buyError, setBuyError] = useState('');
 
   useEffect(() => {
     if (!open) return;
@@ -239,6 +264,8 @@ function QuoteDialog({ open, orderId, shipTo, onClose }: { open: boolean; orderI
     setQuote(null);
     setSelectedRateId('');
     setError('');
+    setConfirmOpen(false);
+    setBuyError('');
     fetch('/api/admin-v2/shipping/templates', { credentials: 'same-origin' })
       .then((response) => response.json())
       .then((data: { records?: PackageTemplate[] }) => setTemplates(Array.isArray(data.records) ? data.records : []))
@@ -318,6 +345,27 @@ function QuoteDialog({ open, orderId, shipTo, onClose }: { open: boolean; orderI
       setError(quoteError instanceof Error ? quoteError.message : 'Unable to get rates.');
     } finally {
       setIsQuoting(false);
+    }
+  };
+
+  const selectedRate = quote?.rates?.find((rate) => rate.id === selectedRateId) ?? null;
+
+  const buyLabel = async () => {
+    if (!selectedRate || !quote?.shipmentId || isBuying) return;
+    setIsBuying(true);
+    setBuyError('');
+    try {
+      const data = await postJson<{ trackingCode?: string; isTest?: boolean }>(
+        `/api/admin-v2/orders/${encodeURIComponent(orderId)}/shipping/buy`,
+        { shipmentId: quote.shipmentId, rateId: selectedRate.id },
+      );
+      enqueueSnackbar(`${data.isTest ? 'Test label' : 'Label'} bought. Tracking ${data.trackingCode || ''}`, { variant: 'success' });
+      setConfirmOpen(false);
+      onBought();
+    } catch (buyFailure) {
+      setBuyError(buyFailure instanceof Error ? buyFailure.message : 'Buying the label failed.');
+    } finally {
+      setIsBuying(false);
     }
   };
 
@@ -488,13 +536,16 @@ function QuoteDialog({ open, orderId, shipTo, onClose }: { open: boolean; orderI
       <DialogActions>
         <Button onClick={onClose} disabled={isQuoting}>Close</Button>
         {quote && (quote.rates ?? []).length > 0 ? (
-          <Tooltip title="Buying labels comes in the next step">
-            <span>
-              <Button variant="contained" disabled>
-                Buy label
-              </Button>
-            </span>
-          </Tooltip>
+          <Button
+            variant="contained"
+            disabled={!selectedRate}
+            onClick={() => {
+              setBuyError('');
+              setConfirmOpen(true);
+            }}
+          >
+            Buy label
+          </Button>
         ) : (
           <Button
             variant="contained"
@@ -506,6 +557,70 @@ function QuoteDialog({ open, orderId, shipTo, onClose }: { open: boolean; orderI
           </Button>
         )}
       </DialogActions>
+
+      <Dialog open={confirmOpen} onClose={() => !isBuying && setConfirmOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>Buy this label?</DialogTitle>
+        <DialogContent dividers>
+          {selectedRate ? (
+            <Stack direction="column" spacing={2}>
+              {quote?.mode === 'test' ? (
+                <Alert severity="info">EasyPost test mode: no charge, and the tracking number is not real.</Alert>
+              ) : (
+                <Alert severity="warning">Production: your EasyPost account will be charged {formatCents(selectedRate.rateCents)}.</Alert>
+              )}
+              <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center' }}>
+                <CarrierLogo carrier={selectedRate.carrier} size={36} />
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                    {selectedRate.carrier} {prettyService(selectedRate.service)}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                    {selectedRate.deliveryDays != null ? `${selectedRate.deliveryDays} day${selectedRate.deliveryDays === 1 ? '' : 's'} · ` : ''}
+                    Ship date {shipDate}
+                  </Typography>
+                </Box>
+                <Typography variant="h6">{formatCents(selectedRate.rateCents)}</Typography>
+              </Stack>
+              <Divider />
+              <Box>
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Package
+                </Typography>
+                <Typography variant="body2">
+                  {lengthIn} × {widthIn} × {heightIn} in · {Math.floor(totalOz / 16)} lb {Math.round((totalOz % 16) * 10) / 10} oz
+                  {signature ? ' · Signature required' : ''}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Ship to
+                </Typography>
+                <Typography variant="body2">{shipTo.name}</Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  {[shipTo.line1, shipTo.line2].filter(Boolean).join(', ')}
+                  {shipTo.city ? ` · ${shipTo.city}, ${shipTo.state} ${shipTo.postalCode}` : ''}
+                </Typography>
+              </Box>
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                The order will be marked shipped with the new tracking number.
+              </Typography>
+              {buyError ? <Alert severity="error">{buyError}</Alert> : null}
+            </Stack>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmOpen(false)} disabled={isBuying}>Cancel</Button>
+          <Button
+            variant="contained"
+            color={quote?.mode === 'test' ? 'primary' : 'warning'}
+            onClick={() => void buyLabel()}
+            disabled={isBuying || !selectedRate}
+            startIcon={isBuying ? <CircularProgress size={16} color="inherit" /> : undefined}
+          >
+            {isBuying ? 'Buying…' : `Buy for ${selectedRate ? formatCents(selectedRate.rateCents) : ''}`}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   );
 }

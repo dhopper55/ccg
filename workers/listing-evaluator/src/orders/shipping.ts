@@ -367,6 +367,86 @@ export async function handleAdminV2OrderShippingQuote(request: Request, orderId:
   }
 }
 
+// ---- Buy label -------------------------------------------------------------------------
+
+// POST /api/admin-v2/orders/:id/shipping/buy  { shipmentId, rateId }
+// Buys one of the rates from a saved quote and marks the order shipped.
+export async function handleAdminV2OrderShippingBuy(request: Request, orderId: string, env: Env): Promise<Response> {
+  try {
+    const order = await loadShippableOrder(orderId, env);
+    if (order instanceof Response) return order;
+    const body = await readJson(request);
+    if (!body) return reject('shipping.buy', 'Invalid JSON payload.', 400, { orderId });
+    const shipmentId = parseOptionalPositiveInt(body.shipmentId);
+    const rateId = normalizeText(body.rateId, '');
+    if (!shipmentId || !rateId) return reject('shipping.buy', 'Pick a rate first.', 400, { orderId });
+
+    const quote = await env.DB.prepare('SELECT * FROM order_shipments WHERE id = ? AND order_id = ? LIMIT 1')
+      .bind(shipmentId, normalizeText(order.id, '')).first<Record<string, unknown>>();
+    if (!quote) return reject('shipping.buy', 'That quote was not found. Get rates again.', 404, { orderId, shipmentId });
+    if (normalizeText(quote.status, '') !== 'quoted') {
+      return reject('shipping.buy', 'That quote has already been used. Get rates again.', 409, { orderId, shipmentId });
+    }
+    const easypostShipmentId = normalizeText(quote.easypost_shipment_id, '');
+    let quotedRates: Array<{ id: string; carrier: string; service: string; rateCents: number }> = [];
+    try {
+      quotedRates = (JSON.parse(normalizeText(quote.rates_json, '{}')) as { rates?: typeof quotedRates }).rates ?? [];
+    } catch {
+      quotedRates = [];
+    }
+    const quotedRate = quotedRates.find((rate) => rate.id === rateId);
+    if (!easypostShipmentId || !quotedRate) {
+      return reject('shipping.buy', 'That rate is not part of this quote. Get rates again.', 400, { orderId, shipmentId, rateId });
+    }
+
+    const config = await getEasyPostConfig(env);
+    const quoteIsTest = Number(quote.is_test || 0) === 1;
+    if (quoteIsTest !== config.useTest) {
+      return reject('shipping.buy', `This quote was made in ${quoteIsTest ? 'test' : 'production'} mode, but EasyPost is now set to ${config.useTest ? 'test' : 'production'}. Get rates again.`, 409, { orderId, shipmentId });
+    }
+    if (!config.apiKey) {
+      return reject('shipping.buy', `The EasyPost ${config.useTest ? 'test' : 'production'} API key is not set up yet.`, 503, { orderId });
+    }
+
+    const bought = await easyPostRequest(config, `/shipments/${encodeURIComponent(easypostShipmentId)}/buy`, { rate: { id: rateId } });
+    if (!bought.ok) return jsonResponse({ message: `Buying the label failed: ${bought.message}` }, 502);
+
+    const selected = bought.data.selected_rate ?? {};
+    const trackingCode = normalizeText(bought.data.tracking_code, '');
+    const carrier = carrierFamily(normalizeText(selected.carrier, '')) || normalizeText(selected.carrier, '') || quotedRate.carrier;
+    const service = normalizeText(selected.service, '') || quotedRate.service;
+    const paidCents = Number.isFinite(Number(selected.rate)) ? Math.round(Number(selected.rate) * 100) : quotedRate.rateCents;
+    const labelUrl = normalizeText(bought.data.postage_label?.label_url, '');
+    const now = new Date().toISOString();
+
+    await env.DB.prepare(
+      `UPDATE order_shipments
+       SET status = 'purchased', carrier = ?, service = ?, tracking_code = ?, label_cost_cents = ?,
+           label_url = ?, shipped_at = ?, updated_at = ?
+       WHERE id = ?`
+    ).bind(carrier, service, trackingCode || null, paidCents, labelUrl || null, now, now, shipmentId).run();
+    await dbRecordOrderEvent(normalizeText(order.id, ''), {
+      eventType: 'shipment_purchased',
+      fromStatus: normalizeText(order.status, ''),
+      toStatus: normalizeText(order.status, ''),
+      source: 'admin_v2',
+      sourceId: easypostShipmentId,
+      message: `${config.useTest ? '[TEST] ' : ''}Bought ${carrier} ${service} label for $${(paidCents / 100).toFixed(2)}, tracking ${trackingCode || '(none)'}.`,
+      payloadJson: JSON.stringify({ shipmentId, easypostShipmentId, rateId, carrier, service, paidCents, trackingCode, isTest: config.useTest }),
+    }, env);
+
+    if (!trackingCode) {
+      // Paid for, but no tracking number came back: keep it visible rather than silently "shipped".
+      logOrderError('shipping.buy.no_tracking', { orderId, shipmentId, easypostShipmentId });
+      return jsonResponse({ message: 'The label was bought, but EasyPost returned no tracking number. Check the EasyPost dashboard.' }, 502);
+    }
+    return jsonResponse({ ok: true, carrier, service, trackingCode, labelCostCents: paidCents, isTest: config.useTest });
+  } catch (error) {
+    logOrderError('shipping.buy.failed', { orderId, ...describeError(error) });
+    return jsonResponse({ message: `Buying the label failed: ${error instanceof Error ? error.message : String(error)}` }, 500);
+  }
+}
+
 // ---- Manual tracking -------------------------------------------------------------------
 
 // POST /api/admin-v2/orders/:id/shipping/manual
