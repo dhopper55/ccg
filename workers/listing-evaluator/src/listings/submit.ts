@@ -8,6 +8,7 @@ import { insertQueuedRow, updateRowByRunId } from './db2.js';
 import { processApifyRunWhenReady, startApifyRun } from '../apify/handlers2.js';
 import { processDirectListing } from './submit2.js';
 import { fetchCraigslistListing } from './craigslist.js';
+import { persistListingImagesToR2 } from './images.js';
 import { runOpenAI, runOpenAIMultiRangePricing, getSinglePricingFromOpenAI } from '../ai/eval-stubs.js';
 import { fetchReverbListingById } from '../pricing/reverb.js';
 import {
@@ -371,8 +372,13 @@ async function queueCraigslistDirect(
   if (!recordId) return null;
   await env.LISTING_JOBS.put(runId, recordId);
   if (existingId) await dbUpdateListing(existingId, { status: 'queued' }, env);
+  // Copy the photos into R2 like the Apify path does: Craigslist's CDN blocks cross-origin
+  // fetches (the pics ZIP) and its photos disappear when the post expires.
   ctx.waitUntil(
-    processDirectListing(recordId, runId, listing, env, { isMulti }).catch((error) => {
+    (async () => {
+      const images = await persistListingImagesToR2(recordId, listing.images, env);
+      await processDirectListing(recordId, runId, { ...listing, images }, env, { isMulti });
+    })().catch((error) => {
       console.error('Craigslist direct processing failed', { url, recordId, error });
     }),
   );

@@ -205,10 +205,13 @@ function buildSourceGlyph(source?: string): string | null {
 function buildImageSrc(imageUrl: string, referrer?: string): string {
   const cleaned = imageUrl.trim().split(/\s+/)[0];
   const normalized = cleaned.toLowerCase();
+  // Facebook and Craigslist photos go through the worker's /api/image proxy: neither CDN
+  // allows cross-origin fetches, which the ZIP download needs.
   if (
     normalized.includes('fbcdn.net') ||
     normalized.includes('scontent-') ||
-    normalized.includes('scontent.')
+    normalized.includes('scontent.') ||
+    normalized.includes('images.craigslist.org')
   ) {
     const params = new URLSearchParams();
     params.set('url', cleaned);

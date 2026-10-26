@@ -20,7 +20,7 @@ import {
   isSupportedListingUrl,
   resolveFacebookShareUrl,
 } from './submit.js';
-import { deleteR2ImagesForListing } from './images.js';
+import { deleteR2ImagesForListing, persistListingImagesToR2 } from './images.js';
 
 import { processCustomListing, processDirectListing } from './submit2.js';
 import { fetchCraigslistListing } from './craigslist.js';
@@ -448,7 +448,8 @@ export async function handleReprocessListing(request: Request, env: Env): Promis
       await env.LISTING_JOBS.put(runId, existing.id);
       await dbUpdateListing(existing.id, { status: 'queued' }, env);
       try {
-        await processDirectListing(existing.id, runId, listing, env, { isMulti: false });
+        const images = await persistListingImagesToR2(existing.id, listing.images, env);
+        await processDirectListing(existing.id, runId, { ...listing, images }, env, { isMulti: false });
         return jsonResponse({ ok: true, runId, recordId: existing.id });
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unable to process Craigslist listing.';
