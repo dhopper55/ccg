@@ -33,6 +33,7 @@ import liberationSansRegularUrl from 'pdfjs-dist/standard_fonts/LiberationSans-R
 import IconifyIcon from 'components/base/IconifyIcon';
 import paths from 'routes/paths';
 import { downloadImagesAsZip } from 'lib/imageZip';
+import { fetchImagesForAi } from 'lib/aiImages';
 import { formatOrderNumber } from 'lib/utils';
 import ReverbListingWizard from './ReverbListingWizard';
 import SoldOrderDialog, { type SoldOrderDialogItem } from './SoldOrderDialog';
@@ -625,6 +626,89 @@ const notesFieldSx = {
     lineHeight: 1.5,
   },
 };
+
+type PhotoAnalysisFields = {
+  title: string;
+  brand: string;
+  model: string;
+  finish: string;
+  yearRange: string;
+  serialNumber: string;
+  categoryId: string;
+  secondaryCategoryId: string;
+  merchantCenterCatCode: string;
+  privatePartyValue: number | null;
+};
+
+type PhotoAnalysisResponse = {
+  ok?: boolean;
+  message?: string;
+  analysisHtml?: string;
+  fields?: PhotoAnalysisFields;
+};
+
+// Fill the form from a photo analysis. AI Analysis is always replaced; other fields are
+// only filled when blank unless overwrite is on. Queue and Unit Cost are set the way new
+// items are entered (To Sell, $1) but never replace a value that was already chosen.
+function applyPhotoAnalysis(
+  current: FormState,
+  analysisHtml: string,
+  fields: PhotoAnalysisFields,
+  dialogTitle: string,
+  overwrite: boolean,
+): { next: FormState; filled: string[] } {
+  const next = { ...current, aiAnalysisText: analysisHtml };
+  const filled = ['AI Analysis'];
+  const canFill = (value: string) => overwrite || !value.trim() || Number(value) === 0;
+
+  const textFields: Array<[keyof FormState & ('title' | 'brand' | 'model' | 'finish' | 'yearRange' | 'serialNumber'), string, string]> = [
+    ['title', dialogTitle || fields.title, 'Title'],
+    ['brand', fields.brand, 'Brand'],
+    ['yearRange', fields.yearRange, 'Year'],
+    ['model', fields.model, 'Model'],
+    ['finish', fields.finish, 'Finish'],
+    ['serialNumber', fields.serialNumber, 'Serial Number'],
+  ];
+  textFields.forEach(([key, value, label]) => {
+    if (value && value !== current[key] && (overwrite || !current[key].trim())) {
+      next[key] = value;
+      filled.push(label);
+    }
+  });
+
+  if (fields.categoryId && fields.categoryId !== current.categoryId && (overwrite || !current.categoryId)) {
+    next.categoryId = fields.categoryId;
+    next.secondaryCategoryId = fields.secondaryCategoryId;
+    filled.push('Category');
+  } else if (
+    fields.secondaryCategoryId
+    && fields.categoryId === current.categoryId
+    && (overwrite || !current.secondaryCategoryId)
+  ) {
+    next.secondaryCategoryId = fields.secondaryCategoryId;
+  }
+  if (
+    fields.merchantCenterCatCode
+    && fields.merchantCenterCatCode !== current.merchantCenterCatCode
+    && (overwrite || !current.merchantCenterCatCode)
+  ) {
+    next.merchantCenterCatCode = fields.merchantCenterCatCode;
+    filled.push('Merchant Center Category');
+  }
+  if (fields.privatePartyValue != null && canFill(current.privatePartyValue)) {
+    next.privatePartyValue = String(fields.privatePartyValue);
+    filled.push('Private Party Value');
+  }
+  if (current.queue === 'Triage') {
+    next.queue = 'To Sell';
+    filled.push('Queue');
+  }
+  if (!current.unitPurchasePrice.trim() || Number(current.unitPurchasePrice) === 0) {
+    next.unitPurchasePrice = '1';
+    filled.push('Unit Cost');
+  }
+  return { next, filled };
+}
 
 function buildHtmlPreviewNode(html: string, emptyLabel: string, onClick: () => void) {
   const trimmed = html.trim();
@@ -1236,6 +1320,12 @@ const InventoryItem = () => {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [aiAnalysisDialogOpen, setAiAnalysisDialogOpen] = useState(false);
   const [aiAnalysisDraft, setAiAnalysisDraft] = useState('');
+  const [photoAnalysisDialogOpen, setPhotoAnalysisDialogOpen] = useState(false);
+  const [photoAnalysisTitle, setPhotoAnalysisTitle] = useState('');
+  const [photoAnalysisNotes, setPhotoAnalysisNotes] = useState('');
+  const [photoAnalysisOverwrite, setPhotoAnalysisOverwrite] = useState(false);
+  const [isRunningPhotoAnalysis, setIsRunningPhotoAnalysis] = useState(false);
+  const photoAnalysisAbortRef = useRef<AbortController | null>(null);
   const [profitTargetsOpen, setProfitTargetsOpen] = useState(false);
   const [wasSoldOnLoad, setWasSoldOnLoad] = useState(false);
   const [soldConfirmOpen, setSoldConfirmOpen] = useState(false);
@@ -2727,6 +2817,65 @@ const InventoryItem = () => {
     setAiAnalysisDialogOpen(false);
   };
 
+  const openPhotoAnalysisDialog = () => {
+    setPhotoAnalysisTitle(form.title);
+    setPhotoAnalysisDialogOpen(true);
+    setMessage(null);
+  };
+
+  const closePhotoAnalysisDialog = () => {
+    photoAnalysisAbortRef.current?.abort();
+    setPhotoAnalysisDialogOpen(false);
+  };
+
+  const runPhotoAnalysis = async () => {
+    if (images.length === 0 || isRunningPhotoAnalysis) return;
+    const controller = new AbortController();
+    photoAnalysisAbortRef.current = controller;
+    setIsRunningPhotoAnalysis(true);
+    try {
+      const payloadImages = await fetchImagesForAi(
+        images.map((image) => new URL(image.url, window.location.origin).toString()),
+      );
+      if (payloadImages.length === 0) throw new Error('Unable to load the item images.');
+      const dialogTitle = photoAnalysisTitle.trim();
+      const response = await fetch('/api/admin-v2/inventory/photo-analysis', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          title: dialogTitle,
+          notes: photoAnalysisNotes,
+          merchantCenterCatCodes: MERCHANT_CENTER_CATEGORY_OPTIONS.map((option) => option.key),
+          images: payloadImages,
+        }),
+      });
+      // The endpoint streams whitespace while the AI works, then the JSON result.
+      const text = await response.text();
+      let data: PhotoAnalysisResponse = {};
+      try {
+        data = JSON.parse(text) as PhotoAnalysisResponse;
+      } catch {
+        throw new Error('AI analysis returned an unexpected response.');
+      }
+      if (!response.ok || !data.ok || !data.fields) {
+        throw new Error(data.message || 'AI analysis failed.');
+      }
+      const { analysisHtml = '', fields } = data;
+      const { filled } = applyPhotoAnalysis(form, analysisHtml, fields, dialogTitle, photoAnalysisOverwrite);
+      setForm((current) => applyPhotoAnalysis(current, analysisHtml, fields, dialogTitle, photoAnalysisOverwrite).next);
+      setPhotoAnalysisDialogOpen(false);
+      enqueueSnackbar(`AI analysis filled: ${filled.join(', ')}. Review and save.`, { variant: 'success' });
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      enqueueSnackbar(error instanceof Error ? error.message : 'AI analysis failed.', { variant: 'error' });
+    } finally {
+      if (photoAnalysisAbortRef.current === controller) photoAnalysisAbortRef.current = null;
+      setIsRunningPhotoAnalysis(false);
+    }
+  };
+
   return (
     <Stack direction="column" height={1} gap={3} sx={{ minWidth: 0 }}>
       <Paper sx={{ px: { xs: 3, md: 5 }, py: 3 }}>
@@ -3489,12 +3638,30 @@ const InventoryItem = () => {
                 />
               </Grid>
 
-              <Grid size={12}>
+              <Grid size={{ xs: 12, md: 9 }}>
                 {buildHtmlPreviewNode(
                   form.aiAnalysisText,
                   'Click to add AI analysis text.',
                   openAiAnalysisDialog,
                 )}
+              </Grid>
+              <Grid size={{ xs: 12, md: 3 }}>
+                <Stack spacing={1}>
+                  <Tooltip title={images.length === 0 ? 'Upload images first.' : ''}>
+                    <span>
+                      <Button
+                        fullWidth
+                        variant="outlined"
+                        color="primary"
+                        onClick={openPhotoAnalysisDialog}
+                        disabled={images.length === 0 || isUploading || isRunningPhotoAnalysis}
+                        startIcon={<IconifyIcon icon="material-symbols:imagesmode-rounded" />}
+                      >
+                        Refresh AI Analysis From Pics
+                      </Button>
+                    </span>
+                  </Tooltip>
+                </Stack>
               </Grid>
 
               <Grid size={12}>
@@ -4644,6 +4811,62 @@ const InventoryItem = () => {
             </Box>
           </Box>
         </DialogContent>
+      </Dialog>
+      <Dialog open={photoAnalysisDialogOpen} onClose={closePhotoAnalysisDialog} fullWidth maxWidth="sm">
+        <DialogTitle>Refresh AI Analysis From Pics</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <TextField
+              fullWidth
+              autoFocus
+              label="Title"
+              value={photoAnalysisTitle}
+              onChange={(event) => setPhotoAnalysisTitle(event.target.value)}
+              disabled={isRunningPhotoAnalysis}
+              helperText="Leave blank to let the AI identify the item and suggest a title."
+              inputProps={{ maxLength: 240 }}
+            />
+            <TextField
+              fullWidth
+              multiline
+              minRows={3}
+              label="Additional details (optional)"
+              placeholder="e.g. Hard case is not included. One volume pot not working."
+              value={photoAnalysisNotes}
+              onChange={(event) => setPhotoAnalysisNotes(event.target.value)}
+              disabled={isRunningPhotoAnalysis}
+              inputProps={{ maxLength: 4000 }}
+            />
+            <FormControlLabel
+              control={(
+                <Checkbox
+                  checked={photoAnalysisOverwrite}
+                  onChange={(event) => setPhotoAnalysisOverwrite(event.target.checked)}
+                  disabled={isRunningPhotoAnalysis}
+                />
+              )}
+              label="Overwrite fields that already have values"
+            />
+            <Typography variant="body2" color="text.secondary">
+              {isRunningPhotoAnalysis
+                ? 'Analyzing photos and researching comps. This usually takes a minute or two…'
+                : `Sends ${images.length} image${images.length === 1 ? '' : 's'} to the AI. AI Analysis is always replaced.`}
+            </Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button variant="outlined" onClick={closePhotoAnalysisDialog}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={runPhotoAnalysis}
+            disabled={isRunningPhotoAnalysis || images.length === 0}
+            startIcon={isRunningPhotoAnalysis ? <CircularProgress size={16} color="inherit" /> : undefined}
+          >
+            {isRunningPhotoAnalysis ? 'Analyzing…' : 'Analyze'}
+          </Button>
+        </DialogActions>
       </Dialog>
       <SoldOrderDialog
         open={Boolean(soldOrderDialogItem)}

@@ -105,6 +105,7 @@ import {
   handleAdminV2PurchaseLotUpdate,
   handleAdminV2PurchaseLotItems,
 } from './inventory/purchased-lots.js';
+import { handleAdminV2InventoryPhotoAnalysis } from './ai/inventory-photo-analysis.js';
 import {
   handleAdminV2InventorySubscriptions,
   handleAdminV2InventoryCustomTemplate,
@@ -1198,6 +1199,11 @@ export default {
 
     if (path === '/api/admin-v2/inventory/reframe' && request.method === 'POST') {
       const response = await handleAdminV2InventoryReframe(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/inventory/photo-analysis' && request.method === 'POST') {
+      const response = await handleAdminV2InventoryPhotoAnalysis(request, env);
       return withCors(response, request, env);
     }
 
