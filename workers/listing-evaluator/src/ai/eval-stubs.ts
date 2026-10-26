@@ -59,7 +59,7 @@ export async function runOpenAI(_listing: ListingData, _env: Env, options?: { is
   return {
     kind: 'single',
     data: {
-      category: 'Other', brand: '', model: '', finish: '', year: '', condition: 'Good',
+      category: 'Other', brand: '', model: '', finish: '', year: '', condition: '',
       serial: '', serial_brand: '', serial_year: '', serial_model: '',
       value_private_party_low: null, value_private_party_low_notes: '',
       value_private_party_medium: null, value_private_party_medium_notes: '',

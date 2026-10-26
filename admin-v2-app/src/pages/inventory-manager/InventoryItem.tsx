@@ -36,6 +36,8 @@ import { downloadImagesAsZip } from 'lib/imageZip';
 import {
   analysisHtmlToText,
   buildClaudeDesktopPrompt,
+  claudePasteBoxSx,
+  copyTextToClipboard,
   buildClaudeListingPrompt,
   parseClaudeDesktopPaste,
   parseClaudeListingPaste,
@@ -719,53 +721,6 @@ function applyPhotoAnalysis(
   }
   return { next, filled };
 }
-
-// Copy text to the clipboard; returns an error message, or null on success. The async
-// clipboard API can refuse (e.g. "Document is not focused"), so fall back to a hidden
-// textarea + execCommand, placed inside `container` (the dialog) so the dialog's focus trap
-// doesn't pull focus away before the copy.
-async function copyTextToClipboard(text: string, container: HTMLElement): Promise<string | null> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return null;
-  } catch (clipboardError) {
-    const textarea = document.createElement('textarea');
-    textarea.value = text;
-    textarea.setAttribute('readonly', '');
-    textarea.style.position = 'fixed';
-    textarea.style.opacity = '0';
-    container.appendChild(textarea);
-    textarea.select();
-    const copied = document.execCommand('copy');
-    textarea.remove();
-    if (copied) return null;
-    const reason = clipboardError instanceof Error ? clipboardError.message : String(clipboardError);
-    return `Unable to copy the prompt to the clipboard (${reason}). Click the button again.`;
-  }
-}
-
-// Rich-text box Claude desktop replies are pasted into.
-const claudePasteBoxSx = {
-  minHeight: 160,
-  maxHeight: 360,
-  overflowY: 'auto',
-  width: 1,
-  borderRadius: 1.5,
-  p: 1.5,
-  border: '1px solid',
-  borderColor: 'divider',
-  bgcolor: 'background.default',
-  color: 'text.primary',
-  fontSize: '0.9rem',
-  lineHeight: 1.5,
-  '&:focus': { outline: 'none', borderColor: 'primary.main' },
-  '& p, & ul, & ol, & pre, & h1, & h2, & h3, & h4': { mt: 0, mb: 1 },
-  '& pre': { whiteSpace: 'pre-wrap' },
-  '&[contenteditable="true"]:empty:before': {
-    content: '"Paste Claude\'s whole reply here (rich text is kept)"',
-    color: 'text.disabled',
-  },
-} as const;
 
 function buildHtmlPreviewNode(html: string, emptyLabel: string, onClick: () => void) {
   const trimmed = html.trim();
@@ -1820,10 +1775,15 @@ const InventoryItem = () => {
           if (allImages.length > 0) {
             setImages(normalizeImages(allImages.map((url) => ({ url, isPrivate: false }))));
           }
-          const year = (fields.year || '').trim();
-          const brand = (fields.brand || '').trim();
-          const model = (fields.model || '').trim();
-          const finish = (fields.finish || '').trim();
+          // Older listings hold placeholders from the retired AI step; don't carry those over.
+          const known = (value: string | undefined) => {
+            const text = (value || '').trim();
+            return /^unknown$/i.test(text) || /NOT DEFINITIVE/i.test(text) || /^estimated range/i.test(text) ? '' : text;
+          };
+          const year = known(fields.year);
+          const brand = known(fields.brand);
+          const model = known(fields.model);
+          const finish = known(fields.finish);
           const concatTitle = [year, brand, model, finish].filter(Boolean).join(' ');
           setForm((current) => ({
             ...current,

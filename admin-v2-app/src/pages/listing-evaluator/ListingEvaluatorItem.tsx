@@ -1,9 +1,10 @@
-import { Fragment, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, MouseEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Chip,
   CircularProgress,
   Container,
@@ -19,6 +20,7 @@ import {
   Radio,
   RadioGroup,
   Stack,
+  TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
@@ -26,6 +28,12 @@ import Grid from '@mui/material/Grid';
 import IconifyIcon from 'components/base/IconifyIcon';
 import paths from 'routes/paths';
 import { downloadImagesAsZip } from 'lib/imageZip';
+import {
+  buildClaudeListingEvalPrompt,
+  claudePasteBoxSx,
+  copyTextToClipboard,
+  parseClaudeDesktopPaste,
+} from 'lib/claudeDesktopAnalysis';
 
 type ListingRecordResponse = {
   id: string;
@@ -55,42 +63,6 @@ type DetailItem = {
   value: ReactNode;
 };
 
-type FieldConfig = {
-  key: string;
-  label: string;
-  currency?: boolean;
-};
-
-const SINGLE_FIELDS: FieldConfig[] = [
-  { key: 'category', label: 'Category' },
-  { key: 'brand', label: 'Brand' },
-  { key: 'model', label: 'Model' },
-  { key: 'finish', label: 'Finish' },
-  { key: 'year', label: 'Year' },
-  { key: 'condition', label: 'Condition' },
-  { key: 'serial', label: 'Serial' },
-  { key: 'serial_brand', label: 'Serial Brand' },
-  { key: 'serial_year', label: 'Serial Year' },
-  { key: 'serial_model', label: 'Serial Model' },
-  { key: 'value_private_party_low', label: 'Private Party Low', currency: true },
-  { key: 'value_private_party_medium', label: 'Private Party Medium', currency: true },
-  { key: 'value_private_party_high', label: 'Private Party High', currency: true },
-  { key: 'pricing_confidence', label: 'Pricing Confidence' },
-  { key: 'value_pawn_shop_notes', label: 'Pawn Shop Notes' },
-  { key: 'known_weak_points', label: 'Known Weak Points' },
-  { key: 'typical_repair_needs', label: 'Typical Repair Needs' },
-  { key: 'buyers_worry', label: 'Buyer Worries' },
-  { key: 'og_specs_pickups', label: 'Original Pickups' },
-  { key: 'og_specs_tuners', label: 'Original Tuners' },
-  { key: 'og_specs_common_mods', label: 'Common Mods' },
-  { key: 'buyer_what_to_check', label: 'Buyer: What to Check' },
-  { key: 'buyer_common_misrepresent', label: 'Buyer: Common Misrepresentation' },
-  { key: 'seller_how_to_price_realistic', label: 'Seller: Price Realistically' },
-  { key: 'seller_fixes_add_value_or_waste', label: 'Seller: Fixes That Add Value or Waste' },
-  { key: 'seller_as_is_notes', label: 'Seller: As-Is Notes' },
-];
-
-const INLINE_DETAIL_KEYS = new Set(['category', 'brand', 'model', 'finish', 'year', 'condition']);
 const ARCHIVE_REASONS: ArchiveReason[] = [
   'Overpriced',
   'Not Desirable',
@@ -303,84 +275,6 @@ function formatYearRangeToken(value: string): string {
   return `${match[1]}-${match[2]}'s`;
 }
 
-function toAbsolutePublicUrl(url: string): string {
-  // Convert R2-backed listing image URLs to the public R2 domain (bypasses Cloudflare bot protection)
-  const listingImageMatch = url.match(/\/api\/listing-image\?key=(.+)/);
-  if (listingImageMatch) {
-    return `https://images.coalcreekguitars.com/${decodeURIComponent(listingImageMatch[1])}`;
-  }
-  if (url.startsWith('/api/')) {
-    return `https://www.coalcreekguitars.com${url}`;
-  }
-  return url;
-}
-
-function buildAiQueryTexts(fields: Record<string, unknown>, imageUrls: string[]): string[] {
-  if (imageUrls.length === 0) return [];
-
-  const publicUrls = imageUrls.slice(0, 9).map(toAbsolutePublicUrl);
-  const chunks: string[][] = [];
-  for (let i = 0; i < publicUrls.length; i += 3) {
-    chunks.push(publicUrls.slice(i, i + 3));
-  }
-
-  const rawBrand = typeof fields.brand === 'string' ? fields.brand.trim() : '';
-  const rawModel = typeof fields.model === 'string' ? fields.model.trim() : '';
-
-  const isDefinitiveBrand =
-    rawBrand !== '' &&
-    !/\(NOT DEFINITIVE\)/i.test(rawBrand) &&
-    !/^Unknown$/i.test(rawBrand) &&
-    !/^Guess:/i.test(rawBrand);
-  const isDefinitiveModel =
-    rawModel !== '' &&
-    !/\(NOT DEFINITIVE\)/i.test(rawModel) &&
-    !/^Unknown$/i.test(rawModel) &&
-    !/^Guess:/i.test(rawModel);
-
-  let brandSuffix = '';
-  if (isDefinitiveBrand && isDefinitiveModel) {
-    const brand = rawBrand.replace(/\s+/g, ' ').trim();
-    const model = rawModel.replace(/\s+/g, ' ').trim();
-    brandSuffix = ` I think it is a ${brand} ${model}, but I could be wrong.`;
-  }
-
-  const texts: string[] = [];
-  texts.push(`What is this and what's it worth? ${chunks[0].join(', ')}.${brandSuffix}`);
-  for (let i = 1; i < chunks.length; i++) {
-    texts.push(`Here are some additional images: ${chunks[i].join(', ')}.`);
-  }
-  return texts;
-}
-
-function buildAiEvalText(fields: Record<string, unknown>): string {
-  const rawBrand = typeof fields.brand === 'string' ? fields.brand.trim() : '';
-  const rawModel = typeof fields.model === 'string' ? fields.model.trim() : '';
-  const rawSerial = typeof fields.serial === 'string' ? fields.serial.trim() : '';
-  const rawTitle = typeof fields.title === 'string' ? fields.title.trim() : '';
-
-  const isDefinitiveBrand =
-    rawBrand !== '' &&
-    !/\(NOT DEFINITIVE\)/i.test(rawBrand) &&
-    !/^Unknown$/i.test(rawBrand) &&
-    !/^Guess:/i.test(rawBrand);
-  const isDefinitiveModel =
-    rawModel !== '' &&
-    !/\(NOT DEFINITIVE\)/i.test(rawModel) &&
-    !/^Unknown$/i.test(rawModel) &&
-    !/^Guess:/i.test(rawModel);
-
-  const evalSuffix = 'Give me a concise readout of the following: Reverb sold range, realistic private party value in Denver metro, quick flip buy price (for 30% margin or more), and lastly, is this gear desirable - meaning do listings for this sit for a long time and are there a lot of them, or are they more rare and desirable?';
-
-  if (isDefinitiveBrand || isDefinitiveModel) {
-    const identity = [rawBrand, rawModel].filter(Boolean).join(' ');
-    const serialPart = rawSerial ? ` (serial: ${rawSerial})` : '';
-    return `I think this is a ${identity}${serialPart}. The listing title is "${rawTitle}". But you do your own evaluation on the pictures. ${evalSuffix}`;
-  }
-
-  return `The listing title is "${rawTitle}". Do your own evaluation on this item based on the pictures. ${evalSuffix}`;
-}
-
 function buildDoubleCheckQuery(
   fields: Record<string, unknown>,
   options: { includeGuitar?: boolean } = {},
@@ -402,144 +296,11 @@ function buildStatusColor(status?: string): 'success' | 'error' | 'warning' | 'n
   return 'neutral';
 }
 
-function parseMoneyValue(input: unknown): number | null {
-  const normalized = normalizeValue(input);
-  if (normalized === '—') return null;
-  const cleaned = normalized.replace(/[^0-9.]/g, '');
-  if (!cleaned) return null;
-  const value = Number.parseFloat(cleaned);
-  return Number.isFinite(value) ? value : null;
-}
-
-function formatPrivateRange(fields: Record<string, unknown>): string {
-  const lowValue = parseMoneyValue(fields.value_private_party_low);
-  const highValue = parseMoneyValue(fields.value_private_party_high);
-  if (lowValue != null && highValue != null) {
-    return `${formatCurrencyValue(lowValue)} - ${formatCurrencyValue(highValue)}`;
-  }
-  return normalizeValue(fields.price_private_party);
-}
-
-function formatIdealPrice(fields: Record<string, unknown>): string {
-  const direct = formatCurrencyValue(fields.price_ideal);
-  if (direct !== '—') return direct;
-  const lowValue = parseMoneyValue(fields.value_private_party_low);
-  return lowValue != null ? formatCurrencyValue(Math.round(lowValue * 0.8)) : '—';
-}
-
-function formatTextParts(value: unknown): string[] {
-  const normalized = normalizeValue(value);
-  if (normalized === '—') return [];
-
-  const cleaned = normalized
-    .replace(/\bGeneral:\s*/gi, '')
-    .replace(/[\u061B\uFF1B\uFE54\u037E]/g, ';')
-    .trim();
-
-  const hasBulletMarkers = /[•●▪◦]/.test(cleaned) || /(?:^|\n)\s*[-*]\s+/.test(cleaned);
-
-  if (hasBulletMarkers) {
-    return cleaned
-      .replace(/[•●▪◦]\s*/g, '\n• ')
-      .replace(/(?:^|\n)\s*[-*]\s+/g, '\n• ')
-      .split(/\r?\n/)
-      .map((part) => part.replace(/^[-–—•*]+\s*/g, '').trim())
-      .filter(Boolean)
-      .filter((part) => !/^unknown\.?$/i.test(part));
-  }
-
-  return cleaned
-    .split(/\s*;\s*|\r?\n/g)
-    .map((part) => part.replace(/^[-–—•*]+\s*/g, '').trim())
-    .filter(Boolean)
-    .filter((part) => !/^unknown\.?$/i.test(part));
-}
-
-function buildTextNode(value: unknown): ReactNode {
-  if (Array.isArray(value)) {
-    const parts = value
-      .filter((item): item is string => typeof item === 'string')
-      .map((item) => item.trim())
-      .filter(Boolean);
-
-    if (parts.length === 0) return '—';
-    if (parts.length === 1) return parts[0];
-
-    return (
-      <Stack spacing={1} sx={{ minWidth: 0, width: 1 }}>
-        {parts.map((part) => (
-          <Typography
-            key={part}
-            variant="body2"
-            sx={{
-              color: 'text.secondary',
-              overflowWrap: 'anywhere',
-              wordBreak: 'break-word',
-              whiteSpace: 'pre-wrap',
-              width: 1,
-            }}
-          >
-            {`• ${part}`}
-          </Typography>
-        ))}
-      </Stack>
-    );
-  }
-
-  const parts = formatTextParts(value);
-  if (parts.length === 0) return '—';
-  if (parts.length === 1) return parts[0];
-
-  return (
-    <Stack spacing={1} sx={{ minWidth: 0, width: 1 }}>
-      {parts.map((part) => (
-        <Typography
-          key={part}
-          variant="body2"
-          sx={{
-            color: 'text.secondary',
-            overflowWrap: 'anywhere',
-            wordBreak: 'break-word',
-            whiteSpace: 'pre-wrap',
-            width: 1,
-          }}
-        >
-          {`• ${part}`}
-        </Typography>
-      ))}
-    </Stack>
-  );
-}
-
-function buildSummaryNode(text: string): ReactNode {
-  const lines = text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  if (lines.length === 0) return '—';
-
-  return (
-    <Stack spacing={1.25}>
-      {lines.map((line, index) => {
-        const bulletText = line.replace(/^[-•*–]\s+/, '');
-        const isBullet = bulletText !== line;
-        return (
-          <Typography
-            key={`${index}-${bulletText}`}
-            variant="body2"
-            sx={{
-              color: 'text.secondary',
-              overflowWrap: 'anywhere',
-              wordBreak: 'break-word',
-            }}
-          >
-            {isBullet ? `• ${bulletText}` : bulletText}
-          </Typography>
-        );
-      })}
-    </Stack>
-  );
+// Brand/model/year on older listings can hold placeholders from the retired AI step
+// ("Unknown", "... (NOT DEFINITIVE)", "Estimated range: ..."); treat those as blank.
+function isKnownIdentityValue(value: unknown): boolean {
+  const text = typeof value === 'string' ? value.trim() : '';
+  return Boolean(text) && !/^unknown$/i.test(text) && !/NOT DEFINITIVE/i.test(text) && !/^estimated range/i.test(text);
 }
 
 function buildHtmlPreviewNode(html: string, emptyLabel: string, onClick: () => void): ReactNode {
@@ -713,48 +474,6 @@ const StackedDetailSection = ({ items }: { items: DetailItem[] }) => {
   );
 };
 
-const InlineDetailSection = ({ items }: { items: DetailItem[] }) => {
-  const visibleItems = items.filter((item) => item.value !== '—');
-
-  if (visibleItems.length === 0) return null;
-
-  return (
-    <Stack direction="column" gap={2}>
-      {visibleItems.map((item) => (
-        <Stack
-          key={item.label}
-          direction={{ xs: 'column', sm: 'row' }}
-          sx={{ gap: { xs: 0.75, sm: 3 }, alignItems: { sm: 'baseline' }, minWidth: 0 }}
-        >
-          <Typography
-            variant="h6"
-            sx={{ minWidth: { sm: 180 }, flexShrink: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}
-          >
-            {item.label}
-          </Typography>
-          <Box sx={{ minWidth: 0, flex: 1 }}>
-            {typeof item.value === 'string' ? (
-              <Typography
-                variant="body2"
-                sx={{
-                  color: 'text.secondary',
-                  whiteSpace: 'pre-wrap',
-                  overflowWrap: 'anywhere',
-                  wordBreak: 'break-word',
-                }}
-              >
-                {item.value}
-              </Typography>
-            ) : (
-              item.value
-            )}
-          </Box>
-        </Stack>
-      ))}
-    </Stack>
-  );
-};
-
 const ListingEvaluatorItem = () => {
   const navigate = useNavigate();
   const { id: routeId } = useParams();
@@ -836,8 +555,6 @@ const ListingEvaluatorItem = () => {
   const statusLabel = normalizeValue(fields.status);
   const statusColor = buildStatusColor(typeof fields.status === 'string' ? fields.status : '');
   const askingPrice = formatCurrencyValue(fields.price_asking);
-  const privateRange = formatPrivateRange(fields);
-  const idealPrice = formatIdealPrice(fields);
   const listingUrl =
     typeof fields.url === 'string' &&
     fields.url.trim() &&
@@ -862,52 +579,120 @@ const ListingEvaluatorItem = () => {
   }, [imageCandidates.length]);
 
   const [isDownloadingZip, setIsDownloadingZip] = useState(false);
-  const handleDownloadZip = useCallback(async () => {
+  // Name the ZIP after the title (when given) so it is easy to spot in Downloads.
+  const handleDownloadZip = useCallback(async (zipTitle?: string) => {
     if (imageCandidates.length === 0) return;
     setIsDownloadingZip(true);
     try {
+      const titleSlug = (zipTitle || '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 100);
       await downloadImagesAsZip(
         imageCandidates.map((candidate) => buildImageSrc(candidate, listingUrl)),
-        `listing-images-${record?.id || 'unknown'}.zip`,
+        titleSlug ? `${titleSlug}-images.zip` : `listing-images-${record?.id || 'unknown'}.zip`,
       );
     } finally {
       setIsDownloadingZip(false);
     }
   }, [imageCandidates, listingUrl, record]);
 
-  const aiQueryTexts = useMemo(() => buildAiQueryTexts(fields, imageCandidates), [fields, imageCandidates]);
-  const [aiCopiedIndex, setAiCopiedIndex] = useState<number | null>(null);
-  const [evalCopied, setEvalCopied] = useState(false);
-  const handleEvalCopy = useCallback(() => {
-    const text = buildAiEvalText(fields);
-    void navigator.clipboard.writeText(text).then(() => {
-      setEvalCopied(true);
-      setTimeout(() => setEvalCopied(false), 2000);
+  const [evalDialogOpen, setEvalDialogOpen] = useState(false);
+  const [evalTitle, setEvalTitle] = useState('');
+  const [evalNotes, setEvalNotes] = useState('');
+  const [evalDeep, setEvalDeep] = useState(false);
+  const [evalOverwrite, setEvalOverwrite] = useState(false);
+  const [evalPromptCopied, setEvalPromptCopied] = useState(false);
+  const [evalReply, setEvalReply] = useState('');
+  const [evalError, setEvalError] = useState('');
+  const [isEvalSaving, setIsEvalSaving] = useState(false);
+  const evalReplyRef = useRef<HTMLDivElement | null>(null);
+
+  const openEvalDialog = () => {
+    setEvalTitle(normalizeValue(fields.title) === '—' ? '' : normalizeValue(fields.title));
+    setEvalReply('');
+    setEvalPromptCopied(false);
+    setEvalError('');
+    setEvalDialogOpen(true);
+    setMessage(null);
+  };
+
+  const copyEvalPrompt = async (event: MouseEvent<HTMLButtonElement>) => {
+    setEvalError('');
+    const container = event.currentTarget.parentElement || document.body;
+    const prompt = buildClaudeListingEvalPrompt({
+      title: evalTitle.trim(),
+      description: typeof fields.description === 'string' ? fields.description : '',
+      notes: evalNotes,
+      deep: evalDeep,
+      isMulti,
     });
-  }, [fields]);
-  const handleAiQueryCopy = useCallback((index: number) => {
-    const text = aiQueryTexts[index];
-    if (!text) return;
-    void navigator.clipboard.writeText(text).then(() => {
-      setAiCopiedIndex(index);
-      setTimeout(() => setAiCopiedIndex(null), 2000);
+    const copyError = await copyTextToClipboard(prompt, container);
+    if (copyError) {
+      setEvalError(copyError);
+      return;
+    }
+    setEvalPromptCopied(true);
+    await handleDownloadZip(evalTitle.trim());
+  };
+
+  // Save Claude's reply to the listing: AI Analysis is replaced when the reply has one, and
+  // brand/model/year are filled when blank (or placeholders) unless overwrite is on. Lots
+  // with several items get "Various" for brand and model.
+  const fillEvalFromClaudeReply = async () => {
+    if (!recordId || !record || isEvalSaving) return;
+    setEvalError('');
+    let parsed: ReturnType<typeof parseClaudeDesktopPaste>;
+    try {
+      parsed = parseClaudeDesktopPaste(evalReplyRef.current?.innerHTML || '', evalReplyRef.current?.innerText || '');
+    } catch (error) {
+      setEvalError(error instanceof Error ? error.message : "Unable to read Claude's reply.");
+      return;
+    }
+    const { analysisHtml, fields: replyFields } = parsed;
+    const candidates: Record<'brand' | 'model' | 'year', string> = {
+      brand: isMulti ? 'Various' : replyFields.brand,
+      model: isMulti ? 'Various' : replyFields.model,
+      year: isMulti ? '' : replyFields.yearRange,
+    };
+    const identity: Record<string, string> = {};
+    (Object.keys(candidates) as Array<keyof typeof candidates>).forEach((key) => {
+      if (candidates[key] && (evalOverwrite || !isKnownIdentityValue(fields[key]))) identity[key] = candidates[key];
     });
-  }, [aiQueryTexts]);
+
+    setIsEvalSaving(true);
+    try {
+      const response = await fetch(`/api/admin-v2/listings/${encodeURIComponent(recordId)}/ai-analysis`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ aiAnalysisText: analysisHtml.trim() ? analysisHtml : aiAnalysisText, ...identity }),
+      });
+      const data = (await response.json()) as { aiAnalysisText?: string; message?: string };
+      if (!response.ok) throw new Error(data.message || 'Unable to save the AI analysis.');
+      setRecord({
+        ...record,
+        fields: {
+          ...record.fields,
+          ...identity,
+          ai_analysis_text: typeof data.aiAnalysisText === 'string' ? data.aiAnalysisText : aiAnalysisText,
+        },
+      });
+      const filled = [
+        ...(analysisHtml.trim() ? ['AI Analysis'] : []),
+        ...Object.keys(identity).map((key) => key[0].toUpperCase() + key.slice(1)),
+      ];
+      setEvalDialogOpen(false);
+      setMessage({
+        severity: 'success',
+        text: filled.length ? `Saved from Claude: ${filled.join(', ')}.` : 'Nothing new to save from that reply.',
+      });
+    } catch (error) {
+      setEvalError(error instanceof Error ? error.message : 'Unable to save the AI analysis.');
+    } finally {
+      setIsEvalSaving(false);
+    }
+  };
 
   const googleQuery = buildDoubleCheckQuery(fields);
   const googleGuitarQuery = buildDoubleCheckQuery(fields, { includeGuitar: true });
-  const normalizedLists = record?.normalizedLists || {};
-  const getV2FieldValue = (fieldKey: string): unknown => normalizedLists[fieldKey] ?? fields[fieldKey];
-
-  const aiSummary = useMemo(() => {
-    const parts: string[] = [];
-    for (let index = 1; index <= 10; index += 1) {
-      const key = index === 1 ? 'ai_summary' : `ai_summary${index}`;
-      const value = fields[key];
-      if (typeof value === 'string' && value.trim()) parts.push(value.trim());
-    }
-    return parts.join('\n\n');
-  }, [fields]);
   const aiAnalysisText = useMemo(
     () => (typeof fields.ai_analysis_text === 'string' ? fields.ai_analysis_text.trim() : ''),
     [fields.ai_analysis_text],
@@ -1015,10 +800,8 @@ const ListingEvaluatorItem = () => {
       { label: 'Submitted', value: formatSubmittedAt(fields.submitted_at) },
       { label: 'Location', value: normalizeValue(fields.location) },
       { label: 'Asking Price', value: askingPrice },
-      { label: 'Private Party Range', value: privateRange },
-      { label: 'Price 1st Guess', value: idealPrice },
-      { label: 'Brand', value: normalizeValue(fields.brand) },
-      { label: 'Model', value: normalizeValue(fields.model) },
+      ...(isKnownIdentityValue(fields.brand) ? [{ label: 'Brand', value: normalizeValue(fields.brand) }] : []),
+      ...(isKnownIdentityValue(fields.model) ? [{ label: 'Model', value: normalizeValue(fields.model) }] : []),
       {
         label: 'AI Analysis',
         value: buildHtmlPreviewNode(
@@ -1039,97 +822,24 @@ const ListingEvaluatorItem = () => {
     fields.location,
     fields.model,
     fields.submitted_at,
-    idealPrice,
     openAiAnalysisDialog,
-    privateRange,
     sourceGlyph,
     sourceImage,
     sourceLabel,
     statusLabel,
   ]);
 
-  const singleDetailItems = useMemo<DetailItem[]>(() => {
-    if (isMulti) return [];
-
-    return SINGLE_FIELDS.filter((field) => {
-      if (
-        normalizeValue(fields.serial) === '—' &&
-        ['serial', 'serial_brand', 'serial_year', 'serial_model'].includes(field.key)
-      ) {
-        return false;
-      }
-      return normalizeValue(getV2FieldValue(field.key)) !== '—';
-    }).map((field) => ({
-      label: field.label,
-      value: field.currency
-        ? formatCurrencyValue(fields[field.key])
-        : buildTextNode(getV2FieldValue(field.key)),
-    }));
-  }, [fields, isMulti, normalizedLists]);
-
-  const singleDetailItemsByKey = useMemo(() => {
-    const map = new Map<string, DetailItem>();
-    for (const field of SINGLE_FIELDS) {
-      const item = singleDetailItems.find((entry) => entry.label === field.label);
-      if (item) map.set(field.key, item);
-    }
-    return map;
-  }, [singleDetailItems]);
-
-  const orderedInlineItems = useMemo<DetailItem[]>(
-    () =>
-      ['category', 'brand', 'model', 'finish', 'year', 'condition']
-        .map((key) => singleDetailItemsByKey.get(key))
-        .filter((item): item is DetailItem => Boolean(item)),
-    [singleDetailItemsByKey],
-  );
-
-  const orderedBlockItems = useMemo<DetailItem[]>(
-    () =>
-      [
-        {
-          label: 'Listing Text',
-          value:
-            normalizeValue(fields.description) === '—'
-              ? 'No description available.'
-              : normalizeValue(fields.description),
-        },
-        {
-          label: 'Summary',
-          value: aiSummary ? buildSummaryNode(aiSummary) : 'No AI summary available yet.',
-        },
-        {
-          label: 'Pricing Notes',
-          value: buildTextNode(getV2FieldValue('pricing_notes')),
-        },
-        {
-          label: 'Value Online Notes',
-          value: buildTextNode(getV2FieldValue('value_online_notes')),
-        },
-        {
-          label: 'Pawn Shop Notes',
-          value: buildTextNode(getV2FieldValue('value_pawn_shop_notes')),
-        },
-        ...[
-          'known_weak_points',
-          'typical_repair_needs',
-          'buyers_worry',
-          'og_specs_pickups',
-          'og_specs_tuners',
-          'og_specs_common_mods',
-          'buyer_what_to_check',
-          'buyer_common_misrepresent',
-          'seller_how_to_price_realistic',
-          'seller_fixes_add_value_or_waste',
-          'seller_as_is_notes',
-        ]
-          .map((key) => singleDetailItemsByKey.get(key))
-          .filter((item): item is DetailItem => Boolean(item)),
-      ].filter((item, index, array): item is DetailItem => {
-        if (!item) return false;
-        return array.findIndex((candidate) => candidate?.label === item.label) === index;
-      }),
-    [aiSummary, fields.description, normalizedLists, singleDetailItemsByKey],
+  const listingTextItems = useMemo<DetailItem[]>(
+    () => [
+      {
+        label: 'Listing Text',
+        value:
+          normalizeValue(fields.description) === '—'
+            ? 'No description available.'
+            : normalizeValue(fields.description),
+      },
+    ],
+    [fields.description],
   );
 
   const openExternal = (url: string) => {
@@ -1301,16 +1011,15 @@ const ListingEvaluatorItem = () => {
               >
                 Google Guitar
               </Button>
-              <Tooltip title={evalCopied ? 'Copied!' : 'Copy AI eval prompt to clipboard'}>
-                <Button
-                  variant="soft"
-                  color="neutral"
-                  startIcon={<IconifyIcon icon="material-symbols:content-copy-rounded" />}
-                  onClick={handleEvalCopy}
-                >
-                  {evalCopied ? 'Copied!' : 'AI Eval Text'}
-                </Button>
-              </Tooltip>
+              <Button
+                variant="soft"
+                color="neutral"
+                startIcon={<IconifyIcon icon="material-symbols:imagesmode-rounded" />}
+                onClick={openEvalDialog}
+                disabled={imageCandidates.length === 0}
+              >
+                AI Analysis From Pics
+              </Button>
               <Button
                 variant="contained"
                 color="primary"
@@ -1423,7 +1132,7 @@ const ListingEvaluatorItem = () => {
                               <Tooltip title={isDownloadingZip ? 'Downloading…' : 'Download all images as ZIP'}>
                                 <IconButton
                                   size="small"
-                                  onClick={handleDownloadZip}
+                                  onClick={() => void handleDownloadZip(normalizeValue(fields.title) === '—' ? '' : normalizeValue(fields.title))}
                                   disabled={isDownloadingZip}
                                   sx={{
                                     bgcolor: 'rgba(0,0,0,0.55)',
@@ -1491,9 +1200,7 @@ const ListingEvaluatorItem = () => {
                   <Divider />
 
                   <Stack direction="column" sx={{ gap: 3 }}>
-                    <StackedDetailSection items={orderedBlockItems.slice(0, 1)} />
-                    <InlineDetailSection items={orderedInlineItems} />
-                    <StackedDetailSection items={orderedBlockItems.slice(1)} />
+                    <StackedDetailSection items={listingTextItems} />
                   </Stack>
                 </Fragment>
               )}
@@ -1502,6 +1209,85 @@ const ListingEvaluatorItem = () => {
         </Container>
       </Grid>
 
+      <Dialog open={evalDialogOpen} onClose={() => !isEvalSaving && setEvalDialogOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>AI Analysis From Pics</DialogTitle>
+        <DialogContent dividers sx={{ display: 'block' }}>
+          <Stack direction="column" spacing={2} sx={{ width: 1, pt: 1 }}>
+            <Typography variant="subtitle2">1. Copy the prompt and download the pics</Typography>
+            <TextField
+              fullWidth
+              autoFocus
+              label="Title"
+              value={evalTitle}
+              onChange={(event) => setEvalTitle(event.target.value)}
+              inputProps={{ maxLength: 240 }}
+            />
+            <TextField
+              fullWidth
+              multiline
+              minRows={3}
+              label="Additional details (optional)"
+              placeholder="e.g. Seller says it buzzes on the low E."
+              value={evalNotes}
+              onChange={(event) => setEvalNotes(event.target.value)}
+              inputProps={{ maxLength: 4000 }}
+            />
+            <FormControlLabel
+              control={<Checkbox checked={evalDeep} onChange={(event) => setEvalDeep(event.target.checked)} />}
+              label="Deep Analysis (Claude takes more time on this one)"
+            />
+            <Button
+              variant="outlined"
+              onClick={copyEvalPrompt}
+              disabled={isDownloadingZip || imageCandidates.length === 0}
+              startIcon={
+                <IconifyIcon
+                  icon={isDownloadingZip ? 'material-symbols:hourglass-top-rounded' : 'material-symbols:content-copy-outline-rounded'}
+                />
+              }
+              sx={{ alignSelf: 'flex-start' }}
+            >
+              {isDownloadingZip ? 'Downloading pics…' : 'Copy Prompt & Download Pics'}
+            </Button>
+            {evalPromptCopied ? (
+              <Alert severity="success">
+                Prompt copied. In Claude desktop, attach the ZIP ({imageCandidates.length} pic
+                {imageCandidates.length === 1 ? '' : 's'}), paste the prompt and send. When it finishes, copy the reply
+                and paste it below.
+              </Alert>
+            ) : null}
+
+            <Typography variant="subtitle2" sx={{ pt: 1 }}>
+              2. Paste Claude&apos;s response
+            </Typography>
+            <Box
+              ref={evalReplyRef}
+              contentEditable
+              suppressContentEditableWarning
+              onInput={(event) => setEvalReply((event.currentTarget as HTMLDivElement).innerText)}
+              sx={claudePasteBoxSx}
+            />
+            <FormControlLabel
+              control={<Checkbox checked={evalOverwrite} onChange={(event) => setEvalOverwrite(event.target.checked)} />}
+              label="Overwrite fields that already have values"
+            />
+            {evalError ? <Alert severity="error">{evalError}</Alert> : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button variant="outlined" onClick={() => setEvalDialogOpen(false)} disabled={isEvalSaving}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => void fillEvalFromClaudeReply()}
+            disabled={!evalReply.trim() || isEvalSaving}
+            startIcon={isEvalSaving ? <CircularProgress size={16} color="inherit" /> : undefined}
+          >
+            Fill Fields
+          </Button>
+        </DialogActions>
+      </Dialog>
       <Dialog
         open={isAiAnalysisDialogOpen}
         onClose={closeAiAnalysisDialog}

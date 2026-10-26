@@ -249,9 +249,15 @@ export async function handleAdminV2ListingAiAnalysisSave(request: Request, env: 
   }
 
   const aiAnalysisText = sanitizePatternLookupHtml(normalizeText(body.aiAnalysisText, '')).slice(0, 20000);
+  // Brand / model / year are optional: the Claude paste-back on the evaluator page sends them
+  // with the analysis; the plain AI Analysis editor does not.
+  const identityFields: Record<string, string> = {};
+  if (typeof body.brand === 'string') identityFields.brand = normalizeText(body.brand, '').slice(0, 120);
+  if (typeof body.model === 'string') identityFields.model = normalizeText(body.model, '').slice(0, 180);
+  if (typeof body.year === 'string') identityFields.year = normalizeText(body.year, '').slice(0, 120);
 
   try {
-    await dbUpdateListing(recordId, { ai_analysis_text: aiAnalysisText || null }, env);
+    await dbUpdateListing(recordId, { ai_analysis_text: aiAnalysisText || null, ...identityFields }, env);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error || '');
     if (/no such column: ai_analysis_text/i.test(message) || /no column named ai_analysis_text/i.test(message)) {
@@ -263,7 +269,7 @@ export async function handleAdminV2ListingAiAnalysisSave(request: Request, env: 
     throw error;
   }
 
-  return jsonResponse({ ok: true, aiAnalysisText });
+  return jsonResponse({ ok: true, aiAnalysisText, ...identityFields });
 }
 
 export async function handleGetListingDebug(request: Request, env: Env, path: string): Promise<Response> {

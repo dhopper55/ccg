@@ -85,6 +85,53 @@ export function buildClaudeListingPrompt(
   ].join('\n');
 }
 
+// Prompt for evaluating a marketplace listing on the listing evaluator page. The asking
+// price is deliberately left out (it is only there if the seller wrote it in the text).
+export function buildClaudeListingEvalPrompt(options: {
+  title: string;
+  description: string;
+  notes: string;
+  deep: boolean;
+  isMulti: boolean;
+}): string {
+  const { title, description, notes, deep, isMulti } = options;
+  const titleLine = title
+    ? `The listing title is "${title}".`
+    : 'There is no listing title — identify the item from the pictures.';
+  return [
+    titleLine,
+    ...(description.trim()
+      ? [
+          '',
+          "Seller's listing description (these are the seller's claims — check them against the photos):",
+          '"""',
+          description.trim().slice(0, 4000),
+          '"""',
+        ]
+      : []),
+    '',
+    `Do your own evaluation on this item based on the pictures. Give me a concise readout of the following: ${EVAL_QUESTIONS}`,
+    ...(isMulti
+      ? [
+          '',
+          'This listing has multiple items — cover each item briefly, then give totals for the whole lot.',
+        ]
+      : []),
+    ...(notes.trim() ? ['', `Additional details: ${notes.trim()}`] : []),
+    '',
+    deep
+      ? 'Take a deeper look at this one: take more time, check comps thoroughly, and look closely at authenticity, condition and anything in the photos that changes the value.'
+      : 'Keep this quick: a few comps is enough — do not grind on research.',
+    '',
+    PRICING_RULE,
+    '',
+    'At the very end of your reply, add a ```json code block in exactly this shape. This block is just bookkeeping: fill it from what you already found and do not do any extra research for it. Use "" for anything you can\'t determine. model must not repeat the brand. year: only if you found a serial number, try one quick decode; otherwise leave it "".',
+    '```json',
+    '{"brand":"","model":"","year":""}',
+    '```',
+  ].join('\n');
+}
+
 const FIELD_BLOCK_PATTERN = /```(?:json)?\s*(\{[\s\S]*?\})\s*```/gi;
 
 function asText(value: unknown): string {
@@ -238,14 +285,14 @@ export function claudeMarkdownToHtml(markdown: string): string {
 }
 
 function readFieldObject(record: Record<string, unknown>): ClaudeDesktopFields | null {
-  if (!('brand' in record || 'title' in record)) return null;
+  if (!('brand' in record || 'title' in record || 'model' in record)) return null;
   const value = Number(String(record.private_party_value ?? '').replace(/[$,\s]/g, ''));
   return {
     title: asText(record.title),
     brand: asText(record.brand),
     model: asText(record.model),
     finish: asText(record.finish),
-    yearRange: asText(record.year_range),
+    yearRange: asText(record.year_range ?? record.year),
     serialNumber: asText(record.serial_number),
     category: asText(record.category),
     merchantCenterCatCode: asText(record.merchant_center_category).toUpperCase(),
@@ -408,3 +455,54 @@ export function analysisHtmlToText(html: string): string {
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
+
+// Copy text to the clipboard; returns an error message, or null on success. The async
+// clipboard API can refuse (e.g. "Document is not focused"), so fall back to a hidden
+// textarea + execCommand, placed inside `container` (the dialog) so the dialog's focus trap
+// doesn't pull focus away before the copy.
+export async function copyTextToClipboard(
+  text: string,
+  container: HTMLElement,
+): Promise<string | null> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return null;
+  } catch (clipboardError) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    container.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand('copy');
+    textarea.remove();
+    if (copied) return null;
+    const reason =
+      clipboardError instanceof Error ? clipboardError.message : String(clipboardError);
+    return `Unable to copy the prompt to the clipboard (${reason}). Click the button again.`;
+  }
+}
+
+// Rich-text box Claude desktop replies are pasted into.
+export const claudePasteBoxSx = {
+  minHeight: 160,
+  maxHeight: 360,
+  overflowY: 'auto',
+  width: 1,
+  borderRadius: 1.5,
+  p: 1.5,
+  border: '1px solid',
+  borderColor: 'divider',
+  bgcolor: 'background.default',
+  color: 'text.primary',
+  fontSize: '0.9rem',
+  lineHeight: 1.5,
+  '&:focus': { outline: 'none', borderColor: 'primary.main' },
+  '& p, & ul, & ol, & pre, & h1, & h2, & h3, & h4': { mt: 0, mb: 1 },
+  '& pre': { whiteSpace: 'pre-wrap' },
+  '&[contenteditable="true"]:empty:before': {
+    content: '"Paste Claude\'s whole reply here (rich text is kept)"',
+    color: 'text.disabled',
+  },
+} as const;

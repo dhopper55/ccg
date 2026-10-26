@@ -15,8 +15,6 @@ import {
   splitAiSummary,
   normalizeCondition,
   normalizeCategory,
-  normalizeFinish,
-  normalizeYear,
   chooseBestStructuredText,
   ensureDefaultSuffix,
 } from './processing.js';
@@ -82,7 +80,10 @@ export async function updateRowByRunId(runId: string, updates: {
       console.info('AI summary split', { length: fullSummary.length, chunks: summaryChunks.length });
     }
 
-    const normalizedCondition = normalizeCondition(updates.aiData?.condition ?? updates.condition ?? '');
+    // The AI step is a stub now (ai/eval-stubs.ts), so blank AI values stay blank instead of
+    // turning into placeholders like "Unknown", "Good" or an "Estimated range" year.
+    const rawCondition = normalizeText(updates.aiData?.condition ?? updates.condition ?? '', '');
+    const normalizedCondition = rawCondition ? normalizeCondition(rawCondition) : '';
     const serialCandidate = typeof updates.aiData?.serial === 'string' ? updates.aiData.serial.trim() : '';
     const serialBrandCandidate = typeof updates.aiData?.serial_brand === 'string' ? updates.aiData.serial_brand.trim() : '';
     const decoded = serialCandidate
@@ -104,12 +105,12 @@ export async function updateRowByRunId(runId: string, updates: {
           category: normalizeCategory(updates.aiData.category),
           brand: isCustomSource
             ? chooseBestStructuredText(definitiveBrand || updates.aiData.brand, existingFields.brand)
-            : definitiveBrand || normalizeText(updates.aiData.brand, 'Unknown'),
+            : definitiveBrand || normalizeText(updates.aiData.brand, ''),
           model: isCustomSource
             ? chooseBestStructuredText(definitiveModel || updates.aiData.model, existingFields.model)
-            : definitiveModel || normalizeText(updates.aiData.model, 'Unknown'),
-          finish: normalizeFinish(updates.aiData.finish),
-          year: definitiveYear || normalizeYear(updates.aiData.year),
+            : definitiveModel || normalizeText(updates.aiData.model, ''),
+          finish: normalizeText(updates.aiData.finish, ''),
+          year: definitiveYear || normalizeText(updates.aiData.year, ''),
           condition: isCustomSource
             ? chooseBestStructuredText(normalizedCondition, existingFields.condition)
             : normalizedCondition,
