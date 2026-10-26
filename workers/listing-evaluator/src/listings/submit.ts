@@ -6,6 +6,8 @@ import { MAX_URLS, CUSTOM_MAX_TEXT_LENGTH } from '../constants.js';
 import { dbFindListingByUrl, dbUpdateListing, dbCreateListing } from './db.js';
 import { insertQueuedRow, updateRowByRunId } from './db2.js';
 import { processApifyRunWhenReady, startApifyRun } from '../apify/handlers2.js';
+import { processDirectListing } from './submit2.js';
+import { fetchCraigslistListing } from './craigslist.js';
 import { runOpenAI, runOpenAIMultiRangePricing, getSinglePricingFromOpenAI } from '../ai/eval-stubs.js';
 import { fetchReverbListingById } from '../pricing/reverb.js';
 import {
@@ -353,6 +355,30 @@ function isArchivedValueLocal(value: unknown): boolean {
   return false;
 }
 
+// Craigslist pages are read directly (see craigslist.ts); returns null when the page can't
+// be read so the caller can fall back to the Apify actor.
+async function queueCraigslistDirect(
+  url: string,
+  isMulti: boolean,
+  env: Env,
+  ctx: ExecutionContext,
+  existingId?: string,
+): Promise<{ runId: string; recordId: string } | null> {
+  const listing = await fetchCraigslistListing(url);
+  if (!listing) return null;
+  const runId = generateRunId();
+  const recordId = existingId ?? (await insertQueuedRow(url, 'craigslist', runId, isMulti, env));
+  if (!recordId) return null;
+  await env.LISTING_JOBS.put(runId, recordId);
+  if (existingId) await dbUpdateListing(existingId, { status: 'queued' }, env);
+  ctx.waitUntil(
+    processDirectListing(recordId, runId, listing, env, { isMulti }).catch((error) => {
+      console.error('Craigslist direct processing failed', { url, recordId, error });
+    }),
+  );
+  return { runId, recordId };
+}
+
 export async function handleSubmit(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   let payload: SubmitPayload;
   try {
@@ -419,8 +445,23 @@ export async function handleSubmit(request: Request, env: Env, ctx: ExecutionCon
       const saved = isArchivedValue(existing.fields?.saved);
       const existingStatus = normalizeText(existing.fields?.status, '').toLowerCase();
 
-      if (archived || saved) {
-        await dbUpdateListing(existing.id, { archived: false, archive_reason: null, saved: false }, env);
+      // Re-submitting a listing moves it back to the top of the results (they sort by
+      // submitted_at), and un-archives / un-saves it.
+      await dbUpdateListing(
+        existing.id,
+        {
+          submitted_at: new Date().toISOString(),
+          ...(archived || saved ? { archived: false, archive_reason: null, saved: false } : {}),
+        },
+        env,
+      );
+
+      if (!archived && !saved && item.source === 'craigslist' && (existingStatus === 'queued' || existingStatus === 'failed')) {
+        const direct = await queueCraigslistDirect(item.url, item.isMulti ?? false, env, ctx, existing.id);
+        if (direct) {
+          results.push({ ...item, runId: direct.runId, recordId: existing.id, existing: true, requeued: true });
+          continue;
+        }
       }
 
       if (!archived && !saved && item.source !== 'reverb' && (existingStatus === 'queued' || existingStatus === 'failed')) {
@@ -466,6 +507,15 @@ export async function handleSubmit(request: Request, env: Env, ctx: ExecutionCon
         rejected.push({ url: item.url, reason: message });
       }
       continue;
+    }
+
+    if (item.source === 'craigslist') {
+      const direct = await queueCraigslistDirect(item.url, item.isMulti ?? false, env, ctx);
+      if (direct) {
+        results.push({ ...item, runId: direct.runId, recordId: direct.recordId });
+        continue;
+      }
+      console.warn('Craigslist direct read failed; falling back to Apify', { url: item.url });
     }
 
     const recordId = await insertQueuedRow(item.url, item.source as ListingSource, null, item.isMulti ?? false, env);

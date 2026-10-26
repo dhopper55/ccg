@@ -23,6 +23,7 @@ import {
 import { deleteR2ImagesForListing } from './images.js';
 
 import { processCustomListing, processDirectListing } from './submit2.js';
+import { fetchCraigslistListing } from './craigslist.js';
 import { startApifyRun, waitForApifyRun } from '../apify/handlers2.js';
 import { fetchReverbListingById, extractReverbListingId } from '../pricing/reverb.js';
 import { processRun } from '../apify/process.js';
@@ -437,6 +438,22 @@ export async function handleReprocessListing(request: Request, env: Env): Promis
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to process Reverb listing.';
       return jsonResponse({ ok: false, runId, recordId: existing.id, error: message }, 500);
+    }
+  }
+
+  if (source === 'craigslist') {
+    const listing = await fetchCraigslistListing(normalizedUrl);
+    if (listing) {
+      const runId = generateRunId();
+      await env.LISTING_JOBS.put(runId, existing.id);
+      await dbUpdateListing(existing.id, { status: 'queued' }, env);
+      try {
+        await processDirectListing(existing.id, runId, listing, env, { isMulti: false });
+        return jsonResponse({ ok: true, runId, recordId: existing.id });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unable to process Craigslist listing.';
+        return jsonResponse({ ok: false, runId, recordId: existing.id, error: message }, 500);
+      }
     }
   }
 

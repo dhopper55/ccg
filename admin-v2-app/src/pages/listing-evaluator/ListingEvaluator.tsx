@@ -30,6 +30,7 @@ type SubmitResponse = {
   queued?: Array<{
     recordId?: string;
     existing?: boolean;
+    requeued?: boolean;
     unarchived?: boolean;
     unsaved?: boolean;
   }>;
@@ -299,17 +300,18 @@ const ListingEvaluator = () => {
         return;
       }
 
+      // A listing that was already submitted stays on this page: the worker moves it to the
+      // top of the results (and re-scrapes it if the earlier scrape failed).
       const queuedItem = data.queued?.[0];
-      const recordId = queuedItem?.recordId;
-      const successMessage = queuedItem?.existing
-        ? 'Opened existing evaluation'
-        : 'URL submitted';
-
-      enqueueSnackbar(successMessage, { variant: 'success', autoHideDuration: 3000 });
-
-      if (queuedItem?.existing && recordId) {
-        navigate(paths.listingEvaluatorItemWithId(recordId));
-        return;
+      if (queuedItem?.existing) {
+        enqueueSnackbar(
+          queuedItem.requeued
+            ? 'Already submitted — re-scraping it now. It is at the top of the results.'
+            : 'Already scraped — moved to the top of the results.',
+          { variant: 'info', autoHideDuration: 4000 },
+        );
+      } else {
+        enqueueSnackbar('URL submitted', { variant: 'success', autoHideDuration: 3000 });
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to queue listing.';
