@@ -35,8 +35,7 @@ import paths from 'routes/paths';
 import { downloadImagesAsZip } from 'lib/imageZip';
 import {
   buildClaudeDesktopPrompt,
-  claudeMarkdownToHtml,
-  parseClaudeDesktopReply,
+  parseClaudeDesktopPaste,
 } from 'lib/claudeDesktopAnalysis';
 import { formatOrderNumber } from 'lib/utils';
 import ReverbListingWizard from './ReverbListingWizard';
@@ -1322,6 +1321,7 @@ const InventoryItem = () => {
   const [photoAnalysisNotes, setPhotoAnalysisNotes] = useState('');
   const [photoAnalysisOverwrite, setPhotoAnalysisOverwrite] = useState(false);
   const [photoAnalysisReply, setPhotoAnalysisReply] = useState('');
+  const photoAnalysisReplyRef = useRef<HTMLDivElement | null>(null);
   const [photoAnalysisPromptCopied, setPhotoAnalysisPromptCopied] = useState(false);
   const [photoAnalysisError, setPhotoAnalysisError] = useState('');
   const [profitTargetsOpen, setProfitTargetsOpen] = useState(false);
@@ -2754,19 +2754,24 @@ const InventoryItem = () => {
   };
 
   const [isDownloadingZip, setIsDownloadingZip] = useState(false);
-  const handleDownloadZip = useCallback(async () => {
+  // Name the ZIP after the title (when there is one) so it is easy to spot in Downloads.
+  const handleDownloadZip = useCallback(async (title?: string) => {
     if (images.length === 0) return;
     setIsDownloadingZip(true);
     try {
+      const titleSlug = (title ?? form.title)
+        .replace(/[^A-Za-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 100);
       const ccgNumber = getSavableCcgNumber(form.ccgNumber);
       await downloadImagesAsZip(
         images.map((image) => new URL(image.url, window.location.origin).toString()),
-        `${ccgNumber || 'inventory'}-images.zip`,
+        `${titleSlug || ccgNumber || 'inventory'}-images.zip`,
       );
     } finally {
       setIsDownloadingZip(false);
     }
-  }, [images, form.ccgNumber]);
+  }, [images, form.ccgNumber, form.title]);
 
   const uploadButtonLabel = useMemo(() => {
     if (isUploading) return 'Uploading...';
@@ -2852,19 +2857,22 @@ const InventoryItem = () => {
       return;
     }
     setPhotoAnalysisPromptCopied(true);
-    await handleDownloadZip();
+    await handleDownloadZip(photoAnalysisTitle.trim());
   };
 
   const fillFromClaudeReply = () => {
     setPhotoAnalysisError('');
-    let parsed: ReturnType<typeof parseClaudeDesktopReply>;
+    let parsed: ReturnType<typeof parseClaudeDesktopPaste>;
     try {
-      parsed = parseClaudeDesktopReply(photoAnalysisReply);
+      parsed = parseClaudeDesktopPaste(
+        photoAnalysisReplyRef.current?.innerHTML || '',
+        photoAnalysisReplyRef.current?.innerText || '',
+      );
     } catch (error) {
       setPhotoAnalysisError(error instanceof Error ? error.message : "Unable to read Claude's reply.");
       return;
     }
-    const { analysisMarkdown, fields: replyFields } = parsed;
+    const { analysisHtml, fields: replyFields } = parsed;
 
     const wanted = replyFields.category.toLowerCase().replace(/\s+/g, ' ');
     const lastSegment = wanted.split('>').pop()?.trim() || '';
@@ -2885,7 +2893,6 @@ const InventoryItem = () => {
         : '',
       privatePartyValue: replyFields.privatePartyValue,
     };
-    const analysisHtml = claudeMarkdownToHtml(analysisMarkdown);
     const dialogTitle = photoAnalysisTitle.trim();
     const { filled } = applyPhotoAnalysis(form, analysisHtml, fields, dialogTitle, photoAnalysisOverwrite);
     setForm((current) => applyPhotoAnalysis(current, analysisHtml, fields, dialogTitle, photoAnalysisOverwrite).next);
@@ -3112,7 +3119,7 @@ const InventoryItem = () => {
                       <Tooltip title={isDownloadingZip ? 'Downloading…' : 'Download all images as ZIP'}>
                         <span>
                           <IconButton
-                            onClick={handleDownloadZip}
+                            onClick={() => handleDownloadZip()}
                             disabled={isDownloadingZip}
                             sx={{ border: 1, borderColor: 'divider', alignSelf: { xs: 'flex-start', md: 'center' } }}
                           >
@@ -4875,14 +4882,32 @@ const InventoryItem = () => {
             ) : null}
 
             <Typography variant="subtitle2" sx={{ pt: 1 }}>2. Paste Claude&apos;s response</Typography>
-            <TextField
-              fullWidth
-              multiline
-              minRows={6}
-              maxRows={14}
-              label="Claude's response"
-              value={photoAnalysisReply}
-              onChange={(event) => setPhotoAnalysisReply(event.target.value)}
+            <Box
+              ref={photoAnalysisReplyRef}
+              contentEditable
+              suppressContentEditableWarning
+              onInput={(event) => setPhotoAnalysisReply((event.currentTarget as HTMLDivElement).innerText)}
+              sx={{
+                minHeight: 160,
+                maxHeight: 360,
+                overflowY: 'auto',
+                width: 1,
+                borderRadius: 1.5,
+                p: 1.5,
+                border: '1px solid',
+                borderColor: 'divider',
+                bgcolor: 'background.default',
+                color: 'text.primary',
+                fontSize: '0.9rem',
+                lineHeight: 1.5,
+                '&:focus': { outline: 'none', borderColor: 'primary.main' },
+                '& p, & ul, & ol, & pre, & h1, & h2, & h3, & h4': { mt: 0, mb: 1 },
+                '& pre': { whiteSpace: 'pre-wrap' },
+                '&[contenteditable="true"]:empty:before': {
+                  content: '"Paste Claude\'s whole reply here (rich text is kept)"',
+                  color: 'text.disabled',
+                },
+              }}
             />
             <FormControlLabel
               control={(

@@ -29,7 +29,7 @@ export function buildClaudeDesktopPrompt(
     '',
     'For the private party value: my Denver shop is pickup-only and the price is out-the-door (tax included, buyers can play it before buying). Price at the top of a reasonable range, leaving $20–$50 of room to negotiate.',
     '',
-    'At the very end of your reply, add a ```json code block in exactly this shape, for my inventory system. Use "" for anything you can\'t determine. model must not repeat the brand. serial_number only if it is legible in the photos. private_party_value is a whole-dollar number (0 if unknown).',
+    'At the very end of your reply, add a ```json code block in exactly this shape, for my inventory system. This block is just bookkeeping: fill it from what you already found for the readout and do not do any extra research or searches for it. Use "" for anything you can\'t determine. model must not repeat the brand. serial_number only if it is legible in the photos. private_party_value is a whole-dollar number (0 if unknown).',
     '```json',
     '{"title":"","brand":"","model":"","finish":"","year_range":"","serial_number":"","category":"","merchant_center_category":"","private_party_value":0}',
     '```',
@@ -158,4 +158,119 @@ export function claudeMarkdownToHtml(markdown: string): string {
   flushParagraph();
   closeList();
   return html.join('');
+}
+
+function parseFieldObject(jsonText: string): ClaudeDesktopFields | null {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(jsonText.trim().replace(/^json\s*/i, ''));
+  } catch {
+    return null;
+  }
+  if (!raw || typeof raw !== 'object' || !('brand' in raw || 'title' in raw)) return null;
+  const record = raw as Record<string, unknown>;
+  const value = Number(String(record.private_party_value ?? '').replace(/[$,\s]/g, ''));
+  return {
+    title: asText(record.title),
+    brand: asText(record.brand),
+    model: asText(record.model),
+    finish: asText(record.finish),
+    yearRange: asText(record.year_range),
+    serialNumber: asText(record.serial_number),
+    category: asText(record.category),
+    merchantCenterCatCode: asText(record.merchant_center_category).toUpperCase(),
+    privatePartyValue: Number.isFinite(value) && value > 0 ? Math.round(value) : null,
+  };
+}
+
+const KEEP_TAGS: Record<string, string> = {
+  p: 'p',
+  br: 'br',
+  ul: 'ul',
+  ol: 'ol',
+  li: 'li',
+  strong: 'strong',
+  b: 'strong',
+  em: 'em',
+  i: 'em',
+  h1: 'h3',
+  h2: 'h3',
+  h3: 'h3',
+  h4: 'h4',
+  h5: 'h4',
+  h6: 'h4',
+  blockquote: 'blockquote',
+  table: 'table',
+  thead: 'thead',
+  tbody: 'tbody',
+  tr: 'tr',
+  th: 'th',
+  td: 'td',
+};
+const DROP_TAGS = new Set([
+  'script',
+  'style',
+  'iframe',
+  'object',
+  'embed',
+  'svg',
+  'button',
+  'img',
+  'meta',
+  'link',
+]);
+
+// Rebuild pasted HTML with only plain formatting tags and no attributes, so Claude's
+// colors and fonts don't come along — only bold, lists, headings, paragraphs and tables.
+function cleanPastedHtml(node: Node): string {
+  if (node.nodeType === Node.TEXT_NODE) return escapeHtml(node.textContent || '');
+  if (node.nodeType !== Node.ELEMENT_NODE) return '';
+  const tag = (node as Element).tagName.toLowerCase();
+  if (DROP_TAGS.has(tag)) return '';
+  const inner = Array.from(node.childNodes).map(cleanPastedHtml).join('');
+  const keep = KEEP_TAGS[tag];
+  if (keep === 'br') return '<br>';
+  if (keep) return `<${keep}>${inner}</${keep}>`;
+  if (tag !== 'div' && tag !== 'section' && tag !== 'article') return inner;
+  // A wrapper div holding block content stays unwrapped; one holding loose text is a paragraph.
+  return /<(?:p|ul|ol|h3|h4|table|blockquote)>/.test(inner) || !inner.trim()
+    ? inner
+    : `<p>${inner}</p>`;
+}
+
+// Read what was pasted from Claude desktop. Rich text (HTML) is kept as-is for AI Analysis,
+// minus the JSON field block; plain text falls back to the markdown reader.
+export function parseClaudeDesktopPaste(
+  html: string,
+  plainText: string,
+): { analysisHtml: string; fields: ClaudeDesktopFields } {
+  if (/<(pre|code)\b/i.test(html)) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const blocks = Array.from(doc.body.querySelectorAll('pre, code')).filter(
+      (element) => element.tagName === 'PRE' || !element.closest('pre'),
+    );
+    for (let index = blocks.length - 1; index >= 0; index--) {
+      const fields = parseFieldObject(blocks[index].textContent || '');
+      if (!fields) continue;
+      // Remove the code block along with its wrapper (Claude adds a "json" label and copy button).
+      let removable: Element = blocks[index];
+      while (
+        removable.parentElement &&
+        removable.parentElement !== doc.body &&
+        (removable.parentElement.textContent || '').length - (removable.textContent || '').length <
+          40
+      ) {
+        removable = removable.parentElement;
+      }
+      removable.remove();
+      const analysisHtml = Array.from(doc.body.childNodes)
+        .map(cleanPastedHtml)
+        .join('')
+        .replace(/<p>\s*(?:<br>\s*)*<\/p>/g, '')
+        .trim();
+      return { analysisHtml, fields };
+    }
+  }
+  const { analysisMarkdown, fields } = parseClaudeDesktopReply(plainText);
+  return { analysisHtml: claudeMarkdownToHtml(analysisMarkdown), fields };
 }
