@@ -29,7 +29,7 @@ export function buildClaudeDesktopPrompt(
     '',
     'For the private party value: my Denver shop is pickup-only and the price is out-the-door (tax included, buyers can play it before buying). Price at the top of a reasonable range, leaving $20–$50 of room to negotiate.',
     '',
-    'At the very end of your reply, add a ```json code block in exactly this shape, for my inventory system. This block is just bookkeeping: fill it from what you already found for the readout and do not do any extra research or searches for it. Use "" for anything you can\'t determine. model must not repeat the brand. serial_number only if it is legible in the photos. private_party_value is a whole-dollar number (0 if unknown).',
+    'At the very end of your reply, add a ```json code block in exactly this shape, for my inventory system. This block is just bookkeeping: fill it from what you already found for the readout and do not do any extra research or searches for it. Use "" for anything you can\'t determine. model must not repeat the brand. serial_number only if it is legible in the photos. year_range: don't research the year — only if you found a serial number, try one quick decode (at most one lookup); if that doesn't settle it, leave it "". private_party_value is a whole-dollar number (0 if unknown).',
     '```json',
     '{"title":"","brand":"","model":"","finish":"","year_range":"","serial_number":"","category":"","merchant_center_category":"","private_party_value":0}',
     '```',
