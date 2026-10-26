@@ -644,7 +644,8 @@ type PhotoAnalysisFields = {
 };
 
 // Fill the form from a photo analysis. AI Analysis is replaced when the reply has one; other fields are
-// only filled when blank unless overwrite is on. Queue and Unit Cost are set the way new
+// only filled when blank unless overwrite is on. A non-blank title is only replaced when
+// overwrite and replaceTitle are both on, and then becomes "{Brand} {Model}". Queue and Unit Cost are set the way new
 // items are entered (To Sell, $1) but never replace a value that was already chosen.
 function applyPhotoAnalysis(
   current: FormState,
@@ -652,14 +653,23 @@ function applyPhotoAnalysis(
   fields: PhotoAnalysisFields,
   dialogTitle: string,
   overwrite: boolean,
+  replaceTitle: boolean,
 ): { next: FormState; filled: string[] } {
   // An empty analysis (only the JSON block was pasted) leaves AI Analysis as it was.
   const next = analysisHtml.trim() ? { ...current, aiAnalysisText: analysisHtml } : { ...current };
   const filled = analysisHtml.trim() ? ['AI Analysis'] : [];
   const canFill = (value: string) => overwrite || !value.trim() || Number(value) === 0;
 
-  const textFields: Array<[keyof FormState & ('title' | 'brand' | 'model' | 'finish' | 'yearRange' | 'serialNumber'), string, string]> = [
-    ['title', dialogTitle || fields.title, 'Title'],
+  const brandModelTitle = fields.brand && fields.model ? `${fields.brand} ${fields.model}` : '';
+  if (!current.title.trim() && (dialogTitle || fields.title)) {
+    next.title = dialogTitle || fields.title;
+    filled.push('Title');
+  } else if (overwrite && replaceTitle && brandModelTitle && brandModelTitle !== current.title) {
+    next.title = brandModelTitle;
+    filled.push('Title');
+  }
+
+  const textFields: Array<[keyof FormState & ('brand' | 'model' | 'finish' | 'yearRange' | 'serialNumber'), string, string]> = [
     ['brand', fields.brand, 'Brand'],
     ['yearRange', fields.yearRange, 'Year'],
     ['model', fields.model, 'Model'],
@@ -1321,6 +1331,7 @@ const InventoryItem = () => {
   const [photoAnalysisTitle, setPhotoAnalysisTitle] = useState('');
   const [photoAnalysisNotes, setPhotoAnalysisNotes] = useState('');
   const [photoAnalysisOverwrite, setPhotoAnalysisOverwrite] = useState(false);
+  const [photoAnalysisReplaceTitle, setPhotoAnalysisReplaceTitle] = useState(false);
   const [photoAnalysisReply, setPhotoAnalysisReply] = useState('');
   const photoAnalysisReplyRef = useRef<HTMLDivElement | null>(null);
   const [photoAnalysisPromptCopied, setPhotoAnalysisPromptCopied] = useState(false);
@@ -2911,8 +2922,8 @@ const InventoryItem = () => {
       privatePartyValue: replyFields.privatePartyValue,
     };
     const dialogTitle = photoAnalysisTitle.trim();
-    const { filled } = applyPhotoAnalysis(form, analysisHtml, fields, dialogTitle, photoAnalysisOverwrite);
-    setForm((current) => applyPhotoAnalysis(current, analysisHtml, fields, dialogTitle, photoAnalysisOverwrite).next);
+    const { filled } = applyPhotoAnalysis(form, analysisHtml, fields, dialogTitle, photoAnalysisOverwrite, photoAnalysisReplaceTitle);
+    setForm((current) => applyPhotoAnalysis(current, analysisHtml, fields, dialogTitle, photoAnalysisOverwrite, photoAnalysisReplaceTitle).next);
     setPhotoAnalysisDialogOpen(false);
     enqueueSnackbar(`Filled from Claude: ${filled.join(', ')}. Review and save.`, { variant: 'success' });
   };
@@ -4934,6 +4945,17 @@ const InventoryItem = () => {
                 />
               )}
               label="Overwrite fields that already have values"
+              sx={{ mb: -1.5 }}
+            />
+            <FormControlLabel
+              control={(
+                <Checkbox
+                  checked={photoAnalysisOverwrite && photoAnalysisReplaceTitle}
+                  onChange={(event) => setPhotoAnalysisReplaceTitle(event.target.checked)}
+                  disabled={!photoAnalysisOverwrite}
+                />
+              )}
+              label="Replace item title"
             />
             {photoAnalysisError ? <Alert severity="error">{photoAnalysisError}</Alert> : null}
           </Stack>
