@@ -1,4 +1,4 @@
-import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChangeEvent, MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import {
   Alert,
@@ -2842,8 +2842,9 @@ const InventoryItem = () => {
     });
   }, [categoryOptions]);
 
-  const copyPhotoAnalysisPrompt = async () => {
+  const copyPhotoAnalysisPrompt = async (event: MouseEvent<HTMLButtonElement>) => {
     setPhotoAnalysisError('');
+    const container = event.currentTarget.parentElement || document.body;
     const prompt = buildClaudeDesktopPrompt(
       photoAnalysisTitle.trim(),
       photoAnalysisNotes,
@@ -2852,9 +2853,24 @@ const InventoryItem = () => {
     );
     try {
       await navigator.clipboard.writeText(prompt);
-    } catch {
-      setPhotoAnalysisError('Unable to copy the prompt to the clipboard.');
-      return;
+    } catch (clipboardError) {
+      // The async clipboard API can refuse (e.g. "Document is not focused"); fall back to a
+      // hidden textarea + execCommand. The textarea goes inside the dialog so its focus trap
+      // doesn't pull focus away before the copy.
+      const textarea = document.createElement('textarea');
+      textarea.value = prompt;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      container.appendChild(textarea);
+      textarea.select();
+      const copied = document.execCommand('copy');
+      textarea.remove();
+      if (!copied) {
+        const reason = clipboardError instanceof Error ? clipboardError.message : String(clipboardError);
+        setPhotoAnalysisError(`Unable to copy the prompt to the clipboard (${reason}). Click the button again.`);
+        return;
+      }
     }
     setPhotoAnalysisPromptCopied(true);
     await handleDownloadZip(photoAnalysisTitle.trim());
