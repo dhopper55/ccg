@@ -1,6 +1,7 @@
-// Helpers for the inventory item's "AI Analysis From Pics" flow, which runs the analysis in
-// Claude desktop (covered by the subscription) instead of the paid API: build the prompt to
-// paste there, then read Claude's reply back into the form.
+// Helpers for the inventory item's Claude desktop flows ("Refresh AI Analysis From Pics" and
+// "Re-Eval and Build Listing"), which run in Claude desktop (covered by the subscription)
+// instead of the paid API: build the prompt to paste there, then read Claude's reply back
+// into the form from the JSON block at the end of it.
 
 export type ClaudeDesktopFields = {
   title: string;
@@ -38,26 +39,106 @@ export function buildClaudeDesktopPrompt(
   ].join('\n');
 }
 
+export type ClaudeListing = {
+  saleTitle: string;
+  description: string;
+  bullets: string[];
+};
+
+const EVAL_QUESTIONS =
+  'Reverb sold range, realistic private party value in Denver metro, quick flip buy price (for 30% margin or more), and lastly, is this gear desirable - meaning do listings for this sit for a long time and are there a lot of them, or are they more rare and desirable?';
+const PRICING_RULE =
+  'For the private party value: my Denver shop is pickup-only and the price is out-the-door (tax included, buyers can play it before buying). Price at the top of a reasonable range, leaving $20–$50 of room to negotiate.';
+
+export function buildClaudeListingPrompt(
+  title: string,
+  notes: string,
+  previousAnalysis: string,
+): string {
+  const titleLine = title
+    ? `The item title is "${title}".`
+    : 'There is no item title yet — identify the item from the pictures.';
+  const evalStep = previousAnalysis
+    ? `1. Re-evaluate the item. My previous analysis (from earlier, rougher photos) is below — use it as your starting point and only research again where the new photos change the picture (condition, details, authenticity, value). Give me a concise readout: ${EVAL_QUESTIONS} Note what changed from the previous analysis.`
+    : `1. Evaluate the item (there is no previous analysis, so do a full evaluation). Give me a concise readout: ${EVAL_QUESTIONS}`;
+  return [
+    `${titleLine} I've taken new, high-quality listing photos of it (attached). Please do two things:`,
+    '',
+    evalStep,
+    '',
+    '2. Build a listing for the item:',
+    '- Do NOT mention price.',
+    '- Do NOT mention my shop, shipping, local pickup, payment or trying it out — that is added separately. The listing is only about the item itself.',
+    '- Target Facebook Marketplace for length and tone.',
+    '- sale_title: a concise product title, no price, under 80 characters.',
+    '- description: plain text, at least a couple of paragraphs about the item (what it is, features, sound/use, and condition from the photos and my notes), followed by a bulleted spec list if you have the specs. Separate paragraphs with a blank line and start each spec line with "• ". No markdown (no **, # or tables). A few emoji are fine but optional.',
+    '- bullets: exactly 5 short selling points, each under 60 characters, separate from the description.',
+    ...(notes.trim() ? ['', `Additional details: ${notes.trim()}`] : []),
+    '',
+    PRICING_RULE,
+    '',
+    'Write the evaluation in your reply as normal, but put the listing ONLY in the JSON block — do not also write it out. At the very end of your reply, add a ```json code block in exactly this shape (use \\n for line breaks inside strings):',
+    '```json',
+    '{"sale_title":"","description":"","bullets":["","","","",""]}',
+    '```',
+    ...(previousAnalysis ? ['', 'Previous analysis:', previousAnalysis] : []),
+  ].join('\n');
+}
+
 const FIELD_BLOCK_PATTERN = /```(?:json)?\s*(\{[\s\S]*?\})\s*```/gi;
 
 function asText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : typeof value === 'number' ? String(value) : '';
 }
 
-// Find the JSON field block in Claude's reply: a ```json fenced block, or a bare {...}
-// object when only the block itself was copied. The rest of the reply is the analysis.
-export function parseClaudeDesktopReply(reply: string): {
-  analysisMarkdown: string;
-  fields: ClaudeDesktopFields;
-} {
+type RecordReader<T> = (raw: Record<string, unknown>) => T | null;
+
+// Parse a JSON object leniently: tolerate a leading "json" label and raw line breaks or
+// tabs inside strings (long descriptions often come back that way).
+function parseJsonObject(jsonText: string): Record<string, unknown> | null {
+  const text = jsonText.trim().replace(/^json\s*/i, '');
+  const attempt = (candidate: string) => {
+    try {
+      const raw: unknown = JSON.parse(candidate);
+      return raw && typeof raw === 'object' && !Array.isArray(raw)
+        ? (raw as Record<string, unknown>)
+        : null;
+    } catch {
+      return null;
+    }
+  };
+  const parsed = attempt(text);
+  if (parsed) return parsed;
+  let inString = false;
+  let escaped = false;
+  let repaired = '';
+  for (const char of text) {
+    if (inString && !escaped && (char === '\n' || char === '\r' || char === '\t')) {
+      repaired += char === '\n' ? '\\n' : char === '\t' ? '\\t' : '';
+      continue;
+    }
+    if (char === '"' && !escaped) inString = !inString;
+    escaped = char === '\\' && !escaped;
+    repaired += char;
+  }
+  return attempt(repaired);
+}
+
+// Find the JSON block in Claude's reply: a ```json fenced block, or a bare {...} object
+// when only the block itself was copied. The rest of the reply is the analysis.
+function findJsonInReply<T>(reply: string, read: RecordReader<T>): { rest: string; value: T } {
   const outside = (start: number, end: number) => (reply.slice(0, start) + reply.slice(end)).trim();
+  const readText = (text: string) => {
+    const raw = parseJsonObject(text);
+    return raw ? read(raw) : null;
+  };
 
   const fenced = [...reply.matchAll(FIELD_BLOCK_PATTERN)];
   for (let index = fenced.length - 1; index >= 0; index--) {
     const match = fenced[index];
-    const fields = parseFieldObject(match[1]);
-    if (fields && match.index != null) {
-      return { analysisMarkdown: outside(match.index, match.index + match[0].length), fields };
+    const value = readText(match[1]);
+    if (value && match.index != null) {
+      return { rest: outside(match.index, match.index + match[0].length), value };
     }
   }
 
@@ -67,13 +148,13 @@ export function parseClaudeDesktopReply(reply: string): {
     start >= 0;
     start = reply.lastIndexOf('{', start - 1)
   ) {
-    const fields = parseFieldObject(reply.slice(start, end + 1));
-    if (fields) return { analysisMarkdown: outside(start, end + 1), fields };
+    const value = readText(reply.slice(start, end + 1));
+    if (value) return { rest: outside(start, end + 1), value };
     if (start === 0) break;
   }
 
   throw new Error(
-    "Couldn't find the JSON field block in what was pasted. Make sure you copied Claude's whole reply.",
+    "Couldn't find the JSON block in what was pasted. Make sure you copied Claude's whole reply.",
   );
 }
 
@@ -156,15 +237,8 @@ export function claudeMarkdownToHtml(markdown: string): string {
   return html.join('');
 }
 
-function parseFieldObject(jsonText: string): ClaudeDesktopFields | null {
-  let raw: unknown;
-  try {
-    raw = JSON.parse(jsonText.trim().replace(/^json\s*/i, ''));
-  } catch {
-    return null;
-  }
-  if (!raw || typeof raw !== 'object' || !('brand' in raw || 'title' in raw)) return null;
-  const record = raw as Record<string, unknown>;
+function readFieldObject(record: Record<string, unknown>): ClaudeDesktopFields | null {
+  if (!('brand' in record || 'title' in record)) return null;
   const value = Number(String(record.private_party_value ?? '').replace(/[$,\s]/g, ''));
   return {
     title: asText(record.title),
@@ -176,6 +250,35 @@ function parseFieldObject(jsonText: string): ClaudeDesktopFields | null {
     category: asText(record.category),
     merchantCenterCatCode: asText(record.merchant_center_category).toUpperCase(),
     privatePartyValue: Number.isFinite(value) && value > 0 ? Math.round(value) : null,
+  };
+}
+
+// Keep a bullet within the 60-character field, cutting at a word boundary.
+function fitBullet(text: string): string {
+  const clean = text
+    .replace(/^[•\-*]\s*/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (clean.length <= 60) return clean;
+  const cut = clean.slice(0, 60);
+  const lastSpace = cut.lastIndexOf(' ');
+  return (lastSpace > 30 ? cut.slice(0, lastSpace) : cut).replace(/[\s,;:–-]+$/, '');
+}
+
+function readListingObject(record: Record<string, unknown>): ClaudeListing | null {
+  if (!('description' in record || 'sale_title' in record)) return null;
+  const description = (typeof record.description === 'string' ? record.description : '')
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => line.replace(/\s+$/, ''))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  const bullets = Array.isArray(record.bullets) ? record.bullets.map(asText).filter(Boolean) : [];
+  return {
+    saleTitle: asText(record.sale_title).slice(0, 200),
+    description: description.slice(0, 12000),
+    bullets: bullets.slice(0, 5).map(fitBullet),
   };
 }
 
@@ -234,20 +337,23 @@ function cleanPastedHtml(node: Node): string {
     : `<p>${inner}</p>`;
 }
 
-// Read what was pasted from Claude desktop. Rich text (HTML) is kept as-is for AI Analysis,
-// minus the JSON field block; plain text falls back to the markdown reader.
-export function parseClaudeDesktopPaste(
+// Read what was pasted from Claude desktop: the JSON block plus the rest of the reply. Rich
+// text (HTML) is kept for AI Analysis, minus the JSON block; plain text falls back to the
+// markdown reader.
+function parsePaste<T>(
   html: string,
   plainText: string,
-): { analysisHtml: string; fields: ClaudeDesktopFields } {
+  read: RecordReader<T>,
+): { analysisHtml: string; value: T } {
   if (/<(pre|code)\b/i.test(html)) {
     const doc = new DOMParser().parseFromString(html, 'text/html');
     const blocks = Array.from(doc.body.querySelectorAll('pre, code')).filter(
       (element) => element.tagName === 'PRE' || !element.closest('pre'),
     );
     for (let index = blocks.length - 1; index >= 0; index--) {
-      const fields = parseFieldObject(blocks[index].textContent || '');
-      if (!fields) continue;
+      const raw = parseJsonObject(blocks[index].textContent || '');
+      const value = raw ? read(raw) : null;
+      if (!value) continue;
       // Remove the code block along with its wrapper (Claude adds a "json" label and copy button).
       let removable: Element = blocks[index];
       while (
@@ -264,9 +370,41 @@ export function parseClaudeDesktopPaste(
         .join('')
         .replace(/<p>\s*(?:<br>\s*)*<\/p>/g, '')
         .trim();
-      return { analysisHtml, fields };
+      return { analysisHtml, value };
     }
   }
-  const { analysisMarkdown, fields } = parseClaudeDesktopReply(plainText);
-  return { analysisHtml: claudeMarkdownToHtml(analysisMarkdown), fields };
+  const { rest, value } = findJsonInReply(plainText, read);
+  return { analysisHtml: claudeMarkdownToHtml(rest), value };
+}
+
+export function parseClaudeDesktopPaste(
+  html: string,
+  plainText: string,
+): { analysisHtml: string; fields: ClaudeDesktopFields } {
+  const { analysisHtml, value } = parsePaste(html, plainText, readFieldObject);
+  return { analysisHtml, fields: value };
+}
+
+export function parseClaudeListingPaste(html: string, plainText: string): ClaudeListing {
+  const listing = parsePaste(html, plainText, readListingObject).value;
+  if (!listing.saleTitle && !listing.description) {
+    throw new Error("The listing in Claude's reply is empty.");
+  }
+  return listing;
+}
+
+// Plain-text version of the AI Analysis HTML, for including it in a prompt.
+export function analysisHtmlToText(html: string): string {
+  if (!html.trim()) return '';
+  const marked = html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<li[^>]*>/gi, '• ')
+    .replace(/<\/(p|h\d|li|div|tr|blockquote|ul|ol)>/gi, '\n');
+  const doc = new DOMParser().parseFromString(`<html><body>${marked}</body></html>`, 'text/html');
+  return (doc.body.textContent || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }

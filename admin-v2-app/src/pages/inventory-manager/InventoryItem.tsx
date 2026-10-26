@@ -34,8 +34,11 @@ import IconifyIcon from 'components/base/IconifyIcon';
 import paths from 'routes/paths';
 import { downloadImagesAsZip } from 'lib/imageZip';
 import {
+  analysisHtmlToText,
   buildClaudeDesktopPrompt,
+  buildClaudeListingPrompt,
   parseClaudeDesktopPaste,
+  parseClaudeListingPaste,
 } from 'lib/claudeDesktopAnalysis';
 import { formatOrderNumber } from 'lib/utils';
 import ReverbListingWizard from './ReverbListingWizard';
@@ -717,6 +720,53 @@ function applyPhotoAnalysis(
   return { next, filled };
 }
 
+// Copy text to the clipboard; returns an error message, or null on success. The async
+// clipboard API can refuse (e.g. "Document is not focused"), so fall back to a hidden
+// textarea + execCommand, placed inside `container` (the dialog) so the dialog's focus trap
+// doesn't pull focus away before the copy.
+async function copyTextToClipboard(text: string, container: HTMLElement): Promise<string | null> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return null;
+  } catch (clipboardError) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    container.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand('copy');
+    textarea.remove();
+    if (copied) return null;
+    const reason = clipboardError instanceof Error ? clipboardError.message : String(clipboardError);
+    return `Unable to copy the prompt to the clipboard (${reason}). Click the button again.`;
+  }
+}
+
+// Rich-text box Claude desktop replies are pasted into.
+const claudePasteBoxSx = {
+  minHeight: 160,
+  maxHeight: 360,
+  overflowY: 'auto',
+  width: 1,
+  borderRadius: 1.5,
+  p: 1.5,
+  border: '1px solid',
+  borderColor: 'divider',
+  bgcolor: 'background.default',
+  color: 'text.primary',
+  fontSize: '0.9rem',
+  lineHeight: 1.5,
+  '&:focus': { outline: 'none', borderColor: 'primary.main' },
+  '& p, & ul, & ol, & pre, & h1, & h2, & h3, & h4': { mt: 0, mb: 1 },
+  '& pre': { whiteSpace: 'pre-wrap' },
+  '&[contenteditable="true"]:empty:before': {
+    content: '"Paste Claude\'s whole reply here (rich text is kept)"',
+    color: 'text.disabled',
+  },
+} as const;
+
 function buildHtmlPreviewNode(html: string, emptyLabel: string, onClick: () => void) {
   const trimmed = html.trim();
   return (
@@ -1332,6 +1382,12 @@ const InventoryItem = () => {
   const [photoAnalysisNotes, setPhotoAnalysisNotes] = useState('');
   const [photoAnalysisOverwrite, setPhotoAnalysisOverwrite] = useState(false);
   const [photoAnalysisReplaceTitle, setPhotoAnalysisReplaceTitle] = useState(false);
+  const [listingDialogOpen, setListingDialogOpen] = useState(false);
+  const [listingTitle, setListingTitle] = useState('');
+  const [listingPromptCopied, setListingPromptCopied] = useState(false);
+  const [listingReply, setListingReply] = useState('');
+  const [listingError, setListingError] = useState('');
+  const listingReplyRef = useRef<HTMLDivElement | null>(null);
   const [photoAnalysisReply, setPhotoAnalysisReply] = useState('');
   const photoAnalysisReplyRef = useRef<HTMLDivElement | null>(null);
   const [photoAnalysisPromptCopied, setPhotoAnalysisPromptCopied] = useState(false);
@@ -2863,29 +2919,78 @@ const InventoryItem = () => {
       categoryPromptLines.map((entry) => entry.line),
       MERCHANT_CENTER_CATEGORY_OPTIONS.map((option) => option.key),
     );
-    try {
-      await navigator.clipboard.writeText(prompt);
-    } catch (clipboardError) {
-      // The async clipboard API can refuse (e.g. "Document is not focused"); fall back to a
-      // hidden textarea + execCommand. The textarea goes inside the dialog so its focus trap
-      // doesn't pull focus away before the copy.
-      const textarea = document.createElement('textarea');
-      textarea.value = prompt;
-      textarea.setAttribute('readonly', '');
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      container.appendChild(textarea);
-      textarea.select();
-      const copied = document.execCommand('copy');
-      textarea.remove();
-      if (!copied) {
-        const reason = clipboardError instanceof Error ? clipboardError.message : String(clipboardError);
-        setPhotoAnalysisError(`Unable to copy the prompt to the clipboard (${reason}). Click the button again.`);
-        return;
-      }
+    const copyError = await copyTextToClipboard(prompt, container);
+    if (copyError) {
+      setPhotoAnalysisError(copyError);
+      return;
     }
     setPhotoAnalysisPromptCopied(true);
     await handleDownloadZip(photoAnalysisTitle.trim());
+  };
+
+  const openListingDialog = () => {
+    setListingTitle(form.title);
+    setListingReply('');
+    setListingPromptCopied(false);
+    setListingError('');
+    setListingDialogOpen(true);
+    setMessage(null);
+  };
+
+  const copyListingPrompt = async (event: MouseEvent<HTMLButtonElement>) => {
+    setListingError('');
+    const container = event.currentTarget.parentElement || document.body;
+    const prompt = buildClaudeListingPrompt(
+      listingTitle.trim(),
+      photoAnalysisNotes,
+      analysisHtmlToText(form.aiAnalysisText),
+    );
+    const copyError = await copyTextToClipboard(prompt, container);
+    if (copyError) {
+      setListingError(copyError);
+      return;
+    }
+    setListingPromptCopied(true);
+    await handleDownloadZip(listingTitle.trim());
+  };
+
+  // Fill the For Sale listing from Claude's reply: sale title, description and bullets 1–5
+  // are replaced, the item is marked For Sale (same as checking the box), and the sale URL
+  // slug is generated from the new title only when it is still blank.
+  const fillListingFromClaudeReply = () => {
+    setListingError('');
+    let listing: ReturnType<typeof parseClaudeListingPaste>;
+    try {
+      listing = parseClaudeListingPaste(
+        listingReplyRef.current?.innerHTML || '',
+        listingReplyRef.current?.innerText || '',
+      );
+    } catch (error) {
+      setListingError(error instanceof Error ? error.message : "Unable to read Claude's reply.");
+      return;
+    }
+    const generatedSlug = form.saleUrl.trim() ? '' : generateSaleUrlSlugFromTitle(listing.saleTitle);
+    setForm((current) => {
+      let next: FormState = { ...current, forSale: true, salesChannelCcg: true, queue: 'For Sale' };
+      if (!current.forSale && !wasForSaleOnLoadRef.current && !hasAnySaleBulletText(current)) {
+        next = { ...next, bullet6Text: 'FINANCING AVAILABLE!', bullet6Danger: false, bullet6Highlight: true };
+      }
+      if (current.forSale) next = { ...next, salesChannelCcg: current.salesChannelCcg };
+      return {
+        ...next,
+        saleTitle: listing.saleTitle || current.saleTitle,
+        saleDescription: listing.description || current.saleDescription,
+        bullet1Text: listing.bullets[0] ?? current.bullet1Text,
+        bullet2Text: listing.bullets[1] ?? current.bullet2Text,
+        bullet3Text: listing.bullets[2] ?? current.bullet3Text,
+        bullet4Text: listing.bullets[3] ?? current.bullet4Text,
+        bullet5Text: listing.bullets[4] ?? current.bullet5Text,
+        saleUrl: !current.saleUrl.trim() && generatedSlug ? generatedSlug : current.saleUrl,
+      };
+    });
+    if (generatedSlug) setSaleUrlReadOnly(true);
+    setListingDialogOpen(false);
+    enqueueSnackbar('Listing filled from Claude and marked For Sale. Review and save.', { variant: 'success' });
   };
 
   const fillFromClaudeReply = () => {
@@ -3711,6 +3816,21 @@ const InventoryItem = () => {
                         startIcon={<IconifyIcon icon="material-symbols:imagesmode-rounded" />}
                       >
                         Refresh AI Analysis From Pics
+                      </Button>
+                    </Box>
+                  </Tooltip>
+                  <Tooltip title={images.length === 0 ? 'Upload images first.' : ''}>
+                    <Box component="span" sx={{ display: 'block' }}>
+                      <Button
+                        fullWidth
+                        sx={{ whiteSpace: 'normal', lineHeight: 1.3, py: 1.25 }}
+                        variant="outlined"
+                        color="primary"
+                        onClick={openListingDialog}
+                        disabled={images.length === 0 || isUploading}
+                        startIcon={<IconifyIcon icon="material-symbols:sell-outline" />}
+                      >
+                        Re-Eval and Build Listing
                       </Button>
                     </Box>
                   </Tooltip>
@@ -4915,27 +5035,7 @@ const InventoryItem = () => {
               contentEditable
               suppressContentEditableWarning
               onInput={(event) => setPhotoAnalysisReply((event.currentTarget as HTMLDivElement).innerText)}
-              sx={{
-                minHeight: 160,
-                maxHeight: 360,
-                overflowY: 'auto',
-                width: 1,
-                borderRadius: 1.5,
-                p: 1.5,
-                border: '1px solid',
-                borderColor: 'divider',
-                bgcolor: 'background.default',
-                color: 'text.primary',
-                fontSize: '0.9rem',
-                lineHeight: 1.5,
-                '&:focus': { outline: 'none', borderColor: 'primary.main' },
-                '& p, & ul, & ol, & pre, & h1, & h2, & h3, & h4': { mt: 0, mb: 1 },
-                '& pre': { whiteSpace: 'pre-wrap' },
-                '&[contenteditable="true"]:empty:before': {
-                  content: '"Paste Claude\'s whole reply here (rich text is kept)"',
-                  color: 'text.disabled',
-                },
-              }}
+              sx={claudePasteBoxSx}
             />
             <FormControlLabel
               control={(
@@ -4966,6 +5066,78 @@ const InventoryItem = () => {
           </Button>
           <Button variant="contained" onClick={fillFromClaudeReply} disabled={!photoAnalysisReply.trim()}>
             Fill Fields
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={listingDialogOpen} onClose={() => setListingDialogOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Re-Eval and Build Listing</DialogTitle>
+        <DialogContent dividers sx={{ display: 'block' }}>
+          <Stack direction="column" spacing={2} sx={{ width: 1, pt: 1 }}>
+            <Typography variant="subtitle2">1. Copy the prompt and download the pics</Typography>
+            <TextField
+              fullWidth
+              autoFocus
+              label="Title"
+              value={listingTitle}
+              onChange={(event) => setListingTitle(event.target.value)}
+              inputProps={{ maxLength: 240 }}
+            />
+            <TextField
+              fullWidth
+              multiline
+              minRows={3}
+              label="Additional details (optional)"
+              placeholder="e.g. Tested, all pots clean. Includes gig bag."
+              value={photoAnalysisNotes}
+              onChange={(event) => setPhotoAnalysisNotes(event.target.value)}
+              inputProps={{ maxLength: 4000 }}
+            />
+            <Typography variant="body2" color="text.secondary">
+              {form.aiAnalysisText.trim()
+                ? 'The current AI Analysis is included so Claude can build on it.'
+                : 'There is no AI Analysis yet, so Claude will do a full evaluation.'}
+            </Typography>
+            <Button
+              variant="outlined"
+              onClick={copyListingPrompt}
+              disabled={isDownloadingZip || images.length === 0}
+              startIcon={(
+                <IconifyIcon
+                  icon={isDownloadingZip ? 'material-symbols:hourglass-top-rounded' : 'material-symbols:content-copy-outline-rounded'}
+                />
+              )}
+              sx={{ alignSelf: 'flex-start' }}
+            >
+              {isDownloadingZip ? 'Downloading pics…' : 'Copy Prompt & Download Pics'}
+            </Button>
+            {listingPromptCopied ? (
+              <Alert severity="success">
+                Prompt copied. In Claude desktop, attach the ZIP ({images.length} pic{images.length === 1 ? '' : 's'}),
+                paste the prompt and send. When it finishes, copy the reply and paste it below.
+              </Alert>
+            ) : null}
+
+            <Typography variant="subtitle2" sx={{ pt: 1 }}>2. Paste Claude&apos;s response</Typography>
+            <Box
+              ref={listingReplyRef}
+              contentEditable
+              suppressContentEditableWarning
+              onInput={(event) => setListingReply((event.currentTarget as HTMLDivElement).innerText)}
+              sx={claudePasteBoxSx}
+            />
+            <Typography variant="body2" color="text.secondary">
+              Fill Listing replaces the sale title, description and bullets 1–5, and marks the item For Sale.
+              AI Analysis is not changed.
+            </Typography>
+            {listingError ? <Alert severity="error">{listingError}</Alert> : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button variant="outlined" onClick={() => setListingDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button variant="contained" onClick={fillListingFromClaudeReply} disabled={!listingReply.trim()}>
+            Fill Listing
           </Button>
         </DialogActions>
       </Dialog>
