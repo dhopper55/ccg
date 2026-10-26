@@ -44,41 +44,37 @@ function asText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : typeof value === 'number' ? String(value) : '';
 }
 
-// Pull the last JSON field block out of Claude's reply; the rest of the reply is the analysis.
+// Find the JSON field block in Claude's reply: a ```json fenced block, or a bare {...}
+// object when only the block itself was copied. The rest of the reply is the analysis.
 export function parseClaudeDesktopReply(reply: string): {
   analysisMarkdown: string;
   fields: ClaudeDesktopFields;
 } {
-  const matches = [...reply.matchAll(FIELD_BLOCK_PATTERN)];
-  const last = matches[matches.length - 1];
-  if (!last || last.index == null) {
-    throw new Error(
-      "Couldn't find the ```json field block at the end of Claude's reply. Make sure you copied the whole reply.",
-    );
+  const outside = (start: number, end: number) => (reply.slice(0, start) + reply.slice(end)).trim();
+
+  const fenced = [...reply.matchAll(FIELD_BLOCK_PATTERN)];
+  for (let index = fenced.length - 1; index >= 0; index--) {
+    const match = fenced[index];
+    const fields = parseFieldObject(match[1]);
+    if (fields && match.index != null) {
+      return { analysisMarkdown: outside(match.index, match.index + match[0].length), fields };
+    }
   }
-  let raw: Record<string, unknown>;
-  try {
-    raw = JSON.parse(last[1]) as Record<string, unknown>;
-  } catch {
-    throw new Error("The field block in Claude's reply isn't valid JSON.");
+
+  const end = reply.lastIndexOf('}');
+  for (
+    let start = reply.lastIndexOf('{', end);
+    start >= 0;
+    start = reply.lastIndexOf('{', start - 1)
+  ) {
+    const fields = parseFieldObject(reply.slice(start, end + 1));
+    if (fields) return { analysisMarkdown: outside(start, end + 1), fields };
+    if (start === 0) break;
   }
-  const value = Number(String(raw.private_party_value ?? '').replace(/[$,\s]/g, ''));
-  return {
-    analysisMarkdown: (
-      reply.slice(0, last.index) + reply.slice(last.index + last[0].length)
-    ).trim(),
-    fields: {
-      title: asText(raw.title),
-      brand: asText(raw.brand),
-      model: asText(raw.model),
-      finish: asText(raw.finish),
-      yearRange: asText(raw.year_range),
-      serialNumber: asText(raw.serial_number),
-      category: asText(raw.category),
-      merchantCenterCatCode: asText(raw.merchant_center_category).toUpperCase(),
-      privatePartyValue: Number.isFinite(value) && value > 0 ? Math.round(value) : null,
-    },
-  };
+
+  throw new Error(
+    "Couldn't find the JSON field block in what was pasted. Make sure you copied Claude's whole reply.",
+  );
 }
 
 function escapeHtml(text: string): string {

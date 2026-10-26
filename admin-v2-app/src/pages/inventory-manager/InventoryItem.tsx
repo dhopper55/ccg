@@ -643,7 +643,7 @@ type PhotoAnalysisFields = {
   privatePartyValue: number | null;
 };
 
-// Fill the form from a photo analysis. AI Analysis is always replaced; other fields are
+// Fill the form from a photo analysis. AI Analysis is replaced when the reply has one; other fields are
 // only filled when blank unless overwrite is on. Queue and Unit Cost are set the way new
 // items are entered (To Sell, $1) but never replace a value that was already chosen.
 function applyPhotoAnalysis(
@@ -653,8 +653,9 @@ function applyPhotoAnalysis(
   dialogTitle: string,
   overwrite: boolean,
 ): { next: FormState; filled: string[] } {
-  const next = { ...current, aiAnalysisText: analysisHtml };
-  const filled = ['AI Analysis'];
+  // An empty analysis (only the JSON block was pasted) leaves AI Analysis as it was.
+  const next = analysisHtml.trim() ? { ...current, aiAnalysisText: analysisHtml } : { ...current };
+  const filled = analysisHtml.trim() ? ['AI Analysis'] : [];
   const canFill = (value: string) => overwrite || !value.trim() || Number(value) === 0;
 
   const textFields: Array<[keyof FormState & ('title' | 'brand' | 'model' | 'finish' | 'yearRange' | 'serialNumber'), string, string]> = [
