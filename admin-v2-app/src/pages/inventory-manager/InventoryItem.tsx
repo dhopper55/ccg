@@ -33,7 +33,11 @@ import liberationSansRegularUrl from 'pdfjs-dist/standard_fonts/LiberationSans-R
 import IconifyIcon from 'components/base/IconifyIcon';
 import paths from 'routes/paths';
 import { downloadImagesAsZip } from 'lib/imageZip';
-import { fetchImagesForAi } from 'lib/aiImages';
+import {
+  buildClaudeDesktopPrompt,
+  claudeMarkdownToHtml,
+  parseClaudeDesktopReply,
+} from 'lib/claudeDesktopAnalysis';
 import { formatOrderNumber } from 'lib/utils';
 import ReverbListingWizard from './ReverbListingWizard';
 import SoldOrderDialog, { type SoldOrderDialogItem } from './SoldOrderDialog';
@@ -638,13 +642,6 @@ type PhotoAnalysisFields = {
   secondaryCategoryId: string;
   merchantCenterCatCode: string;
   privatePartyValue: number | null;
-};
-
-type PhotoAnalysisResponse = {
-  ok?: boolean;
-  message?: string;
-  analysisHtml?: string;
-  fields?: PhotoAnalysisFields;
 };
 
 // Fill the form from a photo analysis. AI Analysis is always replaced; other fields are
@@ -1324,9 +1321,9 @@ const InventoryItem = () => {
   const [photoAnalysisTitle, setPhotoAnalysisTitle] = useState('');
   const [photoAnalysisNotes, setPhotoAnalysisNotes] = useState('');
   const [photoAnalysisOverwrite, setPhotoAnalysisOverwrite] = useState(false);
-  const [isRunningPhotoAnalysis, setIsRunningPhotoAnalysis] = useState(false);
+  const [photoAnalysisReply, setPhotoAnalysisReply] = useState('');
+  const [photoAnalysisPromptCopied, setPhotoAnalysisPromptCopied] = useState(false);
   const [photoAnalysisError, setPhotoAnalysisError] = useState('');
-  const photoAnalysisAbortRef = useRef<AbortController | null>(null);
   const [profitTargetsOpen, setProfitTargetsOpen] = useState(false);
   const [wasSoldOnLoad, setWasSoldOnLoad] = useState(false);
   const [soldConfirmOpen, setSoldConfirmOpen] = useState(false);
@@ -2820,65 +2817,80 @@ const InventoryItem = () => {
 
   const openPhotoAnalysisDialog = () => {
     setPhotoAnalysisTitle(form.title);
+    setPhotoAnalysisReply('');
+    setPhotoAnalysisPromptCopied(false);
     setPhotoAnalysisError('');
     setPhotoAnalysisDialogOpen(true);
     setMessage(null);
   };
 
   const closePhotoAnalysisDialog = () => {
-    photoAnalysisAbortRef.current?.abort();
     setPhotoAnalysisDialogOpen(false);
   };
 
-  const runPhotoAnalysis = async () => {
-    if (images.length === 0 || isRunningPhotoAnalysis) return;
-    const controller = new AbortController();
-    photoAnalysisAbortRef.current = controller;
+  // "Parent > Child" (or just "Parent") for each category, as offered to Claude.
+  const categoryPromptLines = useMemo(() => {
+    const byId = new Map(categoryOptions.map((option) => [option.id, option]));
+    return categoryOptions.map((option) => {
+      const parent = option.parentId != null ? byId.get(String(option.parentId)) : undefined;
+      return { option, line: parent ? `${parent.name} > ${option.name}` : option.name };
+    });
+  }, [categoryOptions]);
+
+  const copyPhotoAnalysisPrompt = async () => {
     setPhotoAnalysisError('');
-    setIsRunningPhotoAnalysis(true);
+    const prompt = buildClaudeDesktopPrompt(
+      photoAnalysisTitle.trim(),
+      photoAnalysisNotes,
+      categoryPromptLines.map((entry) => entry.line),
+      MERCHANT_CENTER_CATEGORY_OPTIONS.map((option) => option.key),
+    );
     try {
-      const payloadImages = await fetchImagesForAi(
-        images.map((image) => new URL(image.url, window.location.origin).toString()),
-      );
-      if (payloadImages.length === 0) throw new Error('Unable to load the item images.');
-      const dialogTitle = photoAnalysisTitle.trim();
-      const response = await fetch('/api/admin-v2/inventory/photo-analysis', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-        body: JSON.stringify({
-          title: dialogTitle,
-          notes: photoAnalysisNotes,
-          merchantCenterCatCodes: MERCHANT_CENTER_CATEGORY_OPTIONS.map((option) => option.key),
-          images: payloadImages,
-        }),
-      });
-      // The endpoint streams whitespace while the AI works, then the JSON result.
-      const text = await response.text();
-      let data: PhotoAnalysisResponse = {};
-      try {
-        data = JSON.parse(text) as PhotoAnalysisResponse;
-      } catch {
-        throw new Error(
-          `AI analysis returned an unexpected response (HTTP ${response.status}): ${text.trim().slice(0, 200) || 'empty'}`,
-        );
-      }
-      if (!response.ok || !data.ok || !data.fields) {
-        throw new Error(data.message || 'AI analysis failed.');
-      }
-      const { analysisHtml = '', fields } = data;
-      const { filled } = applyPhotoAnalysis(form, analysisHtml, fields, dialogTitle, photoAnalysisOverwrite);
-      setForm((current) => applyPhotoAnalysis(current, analysisHtml, fields, dialogTitle, photoAnalysisOverwrite).next);
-      setPhotoAnalysisDialogOpen(false);
-      enqueueSnackbar(`AI analysis filled: ${filled.join(', ')}. Review and save.`, { variant: 'success' });
-    } catch (error) {
-      if (controller.signal.aborted) return;
-      setPhotoAnalysisError(error instanceof Error ? error.message : 'AI analysis failed.');
-    } finally {
-      if (photoAnalysisAbortRef.current === controller) photoAnalysisAbortRef.current = null;
-      setIsRunningPhotoAnalysis(false);
+      await navigator.clipboard.writeText(prompt);
+    } catch {
+      setPhotoAnalysisError('Unable to copy the prompt to the clipboard.');
+      return;
     }
+    setPhotoAnalysisPromptCopied(true);
+    await handleDownloadZip();
+  };
+
+  const fillFromClaudeReply = () => {
+    setPhotoAnalysisError('');
+    let parsed: ReturnType<typeof parseClaudeDesktopReply>;
+    try {
+      parsed = parseClaudeDesktopReply(photoAnalysisReply);
+    } catch (error) {
+      setPhotoAnalysisError(error instanceof Error ? error.message : "Unable to read Claude's reply.");
+      return;
+    }
+    const { analysisMarkdown, fields: replyFields } = parsed;
+
+    const wanted = replyFields.category.toLowerCase().replace(/\s+/g, ' ');
+    const lastSegment = wanted.split('>').pop()?.trim() || '';
+    const match = categoryPromptLines.find((entry) => entry.line.toLowerCase() === wanted)
+      || categoryPromptLines.find((entry) => entry.option.name.toLowerCase() === lastSegment);
+    const matchedParentId = match?.option.parentId != null ? String(match.option.parentId) : match?.option.id || '';
+    const fields: PhotoAnalysisFields = {
+      title: replyFields.title,
+      brand: replyFields.brand,
+      model: replyFields.model,
+      finish: replyFields.finish,
+      yearRange: replyFields.yearRange,
+      serialNumber: replyFields.serialNumber,
+      categoryId: matchedParentId,
+      secondaryCategoryId: match?.option.parentId != null ? match.option.id : '',
+      merchantCenterCatCode: MERCHANT_CENTER_CATEGORY_OPTIONS.some((option) => option.key === replyFields.merchantCenterCatCode)
+        ? replyFields.merchantCenterCatCode
+        : '',
+      privatePartyValue: replyFields.privatePartyValue,
+    };
+    const analysisHtml = claudeMarkdownToHtml(analysisMarkdown);
+    const dialogTitle = photoAnalysisTitle.trim();
+    const { filled } = applyPhotoAnalysis(form, analysisHtml, fields, dialogTitle, photoAnalysisOverwrite);
+    setForm((current) => applyPhotoAnalysis(current, analysisHtml, fields, dialogTitle, photoAnalysisOverwrite).next);
+    setPhotoAnalysisDialogOpen(false);
+    enqueueSnackbar(`Filled from Claude: ${filled.join(', ')}. Review and save.`, { variant: 'success' });
   };
 
   return (
@@ -3660,7 +3672,7 @@ const InventoryItem = () => {
                         variant="outlined"
                         color="primary"
                         onClick={openPhotoAnalysisDialog}
-                        disabled={images.length === 0 || isUploading || isRunningPhotoAnalysis}
+                        disabled={images.length === 0 || isUploading}
                         startIcon={<IconifyIcon icon="material-symbols:imagesmode-rounded" />}
                       >
                         Refresh AI Analysis From Pics
@@ -4822,14 +4834,14 @@ const InventoryItem = () => {
         <DialogTitle>Refresh AI Analysis From Pics</DialogTitle>
         <DialogContent dividers sx={{ display: 'block' }}>
           <Stack direction="column" spacing={2} sx={{ width: 1, pt: 1 }}>
+            <Typography variant="subtitle2">1. Copy the prompt and download the pics</Typography>
             <TextField
               fullWidth
               autoFocus
               label="Title"
               value={photoAnalysisTitle}
               onChange={(event) => setPhotoAnalysisTitle(event.target.value)}
-              disabled={isRunningPhotoAnalysis}
-              helperText="Leave blank to let the AI identify the item and suggest a title."
+              helperText="Leave blank to have Claude identify the item and suggest a title."
               inputProps={{ maxLength: 240 }}
             />
             <TextField
@@ -4840,38 +4852,56 @@ const InventoryItem = () => {
               placeholder="e.g. Hard case is not included. One volume pot not working."
               value={photoAnalysisNotes}
               onChange={(event) => setPhotoAnalysisNotes(event.target.value)}
-              disabled={isRunningPhotoAnalysis}
               inputProps={{ maxLength: 4000 }}
+            />
+            <Button
+              variant="outlined"
+              onClick={copyPhotoAnalysisPrompt}
+              disabled={isDownloadingZip || images.length === 0}
+              startIcon={(
+                <IconifyIcon
+                  icon={isDownloadingZip ? 'material-symbols:hourglass-top-rounded' : 'material-symbols:content-copy-outline-rounded'}
+                />
+              )}
+              sx={{ alignSelf: 'flex-start' }}
+            >
+              {isDownloadingZip ? 'Downloading pics…' : 'Copy Prompt & Download Pics'}
+            </Button>
+            {photoAnalysisPromptCopied ? (
+              <Alert severity="success">
+                Prompt copied. In Claude desktop, attach the ZIP ({images.length} pic{images.length === 1 ? '' : 's'}),
+                paste the prompt and send. When it finishes, use the copy button under the reply and paste it below.
+              </Alert>
+            ) : null}
+
+            <Typography variant="subtitle2" sx={{ pt: 1 }}>2. Paste Claude&apos;s response</Typography>
+            <TextField
+              fullWidth
+              multiline
+              minRows={6}
+              maxRows={14}
+              label="Claude's response"
+              value={photoAnalysisReply}
+              onChange={(event) => setPhotoAnalysisReply(event.target.value)}
             />
             <FormControlLabel
               control={(
                 <Checkbox
                   checked={photoAnalysisOverwrite}
                   onChange={(event) => setPhotoAnalysisOverwrite(event.target.checked)}
-                  disabled={isRunningPhotoAnalysis}
                 />
               )}
               label="Overwrite fields that already have values"
             />
             {photoAnalysisError ? <Alert severity="error">{photoAnalysisError}</Alert> : null}
-            <Typography variant="body2" color="text.secondary">
-              {isRunningPhotoAnalysis
-                ? 'Analyzing photos and researching comps. This usually takes a minute or two…'
-                : `Sends ${images.length} image${images.length === 1 ? '' : 's'} to the AI. AI Analysis is always replaced.`}
-            </Typography>
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button variant="outlined" onClick={closePhotoAnalysisDialog}>
             Cancel
           </Button>
-          <Button
-            variant="contained"
-            onClick={runPhotoAnalysis}
-            disabled={isRunningPhotoAnalysis || images.length === 0}
-            startIcon={isRunningPhotoAnalysis ? <CircularProgress size={16} color="inherit" /> : undefined}
-          >
-            {isRunningPhotoAnalysis ? 'Analyzing…' : 'Analyze'}
+          <Button variant="contained" onClick={fillFromClaudeReply} disabled={!photoAnalysisReply.trim()}>
+            Fill Fields
           </Button>
         </DialogActions>
       </Dialog>
