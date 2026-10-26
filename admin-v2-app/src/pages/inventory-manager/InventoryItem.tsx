@@ -1325,6 +1325,7 @@ const InventoryItem = () => {
   const [photoAnalysisNotes, setPhotoAnalysisNotes] = useState('');
   const [photoAnalysisOverwrite, setPhotoAnalysisOverwrite] = useState(false);
   const [isRunningPhotoAnalysis, setIsRunningPhotoAnalysis] = useState(false);
+  const [photoAnalysisError, setPhotoAnalysisError] = useState('');
   const photoAnalysisAbortRef = useRef<AbortController | null>(null);
   const [profitTargetsOpen, setProfitTargetsOpen] = useState(false);
   const [wasSoldOnLoad, setWasSoldOnLoad] = useState(false);
@@ -2819,6 +2820,7 @@ const InventoryItem = () => {
 
   const openPhotoAnalysisDialog = () => {
     setPhotoAnalysisTitle(form.title);
+    setPhotoAnalysisError('');
     setPhotoAnalysisDialogOpen(true);
     setMessage(null);
   };
@@ -2832,6 +2834,7 @@ const InventoryItem = () => {
     if (images.length === 0 || isRunningPhotoAnalysis) return;
     const controller = new AbortController();
     photoAnalysisAbortRef.current = controller;
+    setPhotoAnalysisError('');
     setIsRunningPhotoAnalysis(true);
     try {
       const payloadImages = await fetchImagesForAi(
@@ -2857,7 +2860,9 @@ const InventoryItem = () => {
       try {
         data = JSON.parse(text) as PhotoAnalysisResponse;
       } catch {
-        throw new Error('AI analysis returned an unexpected response.');
+        throw new Error(
+          `AI analysis returned an unexpected response (HTTP ${response.status}): ${text.trim().slice(0, 200) || 'empty'}`,
+        );
       }
       if (!response.ok || !data.ok || !data.fields) {
         throw new Error(data.message || 'AI analysis failed.');
@@ -2869,7 +2874,7 @@ const InventoryItem = () => {
       enqueueSnackbar(`AI analysis filled: ${filled.join(', ')}. Review and save.`, { variant: 'success' });
     } catch (error) {
       if (controller.signal.aborted) return;
-      enqueueSnackbar(error instanceof Error ? error.message : 'AI analysis failed.', { variant: 'error' });
+      setPhotoAnalysisError(error instanceof Error ? error.message : 'AI analysis failed.');
     } finally {
       if (photoAnalysisAbortRef.current === controller) photoAnalysisAbortRef.current = null;
       setIsRunningPhotoAnalysis(false);
@@ -4848,6 +4853,7 @@ const InventoryItem = () => {
               )}
               label="Overwrite fields that already have values"
             />
+            {photoAnalysisError ? <Alert severity="error">{photoAnalysisError}</Alert> : null}
             <Typography variant="body2" color="text.secondary">
               {isRunningPhotoAnalysis
                 ? 'Analyzing photos and researching comps. This usually takes a minute or two…'

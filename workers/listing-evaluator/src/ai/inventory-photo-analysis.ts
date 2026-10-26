@@ -45,6 +45,8 @@ type AnalysisImage = { mediaType: string; data: string };
 type AnthropicContentBlock = { type: string; name?: string; input?: unknown; text?: string };
 type AnthropicMessage = {
   content?: AnthropicContentBlock[];
+  model?: string;
+  usage?: Record<string, unknown>;
   stop_reason?: string;
   stop_details?: { category?: string | null; explanation?: string | null } | null;
 };
@@ -215,12 +217,23 @@ export async function runInventoryPhotoAnalysis(
     ],
   };
 
+  const startedAt = Date.now();
   let message = await callAnthropic({ ...requestBase, messages }, env);
+  let continuations = 0;
   // Web search runs in a server-side loop that can pause; re-send the turn to resume it.
-  for (let i = 0; message.stop_reason === 'pause_turn' && i < MAX_PAUSE_CONTINUATIONS; i++) {
+  for (; message.stop_reason === 'pause_turn' && continuations < MAX_PAUSE_CONTINUATIONS; continuations++) {
     messages.push({ role: 'assistant', content: message.content ?? [] });
     message = await callAnthropic({ ...requestBase, messages }, env);
   }
+  console.log('[inventory-photo-analysis] response', JSON.stringify({
+    images: images.length,
+    seconds: Math.round((Date.now() - startedAt) / 1000),
+    continuations,
+    model: message.model,
+    stopReason: message.stop_reason,
+    usage: message.usage,
+    blocks: (message.content ?? []).map((block) => block.type + (block.name ? `:${block.name}` : '')),
+  }));
 
   if (message.stop_reason === 'refusal') {
     throw new Error(`The AI declined to analyze this item${message.stop_details?.explanation ? `: ${message.stop_details.explanation}` : '.'}`);
@@ -228,8 +241,9 @@ export async function runInventoryPhotoAnalysis(
 
   const toolCall = message.content?.find((block) => block.type === 'tool_use' && block.name === TOOL_NAME);
   if (!toolCall || !toolCall.input || typeof toolCall.input !== 'object') {
-    console.warn('[inventory-photo-analysis] no tool call', { stopReason: message.stop_reason });
-    throw new Error('The AI did not return an analysis. Try again.');
+    const text = (message.content ?? []).filter((block) => block.type === 'text').map((block) => block.text).join('\n');
+    console.warn('[inventory-photo-analysis] no tool call', JSON.stringify({ stopReason: message.stop_reason, text: text.slice(0, 1500) }));
+    throw new Error(`The AI did not return an analysis (stop reason: ${message.stop_reason ?? 'unknown'}). Try again.`);
   }
 
   const input = toolCall.input as Record<string, unknown>;
@@ -295,7 +309,7 @@ export async function handleAdminV2InventoryPhotoAnalysis(request: Request, env:
     try {
       payload = { ok: true, ...(await runInventoryPhotoAnalysis(title, notes, images, merchantCodes, env)) };
     } catch (error) {
-      console.error('[inventory-photo-analysis] failed', error);
+      console.error('[inventory-photo-analysis] failed', error instanceof Error ? error.message : String(error));
       payload = { ok: false, message: error instanceof Error ? error.message : 'AI analysis failed.' };
     } finally {
       clearInterval(heartbeat);
