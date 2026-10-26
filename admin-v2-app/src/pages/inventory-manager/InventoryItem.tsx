@@ -3648,9 +3648,10 @@ const InventoryItem = () => {
               <Grid size={{ xs: 12, md: 3 }}>
                 <Stack spacing={1}>
                   <Tooltip title={images.length === 0 ? 'Upload images first.' : ''}>
-                    <span>
+                    <Box component="span" sx={{ display: 'block' }}>
                       <Button
                         fullWidth
+                        sx={{ whiteSpace: 'normal', lineHeight: 1.3, py: 1.25 }}
                         variant="outlined"
                         color="primary"
                         onClick={openPhotoAnalysisDialog}
@@ -3659,7 +3660,7 @@ const InventoryItem = () => {
                       >
                         Refresh AI Analysis From Pics
                       </Button>
-                    </span>
+                    </Box>
                   </Tooltip>
                 </Stack>
               </Grid>
@@ -4814,8 +4815,8 @@ const InventoryItem = () => {
       </Dialog>
       <Dialog open={photoAnalysisDialogOpen} onClose={closePhotoAnalysisDialog} fullWidth maxWidth="sm">
         <DialogTitle>Refresh AI Analysis From Pics</DialogTitle>
-        <DialogContent dividers>
-          <Stack spacing={2}>
+        <DialogContent dividers sx={{ display: 'block' }}>
+          <Stack direction="column" spacing={2} sx={{ width: 1, pt: 1 }}>
             <TextField
               fullWidth
               autoFocus
