@@ -649,8 +649,7 @@ type PhotoAnalysisFields = {
 };
 
 // Fill the form from a photo analysis. AI Analysis is replaced when the reply has one; other fields are
-// only filled when blank unless overwrite is on. A non-blank title is only replaced when
-// overwrite and replaceTitle are both on, and then becomes "{Brand} {Model}". Queue and Unit Cost are set the way new
+// only filled when blank unless overwrite is on (see the title rule below). Queue and Unit Cost are set the way new
 // items are entered (To Sell, $1) but never replace a value that was already chosen.
 function applyPhotoAnalysis(
   current: FormState,
@@ -665,12 +664,19 @@ function applyPhotoAnalysis(
   const filled = analysisHtml.trim() ? ['AI Analysis'] : [];
   const canFill = (value: string) => overwrite || !value.trim() || Number(value) === 0;
 
+  // Title becomes "{Brand} {Model}" on the first analysis (AI Analysis still empty), when the
+  // title is blank, or on a re-run with overwrite + replaceTitle. A blank title with no
+  // brand/model falls back to the dialog title or Claude's suggested title.
   const brandModelTitle = fields.brand && fields.model ? `${fields.brand} ${fields.model}` : '';
-  if (!current.title.trim() && (dialogTitle || fields.title)) {
+  const isFirstAnalysis = !current.aiAnalysisText.trim();
+  const titleIsBlank = !current.title.trim();
+  if (brandModelTitle && (isFirstAnalysis || titleIsBlank || (overwrite && replaceTitle))) {
+    if (brandModelTitle !== current.title) {
+      next.title = brandModelTitle;
+      filled.push('Title');
+    }
+  } else if (titleIsBlank && (dialogTitle || fields.title)) {
     next.title = dialogTitle || fields.title;
-    filled.push('Title');
-  } else if (overwrite && replaceTitle && brandModelTitle && brandModelTitle !== current.title) {
-    next.title = brandModelTitle;
     filled.push('Title');
   }
 
