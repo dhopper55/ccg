@@ -5321,6 +5321,8 @@ const InventoryItem = () => {
           open={reverbWizardOpen}
           itemId={editId}
           ccgCondition={form.condition}
+          allowShipping={form.allowShipping}
+          fixedShippingAmount={Number.parseFloat(form.fixedShippingAmount) || 0}
           onClose={() => setReverbWizardOpen(false)}
           onListed={handleReverbListed}
         />

@@ -26,15 +26,18 @@ type ReverbListingWizardProps = {
   open: boolean;
   itemId: string;
   ccgCondition: string;
+  // From the item: when it ships with a fixed amount set, the dialog starts on that flat rate.
+  allowShipping: boolean;
+  fixedShippingAmount: number;
   onClose: () => void;
   onListed: (warning?: string | null) => void;
 };
 
-function toPositiveInt(value: string): number | null {
+function toPositiveAmount(value: string): number | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
-  const parsed = Number.parseInt(trimmed, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  const parsed = Number.parseFloat(trimmed);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed * 100) / 100 : null;
 }
 
 // Verbatim from Reverb's /docs/create-listings documentation table (account-independent).
@@ -60,11 +63,11 @@ const CCG_CONDITION_TO_REVERB_UUID: Record<string, string> = {
   'Used - Fair': '98777886-76d0-44c8-865e-bb40e669e934',
 };
 
-const ReverbListingWizard = ({ open, itemId, ccgCondition, onClose, onListed }: ReverbListingWizardProps) => {
+const ReverbListingWizard = ({ open, itemId, ccgCondition, allowShipping, fixedShippingAmount, onClose, onListed }: ReverbListingWizardProps) => {
   const [conditionUuid, setConditionUuid] = useState('');
-  const [soldAsDescribed, setSoldAsDescribed] = useState(false);
-  const [dropPriceIn2Weeks, setDropPriceIn2Weeks] = useState<boolean | null>(null);
-  const [allowOffers, setAllowOffers] = useState(true);
+  const [soldAsDescribed, setSoldAsDescribed] = useState(true);
+  const [dropPriceIn2Weeks, setDropPriceIn2Weeks] = useState<boolean | null>(false);
+  const [allowOffers, setAllowOffers] = useState(false);
   const [shippingMethod, setShippingMethod] = useState<ShippingMethod>('calculated');
   const [flatRateAmount, setFlatRateAmount] = useState('');
   const [safeShipping, setSafeShipping] = useState(false);
@@ -77,11 +80,12 @@ const ReverbListingWizard = ({ open, itemId, ccgCondition, onClose, onListed }: 
   useEffect(() => {
     if (!open) return;
     setConditionUuid(CCG_CONDITION_TO_REVERB_UUID[ccgCondition.trim()] || '');
-    setSoldAsDescribed(false);
-    setDropPriceIn2Weeks(null);
-    setAllowOffers(true);
-    setShippingMethod('calculated');
-    setFlatRateAmount('');
+    setSoldAsDescribed(true);
+    setDropPriceIn2Weeks(false);
+    setAllowOffers(false);
+    const hasFlatRate = allowShipping && fixedShippingAmount > 0;
+    setShippingMethod(hasFlatRate ? 'flat' : 'calculated');
+    setFlatRateAmount(hasFlatRate ? String(fixedShippingAmount) : '');
     setSafeShipping(false);
     setShippingProfileId('');
     setIsSubmitting(false);
@@ -97,9 +101,9 @@ const ReverbListingWizard = ({ open, itemId, ccgCondition, onClose, onListed }: 
       })
       .catch(() => setShippingProfiles([]))
       .finally(() => setIsLoadingProfiles(false));
-  }, [open, ccgCondition]);
+  }, [open, ccgCondition, allowShipping, fixedShippingAmount]);
 
-  const flatAmount = shippingMethod === 'flat' ? toPositiveInt(flatRateAmount) : null;
+  const flatAmount = shippingMethod === 'flat' ? toPositiveAmount(flatRateAmount) : null;
 
   const isValid = Boolean(conditionUuid)
     && dropPriceIn2Weeks !== null
@@ -206,7 +210,7 @@ const ReverbListingWizard = ({ open, itemId, ccgCondition, onClose, onListed }: 
                 size="small"
                 value={flatRateAmount}
                 onChange={(event) => setFlatRateAmount(event.target.value)}
-                inputProps={{ min: 1, step: 1 }}
+                inputProps={{ min: 0.01, step: 0.01 }}
                 sx={{ mt: 1, width: 200 }}
               />
             ) : null}
