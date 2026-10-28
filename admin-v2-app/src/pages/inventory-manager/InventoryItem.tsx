@@ -914,13 +914,13 @@ type GxListingInfo = {
   autoRelist: boolean;
 };
 
-function GxListingLink({ gxListingId }: { gxListingId: number }) {
+function GxListingLink({ gxListingId, title, brand }: { gxListingId: number; title: string; brand: string }) {
   return (
     <Tooltip title="Open Gear Exchange listing">
       <IconButton
         size="small"
         component="a"
-        href={getGxListingUrl(gxListingId)}
+        href={getGxListingUrl(gxListingId, title, brand)}
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Open Gear Exchange listing"
@@ -4061,7 +4061,7 @@ const InventoryItem = () => {
                             color={gxListing.gxStatus === 'published' ? 'success' : 'default'}
                             variant="outlined"
                           />
-                          <GxListingLink gxListingId={gxListing.gxListingId} />
+                          <GxListingLink gxListingId={gxListing.gxListingId} title={form.saleTitle} brand={form.brand} />
                         </>
                       ) : null}
                     </Stack>
