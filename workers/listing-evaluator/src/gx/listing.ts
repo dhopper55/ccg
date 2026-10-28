@@ -140,7 +140,7 @@ export function parseGxListingOptions(
   const categoryId = optionalId(body.categoryId);
   if (Number.isNaN(categoryId)) return { error: 'categoryId must be a GX category id.' };
 
-  const acceptsOffers = toBooleanInput(body.acceptsOffers, true);
+  const acceptsOffers = toBooleanInput(body.acceptsOffers, false);
   const minOffer = body.minOffer == null || body.minOffer === '' ? null : parseCurrencyAmount(body.minOffer);
   if (minOffer != null && minOffer <= 0) return { error: 'minOffer must be greater than $0.' };
 

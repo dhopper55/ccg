@@ -849,13 +849,16 @@ export async function dbCreateOrderFromReverbSale(
 
 // ---- Gear Exchange ---------------------------------------------------------------------
 
-// GX's cash payout ("hyperwallet") is fee-based at 7.5% per GET /payout-options; the gift-card
-// payout has no fee. GX orders don't report the fee or the payout, so the fee is an estimate
-// on item + shipping (fee_is_estimate = 1) until it's confirmed against a real payout.
-export const GX_CASH_PAYOUT_FEE_RATE = 0.075;
+// GX fees on a cash ("hyperwallet") payout, per the GX seller terms: a 5% seller fee on the item
+// price plus the shipping charged, and a 2.5% transaction fee on the entire order including
+// sales tax. Both are waived for a Sweetwater gift-card payout. GX orders don't report the fee
+// or the payout, so this stays an estimate (fee_is_estimate = 1) until checked against a payout.
+export const GX_SELLER_FEE_RATE = 0.05;
+export const GX_TRANSACTION_FEE_RATE = 0.025;
 
-export function estimateGxFeeCents(grossCents: number, payoutMethod: string | null): number {
-  return payoutMethod === 'store_credit' ? 0 : Math.round(grossCents * GX_CASH_PAYOUT_FEE_RATE);
+export function estimateGxFeeCents(itemAndShippingCents: number, taxCents: number, payoutMethod: string | null): number {
+  if (payoutMethod === 'store_credit') return 0;
+  return Math.round(itemAndShippingCents * GX_SELLER_FEE_RATE + (itemAndShippingCents + taxCents) * GX_TRANSACTION_FEE_RATE);
 }
 
 function gxMoneyCents(value: unknown): number {
@@ -881,6 +884,7 @@ export async function dbCreateOrderFromGxSale(
     listingId: number;
     soldPrice: string;
     shippingAmount: string;
+    taxAmount?: string;
     soldAt: string;
     shippingInfo?: {
       local_pickup?: boolean;
@@ -905,7 +909,7 @@ export async function dbCreateOrderFromGxSale(
   const shippingCents = gxMoneyCents(order.shippingAmount);
   const grossCents = productCents + shippingCents;
   if (grossCents <= 0) return { ok: false, message: 'Gear Exchange order has no sold price.' };
-  const feeCents = estimateGxFeeCents(grossCents, payoutMethod);
+  const feeCents = estimateGxFeeCents(grossCents, gxMoneyCents(order.taxAmount), payoutMethod);
   const payoutCents = grossCents - feeCents;
   const paidAt = normalizeText(order.soldAt, '') || new Date().toISOString();
 
@@ -967,7 +971,7 @@ export async function dbCreateOrderFromGxSale(
     externalRef: gxOrderRef,
     paidAt,
     notes: feeCents > 0
-      ? `Fee estimated at ${(GX_CASH_PAYOUT_FEE_RATE * 100).toFixed(1)}% (GX cash payout); confirm against the GX payout.`
+      ? 'GX cash payout. Fee estimated as 5% of item + shipping plus 2.5% of the order incl. tax; confirm against the GX payout.'
       : 'Gift-card payout: no GX fee.',
   }, env);
   await dbRecordOrderEvent(orderId, {

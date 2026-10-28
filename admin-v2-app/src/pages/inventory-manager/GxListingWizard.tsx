@@ -43,9 +43,12 @@ type GxPreview = {
   reference: { conditions: GxCondition[] };
 };
 
-// GX's cash payout ("Hyperwallet") is fee-based; the gift card has no fee. Matches the backend's
-// estimate (orders/manual.ts GX_CASH_PAYOUT_FEE_RATE) until a real payout confirms the rate.
-const GX_CASH_PAYOUT_FEE_RATE = 0.075;
+// GX fees on a cash ("Hyperwallet") payout: 5% seller fee on item + shipping, plus a 2.5%
+// transaction fee on the whole order including the buyer's sales tax. Both are waived for a
+// Sweetwater gift card. Matches the backend estimate (orders/manual.ts estimateGxFeeCents); the
+// buyer's tax isn't known at listing time, so the cash figure here leaves out its 2.5%.
+const GX_SELLER_FEE_RATE = 0.05;
+const GX_TRANSACTION_FEE_RATE = 0.025;
 const SALE_PERCENTAGES = [5, 10, 15, 20, 25, 30];
 const RETURN_POLICIES = [
   { value: 0, label: 'No returns' },
@@ -82,7 +85,7 @@ const GxListingWizard = ({ open, itemId, quantity, onClose, onListed }: GxListin
   const [conditionId, setConditionId] = useState<number | ''>('');
   const [category, setCategory] = useState<GxCategory | null>(null);
   const [payoutMethod, setPayoutMethod] = useState<'hyperwallet' | 'store_credit'>('hyperwallet');
-  const [acceptsOffers, setAcceptsOffers] = useState(true);
+  const [acceptsOffers, setAcceptsOffers] = useState(false);
   const [minOffer, setMinOffer] = useState('');
   const [optedInToSales, setOptedInToSales] = useState(false);
   const [salePercentage, setSalePercentage] = useState(10);
@@ -102,7 +105,7 @@ const GxListingWizard = ({ open, itemId, quantity, onClose, onListed }: GxListin
     setErrorMessage(null);
     setIsSubmitting(false);
     setPayoutMethod('hyperwallet');
-    setAcceptsOffers(true);
+    setAcceptsOffers(false);
     setMinOffer('');
     setOptedInToSales(false);
     setSalePercentage(10);
@@ -140,7 +143,7 @@ const GxListingWizard = ({ open, itemId, quantity, onClose, onListed }: GxListin
   const price = Number(preview?.payload.price || 0);
   const shippingAmount = shippingAllowed ? (toAmount(shippingCost) ?? 0) : 0;
   const buyerPays = price + shippingAmount;
-  const cashNet = buyerPays * (1 - GX_CASH_PAYOUT_FEE_RATE);
+  const cashNet = buyerPays * (1 - GX_SELLER_FEE_RATE - GX_TRANSACTION_FEE_RATE);
 
   const missing = preview?.missing.filter((entry) => !/condition|category/i.test(entry)) ?? [];
   const problems = preview?.problems ?? [];
@@ -254,7 +257,7 @@ const GxListingWizard = ({ open, itemId, quantity, onClose, onListed }: GxListin
                     <FormControlLabel
                       value="hyperwallet"
                       control={<Radio size="small" />}
-                      label={`Cash (Hyperwallet, ~${(GX_CASH_PAYOUT_FEE_RATE * 100).toFixed(1)}% fee) — ~${money.format(cashNet)}`}
+                      label={`Cash (Hyperwallet) — ~${money.format(cashNet)}`}
                     />
                     <FormControlLabel
                       value="store_credit"
@@ -262,6 +265,10 @@ const GxListingWizard = ({ open, itemId, quantity, onClose, onListed }: GxListin
                       label={`Sweetwater gift card (no fee) — ${money.format(buyerPays)}`}
                     />
                   </RadioGroup>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                    Cash payouts pay a 5% seller fee on item + shipping and a 2.5% transaction fee on the whole
+                    order, including the buyer's sales tax (not counted above). A gift card waives both.
+                  </Typography>
                 </Box>
 
                 <Box>

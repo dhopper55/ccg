@@ -106,7 +106,8 @@ async function recordGxSale(
       } else {
         const grossCents = Math.round((Number.parseFloat(order.soldPrice) || 0) * 100)
           + Math.round((Number.parseFloat(order.shippingAmount) || 0) * 100);
-        const feeCents = estimateGxFeeCents(grossCents, payoutMethod);
+        const taxCents = Math.round((Number.parseFloat(order.taxAmount) || 0) * 100);
+        const feeCents = estimateGxFeeCents(grossCents, taxCents, payoutMethod);
         const soldAmount = Number(((grossCents - feeCents) / 100).toFixed(2));
         // dbFindGxSoldRow finds the sold row by this opening sentence — keep it stable.
         const sellNotes = [
