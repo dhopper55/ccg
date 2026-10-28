@@ -208,3 +208,28 @@ export async function handleAdminV2GxSyncSold(request: Request, env: Env): Promi
 
   return jsonResponse({ ok: true, dryRun, since, ordersFetched: ordersResult.orders.length, results });
 }
+
+// GET /api/admin-v2/gx/status — for the System Settings card: is GX set up, how many items are
+// listed, and the most recent webhooks with their outcome.
+export async function handleAdminV2GxStatus(_request: Request, env: Env): Promise<Response> {
+  const siteBaseUrl = normalizeText(env.SITE_BASE_URL, 'https://www.coalcreekguitars.com').replace(/\/+$/, '');
+  const [links, events] = await Promise.all([dbListGxLinks(env), dbListGxWebhookEvents(20, env)]);
+  return jsonResponse({
+    apiTokenConfigured: isGxConfigured(env),
+    webhookTokenConfigured: Boolean(normalizeText(env.GX_WEBHOOK_TOKEN, '')),
+    webhookUrl: `${siteBaseUrl}/api/gx/webhook`,
+    listedCount: links.length,
+    publishedCount: links.filter((link) => link.gx_status === 'published').length,
+    lastEventAt: events[0]?.received_at ?? null,
+    events: events.map((event) => ({
+      id: event.id,
+      eventType: event.event_type,
+      status: event.status,
+      gxListingId: event.gx_listing_id,
+      gxOrderId: event.gx_order_id,
+      result: event.result,
+      resultMessage: event.result_message,
+      receivedAt: event.received_at,
+    })),
+  });
+}

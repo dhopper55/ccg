@@ -112,6 +112,9 @@ type AdminOrderDetail = {
     message: string;
     createdAt: string;
   }>;
+  // Latest Gear Exchange order status (GX orders only); needsReview when GX reports a cancel,
+  // refund, problem, or return — CCG logs those but doesn't act on them.
+  gearExchangeStatus?: { message: string; at: string; needsReview: boolean } | null;
 };
 
 type OrderDetailResponse = {
@@ -628,6 +631,12 @@ const OrderManagerItem = () => {
                 <Typography variant="h4" sx={{ mb: 2 }}>
                   Order <Box component="span">{displayOrderNumber}</Box>
                 </Typography>
+                {order.gearExchangeStatus?.needsReview ? (
+                  <Alert severity="warning" sx={{ mb: 2 }}>
+                    {order.gearExchangeStatus.message} Update the item and this order by hand; CCG doesn't
+                    reverse Gear Exchange cancellations, refunds, or returns on its own.
+                  </Alert>
+                ) : null}
                 <Stack
                   direction="row"
                   sx={{

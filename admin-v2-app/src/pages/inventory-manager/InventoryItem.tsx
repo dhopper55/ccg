@@ -44,6 +44,8 @@ import {
 } from 'lib/claudeDesktopAnalysis';
 import { formatOrderNumber } from 'lib/utils';
 import ReverbListingWizard from './ReverbListingWizard';
+import GxListingWizard from './GxListingWizard';
+import { getGxListingUrl, gxStatusLabel } from 'lib/gearExchange';
 import SoldOrderDialog, { type SoldOrderDialogItem } from './SoldOrderDialog';
 
 type InventoryItemRecord = {
@@ -131,6 +133,7 @@ type InventoryItemRecord = {
   reverbListingId?: string | null;
   fbListingId?: string | null;
   salesChannelGearExchange?: boolean;
+  gxListing?: GxListingInfo | null;
   salesChannelOfferUp?: boolean;
   salesChannelEbay?: boolean;
   salesChannelNextdoor?: boolean;
@@ -901,6 +904,33 @@ function FbmListingLink({ fbListingId }: { fbListingId: string }) {
   );
 }
 
+// The item's Gear Exchange link (system-managed by gx-add / gx-remove and GX webhooks).
+type GxListingInfo = {
+  gxListingId: number;
+  gxStatus: string | null;
+  payoutMethod: string | null;
+  imagesPending: boolean;
+  lastError: string | null;
+  autoRelist: boolean;
+};
+
+function GxListingLink({ gxListingId }: { gxListingId: number }) {
+  return (
+    <Tooltip title="Open Gear Exchange listing">
+      <IconButton
+        size="small"
+        component="a"
+        href={getGxListingUrl(gxListingId)}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Open Gear Exchange listing"
+      >
+        <Box component="img" src="/images/gx-icon.svg" alt="" sx={{ width: 18, height: 18 }} />
+      </IconButton>
+    </Tooltip>
+  );
+}
+
 function getForSaleValidationError(formState: FormState): string | null {
   if (!formState.forSale) return null;
   if (!formState.saleTitle.trim()) return 'Sale Details Title is required when For Sale is checked.';
@@ -1326,6 +1356,9 @@ const InventoryItem = () => {
   const [isFindingNextEval, setIsFindingNextEval] = useState(false);
   const [noEvalDialogOpen, setNoEvalDialogOpen] = useState(false);
   const [reverbWizardOpen, setReverbWizardOpen] = useState(false);
+  const [gxListing, setGxListing] = useState<GxListingInfo | null>(null);
+  const [gxWizardOpen, setGxWizardOpen] = useState(false);
+  const [isGxActionPending, setIsGxActionPending] = useState(false);
   const [isCheckingReverbShipping, setIsCheckingReverbShipping] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -1486,6 +1519,7 @@ const InventoryItem = () => {
     const initialize = async () => {
       setIsLoading(true);
       setMessage(null);
+      setGxListing(null);
       wasForSaleOnLoadRef.current = false;
       savedSaleSnapshotRef.current = null;
 
@@ -1504,6 +1538,7 @@ const InventoryItem = () => {
           const record = data.record;
           setEditId(record.id);
           setSourceListingId(record.sourceListingId || null);
+          setGxListing(record.gxListing ?? null);
           wasForSaleOnLoadRef.current = Boolean(record.forSale);
           setSaleUrlReadOnly(Boolean(record.saleUrl?.trim()));
           setForm({
@@ -2641,6 +2676,67 @@ const InventoryItem = () => {
     } else {
       enqueueSnackbar('Added to Reverb as a draft — publish it on reverb.com.', { variant: 'success' });
     }
+    setReloadToken((current) => current + 1);
+  };
+
+  const hasUnsavedChanges = () => buildFullFormSnapshot(form, images, tags) !== lastSavedFullSnapshotRef.current;
+
+  const handleGxToggle = async () => {
+    if (mode !== 'edit' || !editId || isGxActionPending) return;
+    if (hasUnsavedChanges()) {
+      enqueueSnackbar('There are unsaved changes. Please save first before updating Gear Exchange.', { variant: 'warning' });
+      return;
+    }
+    if (!gxListing) {
+      setGxWizardOpen(true);
+      return;
+    }
+    if (!window.confirm('Delete this listing from Gear Exchange? This removes it on GX for good.')) return;
+
+    setIsGxActionPending(true);
+    try {
+      const response = await fetch(`/api/inventory/${encodeURIComponent(editId)}/gx-remove`, {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+      const data = (await response.json().catch(() => ({}))) as { message?: string };
+      if (!response.ok) throw new Error(data.message || 'Unable to remove the Gear Exchange listing.');
+      enqueueSnackbar('Removed from Gear Exchange.', { variant: 'success' });
+      setReloadToken((current) => current + 1);
+    } catch (error) {
+      enqueueSnackbar(error instanceof Error ? error.message : 'Unable to remove the Gear Exchange listing.', { variant: 'error' });
+    } finally {
+      setIsGxActionPending(false);
+    }
+  };
+
+  const handleGxPublish = async () => {
+    if (mode !== 'edit' || !editId || isGxActionPending || !gxListing) return;
+    setIsGxActionPending(true);
+    try {
+      const response = await fetch(`/api/inventory/${encodeURIComponent(editId)}/gx-publish`, {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+      const data = (await response.json().catch(() => ({}))) as { message?: string; gxStatus?: string };
+      if (!response.ok) throw new Error(data.message || 'Unable to publish on Gear Exchange.');
+      enqueueSnackbar(
+        data.gxStatus === 'pending_admin_review'
+          ? 'Sent to Gear Exchange for review; it goes live once GX approves it.'
+          : 'Published on Gear Exchange.',
+        { variant: 'success' },
+      );
+      setReloadToken((current) => current + 1);
+    } catch (error) {
+      enqueueSnackbar(error instanceof Error ? error.message : 'Unable to publish on Gear Exchange.', { variant: 'error' });
+    } finally {
+      setIsGxActionPending(false);
+    }
+  };
+
+  const handleGxListed = (text: string) => {
+    setGxWizardOpen(false);
+    enqueueSnackbar(text, { variant: 'success', autoHideDuration: 8000 });
     setReloadToken((current) => current + 1);
   };
 
@@ -3949,15 +4045,26 @@ const InventoryItem = () => {
                         label="Reverb"
                       />
                     </Tooltip>
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={form.salesChannelGearExchange}
-                          onChange={(event) => setField('salesChannelGearExchange', event.target.checked)}
+                    <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5 }}>
+                      <Tooltip title="Managed automatically by the Add to GX / Delete From GX action below.">
+                        <FormControlLabel
+                          control={<Checkbox checked={Boolean(gxListing)} disabled />}
+                          label="Gear Exch."
+                          sx={{ mr: 0 }}
                         />
-                      }
-                      label="Gear Exch."
-                    />
+                      </Tooltip>
+                      {gxListing ? (
+                        <>
+                          <Chip
+                            size="small"
+                            label={`${gxStatusLabel(gxListing.gxStatus)} · ${gxListing.payoutMethod === 'store_credit' ? 'gift card' : 'cash'}`}
+                            color={gxListing.gxStatus === 'published' ? 'success' : 'default'}
+                            variant="outlined"
+                          />
+                          <GxListingLink gxListingId={gxListing.gxListingId} />
+                        </>
+                      ) : null}
+                    </Stack>
                     <FormControlLabel
                       control={
                         <Checkbox
@@ -4705,6 +4812,39 @@ const InventoryItem = () => {
                         </Button>
                       </span>
                     </Tooltip>
+                    <Tooltip title={mode !== 'edit' ? 'Save the item first before listing it on Gear Exchange.' : (gxListing?.lastError ? `Last GX error: ${gxListing.lastError}` : '')}>
+                      <span>
+                        <Button
+                          variant="contained"
+                          disabled={mode !== 'edit' || isGxActionPending}
+                          onClick={() => void handleGxToggle()}
+                          startIcon={
+                            isGxActionPending ? (
+                              <CircularProgress color="inherit" size={16} />
+                            ) : (
+                              <Box component="img" src="/images/gx-icon-white.svg" alt="" sx={{ width: 16, height: 16 }} />
+                            )
+                          }
+                          sx={mode === 'edit' ? {
+                            bgcolor: gxListing ? 'error.main' : '#1F2A44',
+                            color: '#fff',
+                            '&:hover': { bgcolor: gxListing ? 'error.dark' : '#141C2F' },
+                          } : undefined}
+                        >
+                          {isGxActionPending ? 'Working...' : (gxListing ? 'Delete From GX' : 'Add to GX')}
+                        </Button>
+                      </span>
+                    </Tooltip>
+                    {gxListing?.gxStatus === 'draft' ? (
+                      <Button
+                        variant="outlined"
+                        disabled={isGxActionPending}
+                        onClick={() => void handleGxPublish()}
+                        startIcon={<Box component="img" src="/images/gx-icon.svg" alt="" sx={{ width: 16, height: 16 }} />}
+                      >
+                        Publish on GX
+                      </Button>
+                    ) : null}
                     <Button
                       variant="contained"
                       color="secondary"
@@ -5146,6 +5286,7 @@ const InventoryItem = () => {
           <DialogContentText>
             You are about to mark this item sold. Parts of this process cannot be undone. Proceed?
             {form.reverbListingId && isFullQuantitySale ? ' The active Reverb listing will be deleted as part of this save.' : ''}
+            {gxListing && isFullQuantitySale ? ' The active Gear Exchange listing will be deleted as part of this save.' : ''}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
@@ -5182,6 +5323,15 @@ const InventoryItem = () => {
           ccgCondition={form.condition}
           onClose={() => setReverbWizardOpen(false)}
           onListed={handleReverbListed}
+        />
+      ) : null}
+      {editId ? (
+        <GxListingWizard
+          open={gxWizardOpen}
+          itemId={editId}
+          quantity={Math.max(1, Number(form.quantity) || 1)}
+          onClose={() => setGxWizardOpen(false)}
+          onListed={handleGxListed}
         />
       ) : null}
     </Stack>

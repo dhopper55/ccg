@@ -1,3 +1,4 @@
+import { gxStatusLabel } from 'lib/gearExchange';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { useSnackbar } from 'notistack';
@@ -52,6 +53,8 @@ type InventoryRecord = {
   isSold?: boolean;
   reverbListingId?: string | null;
   fbListingId?: string | null;
+  gxListingId?: number | null;
+  gxStatus?: string | null;
   salesChannelCl?: boolean;
   unitPurchasePrice?: number | null;
   privatePartyValue?: number | null;
@@ -82,7 +85,7 @@ type InventoryFilters = {
   marked: 'all' | 'yes' | 'no';
   personal: 'all' | 'yes' | 'no';
   shipping: '' | 'yes' | 'no';
-  salesChannel: '' | 'ccg_only' | 'ccg_fbm' | 'ccg_reverb' | 'ccg_fbm_reverb' | 'not_ccg' | 'not_for_sale';
+  salesChannel: '' | 'ccg_only' | 'ccg_fbm' | 'ccg_reverb' | 'ccg_fbm_reverb' | 'on_gx' | 'not_ccg' | 'not_for_sale';
   tagReprint: boolean;
 };
 
@@ -210,7 +213,7 @@ const InventoryManager = () => {
       : searchParams.get('shipping') === 'no'
         ? 'no'
         : '',
-    salesChannel: (['ccg_only', 'ccg_fbm', 'ccg_reverb', 'ccg_fbm_reverb', 'not_ccg', 'not_for_sale'] as readonly string[]).includes(
+    salesChannel: (['ccg_only', 'ccg_fbm', 'ccg_reverb', 'ccg_fbm_reverb', 'on_gx', 'not_ccg', 'not_for_sale'] as readonly string[]).includes(
       searchParams.get('salesChannel') || '',
     )
       ? (searchParams.get('salesChannel') as InventoryFilters['salesChannel'])
@@ -259,6 +262,7 @@ const InventoryManager = () => {
   const [actionErrorMessage, setActionErrorMessage] = useState('');
   const [reloadToken, setReloadToken] = useState(0);
   const [isSyncingReverbSales, setIsSyncingReverbSales] = useState(false);
+  const [isSyncingGxSales, setIsSyncingGxSales] = useState(false);
   const [isExportingLabelCsv, setIsExportingLabelCsv] = useState(false);
 
   const buildInventoryQueryParams = (pageNumber: number, limit: number) => {
@@ -509,6 +513,51 @@ const InventoryManager = () => {
       enqueueSnackbar(error instanceof Error ? error.message : 'Unable to sync Reverb sales.', { variant: 'error' });
     } finally {
       setIsSyncingReverbSales(false);
+    }
+  };
+
+  // Safety net for missed GX webhooks: dry run first, then record what it found once confirmed.
+  const handleGxSaleSync = async () => {
+    setIsSyncingGxSales(true);
+    try {
+      const runSync = async (dryRun: boolean) => {
+        const response = await fetch('/api/admin-v2/gx/sync-sold', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ dryRun }),
+        });
+        const data = await response.json().catch(() => ({})) as {
+          message?: string;
+          results?: Array<{ gxOrderId: number; action: string; message?: string; soldPrice?: string }>;
+        };
+        if (!response.ok) throw new Error(data.message || 'Unable to sync Gear Exchange sales.');
+        return data.results || [];
+      };
+
+      const pending = (await runSync(true)).filter((result) => result.action === 'would_record');
+      if (!pending.length) {
+        enqueueSnackbar('No unrecorded Gear Exchange sales found.', { variant: 'info' });
+        return;
+      }
+      const list = pending.map((result) => `GX order ${result.gxOrderId} ($${result.soldPrice})`).join(', ');
+      if (!window.confirm(`Record ${pending.length} Gear Exchange sale(s) in CCG? ${list}`)) return;
+
+      const recorded = await runSync(false);
+      const processed = recorded.filter((result) => result.action === 'processed');
+      const failed = recorded.filter((result) => result.action === 'failed');
+      if (processed.length) setReloadToken((current) => current + 1);
+      enqueueSnackbar(
+        [
+          processed.length ? `Recorded ${processed.length} Gear Exchange sale(s).` : null,
+          ...failed.map((result) => `GX order ${result.gxOrderId}: ${result.message}`),
+        ].filter(Boolean).join(' ') || 'Nothing recorded.',
+        { variant: failed.length ? 'warning' : 'success', autoHideDuration: 10000 },
+      );
+    } catch (error) {
+      enqueueSnackbar(error instanceof Error ? error.message : 'Unable to sync Gear Exchange sales.', { variant: 'error' });
+    } finally {
+      setIsSyncingGxSales(false);
     }
   };
 
@@ -870,6 +919,23 @@ const InventoryManager = () => {
                           />
                         </Tooltip>
                       ) : null}
+                      {record.gxListingId ? (
+                        <Tooltip title={`On Gear Exchange (${gxStatusLabel(record.gxStatus)})`}>
+                          <Box
+                            component="img"
+                            src="/images/gx-icon.svg"
+                            alt="Gear Exchange"
+                            sx={{
+                              width: 14,
+                              height: 14,
+                              display: 'inline-flex',
+                              verticalAlign: 'text-bottom',
+                              ml: 0.75,
+                              opacity: record.gxStatus === 'published' ? 1 : 0.5,
+                            }}
+                          />
+                        </Tooltip>
+                      ) : null}
                       {record.fbListingId ? (
                         <Tooltip title="Listed on Facebook Marketplace">
                           <Box
@@ -1004,6 +1070,16 @@ const InventoryManager = () => {
                           src="/images/reverb-icon.svg"
                           alt="Reverb"
                           sx={{ width: 14, height: 14, display: 'inline-flex', flexShrink: 0 }}
+                        />
+                      </Tooltip>
+                    ) : null}
+                    {record.gxListingId ? (
+                      <Tooltip title={`On Gear Exchange (${gxStatusLabel(record.gxStatus)})`}>
+                        <Box
+                          component="img"
+                          src="/images/gx-icon.svg"
+                          alt="Gear Exchange"
+                          sx={{ width: 14, height: 14, display: 'inline-flex', flexShrink: 0, opacity: record.gxStatus === 'published' ? 1 : 0.5 }}
                         />
                       </Tooltip>
                     ) : null}
@@ -1244,6 +1320,23 @@ const InventoryManager = () => {
                   >
                     {isSyncingReverbSales ? 'Syncing...' : 'Reverb Sync'}
                   </Button>
+                  <Button
+                    variant="contained"
+                    loading={isSyncingGxSales}
+                    onClick={() => void handleGxSaleSync()}
+                    startIcon={
+                      isSyncingGxSales ? null : (
+                        <Box component="img" src="/images/gx-icon-white.svg" alt="" sx={{ width: 16, height: 16 }} />
+                      )
+                    }
+                    sx={{
+                      bgcolor: '#1F2A44',
+                      color: '#fff',
+                      '&:hover': { bgcolor: '#141C2F' },
+                    }}
+                  >
+                    {isSyncingGxSales ? 'Syncing...' : 'GX Sync'}
+                  </Button>
                 </Stack>
               </Stack>
 
@@ -1335,6 +1428,7 @@ const InventoryManager = () => {
                           <MenuItem value="ccg_fbm">CCG & FBM</MenuItem>
                           <MenuItem value="ccg_reverb">CCG & Reverb</MenuItem>
                           <MenuItem value="ccg_fbm_reverb">CCG, FBM, & Reverb</MenuItem>
+                          <MenuItem value="on_gx">On Gear Exchange</MenuItem>
                           <MenuItem value="not_ccg">Not On CCG</MenuItem>
                           <MenuItem value="not_for_sale">Not For Sale</MenuItem>
                         </Select>

@@ -283,6 +283,7 @@ import {
   handleAdminV2GxWebhookConfig,
   handleAdminV2GxWebhookEvents,
   handleAdminV2GxSyncSold,
+  handleAdminV2GxStatus,
 } from './gx/webhook.js';
 
 // UPC
@@ -1417,6 +1418,11 @@ export default {
 
     if (path === '/api/admin-v2/gx/probe' && request.method === 'GET') {
       const response = await handleAdminV2GxProbe(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/gx/status' && request.method === 'GET') {
+      const response = await handleAdminV2GxStatus(request, env);
       return withCors(response, request, env);
     }
 

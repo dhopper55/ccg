@@ -8,6 +8,7 @@ import { dbListInventoryImagesForItemIds, dbListInventoryTagsForItemIds } from '
 import { toAdminImageUrl } from '../utils/image.js';
 import { dbGetInventoryAddtl, dbGetInventoryAddtlForIds } from './addtl.js';
 import type { InventoryItemAddtlRow } from './addtl.js';
+import { dbGetGxLinkForItem, dbGetGxLinksForIds, type GxListingLink } from '../gx/db.js';
 
 export const INVENTORY_QUEUE_OPTIONS = new Set([
   'Triage',
@@ -25,12 +26,13 @@ export function normalizeInventoryQueue(input: unknown): string {
 }
 
 export type InventoryTriState = 'all' | 'yes' | 'no';
-export type InventorySalesChannelFilter = '' | 'ccg_only' | 'ccg_fbm' | 'ccg_reverb' | 'ccg_fbm_reverb' | 'not_ccg' | 'not_for_sale';
+export type InventorySalesChannelFilter = '' | 'ccg_only' | 'ccg_fbm' | 'ccg_reverb' | 'ccg_fbm_reverb' | 'on_gx' | 'not_ccg' | 'not_for_sale';
 const INVENTORY_SALES_CHANNEL_FILTERS = new Set<InventorySalesChannelFilter>([
   'ccg_only',
   'ccg_fbm',
   'ccg_reverb',
   'ccg_fbm_reverb',
+  'on_gx',
   'not_ccg',
   'not_for_sale',
 ]);
@@ -179,9 +181,14 @@ export function inventoryFilterClause(filters: Pick<InventoryListFilters, 'categ
   const onFbmSql = "TRIM(COALESCE(i.fb_listing_id, '')) <> ''";
   const onCcgSql = 'COALESCE(i.sales_channel_ccg, 0) = 1';
   const onReverbSql = 'COALESCE(i.sales_channel_reverb, 0) = 1';
+  // System-managed: mirrors whether a Gear Exchange listing is linked (ccg_inventory_gx_listings).
+  const onGxSql = 'COALESCE(i.sales_channel_gear_exchange, 0) = 1';
   switch (filters.salesChannel) {
     case 'ccg_only':
-      clauses.push(`COALESCE(i.is_active, 0) = 1 AND COALESCE(i.for_sale, 0) = 1 AND ${onCcgSql} AND NOT (${onReverbSql}) AND NOT (${onFbmSql})`);
+      clauses.push(`COALESCE(i.is_active, 0) = 1 AND COALESCE(i.for_sale, 0) = 1 AND ${onCcgSql} AND NOT (${onReverbSql}) AND NOT (${onFbmSql}) AND NOT (${onGxSql})`);
+      break;
+    case 'on_gx':
+      clauses.push(`COALESCE(i.is_active, 0) = 1 AND ${onGxSql}`);
       break;
     case 'ccg_fbm':
       clauses.push(`COALESCE(i.is_active, 0) = 1 AND COALESCE(i.for_sale, 0) = 1 AND ${onCcgSql} AND ${onFbmSql} AND NOT (${onReverbSql})`);
@@ -193,7 +200,7 @@ export function inventoryFilterClause(filters: Pick<InventoryListFilters, 'categ
       clauses.push(`COALESCE(i.is_active, 0) = 1 AND COALESCE(i.for_sale, 0) = 1 AND ${onCcgSql} AND ${onFbmSql} AND ${onReverbSql}`);
       break;
     case 'not_ccg':
-      clauses.push(`COALESCE(i.is_active, 0) = 1 AND COALESCE(i.for_sale, 0) = 1 AND NOT (${onCcgSql}) AND (${onReverbSql} OR ${onFbmSql})`);
+      clauses.push(`COALESCE(i.is_active, 0) = 1 AND COALESCE(i.for_sale, 0) = 1 AND NOT (${onCcgSql}) AND (${onReverbSql} OR ${onFbmSql} OR ${onGxSql})`);
       break;
     case 'not_for_sale':
       clauses.push('COALESCE(i.is_active, 0) = 1 AND COALESCE(i.for_sale, 0) = 0');
@@ -220,6 +227,7 @@ export function inventoryFilterClause(filters: Pick<InventoryListFilters, 'categ
 export function mapInventoryRow(
   row: InventoryItemRow & { source_listing_price_asking?: number | null },
   addtlMap?: Map<number, InventoryItemAddtlRow>,
+  gxMap?: Map<number, GxListingLink>,
 ): Record<string, unknown> {
   return {
     id: String(row.id),
@@ -272,6 +280,8 @@ export function mapInventoryRow(
     reverbListingId: row.reverb_listing_id || null,
     fbListingId: row.fb_listing_id || null,
     fbSyncState: row.fb_sync_state || null,
+    gxListingId: gxMap?.get(row.id)?.gx_listing_id ?? null,
+    gxStatus: gxMap?.get(row.id)?.gx_status ?? null,
     salesChannelCl: Boolean(row.sales_channel_cl),
     forSaleDate: row.for_sale_date || null,
     isSold: Boolean(row.is_sold),
@@ -372,9 +382,10 @@ export async function dbListInventoryItems(
 
   const rows = result.results ?? [];
   const addtlMap = await dbGetInventoryAddtlForIds(rows.map((row) => row.id), env);
+  const gxMap = await dbGetGxLinksForIds(rows.map((row) => row.id), env);
 
   return {
-    records: rows.map((row) => mapInventoryRow(row, addtlMap)),
+    records: rows.map((row) => mapInventoryRow(row, addtlMap, gxMap)),
     total,
     page: safePage,
     limit: filters.limit,
@@ -512,8 +523,21 @@ export async function dbGetInventoryItem(recordId: string, env: Env): Promise<Re
   const storedTags = await dbListInventoryTagsForItemIds([row.id], env);
   const tags = storedTags.get(row.id) ?? [];
   const addtl = await dbGetInventoryAddtl(row.id, env);
+  const gxLink = await dbGetGxLinkForItem(row.id, env);
   return {
     id: String(row.id),
+    gxListing: gxLink
+      ? {
+        gxListingId: gxLink.gx_listing_id,
+        gxStatus: gxLink.gx_status,
+        payoutMethod: gxLink.payout_method,
+        imagesPending: Boolean(gxLink.images_pending),
+        lastError: gxLink.last_error,
+        autoRelist: (() => {
+          try { return Boolean(gxLink.options_json && JSON.parse(gxLink.options_json).autoRelist); } catch { return false; }
+        })(),
+      }
+      : null,
     sourceListingId: row.source_listing_id != null ? String(row.source_listing_id) : null,
     ccgNumber: row.ccg_number,
     imageUrl: imageUrls[0] ?? row.image_url,

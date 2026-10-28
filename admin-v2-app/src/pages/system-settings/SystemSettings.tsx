@@ -6,6 +6,7 @@ import IconifyIcon from 'components/base/IconifyIcon';
 import PageHeader from 'components/sections/ecommerce/admin/common/PageHeader';
 import paths from 'routes/paths';
 import { ensureStarWebPrntGlobals } from 'lib/starWebPrntShim';
+import GearExchangeSettings from './GearExchangeSettings';
 
 const printerUrlStorageKey = 'ccg-star-webprnt-url';
 const receiptLogoUrl = 'https://www.coalcreekguitars.com/images/ccg_bnw.bmp';
@@ -651,6 +652,8 @@ const SystemSettings = () => {
               Reverb Sale Sync
             </Button>
           </Stack>
+          <Divider />
+          <GearExchangeSettings />
         </Stack>
       </Paper>
     </Stack>

@@ -51,7 +51,10 @@ export type OrderShippingSummary = {
   shipment: OrderShippingShipment | null;
   labelCostCents: number;
   reverb?: { orderNumber: string; applies: boolean } | null;
+  gearExchange?: { orderNumber: string; applies: boolean } | null;
 };
+
+type ChannelPushResult = { status: string; message: string } | null;
 
 export type OrderShipTo = {
   name: string;
@@ -129,6 +132,22 @@ export default function OrderShippingPanel({
   const [isPushing, setIsPushing] = useState(false);
   const [reverbOrderNumber, setReverbOrderNumber] = useState('');
   const shipment = shipping.shipment;
+
+  // Retry of sending the shipment's tracking to the Gear Exchange order.
+  const pushToGx = async () => {
+    if (isPushing) return;
+    setIsPushing(true);
+    try {
+      await postJson(`/api/admin-v2/orders/${encodeURIComponent(orderId)}/shipping/gx`, {});
+      enqueueSnackbar('Tracking sent to Gear Exchange.', { variant: 'success' });
+      onChanged();
+    } catch (pushError) {
+      enqueueSnackbar(pushError instanceof Error ? pushError.message : 'Gear Exchange not updated.', { variant: 'error' });
+      onChanged();
+    } finally {
+      setIsPushing(false);
+    }
+  };
 
   // Retry (or first try) of marking a Reverb order shipped on Reverb.
   const pushToReverb = async () => {
@@ -260,6 +279,36 @@ export default function OrderShippingPanel({
                   startIcon={isPushing ? <CircularProgress size={16} color="inherit" /> : undefined}
                 >
                   {shipment.channelPushStatus === 'failed' ? 'Retry Reverb' : 'Mark shipped on Reverb'}
+                </Button>
+              </Stack>
+            )
+          ) : null}
+          {shipping.gearExchange?.applies ? (
+            shipment.channelPushStatus === 'pushed' ? (
+              <Stack direction="row" sx={{ gap: 0.75, alignItems: 'center', color: 'success.main' }}>
+                <IconifyIcon icon="material-symbols:check-circle-outline-rounded" fontSize={18} />
+                <Typography variant="body2">Tracking sent to Gear Exchange</Typography>
+              </Stack>
+            ) : shipment.isTest ? (
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                Test label: not sent to Gear Exchange
+              </Typography>
+            ) : (
+              <Stack direction="column" sx={{ gap: 1 }}>
+                {shipment.channelPushStatus === 'failed' ? (
+                  <Alert severity="warning" sx={{ py: 0 }}>
+                    Gear Exchange not updated: {shipment.channelPushMessage || 'unknown error'}
+                  </Alert>
+                ) : null}
+                <Button
+                  variant="outlined"
+                  size="small"
+                  sx={{ alignSelf: 'flex-start' }}
+                  disabled={isPushing}
+                  onClick={() => void pushToGx()}
+                  startIcon={isPushing ? <CircularProgress size={16} color="inherit" /> : undefined}
+                >
+                  {shipment.channelPushStatus === 'failed' ? 'Retry Gear Exchange' : 'Send tracking to Gear Exchange'}
                 </Button>
               </Stack>
             )
@@ -459,7 +508,7 @@ function QuoteDialog({
     setIsBuying(true);
     setBuyError('');
     try {
-      const data = await postJson<{ trackingCode?: string; isTest?: boolean; reverb?: { status: string; message: string } | null }>(
+      const data = await postJson<{ trackingCode?: string; isTest?: boolean; reverb?: ChannelPushResult; gearExchange?: ChannelPushResult }>(
         `/api/admin-v2/orders/${encodeURIComponent(orderId)}/shipping/buy`,
         { shipmentId: quote.shipmentId, rateId: selectedRate.id },
       );
@@ -468,6 +517,11 @@ function QuoteDialog({
         enqueueSnackbar(`Reverb not updated: ${data.reverb.message}`, { variant: 'warning', autoHideDuration: 10000 });
       } else if (data.reverb?.status === 'pushed') {
         enqueueSnackbar('Marked shipped on Reverb; buyer notified.', { variant: 'success' });
+      }
+      if (data.gearExchange?.status === 'failed') {
+        enqueueSnackbar(`Gear Exchange not updated: ${data.gearExchange.message}`, { variant: 'warning', autoHideDuration: 10000 });
+      } else if (data.gearExchange?.status === 'pushed') {
+        enqueueSnackbar('Tracking sent to Gear Exchange.', { variant: 'success' });
       }
       setConfirmOpen(false);
       onBought();
@@ -779,7 +833,7 @@ function ManualTrackingDialog({
     const cost = Number.parseFloat(labelCost);
     setIsSaving(true);
     try {
-      const data = await postJson<{ reverb?: { status: string; message: string } | null }>(`/api/admin-v2/orders/${encodeURIComponent(orderId)}/shipping/manual`, {
+      const data = await postJson<{ reverb?: ChannelPushResult; gearExchange?: ChannelPushResult }>(`/api/admin-v2/orders/${encodeURIComponent(orderId)}/shipping/manual`, {
         carrier: carrierName,
         trackingCode: trackingCode.trim(),
         labelCostCents: Number.isFinite(cost) && cost >= 0 ? Math.round(cost * 100) : null,
@@ -789,6 +843,11 @@ function ManualTrackingDialog({
         enqueueSnackbar(`Reverb not updated: ${data.reverb.message}`, { variant: 'warning', autoHideDuration: 10000 });
       } else if (data.reverb?.status === 'pushed') {
         enqueueSnackbar('Marked shipped on Reverb; buyer notified.', { variant: 'success' });
+      }
+      if (data.gearExchange?.status === 'failed') {
+        enqueueSnackbar(`Gear Exchange not updated: ${data.gearExchange.message}`, { variant: 'warning', autoHideDuration: 10000 });
+      } else if (data.gearExchange?.status === 'pushed') {
+        enqueueSnackbar('Tracking sent to Gear Exchange.', { variant: 'success' });
       }
       onSaved();
     } catch (saveError) {

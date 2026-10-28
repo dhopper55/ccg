@@ -175,6 +175,7 @@ export async function dbGetOrderShippingSummary(
   ).bind(orderId).first<Record<string, unknown>>().catch(() => null);
   const labelCosts = await dbGetOrderLabelCostTotals([orderId], env);
   const isReverb = normalizeText(order.channel, '') === 'reverb';
+  const isGx = normalizeText(order.channel, '') === 'gear_exchange';
   return {
     needsShipping: true,
     shipped: Boolean(shipped),
@@ -186,6 +187,14 @@ export async function dbGetOrderShippingSummary(
         orderNumber: normalizeText(order.channel_order_ref, ''),
         // Labels bought on Reverb are already known to Reverb.
         applies: !(shipped && normalizeText(shipped.notes, '').startsWith('Label bought on Reverb')),
+      }
+      : null,
+    // Gear Exchange orders get tracking sent to GX when a label is bought / tracking entered.
+    gearExchange: isGx
+      ? {
+        orderNumber: normalizeText(order.channel_order_ref, ''),
+        // Tracking that came from GX is already known to GX.
+        applies: !(shipped && normalizeText(shipped.notes, '').startsWith('Tracking from Gear Exchange')),
       }
       : null,
   };

@@ -138,6 +138,15 @@ export async function handleAdminV2OrderDetail(orderId: string, env: Env): Promi
     .first<Record<string, unknown>>();
   const stripeCustomer = rawOrder ? await resolveOrderStripeCustomer(rawOrder, env) : null;
   const events = await dbListOrderEvents(normalizedOrderId, env);
+  // Latest Gear Exchange status on this order, flagged when GX reports something a person has to
+  // handle (cancel, refund, problem, return) — the webhook only logs these, it doesn't act on them.
+  const gxStatusEvent = normalizeText(rawOrder?.channel, '') === 'gear_exchange'
+    ? await env.DB.prepare(
+      `SELECT message, created_at FROM order_events
+       WHERE order_id = ? AND event_type = 'gx_order_status'
+       ORDER BY id DESC LIMIT 1`
+    ).bind(normalizedOrderId).first<{ message: string; created_at: string }>().catch(() => null)
+    : null;
   const provider = normalizeText(order.checkoutProvider, '') || (normalizeText(rawOrder?.stripe_checkout_session_id, '') ? 'stripe' : 'cash');
   const paymentMethodLabel = provider === 'cash'
     ? 'Cash'
@@ -187,6 +196,13 @@ export async function handleAdminV2OrderDetail(orderId: string, env: Env): Promi
         shippingAddressCountry: normalizeText(rawOrder?.shipping_address_country, ''),
       },
       events,
+      gearExchangeStatus: gxStatusEvent
+        ? {
+          message: normalizeText(gxStatusEvent.message, ''),
+          at: normalizeText(gxStatusEvent.created_at, ''),
+          needsReview: normalizeText(gxStatusEvent.message, '').includes('Needs review'),
+        }
+        : null,
     },
   });
 }

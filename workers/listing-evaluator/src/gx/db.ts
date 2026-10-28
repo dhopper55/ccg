@@ -41,6 +41,21 @@ export async function dbListGxLinks(env: Env): Promise<GxListingLink[]> {
   return result.results ?? [];
 }
 
+// Batched lookup for list queries (kept out of the main inventory SELECT, which is at D1's
+// 100-column result limit). Chunked for D1's ~100 bound-parameter cap.
+export async function dbGetGxLinksForIds(inventoryItemIds: number[], env: Env): Promise<Map<number, GxListingLink>> {
+  const ids = inventoryItemIds.filter((id) => Number.isFinite(id));
+  const map = new Map<number, GxListingLink>();
+  for (let offset = 0; offset < ids.length; offset += 100) {
+    const chunk = ids.slice(offset, offset + 100);
+    const result = await env.DB.prepare(
+      `SELECT ${LINK_COLUMNS} FROM ccg_inventory_gx_listings WHERE inventory_item_id IN (${chunk.map(() => '?').join(', ')})`
+    ).bind(...chunk).all<GxListingLink>();
+    for (const row of result.results ?? []) map.set(row.inventory_item_id, row);
+  }
+  return map;
+}
+
 export async function dbInsertGxLink(
   link: {
     inventoryItemId: number;

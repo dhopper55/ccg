@@ -16,6 +16,7 @@ export const ORDER_CHANNEL_OPTIONS: Array<{ value: string; label: string }> = [
 export const PAYMENT_METHOD_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'fbm', label: 'FBM checkout' },
   { value: 'reverb', label: 'Reverb' },
+  { value: 'gear_exchange', label: 'Gear Exchange' },
   { value: 'ebay', label: 'eBay' },
   { value: 'stripe_link', label: 'Stripe payment link' },
   { value: 'stripe_terminal', label: 'Stripe Terminal (card in shop)' },
