@@ -2669,12 +2669,13 @@ const InventoryItem = () => {
     }
   };
 
-  const handleReverbListed = (warning?: string | null) => {
+  const handleReverbListed = (warning: string | null, published: boolean) => {
     setReverbWizardOpen(false);
+    const listed = published ? 'Listed on Reverb.' : 'Added to Reverb as a draft — publish it on reverb.com.';
     if (warning) {
-      enqueueSnackbar(`Added to Reverb as a draft. ${warning}`, { variant: 'warning', autoHideDuration: 10000 });
+      enqueueSnackbar(`${listed} ${warning}`, { variant: 'warning', autoHideDuration: 10000 });
     } else {
-      enqueueSnackbar('Added to Reverb as a draft — publish it on reverb.com.', { variant: 'success' });
+      enqueueSnackbar(listed, { variant: 'success' });
     }
     setReloadToken((current) => current + 1);
   };

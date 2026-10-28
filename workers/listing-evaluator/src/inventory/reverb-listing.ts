@@ -80,6 +80,8 @@ export type ReverbWizardInput = {
   flatRateAmount: number | null;
   shippingProfileId: string | null;
   safeShipping: boolean;
+  // Publish immediately instead of creating a draft (callers that don't say get a draft).
+  publish: boolean;
 };
 
 export function parseReverbWizardInput(
@@ -117,6 +119,7 @@ export function parseReverbWizardInput(
   }
 
   const safeShipping = toBooleanInput(body.safeShipping, false);
+  const publish = toBooleanInput(body.publish, false);
 
   return {
     value: {
@@ -128,6 +131,7 @@ export function parseReverbWizardInput(
       flatRateAmount,
       shippingProfileId,
       safeShipping,
+      publish,
     },
   };
 }
@@ -340,8 +344,8 @@ export function buildReverbListingPayload(
     sold_as_described: wizard.soldAsDescribed,
     safe_shipping: wizard.safeShipping,
     auto_price_drop: wizard.dropPriceIn2Weeks,
-    // Created as a draft — publish it by hand on reverb.com after reviewing.
-    publish: false,
+    // Draft unless the wizard asked to publish; a draft is published by hand on reverb.com.
+    publish: wizard.publish,
   };
 }
 

@@ -95,7 +95,7 @@ const GxListingWizard = ({ open, itemId, quantity, onClose, onListed }: GxListin
   const [localPickupAllowed, setLocalPickupAllowed] = useState(true);
   const [returnPolicyDays, setReturnPolicyDays] = useState(7);
   const [autoRelist, setAutoRelist] = useState(false);
-  const [publish, setPublish] = useState(false);
+  const [publish, setPublish] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -113,7 +113,7 @@ const GxListingWizard = ({ open, itemId, quantity, onClose, onListed }: GxListin
     setLocalPickupAllowed(true);
     setReturnPolicyDays(7);
     setAutoRelist(quantity > 1);
-    setPublish(false);
+    setPublish(true);
 
     setIsLoading(true);
     Promise.all([
@@ -365,8 +365,8 @@ const GxListingWizard = ({ open, itemId, quantity, onClose, onListed }: GxListin
                 <Box>
                   <Typography variant="subtitle2" sx={{ mb: 0.5 }}>When it's created</Typography>
                   <RadioGroup row value={publish ? 'publish' : 'draft'} onChange={(event) => setPublish(event.target.value === 'publish')}>
-                    <FormControlLabel value="draft" control={<Radio size="small" />} label="Save as draft" />
                     <FormControlLabel value="publish" control={<Radio size="small" />} label="Publish once photos are in" />
+                    <FormControlLabel value="draft" control={<Radio size="small" />} label="Save as draft" />
                   </RadioGroup>
                 </Box>
               </>

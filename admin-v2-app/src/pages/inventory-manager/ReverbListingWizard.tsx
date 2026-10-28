@@ -30,7 +30,7 @@ type ReverbListingWizardProps = {
   allowShipping: boolean;
   fixedShippingAmount: number;
   onClose: () => void;
-  onListed: (warning?: string | null) => void;
+  onListed: (warning: string | null, published: boolean) => void;
 };
 
 function toPositiveAmount(value: string): number | null {
@@ -71,6 +71,7 @@ const ReverbListingWizard = ({ open, itemId, ccgCondition, allowShipping, fixedS
   const [shippingMethod, setShippingMethod] = useState<ShippingMethod>('calculated');
   const [flatRateAmount, setFlatRateAmount] = useState('');
   const [safeShipping, setSafeShipping] = useState(false);
+  const [publish, setPublish] = useState(true);
   const [shippingProfileId, setShippingProfileId] = useState('');
   const [shippingProfiles, setShippingProfiles] = useState<Array<{ id: string; name: string }>>([]);
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
@@ -87,6 +88,7 @@ const ReverbListingWizard = ({ open, itemId, ccgCondition, allowShipping, fixedS
     setShippingMethod(hasFlatRate ? 'flat' : 'calculated');
     setFlatRateAmount(hasFlatRate ? String(fixedShippingAmount) : '');
     setSafeShipping(false);
+    setPublish(true);
     setShippingProfileId('');
     setIsSubmitting(false);
     setErrorMessage(null);
@@ -128,13 +130,14 @@ const ReverbListingWizard = ({ open, itemId, ccgCondition, allowShipping, fixedS
           flatRateAmount: flatAmount,
           shippingProfileId: shippingMethod === 'calculated' ? shippingProfileId : null,
           safeShipping,
+          publish,
         }),
       });
       const data = (await response.json().catch(() => ({}))) as { message?: string; warning?: string | null };
       if (!response.ok) {
         throw new Error(data.message || 'Unable to list on Reverb.');
       }
-      onListed(data.warning || null);
+      onListed(data.warning || null, publish);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to list on Reverb.');
     } finally {
@@ -242,6 +245,14 @@ const ReverbListingWizard = ({ open, itemId, ccgCondition, allowShipping, fixedS
             control={<Checkbox checked={safeShipping} onChange={(event) => setSafeShipping(event.target.checked)} />}
             label="Reverb Safe Shipping"
           />
+
+          <Box>
+            <Typography variant="subtitle2" sx={{ mb: 0.5 }}>When it's created</Typography>
+            <RadioGroup row value={publish ? 'publish' : 'draft'} onChange={(event) => setPublish(event.target.value === 'publish')}>
+              <FormControlLabel value="publish" control={<Radio size="small" />} label="Publish now" />
+              <FormControlLabel value="draft" control={<Radio size="small" />} label="Save as draft" />
+            </RadioGroup>
+          </Box>
         </Stack>
       </DialogContent>
       <DialogActions>
