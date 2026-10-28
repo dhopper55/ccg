@@ -15,6 +15,20 @@ export type ClaudeDesktopFields = {
   privatePartyValue: number | null;
 };
 
+// How every prompt here should value an item: like Guitar Center would price it (store
+// open-box/used prices, normal negotiating room), not as a private sale, and with no tax,
+// fee or shipping adjustments.
+const SHOP_PRICING_RULE = [
+  'How to price for my shop (this applies to the private party value and the quick flip buy price):',
+  '- Price it like Guitar Center would. I am a retail music shop in the Denver area, not a private seller: buyers can come in, see the item and try it before they buy, just like at Guitar Center, so my price should match what Guitar Center (or Sam Ash / Sweetwater) charges for the same item in the same condition.',
+  '- When I say "private party value in Denver metro", I mean the price I should list it at in my shop: the Guitar Center-style price.',
+  "- New or sealed items: price like a store open-box item, just under new retail/MAP. Used items: price like Guitar Center's used price for that item and condition. Reverb and marketplace sold prices are a floor, not the target.",
+  '- Negotiation works like it does at Guitar Center: I negotiate and so do they. List at the store price with the normal $20–$50 of room to come down on most items; do not pre-discount to a private-sale price.',
+  '- Do not factor in sales tax, marketplace fees or shipping.',
+  '- For a project item (needs repair, incomplete, disassembled), estimate the working store price, then discount fairly for the work and risk.',
+  '- Quick flip buy price: no more than 70% of that shop price (a 30% margin), with no tax or fee adjustments.',
+].join('\n');
+
 export function buildClaudeDesktopPrompt(
   title: string,
   notes: string,
@@ -28,7 +42,7 @@ export function buildClaudeDesktopPrompt(
     `${titleLine} Do your own evaluation on this item based on the pictures. Give me a concise readout of the following: Reverb sold range, realistic private party value in Denver metro, quick flip buy price (for 30% margin or more), and lastly, is this gear desirable - meaning do listings for this sit for a long time and are there a lot of them, or are they more rare and desirable?`,
     ...(notes.trim() ? ['', `Additional details: ${notes.trim()}`] : []),
     '',
-    'For the private party value: my Denver shop is pickup-only and the price is out-the-door (tax included, buyers can play it before buying). Price at the top of a reasonable range, leaving $20–$50 of room to negotiate.',
+    SHOP_PRICING_RULE,
     '',
     'At the very end of your reply, add a ```json code block in exactly this shape, for my inventory system. This block is just bookkeeping: fill it from what you already found for the readout and do not do any extra research or searches for it. Use "" for anything you can\'t determine. model must not repeat the brand. serial_number only if it is legible in the photos. year_range: do not research the year — only if you found a serial number, try one quick decode (at most one lookup); if that does not settle it, leave it "". private_party_value is a whole-dollar number (0 if unknown).',
     '```json',
@@ -47,8 +61,6 @@ export type ClaudeListing = {
 
 const EVAL_QUESTIONS =
   'Reverb sold range, realistic private party value in Denver metro, quick flip buy price (for 30% margin or more), and lastly, is this gear desirable - meaning do listings for this sit for a long time and are there a lot of them, or are they more rare and desirable?';
-const PRICING_RULE =
-  'For the private party value: my Denver shop is pickup-only and the price is out-the-door (tax included, buyers can play it before buying). Price at the top of a reasonable range, leaving $20–$50 of room to negotiate.';
 
 export function buildClaudeListingPrompt(
   title: string,
@@ -75,7 +87,7 @@ export function buildClaudeListingPrompt(
     '- bullets: exactly 5 short selling points, each under 60 characters, separate from the description.',
     ...(notes.trim() ? ['', `Additional details: ${notes.trim()}`] : []),
     '',
-    PRICING_RULE,
+    SHOP_PRICING_RULE,
     '',
     'Write the evaluation in your reply as normal, but put the listing ONLY in the JSON block — do not also write it out. At the very end of your reply, add a ```json code block in exactly this shape (use \\n for line breaks inside strings):',
     '```json',
@@ -123,7 +135,7 @@ export function buildClaudeListingEvalPrompt(options: {
       ? 'Take a deeper look at this one: take more time, check comps thoroughly, and look closely at authenticity, condition and anything in the photos that changes the value.'
       : 'Keep this quick: a few comps is enough — do not grind on research.',
     '',
-    PRICING_RULE,
+    SHOP_PRICING_RULE,
     '',
     'At the very end of your reply, add a ```json code block in exactly this shape. This block is just bookkeeping: fill it from what you already found and do not do any extra research for it. Use "" for anything you can\'t determine. model must not repeat the brand. year: only if you found a serial number, try one quick decode; otherwise leave it "".',
     '```json',
