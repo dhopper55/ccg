@@ -271,6 +271,7 @@ import {
 import { handleAdminV2Search } from './admin/search.js';
 import { handleAdminV2GxProbe, handleAdminV2GxRaw } from './gx/probe.js';
 import { handleInventoryReverbPreview } from './inventory/reverb-categories.js';
+import { handleAdminV2ChannelCategoryAudit } from './inventory/channel-category-audit.js';
 import {
   handleInventoryGxPreview,
   handleInventoryGxAdd,
@@ -1424,6 +1425,11 @@ export default {
 
     if (path === '/api/admin-v2/gx/probe' && request.method === 'GET') {
       const response = await handleAdminV2GxProbe(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/channel-category-audit' && request.method === 'GET') {
+      const response = await handleAdminV2ChannelCategoryAudit(request, env);
       return withCors(response, request, env);
     }
 
