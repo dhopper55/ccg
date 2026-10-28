@@ -201,8 +201,15 @@ export async function syncGxListingOnSave(
   if (!link || link.gx_status === 'sold') return { ok: true, synced: false };
   if (!isGxConfigured(env)) return { ok: false, status: 503, message: 'Gear Exchange is not configured (GX_API_TOKEN).' };
 
-  const before = buildGxItemFields(current, env);
-  const after = buildGxItemFields(next, env);
+  // A GX-only title/description chosen at listing time stays in place through CCG edits.
+  let overrides: { titleOverride?: string | null; descriptionOverride?: string | null } = {};
+  try {
+    overrides = link.options_json ? JSON.parse(link.options_json) : {};
+  } catch {
+    overrides = {};
+  }
+  const before = buildGxItemFields(current, env, overrides);
+  const after = buildGxItemFields(next, env, overrides);
   const changed: Record<string, unknown> = {};
   for (const key of Object.keys(after)) {
     if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) changed[key] = after[key];

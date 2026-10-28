@@ -124,6 +124,11 @@ export type GxListingOptions = {
   publish: boolean;
   // After a GX sale, if units remain, list the next one with these same options.
   autoRelist: boolean;
+  // GX-only wording, for when the CCG title/description can't be used as-is (e.g. GX's word
+  // filter rejects a real product name). Kept with the listing, so edits to the CCG item don't
+  // overwrite them on GX and relists reuse them.
+  titleOverride: string | null;
+  descriptionOverride: string | null;
 };
 
 // Every field is optional; defaults come from the item (shipping, quantity) or GX's own defaults.
@@ -189,6 +194,8 @@ export function parseGxListingOptions(
       payoutMethod,
       publish: toBooleanInput(body.publish, false),
       autoRelist: toBooleanInput(body.autoRelist, item.quantity > 1),
+      titleOverride: normalizeText(body.titleOverride, '').slice(0, 200) || null,
+      descriptionOverride: normalizeText(body.descriptionOverride, '').slice(0, 20000) || null,
     },
   };
 }
@@ -221,14 +228,19 @@ export function gxPublicImageUrls(record: Record<string, unknown>, env: Env): st
 
 // Fields CCG's edit form owns, for both create and the edit-sync PUT. Everything listing-only
 // (condition, category, offers, shipping, payout, returns) is set on create and left alone after.
-export function buildGxItemFields(record: Record<string, unknown>, env: Env): Record<string, unknown> {
+// A GX-only title/description override replaces the CCG one.
+export function buildGxItemFields(
+  record: Record<string, unknown>,
+  env: Env,
+  overrides: { titleOverride?: string | null; descriptionOverride?: string | null } = {},
+): Record<string, unknown> {
   const { year, decade } = parseGxMadeYear(normalizeText(record.yearRange, ''));
   const videoUrl = normalizeText(record.videoUrl, '');
   const salePrice = typeof record.salePrice === 'number' ? record.salePrice : parseCurrencyAmount(record.salePrice);
   return {
-    title: normalizeText(record.saleTitle, ''),
+    title: overrides.titleOverride || normalizeText(record.saleTitle, ''),
     brand: normalizeText(record.brand, ''),
-    description: normalizeText(record.saleDescription, ''),
+    description: overrides.descriptionOverride || normalizeText(record.saleDescription, ''),
     price: salePrice != null ? Number(salePrice.toFixed(2)) : null,
     imageUrls: gxPublicImageUrls(record, env),
     videoUrl: videoUrl && isYouTubeUrl(videoUrl) ? videoUrl : null,
@@ -242,7 +254,7 @@ export async function planGxListing(
   options: GxListingOptions,
   env: Env,
 ): Promise<GxListingPlan> {
-  const fields = buildGxItemFields(record, env);
+  const fields = buildGxItemFields(record, env, options);
   const missing: string[] = [];
   const problems: string[] = [];
   if (!fields.title) missing.push('For Sale Title');
