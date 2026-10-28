@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Checkbox,
@@ -21,6 +22,13 @@ import {
 } from '@mui/material';
 
 type ShippingMethod = 'calculated' | 'free' | 'flat';
+
+type ReverbCategoryOption = { uuid: string; name: string };
+
+const CATEGORY_SOURCE_LABEL: Record<string, string> = {
+  ccg_default: 'Saved default for this CCG subcategory.',
+  guess: 'Best guess from the CCG subcategory — check it.',
+};
 
 type ReverbListingWizardProps = {
   open: boolean;
@@ -72,6 +80,11 @@ const ReverbListingWizard = ({ open, itemId, ccgCondition, allowShipping, fixedS
   const [flatRateAmount, setFlatRateAmount] = useState('');
   const [safeShipping, setSafeShipping] = useState(false);
   const [publish, setPublish] = useState(true);
+  const [categories, setCategories] = useState<ReverbCategoryOption[]>([]);
+  const [category, setCategory] = useState<ReverbCategoryOption | null>(null);
+  const [categorySource, setCategorySource] = useState<string | null>(null);
+  const [ccgCategoryPath, setCcgCategoryPath] = useState('');
+  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
   const [shippingProfileId, setShippingProfileId] = useState('');
   const [shippingProfiles, setShippingProfiles] = useState<Array<{ id: string; name: string }>>([]);
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
@@ -93,6 +106,27 @@ const ReverbListingWizard = ({ open, itemId, ccgCondition, allowShipping, fixedS
     setIsSubmitting(false);
     setErrorMessage(null);
 
+    setCategory(null);
+    setCategorySource(null);
+    setIsLoadingCategories(true);
+    fetch(`/api/inventory/${encodeURIComponent(itemId)}/reverb-preview`, { credentials: 'same-origin' })
+      .then((response) => response.json())
+      .then((data: {
+        ccgCategory?: string;
+        suggested?: { uuid: string; name: string; source: string } | null;
+        categories?: ReverbCategoryOption[];
+      }) => {
+        const options = Array.isArray(data.categories) ? data.categories : [];
+        setCategories(options);
+        setCcgCategoryPath(data.ccgCategory || '');
+        if (data.suggested) {
+          setCategory(options.find((option) => option.uuid === data.suggested?.uuid) ?? { uuid: data.suggested.uuid, name: data.suggested.name });
+          setCategorySource(data.suggested.source);
+        }
+      })
+      .catch(() => setCategories([]))
+      .finally(() => setIsLoadingCategories(false));
+
     setIsLoadingProfiles(true);
     fetch('/api/reverb/shipping-profiles', { credentials: 'same-origin' })
       .then((response) => response.json())
@@ -103,11 +137,12 @@ const ReverbListingWizard = ({ open, itemId, ccgCondition, allowShipping, fixedS
       })
       .catch(() => setShippingProfiles([]))
       .finally(() => setIsLoadingProfiles(false));
-  }, [open, ccgCondition, allowShipping, fixedShippingAmount]);
+  }, [open, itemId, ccgCondition, allowShipping, fixedShippingAmount]);
 
   const flatAmount = shippingMethod === 'flat' ? toPositiveAmount(flatRateAmount) : null;
 
   const isValid = Boolean(conditionUuid)
+    && Boolean(category)
     && dropPriceIn2Weeks !== null
     && (shippingMethod !== 'flat' || flatAmount != null)
     && (shippingMethod !== 'calculated' || Boolean(shippingProfileId));
@@ -131,6 +166,8 @@ const ReverbListingWizard = ({ open, itemId, ccgCondition, allowShipping, fixedS
           shippingProfileId: shippingMethod === 'calculated' ? shippingProfileId : null,
           safeShipping,
           publish,
+          categoryUuid: category?.uuid ?? null,
+          saveCategoryDefault: true,
         }),
       });
       const data = (await response.json().catch(() => ({}))) as { message?: string; warning?: string | null };
@@ -156,6 +193,28 @@ const ReverbListingWizard = ({ open, itemId, ccgCondition, allowShipping, fixedS
           </Typography>
 
           {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
+
+          <Autocomplete
+            options={categories}
+            value={category}
+            loading={isLoadingCategories}
+            onChange={(_event, value) => {
+              setCategory(value);
+              setCategorySource(null);
+            }}
+            getOptionLabel={(option) => option.name}
+            isOptionEqualToValue={(option, value) => option.uuid === value.uuid}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Reverb Category"
+                helperText={[
+                  categorySource ? CATEGORY_SOURCE_LABEL[categorySource] : null,
+                  ccgCategoryPath ? `CCG: ${ccgCategoryPath}. Your pick is saved as its default.` : null,
+                ].filter(Boolean).join(' ')}
+              />
+            )}
+          />
 
           <TextField
             select

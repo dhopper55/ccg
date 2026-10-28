@@ -9,6 +9,8 @@ import { dbUpsertInventoryAddtl } from './addtl.js';
 import { dbGetGxLinkForItem } from '../gx/db.js';
 import { syncGxListingOnSave } from '../gx/handlers.js';
 import { endGxListingForItem } from '../gx/sales.js';
+import { resolveReverbCategoryForItem, dbSetCcgCategoryReverbDefault } from './reverb-categories.js';
+import { channelCategoryFor } from './channel-category.js';
 import { dbGetInventoryItem, dbFindInventoryBySourceListingId, dbFindInventoryBySaleUrl, dbInventoryItemHasPackageChildren } from './db-core.js';
 import { dbInventoryCategoryExists } from './categories.js';
 import { dbPurchaseLotExists } from './purchased-lots.js';
@@ -21,7 +23,6 @@ import { parseCurrencyAmount } from '../utils/money.js';
 import { parseOptionalPositiveInt, normalizeRequiredInventoryBarcode } from '../utils/misc.js';
 import {
   parseReverbWizardInput,
-  resolveReverbCategoryUuid,
   buildReverbListingPayload,
   buildReverbListingUpdatePayload,
   createReverbListing,
@@ -250,11 +251,6 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       || Number(c.quantity ?? 0) !== quantity;
 
     if (reverbFieldsChanged) {
-      const categoryPath = normalizeText(c.categoryPath, '') || normalizeText(c.categoryName, '');
-      const categoryMatch = categoryPath ? await resolveReverbCategoryUuid(categoryPath, env) : null;
-      if (!categoryMatch) {
-        return jsonResponse({ message: 'Unable to sync changes to Reverb: could not resolve a Reverb category for this item.' }, 502);
-      }
       const reverbImageUrls = imageUrls
         .map((url) => toReverbFetchableImageUrl(url, env))
         .filter((url): url is string => Boolean(url));
@@ -269,7 +265,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
         yearRange,
         finish,
         quantity,
-      }, categoryMatch.uuid);
+      });
       const updateResult = await updateReverbListing(String(reverbListingIdForSync), updatePayload, env);
       if (!updateResult.ok) {
         const status = updateResult.status >= 400 && updateResult.status < 600 ? updateResult.status : 502;
@@ -944,10 +940,12 @@ export async function handleInventoryReverbAdd(request: Request, path: string, e
     }, 400);
   }
 
-  const categoryMatch = await resolveReverbCategoryUuid(categoryPath, env);
+  // The wizard's pick, else the saved default for the item's CCG subcategory, else a guess.
+  const explicitCategoryUuid = normalizeText(body.categoryUuid, '') || null;
+  const categoryMatch = await resolveReverbCategoryForItem(record, explicitCategoryUuid, env);
   if (!categoryMatch) {
     return jsonResponse({
-      message: `Couldn't match CCG category "${categoryPath}" to a Reverb category. Check the category name or try again.`,
+      message: `Couldn't match CCG category "${channelCategoryFor(record).path}" to a Reverb category. Pick one in the listing form.`,
     }, 400);
   }
 
@@ -973,6 +971,10 @@ export async function handleInventoryReverbAdd(request: Request, path: string, e
   }
 
   const saved = await dbSetInventoryReverbListingId(recordId, result.listingId, env);
+  const ccgCategoryId = channelCategoryFor(record).ccgCategoryId;
+  if (categoryMatch.source === 'explicit' && ccgCategoryId && toBooleanInput(body.saveCategoryDefault, true)) {
+    await dbSetCcgCategoryReverbDefault(ccgCategoryId, categoryMatch.uuid, env);
+  }
   if (!saved) {
     return jsonResponse({
       message: `Listed on Reverb (listing ${result.listingId}), but failed to save the link locally. Add it manually before retrying.`,

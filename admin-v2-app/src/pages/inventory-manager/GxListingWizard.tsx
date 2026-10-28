@@ -59,7 +59,7 @@ const RETURN_POLICIES = [
 ];
 
 const CATEGORY_SOURCE_LABEL: Record<string, string> = {
-  ccg_default: 'saved default for this CCG category',
+  ccg_default: 'saved default for this CCG subcategory',
   guess: 'best guess — check it',
   explicit: 'chosen',
 };
@@ -245,8 +245,8 @@ const GxListingWizard = ({ open, itemId, quantity, onClose, onListed }: GxListin
                       {...params}
                       label="Gear Exchange category"
                       helperText={category && category.id === preview.category.id && preview.category.source
-                        ? `From the ${CATEGORY_SOURCE_LABEL[preview.category.source] ?? preview.category.source}. Saved as the default for this CCG category.`
-                        : 'Saved as the default for this CCG category.'}
+                        ? `From the ${CATEGORY_SOURCE_LABEL[preview.category.source] ?? preview.category.source}. Saved as the default for this CCG subcategory.`
+                        : 'Saved as the default for this CCG subcategory.'}
                     />
                   )}
                 />

@@ -3577,7 +3577,7 @@ const InventoryItem = () => {
                 <TextField
                   select
                   fullWidth
-                  label="Secondary Category"
+                  label="Subcategory"
                   value={form.secondaryCategoryId}
                   onChange={(event) => setField('secondaryCategoryId', event.target.value)}
                   disabled={secondaryCategoryDisabled}

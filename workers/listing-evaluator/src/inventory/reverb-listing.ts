@@ -172,12 +172,12 @@ export function resolveReverbConditionUuid(condition: string): string | null {
   return CCG_CONDITION_TO_REVERB_UUID[condition.trim()] || null;
 }
 
-type ReverbCategoryEntry = { uuid: string; full_name: string };
+export type ReverbCategoryEntry = { uuid: string; full_name: string };
 
 const REVERB_CATEGORIES_CACHE_KEY = 'reverb:categories:v1';
 const REVERB_CATEGORIES_CACHE_TTL_SECONDS = 60 * 60 * 24;
 
-async function fetchReverbCategories(env: Env): Promise<ReverbCategoryEntry[]> {
+export async function fetchReverbCategories(env: Env): Promise<ReverbCategoryEntry[]> {
   try {
     const cached = await env.LISTING_JOBS.get(REVERB_CATEGORIES_CACHE_KEY, 'json');
     if (Array.isArray(cached) && cached.length) return cached as ReverbCategoryEntry[];
@@ -368,9 +368,11 @@ export type ReverbListingUpdateSourceItem = {
 // no current value available outside the wizard, so they're omitted here rather than guessed —
 // assuming (unverified) that Reverb's PUT leaves omitted fields as they were, matching "updating
 // a listing takes the same parameters as create" in their docs without stating omit-behavior.
+// The category is deliberately not sent: it's chosen in the listing wizard (and may be fixed by
+// hand on reverb.com), and CCG doesn't store which Reverb category a listing has, so resending a
+// guess on every edit would overwrite the real choice.
 export function buildReverbListingUpdatePayload(
   item: ReverbListingUpdateSourceItem,
-  categoryUuid: string,
 ): Record<string, unknown> {
   return {
     make: item.brand,
@@ -379,7 +381,6 @@ export function buildReverbListingUpdatePayload(
     description: toReverbDescriptionHtml(item.saleDescription),
     finish: item.finish || undefined,
     year: item.yearRange || undefined,
-    categories: [{ uuid: categoryUuid }],
     photos: item.imageUrls,
     videos: item.videoUrl ? [{ link: item.videoUrl }] : undefined,
     price: { amount: item.salePrice.toFixed(2), currency: 'USD' },

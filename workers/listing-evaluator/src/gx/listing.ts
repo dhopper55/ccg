@@ -5,6 +5,7 @@ import { parseCurrencyAmount } from '../utils/money.js';
 import { toReverbFetchableImageUrl } from '../inventory/reverb-listing.js';
 import { createGxListing, fetchGxCategories, fetchGxConditions, type GxCategory, type GxListing } from './api.js';
 import { dbGetCcgCategoryGxDefault, dbInsertGxLink, dbSetCcgCategoryGxDefault } from './db.js';
+import { channelCategoryFor } from '../inventory/channel-category.js';
 
 // Builds GX listing payloads from CCG inventory items. GX rules (from the API docs): price must
 // be > $25 and <= $10,000; 1-25 publicly reachable image URLs; madeYear >= 1800; madeDecade is
@@ -45,7 +46,7 @@ const CATEGORY_STOP_WORDS = new Set(['and', 'the', 'for', 'with', 'new', 'used']
 function categoryTokens(text: string): string[] {
   const tokens = text
     .toLowerCase()
-    .replace(/[^a-z0-9+ ]/g, ' ')
+    .replace(/[^a-z0-9 ]/g, ' ')
     .split(/\s+/)
     // Plural -> singular: "basses" -> "bass", "pedals" -> "pedal" (but not "bass" -> "bas").
     .map((token) => (token.endsWith('sses') ? token.slice(0, -2) : token.endsWith('ss') ? token : token.replace(/s$/, '')))
@@ -266,13 +267,15 @@ export async function planGxListing(
     problems.push(`GX condition ${conditionId} doesn't exist.`);
   }
 
-  // Category: explicit, else the CCG category's saved default, else a keyword guess.
+  // Category: explicit, else the saved default for the item's CCG subcategory (or category, when
+  // it has no subcategory), else a keyword guess from that same path.
   const categories = await fetchGxCategories(env);
   const categoryById = new Map(categories.map((category) => [category.id, category]));
+  const ccgCategory = channelCategoryFor(record);
   let categoryId: number | null = options.categoryId;
   let categorySource: GxListingPlan['categorySource'] = categoryId ? 'explicit' : null;
-  if (!categoryId) {
-    const ccgDefault = await dbGetCcgCategoryGxDefault(Number(record.categoryId), env);
+  if (!categoryId && ccgCategory.ccgCategoryId) {
+    const ccgDefault = await dbGetCcgCategoryGxDefault(ccgCategory.ccgCategoryId, env);
     if (ccgDefault) {
       categoryId = ccgDefault;
       categorySource = 'ccg_default';
@@ -280,7 +283,7 @@ export async function planGxListing(
   }
   if (!categoryId) {
     const guess = guessGxCategory(
-      normalizeText(record.categoryPath, '') || normalizeText(record.categoryName, ''),
+      ccgCategory.path,
       categories,
       normalizeText(record.saleTitle, '') || normalizeText(record.title, ''),
     );
@@ -360,8 +363,9 @@ export async function createGxListingForItem(
   if (!saved) {
     return { ok: false, status: 500, message: `Listed on Gear Exchange (listing ${listing.id}), but failed to save the link locally. Delete it on GX before retrying.` };
   }
-  if (options.saveCategoryDefault && plan.categoryId && record.categoryId != null) {
-    await dbSetCcgCategoryGxDefault(Number(record.categoryId), plan.categoryId, env);
+  const ccgCategoryId = channelCategoryFor(record).ccgCategoryId;
+  if (options.saveCategoryDefault && plan.categoryId && ccgCategoryId) {
+    await dbSetCcgCategoryGxDefault(ccgCategoryId, plan.categoryId, env);
   }
   return { ok: true, listing, plan, message: result.message };
 }

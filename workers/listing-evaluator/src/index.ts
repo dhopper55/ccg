@@ -270,6 +270,7 @@ import {
 // Admin Search
 import { handleAdminV2Search } from './admin/search.js';
 import { handleAdminV2GxProbe, handleAdminV2GxRaw } from './gx/probe.js';
+import { handleInventoryReverbPreview } from './inventory/reverb-categories.js';
 import {
   handleInventoryGxPreview,
   handleInventoryGxAdd,
@@ -1323,6 +1324,11 @@ export default {
 
     if (path.endsWith('/delete') && path.startsWith('/api/inventory/') && request.method === 'POST') {
       const response = await handleInventoryDelete(request, path, env);
+      return withCors(response, request, env);
+    }
+
+    if (path.endsWith('/reverb-preview') && path.startsWith('/api/inventory/') && request.method === 'GET') {
+      const response = await handleInventoryReverbPreview(request, path, env);
       return withCors(response, request, env);
     }
 
