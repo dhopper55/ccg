@@ -189,6 +189,7 @@ import {
   handleAdminV2OrderShippingBuy,
   handleAdminV2OrderShippingLabel,
   handleAdminV2OrderShippingReverbPush,
+  handleAdminV2OrderShippingGxPush,
   handleAdminV2ShippingTemplates,
   handleAdminV2ShippingTemplateCreate,
   handleAdminV2EasyPostConfig,
@@ -268,6 +269,21 @@ import {
 
 // Admin Search
 import { handleAdminV2Search } from './admin/search.js';
+import { handleAdminV2GxProbe, handleAdminV2GxRaw } from './gx/probe.js';
+import {
+  handleInventoryGxPreview,
+  handleInventoryGxAdd,
+  handleInventoryGxPublish,
+  handleInventoryGxStatus,
+  handleInventoryGxRemove,
+  handleAdminV2GxReference,
+} from './gx/handlers.js';
+import {
+  handleGxWebhook,
+  handleAdminV2GxWebhookConfig,
+  handleAdminV2GxWebhookEvents,
+  handleAdminV2GxSyncSold,
+} from './gx/webhook.js';
 
 // UPC
 import {
@@ -355,6 +371,11 @@ export default {
     if (path === '/api/logout' && request.method === 'POST') {
       const response = await handleLogout();
       return withCors(response, request, env);
+    }
+
+    // Gear Exchange webhooks authenticate with their own bearer token, not an admin session.
+    if (path === '/api/gx/webhook' && request.method === 'POST') {
+      return handleGxWebhook(request, env);
     }
 
     if (path === '/api/stripe/webhook' && request.method === 'POST') {
@@ -853,7 +874,7 @@ export default {
       return withCors(response, request, env);
     }
 
-    const adminV2OrderShippingMatch = path.match(/^\/api\/admin-v2\/orders\/([^/]+)\/shipping\/(quote|manual|buy|reverb)$/);
+    const adminV2OrderShippingMatch = path.match(/^\/api\/admin-v2\/orders\/([^/]+)\/shipping\/(quote|manual|buy|reverb|gx)$/);
     if (adminV2OrderShippingMatch && request.method === 'POST') {
       const orderId = decodeURIComponent(adminV2OrderShippingMatch[1]);
       const action = adminV2OrderShippingMatch[2];
@@ -863,7 +884,9 @@ export default {
           ? await handleAdminV2OrderShippingBuy(request, orderId, env)
           : action === 'reverb'
             ? await handleAdminV2OrderShippingReverbPush(request, orderId, env)
-            : await handleAdminV2OrderShippingManual(request, orderId, env);
+            : action === 'gx'
+              ? await handleAdminV2OrderShippingGxPush(request, orderId, env)
+              : await handleAdminV2OrderShippingManual(request, orderId, env);
       return withCors(response, request, env);
     }
 
@@ -1302,6 +1325,31 @@ export default {
       return withCors(response, request, env);
     }
 
+    if (path.endsWith('/gx-preview') && path.startsWith('/api/inventory/') && request.method === 'GET') {
+      const response = await handleInventoryGxPreview(request, path, env);
+      return withCors(response, request, env);
+    }
+
+    if (path.endsWith('/gx-add') && path.startsWith('/api/inventory/') && request.method === 'POST') {
+      const response = await handleInventoryGxAdd(request, path, env);
+      return withCors(response, request, env);
+    }
+
+    if (path.endsWith('/gx-publish') && path.startsWith('/api/inventory/') && request.method === 'POST') {
+      const response = await handleInventoryGxPublish(request, path, env);
+      return withCors(response, request, env);
+    }
+
+    if (path.endsWith('/gx-status') && path.startsWith('/api/inventory/') && request.method === 'GET') {
+      const response = await handleInventoryGxStatus(request, path, env);
+      return withCors(response, request, env);
+    }
+
+    if (path.endsWith('/gx-remove') && path.startsWith('/api/inventory/') && request.method === 'POST') {
+      const response = await handleInventoryGxRemove(request, path, env);
+      return withCors(response, request, env);
+    }
+
     if (path.endsWith('/reverb-add') && path.startsWith('/api/inventory/') && request.method === 'POST') {
       const response = await handleInventoryReverbAdd(request, path, env);
       return withCors(response, request, env);
@@ -1364,6 +1412,36 @@ export default {
 
     if (path === '/api/reverb/shipping-profiles' && request.method === 'GET') {
       const response = await handleReverbShippingProfiles(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/gx/probe' && request.method === 'GET') {
+      const response = await handleAdminV2GxProbe(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/gx/raw' && request.method === 'POST') {
+      const response = await handleAdminV2GxRaw(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/gx/reference' && request.method === 'GET') {
+      const response = await handleAdminV2GxReference(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/gx/webhook-config' && request.method === 'POST') {
+      const response = await handleAdminV2GxWebhookConfig(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/gx/webhook-events' && request.method === 'GET') {
+      const response = await handleAdminV2GxWebhookEvents(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/gx/sync-sold' && request.method === 'POST') {
+      const response = await handleAdminV2GxSyncSold(request, env);
       return withCors(response, request, env);
     }
 

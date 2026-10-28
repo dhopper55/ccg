@@ -2,6 +2,11 @@ export interface Env {
   DB: D1Database;
   CUSTOM_ITEMS_BUCKET?: R2Bucket;
   REVERB_API_TOKEN?: string;
+  // Sweetwater Gear Exchange Public API token (secret); GX_BASE_URL optionally points at the sandbox.
+  GX_API_TOKEN?: string;
+  GX_BASE_URL?: string;
+  // Bearer token GX sends on webhook calls (we choose it; registered via /api/admin-v2/gx/webhook-config).
+  GX_WEBHOOK_TOKEN?: string;
   APIFY_TOKEN: string;
   APIFY_FACEBOOK_ACTOR: string;
   APIFY_CRAIGSLIST_ACTOR: string;

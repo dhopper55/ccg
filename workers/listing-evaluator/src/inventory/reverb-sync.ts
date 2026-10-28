@@ -12,6 +12,7 @@ import {
 } from './db-write.js';
 import { fetchReverbSellingOrders, endReverbListing, extractShippingLabelFee } from './reverb-listing.js';
 import { dbCreateOrderFromReverbSale, logOrderError, describeError } from '../orders/manual.js';
+import { endGxListingForItem } from '../gx/sales.js';
 
 // Creates the CCG order for a sale the sync just recorded. Never fails the sync: a problem
 // is reported on that item's result so the order can be made by hand.
@@ -41,10 +42,11 @@ function extractOrderQuantity(order: Record<string, unknown>): number {
 // the item edit form already does), and decrements the original row's quantity, leaving it
 // for_sale and still linked to Reverb (a multi-unit listing likely stays live with the reduced
 // count rather than ending — only a full sale ends the listing, handled by the caller).
-async function splitAndMarkPartialReverbSale(
+// Also used for Gear Exchange sales of multi-unit items (soldChannel 'Sweetwater Gear Exchange').
+export async function splitAndMarkPartialReverbSale(
   sourceId: string,
   soldQuantity: number,
-  fields: { soldDate: string; soldAmount: number; sellNotes: string; soldShipCostAccounted?: boolean },
+  fields: { soldDate: string; soldAmount: number; sellNotes: string; soldShipCostAccounted?: boolean; soldChannel?: string },
   env: Env,
 ): Promise<{ ok: true; newInventoryId: string } | { ok: false; message: string }> {
   const source = await dbGetInventoryItem(sourceId, env);
@@ -251,7 +253,7 @@ async function splitAndMarkPartialReverbSale(
     subscription_id: s.subscriptionId != null ? Number(s.subscriptionId) : null,
     sale_url: null,
     sale_zip: (s.saleZip as string) || null,
-    sold_channel: 'Reverb',
+    sold_channel: fields.soldChannel ?? 'Reverb',
     tag_reprint: 0,
   }, env);
   if (!soldCloneOk) return { ok: false, message: 'Split-off sold item was created, but failed to fully update.' };
@@ -485,6 +487,8 @@ export async function handleReverbSyncSoldCommit(_request: Request, env: Env): P
     }
     await dbSetInventorySoldAvailability(candidate.id, true, env);
     const fullOrder = await createOrderForReverbSale(candidate.id, order, env);
+    // Sold on Reverb: take it off Gear Exchange too (non-fatal, reported with the result).
+    const gxEnded = await endGxListingForItem(candidate.id, env);
 
     processed.push({
       ...fullOrder,
@@ -496,6 +500,7 @@ export async function handleReverbSyncSoldCommit(_request: Request, env: Env): P
       soldDate,
       orderNumber,
       endListingWarning,
+      gxWarning: gxEnded.status === 'failed' ? gxEnded.message : null,
       shipCostAccounted: soldShipCostAccounted,
     });
   }

@@ -6,6 +6,9 @@ import { normalizeInventoryImageEntries, INVENTORY_MAX_IMAGES } from '../utils/i
 import { dbCreateInventoryItems, dbUpdateInventoryById, dbReplaceInventoryImagesByItemIds, dbSetInventorySoldAvailability, dbDeactivateInventoryItemById, dbSetInventoryReverbListingId, dbSetInventoryFbListingId, dbSetInventoryFbSyncState, dbMarkInventorySoldFromFbm, dbApplyReverbShippingLabelCost, generateUniqueCcgNumber, dbReplaceInventoryTagsByItemIds, normalizeInventoryTagsInput } from './db-write.js';
 import { ensureInventoryHostedImageUrls } from './db-images.js';
 import { dbUpsertInventoryAddtl } from './addtl.js';
+import { dbGetGxLinkForItem } from '../gx/db.js';
+import { syncGxListingOnSave } from '../gx/handlers.js';
+import { endGxListingForItem } from '../gx/sales.js';
 import { dbGetInventoryItem, dbFindInventoryBySourceListingId, dbFindInventoryBySaleUrl, dbInventoryItemHasPackageChildren } from './db-core.js';
 import { dbInventoryCategoryExists } from './categories.js';
 import { dbPurchaseLotExists } from './purchased-lots.js';
@@ -204,6 +207,8 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
   const current = await dbGetInventoryItem(recordId, env);
   if (!current) return jsonResponse({ message: 'Inventory item not found.' }, 404);
   salesChannelFields.sales_channel_reverb = (current as { reverbListingId?: unknown }).reverbListingId ? 1 : 0;
+  // Like Reverb, the Gear Exchange flag is system-managed: it reflects whether a GX listing is linked.
+  salesChannelFields.sales_channel_gear_exchange = (await dbGetGxLinkForItem(Number(recordId), env)) ? 1 : 0;
   // A sold item is no longer listed on the CCG site. (A partial-quantity sale puts the
   // remaining stock back to the user's CCG choice below.)
   if (isSold) salesChannelFields.sales_channel_ccg = 0;
@@ -273,6 +278,24 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
     }
   }
 
+  // Same for Gear Exchange (fail-closed, before the local save).
+  const gxSync = await syncGxListingOnSave(recordId, current as Record<string, unknown>, {
+    id: recordId,
+    saleTitle,
+    saleDescription,
+    salePrice,
+    videoUrl,
+    brand,
+    yearRange,
+    images: imageUrls.map((url, index) => ({
+      url,
+      isPrivate: index === 0 ? false : Boolean(imageEntriesInput.find((entry) => entry.url === url)?.isPrivate),
+    })),
+  }, env);
+  if (!gxSync.ok) {
+    return jsonResponse({ message: `Unable to sync changes to Gear Exchange: ${gxSync.message}` }, gxSync.status);
+  }
+
   const primaryImageUrl = imageUrls[0];
   const privacyByUrl = new Map(imageEntriesInput.map((entry) => [entry.url, entry.isPrivate]));
   const imageEntries = imageUrls.map((url, index) => ({
@@ -311,6 +334,11 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       }
       salesChannelFields.sales_channel_reverb = 0;
     }
+    const gxEnded = await endGxListingForItem(recordId, env);
+    if (gxEnded.status === 'failed') {
+      return jsonResponse({ message: `Unable to remove the Gear Exchange listing before marking sold: ${gxEnded.message}` }, 502);
+    }
+    if (gxEnded.status === 'ended') salesChannelFields.sales_channel_gear_exchange = 0;
   }
 
   const recordIdNum = Number.parseInt(recordId, 10);
@@ -1084,7 +1112,9 @@ export async function handleInventoryFbMarkSold(request: Request, path: string, 
     sellNotes: normalizeText(body.sellNotes, 'Marked sold via ccg-fbm-sync tool.').slice(0, 4000),
   }, env);
   if (!ok) return jsonResponse({ message: 'Failed to mark the item sold.' }, 500);
-  return jsonResponse({ ok: true });
+  // Best-effort: the sale already happened on FBM, so a GX failure is reported, not fatal.
+  const gxEnded = await endGxListingForItem(recordId, env);
+  return jsonResponse({ ok: true, gxWarning: gxEnded.status === 'failed' ? gxEnded.message : null });
 }
 
 // Used by the ccg-fbm-sync tool's reconcile flow — "skip permanently" on a CCG item that's

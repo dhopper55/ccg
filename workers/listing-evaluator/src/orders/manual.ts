@@ -30,7 +30,7 @@ const ORDER_CHANNELS = new Set([
   'fbm', 'reverb', 'ebay', 'cl', 'offerup', 'nextdoor', 'gear_exchange', 'ccg_web', 'in_store', 'other',
 ]);
 const PAYMENT_METHODS = new Set([
-  'fbm', 'reverb', 'ebay', 'stripe_link', 'stripe_checkout', 'stripe_terminal', 'cash', 'venmo', 'zelle', 'paypal', 'other',
+  'fbm', 'reverb', 'gear_exchange', 'ebay', 'stripe_link', 'stripe_checkout', 'stripe_terminal', 'cash', 'venmo', 'zelle', 'paypal', 'other',
 ]);
 // Money that is in hand at the time of sale; everything else waits for a payout.
 const IMMEDIATE_PAYOUT_METHODS = new Set(['cash']);
@@ -843,6 +843,155 @@ export async function dbCreateOrderFromReverbSale(
 
   const labelFee = reverbMoneyCents(order.shipping_label_fee ?? order.shipping_label_cost ?? order.label_fee ?? order.label_cost);
   if (labelFee != null && labelFee > 0) await dbRecordReverbLabelOnOrder(orderId, labelFee, order, env);
+  await dbRecalculateManualOrderTotals(orderId, env);
+  return { ok: true, orderId, orderNumber, created: true };
+}
+
+// ---- Gear Exchange ---------------------------------------------------------------------
+
+// GX's cash payout ("hyperwallet") is fee-based at 7.5% per GET /payout-options; the gift-card
+// payout has no fee. GX orders don't report the fee or the payout, so the fee is an estimate
+// on item + shipping (fee_is_estimate = 1) until it's confirmed against a real payout.
+export const GX_CASH_PAYOUT_FEE_RATE = 0.075;
+
+export function estimateGxFeeCents(grossCents: number, payoutMethod: string | null): number {
+  return payoutMethod === 'store_credit' ? 0 : Math.round(grossCents * GX_CASH_PAYOUT_FEE_RATE);
+}
+
+function gxMoneyCents(value: unknown): number {
+  const parsed = Number.parseFloat(String(value ?? ''));
+  return Number.isFinite(parsed) ? Math.round(parsed * 100) : 0;
+}
+
+export async function dbFindGxOrder(gxOrderId: number, env: Env): Promise<{ id: string; order_number: string } | null> {
+  return env.DB.prepare(
+    `SELECT id, order_number FROM orders
+     WHERE channel = 'gear_exchange' AND channel_order_ref = ? AND status NOT IN ('cancelled', 'canceled')
+     LIMIT 1`
+  ).bind(String(gxOrderId)).first<{ id: string; order_number: string }>();
+}
+
+// Creates the CCG order for a GX sale (idempotent on the GX order id). Sales tax is collected
+// and remitted by GX, so it isn't ours and is left off the payment. If GX already has tracking
+// (e.g. a label bought on GX), it's recorded as the order's shipment.
+export async function dbCreateOrderFromGxSale(
+  inventoryItemId: number,
+  order: {
+    orderId: number;
+    listingId: number;
+    soldPrice: string;
+    shippingAmount: string;
+    soldAt: string;
+    shippingInfo?: {
+      local_pickup?: boolean;
+      shipping_provider?: string | null;
+      tracking_number?: string | null;
+      shipped_at?: string | null;
+      ship_to_address?: Record<string, unknown>;
+    };
+    buyerInfo?: { buyer_first_name?: string; buyer_last_name?: string };
+  },
+  payoutMethod: string | null,
+  env: Env,
+): Promise<{ ok: true; orderId: string; orderNumber: string; created: boolean } | { ok: false; message: string }> {
+  const gxOrderRef = String(order.orderId);
+  const existing = await dbFindGxOrder(order.orderId, env);
+  if (existing) return { ok: true, orderId: existing.id, orderNumber: existing.order_number, created: false };
+
+  const item = await dbGetSoldItem(inventoryItemId, env);
+  if (!item) return { ok: false, message: `Inventory item ${inventoryItemId} not found.` };
+
+  const productCents = gxMoneyCents(order.soldPrice);
+  const shippingCents = gxMoneyCents(order.shippingAmount);
+  const grossCents = productCents + shippingCents;
+  if (grossCents <= 0) return { ok: false, message: 'Gear Exchange order has no sold price.' };
+  const feeCents = estimateGxFeeCents(grossCents, payoutMethod);
+  const payoutCents = grossCents - feeCents;
+  const paidAt = normalizeText(order.soldAt, '') || new Date().toISOString();
+
+  const shippingInfo = order.shippingInfo ?? {};
+  const address = (shippingInfo.ship_to_address && typeof shippingInfo.ship_to_address === 'object'
+    ? shippingInfo.ship_to_address
+    : undefined) as Record<string, unknown> | undefined;
+  const ship = shippingInfo.local_pickup !== true;
+  const buyerName = [normalizeText(order.buyerInfo?.buyer_first_name, ''), normalizeText(order.buyerInfo?.buyer_last_name, '')]
+    .filter(Boolean).join(' ');
+  const shipName = [normalizeText(address?.firstName, ''), normalizeText(address?.lastName, '')].filter(Boolean).join(' ');
+
+  const orderId = crypto.randomUUID();
+  const orderNumber = buildOrderNumber();
+  const now = new Date().toISOString();
+  const orderCols = await dbGetColumnNames('orders', env);
+  await dbInsertFiltered('orders', {
+    id: orderId,
+    order_number: orderNumber,
+    status: 'paid',
+    channel: 'gear_exchange',
+    channel_order_ref: gxOrderRef,
+    checkout_type: 'manual',
+    checkout_provider: 'manual',
+    checkout_mode: 'manual',
+    fulfillment_type: ship ? 'ship' : 'pickup',
+    customer_name: buyerName || null,
+    item_title_snapshot: normalizeText(item.sale_title, '') || normalizeText(item.title, 'Item'),
+    subtotal_cents: 0,
+    total_cents: 0,
+    currency: 'usd',
+    shipping_status: ship ? 'ship' : 'in_store',
+    shipping_address_required: ship ? 1 : 0,
+    shipping_name: ship ? (shipName || buyerName || null) : null,
+    shipping_address_line1: ship ? (normalizeText(address?.addressLineOne, '') || null) : null,
+    shipping_address_line2: ship ? (normalizeText(address?.addressLineTwo, '') || null) : null,
+    shipping_address_city: ship ? (normalizeText(address?.city, '') || null) : null,
+    shipping_address_state: ship ? (normalizeText(address?.state, '').toUpperCase() || null) : null,
+    shipping_address_postal_code: ship ? (normalizeText(address?.postalCode, '') || null) : null,
+    shipping_address_country: ship ? (normalizeText(address?.country, '').toUpperCase() || 'US') : null,
+    notes: `Created from Gear Exchange order #${gxOrderRef} (listing ${order.listingId}).`,
+    paid_at: paidAt,
+    listings_updated: 1,
+    settled: 0,
+    money_accounted: 0,
+    is_sandbox: 0,
+    created_at: now,
+    updated_at: now,
+  }, orderCols, env);
+
+  await dbInsertOrderItemForSoldItem(orderId, item, env, payoutCents);
+  await dbInsertOrderPayment(orderId, item.id, {
+    method: 'gear_exchange',
+    grossCents,
+    shippingChargedCents: shippingCents,
+    taxCents: 0,
+    feeCents,
+    feeIsEstimate: true,
+    externalRef: gxOrderRef,
+    paidAt,
+    notes: feeCents > 0
+      ? `Fee estimated at ${(GX_CASH_PAYOUT_FEE_RATE * 100).toFixed(1)}% (GX cash payout); confirm against the GX payout.`
+      : 'Gift-card payout: no GX fee.',
+  }, env);
+  await dbRecordOrderEvent(orderId, {
+    eventType: 'manual_order_created',
+    fromStatus: null,
+    toStatus: 'paid',
+    source: 'gx_sync',
+    sourceId: gxOrderRef,
+    message: `Order created from Gear Exchange order #${gxOrderRef} for ${item.ccg_number || `item ${item.id}`}.`,
+    payloadJson: JSON.stringify({ inventoryItemId: item.id, gxOrderId: order.orderId, gxListingId: order.listingId, grossCents, feeCents, shippingCents }),
+  }, env);
+
+  const trackingCode = normalizeText(shippingInfo.tracking_number, '');
+  if (ship && trackingCode) {
+    await env.DB.prepare(
+      `INSERT INTO order_shipments (order_id, status, is_test, carrier, tracking_code, label_cost_cents, notes, shipped_at)
+       VALUES (?, 'manual', 0, ?, ?, NULL, 'Tracking from Gear Exchange.', ?)`
+    ).bind(
+      orderId,
+      normalizeText(shippingInfo.shipping_provider, '').toUpperCase() || null,
+      trackingCode.toUpperCase(),
+      normalizeText(shippingInfo.shipped_at, '') || now,
+    ).run();
+  }
   await dbRecalculateManualOrderTotals(orderId, env);
   return { ok: true, orderId, orderNumber, created: true };
 }

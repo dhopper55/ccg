@@ -9,6 +9,7 @@ import { jsonResponse, numberOrZero, parseOptionalPositiveInt } from '../utils/m
 import { dbRecordOrderEvent } from './db.js';
 import { logOrderError, describeError } from './manual.js';
 import { markReverbOrderShipped } from '../inventory/reverb-listing.js';
+import { addGxOrderTracking } from '../gx/api.js';
 
 const EASYPOST_API = 'https://api.easypost.com/v2';
 // Statuses that mean a label exists (bought here or elsewhere).
@@ -477,6 +478,7 @@ export async function handleAdminV2OrderShippingBuy(request: Request, orderId: s
       return jsonResponse({ message: 'The label was bought, but EasyPost returned no tracking number. Check the EasyPost dashboard.' }, 502);
     }
     const reverb = config.useTest ? null : await pushShipmentToReverb(normalizeText(order.id, ''), shipmentId, env);
+    const gearExchange = config.useTest ? null : await pushShipmentToGx(normalizeText(order.id, ''), shipmentId, env);
     return jsonResponse({
       ok: true,
       carrier,
@@ -485,6 +487,7 @@ export async function handleAdminV2OrderShippingBuy(request: Request, orderId: s
       labelCostCents: paidCents,
       isTest: config.useTest,
       reverb: reverb && reverb.status !== 'skipped' ? reverb : null,
+      gearExchange: gearExchange && gearExchange.status !== 'skipped' ? gearExchange : null,
     });
   } catch (error) {
     logOrderError('shipping.buy.failed', { orderId, ...describeError(error) });
@@ -543,6 +546,81 @@ export async function pushShipmentToReverb(
     logOrderError('shipping.reverb_push_failed', { orderId, shipmentId, ...describeError(error) });
     return { status: 'failed', message: error instanceof Error ? error.message : String(error) };
   }
+}
+
+// ---- Tracking to Gear Exchange ---------------------------------------------------------
+
+// GX carrier codes (GET /shipping/providers): fedex | usps | ups | pickup | other.
+function gxShippingProvider(carrier: string): string {
+  const family = carrierFamily(carrier);
+  return family === 'USPS' ? 'usps' : family === 'UPS' ? 'ups' : family === 'FedEx' ? 'fedex' : 'other';
+}
+
+// Sends the shipment's tracking to the GX order (204 on success). Never throws, same as the
+// Reverb push: the result is recorded on the shipment so it can be retried.
+export async function pushShipmentToGx(
+  orderId: string,
+  shipmentId: number,
+  env: Env,
+): Promise<{ status: 'pushed' | 'failed' | 'skipped'; message: string }> {
+  try {
+    const order = await env.DB.prepare('SELECT id, channel, channel_order_ref, status FROM orders WHERE id = ? LIMIT 1')
+      .bind(orderId).first<Record<string, unknown>>();
+    if (!order || normalizeText(order.channel, '') !== 'gear_exchange') return { status: 'skipped', message: 'Not a Gear Exchange order.' };
+    const shipment = await env.DB.prepare('SELECT * FROM order_shipments WHERE id = ? AND order_id = ? LIMIT 1')
+      .bind(shipmentId, orderId).first<Record<string, unknown>>();
+    if (!shipment) return { status: 'skipped', message: 'Shipment not found.' };
+    if (Number(shipment.is_test || 0) === 1) return { status: 'skipped', message: 'Test labels are never sent to Gear Exchange.' };
+    if (normalizeText(shipment.notes, '').startsWith('Tracking from Gear Exchange')) {
+      return { status: 'skipped', message: 'Tracking came from Gear Exchange.' };
+    }
+
+    const record = async (status: 'pushed' | 'failed', message: string) => {
+      const now = new Date().toISOString();
+      await env.DB.prepare(
+        `UPDATE order_shipments SET channel_push_status = ?, channel_push_message = ?, channel_pushed_at = ?, updated_at = ?
+         WHERE id = ?`
+      ).bind(status, message || null, status === 'pushed' ? now : null, now, shipmentId).run();
+      await dbRecordOrderEvent(orderId, {
+        eventType: status === 'pushed' ? 'gx_tracking_added' : 'gx_tracking_failed',
+        fromStatus: normalizeText(order.status, ''),
+        toStatus: normalizeText(order.status, ''),
+        source: 'admin_v2',
+        sourceId: normalizeText(order.channel_order_ref, ''),
+        message: status === 'pushed' ? 'Tracking sent to Gear Exchange.' : `Gear Exchange not updated: ${message}`,
+        payloadJson: JSON.stringify({ shipmentId, status, message }),
+      }, env);
+      return { status, message };
+    };
+
+    const gxOrderId = normalizeText(order.channel_order_ref, '');
+    if (!gxOrderId) return record('failed', 'This order has no Gear Exchange order number.');
+    const trackingNumber = normalizeText(shipment.tracking_code, '');
+    if (!trackingNumber) return record('failed', 'The shipment has no tracking number.');
+
+    const result = await addGxOrderTracking(env, gxOrderId, gxShippingProvider(normalizeText(shipment.carrier, '')), [trackingNumber]);
+    return result.ok ? record('pushed', '') : record('failed', result.message);
+  } catch (error) {
+    logOrderError('shipping.gx_push_failed', { orderId, shipmentId, ...describeError(error) });
+    return { status: 'failed', message: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+// POST /api/admin-v2/orders/:id/shipping/gx — retry sending the latest shipment's tracking.
+export async function handleAdminV2OrderShippingGxPush(_request: Request, orderId: string, env: Env): Promise<Response> {
+  const order = await env.DB.prepare('SELECT id, channel FROM orders WHERE id = ? LIMIT 1')
+    .bind(normalizeText(orderId, '').slice(0, 100)).first<Record<string, unknown>>();
+  if (!order) return reject('shipping.gx_push', 'Order not found.', 404, { orderId });
+  if (normalizeText(order.channel, '') !== 'gear_exchange') return reject('shipping.gx_push', 'This is not a Gear Exchange order.', 400, { orderId });
+  const shipment = await env.DB.prepare(
+    `SELECT id FROM order_shipments
+     WHERE order_id = ? AND status IN ('purchased', 'manual') AND COALESCE(tracking_code, '') <> '' AND COALESCE(is_test, 0) = 0
+     ORDER BY id DESC LIMIT 1`
+  ).bind(normalizeText(order.id, '')).first<{ id: number }>();
+  if (!shipment) return reject('shipping.gx_push', 'The order is not shipped yet.', 400, { orderId });
+  const result = await pushShipmentToGx(normalizeText(order.id, ''), shipment.id, env);
+  if (result.status === 'failed') return jsonResponse({ message: result.message, gearExchange: result }, 502);
+  return jsonResponse({ ok: true, gearExchange: result });
 }
 
 // POST /api/admin-v2/orders/:id/shipping/reverb  { channelOrderRef? }
@@ -646,7 +724,12 @@ export async function handleAdminV2OrderShippingManual(request: Request, orderId
     }, env);
     const manualShipmentId = Number(manualInsert.meta?.last_row_id || 0);
     const reverb = manualShipmentId ? await pushShipmentToReverb(normalizeText(order.id, ''), manualShipmentId, env) : null;
-    return jsonResponse({ ok: true, reverb: reverb && reverb.status !== 'skipped' ? reverb : null });
+    const gearExchange = manualShipmentId ? await pushShipmentToGx(normalizeText(order.id, ''), manualShipmentId, env) : null;
+    return jsonResponse({
+      ok: true,
+      reverb: reverb && reverb.status !== 'skipped' ? reverb : null,
+      gearExchange: gearExchange && gearExchange.status !== 'skipped' ? gearExchange : null,
+    });
   } catch (error) {
     logOrderError('shipping.manual.failed', { orderId, ...describeError(error) });
     return jsonResponse({ message: `Saving tracking failed: ${error instanceof Error ? error.message : String(error)}` }, 500);

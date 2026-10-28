@@ -650,6 +650,42 @@ export async function dbMarkInventorySoldFromReverb(
   }
 }
 
+// Reverb fields are left alone here: the caller ends the Reverb listing first and only clears
+// reverb_listing_id if that worked, so a still-live Reverb listing stays visible.
+export async function dbMarkInventorySoldFromGx(
+  recordId: string,
+  fields: { soldDate: string; soldAmount: number; sellNotes: string },
+  env: Env,
+): Promise<boolean> {
+  const idValue = Number.parseInt(recordId, 10);
+  if (!Number.isFinite(idValue)) return false;
+  try {
+    const result = await env.DB.prepare(
+      `UPDATE ccg_inventory_items
+       SET for_sale = 0,
+           is_sold = 1,
+           sold_date = ?,
+           sold_amount = ?,
+           sold_channel = 'Sweetwater Gear Exchange',
+           sell_notes = ?,
+           queue = 'Sold',
+           sales_channel_ccg = 0,
+           sales_channel_cl = 0,
+           sales_channel_gear_exchange = 0,
+           sales_channel_offerup = 0,
+           sales_channel_ebay = 0,
+           sales_channel_nextdoor = 0,
+           sales_channel_other = 0,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND COALESCE(is_sold, 0) = 0`
+    ).bind(fields.soldDate, fields.soldAmount, fields.sellNotes, idValue).run();
+    return Number(result.meta?.changes || 0) > 0;
+  } catch (error) {
+    console.error('Inventory mark-sold-from-GX update failed', { error });
+    return false;
+  }
+}
+
 export async function dbMarkInventorySoldFromFbm(
   recordId: string,
   fields: { soldDate: string; sellNotes: string },
