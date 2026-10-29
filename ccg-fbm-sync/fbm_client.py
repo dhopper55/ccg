@@ -9,7 +9,8 @@ risk, not an oversight.
 Session handling: the first run opens a real, visible browser window so you log into
 Facebook yourself, by hand (sidesteps 2FA/captcha entirely — this code never sees your
 password). That session is saved locally to `.fb_session.json` and reused on every later
-run. Delete that file to force a fresh login (e.g. if Facebook logs the session out).
+run, and re-saved every time a browser opens. If Facebook has logged the session out, the
+run notices the login form and waits for you to log in by hand again (see _new_session_context).
 
 `.fb_session.json` holds live Facebook auth cookies — treat it like a password, never
 commit it (already in .gitignore).
@@ -164,25 +165,44 @@ def _click_load_more(page) -> bool:
     return False
 
 
-def _login_and_save_session(playwright) -> None:
-    browser = playwright.chromium.launch(headless=False)
-    context = browser.new_context()
+def _new_session_context(browser):
+    """A context seeded from the saved session (if any), checked for being logged in first.
+
+    Facebook expires/invalidates sessions server-side while the cookies in the saved file
+    still look valid, so the file existing proves nothing — found live 2026-10-28, when every
+    run hit FB's "See more on Facebook" login wall and a by-hand login in that window was
+    never written back to disk, so the next run loaded the same dead cookies again. Instead,
+    load the create-listing page and wait for a by-hand login until its photo input shows up,
+    then always re-save the session so both a fresh login and FB's routine cookie rotation
+    carry to the next run. Checks for the photo input rather than for a password field: with a
+    dead session, facebook.com's home page showed no password field yet the create page still
+    hit the login wall (found live 2026-10-28)."""
+    if SESSION_FILE.exists():
+        context = browser.new_context(storage_state=str(SESSION_FILE))
+    else:
+        context = browser.new_context()
     page = context.new_page()
-    page.goto("https://www.facebook.com/login")
-    print("\nA browser window opened. Log into Facebook there, then come back and press Enter.")
-    input()
+
+    def logged_in() -> bool:
+        page.goto(CREATE_LISTING_URL, wait_until="domcontentloaded")
+        try:
+            page.locator("input[type='file'][accept*='image']").first.wait_for(state="attached", timeout=10000)
+            return True
+        except Exception:
+            return False
+
+    while not logged_in():
+        print("\nFacebook isn't logged in. Log in in the browser window, then come back and press Enter.")
+        input()
     context.storage_state(path=str(SESSION_FILE))
-    browser.close()
-    print(f"Session saved to {SESSION_FILE.name} — future runs won't need to log in again.\n")
+    page.close()
+    return context
 
 
 def get_active_listings() -> list[FbListing]:
     with sync_playwright() as playwright:
-        if not SESSION_FILE.exists():
-            _login_and_save_session(playwright)
-
         browser = playwright.chromium.launch(headless=False)
-        context = browser.new_context(storage_state=str(SESSION_FILE))
+        context = _new_session_context(browser)
         page = context.new_page()
         # "networkidle" effectively never fires on Facebook — it keeps background
         # websocket/polling traffic running indefinitely, so that wait condition just times
@@ -238,10 +258,8 @@ def open_draft_browser(playwright):
     """One browser, reused for every draft in a run — each draft opens in its own new tab
     (via create_draft_listing's `context`) rather than a separate browser window each time.
     Caller owns the lifecycle: close `browser` and call `playwright.stop()` when done."""
-    if not SESSION_FILE.exists():
-        _login_and_save_session(playwright)
     browser = playwright.chromium.launch(headless=False)
-    context = browser.new_context(storage_state=str(SESSION_FILE))
+    context = _new_session_context(browser)
     return browser, context
 
 
@@ -691,10 +709,11 @@ def create_draft_listing(
 
     allow_shipping / shipping_cost (added 2026-09-20, Add All mode). Flow confirmed from live
     screenshots: the account default now pre-selects "Shipping & local pickup", so the Delivery
-    method dropdown is always set explicitly. shipping_cost of 0 (or allow_shipping False) ->
-    "Local pickup" + the 3 meetup boxes, exactly as before. shipping_cost > 0 -> "Shipping &
-    local pickup" (which replaces the meetup section with a "Shipping label" row): open the
-    label dialog, Shipping option "Use your own label", Shipping rate = shipping_cost, Update;
+    method dropdown is always set explicitly. allow_shipping False -> "Local pickup" + the 3
+    meetup boxes, exactly as before. allow_shipping True (including shipping_cost 0, i.e. free
+    shipping) -> "Shipping & local pickup" (which replaces the meetup section with a "Shipping
+    label" row): open the label dialog, Shipping option "Use your own label", Shipping rate =
+    shipping_cost, Update;
     Next to the "Allow offers" step, always turned OFF; then Save draft. If any shipping step
     fails, the draft is NOT saved (returns None) rather than saving a mis-configured listing.
     Selectors are text-based and not yet run end-to-end — expect to tune them on the first run.
@@ -778,7 +797,9 @@ def create_draft_listing(
 
     # Meetup preferences (Public meetup / Door pickup / Door dropoff) — see
     # _check_meetup_preference.
-    use_shipping = bool(allow_shipping) and float(shipping_cost or 0) > 0
+    # A $0 shipping cost is free shipping, not "no shipping" (changed 2026-10-28) — only
+    # allow_shipping decides whether the draft ships.
+    use_shipping = bool(allow_shipping)
     if use_shipping and float(price or 0) > FB_MAX_SHIPPING_PRICE:
         print(
             f"  FB doesn't allow shipping over ${FB_MAX_SHIPPING_PRICE} — drafting as local pickup only "

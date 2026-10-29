@@ -29,7 +29,7 @@ export async function dbListPurchaseLotItems(lotId: number, env: Env): Promise<P
        i.private_party_value * ${LOT_ROW_QTY_SQL} AS private_party_value,
        CASE WHEN i.for_sale = 1 THEN COALESCE(i.sale_price, 0) * ${LOT_ROW_QTY_SQL} ELSE 0 END AS for_sale_amount
      FROM ccg_inventory_items i
-     WHERE i.purchase_lot_id = ?
+     WHERE i.purchase_lot_id = ? AND COALESCE(i.is_active, 0) = 1
      ORDER BY i.created_at DESC`
   ).bind(lotId).all<PurchaseLotItemRow>();
   return result.results ?? [];
@@ -39,12 +39,12 @@ export async function dbListPurchaseLots(env: Env): Promise<PurchaseLotRow[]> {
   const result = await env.DB.prepare(
     `SELECT
        l.id, l.name, l.description, l.created_at,
-       COALESCE(SUM(CASE WHEN i.is_sold = 1 AND i.is_active = 1 THEN i.sold_amount ELSE 0 END), 0) AS resale_amount,
-       COALESCE(SUM(CASE WHEN i.is_active = 1 THEN COALESCE(i.unit_purchase_price, 0) * ${LOT_ROW_QTY_SQL} ELSE 0 END), 0) AS total_spent_calc,
-       COALESCE(SUM(CASE WHEN i.is_active = 1 AND i.for_sale = 1 AND COALESCE(i.is_sold, 0) = 0 THEN COALESCE(i.sale_price, 0) * ${LOT_ROW_QTY_SQL} ELSE 0 END), 0) AS for_sale_amount,
-       COALESCE(SUM(CASE WHEN i.is_active = 1 THEN COALESCE(i.private_party_value, 0) * ${LOT_ROW_QTY_SQL} ELSE 0 END), 0) AS private_party_amount
+       COALESCE(SUM(CASE WHEN i.is_sold = 1 THEN i.sold_amount ELSE 0 END), 0) AS resale_amount,
+       COALESCE(SUM(COALESCE(i.unit_purchase_price, 0) * ${LOT_ROW_QTY_SQL}), 0) AS total_spent_calc,
+       COALESCE(SUM(CASE WHEN i.for_sale = 1 AND COALESCE(i.is_sold, 0) = 0 THEN COALESCE(i.sale_price, 0) * ${LOT_ROW_QTY_SQL} ELSE 0 END), 0) AS for_sale_amount,
+       COALESCE(SUM(COALESCE(i.private_party_value, 0) * ${LOT_ROW_QTY_SQL}), 0) AS private_party_amount
      FROM ccg_purchase_lots l
-     LEFT JOIN ccg_inventory_items i ON i.purchase_lot_id = l.id
+     LEFT JOIN ccg_inventory_items i ON i.purchase_lot_id = l.id AND COALESCE(i.is_active, 0) = 1
      GROUP BY l.id, l.name, l.description, l.created_at
      ORDER BY l.created_at DESC, l.id DESC`
   ).all<PurchaseLotRow>();
