@@ -5164,9 +5164,10 @@ const InventoryItem = () => {
               )}
               label="Replace item title"
             />
-            {photoAnalysisError ? <Alert severity="error">{photoAnalysisError}</Alert> : null}
           </Stack>
         </DialogContent>
+        {/* Outside the scrolling content, so a long paste can't push the error out of view. */}
+        {photoAnalysisError ? <Alert severity="error" sx={{ mx: 3, mt: 2 }}>{photoAnalysisError}</Alert> : null}
         <DialogActions>
           <Button variant="outlined" onClick={closePhotoAnalysisDialog}>
             Cancel
@@ -5236,9 +5237,9 @@ const InventoryItem = () => {
               Fill Listing replaces the sale title, description and bullets 1–5, and marks the item For Sale.
               AI Analysis is not changed.
             </Typography>
-            {listingError ? <Alert severity="error">{listingError}</Alert> : null}
           </Stack>
         </DialogContent>
+        {listingError ? <Alert severity="error" sx={{ mx: 3, mt: 2 }}>{listingError}</Alert> : null}
         <DialogActions>
           <Button variant="outlined" onClick={() => setListingDialogOpen(false)}>
             Cancel
