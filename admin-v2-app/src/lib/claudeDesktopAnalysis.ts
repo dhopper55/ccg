@@ -1,7 +1,7 @@
-// Helpers for the inventory item's Claude desktop flows ("Refresh AI Analysis From Pics" and
-// "Re-Eval and Build Listing"), which run in Claude desktop (covered by the subscription)
-// instead of the paid API: build the prompt to paste there, then read Claude's reply back
-// into the form from the JSON block at the end of it.
+// Helpers for the Claude desktop flows (the inventory item's "AI Analysis & Listing Tools" and
+// the listing evaluator), which run in Claude desktop (covered by the subscription) instead of
+// the paid API: build the prompt to paste there, then read Claude's reply back into the form
+// from the JSON block at the end of it.
 
 export type ClaudeDesktopFields = {
   title: string;
@@ -29,30 +29,6 @@ const SHOP_PRICING_RULE = [
   '- Quick flip buy price: no more than 70% of that shop price (a 30% margin), with no tax or fee adjustments.',
 ].join('\n');
 
-export function buildClaudeDesktopPrompt(
-  title: string,
-  notes: string,
-  categoryLines: string[],
-  merchantCodes: string[],
-): string {
-  const titleLine = title
-    ? `The listing title is "${title}".`
-    : 'There is no listing title yet — identify the item from the pictures.';
-  return [
-    `${titleLine} Do your own evaluation on this item based on the pictures. Give me a concise readout of the following: Reverb sold range, realistic private party value in Denver metro, quick flip buy price (for 30% margin or more), and lastly, is this gear desirable - meaning do listings for this sit for a long time and are there a lot of them, or are they more rare and desirable?`,
-    ...(notes.trim() ? ['', `Additional details: ${notes.trim()}`] : []),
-    '',
-    SHOP_PRICING_RULE,
-    '',
-    'At the very end of your reply, add a ```json code block in exactly this shape, for my inventory system. This block is just bookkeeping: fill it from what you already found for the readout and do not do any extra research or searches for it. Use "" for anything you can\'t determine. model must not repeat the brand. serial_number only if it is legible in the photos. year_range: do not research the year — only if you found a serial number, try one quick decode (at most one lookup); if that does not settle it, leave it "". private_party_value is a whole-dollar number (0 if unknown).',
-    '```json',
-    '{"title":"","brand":"","model":"","finish":"","year_range":"","serial_number":"","category":"","merchant_center_category":"","private_party_value":0}',
-    '```',
-    `category: copy one line exactly from this list: ${categoryLines.join('; ')}`,
-    `merchant_center_category: one of: ${merchantCodes.join(', ')}`,
-  ].join('\n');
-}
-
 export type ClaudeListing = {
   saleTitle: string;
   description: string;
@@ -62,37 +38,59 @@ export type ClaudeListing = {
 const EVAL_QUESTIONS =
   'Reverb sold range, realistic private party value in Denver metro, quick flip buy price (for 30% margin or more), and lastly, is this gear desirable - meaning do listings for this sit for a long time and are there a lot of them, or are they more rare and desirable?';
 
-export function buildClaudeListingPrompt(
-  title: string,
-  notes: string,
-  previousAnalysis: string,
-): string {
+// Prompt for the inventory item's "AI Analysis & Listing Tools" dialog. Always asks for an
+// evaluation plus the item-field JSON; with buildListing it also asks for a listing, returned
+// in the same JSON block. A previous analysis is included so Claude builds on it. Without
+// includeImages, Claude is told to reuse the pictures already in that chat.
+export function buildClaudeItemPrompt(options: {
+  title: string;
+  notes: string;
+  previousAnalysis: string;
+  categoryLines: string[];
+  merchantCodes: string[];
+  buildListing: boolean;
+  includeImages: boolean;
+}): string {
+  const { title, notes, previousAnalysis, categoryLines, merchantCodes, buildListing, includeImages } = options;
   const titleLine = title
     ? `The item title is "${title}".`
     : 'There is no item title yet — identify the item from the pictures.';
-  const evalStep = previousAnalysis
-    ? `1. Re-evaluate the item. My previous analysis (from earlier, rougher photos) is below — use it as your starting point and only research again where the new photos change the picture (condition, details, authenticity, value). Give me a concise readout: ${EVAL_QUESTIONS} Note what changed from the previous analysis.`
-    : `1. Evaluate the item (there is no previous analysis, so do a full evaluation). Give me a concise readout: ${EVAL_QUESTIONS}`;
+  const photosLine = includeImages
+    ? (buildListing ? "I've taken new, high-quality listing photos of it (attached)." : 'Pictures of it are attached.')
+    : 'I have not attached new pictures this time — evaluate using the pictures already attached earlier in this chat, if there are any.';
+  const evalText = previousAnalysis
+    ? `Re-evaluate the item. My previous analysis is below — use it as your starting point and only research again where the pictures change your view (condition, details, authenticity, value). Give me a concise readout: ${EVAL_QUESTIONS} Note what changed from the previous analysis.`
+    : `Do your own evaluation on this item based on the pictures (there is no previous analysis, so do a full evaluation). Give me a concise readout: ${EVAL_QUESTIONS}`;
+  const listingKeys = buildListing ? ',"sale_title":"","description":"","bullets":["","","","",""]' : '';
   return [
-    `${titleLine} I've taken new, high-quality listing photos of it (attached). Please do two things:`,
+    `${titleLine} ${photosLine}${buildListing ? ' Please do two things:' : ''}`,
     '',
-    evalStep,
-    '',
-    '2. Build a listing for the item:',
-    '- Do NOT mention price.',
-    '- Do NOT mention my shop, shipping, local pickup, payment or trying it out — that is added separately. The listing is only about the item itself.',
-    '- Target Facebook Marketplace for length and tone.',
-    '- sale_title: a concise product title, no price, under 80 characters.',
-    '- description: plain text, at least a couple of paragraphs about the item (what it is, features, sound/use, and condition from the photos and my notes), followed by a bulleted spec list if you have the specs. Separate paragraphs with a blank line and start each spec line with "• ". No markdown (no **, # or tables). A few emoji are fine but optional.',
-    '- bullets: exactly 5 short selling points, each under 60 characters, separate from the description.',
+    ...(buildListing
+      ? [
+          `1. ${evalText}`,
+          '',
+          '2. Build a listing for the item:',
+          '- Do NOT mention price.',
+          '- Do NOT mention my shop, shipping, local pickup, payment or trying it out — that is added separately. The listing is only about the item itself.',
+          '- Target Facebook Marketplace for length and tone.',
+          '- sale_title: a concise product title, no price, under 80 characters.',
+          '- description: plain text, at least a couple of paragraphs about the item (what it is, features, sound/use, and condition from the photos and my notes), followed by a bulleted spec list if you have the specs. Separate paragraphs with a blank line and start each spec line with "• ". No markdown (no **, # or tables). A few emoji are fine but optional.',
+          '- bullets: exactly 5 short selling points, each under 60 characters, separate from the description.',
+        ]
+      : [evalText]),
     ...(notes.trim() ? ['', `Additional details: ${notes.trim()}`] : []),
     '',
     SHOP_PRICING_RULE,
     '',
-    'Write the evaluation in your reply as normal, but put the listing ONLY in the JSON block — do not also write it out. At the very end of your reply, add a ```json code block in exactly this shape (use \\n for line breaks inside strings):',
+    ...(buildListing
+      ? ['Write the evaluation in your reply as normal, but put the listing ONLY in the JSON block — do not also write it out.']
+      : []),
+    `At the very end of your reply, add one \`\`\`json code block in exactly this shape, for my inventory system${buildListing ? ' (use \\n for line breaks inside strings)' : ''}. The item fields are just bookkeeping: fill them from what you already found for the readout and do not do any extra research or searches for them. Use "" for anything you can't determine. model must not repeat the brand. serial_number only if it is legible in the photos. year_range: do not research the year — only if you found a serial number, try one quick decode (at most one lookup); if that does not settle it, leave it "". private_party_value is a whole-dollar number (0 if unknown).`,
     '```json',
-    '{"sale_title":"","description":"","bullets":["","","","",""]}',
+    `{"title":"","brand":"","model":"","finish":"","year_range":"","serial_number":"","category":"","merchant_center_category":"","private_party_value":0${listingKeys}}`,
     '```',
+    `category: copy one line exactly from this list: ${categoryLines.join('; ')}`,
+    `merchant_center_category: one of: ${merchantCodes.join(', ')}`,
     ...(previousAnalysis ? ['', 'Previous analysis:', previousAnalysis] : []),
   ].join('\n');
 }
@@ -444,12 +442,22 @@ export function parseClaudeDesktopPaste(
   return { analysisHtml, fields: value };
 }
 
-export function parseClaudeListingPaste(html: string, plainText: string): ClaudeListing {
-  const listing = parsePaste(html, plainText, readListingObject).value;
-  if (!listing.saleTitle && !listing.description) {
+// Read the reply to buildClaudeItemPrompt: the item fields, plus the listing when one was asked for.
+export function parseClaudeItemPaste(
+  html: string,
+  plainText: string,
+  wantListing: boolean,
+): { analysisHtml: string; fields: ClaudeDesktopFields; listing: ClaudeListing | null } {
+  const { analysisHtml, value } = parsePaste(html, plainText, (record) => {
+    const fields = readFieldObject(record);
+    const listing = wantListing ? readListingObject(record) : null;
+    if (!fields || (wantListing && !listing)) return null;
+    return { fields, listing };
+  });
+  if (value.listing && !value.listing.saleTitle && !value.listing.description) {
     throw new Error("The listing in Claude's reply is empty.");
   }
-  return listing;
+  return { analysisHtml, ...value };
 }
 
 // Plain-text version of the AI Analysis HTML, for including it in a prompt.

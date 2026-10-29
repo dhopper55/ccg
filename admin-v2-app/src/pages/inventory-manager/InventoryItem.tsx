@@ -35,12 +35,10 @@ import paths from 'routes/paths';
 import { downloadImagesAsZip } from 'lib/imageZip';
 import {
   analysisHtmlToText,
-  buildClaudeDesktopPrompt,
+  buildClaudeItemPrompt,
   claudePasteBoxSx,
   copyTextToClipboard,
-  buildClaudeListingPrompt,
-  parseClaudeDesktopPaste,
-  parseClaudeListingPaste,
+  parseClaudeItemPaste,
 } from 'lib/claudeDesktopAnalysis';
 import { formatOrderNumber } from 'lib/utils';
 import ReverbListingWizard from './ReverbListingWizard';
@@ -1376,12 +1374,8 @@ const InventoryItem = () => {
   const [photoAnalysisNotes, setPhotoAnalysisNotes] = useState('');
   const [photoAnalysisOverwrite, setPhotoAnalysisOverwrite] = useState(false);
   const [photoAnalysisReplaceTitle, setPhotoAnalysisReplaceTitle] = useState(false);
-  const [listingDialogOpen, setListingDialogOpen] = useState(false);
-  const [listingTitle, setListingTitle] = useState('');
-  const [listingPromptCopied, setListingPromptCopied] = useState(false);
-  const [listingReply, setListingReply] = useState('');
-  const [listingError, setListingError] = useState('');
-  const listingReplyRef = useRef<HTMLDivElement | null>(null);
+  const [photoAnalysisDownloadImages, setPhotoAnalysisDownloadImages] = useState(true);
+  const [photoAnalysisBuildListing, setPhotoAnalysisBuildListing] = useState(false);
   const [photoAnalysisReply, setPhotoAnalysisReply] = useState('');
   const photoAnalysisReplyRef = useRef<HTMLDivElement | null>(null);
   const [photoAnalysisPromptCopied, setPhotoAnalysisPromptCopied] = useState(false);
@@ -2955,6 +2949,8 @@ const InventoryItem = () => {
     setPhotoAnalysisTitle(form.title);
     setPhotoAnalysisReply('');
     setPhotoAnalysisPromptCopied(false);
+    setPhotoAnalysisDownloadImages(true);
+    setPhotoAnalysisBuildListing(false);
     setPhotoAnalysisError('');
     setPhotoAnalysisDialogOpen(true);
     setMessage(null);
@@ -2976,99 +2972,43 @@ const InventoryItem = () => {
   const copyPhotoAnalysisPrompt = async (event: MouseEvent<HTMLButtonElement>) => {
     setPhotoAnalysisError('');
     const container = event.currentTarget.parentElement || document.body;
-    const prompt = buildClaudeDesktopPrompt(
-      photoAnalysisTitle.trim(),
-      photoAnalysisNotes,
-      categoryPromptLines.map((entry) => entry.line),
-      MERCHANT_CENTER_CATEGORY_OPTIONS.map((option) => option.key),
-    );
+    const includeImages = photoAnalysisDownloadImages && images.length > 0;
+    const prompt = buildClaudeItemPrompt({
+      title: photoAnalysisTitle.trim(),
+      notes: photoAnalysisNotes,
+      previousAnalysis: analysisHtmlToText(form.aiAnalysisText),
+      categoryLines: categoryPromptLines.map((entry) => entry.line),
+      merchantCodes: MERCHANT_CENTER_CATEGORY_OPTIONS.map((option) => option.key),
+      buildListing: photoAnalysisBuildListing,
+      includeImages,
+    });
     const copyError = await copyTextToClipboard(prompt, container);
     if (copyError) {
       setPhotoAnalysisError(copyError);
       return;
     }
     setPhotoAnalysisPromptCopied(true);
-    await handleDownloadZip(photoAnalysisTitle.trim());
+    if (includeImages) await handleDownloadZip(photoAnalysisTitle.trim());
   };
 
-  const openListingDialog = () => {
-    setListingTitle(form.title);
-    setListingReply('');
-    setListingPromptCopied(false);
-    setListingError('');
-    setListingDialogOpen(true);
-    setMessage(null);
-  };
-
-  const copyListingPrompt = async (event: MouseEvent<HTMLButtonElement>) => {
-    setListingError('');
-    const container = event.currentTarget.parentElement || document.body;
-    const prompt = buildClaudeListingPrompt(
-      listingTitle.trim(),
-      photoAnalysisNotes,
-      analysisHtmlToText(form.aiAnalysisText),
-    );
-    const copyError = await copyTextToClipboard(prompt, container);
-    if (copyError) {
-      setListingError(copyError);
-      return;
-    }
-    setListingPromptCopied(true);
-    await handleDownloadZip(listingTitle.trim());
-  };
-
-  // Fill the For Sale listing from Claude's reply: sale title, description and bullets 1–5
-  // are replaced, the item is marked For Sale (same as checking the box), and the sale URL
-  // slug is generated from the new title only when it is still blank.
-  const fillListingFromClaudeReply = () => {
-    setListingError('');
-    let listing: ReturnType<typeof parseClaudeListingPaste>;
-    try {
-      listing = parseClaudeListingPaste(
-        listingReplyRef.current?.innerHTML || '',
-        listingReplyRef.current?.innerText || '',
-      );
-    } catch (error) {
-      setListingError(error instanceof Error ? error.message : "Unable to read Claude's reply.");
-      return;
-    }
-    const generatedSlug = form.saleUrl.trim() ? '' : generateSaleUrlSlugFromTitle(listing.saleTitle);
-    setForm((current) => {
-      let next: FormState = { ...current, forSale: true, salesChannelCcg: true, queue: 'For Sale' };
-      if (!current.forSale && !wasForSaleOnLoadRef.current && !hasAnySaleBulletText(current)) {
-        next = { ...next, bullet6Text: 'FINANCING AVAILABLE!', bullet6Danger: false, bullet6Highlight: true };
-      }
-      if (current.forSale) next = { ...next, salesChannelCcg: current.salesChannelCcg };
-      return {
-        ...next,
-        saleTitle: listing.saleTitle || current.saleTitle,
-        saleDescription: listing.description || current.saleDescription,
-        bullet1Text: listing.bullets[0] ?? current.bullet1Text,
-        bullet2Text: listing.bullets[1] ?? current.bullet2Text,
-        bullet3Text: listing.bullets[2] ?? current.bullet3Text,
-        bullet4Text: listing.bullets[3] ?? current.bullet4Text,
-        bullet5Text: listing.bullets[4] ?? current.bullet5Text,
-        saleUrl: !current.saleUrl.trim() && generatedSlug ? generatedSlug : current.saleUrl,
-      };
-    });
-    if (generatedSlug) setSaleUrlReadOnly(true);
-    setListingDialogOpen(false);
-    enqueueSnackbar('Listing filled from Claude and marked For Sale. Review and save.', { variant: 'success' });
-  };
-
+  // Fill from Claude's reply: AI Analysis and the item fields (per the overwrite checkboxes),
+  // plus, when Build Listing was ticked, the For Sale listing: sale title, description and
+  // bullets 1–5 are replaced, the item is marked For Sale (same as checking the box), and the
+  // sale URL slug is generated from the new title only when it is still blank.
   const fillFromClaudeReply = () => {
     setPhotoAnalysisError('');
-    let parsed: ReturnType<typeof parseClaudeDesktopPaste>;
+    let parsed: ReturnType<typeof parseClaudeItemPaste>;
     try {
-      parsed = parseClaudeDesktopPaste(
+      parsed = parseClaudeItemPaste(
         photoAnalysisReplyRef.current?.innerHTML || '',
         photoAnalysisReplyRef.current?.innerText || '',
+        photoAnalysisBuildListing,
       );
     } catch (error) {
       setPhotoAnalysisError(error instanceof Error ? error.message : "Unable to read Claude's reply.");
       return;
     }
-    const { analysisHtml, fields: replyFields } = parsed;
+    const { analysisHtml, fields: replyFields, listing } = parsed;
 
     const wanted = replyFields.category.toLowerCase().replace(/\s+/g, ' ');
     const lastSegment = wanted.split('>').pop()?.trim() || '';
@@ -3091,9 +3031,35 @@ const InventoryItem = () => {
     };
     const dialogTitle = photoAnalysisTitle.trim();
     const { filled } = applyPhotoAnalysis(form, analysisHtml, fields, dialogTitle, photoAnalysisOverwrite, photoAnalysisReplaceTitle);
-    setForm((current) => applyPhotoAnalysis(current, analysisHtml, fields, dialogTitle, photoAnalysisOverwrite, photoAnalysisReplaceTitle).next);
+    const generatedSlug = listing && !form.saleUrl.trim() ? generateSaleUrlSlugFromTitle(listing.saleTitle) : '';
+    setForm((current) => {
+      const analyzed = applyPhotoAnalysis(current, analysisHtml, fields, dialogTitle, photoAnalysisOverwrite, photoAnalysisReplaceTitle).next;
+      if (!listing) return analyzed;
+      let next: FormState = { ...analyzed, forSale: true, salesChannelCcg: true, queue: 'For Sale' };
+      if (!current.forSale && !wasForSaleOnLoadRef.current && !hasAnySaleBulletText(current)) {
+        next = { ...next, bullet6Text: 'FINANCING AVAILABLE!', bullet6Danger: false, bullet6Highlight: true };
+      }
+      if (current.forSale) next = { ...next, salesChannelCcg: current.salesChannelCcg };
+      return {
+        ...next,
+        saleTitle: listing.saleTitle || current.saleTitle,
+        saleDescription: listing.description || current.saleDescription,
+        bullet1Text: listing.bullets[0] ?? current.bullet1Text,
+        bullet2Text: listing.bullets[1] ?? current.bullet2Text,
+        bullet3Text: listing.bullets[2] ?? current.bullet3Text,
+        bullet4Text: listing.bullets[3] ?? current.bullet4Text,
+        bullet5Text: listing.bullets[4] ?? current.bullet5Text,
+        saleUrl: !current.saleUrl.trim() && generatedSlug ? generatedSlug : current.saleUrl,
+      };
+    });
+    if (generatedSlug) setSaleUrlReadOnly(true);
     setPhotoAnalysisDialogOpen(false);
-    enqueueSnackbar(`Filled from Claude: ${filled.join(', ')}. Review and save.`, { variant: 'success' });
+    enqueueSnackbar(
+      listing
+        ? `Filled from Claude: ${[...filled, 'listing'].join(', ')}, and marked For Sale. Review and save.`
+        : `Filled from Claude: ${filled.join(', ')}. Review and save.`,
+      { variant: 'success' },
+    );
   };
 
   return (
@@ -3866,38 +3832,17 @@ const InventoryItem = () => {
                 )}
               </Grid>
               <Grid size={{ xs: 12, md: 3 }}>
-                <Stack spacing={1}>
-                  <Tooltip title={images.length === 0 ? 'Upload images first.' : ''}>
-                    <Box component="span" sx={{ display: 'block' }}>
-                      <Button
-                        fullWidth
-                        sx={{ whiteSpace: 'normal', lineHeight: 1.3, py: 1.25 }}
-                        variant="outlined"
-                        color="primary"
-                        onClick={openPhotoAnalysisDialog}
-                        disabled={images.length === 0 || isUploading}
-                        startIcon={<IconifyIcon icon="material-symbols:imagesmode-rounded" />}
-                      >
-                        Refresh AI Analysis From Pics
-                      </Button>
-                    </Box>
-                  </Tooltip>
-                  <Tooltip title={images.length === 0 ? 'Upload images first.' : ''}>
-                    <Box component="span" sx={{ display: 'block' }}>
-                      <Button
-                        fullWidth
-                        sx={{ whiteSpace: 'normal', lineHeight: 1.3, py: 1.25 }}
-                        variant="outlined"
-                        color="primary"
-                        onClick={openListingDialog}
-                        disabled={images.length === 0 || isUploading}
-                        startIcon={<IconifyIcon icon="material-symbols:sell-outline" />}
-                      >
-                        Re-Eval and Build Listing
-                      </Button>
-                    </Box>
-                  </Tooltip>
-                </Stack>
+                <Button
+                  fullWidth
+                  sx={{ whiteSpace: 'normal', lineHeight: 1.3, py: 1.25 }}
+                  variant="outlined"
+                  color="primary"
+                  onClick={openPhotoAnalysisDialog}
+                  disabled={isUploading}
+                  startIcon={<IconifyIcon icon="material-symbols:imagesmode-rounded" />}
+                >
+                  AI Analysis &amp; Listing Tools
+                </Button>
               </Grid>
 
               <Grid size={12}>
@@ -4775,6 +4720,19 @@ const InventoryItem = () => {
                     >
                       {isSubmitting ? 'Saving...' : submitLabel}
                     </Button>
+                    <Tooltip title={mode !== 'edit' ? 'Save the item first before listing it on FBM.' : (form.fbListingId.trim() ? 'Already listed on FBM.' : '')}>
+                      <span>
+                        <Button
+                          variant="contained"
+                          disabled={mode !== 'edit' || Boolean(form.fbListingId.trim())}
+                          onClick={() => setFbmCommandOpen(true)}
+                          startIcon={<Box component="img" src="/images/fb.png" alt="" sx={{ width: 16, height: 16 }} />}
+                          sx={mode === 'edit' && !form.fbListingId.trim() ? { bgcolor: '#1877F2', color: '#fff', '&:hover': { bgcolor: '#166FE5' } } : undefined}
+                        >
+                          Add to FBM
+                        </Button>
+                      </span>
+                    </Tooltip>
                     <Tooltip title={mode !== 'edit' ? 'Save the item first before listing it on Reverb.' : ''}>
                       <span>
                         <Button
@@ -4797,19 +4755,6 @@ const InventoryItem = () => {
                           {isReverbActionPending
                             ? 'Working...'
                             : (form.reverbListingId ? 'Delete From Reverb' : 'Add to Reverb')}
-                        </Button>
-                      </span>
-                    </Tooltip>
-                    <Tooltip title={mode !== 'edit' ? 'Save the item first before listing it on FBM.' : ''}>
-                      <span>
-                        <Button
-                          variant="contained"
-                          disabled={mode !== 'edit'}
-                          onClick={() => setFbmCommandOpen(true)}
-                          startIcon={<Box component="img" src="/images/fb.png" alt="" sx={{ width: 16, height: 16 }} />}
-                          sx={{ bgcolor: '#1877F2', color: '#fff', '&:hover': { bgcolor: '#166FE5' } }}
-                        >
-                          Add to FBM
                         </Button>
                       </span>
                     </Tooltip>
@@ -5093,10 +5038,10 @@ const InventoryItem = () => {
         </DialogContent>
       </Dialog>
       <Dialog open={photoAnalysisDialogOpen} onClose={closePhotoAnalysisDialog} fullWidth maxWidth="sm">
-        <DialogTitle>Refresh AI Analysis From Pics</DialogTitle>
+        <DialogTitle>AI Analysis &amp; Listing Tools</DialogTitle>
         <DialogContent dividers sx={{ display: 'block' }}>
           <Stack direction="column" spacing={2} sx={{ width: 1, pt: 1 }}>
-            <Typography variant="subtitle2">1. Copy the prompt and download the pics</Typography>
+            <Typography variant="subtitle2">1. Copy the prompt</Typography>
             <TextField
               fullWidth
               autoFocus
@@ -5116,23 +5061,54 @@ const InventoryItem = () => {
               onChange={(event) => setPhotoAnalysisNotes(event.target.value)}
               inputProps={{ maxLength: 4000 }}
             />
-            <Button
-              variant="outlined"
-              onClick={copyPhotoAnalysisPrompt}
-              disabled={isDownloadingZip || images.length === 0}
-              startIcon={(
-                <IconifyIcon
-                  icon={isDownloadingZip ? 'material-symbols:hourglass-top-rounded' : 'material-symbols:content-copy-outline-rounded'}
-                />
-              )}
-              sx={{ alignSelf: 'flex-start' }}
-            >
-              {isDownloadingZip ? 'Downloading pics…' : 'Copy Prompt & Download Pics'}
-            </Button>
+            <Typography variant="body2" color="text.secondary">
+              {form.aiAnalysisText.trim()
+                ? 'The current AI Analysis is included so Claude can build on it.'
+                : 'There is no AI Analysis yet, so Claude will do a full evaluation.'}
+            </Typography>
+            <Stack direction="row" sx={{ alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+              <Button
+                variant="outlined"
+                onClick={copyPhotoAnalysisPrompt}
+                disabled={isDownloadingZip || (photoAnalysisDownloadImages && images.length === 0)}
+                startIcon={(
+                  <IconifyIcon
+                    icon={isDownloadingZip ? 'material-symbols:hourglass-top-rounded' : 'material-symbols:content-copy-outline-rounded'}
+                  />
+                )}
+              >
+                {isDownloadingZip ? 'Downloading pics…' : 'Copy Prompt'}
+              </Button>
+              <FormControlLabel
+                control={(
+                  <Checkbox
+                    checked={photoAnalysisDownloadImages}
+                    onChange={(event) => setPhotoAnalysisDownloadImages(event.target.checked)}
+                  />
+                )}
+                label="Download Images"
+              />
+              <FormControlLabel
+                control={(
+                  <Checkbox
+                    checked={photoAnalysisBuildListing}
+                    onChange={(event) => setPhotoAnalysisBuildListing(event.target.checked)}
+                  />
+                )}
+                label="Build Listing"
+              />
+            </Stack>
+            {photoAnalysisDownloadImages && images.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                This item has no images. Untick Download Images to have Claude use the pictures already in the chat.
+              </Typography>
+            ) : null}
             {photoAnalysisPromptCopied ? (
               <Alert severity="success">
-                Prompt copied. In Claude desktop, attach the ZIP ({images.length} pic{images.length === 1 ? '' : 's'}),
-                paste the prompt and send. When it finishes, use the copy button under the reply and paste it below.
+                {photoAnalysisDownloadImages && images.length > 0
+                  ? `Prompt copied. In Claude desktop, attach the ZIP (${images.length} pic${images.length === 1 ? '' : 's'}), paste the prompt and send.`
+                  : 'Prompt copied. Paste it into the Claude desktop chat that already has the pictures and send.'}
+                {' '}When it finishes, use the copy button under the reply and paste it below.
               </Alert>
             ) : null}
 
@@ -5164,6 +5140,11 @@ const InventoryItem = () => {
               )}
               label="Replace item title"
             />
+            {photoAnalysisBuildListing ? (
+              <Typography variant="body2" color="text.secondary">
+                Fill also replaces the sale title, description and bullets 1–5, and marks the item For Sale.
+              </Typography>
+            ) : null}
           </Stack>
         </DialogContent>
         {/* Outside the scrolling content, so a long paste can't push the error out of view. */}
@@ -5173,79 +5154,7 @@ const InventoryItem = () => {
             Cancel
           </Button>
           <Button variant="contained" onClick={fillFromClaudeReply} disabled={!photoAnalysisReply.trim()}>
-            Fill Fields
-          </Button>
-        </DialogActions>
-      </Dialog>
-      <Dialog open={listingDialogOpen} onClose={() => setListingDialogOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Re-Eval and Build Listing</DialogTitle>
-        <DialogContent dividers sx={{ display: 'block' }}>
-          <Stack direction="column" spacing={2} sx={{ width: 1, pt: 1 }}>
-            <Typography variant="subtitle2">1. Copy the prompt and download the pics</Typography>
-            <TextField
-              fullWidth
-              autoFocus
-              label="Title"
-              value={listingTitle}
-              onChange={(event) => setListingTitle(event.target.value)}
-              inputProps={{ maxLength: 240 }}
-            />
-            <TextField
-              fullWidth
-              multiline
-              minRows={3}
-              label="Additional details (optional)"
-              placeholder="e.g. Tested, all pots clean. Includes gig bag."
-              value={photoAnalysisNotes}
-              onChange={(event) => setPhotoAnalysisNotes(event.target.value)}
-              inputProps={{ maxLength: 4000 }}
-            />
-            <Typography variant="body2" color="text.secondary">
-              {form.aiAnalysisText.trim()
-                ? 'The current AI Analysis is included so Claude can build on it.'
-                : 'There is no AI Analysis yet, so Claude will do a full evaluation.'}
-            </Typography>
-            <Button
-              variant="outlined"
-              onClick={copyListingPrompt}
-              disabled={isDownloadingZip || images.length === 0}
-              startIcon={(
-                <IconifyIcon
-                  icon={isDownloadingZip ? 'material-symbols:hourglass-top-rounded' : 'material-symbols:content-copy-outline-rounded'}
-                />
-              )}
-              sx={{ alignSelf: 'flex-start' }}
-            >
-              {isDownloadingZip ? 'Downloading pics…' : 'Copy Prompt & Download Pics'}
-            </Button>
-            {listingPromptCopied ? (
-              <Alert severity="success">
-                Prompt copied. In Claude desktop, attach the ZIP ({images.length} pic{images.length === 1 ? '' : 's'}),
-                paste the prompt and send. When it finishes, copy the reply and paste it below.
-              </Alert>
-            ) : null}
-
-            <Typography variant="subtitle2" sx={{ pt: 1 }}>2. Paste Claude&apos;s response</Typography>
-            <Box
-              ref={listingReplyRef}
-              contentEditable
-              suppressContentEditableWarning
-              onInput={(event) => setListingReply((event.currentTarget as HTMLDivElement).innerText)}
-              sx={claudePasteBoxSx}
-            />
-            <Typography variant="body2" color="text.secondary">
-              Fill Listing replaces the sale title, description and bullets 1–5, and marks the item For Sale.
-              AI Analysis is not changed.
-            </Typography>
-          </Stack>
-        </DialogContent>
-        {listingError ? <Alert severity="error" sx={{ mx: 3, mt: 2 }}>{listingError}</Alert> : null}
-        <DialogActions>
-          <Button variant="outlined" onClick={() => setListingDialogOpen(false)}>
-            Cancel
-          </Button>
-          <Button variant="contained" onClick={fillListingFromClaudeReply} disabled={!listingReply.trim()}>
-            Fill Listing
+            {photoAnalysisBuildListing ? 'Fill Fields & Listing' : 'Fill Fields'}
           </Button>
         </DialogActions>
       </Dialog>
