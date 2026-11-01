@@ -2539,25 +2539,38 @@ function closeLightbox() {
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
 
-// ── Pre-populate from query string (?serial=CS403228&brand=Gibson&decodeId=123) ────────
+// ── Pre-populate from a decoder link (?brand=gibson&year=1987&decodeId=123) ────────
 (function() {
   const params = new URLSearchParams(window.location.search);
-  const serial = params.get('serial');
   const brand  = params.get('brand');
+  const year   = params.get('year');
+  // Decoders hand the serial over in localStorage so it stays out of URLs and analytics;
+  // older links still carry ?serial=.
+  let serial = params.get('serial');
+  try {
+    const handoff = JSON.parse(localStorage.getItem('ccg-decoder-handoff') || 'null');
+    if (!serial && handoff && brand && Date.now() - handoff.savedAt < 60 * 60 * 1000
+        && String(handoff.brand).toLowerCase() === brand.toLowerCase()) {
+      serial = handoff.serial;
+    }
+  } catch (_) {}
   if (serial) {
     const f = document.getElementById('field-serial');
     if (f) f.value = serial;
   }
-  if (brand) {
-    const sel = document.getElementById('field-brand');
-    if (sel) {
-      // Try exact match first, then case-insensitive
-      for (const opt of sel.options) {
-        if (opt.value === brand || opt.value.toLowerCase() === brand.toLowerCase()) {
-          sel.value = opt.value;
-          break;
-        }
-      }
+  // Decoders send their brand key ("bcrich", "ernieball"), so compare letters only and let a
+  // key match the start of a longer option name ("Ernie Ball Music Man").
+  const letters = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+  const sel = document.getElementById('field-brand');
+  if (brand && letters(brand) && sel) {
+    const options = Array.from(sel.options).filter((opt) => opt.value && opt.value !== 'Other');
+    const match = options.find((opt) => letters(opt.value) === letters(brand))
+      || options.find((opt) => letters(opt.value).startsWith(letters(brand)));
+    if (match) {
+      sel.value = match.value;
+      const eyebrow = document.querySelector('.hero-eyebrow');
+      const yearLabel = /^\d{4}$/.test(year || '') ? year + ' ' : '';
+      if (eyebrow) eyebrow.textContent = 'Authenticity report for your ' + yearLabel + match.value;
     }
   }
   // Decoder pages link here with ?decodeId=<serial_decode_events.id> so we can attribute

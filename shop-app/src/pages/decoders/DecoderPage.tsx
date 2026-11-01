@@ -4,6 +4,7 @@ import DecoderPreviewLayout from 'layouts/decoder-layout/DecoderPreviewLayout';
 import DecoderInputPanel from './DecoderInputPanel';
 import EvalPitchPanel from './EvalPitchPanel';
 import DecoderFaqPanel from './DecoderFaqPanel';
+import DecoderReportsPanel from './DecoderReportsPanel';
 import DecoderHowToPanel from './DecoderHowToPanel';
 import DecoderSlot from './DecoderSlot';
 import EmailSignupBoldPanel from './EmailSignupBoldPanel';
@@ -23,6 +24,8 @@ export interface DecoderConfig {
   noteHtml: string;
   faqTitle: string;
   faqItems: DecoderFaqItem[];
+  reportMentionTitle: string;
+  reportMentionHtml: string;
   howToTitle: string;
   howToHtml: string;
 }
@@ -74,7 +77,6 @@ const DecoderPage = ({ config }: DecoderPageProps) => {
               brand={config.brandName}
               brandKey={config.brandKey}
               year={decodeSuccess.year}
-              serial={decodeSuccess.serial}
               decodeEventId={decodeSuccess.decodeEventId ?? null}
             />
           </Grid>
@@ -82,7 +84,12 @@ const DecoderPage = ({ config }: DecoderPageProps) => {
 
         <Grid size={{ xs: 12, lg: 7, xl: 6 }} sx={{ order: { xs: 5, lg: 4 } }}>
           <DecoderSlot brand={config.brandKey} name="aboveFaq" />
-          <DecoderFaqPanel title={config.faqTitle} items={config.faqItems} />
+          <DecoderReportsPanel
+            brand={config.brandKey}
+            title={config.reportMentionTitle}
+            html={config.reportMentionHtml}
+          />
+          <DecoderFaqPanel brand={config.brandKey} title={config.faqTitle} items={config.faqItems} />
         </Grid>
 
         <Grid size={{ xs: 12, lg: 7, xl: 6 }} sx={{ order: { xs: 6, lg: 6 } }}>

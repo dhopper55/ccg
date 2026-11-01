@@ -5,6 +5,12 @@ import IconifyIcon from 'components/base/IconifyIcon';
 import SectionHeader from 'components/common/SectionHeader';
 import StyledTextField from 'components/styled/StyledTextField';
 import { trackReportCtaClick, trackSerialDecode } from 'lib/googleAnalytics';
+import {
+  AUTHENTICITY_REPORT_PRICE,
+  VALUE_REPORT_PRICE,
+  buildReportHref,
+  saveDecoderHandoff,
+} from './reportLinks';
 import IbanezAdditionalInfoPanel from './IbanezAdditionalInfoPanel';
 
 const DECODE_URL = 'https://www.coalcreekguitars.com/api/decode';
@@ -49,6 +55,7 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
   const [isLoading, setIsLoading] = useState(false);
   const [decodedInfo, setDecodedInfo] = useState<GuitarInfo | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isNoMatch, setIsNoMatch] = useState(false);
   const [failedDecodeEventId, setFailedDecodeEventId] = useState<number | null>(null);
   const [emailAddress, setEmailAddress] = useState('');
   const [emailSubmitMessage, setEmailSubmitMessage] = useState('');
@@ -74,23 +81,25 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
     [decodedInfo],
   );
 
-  const worthHref = useMemo(() => {
-    const params = new URLSearchParams({ brand });
-    if (serial.trim()) params.set('serial', serial.trim());
-    if (decodeEventId != null) params.set('decodeId', String(decodeEventId));
-    return `/guitar-value-report-evaluation/?${params.toString()}`;
-  }, [brand, serial, decodeEventId]);
+  const worthHref = useMemo(
+    () => buildReportHref('value', { brand, year: decodedInfo?.year, decodeId: decodeEventId }),
+    [brand, decodedInfo?.year, decodeEventId],
+  );
 
-  const authenticityHref = useMemo(() => {
-    const params = new URLSearchParams({ brand });
-    if (serial.trim()) params.set('serial', serial.trim());
-    if (decodeEventId != null) params.set('decodeId', String(decodeEventId));
-    return `/guitar-authenticity-report/?${params.toString()}`;
-  }, [brand, serial, decodeEventId]);
+  const authenticityHref = useMemo(
+    () => buildReportHref('authenticity', { brand, year: decodedInfo?.year, decodeId: decodeEventId }),
+    [brand, decodedInfo?.year, decodeEventId],
+  );
+
+  const noMatchAuthenticityHref = useMemo(
+    () => buildReportHref('authenticity', { brand, decodeId: failedDecodeEventId }),
+    [brand, failedDecodeEventId],
+  );
 
   const clearDecodeOutput = () => {
     setDecodedInfo(null);
     setErrorMessage('');
+    setIsNoMatch(false);
     setFailedDecodeEventId(null);
     setEmailAddress('');
     setEmailSubmitMessage('');
@@ -139,6 +148,7 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
         setDecodeEventId(resolvedDecodeEventId);
         const resolvedSerial = result.info.serialNumber?.trim() || trimmed;
         setSerial(resolvedSerial);
+        saveDecoderHandoff(brand, resolvedSerial);
         onAdditionalInfoChange((result.additionalContextRichText || '').trim());
         onDecodeSuccess?.({
           serial: resolvedSerial,
@@ -152,6 +162,8 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
       // else (bad status, unreadable body) is our failure.
       trackSerialDecode(brand, result ? 'no_match' : 'error');
       clearDecodeOutput();
+      setIsNoMatch(Boolean(result));
+      if (result) saveDecoderHandoff(brand, trimmed);
       setErrorMessage(result?.error || 'Unable to decode serial number.');
       setFailedDecodeEventId(typeof result?.serialDecodeEventId === 'number' ? result.serialDecodeEventId : null);
     } catch {
@@ -359,6 +371,53 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
                 <Typography variant="caption" sx={{ color: 'warning.main', fontWeight: 600 }}>
                   {errorMessage}
                 </Typography>
+                {isNoMatch && (
+                  <Box
+                    sx={{
+                      mt: 2,
+                      border: 1,
+                      borderColor: 'warning.main',
+                      borderRadius: 2,
+                      px: 2.5,
+                      py: 2,
+                    }}
+                  >
+                    <Typography variant="body2" sx={{ color: 'text.primary', fontWeight: 700 }}>
+                      Why a serial might not decode
+                    </Typography>
+                    <Box
+                      component="ul"
+                      sx={{ m: 0, mt: 1, pl: 2.5, typography: 'body2', color: 'text.secondary', lineHeight: 1.7 }}
+                    >
+                      <li>A typo: check O against 0 and I against 1, and leave out spaces and dashes.</li>
+                      <li>
+                        A model number instead of the serial: the serial is usually on the back of the headstock, on
+                        the neck plate, or on the label inside an acoustic.
+                      </li>
+                      <li>A rare production run, a replaced neck, or occasionally a counterfeit.</li>
+                    </Box>
+                    <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1.5 }}>
+                      Still not sure what you have? A real person researches your photos and serial.
+                    </Typography>
+                    <Box
+                      component="a"
+                      href={noMatchAuthenticityHref}
+                      target="_blank"
+                      rel="noopener"
+                      onClick={() => trackReportCtaClick('authenticity', brand, 'decode_result')}
+                      sx={{
+                        display: 'inline-block',
+                        mt: 1,
+                        color: 'warning.main',
+                        fontWeight: 700,
+                        textDecoration: 'none',
+                        '&:hover': { color: 'warning.dark' },
+                      }}
+                    >
+                      🔍 Get an expert authenticity check — {AUTHENTICITY_REPORT_PRICE}, within 12 hours →
+                    </Box>
+                  </Box>
+                )}
                 <Typography variant="caption" component="p" sx={{ color: 'text.secondary', mt: 2, lineHeight: 1.7 }}>
                   {FAILED_DECODE_EMAIL_PROMPT}
                 </Typography>
@@ -446,7 +505,7 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
                     '&:hover': { color: 'warning.dark' },
                   }}
                 >
-                  💰 What's my gear worth? — $19.99
+                  💰 What's my gear worth? — {VALUE_REPORT_PRICE}
                 </Box>
                 <Box
                   component="a"
@@ -463,7 +522,7 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
                     '&:hover': { color: 'warning.dark' },
                   }}
                 >
-                  🔍 Instrument Authenticity Report — $12
+                  🔍 Instrument Authenticity Report — {AUTHENTICITY_REPORT_PRICE}
                 </Box>
               </Stack>
               {resultFields

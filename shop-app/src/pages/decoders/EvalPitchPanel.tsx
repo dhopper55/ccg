@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Box, Dialog, Stack, Typography } from '@mui/material';
 import { trackReportCtaClick } from 'lib/googleAnalytics';
+import { VALUE_REPORT_PRICE, buildReportHref } from './reportLinks';
 
 const SAMPLE_REPORT_URL =
   'https://www.coalcreekguitars.com/guitar-value-report-evaluation/sample-report.html';
@@ -10,17 +11,13 @@ interface EvalPitchPanelProps {
   brand: string;
   brandKey: string;
   year?: string;
-  serial?: string;
   decodeEventId: number | null;
 }
 
-const EvalPitchPanel = ({ brand, brandKey, year, serial, decodeEventId }: EvalPitchPanelProps) => {
+const EvalPitchPanel = ({ brand, brandKey, year, decodeEventId }: EvalPitchPanelProps) => {
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
-  const params = new URLSearchParams({ brand });
-  if (serial) params.set('serial', serial);
-  if (decodeEventId != null) params.set('decodeId', String(decodeEventId));
-  const evalHref = `/guitar-value-report-evaluation/?${params.toString()}`;
+  const evalHref = buildReportHref('value', { brand: brandKey, year, decodeId: decodeEventId });
   const headline = year ? `What's your ${year} ${brand} worth?` : `What's your ${brand} worth?`;
 
   return (
@@ -42,7 +39,7 @@ const EvalPitchPanel = ({ brand, brandKey, year, serial, decodeEventId }: EvalPi
         </Box>
         <Box component="p" sx={{ m: 0, mt: 0.5, typography: 'body2', lineHeight: 1.9 }}>
           <Box component="span" sx={{ color: 'text.secondary' }}>
-            Get Reverb comps, dealer offers &amp; a ready-to-post listing &mdash; just $19.99
+            Get Reverb comps, dealer offers &amp; a ready-to-post listing &mdash; just {VALUE_REPORT_PRICE}
           </Box>
         </Box>
         <Box sx={{ mt: 1 }}>

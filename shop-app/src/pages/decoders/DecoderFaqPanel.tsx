@@ -1,4 +1,5 @@
 import { Box, Divider, Typography } from '@mui/material';
+import { trackReportLinkClick } from './reportLinks';
 
 interface DecoderFaqItem {
   question: string;
@@ -6,11 +7,12 @@ interface DecoderFaqItem {
 }
 
 interface DecoderFaqPanelProps {
+  brand: string;
   title: string;
   items: DecoderFaqItem[];
 }
 
-const DecoderFaqPanel = ({ title, items }: DecoderFaqPanelProps) => {
+const DecoderFaqPanel = ({ brand, title, items }: DecoderFaqPanelProps) => {
   return (
     <Box sx={{ p: { xs: 1, md: 2 } }}>
       <Typography variant="h6" mb={3} sx={{ color: 'warning.main' }}>
@@ -24,6 +26,7 @@ const DecoderFaqPanel = ({ title, items }: DecoderFaqPanelProps) => {
               {item.question}
             </Typography>
             <Box
+              onClick={(event) => trackReportLinkClick(event, brand, 'decoder_static')}
               sx={{
                 color: 'text.secondary',
                 '& p': { m: 0, typography: 'body2', lineHeight: 1.75 },
