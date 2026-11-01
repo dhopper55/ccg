@@ -58,3 +58,11 @@
 
 /8c437953-7d2e-4ad5-b2bf-a7d2d8857fd8.html
   X-Robots-Tag: noindex, nofollow
+
+# The Cloudflare Pages preview copies (ccg-2k1.pages.dev and per-deploy subdomains) were
+# indexed by Google and compete with www. Only *.pages.dev hosts match these rules.
+https://:project.pages.dev/*
+  X-Robots-Tag: noindex
+
+https://:version.:project.pages.dev/*
+  X-Robots-Tag: noindex
