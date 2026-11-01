@@ -1,7 +1,8 @@
 import type { Env } from '../env.js';
 import { jsonResponse } from '../utils/misc.js';
-import { normalizeText } from '../utils/text.js';
-import { getStripeRuntimeConfig } from '../system/runtime.js';
+import { normalizeText, escapeHtml } from '../utils/text.js';
+import { getStripeRuntimeConfig, getBrevoRuntimeConfig } from '../system/runtime.js';
+import { sendBrevoTransactionalEmail, ADMIN_BCC_RECIPIENT } from '../orders/email.js';
 import { extensionFromContentType } from '../utils/image.js';
 
 export async function dbInsertGuitarEvaluation(env: Env, data: {
@@ -179,8 +180,56 @@ export async function handleGuitarEvaluationConfirmPayment(request: Request, env
       console.error('Failed to enqueue report generation after payment confirmation:', err);
     }
   }
+  if (evalTypeRow?.type === 'AUTHENTICITY') {
+    await notifyStaffOfAuthenticityOrder(evaluationId, env);
+  }
 
   return jsonResponse({ ok: true });
+}
+
+// Authenticity reports are researched by hand (no queue), so staff must hear about each
+// paid order right away to meet the 12-hour delivery guarantee.
+async function notifyStaffOfAuthenticityOrder(evaluationId: string | number, env: Env): Promise<void> {
+  try {
+    const config = await getBrevoRuntimeConfig(env);
+    if (!config.apiKey || !config.senderEmail) {
+      console.error('authenticity order alert skipped — Brevo not configured', { evaluationId });
+      return;
+    }
+    const row = await env.DB.prepare(
+      'SELECT brand, brand_other, model, first_name, last_name, email, created_at FROM guitar_evaluations WHERE id = ?'
+    ).bind(evaluationId).first<{
+      brand: string | null;
+      brand_other: string | null;
+      model: string | null;
+      first_name: string | null;
+      last_name: string | null;
+      email: string | null;
+      created_at: string | null;
+    }>();
+    if (!row) return;
+
+    const brand = normalizeText(row.brand_other, '') || normalizeText(row.brand, '');
+    const guitar = [brand, normalizeText(row.model, '')].filter(Boolean).join(' ') || 'Unknown guitar';
+    const customer = [normalizeText(row.first_name, ''), normalizeText(row.last_name, '')].filter(Boolean).join(' ');
+    const dueBy = new Date(new Date(row.created_at || Date.now()).getTime() + 12 * 60 * 60 * 1000)
+      .toLocaleString('en-US', { timeZone: 'America/Denver', dateStyle: 'medium', timeStyle: 'short' });
+
+    await sendBrevoTransactionalEmail(config, {
+      sender: { name: config.senderName, email: config.senderEmail },
+      to: [ADMIN_BCC_RECIPIENT],
+      subject: `Authenticity report ordered — #${evaluationId} ${guitar} (due ${dueBy})`,
+      htmlContent: [
+        `<p>A paid authenticity report needs to be researched and sent.</p>`,
+        `<p><strong>Value report #:</strong> ${escapeHtml(String(evaluationId))}</p>`,
+        `<p><strong>Guitar:</strong> ${escapeHtml(guitar)}</p>`,
+        `<p><strong>Customer:</strong> ${escapeHtml(customer)} &lt;${escapeHtml(normalizeText(row.email, ''))}&gt;</p>`,
+        `<p><strong>Due by:</strong> ${escapeHtml(dueBy)} (12-hour guarantee)</p>`,
+      ].join('\n'),
+    });
+  } catch (err) {
+    console.error('authenticity order alert failed', { evaluationId, err });
+  }
 }
 
 export async function handleGuitarEvaluationValidateCoupon(request: Request, env: Env): Promise<Response> {
@@ -210,6 +259,9 @@ export async function handleGuitarEvaluationValidateCoupon(request: Request, env
       } catch (err) {
         console.error('Failed to enqueue report generation after coupon:', err);
       }
+    }
+    if (evalTypeRow?.type === 'AUTHENTICITY') {
+      await notifyStaffOfAuthenticityOrder(evaluationId, env);
     }
     return jsonResponse({ valid: true });
   }

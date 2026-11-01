@@ -3906,10 +3906,11 @@ const InventoryItem = () => {
                       control={
                         <Checkbox
                           checked={form.forSale}
+                          disabled={form.isSold}
                           onChange={(event) => setField('forSale', event.target.checked)}
                         />
                       }
-                      label="For Sale"
+                      label={form.isSold ? 'For Sale (uncheck Is Sold first)' : 'For Sale'}
                     />
                     <FormControlLabel
                       control={
