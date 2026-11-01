@@ -45,6 +45,12 @@
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
+      // Decoder links can carry ?serial=; keep it out of the page URL GA records.
+      (function () {
+        var pageUrl = new URL(window.location.href);
+        pageUrl.searchParams.delete('serial');
+        gtag('set', { page_location: pageUrl.href });
+      })();
       gtag('config', 'G-CZRGM23PJ9', { send_page_view: false });
     </script>
   </head>

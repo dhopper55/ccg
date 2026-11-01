@@ -72,6 +72,7 @@ const DecoderPage = ({ config }: DecoderPageProps) => {
           <Grid size={{ xs: 12, lg: 5, xl: 6 }} sx={{ order: { xs: 4, lg: 3 } }}>
             <EvalPitchPanel
               brand={config.brandName}
+              brandKey={config.brandKey}
               year={decodeSuccess.year}
               serial={decodeSuccess.serial}
               decodeEventId={decodeSuccess.decodeEventId ?? null}

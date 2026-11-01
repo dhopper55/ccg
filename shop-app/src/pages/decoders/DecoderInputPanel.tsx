@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router';
 import IconifyIcon from 'components/base/IconifyIcon';
 import SectionHeader from 'components/common/SectionHeader';
 import StyledTextField from 'components/styled/StyledTextField';
+import { trackReportCtaClick, trackSerialDecode } from 'lib/googleAnalytics';
 import IbanezAdditionalInfoPanel from './IbanezAdditionalInfoPanel';
 
 const DECODE_URL = 'https://www.coalcreekguitars.com/api/decode';
@@ -128,6 +129,7 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
       }
 
       if (result?.success && result.info) {
+        trackSerialDecode(brand, 'success');
         const resolvedDecodeEventId = typeof result.serialDecodeEventId === 'number' ? result.serialDecodeEventId : null;
         setDecodedInfo(result.info);
         setFailedDecodeEventId(null);
@@ -146,10 +148,14 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
         return;
       }
 
+      // A parsed response without success is the decoder rejecting the serial; anything
+      // else (bad status, unreadable body) is our failure.
+      trackSerialDecode(brand, result ? 'no_match' : 'error');
       clearDecodeOutput();
       setErrorMessage(result?.error || 'Unable to decode serial number.');
       setFailedDecodeEventId(typeof result?.serialDecodeEventId === 'number' ? result.serialDecodeEventId : null);
     } catch {
+      trackSerialDecode(brand, 'error');
       clearDecodeOutput();
       setErrorMessage('Unable to decode serial number.');
     } finally {
@@ -430,6 +436,7 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
                   href={worthHref}
                   target="_blank"
                   rel="noopener"
+                  onClick={() => trackReportCtaClick('value', brand, 'decode_result')}
                   sx={{
                     color: 'warning.main',
                     fontWeight: 700,
@@ -446,6 +453,7 @@ const DecoderInputPanel = ({ brand, brandDisplayName, additionalInfoRichText, on
                   href={authenticityHref}
                   target="_blank"
                   rel="noopener"
+                  onClick={() => trackReportCtaClick('authenticity', brand, 'decode_result')}
                   sx={{
                     color: 'warning.main',
                     fontWeight: 700,

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Box, Dialog, Stack, Typography } from '@mui/material';
+import { trackReportCtaClick } from 'lib/googleAnalytics';
 
 const SAMPLE_REPORT_URL =
   'https://www.coalcreekguitars.com/guitar-value-report-evaluation/sample-report.html';
@@ -7,12 +8,13 @@ const EVAL_SAMPLE_IMAGES = [1, 2, 3, 4, 5].map((n) => `/images/eval-samples/${n}
 
 interface EvalPitchPanelProps {
   brand: string;
+  brandKey: string;
   year?: string;
   serial?: string;
   decodeEventId: number | null;
 }
 
-const EvalPitchPanel = ({ brand, year, serial, decodeEventId }: EvalPitchPanelProps) => {
+const EvalPitchPanel = ({ brand, brandKey, year, serial, decodeEventId }: EvalPitchPanelProps) => {
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   const params = new URLSearchParams({ brand });
@@ -47,6 +49,7 @@ const EvalPitchPanel = ({ brand, year, serial, decodeEventId }: EvalPitchPanelPr
           <Box
             component="a"
             href={evalHref}
+            onClick={() => trackReportCtaClick('value', brandKey, 'decode_result')}
             sx={{
               display: 'inline-flex',
               alignItems: 'center',

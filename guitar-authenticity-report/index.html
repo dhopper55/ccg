@@ -7,6 +7,13 @@
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
+  // Decoder links carry the serial, and Stripe redirect returns carry payment details, in the
+  // query string. Keep them out of the page URL that GA records.
+  (function () {
+    var pageUrl = new URL(window.location.href);
+    ['serial', 'payment_intent', 'payment_intent_client_secret'].forEach(function (key) { pageUrl.searchParams.delete(key); });
+    gtag('set', { page_location: pageUrl.href });
+  })();
   gtag('config', 'G-CZRGM23PJ9');
 </script>
 
@@ -2041,6 +2048,35 @@ footer {
 </div>
 
 <script>
+// ── GA4 ecommerce events ─────────────────────────────────────────────────────
+const REPORT_ITEM = { item_id: 'authenticity_report', item_name: 'Guitar Authenticity Report', price: 12, quantity: 1 };
+let beginCheckoutSent = false;
+
+function trackBeginCheckout() {
+  if (beginCheckoutSent || typeof gtag !== 'function') return;
+  beginCheckoutSent = true;
+  gtag('event', 'begin_checkout', { currency: 'USD', value: REPORT_ITEM.price, items: [REPORT_ITEM] });
+}
+
+// The Stripe redirect return and back/forward navigation can both show the success step
+// again, so remember each payment intent that has already been reported.
+function trackPurchase(paymentIntentId) {
+  if (!paymentIntentId || typeof gtag !== 'function') return;
+  const sentKey = 'ga-purchase-' + paymentIntentId;
+  try {
+    if (localStorage.getItem(sentKey)) return;
+    localStorage.setItem(sentKey, '1');
+  } catch (_) {}
+  gtag('event', 'purchase', {
+    transaction_id: paymentIntentId,
+    currency: 'USD',
+    value: REPORT_ITEM.price,
+    items: [REPORT_ITEM],
+  });
+  // Kept alongside `purchase` so existing GA reports keep their history.
+  gtag('event', 'authenticity_report_purchase', { value: REPORT_ITEM.price, currency: 'USD' });
+}
+
 // ── State ────────────────────────────────────────────────────────────────────
 let currentStep = 1;
 let evaluationId = sessionStorage.getItem('evalId') ? Number(sessionStorage.getItem('evalId')) : null;
@@ -2233,6 +2269,7 @@ async function initStripePayment() {
     });
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to load payment.');
     const { clientSecret, publishableKey } = await res.json();
+    trackBeginCheckout();
     // Stripe.js loads async; wait for it in the unlikely case payment starts first.
     for (let i = 0; i < 100 && typeof window.Stripe !== 'function'; i += 1) {
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -2352,7 +2389,7 @@ async function handlePay() {
       return;
     }
   }
-  showSuccess();
+  showSuccess(paymentIntent?.id);
 }
 document.getElementById('btn-pay').addEventListener('click', () => void handlePay());
 
@@ -2409,7 +2446,7 @@ async function goToStep(n) {
 }
 
 // ── Success transition ────────────────────────────────────────────────────────
-function showSuccess() {
+function showSuccess(paymentIntentId) {
   sessionStorage.removeItem('evalId');
   document.getElementById('step-' + currentStep).classList.remove('active');
   document.getElementById('tab-' + currentStep).classList.remove('active');
@@ -2417,9 +2454,9 @@ function showSuccess() {
   document.querySelector('#tab-' + currentStep + ' .step-tab-num').textContent = '✓';
   document.getElementById('step-success').classList.add('active');
 
-  if (typeof gtag === 'function') {
-    gtag('event', 'authenticity_report_purchase', { value: 12, currency: 'USD' });
-  }
+  // Only a real Stripe payment counts as a purchase — coupon-waived
+  // reports call showSuccess() with no paymentIntentId and skip this.
+  trackPurchase(paymentIntentId);
 }
 
 // ── Photo upload UX ───────────────────────────────────────────────────────────
@@ -2545,7 +2582,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbo
     }).catch(() => undefined);
     // Photos were uploaded before payment; jump straight to success
     currentStep = 4;
-    showSuccess();
+    showSuccess(params.get('payment_intent'));
   }
 })();
 </script>
