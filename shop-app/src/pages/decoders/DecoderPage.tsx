@@ -6,6 +6,7 @@ import EvalPitchPanel from './EvalPitchPanel';
 import DecoderFaqPanel from './DecoderFaqPanel';
 import DecoderReportsPanel from './DecoderReportsPanel';
 import DecoderHowToPanel from './DecoderHowToPanel';
+import DecoderHistoryPanel from './DecoderHistoryPanel';
 import DecoderSlot from './DecoderSlot';
 import EmailSignupBoldPanel from './EmailSignupBoldPanel';
 
@@ -28,6 +29,8 @@ export interface DecoderConfig {
   reportMentionHtml: string;
   howToTitle: string;
   howToHtml: string;
+  historyTitle?: string;
+  historyHtml?: string;
 }
 
 interface DecoderPageProps {
@@ -95,6 +98,12 @@ const DecoderPage = ({ config }: DecoderPageProps) => {
         <Grid size={{ xs: 12, lg: 7, xl: 6 }} sx={{ order: { xs: 6, lg: 6 } }}>
           <DecoderHowToPanel title={config.howToTitle} html={config.howToHtml} />
         </Grid>
+
+        {config.historyTitle && config.historyHtml && (
+          <Grid size={{ xs: 12, lg: 7, xl: 6 }} sx={{ order: { xs: 7, lg: 7 } }}>
+            <DecoderHistoryPanel title={config.historyTitle} html={config.historyHtml} />
+          </Grid>
+        )}
       </Grid>
     </DecoderPreviewLayout>
   );

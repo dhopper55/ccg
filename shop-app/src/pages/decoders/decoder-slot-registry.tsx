@@ -6,26 +6,6 @@ type SlotComponent = () => JSX.Element;
 type BrandSlots = Partial<Record<DecoderSlotName, SlotComponent>>;
 
 const registry: Record<string, BrandSlots> = {
-  fender: {
-    aboveFaq: () => (
-      <Box
-        component="a"
-        href="https://www.coalcreekguitars.com/fender-guitar-serial-number-history"
-        target="_blank"
-        rel="noreferrer"
-        sx={{
-          display: 'inline-block',
-          fontSize: '0.875rem',
-          color: 'text.primary',
-          textDecoration: 'underline',
-          textUnderlineOffset: '0.2em',
-          '&:hover': { opacity: 0.75 },
-        }}
-      >
-        Fender Guitar Serial Number History
-      </Box>
-    ),
-  },
   gibson: {
     aboveFaq: () => (
       <Box

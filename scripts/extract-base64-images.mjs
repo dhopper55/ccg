@@ -6,7 +6,6 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 
 const FILES = [
-  { html: 'fender-guitar-serial-number-history.html', prefix: 'fender-history' },
   { html: 'gibson-guitar-serial-number-history.html', prefix: 'gibson-history' },
 ];
 
