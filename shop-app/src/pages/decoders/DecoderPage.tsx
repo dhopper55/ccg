@@ -41,9 +41,11 @@ const DecoderPage = ({ config }: DecoderPageProps) => {
   const [additionalInfoRichText, setAdditionalInfoRichText] = useState('');
   const [decodeSuccess, setDecodeSuccess] = useState<{ serial: string; decodeEventId: number | null; year?: string } | null>(null);
 
+  // Match the server-rendered <title>; pageTitle is the on-page heading, and Google reads the
+  // title after JavaScript runs.
   useEffect(() => {
-    document.title = config.pageTitle;
-  }, [config.pageTitle]);
+    document.title = config.title;
+  }, [config.title]);
 
   return (
     <DecoderPreviewLayout
