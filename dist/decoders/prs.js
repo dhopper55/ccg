@@ -10,6 +10,21 @@ export function decodePRS(serial) {
     if (/^S2\d{6}$/.test(normalized)) {
         return decodeS2Series(normalized);
     }
+    // S2 Series as written on the headstock: 2-digit year prefix + S2 + 6-digit sequence
+    // (e.g. "18 S2034142"). Letter O typed for zero inside the sequence is accepted.
+    // Only when typed without whitespace: spaced input ("18 S2034142") is already handled by the
+    // backend retry on the last word, which decodes the bare S2 sequence.
+    const s2WithYear = /\s/.test(cleaned) ? null : normalized.match(/^(1[3-9]|2\d)S2([0-9O]{6})$/);
+    if (s2WithYear) {
+        const result = decodeS2SeriesWithYearPrefix(s2WithYear[1], s2WithYear[2].replace(/O/g, '0'));
+        if (result) {
+            return result;
+        }
+    }
+    // SE Indonesia (Cort, 2014-2018): I + year letter A-E + sequence (e.g. IC7643 = 2016)
+    if (/^I[A-E]\d{4,6}$/.test(normalized)) {
+        return decodeSEIndonesiaILetter(normalized);
+    }
     // Acoustic: A + 2-digit year + sequence (e.g., A12001)
     if (/^A\d{5,}$/.test(normalized)) {
         return decodeAcoustic(normalized);
@@ -287,6 +302,81 @@ function decodeS2Series(serial) {
         notes: `S2 Series - USA-made, more affordable line. Sequence: ${sequence}.`
     };
     return { success: true, info };
+}
+// Approximate S2 production ranges by year.
+// Source: https://guitarinsite.nl/serienummers-prs_eng/ (2013-2015 also in PRS support "Year Identification").
+const S2_SERIAL_RANGES = [
+    { start: 1, end: 3820, year: 2013 },
+    { start: 3821, end: 10529, year: 2014 },
+    { start: 10530, end: 17390, year: 2015 },
+    { start: 17391, end: 23214, year: 2016 },
+    { start: 23215, end: 27902, year: 2017 },
+    { start: 27903, end: 36779, year: 2018 },
+    { start: 36780, end: 43719, year: 2019 },
+    { start: 43720, end: 49421, year: 2020 },
+    { start: 49422, end: 59387, year: 2021 },
+    { start: 59388, end: 65338, year: 2022 },
+    { start: 65339, end: 67488, year: 2023 },
+    { start: 71820, end: 78569, year: 2024 },
+];
+// Headstock S2 serials carry the 2-digit year prefix PRS uses on its other USA lines, e.g. "18 S2034142".
+// The prefix is accepted only when the S2 sequence agrees with that year's approximate range
+// (within one year, since the published ranges are approximate).
+function decodeS2SeriesWithYearPrefix(yearPrefix, sequenceDigits) {
+    const year = 2000 + parseInt(yearPrefix, 10);
+    const sequence = parseInt(sequenceDigits, 10);
+    const lastRange = S2_SERIAL_RANGES[S2_SERIAL_RANGES.length - 1];
+    const range = S2_SERIAL_RANGES.find((r) => sequence >= r.start && sequence <= r.end);
+    let consistent;
+    if (range) {
+        consistent = Math.abs(range.year - year) <= 1;
+    }
+    else if (sequence > lastRange.end) {
+        consistent = year >= lastRange.year;
+    }
+    else {
+        // Gap between the published 2023 and 2024 ranges.
+        consistent = year === 2023 || year === 2024;
+    }
+    if (!consistent) {
+        return null;
+    }
+    const info = {
+        brand: 'PRS',
+        serialNumber: `${yearPrefix}S2${sequenceDigits}`,
+        year: year.toString(),
+        factory: 'PRS Factory, Stevensville, Maryland',
+        country: 'USA',
+        model: 'S2 Series',
+        notes: `S2 Series - USA-made. The prefix ${yearPrefix} is the production year (${year}); S2${sequenceDigits} is the S2 production number, which is consistent with PRS's published approximate S2 ranges for that period.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'prs-s2-year-prefix-sequence',
+        patternLabel: 'PRS S2 2-digit year prefix + S2 sequence',
+    };
+}
+// Source: https://guitarinsite.nl/serienummers-prs_eng/ (Indonesian SE prefixes IA=2014 ... IE=2018)
+function decodeSEIndonesiaILetter(serial) {
+    const yearLetter = serial[1];
+    const year = 2014 + (yearLetter.charCodeAt(0) - 'A'.charCodeAt(0));
+    const sequence = serial.substring(2);
+    const info = {
+        brand: 'PRS',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'Cort Indonesia',
+        country: 'Indonesia',
+        model: 'SE Series',
+        notes: `SE Series made in Indonesia. "I" identifies Indonesian production and the letter "${yearLetter}" indicates ${year} (IA=2014 through IE=2018, before the CTI prefix). Sequence: ${sequence}.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'prs-se-indonesia-i-letter-year',
+        patternLabel: 'PRS SE Indonesia I + year letter sequence',
+    };
 }
 function decodeSEKorea(serial) {
     const yearLetter = serial[0];

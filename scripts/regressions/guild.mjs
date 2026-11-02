@@ -79,6 +79,31 @@ export function runTests() {
   assertGuildWesterlyG3('G32501635', '2025', 1635);
   assertGuildBareSequential('2849', '1954-1955');
   assertGuildWesterlyG2('G21808039', '2018', 8039);
+
+  // 1965-1969 model-prefix ranges and Brian May Special.
+  assertGuildRange('El1676', '1967', 'Starfire IV', 'guild-1965-1969-model-prefix-range');
+  assertGuildRange('En-1914', '1968', 'Starfire V', 'guild-1965-1969-model-prefix-range');
+  assertGuildRange('EN-343', '1966', 'Starfire V', 'guild-1965-1969-model-prefix-range');
+  assertGuildRange('cb1710', '1967', 'Mark II', 'guild-1965-1969-model-prefix-range');
+  assertGuildRange('SB 212', '1966', 'S-100', 'guild-1965-1969-model-prefix-range');
+  assertGuildRange('bhm30014', '1994', 'Brian May Special', 'guild-bhm-brian-may-special-1994');
+  assertGuildFails('SB 12');
+  assertGuildFails('EL2300');
+  assertGuildFails('EW-343');
+  assertGuildFails('BHM30200');
+}
+
+function assertGuildRange(serialInput, expectedYear, expectedModel, expectedPatternKey) {
+  const result = decodeGuild(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.model === expectedModel, `Expected model ${expectedModel} for ${serialInput}, got ${result.info.model}`);
+  assert(result.patternKey === expectedPatternKey, `Expected ${expectedPatternKey} for ${serialInput}, got ${result.patternKey}`);
+}
+
+function assertGuildFails(serialInput) {
+  const result = decodeGuild(serialInput);
+  assert(!result.success, `Expected decode failure for guild:${serialInput}, got ${result.info && result.info.year}`);
 }
 
 function assertGuildBareSequential(serialInput, expectedYear) {

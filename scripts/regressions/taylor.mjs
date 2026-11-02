@@ -50,12 +50,15 @@ function assertTaylorModern10Digit(serialInput, expectedYear, expectedMonth, exp
   );
 }
 
-function assertTaylorModern10DigitRejectedAsFuture(serialInput) {
+function assertTaylorModern10DigitFutureYearNote(serialInput) {
+  // A future year from digits 2 and 7 is reported without a year field, with a note to verify it.
   const result = decodeTaylor(serialInput);
-  assert(!result.success, `Expected backend Taylor decode failure for ${serialInput}`);
+  assert(result.success, `Expected Taylor decode success for ${serialInput}`);
+  assert(!result.info.year, `Expected no year for future-year Taylor ${serialInput}, got ${result.info.year}`);
+  assert(result.info.factory === 'El Cajon, California', `Expected El Cajon for ${serialInput}, got ${result.info.factory}`);
   assert(
-    result.error === 'Unable to decode this serial number.',
-    `Expected generic future-year decode failure for ${serialInput}, got ${result.error}`
+    result.info.notes && result.info.notes.includes('in the future'),
+    `Expected future-year note for ${serialInput}, got ${result.info.notes}`
   );
 }
 
@@ -129,12 +132,34 @@ function assertTaylorModernExtended11Digit(serialInput, expectedYear, expectedMo
 export function runTests() {
   assertTaylorModern10Digit('1107289190', '2019', 'July', '28', 'El Cajon, California', 'USA');
   assertTaylorModern10Digit('2107289190', '2019', 'July', '28', 'Tecate, Baja California', 'Mexico');
-  assertTaylorModern10DigitRejectedAsFuture('1207289190');
+  assertTaylorModern10DigitFutureYearNote('1207289190');
   assertTaylorModernShort9Digit('111130804', '2018', 'November', '30');
   assertTaylorLegacy9Digit('980311301', '1998', 'March', '11');
   assertTaylorLegacy9DigitYearCode('050913155', '1993', 'September', '13');
   assertTaylorModernExtended11Digit('21092006138', '2016', 'September', '20');
   assertTaylorEarly4Digit('3289', '1985 (approximate)');
+
+  // 11-digit Baby/Big Baby label serials with a dash suffix.
+  assertTaylorBabyDashSuffix('20000403310-1', '2000', 'April', '3');
+  assertTaylorBabyDashSuffix('20010412343-2', '2001', 'April', '12');
+  assertTaylorBabyDashSuffix('20010809312-1', '2001', 'August', '9');
+  assertTaylorFails('20000403210-1'); // series 2 (200 Series), not a Baby
+  assertTaylorFails('20001332310-1'); // invalid month
+  assertTaylorFails('200009263317-3');
+}
+
+function assertTaylorBabyDashSuffix(serialInput, expectedYear, expectedMonth, expectedDay) {
+  const result = decodeTaylor(serialInput);
+  assert(result.success, `Expected decode success for Taylor ${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${result.info.month}`);
+  assert(result.info.day === expectedDay, `Expected day ${expectedDay} for ${serialInput}, got ${result.info.day}`);
+  assert(result.patternKey === 'taylor-11-digit-baby-dash-suffix', `Expected Baby dash-suffix pattern for ${serialInput}, got ${result.patternKey}`);
+}
+
+function assertTaylorFails(serialInput) {
+  const result = decodeTaylor(serialInput);
+  assert(!result.success, `Expected decode failure for Taylor ${serialInput}, got ${result.info && result.info.year}`);
 }
 
 function assertTaylorEarly4Digit(serialInput, expectedYear) {

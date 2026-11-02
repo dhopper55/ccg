@@ -55,6 +55,26 @@ export function decodeTaylor(serial) {
     if (/^\d{4,8}$/.test(normalized)) {
         return decodeEarlyTaylor(normalized);
     }
+    // 11-digit (2000-2009) Baby / Big Baby label serial with a dash suffix, e.g. 20000605313-2.
+    // The 11-digit part is Taylor's documented YYYYMMDD + series + sequence format; the suffix
+    // appears on Baby-series labels but is not documented, so only series code 3/4 is accepted.
+    const dashSuffix = cleaned.replace(/\s/g, '').match(/^(\d{11})-(\d)$/);
+    if (dashSuffix && (dashSuffix[1][8] === '3' || dashSuffix[1][8] === '4')) {
+        const base = decode11Digit(dashSuffix[1]);
+        if (base.success && base.info) {
+            return {
+                success: true,
+                info: {
+                    ...base.info,
+                    serialNumber: `${dashSuffix[1]}-${dashSuffix[2]}`,
+                    model: dashSuffix[1][8] === '3' ? 'Baby or Big Baby' : 'Big Baby',
+                    notes: `${base.info.notes} The trailing "-${dashSuffix[2]}" is a label suffix seen on Baby/Big Baby serials of this era; Taylor does not publish its meaning, so the date is read from the 11-digit serial alone. Baby-series guitars of this period were generally built at Taylor's Tecate, Mexico factory, so check the label for country of origin.`,
+                },
+                patternKey: 'taylor-11-digit-baby-dash-suffix',
+                patternLabel: 'Taylor 11-digit Baby/Big Baby serial with dash suffix',
+            };
+        }
+    }
     return {
         success: false,
         error: 'Unrecognized Taylor serial number format. Taylor serials are typically 9-11 digits (1993-2009) or 10 digits (2009-present).'

@@ -66,6 +66,21 @@ export function decodeGuild(serial) {
     if (/^EE\d{3,4}$/.test(normalized)) {
         return decodeEEPrefixSlimJim(normalized);
     }
+    // 1965-1969 model-specific prefixes with published yearly ranges (Starfire IV/V, Mark II, S-100)
+    const hobokenModelPrefix = normalized.match(/^(EL|EN|CB|SB)(\d{3,4})$/);
+    if (hobokenModelPrefix) {
+        const result = decodeHobokenModelPrefixRange(hobokenModelPrefix[1], parseInt(hobokenModelPrefix[2], 10));
+        if (result) {
+            return result;
+        }
+    }
+    // Brian May Special (1994): BHM + 5-digit number up to the published 1994 cutoff BHM30114
+    if (/^BHM30[01]\d{2}$/.test(normalized)) {
+        const result = decodeBrianMaySpecial(normalized);
+        if (result) {
+            return result;
+        }
+    }
     // Westerly Collection (GREE factory, Hui Yang, China): G3 prefix + YY + 5-digit sequence
     if (/^G3\d{7}$/.test(normalized)) {
         return decodeWesterlyG3(normalized);
@@ -432,6 +447,91 @@ function decodeEEPrefixSlimJim(serial) {
         info,
         patternKey: 'guild-ee-slim-jim-t100-sequential',
         patternLabel: 'Guild EE T-100/T-100D Slim Jim sequential',
+    };
+}
+// 1965-1969 model-specific serial ranges (first-last serial per year).
+// Source: https://guitarinsite.nl/serienummers-guild_eng/
+const HOBOKEN_MODEL_PREFIX_RANGES = {
+    EL: {
+        model: 'Starfire IV',
+        ranges: [
+            { start: 101, end: 276, year: 1965 },
+            { start: 277, end: 1167, year: 1966 },
+            { start: 1168, end: 1840, year: 1967 },
+            { start: 1841, end: 2223, year: 1968 },
+            { start: 2224, end: 2272, year: 1969 },
+        ],
+    },
+    EN: {
+        model: 'Starfire V',
+        ranges: [
+            { start: 101, end: 194, year: 1965 },
+            { start: 195, end: 927, year: 1966 },
+            { start: 928, end: 1807, year: 1967 },
+            { start: 1808, end: 2141, year: 1968 },
+            { start: 2142, end: 2272, year: 1969 },
+        ],
+    },
+    CB: {
+        model: 'Mark II',
+        ranges: [
+            { start: 101, end: 247, year: 1965 },
+            { start: 248, end: 967, year: 1966 },
+            { start: 968, end: 1773, year: 1967 },
+            { start: 1774, end: 2018, year: 1968 },
+        ],
+    },
+    SB: {
+        model: 'S-100',
+        ranges: [
+            { start: 101, end: 169, year: 1965 },
+            { start: 170, end: 220, year: 1966 },
+            { start: 221, end: 251, year: 1967 },
+            { start: 252, end: 269, year: 1968 },
+        ],
+    },
+};
+function decodeHobokenModelPrefixRange(prefix, sequence) {
+    const table = HOBOKEN_MODEL_PREFIX_RANGES[prefix];
+    const range = table?.ranges.find((r) => sequence >= r.start && sequence <= r.end);
+    if (!table || !range) {
+        return null;
+    }
+    const serial = `${prefix}${sequence}`;
+    const info = {
+        brand: 'Guild',
+        serialNumber: serial,
+        year: range.year.toString(),
+        model: table.model,
+        country: 'USA',
+        notes: `From 1965 to 1969 Guild numbered each model line separately. The "${prefix}" prefix was used for the ${table.model}; ${serial} falls in the published ${range.year} range (${prefix}${range.start}-${prefix}${range.end}). Confirm the model from the instrument, since a prefix only dates guitars of the model it was assigned to.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'guild-1965-1969-model-prefix-range',
+        patternLabel: 'Guild 1965-1969 model prefix range',
+    };
+}
+// Brian May Special: the published 1994 cutoff is BHM30114 (source: https://guitarinsite.nl/serienummers-guild_eng/)
+function decodeBrianMaySpecial(serial) {
+    const sequence = parseInt(serial.substring(3), 10);
+    if (sequence < 30001 || sequence > 30114) {
+        return null;
+    }
+    const info = {
+        brand: 'Guild',
+        serialNumber: serial,
+        year: '1994',
+        model: 'Brian May Special',
+        country: 'USA',
+        notes: `BHM prefix identifies a Guild Brian May model. ${serial} is at or below the published 1994 last serial (BHM30114) for the Brian May Special, so it dates to 1994.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'guild-bhm-brian-may-special-1994',
+        patternLabel: 'Guild BHM Brian May Special (1994)',
     };
 }
 // Westerly Collection (GREE factory, Hui Yang, Guangdong, China): G3 prefix + YY + 5-digit sequence
