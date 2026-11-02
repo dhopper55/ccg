@@ -108,6 +108,11 @@ export function decodeYamaha(serial) {
     if (/^[A-Z]{3}\d{4}[A-Z]{2}$/.test(normalized)) {
         return decodeLetterYearMonthDayUnit4Factory2(normalized);
     }
+    // Taiwan (Kaohsiung) 1971-1973 neck-block serial: "T" + 7-digit sequential number (e.g. T0015094).
+    // Documented range runs from about T0008406 to roughly T0330000, when the "T" was dropped in mid-1973.
+    if (/^T0[0-3]\d{5}$/.test(normalized)) {
+        return decodeTaiwanNeckBlockT(normalized);
+    }
     return {
         success: false,
         error: 'Unrecognized Yamaha serial number format. Yamaha has used many different serial number systems across factories in Japan, Taiwan, Indonesia, Korea, and China. Common formats include: 2 letters + 5 digits (standard), 3 letters + 6 digits (Taiwan/Indonesia 2001+), or various numeric formats.'
@@ -650,6 +655,40 @@ function decodeIndonesia1990(serial) {
         notes: `Unit #${unit}. 8-digit format used 1990-1996.`
     };
     return { success: true, info };
+}
+// Taiwan (Kaohsiung) 1971-1973: "T" + 7-digit sequential neck-block number.
+// Source: CTGull, "Yamaha FG Serial Numbers, Interior Markings, and Labels"
+// (https://acousticguitarcabin.boards.net/thread/1176/yamaha-serial-numbers-interior-markings):
+// red-label Taiwan FGs (1971-72) carry only a sequential "T" + 7-digit neck-block number with no date
+// encoding (earliest seen T0008406; T0015094 paired with a July 1971 date stamp). Tan-label Taiwan FGs
+// (late 1972 onward) pair it with an 8-digit YMMDDUUU brace number (T0135230 with 20510248 = May 1972;
+// T0225201 with 21101470 = Nov 1972). The "T" was dropped in mid-1973, around number 033XXXX.
+function decodeTaiwanNeckBlockT(serial) {
+    const sequence = parseInt(serial.substring(1), 10);
+    let year;
+    if (sequence < 135230) {
+        year = '1971-1972';
+    }
+    else if (sequence < 225201) {
+        year = '1972';
+    }
+    else {
+        year = '1972-1973';
+    }
+    const info = {
+        brand: 'Yamaha',
+        serialNumber: serial,
+        year,
+        factory: 'Kaohsiung Factory',
+        country: 'Taiwan',
+        notes: `Taiwan neck-block serial: "T" + 7-digit sequential number (#${sequence.toLocaleString()}). Yamaha's Kaohsiung factory used this numbering from 1971 until mid-1973; it does not encode a date, so the year is estimated from documented serial/date-stamp pairs (T0015094 = July 1971, T0135230 = May 1972, T0225201 = November 1972). Tan-label guitars from late 1972 onward also have an 8-digit YMMDDUUU number on the brace under the end of the fretboard, and an ink date stamp inside the body (Taiwan calendar, e.g. 60.7.1 = July 1, 1971) — either gives the exact build date.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'yamaha-taiwan-neck-block-t-7digit',
+        patternLabel: 'Yamaha Taiwan neck-block "T" + 7-digit sequential (1971-1973)',
+    };
 }
 // Japan Short Electric: Letter-#### (single letter year code + day + unit)
 function decodeShortJapanElectric(serial) {
