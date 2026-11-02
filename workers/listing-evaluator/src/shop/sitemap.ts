@@ -19,9 +19,10 @@ export async function handleShopSitemapProducts(env: Env): Promise<Response> {
 
 export async function handleSitemap(env: Env): Promise<Response> {
   const baseUrl = normalizeText(env.SITE_BASE_URL, 'https://www.coalcreekguitars.com').replace(/\/+$/, '');
-  const [productRecords, categoryRows] = await Promise.all([
+  const [productRecords, categoryRows, staticLastmod] = await Promise.all([
     dbListShopSitemapProducts(env),
     dbListInventoryCategories(env),
+    loadStaticLastmod(),
   ]);
   // Only items currently for sale: sold pages stay reachable by link but are noindexed
   // (see injectShopProductSeo), so listing them here would just waste Google's crawl.
@@ -40,7 +41,8 @@ export async function handleSitemap(env: Env): Promise<Response> {
       return { loc: `${SHOP_BASE_PATH}/${slug}`, changefreq: 'daily', priority: '0.7' };
     })
     .filter((entry): entry is { loc: string; changefreq: string; priority: string } => Boolean(entry));
-  const urls = [...SITEMAP_STATIC_URLS, ...categoryUrls, ...productUrls];
+  const staticUrls = SITEMAP_STATIC_URLS.map((entry) => ({ ...entry, lastmod: staticLastmod[entry.loc] }));
+  const urls = [...staticUrls, ...categoryUrls, ...productUrls];
   const xml = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
@@ -56,6 +58,26 @@ export async function handleSitemap(env: Env): Promise<Response> {
       'x-ccg-sitemap-product-count': String(productUrls.length),
     },
   });
+}
+
+// Content-change dates for the static pages, written at build time by
+// scripts/update-sitemap-lastmod.mjs and deployed with the Pages site. Missing or
+// unreadable just means no <lastmod> for those pages.
+async function loadStaticLastmod(): Promise<Record<string, string>> {
+  try {
+    const response = await fetch(`${SHOP_STATIC_ORIGIN}/sitemap-lastmod.json`, {
+      cf: { cacheTtl: 300, cacheEverything: true },
+    });
+    if (!response.ok) return {};
+    const data = (await response.json()) as Record<string, { lastmod?: unknown }>;
+    return Object.fromEntries(
+      Object.entries(data)
+        .map(([loc, entry]) => [loc, toSitemapDate(entry?.lastmod)])
+        .filter(([, lastmod]) => lastmod),
+    );
+  } catch {
+    return {};
+  }
 }
 
 export function handleRobotsTxt(): Response {

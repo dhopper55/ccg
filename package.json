@@ -7,7 +7,8 @@
   "scripts": {
     "build": "npm run build:legacy",
     "build:all": "npm run build:legacy && npm run build:admin-v2 && npm run build:shop && npm run build:dncbudget",
-    "build:legacy": "tsc && node scripts/update-cache-busters.mjs",
+    "build:legacy": "tsc && node scripts/update-cache-busters.mjs && node scripts/update-sitemap-lastmod.mjs",
+    "sitemap:lastmod": "node scripts/update-sitemap-lastmod.mjs",
     "build:admin-v2": "npm --prefix admin-v2-app install && npm --prefix admin-v2-app run build:ccg",
     "build:shop": "npm --prefix shop-app run build",
     "build:dncbudget": "npm --prefix dncbudget-app install && npm --prefix dncbudget-app run build:ccg",

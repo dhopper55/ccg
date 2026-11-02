@@ -42,6 +42,7 @@ Sitemap behavior:
 - Keep static URL lists in both places in sync.
 - Product URLs are appended dynamically from shop product rows.
 - `/sitemap.xml` and `/robots.txt` are served by the Worker routes (`handleSitemap`, `handleRobotsTxt` in `workers/listing-evaluator/src/shop/sitemap.ts`); the Pages function sitemap only answers on hosts without those routes (e.g. pages.dev). There is no static `robots.txt` in the repo.
+- Static sitemap pages get `<lastmod>` from `sitemap-lastmod.json` (repo root, served by Pages, read by the Worker sitemap). `scripts/update-sitemap-lastmod.mjs` keeps it: a page's date moves only when its content hash changes (hashed asset names and `?version=` cache-busters are ignored). It runs in `npm run build:legacy` and the shop-app build; after hand-editing a root page without a build, run `npm run sitemap:lastmod`.
 - `/robots.txt` points crawlers to `https://www.coalcreekguitars.com/sitemap.xml`.
 
 Important decoder/deploy distinction:
