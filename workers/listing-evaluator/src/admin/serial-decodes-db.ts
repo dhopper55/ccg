@@ -72,16 +72,7 @@ export async function dbListAdminV2SerialDecodes(
   const effectivePage = Math.min(Math.max(1, page), totalPages);
   const offset = (effectivePage - 1) * limit;
 
-  const brandRows = await db.prepare(
-    `SELECT MIN(trim(brand)) AS brand
-     FROM serial_decode_events
-     WHERE trim(COALESCE(brand, '')) <> ''
-     GROUP BY lower(trim(brand))
-     ORDER BY lower(trim(brand)) ASC`
-  ).all<{ brand: string | null }>();
-  const availableBrands = (brandRows.results ?? [])
-    .map((row) => normalizeText(row.brand, ''))
-    .filter(Boolean);
+  const availableBrands = await dbGetSerialDecodeBrandOptions(env);
 
   let rows;
   try {
@@ -235,37 +226,37 @@ export async function dbGetAdminV2SerialDecodeLookupVolume(
   availableBrands: string[];
 }> {
   const db = env.DB.withSession('first-primary');
-  const where: string[] = [`trim(COALESCE(client_timestamp, '')) <> ''`];
-  const values: unknown[] = [];
+  const bucketDates = getRecentDenverBucketDates(view, 30);
+  // Oldest bucket's noon anchor, less a day (or a month) of margin; buckets outside the
+  // window are dropped when bucketing.
+  const windowStart = new Date(bucketDates[bucketDates.length - 1].getTime());
+  if (view === 'month') windowStart.setUTCMonth(windowStart.getUTCMonth() - 1);
+  else windowStart.setUTCDate(windowStart.getUTCDate() - 1);
 
+  const where: string[] = [`event_time_utc >= ?`];
+  const values: unknown[] = [windowStart.toISOString()];
   if (brand) {
     where.push(`lower(trim(brand)) = lower(trim(?))`);
     values.push(brand);
   }
-  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
-  const [eventRows, brandRows] = await Promise.all([
+  // Counted per UTC hour in SQL (Denver's offset is always whole hours, so each hour maps
+  // cleanly onto one Denver day); shipping every event row to the Worker and formatting each
+  // one in JS took seconds of CPU and stalled the other admin requests behind it.
+  const [hourRows, availableBrands] = await Promise.all([
     db.prepare(
       `SELECT
-        client_timestamp AS lookup_ts,
-        COALESCE(success, 0) AS success
+        substr(event_time_utc, 1, 13) AS utc_hour,
+        COUNT(*) AS total,
+        SUM(CASE WHEN COALESCE(success, 0) = 1 THEN 1 ELSE 0 END) AS successes
        FROM serial_decode_events
-       ${whereSql}`,
-    ).bind(...values).all<{ lookup_ts: string | null; success: number | null }>(),
-    db.prepare(
-      `SELECT MIN(trim(brand)) AS brand
-       FROM serial_decode_events
-       WHERE trim(COALESCE(brand, '')) <> ''
-       GROUP BY lower(trim(brand))
-       ORDER BY lower(trim(brand)) ASC`,
-    ).all<{ brand: string | null }>(),
+       WHERE ${where.join(' AND ')}
+       GROUP BY utc_hour`,
+    ).bind(...values).all<{ utc_hour: string | null; total: number | null; successes: number | null }>(),
+    dbGetSerialDecodeBrandOptions(env),
   ]);
 
-  const availableBrands = (brandRows.results ?? [])
-    .map((row) => normalizeText(row.brand, ''))
-    .filter(Boolean);
-
-  const records = buildSerialLookupVolumeBuckets(view, eventRows.results ?? []);
+  const records = buildSerialLookupVolumeBuckets(view, bucketDates, hourRows.results ?? []);
   return {
     view,
     records,
@@ -298,12 +289,32 @@ export async function dbGetAdminV2SerialDecodeDailyVolume(
   return buckets;
 }
 
+// The brand dropdown scans every event; the brand list barely changes, so it is cached per
+// Worker isolate for a few minutes.
+const BRAND_OPTIONS_TTL_MS = 5 * 60_000;
+let brandOptionsCache: { brands: string[]; expiresAt: number } | null = null;
+
+async function dbGetSerialDecodeBrandOptions(env: Env): Promise<string[]> {
+  if (brandOptionsCache && brandOptionsCache.expiresAt > Date.now()) return brandOptionsCache.brands;
+  const brandRows = await env.DB.prepare(
+    `SELECT MIN(trim(brand)) AS brand
+     FROM serial_decode_events
+     WHERE trim(COALESCE(brand, '')) <> ''
+     GROUP BY lower(trim(brand))
+     ORDER BY lower(trim(brand)) ASC`
+  ).all<{ brand: string | null }>();
+  const brands = (brandRows.results ?? [])
+    .map((row) => normalizeText(row.brand, ''))
+    .filter(Boolean);
+  brandOptionsCache = { brands, expiresAt: Date.now() + BRAND_OPTIONS_TTL_MS };
+  return brands;
+}
+
 function buildSerialLookupVolumeBuckets(
   view: AdminV2SerialLookupVolumeView,
-  rows: Array<{ lookup_ts: string | null; success?: number | null }>,
+  bucketDates: Date[],
+  rows: Array<{ utc_hour: string | null; total: number | null; successes: number | null }>,
 ): AdminV2SerialLookupVolumeBucket[] {
-  const bucketCount = 30;
-  const bucketDates = getRecentDenverBucketDates(view, bucketCount);
   const counts = new Map<string, number>();
   const successCounts = new Map<string, number>();
   const failureCounts = new Map<string, number>();
@@ -315,16 +326,16 @@ function buildSerialLookupVolumeBuckets(
   }
 
   for (const row of rows) {
-    const eventDate = parseSerialLookupTimestamp(row.lookup_ts);
-    if (!eventDate) continue;
+    if (!row.utc_hour) continue;
+    const eventDate = new Date(`${row.utc_hour}:00:00Z`);
+    if (Number.isNaN(eventDate.getTime())) continue;
     const key = getDenverBucketKey(view, eventDate);
     if (!counts.has(key)) continue;
-    counts.set(key, Number(counts.get(key) || 0) + 1);
-    if (Number(row.success) === 1) {
-      successCounts.set(key, Number(successCounts.get(key) || 0) + 1);
-    } else {
-      failureCounts.set(key, Number(failureCounts.get(key) || 0) + 1);
-    }
+    const total = Number(row.total || 0);
+    const successes = Number(row.successes || 0);
+    counts.set(key, Number(counts.get(key) || 0) + total);
+    successCounts.set(key, Number(successCounts.get(key) || 0) + successes);
+    failureCounts.set(key, Number(failureCounts.get(key) || 0) + total - successes);
   }
 
   return bucketDates.map((bucketDate) => {
@@ -368,13 +379,15 @@ function getRecentDenverBucketDates(view: AdminV2SerialLookupVolumeView, count: 
   return dates;
 }
 
+const DENVER_DATE_PARTS_FORMAT = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Denver',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
 function getDenverBucketKey(view: AdminV2SerialLookupVolumeView, date: Date): string {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Denver',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date);
+  const parts = DENVER_DATE_PARTS_FORMAT.formatToParts(date);
   const year = parts.find((part) => part.type === 'year')?.value || '';
   const month = parts.find((part) => part.type === 'month')?.value || '';
   const day = parts.find((part) => part.type === 'day')?.value || '';
@@ -398,28 +411,6 @@ function formatDenverBucketLabel(view: AdminV2SerialLookupVolumeView, date: Date
     day: 'numeric',
     year: 'numeric',
   }).format(date);
-}
-
-function parseSerialLookupTimestamp(input: string | null): Date | null {
-  if (typeof input !== 'string') return null;
-  const trimmed = input.trim();
-  if (!trimmed) return null;
-
-  const direct = new Date(trimmed);
-  if (!Number.isNaN(direct.getTime())) return direct;
-
-  const usDate = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
-  if (!usDate) return null;
-
-  const month = Number.parseInt(usDate[1], 10) - 1;
-  const day = Number.parseInt(usDate[2], 10);
-  const year = Number.parseInt(usDate[3], 10);
-  const hour = Number.parseInt(usDate[4] || '0', 10);
-  const minute = Number.parseInt(usDate[5] || '0', 10);
-  const second = Number.parseInt(usDate[6] || '0', 10);
-  const parsed = new Date(year, month, day, hour, minute, second);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed;
 }
 
 function getDenverDayUtcBounds(dateStr: string): { startUtc: string; endUtc: string } {
