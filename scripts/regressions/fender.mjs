@@ -71,6 +71,7 @@ function assertFenderFormat(serialInput, expectedYear, expectedCountry, expected
 export function runTests() {
   // Formats added from real failed lookups (2026-11).
   assertFenderFormat('O051075', '1997-2000 (Crafted in Japan) or 1993-1994 (Made in Japan)', 'Japan', 'fender-japan-late-letter-prefix');
+  assertFenderFormat('M031192', '1992-1993 (Made in Japan)', 'Japan', 'fender-japan-late-letter-prefix');
   assertFenderFormat('R078284', '2004-2005 (Crafted in Japan)', 'Japan', 'fender-japan-late-letter-prefix');
   assertFenderFormat('U030249', '2010-2011 (Made in Japan) or 1995-1996 (Made in Japan)', 'Japan', 'fender-japan-late-letter-prefix');
   assertFenderFormat('CGF1500906', '2015', 'China', 'fender-china-cgf-yy-sequence');

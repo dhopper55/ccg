@@ -132,9 +132,9 @@ export function decodeFender(serial) {
     if (evhStripedMatch) {
         return decodeEVHStriped(evhStripedMatch[1], evhStripedMatch[2], normalized);
     }
-    // Japan single-letter prefixes O, P, Q, R, U + 6 digits (Made in Japan / Crafted in Japan).
+    // Japan single-letter prefixes M, O, P, Q, R, U + 6 digits (Made in Japan / Crafted in Japan).
     // S and N are not handled here: S + digits is the 1970s USA format and N + digit the 1990s USA format.
-    const japanLateLetterMatch = normalized.match(/^([OPQRU])(\d{6})$/);
+    const japanLateLetterMatch = normalized.match(/^([MOPQRU])(\d{6})$/);
     if (japanLateLetterMatch) {
         return decodeJapanLateLetterPrefix(japanLateLetterMatch[1], japanLateLetterMatch[2], normalized);
     }
@@ -293,6 +293,7 @@ function decodeEVHStriped(year, sequence, serial) {
 // Fender's Japan chart reuses these letters across the Made in Japan and Crafted in Japan eras;
 // the headstock decal tells them apart.
 const JAPAN_LATE_LETTER_YEARS = {
+    M: '1992-1993 (Made in Japan)',
     O: '1997-2000 (Crafted in Japan) or 1993-1994 (Made in Japan)',
     P: '1999-2002 (Crafted in Japan) or 1993-1994 (Made in Japan)',
     Q: '2002-2004 (Crafted in Japan) or 1993-1994 (Made in Japan)',
@@ -313,7 +314,7 @@ function decodeJapanLateLetterPrefix(letter, sequence, serial) {
         success: true,
         info,
         patternKey: 'fender-japan-late-letter-prefix',
-        patternLabel: 'Fender Japan O/P/Q/R/U + 6-digit format',
+        patternLabel: 'Fender Japan M/O/P/Q/R/U + 6-digit format',
     };
 }
 function decodeCustomShopRPrefix(serial) {

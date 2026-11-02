@@ -21,6 +21,7 @@ import { runTests as runSquierTests } from './regressions/squier.mjs';
 import { runTests as runFenderTests } from './regressions/fender.mjs';
 import { runTests as runPRSTests } from './regressions/prs.mjs';
 import { runTests as runYamahaTests } from './regressions/yamaha.mjs';
+import { runTests as runErnieBallTests } from './regressions/ernieball.mjs';
 import { runTests as runSisterBrandTests } from './regressions/sister-brands.mjs';
 import { runTests as runInputCleanupTests } from './regressions/input-cleanup.mjs';
 
@@ -47,6 +48,7 @@ runSquierTests();
 runFenderTests();
 runPRSTests();
 runYamahaTests();
+runErnieBallTests();
 runSisterBrandTests();
 runInputCleanupTests();
 
