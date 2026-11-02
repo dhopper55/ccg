@@ -24,6 +24,10 @@
  * - China CSS prefix (Samick)
  * - China CYK + letter prefix (Yako, 2020+)
  * - China CRN + letter prefix (Re-New contracted facility, 2020+)
+ * - China CGR/CMY/CMH + month-letter prefixes, CGF (Grand Reward), CD (Dalian Dong Fang, 1998-99)
+ * - Japan Made in Japan L/M/V + 6 digits, N + 5 digits
+ * - Indonesia ISS + YY + 5 digits (Samick, 2019-20)
+ * - India SH07/SH08 prefix (2007-2009)
  * - China NC prefix (mid-90s)
  * - China SE Strat Pack numeric-only (9 digits, YYMM + sequence)
  * - Mexico MN prefix (1990s)
@@ -86,6 +90,12 @@ export function decodeSquier(serial) {
     if (japanLetterMatch && JAPAN_LETTER_YEARS[japanLetterMatch[1]]) {
         return decodeJapanLetter(japanLetterMatch[1], japanLetterMatch[2], normalized);
     }
+    // Japan "Made in Japan" (FujiGen) L/M/V + 6 digits and N + 5 digits.
+    // L = 1991-92, M = 1992-93, V = 1996-97, N + 5 digits = 1995-96 (squierwiki MIJ chart).
+    const mijMatch = normalized.match(/^([LMV])(\d{6})$/) || normalized.match(/^(N)(\d{5})$/);
+    if (mijMatch) {
+        return decodeJapanMIJLetter(mijMatch[1], mijMatch[2], normalized);
+    }
     // K prefix: Japan MIJ era 1990-1991 (FujiGen Gakki) or early Korean production
     // K is not in the CIJ table (which starts at A=1997) but was used in the earlier MIJ/Squier Japan run.
     if (/^K\d{6,7}$/.test(normalized)) {
@@ -135,6 +145,12 @@ export function decodeSquier(serial) {
     if (issLetterMatch) {
         return decodeIndonesiaISSLetter(issLetterMatch[1], issLetterMatch[2], issLetterMatch[3], normalized);
     }
+    // Indonesia ISS + YY + 5 digits (Samick, 2019-2020 pre-month-letter format, e.g. ISS20 + 5 digits = 2020)
+    // Source: https://www.fuzzfaced.net/serial-number-stratocaster-china-indonesia.html
+    const issYearMatch = normalized.match(/^ISS(19|20)(\d{5})$/);
+    if (issYearMatch) {
+        return decodeIndonesiaISSYear(issYearMatch[1], issYearMatch[2], normalized);
+    }
     // Indonesia ISS prefix (Samick)
     if (/^ISS\d{6}$/.test(normalized)) {
         return decodeIndonesiaISS(normalized);
@@ -153,6 +169,37 @@ export function decodeSquier(serial) {
     const cmcMatch = normalized.match(/^CMC([A-L])(\d{2})(\d+)$/);
     if (cmcMatch) {
         return decodeChinaCMC(cmcMatch[1], cmcMatch[2], cmcMatch[3], normalized);
+    }
+    // China four-letter prefixes: country + factory + month letter (A-L) + YY + 6-digit sequence.
+    // CGR = Grand Reward (seen 2008-09 and 2020+), CMY = ~2018-2021, CMH = Muse (Classic Vibe line).
+    const cgrLetterMatch = normalized.match(/^CGR([A-L])(0[89]|2\d)(\d{6})$/);
+    if (cgrLetterMatch) {
+        return decodeChinaMonthLetterPrefix('CGR', cgrLetterMatch[1], cgrLetterMatch[2], cgrLetterMatch[3], normalized);
+    }
+    const cmyLetterMatch = normalized.match(/^CMY([A-L])(1[89]|2\d)(\d{6})$/);
+    if (cmyLetterMatch) {
+        return decodeChinaMonthLetterPrefix('CMY', cmyLetterMatch[1], cmyLetterMatch[2], cmyLetterMatch[3], normalized);
+    }
+    const cmhLetterMatch = normalized.match(/^CMH([A-L])(2\d)(\d{6})$/);
+    if (cmhLetterMatch) {
+        return decodeChinaMonthLetterPrefix('CMH', cmhLetterMatch[1], cmhLetterMatch[2], cmhLetterMatch[3], normalized);
+    }
+    // Sources for CGF, CD and SH below: https://www.fuzzfaced.net/serial-number-stratocaster-china-indonesia.html,
+    // https://squierwiki.com/Serial+Number+Tracking
+    // China CGF prefix (Grand Reward, 2011-2014): CGF + YY + 5-digit sequence
+    const cgfMatch = normalized.match(/^CGF(1[1-4])(\d{5})$/);
+    if (cgfMatch) {
+        return decodeChinaCGF(cgfMatch[1], cgfMatch[2], normalized);
+    }
+    // China CD prefix (Dalian Dong Fang, 1998-1999): CD + YY + 6-digit sequence
+    const cdMatch = normalized.match(/^CD(9[89])(\d{6})$/);
+    if (cdMatch) {
+        return decodeChinaCD(cdMatch[1], cdMatch[2], normalized);
+    }
+    // India SH prefix (Crafted in India, 2007-2009): SH + 07/08 + 6-digit sequence
+    const shMatch = normalized.match(/^SH(0[78])(\d{6})$/);
+    if (shMatch) {
+        return decodeIndiaSH(shMatch[1], shMatch[2], normalized);
     }
     // China CYK + letter or digit prefix (Yako, 2020+)
     const cykMatch = normalized.match(/^CYK([A-L0-9])(\d{2})(\d+)$/);
@@ -1178,4 +1225,127 @@ function getMonthName(month) {
         'July', 'August', 'September', 'October', 'November', 'December'
     ];
     return months[month - 1] || 'Unknown';
+}
+// Made in Japan (FujiGen) letter prefixes not covered by the Crafted in Japan table above.
+// Source: https://squierwiki.com/Serial+Number+Tracking (Made in Japan chart)
+const MIJ_LETTER_YEARS = {
+    'L': '1991-1992',
+    'M': '1992-1993',
+    'N': '1995-1996',
+    'V': '1996-1997',
+};
+function decodeJapanMIJLetter(letter, sequence, serial) {
+    const years = MIJ_LETTER_YEARS[letter];
+    const sequenceNumber = parseInt(sequence, 10);
+    const shape = letter === 'N' ? 'N + 5 digits' : `${letter} + 6 digits`;
+    const info = {
+        brand: 'Squier',
+        serialNumber: serial,
+        year: years,
+        factory: 'FujiGen Gakki',
+        country: 'Japan',
+        notes: `${shape} is a "Made in Japan" Squier serial from the FujiGen era, dated ${years} on the Squier Japan serial chart. Production sequence: ${sequenceNumber}. Confirm the "Made in Japan" marking; the same letters were also used on Fender Japan instruments.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'squier-japan-mij-letter-sequence',
+        patternLabel: 'Squier Made in Japan letter + sequence',
+    };
+}
+function decodeIndonesiaISSYear(yearDigits, sequence, serial) {
+    const year = 2000 + parseInt(yearDigits, 10);
+    const sequenceNumber = parseInt(sequence, 10);
+    const info = {
+        brand: 'Squier',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'Samick',
+        country: 'Indonesia',
+        notes: `ISS prefix indicates Indonesian production at the Samick factory. Parsed as ISS + two-digit year (${yearDigits}) + production sequence ${sequenceNumber}, the 2019-2020 format used before Samick Indonesia switched to a month-letter code in 2021.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'squier-indonesia-iss-yy-sequence',
+        patternLabel: 'Squier Indonesia ISS YY sequence',
+    };
+}
+// Sources: https://www.fuzzfaced.net/serial-number-stratocaster-china-indonesia.html (CGR + letter, CMY + letter),
+// https://squierwiki.com/Serial+Number+Tracking (CGR + letter), https://www.talkbass.com/threads/help-with-squier-serial-number.1669511/ (CMHC, Muse)
+const CHINA_MONTH_LETTER_FACTORIES = {
+    'CGR': { factory: 'Grand Reward', label: '"GR" identifies the Grand Reward factory' },
+    'CMY': { factory: 'China (CMY contracted facility)', label: '"MY" identifies the contracted production facility' },
+    'CMH': { factory: 'Muse factory, China', label: '"MH" identifies the Muse factory (Classic Vibe line)' },
+};
+function decodeChinaMonthLetterPrefix(prefix, monthLetter, yearDigits, sequence, serial) {
+    const year = 2000 + parseInt(yearDigits, 10);
+    const month = MONTH_LETTERS[monthLetter];
+    const sequenceNumber = parseInt(sequence, 10);
+    const { factory, label } = CHINA_MONTH_LETTER_FACTORIES[prefix];
+    const info = {
+        brand: 'Squier',
+        serialNumber: serial,
+        year: year.toString(),
+        month,
+        factory,
+        country: 'China',
+        notes: `Squier ${prefix} four-letter prefix format. "C" identifies China; ${label}; "${monthLetter}" indicates ${month} using alphabetical month coding (A=January through L=December); ${yearDigits} indicates ${year}; production sequence: ${sequenceNumber}.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: `squier-china-${prefix.toLowerCase()}-month-letter-yy-sequence`,
+        patternLabel: `Squier China ${prefix} month-letter YY sequence`,
+    };
+}
+function decodeChinaCGF(yearDigits, sequence, serial) {
+    const year = 2000 + parseInt(yearDigits, 10);
+    const info = {
+        brand: 'Squier',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'Grand Reward',
+        country: 'China',
+        notes: `CGF prefix indicates Chinese production at the Grand Reward factory (2011-2014). Parsed as CGF + two-digit year (${yearDigits}) + production sequence ${parseInt(sequence, 10)}. CGF is also used on Fender-branded guitars from the same factory, such as the Modern Player series.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'squier-china-cgf-yy-sequence',
+        patternLabel: 'Squier China CGF YY sequence',
+    };
+}
+function decodeChinaCD(yearDigits, sequence, serial) {
+    const year = 1900 + parseInt(yearDigits, 10);
+    const info = {
+        brand: 'Squier',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'Dalian Dong Fang',
+        country: 'China',
+        notes: `CD prefix indicates late-1990s Chinese production attributed to the Dalian Dong Fang factory (some guides attribute CD to Yako). Parsed as CD + two-digit year (${yearDigits}) + production sequence ${parseInt(sequence, 10)}.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'squier-china-cd-yy-sequence',
+        patternLabel: 'Squier China CD YY sequence',
+    };
+}
+function decodeIndiaSH(yearDigits, sequence, serial) {
+    const year = 2000 + parseInt(yearDigits, 10);
+    const info = {
+        brand: 'Squier',
+        serialNumber: serial,
+        year: `${year}-${year + 1}`,
+        country: 'India',
+        notes: `SH prefix indicates a "Crafted in India" Squier (2007-2009). Parsed as SH + two-digit year (${yearDigits}) + production sequence ${parseInt(sequence, 10)}.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'squier-india-sh-yy-sequence',
+        patternLabel: 'Squier India SH YY sequence',
+    };
 }
