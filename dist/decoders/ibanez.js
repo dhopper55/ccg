@@ -115,6 +115,12 @@ export function decodeIbanez(serial) {
     if (/^W\d{6}$/.test(normalized)) {
         return decodeWorld(normalized);
     }
+    // Korea: W + month letter X/Y/Z (Oct/Nov/Dec) + year digit + 4-digit sequence (World factory)
+    // Source: https://ibanez.fandom.com/wiki/Ibanez_serial_numbers ("World Co. production",
+    // month 1-9 = Jan-Sep, X = Oct, Y = Nov, Z = Dec; example WZ01928 = December 2000)
+    if (/^W[XYZ]\d{5}$/.test(normalized)) {
+        return decodeWorldLetterMonth(normalized);
+    }
     // Korea: W + 7 digits (World factory variant, numeric MM)
     if (/^W\d{7}$/.test(normalized)) {
         return decodeWorldExtended(normalized);
@@ -822,6 +828,18 @@ function decodeWorld(serial) {
         notes: `Sequence: ${sequence}. W prefix indicates World factory production.`
     };
     return { success: true, info };
+}
+// Korea World: W + X/Y/Z month letter + year digit + 4-digit sequence (1999-2008)
+function decodeWorldLetterMonth(serial) {
+    const result = decodeWorld(serial);
+    if (result.success && result.info) {
+        result.info.notes = `Month code ${serial[1]} (X=October, Y=November, Z=December). ${result.info.notes}`;
+    }
+    return {
+        ...result,
+        patternKey: 'ibanez-korea-world-w-letter-month-y-sequence',
+        patternLabel: 'Ibanez World (Korea) W + month letter (X/Y/Z) + year digit + sequence',
+    };
 }
 // Korea World (variant): W + 7 digits (YMM####)
 function decodeWorldExtended(serial) {

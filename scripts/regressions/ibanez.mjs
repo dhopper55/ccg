@@ -475,6 +475,26 @@ function assertIbanezFujiGenFD(serialInput, expectedYear, expectedMonth) {
   assert(info.country === 'Japan', `Expected country Japan for ${serialInput}, got ${info.country}`);
 }
 
+function assertIbanezWorldLetterMonth(serialInput, expectedYear, expectedMonth) {
+  const result = decodeIbanez(serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info, `Expected decoded info for ${serialInput}`);
+
+  const info = result.info;
+  assert(info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${info.year}`);
+  assert(info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${info.month}`);
+  assert(info.factory === 'World Musical Instruments Co.', `Expected World factory for ${serialInput}, got ${info.factory}`);
+  assert(
+    result.patternKey === 'ibanez-korea-world-w-letter-month-y-sequence',
+    `Expected World letter-month pattern key for ${serialInput}, got ${result.patternKey}`
+  );
+}
+
+function assertIbanezFails(serialInput) {
+  const result = decodeIbanez(serialInput);
+  assert(!result.success, `Expected decode failure for ibanez:${serialInput}, got ${result.info?.year}`);
+}
+
 function assertIbanezWorldExtended(serialInput, expectedYear, expectedMonth) {
   const result = decodeIbanez(serialInput);
   assert(result.success, `Expected decode success for ${serialInput}`);
@@ -818,6 +838,16 @@ export function runTests() {
   assertIbanezChinaN('N230401406', '2023', 'April');
   assertIbanezWorldExtended('W0111538', '2000', 'November');
   assertIbanezWorldShortWK('WK1007');
+  assertIbanezWorldLetterMonth('WZ01928', '2000', 'December');
+  assertIbanezWorldLetterMonth('WY21524', '2002', 'November');
+  assertIbanezWorldLetterMonth('WY40172', '2004', 'November');
+  assertIbanezWorldLetterMonth('WZ00837', '2000', 'December');
+  assertIbanezWorldLetterMonth('WZ51646', '2005', 'December');
+  assertIbanezWorldLetterMonth('wz41478', '2004', 'December');
+  assertIbanezWorldLetterMonth('WX11891', '2001', 'October');
+  assertIbanezFails('WX1189');
+  assertIbanezFails('WA21524');
+  assertIbanezFails('WZ012345');
   assertIbanezRPrefix('R060300616', '2006', 'March');
   assertIbanezSQMonthLetter('SQ08E06597', '2008', 'May');
   assertIbanezKorea7DigitC('C8016949', '1998', 'January');
