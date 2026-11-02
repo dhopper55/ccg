@@ -64,6 +64,7 @@ export function handleRobotsTxt(): Response {
       'User-agent: *',
       'Allow: /',
       'Disallow: /admin/',
+      'Disallow: /dncbudget/',
       'Disallow: /api/',
       'Disallow: /cdn-cgi/',
       'Disallow: /transformer-lot.html',

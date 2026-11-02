@@ -66,3 +66,7 @@ https://:project.pages.dev/*
 
 https://:version.:project.pages.dev/*
   X-Robots-Tag: noindex
+
+# Private budget app (behind the admin login): keep its shell out of search results.
+/dncbudget/*
+  X-Robots-Tag: noindex, nofollow

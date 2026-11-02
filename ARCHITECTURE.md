@@ -41,6 +41,7 @@ Sitemap behavior:
 - `/sitemap.xml` is implemented in both `functions/sitemap.xml.js` and the Worker fallback `handleSitemap(...)`.
 - Keep static URL lists in both places in sync.
 - Product URLs are appended dynamically from shop product rows.
+- `/sitemap.xml` and `/robots.txt` are served by the Worker routes (`handleSitemap`, `handleRobotsTxt` in `workers/listing-evaluator/src/shop/sitemap.ts`); the Pages function sitemap only answers on hosts without those routes (e.g. pages.dev). There is no static `robots.txt` in the repo.
 - `/robots.txt` points crawlers to `https://www.coalcreekguitars.com/sitemap.xml`.
 
 Important decoder/deploy distinction:
