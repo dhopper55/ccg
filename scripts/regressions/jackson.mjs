@@ -326,6 +326,10 @@ export function runTests() {
   assertJacksonPlayerChoiceSeries('pcs0001', 1);
   assertJacksonMij200C('200C00541');
   assertJacksonModern10DigitThreeLetterPrefix('ICJ3215352', '2015', 'Cort', 'Indonesia');
+  // Documented year-first layout: prefix + YY + 5-digit sequence.
+  assert(decodeSerialForBackend('jackson', 'JAS2202251').info?.year === '2022', 'Expected JAS2202251 = 2022 (American Series)');
+  assert(decodeSerialForBackend('jackson', 'ICJ1855231').info?.year === '2018', 'Expected ICJ1855231 = 2018');
+  assert(decodeSerialForBackend('jackson', 'ICJ1500001').info?.year === '2015', 'Expected ICJ1500001 = 2015');
   assertJacksonChinaCWJPrefix('CWJ2257232', '2022', 57232);
   assertJacksonChinaCWJPrefix('CWJ25124694', '2025', 124694);
   assertJacksonChinaNumeric9Digit('311740074');

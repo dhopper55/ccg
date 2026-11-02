@@ -9,7 +9,7 @@ import { decodePRS } from './decoders/prs.js?version=193694';
 import { decodeESP } from './decoders/esp.js?version=689817';
 import { decodeSchecter } from './decoders/schecter.js?version=368161';
 import { decodeGretsch } from './decoders/gretsch.js?version=864104';
-import { decodeJackson } from './decoders/jackson.js?version=940655';
+import { decodeJackson } from './decoders/jackson.js?version=086464';
 import { decodeSquier } from './decoders/squier.js?version=758187';
 import { decodeCort } from './decoders/cort.js?version=763771';
 import { decodeTakamine } from './decoders/takamine.js?version=714117';
@@ -18,7 +18,7 @@ import { decodeDean } from './decoders/dean.js?version=534008';
 import { decodeErnieBall } from './decoders/ernieball.js?version=436489';
 import { decodeGuild } from './decoders/guild.js?version=273034';
 import { decodeAlvarez } from './decoders/alvarez.js?version=856102';
-import { decodeGodin } from './decoders/godin.js?version=423467';
+import { decodeGodin } from './decoders/godin.js?version=272071';
 import { decodeOvation } from './decoders/ovation.js?version=875248';
 import { decodeCharvel } from './decoders/charvel.js?version=609872';
 import { decodeRickenbacker } from './decoders/rickenbacker.js?version=961802';
@@ -200,7 +200,7 @@ const CYRILLIC_LOOKALIKES = {
 // try common keying mistakes (letter O for zero, I/l for one, leading 1 for the I of Indonesian
 // IC/ICS/ISS prefixes). Limited to brands whose decoders have been checked against these
 // rewrites: looser decoders turn the extracted words into confident wrong dates.
-const CLEANUP_RETRY_BRANDS = new Set(['fender', 'squier', 'gibson', 'epiphone']);
+const CLEANUP_RETRY_BRANDS = new Set(['fender', 'squier', 'gibson', 'epiphone', 'esp', 'schecter']);
 function buildTypoCandidates(value) {
     const upper = value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
     // A leading O is a real Fender/Squier Japan prefix (1997-2000), so only later Os are rewritten.
@@ -264,6 +264,19 @@ function buildRetrySerials(serial, normalizedBrand) {
         }
         for (const typoCandidate of buildTypoCandidates(serial)) {
             addCandidate(typoCandidate);
+        }
+        // ESP LTD and Schecter use two-letter factory prefixes followed directly by the year, so an
+        // I or L right after the prefix is a mistyped 1 (IWI4082364 -> IW14082364).
+        if (normalizedBrand === 'esp' || normalizedBrand === 'schecter') {
+            for (const base of [...candidates, serial.replace(/[^A-Za-z0-9]/g, '').toUpperCase()]) {
+                const fixed = base.replace(/^([A-Z]{2})[IL](?=\d)/, '$11');
+                if (fixed !== base) {
+                    addCandidate(fixed);
+                    for (const typoCandidate of buildTypoCandidates(fixed)) {
+                        addCandidate(typoCandidate);
+                    }
+                }
+            }
         }
     }
     if (normalizedBrand === 'ibanez' && serial.length >= 2 && serial[0] === '1') {

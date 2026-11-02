@@ -237,7 +237,7 @@ const CYRILLIC_LOOKALIKES: Record<string, string> = {
 // try common keying mistakes (letter O for zero, I/l for one, leading 1 for the I of Indonesian
 // IC/ICS/ISS prefixes). Limited to brands whose decoders have been checked against these
 // rewrites: looser decoders turn the extracted words into confident wrong dates.
-const CLEANUP_RETRY_BRANDS = new Set(['fender', 'squier', 'gibson', 'epiphone']);
+const CLEANUP_RETRY_BRANDS = new Set(['fender', 'squier', 'gibson', 'epiphone', 'esp', 'schecter']);
 
 function buildTypoCandidates(value: string): string[] {
   const upper = value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
@@ -310,6 +310,20 @@ function buildRetrySerials(serial: string, normalizedBrand: string): string[] {
     }
     for (const typoCandidate of buildTypoCandidates(serial)) {
       addCandidate(typoCandidate);
+    }
+
+    // ESP LTD and Schecter use two-letter factory prefixes followed directly by the year, so an
+    // I or L right after the prefix is a mistyped 1 (IWI4082364 -> IW14082364).
+    if (normalizedBrand === 'esp' || normalizedBrand === 'schecter') {
+      for (const base of [...candidates, serial.replace(/[^A-Za-z0-9]/g, '').toUpperCase()]) {
+        const fixed = base.replace(/^([A-Z]{2})[IL](?=\d)/, '$11');
+        if (fixed !== base) {
+          addCandidate(fixed);
+          for (const typoCandidate of buildTypoCandidates(fixed)) {
+            addCandidate(typoCandidate);
+          }
+        }
+      }
     }
   }
 

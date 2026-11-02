@@ -20,6 +20,12 @@ function assertGodinAmbiguous7Digit(serialInput) {
 }
 
 export function runTests() {
+  // Wood-grade (A/AA/AAA) and B-stock (F) marks typed after an 8-digit serial.
+  for (const [serial, year] of [['17065162AA', '2016'], ['98272365 F', '1998'], ['13505117 AAA', '2013']]) {
+    const result = decodeSerialForBackend('godin', serial);
+    assert(result.success && result.info?.year === year, `Expected ${serial} = ${year}, got ${result.info?.year}`);
+  }
+
   assertGodinAmbiguous7Digit('4284009');
   assertGodin8DigitPre2000('98196441', '1997');
   assertGodin13Digit('0319860009106');

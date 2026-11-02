@@ -1325,6 +1325,19 @@ function decodeModernIndonesiaKorea8Digit(serial) {
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a modern Jackson 8-digit import format where the first two digits identify the production year.</p><h3>How This Pattern Is Typically Read</h3><p>The first two digits ${yearDigits} decode as production year ${year}. The remaining digits decode as sequential production number ${sequenceNumber}. This format is commonly seen on JS, X Series, and entry-level Pro Series models built at contracted Asian factories.</p><h3>What To Verify</h3><ul><li>Check the back of the headstock or neck plate for a country-of-origin stamp.</li><li>Remove the neck and check the neck pocket for a date stamp and model designation.</li><li>Compare body shape, inlays, pickup configuration, and hardware to Jackson catalog specs for the decoded year.</li></ul><h3>Coal Creek Guitars Note</h3><p>Use this as a confirmed modern Jackson import decode, then identify the exact model and factory from physical markings and catalog comparison.</p>`,
     };
 }
+// Jackson's support site and dealer listings document these prefixes as prefix + YY + 5-digit
+// sequence (ICJ1500001 = 2015, ICJ1600003 = 2016, JAS2202251 = 2022 American Series). The older
+// model-code reading (prefix + model(2) + YY + seq(3)) is kept for serials whose leading digits
+// cannot be a year in that era, e.g. ICJ3215352.
+const JACKSON_YEAR_FIRST_PREFIXES = new Set(['ICJ', 'IWJ', 'ISJ', 'CYJ', 'CWJ', 'KWJ', 'NHJ', 'JAS']);
+export function isJacksonYearFirstThreeLetterSerial(serial) {
+    const normalized = serial.toUpperCase();
+    if (!/^[A-Z]{3}\d{7}$/.test(normalized) || !JACKSON_YEAR_FIRST_PREFIXES.has(normalized.substring(0, 3))) {
+        return false;
+    }
+    const year = 2000 + parseInt(normalized.substring(3, 5), 10);
+    return year >= 2013 && year <= new Date().getFullYear();
+}
 function decodeModern10DigitThreeLetterPrefix(serial) {
     const letterPrefix = serial.substring(0, 3);
     const isExtended = serial.length >= 11; // 3-letter + 8 or 9-digit variant
@@ -1333,6 +1346,11 @@ function decodeModern10DigitThreeLetterPrefix(serial) {
     let sequenceStr;
     if (isExtended) {
         // 11-char (8 digits) and 12-char (9 digits): prefix(3) + YY(2) + seq(6 or 7) — no model code
+        yearDigits = serial.substring(3, 5);
+        sequenceStr = serial.substring(5);
+    }
+    else if (isJacksonYearFirstThreeLetterSerial(serial)) {
+        // 10-char documented layout: prefix(3) + YY(2) + seq(5), e.g. ICJ1500001 = 2015, JAS2202251 = 2022
         yearDigits = serial.substring(3, 5);
         sequenceStr = serial.substring(5);
     }

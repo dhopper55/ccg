@@ -48,6 +48,20 @@ export function decodeGodin(serial) {
     if (/^\d{12,13}$/.test(normalized)) {
         return decode12Digit(normalized);
     }
+    // 8-digit serial followed by a wood-grade (A/AA/AAA) or B-stock (F) mark on the label,
+    // e.g. 17065162AA, "98272365 F", "03310270-(F)" (https://sixstringacoustic.com/?p=2963)
+    const gradeSuffixMatch = normalized.replace(/[()]/g, '').match(/^(\d{8})(AAA|AA|A|F)$/);
+    if (gradeSuffixMatch) {
+        const result = decode8Digit(gradeSuffixMatch[1]);
+        if (result.success && result.info) {
+            const suffix = gradeSuffixMatch[2];
+            const suffixNote = suffix === 'F'
+                ? 'The trailing "F" marks a factory second (B-stock) and is not part of the serial.'
+                : `The trailing "${suffix}" is Godin's wood-grade mark and is not part of the serial.`;
+            result.info.notes = `${suffixNote} ${result.info.notes}`;
+        }
+        return result;
+    }
     // 8-digit format: YYWWDRRR (1993-2007, 2023+)
     if (/^\d{8}$/.test(normalized)) {
         return decode8Digit(normalized);

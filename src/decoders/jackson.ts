@@ -1494,6 +1494,21 @@ function decodeModernIndonesiaKorea8Digit(serial: string): DecodeResult {
   };
 }
 
+// Jackson's support site and dealer listings document these prefixes as prefix + YY + 5-digit
+// sequence (ICJ1500001 = 2015, ICJ1600003 = 2016, JAS2202251 = 2022 American Series). The older
+// model-code reading (prefix + model(2) + YY + seq(3)) is kept for serials whose leading digits
+// cannot be a year in that era, e.g. ICJ3215352.
+const JACKSON_YEAR_FIRST_PREFIXES = new Set(['ICJ', 'IWJ', 'ISJ', 'CYJ', 'CWJ', 'KWJ', 'NHJ', 'JAS']);
+
+export function isJacksonYearFirstThreeLetterSerial(serial: string): boolean {
+  const normalized = serial.toUpperCase();
+  if (!/^[A-Z]{3}\d{7}$/.test(normalized) || !JACKSON_YEAR_FIRST_PREFIXES.has(normalized.substring(0, 3))) {
+    return false;
+  }
+  const year = 2000 + parseInt(normalized.substring(3, 5), 10);
+  return year >= 2013 && year <= new Date().getFullYear();
+}
+
 function decodeModern10DigitThreeLetterPrefix(serial: string): DecodeResult {
   const letterPrefix = serial.substring(0, 3);
   const isExtended = serial.length >= 11; // 3-letter + 8 or 9-digit variant
@@ -1504,6 +1519,10 @@ function decodeModern10DigitThreeLetterPrefix(serial: string): DecodeResult {
 
   if (isExtended) {
     // 11-char (8 digits) and 12-char (9 digits): prefix(3) + YY(2) + seq(6 or 7) — no model code
+    yearDigits = serial.substring(3, 5);
+    sequenceStr = serial.substring(5);
+  } else if (isJacksonYearFirstThreeLetterSerial(serial)) {
+    // 10-char documented layout: prefix(3) + YY(2) + seq(5), e.g. ICJ1500001 = 2015, JAS2202251 = 2022
     yearDigits = serial.substring(3, 5);
     sequenceStr = serial.substring(5);
   } else {

@@ -13,6 +13,7 @@
  */
 
 import { DecodeResult, GuitarInfo } from '../../../src/types.js';
+import { isJacksonYearFirstThreeLetterSerial } from '../../../src/decoders/jackson.js';
 
 export interface SerialPatternV2Row {
   id: number;
@@ -148,7 +149,8 @@ function decodeNumericYYMM(serial: string, patternKey: string, patternLabel: str
 
 function decodeThreeLetterPrefix(serial: string, patternKey: string, patternLabel: string, params: ThreeLetterPrefixParams): DecodeResult | null {
   const letterPrefix = serial.substring(0, 3);
-  const yearDigits = serial.substring(5, 7);
+  // Documented year-first layout (prefix + YY + 5-digit sequence); see jackson.ts.
+  const yearDigits = isJacksonYearFirstThreeLetterSerial(serial) ? serial.substring(3, 5) : serial.substring(5, 7);
   const year = params.yearCentury + parseInt(yearDigits, 10);
 
   if (Number.isNaN(year)) return null;

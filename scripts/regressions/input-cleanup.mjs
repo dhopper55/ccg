@@ -33,6 +33,10 @@ export function runTests() {
   // Cyrillic letters that look identical to Latin ones.
   assertCleanedDecode('squier', 'СY090800817', 'СY090800817'.replace('С', 'C'), '2009');
 
+  // ESP LTD and Schecter: O for zero, I/L for 1 after the two-letter factory prefix.
+  assertCleanedDecode('esp', 'IRO427290', 'IR0427290', '2004');
+  assertCleanedDecode('schecter', 'IWI4082364', 'IW14082364', '2014');
+
   // Cleanup must not invent serials from unrelated text.
   assertStillFails('fender', "US1234' OR '1'='1");
   assertStillFails('fender', 'Fender F-260S');
