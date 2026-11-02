@@ -21,6 +21,8 @@ import { runTests as runSquierTests } from './regressions/squier.mjs';
 import { runTests as runFenderTests } from './regressions/fender.mjs';
 import { runTests as runPRSTests } from './regressions/prs.mjs';
 import { runTests as runYamahaTests } from './regressions/yamaha.mjs';
+import { runTests as runSisterBrandTests } from './regressions/sister-brands.mjs';
+import { runTests as runInputCleanupTests } from './regressions/input-cleanup.mjs';
 
 runAlvarezTests();
 runIbanezTests();
@@ -45,5 +47,7 @@ runSquierTests();
 runFenderTests();
 runPRSTests();
 runYamahaTests();
+runSisterBrandTests();
+runInputCleanupTests();
 
 console.log('Regression tests passed.');

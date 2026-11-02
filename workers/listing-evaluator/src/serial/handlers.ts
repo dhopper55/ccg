@@ -9,7 +9,11 @@ import type { ActivityEventKey } from '../constants.js';
 import { ACTIVITY_BASE_URL, BRAND_ACTIVITY_META, ACTIVITY_EVENT_TYPE_SEEDS } from '../constants.js';
 import { normalizeBrandKey } from '../../../../src/serial-decode-service.js';
 import { decodeSerialV2 } from '../v2-serial-decode.js';
-import { decodeSerialForBackend } from '../../../../src/serial-decode-service.js';
+import {
+  decodeSerialForBackend,
+  getSisterFallbackBrand,
+  acceptSisterFallbackResult,
+} from '../../../../src/serial-decode-service.js';
 import {
   normalizeSerialKey,
   deriveSerialPatternMeta,
@@ -238,15 +242,27 @@ export async function handleDecodeRequest(request: Request, env: Env): Promise<R
   const normalizedSerial = normalizeSerialKey(serial).slice(0, 180);
 
   const useV2 = await dbGetV2DecodeLogicEnabled(env);
-  let result = useV2
-    ? ((await decodeSerialV2(normalizedBrand, serial, env)) ?? decodeSerialForBackend(brand, serial))
-    : decodeSerialForBackend(brand, serial);
-  if (result.success && result.info && !hasMeaningfulServerDecodeInfo(result.info)) {
-    result = {
-      success: false,
-      error: 'Unable to decode this serial number.',
-      normalizedBrand,
-    };
+  const decodeForBrand = async (brandKey: string, brandLabel: string) => {
+    const decoded = useV2
+      ? ((await decodeSerialV2(brandKey, serial, env)) ?? decodeSerialForBackend(brandLabel, serial, { sisterFallback: false }))
+      : decodeSerialForBackend(brandLabel, serial, { sisterFallback: false });
+    if (decoded.success && decoded.info && !hasMeaningfulServerDecodeInfo(decoded.info)) {
+      return { success: false, error: 'Unable to decode this serial number.', normalizedBrand };
+    }
+    return decoded;
+  };
+  let result = await decodeForBrand(normalizedBrand, brand);
+
+  // Pattern metadata/context belongs to whichever brand's decoder produced the result; the
+  // event itself stays logged under the brand the customer selected.
+  let patternBrand = normalizedBrand;
+  const sisterBrand = result.success ? null : getSisterFallbackBrand(normalizedBrand);
+  if (sisterBrand) {
+    const sisterResult = acceptSisterFallbackResult(normalizedBrand, serial, await decodeForBrand(sisterBrand, sisterBrand));
+    if (sisterResult) {
+      result = { ...sisterResult, normalizedBrand };
+      patternBrand = sisterBrand;
+    }
   }
 
   const cf = (request as Request & { cf?: Record<string, unknown> }).cf || {};
@@ -281,13 +297,13 @@ export async function handleDecodeRequest(request: Request, env: Env): Promise<R
           patternKey: decoderPatternKey,
           patternLabel: decoderPatternLabel || decoderPatternKey,
         }
-      : deriveSerialPatternMeta(normalizedBrand, decodedSerial);
+      : deriveSerialPatternMeta(patternBrand, decodedSerial);
     patternKey = patternMeta.patternKey;
     patternLabel = patternMeta.patternLabel;
     if (result.additionalContext) {
       additionalContext = result.additionalContext;
     } else {
-      const contextRow = await dbGetPublishedSerialPatternContext(normalizedBrand, patternMeta.patternKey, env);
+      const contextRow = await dbGetPublishedSerialPatternContext(patternBrand, patternMeta.patternKey, env);
       if (contextRow) {
         additionalContext = contextRow;
       } else {
@@ -298,9 +314,9 @@ export async function handleDecodeRequest(request: Request, env: Env): Promise<R
   }
 
   if (patternKey) {
-    patternLookupId = await ensureSerialDecodePatternLookup(normalizedBrand, patternKey, env);
+    patternLookupId = await ensureSerialDecodePatternLookup(patternBrand, patternKey, env);
     if (!additionalContextRichText) {
-      additionalContextRichText = await getSerialDecodePatternRichText(normalizedBrand, patternKey, env);
+      additionalContextRichText = await getSerialDecodePatternRichText(patternBrand, patternKey, env);
     }
   }
 
@@ -322,7 +338,7 @@ export async function handleDecodeRequest(request: Request, env: Env): Promise<R
   }
 
   const eventPayload: SerialDecodeEventInsert = {
-    brand: (result.info?.brand || brand).slice(0, 120),
+    brand: (patternBrand === normalizedBrand ? result.info?.brand || brand : brand).slice(0, 120),
     serial: (result.info?.serialNumber || serial).slice(0, 180),
     pattern: patternKey || null,
     patternKey: patternKey || null,
@@ -402,7 +418,7 @@ export async function handleDecodeRequest(request: Request, env: Env): Promise<R
     }
   }
 
-  const decodeBrand = normalizeText(result.info?.brand || brand, '').slice(0, 120);
+  const decodeBrand = normalizeText(patternBrand === normalizedBrand ? result.info?.brand || brand : brand, '').slice(0, 120);
   const decodeSerial = normalizeText(result.info?.serialNumber || serial, '').slice(0, 180);
   const decodeBrandContext = buildBrandActivityContext(decodeBrand, normalizedBrand);
   const decodeEventText = result.success
@@ -424,7 +440,7 @@ export async function handleDecodeRequest(request: Request, env: Env): Promise<R
   }
 
   if (result.success) {
-    const successBrand = (result.info?.brand || brand).slice(0, 120);
+    const successBrand = (patternBrand === normalizedBrand ? result.info?.brand || brand : brand).slice(0, 120);
     const successSerial = (result.info?.serialNumber || serial).slice(0, 180);
     try {
       await dbMarkPriorDecodeFailuresAsValid(successBrand, successSerial, env);

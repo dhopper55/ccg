@@ -10,6 +10,23 @@ export function decodeGibson(serial) {
     if (/^CS\d{5,6}$/.test(normalized)) {
         return decodeModernCustomShop(normalized);
     }
+    // 1947-1961 A-series (white then orange labels): A + sequential number, A100 to A36147
+    const aSeriesMatch = normalized.match(/^A([1-9]\d{2,4})$/);
+    if (aSeriesMatch && parseInt(aSeriesMatch[1], 10) <= 36147) {
+        return decodeASeries(aSeriesMatch[1], normalized);
+    }
+    // 1973-1975 stamped serials: A-F + 6 digits
+    const letterSixMatch = normalized.match(/^([A-F])(\d{6})$/);
+    if (letterSixMatch) {
+        return decodeLetterSixDigit(letterSixMatch[1], letterSixMatch[2], normalized);
+    }
+    // 1975-1977 decal prefixes (99 = 1975, 06 = 1977) and 1994 Centennial (94) + 6 digits.
+    // Read as YDDDYRRR these give day 9xx/6xx/4xx, which never occurs, so there is no overlap.
+    // 00 (1976) is not handled here: 00DDD... is also a valid 2000-2005 YDDDYRRR serial.
+    const decalMatch = normalized.match(/^(99|06|94)(\d{6})$/);
+    if (decalMatch) {
+        return decodeDecalPrefix(decalMatch[1], decalMatch[2], normalized);
+    }
     // Check for 8-digit format (1977-2005): YDDDYRRR
     if (/^\d{8}$/.test(normalized)) {
         return decode8Digit(normalized);
@@ -224,6 +241,67 @@ function decode6Digit(serial) {
         notes: 'Six-digit serial numbers were used inconsistently in the 1970s. Dating these guitars often requires examining other features like potentiometer codes, pickup stamps, or construction details.'
     };
     return { success: true, info };
+}
+// Last A-series number issued in each year (standard Gibson shipping-ledger chart).
+const A_SERIES_YEAR_ENDS = [
+    [1305, 1947], [2665, 1948], [4410, 1949], [6595, 1950], [9420, 1951], [12460, 1952],
+    [17435, 1953], [18665, 1954], [21910, 1955], [24755, 1956], [26820, 1957], [28880, 1958],
+    [32285, 1959], [35645, 1960], [36147, 1961],
+];
+function decodeASeries(digits, serial) {
+    const num = parseInt(digits, 10);
+    const year = A_SERIES_YEAR_ENDS.find(([lastNumber]) => num <= lastNumber)?.[1] ?? 1961;
+    const info = {
+        brand: 'Gibson',
+        serialNumber: serial,
+        year: year.toString(),
+        factory: 'Kalamazoo, Michigan',
+        country: 'USA',
+        notes: `A-series serial (1947-1961), found on the label inside acoustic and hollowbody guitars. A${num} falls in Gibson's ${year} range. Numbers were assigned in order from A100 (1947) to A36147 (1961), so guitars near a year boundary can be a year either side. Gibson Custom Shop/Memphis Historic ES reissues also use an "A" + 5-digit format (model digit, year digit, unit number); check the guitar's features if it is a modern reissue.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'gibson-vintage-a-series',
+        patternLabel: 'Gibson 1947-1961 A-series format',
+    };
+}
+function decodeLetterSixDigit(letter, digits, serial) {
+    const year = letter === 'A' ? '1973-1975' : '1974-1975';
+    const info = {
+        brand: 'Gibson',
+        serialNumber: serial,
+        year,
+        factory: 'Kalamazoo, Michigan or Nashville, Tennessee',
+        country: 'USA',
+        notes: `${letter} + 6-digit serial, stamped into the back of the headstock with "MADE IN USA". Gibson used A-prefixed numbers from 1973 to 1975 and B through F prefixes from 1974 to 1975. The digits ${digits} are a sequential number, not a date code; hardware and logo details narrow the year.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'gibson-1970s-letter-six-digit',
+        patternLabel: 'Gibson 1973-1975 letter + 6-digit format',
+    };
+}
+function decodeDecalPrefix(prefix, digits, serial) {
+    const isCentennial = prefix === '94';
+    const year = prefix === '99' ? '1975' : prefix === '06' ? '1977' : '1994';
+    const info = {
+        brand: 'Gibson',
+        serialNumber: serial,
+        year,
+        factory: isCentennial ? 'Nashville, Tennessee' : 'Kalamazoo, Michigan or Nashville, Tennessee',
+        country: 'USA',
+        notes: isCentennial
+            ? `Gibson used "94" + a 6-digit number during its 1994 Centennial year in place of the usual YDDDYRRR format. ${digits} is the production number.`
+            : `From 1975 to 1977 Gibson printed serials on a decal on the back of the headstock: a 2-digit prefix for the year (99 = 1975, 00 = 1976, 06 = 1977) followed by a 6-digit number. Prefix ${prefix} dates this guitar to ${year}; ${digits} is the production number.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: isCentennial ? 'gibson-1994-centennial-94-prefix' : 'gibson-1975-1977-decal-prefix',
+        patternLabel: isCentennial ? 'Gibson 1994 Centennial 94 + 6-digit format' : 'Gibson 1975-1977 decal year-prefix format',
+    };
 }
 function decodeVintage(serial) {
     const num = parseInt(serial, 10);

@@ -43,10 +43,10 @@ const JAPAN_LETTER_YEARS: Record<string, { years: string; factory: string }> = {
   'O': { years: '1997-2000', factory: 'Tokai/Dyna' },
   'P': { years: '1999-2002', factory: 'Tokai/Dyna' },
   'Q': { years: '2002-2004', factory: 'Tokai/Dyna' },
-  'R': { years: '2004-2006', factory: 'Tokai/Dyna' },
+  'R': { years: '2004-2005', factory: 'Tokai/Dyna' },
   'S': { years: '2006-2008', factory: 'Tokai/Dyna' },
   'T': { years: '2007-2008', factory: 'Tokai/Dyna' },
-  'U': { years: '2008+', factory: 'Tokai/Dyna' },
+  'U': { years: '2010-2011 or 1995-1996', factory: 'Tokai/Dyna' },
 };
 
 // Month letter codes used in modern serials (2020+)

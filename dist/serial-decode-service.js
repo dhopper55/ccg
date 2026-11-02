@@ -1,6 +1,6 @@
-import { decodeGibson } from './decoders/gibson.js?version=728124';
+import { decodeGibson } from './decoders/gibson.js?version=170516';
 import { decodeEpiphone } from './decoders/epiphone.js?version=670603';
-import { decodeFender } from './decoders/fender.js?version=146297';
+import { decodeFender } from './decoders/fender.js?version=318609';
 import { decodeTaylor } from './decoders/taylor.js?version=689652';
 import { decodeMartin } from './decoders/martin.js?version=695834';
 import { decodeIbanez } from './decoders/ibanez.js?version=718039';
@@ -10,7 +10,7 @@ import { decodeESP } from './decoders/esp.js?version=689817';
 import { decodeSchecter } from './decoders/schecter.js?version=368161';
 import { decodeGretsch } from './decoders/gretsch.js?version=261961';
 import { decodeJackson } from './decoders/jackson.js?version=940655';
-import { decodeSquier } from './decoders/squier.js?version=257428';
+import { decodeSquier } from './decoders/squier.js?version=832558';
 import { decodeCort } from './decoders/cort.js?version=763771';
 import { decodeTakamine } from './decoders/takamine.js?version=714117';
 import { decodeWashburn } from './decoders/washburn.js?version=414485';
@@ -57,7 +57,69 @@ const DECODER_MAP = {
 export function normalizeBrandKey(input) {
     return input.trim().toLowerCase().replace(/[^a-z]/g, '');
 }
-export function decodeSerialForBackend(brandInput, serialInput) {
+// Customers often select the parent brand for a sister-brand guitar ("Squier by Fender" on the
+// headstock, Epiphone being Gibson-owned). When the parent decoder fails, the sister decoder is
+// tried and the result is labelled as the sister brand.
+const SISTER_BRAND_FALLBACKS = {
+    fender: {
+        brand: 'squier',
+        note: 'This serial number does not match a Fender format, but it does match a Squier by Fender format. Squier is Fender\'s own brand and many Squier guitars carry the Fender name on the headstock, so these results are for a Squier.',
+    },
+    gibson: {
+        brand: 'epiphone',
+        note: 'This serial number does not match a Gibson format, but it does match an Epiphone format. Epiphone is owned by Gibson and builds Gibson-designed models, so these results are for an Epiphone.',
+    },
+};
+export function getSisterFallbackBrand(normalizedBrand) {
+    return SISTER_BRAND_FALLBACKS[normalizedBrand]?.brand ?? null;
+}
+/**
+ * Applies the sister-brand result if it is safe to show on the parent brand's decoder, or
+ * returns null. Requires a real year, and for Gibson skips the Epiphone formats that overlap
+ * Gibson's own: pure-numeric serials shorter than 11 digits (Gibson USA numbering),
+ * "A"-prefixed serials (Gibson 1961-63 A-series), and matches with no identified factory.
+ */
+export function acceptSisterFallbackResult(normalizedBrand, serial, result) {
+    const fallback = SISTER_BRAND_FALLBACKS[normalizedBrand];
+    if (!fallback || !result.success || !result.info || !isMeaningfulYear(result.info.year)) {
+        return null;
+    }
+    if (normalizedBrand === 'gibson') {
+        const alnumUpper = serial.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+        if (/^\d{1,10}$/.test(alnumUpper) || /^A\d+$/.test(alnumUpper)) {
+            return null;
+        }
+        // Epiphone's letter-prefix rules also accept short Gibson-looking numbers; only trust
+        // matches that identify a factory.
+        if (!isMeaningfulDescriptor(result.info.factory, 'factory')) {
+            return null;
+        }
+    }
+    const info = { ...result.info };
+    info.notes = info.notes ? `${fallback.note} ${info.notes}` : fallback.note;
+    return { ...result, info };
+}
+export function decodeSerialForBackend(brandInput, serialInput, options = {}) {
+    const primary = decodeSerialForBrand(brandInput, serialInput);
+    if (primary.success || options.sisterFallback === false || !primary.normalizedBrand) {
+        return primary;
+    }
+    const sisterBrand = getSisterFallbackBrand(primary.normalizedBrand);
+    if (!sisterBrand) {
+        return primary;
+    }
+    const sister = decodeSerialForBrand(sisterBrand, serialInput);
+    const accepted = acceptSisterFallbackResult(primary.normalizedBrand, serialInput, sister);
+    if (!accepted) {
+        return primary;
+    }
+    return {
+        ...accepted,
+        normalizedBrand: primary.normalizedBrand,
+        correctedSerial: sister.correctedSerial,
+    };
+}
+function decodeSerialForBrand(brandInput, serialInput) {
     const normalizedBrand = normalizeBrandKey(brandInput);
     if (!normalizedBrand) {
         return {
@@ -73,8 +135,11 @@ export function decodeSerialForBackend(brandInput, serialInput) {
             normalizedBrand,
         };
     }
-    // Normalize fullwidth Unicode characters (U+FF01–U+FF5E) to ASCII equivalents
-    const serial = serialInput.trim().replace(/[\uFF01-\uFF5E]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
+    // Normalize fullwidth Unicode characters (U+FF01–U+FF5E) to ASCII equivalents, and Cyrillic
+    // letters that look identical to Latin ones (Cyrillic keyboards produce e.g. "MС172398").
+    const serial = serialInput.trim()
+        .replace(/[\uFF01-\uFF5E]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+        .replace(/[АВСЕНКМОРТХаеорсху]/g, (ch) => CYRILLIC_LOOKALIKES[ch] ?? ch);
     if (!serial) {
         return {
             success: false,
@@ -127,6 +192,30 @@ export function decodeSerialForBackend(brandInput, serialInput) {
         correctedSerial,
     };
 }
+const CYRILLIC_LOOKALIKES = {
+    А: 'A', В: 'B', С: 'C', Е: 'E', Н: 'H', К: 'K', М: 'M', О: 'O', Р: 'P', Т: 'T', Х: 'X',
+    а: 'a', е: 'e', о: 'o', р: 'p', с: 'c', х: 'x', у: 'y',
+};
+// Brands whose retries also strip "S/N" labels, pull the serial out of surrounding words, and
+// try common keying mistakes (letter O for zero, I/l for one, leading 1 for the I of Indonesian
+// IC/ICS/ISS prefixes). Limited to brands whose decoders have been checked against these
+// rewrites: looser decoders turn the extracted words into confident wrong dates.
+const CLEANUP_RETRY_BRANDS = new Set(['fender', 'squier', 'gibson', 'epiphone']);
+function buildTypoCandidates(value) {
+    const upper = value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    // A leading O is a real Fender/Squier Japan prefix (1997-2000), so only later Os are rewritten.
+    const digitFixed = upper.slice(0, 1) + upper.slice(1)
+        .replace(/O(?=\d)|(?<=\d)O/g, '0')
+        .replace(/O(?=\d)|(?<=\d)O/g, '0')
+        .replace(/(?<=\d)[IL](?=\d)/g, '1');
+    const candidates = [digitFixed];
+    for (const candidate of [upper, digitFixed]) {
+        if (/^1(?:C|CS|SS|S)\d/.test(candidate) || /^1(?:C|CS|SS)[A-L]\d/.test(candidate)) {
+            candidates.push(`I${candidate.slice(1)}`);
+        }
+    }
+    return candidates;
+}
 function buildRetrySerials(serial, normalizedBrand) {
     const candidates = [];
     const addCandidate = (candidate) => {
@@ -152,6 +241,30 @@ function buildRetrySerials(serial, normalizedBrand) {
         addCandidate(lastSpaceSeparatedPart.replace(/[\s-]/g, '').toUpperCase());
         addCandidate(lastSpaceSeparatedPart.replace(/[^A-Za-z0-9]/g, ''));
         addCandidate(lastSpaceSeparatedPart.replace(/[^A-Za-z0-9]/g, '').toUpperCase());
+    }
+    if (CLEANUP_RETRY_BRANDS.has(normalizedBrand)) {
+        // "S/N:", "SN ", "Serial #" labels typed in front of the serial.
+        const unlabeled = serial.replace(/^\s*(?:S\s*\/\s*N|SN(?=[\s:#.\/])|SERIAL(?:\s*(?:NO|NUMBER))?)\s*[:#.\/]?\s*/i, '');
+        if (unlabeled !== serial.trim()) {
+            addCandidate(unlabeled.replace(/[\s-]/g, '').toUpperCase());
+        }
+        // Serial typed alongside other words ("359178 usa", "SN: 62421124 MP"): use the one word
+        // that carries digits, when exactly one does.
+        const digitParts = spaceSeparatedParts.filter((part) => /\d/.test(part));
+        if (spaceSeparatedParts.length > 1 && digitParts.length === 1) {
+            const part = digitParts[0].replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+            if (part.length >= 5 && /\d{4,}/.test(part)) {
+                addCandidate(part);
+            }
+        }
+        for (const base of [...candidates]) {
+            for (const typoCandidate of buildTypoCandidates(base)) {
+                addCandidate(typoCandidate);
+            }
+        }
+        for (const typoCandidate of buildTypoCandidates(serial)) {
+            addCandidate(typoCandidate);
+        }
     }
     if (normalizedBrand === 'ibanez' && serial.length >= 2 && serial[0] === '1') {
         addCandidate(`I${serial.slice(1)}`.toUpperCase());

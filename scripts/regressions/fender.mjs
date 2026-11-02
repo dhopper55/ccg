@@ -59,7 +59,31 @@ function assertFenderInternalPartNumber(serialInput) {
   );
 }
 
+function assertFenderFormat(serialInput, expectedYear, expectedCountry, expectedPatternKey) {
+  const result = decodeSerialForBackend('fender', serialInput);
+  assert(result.success, `Expected decode success for ${serialInput}`);
+  assert(result.info?.brand === 'Fender', `Expected Fender brand for ${serialInput}, got ${result.info?.brand}`);
+  assert(result.info?.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info?.year}`);
+  assert(result.info?.country === expectedCountry, `Expected country ${expectedCountry} for ${serialInput}, got ${result.info?.country}`);
+  assert(result.patternKey === expectedPatternKey, `Expected pattern ${expectedPatternKey} for ${serialInput}, got ${result.patternKey}`);
+}
+
 export function runTests() {
+  // Formats added from real failed lookups (2026-11).
+  assertFenderFormat('O051075', '1997-2000 (Crafted in Japan) or 1993-1994 (Made in Japan)', 'Japan', 'fender-japan-late-letter-prefix');
+  assertFenderFormat('R078284', '2004-2005 (Crafted in Japan)', 'Japan', 'fender-japan-late-letter-prefix');
+  assertFenderFormat('U030249', '2010-2011 (Made in Japan) or 1995-1996 (Made in Japan)', 'Japan', 'fender-japan-late-letter-prefix');
+  assertFenderFormat('CGF1500906', '2015', 'China', 'fender-china-cgf-yy-sequence');
+  assertFenderFormat('MXS24023344', '2024', 'Mexico', 'fender-mexico-mxs-yy-sequence');
+  assertFenderFormat('MSZ9313184', '2009', 'Mexico', 'fender-mexico-msz-signature-y-sequence');
+  assertFenderFormat('EVH1301080', '2013', 'Mexico', 'fender-evh-striped-yy-sequence');
+  assertFenderFormat('R82634', 'Not encoded in this serial (see the Custom Shop certificate or neck date stamp)', 'USA', 'fender-custom-shop-r-prefix');
+  // S + digits stays the 1970s USA format; it is not treated as a Japan letter prefix.
+  assert(decodeSerialForBackend('fender', 'S712345').info?.country === 'USA', 'Expected S712345 to stay a 1970s USA serial');
+  // Unsourced lookalikes stay unrecognized.
+  assert(!decodeSerialForBackend('fender', 'MXD2100467').success, 'Expected MXD2100467 to stay unrecognized');
+  assert(!decodeSerialForBackend('fender', 'CWCE25005975').success, 'Expected CWCE25005975 to stay unrecognized');
+
   assertFenderTrailingFTypoCorrection('E528104f', 'E5281043', '1985');
   assertFenderJDPrefix('JD13006111', '2013');
   assertFenderICSPrefix('ICS11185000', '2011');

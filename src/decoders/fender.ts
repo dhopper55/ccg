@@ -154,6 +154,42 @@ export function decodeFender(serial: string): DecodeResult {
     return decodeEVHWolfgangWG(wgMatch[1], wgMatch[2], wgMatch[3], normalized);
   }
 
+  // EVH Striped Series (Mexico): EVH + YY + 5-digit sequence (e.g. EVH1301080 = 2013)
+  const evhStripedMatch = normalized.match(/^EVH(\d{2})(\d{5})$/);
+  if (evhStripedMatch) {
+    return decodeEVHStriped(evhStripedMatch[1], evhStripedMatch[2], normalized);
+  }
+
+  // Japan single-letter prefixes O, P, Q, R, U + 6 digits (Made in Japan / Crafted in Japan).
+  // S and N are not handled here: S + digits is the 1970s USA format and N + digit the 1990s USA format.
+  const japanLateLetterMatch = normalized.match(/^([OPQRU])(\d{6})$/);
+  if (japanLateLetterMatch) {
+    return decodeJapanLateLetterPrefix(japanLateLetterMatch[1], japanLateLetterMatch[2], normalized);
+  }
+
+  // US Custom Shop: R + 5-digit sequential number (year not encoded)
+  if (/^R\d{5}$/.test(normalized)) {
+    return decodeCustomShopRPrefix(normalized);
+  }
+
+  // Fender-branded China (Grand Reward): CGF + YY + 5-digit sequence (Fender counterpart of Squier CGS)
+  const cgfMatch = normalized.match(/^CGF(\d{2})(\d{5})$/);
+  if (cgfMatch) {
+    return decodeCGFPrefix(cgfMatch[1], cgfMatch[2], normalized);
+  }
+
+  // Mexico Player II era: MXS + YY + 6-digit sequence (e.g. MXS24023344 = 2024)
+  const mxsMatch = normalized.match(/^MXS(\d{2})(\d{6})$/);
+  if (mxsMatch) {
+    return decodeMXSPrefix(mxsMatch[1], mxsMatch[2], normalized);
+  }
+
+  // Mexico signature models (2000s): MSZ + single year digit + 6-digit sequence
+  const mszMatch = normalized.match(/^MSZ(\d)(\d{6})$/);
+  if (mszMatch) {
+    return decodeMSZPrefix(mszMatch[1], mszMatch[2], normalized);
+  }
+
   // Signature Edition (USA): SE + single year digit + 5-digit sequence
   // SE9 decals were ordered in 1989 but used on instruments through ~1994
   if (/^SE\d{6}$/.test(normalized)) {
@@ -283,6 +319,136 @@ const EVH_WOLFGANG_COUNTRY_MAP: Record<string, string> = {
   M: 'Mexico',
   C: 'China',
 };
+
+function decodeEVHStriped(year: string, sequence: string, serial: string): DecodeResult {
+  const fullYear = '20' + year;
+
+  const info: GuitarInfo = {
+    brand: 'Fender',
+    serialNumber: serial,
+    year: fullYear,
+    factory: 'EVH (Fender-owned brand), Ensenada',
+    country: 'Mexico',
+    model: 'EVH Striped Series',
+    notes: `EVH prefix indicates an EVH Striped Series guitar, built in Mexico by Fender for its EVH brand. Digits ${year} decode as production year ${fullYear}; ${sequence} is the production sequence. The earliest Striped Series batches (before 2013) did not carry a year code.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'fender-evh-striped-yy-sequence',
+    patternLabel: 'Fender EVH Striped Series EVH-prefix YY sequence',
+  };
+}
+
+// Fender's Japan chart reuses these letters across the Made in Japan and Crafted in Japan eras;
+// the headstock decal tells them apart.
+const JAPAN_LATE_LETTER_YEARS: Record<string, string> = {
+  O: '1997-2000 (Crafted in Japan) or 1993-1994 (Made in Japan)',
+  P: '1999-2002 (Crafted in Japan) or 1993-1994 (Made in Japan)',
+  Q: '2002-2004 (Crafted in Japan) or 1993-1994 (Made in Japan)',
+  R: '2004-2005 (Crafted in Japan)',
+  U: '2010-2011 (Made in Japan) or 1995-1996 (Made in Japan)',
+};
+
+function decodeJapanLateLetterPrefix(letter: string, sequence: string, serial: string): DecodeResult {
+  const year = JAPAN_LATE_LETTER_YEARS[letter];
+
+  const info: GuitarInfo = {
+    brand: 'Fender',
+    serialNumber: serial,
+    year,
+    factory: 'Fender Japan (Tokai/Dyna Gakki)',
+    country: 'Japan',
+    notes: `Letter prefix ${letter} + 6 digits is a Fender Japan serial, also used on Squier Japan guitars. Fender's Japan chart dates ${letter} to ${year}. Check whether the headstock or neck heel reads "Made in Japan" or "Crafted in Japan" to pick the right range. Production sequence: ${sequence}.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'fender-japan-late-letter-prefix',
+    patternLabel: 'Fender Japan O/P/Q/R/U + 6-digit format',
+  };
+}
+
+function decodeCustomShopRPrefix(serial: string): DecodeResult {
+  const info: GuitarInfo = {
+    brand: 'Fender',
+    serialNumber: serial,
+    year: 'Not encoded in this serial (see the Custom Shop certificate or neck date stamp)',
+    factory: 'Fender Custom Shop, Corona, California',
+    country: 'USA',
+    notes: `Fender lists R + 5 digits among the serials used on US Custom Shop instruments. The number is sequential (assigned when the neck is made) and does not encode the year; date the guitar from its certificate of authenticity or the date stamped on the neck heel. R + 6 digits is a different format (Crafted in Japan, 2004-2005).`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'fender-custom-shop-r-prefix',
+    patternLabel: 'Fender US Custom Shop R + 5-digit format',
+  };
+}
+
+function decodeCGFPrefix(year: string, sequence: string, serial: string): DecodeResult {
+  const fullYear = '20' + year;
+
+  const info: GuitarInfo = {
+    brand: 'Fender',
+    serialNumber: serial,
+    year: fullYear,
+    factory: 'Grand Reward, China',
+    country: 'China',
+    notes: `CGF prefix indicates a Fender-branded guitar from the Grand Reward factory in China (C = China, G = Grand Reward, F = Fender), as on the Modern Player series; Squier guitars from the same factory use CGS. Digits ${year} decode as ${fullYear}, though guitars were sometimes finished early the following year. ${sequence} is the production sequence.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'fender-china-cgf-yy-sequence',
+    patternLabel: 'Fender China Grand Reward CGF + YY sequence',
+  };
+}
+
+function decodeMXSPrefix(year: string, sequence: string, serial: string): DecodeResult {
+  const fullYear = '20' + year;
+
+  const info: GuitarInfo = {
+    brand: 'Fender',
+    serialNumber: serial,
+    year: fullYear,
+    factory: 'Ensenada',
+    country: 'Mexico',
+    notes: `MXS prefix appears on Mexican-made Fender Player II series guitars (2024 onward), alongside the standard MX prefix. Digits ${year} decode as production year ${fullYear}; ${sequence} is the production sequence.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'fender-mexico-mxs-yy-sequence',
+    patternLabel: 'Fender Mexico MXS + YY sequence',
+  };
+}
+
+function decodeMSZPrefix(yearDigit: string, sequence: string, serial: string): DecodeResult {
+  const year = '200' + yearDigit;
+
+  const info: GuitarInfo = {
+    brand: 'Fender',
+    serialNumber: serial,
+    year,
+    factory: 'Ensenada',
+    country: 'Mexico',
+    model: 'Mexico-made signature model',
+    notes: `MSZ prefix was used on Mexican-made Fender signature models in the 2000s (for example the Ritchie Blackmore Stratocaster and Duff McKagan Precision Bass). The digit ${yearDigit} gives production year ${year}; ${sequence} is the production sequence.`,
+  };
+
+  return {
+    success: true,
+    info,
+    patternKey: 'fender-mexico-msz-signature-y-sequence',
+    patternLabel: 'Fender Mexico MSZ signature + year digit sequence',
+  };
+}
 
 function decodeEVHWolfgangWG(year: string, sequence: string, countryLetter: string, serial: string): DecodeResult {
   const fullYear = '20' + year;
