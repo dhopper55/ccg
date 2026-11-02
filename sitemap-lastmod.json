@@ -1,170 +1,170 @@
 {
   "/": {
-    "hash": "edaa366e321c2c6f",
-    "lastmod": "2026-11-01"
+    "hash": "2c8c8bf14c178964",
+    "lastmod": "2026-11-02"
   },
   "/decoders/guitar-serial-decoder-lookup/": {
-    "hash": "5b73386d50d6f162",
-    "lastmod": "2026-10-15"
+    "hash": "84aad90fb0214c78",
+    "lastmod": "2026-11-02"
   },
   "/decoders/gibson-guitar-serial-number-decoder/": {
-    "hash": "deff1f5582df38af",
-    "lastmod": "2026-11-01"
+    "hash": "bca5a7a5a5a88f58",
+    "lastmod": "2026-11-02"
   },
   "/decoders/kramer-guitar-serial-number-decoder/": {
-    "hash": "c45053306b3dc413",
-    "lastmod": "2026-11-01"
+    "hash": "d1cf31a2ac518d8e",
+    "lastmod": "2026-11-02"
   },
   "/decoders/bc-rich-guitar-serial-number-decoder/": {
-    "hash": "d6d9a3cc6d93c905",
-    "lastmod": "2026-11-01"
+    "hash": "d63eb8442215c328",
+    "lastmod": "2026-11-02"
   },
   "/decoders/fender-guitar-serial-number-decoder/": {
-    "hash": "4815118a60b94f35",
-    "lastmod": "2026-11-01"
+    "hash": "aeb23b4a556f5716",
+    "lastmod": "2026-11-02"
   },
   "/decoders/squier-guitar-serial-number-decoder/": {
-    "hash": "1fefcc194e80ca91",
-    "lastmod": "2026-11-01"
+    "hash": "e5c6127229f761ae",
+    "lastmod": "2026-11-02"
   },
   "/decoders/epiphone-guitar-serial-number-decoder/": {
-    "hash": "f660f07f0145ffb8",
-    "lastmod": "2026-11-01"
+    "hash": "e26204957687010e",
+    "lastmod": "2026-11-02"
   },
   "/decoders/taylor-guitar-serial-number-decoder/": {
-    "hash": "e7b160bef5b98a08",
-    "lastmod": "2026-11-01"
+    "hash": "922fe794911ea390",
+    "lastmod": "2026-11-02"
   },
   "/decoders/martin-guitar-serial-number-decoder/": {
-    "hash": "f3f845ab77fcf6cf",
-    "lastmod": "2026-11-01"
+    "hash": "a3829de0ed7ef670",
+    "lastmod": "2026-11-02"
   },
   "/decoders/ibanez-guitar-serial-number-decoder/": {
-    "hash": "f849038959146f65",
-    "lastmod": "2026-11-01"
+    "hash": "1ba2a5a1255dee5f",
+    "lastmod": "2026-11-02"
   },
   "/decoders/yamaha-guitar-serial-number-decoder/": {
-    "hash": "bf195f2642b9f7ea",
-    "lastmod": "2026-11-01"
+    "hash": "be023b09b8ef732b",
+    "lastmod": "2026-11-02"
   },
   "/decoders/prs-guitar-serial-number-decoder/": {
-    "hash": "620cbbf0fdf04474",
-    "lastmod": "2026-11-01"
+    "hash": "7ebff74dabc467d0",
+    "lastmod": "2026-11-02"
   },
   "/decoders/esp-guitar-serial-number-decoder/": {
-    "hash": "0d942210e940f8f6",
-    "lastmod": "2026-11-01"
+    "hash": "99132496443c5922",
+    "lastmod": "2026-11-02"
   },
   "/decoders/schecter-guitar-serial-number-decoder/": {
-    "hash": "4f51bfb303234c41",
-    "lastmod": "2026-11-01"
+    "hash": "2c16f7ca9bc15f09",
+    "lastmod": "2026-11-02"
   },
   "/decoders/gretsch-guitar-serial-number-decoder/": {
-    "hash": "beaf603fd6ae1ae2",
-    "lastmod": "2026-11-01"
+    "hash": "9a844eaa078eb669",
+    "lastmod": "2026-11-02"
   },
   "/decoders/jackson-guitar-serial-number-decoder/": {
-    "hash": "6674da5100e62575",
-    "lastmod": "2026-11-01"
+    "hash": "66dba880d2ff0da7",
+    "lastmod": "2026-11-02"
   },
   "/decoders/cort-guitar-serial-number-decoder/": {
-    "hash": "0d5802e6daefe610",
-    "lastmod": "2026-11-01"
+    "hash": "eb0ab48238fe2fe0",
+    "lastmod": "2026-11-02"
   },
   "/decoders/takamine-guitar-serial-number-decoder/": {
-    "hash": "bd1b07f212e208f9",
-    "lastmod": "2026-11-01"
+    "hash": "a91532a8c49bc575",
+    "lastmod": "2026-11-02"
   },
   "/decoders/washburn-guitar-serial-number-decoder/": {
-    "hash": "6014274e1feee5db",
-    "lastmod": "2026-11-01"
+    "hash": "df079d04688125c3",
+    "lastmod": "2026-11-02"
   },
   "/decoders/dean-guitar-serial-number-decoder/": {
-    "hash": "0fec445d2b179f36",
-    "lastmod": "2026-11-01"
+    "hash": "53208b5c83449f3b",
+    "lastmod": "2026-11-02"
   },
   "/decoders/ernieball-guitar-serial-number-decoder/": {
-    "hash": "64bf95b3c48b7731",
-    "lastmod": "2026-11-01"
+    "hash": "da8ccf3f70495f7d",
+    "lastmod": "2026-11-02"
   },
   "/decoders/guild-guitar-serial-number-decoder/": {
-    "hash": "64525e934439d2eb",
-    "lastmod": "2026-11-01"
+    "hash": "ccd60f1bde08d85b",
+    "lastmod": "2026-11-02"
   },
   "/decoders/alvarez-guitar-serial-number-decoder/": {
-    "hash": "bc27932be4083366",
-    "lastmod": "2026-11-01"
+    "hash": "3033b5d9754f1bfa",
+    "lastmod": "2026-11-02"
   },
   "/decoders/godin-guitar-serial-number-decoder/": {
-    "hash": "3c4d285325591c4a",
-    "lastmod": "2026-11-01"
+    "hash": "988cc0fadbfd9f7a",
+    "lastmod": "2026-11-02"
   },
   "/decoders/ovation-guitar-serial-number-decoder/": {
-    "hash": "0fd01c217e26d4aa",
-    "lastmod": "2026-11-01"
+    "hash": "0bfad2617891ab95",
+    "lastmod": "2026-11-02"
   },
   "/decoders/charvel-guitar-serial-number-decoder/": {
-    "hash": "e00b8ae8bec87116",
-    "lastmod": "2026-11-01"
+    "hash": "f1166ca581fca47c",
+    "lastmod": "2026-11-02"
   },
   "/decoders/rickenbacker-guitar-serial-number-decoder/": {
-    "hash": "b4bc35d294daa2b3",
-    "lastmod": "2026-11-01"
+    "hash": "de8689218cc14042",
+    "lastmod": "2026-11-02"
   },
   "/faq/": {
-    "hash": "4f46355ea192deef",
-    "lastmod": "2026-11-01"
+    "hash": "68d4f66b8c59f216",
+    "lastmod": "2026-11-02"
   },
   "/guitar-repair-services-pricing/": {
-    "hash": "3f85ffc108f01aa2",
-    "lastmod": "2026-11-01"
+    "hash": "0a0ba0e475accf9e",
+    "lastmod": "2026-11-02"
   },
   "/about-us": {
-    "hash": "f080f4c0ad93dd85",
-    "lastmod": "2026-11-01"
+    "hash": "ee812eafbf52857e",
+    "lastmod": "2026-11-02"
   },
   "/guitar-value-report-evaluation/": {
-    "hash": "208432cd51231c3c",
-    "lastmod": "2026-11-01"
+    "hash": "a7de41d9266c5c61",
+    "lastmod": "2026-11-02"
   },
   "/guitar-authenticity-report/": {
-    "hash": "824c9a9927361df6",
-    "lastmod": "2026-11-01"
+    "hash": "7b02290cc96efadc",
+    "lastmod": "2026-11-02"
   },
   "/we-buy-music-gear-denver-englewood/": {
-    "hash": "775cacbdcc5f8e77",
-    "lastmod": "2026-11-01"
+    "hash": "e859c38cce39f804",
+    "lastmod": "2026-11-02"
   },
   "/denver-area-music-gear-consignment/": {
-    "hash": "e2dbabea9ee9fb74",
-    "lastmod": "2026-10-15"
+    "hash": "e84b0f7ae381b2bf",
+    "lastmod": "2026-11-02"
   },
   "/musical-gear-financing/": {
-    "hash": "5fa1c874e97865fb",
-    "lastmod": "2026-10-15"
+    "hash": "5f48901eab68b968",
+    "lastmod": "2026-11-02"
   },
   "/gibson-guitar-serial-number-history": {
-    "hash": "d3e1d263dffb00b4",
-    "lastmod": "2026-11-01"
+    "hash": "4c51a276d74b394e",
+    "lastmod": "2026-11-02"
   },
   "/ccg-englewood-broadway-gothic-theatre-history": {
-    "hash": "c7fb90ebb47765a7",
-    "lastmod": "2026-11-01"
+    "hash": "f50181ca7cb1ac94",
+    "lastmod": "2026-11-02"
   },
   "/contact-us": {
-    "hash": "8b49ea981efdc4ec",
-    "lastmod": "2026-11-01"
+    "hash": "d68a15cc92d24d7c",
+    "lastmod": "2026-11-02"
   },
   "/privacy-policy": {
-    "hash": "9faed0378959405f",
-    "lastmod": "2026-11-01"
+    "hash": "4ff08b61a6f2ce4d",
+    "lastmod": "2026-11-02"
   },
   "/terms-conditions": {
-    "hash": "e400d96a8ddbcfab",
-    "lastmod": "2026-11-01"
+    "hash": "ca0184db6b319f60",
+    "lastmod": "2026-11-02"
   },
   "/fender-telecaster-2026-contest/": {
-    "hash": "02793e23a8371cc6",
-    "lastmod": "2026-11-01"
+    "hash": "bd740efe672bd0ab",
+    "lastmod": "2026-11-02"
   }
 }

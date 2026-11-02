@@ -6,6 +6,21 @@
 <script>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
+  // Consent Mode v2: storage starts denied in the EEA, UK and Switzerland until the visitor
+  // chooses in the banner (/js/consent.js); a stored choice applies straight away.
+  (function () {
+    var choice = null;
+    try { choice = localStorage.getItem('ccg-consent'); } catch (e) {}
+    if (choice === 'granted' || choice === 'denied') {
+      gtag('consent', 'default', { ad_storage: choice, ad_user_data: choice, ad_personalization: choice, analytics_storage: choice });
+    } else {
+      gtag('consent', 'default', {
+        ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', analytics_storage: 'denied',
+        wait_for_update: 500,
+        region: ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','IS','LI','NO','GB','CH'],
+      });
+    }
+  })();
   gtag('js', new Date());
   gtag('config', 'G-CZRGM23PJ9');
 </script>
@@ -447,6 +462,7 @@ footer {
     <span class="policy-section-num">06</span>
     <h2>Your Choices</h2>
     <p>You may contact us to request access to, correction of, or deletion of your personal information. You can also opt out of analytics cookies by adjusting your browser settings or using available opt-out tools.</p>
+    <p>Visitors in the European Economic Area, the United Kingdom and Switzerland are asked before analytics and advertising cookies are used. Anyone can review or change their choice here: <a href="#" onclick="if (window.ccgOpenConsentSettings) { window.ccgOpenConsentSettings(); } return false;">Cookie settings</a>.</p>
   </div>
 
   <div class="policy-section">
@@ -529,5 +545,6 @@ footer {
 <script>document.getElementById('yr').textContent = new Date().getFullYear();(function(){document.querySelectorAll('.footer-email-signup').forEach(function(el){var input=el.querySelector('.footer-email-input'),btn=el.querySelector('.footer-email-btn'),msg=el.querySelector('.footer-email-msg');function submit(){var email=input.value.trim();if(!email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){msg.style.color='#c04040';msg.textContent='Please enter a valid email.';return;}btn.disabled=true;btn.textContent='…';fetch('/api/email-signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email})}).then(function(r){return r.json();}).then(function(d){if(d.ok){msg.style.color='#6a9a5a';msg.textContent="You're on the list!";input.value='';}else{msg.style.color='#c04040';msg.textContent=d.message||'Something went wrong.';}btn.disabled=false;btn.textContent='Join';}).catch(function(){msg.style.color='#c04040';msg.textContent='Something went wrong. Try again.';btn.disabled=false;btn.textContent='Join';});}btn.addEventListener('click',submit);input.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});});})();</script>
 
 <script src="/js/site-menu.js?version=865426" defer></script>
+<script src="/js/consent.js?version=588670" defer></script>
 </body>
 </html>

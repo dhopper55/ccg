@@ -6,6 +6,21 @@
 <script>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
+  // Consent Mode v2: storage starts denied in the EEA, UK and Switzerland until the visitor
+  // chooses in the banner (/js/consent.js); a stored choice applies straight away.
+  (function () {
+    var choice = null;
+    try { choice = localStorage.getItem('ccg-consent'); } catch (e) {}
+    if (choice === 'granted' || choice === 'denied') {
+      gtag('consent', 'default', { ad_storage: choice, ad_user_data: choice, ad_personalization: choice, analytics_storage: choice });
+    } else {
+      gtag('consent', 'default', {
+        ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', analytics_storage: 'denied',
+        wait_for_update: 500,
+        region: ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','IS','LI','NO','GB','CH'],
+      });
+    }
+  })();
   gtag('js', new Date());
   gtag('config', 'G-CZRGM23PJ9');
 </script>
@@ -976,5 +991,6 @@ document.getElementById('footer-year').textContent = new Date().getFullYear();
 
 
 <script src="/js/site-menu.js?version=865426" defer></script>
+<script src="/js/consent.js?version=588670" defer></script>
 </body>
 </html>
