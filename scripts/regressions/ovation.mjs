@@ -45,6 +45,8 @@ function assertOvationKoreanImport7Digit(serialInput) {
 }
 
 export function runTests() {
+  assertOvationImportYYMM('26010050', '2026', 'January');
+  assertDecodeFails('ovation', '99010050');
   assertOvationSnPrefixedUsa('SN487892', '1994');
   assertOvationKoreanImport7Digit('2121282');
   assertDecodeFails('ovation', '123456789');
@@ -70,4 +72,11 @@ function assertOvationImport8DigitYYMM(serialInput, expectedYear, expectedMonth)
   assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
   assert(result.info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${result.info.month}`);
   assert(result.info.country === 'South Korea', `Expected South Korea for ${serialInput}, got ${result.info.country}`);
+}
+
+function assertOvationImportYYMM(serialInput, expectedYear, expectedMonth) {
+  const result = decodeSerialForBackend('ovation', serialInput);
+  assert(result.success, `Expected decode success for ovation:${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${result.info.month}`);
 }

@@ -395,13 +395,17 @@ function decodeKoreanImport7Digit(serial: string): DecodeResult {
   };
 }
 
+// Highest two-digit year accepted in the YYMM import formats: the current year. This was a fixed 25,
+// which made 2026 serials (e.g. 26010050 = January 2026) fail once that year arrived.
+const MAX_IMPORT_YY = new Date().getFullYear() % 100;
+
 // Import models (7+ digits without prefix)
 function decodeImport(serial: string): DecodeResult {
   const firstTwo = serial.substring(0, 2);
   const yearNum = parseInt(firstTwo, 10);
 
   // 8-digit serials with valid YYMM encoding (e.g. 14100207 = Oct 2014)
-  if (serial.length === 8 && yearNum >= 0 && yearNum <= 25) {
+  if (serial.length === 8 && yearNum >= 0 && yearNum <= MAX_IMPORT_YY) {
     const monthDigits = serial.substring(2, 4);
     const monthNum = parseInt(monthDigits, 10);
     if (monthNum >= 1 && monthNum <= 12) {
@@ -475,13 +479,13 @@ function decodeImportWithPrefix(serial: string): DecodeResult {
     const yearNum = parseInt(yearDigits, 10);
     const monthNum = parseInt(monthDigits, 10);
 
-    if (yearNum >= 0 && yearNum <= 25 && monthNum >= 1 && monthNum <= 12) {
+    if (yearNum >= 0 && yearNum <= MAX_IMPORT_YY && monthNum >= 1 && monthNum <= 12) {
       const months = [
         'January', 'February', 'March', 'April', 'May', 'June',
         'July', 'August', 'September', 'October', 'November', 'December',
       ];
       yearMonth = `20${yearDigits.padStart(2, '0')}, ${months[monthNum - 1]}`;
-    } else if (yearNum >= 0 && yearNum <= 25 && digits.length >= 6) {
+    } else if (yearNum >= 0 && yearNum <= MAX_IMPORT_YY && digits.length >= 6) {
       // Month field is invalid — fall back to YY + 2-digit batch code + remaining sequence.
       const batchDigits = digits.substring(2, 4);
       const sequence = digits.substring(4);

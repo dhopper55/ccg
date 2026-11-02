@@ -10,6 +10,7 @@
  * - L prefix: Left-handed instruments
  * - F prefix: 7-string Petrucci and special runs
  * - S prefix: Artist signature models (Tosin Abasi, Jason Richardson)
+ * - C prefix (early 2017+): StingRay basses after the E series ran out
  * - X prefix (2003-2007): SUB-1 guitars
  * - A prefix (1990s): Transitional period
  * - E prefix: Early EB production
@@ -54,6 +55,33 @@ export function decodeErnieBall(serial) {
     // S prefix: Artist signature models
     if (/^S\d{5}$/.test(normalized)) {
         return decodeSSeries(normalized);
+    }
+    // C prefix: StingRay basses from early 2017, after the E series reached E99999 (C00001 onward)
+    if (/^C\d{5}$/.test(normalized)) {
+        return decodeCSeries(normalized);
+    }
+    // C prefix: StingRay basses, early 2017 onward
+    // Source: Ernie Ball forum, "Stingray C prefix serial" (https://forums.ernieball.com/threads/stingray-c-prefix-serial.71409/)
+    // and https://forums.ernieball.com/goto/post?id=1068088 -- "The regular Stingrays had the E serials up to
+    // early 2017 when reaching E99999. The serials were then allocated a C prefix (C00001)." The Special
+    // StingRays introduced c. mid 2018 moved to F-prefixed serials.
+    function decodeCSeries(serial) {
+        const sequence = serial.substring(1);
+        const info = {
+            brand: 'Ernie Ball Music Man',
+            serialNumber: serial,
+            year: '2017-2018 (approximately)',
+            factory: 'Ernie Ball Music Man',
+            country: 'USA (San Luis Obispo, CA)',
+            model: 'StingRay (bass)',
+            notes: `C-prefix serials were allocated to regular StingRay basses from early 2017, after the E-prefix series reached E99999. The StingRay Special, introduced around mid 2018, moved to F-prefixed serials. Production number: ${sequence}. Use the official EBMM database at music-man.com for the exact completion date.`,
+        };
+        return {
+            success: true,
+            info,
+            patternKey: 'ernieball-stingray-c-prefix-2017',
+            patternLabel: 'Ernie Ball Music Man StingRay C-prefix serial (2017+)',
+        };
     }
     // X prefix: SUB-1 guitars (2003-2007)
     if (/^X\d{5}$/.test(normalized)) {

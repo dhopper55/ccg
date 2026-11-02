@@ -12,6 +12,9 @@ const FACTORY_CODES = {
     // Chinese factories (letter codes)
     'SJ': { name: 'SaeJun (China)', country: 'China' },
     'MR': { name: 'Unknown Chinese Factory', country: 'China' },
+    // GG: listed as an unidentified Korean factory (https://guitarinsite.nl/?p=328); Gibson has no
+    // record of which plant used it (https://forum.gibson.com/topic/44812-gg-serial-prefix-mystery).
+    'GG': { name: 'Unidentified factory (GG prefix)', country: 'South Korea' },
     'DW': { name: 'DaeWon', country: 'China' },
     'EA': { name: 'Qingdao (Acoustic)', country: 'China' },
     'EE': { name: 'Qingdao', country: 'China' },
@@ -20,6 +23,9 @@ const FACTORY_CODES = {
     // Indonesian factories
     'CI': { name: 'Cort Indonesia', country: 'Indonesia' },
     'SI': { name: 'Samick Indonesia', country: 'Indonesia' },
+    // IS: alternate order of the Samick Bogor code (https://killerrig.com/epiphone-factory-codes/,
+    // https://guitarinsite.nl/?p=328).
+    'IS': { name: 'Samick Indonesia', country: 'Indonesia' },
     'MC': { name: 'Unknown Indonesian Factory', country: 'Indonesia' },
 };
 // Numeric factory codes (used since ~2008)
@@ -98,6 +104,13 @@ export function decodeEpiphone(serial) {
     const letterYearMatch = normalized.match(/^([A-Z])(\d)(\d+)$/);
     if (letterYearMatch && letterYearMatch[3].length >= 4) {
         return decodeLetterYearFormat(letterYearMatch[1], letterYearMatch[2], letterYearMatch[3], normalized);
+    }
+    // Kalamazoo-era hollowbody label serials (1958-1961): A + 4 digits, A1000-A4999. This is
+    // Epiphone's own A-series, separate from Gibson's 1947-1961 A-series.
+    // Source: https://guitarhq.com/epiphone.html (1958 A1000-A1999 ... 1961 A4000-A4999)
+    const kalamazooAMatch = normalized.match(/^A([1-4]\d{3})$/);
+    if (kalamazooAMatch) {
+        return decodeKalamazooASeries(kalamazooAMatch[1], normalized);
     }
     // Format 5: F-serial format (Les Paul Standards, Tributes)
     if (normalized.startsWith('F')) {
@@ -665,6 +678,48 @@ function decodeKalamazooSixDigit(serial) {
             ],
         },
         additionalContextRichText: `<h3>Overview</h3><p>This 6-digit numeric serial falls in the Kalamazoo-era range for Epiphone guitars made at the Gibson plant in Michigan from 1958 into the early 1970s.</p><h3>How This Pattern Is Typically Read</h3><p>Kalamazoo-era Epiphones were made alongside Gibson instruments at the Kalamazoo, Michigan factory. Serial ${serial} falls in the estimated production window: ${year}. This era covers highly collectible models such as the Casino, Riviera, Sheraton, and Rivoli Bass.</p><h3>What To Verify</h3><ul><li>Serial number ranges from this era overlapped — the same number could appear in multiple years, so dating requires additional physical evidence.</li><li>Check inside the body for a "Union Made" label reading "Kalamazoo, Michigan" as a strong authenticity indicator.</li><li>Compare the headstock logo style and inlay pattern against known 1960s Epiphone catalog examples.</li></ul><h3>Coal Creek Guitars Note</h3><p>If confirmed as a Kalamazoo-era Epiphone, this is a highly collectible vintage instrument. Contact Gibson/Epiphone customer service with clear photos for official verification and model identification.</p>`,
+    };
+}
+const KALAMAZOO_A_SERIES_YEARS = [
+    { max: 1999, year: '1958' },
+    { max: 2999, year: '1959' },
+    { max: 3999, year: '1960' },
+    { max: 4999, year: '1961' },
+];
+function decodeKalamazooASeries(digits, serial) {
+    const num = parseInt(digits, 10);
+    const year = KALAMAZOO_A_SERIES_YEARS.find((range) => num <= range.max)?.year ?? '1958-1961';
+    const info = {
+        brand: 'Epiphone',
+        serialNumber: serial,
+        year,
+        factory: 'Gibson Kalamazoo plant, Kalamazoo, Michigan',
+        country: 'USA',
+        notes: `Kalamazoo-era Epiphone A-series serial (1958-1961), found on the label inside hollowbody models. Epiphone's A-series ran from A1000 in 1958 to A4999 in 1961 (about 1,000 numbers per year), so ${serial} points to ${year}. This series is separate from Gibson's own A-series of the same period. From 1961 Epiphone moved to Gibson's numeric serial sequence.`,
+    };
+    return {
+        success: true,
+        info,
+        patternKey: 'epiphone-kalamazoo-a-series-1958-1961',
+        patternLabel: 'Epiphone Kalamazoo A-series label serial 1958-1961',
+        additionalContext: {
+            title: 'Epiphone Kalamazoo A-series serial',
+            summary: 'This serial matches the A-prefixed label numbers used on Gibson-made Epiphone hollowbodies from 1958 to 1961.',
+            highlights: [
+                'A1000-A1999 = 1958, A2000-A2999 = 1959, A3000-A3999 = 1960, A4000-A4999 = 1961.',
+                `Serial ${serial} falls in the ${year} block.`,
+                'These instruments were built at the Gibson plant in Kalamazoo, Michigan.',
+            ],
+            caveats: [
+                'Year blocks are approximate; labels near a block boundary can belong to either year.',
+                'Gibson-brand instruments used a different A-series in the same years, so confirm the headstock says Epiphone.',
+            ],
+            verificationTips: [
+                'Check the label inside the body for the A-prefixed number and Kalamazoo, Michigan wording.',
+                'Compare the headstock logo, pickups, and hardware with 1958-1961 Epiphone catalogs.',
+                'Contact Gibson/Epiphone customer service with clear photos for official verification.',
+            ],
+        },
     };
 }
 function decodeVintageEpiphone(serial) {

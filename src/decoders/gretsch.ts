@@ -11,6 +11,15 @@ export function decodeGretsch(serial: string): DecodeResult {
     return decodeFenderEra(normalized);
   }
 
+  // Chinese Electromatic (Yako) runs stamped CYGC + YYMM + 4-digit sequence, e.g. CYGC20110161 on a
+  // G5622 and CYGC24090078 on a 2024 G5422TG. Same CY factory format as above with two letters after
+  // the factory code. Sources: https://blog.gretschguitars.com/2013/07/gretschtech-understanding-modern-gretsch-serial-numbers/
+  // (CY = China, Yako; YYMM + sequence) and retailer listings such as
+  // https://www.chicagomusicexchange.com/products/gretsch-g5422tg-electromatic-classic-white-2024-2467555
+  if (/^CYGC\d{8}$/.test(normalized)) {
+    return decodeFenderEra(normalized);
+  }
+
   // Indonesia (Samick) Streamliner Collection: IS + YYMM + 5-digit sequence (9 digits, no suffix letter)
   if (/^IS\d{9}$/.test(normalized)) {
     return decodeIndonesiaSamickIS(normalized);
@@ -55,9 +64,8 @@ export function decodeGretsch(serial: string): DecodeResult {
 
 function decodeFenderEra(serial: string): DecodeResult {
   const factoryCode = serial.substring(0, 2);
-  const hasSuffixLetter = /^[A-Z]{3}\d{8}$/.test(serial);
-  const suffixLetter = hasSuffixLetter ? serial[2] : '';
-  const digitsOffset = hasSuffixLetter ? 3 : 2;
+  const digitsOffset = serial.search(/\d/);
+  const suffixLetter = serial.substring(2, digitsOffset);
   const year = parseInt(serial.substring(digitsOffset, digitsOffset + 2), 10) + 2000;
   const month = parseInt(serial.substring(digitsOffset + 2, digitsOffset + 4), 10);
   const productionNum = parseInt(serial.substring(digitsOffset + 4), 10);
@@ -79,7 +87,7 @@ function decodeFenderEra(serial: string): DecodeResult {
     month: monthName,
     factory: factory,
     country: country,
-    notes: `Fender era (2003+).${suffixLetter ? ` Additional prefix letter "${suffixLetter}" detected after factory code (often retailer/channel-specific).` : ''} Production #${productionNum} for ${year}. ${modelNote}`
+    notes: `Fender era (2003+).${suffixLetter ? ` Additional prefix ${suffixLetter.length > 1 ? 'letters' : 'letter'} "${suffixLetter}" detected after factory code (often retailer/channel-specific).` : ''} Production #${productionNum} for ${year}. ${modelNote}`
   };
   return { success: true, info };
 }

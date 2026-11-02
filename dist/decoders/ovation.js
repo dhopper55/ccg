@@ -348,12 +348,15 @@ function decodeKoreanImport7Digit(serial) {
         additionalContextRichText: `<h3>Overview</h3><p>This serial matches a 7-digit numeric Ovation import format commonly associated with Korean-made Celebrity, Elite import, and AX-family guitars.</p><h3>How This Pattern Is Typically Read</h3><p>A 7-digit numeric serial can be valid on non-USA Ovation import models. The leading 21 prefix is seen on Korean-made Ovation import examples. The full serial is best treated as import sequence ${sequence}, not as a USA New Hartford production date.</p><h3>What To Verify</h3><ul><li>This pattern supports a Korean import identification, not an exact production year.</li><li>USA-made Ovation serial ranges do not apply to this import format.</li><li>Model identity should come from the label inside the body, not from the serial alone.</li></ul><h3>Coal Creek Guitars Note</h3><p>Look for the model number and country-of-origin label through the soundhole, then check that the stamped headstock serial matches the label or paperwork.</p>`,
     };
 }
+// Highest two-digit year accepted in the YYMM import formats: the current year. This was a fixed 25,
+// which made 2026 serials (e.g. 26010050 = January 2026) fail once that year arrived.
+const MAX_IMPORT_YY = new Date().getFullYear() % 100;
 // Import models (7+ digits without prefix)
 function decodeImport(serial) {
     const firstTwo = serial.substring(0, 2);
     const yearNum = parseInt(firstTwo, 10);
     // 8-digit serials with valid YYMM encoding (e.g. 14100207 = Oct 2014)
-    if (serial.length === 8 && yearNum >= 0 && yearNum <= 25) {
+    if (serial.length === 8 && yearNum >= 0 && yearNum <= MAX_IMPORT_YY) {
         const monthDigits = serial.substring(2, 4);
         const monthNum = parseInt(monthDigits, 10);
         if (monthNum >= 1 && monthNum <= 12) {
@@ -421,14 +424,14 @@ function decodeImportWithPrefix(serial) {
         const monthDigits = digits.substring(2, 4);
         const yearNum = parseInt(yearDigits, 10);
         const monthNum = parseInt(monthDigits, 10);
-        if (yearNum >= 0 && yearNum <= 25 && monthNum >= 1 && monthNum <= 12) {
+        if (yearNum >= 0 && yearNum <= MAX_IMPORT_YY && monthNum >= 1 && monthNum <= 12) {
             const months = [
                 'January', 'February', 'March', 'April', 'May', 'June',
                 'July', 'August', 'September', 'October', 'November', 'December',
             ];
             yearMonth = `20${yearDigits.padStart(2, '0')}, ${months[monthNum - 1]}`;
         }
-        else if (yearNum >= 0 && yearNum <= 25 && digits.length >= 6) {
+        else if (yearNum >= 0 && yearNum <= MAX_IMPORT_YY && digits.length >= 6) {
             // Month field is invalid — fall back to YY + 2-digit batch code + remaining sequence.
             const batchDigits = digits.substring(2, 4);
             const sequence = digits.substring(4);

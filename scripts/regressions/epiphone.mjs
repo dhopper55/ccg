@@ -52,6 +52,15 @@ function assertEpiphone1990sNumeric(serialInput, expectedYear, expectedMonth, ex
 }
 
 export function runTests() {
+  assertEpiphoneKalamazooASeries('A3818', '1960');
+  assertEpiphoneKalamazooASeries('A4143', '1961');
+  assertEpiphoneKalamazooASeries('A1000', '1958');
+  assertNoDecode('epiphone', 'A5000');
+  assertNoDecode('epiphone', 'A0999');
+  assertEpiphoneTwoLetter('gg06020183', '2006', 'February', 'Unidentified factory (GG prefix)', 'South Korea');
+  assertEpiphoneTwoLetter('IS02010084', '2002', 'January', 'Samick Indonesia', 'Indonesia');
+  assertNoDecode('epiphone', 'GG06130183');
+  assertNoDecode('epiphone', 'TI06110478');
   assertEpiphoneKoreaSingleLetter('U97040128', '1997', 'April', 'Unsung', 128);
   assertEpiphoneKoreaSingleLetter('U97040228', '1997', 'April', 'Unsung', 228);
   assertEpiphone1990sNumeric('6043399', '1996', 'April', 3399);
@@ -114,4 +123,32 @@ function assertEpiphoneMIRC311(serialInput) {
   assert(result.info, `Expected decoded info for epiphone:${serialInput}`);
   assert(result.info.country === 'USA', `Expected USA for ${serialInput}, got ${result.info.country}`);
   assert(result.patternKey === 'epiphone-mirc-311-refurb', `Expected MIRC pattern key for ${serialInput}, got ${result.patternKey}`);
+}
+
+function assertEpiphoneKalamazooASeries(serialInput, expectedYear) {
+  const result = decodeEpiphone(serialInput);
+  assert(result.success, `Expected decode success for Epiphone ${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.country === 'USA', `Expected USA for ${serialInput}, got ${result.info.country}`);
+  assert(
+    result.patternKey === 'epiphone-kalamazoo-a-series-1958-1961',
+    `Expected Kalamazoo A-series patternKey for ${serialInput}, got ${result.patternKey}`
+  );
+  // Gibson's own A-series still wins on the Gibson decoder.
+  const gibson = decodeSerialForBackend('gibson', serialInput);
+  assert(gibson.success && gibson.info.brand === 'Gibson', `Expected Gibson A-series result for gibson:${serialInput}`);
+}
+
+function assertEpiphoneTwoLetter(serialInput, expectedYear, expectedMonth, expectedFactory, expectedCountry) {
+  const result = decodeEpiphone(serialInput);
+  assert(result.success, `Expected decode success for Epiphone ${serialInput}`);
+  assert(result.info.year === expectedYear, `Expected year ${expectedYear} for ${serialInput}, got ${result.info.year}`);
+  assert(result.info.month === expectedMonth, `Expected month ${expectedMonth} for ${serialInput}, got ${result.info.month}`);
+  assert(result.info.factory === expectedFactory, `Expected factory ${expectedFactory} for ${serialInput}, got ${result.info.factory}`);
+  assert(result.info.country === expectedCountry, `Expected ${expectedCountry} for ${serialInput}, got ${result.info.country}`);
+}
+
+function assertNoDecode(brand, serialInput) {
+  const result = decodeSerialForBackend(brand, serialInput);
+  assert(!result.success, `Expected decode failure for ${brand}:${serialInput}`);
 }
