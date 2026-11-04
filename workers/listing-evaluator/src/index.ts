@@ -152,6 +152,7 @@ import {
   handleGoogleMerchantFeed,
   handleShopReceiptTemplate,
 } from './shop/merchant.js';
+import { handleMetaStoreFeed } from './shop/meta-feed.js';
 import { handleShopSitemapProducts } from './shop/sitemap.js';
 import {
   handleShopAssociateModeStatus,
@@ -474,6 +475,14 @@ export default {
       (request.method === 'GET' || request.method === 'HEAD')
     ) {
       const response = await handleGoogleMerchantFeed(env);
+      return withCors(response, request, env);
+    }
+
+    if (
+      (path === '/api/shop/meta-feed.csv' || path === '/feeds/meta.csv') &&
+      (request.method === 'GET' || request.method === 'HEAD')
+    ) {
+      const response = await handleMetaStoreFeed(env);
       return withCors(response, request, env);
     }
 

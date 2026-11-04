@@ -6,22 +6,24 @@ import type { Env } from '../env.js';
 export type InventoryItemAddtlRow = {
   inventory_item_id: number;
   fixed_shipping_amount: number;
+  meta_store: number;
 };
 
 export async function dbUpsertInventoryAddtl(
   inventoryItemId: number,
-  fields: { fixed_shipping_amount: number },
+  fields: { fixed_shipping_amount: number; meta_store: boolean },
   env: Env,
 ): Promise<boolean> {
   if (!Number.isFinite(inventoryItemId)) return false;
   try {
     await env.DB.prepare(
-      `INSERT INTO ccg_inventory_items_addtl (inventory_item_id, fixed_shipping_amount, updated_at)
-       VALUES (?, ?, CURRENT_TIMESTAMP)
+      `INSERT INTO ccg_inventory_items_addtl (inventory_item_id, fixed_shipping_amount, meta_store, updated_at)
+       VALUES (?, ?, ?, CURRENT_TIMESTAMP)
        ON CONFLICT(inventory_item_id) DO UPDATE SET
          fixed_shipping_amount = excluded.fixed_shipping_amount,
+         meta_store = excluded.meta_store,
          updated_at = CURRENT_TIMESTAMP`
-    ).bind(inventoryItemId, fields.fixed_shipping_amount).run();
+    ).bind(inventoryItemId, fields.fixed_shipping_amount, fields.meta_store ? 1 : 0).run();
     return true;
   } catch (error) {
     console.error('Inventory addtl upsert failed', { error, inventoryItemId });
@@ -32,7 +34,7 @@ export async function dbUpsertInventoryAddtl(
 export async function dbGetInventoryAddtl(inventoryItemId: number, env: Env): Promise<InventoryItemAddtlRow | null> {
   if (!Number.isFinite(inventoryItemId)) return null;
   const row = await env.DB.prepare(
-    `SELECT inventory_item_id, fixed_shipping_amount
+    `SELECT inventory_item_id, fixed_shipping_amount, meta_store
      FROM ccg_inventory_items_addtl
      WHERE inventory_item_id = ?`
   ).bind(inventoryItemId).first<InventoryItemAddtlRow>();
@@ -60,7 +62,7 @@ export async function dbGetInventoryAddtlForIds(
     const chunk = ids.slice(offset, offset + SQL_VARIABLE_CHUNK_SIZE);
     const placeholders = chunk.map(() => '?').join(', ');
     const result = await env.DB.prepare(
-      `SELECT inventory_item_id, fixed_shipping_amount
+      `SELECT inventory_item_id, fixed_shipping_amount, meta_store
        FROM ccg_inventory_items_addtl
        WHERE inventory_item_id IN (${placeholders})`
     ).bind(...chunk).all<InventoryItemAddtlRow>();

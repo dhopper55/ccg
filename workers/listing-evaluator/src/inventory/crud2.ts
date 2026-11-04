@@ -80,6 +80,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
   const condition = normalizeText(body.condition, '').slice(0, 50);
   const allowShipping = toBooleanInput(body.allowShipping, false);
   const fixedShippingAmount = Math.max(0, parseCurrencyAmount(body.fixedShippingAmount) ?? 0);
+  const metaStore = toBooleanInput(body.metaStore, false);
   const salesTaxIncluded = toBooleanInput(body.salesTaxIncluded, false);
   const saleDescription = normalizeText(body.saleDescription, '').slice(0, 12000);
   const clearance = toBooleanInput(body.clearance, false);
@@ -455,7 +456,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
     if (!(await dbReplaceInventoryTagsByItemIds([recordIdNum], tags, env))) {
       return jsonResponse({ message: 'Unable to update remaining inventory item tags.' }, 500);
     }
-    if (!(await dbUpsertInventoryAddtl(recordIdNum, { fixed_shipping_amount: fixedShippingAmount }, env))) {
+    if (!(await dbUpsertInventoryAddtl(recordIdNum, { fixed_shipping_amount: fixedShippingAmount, meta_store: metaStore }, env))) {
       return jsonResponse({ message: 'Unable to update remaining inventory item shipping settings.' }, 500);
     }
 
@@ -669,7 +670,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
     if (!(await dbReplaceInventoryTagsByItemIds([Number(soldInsert.firstId)], tags, env))) {
       return jsonResponse({ message: 'Sold inventory item was created, but its tags failed to save.' }, 500);
     }
-    if (!(await dbUpsertInventoryAddtl(Number(soldInsert.firstId), { fixed_shipping_amount: fixedShippingAmount }, env))) {
+    if (!(await dbUpsertInventoryAddtl(Number(soldInsert.firstId), { fixed_shipping_amount: fixedShippingAmount, meta_store: false }, env))) {
       return jsonResponse({ message: 'Sold inventory item was created, but its shipping settings failed to save.' }, 500);
     }
 
@@ -801,7 +802,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
   if (!(await dbReplaceInventoryTagsByItemIds([Number.parseInt(recordId, 10)], tags, env))) {
     return jsonResponse({ message: 'Unable to update inventory item tags.' }, 500);
   }
-  if (!(await dbUpsertInventoryAddtl(Number.parseInt(recordId, 10), { fixed_shipping_amount: fixedShippingAmount }, env))) {
+  if (!(await dbUpsertInventoryAddtl(Number.parseInt(recordId, 10), { fixed_shipping_amount: fixedShippingAmount, meta_store: metaStore }, env))) {
     return jsonResponse({ message: 'Unable to update inventory item shipping settings.' }, 500);
   }
 

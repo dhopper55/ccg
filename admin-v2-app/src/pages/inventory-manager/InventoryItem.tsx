@@ -125,6 +125,7 @@ type InventoryItemRecord = {
   isCustom?: boolean;
   forSale?: boolean;
   onlyInStore?: boolean;
+  metaStore?: boolean;
   salesChannelCcg?: boolean;
   salesChannelCl?: boolean;
   salesChannelReverb?: boolean;
@@ -276,6 +277,7 @@ type FormState = {
   isCustom: boolean;
   forSale: boolean;
   onlyInStore: boolean;
+  metaStore: boolean;
   salesChannelCcg: boolean;
   salesChannelCl: boolean;
   salesChannelReverb: boolean;
@@ -537,6 +539,7 @@ const DEFAULT_FORM: FormState = {
   isCustom: false,
   forSale: false,
   onlyInStore: false,
+  metaStore: false,
   salesChannelCcg: false,
   salesChannelCl: false,
   salesChannelReverb: false,
@@ -1607,6 +1610,7 @@ const InventoryItem = () => {
             isCustom: Boolean(record.isCustom),
             forSale: Boolean(record.forSale),
             onlyInStore: Boolean(record.onlyInStore),
+            metaStore: Boolean(record.metaStore),
             salesChannelCcg: Boolean(record.salesChannelCcg),
             salesChannelCl: Boolean(record.salesChannelCl),
             salesChannelReverb: Boolean(record.reverbListingId),
@@ -1742,6 +1746,7 @@ const InventoryItem = () => {
             isCustom: true,
             forSale: Boolean(record.forSale),
             onlyInStore: Boolean(record.onlyInStore),
+            metaStore: false,
             salesChannelCcg: Boolean(record.forSale || record.salesChannelCcg),
             salesChannelCl: Boolean(record.salesChannelCl),
             salesChannelReverb: false,
@@ -2105,6 +2110,7 @@ const InventoryItem = () => {
     isCustom: form.isCustom,
     forSale: form.forSale,
     onlyInStore: form.onlyInStore,
+    metaStore: form.metaStore,
     salesChannelCcg: form.salesChannelCcg,
     salesChannelCl: form.salesChannelCl,
     fbListingId: form.fbListingId.trim() || null,
@@ -3920,6 +3926,15 @@ const InventoryItem = () => {
                         />
                       }
                       label="Only in-store"
+                    />
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={form.metaStore}
+                          onChange={(event) => setField('metaStore', event.target.checked)}
+                        />
+                      }
+                      label="Meta Store"
                     />
                     <FormControlLabel
                       control={

@@ -10,12 +10,14 @@ export type InventoryImageInput = {
   isPrivate: boolean;
 };
 
-type CloudflareImagePreset = 'thumb' | 'card' | 'detail';
+type CloudflareImagePreset = 'thumb' | 'card' | 'detail' | 'feedJpeg';
 
 const CLOUDFLARE_IMAGE_TRANSFORM_OPTIONS: Record<CloudflareImagePreset, string> = {
   thumb: 'fit=scale-down,width=180,quality=80,format=auto,onerror=redirect',
   card: 'fit=scale-down,width=640,quality=82,format=auto,onerror=redirect',
   detail: 'fit=scale-down,width=1400,quality=85,format=auto,onerror=redirect',
+  // Catalog feeds that require JPEG/PNG: format=auto can serve WebP to the fetcher.
+  feedJpeg: 'fit=scale-down,width=1400,quality=85,format=jpeg,onerror=redirect',
 };
 
 export function detectContentTypeFromBytes(bytes: Uint8Array): string | null {

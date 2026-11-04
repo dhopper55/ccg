@@ -211,6 +211,7 @@ export async function handleInventoryCreate(request: Request, env: Env): Promise
   const condition = normalizeText(body.condition, '').slice(0, 50);
   const allowShipping = toBooleanInput(body.allowShipping, false);
   const fixedShippingAmount = Math.max(0, parseCurrencyAmount(body.fixedShippingAmount) ?? 0);
+  const metaStore = toBooleanInput(body.metaStore, false);
   const salesTaxIncluded = toBooleanInput(body.salesTaxIncluded, false);
   const saleDescription = normalizeText(body.saleDescription, '').slice(0, 12000);
   const clearance = toBooleanInput(body.clearance, false);
@@ -459,7 +460,7 @@ export async function handleInventoryCreate(request: Request, env: Env): Promise
   if (!(await dbReplaceInventoryTagsByItemIds([Number(inserted.firstId)], tags, env))) {
     return jsonResponse({ message: 'Inventory item was created, but its tags failed to save.' }, 500);
   }
-  if (!(await dbUpsertInventoryAddtl(Number(inserted.firstId), { fixed_shipping_amount: fixedShippingAmount }, env))) {
+  if (!(await dbUpsertInventoryAddtl(Number(inserted.firstId), { fixed_shipping_amount: fixedShippingAmount, meta_store: metaStore }, env))) {
     return jsonResponse({ message: 'Inventory item was created, but its shipping settings failed to save.' }, 500);
   }
 

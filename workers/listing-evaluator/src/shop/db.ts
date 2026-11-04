@@ -20,6 +20,8 @@ import {
   MERCHANT_CENTER_CATEGORY_MAP,
 } from './merchant.js';
 import type { GoogleMerchantFeedProduct } from './merchant.js';
+import { buildMetaFeedLink, getMetaFeedPricing } from './meta-feed.js';
+import type { MetaFeedProduct } from './meta-feed.js';
 
 export function slugifyShopCategory(value: string): string {
   return value
@@ -591,6 +593,102 @@ export async function dbListGoogleMerchantProducts(env: Env): Promise<GoogleMerc
       googleProductCategory: MERCHANT_CENTER_CATEGORY_MAP[normalizeText(row.merchant_center_cat_code, '')] ?? '',
     };
   }).filter((record): record is GoogleMerchantFeedProduct => Boolean(record));
+}
+
+// Only items with the Meta Store checkbox on. Sold ones stay as out of stock for a
+// week so existing posts don't break, then drop out. Pickup-only items are left out
+// because a Meta buyer can't choose pickup.
+export async function dbListMetaStoreProducts(env: Env): Promise<MetaFeedProduct[]> {
+  const baseUrl = normalizeText(env.SITE_BASE_URL, 'https://www.coalcreekguitars.com').replace(/\/+$/, '');
+  const result = await env.DB.prepare(
+    `SELECT
+       i.id,
+       i.ccg_number,
+       CASE
+         WHEN EXISTS (
+           SELECT 1
+           FROM ccg_inventory_item_images sii_exists
+           WHERE sii_exists.inventory_item_id = i.id
+         ) THEN COALESCE((
+           SELECT sii.image_url
+           FROM ccg_inventory_item_images sii
+           WHERE sii.inventory_item_id = i.id
+             AND COALESCE(sii.is_private, 0) = 0
+           ORDER BY sii.display_order ASC, sii.id ASC
+           LIMIT 1
+         ), '')
+         ELSE i.image_url
+       END AS image_url,
+       COALESCE((
+         SELECT GROUP_CONCAT(sii.image_url, CHAR(31))
+         FROM ccg_inventory_item_images sii
+         WHERE sii.inventory_item_id = i.id
+           AND COALESCE(sii.is_private, 0) = 0
+       ), '') AS feed_image_urls,
+       i.image_urls,
+       i.title,
+       i.sale_title,
+       i.sale_url,
+       i.quantity,
+       i.regular_price,
+       i.sale_price,
+       i."condition",
+       i.brand,
+       i.sale_description,
+       i.merchant_center_cat_code,
+       ${INVENTORY_CATEGORY_SELECT_SQL},
+       i.is_sold
+     FROM ccg_inventory_items i
+     JOIN ccg_inventory_items_addtl a ON a.inventory_item_id = i.id
+     ${INVENTORY_CATEGORY_JOIN_SQL}
+     WHERE a.meta_store = 1
+       AND COALESCE(i.is_active, 0) = 1
+       AND COALESCE(i.only_in_store, 0) = 0
+       AND COALESCE(i.is_rented, 0) = 0
+       AND COALESCE(i.allow_shipping, 0) = 1
+       AND TRIM(COALESCE(i.sale_url, '')) != ''
+       AND (
+         (COALESCE(i.for_sale, 0) = 1 AND COALESCE(i.is_sold, 0) = 0)
+         OR (COALESCE(i.is_sold, 0) = 1 AND i.sold_date >= date('now', '-7 days'))
+       )
+     ORDER BY i.id DESC`
+  ).all<ShopProductRow & { feed_image_urls: string | null }>();
+
+  return (result.results ?? []).map((row) => {
+    const title = normalizeText(row.sale_title, '') || normalizeText(row.title, '');
+    const link = buildMerchantProductLink(row, baseUrl);
+    const { price, salePrice } = getMetaFeedPricing(row.regular_price, row.sale_price);
+    const imageLink = toPublicShopImageUrl(row.image_url, 'feedJpeg');
+    if (!title || !link || !imageLink || price <= 0) return null;
+
+    const feedImages = normalizeText(row.feed_image_urls, '')
+      .split(String.fromCharCode(31))
+      .filter(Boolean);
+    // image_urls can include private photos, so it's only for items with no image rows.
+    const otherImages = feedImages.length > 0
+      ? feedImages
+      : parseStoredInventoryImageUrls(row.image_urls || null, row.image_url || null);
+    const quantity = Number(row.is_sold) === 1 ? 0 : Math.max(0, Number(row.quantity ?? 0));
+
+    return {
+      id: getMerchantProductId(row),
+      title: title.slice(0, 200),
+      description: normalizeMerchantDescription(row.sale_description, title),
+      availability: quantity > 0 ? 'in stock' : 'out of stock',
+      condition: normalizeGoogleMerchantCondition(row.condition),
+      price,
+      salePrice,
+      link: buildMetaFeedLink(link),
+      imageLink,
+      additionalImageLinks: Array.from(new Set(
+        otherImages.map((imageUrl) => toPublicShopImageUrl(imageUrl, 'feedJpeg')).filter(Boolean),
+      )).filter((imageUrl) => imageUrl !== imageLink),
+      brand: normalizeText(row.brand, ''),
+      quantity,
+      googleProductCategory: MERCHANT_CENTER_CATEGORY_MAP[normalizeText(row.merchant_center_cat_code, '')] ?? '',
+      productType: slugifyShopCategory(normalizeText(row.category_name, '')),
+    };
+  }).filter((record): record is MetaFeedProduct => Boolean(record));
 }
 
 export async function dbCreateNewsletterSubscriber(email: string, env: Env): Promise<boolean> {

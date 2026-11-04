@@ -135,6 +135,7 @@ Implementation notes:
   - `POST /api/shop/orders/create-cash-order`
   - `GET /api/shop/orders/:id/receipt`
   - `GET /api/shop/receipt-templates/:name`
+- Meta catalog feed: `GET /feeds/meta.csv` (`shop/meta-feed.ts`, `dbListMetaStoreProducts`) only includes items with the Meta Store checkbox on (`ccg_inventory_items_addtl.meta_store`), unlike the Google feed. Feed links carry `utm_source=meta_store`, which Shop Statistics shows as the Meta Store source.
 - Keep storefront-specific Worker contracts under `/api/shop/*` so they stay clearly separated from Admin V2 and legacy admin contracts.
 
 ### Checkout, payment, receipts, and mPOP

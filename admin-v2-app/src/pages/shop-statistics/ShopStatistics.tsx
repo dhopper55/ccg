@@ -91,7 +91,8 @@ function formatTimestampMountain(value: string): string {
   }).format(parsed).replace(',', '');
 }
 
-function classifySource(referrer: string): { label: string; color: 'default' | 'primary' | 'secondary' | 'info' | 'success' | 'warning' | 'error' } {
+function classifySource(referrer: string, pagePath: string): { label: string; color: 'default' | 'primary' | 'secondary' | 'info' | 'success' | 'warning' | 'error' } {
+  if (pagePath.includes('utm_source=meta_store')) return { label: 'Meta Store', color: 'primary' };
   if (!referrer) return { label: 'Direct', color: 'default' };
   try {
     const url = new URL(referrer);
@@ -348,7 +349,7 @@ const ShopStatistics = () => {
                       </TableCell>
                       <TableCell>
                         {(() => {
-                          const src = classifySource(record.referrer);
+                          const src = classifySource(record.referrer, record.pagePath);
                           return (
                             <Tooltip title={record.referrer || 'No referrer'}>
                               <Chip size="small" label={src.label} color={src.color} />
