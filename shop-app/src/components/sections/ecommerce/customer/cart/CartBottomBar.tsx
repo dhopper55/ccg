@@ -93,7 +93,16 @@ const validateCashCustomerForm = (values: CashCustomerForm) => {
 };
 
 const CartBottomBar = () => {
-  const { appliedCoupon, cartItems, cartTotal, cartTax, taxIncluded, otdMode } = useEcommerce();
+  const {
+    appliedCoupon,
+    cartItems,
+    cartTotal,
+    cartTax,
+    taxIncluded,
+    otdMode,
+    isCheckoutBlockedByVacation,
+    showVacationModal,
+  } = useEcommerce();
   const { isAssociateMode, stripeSandbox } = useAssociateMode();
   const { up } = useBreakpoints();
   const { currencyFormat } = useNumberFormat();
@@ -198,7 +207,15 @@ const CartBottomBar = () => {
         publishableKey?: string;
         orderNumber?: string;
         message?: string;
+        code?: string;
       };
+
+      // Vacation mode was turned on after this page loaded.
+      if (data.code === 'vacation_mode') {
+        showVacationModal();
+        setIsCheckingOut(false);
+        return;
+      }
 
       if (!response.ok || (!data.url && !data.clientSecret)) {
         throw new Error(data.message || 'Unable to start checkout.');
@@ -538,6 +555,10 @@ const CartBottomBar = () => {
               loading={isCheckingOut}
               disabled={selectedCartItems.length === 0}
               onClick={() => {
+                if (isCheckoutBlockedByVacation) {
+                  showVacationModal();
+                  return;
+                }
                 setPendingCheckoutMode('standard');
                 if (isAssociateMode) {
                   openAssociateStripeRoute('checkout');
@@ -558,6 +579,10 @@ const CartBottomBar = () => {
               loading={isCheckingOut}
               disabled={selectedCartItems.length === 0}
               onClick={() => {
+                if (isCheckoutBlockedByVacation) {
+                  showVacationModal();
+                  return;
+                }
                 setPendingCheckoutMode('finance');
                 openRefundPolicyDialog();
               }}

@@ -108,12 +108,14 @@ export async function getShopRuntimeSettings(env: Env): Promise<{
   customProductBarcode: string;
   saleDescriptionPostfix: string;
   stripeSandbox: boolean;
+  vacationMode: boolean;
 }> {
   const fallback = {
     associateScreensaverIdleMs: 60_000,
     customProductBarcode: '',
     saleDescriptionPostfix: DEFAULT_SALE_DESCRIPTION_POSTFIX,
     stripeSandbox: false,
+    vacationMode: false,
   };
 
   try {
@@ -128,6 +130,7 @@ export async function getShopRuntimeSettings(env: Env): Promise<{
       customProductBarcode: normalizeText(row.custom_product_barcode, '').slice(0, 80),
       saleDescriptionPostfix: normalizeText(row.sale_description_postfix, DEFAULT_SALE_DESCRIPTION_POSTFIX),
       stripeSandbox: parseSysInfoBoolean(row.use_stripe_sandbox, false),
+      vacationMode: parseSysInfoBoolean(row.shop_vacation_mode, false),
     };
   } catch (error) {
     console.warn('Shop sys_info settings lookup failed.', { error });
@@ -188,6 +191,25 @@ export async function dbSetV2DecodeLogic(enabled: boolean, env: Env): Promise<vo
      VALUES (1, ?)
      ON CONFLICT(id) DO UPDATE SET
        use_v2_decode_logic = excluded.use_v2_decode_logic,
+       updated_at = CURRENT_TIMESTAMP`,
+  ).bind(enabled ? 1 : 0).run();
+}
+
+export async function dbGetShopVacationMode(env: Env): Promise<boolean> {
+  try {
+    const row = await env.DB.prepare('SELECT shop_vacation_mode FROM sys_info LIMIT 1').first<Record<string, unknown>>();
+    return parseSysInfoBoolean(row?.shop_vacation_mode, false);
+  } catch {
+    return false;
+  }
+}
+
+export async function dbSetShopVacationMode(enabled: boolean, env: Env): Promise<void> {
+  await env.DB.prepare(
+    `INSERT INTO sys_info (id, shop_vacation_mode)
+     VALUES (1, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       shop_vacation_mode = excluded.shop_vacation_mode,
        updated_at = CURRENT_TIMESTAMP`,
   ).bind(enabled ? 1 : 0).run();
 }

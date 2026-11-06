@@ -14,6 +14,7 @@ import { trackShopAnalyticsEvent } from 'lib/shopAnalytics';
 import { calculateCartShipping, isBigShippingCategory } from 'lib/shipping';
 import { CartItem, Coupon, ProductDetails } from 'types/ecommerce';
 import { useAssociateMode } from 'providers/AssociateModeProvider';
+import VacationModeDialog from 'components/sections/ecommerce/customer/common/VacationModeDialog';
 
 interface EcommerceContextInterface {
   product: CartItem | null;
@@ -41,6 +42,9 @@ interface EcommerceContextInterface {
   cartShippingAddressRequired: boolean;
   cartHasLocalPickupOnlyItems: boolean;
   cartTotal: number;
+  /** Vacation mode is on and the selected items include something that would have to ship. */
+  isCheckoutBlockedByVacation: boolean;
+  showVacationModal: () => void;
 }
 
 export const EcommerceContext = createContext({} as EcommerceContextInterface);
@@ -108,7 +112,11 @@ const hydrateCartFlags = async (items: CartItem[], signal: AbortSignal) => {
 
 const EcommerceProvider = ({ children }: PropsWithChildren) => {
   const { enqueueSnackbar } = useSnackbar();
-  const { isAssociateMode } = useAssociateMode();
+  const { isAssociateMode, vacationMode } = useAssociateMode();
+  // In-store sales keep running during vacation mode; only online shipping is closed.
+  const vacationBlocksShipping = vacationMode && !isAssociateMode;
+  const [vacationModalOpen, setVacationModalOpen] = useState(false);
+  const showVacationModal = useCallback(() => setVacationModalOpen(true), []);
 
   const [product, setProduct] = useState<CartItem | null>(null);
   const [cartItems, setCartItems] = useState<CartItem[]>(getInitialCartItems);
@@ -131,6 +139,10 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
       const maxQuantity = Math.max(0, Number(product.stock || 0));
       if (maxQuantity <= 0) {
         enqueueSnackbar('This item is currently out of stock.', { variant: 'warning' });
+        return;
+      }
+      if (vacationBlocksShipping && product.allowShipping !== false) {
+        showVacationModal();
         return;
       }
       const existingItem = cartItems.find((item) => item.id === product.id);
@@ -159,7 +171,7 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
       });
       enqueueSnackbar('Added to the cart successfully!', { variant: 'success' });
     },
-    [cartItems],
+    [cartItems, vacationBlocksShipping, showVacationModal],
   );
 
   const removeItemFromCart = useCallback(
@@ -239,6 +251,11 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
   const cartHasLocalPickupOnlyItems = useMemo(
     () => cartItems.some((item) => item.selected && item.allowShipping === false),
     [cartItems],
+  );
+
+  const isCheckoutBlockedByVacation = useMemo(
+    () => vacationBlocksShipping && cartItems.some((item) => item.selected && item.allowShipping !== false),
+    [vacationBlocksShipping, cartItems],
   );
 
   const cartTax = useMemo(() => {
@@ -385,9 +402,12 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
         cartShippingAddressRequired: cartShippingDetails.addressRequired,
         cartHasLocalPickupOnlyItems,
         cartTotal,
+        isCheckoutBlockedByVacation,
+        showVacationModal,
       }}
     >
       {children}
+      <VacationModeDialog open={vacationModalOpen} onClose={() => setVacationModalOpen(false)} />
     </EcommerceContext>
   );
 };

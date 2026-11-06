@@ -3930,15 +3930,6 @@ const InventoryItem = () => {
                     <FormControlLabel
                       control={
                         <Checkbox
-                          checked={form.metaStore}
-                          onChange={(event) => setField('metaStore', event.target.checked)}
-                        />
-                      }
-                      label="Meta Store"
-                    />
-                    <FormControlLabel
-                      control={
-                        <Checkbox
                           checked={form.tagReprint}
                           onChange={(event) => setField('tagReprint', event.target.checked)}
                         />
@@ -4027,6 +4018,15 @@ const InventoryItem = () => {
                         </>
                       ) : null}
                     </Stack>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={form.metaStore}
+                          onChange={(event) => setField('metaStore', event.target.checked)}
+                        />
+                      }
+                      label="Meta Store"
+                    />
                     <FormControlLabel
                       control={
                         <Checkbox

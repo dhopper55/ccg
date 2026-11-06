@@ -220,6 +220,8 @@ import {
 import {
   handleAdminV2StripeConfig,
   handleAdminV2StripeConfigUpdate,
+  handleAdminV2VacationModeConfig,
+  handleAdminV2VacationModeConfigUpdate,
   handleAdminV2V2DecodeConfig,
   handleAdminV2V2DecodeConfigUpdate,
   handleAdminV2SystemSettings,
@@ -994,6 +996,16 @@ export default {
 
     if (path === '/api/admin-v2/stripe-config' && request.method === 'POST') {
       const response = await handleAdminV2StripeConfigUpdate(request, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/vacation-mode' && request.method === 'GET') {
+      const response = await handleAdminV2VacationModeConfig(env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/vacation-mode' && request.method === 'POST') {
+      const response = await handleAdminV2VacationModeConfigUpdate(request, env);
       return withCors(response, request, env);
     }
 

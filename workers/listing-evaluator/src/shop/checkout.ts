@@ -2,7 +2,7 @@ import type { Env } from '../env.js';
 import { jsonResponse, numberOrZero } from '../utils/misc.js';
 import { normalizeText, normalizeEmailAddress } from '../utils/text.js';
 import { isAssociateModeRequest } from './associate.js';
-import { getStripeRuntimeConfig } from '../system/runtime.js';
+import { getStripeRuntimeConfig, dbGetShopVacationMode } from '../system/runtime.js';
 import { createStripeCheckoutSession, toDisplayPaymentMethodName, resolveStripePaymentMethodLabel } from '../orders/stripe.js';
 import { SHOP_BASE_PATH, ACTIVITY_BASE_URL } from '../constants.js';
 import type { ShopCheckoutRequestPayload } from '../types/orders.js';
@@ -53,6 +53,15 @@ export async function handleShopCreateCheckoutSession(request: Request, env: Env
     return draftResult;
   }
   const draft = draftResult;
+  // Backstop for pages loaded before vacation mode was turned on. An address is only
+  // required for online carts with a shippable item, so in-store sales and
+  // pickup-only carts pass.
+  if (draft.shippingAddressRequired && await dbGetShopVacationMode(env)) {
+    return jsonResponse({
+      code: 'vacation_mode',
+      message: "Our shipping department is temporarily closed. We'll be back soon! If you'd like more immediate service, call or text us at (303) 376-9214.",
+    }, 409);
+  }
   const requestedCardAmountCents = numberOrZero(body?.splitTender?.cardAmountCents);
   const isSplitTender = includeInStoreOnly && requestedCardAmountCents > 0;
   const cardAmountCents = isSplitTender ? requestedCardAmountCents : draft.totalCents;

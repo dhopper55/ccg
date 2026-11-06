@@ -7,6 +7,8 @@ import {
   getBrevoRuntimeConfig,
   dbGetV2DecodeLogicEnabled,
   dbSetV2DecodeLogic,
+  dbGetShopVacationMode,
+  dbSetShopVacationMode,
   dbSetStripeSandboxMode,
   dbSetStripePublishableKeys,
   dbGetSystemSettings,
@@ -58,6 +60,29 @@ export async function handleAdminV2StripeConfigUpdate(request: Request, env: Env
   } catch (error) {
     return jsonResponse({
       message: error instanceof Error ? error.message : 'Unable to update Stripe environment.',
+    }, 500);
+  }
+}
+
+export async function handleAdminV2VacationModeConfig(env: Env): Promise<Response> {
+  const enabled = await dbGetShopVacationMode(env);
+  return jsonResponse({ vacationMode: enabled });
+}
+
+export async function handleAdminV2VacationModeConfigUpdate(request: Request, env: Env): Promise<Response> {
+  let body: Record<string, unknown> = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+  const enabled = toBooleanInput(body.vacationMode, false);
+  try {
+    await dbSetShopVacationMode(enabled, env);
+    return jsonResponse({ ok: true, vacationMode: enabled });
+  } catch (error) {
+    return jsonResponse({
+      message: error instanceof Error ? error.message : 'Unable to update vacation mode.',
     }, 500);
   }
 }

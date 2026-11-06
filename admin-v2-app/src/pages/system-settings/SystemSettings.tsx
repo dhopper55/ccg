@@ -102,6 +102,12 @@ type StripeConfigResponse = {
   message?: string;
 };
 
+type VacationModeResponse = {
+  vacationMode?: boolean;
+  ok?: boolean;
+  message?: string;
+};
+
 type V2DecodeConfigResponse = {
   useV2DecodeLogic?: boolean;
   ok?: boolean;
@@ -134,6 +140,8 @@ const SystemSettings = () => {
   const [stripePublishableKey, setStripePublishableKey] = useState('');
   const [isUpdatingStripeEnv, setIsUpdatingStripeEnv] = useState(false);
   const [useV2DecodeLogic, setUseV2DecodeLogic] = useState(false);
+  const [vacationMode, setVacationMode] = useState(false);
+  const [isUpdatingVacationMode, setIsUpdatingVacationMode] = useState(false);
   const [isUpdatingV2Decode, setIsUpdatingV2Decode] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [isPrintingReceipt, setIsPrintingReceipt] = useState(false);
@@ -144,16 +152,19 @@ const SystemSettings = () => {
     setIsLoading(true);
     setErrorMessage('');
     try {
-      const [settingsResponse, stripeResponse, v2DecodeResponse] = await Promise.all([
+      const [settingsResponse, stripeResponse, v2DecodeResponse, vacationResponse] = await Promise.all([
         fetch('/api/admin-v2/system-settings', { credentials: 'same-origin' }),
         fetch('/api/admin-v2/stripe-config', { credentials: 'same-origin' }),
         fetch('/api/admin-v2/v2-decode-config', { credentials: 'same-origin' }),
+        fetch('/api/admin-v2/vacation-mode', { credentials: 'same-origin' }),
       ]);
       const payload = (await settingsResponse.json()) as SystemSettingsResponse;
       const stripePayload = (await stripeResponse.json()) as StripeConfigResponse;
       const v2DecodePayload = (await v2DecodeResponse.json()) as V2DecodeConfigResponse;
+      const vacationPayload = (await vacationResponse.json()) as VacationModeResponse;
       if (!settingsResponse.ok) throw new Error(payload.message || 'Unable to load system settings.');
       if (!stripeResponse.ok) throw new Error(stripePayload.message || 'Unable to load Stripe config.');
+      if (!vacationResponse.ok) throw new Error(vacationPayload.message || 'Unable to load vacation mode.');
       setForm({
         brevoOrderConfirmationTemplateId: payload.brevoOrderConfirmationTemplateId || '',
         brevoSenderName: payload.brevoSenderName || '',
@@ -172,6 +183,7 @@ const SystemSettings = () => {
       setStripePublishableKeySandbox(stripePayload.stripePublishableKeySandbox ?? '');
       setStripePublishableKey(stripePayload.stripePublishableKey ?? '');
       setUseV2DecodeLogic(v2DecodePayload.useV2DecodeLogic ?? false);
+      setVacationMode(vacationPayload.vacationMode ?? false);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to load system settings.');
     } finally {
@@ -270,6 +282,30 @@ const SystemSettings = () => {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to update Stripe environment.');
     } finally {
       setIsUpdatingStripeEnv(false);
+    }
+  };
+
+  const handleVacationModeToggle = async (checked: boolean) => {
+    const previous = vacationMode;
+    setVacationMode(checked);
+    setIsUpdatingVacationMode(true);
+    setErrorMessage('');
+    try {
+      const response = await fetch('/api/admin-v2/vacation-mode', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vacationMode: checked }),
+      });
+      const payload = (await response.json()) as VacationModeResponse;
+      if (!response.ok) throw new Error(payload.message || 'Unable to update vacation mode.');
+      setVacationMode(payload.vacationMode ?? checked);
+      enqueueSnackbar(`Vacation mode ${checked ? 'on' : 'off'}.`, { variant: 'success' });
+    } catch (error) {
+      setVacationMode(previous);
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to update vacation mode.');
+    } finally {
+      setIsUpdatingVacationMode(false);
     }
   };
 
@@ -480,6 +516,22 @@ const SystemSettings = () => {
       <Paper sx={{ flex: 1, p: { xs: 3, md: 5 } }}>
         <Stack direction="column" sx={{ gap: 3, maxWidth: 720 }}>
           {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
+          <Box>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={vacationMode}
+                  disabled={isLoading || isSaving || isUpdatingVacationMode}
+                  onChange={(event) => void handleVacationModeToggle(event.target.checked)}
+                />
+              }
+              label={vacationMode ? 'Vacation Mode (on)' : 'Vacation Mode (off)'}
+            />
+            <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+              Takes effect immediately. Online customers see a &quot;shipping department closed&quot; message
+              instead of adding or checking out shippable items. In-store sales and Local Pickup Only items keep working.
+            </Typography>
+          </Box>
           <FormControlLabel
             control={
               <Switch
