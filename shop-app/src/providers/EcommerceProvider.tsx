@@ -142,6 +142,15 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
         return;
       }
       if (isCheckoutBlockedByVacation) {
+        trackShopAnalyticsEvent({
+          eventType: 'vacation_add_to_cart_blocked',
+          inventoryItemId: product.id,
+          metadata: {
+            title: product.name,
+            quantity: Math.max(1, Math.floor(quantity)),
+            price: product.price.discounted,
+          },
+        });
         showVacationModal();
         return;
       }

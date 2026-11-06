@@ -3,6 +3,8 @@ import { normalizeText } from '../utils/text.js';
 import { buildAdminOrderCustomer } from './handlers.js';
 import { getStripeRuntimeConfig } from '../system/runtime.js';
 
+const CHECKOUT_SESSION_LIFETIME_SECONDS = 60 * 60;
+
 export function toDisplayPaymentMethodName(input: unknown): string {
   const normalized = normalizeText(input, '').replace(/_/g, ' ').trim();
   if (!normalized) return 'Stripe';
@@ -199,6 +201,7 @@ export async function createStripeCheckoutSession(input: {
   const uiMode = input.uiMode ?? 'hosted';
   const form = new URLSearchParams();
   form.set('mode', 'payment');
+  form.set('expires_at', String(Math.floor(Date.now() / 1000) + CHECKOUT_SESSION_LIFETIME_SECONDS));
   if (uiMode === 'embedded') {
     form.set('ui_mode', 'embedded');
     if (!input.returnUrl) throw new Error('returnUrl is required for embedded checkout sessions.');
@@ -221,10 +224,13 @@ export async function createStripeCheckoutSession(input: {
   if (!input.splitTender && input.paymentMethodMode === 'standard') {
     form.append('payment_method_types[]', 'card');
     form.append('payment_method_types[]', 'cashapp');
-    form.append('payment_method_types[]', 'us_bank_account');
   } else if (!input.splitTender && input.paymentMethodMode === 'finance') {
     form.append('payment_method_types[]', 'affirm');
     form.append('payment_method_types[]', 'klarna');
+  } else {
+    // These sessions name no methods, so Stripe offers whatever the dashboard has enabled.
+    // ACH takes days to clear, and we only accept payments that confirm right away.
+    form.append('excluded_payment_method_types[]', 'us_bank_account');
   }
   if (input.shippingAddressRequired) {
     form.append('shipping_address_collection[allowed_countries][]', 'US');

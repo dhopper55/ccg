@@ -29,7 +29,7 @@ import {
 } from '@mui/material';
 import IconifyIcon from 'components/base/IconifyIcon';
 
-type ShopStatisticEventType = '' | 'product_view' | 'search' | 'add_to_cart' | 'checkout_start' | 'value_report_initiate' | 'authenticity_report_initiate';
+type ShopStatisticEventType = '' | 'product_view' | 'search' | 'add_to_cart' | 'vacation_add_to_cart_blocked' | 'checkout_start' | 'value_report_initiate' | 'authenticity_report_initiate';
 
 type ShopStatisticRecord = {
   id: number;
@@ -62,6 +62,7 @@ const EVENT_TYPE_OPTIONS: Array<{ value: ShopStatisticEventType; label: string }
   { value: 'product_view', label: 'Product views' },
   { value: 'search', label: 'Searches' },
   { value: 'add_to_cart', label: 'Adds to cart' },
+  { value: 'vacation_add_to_cart_blocked', label: 'Adds blocked by vacation mode' },
   { value: 'checkout_start', label: 'Checkout starts' },
   { value: 'value_report_initiate', label: 'Value report initiates' },
   { value: 'authenticity_report_initiate', label: 'Authenticity report initiates' },

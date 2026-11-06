@@ -17,6 +17,7 @@ export const SHOP_ANALYTICS_EVENT_TYPES = new Set([
   'product_view',
   'search',
   'add_to_cart',
+  'vacation_add_to_cart_blocked',
   'checkout_start',
   'value_report_initiate',
   'authenticity_report_initiate',
@@ -51,7 +52,10 @@ export async function handleShopAnalyticsEvent(request: Request, env: Env): Prom
   }
 
   const inventoryItemId = toPositiveInteger(body?.inventoryItemId);
-  if ((eventType === 'product_view' || eventType === 'add_to_cart') && inventoryItemId == null) {
+  if (
+    (eventType === 'product_view' || eventType === 'add_to_cart' || eventType === 'vacation_add_to_cart_blocked') &&
+    inventoryItemId == null
+  ) {
     return jsonResponse({ message: 'Inventory item is required.' }, 400);
   }
 

@@ -86,7 +86,6 @@ export async function handleGuitarEvaluationPaymentIntent(request: Request, env:
   if (evalRow?.email) params.set('receipt_email', evalRow.email);
   params.append('payment_method_types[]', 'card');
   params.append('payment_method_types[]', 'cashapp');
-  params.append('payment_method_types[]', 'us_bank_account');
 
   const stripeRes = await fetch('https://api.stripe.com/v1/payment_intents', {
     method: 'POST',

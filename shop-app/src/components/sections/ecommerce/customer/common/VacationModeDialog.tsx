@@ -1,7 +1,8 @@
-import { Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from '@mui/material';
+import { Button, Dialog, DialogActions, DialogContent, DialogTitle, Link, Typography } from '@mui/material';
 
 const shopPhoneDisplay = '(303) 376-9214';
 const shopPhoneE164 = '+13033769214';
+const shopEmail = 'info@coalcreekguitars.com';
 
 interface VacationModeDialogProps {
   open: boolean;
@@ -17,8 +18,12 @@ const VacationModeDialog = ({ open, onClose }: VacationModeDialogProps) => {
       <DialogTitle>Our shipping department is temporarily closed</DialogTitle>
       <DialogContent>
         <Typography>
-          We&apos;ll be back soon! If you&apos;d like more immediate service, call or text us at{' '}
-          <strong style={{ whiteSpace: 'nowrap' }}>{shopPhoneDisplay}</strong>.
+          We&apos;ll be back soon! To make arrangements in the meantime, call or text us at{' '}
+          <strong style={{ whiteSpace: 'nowrap' }}>{shopPhoneDisplay}</strong> or email{' '}
+          <Link href={`mailto:${shopEmail}`} sx={{ overflowWrap: 'anywhere' }}>
+            {shopEmail}
+          </Link>
+          .
         </Typography>
       </DialogContent>
       <DialogActions>
