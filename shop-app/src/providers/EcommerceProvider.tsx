@@ -42,7 +42,7 @@ interface EcommerceContextInterface {
   cartShippingAddressRequired: boolean;
   cartHasLocalPickupOnlyItems: boolean;
   cartTotal: number;
-  /** Vacation mode is on and the selected items include something that would have to ship. */
+  /** Vacation mode is on and this isn't an in-store (associate mode) session. */
   isCheckoutBlockedByVacation: boolean;
   showVacationModal: () => void;
 }
@@ -113,8 +113,8 @@ const hydrateCartFlags = async (items: CartItem[], signal: AbortSignal) => {
 const EcommerceProvider = ({ children }: PropsWithChildren) => {
   const { enqueueSnackbar } = useSnackbar();
   const { isAssociateMode, vacationMode } = useAssociateMode();
-  // In-store sales keep running during vacation mode; only online shipping is closed.
-  const vacationBlocksShipping = vacationMode && !isAssociateMode;
+  // In-store sales keep running during vacation mode; all online sales stop.
+  const isCheckoutBlockedByVacation = vacationMode && !isAssociateMode;
   const [vacationModalOpen, setVacationModalOpen] = useState(false);
   const showVacationModal = useCallback(() => setVacationModalOpen(true), []);
 
@@ -141,7 +141,7 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
         enqueueSnackbar('This item is currently out of stock.', { variant: 'warning' });
         return;
       }
-      if (vacationBlocksShipping && product.allowShipping !== false) {
+      if (isCheckoutBlockedByVacation) {
         showVacationModal();
         return;
       }
@@ -171,7 +171,7 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
       });
       enqueueSnackbar('Added to the cart successfully!', { variant: 'success' });
     },
-    [cartItems, vacationBlocksShipping, showVacationModal],
+    [cartItems, isCheckoutBlockedByVacation, showVacationModal],
   );
 
   const removeItemFromCart = useCallback(
@@ -251,11 +251,6 @@ const EcommerceProvider = ({ children }: PropsWithChildren) => {
   const cartHasLocalPickupOnlyItems = useMemo(
     () => cartItems.some((item) => item.selected && item.allowShipping === false),
     [cartItems],
-  );
-
-  const isCheckoutBlockedByVacation = useMemo(
-    () => vacationBlocksShipping && cartItems.some((item) => item.selected && item.allowShipping !== false),
-    [vacationBlocksShipping, cartItems],
   );
 
   const cartTax = useMemo(() => {

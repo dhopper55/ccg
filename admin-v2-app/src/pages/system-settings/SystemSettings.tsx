@@ -529,7 +529,7 @@ const SystemSettings = () => {
             />
             <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
               Takes effect immediately. Online customers see a &quot;shipping department closed&quot; message
-              instead of adding or checking out shippable items. In-store sales and Local Pickup Only items keep working.
+              instead of adding to cart or checking out, including Local Pickup Only items. In-store sales keep working.
             </Typography>
           </Box>
           <FormControlLabel
