@@ -1,28 +1,38 @@
 // Admin-side endpoints for the CCG Eval connector. All sit under /api/admin-v2/ and are
 // protected by the admin login (requireAuth in index.ts), never by connector tokens.
 //
-//   POST /api/admin-v2/focus                         what the owner has open right now
-//   GET  /api/admin-v2/evaluations/latest            newest evaluation for a listing / item / draft
-//   POST /api/admin-v2/evaluations/link-draft        attach a new item's draft evaluations to its id
-//   POST /api/admin-v2/evaluations/:id/status        inventory: mark applied / dismissed
-//   POST /api/admin-v2/evaluations/:id/undo          listing: restore the previous values
+//   POST /api/admin-v2/focus                       what the owner has open right now
+//   GET  /api/admin-v2/eval-status?kind=&id=       queue state + latest evaluation (polled by the page)
+//   POST /api/admin-v2/eval-queue                  { kind, id, buildListing, deep } -> Queue for Claude
+//   POST /api/admin-v2/eval-queue/:id/remove       take a waiting item off the queue
+//   POST /api/admin-v2/evaluations/:id/undo        restore the values an evaluation replaced
 
 import type { Env } from '../env.js';
 import { jsonResponse } from '../utils/misc.js';
+import { dbGetLatestEvaluation, dbUpsertFocus, type EvalKind } from './db.js';
+import { inventoryColumnLabels, inventoryLiveChannels } from './inventory-save.js';
+import { undoEvaluation } from './listing-save.js';
 import {
-  dbGetEvaluation,
-  dbGetLatestEvaluation,
-  dbLinkDraftEvaluations,
-  dbSetEvaluationStatus,
-  dbUpsertFocus,
-  type DraftSnapshot,
-  type EvalKind,
-} from './db.js';
-import { undoListingEvaluation } from './listing-save.js';
-import { extractR2Key, safeJsonParse } from './util.js';
+  dbEnqueue,
+  dbGetActiveQueueEntry,
+  dbGetLatestQueueEntry,
+  dbGetQueueEntry,
+  dbQueuePosition,
+  dbRemoveFromQueue,
+  queueOptions,
+  type QueueRow,
+} from './queue.js';
+import { safeJsonParse } from './util.js';
 
-const DRAFT_KEY_PATTERN = /^[A-Za-z0-9-]{8,64}$/;
 const NO_STORE = { 'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0' };
+
+const LISTING_LABELS: Record<string, string> = {
+  ai_analysis_text: 'AI Analysis',
+  brand: 'Brand',
+  model: 'Model',
+  year: 'Year',
+  price_private_party: 'Private Party Value',
+};
 
 function ownerId(env: Env): string {
   return env.AUTH_USER || 'owner';
@@ -46,127 +56,127 @@ async function readJson(request: Request): Promise<Record<string, unknown> | nul
   }
 }
 
+function missingTables(error: unknown): boolean {
+  return /no such table/i.test(error instanceof Error ? error.message : String(error));
+}
+
 export function isEvalAdminPath(path: string): boolean {
-  return path === '/api/admin-v2/focus' || path.startsWith('/api/admin-v2/evaluations/');
+  return path === '/api/admin-v2/focus'
+    || path === '/api/admin-v2/eval-status'
+    || path === '/api/admin-v2/eval-queue'
+    || path.startsWith('/api/admin-v2/eval-queue/')
+    || path.startsWith('/api/admin-v2/evaluations/');
 }
 
 export async function handleEvalAdminRequest(request: Request, env: Env, path: string): Promise<Response | null> {
   const method = request.method.toUpperCase();
-  if (path === '/api/admin-v2/focus' && method === 'POST') return handleFocus(request, env);
-  if (path === '/api/admin-v2/evaluations/latest' && method === 'GET') return handleLatest(request, env);
-  if (path === '/api/admin-v2/evaluations/link-draft' && method === 'POST') return handleLinkDraft(request, env);
-  const statusMatch = path.match(/^\/api\/admin-v2\/evaluations\/([0-9a-f-]{36})\/status$/i);
-  if (statusMatch && method === 'POST') return handleStatus(request, env, statusMatch[1]);
-  const undoMatch = path.match(/^\/api\/admin-v2\/evaluations\/([0-9a-f-]{36})\/undo$/i);
-  if (undoMatch && method === 'POST') return handleUndo(env, undoMatch[1]);
+  try {
+    if (path === '/api/admin-v2/focus' && method === 'POST') return await handleFocus(request, env);
+    if (path === '/api/admin-v2/eval-status' && method === 'GET') return await handleStatus(request, env);
+    if (path === '/api/admin-v2/eval-queue' && method === 'POST') return await handleEnqueue(request, env);
+    const removeMatch = path.match(/^\/api\/admin-v2\/eval-queue\/([0-9a-f-]{36})\/remove$/i);
+    if (removeMatch && method === 'POST') return await handleRemove(env, removeMatch[1]);
+    const undoMatch = path.match(/^\/api\/admin-v2\/evaluations\/([0-9a-f-]{36})\/undo$/i);
+    if (undoMatch && method === 'POST') return await handleUndo(env, undoMatch[1]);
+  } catch (error) {
+    if (missingTables(error)) {
+      return jsonResponse({ message: 'Run d1-add-eval-connector.sql and d1-add-eval-queue.sql first.' }, 503, NO_STORE);
+    }
+    throw error;
+  }
   return null;
+}
+
+async function recordExists(env: Env, kind: EvalKind, id: string): Promise<boolean> {
+  const table = kind === 'listing' ? 'listings' : 'ccg_inventory_items';
+  const row = await env.DB.prepare(`SELECT id FROM ${table} WHERE id = ? LIMIT 1`).bind(Number(id)).first();
+  return Boolean(row);
 }
 
 async function handleFocus(request: Request, env: Env): Promise<Response> {
   const body = await readJson(request);
-  if (!body) return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
-  const kind = parseKind(body.kind);
-  if (!kind) return jsonResponse({ message: 'kind must be "listing" or "inventory".' }, 400);
-
-  const recordId = parsePositiveIntId(body.id);
-  const draftKey = typeof body.draftKey === 'string' && DRAFT_KEY_PATTERN.test(body.draftKey) ? body.draftKey : null;
-  if (!recordId && !(kind === 'inventory' && draftKey)) {
-    return jsonResponse({ message: 'A record id (or, for a new inventory item, a draftKey) is required.' }, 400);
-  }
-
-  let draftJson: string | null = null;
-  if (!recordId && draftKey) {
-    // Only photo keys in the inventory bucket are kept, so the connector never fetches an
-    // address that came from the page.
-    const imageUrls = Array.isArray(body.imageUrls) ? body.imageUrls : [];
-    const imageKeys = Array.from(new Set(
-      imageUrls
-        .filter((entry): entry is string => typeof entry === 'string')
-        .map((entry) => extractR2Key(entry))
-        .filter((key): key is string => Boolean(key && key.startsWith('inventory-items/'))),
-    )).slice(0, 24);
-    const snapshot: DraftSnapshot = {
-      title: typeof body.title === 'string' ? body.title.trim().slice(0, 240) : '',
-      imageKeys,
-      aiAnalysisText: typeof body.aiAnalysisText === 'string' ? body.aiAnalysisText.slice(0, 20000) : '',
-    };
-    draftJson = JSON.stringify(snapshot);
-  }
-
-  try {
-    await dbUpsertFocus(env, { userId: ownerId(env), kind, recordId, draftKey: recordId ? null : draftKey, draftJson });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (/no such table/i.test(message)) {
-      return jsonResponse({ message: 'Run d1-add-eval-connector.sql first.' }, 503);
-    }
-    throw error;
-  }
+  const kind = parseKind(body?.kind);
+  const recordId = parsePositiveIntId(body?.id);
+  if (!kind || !recordId) return jsonResponse({ message: 'kind and a saved record id are required.' }, 400);
+  await dbUpsertFocus(env, { userId: ownerId(env), kind, recordId, draftKey: null, draftJson: null });
   return new Response(null, { status: 204, headers: NO_STORE });
 }
 
-async function handleLatest(request: Request, env: Env): Promise<Response> {
+async function queuePayload(env: Env, row: QueueRow | null) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    status: row.status,
+    position: await dbQueuePosition(env, row),
+    addedAt: row.added_at,
+    startedAt: row.started_at,
+    finishedAt: row.finished_at,
+    error: row.error,
+    evaluationId: row.evaluation_id,
+    options: queueOptions(row),
+  };
+}
+
+async function handleStatus(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const kind = parseKind(url.searchParams.get('kind'));
   const recordId = parsePositiveIntId(url.searchParams.get('id'));
-  const draftKeyParam = url.searchParams.get('draftKey') || '';
-  const draftKey = DRAFT_KEY_PATTERN.test(draftKeyParam) ? draftKeyParam : null;
-  if (!kind || (!recordId && !draftKey)) {
-    return jsonResponse({ message: 'kind and id (or draftKey) are required.' }, 400, NO_STORE);
-  }
+  if (!kind || !recordId) return jsonResponse({ message: 'kind and id are required.' }, 400, NO_STORE);
 
-  let row;
-  try {
-    row = await dbGetLatestEvaluation(env, { kind, recordId, draftKey });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (/no such table/i.test(message)) return jsonResponse({ evaluation: null }, 200, NO_STORE);
-    throw error;
-  }
-  if (!row) return jsonResponse({ evaluation: null }, 200, NO_STORE);
-
+  const [active, latestEntry, evaluation, liveChannels] = await Promise.all([
+    dbGetActiveQueueEntry(env, kind, recordId),
+    dbGetLatestQueueEntry(env, kind, recordId),
+    dbGetLatestEvaluation(env, { kind, recordId }),
+    kind === 'inventory' ? inventoryLiveChannels(env, recordId) : Promise.resolve([] as string[]),
+  ]);
+  const written = Object.keys(safeJsonParse<Record<string, unknown>>(evaluation?.fields_written_json ?? null) || {});
   return jsonResponse({
-    evaluation: {
-      id: row.id,
-      kind: row.kind,
-      recordId: row.record_id,
-      draftKey: row.draft_key,
-      status: row.status,
-      source: row.source,
-      createdAt: row.created_at,
-      undoneAt: row.undone_at,
-      analysisHtml: row.analysis_html,
-      fields: safeJsonParse(row.fields_json),
-      listing: safeJsonParse(row.listing_json),
-      options: safeJsonParse(row.options_json) || {},
-      fieldsWritten: Object.keys(safeJsonParse<Record<string, unknown>>(row.fields_written_json) || {}),
-    },
+    queue: await queuePayload(env, active),
+    lastQueue: active ? null : await queuePayload(env, latestEntry),
+    latestEvaluation: evaluation
+      ? {
+          id: evaluation.id,
+          status: evaluation.status,
+          source: evaluation.source,
+          createdAt: evaluation.created_at,
+          undoneAt: evaluation.undone_at,
+          fieldsWritten: kind === 'listing'
+            ? Array.from(new Set(written.map((column) => LISTING_LABELS[column] || column)))
+            : inventoryColumnLabels(written),
+        }
+      : null,
+    liveChannels,
   }, 200, NO_STORE);
 }
 
-async function handleStatus(request: Request, env: Env, id: string): Promise<Response> {
+async function handleEnqueue(request: Request, env: Env): Promise<Response> {
   const body = await readJson(request);
-  const status = body?.status;
-  if (status !== 'applied' && status !== 'dismissed') {
-    return jsonResponse({ message: 'status must be "applied" or "dismissed".' }, 400);
-  }
-  const row = await dbGetEvaluation(env, id);
-  if (!row || row.kind !== 'inventory') return jsonResponse({ message: 'Evaluation not found.' }, 404);
-  if (row.status === 'pending') await dbSetEvaluationStatus(env, id, status);
+  const kind = parseKind(body?.kind);
+  const recordId = parsePositiveIntId(body?.id);
+  if (!kind || !recordId) return jsonResponse({ message: 'Save the item first, then queue it for Claude.' }, 400);
+  if (!(await recordExists(env, kind, recordId))) return jsonResponse({ message: 'Item not found.' }, 404);
+  const { row, created } = await dbEnqueue(env, {
+    kind,
+    recordId,
+    userId: ownerId(env),
+    options: {
+      build_listing: kind === 'inventory' && body?.buildListing !== false,
+      deep: body?.deep === true,
+    },
+  });
+  return jsonResponse({ ok: true, created, queue: await queuePayload(env, row) });
+}
+
+async function handleRemove(env: Env, id: string): Promise<Response> {
+  const entry = await dbGetQueueEntry(env, id);
+  if (!entry) return jsonResponse({ message: 'Not in the queue.' }, 404);
+  const removed = await dbRemoveFromQueue(env, id);
+  if (!removed) return jsonResponse({ message: 'Claude has already started on this item.' }, 409);
   return jsonResponse({ ok: true });
 }
 
 async function handleUndo(env: Env, id: string): Promise<Response> {
-  const result = await undoListingEvaluation(env, id);
+  const result = await undoEvaluation(env, id);
   if (!result.ok) return jsonResponse({ message: result.message }, result.status);
   return jsonResponse({ ok: true, restored: result.restored });
-}
-
-async function handleLinkDraft(request: Request, env: Env): Promise<Response> {
-  const body = await readJson(request);
-  const draftKey = typeof body?.draftKey === 'string' && DRAFT_KEY_PATTERN.test(body.draftKey) ? body.draftKey : null;
-  const itemId = parsePositiveIntId(body?.itemId);
-  if (!draftKey || !itemId) return jsonResponse({ message: 'draftKey and itemId are required.' }, 400);
-  const linked = await dbLinkDraftEvaluations(env, draftKey, itemId);
-  return jsonResponse({ ok: true, linked });
 }

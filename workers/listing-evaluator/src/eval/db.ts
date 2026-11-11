@@ -11,12 +11,6 @@ export type FocusRow = {
   viewed_at: number;
 };
 
-export type DraftSnapshot = {
-  title: string;
-  imageKeys: string[];
-  aiAnalysisText: string;
-};
-
 export type EvaluationRow = {
   id: string;
   kind: EvalKind;
@@ -58,13 +52,6 @@ export async function dbUpsertFocus(
 
 export async function dbGetFocus(env: Env, userId: string): Promise<FocusRow | null> {
   return env.DB.prepare('SELECT * FROM eval_focus WHERE user_id = ? LIMIT 1').bind(userId).first<FocusRow>();
-}
-
-// A draft can only be read by the user whose page sent it.
-export async function dbGetDraftFocus(env: Env, userId: string, draftKey: string): Promise<FocusRow | null> {
-  return env.DB.prepare('SELECT * FROM eval_focus WHERE user_id = ? AND draft_key = ? LIMIT 1')
-    .bind(userId, draftKey)
-    .first<FocusRow>();
 }
 
 // Returns the prepared INSERT so callers can batch it with the record update.
@@ -146,14 +133,6 @@ export async function dbSetEvaluationStatus(
     return;
   }
   await env.DB.prepare('UPDATE evaluations SET status = ?, applied_at = ? WHERE id = ?').bind(status, now, id).run();
-}
-
-// A new inventory item was saved: attach its draft evaluations to the new item id.
-export async function dbLinkDraftEvaluations(env: Env, draftKey: string, recordId: string): Promise<number> {
-  const result = await env.DB.prepare(
-    "UPDATE evaluations SET record_id = ? WHERE kind = 'inventory' AND draft_key = ? AND record_id IS NULL"
-  ).bind(recordId, draftKey).run();
-  return Number(result.meta?.changes || 0);
 }
 
 export async function dbLogToolCall(

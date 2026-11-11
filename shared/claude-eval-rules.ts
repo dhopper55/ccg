@@ -200,37 +200,27 @@ function itemEvalText(hasPreviousAnalysis: boolean, where: 'below' | 'in previou
 // tool with the fields instead of ending its reply with a JSON block.
 // ---------------------------------------------------------------------------------------------
 
-const CONNECTOR_OPTION_WORDS = [
-  'Options the owner may add after "eval" in their message:',
-  '- "deep": take the deeper look described below (listings).',
-  '- "build listing" or "listing": also write the listing (inventory items).',
-  '- "overwrite": pass overwrite=true so fields that already have values are replaced.',
-  '- "replace title": pass replace_title=true (inventory items).',
-  '- "re-eval": evaluate again even if an analysis is already saved.',
-  '- Any other words are extra details about the item: treat them as the owner\'s notes.',
-];
+// The queue decides the options (Build Listing, Deep) when the owner taps Queue for Claude, so
+// the rules below are built for one item with its options already applied. Saves always
+// overwrite the fields they write.
 
-export function buildConnectorListingRules(options: { isMulti: boolean }): string {
+export function buildConnectorListingRules(options: { isMulti: boolean; deep: boolean }): string {
   return [
     'You are evaluating a marketplace listing for my shop. Look at the photos from get_item_photos; the title and seller_description fields are the seller\'s claims — check them against the photos. The asking price is context only.',
     '',
     `Do your own evaluation on this item based on the pictures. Give me a concise readout of the following: ${EVAL_QUESTIONS}`,
     ...(options.isMulti ? ['', LISTING_MULTI_LINE] : []),
     '',
-    `If the owner said "deep": ${LISTING_DEEP_LINE}`,
-    `Otherwise: ${LISTING_QUICK_LINE}`,
+    options.deep ? LISTING_DEEP_LINE : LISTING_QUICK_LINE,
     '',
     SHOP_PRICING_RULE,
     '',
-    ...CONNECTOR_OPTION_WORDS,
-    '',
     'When the readout is done, call save_listing_evaluation once with:',
-    '- listing_id: the id from this result (not whatever is open now).',
+    '- listing_id and queue_id: from this result.',
     '- analysis_markdown: the readout exactly as you showed it, in Markdown, with no JSON block.',
     `- brand, model, year: these are just bookkeeping: ${LISTING_FIELD_RULE_TAIL}`,
     '- private_party_value: your private party value as a whole-dollar number (omit it if unknown). For a multi-item lot, the total for the lot.',
-    '- overwrite: true only if the owner said "overwrite".',
-    'Then confirm the listing title and which fields were filled.',
+    'Saving replaces the values already on the listing.',
   ].join('\n');
 }
 
@@ -238,31 +228,64 @@ export function buildConnectorItemRules(options: {
   hasPreviousAnalysis: boolean;
   categoryLines: string[];
   merchantCodes: string[];
+  buildListing: boolean;
+  deep: boolean;
+  liveChannels: string[];
 }): string {
-  const { hasPreviousAnalysis, categoryLines, merchantCodes } = options;
+  const { hasPreviousAnalysis, categoryLines, merchantCodes, deep, liveChannels } = options;
+  const isLive = liveChannels.length > 0;
+  const buildListing = options.buildListing && !isLive;
   return [
     'You are evaluating an inventory item in my shop. Look at the photos from get_item_photos. The title and the other current field values are what I have entered so far.',
+    ...(isLive
+      ? ['', `This item is currently for sale (${liveChannels.join(', ')}). Only the AI Analysis and the private party value will be saved; the item's other fields and its listing are left alone, so do not write a listing.`]
+      : []),
     '',
     itemEvalText(hasPreviousAnalysis, 'in previous_analysis'),
-    '',
-    'If the owner asked to "build listing" (or "listing"), also build a listing for the item:',
-    ...LISTING_WRITING_RULES,
-    'Write the evaluation in your reply as normal, but do not also write the listing out in the chat: it goes only in the save tool\'s listing argument.',
+    ...(deep ? ['', LISTING_DEEP_LINE] : []),
+    ...(buildListing
+      ? [
+          '',
+          'Also build a listing for the item:',
+          ...LISTING_WRITING_RULES,
+          'Write the evaluation in your reply as normal, but do not also write the listing out in the chat: it goes only in the save tool\'s listing argument.',
+        ]
+      : []),
     '',
     SHOP_PRICING_RULE,
     '',
-    ...CONNECTOR_OPTION_WORDS,
-    '',
     'When the readout is done, call save_inventory_evaluation once with:',
-    '- item_id, or draft_key for an item that has not been saved yet: from this result (not whatever is open now).',
+    '- item_id and queue_id: from this result.',
     '- analysis_markdown: the readout exactly as you showed it, in Markdown, with no JSON block.',
     `- fields: title, brand, model, finish, year_range, serial_number, category, merchant_center_category, private_party_value. ${ITEM_FIELD_RULE}`,
     `- fields.category: copy one line exactly from this list: ${categoryLines.join('; ')}`,
     `- fields.merchant_center_category: one of: ${merchantCodes.join(', ')}`,
-    '- listing: only when the owner asked to build a listing: { sale_title, description, bullets (exactly 5) }.',
-    '- overwrite / replace_title: true only if the owner said so.',
-    'The owner\'s admin page fills the form from what you saved; they review it and tap Save. Then confirm the item title and that the form is being filled.',
+    ...(buildListing ? ['- listing: { sale_title, description, bullets (exactly 5) }.'] : []),
+    'Saving replaces the values already on the item. The item stays not for sale and moves to the To Sell queue.',
   ].join('\n');
+}
+
+// Keep a bullet within the 60-character field, cutting at a word boundary.
+export function fitBullet(text: string): string {
+  const clean = text
+    .replace(/^[•\-*]\s*/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (clean.length <= 60) return clean;
+  const cut = clean.slice(0, 60);
+  const lastSpace = cut.lastIndexOf(' ');
+  return (lastSpace > 30 ? cut.slice(0, lastSpace) : cut).replace(/[\s,;:–-]+$/, '');
+}
+
+// Sale URL slug from a sale title (same rules as the inventory page).
+export function saleUrlSlugFromTitle(value: string): string {
+  return value
+    .replace(/^\s*title\s*[:\-–—]\s*/i, '')
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -44,6 +44,24 @@ import {
 } from '../orders/manual.js';
 import { REVERB_SEARCH_API_URL } from '../constants.js';
 
+// True when a CCG Eval evaluation was saved to (or undone on) this item after `since` (ms).
+async function claudeSavedSince(env: Env, recordId: string, since: unknown): Promise<boolean> {
+  const sinceMs = typeof since === 'number' && Number.isFinite(since) && since > 0 ? since : 0;
+  if (!sinceMs) return false;
+  try {
+    const row = await env.DB.prepare(
+      `SELECT 1 AS hit FROM evaluations
+       WHERE kind = 'inventory' AND record_id = ? AND source = 'claude-connector'
+         AND (created_at > ? OR undone_at > ?)
+       LIMIT 1`
+    ).bind(recordId, sinceMs, sinceMs).first<{ hit: number }>();
+    return Boolean(row);
+  } catch {
+    // Connector tables not created yet: nothing to guard.
+    return false;
+  }
+}
+
 export async function handleInventoryUpdate(request: Request, path: string, env: Env): Promise<Response> {
   const parts = path.split('/').filter(Boolean);
   const updateIndex = parts.indexOf('update');
@@ -55,6 +73,17 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
     body = await request.json();
   } catch {
     return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+
+  // CCG Eval stale-save guard: the page sends when it loaded the item. If Claude saved (or an
+  // evaluation was undone) after that, this form is older than the item: refuse, so a stale form
+  // never overwrites Claude's save. The page reloads the item when it sees a Claude save, so
+  // this only fires when that reload was missed.
+  if (await claudeSavedSince(env, recordId, body.claudeGuardSince)) {
+    return jsonResponse({
+      message: 'Claude updated this item after you opened it. Reload the page to see the changes, then make your edits again.',
+      code: 'claude_updated',
+    }, 409);
   }
 
   const sourceListingId = parseOptionalPositiveInt(body.sourceListingId);

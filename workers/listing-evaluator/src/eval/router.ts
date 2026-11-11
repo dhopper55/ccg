@@ -28,9 +28,10 @@ const LATEST_PROTOCOL_VERSION = SUPPORTED_PROTOCOL_VERSIONS[0];
 const TOOL_CALLS_PER_MINUTE = 60;
 
 const SERVER_INSTRUCTIONS =
-  'Tools for evaluating the listing or inventory item the owner has open in the Coal Creek Guitars admin. ' +
-  'Every time the owner says eval, this, it or next, call get_current_item first, then get_item_photos, ' +
-  'then follow the evaluation_rules it returns and finish with the matching save tool.';
+  'Tools for evaluating gear the owner queued in the Coal Creek Guitars admin ("Queue for Claude"). ' +
+  'When the owner says eval or continue, call get_next_queued_item. If it returns queue_empty, reply "Nothing queued." and stop. ' +
+  'Otherwise call get_item_photos, follow the evaluation_rules it returns, save with the matching save tool and the queue_id, ' +
+  'then call get_next_queued_item again and keep going until the queue is empty.';
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',

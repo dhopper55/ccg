@@ -40,19 +40,11 @@ import {
   copyTextToClipboard,
   MERCHANT_CENTER_CATEGORY_OPTIONS,
   parseClaudeItemPaste,
-  readClaudeConnectorResult,
   type ClaudeDesktopFields,
   type ClaudeListing,
 } from 'lib/claudeDesktopAnalysis';
-import {
-  formatEvaluationTime,
-  linkDraftEvaluations,
-  newDraftKey,
-  setEvaluationStatus,
-  useEvalFocusPing,
-  useEvaluationPoll,
-  type LatestEvaluation,
-} from 'lib/evalConnector';
+import ClaudeQueueBar from 'components/common/ClaudeQueueBar';
+import { useEvalFocusPing } from 'lib/evalConnector';
 import { formatOrderNumber } from 'lib/utils';
 import ReverbListingWizard from './ReverbListingWizard';
 import GxListingWizard from './GxListingWizard';
@@ -1304,7 +1296,7 @@ function downloadBlob(blob: Blob, filename: string) {
 
 const InventoryItem = () => {
   const navigate = useNavigate();
-  const { enqueueSnackbar, closeSnackbar } = useSnackbar();
+  const { enqueueSnackbar } = useSnackbar();
   const [searchParams] = useSearchParams();
   const inventoryManagerHref = `${paths.inventoryManager}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -1322,16 +1314,9 @@ const InventoryItem = () => {
   const [images, setImages] = useState<InventoryImageRecord[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  // CCG Eval connector: a new, unsaved item is identified by a draft key until its first save.
-  const searchKey = searchParams.toString();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const draftKey = useMemo(() => newDraftKey(), [searchKey]);
-  const [pendingClaudeEvaluation, setPendingClaudeEvaluation] = useState<LatestEvaluation | null>(null);
-  const inventoryEvaluationBaselineRef = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    inventoryEvaluationBaselineRef.current = undefined;
-    setPendingClaudeEvaluation(null);
-  }, [searchKey]);
+  // CCG Eval stale-save guard: when this page started loading the item. The update endpoint
+  // refuses the save if Claude saved to the item after this (see claudeSavedSince in crud2.ts).
+  const claudeGuardSinceRef = useRef(Date.now());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isReverbActionPending, setIsReverbActionPending] = useState(false);
   const [fbmCommandOpen, setFbmCommandOpen] = useState(false);
@@ -1495,6 +1480,7 @@ const InventoryItem = () => {
     const customTemplateBarcode = searchParams.get('customTemplateBarcode');
 
     const initialize = async () => {
+      claudeGuardSinceRef.current = Date.now();
       setIsLoading(true);
       setMessage(null);
       setGxListing(null);
@@ -2138,7 +2124,8 @@ const InventoryItem = () => {
       const response = await fetch(`/api/inventory/${encodeURIComponent(editId)}/update`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(createSavePayload(nextImages)),
+        // claudeGuardSince: this saves the whole form too, so a stale form must not overwrite Claude's save.
+        body: JSON.stringify({ ...createSavePayload(nextImages), claudeGuardSince: claudeGuardSinceRef.current }),
         credentials: 'same-origin',
       });
 
@@ -2533,6 +2520,8 @@ const InventoryItem = () => {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           ...createSavePayload(images),
+          // CCG Eval: lets the server refuse this save if Claude updated the item after it loaded.
+          ...(editId ? { claudeGuardSince: claudeGuardSinceRef.current } : {}),
           // Selling the last unit ends the FBM listing (confirmed via the FBM warning dialog);
           // a partial-quantity sale leaves it up for the remaining stock.
           ...(form.isSold && !wasSoldOnLoad && isFullQuantitySale ? { fbListingId: null } : {}),
@@ -2546,11 +2535,6 @@ const InventoryItem = () => {
           data.message ||
             (editId ? 'Unable to update inventory item.' : 'Unable to create inventory item.'),
         );
-      }
-
-      if (!editId && data.id != null) {
-        // Keep Claude's evaluation of the unsaved item attached to the item it became.
-        void linkDraftEvaluations(draftKey, String(data.id)).catch(() => undefined);
       }
 
       const text = editId
@@ -2983,8 +2967,8 @@ const InventoryItem = () => {
     if (includeImages) await handleDownloadZip(photoAnalysisTitle.trim());
   };
 
-  // Fill the form from a Claude result — a pasted reply or an evaluation sent by the CCG Eval
-  // connector: AI Analysis and the item fields (per the overwrite options), plus, when there is
+  // Fill the form from a pasted Claude reply (the paste flow; the CCG Eval connector saves on the
+  // server instead): AI Analysis and the item fields (per the overwrite options), plus, when there is
   // a listing (Build Listing), the For Sale listing: sale title, description and bullets 1–5 are
   // replaced, the item is marked For Sale (same as checking the box), and the sale URL slug is
   // generated from the new title only when it is still blank. Returns the snackbar text.
@@ -3070,92 +3054,9 @@ const InventoryItem = () => {
     enqueueSnackbar(text, { variant: 'success' });
   };
 
-  // CCG Eval connector: fill the form from an evaluation Claude sent with
-  // save_inventory_evaluation, keep what the form held before so the snackbar can undo it, and
-  // mark the evaluation applied so it isn't applied twice.
-  const preClaudeFillRef = useRef<{ form: FormState; saleUrlReadOnly: boolean } | null>(null);
-  const applyConnectorEvaluation = (evaluation: LatestEvaluation) => {
-    const { fields: replyFields, listing } = readClaudeConnectorResult(evaluation.fields, evaluation.listing);
-    preClaudeFillRef.current = { form, saleUrlReadOnly };
-    const text = applyClaudeResult({
-      analysisHtml: evaluation.analysisHtml || '',
-      replyFields,
-      listing,
-      dialogTitle: '',
-      overwrite: Boolean(evaluation.options?.overwrite),
-      replaceTitle: Boolean(evaluation.options?.replace_title),
-    });
-    setPendingClaudeEvaluation(null);
-    void setEvaluationStatus(evaluation.id, 'applied').catch(() => undefined);
-    enqueueSnackbar(text, {
-      variant: 'success',
-      autoHideDuration: 15000,
-      action: (key) => (
-        <Button
-          color="inherit"
-          size="small"
-          onClick={() => {
-            const snapshot = preClaudeFillRef.current;
-            if (snapshot) {
-              setForm(snapshot.form);
-              setSaleUrlReadOnly(snapshot.saleUrlReadOnly);
-              preClaudeFillRef.current = null;
-            }
-            closeSnackbar(key);
-          }}
-        >
-          Undo
-        </Button>
-      ),
-    });
-  };
+  // CCG Eval connector: tell the Worker which saved item is on screen (get_current_item).
+  useEvalFocusPing(!isLoading && editId ? { kind: 'inventory', id: editId } : null);
 
-  const dismissConnectorEvaluation = (evaluation: LatestEvaluation) => {
-    setPendingClaudeEvaluation(null);
-    void setEvaluationStatus(evaluation.id, 'dismissed').catch(() => undefined);
-  };
-
-  useEvaluationPoll({
-    kind: 'inventory',
-    id: editId,
-    draftKey: editId ? null : draftKey,
-    enabled: !isLoading,
-    onEvaluation: (evaluation) => {
-      const key = evaluation ? `${evaluation.id}:${evaluation.status}` : 'none';
-      const isNewPending = Boolean(evaluation && evaluation.status === 'pending' && evaluation.source === 'claude-connector');
-      // The first result is what was waiting when the page opened: ask before applying it.
-      if (inventoryEvaluationBaselineRef.current === undefined) {
-        inventoryEvaluationBaselineRef.current = key;
-        if (evaluation && isNewPending) setPendingClaudeEvaluation(evaluation);
-        return;
-      }
-      if (key === inventoryEvaluationBaselineRef.current) return;
-      inventoryEvaluationBaselineRef.current = key;
-      if (!evaluation || !isNewPending) return;
-      // Mid-paste in the AI Analysis dialog: ask instead of filling underneath it.
-      if (photoAnalysisDialogOpen) {
-        setPendingClaudeEvaluation(evaluation);
-        return;
-      }
-      applyConnectorEvaluation(evaluation);
-    },
-  });
-
-  // Tell the Worker what's on screen so "eval" in the Claude app evaluates it: the saved item,
-  // or for a new item, its draft key with the title and photos uploaded so far.
-  useEvalFocusPing(
-    isLoading
-      ? null
-      : editId
-        ? { kind: 'inventory', id: editId }
-        : {
-            kind: 'inventory',
-            draftKey,
-            title: form.title,
-            imageUrls: images.map((image) => image.url),
-            aiAnalysisText: form.aiAnalysisText,
-          },
-  );
   return (
     <Stack direction="column" height={1} gap={3} sx={{ minWidth: 0 }}>
       <Paper sx={{ px: { xs: 3, md: 5 }, py: 3 }}>
@@ -3206,22 +3107,14 @@ const InventoryItem = () => {
       </Paper>
 
       {message ? <Alert severity={message.severity}>{message.text}</Alert> : null}
-      {pendingClaudeEvaluation ? (
-        <Alert
-          severity="info"
-          action={
-            <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
-              <Button color="inherit" size="small" onClick={() => applyConnectorEvaluation(pendingClaudeEvaluation)}>
-                Apply
-              </Button>
-              <Button color="inherit" size="small" onClick={() => dismissConnectorEvaluation(pendingClaudeEvaluation)}>
-                Dismiss
-              </Button>
-            </Stack>
-          }
-        >
-          {`Claude evaluation from ${formatEvaluationTime(pendingClaudeEvaluation.createdAt)} is ready${pendingClaudeEvaluation.options?.build_listing ? ' (with a listing)' : ''}. Apply it to the form?`}
-        </Alert>
+      {!isLoading ? (
+        <ClaudeQueueBar
+          key={`inventory-${editId || 'new'}`}
+          kind="inventory"
+          id={editId}
+          showBuildListing
+          onClaudeSaved={() => setReloadToken((current) => current + 1)}
+        />
       ) : null}
 
       <Box sx={{ p: { xs: 2, md: 5 }, minWidth: 0 }}>

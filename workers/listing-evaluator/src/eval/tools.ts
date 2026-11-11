@@ -1,31 +1,23 @@
-// The CCG Eval connector's tools: three reads shared by both admin pages, and one save per page.
-// Only save_listing_evaluation changes a record directly. save_inventory_evaluation stages the
-// result for the open inventory form; the item changes only when the owner taps Save.
+// The CCG Eval connector's tools. The main flow is the queue: the owner taps "Queue for Claude"
+// on listing and inventory pages, then says "eval"; Claude calls get_next_queued_item, looks at
+// the photos, writes the readout, saves it with the matching save tool (which also marks the
+// queue entry done), and calls get_next_queued_item again until the queue is empty.
+// get_current_item and get_item answer questions about a specific item outside the queue.
 
 import type { Env } from '../env.js';
 import { dbGetListing } from '../listings/db.js';
 import { dbGetInventoryItem } from '../inventory/db-core.js';
-import { dbListInventoryCategories, buildInventoryCategoryTree } from '../inventory/categories.js';
-import type { InventoryCategoryNode } from '../types/inventory.js';
 import {
   MERCHANT_CENTER_CATEGORY_OPTIONS,
   buildConnectorItemRules,
   buildConnectorListingRules,
-  stripTrailingJsonBlock,
 } from '../../../../shared/claude-eval-rules.js';
-import {
-  dbFindRecentDuplicate,
-  dbGetDraftFocus,
-  dbGetFocus,
-  dbGetLatestEvaluation,
-  dbInsertEvaluation,
-  type DraftSnapshot,
-  type EvalKind,
-  type EvaluationRow,
-} from './db.js';
-import { renderAnalysisHtml, saveListingEvaluation } from './listing-save.js';
+import { dbGetFocus, dbGetLatestEvaluation, type EvalKind, type EvaluationRow } from './db.js';
+import { saveListingEvaluation } from './listing-save.js';
+import { inventoryCategoryLines, inventoryLiveChannels, saveInventoryEvaluation } from './inventory-save.js';
 import { fetchPhotos, photoSourcesFromUrls, type PhotoSource } from './photos.js';
-import { asTrimmedString, isoFromMs, safeJsonParse, sha256Hex } from './util.js';
+import { dbClaimNext, dbCountQueued, dbGetQueueEntry, dbMarkQueueFailed, queueOptions, type QueueOptions } from './queue.js';
+import { asTrimmedString, isoFromMs } from './util.js';
 
 export type ToolContext = { env: Env; userId: string; tokenId: string };
 
@@ -48,7 +40,7 @@ type ToolDefinition = {
 };
 
 const STALE_FOCUS_SECONDS = 1800;
-const DRAFT_KEY_PATTERN = /^[A-Za-z0-9-]{8,64}$/;
+const NO_OPTIONS: QueueOptions = { build_listing: false, deep: false };
 
 function textResult(value: unknown): ToolResult {
   return { content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] };
@@ -75,6 +67,10 @@ function parseKindArg(value: unknown): EvalKind | null {
 function parseIdArg(value: unknown): string | null {
   const text = typeof value === 'number' ? String(value) : typeof value === 'string' ? value.trim() : '';
   return /^[1-9]\d{0,15}$/.test(text) ? text : null;
+}
+
+function parseUuidArg(value: unknown): string | null {
+  return typeof value === 'string' && /^[0-9a-f-]{36}$/i.test(value.trim()) ? value.trim() : null;
 }
 
 function htmlToText(html: unknown): string {
@@ -105,33 +101,14 @@ function listingPhotoUrls(fields: Record<string, unknown>): string[] {
 
 function evaluationSummary(row: EvaluationRow | null): Record<string, unknown> | null {
   if (!row) return null;
-  return {
-    id: row.id,
-    status: row.status,
-    source: row.source,
-    saved_at: isoFromMs(row.created_at),
-  };
-}
-
-async function categoryLines(env: Env): Promise<string[]> {
-  const rows = await dbListInventoryCategories(env);
-  const tree = buildInventoryCategoryTree(rows);
-  const lines: string[] = [];
-  const walk = (nodes: InventoryCategoryNode[], parent: InventoryCategoryNode | null) => {
-    for (const node of nodes) {
-      lines.push(parent ? `${parent.name} > ${node.name}` : node.name);
-      walk(node.children || [], node);
-    }
-  };
-  walk(tree, null);
-  return lines;
+  return { id: row.id, status: row.status, source: row.source, saved_at: isoFromMs(row.created_at) };
 }
 
 // ---------------------------------------------------------------------------------------------
 // Item payloads
 // ---------------------------------------------------------------------------------------------
 
-async function listingPayload(env: Env, id: string): Promise<Record<string, unknown> | null> {
+async function listingPayload(env: Env, id: string, options: QueueOptions): Promise<Record<string, unknown> | null> {
   const record = await dbGetListing(id, env);
   if (!record) return null;
   const f = record.fields;
@@ -160,21 +137,24 @@ async function listingPayload(env: Env, id: string): Promise<Record<string, unkn
       : { exists: false },
     photo_count: listingPhotoUrls(f).length,
     admin_url: adminUrl(env, 'listing', id),
-    evaluation_rules: buildConnectorListingRules({ isMulti }),
-    next_step: `Call get_item_photos with kind "listing" and id "${id}".`,
+    options: { deep: options.deep },
+    evaluation_rules: buildConnectorListingRules({ isMulti, deep: options.deep }),
   };
 }
 
-async function inventoryPayload(env: Env, id: string): Promise<Record<string, unknown> | null> {
+async function inventoryPayload(env: Env, id: string, options: QueueOptions): Promise<Record<string, unknown> | null> {
   const record = await dbGetInventoryItem(id, env);
   if (!record) return null;
   const previousText = htmlToText(record.aiAnalysisText);
   const imageUrls = Array.isArray(record.imageUrls) ? (record.imageUrls as string[]) : [];
-  const latest = await dbGetLatestEvaluation(env, { kind: 'inventory', recordId: id }).catch(() => null);
+  const [latest, liveChannels, categoryLines] = await Promise.all([
+    dbGetLatestEvaluation(env, { kind: 'inventory', recordId: id }).catch(() => null),
+    inventoryLiveChannels(env, id),
+    inventoryCategoryLines(env),
+  ]);
   return {
     kind: 'inventory',
     id,
-    saved: true,
     ccg_number: record.ccgNumber ?? '',
     title: record.title ?? '',
     fields: {
@@ -193,86 +173,114 @@ async function inventoryPayload(env: Env, id: string): Promise<Record<string, un
       purchase_notes: typeof record.purchaseNotes === 'string' ? record.purchaseNotes.slice(0, 4000) : '',
       repair_notes: typeof record.repairNotes === 'string' ? record.repairNotes.slice(0, 4000) : '',
     },
-    for_sale: Boolean(record.forSale),
+    currently_for_sale_on: liveChannels,
     sale_title: record.saleTitle ?? '',
     previous_analysis: previousText ? previousText.slice(0, 20000) : '',
     latest_evaluation: evaluationSummary(latest),
     photo_count: imageUrls.length,
     admin_url: adminUrl(env, 'inventory', id),
+    options: { build_listing: options.build_listing && !liveChannels.length, deep: options.deep },
     evaluation_rules: buildConnectorItemRules({
       hasPreviousAnalysis: Boolean(previousText),
-      categoryLines: await categoryLines(env),
+      categoryLines,
       merchantCodes: MERCHANT_CENTER_CATEGORY_OPTIONS.map((option) => option.key),
+      buildListing: options.build_listing,
+      deep: options.deep,
+      liveChannels,
     }),
-    next_step: `Call get_item_photos with kind "inventory" and id "${id}".`,
   };
 }
 
-async function draftPayload(env: Env, draftKey: string, draft: DraftSnapshot): Promise<Record<string, unknown>> {
-  const previousText = htmlToText(draft.aiAnalysisText);
-  return {
-    kind: 'inventory',
-    saved: false,
-    draft_key: draftKey,
-    note: 'This is a new inventory item the owner has not saved yet. Save the evaluation with draft_key; the form fills in on their screen.',
-    title: draft.title,
-    previous_analysis: previousText ? previousText.slice(0, 20000) : '',
-    photo_count: draft.imageKeys.length,
-    evaluation_rules: buildConnectorItemRules({
-      hasPreviousAnalysis: Boolean(previousText),
-      categoryLines: await categoryLines(env),
-      merchantCodes: MERCHANT_CENTER_CATEGORY_OPTIONS.map((option) => option.key),
-    }),
-    next_step: `Call get_item_photos with kind "inventory" and draft_key "${draftKey}".`,
-  };
-}
-
-function parseDraft(json: string | null): DraftSnapshot {
-  const raw = safeJsonParse<Partial<DraftSnapshot>>(json) || {};
-  return {
-    title: typeof raw.title === 'string' ? raw.title : '',
-    imageKeys: Array.isArray(raw.imageKeys) ? raw.imageKeys.filter((key): key is string => typeof key === 'string') : [],
-    aiAnalysisText: typeof raw.aiAnalysisText === 'string' ? raw.aiAnalysisText : '',
-  };
+function itemPayload(env: Env, kind: EvalKind, id: string, options: QueueOptions) {
+  return kind === 'listing' ? listingPayload(env, id, options) : inventoryPayload(env, id, options);
 }
 
 // ---------------------------------------------------------------------------------------------
 // Tools
 // ---------------------------------------------------------------------------------------------
 
+const getNextQueuedItem: ToolDefinition = {
+  name: 'get_next_queued_item',
+  title: 'Get the next item from the Claude queue',
+  description:
+    'Claims the next item the owner queued for evaluation (oldest first) and returns it with its options and evaluation_rules. Call this when the owner says eval (or continue), and again after every save until it returns queue_empty. If queue_empty is true, reply only "Nothing queued." (or, after finishing items, say how many you evaluated) and stop.',
+  inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  async run(_args, ctx, log) {
+    // Items whose record was deleted are skipped automatically.
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const entry = await dbClaimNext(ctx.env);
+      if (!entry) return textResult({ queue_empty: true, message: 'Nothing queued.' });
+      log.kind = entry.kind;
+      log.recordId = entry.record_id;
+      const options = queueOptions(entry);
+      const item = await itemPayload(ctx.env, entry.kind, entry.record_id, options);
+      if (!item) {
+        await dbMarkQueueFailed(ctx.env, entry.id, 'The item no longer exists.');
+        continue;
+      }
+      const remaining = await dbCountQueued(ctx.env);
+      return textResult({
+        queue_empty: false,
+        queue_id: entry.id,
+        remaining_after_this: remaining,
+        ...item,
+        next_steps: `Call get_item_photos with kind "${entry.kind}" and id "${entry.record_id}", evaluate, then call ${entry.kind === 'listing' ? 'save_listing_evaluation' : 'save_inventory_evaluation'} with queue_id "${entry.id}". Then call get_next_queued_item again. If you cannot evaluate it (no usable photos, unidentifiable), call skip_queued_item with a short reason instead.`,
+      });
+    }
+    return errorResult('Could not claim a queue item. Try get_next_queued_item again.');
+  },
+};
+
+const skipQueuedItem: ToolDefinition = {
+  name: 'skip_queued_item',
+  title: 'Skip a queued item',
+  description:
+    'Marks a queued item as failed when you cannot evaluate it (for example no usable photos, or it cannot be identified), with a short reason the owner will see on the item. Then call get_next_queued_item.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      queue_id: { type: 'string' },
+      reason: { type: 'string', maxLength: 300 },
+    },
+    required: ['queue_id', 'reason'],
+    additionalProperties: false,
+  },
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  async run(args, ctx, log) {
+    const queueId = parseUuidArg(args.queue_id);
+    if (!queueId) return errorResult('Pass the queue_id from get_next_queued_item.');
+    const entry = await dbGetQueueEntry(ctx.env, queueId);
+    if (!entry) return errorResult('No queue entry with that id.');
+    log.kind = entry.kind;
+    log.recordId = entry.record_id;
+    const reason = asTrimmedString(args.reason, 300) || 'Skipped by Claude.';
+    await dbMarkQueueFailed(ctx.env, queueId, reason);
+    return textResult({ skipped: true, queue_id: queueId, reason, next_step: 'Call get_next_queued_item.' });
+  },
+};
+
 const getCurrentItem: ToolDefinition = {
   name: 'get_current_item',
   title: 'Get the item open in the admin',
   description:
-    'Returns the listing or inventory item the owner has open in the shop admin right now, with the rules for evaluating it (evaluation_rules). Call this every time the owner says eval, this, it or next. They switch often, so never reuse an earlier result. If focus.stale is true, ask the owner whether this is the right item before evaluating.',
+    'Returns the listing or inventory item the owner has open in the shop admin right now. Use it only when the owner asks a question about the item on screen. Evaluations go through the queue (get_next_queued_item), not this tool. If focus.stale is true, say the focus may be out of date.',
   inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   annotations: { readOnlyHint: true, openWorldHint: false },
   async run(_args, ctx, log) {
     const focus = await dbGetFocus(ctx.env, ctx.userId);
-    if (!focus) {
-      return errorResult('Nothing is open in the admin. Ask the owner to open a listing evaluator result or an inventory item, then try again.');
+    if (!focus || !focus.record_id) {
+      return errorResult('Nothing is open in the admin. Ask the owner to open a listing evaluator result or a saved inventory item.');
     }
     log.kind = focus.kind;
-    log.recordId = focus.record_id || focus.draft_key;
+    log.recordId = focus.record_id;
     const secondsAgo = Math.max(0, Math.round((Date.now() - focus.viewed_at) / 1000));
-    const focusInfo = {
-      viewed_at: isoFromMs(focus.viewed_at),
-      viewed_seconds_ago: secondsAgo,
-      stale: secondsAgo > STALE_FOCUS_SECONDS,
-    };
-
-    let item: Record<string, unknown> | null = null;
-    if (focus.kind === 'listing' && focus.record_id) {
-      item = await listingPayload(ctx.env, focus.record_id);
-      if (!item) return errorResult(`The listing that was open (id ${focus.record_id}) no longer exists. Ask the owner to open another one.`);
-    } else if (focus.kind === 'inventory' && focus.record_id) {
-      item = await inventoryPayload(ctx.env, focus.record_id);
-      if (!item) return errorResult(`The inventory item that was open (id ${focus.record_id}) no longer exists. Ask the owner to open another one.`);
-    } else if (focus.kind === 'inventory' && focus.draft_key) {
-      item = await draftPayload(ctx.env, focus.draft_key, parseDraft(focus.draft_json));
-    }
-    if (!item) return errorResult('Nothing is open in the admin. Ask the owner to open a listing or an inventory item.');
-    return textResult({ focus: focusInfo, ...item });
+    const item = await itemPayload(ctx.env, focus.kind, focus.record_id, NO_OPTIONS);
+    if (!item) return errorResult(`The ${focus.kind} that was open (id ${focus.record_id}) no longer exists.`);
+    return textResult({
+      focus: { viewed_at: isoFromMs(focus.viewed_at), viewed_seconds_ago: secondsAgo, stale: secondsAgo > STALE_FOCUS_SECONDS },
+      ...item,
+    });
   },
 };
 
@@ -280,7 +288,7 @@ const getItem: ToolDefinition = {
   name: 'get_item',
   title: 'Get a listing or inventory item by id',
   description:
-    'Returns one listing or inventory item by kind and id, in the same shape as get_current_item. Use it when the owner names a specific item or you already have its id.',
+    'Returns one listing or inventory item by kind and id. Use it when the owner names a specific item or you already have its id.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -297,7 +305,7 @@ const getItem: ToolDefinition = {
     if (!kind || !id) return errorResult('Pass kind ("listing" or "inventory") and a numeric id.');
     log.kind = kind;
     log.recordId = id;
-    const item = kind === 'listing' ? await listingPayload(ctx.env, id) : await inventoryPayload(ctx.env, id);
+    const item = await itemPayload(ctx.env, kind, id, NO_OPTIONS);
     if (!item) return errorResult(`No ${kind} with id "${id}".`);
     return textResult(item);
   },
@@ -307,50 +315,40 @@ const getItemPhotos: ToolDefinition = {
   name: 'get_item_photos',
   title: 'Get the photos of a listing or inventory item',
   description:
-    'Returns the photos of a listing or inventory item as images you can look at, resized for evaluation. Use the kind and id (or draft_key for an unsaved inventory item) from get_current_item. Photos that could not be fetched are listed in failures.',
+    'Returns the photos of a listing or inventory item as images you can look at, resized for evaluation. Photos that could not be fetched are listed in failures.',
   inputSchema: {
     type: 'object',
     properties: {
       kind: { type: 'string', enum: ['listing', 'inventory'] },
-      id: { type: 'string', description: 'Listing id or saved inventory item id.' },
-      draft_key: { type: 'string', description: 'For a new inventory item that is not saved yet.' },
+      id: { type: 'string', description: 'Listing id or inventory item id.' },
       max: { type: 'integer', minimum: 1, maximum: 10, default: 6, description: 'How many photos to return.' },
     },
-    required: ['kind'],
+    required: ['kind', 'id'],
     additionalProperties: false,
   },
   annotations: { readOnlyHint: true, openWorldHint: false },
   async run(args, ctx, log) {
     const kind = parseKindArg(args.kind);
-    if (!kind) return errorResult('Pass kind: "listing" or "inventory".');
     const id = parseIdArg(args.id);
-    const draftKey = typeof args.draft_key === 'string' && DRAFT_KEY_PATTERN.test(args.draft_key) ? args.draft_key : null;
+    if (!kind || !id) return errorResult('Pass kind ("listing" or "inventory") and the numeric id.');
     const max = Math.min(10, Math.max(1, Number.isFinite(Number(args.max)) ? Math.floor(Number(args.max)) : 6));
     log.kind = kind;
-    log.recordId = id || draftKey;
+    log.recordId = id;
 
     let sources: PhotoSource[] = [];
     if (kind === 'listing') {
-      if (!id) return errorResult('Pass the listing id from get_current_item.');
       const record = await dbGetListing(id, ctx.env);
       if (!record) return errorResult(`No listing with id "${id}".`);
       const referer = typeof record.fields.url === 'string' ? record.fields.url : undefined;
       sources = photoSourcesFromUrls(listingPhotoUrls(record.fields), referer);
-    } else if (id) {
+    } else {
       const record = await dbGetInventoryItem(id, ctx.env);
       if (!record) return errorResult(`No inventory item with id "${id}".`);
-      const urls = Array.isArray(record.imageUrls) ? (record.imageUrls as string[]) : [];
-      sources = photoSourcesFromUrls(urls);
-    } else if (draftKey) {
-      const focus = await dbGetDraftFocus(ctx.env, ctx.userId, draftKey);
-      if (!focus) return errorResult('That draft is no longer open. Call get_current_item again.');
-      sources = parseDraft(focus.draft_json).imageKeys.map((key) => ({ r2Key: key }));
-    } else {
-      return errorResult('Pass the inventory item id, or draft_key for an unsaved item, from get_current_item.');
+      sources = photoSourcesFromUrls(Array.isArray(record.imageUrls) ? (record.imageUrls as string[]) : []);
     }
 
     if (!sources.length) {
-      return textResult({ kind, id, draft_key: draftKey, photo_count: 0, note: 'This item has no photos. Evaluate from the text, and tell the owner there were no photos.' });
+      return textResult({ kind, id, photo_count: 0, note: 'This item has no photos. Evaluate from the text if you can; otherwise skip it with skip_queued_item.' });
     }
     const results = await fetchPhotos(ctx.env, sources, max);
     const images = results.filter((result): result is Extract<typeof result, { ok: true }> => result.ok);
@@ -358,16 +356,13 @@ const getItemPhotos: ToolDefinition = {
     const summary = {
       kind,
       id,
-      draft_key: draftKey,
       photo_count: sources.length,
       returned: images.length,
       failures: failures.map((failure) => ({ photo: failure.index + 1, error: failure.error })),
       note: sources.length > max ? `Only the first ${max} of ${sources.length} photos were requested. Ask for more with max (up to 10) if you need them.` : undefined,
     };
     if (!images.length) {
-      return {
-        content: [{ type: 'text', text: JSON.stringify({ ...summary, note: 'No photos could be fetched. Evaluate from the text if you can, and tell the owner.' }, null, 2) }],
-      };
+      return textResult({ ...summary, note: 'No photos could be fetched. Evaluate from the text if you can; otherwise skip it with skip_queued_item.' });
     }
     return {
       content: [
@@ -382,17 +377,17 @@ const saveListingEvaluationTool: ToolDefinition = {
   name: 'save_listing_evaluation',
   title: 'Save the evaluation to the listing',
   description:
-    'Saves your finished evaluation to a listing evaluator result. Call it once, right after you show the readout, with the listing id from get_current_item, not whatever is open now. Pass the full readout in Markdown exactly as you showed it, without a JSON block. Brand, model, year and private party value fill only empty fields unless overwrite is true. Then confirm the listing title and which fields were filled.',
+    'Saves your finished evaluation to a listing evaluator result, replacing the AI Analysis, brand, model, year and private party value. Call it once, right after you show the readout, with the listing_id and queue_id from get_next_queued_item. Pass the full readout in Markdown exactly as you showed it, without a JSON block. Then call get_next_queued_item.',
   inputSchema: {
     type: 'object',
     properties: {
       listing_id: { type: 'string' },
+      queue_id: { type: 'string' },
       analysis_markdown: { type: 'string', minLength: 1, maxLength: 60000 },
       brand: { type: 'string', maxLength: 120 },
       model: { type: 'string', maxLength: 180 },
       year: { type: 'string', maxLength: 120 },
       private_party_value: { type: 'number', minimum: 0, description: 'Whole dollars. Omit if unknown.' },
-      overwrite: { type: 'boolean', default: false, description: 'True only if the owner said "overwrite".' },
     },
     required: ['listing_id', 'analysis_markdown'],
     additionalProperties: false,
@@ -400,57 +395,53 @@ const saveListingEvaluationTool: ToolDefinition = {
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   async run(args, ctx, log) {
     const listingId = parseIdArg(args.listing_id);
-    if (!listingId) return errorResult('Pass listing_id: the numeric id from get_current_item.');
+    if (!listingId) return errorResult('Pass listing_id: the numeric id from get_next_queued_item.');
     log.kind = 'listing';
     log.recordId = listingId;
+    const queueId = parseUuidArg(args.queue_id);
+    if (queueId) {
+      const entry = await dbGetQueueEntry(ctx.env, queueId);
+      if (!entry || entry.kind !== 'listing' || entry.record_id !== listingId) {
+        return errorResult('That queue_id belongs to a different item. Use the listing_id and queue_id from the same get_next_queued_item result.');
+      }
+    }
     const ppvRaw = args.private_party_value;
     const ppv = typeof ppvRaw === 'number' ? ppvRaw : typeof ppvRaw === 'string' ? Number(ppvRaw.replace(/[$,\s]/g, '')) : null;
     const result = await saveListingEvaluation(ctx.env, {
       listingId,
       userId: ctx.userId,
+      queueId,
       analysisMarkdown: typeof args.analysis_markdown === 'string' ? args.analysis_markdown : '',
       brand: asTrimmedString(args.brand, 120),
       model: asTrimmedString(args.model, 180),
       year: asTrimmedString(args.year, 120),
       privatePartyValue: ppv != null && Number.isFinite(ppv) ? ppv : null,
-      overwrite: args.overwrite === true,
     });
     if (!result.ok) return errorResult(result.error);
     return textResult({
+      saved: true,
       evaluation_id: result.evaluationId,
       listing_id: result.listingId,
       title: result.title,
       saved_at: result.savedAt,
       fields_written: result.fieldsWritten,
-      fields_skipped_because_they_have_values: result.fieldsSkipped,
       deduplicated: result.deduplicated,
       admin_url: adminUrl(ctx.env, 'listing', result.listingId),
-      note: 'Saved. The owner\'s listing page refreshes within a few seconds and offers Undo.',
+      next_step: 'Tell the owner in one line that it was saved, then call get_next_queued_item.',
     });
   },
 };
 
-const FIELD_LIMITS: Record<string, number> = {
-  title: 240,
-  brand: 120,
-  model: 180,
-  finish: 120,
-  year_range: 120,
-  serial_number: 120,
-  category: 240,
-  merchant_center_category: 80,
-};
-
 const saveInventoryEvaluationTool: ToolDefinition = {
   name: 'save_inventory_evaluation',
-  title: 'Send the evaluation to the inventory form',
+  title: 'Save the evaluation to the inventory item',
   description:
-    'Sends your finished evaluation to the inventory item open in the admin. The owner\'s page fills the form (AI Analysis, item fields, and the listing when one was asked for), and the owner reviews it and taps Save. Call it once, right after you show the readout, with the item_id (or draft_key for an unsaved item) from get_current_item, not whatever is open now. Pass the full readout in Markdown exactly as you showed it, without a JSON block.',
+    'Saves your finished evaluation to an inventory item, replacing its AI Analysis and item fields (and its listing text when you include one). The item stays not for sale and moves to the To Sell queue. Items already for sale only get the AI Analysis and private party value. Call it once, right after you show the readout, with the item_id and queue_id from get_next_queued_item. Pass the full readout in Markdown exactly as you showed it, without a JSON block. Then call get_next_queued_item.',
   inputSchema: {
     type: 'object',
     properties: {
-      item_id: { type: 'string', description: 'Saved inventory item id.' },
-      draft_key: { type: 'string', description: 'For a new item that is not saved yet.' },
+      item_id: { type: 'string' },
+      queue_id: { type: 'string' },
       analysis_markdown: { type: 'string', minLength: 1, maxLength: 60000 },
       fields: {
         type: 'object',
@@ -469,7 +460,7 @@ const saveInventoryEvaluationTool: ToolDefinition = {
       },
       listing: {
         type: 'object',
-        description: 'Only when the owner asked to build a listing.',
+        description: 'Only when options.build_listing is true.',
         properties: {
           sale_title: { type: 'string', maxLength: 200 },
           description: { type: 'string', maxLength: 12000 },
@@ -478,119 +469,62 @@ const saveInventoryEvaluationTool: ToolDefinition = {
         required: ['sale_title', 'description', 'bullets'],
         additionalProperties: false,
       },
-      overwrite: { type: 'boolean', default: false, description: 'True only if the owner said "overwrite".' },
-      replace_title: { type: 'boolean', default: false, description: 'True only if the owner said "replace title".' },
     },
-    required: ['analysis_markdown', 'fields'],
+    required: ['item_id', 'analysis_markdown', 'fields'],
     additionalProperties: false,
   },
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   async run(args, ctx, log) {
     const itemId = parseIdArg(args.item_id);
-    const draftKey = !itemId && typeof args.draft_key === 'string' && DRAFT_KEY_PATTERN.test(args.draft_key) ? args.draft_key : null;
-    if (!itemId && !draftKey) return errorResult('Pass item_id, or draft_key for an unsaved item, from get_current_item.');
+    if (!itemId) return errorResult('Pass item_id: the numeric id from get_next_queued_item.');
     log.kind = 'inventory';
-    log.recordId = itemId || draftKey;
-
-    let title = '';
-    if (itemId) {
-      const row = await ctx.env.DB.prepare('SELECT id, title FROM ccg_inventory_items WHERE id = ? LIMIT 1')
-        .bind(Number(itemId))
-        .first<{ id: number; title: string | null }>();
-      if (!row) return errorResult(`No inventory item with id "${itemId}". Call get_current_item again.`);
-      title = row.title || '';
-    } else if (draftKey) {
-      const focus = await dbGetDraftFocus(ctx.env, ctx.userId, draftKey);
-      if (!focus) return errorResult('That unsaved item is no longer open in the admin. Ask the owner to reopen it, then call get_current_item again.');
-      title = parseDraft(focus.draft_json).title;
-    }
-
-    const markdown = stripTrailingJsonBlock(typeof args.analysis_markdown === 'string' ? args.analysis_markdown.trim() : '');
-    if (!markdown) return errorResult('analysis_markdown is empty. Pass the full readout you showed the owner.');
-    if (markdown.length > 60000) return errorResult('analysis_markdown is longer than 60,000 characters. Shorten it and save again.');
-
-    const fieldsIn = args.fields && typeof args.fields === 'object' && !Array.isArray(args.fields)
-      ? (args.fields as Record<string, unknown>)
-      : {};
-    const fields: Record<string, unknown> = {};
-    for (const [key, limit] of Object.entries(FIELD_LIMITS)) fields[key] = asTrimmedString(fieldsIn[key], limit);
-    const ppvRaw = fieldsIn.private_party_value;
-    const ppv = typeof ppvRaw === 'number' ? ppvRaw : typeof ppvRaw === 'string' ? Number(ppvRaw.replace(/[$,\s]/g, '')) : 0;
-    fields.private_party_value = Number.isFinite(ppv) && ppv > 0 ? Math.round(ppv) : 0;
-
-    let listing: Record<string, unknown> | null = null;
-    if (args.listing && typeof args.listing === 'object' && !Array.isArray(args.listing)) {
-      const raw = args.listing as Record<string, unknown>;
-      const bullets = Array.isArray(raw.bullets)
-        ? raw.bullets.map((bullet) => asTrimmedString(bullet, 200)).filter(Boolean).slice(0, 5)
-        : [];
-      listing = {
-        sale_title: asTrimmedString(raw.sale_title, 200),
-        description: typeof raw.description === 'string' ? raw.description.slice(0, 12000) : '',
-        bullets,
-      };
-      if (!listing.sale_title && !listing.description) {
-        return errorResult('The listing is empty. Pass sale_title, description and 5 bullets, or leave listing out.');
+    log.recordId = itemId;
+    const queueId = parseUuidArg(args.queue_id);
+    if (queueId) {
+      const entry = await dbGetQueueEntry(ctx.env, queueId);
+      if (!entry || entry.kind !== 'inventory' || entry.record_id !== itemId) {
+        return errorResult('That queue_id belongs to a different item. Use the item_id and queue_id from the same get_next_queued_item result.');
       }
     }
-    const options = { overwrite: args.overwrite === true, replace_title: args.replace_title === true, build_listing: Boolean(listing) };
-
-    const contentHash = await sha256Hex(JSON.stringify([markdown, fields, listing, options]));
-    const target = { kind: 'inventory' as const, recordId: itemId, draftKey };
-    const duplicate = await dbFindRecentDuplicate(ctx.env, target, contentHash);
-    if (duplicate) {
-      return textResult({
-        evaluation_id: duplicate.id,
-        item_id: itemId,
-        draft_key: draftKey,
-        title,
-        deduplicated: true,
-        note: 'This exact evaluation was already sent a moment ago; nothing new was saved.',
-      });
-    }
-
-    const now = Date.now();
-    const evaluationId = crypto.randomUUID();
-    await dbInsertEvaluation(ctx.env, {
-      id: evaluationId,
-      kind: 'inventory',
-      record_id: itemId,
-      draft_key: draftKey,
-      user_id: ctx.userId,
-      analysis_md: markdown,
-      analysis_html: renderAnalysisHtml(markdown),
-      fields_json: JSON.stringify(fields),
-      listing_json: listing ? JSON.stringify(listing) : null,
-      options_json: JSON.stringify(options),
-      previous_values_json: null,
-      fields_written_json: null,
-      status: 'pending',
-      content_hash: contentHash,
-      source: 'claude-connector',
-      created_at: now,
-      applied_at: null,
-      undone_at: null,
-    }).run();
-
+    const fields = args.fields && typeof args.fields === 'object' && !Array.isArray(args.fields)
+      ? (args.fields as Record<string, unknown>)
+      : {};
+    const listing = args.listing && typeof args.listing === 'object' && !Array.isArray(args.listing)
+      ? (args.listing as Record<string, unknown>)
+      : null;
+    const result = await saveInventoryEvaluation(ctx.env, {
+      itemId,
+      userId: ctx.userId,
+      queueId,
+      analysisMarkdown: typeof args.analysis_markdown === 'string' ? args.analysis_markdown : '',
+      fields,
+      listing,
+    });
+    if (!result.ok) return errorResult(result.error);
     return textResult({
-      evaluation_id: evaluationId,
-      item_id: itemId,
-      draft_key: draftKey,
-      title,
-      build_listing: options.build_listing,
-      deduplicated: false,
-      admin_url: itemId ? adminUrl(ctx.env, 'inventory', itemId) : undefined,
-      note: 'Sent. The owner\'s inventory page fills the form within a few seconds; they review it and tap Save. Nothing is saved to the item until they do.',
+      saved: true,
+      evaluation_id: result.evaluationId,
+      item_id: result.itemId,
+      title: result.title,
+      saved_at: result.savedAt,
+      fields_written: result.written,
+      currently_for_sale_on: result.liveChannels,
+      listing_skipped_because_item_is_for_sale: result.listingSkipped,
+      deduplicated: result.deduplicated,
+      admin_url: adminUrl(ctx.env, 'inventory', result.itemId),
+      next_step: 'Tell the owner in one line that it was saved, then call get_next_queued_item.',
     });
   },
 };
 
 export const TOOLS: ToolDefinition[] = [
-  getCurrentItem,
-  getItem,
+  getNextQueuedItem,
   getItemPhotos,
   saveListingEvaluationTool,
   saveInventoryEvaluationTool,
+  skipQueuedItem,
+  getCurrentItem,
+  getItem,
 ];
 
 export function listTools(): Array<Record<string, unknown>> {

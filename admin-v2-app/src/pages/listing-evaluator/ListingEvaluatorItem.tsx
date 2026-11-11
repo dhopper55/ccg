@@ -34,22 +34,8 @@ import {
   copyTextToClipboard,
   parseClaudeDesktopPaste,
 } from 'lib/claudeDesktopAnalysis';
-import { undoListingEvaluation, useEvalFocusPing, useEvaluationPoll } from 'lib/evalConnector';
-
-// Labels for the listing columns a CCG Eval connector save can write.
-const CLAUDE_FIELD_LABELS: Record<string, string> = {
-  ai_analysis_text: 'AI Analysis',
-  brand: 'Brand',
-  model: 'Model',
-  year: 'Year',
-  price_private_party: 'Private Party Value',
-};
-
-type ClaudeNotice = {
-  evaluationId: string;
-  text: string;
-  needsLoad: boolean;
-};
+import ClaudeQueueBar from 'components/common/ClaudeQueueBar';
+import { useEvalFocusPing } from 'lib/evalConnector';
 
 type ListingRecordResponse = {
   id: string;
@@ -566,18 +552,10 @@ const ListingEvaluatorItem = () => {
     };
   }, [recordId]);
 
-  // CCG Eval connector: tell the Worker this listing is on screen (so "eval" in the Claude app
-  // evaluates it), and pick up evaluations Claude saves to it.
+  // CCG Eval connector: tell the Worker this listing is on screen (get_current_item).
   useEvalFocusPing(recordId ? { kind: 'listing', id: recordId } : null);
-  const [claudeNotice, setClaudeNotice] = useState<ClaudeNotice | null>(null);
-  const [isClaudeUndoing, setIsClaudeUndoing] = useState(false);
-  const evaluationBaselineRef = useRef<string | undefined>(undefined);
 
-  useEffect(() => {
-    evaluationBaselineRef.current = undefined;
-    setClaudeNotice(null);
-  }, [recordId]);
-
+  // Reload the listing after Claude saves an evaluation to it (ClaudeQueueBar).
   const refreshRecord = useCallback(async () => {
     if (!recordId) return;
     try {
@@ -590,54 +568,6 @@ const ListingEvaluatorItem = () => {
       // The next poll or a manual reload picks it up.
     }
   }, [recordId]);
-
-  useEvaluationPoll({
-    kind: 'listing',
-    id: recordId,
-    enabled: Boolean(recordId),
-    onEvaluation: (evaluation) => {
-      const key = evaluation ? `${evaluation.id}:${evaluation.status}` : 'none';
-      // The first result is what was already there when the page opened.
-      if (evaluationBaselineRef.current === undefined) {
-        evaluationBaselineRef.current = key;
-        return;
-      }
-      if (key === evaluationBaselineRef.current) return;
-      evaluationBaselineRef.current = key;
-      if (!evaluation || evaluation.source !== 'claude-connector' || evaluation.status !== 'saved') return;
-      const filled = evaluation.fieldsWritten.map((column) => CLAUDE_FIELD_LABELS[column] || column);
-      const savedText = filled.length ? `Saved from Claude: ${filled.join(', ')}.` : 'Saved from Claude: nothing new to fill.';
-      if (isAiAnalysisDialogOpen) {
-        // Never replace what's being edited in the AI Analysis editor without asking.
-        setClaudeNotice({ evaluationId: evaluation.id, text: 'New analysis from Claude. Load it?', needsLoad: true });
-        return;
-      }
-      void refreshRecord();
-      setClaudeNotice({ evaluationId: evaluation.id, text: savedText, needsLoad: false });
-    },
-  });
-
-  const loadClaudeEvaluation = async () => {
-    if (!claudeNotice) return;
-    setIsAiAnalysisDialogOpen(false);
-    await refreshRecord();
-    setClaudeNotice({ ...claudeNotice, text: 'Loaded the analysis from Claude.', needsLoad: false });
-  };
-
-  const undoClaudeEvaluation = async () => {
-    if (!claudeNotice || isClaudeUndoing) return;
-    setIsClaudeUndoing(true);
-    try {
-      await undoListingEvaluation(claudeNotice.evaluationId);
-      await refreshRecord();
-      setClaudeNotice(null);
-      setMessage({ severity: 'success', text: "Undone: the listing's previous values are back." });
-    } catch (error) {
-      setMessage({ severity: 'error', text: error instanceof Error ? error.message : 'Unable to undo.' });
-    } finally {
-      setIsClaudeUndoing(false);
-    }
-  };
 
   const fields = record?.fields || {};
   const title = normalizeValue(fields.title) === '—' ? 'Listing Detail' : normalizeValue(fields.title);
@@ -1165,28 +1095,9 @@ const ListingEvaluatorItem = () => {
           >
             <Stack direction="column" sx={{ gap: 4 }}>
               {message && <Alert severity={message.severity}>{message.text}</Alert>}
-              {claudeNotice && (
-                <Alert
-                  severity="info"
-                  action={
-                    <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
-                      {claudeNotice.needsLoad ? (
-                        <Button color="inherit" size="small" onClick={() => void loadClaudeEvaluation()}>
-                          Load it
-                        </Button>
-                      ) : null}
-                      <Button color="inherit" size="small" disabled={isClaudeUndoing} onClick={() => void undoClaudeEvaluation()}>
-                        {isClaudeUndoing ? 'Undoing…' : 'Undo'}
-                      </Button>
-                      <Button color="inherit" size="small" onClick={() => setClaudeNotice(null)}>
-                        Dismiss
-                      </Button>
-                    </Stack>
-                  }
-                >
-                  {claudeNotice.text}
-                </Alert>
-              )}
+              {recordId ? (
+                <ClaudeQueueBar key={`listing-${recordId}`} kind="listing" id={recordId} onClaudeSaved={refreshRecord} />
+              ) : null}
 
               {!record ? (
                 <Alert severity="error">Unable to load listing.</Alert>

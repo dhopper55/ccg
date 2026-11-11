@@ -1,8 +1,10 @@
 import type { Env } from '../env.js';
-import { sanitizePatternLookupHtml } from '../utils/html.js';
-import { claudeMarkdownToHtml, stripTrailingJsonBlock } from '../../../../shared/claude-eval-rules.js';
+import { stripTrailingJsonBlock } from '../../../../shared/claude-eval-rules.js';
+import { renderAnalysisHtml } from './render.js';
 import { dbFindRecentDuplicate, dbGetEvaluation, dbInsertEvaluation, dbSetEvaluationStatus } from './db.js';
-import { isKnownIdentityValue, safeJsonParse, sha256Hex } from './util.js';
+import { dbMarkQueueDoneStatement } from './queue.js';
+import { INVENTORY_EVAL_COLUMNS } from './inventory-save.js';
+import { safeJsonParse, sha256Hex } from './util.js';
 
 // The listing columns an evaluation may write (and Undo may restore).
 const LISTING_EVAL_COLUMNS = ['ai_analysis_text', 'brand', 'model', 'year', 'price_private_party'] as const;
@@ -37,9 +39,7 @@ function updateStatement(env: Env, listingId: number, values: ListingEvalValues)
     .bind(...columns.map((column) => values[column] ?? null), listingId);
 }
 
-export function renderAnalysisHtml(markdown: string): string {
-  return sanitizePatternLookupHtml(claudeMarkdownToHtml(stripTrailingJsonBlock(markdown))).slice(0, 20000);
-}
+export { renderAnalysisHtml } from './render.js';
 
 export type ListingSaveInput = {
   listingId: string;
@@ -49,7 +49,7 @@ export type ListingSaveInput = {
   model?: string;
   year?: string;
   privatePartyValue?: number | null;
-  overwrite?: boolean;
+  queueId?: string | null;
 };
 
 export type ListingSaveResult =
@@ -65,10 +65,10 @@ export type ListingSaveResult =
     }
   | { ok: false; error: string };
 
-// Save a connector evaluation to a listing: the AI Analysis is replaced; brand, model, year and
-// private party value are filled only when blank (or a placeholder) unless overwrite is set;
-// multi-item lots get "Various" for brand and model and no year. The history row (with the
-// previous values, for Undo) and the listing update go in one D1 batch.
+// Save a connector evaluation to a listing. Always overwrites (owner's choice): the AI Analysis,
+// and brand, model, year and private party value whenever Claude returned a value; multi-item
+// lots get "Various" for brand and model and no year. The history row (with the previous values,
+// for Undo), the listing update and the queue entry go in one D1 batch.
 export async function saveListingEvaluation(env: Env, input: ListingSaveInput): Promise<ListingSaveResult> {
   const row = await loadListingRow(env, input.listingId);
   if (!row) return { ok: false, error: `No listing with id "${input.listingId}". Call get_current_item again to get the right id.` };
@@ -78,11 +78,12 @@ export async function saveListingEvaluation(env: Env, input: ListingSaveInput): 
   if (markdown.length > 60000) return { ok: false, error: 'analysis_markdown is longer than 60,000 characters. Shorten the readout and save again.' };
 
   const contentHash = await sha256Hex(
-    JSON.stringify([markdown, input.brand, input.model, input.year, input.privatePartyValue, Boolean(input.overwrite)])
+    JSON.stringify([markdown, input.brand, input.model, input.year, input.privatePartyValue])
   );
   const listingId = String(row.id);
   const duplicate = await dbFindRecentDuplicate(env, { kind: 'listing', recordId: listingId, draftKey: null }, contentHash);
   if (duplicate) {
+    if (input.queueId) await dbMarkQueueDoneStatement(env, input.queueId, duplicate.id).run();
     const written = safeJsonParse<ListingEvalValues>(duplicate.fields_written_json) || {};
     return {
       ok: true,
@@ -97,7 +98,6 @@ export async function saveListingEvaluation(env: Env, input: ListingSaveInput): 
   }
 
   const isMulti = Boolean(row.is_multi);
-  const overwrite = Boolean(input.overwrite);
   const values: ListingEvalValues = {};
   const skipped: string[] = [];
   const analysisHtml = renderAnalysisHtml(markdown);
@@ -109,20 +109,12 @@ export async function saveListingEvaluation(env: Env, input: ListingSaveInput): 
     ['year', isMulti ? '' : (input.year || '').trim().slice(0, 120)],
   ];
   for (const [column, candidate] of candidates) {
-    if (!candidate) continue;
-    if (candidate === row[column]) continue;
-    if (overwrite || !isKnownIdentityValue(row[column])) values[column] = candidate;
-    else skipped.push(column);
+    if (candidate) values[column] = candidate;
   }
 
   const ppv = input.privatePartyValue;
   if (typeof ppv === 'number' && Number.isFinite(ppv) && ppv > 0) {
-    const rounded = Math.round(ppv);
-    const current = Number(row.price_private_party || 0);
-    if (rounded !== current) {
-      if (overwrite || !current) values.price_private_party = rounded;
-      else skipped.push('price_private_party');
-    }
+    values.price_private_party = Math.round(ppv);
   }
 
   const now = Date.now();
@@ -142,7 +134,7 @@ export async function saveListingEvaluation(env: Env, input: ListingSaveInput): 
       private_party_value: ppv ?? null,
     }),
     listing_json: null,
-    options_json: JSON.stringify({ overwrite }),
+    options_json: null,
     previous_values_json: JSON.stringify(pickPrevious(row)),
     fields_written_json: JSON.stringify(values),
     status: 'saved',
@@ -153,7 +145,9 @@ export async function saveListingEvaluation(env: Env, input: ListingSaveInput): 
     undone_at: null,
   });
   const update = updateStatement(env, row.id, values);
-  await env.DB.batch(update ? [insert, update] : [insert]);
+  const statements = update ? [insert, update] : [insert];
+  if (input.queueId) statements.push(dbMarkQueueDoneStatement(env, input.queueId, evaluationId));
+  await env.DB.batch(statements);
 
   return {
     ok: true,
@@ -210,32 +204,41 @@ export async function snapshotListingEvalValues(env: Env, listingId: string): Pr
   return row ? pickPrevious(row) : null;
 }
 
-// Undo a listing evaluation: restore the previous value of each field it wrote, but only where
-// the field still holds what the evaluation wrote (a later manual edit is never reverted).
-export async function undoListingEvaluation(
+// Undo a connector or paste evaluation (listing or inventory): restore the previous value of
+// each field it wrote, but only where the field still holds what the evaluation wrote (a later
+// manual edit is never reverted).
+export async function undoEvaluation(
   env: Env,
   evaluationId: string,
-): Promise<{ ok: true; restored: string[] } | { ok: false; status: number; message: string }> {
+): Promise<{ ok: true; kind: string; recordId: string; restored: string[] } | { ok: false; status: number; message: string }> {
   const evaluation = await dbGetEvaluation(env, evaluationId);
-  if (!evaluation || evaluation.kind !== 'listing' || !evaluation.record_id) {
+  if (!evaluation || !evaluation.record_id || (evaluation.status !== 'saved' && evaluation.status !== 'undone')) {
     return { ok: false, status: 404, message: 'Evaluation not found.' };
   }
   if (evaluation.status === 'undone') return { ok: false, status: 409, message: 'This evaluation was already undone.' };
 
-  const row = await loadListingRow(env, evaluation.record_id);
-  if (!row) return { ok: false, status: 404, message: 'Listing not found.' };
+  const isListing = evaluation.kind === 'listing';
+  const table = isListing ? 'listings' : 'ccg_inventory_items';
+  const allowed: readonly string[] = isListing ? LISTING_EVAL_COLUMNS : INVENTORY_EVAL_COLUMNS;
+  const idValue = Number.parseInt(evaluation.record_id, 10);
+  const row = await env.DB.prepare(`SELECT id, ${allowed.join(', ')} FROM ${table} WHERE id = ? LIMIT 1`)
+    .bind(idValue)
+    .first<Record<string, unknown>>();
+  if (!row) return { ok: false, status: 404, message: isListing ? 'Listing not found.' : 'Inventory item not found.' };
 
-  const previous = safeJsonParse<ListingEvalValues>(evaluation.previous_values_json) || {};
-  const written = safeJsonParse<ListingEvalValues>(evaluation.fields_written_json) || {};
-  const restore: ListingEvalValues = {};
-  for (const column of Object.keys(written) as ListingEvalColumn[]) {
-    if (!LISTING_EVAL_COLUMNS.includes(column)) continue;
-    const current = row[column] ?? null;
-    const wrote = written[column] ?? null;
-    if (String(current ?? '') === String(wrote ?? '')) restore[column] = previous[column] ?? null;
+  const previous = safeJsonParse<Record<string, unknown>>(evaluation.previous_values_json) || {};
+  const written = safeJsonParse<Record<string, unknown>>(evaluation.fields_written_json) || {};
+  const restore: Record<string, unknown> = {};
+  for (const column of Object.keys(written)) {
+    if (!allowed.includes(column)) continue;
+    if (String(row[column] ?? '') === String(written[column] ?? '')) restore[column] = previous[column] ?? null;
   }
-  const update = updateStatement(env, row.id, restore);
-  if (update) await update.run();
+  const columns = Object.keys(restore);
+  if (columns.length) {
+    await env.DB.prepare(
+      `UPDATE ${table} SET ${columns.map((column) => `${column} = ?`).join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+    ).bind(...columns.map((column) => restore[column] ?? null), idValue).run();
+  }
   await dbSetEvaluationStatus(env, evaluationId, 'undone');
-  return { ok: true, restored: Object.keys(restore) };
+  return { ok: true, kind: evaluation.kind, recordId: evaluation.record_id, restored: columns };
 }

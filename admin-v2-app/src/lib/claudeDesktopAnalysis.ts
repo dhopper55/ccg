@@ -3,7 +3,7 @@
 // the paid API: build the prompt to paste there, then read Claude's reply back into the form
 // from the JSON block at the end of it.
 
-import { claudeMarkdownToHtml, escapeHtml } from '../../../shared/claude-eval-rules';
+import { claudeMarkdownToHtml, escapeHtml, fitBullet } from '../../../shared/claude-eval-rules';
 
 // The prompt text, pricing rule and Markdown reader live in shared/claude-eval-rules.ts so the
 // CCG Eval connector (Worker) uses exactly the same rules as these paste prompts.
@@ -120,18 +120,6 @@ function readFieldObject(record: Record<string, unknown>): ClaudeDesktopFields |
     merchantCenterCatCode: asText(record.merchant_center_category).toUpperCase(),
     privatePartyValue: Number.isFinite(value) && value > 0 ? Math.round(value) : null,
   };
-}
-
-// Keep a bullet within the 60-character field, cutting at a word boundary.
-function fitBullet(text: string): string {
-  const clean = text
-    .replace(/^[•\-*]\s*/, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (clean.length <= 60) return clean;
-  const cut = clean.slice(0, 60);
-  const lastSpace = cut.lastIndexOf(' ');
-  return (lastSpace > 30 ? cut.slice(0, lastSpace) : cut).replace(/[\s,;:–-]+$/, '');
 }
 
 function readListingObject(record: Record<string, unknown>): ClaudeListing | null {
@@ -270,24 +258,6 @@ export function parseClaudeItemPaste(
     throw new Error("The listing in Claude's reply is empty.");
   }
   return { analysisHtml, ...value };
-}
-
-// Read an evaluation saved by the CCG Eval connector (save_inventory_evaluation): its fields and
-// listing are stored in the same shape as the paste flow's JSON block, so they go through the
-// same readers (number parsing, bullet trimming) and the result fills the form the same way.
-export function readClaudeConnectorResult(
-  fieldsRaw: unknown,
-  listingRaw: unknown,
-): { fields: ClaudeDesktopFields; listing: ClaudeListing | null } {
-  const asRecord = (value: unknown): Record<string, unknown> =>
-    value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
-  const fields = readFieldObject({ title: '', ...asRecord(fieldsRaw) }) as ClaudeDesktopFields;
-  const listingRecord = asRecord(listingRaw);
-  const listing = Object.keys(listingRecord).length ? readListingObject(listingRecord) : null;
-  return {
-    fields,
-    listing: listing && (listing.saleTitle || listing.description) ? listing : null,
-  };
 }
 
 // Plain-text version of the AI Analysis HTML, for including it in a prompt.
