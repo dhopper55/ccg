@@ -2,6 +2,7 @@ import type { Env } from '../env.js';
 import { normalizeText } from '../utils/text.js';
 import { jsonResponse, generateRunId } from '../utils/misc.js';
 import { sanitizePatternLookupHtml } from '../utils/html.js';
+import { recordListingPasteHistory, snapshotListingEvalValues } from '../eval/listing-save.js';
 import { SINGLE_FIELD_KEYS } from '../constants.js';
 import { ALLOWED_ARCHIVE_REASONS } from '../types/core.js';
 import type { ListingSource } from '../types/core.js';
@@ -258,7 +259,13 @@ export async function handleAdminV2ListingAiAnalysisSave(request: Request, env: 
   if (typeof body.year === 'string') identityFields.year = normalizeText(body.year, '').slice(0, 120);
 
   try {
-    await dbUpdateListing(recordId, { ai_analysis_text: aiAnalysisText || null, ...identityFields }, env);
+    // Snapshot first so the CCG Eval history (and its Undo) covers pasted evaluations too.
+    const before = await snapshotListingEvalValues(env, recordId).catch(() => null);
+    const written = { ai_analysis_text: aiAnalysisText || null, ...identityFields };
+    await dbUpdateListing(recordId, written, env);
+    if (before && Object.keys(identityFields).length + (aiAnalysisText ? 1 : 0) > 0) {
+      await recordListingPasteHistory(env, recordId, before, written, env.AUTH_USER || 'owner');
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error || '');
     if (/no such column: ai_analysis_text/i.test(message) || /no column named ai_analysis_text/i.test(message)) {

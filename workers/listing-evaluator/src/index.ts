@@ -334,9 +334,17 @@ import {
   handleWebhook,
   handleYoutubeVideos,
 } from './apify/handlers.js';
+import { handleMcpHost, isMcpRequest } from './eval/router.js';
+import { handleEvalAdminRequest, isEvalAdminPath } from './eval/admin-handlers.js';
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    // CCG Eval connector host (mcp.coalcreekguitars.com): its own OAuth and MCP endpoints,
+    // fully separate from the www routes below.
+    if (isMcpRequest(env, new URL(request.url))) {
+      return handleMcpHost(request, env);
+    }
+
     if (request.method === 'OPTIONS') {
       return withCors(new Response(null, { status: 204 }), request, env);
     }
@@ -429,6 +437,12 @@ export default {
       if (authResponse) {
         return withCors(authResponse, request, env);
       }
+    }
+
+    // CCG Eval: focus pings, evaluation polling, Undo and draft linking (admin login only).
+    if (isEvalAdminPath(path)) {
+      const response = await handleEvalAdminRequest(request, env, path);
+      if (response) return withCors(response, request, env);
     }
 
     // Public shop endpoints

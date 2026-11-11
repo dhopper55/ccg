@@ -40,4 +40,8 @@ export interface Env {
   PLAID_ACCESS_TOKEN_TEST?: string;
   TEXTBELT_KEY?: string;
   TURNSTILE_SECRET_KEY?: string;
+  // CCG Eval connector (Claude custom connector). MCP_OWNER_PASSWORD is the secret the owner
+  // types on the connector's sign-in page (separate from AUTH_PASS); MCP_HOST is its hostname.
+  MCP_OWNER_PASSWORD?: string;
+  MCP_HOST?: string;
 }

@@ -38,8 +38,21 @@ import {
   buildClaudeItemPrompt,
   claudePasteBoxSx,
   copyTextToClipboard,
+  MERCHANT_CENTER_CATEGORY_OPTIONS,
   parseClaudeItemPaste,
+  readClaudeConnectorResult,
+  type ClaudeDesktopFields,
+  type ClaudeListing,
 } from 'lib/claudeDesktopAnalysis';
+import {
+  formatEvaluationTime,
+  linkDraftEvaluations,
+  newDraftKey,
+  setEvaluationStatus,
+  useEvalFocusPing,
+  useEvaluationPoll,
+  type LatestEvaluation,
+} from 'lib/evalConnector';
 import { formatOrderNumber } from 'lib/utils';
 import ReverbListingWizard from './ReverbListingWizard';
 import GxListingWizard from './GxListingWizard';
@@ -171,6 +184,7 @@ type ListingRecordResponse = {
 
 type SaveResponse = {
   ok?: boolean;
+  id?: string | number;
   ccgNumber?: string;
   message?: string;
   duplicateSuppressed?: boolean;
@@ -321,51 +335,8 @@ const INVENTORY_QUEUE_OPTIONS = [
   'Parking Lot',
 ] as const;
 
-const MERCHANT_CENTER_CATEGORY_OPTIONS: { key: string; value: string }[] = [
-  { key: 'MUSICAL_INSTRUMENT', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments' },
-  { key: 'STRING_INSTRUMENT', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments' },
-  { key: 'GUITAR', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Guitars' },
-  { key: 'BASS_GUITAR', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Bass Guitars' },
-  { key: 'UKULELE', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Ukuleles' },
-  { key: 'BANJO', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Banjos' },
-  { key: 'MANDOLIN', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Mandolins' },
-  { key: 'VIOLIN', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Violins' },
-  { key: 'VIOLA', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Violas' },
-  { key: 'CELLO', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Cellos' },
-  { key: 'DOUBLE_BASS', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Double Basses' },
-  { key: 'HARP', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > String Instruments > Harps' },
-  { key: 'KEYBOARD_INSTRUMENT', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Keyboard Instruments' },
-  { key: 'PIANO', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Keyboard Instruments > Pianos' },
-  { key: 'DIGITAL_PIANO', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Keyboard Instruments > Digital Pianos' },
-  { key: 'SYNTHESIZER', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Keyboard Instruments > Synthesizers' },
-  { key: 'DRUMS_AND_PERCUSSION', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Percussion' },
-  { key: 'DRUM_SET', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Percussion > Drum Sets' },
-  { key: 'CYMBAL', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Percussion > Cymbals' },
-  { key: 'WIND_INSTRUMENT', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Wind Instruments' },
-  { key: 'FLUTE', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Wind Instruments > Flutes' },
-  { key: 'CLARINET', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Wind Instruments > Clarinets' },
-  { key: 'SAXOPHONE', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Wind Instruments > Saxophones' },
-  { key: 'TRUMPET', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Wind Instruments > Trumpets' },
-  { key: 'TROMBONE', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Wind Instruments > Trombones' },
-  { key: 'MUSICAL_INSTRUMENT_ACCESSORY', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories' },
-  { key: 'STRINGS', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Strings' },
-  { key: 'PICKS', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Plectrums' },
-  { key: 'TUNER', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Tuners' },
-  { key: 'METRONOME', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Metronomes' },
-  { key: 'CAPO', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Capos' },
-  { key: 'SLIDE', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Slides' },
-  { key: 'STRAP', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Straps' },
-  { key: 'CASE', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Cases' },
-  { key: 'STAND', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Stands' },
-  { key: 'EFFECTS_PEDAL', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Effects Pedals' },
-  { key: 'PEDALBOARD', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Pedalboards' },
-  { key: 'PICKUP', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Accessories > Pickups' },
-  { key: 'AMPLIFIER', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Amplifiers' },
-  { key: 'AMPLIFIER_HEAD', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Amplifiers' },
-  { key: 'SPEAKER_CABINET', value: 'Arts & Entertainment > Hobbies & Creative Arts > Musical Instruments > Musical Instrument Amplifiers' },
-  { key: 'MUSIC_BOOK', value: 'Media > Books > Music Books' },
-  { key: 'SHEET_MUSIC', value: 'Media > Books > Sheet Music' },
-];
+// MERCHANT_CENTER_CATEGORY_OPTIONS lives in shared/claude-eval-rules.ts (via lib/claudeDesktopAnalysis)
+// so the CCG Eval connector offers Claude the same codes.
 
 type InventoryCategoryNode = {
   id: number;
@@ -1333,7 +1304,7 @@ function downloadBlob(blob: Blob, filename: string) {
 
 const InventoryItem = () => {
   const navigate = useNavigate();
-  const { enqueueSnackbar } = useSnackbar();
+  const { enqueueSnackbar, closeSnackbar } = useSnackbar();
   const [searchParams] = useSearchParams();
   const inventoryManagerHref = `${paths.inventoryManager}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -1351,6 +1322,16 @@ const InventoryItem = () => {
   const [images, setImages] = useState<InventoryImageRecord[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // CCG Eval connector: a new, unsaved item is identified by a draft key until its first save.
+  const searchKey = searchParams.toString();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const draftKey = useMemo(() => newDraftKey(), [searchKey]);
+  const [pendingClaudeEvaluation, setPendingClaudeEvaluation] = useState<LatestEvaluation | null>(null);
+  const inventoryEvaluationBaselineRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    inventoryEvaluationBaselineRef.current = undefined;
+    setPendingClaudeEvaluation(null);
+  }, [searchKey]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isReverbActionPending, setIsReverbActionPending] = useState(false);
   const [fbmCommandOpen, setFbmCommandOpen] = useState(false);
@@ -2567,6 +2548,11 @@ const InventoryItem = () => {
         );
       }
 
+      if (!editId && data.id != null) {
+        // Keep Claude's evaluation of the unsaved item attached to the item it became.
+        void linkDraftEvaluations(draftKey, String(data.id)).catch(() => undefined);
+      }
+
       const text = editId
         ? 'Item Updated'
         : data.duplicateSuppressed
@@ -2997,25 +2983,20 @@ const InventoryItem = () => {
     if (includeImages) await handleDownloadZip(photoAnalysisTitle.trim());
   };
 
-  // Fill from Claude's reply: AI Analysis and the item fields (per the overwrite checkboxes),
-  // plus, when Build Listing was ticked, the For Sale listing: sale title, description and
-  // bullets 1–5 are replaced, the item is marked For Sale (same as checking the box), and the
-  // sale URL slug is generated from the new title only when it is still blank.
-  const fillFromClaudeReply = () => {
-    setPhotoAnalysisError('');
-    let parsed: ReturnType<typeof parseClaudeItemPaste>;
-    try {
-      parsed = parseClaudeItemPaste(
-        photoAnalysisReplyRef.current?.innerHTML || '',
-        photoAnalysisReplyRef.current?.innerText || '',
-        photoAnalysisBuildListing,
-      );
-    } catch (error) {
-      setPhotoAnalysisError(error instanceof Error ? error.message : "Unable to read Claude's reply.");
-      return;
-    }
-    const { analysisHtml, fields: replyFields, listing } = parsed;
-
+  // Fill the form from a Claude result — a pasted reply or an evaluation sent by the CCG Eval
+  // connector: AI Analysis and the item fields (per the overwrite options), plus, when there is
+  // a listing (Build Listing), the For Sale listing: sale title, description and bullets 1–5 are
+  // replaced, the item is marked For Sale (same as checking the box), and the sale URL slug is
+  // generated from the new title only when it is still blank. Returns the snackbar text.
+  const applyClaudeResult = (result: {
+    analysisHtml: string;
+    replyFields: ClaudeDesktopFields;
+    listing: ClaudeListing | null;
+    dialogTitle: string;
+    overwrite: boolean;
+    replaceTitle: boolean;
+  }): string => {
+    const { analysisHtml, replyFields, listing, dialogTitle, overwrite, replaceTitle } = result;
     const wanted = replyFields.category.toLowerCase().replace(/\s+/g, ' ');
     const lastSegment = wanted.split('>').pop()?.trim() || '';
     const match = categoryPromptLines.find((entry) => entry.line.toLowerCase() === wanted)
@@ -3035,11 +3016,10 @@ const InventoryItem = () => {
         : '',
       privatePartyValue: replyFields.privatePartyValue,
     };
-    const dialogTitle = photoAnalysisTitle.trim();
-    const { filled } = applyPhotoAnalysis(form, analysisHtml, fields, dialogTitle, photoAnalysisOverwrite, photoAnalysisReplaceTitle);
+    const { filled } = applyPhotoAnalysis(form, analysisHtml, fields, dialogTitle, overwrite, replaceTitle);
     const generatedSlug = listing && !form.saleUrl.trim() ? generateSaleUrlSlugFromTitle(listing.saleTitle) : '';
     setForm((current) => {
-      const analyzed = applyPhotoAnalysis(current, analysisHtml, fields, dialogTitle, photoAnalysisOverwrite, photoAnalysisReplaceTitle).next;
+      const analyzed = applyPhotoAnalysis(current, analysisHtml, fields, dialogTitle, overwrite, replaceTitle).next;
       if (!listing) return analyzed;
       let next: FormState = { ...analyzed, forSale: true, salesChannelCcg: true, queue: 'For Sale' };
       if (!current.forSale && !wasForSaleOnLoadRef.current && !hasAnySaleBulletText(current)) {
@@ -3059,15 +3039,123 @@ const InventoryItem = () => {
       };
     });
     if (generatedSlug) setSaleUrlReadOnly(true);
-    setPhotoAnalysisDialogOpen(false);
-    enqueueSnackbar(
-      listing
-        ? `Filled from Claude: ${[...filled, 'listing'].join(', ')}, and marked For Sale. Review and save.`
-        : `Filled from Claude: ${filled.join(', ')}. Review and save.`,
-      { variant: 'success' },
-    );
+    return listing
+      ? `Filled from Claude: ${[...filled, 'listing'].join(', ')}, and marked For Sale. Review and save.`
+      : `Filled from Claude: ${filled.join(', ')}. Review and save.`;
   };
 
+  // Paste flow: read Claude's pasted reply and fill the form with the dialog's options.
+  const fillFromClaudeReply = () => {
+    setPhotoAnalysisError('');
+    let parsed: ReturnType<typeof parseClaudeItemPaste>;
+    try {
+      parsed = parseClaudeItemPaste(
+        photoAnalysisReplyRef.current?.innerHTML || '',
+        photoAnalysisReplyRef.current?.innerText || '',
+        photoAnalysisBuildListing,
+      );
+    } catch (error) {
+      setPhotoAnalysisError(error instanceof Error ? error.message : "Unable to read Claude's reply.");
+      return;
+    }
+    const text = applyClaudeResult({
+      analysisHtml: parsed.analysisHtml,
+      replyFields: parsed.fields,
+      listing: parsed.listing,
+      dialogTitle: photoAnalysisTitle.trim(),
+      overwrite: photoAnalysisOverwrite,
+      replaceTitle: photoAnalysisReplaceTitle,
+    });
+    setPhotoAnalysisDialogOpen(false);
+    enqueueSnackbar(text, { variant: 'success' });
+  };
+
+  // CCG Eval connector: fill the form from an evaluation Claude sent with
+  // save_inventory_evaluation, keep what the form held before so the snackbar can undo it, and
+  // mark the evaluation applied so it isn't applied twice.
+  const preClaudeFillRef = useRef<{ form: FormState; saleUrlReadOnly: boolean } | null>(null);
+  const applyConnectorEvaluation = (evaluation: LatestEvaluation) => {
+    const { fields: replyFields, listing } = readClaudeConnectorResult(evaluation.fields, evaluation.listing);
+    preClaudeFillRef.current = { form, saleUrlReadOnly };
+    const text = applyClaudeResult({
+      analysisHtml: evaluation.analysisHtml || '',
+      replyFields,
+      listing,
+      dialogTitle: '',
+      overwrite: Boolean(evaluation.options?.overwrite),
+      replaceTitle: Boolean(evaluation.options?.replace_title),
+    });
+    setPendingClaudeEvaluation(null);
+    void setEvaluationStatus(evaluation.id, 'applied').catch(() => undefined);
+    enqueueSnackbar(text, {
+      variant: 'success',
+      autoHideDuration: 15000,
+      action: (key) => (
+        <Button
+          color="inherit"
+          size="small"
+          onClick={() => {
+            const snapshot = preClaudeFillRef.current;
+            if (snapshot) {
+              setForm(snapshot.form);
+              setSaleUrlReadOnly(snapshot.saleUrlReadOnly);
+              preClaudeFillRef.current = null;
+            }
+            closeSnackbar(key);
+          }}
+        >
+          Undo
+        </Button>
+      ),
+    });
+  };
+
+  const dismissConnectorEvaluation = (evaluation: LatestEvaluation) => {
+    setPendingClaudeEvaluation(null);
+    void setEvaluationStatus(evaluation.id, 'dismissed').catch(() => undefined);
+  };
+
+  useEvaluationPoll({
+    kind: 'inventory',
+    id: editId,
+    draftKey: editId ? null : draftKey,
+    enabled: !isLoading,
+    onEvaluation: (evaluation) => {
+      const key = evaluation ? `${evaluation.id}:${evaluation.status}` : 'none';
+      const isNewPending = Boolean(evaluation && evaluation.status === 'pending' && evaluation.source === 'claude-connector');
+      // The first result is what was waiting when the page opened: ask before applying it.
+      if (inventoryEvaluationBaselineRef.current === undefined) {
+        inventoryEvaluationBaselineRef.current = key;
+        if (evaluation && isNewPending) setPendingClaudeEvaluation(evaluation);
+        return;
+      }
+      if (key === inventoryEvaluationBaselineRef.current) return;
+      inventoryEvaluationBaselineRef.current = key;
+      if (!evaluation || !isNewPending) return;
+      // Mid-paste in the AI Analysis dialog: ask instead of filling underneath it.
+      if (photoAnalysisDialogOpen) {
+        setPendingClaudeEvaluation(evaluation);
+        return;
+      }
+      applyConnectorEvaluation(evaluation);
+    },
+  });
+
+  // Tell the Worker what's on screen so "eval" in the Claude app evaluates it: the saved item,
+  // or for a new item, its draft key with the title and photos uploaded so far.
+  useEvalFocusPing(
+    isLoading
+      ? null
+      : editId
+        ? { kind: 'inventory', id: editId }
+        : {
+            kind: 'inventory',
+            draftKey,
+            title: form.title,
+            imageUrls: images.map((image) => image.url),
+            aiAnalysisText: form.aiAnalysisText,
+          },
+  );
   return (
     <Stack direction="column" height={1} gap={3} sx={{ minWidth: 0 }}>
       <Paper sx={{ px: { xs: 3, md: 5 }, py: 3 }}>
@@ -3118,6 +3206,23 @@ const InventoryItem = () => {
       </Paper>
 
       {message ? <Alert severity={message.severity}>{message.text}</Alert> : null}
+      {pendingClaudeEvaluation ? (
+        <Alert
+          severity="info"
+          action={
+            <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+              <Button color="inherit" size="small" onClick={() => applyConnectorEvaluation(pendingClaudeEvaluation)}>
+                Apply
+              </Button>
+              <Button color="inherit" size="small" onClick={() => dismissConnectorEvaluation(pendingClaudeEvaluation)}>
+                Dismiss
+              </Button>
+            </Stack>
+          }
+        >
+          {`Claude evaluation from ${formatEvaluationTime(pendingClaudeEvaluation.createdAt)} is ready${pendingClaudeEvaluation.options?.build_listing ? ' (with a listing)' : ''}. Apply it to the form?`}
+        </Alert>
+      ) : null}
 
       <Box sx={{ p: { xs: 2, md: 5 }, minWidth: 0 }}>
         {isLoading ? (

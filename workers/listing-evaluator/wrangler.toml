@@ -12,6 +12,9 @@ routes = [
   { pattern = "https://www.coalcreekguitars.com/sitemap.xml", zone_name = "coalcreekguitars.com" },
   { pattern = "https://www.coalcreekguitars.com/robots.txt", zone_name = "coalcreekguitars.com" },
   { pattern = "https://www.coalcreekguitars.com/guitars-and-gear-for-sale/*", zone_name = "coalcreekguitars.com" },
+  # CCG Eval connector (Claude custom connector). Wrangler creates the DNS record for a custom
+  # domain; there must not already be a DNS record named "mcp". See src/eval/router.ts.
+  { pattern = "mcp.coalcreekguitars.com", custom_domain = true },
 ]
 
 # Keep console logs (e.g. the "ccg-orders" manual-orders trail) searchable in the
@@ -27,6 +30,9 @@ MAX_IMAGES = "10"
 ASSOCIATE_MODE_TOKEN = "ccg_worker"
 STRIPE_CO_SALES_TAX_RATE_ID = "txr_1TSEdADCplz62P7p4H6E7YJK"
 STRIPE_PUBLISHABLE_KEY = ""
+# CCG Eval connector hostname. Its sign-in password is the MCP_OWNER_PASSWORD secret:
+#   wrangler secret put MCP_OWNER_PASSWORD
+MCP_HOST = "mcp.coalcreekguitars.com"
 
 [[kv_namespaces]]
 binding = "LISTING_JOBS"
