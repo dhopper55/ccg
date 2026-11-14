@@ -1,4 +1,5 @@
 import type { Env } from '../env.js';
+import { dbListingClaudeStates } from '../eval/queue.js';
 import { normalizeText } from '../utils/text.js';
 import { jsonResponse, generateRunId } from '../utils/misc.js';
 import { sanitizePatternLookupHtml } from '../utils/html.js';
@@ -124,7 +125,17 @@ export async function handleList(request: Request, env: Env): Promise<Response> 
     return jsonResponse({ message: 'Unable to fetch listings.' }, 500);
   }
 
-  return jsonResponse(data);
+  // Claude status per row (queued / evaluated / skipped / none) for the results list.
+  try {
+    const states = await dbListingClaudeStates(env, data.records.map((record) => record.id));
+    return jsonResponse({
+      ...data,
+      records: data.records.map((record) => ({ ...record, claude: states.get(record.id) ?? null })),
+    });
+  } catch (error) {
+    console.error('Unable to load Claude states for listings', error);
+    return jsonResponse(data);
+  }
 }
 
 export async function handleMapListings(env: Env): Promise<Response> {

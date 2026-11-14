@@ -18,16 +18,16 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import IconifyIcon from 'components/base/IconifyIcon';
 import {
+  type EvalKind,
+  type EvalStatus,
   formatEvaluationTime,
   queueForClaude,
   removeFromClaudeQueue,
   undoEvaluation,
   useEvalStatusPoll,
-  type EvalKind,
-  type EvalStatus,
 } from 'lib/evalConnector';
+import IconifyIcon from 'components/base/IconifyIcon';
 
 type Props = {
   kind: EvalKind;
@@ -65,7 +65,9 @@ const ClaudeQueueBar = ({ kind, id, onClaudeSaved, showBuildListing = false }: P
       baselineRef.current = key;
       if (evaluation && evaluation.source === 'claude-connector' && evaluation.status === 'saved') {
         void onClaudeSaved();
-        const fields = evaluation.fieldsWritten.length ? `: ${evaluation.fieldsWritten.join(', ')}` : '';
+        const fields = evaluation.fieldsWritten.length
+          ? `: ${evaluation.fieldsWritten.join(', ')}`
+          : '';
         setNotice({
           severity: 'success',
           text: `Updated by Claude ${formatEvaluationTime(evaluation.createdAt)}${fields}. Unsaved edits on this page were replaced.`,
@@ -89,7 +91,10 @@ const ClaudeQueueBar = ({ kind, id, onClaudeSaved, showBuildListing = false }: P
       await queueForClaude(kind, id, { buildListing: showBuildListing && buildListing, deep });
       refresh();
     } catch (error) {
-      setNotice({ severity: 'error', text: error instanceof Error ? error.message : 'Unable to queue for Claude.' });
+      setNotice({
+        severity: 'error',
+        text: error instanceof Error ? error.message : 'Unable to queue for Claude.',
+      });
     } finally {
       setBusy(false);
     }
@@ -107,7 +112,10 @@ const ClaudeQueueBar = ({ kind, id, onClaudeSaved, showBuildListing = false }: P
       await removeFromClaudeQueue(queue.id);
       refresh();
     } catch (error) {
-      setNotice({ severity: 'error', text: error instanceof Error ? error.message : 'Unable to remove from the queue.' });
+      setNotice({
+        severity: 'error',
+        text: error instanceof Error ? error.message : 'Unable to remove from the queue.',
+      });
       refresh();
     } finally {
       setBusy(false);
@@ -123,21 +131,32 @@ const ClaudeQueueBar = ({ kind, id, onClaudeSaved, showBuildListing = false }: P
       setNotice({ severity: 'info', text: "Undone: Claude's changes were reverted." });
       refresh();
     } catch (error) {
-      setNotice({ severity: 'error', text: error instanceof Error ? error.message : 'Unable to undo.' });
+      setNotice({
+        severity: 'error',
+        text: error instanceof Error ? error.message : 'Unable to undo.',
+      });
     } finally {
       setBusy(false);
     }
   };
 
-  let statusChip: { label: string; color: 'default' | 'info' | 'warning' | 'success' | 'error' } | null = null;
+  let statusChip: {
+    label: string;
+    color: 'default' | 'info' | 'warning' | 'success' | 'error';
+  } | null = null;
   if (queue?.status === 'queued') {
-    statusChip = { label: queue.position > 1 ? `Queued (#${queue.position})` : 'Queued (next)', color: 'info' };
+    statusChip = {
+      label: queue.position > 1 ? `Queued (#${queue.position})` : 'Queued (next)',
+      color: 'info',
+    };
   } else if (queue?.status === 'in_progress') {
     statusChip = { label: 'Claude is evaluating…', color: 'warning' };
   } else if (lastQueue?.status === 'failed') {
     statusChip = { label: 'Claude skipped it', color: 'error' };
   } else if (latest && latest.source === 'claude-connector' && latest.status === 'saved') {
     statusChip = { label: `Evaluated ${formatEvaluationTime(latest.createdAt)}`, color: 'success' };
+  } else if (lastQueue?.status === 'done' && !lastQueue.evaluationId) {
+    statusChip = { label: 'Marked evaluated', color: 'success' };
   }
 
   return (
@@ -146,9 +165,20 @@ const ClaudeQueueBar = ({ kind, id, onClaudeSaved, showBuildListing = false }: P
         <Stack direction="row" sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
           <IconifyIcon icon="material-symbols:smart-toy-outline-rounded" fontSize={20} />
           <Typography variant="subtitle2">Claude</Typography>
-          {statusChip ? <Chip size="small" color={statusChip.color} label={statusChip.label} /> : null}
-          {latest && latest.source === 'claude-connector' && latest.status === 'saved' && !notice?.undoId && !queue ? (
-            <Button size="small" color="inherit" disabled={busy} onClick={() => void doUndo(latest.id)}>
+          {statusChip ? (
+            <Chip size="small" color={statusChip.color} label={statusChip.label} />
+          ) : null}
+          {latest &&
+          latest.source === 'claude-connector' &&
+          latest.status === 'saved' &&
+          !notice?.undoId &&
+          !queue ? (
+            <Button
+              size="small"
+              color="inherit"
+              disabled={busy}
+              onClick={() => void doUndo(latest.id)}
+            >
               Undo last
             </Button>
           ) : null}
@@ -171,7 +201,13 @@ const ClaudeQueueBar = ({ kind, id, onClaudeSaved, showBuildListing = false }: P
                 : `Waiting for Claude. In the Claude app, say "eval".${queue.options.build_listing ? ' Build Listing is on.' : ''}${queue.options.deep ? ' Deep.' : ''}`}
             </Typography>
             {queue.status === 'queued' ? (
-              <Button size="small" variant="outlined" color="inherit" disabled={busy} onClick={() => void doRemove()}>
+              <Button
+                size="small"
+                variant="outlined"
+                color="inherit"
+                disabled={busy}
+                onClick={() => void doRemove()}
+              >
                 Remove from queue
               </Button>
             ) : null}
@@ -189,19 +225,33 @@ const ClaudeQueueBar = ({ kind, id, onClaudeSaved, showBuildListing = false }: P
             </Button>
             {showBuildListing ? (
               <FormControlLabel
-                control={<Checkbox size="small" checked={buildListing} onChange={(event) => setBuildListing(event.target.checked)} />}
+                control={
+                  <Checkbox
+                    size="small"
+                    checked={buildListing}
+                    onChange={(event) => setBuildListing(event.target.checked)}
+                  />
+                }
                 label="Build Listing"
               />
             ) : null}
             <FormControlLabel
-              control={<Checkbox size="small" checked={deep} onChange={(event) => setDeep(event.target.checked)} />}
+              control={
+                <Checkbox
+                  size="small"
+                  checked={deep}
+                  onChange={(event) => setDeep(event.target.checked)}
+                />
+              }
               label="Deep"
             />
           </Stack>
         )}
 
         {lastQueue?.status === 'failed' && !queue ? (
-          <Alert severity="warning">Claude skipped this item: {lastQueue.error || 'no reason given'}.</Alert>
+          <Alert severity="warning">
+            Claude skipped this item: {lastQueue.error || 'no reason given'}.
+          </Alert>
         ) : null}
 
         {notice ? (
@@ -210,7 +260,12 @@ const ClaudeQueueBar = ({ kind, id, onClaudeSaved, showBuildListing = false }: P
             action={
               <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
                 {notice.undoId ? (
-                  <Button color="inherit" size="small" disabled={busy} onClick={() => void doUndo(notice.undoId as string)}>
+                  <Button
+                    color="inherit"
+                    size="small"
+                    disabled={busy}
+                    onClick={() => void doUndo(notice.undoId as string)}
+                  >
                     Undo
                   </Button>
                 ) : null}
@@ -229,8 +284,9 @@ const ClaudeQueueBar = ({ kind, id, onClaudeSaved, showBuildListing = false }: P
         <DialogTitle>This item is for sale</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            This item is currently for sale on: {liveChannels.join(', ')}. Claude will only update the AI Analysis and
-            private party value; the listing and other fields stay as they are. Queue it anyway?
+            This item is currently for sale on: {liveChannels.join(', ')}. Claude will only update
+            the AI Analysis and private party value; the listing and other fields stay as they are.
+            Queue it anyway?
           </DialogContentText>
         </DialogContent>
         <DialogActions>

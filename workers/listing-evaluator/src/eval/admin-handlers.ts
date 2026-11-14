@@ -5,6 +5,8 @@
 //   GET  /api/admin-v2/eval-status?kind=&id=       queue state + latest evaluation (polled by the page)
 //   POST /api/admin-v2/eval-queue                  { kind, id, buildListing, deep } -> Queue for Claude
 //   POST /api/admin-v2/eval-queue/:id/remove       take a waiting item off the queue
+//   GET  /api/admin-v2/eval-queue/listings          { count } of results-list listings never queued
+//   POST /api/admin-v2/eval-queue/listings          Queue All: queue every one of them
 //   POST /api/admin-v2/evaluations/:id/undo        restore the values an evaluation replaced
 
 import type { Env } from '../env.js';
@@ -14,11 +16,13 @@ import { inventoryColumnLabels, inventoryLiveChannels } from './inventory-save.j
 import { undoEvaluation } from './listing-save.js';
 import {
   dbEnqueue,
+  dbEnqueueListings,
   dbGetActiveQueueEntry,
   dbGetLatestQueueEntry,
   dbGetQueueEntry,
   dbQueuePosition,
   dbRemoveFromQueue,
+  dbUnqueuedListingIds,
   queueOptions,
   type QueueRow,
 } from './queue.js';
@@ -74,6 +78,13 @@ export async function handleEvalAdminRequest(request: Request, env: Env, path: s
     if (path === '/api/admin-v2/focus' && method === 'POST') return await handleFocus(request, env);
     if (path === '/api/admin-v2/eval-status' && method === 'GET') return await handleStatus(request, env);
     if (path === '/api/admin-v2/eval-queue' && method === 'POST') return await handleEnqueue(request, env);
+    if (path === '/api/admin-v2/eval-queue/listings' && method === 'GET') {
+      return jsonResponse({ count: (await dbUnqueuedListingIds(env)).length }, 200, NO_STORE);
+    }
+    if (path === '/api/admin-v2/eval-queue/listings' && method === 'POST') {
+      const queued = await dbEnqueueListings(env, await dbUnqueuedListingIds(env), ownerId(env));
+      return jsonResponse({ ok: true, queued });
+    }
     const removeMatch = path.match(/^\/api\/admin-v2\/eval-queue\/([0-9a-f-]{36})\/remove$/i);
     if (removeMatch && method === 'POST') return await handleRemove(env, removeMatch[1]);
     const undoMatch = path.match(/^\/api\/admin-v2\/evaluations\/([0-9a-f-]{36})\/undo$/i);

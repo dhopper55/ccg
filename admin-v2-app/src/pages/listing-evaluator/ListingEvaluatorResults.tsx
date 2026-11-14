@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router';
 import {
   Alert,
   Avatar,
@@ -9,9 +10,9 @@ import {
   CircularProgress,
   IconButton,
   Link,
+  MenuItem,
   Paper,
   Select,
-  MenuItem,
   Stack,
   Table,
   TableBody,
@@ -23,10 +24,10 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { useNavigate, useSearchParams } from 'react-router';
-import IconifyIcon from 'components/base/IconifyIcon';
+import { formatEvaluationTime } from 'lib/evalConnector';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
 import paths from 'routes/paths';
+import IconifyIcon from 'components/base/IconifyIcon';
 
 type ListingListItem = {
   id: string;
@@ -40,6 +41,22 @@ type ListingListItem = {
   submittedAt?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
+  claude?: ListingClaudeState | null;
+};
+
+// Claude queue / evaluation state per row (workers/listing-evaluator/src/eval/queue.ts).
+type ListingClaudeState = {
+  state: 'queued' | 'evaluating' | 'evaluated' | 'skipped' | 'none';
+  position?: number;
+  at?: number | null;
+  marked?: boolean;
+};
+
+type ClaudeChip = {
+  label: string;
+  color: ChipOwnProps['color'];
+  variant: 'soft' | 'outlined';
+  tooltip: string;
 };
 
 type ListingsResponse = {
@@ -62,11 +79,19 @@ type ListingGridRow = {
   canRequeue: boolean;
   askingPriceLabel: string;
   imageSrc: string | null;
+  claudeChip: ClaudeChip | null;
 };
 
 const PAGE_SIZE = 20;
 const REQUEUE_DELAY_MS = 5 * 60 * 1000;
-const ARCHIVE_REASON_OPTIONS = ['Overpriced', 'Not Desirable', 'Repair Needs', 'Too Far', 'Old/Stale', 'Other'] as const;
+const ARCHIVE_REASON_OPTIONS = [
+  'Overpriced',
+  'Not Desirable',
+  'Repair Needs',
+  'Too Far',
+  'Old/Stale',
+  'Other',
+] as const;
 const headerActions = [
   { label: 'Results', icon: 'material-symbols:list-alt-rounded', color: 'default' as const },
   {
@@ -80,7 +105,57 @@ const headerActions = [
     color: 'error' as const,
   },
   { label: 'Refresh', icon: 'material-symbols:refresh-rounded', color: 'success' as const },
+  {
+    label: 'Queue All for Claude',
+    icon: 'material-symbols:smart-toy-outline-rounded',
+    color: 'warning' as const,
+  },
 ];
+
+function buildClaudeChip(claude?: ListingClaudeState | null): ClaudeChip | null {
+  if (!claude) return null;
+  const when = formatEvaluationTime(claude.at);
+  switch (claude.state) {
+    case 'queued':
+      return {
+        label:
+          claude.position && claude.position > 1 ? `Queued #${claude.position}` : 'Queued (next)',
+        color: 'info',
+        variant: 'soft',
+        tooltip: 'Waiting in the Claude queue',
+      };
+    case 'evaluating':
+      return {
+        label: 'Evaluating…',
+        color: 'warning',
+        variant: 'soft',
+        tooltip: 'Claude is evaluating this now',
+      };
+    case 'evaluated':
+      return {
+        label: 'Evaluated',
+        color: 'success',
+        variant: 'soft',
+        tooltip: claude.marked
+          ? 'Marked evaluated (no Claude analysis saved)'
+          : `Evaluated by Claude${when ? ` ${when}` : ''}`,
+      };
+    case 'skipped':
+      return {
+        label: 'Skipped',
+        color: 'error',
+        variant: 'soft',
+        tooltip: 'Claude skipped it; open it to see why',
+      };
+    default:
+      return {
+        label: 'Not evaluated',
+        color: 'neutral',
+        variant: 'outlined',
+        tooltip: 'Not queued for Claude yet',
+      };
+  }
+}
 
 function formatCurrencyValue(value: number | string | undefined): string {
   if (value == null) return '';
@@ -122,7 +197,10 @@ function buildImageSrc(imageUrl?: string | null, referrer?: string): string | nu
     const params = new URLSearchParams();
     params.set('url', cleaned);
     if (referrer) params.set('ref', referrer);
-    return buildCloudflareImageSrc(new URL(`/api/image?${params.toString()}`, window.location.origin).toString(), 180);
+    return buildCloudflareImageSrc(
+      new URL(`/api/image?${params.toString()}`, window.location.origin).toString(),
+      180,
+    );
   }
 
   return buildCloudflareImageSrc(cleaned, 180);
@@ -142,7 +220,11 @@ function buildCloudflareImageSrc(imageUrl: string, width: number): string {
   }
 }
 
-function buildSourceMeta(source?: string): { label: string; imageSrc: string | null; icon: string | null } {
+function buildSourceMeta(source?: string): {
+  label: string;
+  imageSrc: string | null;
+  icon: string | null;
+} {
   const normalized = source?.trim().toLowerCase() || '';
   if (normalized === 'facebook' || normalized === 'fbm' || normalized.includes('facebook')) {
     return { label: 'FBM', imageSrc: '/images/fb.png', icon: null };
@@ -203,6 +285,7 @@ const ListingEvaluatorResults = () => {
   const [total, setTotal] = useState(0);
   const [nextOffset, setNextOffset] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isQueueingAll, setIsQueueingAll] = useState(false);
   const [requeueingIds, setRequeueingIds] = useState<Set<string>>(() => new Set());
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [errorMessage, setErrorMessage] = useState('');
@@ -307,6 +390,54 @@ const ListingEvaluatorResults = () => {
     setSearchParams(params);
   };
 
+  // Queue every listing on the results list that Claude has never been asked about.
+  const queueAllForClaude = async () => {
+    if (isQueueingAll) return;
+    setErrorMessage('');
+    setSuccessMessage('');
+    setIsQueueingAll(true);
+    try {
+      const countResponse = await fetch('/api/admin-v2/eval-queue/listings', {
+        credentials: 'same-origin',
+        cache: 'no-store',
+      });
+      const countData = (await countResponse.json().catch(() => ({}))) as {
+        count?: number;
+        message?: string;
+      };
+      if (!countResponse.ok)
+        throw new Error(countData.message || 'Unable to count unqueued listings.');
+      const count = Number(countData.count || 0);
+      if (count === 0) {
+        setSuccessMessage('Nothing to queue: every listing is already queued or evaluated.');
+        return;
+      }
+      const noun = count === 1 ? 'listing' : 'listings';
+      if (!window.confirm(`Queue ${count} unevaluated ${noun} for Claude?`)) return;
+
+      const response = await fetch('/api/admin-v2/eval-queue/listings', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        queued?: number;
+        message?: string;
+      };
+      if (!response.ok) throw new Error(data.message || 'Unable to queue listings.');
+      const queued = Number(data.queued || 0);
+      setSuccessMessage(
+        `Queued ${queued} ${queued === 1 ? 'listing' : 'listings'} for Claude. Say "eval" in Claude to start.`,
+      );
+      await loadListings();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to queue listings.');
+    } finally {
+      setIsQueueingAll(false);
+    }
+  };
+
   const requeueListing = async (row: ListingGridRow) => {
     if (!row.url || requeueingIds.has(row.id)) return;
 
@@ -321,7 +452,10 @@ const ListingEvaluatorResults = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: row.url }),
       });
-      const data = (await response.json().catch(() => ({}))) as { message?: string; error?: string };
+      const data = (await response.json().catch(() => ({}))) as {
+        message?: string;
+        error?: string;
+      };
 
       if (!response.ok) {
         throw new Error(data.message || data.error || 'Unable to re-queue listing.');
@@ -362,6 +496,7 @@ const ListingEvaluatorResults = () => {
             })(),
           askingPriceLabel: formatCurrencyValue(record.askingPrice),
           imageSrc: buildImageSrc(record.imageUrl, record.url),
+          claudeChip: buildClaudeChip(record.claude),
         };
       }),
     [nowMs, records],
@@ -390,50 +525,64 @@ const ListingEvaluatorResults = () => {
                 justifyContent: { xs: 'flex-start', sm: 'flex-end' },
               }}
             >
-              {headerActions.map((action) => (
-                <Tooltip key={action.label} title={action.label}>
-                  <IconButton
-                    aria-label={action.label}
-                    onClick={() => {
-                      if (action.label === 'Results') {
-                        updateView('results');
-                        return;
-                      }
-                      if (action.label === 'Saved Results') {
-                        updateView('saved');
-                        return;
-                      }
-                      if (action.label === 'Archived Results') {
-                        updateView('archived');
-                        return;
-                      }
-                      if (action.label === 'Refresh') {
-                        void loadListings();
-                      }
-                    }}
-                    sx={{
-                      width: 40,
-                      height: 40,
-                      border: 1,
-                      borderColor:
-                        action.color === 'default' ? 'divider' : `${action.color}.main`,
-                      bgcolor:
-                        action.color === 'default'
-                          ? 'background.elevation1'
-                          : `${action.color}.main`,
-                      color: action.color === 'default' ? 'text.primary' : 'common.white',
-                      '&:hover': {
+              {headerActions
+                .filter(
+                  (action) =>
+                    action.label !== 'Queue All for Claude' || (!savedView && !archivedView),
+                )
+                .map((action) => (
+                  <Tooltip key={action.label} title={action.label}>
+                    <IconButton
+                      aria-label={action.label}
+                      disabled={action.label === 'Queue All for Claude' && isQueueingAll}
+                      onClick={() => {
+                        if (action.label === 'Queue All for Claude') {
+                          void queueAllForClaude();
+                          return;
+                        }
+                        if (action.label === 'Results') {
+                          updateView('results');
+                          return;
+                        }
+                        if (action.label === 'Saved Results') {
+                          updateView('saved');
+                          return;
+                        }
+                        if (action.label === 'Archived Results') {
+                          updateView('archived');
+                          return;
+                        }
+                        if (action.label === 'Refresh') {
+                          void loadListings();
+                        }
+                      }}
+                      sx={{
+                        width: 40,
+                        height: 40,
+                        border: 1,
+                        borderColor:
+                          action.color === 'default' ? 'divider' : `${action.color}.main`,
                         bgcolor:
                           action.color === 'default'
-                            ? 'background.elevation2'
-                            : `${action.color}.dark`,
-                      },
-                    }}
-                  >
-                    <IconifyIcon icon={action.icon} fontSize={20} />
-                  </IconButton>
-                </Tooltip>
-              ))}
+                            ? 'background.elevation1'
+                            : `${action.color}.main`,
+                        color: action.color === 'default' ? 'text.primary' : 'common.white',
+                        '&:hover': {
+                          bgcolor:
+                            action.color === 'default'
+                              ? 'background.elevation2'
+                              : `${action.color}.dark`,
+                        },
+                      }}
+                    >
+                      {action.label === 'Queue All for Claude' && isQueueingAll ? (
+                        <CircularProgress size={18} color="inherit" />
+                      ) : (
+                        <IconifyIcon icon={action.icon} fontSize={20} />
+                      )}
+                    </IconButton>
+                  </Tooltip>
+                ))}
             </Stack>
           </Stack>
 
@@ -505,7 +654,11 @@ const ListingEvaluatorResults = () => {
                   }}
                 >
                   <Stack direction="column" spacing={2} sx={{ minWidth: 0 }}>
-                    <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start', minWidth: 0 }}>
+                    <Stack
+                      direction="row"
+                      spacing={1.5}
+                      sx={{ alignItems: 'flex-start', minWidth: 0 }}
+                    >
                       <Avatar
                         variant="rounded"
                         src={row.imageSrc || undefined}
@@ -522,19 +675,19 @@ const ListingEvaluatorResults = () => {
                       </Avatar>
 
                       <Box sx={{ minWidth: 0, flex: 1 }}>
-                            <Link
-                              underline="none"
-                              color="text.primary"
-                              href={buildDetailsHref(row.id)}
-                              onClick={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                navigate(buildDetailsHref(row.id));
-                              }}
-                              sx={{
-                                display: 'block',
-                                fontWeight: 500,
-                                lineHeight: 1.35,
+                        <Link
+                          underline="none"
+                          color="text.primary"
+                          href={buildDetailsHref(row.id)}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            navigate(buildDetailsHref(row.id));
+                          }}
+                          sx={{
+                            display: 'block',
+                            fontWeight: 500,
+                            lineHeight: 1.35,
                             overflow: 'hidden',
                             textOverflow: 'unset',
                             whiteSpace: 'normal',
@@ -568,6 +721,22 @@ const ListingEvaluatorResults = () => {
                             variant="soft"
                             sx={{ textTransform: 'capitalize' }}
                           />
+                          {row.claudeChip && (
+                            <Tooltip title={row.claudeChip.tooltip}>
+                              <Chip
+                                icon={
+                                  <IconifyIcon
+                                    icon="material-symbols:smart-toy-outline-rounded"
+                                    fontSize={14}
+                                  />
+                                }
+                                label={row.claudeChip.label}
+                                size="small"
+                                color={row.claudeChip.color}
+                                variant={row.claudeChip.variant}
+                              />
+                            </Tooltip>
+                          )}
                           {row.canRequeue && (
                             <Tooltip title="Re-queue listing">
                               <span>
@@ -591,7 +760,10 @@ const ListingEvaluatorResults = () => {
                                   {requeueingIds.has(row.id) ? (
                                     <CircularProgress size={14} color="inherit" />
                                   ) : (
-                                    <IconifyIcon icon="material-symbols:refresh-rounded" fontSize={16} />
+                                    <IconifyIcon
+                                      icon="material-symbols:refresh-rounded"
+                                      fontSize={16}
+                                    />
                                   )}
                                 </IconButton>
                               </span>
@@ -619,7 +791,10 @@ const ListingEvaluatorResults = () => {
                           ) : null}
                         </Avatar>
                       ) : null}
-                      <Typography variant="body2" sx={{ color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                      <Typography
+                        variant="body2"
+                        sx={{ color: 'text.secondary', whiteSpace: 'nowrap' }}
+                      >
                         {row.sourceLabel}
                       </Typography>
                     </Stack>
@@ -702,7 +877,10 @@ const ListingEvaluatorResults = () => {
                               {row.title}
                             </Link>
 
-                            <Stack direction="row" sx={{ mt: 0.75, gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                            <Stack
+                              direction="row"
+                              sx={{ mt: 0.75, gap: 1, alignItems: 'center', flexWrap: 'wrap' }}
+                            >
                               {row.askingPriceLabel && (
                                 <Chip
                                   label={row.askingPriceLabel}
@@ -718,6 +896,22 @@ const ListingEvaluatorResults = () => {
                                 variant="soft"
                                 sx={{ textTransform: 'capitalize' }}
                               />
+                              {row.claudeChip && (
+                                <Tooltip title={row.claudeChip.tooltip}>
+                                  <Chip
+                                    icon={
+                                      <IconifyIcon
+                                        icon="material-symbols:smart-toy-outline-rounded"
+                                        fontSize={14}
+                                      />
+                                    }
+                                    label={row.claudeChip.label}
+                                    size="small"
+                                    color={row.claudeChip.color}
+                                    variant={row.claudeChip.variant}
+                                  />
+                                </Tooltip>
+                              )}
                               {row.canRequeue && (
                                 <Tooltip title="Re-queue listing">
                                   <span>
@@ -741,7 +935,10 @@ const ListingEvaluatorResults = () => {
                                       {requeueingIds.has(row.id) ? (
                                         <CircularProgress size={14} color="inherit" />
                                       ) : (
-                                        <IconifyIcon icon="material-symbols:refresh-rounded" fontSize={16} />
+                                        <IconifyIcon
+                                          icon="material-symbols:refresh-rounded"
+                                          fontSize={16}
+                                        />
                                       )}
                                     </IconButton>
                                   </span>

@@ -154,3 +154,95 @@ export async function dbMarkQueueFailed(env: Env, id: string, reason: string): P
   ).bind(Date.now(), reason.slice(0, 300), id).run();
   return Number(result.meta?.changes || 0) === 1;
 }
+
+// ---------------------------------------------------------------------------------------------
+// Listing evaluator results list: a Claude status per row, and "Queue All".
+// ---------------------------------------------------------------------------------------------
+
+export type ListingClaudeState = {
+  state: 'queued' | 'evaluating' | 'evaluated' | 'skipped' | 'none';
+  position?: number;
+  at?: number | null;
+  // Marked evaluated in bulk (no saved analysis from Claude).
+  marked?: boolean;
+};
+
+// Claude status for each listing id: the latest queue entry plus any saved evaluation.
+export async function dbListingClaudeStates(env: Env, ids: string[]): Promise<Map<string, ListingClaudeState>> {
+  const states = new Map<string, ListingClaudeState>();
+  if (!ids.length) return states;
+  const marks = ids.map(() => '?').join(',');
+  const [entries, evaluations, waiting] = await env.DB.batch([
+    env.DB.prepare(
+      `SELECT id, record_id, status, finished_at FROM eval_queue
+       WHERE kind = 'listing' AND status <> 'removed' AND record_id IN (${marks})
+       ORDER BY added_at DESC`
+    ).bind(...ids),
+    env.DB.prepare(
+      `SELECT record_id, MAX(created_at) AS at FROM evaluations
+       WHERE kind = 'listing' AND status = 'saved' AND record_id IN (${marks})
+       GROUP BY record_id`
+    ).bind(...ids),
+    env.DB.prepare("SELECT id FROM eval_queue WHERE status = 'queued' ORDER BY added_at ASC, id ASC"),
+  ]);
+
+  const latestEntry = new Map<string, { id: string; status: QueueRow['status']; finished_at: number | null }>();
+  for (const row of (entries.results ?? []) as Array<{ id: string; record_id: string; status: QueueRow['status']; finished_at: number | null }>) {
+    if (!latestEntry.has(row.record_id)) latestEntry.set(row.record_id, row);
+  }
+  const evaluatedAt = new Map<string, number>();
+  for (const row of (evaluations.results ?? []) as Array<{ record_id: string; at: number }>) {
+    evaluatedAt.set(row.record_id, Number(row.at));
+  }
+  const position = new Map<string, number>();
+  ((waiting.results ?? []) as Array<{ id: string }>).forEach((row, index) => position.set(row.id, index + 1));
+
+  for (const id of ids) {
+    const entry = latestEntry.get(id);
+    const savedAt = evaluatedAt.get(id) ?? null;
+    if (entry?.status === 'queued') states.set(id, { state: 'queued', position: position.get(entry.id) ?? 0 });
+    else if (entry?.status === 'in_progress') states.set(id, { state: 'evaluating' });
+    else if (savedAt != null) states.set(id, { state: 'evaluated', at: savedAt });
+    else if (entry?.status === 'done') states.set(id, { state: 'evaluated', at: entry.finished_at, marked: true });
+    else if (entry?.status === 'failed') states.set(id, { state: 'skipped', at: entry.finished_at });
+    else states.set(id, { state: 'none' });
+  }
+  return states;
+}
+
+// Listings on the main results list (not saved, not archived, scrape not failed) that Claude has
+// never been asked about: no queue entry other than removed ones and no saved evaluation.
+// Skipped listings are left out (they would just be skipped again). Newest first, like the list.
+export async function dbUnqueuedListingIds(env: Env): Promise<string[]> {
+  const result = await env.DB.prepare(
+    `SELECT l.id FROM listings l
+     WHERE (l.archived IS NULL OR l.archived = 0)
+       AND (l.saved IS NULL OR l.saved = 0)
+       AND COALESCE(l.status, '') <> 'failed'
+       AND NOT EXISTS (SELECT 1 FROM eval_queue q
+                       WHERE q.kind = 'listing' AND q.record_id = CAST(l.id AS TEXT) AND q.status <> 'removed')
+       AND NOT EXISTS (SELECT 1 FROM evaluations e
+                       WHERE e.kind = 'listing' AND e.record_id = CAST(l.id AS TEXT) AND e.status = 'saved')
+     ORDER BY COALESCE(l.submitted_at, l.created_at) DESC, l.id DESC`
+  ).all<{ id: number }>();
+  return (result.results ?? []).map((row) => String(row.id));
+}
+
+// Queue many listings at once, in the order given (Claude works through them in that order).
+export async function dbEnqueueListings(env: Env, ids: string[], userId: string): Promise<number> {
+  const base = Date.now();
+  const options = JSON.stringify({ build_listing: false, deep: false });
+  let added = 0;
+  for (let start = 0; start < ids.length; start += 50) {
+    const results = await env.DB.batch(
+      ids.slice(start, start + 50).map((id, offset) =>
+        env.DB.prepare(
+          `INSERT OR IGNORE INTO eval_queue (id, kind, record_id, user_id, options_json, status, added_at)
+           VALUES (?, 'listing', ?, ?, ?, 'queued', ?)`
+        ).bind(crypto.randomUUID(), id, userId, options, base + start + offset)
+      ),
+    );
+    added += results.reduce((sum, result) => sum + Number(result.meta?.changes || 0), 0);
+  }
+  return added;
+}
