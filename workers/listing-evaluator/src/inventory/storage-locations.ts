@@ -1,24 +1,27 @@
 // Storage locations (table ccg_storage_locations, see d1-add-storage-locations.sql). Inventory
 // items hold storage_location_id. There is no editor yet: the owner edits the table directly.
 //
-//   GET /api/admin-v2/storage-locations   -> { locations: [{ id, name, isActive }] }
+//   GET /api/admin-v2/storage-locations   -> { locations: [{ id, name, isActive, isDefault }] }
+//
+// Every item has a location: a save without one gets the default (is_default = 1, one row at most).
 
 import type { Env } from '../env.js';
 import { jsonResponse } from '../utils/misc.js';
 
 export const STORAGE_LOCATIONS_PATH = '/api/admin-v2/storage-locations';
 
-type LocationRow = { id: number; name: string; is_active: number };
+type LocationRow = { id: number; name: string; is_active: number; is_default: number };
 
 export async function handleStorageLocationsList(env: Env): Promise<Response> {
   const result = await env.DB.prepare(
-    'SELECT id, name, is_active FROM ccg_storage_locations ORDER BY sort_order ASC, name ASC'
+    'SELECT id, name, is_active, is_default FROM ccg_storage_locations ORDER BY sort_order ASC, name ASC'
   ).all<LocationRow>();
   return jsonResponse({
     locations: (result.results ?? []).map((row) => ({
       id: row.id,
       name: row.name,
       isActive: Boolean(row.is_active),
+      isDefault: Boolean(row.is_default),
     })),
   }, 200, { 'Cache-Control': 'no-store' });
 }
@@ -42,11 +45,28 @@ async function currentLocationId(env: Env, itemId: string | number): Promise<num
   return row?.storage_location_id ?? null;
 }
 
+// The default location (falls back to the first active one).
+async function defaultLocationId(env: Env): Promise<number | null> {
+  const row = await env.DB.prepare(
+    'SELECT id FROM ccg_storage_locations WHERE is_active = 1 ORDER BY is_default DESC, sort_order ASC, id ASC LIMIT 1'
+  ).first<{ id: number }>();
+  return row ? Number(row.id) : null;
+}
+
 // The storage_location_id to save from an add/edit request body:
-//   storageLocationId  the id from the dropdown ('' or null clears it; an unknown id clears it)
-//   storageLocation    the location name, from an admin app loaded before this change
-//   neither            keep the item's current location (null for a new item)
+//   storageLocationId  the id from the dropdown
+//   storageLocation    the location name, from an admin app loaded before locations were ids
+//   neither            keep the item's current location
+// Missing, blank or unknown ends up as the default location.
 export async function resolveStorageLocationId(
+  env: Env,
+  body: Record<string, unknown>,
+  existingItemId?: string | number | null,
+): Promise<number | null> {
+  return (await requestedLocationId(env, body, existingItemId)) ?? defaultLocationId(env);
+}
+
+async function requestedLocationId(
   env: Env,
   body: Record<string, unknown>,
   existingItemId?: string | number | null,

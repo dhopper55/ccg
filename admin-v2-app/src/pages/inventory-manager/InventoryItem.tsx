@@ -1368,7 +1368,7 @@ const InventoryItem = () => {
   const [purchaseLotOptions, setPurchaseLotOptions] = useState<Array<{ id: string; name: string }>>([]);
   // From ccg_storage_locations (GET /api/admin-v2/storage-locations).
   const [storageLocationOptions, setStorageLocationOptions] = useState<
-    Array<{ id: string; name: string; isActive: boolean }>
+    Array<{ id: string; name: string; isActive: boolean; isDefault: boolean }>
   >([]);
 
   const mode = editId ? 'edit' : 'add';
@@ -1477,7 +1477,7 @@ const InventoryItem = () => {
           credentials: 'same-origin',
         });
         const data = (await response.json()) as {
-          locations?: Array<{ id: number; name: string; isActive: boolean }>;
+          locations?: Array<{ id: number; name: string; isActive: boolean; isDefault: boolean }>;
         };
         if (!response.ok || cancelled) return;
         setStorageLocationOptions(
@@ -1485,6 +1485,7 @@ const InventoryItem = () => {
             id: String(r.id),
             name: r.name,
             isActive: r.isActive,
+            isDefault: r.isDefault,
           })),
         );
       } catch {
@@ -1887,6 +1888,20 @@ const InventoryItem = () => {
       cancelled = true;
     };
   }, [editId, wasSoldOnLoad, reloadToken]);
+
+  // Storage location is required: a form without one (a new item, or a record saved before
+  // locations were required) starts on the default location (ccg_storage_locations.is_default).
+  useEffect(() => {
+    if (form.storageLocationId) return;
+    const fallback =
+      storageLocationOptions.find((location) => location.isDefault && location.isActive) ??
+      storageLocationOptions.find((location) => location.isActive);
+    if (fallback) {
+      setForm((current) =>
+        current.storageLocationId ? current : { ...current, storageLocationId: fallback.id },
+      );
+    }
+  }, [form.storageLocationId, storageLocationOptions]);
 
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => {
@@ -2504,6 +2519,10 @@ const InventoryItem = () => {
     }
     if (!form.merchantCenterCatCode.trim()) {
       setMessage({ severity: 'error', text: 'Merchant Center Category is required.' });
+      return;
+    }
+    if (!form.storageLocationId) {
+      setMessage({ severity: 'error', text: 'Storage Location is required.' });
       return;
     }
     const barcodeValidationError = form.barcode.trim()
@@ -3683,6 +3702,7 @@ const InventoryItem = () => {
                 <TextField
                   select
                   fullWidth
+                  required
                   label="Storage Location"
                   value={
                     storageLocationOptions.some(
@@ -3693,7 +3713,6 @@ const InventoryItem = () => {
                   }
                   onChange={(event) => setField('storageLocationId', event.target.value)}
                 >
-                  <MenuItem value=""><em>None</em></MenuItem>
                   {storageLocationOptions
                     .filter(
                       (location) => location.isActive || location.id === form.storageLocationId,
