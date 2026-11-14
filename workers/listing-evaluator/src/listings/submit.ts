@@ -398,6 +398,21 @@ export async function handleSubmit(request: Request, env: Env, ctx: ExecutionCon
     return jsonResponse({ message: 'No URLs provided.' }, 400);
   }
 
+  const { queued, rejected } = await submitListingUrls(rawUrls, env, ctx);
+  return jsonResponse({
+    accepted: queued.length,
+    queued,
+    rejected,
+  });
+}
+
+// The listing intake behind the evaluator's URL boxes (and the iOS share endpoint): resolves
+// share links, adds new listings and starts their scrape, or bumps listings already on file.
+export async function submitListingUrls(
+  rawUrls: SubmitPayload['urls'],
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<{ queued: QueueResult[]; rejected: RejectResult[] }> {
   const normalizedItems = rawUrls.map((entry) => {
     if (typeof entry === 'string') return { url: entry, isMulti: false };
     if (entry && typeof entry.url === 'string') {
@@ -542,11 +557,7 @@ export async function handleSubmit(request: Request, env: Env, ctx: ExecutionCon
     results.push({ ...item, runId, recordId: recordId || undefined });
   }
 
-  return jsonResponse({
-    accepted: results.length,
-    queued: results,
-    rejected,
-  });
+  return { queued: results, rejected };
 }
 
 export function isArchivedValue(value: unknown): boolean {

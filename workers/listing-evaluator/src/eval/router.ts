@@ -29,7 +29,7 @@ const TOOL_CALLS_PER_MINUTE = 60;
 
 const SERVER_INSTRUCTIONS =
   'Tools for evaluating gear the owner queued in the Coal Creek Guitars admin ("Queue for Claude"). ' +
-  'When the owner says eval or continue, call get_next_queued_item. If it returns queue_empty, reply "Nothing queued." and stop. ' +
+  'When the owner says eval or continue, call get_next_queued_item. If it returns queue_empty, reply with its message and stop. ' +
   'Otherwise call get_item_photos, follow the evaluation_rules it returns, save with the matching save tool and the queue_id, ' +
   'then call get_next_queued_item again and keep going until the queue is empty.';
 

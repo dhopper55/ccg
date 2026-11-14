@@ -336,6 +336,7 @@ import {
 } from './apify/handlers.js';
 import { handleMcpHost, isMcpRequest } from './eval/router.js';
 import { handleEvalAdminRequest, isEvalAdminPath } from './eval/admin-handlers.js';
+import { handleShareEval, SHARE_EVAL_PATH } from './eval/share.js';
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -390,6 +391,11 @@ export default {
     // Gear Exchange webhooks authenticate with their own bearer token, not an admin session.
     if (path === '/api/gx/webhook' && request.method === 'POST') {
       return handleGxWebhook(request, env);
+    }
+
+    // "Eval in CCG" iOS share shortcut: its own bearer token (SHARE_TOKEN), not an admin session.
+    if (path === SHARE_EVAL_PATH && request.method === 'POST') {
+      return handleShareEval(request, env, ctx);
     }
 
     if (path === '/api/stripe/webhook' && request.method === 'POST') {

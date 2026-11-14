@@ -108,13 +108,30 @@ export async function dbRemoveFromQueue(env: Env, id: string): Promise<boolean> 
   return Number(result.meta?.changes || 0) === 1;
 }
 
-// Claim the oldest waiting entry for Claude.
+// A listing shared from the phone is queued before its scrape finishes. Claude skips it until
+// the scrape is done (listing status no longer 'queued'/'processing'), or for at most this long
+// so a stuck scrape cannot hold its place forever.
+export const LOADING_GRACE_MS = 10 * 60 * 1000;
+
+const STILL_LOADING_SQL = `q.kind = 'listing' AND q.added_at >= ? AND EXISTS (
+  SELECT 1 FROM listings l WHERE l.id = CAST(q.record_id AS INTEGER) AND l.status IN ('queued', 'processing'))`;
+
+// Waiting listings whose photos and details are still being fetched.
+export async function dbCountLoading(env: Env): Promise<number> {
+  const result = await env.DB.prepare(
+    `SELECT COUNT(*) AS total FROM eval_queue q WHERE q.status = 'queued' AND ${STILL_LOADING_SQL}`
+  ).bind(Date.now() - LOADING_GRACE_MS).first<{ total: number }>();
+  return Number(result?.total || 0);
+}
+
+// Claim the oldest waiting entry that is ready for Claude.
 export async function dbClaimNext(env: Env): Promise<QueueRow | null> {
   await requeueStale(env);
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const next = await env.DB.prepare(
-      "SELECT * FROM eval_queue WHERE status = 'queued' ORDER BY added_at ASC, id ASC LIMIT 1"
-    ).first<QueueRow>();
+      `SELECT q.* FROM eval_queue q WHERE q.status = 'queued' AND NOT (${STILL_LOADING_SQL})
+       ORDER BY q.added_at ASC, q.id ASC LIMIT 1`
+    ).bind(Date.now() - LOADING_GRACE_MS).first<QueueRow>();
     if (!next) return null;
     const now = Date.now();
     const claimed = await env.DB.prepare(

@@ -44,4 +44,6 @@ export interface Env {
   // types on the connector's sign-in page (separate from AUTH_PASS); MCP_HOST is its hostname.
   MCP_OWNER_PASSWORD?: string;
   MCP_HOST?: string;
+  // "Eval in CCG" iOS share shortcut bearer token (secret). See src/eval/share.ts.
+  SHARE_TOKEN?: string;
 }

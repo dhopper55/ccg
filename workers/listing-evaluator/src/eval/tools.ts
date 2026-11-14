@@ -16,7 +16,7 @@ import { dbGetFocus, dbGetLatestEvaluation, type EvalKind, type EvaluationRow } 
 import { saveListingEvaluation } from './listing-save.js';
 import { inventoryCategoryLines, inventoryLiveChannels, saveInventoryEvaluation } from './inventory-save.js';
 import { fetchPhotos, photoSourcesFromUrls, type PhotoSource } from './photos.js';
-import { dbClaimNext, dbCountQueued, dbGetQueueEntry, dbMarkQueueFailed, queueOptions, type QueueOptions } from './queue.js';
+import { dbClaimNext, dbCountLoading, dbCountQueued, dbGetQueueEntry, dbMarkQueueFailed, queueOptions, type QueueOptions } from './queue.js';
 import { asTrimmedString, isoFromMs } from './util.js';
 
 export type ToolContext = { env: Env; userId: string; tokenId: string };
@@ -203,14 +203,25 @@ const getNextQueuedItem: ToolDefinition = {
   name: 'get_next_queued_item',
   title: 'Get the next item from the Claude queue',
   description:
-    'Claims the next item the owner queued for evaluation (oldest first) and returns it with its options and evaluation_rules. Call this when the owner says eval (or continue), and again after every save until it returns queue_empty. If queue_empty is true, reply only "Nothing queued." (or, after finishing items, say how many you evaluated) and stop.',
+    'Claims the next item the owner queued for evaluation (oldest first) and returns it with its options and evaluation_rules. Call this when the owner says eval (or continue), and again after every save until it returns queue_empty. If queue_empty is true, reply with its message (after finishing items, also say how many you evaluated) and stop.',
   inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   async run(_args, ctx, log) {
     // Items whose record was deleted are skipped automatically.
     for (let attempt = 0; attempt < 10; attempt += 1) {
       const entry = await dbClaimNext(ctx.env);
-      if (!entry) return textResult({ queue_empty: true, message: 'Nothing queued.' });
+      if (!entry) {
+        const loading = await dbCountLoading(ctx.env);
+        if (loading > 0) {
+          const noun = loading === 1 ? 'listing is' : 'listings are';
+          return textResult({
+            queue_empty: true,
+            still_loading: loading,
+            message: `${loading} shared ${noun} still loading from the marketplace. Say eval again in a minute.`,
+          });
+        }
+        return textResult({ queue_empty: true, message: 'Nothing queued.' });
+      }
       log.kind = entry.kind;
       log.recordId = entry.record_id;
       const options = queueOptions(entry);
