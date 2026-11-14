@@ -24,6 +24,7 @@ import {
 } from '../pricing/reverb.js';
 import type { ReverbPricingContext, ReverbSearchListing } from '../pricing/reverb.js';
 import { decodeSerial } from '../serial/utils.js';
+import { autoQueueListings } from '../eval/queue.js';
 import { parseMoney } from '../utils/money.js';
 
 export function detectSource(url: string): ListingSource | null {
@@ -399,6 +400,7 @@ export async function handleSubmit(request: Request, env: Env, ctx: ExecutionCon
   }
 
   const { queued, rejected } = await submitListingUrls(rawUrls, env, ctx);
+  await autoQueueListings(env, queued.map((item) => item.recordId));
   return jsonResponse({
     accepted: queued.length,
     queued,

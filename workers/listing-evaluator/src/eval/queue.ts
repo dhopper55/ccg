@@ -165,6 +165,8 @@ export type ListingClaudeState = {
   at?: number | null;
   // Marked evaluated in bulk (no saved analysis from Claude).
   marked?: boolean;
+  // The waiting queue entry, so the results list can remove it.
+  queueId?: string;
 };
 
 // Claude status for each listing id: the latest queue entry plus any saved evaluation.
@@ -200,7 +202,9 @@ export async function dbListingClaudeStates(env: Env, ids: string[]): Promise<Ma
   for (const id of ids) {
     const entry = latestEntry.get(id);
     const savedAt = evaluatedAt.get(id) ?? null;
-    if (entry?.status === 'queued') states.set(id, { state: 'queued', position: position.get(entry.id) ?? 0 });
+    if (entry?.status === 'queued') {
+      states.set(id, { state: 'queued', position: position.get(entry.id) ?? 0, queueId: entry.id });
+    }
     else if (entry?.status === 'in_progress') states.set(id, { state: 'evaluating' });
     else if (savedAt != null) states.set(id, { state: 'evaluated', at: savedAt });
     else if (entry?.status === 'done') states.set(id, { state: 'evaluated', at: entry.finished_at, marked: true });
@@ -245,4 +249,22 @@ export async function dbEnqueueListings(env: Env, ids: string[], userId: string)
     added += results.reduce((sum, result) => sum + Number(result.meta?.changes || 0), 0);
   }
   return added;
+}
+
+// Every listing added through the evaluator (URL boxes, Custom Item) goes straight into the
+// Claude queue. Never fails the caller: the listing is already saved either way.
+export async function autoQueueListings(env: Env, recordIds: Array<string | null | undefined>): Promise<void> {
+  for (const recordId of recordIds) {
+    if (!recordId) continue;
+    try {
+      await dbEnqueue(env, {
+        kind: 'listing',
+        recordId: String(recordId),
+        userId: env.AUTH_USER || 'owner',
+        options: { build_listing: false, deep: false },
+      });
+    } catch (error) {
+      console.error('Auto-queue for Claude failed', { recordId, error });
+    }
+  }
 }

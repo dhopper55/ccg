@@ -1,4 +1,5 @@
 import type { Env } from '../env.js';
+import { autoQueueListings } from '../eval/queue.js';
 import { jsonResponse } from '../utils/misc.js';
 import type { ListingData } from '../types/core.js';
 import { CUSTOM_MAX_PHOTOS } from '../constants.js';
@@ -131,5 +132,6 @@ export async function handleCustomListingSubmit(
     }
   })());
 
+  await autoQueueListings(env, [recordId]);
   return jsonResponse({ ok: true, recordId, status: 'queued' });
 }

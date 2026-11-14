@@ -24,7 +24,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { formatEvaluationTime } from 'lib/evalConnector';
+import { formatEvaluationTime, removeFromClaudeQueue } from 'lib/evalConnector';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
 import paths from 'routes/paths';
 import IconifyIcon from 'components/base/IconifyIcon';
@@ -50,6 +50,8 @@ type ListingClaudeState = {
   position?: number;
   at?: number | null;
   marked?: boolean;
+  // Queue entry id while waiting, so the row can take it off the queue.
+  queueId?: string;
 };
 
 type ClaudeChip = {
@@ -57,6 +59,7 @@ type ClaudeChip = {
   color: ChipOwnProps['color'];
   variant: 'soft' | 'outlined';
   tooltip: string;
+  queueId?: string;
 };
 
 type ListingsResponse = {
@@ -122,7 +125,8 @@ function buildClaudeChip(claude?: ListingClaudeState | null): ClaudeChip | null 
           claude.position && claude.position > 1 ? `Queued #${claude.position}` : 'Queued (next)',
         color: 'info',
         variant: 'soft',
-        tooltip: 'Waiting in the Claude queue',
+        tooltip: 'Waiting in the Claude queue. Tap ✕ to remove it.',
+        queueId: claude.queueId,
       };
     case 'evaluating':
       return {
@@ -286,6 +290,7 @@ const ListingEvaluatorResults = () => {
   const [nextOffset, setNextOffset] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isQueueingAll, setIsQueueingAll] = useState(false);
+  const [unqueueingIds, setUnqueueingIds] = useState<Set<string>>(() => new Set());
   const [requeueingIds, setRequeueingIds] = useState<Set<string>>(() => new Set());
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [errorMessage, setErrorMessage] = useState('');
@@ -435,6 +440,31 @@ const ListingEvaluatorResults = () => {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to queue listings.');
     } finally {
       setIsQueueingAll(false);
+    }
+  };
+
+  // Take a waiting listing off the Claude queue (the ✕ on its "Queued" badge).
+  const unqueueListing = async (row: ListingGridRow) => {
+    const queueId = row.claudeChip?.queueId;
+    if (!queueId || unqueueingIds.has(row.id)) return;
+    setErrorMessage('');
+    setSuccessMessage('');
+    setUnqueueingIds((current) => new Set(current).add(row.id));
+    try {
+      await removeFromClaudeQueue(queueId);
+      setSuccessMessage(`Removed "${row.title}" from the Claude queue.`);
+      await loadListings();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : 'Unable to remove it from the queue.',
+      );
+      await loadListings();
+    } finally {
+      setUnqueueingIds((current) => {
+        const next = new Set(current);
+        next.delete(row.id);
+        return next;
+      });
     }
   };
 
@@ -734,6 +764,20 @@ const ListingEvaluatorResults = () => {
                                 size="small"
                                 color={row.claudeChip.color}
                                 variant={row.claudeChip.variant}
+                                disabled={unqueueingIds.has(row.id)}
+                                onDelete={
+                                  row.claudeChip.queueId
+                                    ? (event) => {
+                                        event.stopPropagation();
+                                        void unqueueListing(row);
+                                      }
+                                    : undefined
+                                }
+                                onClick={
+                                  row.claudeChip.queueId
+                                    ? (event) => event.stopPropagation()
+                                    : undefined
+                                }
                               />
                             </Tooltip>
                           )}
@@ -909,6 +953,20 @@ const ListingEvaluatorResults = () => {
                                     size="small"
                                     color={row.claudeChip.color}
                                     variant={row.claudeChip.variant}
+                                    disabled={unqueueingIds.has(row.id)}
+                                    onDelete={
+                                      row.claudeChip.queueId
+                                        ? (event) => {
+                                            event.stopPropagation();
+                                            void unqueueListing(row);
+                                          }
+                                        : undefined
+                                    }
+                                    onClick={
+                                      row.claudeChip.queueId
+                                        ? (event) => event.stopPropagation()
+                                        : undefined
+                                    }
                                   />
                                 </Tooltip>
                               )}
