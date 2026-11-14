@@ -337,6 +337,7 @@ import {
 import { handleMcpHost, isMcpRequest } from './eval/router.js';
 import { handleEvalAdminRequest, isEvalAdminPath } from './eval/admin-handlers.js';
 import { handleShareEval, SHARE_EVAL_PATH } from './eval/share.js';
+import { handleStorageLocationsList, STORAGE_LOCATIONS_PATH } from './inventory/storage-locations.js';
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -449,6 +450,11 @@ export default {
     if (isEvalAdminPath(path)) {
       const response = await handleEvalAdminRequest(request, env, path);
       if (response) return withCors(response, request, env);
+    }
+
+    if (path === STORAGE_LOCATIONS_PATH && request.method === 'GET') {
+      const response = await handleStorageLocationsList(env);
+      return withCors(response, request, env);
     }
 
     // Public shop endpoints

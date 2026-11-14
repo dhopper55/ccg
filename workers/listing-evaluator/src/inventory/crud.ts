@@ -1,4 +1,5 @@
 import type { Env } from '../env.js';
+import { resolveStorageLocationId } from './storage-locations.js';
 import { normalizeText, normalizeUrl } from '../utils/text.js';
 import { jsonResponse, parseBoundedInt, normalizeInventoryDate, toBooleanInput, currentDateYmd } from '../utils/misc.js';
 import { sanitizePatternLookupHtml } from '../utils/html.js';
@@ -258,6 +259,7 @@ export async function handleInventoryCreate(request: Request, env: Env): Promise
   const soldShipCostAccounted = toBooleanInput(body.soldShipCostAccounted, false);
   const saleUrl = normalizeText(body.saleUrl, '').slice(0, 150);
   const saleZip = normalizeText(body.saleZip, '').slice(0, 10);
+  const storageLocationId = await resolveStorageLocationId(env, body);
   const tagReprint = toBooleanInput(body.tagReprint, false);
   const salesChannelFields = {
     sales_channel_ccg: salesChannelCcg ? 1 : 0,
@@ -449,6 +451,7 @@ export async function handleInventoryCreate(request: Request, env: Env): Promise
     sale_zip: saleZip || null,
     merchant_center_cat_code: normalizeText(body.merchantCenterCatCode, '').slice(0, 50) || null,
     tag_reprint: tagReprint ? 1 : 0,
+    storage_location_id: storageLocationId,
   }, env);
 
   if (!inserted) {

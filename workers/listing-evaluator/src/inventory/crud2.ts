@@ -1,4 +1,5 @@
 import type { Env } from '../env.js';
+import { resolveStorageLocationId } from './storage-locations.js';
 import { normalizeText, normalizeUrl } from '../utils/text.js';
 import { jsonResponse, parseBoundedInt, normalizeInventoryDate, toBooleanInput, currentDateYmd } from '../utils/misc.js';
 import { sanitizePatternLookupHtml } from '../utils/html.js';
@@ -176,7 +177,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
   const subscriptionId = parseOptionalPositiveInt(body.subscriptionId);
   const saleUrl = normalizeText(body.saleUrl, '').slice(0, 150);
   const saleZip = normalizeText(body.saleZip, '').slice(0, 10);
-  const storageLocation = normalizeText(body.storageLocation, '').slice(0, 100);
+  const storageLocationId = await resolveStorageLocationId(env, body, recordId);
   const soldChannel = normalizeText(body.soldChannel, '').slice(0, 100);
   const tagReprint = toBooleanInput(body.tagReprint, false);
   const merchantCenterCatCode = normalizeText(body.merchantCenterCatCode, '').slice(0, 50) || null;
@@ -423,7 +424,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       width_12_fret: width12Fret || null,
       fretboard_radius: fretboardRadius || null,
       twelve_fret_action: twelveFretAction || null,
-      storage_location: storageLocation || null,
+      storage_location_id: storageLocationId,
       is_active: isActive ? 1 : 0,
       is_marked: isMarked ? 1 : 0,
       is_personal: isPersonal ? 1 : 0,
@@ -620,7 +621,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       width_12_fret: width12Fret || null,
       fretboard_radius: fretboardRadius || null,
       twelve_fret_action: twelveFretAction || null,
-      storage_location: storageLocation || null,
+      storage_location_id: storageLocationId,
       is_active: isActive ? 1 : 0,
       is_marked: 0,
       is_personal: isPersonal ? 1 : 0,
@@ -762,7 +763,7 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
     width_12_fret: width12Fret || null,
     fretboard_radius: fretboardRadius || null,
     twelve_fret_action: twelveFretAction || null,
-    storage_location: storageLocation || null,
+    storage_location_id: storageLocationId,
     is_active: isActive ? 1 : 0,
     is_marked: isMarked ? 1 : 0,
     is_personal: isPersonal ? 1 : 0,

@@ -112,6 +112,7 @@ export async function dbCreateInventoryItems(
     sale_zip: string | null;
     merchant_center_cat_code: string | null;
     tag_reprint?: number;
+    storage_location_id?: number | null;
   },
   env: Env
 ): Promise<{ firstId: string; ccgNumber: string } | null> {
@@ -137,9 +138,9 @@ export async function dbCreateInventoryItems(
         sales_channel_offerup, sales_channel_ebay, sales_channel_nextdoor, sales_channel_other,
         for_sale_date,
         is_sold, sold_date, sold_amount, sell_notes, sold_ship_cost_accounted, sale_url, sale_zip, merchant_center_cat_code,
-        tag_reprint, purchase_lot_id
+        tag_reprint, purchase_lot_id, storage_location_id
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const result = await env.DB.prepare(statement).bind(
       fields.source_listing_id,
@@ -230,6 +231,7 @@ export async function dbCreateInventoryItems(
       fields.merchant_center_cat_code,
       fields.tag_reprint ?? 0,
       fields.purchase_lot_id ?? null,
+      fields.storage_location_id ?? null,
     ).run();
     const firstId = result.meta?.last_row_id ? String(result.meta.last_row_id) : null;
     if (!firstId) return null;
@@ -274,7 +276,7 @@ export async function dbUpdateInventoryById(
     width_12_fret: string | null;
     fretboard_radius: string | null;
     twelve_fret_action: string | null;
-    storage_location: string | null;
+    storage_location_id: number | null;
     is_active: number;
     is_marked: number;
     is_personal: number;
@@ -347,7 +349,7 @@ export async function dbUpdateInventoryById(
          repair_notes = ?, original_listing_desc = ?, purchased_date = ?, unit_purchase_price = ?, map_price = ?,
          private_party_value = ?, miles = ?, minutes_spent = ?, ship_cost = ?, purchase_notes = ?, ai_analysis_text = ?, serial_number = ?,
          weight_lbs = ?, neck_profile = ?, neck_thickness = ?, nut_width = ?, width_12_fret = ?,
-         fretboard_radius = ?, twelve_fret_action = ?, storage_location = ?,
+         fretboard_radius = ?, twelve_fret_action = ?, storage_location_id = ?,
          is_active = ?, is_marked = ?, is_personal = ?, is_consignment = ?, is_rented = ?, is_custom = ?, for_sale = ?, only_in_store = ?,
          fb_listing_id = ?,
          sales_channel_ccg = ?, sales_channel_cl = ?, sales_channel_reverb = ?, sales_channel_gear_exchange = ?,
@@ -400,7 +402,7 @@ export async function dbUpdateInventoryById(
       fields.width_12_fret,
       fields.fretboard_radius,
       fields.twelve_fret_action,
-      fields.storage_location,
+      fields.storage_location_id,
       fields.is_active,
       fields.is_marked,
       fields.is_personal,

@@ -87,7 +87,8 @@ export type InventoryItemRow = {
   package_id: number | null;
   sale_url: string | null;
   sale_zip: string | null;
-  storage_location: string | null;
+  storage_location_id: number | null;
+  storage_location_name?: string | null;
   sold_channel: string | null;
   tag_reprint: number | null;
   merchant_center_cat_code: string | null;

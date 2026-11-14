@@ -132,7 +132,7 @@ export async function splitAndMarkPartialReverbSale(
     secondary_category_id: s.secondaryCategoryId != null ? Number(s.secondaryCategoryId) : null,
     purchase_lot_id: s.purchaseLotId != null ? Number(s.purchaseLotId) : null,
     queue: 'For Sale',
-    storage_location: (s.storageLocation as string) || null,
+    storage_location_id: s.storageLocationId != null ? Number(s.storageLocationId) : null,
     is_active: s.isActive ? 1 : 0,
     is_marked: s.isMarked ? 1 : 0,
     is_personal: s.isPersonal ? 1 : 0,
@@ -224,7 +224,7 @@ export async function splitAndMarkPartialReverbSale(
     secondary_category_id: s.secondaryCategoryId != null ? Number(s.secondaryCategoryId) : null,
     purchase_lot_id: s.purchaseLotId != null ? Number(s.purchaseLotId) : null,
     queue: 'Sold',
-    storage_location: (s.storageLocation as string) || null,
+    storage_location_id: s.storageLocationId != null ? Number(s.storageLocationId) : null,
     is_active: s.isActive ? 1 : 0,
     // Bound without a fallback by dbUpdateInventoryById; leaving it out made D1 reject the update.
     is_custom: s.isCustom ? 1 : 0,

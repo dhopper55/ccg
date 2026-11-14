@@ -150,6 +150,8 @@ type InventoryItemRecord = {
   sellNotes?: string;
   soldShipCostAccounted?: boolean;
   tagReprint?: boolean;
+  storageLocationId?: number | null;
+  storageLocation?: string;
 };
 
 type InventoryRecordResponse = {
@@ -302,7 +304,7 @@ type FormState = {
   subscriptionId: string;
   saleUrl: string;
   saleZip: string;
-  storageLocation: string;
+  storageLocationId: string;
   soldChannel: string;
   tagReprint: boolean;
 };
@@ -521,7 +523,7 @@ const DEFAULT_FORM: FormState = {
   subscriptionId: '',
   saleUrl: '',
   saleZip: '80113',
-  storageLocation: '',
+  storageLocationId: '',
   soldChannel: '',
   tagReprint: false,
 };
@@ -1364,6 +1366,10 @@ const InventoryItem = () => {
   const [categoryOptions, setCategoryOptions] = useState<InventoryCategoryOption[]>([]);
   const [subscriptionOptions, setSubscriptionOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [purchaseLotOptions, setPurchaseLotOptions] = useState<Array<{ id: string; name: string }>>([]);
+  // From ccg_storage_locations (GET /api/admin-v2/storage-locations).
+  const [storageLocationOptions, setStorageLocationOptions] = useState<
+    Array<{ id: string; name: string; isActive: boolean }>
+  >([]);
 
   const mode = editId ? 'edit' : 'add';
   const pageTitle = mode === 'edit' ? 'Edit Inventory Item' : 'Add Inventory Item';
@@ -1464,9 +1470,32 @@ const InventoryItem = () => {
       } catch { /* best effort */ }
     };
 
+    const loadStorageLocations = async () => {
+      try {
+        const response = await fetch('/api/admin-v2/storage-locations', {
+          method: 'GET',
+          credentials: 'same-origin',
+        });
+        const data = (await response.json()) as {
+          locations?: Array<{ id: number; name: string; isActive: boolean }>;
+        };
+        if (!response.ok || cancelled) return;
+        setStorageLocationOptions(
+          (data.locations ?? []).map((r) => ({
+            id: String(r.id),
+            name: r.name,
+            isActive: r.isActive,
+          })),
+        );
+      } catch {
+        /* best effort */
+      }
+    };
+
     void loadCategories();
     void loadSubscriptions();
     void loadPurchaseLots();
+    void loadStorageLocations();
 
     return () => {
       cancelled = true;
@@ -1596,7 +1625,8 @@ const InventoryItem = () => {
             subscriptionId: record.subscriptionId != null ? String(record.subscriptionId) : '',
             saleUrl: record.saleUrl || '',
             saleZip: record.saleZip || '',
-            storageLocation: record.storageLocation || '',
+            storageLocationId:
+              record.storageLocationId != null ? String(record.storageLocationId) : '',
             soldChannel: record.soldChannel || '',
             tagReprint: Boolean(record.tagReprint),
           });
@@ -1732,7 +1762,8 @@ const InventoryItem = () => {
             subscriptionId: record.subscriptionId != null ? String(record.subscriptionId) : '',
             saleUrl: record.saleUrl || '',
             saleZip: record.saleZip || DEFAULT_FORM.saleZip,
-            storageLocation: record.storageLocation || '',
+            storageLocationId:
+              record.storageLocationId != null ? String(record.storageLocationId) : '',
             soldChannel: '',
             tagReprint: false,
           });
@@ -2104,7 +2135,7 @@ const InventoryItem = () => {
     subscriptionId: form.subscriptionId || null,
     saleUrl: form.saleUrl.trim(),
     saleZip: form.saleZip.trim(),
-    storageLocation: form.storageLocation || null,
+    storageLocationId: form.storageLocationId ? Number(form.storageLocationId) : null,
     soldChannel: form.soldChannel || null,
     tagReprint: form.tagReprint,
   });
@@ -3653,15 +3684,25 @@ const InventoryItem = () => {
                   select
                   fullWidth
                   label="Storage Location"
-                  value={form.storageLocation}
-                  onChange={(event) => setField('storageLocation', event.target.value)}
+                  value={
+                    storageLocationOptions.some(
+                      (location) => location.id === form.storageLocationId,
+                    )
+                      ? form.storageLocationId
+                      : ''
+                  }
+                  onChange={(event) => setField('storageLocationId', event.target.value)}
                 >
                   <MenuItem value=""><em>None</em></MenuItem>
-                  <MenuItem value="Extra Space 23225">Extra Space 23225</MenuItem>
-                  <MenuItem value="Cellar">Cellar</MenuItem>
-                  <MenuItem value="Garage">Garage</MenuItem>
-                  <MenuItem value="Repair Room">Repair Room</MenuItem>
-                  <MenuItem value="CCG Shop">CCG Shop</MenuItem>
+                  {storageLocationOptions
+                    .filter(
+                      (location) => location.isActive || location.id === form.storageLocationId,
+                    )
+                    .map((location) => (
+                      <MenuItem key={location.id} value={location.id}>
+                        {location.name}
+                      </MenuItem>
+                    ))}
                 </TextField>
               </Grid>
 
