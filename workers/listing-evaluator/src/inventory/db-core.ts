@@ -505,7 +505,6 @@ export async function dbGetInventoryItem(recordId: string, env: Env): Promise<Re
       i.sale_url,
       i.sale_zip,
       i.storage_location_id,
-      (SELECT sl.name FROM ccg_storage_locations sl WHERE sl.id = i.storage_location_id) AS storage_location_name,
       i.purchase_lot_id,
       i.sold_channel,
       i.merchant_center_cat_code,
@@ -636,8 +635,8 @@ export async function dbGetInventoryItem(recordId: string, env: Env): Promise<Re
     packageId: row.package_id ?? null,
     saleUrl: row.sale_url || '',
     saleZip: row.sale_zip || '',
+    // Only the id: this SELECT is at SQLite's 100-column result limit, so no name join here.
     storageLocationId: row.storage_location_id ?? null,
-    storageLocation: row.storage_location_name || '',
     purchaseLotId: row.purchase_lot_id ?? null,
     soldChannel: row.sold_channel || '',
     tagReprint: Boolean(row.tag_reprint),
