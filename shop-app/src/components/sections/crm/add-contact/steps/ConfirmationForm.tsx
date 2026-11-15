@@ -5,7 +5,7 @@ import { loadStripe, Stripe } from '@stripe/stripe-js';
 import IconifyIcon from 'components/base/IconifyIcon';
 
 interface PaymentFormProps {
-  evaluationId: number | null;
+  evaluationId: string | null;
   onSuccess: () => void;
 }
 
@@ -109,7 +109,7 @@ export const ConfirmationBubble = () => (
   </Stack>
 );
 
-const ConfirmationForm = ({ evaluationId, onPaid }: { evaluationId: number | null; label?: string; onPaid?: () => void }) => {
+const ConfirmationForm = ({ evaluationId, onPaid }: { evaluationId: string | null; label?: string; onPaid?: () => void }) => {
   const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);

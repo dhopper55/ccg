@@ -2323,7 +2323,15 @@ function trackPurchase(paymentIntentId) {
 
 // ── State ────────────────────────────────────────────────────────────────────
 let currentStep = 1;
-let evaluationId = sessionStorage.getItem('evalId') ? Number(sessionStorage.getItem('evalId')) : null;
+// Evaluation ids are random UUIDs; drop any old numeric id left in this browser.
+const EVAL_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function readSavedEvalId() {
+  const saved = sessionStorage.getItem('evalId');
+  if (saved && EVAL_ID_PATTERN.test(saved)) return saved;
+  sessionStorage.removeItem('evalId');
+  return null;
+}
+let evaluationId = readSavedEvalId();
 let stripeInstance = null;
 let stripeElements = null;
 // Attribution — captured once at load so it always reflects how this visit actually
@@ -2881,9 +2889,9 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbo
 (function() {
   const params = new URLSearchParams(window.location.search);
   const rs = params.get('redirect_status');
-  const savedId = sessionStorage.getItem('evalId');
+  const savedId = readSavedEvalId();
   if ((rs === 'succeeded' || rs === 'processing') && savedId) {
-    evaluationId = Number(savedId);
+    evaluationId = savedId;
     fetch('/api/guitar-evaluation/confirm-payment', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ evaluationId, paymentIntentId: params.get('payment_intent') }),

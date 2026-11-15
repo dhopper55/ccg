@@ -72,7 +72,7 @@ const AddContactStepper = ({ onFirstAdvance }: AddContactStepperProps) => {
   const [activeStep, setActiveStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<Record<number, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
-  const [evaluationId, setEvaluationId] = useState<number | null>(null);
+  const [evaluationId, setEvaluationId] = useState<string | null>(null);
 
   // If returning from a Stripe redirect (e.g. Cash App Pay), jump to the payment step
   // so ConfirmationForm can resolve the redirect_status and advance to success.

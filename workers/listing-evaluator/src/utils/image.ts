@@ -40,6 +40,48 @@ export function detectContentTypeFromBytes(bytes: Uint8Array): string | null {
   return null;
 }
 
+// Public uploads: only raster photo formats, identified from the file's bytes. The browser-
+// supplied type is ignored, because a file claiming image/* could be an SVG or HTML with script.
+export const SAFE_UPLOAD_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic']);
+export const MAX_UPLOAD_IMAGE_BYTES = 25 * 1024 * 1024;
+
+export type SafeUploadImage = { bytes: ArrayBuffer; contentType: string; ext: string };
+
+export async function readSafeUploadImage(file: File): Promise<SafeUploadImage | null> {
+  if (file.size > MAX_UPLOAD_IMAGE_BYTES) return null;
+  const bytes = await file.arrayBuffer();
+  const detected = detectContentTypeFromBytes(new Uint8Array(bytes, 0, Math.min(bytes.byteLength, 16)));
+  if (!detected || !SAFE_UPLOAD_IMAGE_TYPES.has(detected)) return null;
+  return { bytes, contentType: detected, ext: extensionFromContentType(detected) };
+}
+
+export async function readSafeUploadImages(files: File[]): Promise<SafeUploadImage[] | null> {
+  const images: SafeUploadImage[] = [];
+  for (const file of files) {
+    const image = await readSafeUploadImage(file);
+    if (!image) return null;
+    images.push(image);
+  }
+  return images;
+}
+
+const SAFE_SERVE_TYPES = new Set([
+  'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif',
+  'image/avif', 'image/bmp', 'image/tiff',
+]);
+
+// For stored files served from www (same origin as /admin): anything that isn't a plain
+// raster image is forced to download, and nothing served can run script.
+export function applySafeStoredFileHeaders(headers: Headers): void {
+  const type = (headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+  if (!SAFE_SERVE_TYPES.has(type)) {
+    headers.set('content-type', 'application/octet-stream');
+    headers.set('content-disposition', 'attachment');
+  }
+  headers.set('x-content-type-options', 'nosniff');
+  headers.set('content-security-policy', "default-src 'none'; sandbox");
+}
+
 export function extensionFromContentType(contentType: string): string {
   const normalized = contentType.toLowerCase();
   if (normalized.includes('jpeg') || normalized.includes('jpg')) return 'jpg';

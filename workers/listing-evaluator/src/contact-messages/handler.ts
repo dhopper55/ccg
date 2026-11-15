@@ -1,7 +1,7 @@
 import type { Env } from '../env.js';
 import { jsonResponse } from '../utils/misc.js';
 import { normalizeText, normalizeEmailAddress, escapeHtml } from '../utils/text.js';
-import { extensionFromContentType } from '../utils/image.js';
+import { applySafeStoredFileHeaders, readSafeUploadImages } from '../utils/image.js';
 import { verifyTurnstileToken } from '../utils/turnstile.js';
 import { getBrevoRuntimeConfig } from '../system/runtime.js';
 import { sendBrevoTransactionalEmail } from '../orders/email.js';
@@ -47,10 +47,9 @@ export async function handleContactMessageRequest(request: Request, env: Env): P
   if (files.length > CONTACT_MESSAGE_MAX_PHOTOS) {
     return jsonResponse({ message: `Maximum ${CONTACT_MESSAGE_MAX_PHOTOS} photos allowed.` }, 400);
   }
-  for (const file of files) {
-    if (!file.type.startsWith('image/')) {
-      return jsonResponse({ message: 'Only image files are supported.' }, 400);
-    }
+  const images = await readSafeUploadImages(files);
+  if (!images) {
+    return jsonResponse({ message: 'Only JPEG, PNG, WebP, GIF or HEIC photos up to 25 MB are supported.' }, 400);
   }
 
   let messageId: number;
@@ -66,12 +65,11 @@ export async function handleContactMessageRequest(request: Request, env: Env): P
 
   const imageKeys: string[] = [];
   try {
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const ext = extensionFromContentType(file.type);
-      const key = `contact-message-images/${messageId}/${crypto.randomUUID()}-${i}.${ext}`;
-      await env.CUSTOM_ITEMS_BUCKET.put(key, await file.arrayBuffer(), {
-        httpMetadata: { contentType: file.type },
+    for (let i = 0; i < images.length; i++) {
+      const image = images[i];
+      const key = `contact-message-images/${messageId}/${crypto.randomUUID()}-${i}.${image.ext}`;
+      await env.CUSTOM_ITEMS_BUCKET.put(key, image.bytes, {
+        httpMetadata: { contentType: image.contentType },
       });
       imageKeys.push(key);
     }
@@ -154,6 +152,7 @@ export async function handleContactMessageImage(request: Request, key: string, e
 
   const headers = new Headers();
   object.writeHttpMetadata(headers);
+  applySafeStoredFileHeaders(headers);
   headers.set('etag', object.httpEtag);
   headers.set('cache-control', 'public, max-age=86400');
   return new Response(object.body, { headers });

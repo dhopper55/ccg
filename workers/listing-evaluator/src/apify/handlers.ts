@@ -74,11 +74,14 @@ export async function runApifySearch(actorId: string, input: Record<string, unkn
 export async function handleWebhook(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const url = new URL(request.url);
 
-  if (env.WEBHOOK_SECRET) {
-    const provided = url.searchParams.get('key');
-    if (!provided || provided !== env.WEBHOOK_SECRET) {
-      return jsonResponse({ message: 'Unauthorized' }, 401);
-    }
+  // Fail closed: without WEBHOOK_SECRET this route would accept forged calls from anyone.
+  // startApifyRun adds ?key=<WEBHOOK_SECRET> to the callback URL it registers with Apify.
+  const secret = normalizeText(env.WEBHOOK_SECRET, '');
+  if (!secret) {
+    return jsonResponse({ message: 'Webhook not configured.' }, 503);
+  }
+  if (!(await secretMatches(url.searchParams.get('key') || '', secret))) {
+    return jsonResponse({ message: 'Unauthorized' }, 401);
   }
 
   let payload: any;
@@ -88,21 +91,36 @@ export async function handleWebhook(request: Request, env: Env, ctx: ExecutionCo
     return jsonResponse({ message: 'Invalid webhook payload.' }, 400);
   }
 
-  const resource = payload.resource || payload.data || payload;
-  const runId = resource?.id || payload.runId || payload.runId;
-  const eventType = payload.eventType || payload.event || payload.eventType;
+  const claimed = payload.resource || payload.data || payload;
+  const runId = normalizeText(claimed?.id || payload.runId, '');
   const recordId = normalizeText(url.searchParams.get('recordId'), '');
 
-  if (!runId) {
+  if (!/^[A-Za-z0-9]{1,64}$/.test(runId)) {
     return jsonResponse({ message: 'Missing run ID.' }, 400);
+  }
+
+  // Trust Apify's own record of the run (status, dataset), not the posted body.
+  const run = await fetchApifyRun(runId, env);
+  const status = normalizeText(run?.status, '');
+  if (!run || (status !== 'SUCCEEDED' && status !== 'FAILED')) {
+    return jsonResponse({ message: 'Run not found or not finished.' }, 400);
   }
 
   if (recordId) {
     await env.LISTING_JOBS.put(runId, recordId);
   }
 
-  await processRun(runId, resource, eventType, env);
+  await processRun(runId, run, status, env);
   return jsonResponse({ ok: true });
+}
+
+async function secretMatches(given: string, expected: string): Promise<boolean> {
+  const digest = async (value: string) =>
+    new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)));
+  const [a, b] = await Promise.all([digest(given), digest(expected)]);
+  let diff = 0;
+  for (let i = 0; i < a.length; i += 1) diff |= a[i] ^ b[i];
+  return diff === 0;
 }
 
 export async function handleYoutubeVideos(): Promise<Response> {

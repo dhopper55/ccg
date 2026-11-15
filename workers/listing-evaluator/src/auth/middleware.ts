@@ -134,9 +134,9 @@ export function isPublicApiPath(path: string): boolean {
     || path === '/api/guitar-evaluation/payment-intent'
     || path === '/api/guitar-evaluation/confirm-payment'
     || path === '/api/guitar-evaluation/validate-coupon'
-    || /^\/api\/guitar-evaluation\/\d+\/upload-images$/.test(path)
-    || /^\/api\/guitar-evaluation\/\d+\/status$/.test(path)
-    || /^\/api\/guitar-evaluation\/\d+$/.test(path)
+    || /^\/api\/guitar-evaluation\/[0-9a-fA-F-]{36}\/upload-images$/.test(path)
+    || /^\/api\/guitar-evaluation\/[0-9a-fA-F-]{36}\/status$/.test(path)
+    || /^\/api\/guitar-evaluation\/[0-9a-fA-F-]{36}$/.test(path)
     || path === '/api/guitar-evaluation-image'
     || /^\/api\/guitar-eval-report\/[0-9a-f-]+$/i.test(path)
     || path === '/api/email-signup'

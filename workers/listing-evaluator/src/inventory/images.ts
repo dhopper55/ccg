@@ -1,7 +1,7 @@
 import type { Env } from '../env.js';
 import { normalizeText, normalizeUrl } from '../utils/text.js';
 import { jsonResponse } from '../utils/misc.js';
-import { ALLOWED_IMAGE_TYPES, detectContentTypeFromBytes, extensionFromContentType, buildInventoryImageUrl } from '../utils/image.js';
+import { ALLOWED_IMAGE_TYPES, applySafeStoredFileHeaders, detectContentTypeFromBytes, extensionFromContentType, buildInventoryImageUrl } from '../utils/image.js';
 import { ensureInventoryHostedImageUrls, importExternalImageToInventory } from './db-images.js';
 
 export async function handleInventoryImage(request: Request, env: Env): Promise<Response> {
@@ -31,6 +31,7 @@ export async function handleInventoryImage(request: Request, env: Env): Promise<
     if (!headers.get('content-type')) {
       headers.set('content-type', 'application/octet-stream');
     }
+    applySafeStoredFileHeaders(headers);
     return new Response(null, { headers });
   }
 
@@ -49,6 +50,7 @@ export async function handleInventoryImage(request: Request, env: Env): Promise<
     const detected = detectContentTypeFromBytes(new Uint8Array(body));
     headers.set('content-type', detected || 'application/octet-stream');
   }
+  applySafeStoredFileHeaders(headers);
   return new Response(body, { headers });
 }
 
@@ -86,6 +88,7 @@ export async function handlePublicImageBytes(request: Request, key: string, env:
     headers.set('content-length', String(head.size));
     headers.set('cache-control', 'public, max-age=86400');
     if (!headers.get('content-type')) headers.set('content-type', 'application/octet-stream');
+    applySafeStoredFileHeaders(headers);
     return new Response(null, { headers });
   }
 
@@ -102,6 +105,7 @@ export async function handlePublicImageBytes(request: Request, key: string, env:
     const detected = detectContentTypeFromBytes(new Uint8Array(body));
     headers.set('content-type', detected || 'application/octet-stream');
   }
+  applySafeStoredFileHeaders(headers);
   return new Response(body, { headers });
 }
 

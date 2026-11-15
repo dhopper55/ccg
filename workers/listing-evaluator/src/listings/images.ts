@@ -1,5 +1,6 @@
 import type { Env } from '../env.js';
 import { jsonResponse } from '../utils/misc.js';
+import { applySafeStoredFileHeaders } from '../utils/image.js';
 
 function detectContentTypeFromBytes(bytes: Uint8Array): string | null {
   if (bytes.length < 4) return null;
@@ -84,6 +85,7 @@ export async function handleCustomImage(request: Request, env: Env): Promise<Res
     const detected = detectContentTypeFromBytes(new Uint8Array(body));
     headers.set('content-type', detected || 'application/octet-stream');
   }
+  applySafeStoredFileHeaders(headers);
   return new Response(body, { headers });
 }
 
@@ -113,6 +115,7 @@ export async function handleListingImage(request: Request, env: Env): Promise<Re
     const detected = detectContentTypeFromBytes(new Uint8Array(body));
     headers.set('content-type', detected || 'application/octet-stream');
   }
+  applySafeStoredFileHeaders(headers);
   return new Response(body, { headers });
 }
 

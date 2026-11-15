@@ -3,7 +3,19 @@ import { jsonResponse } from '../utils/misc.js';
 import { normalizeText, escapeHtml } from '../utils/text.js';
 import { getStripeRuntimeConfig, getBrevoRuntimeConfig } from '../system/runtime.js';
 import { sendBrevoTransactionalEmail, ADMIN_BCC_RECIPIENT } from '../orders/email.js';
-import { extensionFromContentType } from '../utils/image.js';
+import { applySafeStoredFileHeaders, readSafeUploadImages } from '../utils/image.js';
+
+// Public routes identify an evaluation by its random public_id (UUID), never the sequential
+// row id, so one customer can't read or change another's evaluation by guessing numbers.
+const PUBLIC_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+export async function resolveEvaluationId(publicId: unknown, env: Env): Promise<number | null> {
+  const value = normalizeText(publicId, '').toLowerCase();
+  if (!PUBLIC_ID_PATTERN.test(value)) return null;
+  const row = await env.DB.prepare('SELECT id FROM guitar_evaluations WHERE public_id = ?')
+    .bind(value).first<{ id: number }>();
+  return row?.id ?? null;
+}
 
 export async function dbInsertGuitarEvaluation(env: Env, data: {
   serialNumber: string | null;
@@ -23,13 +35,14 @@ export async function dbInsertGuitarEvaluation(env: Env, data: {
   curiosityReason: string;
   landingReferrer: string | null;
   landingPath: string | null;
+  publicId: string;
 }): Promise<number | null> {
   const result = await env.DB.prepare(`
     INSERT INTO guitar_evaluations (
       serial_number, brand, brand_other, model, includes_case, color_finish,
       location, note, damage, first_name, last_name, email, serial_decode_event_id, type, curiosity_reason,
-      landing_referrer, landing_path, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      landing_referrer, landing_path, created_at, public_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     data.serialNumber,
     data.brand,
@@ -49,6 +62,7 @@ export async function dbInsertGuitarEvaluation(env: Env, data: {
     data.landingReferrer,
     data.landingPath,
     new Date().toISOString(),
+    data.publicId,
   ).run();
   return (result.meta?.last_row_id as number) ?? null;
 }
@@ -61,9 +75,9 @@ export async function handleGuitarEvaluationPaymentIntent(request: Request, env:
     return jsonResponse({ message: 'Invalid request body.' }, 400);
   }
 
-  const evaluationId = body?.evaluationId;
+  const evaluationId = await resolveEvaluationId(body?.evaluationId, env);
   if (!evaluationId) {
-    return jsonResponse({ message: 'evaluationId is required.' }, 400);
+    return jsonResponse({ message: 'Evaluation not found.' }, 404);
   }
 
   const stripeConfig = await getStripeRuntimeConfig(env);
@@ -74,6 +88,9 @@ export async function handleGuitarEvaluationPaymentIntent(request: Request, env:
   const evalRow = await env.DB.prepare(
     'SELECT email, type FROM guitar_evaluations WHERE id = ?'
   ).bind(evaluationId).first<{ email: string | null; type: string | null }>();
+  if (!evalRow) {
+    return jsonResponse({ message: 'Evaluation not found.' }, 404);
+  }
 
   const isAuthenticity = evalRow?.type === 'AUTHENTICITY';
   const params = new URLSearchParams({
@@ -105,7 +122,9 @@ export async function handleGuitarEvaluationPaymentIntent(request: Request, env:
   return jsonResponse({ clientSecret: intent.client_secret, publishableKey: stripeConfig.publishableKey });
 }
 
-export async function handleGuitarEvaluationStatus(evaluationId: string, env: Env): Promise<Response> {
+export async function handleGuitarEvaluationStatus(publicId: string, env: Env): Promise<Response> {
+  const evaluationId = await resolveEvaluationId(publicId, env);
+  if (!evaluationId) return jsonResponse({ message: 'Not found.' }, 404);
   const row = await env.DB.prepare(
     `SELECT report_guid, report_error, fulfilled, email_delivery_status FROM guitar_evaluations WHERE id = ?`,
   ).bind(evaluationId).first<{
@@ -139,10 +158,13 @@ export async function handleGuitarEvaluationConfirmPayment(request: Request, env
     return jsonResponse({ message: 'Invalid request body.' }, 400);
   }
 
-  const evaluationId = body?.evaluationId;
+  const evaluationId = await resolveEvaluationId(body?.evaluationId, env);
   const paymentIntentId = normalizeText(body?.paymentIntentId, '');
-  if (!evaluationId || !paymentIntentId) {
+  if (!paymentIntentId) {
     return jsonResponse({ message: 'evaluationId and paymentIntentId are required.' }, 400);
+  }
+  if (!evaluationId) {
+    return jsonResponse({ message: 'Evaluation not found.' }, 404);
   }
 
   // Verify payment status with Stripe before recording or triggering report generation
@@ -164,13 +186,38 @@ export async function handleGuitarEvaluationConfirmPayment(request: Request, env
     return jsonResponse({ message: `Payment not completed (status: ${status}).`, status }, 402);
   }
 
-  await env.DB.prepare(
-    `UPDATE guitar_evaluations SET stripe_payment_intent_id = ? WHERE id = ?`
-  ).bind(paymentIntentId, evaluationId).run();
-
   const evalTypeRow = await env.DB.prepare(
-    'SELECT type FROM guitar_evaluations WHERE id = ?'
-  ).bind(evaluationId).first<{ type: string | null }>();
+    'SELECT type, stripe_payment_intent_id FROM guitar_evaluations WHERE id = ?'
+  ).bind(evaluationId).first<{ type: string | null; stripe_payment_intent_id: string | null }>();
+  if (!evalTypeRow) {
+    return jsonResponse({ message: 'Evaluation not found.' }, 404);
+  }
+
+  // The PaymentIntent must be the one created for this evaluation, at this evaluation's
+  // price. Otherwise any successful payment on the account could unlock any report.
+  const expectedAmount = evalTypeRow.type === 'AUTHENTICITY' ? 1200 : 1999;
+  const intentEvalId = normalizeText(intent?.metadata?.evaluation_id, '');
+  if (
+    intentEvalId !== String(evaluationId)
+    || normalizeText(intent?.metadata?.source, '') !== 'guitar_evaluation'
+    || normalizeText(intent?.currency, '').toLowerCase() !== 'usd'
+    || Number(intent?.amount) < expectedAmount
+  ) {
+    return jsonResponse({ message: 'Payment does not match this evaluation.' }, 400);
+  }
+
+  // Already recorded: don't queue another report run or re-notify staff.
+  if (normalizeText(evalTypeRow.stripe_payment_intent_id, '')) {
+    return jsonResponse({ ok: true });
+  }
+
+  const claimed = await env.DB.prepare(
+    `UPDATE guitar_evaluations SET stripe_payment_intent_id = ?
+     WHERE id = ? AND (stripe_payment_intent_id IS NULL OR stripe_payment_intent_id = '')`
+  ).bind(paymentIntentId, evaluationId).run();
+  if (Number(claimed.meta?.changes || 0) !== 1) {
+    return jsonResponse({ ok: true });
+  }
 
   if (env.REPORT_QUEUE && evalTypeRow?.type !== 'AUTHENTICITY') {
     try {
@@ -239,7 +286,7 @@ export async function handleGuitarEvaluationValidateCoupon(request: Request, env
     return jsonResponse({ message: 'Invalid request body.' }, 400);
   }
 
-  const evaluationId = body?.evaluationId;
+  const evaluationId = await resolveEvaluationId(body?.evaluationId, env);
   const couponCode = normalizeText(body?.couponCode, '');
   if (!evaluationId || !couponCode) {
     return jsonResponse({ message: 'evaluationId and couponCode are required.' }, 400);
@@ -284,6 +331,7 @@ export async function handleGuitarEvaluationSubmit(request: Request, env: Env): 
     finalCuriosityReason = 'N/A';
   }
 
+  const publicId = crypto.randomUUID();
   const id = await dbInsertGuitarEvaluation(env, {
     serialNumber: serialNumber ?? null,
     brand,
@@ -302,19 +350,21 @@ export async function handleGuitarEvaluationSubmit(request: Request, env: Env): 
     curiosityReason: finalCuriosityReason,
     landingReferrer: typeof landingReferrer === 'string' ? landingReferrer.slice(0, 2000) : null,
     landingPath: typeof landingPath === 'string' ? landingPath.slice(0, 2000) : null,
+    publicId,
   });
 
   if (!id) {
     return jsonResponse({ message: 'Failed to save evaluation. Please try again.' }, 500);
   }
 
-  return jsonResponse({ id, message: 'Evaluation submitted successfully.' });
+  // The page uses this id for every later call; it's the random public_id, not the row id.
+  return jsonResponse({ id: publicId, message: 'Evaluation submitted successfully.' });
 }
 
-export async function handleGuitarEvaluationUpdate(request: Request, evaluationId: string, env: Env): Promise<Response> {
-  const id = parseInt(evaluationId, 10);
-  if (!Number.isInteger(id) || id <= 0) {
-    return jsonResponse({ message: 'Invalid evaluation ID.' }, 400);
+export async function handleGuitarEvaluationUpdate(request: Request, publicId: string, env: Env): Promise<Response> {
+  const id = await resolveEvaluationId(publicId, env);
+  if (!id) {
+    return jsonResponse({ message: 'Evaluation not found.' }, 404);
   }
 
   let body: any;
@@ -367,15 +417,13 @@ export async function handleGuitarEvaluationUpdate(request: Request, evaluationI
   return jsonResponse({ ok: true });
 }
 
-export async function handleGuitarEvaluationUploadImages(request: Request, evaluationId: string, env: Env): Promise<Response> {
+export async function handleGuitarEvaluationUploadImages(request: Request, publicId: string, env: Env): Promise<Response> {
   if (!env.CUSTOM_ITEMS_BUCKET) {
     return jsonResponse({ message: 'Image storage is not configured.' }, 500);
   }
 
-  const row = await env.DB.prepare(
-    `SELECT id FROM guitar_evaluations WHERE id = ?`
-  ).bind(evaluationId).first<{ id: number }>();
-  if (!row) return jsonResponse({ message: 'Evaluation not found.' }, 404);
+  const evaluationId = await resolveEvaluationId(publicId, env);
+  if (!evaluationId) return jsonResponse({ message: 'Evaluation not found.' }, 404);
 
   let formData: FormData;
   try {
@@ -391,20 +439,18 @@ export async function handleGuitarEvaluationUploadImages(request: Request, evalu
   if (files.length === 0) return jsonResponse({ ok: true, keys: [] });
   if (files.length > 20) return jsonResponse({ message: 'Maximum 20 photos allowed.' }, 400);
 
-  for (const file of files) {
-    if (!file.type.startsWith('image/')) {
-      return jsonResponse({ message: 'Only image files are supported.' }, 400);
-    }
+  const images = await readSafeUploadImages(files);
+  if (!images) {
+    return jsonResponse({ message: 'Only JPEG, PNG, WebP, GIF or HEIC photos up to 25 MB are supported.' }, 400);
   }
 
   const keys: string[] = [];
   try {
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const ext = extensionFromContentType(file.type);
-      const key = `guitar-eval-images/${evaluationId}/${crypto.randomUUID()}-${i}.${ext}`;
-      await env.CUSTOM_ITEMS_BUCKET.put(key, await file.arrayBuffer(), {
-        httpMetadata: { contentType: file.type },
+    for (let i = 0; i < images.length; i++) {
+      const image = images[i];
+      const key = `guitar-eval-images/${evaluationId}/${crypto.randomUUID()}-${i}.${image.ext}`;
+      await env.CUSTOM_ITEMS_BUCKET.put(key, image.bytes, {
+        httpMetadata: { contentType: image.contentType },
       });
       keys.push(key);
     }
@@ -414,7 +460,7 @@ export async function handleGuitarEvaluationUploadImages(request: Request, evalu
     ).bind(JSON.stringify(keys), evaluationId).run();
   } catch (error) {
     console.error('guitar eval image upload failed', { evaluationId, error });
-    return jsonResponse({ message: 'Image upload failed.', detail: String(error) }, 500);
+    return jsonResponse({ message: 'Image upload failed.' }, 500);
   }
 
   return jsonResponse({ ok: true, keys });
@@ -437,6 +483,7 @@ export async function handleGuitarEvaluationImage(request: Request, env: Env): P
 
   const headers = new Headers();
   object.writeHttpMetadata(headers);
+  applySafeStoredFileHeaders(headers);
   headers.set('etag', object.httpEtag);
   headers.set('cache-control', 'public, max-age=86400');
   return new Response(object.body, { headers });

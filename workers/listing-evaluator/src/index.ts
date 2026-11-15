@@ -562,19 +562,19 @@ export default {
       return withCors(response, request, env);
     }
 
-    const guitarEvalUploadMatch = path.match(/^\/api\/guitar-evaluation\/(\d+)\/upload-images$/);
+    const guitarEvalUploadMatch = path.match(/^\/api\/guitar-evaluation\/([0-9a-fA-F-]{36})\/upload-images$/);
     if (guitarEvalUploadMatch && request.method === 'POST') {
       const response = await handleGuitarEvaluationUploadImages(request, guitarEvalUploadMatch[1], env);
       return withCors(response, request, env);
     }
 
-    const guitarEvalUpdateMatch = path.match(/^\/api\/guitar-evaluation\/(\d+)$/);
+    const guitarEvalUpdateMatch = path.match(/^\/api\/guitar-evaluation\/([0-9a-fA-F-]{36})$/);
     if (guitarEvalUpdateMatch && request.method === 'PATCH') {
       const response = await handleGuitarEvaluationUpdate(request, guitarEvalUpdateMatch[1], env);
       return withCors(response, request, env);
     }
 
-    const guitarEvalStatusMatch = path.match(/^\/api\/guitar-evaluation\/(\d+)\/status$/);
+    const guitarEvalStatusMatch = path.match(/^\/api\/guitar-evaluation\/([0-9a-fA-F-]{36})\/status$/);
     if (guitarEvalStatusMatch && request.method === 'GET') {
       const response = await handleGuitarEvaluationStatus(guitarEvalStatusMatch[1], env);
       return withCors(response, request, env);

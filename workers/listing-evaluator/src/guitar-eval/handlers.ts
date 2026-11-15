@@ -142,6 +142,24 @@ function buildUndeliveredBanner(email: string): string {
   return `<div style="background:#B3261E;color:#fff;font-family:-apple-system,Helvetica,Arial,sans-serif;font-weight:700;font-size:16px;line-height:1.5;text-align:center;padding:16px 20px;">Email delivery of report to ${escHtml(email)} failed. Please save this report here in order to preserve results.</div>`;
 }
 
+// Reports are AI-written HTML (customer notes go into the prompt) served from www, the same
+// origin as /admin. Sandbox them: no script runs, and the page gets an opaque origin so it
+// can't use the admin cookie even if a script slipped into the HTML.
+const REPORT_SECURITY_HEADERS: Record<string, string> = {
+  'Content-Security-Policy': [
+    'sandbox allow-popups allow-popups-to-escape-sandbox allow-downloads',
+    "default-src 'none'",
+    "img-src 'self' https: data:",
+    "style-src 'unsafe-inline' https://fonts.googleapis.com",
+    'font-src https://fonts.gstatic.com data:',
+    "base-uri 'none'",
+    "form-action 'none'",
+    "frame-ancestors 'self'",
+  ].join('; '),
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'no-referrer',
+};
+
 export async function handlePublicGuitarEvalReport(guid: string, env: Env): Promise<Response> {
   if (!env.CUSTOM_ITEMS_BUCKET) {
     return new Response('Storage not configured.', { status: 500 });
@@ -165,6 +183,7 @@ export async function handlePublicGuitarEvalReport(guid: string, env: Env): Prom
       : banner + html;
     return new Response(withBanner, {
       headers: {
+        ...REPORT_SECURITY_HEADERS,
         'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': 'public, max-age=300',
       },
@@ -173,6 +192,7 @@ export async function handlePublicGuitarEvalReport(guid: string, env: Env): Prom
 
   return new Response(obj.body, {
     headers: {
+      ...REPORT_SECURITY_HEADERS,
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'public, max-age=3600',
     },
