@@ -2,7 +2,7 @@ import type { Env } from '../env.js';
 import { normalizeText } from '../utils/text.js';
 import { parseCurrencyAmount, normalizeMoneyValue } from '../utils/money.js';
 import type { SingleAiResult, ListingData } from '../types/core.js';
-import { REVERB_SEARCH_API_URL, REVERB_API_TOKEN_FALLBACK, REVERB_PRICING_SEARCH_LIMIT } from '../constants.js';
+import { REVERB_SEARCH_API_URL, REVERB_PRICING_SEARCH_LIMIT } from '../constants.js';
 import { normalizeReverbCondition as _normalizeReverbConditionInternal } from './reverb2.js';
 
 export type ReverbItemResponse = {
@@ -211,12 +211,14 @@ export function buildReverbPricingQuery(base: SingleAiResult): string {
 }
 
 export function reverbRequestHeaders(env: Env): HeadersInit {
-  const token = env.REVERB_API_TOKEN || REVERB_API_TOKEN_FALLBACK;
+  // REVERB_API_TOKEN secret only (wrangler secret put REVERB_API_TOKEN). Without it, public
+  // search still works unauthenticated; listing writes fail with a Reverb auth error.
+  const token = (env.REVERB_API_TOKEN || '').trim();
   return {
     'Content-Type': 'application/hal+json; charset=utf-8',
     'Accept': 'application/hal+json',
     'Accept-Version': '3.0',
-    'Authorization': `Bearer ${token}`,
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
   };
 }
 

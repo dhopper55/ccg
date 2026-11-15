@@ -245,26 +245,8 @@ export async function handleGuitarEvaluationValidateCoupon(request: Request, env
     return jsonResponse({ message: 'evaluationId and couponCode are required.' }, 400);
   }
 
-  if (couponCode.toUpperCase() === 'CCG_WORKER') {
-    await env.DB.prepare(
-      `UPDATE guitar_evaluations SET stripe_payment_intent_id = ? WHERE id = ?`
-    ).bind(couponCode, evaluationId).run();
-    const evalTypeRow = await env.DB.prepare(
-      'SELECT type FROM guitar_evaluations WHERE id = ?'
-    ).bind(evaluationId).first<{ type: string | null }>();
-    if (env.REPORT_QUEUE && evalTypeRow?.type !== 'AUTHENTICITY') {
-      try {
-        await env.REPORT_QUEUE.send({ evaluationId: Number(evaluationId) });
-      } catch (err) {
-        console.error('Failed to enqueue report generation after coupon:', err);
-      }
-    }
-    if (evalTypeRow?.type === 'AUTHENTICITY') {
-      await notifyStaffOfAuthenticityOrder(evaluationId, env);
-    }
-    return jsonResponse({ valid: true });
-  }
-
+  // The hardcoded CCG_WORKER coupon was removed (security audit, 2026-11): it was public and
+  // unlimited. No coupons are currently valid.
   return jsonResponse({ valid: false });
 }
 

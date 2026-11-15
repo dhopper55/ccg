@@ -45,7 +45,11 @@ export function handleShopAssociateModeDisable(): Response {
 
 export function isValidAssociateToken(token: string, env: Env): boolean {
   const expected = normalizeText(env.ASSOCIATE_MODE_TOKEN, '');
-  return Boolean(expected && token === expected);
+  // Refuse short values so a weak token can't be configured by accident.
+  if (expected.length < 16 || token.length !== expected.length) return false;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i += 1) diff |= token.charCodeAt(i) ^ expected.charCodeAt(i);
+  return diff === 0;
 }
 
 export async function isAssociateModeRequest(request: Request, env: Env): Promise<boolean> {

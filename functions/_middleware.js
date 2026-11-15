@@ -1,5 +1,34 @@
+// Pages publishes the whole repo root, so source code, notes and config files are uploaded
+// along with the site. Never serve them. (templates/ and sitemap-lastmod.json are read at
+// runtime and stay public.)
+const BLOCKED_DIRS = [
+  '/workers/', '/shop-app/', '/admin-v2-app/', '/dncbudget-app/', '/ccg-fbm-sync/',
+  '/scripts/', '/src/', '/shared/', '/functions/', '/node_modules/', '/.claude/', '/.git/',
+];
+const BLOCKED_ROOT_FILE = /^\/[^/]+\.(md|sql|txt|csv|ts|tsx|py|toml|lock|json)$/i;
+const ALLOWED_ROOT_FILES = new Set(['/sitemap-lastmod.json', '/robots.txt']);
+const BLOCKED_DOTFILE = /\/\.[^/]*$/;
+
+function isBlockedSourcePath(pathname) {
+  let path;
+  try {
+    path = decodeURIComponent(pathname).toLowerCase();
+  } catch {
+    return true;
+  }
+  if (BLOCKED_DIRS.some((dir) => path.startsWith(dir) || path === dir.slice(0, -1))) return true;
+  if (BLOCKED_DOTFILE.test(path)) return true;
+  return BLOCKED_ROOT_FILE.test(path) && !ALLOWED_ROOT_FILES.has(path);
+}
+
 export async function onRequest(context) {
   const url = new URL(context.request.url);
+  if (isBlockedSourcePath(url.pathname)) {
+    return new Response('Not found', {
+      status: 404,
+      headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' },
+    });
+  }
   const shopBase = '/guitars-and-gear-for-sale';
   const siteOrigin = 'https://www.coalcreekguitars.com';
 

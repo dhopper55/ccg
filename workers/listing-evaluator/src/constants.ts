@@ -106,7 +106,6 @@ export const CUSTOM_MAX_PHOTOS = 10;
 export const CUSTOM_MAX_TEXT_LENGTH = 5000;
 export const REVERB_API_BASE_URL = 'https://api.reverb.com/api';
 export const REVERB_SEARCH_API_URL = 'https://api.reverb.com/api/listings';
-export const REVERB_API_TOKEN_FALLBACK = '91712608fefe08e6915c2d781519411af3bdd750818a8edc94d94e14a3d7c491';
 export const REVERB_PRICING_SEARCH_LIMIT = 12;
 export const GX_API_BASE_URL = 'https://www.sweetwater.com/used/public-api/v1';
 export const CCG_NUMBER_MIN = 100000;
