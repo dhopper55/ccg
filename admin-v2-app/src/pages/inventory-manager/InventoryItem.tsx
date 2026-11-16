@@ -3396,7 +3396,7 @@ const InventoryItem = () => {
             <Typography sx={{ color: 'text.secondary' }}>Loading inventory item…</Typography>
           </Stack>
         ) : (
-          <Stack spacing={4}>
+          <Stack direction="column" spacing={4}>
             <Grid container spacing={3}>
               <Grid size={{ xs: 12, md: 4 }}>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
@@ -4111,7 +4111,7 @@ const InventoryItem = () => {
                   open={openSections.extDesc}
                   onToggle={() => toggleSection('extDesc')}
                 >
-                  <Stack spacing={2.5} sx={{ pt: 1 }}>
+                  <Stack direction="column" spacing={2.5} sx={{ pt: 1 }}>
                     <TextField
                       fullWidth
                       multiline
@@ -4260,7 +4260,7 @@ const InventoryItem = () => {
                     </Tooltip>
                   }
                 >
-                  <Stack spacing={2.5}>
+                  <Stack direction="column" spacing={2.5}>
                     <Box>
                       <Typography variant="caption" sx={{ display: 'block', mb: 1, color: 'text.secondary', fontWeight: 600 }}>
                         Channels

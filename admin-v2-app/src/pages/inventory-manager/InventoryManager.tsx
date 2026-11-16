@@ -1305,7 +1305,7 @@ const InventoryManager = () => {
               bgcolor: 'background.paper',
             }}
           >
-            <Stack spacing={1.5}>
+            <Stack direction="column" spacing={1.5}>
               {/* Core filters: always visible. Two per row on phones. */}
               <Box
                 sx={{
@@ -1461,7 +1461,7 @@ const InventoryManager = () => {
               </Box>
 
               <Collapse in={moreFiltersOpen} timeout="auto" unmountOnExit>
-                <Stack spacing={2} sx={{ pt: 1.5, borderTop: 1, borderColor: 'divider' }}>
+                <Stack direction="column" spacing={2} sx={{ pt: 1.5, borderTop: 1, borderColor: 'divider' }}>
                   <Box
                     sx={{
                       display: 'grid',
