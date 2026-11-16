@@ -4207,7 +4207,6 @@ const InventoryItem = () => {
                       onChange={(next) => setField('onlyInStore', next)}
                     />
                     <FlagChip label="Tag Reprint" checked={form.tagReprint} onChange={(next) => setField('tagReprint', next)} />
-                    <FlagChip label="Sold" checked={form.isSold} onChange={(next) => setField('isSold', next)} />
                     <TextField
                       select
                       label="Subscription"
@@ -4899,7 +4898,7 @@ const InventoryItem = () => {
                 </CollapsibleSection>
               </Grid>
 
-              {/* Sold: opens when Sold is on (status pills above). */}
+              {/* Sold: starts open when the item is sold. */}
               <Grid size={12}>
                 <CollapsibleSection
                   title="Sold"
@@ -4908,9 +4907,19 @@ const InventoryItem = () => {
                   onToggle={() => toggleSection('sold')}
                 >
                   <Grid container spacing={2.5} sx={{ pt: 1 }}>
-                    {editId && wasSoldOnLoad && form.isSold ? (
-                      <Grid size={12}>
-                        {itemOrder ? (
+                    <Grid size={12}>
+                      <Stack direction="row" sx={{ alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={form.isSold}
+                              onChange={(event) => setField('isSold', event.target.checked)}
+                            />
+                          }
+                          label="Is Sold"
+                        />
+                        {editId && wasSoldOnLoad && form.isSold ? (
+                          itemOrder ? (
                         <Button
                           size="small"
                           href={paths.orderManagerItemWithId(itemOrder.id)}
@@ -4932,9 +4941,10 @@ const InventoryItem = () => {
                         >
                           Create / attach order
                         </Button>
-                      )}
-                      </Grid>
-                    ) : null}
+                          )
+                        ) : null}
+                      </Stack>
+                    </Grid>
                     <Grid size={{ xs: 12, md: 4 }}>
                       <TextField
                         fullWidth
